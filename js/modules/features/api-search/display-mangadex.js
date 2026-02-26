@@ -7,6 +7,12 @@ window.EveOS.API.DisplayInternals = window.EveOS.API.DisplayInternals || {};
         const attributes = manga?.attributes || {};
         const relationships = internals.toArray(manga?.relationships);
         const tags = internals.toArray(attributes?.tags);
+        const stats = (manga?.stats && typeof manga.stats === "object") ? manga.stats : {};
+        const bayesianRating = Number(stats?.rating?.bayesian);
+        const averageRating = Number(stats?.rating?.average);
+        const numericScore = Number.isFinite(bayesianRating)
+            ? bayesianRating
+            : (Number.isFinite(averageRating) ? averageRating : null);
 
         const coverRel = relationships.find(rel => rel.type === "cover_art");
         const coverFileName = coverRel?.attributes?.fileName;
@@ -79,10 +85,10 @@ window.EveOS.API.DisplayInternals = window.EveOS.API.DisplayInternals || {};
             synonyms,
             description: internals.cleanText(internals.pickLocalizedText(attributes?.description), 240),
             status,
-            score: "N/A",
+            score: numericScore === null ? "N/A" : Number(numericScore.toFixed(2)),
             rank: "",
             popularity: "",
-            members: "",
+            members: Number.isFinite(Number(stats?.follows)) ? Number(stats.follows) : "",
             favorites: "",
             chapters: attributes?.lastChapter || "?",
             volumes: attributes?.lastVolume || "?",
