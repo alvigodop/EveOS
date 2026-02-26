@@ -16,6 +16,8 @@ window.EveModuleManifest = {
         'js/modules/features/data-transfer.js',
         'js/modules/ui/visuals.js',
         'js/modules/ui/header.js',
+        'js/modules/features/header-controls/hc-state.js',
+        'js/modules/features/header-controls/hc-ui.js',
         'js/modules/ui/sidebar.js',
         'js/modules/ui/dashboard/dashboard-dock.js',
         // Dashboard Categories Modules
@@ -513,6 +515,7 @@ window.EveModuleManifest = {
         // Feature Modules
         'js/modules/features/widgets.css',
         'js/modules/features/search.css',
+        'js/modules/features/header-controls/hc.css',
         'js/modules/features/search-advanced/sa.css',
         'js/modules/features/api-search/search-results.css',
         'js/modules/features/sources/sources.css',

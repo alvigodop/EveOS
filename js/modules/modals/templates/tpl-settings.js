@@ -31,6 +31,11 @@ window.modalTemplate += `
                 </select>
                 <div style="font-size:0.8rem; opacity:0.75; margin-top:4px;">Tip: press Shift+Enter in search to open Expanded mode once.</div>
             </div>
+            <div>
+                <label style="color:var(--accent);">Header Readout:</label>
+                <button type="button" onclick="openHeaderControlsModal()" style="width:100%;">Open Header Controls</button>
+                <div style="font-size:0.8rem; opacity:0.75; margin-top:4px;">Adjust greeting/clock messages, font, color, and effects.</div>
+            </div>
 
             <!-- Styling Section -->
             <div style="border-top:1px solid #444; padding-top:10px; margin-top:5px;">
