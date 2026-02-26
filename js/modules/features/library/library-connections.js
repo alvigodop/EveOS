@@ -135,11 +135,13 @@ window.EveLibrary = window.EveLibrary || {};
             chapter: 0,
             season: 0,
             episode: 0,
-            summary: link.url ? `Source: ${link.url}` : '',
+            sourceUrl: link.url || '',
+            summary: '',
             rating: '',
             language: '',
             tags: [],
             dateAdded: new Date().toISOString(),
+            lastEdited: new Date().toISOString(),
             favorite: false,
             image: ''
         };
@@ -205,10 +207,15 @@ window.EveLibrary = window.EveLibrary || {};
         const allLinks = getLinks();
         let changed = false;
         linked.forEach(conn => {
-            const l = allLinks.find(item => item.id === conn.linkId);
+            const l = allLinks.find(item => String(item.id) === String(conn.linkId));
             if (!l) return;
             if (l.title !== entry.title) {
                 l.title = entry.title;
+                changed = true;
+            }
+            const sourceUrl = (entry.sourceUrl || '').trim();
+            if (sourceUrl && l.url !== sourceUrl) {
+                l.url = sourceUrl;
                 changed = true;
             }
         });
@@ -227,10 +234,10 @@ window.EveLibrary = window.EveLibrary || {};
         if (!found?.entry) return;
         const entry = found.entry;
         entry.title = link.title || entry.title;
-        if (link.url && (!entry.summary || entry.summary.startsWith('Source: '))) {
-            entry.summary = `Source: ${link.url}`;
-        }
+        if (link.url) entry.sourceUrl = link.url;
+        entry.lastEdited = new Date().toISOString();
         window.EveLibrary.Storage?.saveLibrary?.();
+        emitLinkedEntryUpdated(linkId, found.categoryName, entry);
     }
 
     function getLinkedEntry(linkId) {
@@ -250,6 +257,7 @@ window.EveLibrary = window.EveLibrary || {};
         const found = findEntryByConnection(conn);
         if (!found?.entry) return false;
         Object.assign(found.entry, patch);
+        found.entry.lastEdited = new Date().toISOString();
         window.EveLibrary.Storage?.saveLibrary?.();
         syncFromLibraryEntry(found.categoryName, found.entry);
         return true;

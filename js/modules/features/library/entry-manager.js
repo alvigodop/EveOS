@@ -15,6 +15,7 @@ window.EveLibrary = window.EveLibrary || {};
 
     function getFormData(categoryName) {
         const prefix = `lib-${categoryName.replace(/[^a-zA-Z0-9]/g, '_')}-`;
+        const rawSourceUrl = document.getElementById(prefix + 'source-url')?.value.trim() || '';
         return {
             title: document.getElementById(prefix + 'title')?.value.trim() || '',
             author: document.getElementById(prefix + 'author')?.value.trim() || '',
@@ -26,6 +27,7 @@ window.EveLibrary = window.EveLibrary || {};
             summary: document.getElementById(prefix + 'summary')?.value.trim() || '',
             rating: document.getElementById(prefix + 'rating')?.value || '',
             language: document.getElementById(prefix + 'language')?.value.trim() || '',
+            sourceUrl: rawSourceUrl ? normalizeUrl(rawSourceUrl) : '',
             tags: (document.getElementById(prefix + 'tags')?.value || '').split(',').map(t => t.trim()).filter(t => t),
             imageUrl: document.getElementById(prefix + 'image-url')?.value.trim() || ''
         };
@@ -35,6 +37,7 @@ window.EveLibrary = window.EveLibrary || {};
         const lib = State.getCategoryLibrary(categoryName);
         const dataType = lib.dataType || 'graphicNovels';
         const data = getFormData(categoryName);
+        const nowIso = new Date().toISOString();
 
         const newEntry = {
             id: generateUniqueId(),
@@ -51,8 +54,10 @@ window.EveLibrary = window.EveLibrary || {};
             summary: data.summary,
             rating: data.rating,
             language: data.language,
+            sourceUrl: data.sourceUrl,
             tags: data.tags,
-            dateAdded: new Date().toISOString(),
+            dateAdded: nowIso,
+            lastEdited: nowIso,
             favorite: false,
             image: data.imageUrl
         };
@@ -71,6 +76,7 @@ window.EveLibrary = window.EveLibrary || {};
         if (!entry) return null;
 
         const data = getFormData(categoryName);
+        const nowIso = new Date().toISOString();
 
         entry.title = data.title;
         entry.author = data.author;
@@ -96,8 +102,10 @@ window.EveLibrary = window.EveLibrary || {};
         entry.summary = data.summary;
         entry.rating = data.rating;
         entry.language = data.language;
+        entry.sourceUrl = data.sourceUrl;
         entry.tags = data.tags;
         if (data.imageUrl) entry.image = data.imageUrl;
+        entry.lastEdited = nowIso;
 
         Storage.saveLibrary();
         if (window.EveLibrary?.ConnectionsAPI?.syncFromLibraryEntry) {

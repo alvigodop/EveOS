@@ -67,10 +67,14 @@ window.EveLibrary = window.EveLibrary || {};
         if (!sortBySelect) return;
 
         sortBySelect.innerHTML = '<option value="">Sort By</option>';
+        const labelMap = {
+            dateAdded: 'Date Added',
+            lastEdited: 'Last Edited'
+        };
         (typeConfig?.sortOptions || []).forEach(field => {
             const option = document.createElement('option');
             option.value = field;
-            option.textContent = field.charAt(0).toUpperCase() + field.slice(1);
+            option.textContent = labelMap[field] || (field.charAt(0).toUpperCase() + field.slice(1));
             sortBySelect.appendChild(option);
         });
     }

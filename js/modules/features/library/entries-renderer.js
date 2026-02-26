@@ -54,6 +54,12 @@ window.EveLibrary = window.EveLibrary || {};
     function createEntryHtml(entry, displayNumber, dataType, categoryName) {
         const safeCat = categoryName.replace(/'/g, "\\'");
         const safeId = entry.id;
+        const lastEditedText = formatLastEdited(entry.lastEdited || entry.dateAdded);
+        const sourceUrl = entry.sourceUrl || '';
+        const safeSourceUrl = sourceUrl.replace(/'/g, "\\'");
+        const titleHtml = sourceUrl
+            ? `<button class="lib-entry-title-btn" onclick="window.EveLibrary.UI.openEntryLink('${safeSourceUrl}')" title="Open source link">${displayNumber}. ${entry.title}</button>`
+            : `<h4 class="lib-entry-title">${displayNumber}. ${entry.title}</h4>`;
 
         return `
             <div class="lib-entry" data-id="${safeId}">
@@ -69,7 +75,7 @@ window.EveLibrary = window.EveLibrary || {};
                    <input type="checkbox" class="lib-batch-checkbox" data-category="${safeCat}" data-id="${safeId}">
                 </div>
                 ${entry.image ? `<img class="lib-entry-image" src="${entry.image}" alt="${entry.title}" onclick="window.EveLibrary.UI.openLightbox('${entry.image}')" title="View Fullsize">` : ''}
-                <h4 class="lib-entry-title">${displayNumber}. ${entry.title}</h4>
+                ${titleHtml}
                 <div class="lib-entry-details">
                     <p><strong>Author:</strong> ${entry.author || 'N/A'}</p>
                     <p><strong>Genre:</strong> ${entry.genre || 'N/A'}</p>
@@ -78,8 +84,23 @@ window.EveLibrary = window.EveLibrary || {};
                     <p><strong>Rating:</strong> ${entry.rating || 'N/A'}</p>
                     ${entry.tags?.length ? `<p><strong>Tags:</strong> ${entry.tags.join(', ')}</p>` : ''}
                 </div>
+                <div class="lib-entry-last-edited" title="Last edited">${lastEditedText}</div>
             </div>
         `;
+    }
+
+    function formatLastEdited(isoValue) {
+        if (!isoValue) return 'Last edited: -';
+        const parsed = new Date(isoValue);
+        if (Number.isNaN(parsed.getTime())) return 'Last edited: -';
+        const stamp = parsed.toLocaleString(undefined, {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit'
+        });
+        return `Last edited: ${stamp}`;
     }
 
     function renderTypeFields(entry, dataType) {

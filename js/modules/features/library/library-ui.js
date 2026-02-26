@@ -69,7 +69,12 @@ window.EveLibrary = window.EveLibrary || {};
                     </label>
                     <label>Language: <input type="text" id="${prefix}language"></label>
                     <label>Tags: <input type="text" id="${prefix}tags" placeholder="comma separated"></label>
+                    <label>Source URL: <input type="url" id="${prefix}source-url"></label>
                     <label>Image URL: <input type="url" id="${prefix}image-url"></label>
+                    <label class="lib-full-width lib-entry-meta-line">
+                        <span id="${prefix}date-added-meta">Added: -</span>
+                        <span id="${prefix}last-edited-meta">Last Edited: -</span>
+                    </label>
                     <label class="lib-full-width">Summary: <textarea id="${prefix}summary" rows="2"></textarea></label>
                 </div>
                 <div class="lib-form-actions">
@@ -220,6 +225,8 @@ window.EveLibrary = window.EveLibrary || {};
             const el = document.getElementById(prefix + field);
             if (el) el.value = '';
         });
+        const sourceUrl = document.getElementById(prefix + 'source-url');
+        if (sourceUrl) sourceUrl.value = '';
         ['chapter', 'season', 'episode'].forEach(field => {
             const el = document.getElementById(prefix + field);
             if (el) el.value = '0';
@@ -228,22 +235,46 @@ window.EveLibrary = window.EveLibrary || {};
         if (rating) rating.value = '';
         const status = document.getElementById(prefix + 'status');
         if (status && status.options.length > 0) status.selectedIndex = 0;
+        const dateAddedMeta = document.getElementById(prefix + 'date-added-meta');
+        const lastEditedMeta = document.getElementById(prefix + 'last-edited-meta');
+        if (dateAddedMeta) dateAddedMeta.textContent = 'Added: -';
+        if (lastEditedMeta) lastEditedMeta.textContent = 'Last Edited: -';
     }
 
     function fillForm(categoryName, entry) {
         const prefix = `lib-${categoryName.replace(/[^a-zA-Z0-9]/g, '_')}-`;
+        const summaryValue = (entry.summary || '');
+        const safeSummary = /^Source:\s*https?:\/\//i.test(summaryValue.trim()) ? '' : summaryValue;
         document.getElementById(prefix + 'title').value = entry.title || '';
         document.getElementById(prefix + 'author').value = entry.author || '';
         document.getElementById(prefix + 'genre').value = entry.genre || '';
-        document.getElementById(prefix + 'summary').value = entry.summary || '';
+        document.getElementById(prefix + 'summary').value = safeSummary;
         document.getElementById(prefix + 'language').value = entry.language || '';
         document.getElementById(prefix + 'tags').value = (entry.tags || []).join(', ');
+        document.getElementById(prefix + 'source-url').value = entry.sourceUrl || '';
         document.getElementById(prefix + 'image-url').value = entry.image || '';
         document.getElementById(prefix + 'chapter').value = entry.chapter || 0;
         document.getElementById(prefix + 'season').value = entry.season || 0;
         document.getElementById(prefix + 'episode').value = entry.episode || 0;
         document.getElementById(prefix + 'rating').value = entry.rating || '';
         document.getElementById(prefix + 'status').value = entry.status || '';
+        const dateAddedMeta = document.getElementById(prefix + 'date-added-meta');
+        const lastEditedMeta = document.getElementById(prefix + 'last-edited-meta');
+        if (dateAddedMeta) dateAddedMeta.textContent = `Added: ${formatTimestamp(entry.dateAdded)}`;
+        if (lastEditedMeta) lastEditedMeta.textContent = `Last Edited: ${formatTimestamp(entry.lastEdited || entry.dateAdded)}`;
+    }
+
+    function formatTimestamp(value) {
+        if (!value) return '-';
+        const parsed = new Date(value);
+        if (Number.isNaN(parsed.getTime())) return '-';
+        return parsed.toLocaleString(undefined, {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit'
+        });
     }
 
     function editEntry(categoryName, entryId) {
@@ -423,6 +454,10 @@ window.EveLibrary = window.EveLibrary || {};
                     alert('Failed to restore.');
                 }
             }
+        },
+        openEntryLink: (url) => {
+            if (!url) return;
+            window.open(url, '_blank', 'noopener');
         }
     };
 

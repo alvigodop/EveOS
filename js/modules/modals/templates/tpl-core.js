@@ -82,7 +82,14 @@ window.modalTemplate = `
                     <input type="text" id="libTags" placeholder="Tags (comma separated)" style="flex:1;">
                 </div>
                 <div style="display:flex; gap:5px; margin-bottom:5px;">
+                    <input type="url" id="libSourceUrl" placeholder="Source URL (syncs with bookmark URL)" style="flex:1;">
+                </div>
+                <div style="display:flex; gap:5px; margin-bottom:5px;">
                     <input type="url" id="libImageUrl" placeholder="Image URL (optional)" style="flex:1;">
+                </div>
+                <div style="display:flex; gap:14px; margin:6px 0 8px; font-size:0.78rem; opacity:0.72;">
+                    <span id="libDateAddedMeta">Added: -</span>
+                    <span id="libLastEditedMeta">Last Edited: -</span>
                 </div>
                 <textarea id="libSummary" placeholder="Library summary/notes" rows="2" style="width:100%;"></textarea>
             </div>

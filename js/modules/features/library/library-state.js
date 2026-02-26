@@ -14,19 +14,19 @@ window.EveLibrary = window.EveLibrary || {};
         graphicNovels: {
             label: 'Graphic Novels',
             statuses: ['Reading', 'Completed', 'Plan to Read'],
-            sortOptions: ['title', 'author', 'genre', 'rating', 'status', 'dateAdded', 'chapter'],
+            sortOptions: ['title', 'author', 'genre', 'rating', 'status', 'dateAdded', 'lastEdited', 'chapter'],
             fields: ['chapter']
         },
         films: {
             label: 'Films',
             statuses: ['Watching', 'Completed', 'On Hold', 'Dropped', 'Plan to Watch'],
-            sortOptions: ['title', 'author', 'genre', 'rating', 'status', 'dateAdded', 'season', 'episode'],
+            sortOptions: ['title', 'author', 'genre', 'rating', 'status', 'dateAdded', 'lastEdited', 'season', 'episode'],
             fields: ['season', 'episode']
         },
         novels: {
             label: 'Novels',
             statuses: ['Reading', 'Completed', 'Plan to Read'],
-            sortOptions: ['title', 'author', 'genre', 'rating', 'status', 'dateAdded', 'chapter'],
+            sortOptions: ['title', 'author', 'genre', 'rating', 'status', 'dateAdded', 'lastEdited', 'chapter'],
             fields: ['chapter']
         }
     };

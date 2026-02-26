@@ -79,6 +79,15 @@ window.EveLibrary = window.EveLibrary || {};
         if (!sortBy) return entries;
 
         return entries.sort((a, b) => {
+            if (sortBy === 'dateAdded' || sortBy === 'lastEdited') {
+                const rawA = sortBy === 'lastEdited' ? (a?.lastEdited || a?.dateAdded || '') : (a?.dateAdded || '');
+                const rawB = sortBy === 'lastEdited' ? (b?.lastEdited || b?.dateAdded || '') : (b?.dateAdded || '');
+                const dateA = Date.parse(rawA) || 0;
+                const dateB = Date.parse(rawB) || 0;
+                const comparison = dateA - dateB;
+                return sortOrder === 'desc' ? -comparison : comparison;
+            }
+
             let valA = a[sortBy];
             let valB = b[sortBy];
 

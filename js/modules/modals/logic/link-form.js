@@ -40,6 +40,7 @@ function readLibraryFormPatch() {
         season: toInt('libSeason'),
         episode: toInt('libEpisode'),
         language: document.getElementById('libLanguage')?.value.trim() || '',
+        sourceUrl: normalizeUrl(document.getElementById('libSourceUrl')?.value.trim() || ''),
         image: document.getElementById('libImageUrl')?.value.trim() || '',
         tags: (document.getElementById('libTags')?.value || '')
             .split(',')
@@ -48,6 +49,11 @@ function readLibraryFormPatch() {
         summary: document.getElementById('libSummary')?.value.trim() || '',
         mediaTypes
     };
+}
+
+function isAutoSourceSummary(summaryValue) {
+    if (!summaryValue) return false;
+    return /^Source:\s*https?:\/\//i.test(String(summaryValue).trim());
 }
 
 function fillLibraryForm(entry) {
@@ -66,9 +72,15 @@ function fillLibraryForm(entry) {
     document.getElementById('libSeason').value = entry?.season ?? 0;
     document.getElementById('libEpisode').value = entry?.episode ?? 0;
     document.getElementById('libLanguage').value = entry?.language || '';
+    document.getElementById('libSourceUrl').value = entry?.sourceUrl || document.getElementById('newUrl')?.value || '';
     document.getElementById('libImageUrl').value = entry?.image || entry?.imageUrl || '';
     document.getElementById('libTags').value = Array.isArray(entry?.tags) ? entry.tags.join(', ') : '';
-    document.getElementById('libSummary').value = entry?.summary || '';
+    const summaryValue = entry?.summary || '';
+    document.getElementById('libSummary').value = isAutoSourceSummary(summaryValue) ? '' : summaryValue;
+    const addedMeta = document.getElementById('libDateAddedMeta');
+    const editedMeta = document.getElementById('libLastEditedMeta');
+    if (addedMeta) addedMeta.textContent = `Added: ${formatLibraryTimestamp(entry?.dateAdded)}`;
+    if (editedMeta) editedMeta.textContent = `Last Edited: ${formatLibraryTimestamp(entry?.lastEdited || entry?.dateAdded)}`;
     updateLibraryProgressFieldVisibility();
 }
 
@@ -77,6 +89,19 @@ function resetLibraryForm() {
     document.getElementById('libTypeFilms').checked = false;
     document.getElementById('libTypeNovels').checked = false;
     fillLibraryForm(null);
+}
+
+function formatLibraryTimestamp(value) {
+    if (!value) return '-';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return '-';
+    return parsed.toLocaleString(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit'
+    });
 }
 
 function refreshLibraryStatusOptions(categoryName) {
@@ -123,6 +148,8 @@ function updateLibraryProgressFieldVisibility(categoryName) {
 function setupLibraryToggleHandlers() {
     const toggle = getLibraryFormToggle();
     const categoryInput = document.getElementById('newCategory');
+    const bookmarkUrlInput = document.getElementById('newUrl');
+    const libraryUrlInput = document.getElementById('libSourceUrl');
     const typeGraphic = document.getElementById('libTypeGraphic');
     const typeFilms = document.getElementById('libTypeFilms');
     const typeNovels = document.getElementById('libTypeNovels');
@@ -140,6 +167,36 @@ function setupLibraryToggleHandlers() {
             updateLibraryProgressFieldVisibility(categoryName);
         };
     }
+    if (bookmarkUrlInput && libraryUrlInput) {
+        let liveSyncTimer = null;
+        const pushLiveSourceUrlToLinkedEntry = () => {
+            const editId = document.getElementById('editId')?.value;
+            if (!editId) return;
+            const api = getConnectionsApi();
+            if (!api?.findConnectionByLinkId?.(editId)) return;
+            const sourceUrl = (libraryUrlInput.value || '').trim();
+            clearTimeout(liveSyncTimer);
+            liveSyncTimer = setTimeout(() => {
+                api.updateLinkedEntry?.(editId, { sourceUrl });
+            }, 150);
+        };
+
+        let syncing = false;
+        bookmarkUrlInput.oninput = () => {
+            if (syncing) return;
+            syncing = true;
+            libraryUrlInput.value = bookmarkUrlInput.value;
+            syncing = false;
+            pushLiveSourceUrlToLinkedEntry();
+        };
+        libraryUrlInput.oninput = () => {
+            if (syncing) return;
+            syncing = true;
+            bookmarkUrlInput.value = libraryUrlInput.value;
+            syncing = false;
+            pushLiveSourceUrlToLinkedEntry();
+        };
+    }
 }
 
 function loadLibraryStateForLink(linkId, categoryName) {
@@ -153,6 +210,11 @@ function loadLibraryStateForLink(linkId, categoryName) {
         toggle.checked = true;
         setLibraryFieldsVisibility(true);
         fillLibraryForm(linked.entry);
+        const linkedUrl = linked.entry.sourceUrl || '';
+        const newUrlInput = document.getElementById('newUrl');
+        if (linkedUrl && newUrlInput && !newUrlInput.matches(':focus')) {
+            newUrlInput.value = linkedUrl;
+        }
         if (linked.entry.status) {
             document.getElementById('libStatus').value = linked.entry.status;
         }
@@ -191,9 +253,7 @@ function saveLibraryLinkState(linkId, categoryName, title, url) {
     // Backward compatibility for existing library views that still read `chapter`.
     patch.chapter = patch.graphicChapter || patch.novelChapter || 0;
     patch.title = title;
-    if (!patch.summary && url) {
-        patch.summary = `Source: ${url}`;
-    }
+    if (!patch.sourceUrl && url) patch.sourceUrl = normalizeUrl(url);
     api.updateLinkedEntry?.(linkId, patch);
 }
 
@@ -324,6 +384,10 @@ if (!window.__eveLibraryBookmarkModalRealtimeBound) {
         const titleField = document.getElementById('newTitle');
         if (titleField && !titleField.matches(':focus')) {
             titleField.value = entry.title || titleField.value;
+        }
+        const urlField = document.getElementById('newUrl');
+        if (urlField && !urlField.matches(':focus') && entry.sourceUrl) {
+            urlField.value = entry.sourceUrl;
         }
     });
 }
