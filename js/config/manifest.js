@@ -70,6 +70,8 @@ window.EveModuleManifest = {
         'js/modules/modals/modal-category-settings.js',
         // Modal Logic Modules
         'js/modules/modals/logic/utils.js',
+        'js/modules/modals/logic/link-form.shared.js',
+        'js/modules/modals/logic/link-form.library.js',
         'js/modules/modals/logic/link-form.js',
         'js/modules/modals/logic/category-rename.js',
         'js/modules/modals/logic/workspace.js',
@@ -78,11 +80,15 @@ window.EveModuleManifest = {
         'js/modules/features/api-search/api-core.js',
         'js/modules/features/api-search/card-ui.js',
         'js/modules/features/api-search/mangadex.js',
-        'js/modules/features/sources/source-manager.js',
         'js/modules/features/api-search/jikan.js',
         'js/modules/features/api-search/anilist.js',
+        'js/modules/features/api-search/display-utils.js',
+        'js/modules/features/api-search/display-mangadex.js',
+        'js/modules/features/api-search/display-jikan.js',
+        'js/modules/features/api-search/display-anilist.js',
         'js/modules/features/api-search/display.js',
         'js/modules/features/api-search/index.js',
+        'js/modules/features/sources/source-manager.js',
 
         // Autotitle
         'js/modules/features/autotitle/strategies/allorigins.js',

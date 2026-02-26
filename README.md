@@ -59,6 +59,31 @@ The system is intentionally compartmentalized. Workspace tabs, category cards, b
 9. `js/modules/features/library/entry-manager.js`  
    Library CRUD and synchronization hooks to linked bookmarks.
 
+## Recent Modularization Updates
+
+1. Bookmark modal logic split for maintainability:
+   - `js/modules/modals/logic/link-form.shared.js`
+   - `js/modules/modals/logic/link-form.library.js`
+   - `js/modules/modals/logic/link-form.js` (orchestrator only)
+
+2. API search display pipeline split by responsibility:
+   - `js/modules/features/api-search/display-utils.js`
+   - `js/modules/features/api-search/display-mangadex.js`
+   - `js/modules/features/api-search/display-jikan.js`
+   - `js/modules/features/api-search/display-anilist.js`
+   - `js/modules/features/api-search/display.js` (orchestrator only)
+
+3. Source attachment flow improvement:
+   - `js/modules/features/sources/source-manager.js` now supports attaching multiple API results in one search session.
+   - Duplicate prevention now uses URL-first identity and provider/title/media-type fallback.
+
+4. Metadata mapping improvement:
+   - API `countryOfOrigin` is normalized into Library `Language` when `Language` is empty.
+   - Implemented in `link-form.shared.js` + `link-form.library.js`.
+
+5. Load order updates:
+   - `js/config/manifest.js` now loads split modules before their orchestrators.
+
 ## Backup Scopes
 
 EveOS now has three restore/export scopes:
@@ -80,6 +105,31 @@ Reference JSON schema: `data/unified-state-template.json`
 - Library records are optional enrichments linked by connection records.
 - Editing and restoring JSON updates visible site state after import.
 - Linked bookmark/library fields sync through `library-connections.js` and module save hooks.
+
+## Console Log Triage (Bug Finder Workflow)
+
+Use console output as signal, but classify logs by severity:
+
+1. Expected/Informational (safe to keep):
+   - Module init lines (`... initialized`, `... loaded`, `... facade loaded`).
+   - Startup sequence lines from script loaders and UI loaders.
+
+2. Usually Non-blocking Warnings:
+   - `Tracking Prevention blocked access to storage for <URL>.`
+     - Browser privacy policy warning; typically not an app bug.
+   - `[Violation] Added non-passive event listener...`
+     - Performance warning; does not usually break functionality.
+   - `componentHandler not available, skipping upgrade`
+     - Common during early MDL load ordering; often resolves later in boot.
+
+3. Actionable Errors (treat as real issues):
+   - `Uncaught`, `TypeError`, `ReferenceError`, failed module dependency lines.
+   - Repeated WebSocket/API failures when backend is expected online.
+   - `Module ... not loaded` in runtime paths that should be active.
+
+4. Quick triage rule:
+   - If UI functions correctly and only warnings above appear, startup is healthy.
+   - If functionality is broken, search console for first `error` after user action and trace that stack first.
 
 ## Running
 

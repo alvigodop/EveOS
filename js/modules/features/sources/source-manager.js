@@ -15,6 +15,16 @@
         return Array.isArray(value) ? value : [];
     }
 
+    function getSourceIdentity(source) {
+        const url = String(source?.url || "").trim().toLowerCase();
+        if (url) return `url:${url}`;
+
+        const provider = String(source?.source || "").trim().toLowerCase();
+        const title = String(source?.title || "").trim().toLowerCase();
+        const mediaType = String(source?.mediaType || "").trim().toLowerCase();
+        return `meta:${provider}|${title}|${mediaType}`;
+    }
+
     function uniqStrings(values) {
         const seen = new Set();
         const result = [];
@@ -50,9 +60,7 @@
 
         if (window.EveOS && window.EveOS.API && window.EveOS.API.Manager) {
             window.EveOS.API.Manager.runSearch(query, resultsDiv, (data) => {
-                addSource(data);
-                resultsDiv.style.display = "none";
-                resultsDiv.innerHTML = "";
+                return addSource(data);
             });
         } else {
             showToast("Search API not ready", "error");
@@ -62,13 +70,16 @@
     function addSource(data) {
         if (!window.tempSources) window.tempSources = [];
 
-        if (window.tempSources.some(source => source.url === data.url)) {
-            return showToast("Source already added", "info");
+        const incomingIdentity = getSourceIdentity(data);
+        if (window.tempSources.some(source => getSourceIdentity(source) === incomingIdentity)) {
+            showToast("Source already added", "info");
+            return false;
         }
 
         window.tempSources.push(data);
         renderSourcesList();
         showToast("Source Added", "success");
+        return true;
     }
 
     function removeSource(index) {
