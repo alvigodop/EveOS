@@ -103,6 +103,7 @@ window.EveModuleManifest = {
         'js/modules/features/autotitle/autotitle-core.js',
         'js/modules/features/autotitle/autotitle-ui.js',
         'js/modules/features/autotitle/autotitle-bulk.js',
+        'js/modules/features/library/library-bulk-auto.js',
 
         // --- Scraper Feature Modules (Ported) ---
         'js/modules/features/scraper/utils/error-handling/interceptor/components/core.js',

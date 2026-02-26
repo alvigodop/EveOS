@@ -114,8 +114,12 @@ window.EveLibrary = window.EveLibrary || {};
     }
 
     function normalizePersonalRatingTo10(rawRating) {
+        if (rawRating === null || rawRating === undefined || String(rawRating).trim() === "") {
+            // Empty personal rating is treated as baseline 0 so API ratings do not fully dominate unified score.
+            return 0;
+        }
         const n = toNumberOrNull(rawRating);
-        if (n === null) return null;
+        if (n === null) return 0;
         // Existing personal ratings are stored as 1-5 stars.
         if (n <= 5) return round(clamp(n * 2, 0, 10), 2);
         return round(clamp(n, 0, 10), 2);

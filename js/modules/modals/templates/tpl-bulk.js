@@ -43,4 +43,22 @@ window.modalTemplate += `
         </div>
     </div>
 </div>
+
+<div class="modal-overlay" id="bulkLibraryAutoModal">
+    <div class="modal" style="max-width:700px; height:84vh; display:flex; flex-direction:column;">
+        <h2>Auto-Add Library Entries</h2>
+        <p style="font-size:0.85rem; opacity:0.75; margin:0 0 10px;">
+            Strict mode: sources are accepted only when API title/synonym matches the bookmark title exactly (case-sensitive).
+        </p>
+        <div style="flex:1; overflow-y:auto; border:1px solid #444; background:#111; margin-bottom:15px;" id="bulkLibraryAutoList"></div>
+        <div style="display:flex; gap:10px; margin-bottom:15px;">
+            <button onclick="toggleAllBulkLibraryAuto(true)" style="font-size:0.8rem; padding:5px 10px;">Select All</button>
+            <button onclick="toggleAllBulkLibraryAuto(false)" style="font-size:0.8rem; padding:5px 10px;">Deselect All</button>
+        </div>
+        <div style="display:flex; gap:10px;">
+            <button class="btn-primary" onclick="runBulkLibraryAutoUpdate()" id="btnRunBulkLibraryAuto">Start Update</button>
+            <button onclick="closeModals()">Close</button>
+        </div>
+    </div>
+</div>
 `;

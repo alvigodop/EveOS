@@ -19,6 +19,7 @@ window.modalTemplate += `
             <div style="display:flex; flex-direction:column; gap:10px;">
                 <button onclick="closeModals(); openRenameModal(window.currentCategoryCtx)" style="width:100%;">✎ Rename Category</button>
                 <button onclick="closeModals(); openBulkTitleModal(window.currentCategoryCtx)" style="width:100%;">🪄 Auto-Title Links</button>
+                <button onclick="closeModals(); openBulkLibraryAutoModal(window.currentCategoryCtx)" style="width:100%;">📚 Auto-Add Library Entries</button>
                 <button onclick="closeModals(); ctxCatFocus()" style="width:100%;">🎯 Focus Mode</button>
                 <button onclick="closeModals(); ctxCatToggleTask()" style="width:100%;">📝 Toggle Task Mode</button>
                 <div style="border-top:1px solid #444; margin-top:10px; padding-top:10px;">
