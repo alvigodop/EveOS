@@ -7,6 +7,9 @@ async function loadExternalStylesheetsAndScripts() {
     console.log('externalStylesheetsAndScriptsUILoader.js: Loading External Stylesheets and Scripts component...');
 
     try {
+        const appRoot = (window.GEMINI_APP_ROOT || '').replace(/\\/g, '/');
+        const normalizedRoot = appRoot && !appRoot.endsWith('/') ? `${appRoot}/` : appRoot;
+
         const headElement = document.head;
         if (!headElement) {
             throw new Error('Document head element not found');
@@ -19,7 +22,7 @@ async function loadExternalStylesheetsAndScripts() {
             // Material Design Lite (MDL) CSS (Cyan theme to match Eve OS)
             { type: 'link', rel: 'stylesheet', href: 'https://cdnjs.cloudflare.com/ajax/libs/material-design-lite/1.3.0/material.cyan-light_blue.min.css' },
             // Favicon
-            { type: 'link', rel: 'icon', href: '/server/images/favicon.ico', customType: 'image/x-icon' },
+            { type: 'link', rel: 'icon', href: `${normalizedRoot}server/images/favicon.ico`, customType: 'image/x-icon' },
             // Dialog Polyfill CSS
             { type: 'link', rel: 'stylesheet', href: 'https://cdnjs.cloudflare.com/ajax/libs/dialog-polyfill/0.5.6/dialog-polyfill.min.css' },
             // Material Design Lite (MDL) JavaScript

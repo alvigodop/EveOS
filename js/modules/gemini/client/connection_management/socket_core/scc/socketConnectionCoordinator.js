@@ -6,11 +6,20 @@
 
 window.SocketConnectionCore = window.SocketConnectionCore || {};
 
-// Expose functions globally for backward compatibility and cross-module access
-window.connect = window.SocketConnectionCore.connect;
-window.attemptConnection = window.SocketConnectionCore.attemptConnection;
-window.resetConnection = window.SocketConnectionCore.resetConnection;
-window.stopAutoReconnect = window.SocketConnectionCore.stopAutoReconnect;
-window.startAutoReconnect = window.SocketConnectionCore.startAutoReconnect;
+function callSocketCoreMethod(methodName, ...args) {
+    const method = window.SocketConnectionCore && window.SocketConnectionCore[methodName];
+    if (typeof method === 'function') {
+        return method(...args);
+    }
+    console.warn(`SocketConnectionCore.${methodName} is not ready yet.`);
+    return undefined;
+}
+
+// Expose lazy global wrappers so load-order does not break connection startup
+window.connect = (...args) => callSocketCoreMethod('connect', ...args);
+window.attemptConnection = (...args) => callSocketCoreMethod('attemptConnection', ...args);
+window.resetConnection = (...args) => callSocketCoreMethod('resetConnection', ...args);
+window.stopAutoReconnect = (...args) => callSocketCoreMethod('stopAutoReconnect', ...args);
+window.startAutoReconnect = (...args) => callSocketCoreMethod('startAutoReconnect', ...args);
 
 console.log("socketConnectionCoordinator.js loaded - Core functions exposed (connect, reset, attempt).");

@@ -7,10 +7,13 @@ async function loadLocalStylesheet() {
     console.log('localStylesheetUILoader.js: Loading Local Stylesheet component...');
 
     try {
+        const appRoot = (window.GEMINI_APP_ROOT || '').replace(/\\/g, '/');
+        const normalizedRoot = appRoot && !appRoot.endsWith('/') ? `${appRoot}/` : appRoot;
+
         // Create the link element directly instead of fetching HTML
         const linkElement = document.createElement('link');
         linkElement.rel = 'stylesheet';
-        linkElement.href = 'main.css';
+        linkElement.href = `${normalizedRoot}css/main.css`;
 
         // Get the document head where local stylesheet should be inserted
         const headElement = document.head;

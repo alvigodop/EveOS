@@ -10,15 +10,21 @@ window.PageInitializationCore.ConnectivityStartup = {
         console.log('HTML components loaded. Starting WebSocket connection...');
 
         // Connection Logic with Polling
-        const maxAttempts = 50;
+        const maxAttempts = 150;
         let attempts = 0;
 
         const attemptConnect = () => {
-            if (typeof window.connect === 'function') {
+            const connectFn =
+                (typeof window.connect === 'function' && window.connect) ||
+                (window.SocketConnectionCore && typeof window.SocketConnectionCore.connect === 'function'
+                    ? window.SocketConnectionCore.connect.bind(window.SocketConnectionCore)
+                    : null);
+
+            if (connectFn) {
                 if (typeof window.displayMessage === 'function') {
                     window.displayMessage("System Message: Attempting to connect to server automatically...", true);
                 }
-                window.connect();
+                connectFn();
             } else {
                 attempts++;
                 if (attempts < maxAttempts) {
@@ -54,8 +60,13 @@ window.PageInitializationCore.ConnectivityStartup = {
     },
 
     preInitReset: function () {
-        if (typeof window.resetConnection === 'function') {
-            window.resetConnection();
+        const coreReset =
+            window.SocketConnectionCore && typeof window.SocketConnectionCore.resetConnection === 'function'
+                ? window.SocketConnectionCore.resetConnection.bind(window.SocketConnectionCore)
+                : null;
+
+        if (coreReset) {
+            coreReset();
         }
     },
 

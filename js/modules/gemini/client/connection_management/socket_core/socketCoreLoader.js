@@ -24,22 +24,28 @@ const socketCoreScripts = [
 function loadSocketCoreScripts() {
     console.log("Loading Socket Core scripts...");
 
-    // We can use the same approach as Client_Core_Control/Client_Core_Control.js,
-    // but we need to ensure they are loaded and executed in order.
-    // Given they just attach to window, parallel loading with defer might be fine,
-    // but sequential ensures safety if we had strict dependencies during IIFE execution.
-    // However, none of the IIFEs execute critical logic immediately that depends on others
-    // except for `State` reference. `defer` preserves order.
+    // Load sequentially: this module chain has hard ordering dependencies.
+    const loadSequentially = (index = 0) => {
+        if (index >= socketCoreScripts.length) {
+            console.log("socketCoreLoader.js finished. All socket core scripts loaded.");
+            return;
+        }
 
-    const fragment = document.createDocumentFragment();
-    socketCoreScripts.forEach(scriptPath => {
+        const scriptPath = socketCoreScripts[index];
         const script = document.createElement('script');
         script.src = scriptPath;
-        script.defer = true;
+        script.async = false;
+
+        script.onload = () => loadSequentially(index + 1);
+        script.onerror = (err) => {
+            console.error(`Failed to load socket core script: ${scriptPath}`, err);
+            loadSequentially(index + 1);
+        };
+
         document.head.appendChild(script);
-    });
+    };
+
+    loadSequentially();
 }
 
 loadSocketCoreScripts();
-
-console.log("socketCoreLoader.js finished.");
