@@ -22,11 +22,19 @@ window.EveOS = window.EveOS || {};
                     genres
                     averageScore
                     format
-                tags { name }
-                staff { edges { node { name { full } primaryOccupations } } }
+                    tags { name }
+                    staff {
+                        edges {
+                            role
+                            node {
+                                name { full }
+                                primaryOccupations
+                            }
+                        }
+                    }
+                }
             }
-        }
-    }`;
+        }`;
 
         const options = {
             method: 'POST',

@@ -1,4 +1,5 @@
 window.tempSources = []; // Store sources temporarily while editing
+let isLibraryFieldsCollapsed = false;
 
 function getConnectionsApi() {
     return window.EveLibrary?.ConnectionsAPI || null;
@@ -12,11 +13,29 @@ function getLibraryFieldsContainer() {
     return document.getElementById('linkLibraryFields');
 }
 
+function getLibraryCollapseButton() {
+    return document.getElementById('linkLibraryCollapseBtn');
+}
+
 function setLibraryFieldsVisibility(isVisible) {
     const container = getLibraryFieldsContainer();
-    if (container) {
-        container.style.display = isVisible ? 'block' : 'none';
+    const collapseBtn = getLibraryCollapseButton();
+    if (collapseBtn) {
+        collapseBtn.style.display = isVisible ? 'inline-flex' : 'none';
+        collapseBtn.textContent = isVisible
+            ? (isLibraryFieldsCollapsed ? 'Expand' : 'Collapse')
+            : 'Collapse';
+        collapseBtn.setAttribute('aria-expanded', (isVisible && !isLibraryFieldsCollapsed) ? 'true' : 'false');
     }
+    if (container) {
+        container.style.display = (isVisible && !isLibraryFieldsCollapsed) ? 'block' : 'none';
+    }
+}
+
+function setLibraryFieldsCollapsed(isCollapsed) {
+    isLibraryFieldsCollapsed = !!isCollapsed;
+    const toggle = getLibraryFormToggle();
+    setLibraryFieldsVisibility(!!toggle?.checked);
 }
 
 function readLibraryFormPatch() {
@@ -147,6 +166,7 @@ function updateLibraryProgressFieldVisibility(categoryName) {
 
 function setupLibraryToggleHandlers() {
     const toggle = getLibraryFormToggle();
+    const collapseBtn = getLibraryCollapseButton();
     const categoryInput = document.getElementById('newCategory');
     const bookmarkUrlInput = document.getElementById('newUrl');
     const libraryUrlInput = document.getElementById('libSourceUrl');
@@ -154,7 +174,16 @@ function setupLibraryToggleHandlers() {
     const typeFilms = document.getElementById('libTypeFilms');
     const typeNovels = document.getElementById('libTypeNovels');
     if (toggle) {
-        toggle.onchange = () => setLibraryFieldsVisibility(!!toggle.checked);
+        toggle.onchange = () => {
+            const enabled = !!toggle.checked;
+            if (enabled) {
+                isLibraryFieldsCollapsed = false;
+            }
+            setLibraryFieldsVisibility(enabled);
+        };
+    }
+    if (collapseBtn) {
+        collapseBtn.onclick = () => toggleLibraryFieldsCollapse();
     }
     const onTypesChanged = () => updateLibraryProgressFieldVisibility(categoryInput?.value?.trim() || 'Unsorted');
     if (typeGraphic) typeGraphic.onchange = onTypesChanged;
@@ -208,6 +237,7 @@ function loadLibraryStateForLink(linkId, categoryName) {
     const linked = api?.getLinkedEntry?.(linkId);
     if (linked?.entry) {
         toggle.checked = true;
+        setLibraryFieldsCollapsed(false);
         setLibraryFieldsVisibility(true);
         fillLibraryForm(linked.entry);
         const linkedUrl = linked.entry.sourceUrl || '';
@@ -222,6 +252,7 @@ function loadLibraryStateForLink(linkId, categoryName) {
     }
 
     toggle.checked = false;
+    setLibraryFieldsCollapsed(false);
     setLibraryFieldsVisibility(false);
     resetLibraryForm();
 }
@@ -257,6 +288,12 @@ function saveLibraryLinkState(linkId, categoryName, title, url) {
     api.updateLinkedEntry?.(linkId, patch);
 }
 
+window.toggleLibraryFieldsCollapse = function () {
+    const toggle = getLibraryFormToggle();
+    if (!toggle?.checked) return;
+    setLibraryFieldsCollapsed(!isLibraryFieldsCollapsed);
+};
+
 window.openAddModal = function () {
     refreshCategoryDatalist();
     document.getElementById('modalTitle').innerText = "Add Link";
@@ -277,6 +314,7 @@ window.openAddModal = function () {
     refreshLibraryStatusOptions('Unsorted');
     const toggle = getLibraryFormToggle();
     if (toggle) toggle.checked = false;
+    setLibraryFieldsCollapsed(false);
     setLibraryFieldsVisibility(false);
     resetLibraryForm();
 

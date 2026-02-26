@@ -23,10 +23,13 @@ window.modalTemplate = `
         <input type="text" id="newCategory" placeholder="Category (e.g., Work, Social)" list="availableCategories">
         <datalist id="availableCategories"></datalist>
         <div style="margin:10px 0; border:1px solid #333; border-radius:8px; padding:10px;">
-            <label style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
-                <input type="checkbox" id="linkLibraryToggle">
-                <span>Add To Library</span>
-            </label>
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px;">
+                <label style="display:flex; gap:8px; align-items:center; margin:0;">
+                    <input type="checkbox" id="linkLibraryToggle">
+                    <span>Add To Library</span>
+                </label>
+                <button type="button" id="linkLibraryCollapseBtn" onclick="toggleLibraryFieldsCollapse()" style="display:none; padding:4px 8px; font-size:0.75rem;">Collapse</button>
+            </div>
             <div id="linkLibraryFields" style="display:none;">
                 <div style="display:flex; gap:12px; align-items:center; margin-bottom:8px; flex-wrap:wrap;">
                     <label style="display:flex; gap:6px; align-items:center; font-size:0.85rem;">

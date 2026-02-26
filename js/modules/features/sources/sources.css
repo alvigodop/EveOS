@@ -1,7 +1,7 @@
 /* --- CACHED SOURCE ITEMS (Modal) --- */
 .source-item {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     background: rgba(255, 255, 255, 0.05);
     padding: 5px;
     border-radius: 4px;
@@ -33,6 +33,16 @@
 .source-meta {
     font-size: 0.75rem;
     color: var(--text-muted);
+}
+
+.source-extra {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    opacity: 0.9;
+    margin-top: 2px;
+    line-height: 1.25;
+    white-space: normal;
+    word-break: break-word;
 }
 
 .remove-source-btn {
