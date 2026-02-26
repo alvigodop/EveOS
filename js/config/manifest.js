@@ -35,6 +35,8 @@ window.EveModuleManifest = {
         // Feature Modules (Consolidated)
         'js/modules/features/weather.js',
         'js/modules/features/timer.js',
+        'js/modules/features/social-manager/social-manager-embedded.js',
+        'js/modules/features/social-manager/social-manager-modal.js',
 
         // Chart.js (Loaded from CDN for statistics)
         'https://cdn.jsdelivr.net/npm/chart.js',
