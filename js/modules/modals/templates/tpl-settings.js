@@ -23,6 +23,14 @@ window.modalTemplate += `
                     <option value="https://www.bing.com/search?q=">Bing</option>
                 </select>
             </div>
+            <div>
+                <label style="color:var(--accent);">Main Search Mode:</label>
+                <select id="searchModeSelect" onchange="saveSettingsSearchMode()" style="width:100%;">
+                    <option value="basic">Basic (Open engine in new tab)</option>
+                    <option value="expanded">Expanded (API modal)</option>
+                </select>
+                <div style="font-size:0.8rem; opacity:0.75; margin-top:4px;">Tip: press Shift+Enter in search to open Expanded mode once.</div>
+            </div>
 
             <!-- Styling Section -->
             <div style="border-top:1px solid #444; padding-top:10px; margin-top:5px;">

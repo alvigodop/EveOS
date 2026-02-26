@@ -7,6 +7,7 @@ function openSettings() {
     document.getElementById('userName').value = config.userName || "";
     document.getElementById('accentColor').value = config.accent || "#00d4ff";
     document.getElementById('searchEngineSelect').value = config.searchEngine || "https://www.google.com/search?q=";
+    document.getElementById('searchModeSelect').value = config.searchMode || "basic";
     // Theme Settings
     const theme = config.themeMode || 'dark';
     const radios = document.getElementsByName('themeMode');
@@ -47,6 +48,7 @@ function saveSettingsAccent() { config.accent = document.getElementById('accentC
 function saveSettingsBgColor() { config.bgColor = document.getElementById('bgColor').value; saveConfig(); applySettings(); }
 function saveSettingsCardColor() { config.cardColor = document.getElementById('cardColor').value; saveConfig(); applySettings(); }
 function saveSettingsEngine() { config.searchEngine = document.getElementById('searchEngineSelect').value; saveConfig(); }
+function saveSettingsSearchMode() { config.searchMode = document.getElementById('searchModeSelect').value; saveConfig(); }
 function saveSettingsUrl() { config.background = document.getElementById('bgUrl').value; saveConfig(); applySettings(); }
 
 function saveSettingsFile(input) {

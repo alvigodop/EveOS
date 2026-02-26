@@ -491,6 +491,9 @@ window.EveModuleManifest = {
 
         // Existing Features
         'js/modules/features/search.js',
+        'js/modules/features/search-advanced/sa-state.js',
+        'js/modules/features/search-advanced/sa-api.js',
+        'js/modules/features/search-advanced/sa-ui.js',
         'js/modules/core/events.js'
     ,
         // Gemini Integration
@@ -510,6 +513,7 @@ window.EveModuleManifest = {
         // Feature Modules
         'js/modules/features/widgets.css',
         'js/modules/features/search.css',
+        'js/modules/features/search-advanced/sa.css',
         'js/modules/features/api-search/search-results.css',
         'js/modules/features/sources/sources.css',
         'js/modules/features/library/library.css',
