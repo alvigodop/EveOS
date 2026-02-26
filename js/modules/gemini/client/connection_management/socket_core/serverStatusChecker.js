@@ -9,6 +9,40 @@ console.log("serverStatusChecker.js loading...");
 (function () {
     const State = window.SocketGlobalState;
 
+    function isConnectionDisabledByPreference() {
+        try {
+            return localStorage.getItem('geminiConnectionEnabled') === 'false';
+        } catch (error) {
+            return false;
+        }
+    }
+
+    function pauseReconnect(message, statusMessage) {
+        if (State.continuousReconnectInterval) {
+            clearInterval(State.continuousReconnectInterval);
+            State.continuousReconnectInterval = null;
+        }
+
+        State.autoReconnectEnabled = false;
+        State.serverOfflinePauseActive = true;
+        State.reconnectAttempts = State.MAX_RECONNECT_ATTEMPTS;
+        try {
+            localStorage.setItem('geminiConnectionEnabled', 'false');
+        } catch (error) {
+            // Ignore storage write errors in restricted environments.
+        }
+
+        if (typeof updateConnectionStatus === 'function') {
+            updateConnectionStatus('disconnected', statusMessage || 'Gemini Offline');
+        }
+
+        const now = Date.now();
+        if (typeof displayMessage === 'function' && now - (State.lastReconnectPauseNoticeAt || 0) > 5000) {
+            displayMessage(message, true);
+            State.lastReconnectPauseNoticeAt = now;
+        }
+    }
+
     async function checkServerStatus() {
         try {
             // Extract port from WebSocket URL and calculate status port
@@ -36,6 +70,18 @@ console.log("serverStatusChecker.js loading...");
     }
 
     async function startContinuousReconnectAttempts() {
+        if (!State.autoReconnectEnabled || State.serverOfflinePauseActive) {
+            return;
+        }
+
+        if (isConnectionDisabledByPreference()) {
+            pauseReconnect(
+                "System Message: Gemini connection is disabled by preference. Auto reconnect paused.",
+                'Gemini Connection Disabled'
+            );
+            return;
+        }
+
         if (State.continuousReconnectInterval) {
             clearInterval(State.continuousReconnectInterval);
         }
@@ -47,9 +93,17 @@ console.log("serverStatusChecker.js loading...");
         }
 
         let serverStatusCheckCount = 0;
-        const maxStatusChecks = 10; // Limit status checks to avoid spam
+        const maxStatusChecks = State.serverStartupMaxChecks || 10;
 
         State.continuousReconnectInterval = setInterval(async () => {
+            if (!State.autoReconnectEnabled || State.serverOfflinePauseActive) {
+                if (State.continuousReconnectInterval) {
+                    clearInterval(State.continuousReconnectInterval);
+                    State.continuousReconnectInterval = null;
+                }
+                return;
+            }
+
             // Check if we already have a connection
             if (window.webSocket && window.webSocket.readyState === WebSocket.OPEN) {
                 clearInterval(State.continuousReconnectInterval);
@@ -71,8 +125,17 @@ console.log("serverStatusChecker.js loading...");
                     }
                     serverStatusCheckCount = 0; // Reset counter
                 } else {
-                    console.log("Server not yet available, continuing to monitor...");
+                    if (serverStatusCheckCount === 1 || serverStatusCheckCount % 3 === 0) {
+                        console.log("Server not yet available, continuing to monitor...");
+                    }
                     if (typeof updateConnectionStatus === 'function') updateConnectionStatus('waiting', `Waiting for Server... (${serverStatusCheckCount}/${maxStatusChecks})`);
+
+                    if (serverStatusCheckCount >= maxStatusChecks) {
+                        pauseReconnect(
+                            "System Message: Gemini server appears offline. Auto reconnect paused (manual reconnect when server is available).",
+                            'Gemini Server Offline'
+                        );
+                    }
                     return; // Don't attempt connection if server isn't running
                 }
             }
@@ -84,7 +147,7 @@ console.log("serverStatusChecker.js loading...");
                     window.attemptConnection();
                 }
             }
-        }, Math.max(State.connectionBackoffDelay, 3000)); // At least 3 seconds between attempts
+        }, Math.max(State.connectionBackoffDelay, 5000)); // At least 5 seconds between attempts
     }
 
     // Export functions

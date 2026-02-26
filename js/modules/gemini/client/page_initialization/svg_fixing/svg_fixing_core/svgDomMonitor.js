@@ -66,7 +66,6 @@ window.SvgFixingCore.setupSvgViewBoxMonitor = function () {
 
         // Apply fixes if needed
         if (needsFixing) {
-            console.log('SVG viewBox issues detected, applying fixes...');
             setTimeout(() => {
                 runFixes();
             }, 10); // Very short delay to batch multiple mutations
@@ -101,7 +100,6 @@ window.SvgFixingCore.setupSvgViewBoxMonitor = function () {
                             const viewBox = svg.getAttribute('viewBox');
                             if (!viewBox || viewBox.includes('%')) {
                                 svg.setAttribute('viewBox', '0 0 100 4');
-                                console.log('Fixed post-upgrade MDL SVG viewBox');
                             }
                         });
                     }, 50); // Slightly longer delay for MDL upgrades
@@ -120,7 +118,6 @@ window.SvgFixingCore.setupSvgViewBoxMonitor = function () {
     setInterval(() => {
         const percentageSvgs = document.querySelectorAll('svg[viewBox*="%"]');
         if (percentageSvgs.length > 0) {
-            console.log(`Periodic sweep detected ${percentageSvgs.length} SVGs with percentage viewBox, fixing...`);
             runFixes();
         }
     }, 10000);
@@ -129,7 +126,6 @@ window.SvgFixingCore.setupSvgViewBoxMonitor = function () {
     ['DOMContentLoaded', 'load', 'pageshow'].forEach(eventType => {
         document.addEventListener(eventType, () => {
             setTimeout(() => {
-                console.log(`Applying SVG fixes on ${eventType} event`);
                 runFixes();
             }, 100);
         });
@@ -139,7 +135,6 @@ window.SvgFixingCore.setupSvgViewBoxMonitor = function () {
     if (typeof componentHandler !== 'undefined') {
         // MDL is loaded, apply fixes after component upgrades
         setTimeout(() => {
-            console.log('MDL detected, applying comprehensive SVG fixes...');
             runFixes();
         }, 500);
     } else {
@@ -148,7 +143,6 @@ window.SvgFixingCore.setupSvgViewBoxMonitor = function () {
             if (typeof componentHandler !== 'undefined') {
                 clearInterval(checkMDL);
                 setTimeout(() => {
-                    console.log('MDL loaded, applying comprehensive SVG fixes...');
                     runFixes();
                 }, 500);
             }

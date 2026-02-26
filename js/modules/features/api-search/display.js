@@ -161,8 +161,7 @@ window.EveOS = window.EveOS || {};
             ...otherTags,
             demographic ? `Demographic: ${demographic}` : "",
             originalLanguage ? `Original: ${originalLanguage}` : "",
-            translatedCount ? `Translations: ${translatedCount}` : "",
-            contentRating ? `Rating: ${contentRating}` : ""
+            translatedCount ? `Translations: ${translatedCount}` : ""
         ]);
 
         return {

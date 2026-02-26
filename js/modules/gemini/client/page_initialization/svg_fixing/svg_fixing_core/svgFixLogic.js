@@ -6,8 +6,6 @@
 window.SvgFixingCore = window.SvgFixingCore || {};
 
 window.SvgFixingCore.fixSvgViewBoxIssues = function () {
-    console.log('Running comprehensive SVG viewBox fixes (Modularized)...');
-
     // Fix ALL SVG elements with ANY percentage viewBox values - comprehensive patterns
     const allPercentageSvgs = document.querySelectorAll('svg');
     let fixedCount = 0;
@@ -15,8 +13,6 @@ window.SvgFixingCore.fixSvgViewBoxIssues = function () {
     allPercentageSvgs.forEach(svg => {
         const currentViewBox = svg.getAttribute('viewBox');
         if (currentViewBox && currentViewBox.includes('%')) {
-            console.warn(`Found SVG with percentage viewBox: ${currentViewBox}, fixing...`);
-
             // Smart replacement based on pattern recognition
             let fixedViewBox = '0 0 100 4'; // Default for progress bars
 
@@ -39,7 +35,6 @@ window.SvgFixingCore.fixSvgViewBoxIssues = function () {
 
             svg.setAttribute('viewBox', fixedViewBox);
             fixedCount++;
-            console.log(`Fixed SVG viewBox from "${currentViewBox}" to "${fixedViewBox}"`);
         }
     });
 
@@ -66,7 +61,6 @@ window.SvgFixingCore.fixSvgViewBoxIssues = function () {
                 if (!viewBox || viewBox.includes('%') || viewBox === '0 0 100% 4') {
                     svg.setAttribute('viewBox', '0 0 100 4');
                     fixedCount++;
-                    console.log(`Fixed MDL ${selector} SVG viewBox to "0 0 100 4"`);
                 }
             });
         });
@@ -87,17 +81,17 @@ window.SvgFixingCore.fixSvgViewBoxIssues = function () {
         try {
             const problematicSvgs = document.querySelectorAll(selector);
             problematicSvgs.forEach(svg => {
-                const oldViewBox = svg.getAttribute('viewBox');
                 svg.setAttribute('viewBox', fix);
                 fixedCount++;
-                console.log(`Fixed problematic SVG pattern "${selector}" - changed from "${oldViewBox}" to "${fix}"`);
             });
         } catch (e) {
             // Ignore selector errors, some browsers might not support all patterns
         }
     });
 
-    console.log(`SVG viewBox fixes completed: ${fixedCount} SVGs fixed`);
+    if (fixedCount > 0) {
+        console.log(`SVG viewBox fixes completed: ${fixedCount} SVGs fixed`);
+    }
     return fixedCount;
 };
 

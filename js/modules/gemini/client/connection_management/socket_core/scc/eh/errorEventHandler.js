@@ -8,6 +8,11 @@ window.SocketConnectionCore.EventHandlers = window.SocketConnectionCore.EventHan
 
 window.SocketConnectionCore.EventHandlers.handleError = function (event) {
     const State = window.SocketGlobalState;
+    if (!State.autoReconnectEnabled || State.serverOfflinePauseActive) {
+        State.isConnecting = false;
+        return;
+    }
+
     console.error("WebSocket error:", event);
     State.isConnecting = false;
 

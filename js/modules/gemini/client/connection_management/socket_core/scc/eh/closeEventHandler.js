@@ -66,7 +66,7 @@ window.SocketConnectionCore.EventHandlers.handleClose = function (event) {
             }
         }, State.connectionBackoffDelay);
 
-    } else if (State.reconnectAttempts >= State.MAX_RECONNECT_ATTEMPTS) {
+    } else if (State.autoReconnectEnabled && State.reconnectAttempts >= State.MAX_RECONNECT_ATTEMPTS) {
         // Get fresh state
         const currentPreviewState = (typeof getPreviewModelState === 'function') ? getPreviewModelState() : { isPreviewModel: false };
 

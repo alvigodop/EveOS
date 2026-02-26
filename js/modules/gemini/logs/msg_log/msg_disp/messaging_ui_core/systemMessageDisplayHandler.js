@@ -30,8 +30,8 @@ window.MessagingLog.SystemMessageDisplayHandler = {
             return;
         }
 
-        // Check for specific error keywords to delegate/highlight
-        if (this.isErrorMessage(message)) {
+        // Delegate quota/deadline handling only for actual quota/deadline signals.
+        if (this.isQuotaOrDeadlineMessage(message)) {
             if (typeof handleQuotaError === 'function') {
                 handleQuotaError(message);
             }
@@ -50,11 +50,20 @@ window.MessagingLog.SystemMessageDisplayHandler = {
 
     isErrorMessage: function (message) {
         const lower = message.toLowerCase();
-        return lower.includes("quota") ||
-            lower.includes("deadline_exceeded") ||
+        return lower.includes("error") ||
+            lower.includes("failed") ||
             lower.includes("timed out") ||
-            lower.includes("error") ||
-            lower.includes("failed");
+            lower.includes("disconnected");
+    },
+
+    isQuotaOrDeadlineMessage: function (message) {
+        const lower = message.toLowerCase();
+        return lower.includes("quota") ||
+            lower.includes("resource_exhausted") ||
+            lower.includes("resource exhausted") ||
+            lower.includes("deadline_exceeded") ||
+            lower.includes("deadline exceeded") ||
+            lower.includes("context deadline");
     },
 
     createAndAppendSystemMessage: function (message) {

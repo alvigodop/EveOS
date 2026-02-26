@@ -40,6 +40,9 @@ window.SocketGlobalState = {
 
     autoReconnectEnabled: true,
     serverStartupDetection: true,
+    serverStartupMaxChecks: 3,
+    serverOfflinePauseActive: false,
+    lastReconnectPauseNoticeAt: 0,
 
     previewModelCooldownStart: null,
     geminiApiReady: false,
@@ -60,6 +63,8 @@ window.SocketGlobalState = {
         }
 
         this.geminiApiReady = false;
+        this.serverOfflinePauseActive = false;
+        this.lastReconnectPauseNoticeAt = 0;
     }
 };
 

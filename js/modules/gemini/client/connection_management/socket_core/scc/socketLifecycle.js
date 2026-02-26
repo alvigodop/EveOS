@@ -78,17 +78,33 @@ window.SocketConnectionCore.attemptConnection = function () {
 
 window.SocketConnectionCore.connect = function () {
     const State = window.SocketGlobalState;
-    console.log("[Debug] connect() called. isConnecting:", State.isConnecting, "reconnectAttempts:", State.reconnectAttempts);
+
+    try {
+        localStorage.setItem('geminiConnectionEnabled', 'true');
+    } catch (error) {
+        // Ignore storage write errors in restricted environments.
+    }
 
     // Always reset connection state when explicitly called
     if (window.SocketConnectionCore.resetConnection) {
         window.SocketConnectionCore.resetConnection();
-    } else {
-        console.warn("resetConnection not available, manual reset might be incomplete");
+    } else if (State && typeof State.resetState === 'function') {
+        // Fallback for early boot order where socketConnectionState.js is not yet loaded.
+        State.resetState();
+        if (window.webSocket) {
+            try {
+                window.webSocket.close();
+            } catch (error) {
+                // Ignore close errors during early init fallback.
+            }
+            window.webSocket = null;
+        }
     }
 
     State.autoReconnectEnabled = true;
     State.isInitialConnection = true;
+    State.serverOfflinePauseActive = false;
+    State.lastReconnectPauseNoticeAt = 0;
 
     // Start immediate connection attempt
     window.SocketConnectionCore.attemptConnection();
@@ -119,6 +135,13 @@ window.SocketConnectionCore.stopAutoReconnect = function () {
 window.SocketConnectionCore.startAutoReconnect = function () {
     const State = window.SocketGlobalState;
     State.autoReconnectEnabled = true;
+    State.serverOfflinePauseActive = false;
+    State.lastReconnectPauseNoticeAt = 0;
+    try {
+        localStorage.setItem('geminiConnectionEnabled', 'true');
+    } catch (error) {
+        // Ignore storage write errors in restricted environments.
+    }
     if (!window.webSocket || window.webSocket.readyState === WebSocket.CLOSED) {
         window.SocketConnectionCore.connect();
     }
