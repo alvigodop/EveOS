@@ -16,7 +16,7 @@ window.modalTemplate += `
             <button type="button" onclick="bookmarkFocusDelete()" style="border:1px solid var(--danger); color:var(--danger); background:transparent;">Delete</button>
         </div>
 
-        <div style="border-top:1px solid rgba(255,255,255,0.14); padding-top:12px; display:flex; flex-direction:column; gap:10px;">
+        <div id="bookmarkFocusLibrarySection" style="border-top:1px solid rgba(255,255,255,0.14); padding-top:12px; display:flex; flex-direction:column; gap:10px;">
             <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
                 <strong>Library Controls</strong>
                 <span id="bookmarkFocusLibraryCategory" style="font-size:0.78rem; opacity:0.8;"></span>

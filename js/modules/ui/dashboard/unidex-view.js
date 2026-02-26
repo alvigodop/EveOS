@@ -177,10 +177,19 @@ window.UnidexView = (function () {
             const safeTitle = escapeHtml(link.title || 'Untitled');
             const safeDomain = escapeHtml(getDomain(link.url));
             const linkedRecord = getLinkedRecord(link.id);
-            const libraryStatus = linkedRecord?.entry?.status ? escapeHtml(linkedRecord.entry.status) : 'Not linked';
-            const libraryRating = linkedRecord?.entry?.rating ? escapeHtml(linkedRecord.entry.rating) : '-';
+            const isLibraryLinked = !!linkedRecord?.entry;
+            const libraryStatusRaw = String(linkedRecord?.entry?.status || '').trim();
+            const libraryRatingRaw = String(linkedRecord?.entry?.rating || '').trim();
+            const libraryStatus = escapeHtml(libraryStatusRaw || 'No status');
+            const libraryRating = escapeHtml(libraryRatingRaw || '-');
+            const libraryInfoHtml = isLibraryLinked
+                ? `<p class="unidex-entry-library linked">Library: ${libraryStatus} | Rating: ${libraryRating}</p>`
+                : '';
             const taskTagHtml = taskMode
                 ? `<span class="unidex-entry-tag ${link.done ? 'done' : 'pending'}">${link.done ? 'Done' : 'Pending'}</span>`
+                : '';
+            const libraryTagHtml = isLibraryLinked
+                ? '<span class="unidex-entry-tag library-linked">Library Linked</span>'
                 : '';
 
             return `
@@ -188,9 +197,10 @@ window.UnidexView = (function () {
                     <div class="unidex-entry-main">
                         <h4 class="unidex-entry-title">${safeTitle}</h4>
                         <p class="unidex-entry-domain">${safeDomain}</p>
-                        <p class="unidex-entry-library">Library: ${libraryStatus} | Rating: ${libraryRating}</p>
+                        ${libraryInfoHtml}
                         <div class="unidex-entry-tags">
                             ${taskTagHtml}
+                            ${libraryTagHtml}
                             ${link.pinned ? '<span class="unidex-entry-tag pinned">Pinned</span>' : ''}
                         </div>
                     </div>

@@ -156,11 +156,13 @@
     }
 
     function fillLibraryFields(linkedRecord) {
+        const sectionWrap = document.getElementById('bookmarkFocusLibrarySection');
         const fieldsWrap = document.getElementById('bookmarkFocusLibraryFields');
         const missingText = document.getElementById('bookmarkFocusLibraryMissing');
         const categoryLabel = document.getElementById('bookmarkFocusLibraryCategory');
 
         if (!linkedRecord?.entry) {
+            if (sectionWrap) sectionWrap.style.display = 'none';
             if (fieldsWrap) fieldsWrap.style.display = 'none';
             if (missingText) missingText.style.display = 'block';
             if (categoryLabel) categoryLabel.textContent = '';
@@ -171,6 +173,7 @@
         const entry = linkedRecord.entry;
         const categoryName = linkedRecord.connection?.categoryName || 'Unsorted';
 
+        if (sectionWrap) sectionWrap.style.display = 'flex';
         if (fieldsWrap) fieldsWrap.style.display = 'flex';
         if (missingText) missingText.style.display = 'none';
         if (categoryLabel) categoryLabel.textContent = `Category: ${categoryName}`;
