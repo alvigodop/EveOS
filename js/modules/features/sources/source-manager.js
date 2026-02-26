@@ -96,6 +96,7 @@
 
         container.innerHTML = window.tempSources.map((source, index) => {
             const sourceName = escapeHtml(source.source || "Source");
+            const mediaType = escapeHtml(source.mediaType || "");
             const score = escapeHtml(source.score ?? "-");
             const title = escapeHtml(source.title || "Untitled");
             const safeUrl = escapeHtml(source.url || "#");
@@ -107,6 +108,7 @@
             const synonyms = escapeHtml(getPreviewSynonyms(source));
             const status = escapeHtml(source.status || "");
             const statusPart = status ? ` • ${status}` : "";
+            const mediaTypePart = mediaType ? ` • ${mediaType}` : "";
             const extraParts = [
                 author ? `Author: ${author}` : "",
                 artist ? `Artist: ${artist}` : "",
@@ -120,7 +122,7 @@
                     <img src="${coverUrl}" onerror="this.src='https://via.placeholder.com/40'" class="source-thumb">
                     <div class="source-details">
                         <div class="source-title">${title}</div>
-                        <div class="source-meta"><a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="source-provider-link">${sourceName}</a> • Score: ${score}${statusPart}</div>
+                        <div class="source-meta"><a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="source-provider-link">${sourceName}</a>${mediaTypePart} • Score: ${score}${statusPart}</div>
                         ${extraParts ? `<div class="source-extra">${extraParts}</div>` : ""}
                     </div>
                     <div class="source-actions">

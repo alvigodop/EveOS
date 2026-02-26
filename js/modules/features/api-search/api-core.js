@@ -6,7 +6,8 @@ window.EveOS.API = window.EveOS.API || {};
     const PROXY_URL = 'https://corsproxy.io/?';
     const ENDPOINTS = {
         ANILIST: 'https://graphql.anilist.co',
-        JIKAN: 'https://api.jikan.moe/v4/manga',
+        JIKAN_MANGA: 'https://api.jikan.moe/v4/manga',
+        JIKAN_ANIME: 'https://api.jikan.moe/v4/anime',
         MANGADEX: 'https://api.mangadex.org/manga'
     };
 
@@ -28,7 +29,9 @@ window.EveOS.API = window.EveOS.API || {};
     window.EveOS.API.Core = {
         PROXY_URL,
         ANILIST_API: ENDPOINTS.ANILIST,
-        JIKAN_API: ENDPOINTS.JIKAN,
+        JIKAN_API: ENDPOINTS.JIKAN_MANGA,
+        JIKAN_MANGA_API: ENDPOINTS.JIKAN_MANGA,
+        JIKAN_ANIME_API: ENDPOINTS.JIKAN_ANIME,
         MANGADEX_API: ENDPOINTS.MANGADEX,
         safeFetch
     };

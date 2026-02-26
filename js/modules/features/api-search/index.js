@@ -21,13 +21,25 @@ window.EveOS = window.EveOS || {};
                 return;
             }
 
-            const [mangadexResults, jikanResults, anilistResults] = await Promise.all([
+            const [mangadexResults, jikanMangaResults, jikanAnimeResults, anilistMangaResults, anilistAnimeResults] = await Promise.all([
                 MangaDex.searchMangaDex(query),
-                Jikan.searchJikan(query),
-                AniList.searchAniList(query)
+                Jikan.searchJikanManga(query),
+                Jikan.searchJikanAnime(query),
+                AniList.searchAniListManga(query),
+                AniList.searchAniListAnime(query)
             ]);
 
-            Display.displayResults(mangadexResults, jikanResults, anilistResults, resultsContainer, onSelect);
+            Display.displayResults(
+                {
+                    mangadex: mangadexResults,
+                    jikanManga: jikanMangaResults,
+                    jikanAnime: jikanAnimeResults,
+                    anilistManga: anilistMangaResults,
+                    anilistAnime: anilistAnimeResults
+                },
+                resultsContainer,
+                onSelect
+            );
 
         } catch (error) {
             console.error('Search error:', error);

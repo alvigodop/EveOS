@@ -35,13 +35,55 @@
         return String(numeric);
     }
 
-    function formatCount(value, suffix) {
-        if (value === null || value === undefined || value === "") return `? ${suffix}`;
-        return `${value} ${suffix}`;
+    function compactValue(value) {
+        if (value === null || value === undefined) return "";
+        const text = String(value).trim();
+        return text;
     }
 
     function renderChips(items, className) {
         return items.map(item => `<span class="${className}">${escapeHtml(item)}</span>`).join("");
+    }
+
+    function renderMetaRow(data) {
+        const scoreLabel = formatScore(data.score, data.source);
+        const rows = [
+            ["Score", scoreLabel],
+            ["Rank", data.rank],
+            ["Popularity", data.popularity],
+            ["Members", data.members],
+            ["Favorites", data.favorites],
+            ["Status", data.status],
+            ["Format", data.format],
+            ["Year", data.year],
+            ["Season", data.season],
+            ["Chapters", data.chapters],
+            ["Volumes", data.volumes],
+            ["Episodes", data.episodes],
+            ["Duration", data.duration],
+            ["Source", data.sourceMaterial],
+            ["Country", data.countryOfOrigin],
+            ["Rating", data.contentRating]
+        ]
+            .map(([label, value]) => [label, compactValue(value)])
+            .filter(([, value]) => value && value !== "?" && value !== "N/A");
+
+        return rows.map(([label, value]) => `<span>${escapeHtml(label)}: ${escapeHtml(value)}</span>`).join("");
+    }
+
+    function renderPeopleRows(data) {
+        const lines = [];
+        const author = compactValue(data.author);
+        const artist = compactValue(data.artist);
+        const studios = uniqStrings(toArray(data.studios));
+        const producers = uniqStrings(toArray(data.producers));
+
+        if (author) lines.push(`<div class="manga-person">Author: ${escapeHtml(author)}</div>`);
+        if (artist && artist.toLowerCase() !== author.toLowerCase()) lines.push(`<div class="manga-person">Artist: ${escapeHtml(artist)}</div>`);
+        if (studios.length) lines.push(`<div class="manga-person">Studios: ${escapeHtml(studios.join(", "))}</div>`);
+        if (producers.length) lines.push(`<div class="manga-person">Producers: ${escapeHtml(producers.join(", "))}</div>`);
+
+        return lines.join("");
     }
 
     function createMangaCard(data, resultsDiv, onSelect) {
@@ -58,14 +100,8 @@
         );
 
         const coverUrl = data.coverUrl || "https://via.placeholder.com/120x180?text=No+Cover";
-        const scoreLabel = formatScore(data.score, data.source);
-        const chaptersLabel = formatCount(data.chapters, "ch");
-        const volumesLabel = formatCount(data.volumes, "vol");
-        const status = data.status || "Unknown";
-        const author = data.author || "Unknown Author";
-        const artist = data.artist || "";
-        const showArtist = !!artist && artist.toLowerCase() !== author.toLowerCase();
         const description = String(data.description || "").trim();
+        const mediaType = String(data.mediaType || "").trim();
 
         mangaDiv.innerHTML = `
             <img
@@ -75,18 +111,13 @@
                 class="manga-cover"
             >
             <div class="manga-info">
-                <span class="source-tag">${escapeHtml(data.source || "Source")}</span>
-                <h3 class="manga-title"><a href="${escapeHtml(data.url || "#")}" target="_blank" rel="noopener noreferrer">${escapeHtml(title)}</a></h3>
-                <div class="manga-meta">
-                    <span>Score: ${escapeHtml(scoreLabel)}</span>
-                    <span>Ch: ${escapeHtml(chaptersLabel)}</span>
-                    <span>Vol: ${escapeHtml(volumesLabel)}</span>
-                    <span>Status: ${escapeHtml(status)}</span>
-                    ${data.year ? `<span>Year: ${escapeHtml(data.year)}</span>` : ""}
-                    ${data.format ? `<span>Format: ${escapeHtml(data.format)}</span>` : ""}
+                <div class="manga-source-row">
+                    <span class="source-tag">${escapeHtml(data.source || "Source")}</span>
+                    ${mediaType ? `<span class="media-type-tag">${escapeHtml(mediaType)}</span>` : ""}
                 </div>
-                <div class="manga-person">Author: ${escapeHtml(author)}</div>
-                ${showArtist ? `<div class="manga-person">Artist: ${escapeHtml(artist)}</div>` : ""}
+                <h3 class="manga-title"><a href="${escapeHtml(data.url || "#")}" target="_blank" rel="noopener noreferrer">${escapeHtml(title)}</a></h3>
+                <div class="manga-meta">${renderMetaRow(data)}</div>
+                ${renderPeopleRows(data)}
                 ${genres.length ? `<div class="manga-chip-row manga-chip-row-genres">${renderChips(genres, "genres-tag")}</div>` : ""}
                 ${tags.length ? `<div class="manga-chip-row manga-chip-row-tags">${renderChips(tags, "meta-tag")}</div>` : ""}
                 ${synonyms.length ? `<div class="manga-synonyms"><span class="synonyms-label">Synonyms:</span><div class="manga-chip-row manga-chip-row-synonyms">${renderChips(synonyms, "synonym-tag")}</div></div>` : ""}

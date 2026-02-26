@@ -7,7 +7,7 @@ window.EveOS = window.EveOS || {};
         const Core = window.EveOS.API.Core;
         if (!Core) { console.error("EveOS.API.Core missing"); return { data: [] }; }
 
-        const url = `${Core.PROXY_URL}${Core.MANGADEX_API}?title=${encodeURIComponent(query)}&limit=2&includes[]=author&includes[]=cover_art&includes[]=artist`;
+        const url = `${Core.PROXY_URL}${Core.MANGADEX_API}?title=${encodeURIComponent(query)}&limit=3&includes[]=author&includes[]=cover_art&includes[]=artist&order[relevance]=desc`;
         return Core.safeFetch(url, {}, 'MangaDex Search failed') || { data: [] };
     }
 

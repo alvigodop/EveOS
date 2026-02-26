@@ -1,28 +1,55 @@
 window.EveOS = window.EveOS || {};
 
 (function () {
-    async function searchAniList(searchQuery) {
-        const Core = window.EveOS.API.Core;
-        if (!Core) { console.error("EveOS.API.Core missing"); return { data: { Page: { media: [] } } }; }
-
-        const query = `
-        query ($search: String) {
+    function buildSearchQuery() {
+        return `
+        query ($search: String, $type: MediaType) {
             Page(page: 1, perPage: 2) {
-                media(search: $search, type: MANGA, sort: POPULARITY_DESC) {
+                media(search: $search, type: $type, sort: POPULARITY_DESC) {
                     id
-                    title { romaji english }
-                    synonyms
-                    description
-                    coverImage { large }
-                    startDate { year month day }
-                    endDate { year month day }
+                    idMal
+                    type
+                    format
                     status
+                    source
                     chapters
                     volumes
-                    genres
+                    episodes
+                    duration
+                    season
+                    seasonYear
+                    startDate { year month day }
+                    endDate { year month day }
+                    countryOfOrigin
+                    isAdult
+                    popularity
+                    favourites
                     averageScore
-                    format
-                    tags { name }
+                    meanScore
+                    title { romaji english native userPreferred }
+                    synonyms
+                    description
+                    coverImage { large medium color }
+                    bannerImage
+                    genres
+                    tags {
+                        name
+                        rank
+                        category
+                        isMediaSpoiler
+                    }
+                    rankings {
+                        rank
+                        type
+                        allTime
+                        context
+                    }
+                    studios {
+                        nodes {
+                            name
+                            isAnimationStudio
+                        }
+                    }
                     staff {
                         edges {
                             role
@@ -32,9 +59,18 @@ window.EveOS = window.EveOS || {};
                             }
                         }
                     }
+                    siteUrl
                 }
             }
         }`;
+    }
+
+    async function searchAniList(searchQuery, mediaType) {
+        const Core = window.EveOS.API.Core;
+        if (!Core) { console.error("EveOS.API.Core missing"); return { data: { Page: { media: [] } } }; }
+
+        const query = buildSearchQuery();
+        const type = mediaType === 'ANIME' ? 'ANIME' : 'MANGA';
 
         const options = {
             method: 'POST',
@@ -45,7 +81,8 @@ window.EveOS = window.EveOS || {};
             body: JSON.stringify({
                 query: query,
                 variables: {
-                    search: searchQuery
+                    search: searchQuery,
+                    type
                 }
             })
         };
@@ -54,7 +91,17 @@ window.EveOS = window.EveOS || {};
         return result || { data: { Page: { media: [] } } };
     }
 
+    async function searchAniListManga(searchQuery) {
+        return searchAniList(searchQuery, 'MANGA');
+    }
+
+    async function searchAniListAnime(searchQuery) {
+        return searchAniList(searchQuery, 'ANIME');
+    }
+
     window.EveOS.API.AniList = {
-        searchAniList
+        searchAniList,
+        searchAniListManga,
+        searchAniListAnime
     };
 })();
