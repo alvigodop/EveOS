@@ -1,45 +1,105 @@
 # EveOS
 
-EveOS stitches together a browser-first UI with a Python backend to deliver a Gemini-style assistant, a bookmark-driven workspace, and a rich library. The UI (`EveOS-V1.html`) is composed from the modular `css/` and `js/` folders (each feature or widget in `js/modules/*` gets its own sub-directory), while the backend lives under `server/` and `server/gemini-backend/`.
+EveOS is a modular browser-first workspace with a Python backend. The project combines bookmarks, library metadata, scraper tooling, and Gemini-oriented backend services while keeping features split into focused modules.
 
-## Project structure
+## Architecture Summary
 
-- `EveOS-V1.html`, `css/`, and `js/` describe the interactive frontend experience. You already have clean separations: `js/modules/ui/*` builds the dashboard/sidebar workflows, `js/modules/features/*` contains the bookmark utilities, library panels, scraper, and API integrations, and each folder (scraper, modals, automations) can evolve independently.
-- `server/` hosts static assets, monitoring helpers, and Windows helpers (`start-server.bat`, `server/start-gemini.bat`).
-- `server/gemini-backend/` is the Python backend (environment setup, SSL, interactions, session handling, response streaming).
-- `server_modules/` houses reusable helpers (proxy, Wikipedia scraper) that can be reused if you split pieces later.
-- Top-level scripts (`python-server.py`, `replace_paths.py`, `update_manifest.py`) tie the front- and back-end flows together and are the first stop when adding new integrations.
+- Frontend entry: `EveOS-V1.html`
+- Frontend modules: `js/modules/*` and `css/modules/*`
+- Backend runtime: `python-server.py`, `server/`, `server/gemini-backend/`
+- Utility backend helpers: `server_modules/`
+
+The system is intentionally compartmentalized. Workspace tabs, category cards, bookmark records, and library records can evolve independently, then connect through explicit state links.
+
+## File Tree (Core)
+
+- `EveOS-V1.html`
+- `js/`
+- `js/config/manifest.js`
+- `js/modules/core/`
+- `js/modules/ui/`
+- `js/modules/modals/`
+- `js/modules/features/`
+- `js/modules/features/library/`
+- `js/modules/features/scraper/`
+- `css/`
+- `server/`
+- `server/gemini-backend/`
+- `server_modules/`
+- `python-server.py`
+- `config.js`
+- `data/unified-state-template.json`
+
+## Key Files For Modular Structure
+
+1. `js/config/manifest.js`  
+   Script load order and module registration. This is the source of truth for frontend composition.
+
+2. `js/modules/core/state.js` and `js/modules/core/storage.js`  
+   Core bookmark/config state and persistence (`links`, `config`) used by UI and features.
+
+3. `js/modules/features/library/library-state.js`  
+   Per-category library container and data-type configuration (`graphicNovels`, `films`, `novels`).
+
+4. `js/modules/features/library/library-connections.js`  
+   Optional bookmark-to-library linking API (`promote`, `unlink`, sync helpers). This is the integration layer, not a merge of systems.
+
+5. `js/modules/features/data-state.js`  
+   Unified state capture/apply for all backup scopes.
+
+6. `js/modules/features/data-transfer.js`  
+   Import/export workflows for all backup scopes from Settings.
+
+7. `js/modules/modals/templates/tpl-core.js` and `js/modules/modals/logic/link-form.js`  
+   Bookmark edit modal and library-link controls (type toggles, metadata, save behavior).
+
+8. `js/modules/features/library/search-filters.js`  
+   Type-scoped library visibility and filtering. Prevents entries from appearing in wrong media-type views.
+
+9. `js/modules/features/library/entry-manager.js`  
+   Library CRUD and synchronization hooks to linked bookmarks.
+
+## Backup Scopes
+
+EveOS now has three restore/export scopes:
+
+1. Full backup  
+   Exports/restores full app state (bookmarks + config + library + connections).
+
+2. Tab backup (`workspace`)  
+   Exports/restores one workspace tab and linked library subset.
+
+3. Card backup (`card`)  
+   Exports/restores one category card inside one workspace and its linked library subset.
+
+Reference JSON schema: `data/unified-state-template.json`
+
+## Data and Sync Behavior
+
+- Bookmarks are primary workspace records.
+- Library records are optional enrichments linked by connection records.
+- Editing and restoring JSON updates visible site state after import.
+- Linked bookmark/library fields sync through `library-connections.js` and module save hooks.
 
 ## Running
 
-1. Install Python dependencies with `pip install -r requirements.txt`.
-2. Launch the backend (`python python-server.py`) so port `3001` exposes the CSE config defined in `config.js`, then open `EveOS-V1.html` in a browser.
-3. Use the helper `.bat` scripts on Windows or run the `.py` scripts directly on other platforms.
-4. The front-end data (bookmarks and config) lives in `localStorage` while SSL keys live under `server/gemini-backend/environment_setup/ssl/*.key|.crt` (committed here for now).
+1. Install dependencies:
 
-## GitHub workflow
+```bash
+pip install -r requirements.txt
+```
 
-- The repo already tracks the UI, library, and backend modules—additions should keep the modular pattern (new folder under `js/modules/...` for each feature).
-- Keep `js/modules/features/library/*`, `js/modules/ui/*`, and `js/modules/features/api-search/*` as isolated units; share state through the shared `window.links`, `window.config`, and `window.EveLibrary` APIs.
-- The `.gitignore` now merges your custom entries with the Node template GitHub suggested.
+2. Start backend:
 
-## Unified state backup
+```bash
+python python-server.py
+```
 
-The bookmark + library state is now captured by a single JSON schema so you can import/export everything or use it as the universal payload for syncing with services. The schema lives in `data/unified-state-template.json` for reference; `js/modules/features/data-state.js` builds the live payload and `js/modules/features/data-transfer.js` reads/writes it. When you export, you get a `metadata/bookmarks/library` payload; when you import, both sides of the app rehydrate together. You can edit the template to add new metadata fields (e.g., connections between bookmarks and library entries) before sharing the file.
-
-## Tab-specific backups
-
-Inside Settings → Data Management you can now choose a workspace/tab from the select box and export just that tab into a JSON file. The export includes only the cards/bookmark entries tied to that workspace plus their library connections, so you can keep each tab’s structure and metadata in separate files. Use the “Restore Tab” button below the select to import any tab backup and overwrite the matching workspace without affecting other tabs. This keeps the per-tab compartmentalization you like while still making it simple to sync specific tabs across devices or share them individually.
-
-## Tests and future automation
-
-There isn’t a dedicated `tests/` folder yet; lightweight smoke scripts that hit `python-server.py` or verify `EveOS-V1.html` loads can live beside the modules they exercise. Keeping the modular folders small means new tests can target just one feature without pulling in a massive dependency tree.
+3. Open `EveOS-V1.html` in a browser.
 
 ## Notes
 
-- Keys currently committed:
+- SSL keys currently tracked in repo:
   - `server/gemini-backend/environment_setup/ssl/server.key`
   - `server/gemini-backend/environment_setup/ssl/server.crt`
-- When you later rotate keys, document the regeneration steps in this README.
-
-Let me know when you’re ready to map out the bookmark-library linkage or tackle any other module.
+- If key rotation is done later, document regeneration steps here.
