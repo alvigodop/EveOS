@@ -10,6 +10,15 @@ window.EveLibrary = window.EveLibrary || {};
     const Storage = window.EveLibrary.Storage;
     const Ratings = window.EveLibrary.Ratings;
 
+    function getWorkspaceId() {
+        if (typeof State?.getCurrentWorkspaceId === 'function') {
+            return State.getCurrentWorkspaceId();
+        }
+        if (window.eveState?.config?.activeWorkspace) return String(window.eveState.config.activeWorkspace);
+        if (typeof config !== 'undefined' && config?.activeWorkspace) return String(config.activeWorkspace);
+        return 'main';
+    }
+
     function generateUniqueId() {
         return Date.now() + Math.random().toString(36).substr(2, 9);
     }
@@ -164,7 +173,7 @@ window.EveLibrary = window.EveLibrary || {};
 
         Storage.saveLibrary();
         if (window.EveLibrary?.ConnectionsAPI?.syncFromLibraryEntry) {
-            window.EveLibrary.ConnectionsAPI.syncFromLibraryEntry(categoryName, entry);
+            window.EveLibrary.ConnectionsAPI.syncFromLibraryEntry(categoryName, entry, getWorkspaceId());
         }
         if (renderCallback) renderCallback();
         return entry;
@@ -177,7 +186,7 @@ window.EveLibrary = window.EveLibrary || {};
             const removed = lib.entries[index];
             lib.entries.splice(index, 1);
             if (window.EveLibrary?.ConnectionsAPI?.removeByLibraryEntry) {
-                window.EveLibrary.ConnectionsAPI.removeByLibraryEntry(categoryName, removed.id);
+                window.EveLibrary.ConnectionsAPI.removeByLibraryEntry(categoryName, removed.id, getWorkspaceId());
             }
             Storage.saveLibrary();
             if (renderCallback) renderCallback();

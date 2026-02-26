@@ -6,7 +6,7 @@ const bulkToolbarTemplate = `
     <span id="bulk-count" style="color:white; font-weight:bold;">0 Selected</span>
     <button onclick="bulkDelete()" class="btn-danger">Delete</button>
     <button onclick="bulkMove()">Move</button>
-    <button onclick="bulkWorkspace()">Workspace</button>
+    <button onclick="bulkWorkspace()">Tab</button>
     <button onclick="toggleBulkMode()">Cancel</button>
 </div>
 `;
@@ -41,6 +41,36 @@ const bulkMoveModalTemplate = `
 </div>
 `;
 
+const bulkTabModalTemplate = `
+<div id="bulk-tab-modal-overlay" style="display:none;">
+    <div id="bulk-tab-modal" role="dialog" aria-modal="true" aria-labelledby="bulk-tab-modal-title">
+        <h3 id="bulk-tab-modal-title">Move Selected Bookmarks</h3>
+        <p class="bulk-move-subtitle">Choose an existing tab or create a new tab for selected bookmarks.</p>
+
+        <div class="bulk-move-section">
+            <label class="bulk-move-radio">
+                <input type="radio" name="bulkTabMode" value="existing" checked onchange="setBulkTabMode('existing')">
+                <span>Move to existing tab</span>
+            </label>
+            <select id="bulk-tab-existing-select"></select>
+        </div>
+
+        <div class="bulk-move-section">
+            <label class="bulk-move-radio">
+                <input type="radio" name="bulkTabMode" value="new" onchange="setBulkTabMode('new')">
+                <span>Create new tab and move selected</span>
+            </label>
+            <input type="text" id="bulk-tab-new-name-input" placeholder="New tab name" disabled>
+        </div>
+
+        <div class="bulk-move-actions">
+            <button type="button" class="btn-primary" onclick="confirmBulkTabMove()">Apply Tab Move</button>
+            <button type="button" onclick="closeBulkTabModal()">Cancel</button>
+        </div>
+    </div>
+</div>
+`;
+
 // Inject HTML
 function initBulkToolbar() {
     if (!document.getElementById('bulk-toolbar')) {
@@ -49,24 +79,35 @@ function initBulkToolbar() {
     if (!document.getElementById('bulk-move-modal-overlay')) {
         document.body.insertAdjacentHTML('beforeend', bulkMoveModalTemplate);
     }
+    if (!document.getElementById('bulk-tab-modal-overlay')) {
+        document.body.insertAdjacentHTML('beforeend', bulkTabModalTemplate);
+    }
 }
 
 // Logic
 let bulkMode = false;
 let selectedIds = new Set();
 
+function toBulkId(value) {
+    return String(value);
+}
+
 function toggleBulkMode() {
     bulkMode = !bulkMode;
     selectedIds.clear();
     document.body.classList.toggle('bulk-active', bulkMode);
-    if (!bulkMode) closeBulkMoveModal();
+    if (!bulkMode) {
+        closeBulkMoveModal();
+        closeBulkTabModal();
+    }
     updateBulkUI();
 }
 
 function toggleSelect(id, e) {
     e.stopPropagation();
-    if (selectedIds.has(id)) selectedIds.delete(id);
-    else selectedIds.add(id);
+    const selectedId = toBulkId(id);
+    if (selectedIds.has(selectedId)) selectedIds.delete(selectedId);
+    else selectedIds.add(selectedId);
     updateBulkUI();
 }
 
@@ -75,14 +116,32 @@ function updateBulkUI() {
     if (el) el.innerText = `${selectedIds.size} Selected`;
 }
 
-function getAllCategoryNames() {
+function getAllCategoryNames(workspaceId) {
+    const scopedWorkspaceId = String(workspaceId || '').trim();
+    const scopedLinks = scopedWorkspaceId
+        ? links.filter(link => String(link.workspace || '').trim() === scopedWorkspaceId)
+        : links;
+
     const names = [...new Set(
-        links
+        scopedLinks
             .map(link => String(link.category || 'Unsorted').trim())
             .filter(Boolean)
     )];
 
     if (!names.includes('Unsorted')) names.push('Unsorted');
+    return names.sort((a, b) => a.localeCompare(b));
+}
+
+function getVisibleDashboardCategoryNames() {
+    const grid = document.getElementById('dashboard-grid');
+    if (!grid) return [];
+
+    const names = [...new Set(
+        Array.from(grid.querySelectorAll('.category-card .category-title'))
+            .map(node => String(node.textContent || '').trim())
+            .filter(Boolean)
+    )];
+
     return names.sort((a, b) => a.localeCompare(b));
 }
 
@@ -96,15 +155,26 @@ function escapeBulkMoveHtml(value) {
 }
 
 function getSelectedCategoryName() {
-    const selectedLinks = links.filter(link => selectedIds.has(link.id));
+    const selectedLinks = links.filter(link => selectedIds.has(toBulkId(link.id)));
     if (!selectedLinks.length) return 'Unsorted';
     return String(selectedLinks[0].category || 'Unsorted').trim() || 'Unsorted';
+}
+
+function getSelectedWorkspaceForMove() {
+    const activeWorkspaceId = String(config?.activeWorkspace || '').trim();
+    if (activeWorkspaceId) return activeWorkspaceId;
+    const selectedLink = links.find(link => selectedIds.has(toBulkId(link.id)));
+    return String(selectedLink?.workspace || '').trim();
 }
 
 function renderBulkMoveCategoryOptions() {
     const select = document.getElementById('bulk-move-existing-select');
     if (!select) return;
-    const names = getAllCategoryNames();
+    const names = (() => {
+        const visibleNames = getVisibleDashboardCategoryNames();
+        if (visibleNames.length > 0) return visibleNames;
+        return getAllCategoryNames(getSelectedWorkspaceForMove());
+    })();
     const currentCategory = getSelectedCategoryName();
     select.innerHTML = names.map(name => {
         const selected = name === currentCategory ? ' selected' : '';
@@ -158,8 +228,109 @@ function applyBulkCategoryMove(nextCategory) {
 
     const syncLinked = window.EveLibrary?.ConnectionsAPI?.syncFromLink;
     links.forEach(link => {
-        if (!selectedIds.has(link.id)) return;
+        if (!selectedIds.has(toBulkId(link.id))) return;
         link.category = categoryName;
+        if (typeof syncLinked === 'function') {
+            syncLinked(link.id);
+        }
+    });
+    return true;
+}
+
+function getWorkspaceList() {
+    const list = Array.isArray(config?.workspaces) ? config.workspaces : [];
+    return list
+        .map(workspace => ({
+            id: String(workspace?.id || ''),
+            name: String(workspace?.name || '').trim() || 'Unnamed',
+            icon: String(workspace?.icon || '').trim()
+        }))
+        .filter(workspace => workspace.id);
+}
+
+function getSelectedWorkspaceId() {
+    const selectedLink = links.find(link => selectedIds.has(toBulkId(link.id)));
+    if (selectedLink?.workspace) return String(selectedLink.workspace);
+    return String(config?.activeWorkspace || getWorkspaceList()[0]?.id || '');
+}
+
+function renderBulkTabOptions() {
+    const select = document.getElementById('bulk-tab-existing-select');
+    if (!select) return;
+
+    const workspaces = getWorkspaceList();
+    const currentWorkspaceId = getSelectedWorkspaceId();
+    select.innerHTML = workspaces.map(workspace => {
+        const selected = workspace.id === currentWorkspaceId ? ' selected' : '';
+        const safeId = escapeBulkMoveHtml(workspace.id);
+        const safeLabel = escapeBulkMoveHtml(`${workspace.icon ? `${workspace.icon} ` : ''}${workspace.name}`);
+        return `<option value="${safeId}"${selected}>${safeLabel}</option>`;
+    }).join('');
+}
+
+function setBulkTabMode(mode) {
+    const isNewMode = mode === 'new';
+    const select = document.getElementById('bulk-tab-existing-select');
+    const input = document.getElementById('bulk-tab-new-name-input');
+    const existingRadio = document.querySelector('input[name="bulkTabMode"][value="existing"]');
+    const newRadio = document.querySelector('input[name="bulkTabMode"][value="new"]');
+
+    if (existingRadio) existingRadio.checked = !isNewMode;
+    if (newRadio) newRadio.checked = isNewMode;
+    if (select) select.disabled = isNewMode;
+    if (input) {
+        input.disabled = !isNewMode;
+        if (isNewMode) input.focus();
+    }
+}
+
+function openBulkTabModal() {
+    const overlay = document.getElementById('bulk-tab-modal-overlay');
+    if (!overlay) return;
+    renderBulkTabOptions();
+    setBulkTabMode('existing');
+    const input = document.getElementById('bulk-tab-new-name-input');
+    if (input) input.value = '';
+    overlay.style.display = 'flex';
+}
+
+function closeBulkTabModal() {
+    const overlay = document.getElementById('bulk-tab-modal-overlay');
+    if (overlay) overlay.style.display = 'none';
+}
+
+function resolveBulkWorkspaceTarget() {
+    const mode = document.querySelector('input[name="bulkTabMode"]:checked')?.value || 'existing';
+    if (mode === 'new') {
+        const name = String(document.getElementById('bulk-tab-new-name-input')?.value || '').trim();
+        if (!name) return null;
+
+        const existingByName = getWorkspaceList().find(workspace => workspace.name.toLowerCase() === name.toLowerCase());
+        if (existingByName) return { workspaceId: existingByName.id, workspaceName: existingByName.name };
+
+        const workspaceId = `ws_${Date.now()}`;
+        const newWorkspace = { id: workspaceId, name, icon: '📁' };
+        if (!Array.isArray(config.workspaces)) config.workspaces = [];
+        config.workspaces.push(newWorkspace);
+        saveConfig();
+        if (typeof renderSidebar === 'function') renderSidebar();
+        return { workspaceId, workspaceName: name };
+    }
+
+    const workspaceId = String(document.getElementById('bulk-tab-existing-select')?.value || '').trim();
+    const workspace = getWorkspaceList().find(item => item.id === workspaceId);
+    if (!workspaceId || !workspace) return null;
+    return { workspaceId, workspaceName: workspace.name };
+}
+
+function applyBulkWorkspaceMove(workspaceId) {
+    const targetWorkspaceId = String(workspaceId || '').trim();
+    if (!targetWorkspaceId) return false;
+
+    const syncLinked = window.EveLibrary?.ConnectionsAPI?.syncFromLink;
+    links.forEach(link => {
+        if (!selectedIds.has(toBulkId(link.id))) return;
+        link.workspace = targetWorkspaceId;
         if (typeof syncLinked === 'function') {
             syncLinked(link.id);
         }
@@ -169,7 +340,7 @@ function applyBulkCategoryMove(nextCategory) {
 
 async function bulkDelete() {
     if (await showConfirm(`Delete ${selectedIds.size}?`)) {
-        links = links.filter(l => !selectedIds.has(l.id));
+        links = links.filter(l => !selectedIds.has(toBulkId(l.id)));
         toggleBulkMode();
         saveData();
     }
@@ -203,16 +374,30 @@ function confirmBulkMove() {
 }
 
 async function bulkWorkspace() {
-    let msg = "IDs:\n";
-    config.workspaces.forEach(w => msg += `${w.id}: ${w.name}\n`);
-    const id = await showPrompt(msg);
-    if (id && config.workspaces.find(w => w.id === id)) {
-        links.forEach(l => {
-            if (selectedIds.has(l.id)) l.workspace = id;
-        });
-        toggleBulkMode();
-        saveData();
+    if (selectedIds.size === 0) {
+        showToast("Select at least one bookmark first.", "warning");
+        return;
     }
+    openBulkTabModal();
+}
+
+function confirmBulkTabMove() {
+    const movedCount = selectedIds.size;
+    const target = resolveBulkWorkspaceTarget();
+    if (!target?.workspaceId) {
+        showToast("Select a tab or enter a new tab name.", "warning");
+        return;
+    }
+
+    if (!applyBulkWorkspaceMove(target.workspaceId)) {
+        showToast("Unable to move bookmarks to tab.", "error");
+        return;
+    }
+
+    closeBulkTabModal();
+    toggleBulkMode();
+    saveData();
+    showToast(`Moved ${movedCount} bookmark(s) to tab "${target.workspaceName}"`, "success");
 }
 
 // Initialize on load
@@ -225,9 +410,19 @@ if (document.readyState === 'loading') {
 window.setBulkMoveMode = setBulkMoveMode;
 window.closeBulkMoveModal = closeBulkMoveModal;
 window.confirmBulkMove = confirmBulkMove;
+window.setBulkTabMode = setBulkTabMode;
+window.closeBulkTabModal = closeBulkTabModal;
+window.confirmBulkTabMove = confirmBulkTabMove;
 
 document.addEventListener('mousedown', (event) => {
-    const overlay = document.getElementById('bulk-move-modal-overlay');
-    if (!overlay || overlay.style.display !== 'flex') return;
-    if (event.target === overlay) closeBulkMoveModal();
+    const moveOverlay = document.getElementById('bulk-move-modal-overlay');
+    if (moveOverlay && moveOverlay.style.display === 'flex' && event.target === moveOverlay) {
+        closeBulkMoveModal();
+        return;
+    }
+
+    const tabOverlay = document.getElementById('bulk-tab-modal-overlay');
+    if (tabOverlay && tabOverlay.style.display === 'flex' && event.target === tabOverlay) {
+        closeBulkTabModal();
+    }
 });

@@ -35,7 +35,8 @@ body.bulk-active .actions {
     display: none !important;
 }
 
-#bulk-move-modal-overlay {
+#bulk-move-modal-overlay,
+#bulk-tab-modal-overlay {
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.55);
@@ -45,7 +46,8 @@ body.bulk-active .actions {
     padding: 16px;
 }
 
-#bulk-move-modal {
+#bulk-move-modal,
+#bulk-tab-modal {
     width: min(480px, 95vw);
     background: var(--card-bg, #1f1f1f);
     border: 1px solid rgba(255, 255, 255, 0.2);
@@ -57,24 +59,28 @@ body.bulk-active .actions {
     gap: 12px;
 }
 
-#bulk-move-modal h3 {
+#bulk-move-modal h3,
+#bulk-tab-modal h3 {
     margin: 0;
     color: var(--text-main);
 }
 
-#bulk-move-modal .bulk-move-subtitle {
+#bulk-move-modal .bulk-move-subtitle,
+#bulk-tab-modal .bulk-move-subtitle {
     margin: 0;
     font-size: 0.85rem;
     color: var(--text-muted);
 }
 
-#bulk-move-modal .bulk-move-section {
+#bulk-move-modal .bulk-move-section,
+#bulk-tab-modal .bulk-move-section {
     display: flex;
     flex-direction: column;
     gap: 8px;
 }
 
-#bulk-move-modal .bulk-move-radio {
+#bulk-move-modal .bulk-move-radio,
+#bulk-tab-modal .bulk-move-radio {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -82,12 +88,15 @@ body.bulk-active .actions {
 }
 
 #bulk-move-modal select,
-#bulk-move-modal input[type="text"] {
+#bulk-move-modal input[type="text"],
+#bulk-tab-modal select,
+#bulk-tab-modal input[type="text"] {
     width: 100%;
     box-sizing: border-box;
 }
 
-#bulk-move-modal .bulk-move-actions {
+#bulk-move-modal .bulk-move-actions,
+#bulk-tab-modal .bulk-move-actions {
     display: flex;
     justify-content: flex-end;
     gap: 10px;

@@ -94,26 +94,48 @@ window.EveDataStore = window.EveDataStore || {};
         return conn?.libraryEntryId || conn?.entryId || null;
     }
 
+    function parseLibraryKey(key) {
+        const stateModule = getLibraryStateModule();
+        if (stateModule?.parseScopedCategoryKey) {
+            return stateModule.parseScopedCategoryKey(key);
+        }
+        return {
+            key,
+            categoryName: key,
+            workspaceId: '',
+            scoped: false
+        };
+    }
+
     function filterCategoriesForConnections(categories, workspaceConnections) {
         if (!categories || typeof categories !== 'object') return {};
         if (!Array.isArray(workspaceConnections) || workspaceConnections.length === 0) return {};
 
-        const categoryNames = new Set();
         const entryIds = new Set();
-        workspaceConnections.forEach(conn => {
-            const categoryName = getConnectionCategoryName(conn);
-            const entryId = getConnectionEntryId(conn);
-            if (categoryName) categoryNames.add(categoryName);
-            if (entryId) entryIds.add(entryId);
+        const normalizedConnections = workspaceConnections.map(conn => ({
+            categoryName: getConnectionCategoryName(conn),
+            workspaceId: conn?.workspace ? String(conn.workspace) : '',
+            entryId: getConnectionEntryId(conn)
+        }));
+        normalizedConnections.forEach(conn => {
+            if (conn.entryId) entryIds.add(conn.entryId);
         });
 
         const filtered = {};
-        Object.entries(categories).forEach(([name, categoryData]) => {
+        Object.entries(categories).forEach(([libraryKey, categoryData]) => {
             if (!categoryData || typeof categoryData !== 'object') return;
             const entries = Array.isArray(categoryData.entries) ? categoryData.entries : [];
+            const parsedKey = parseLibraryKey(libraryKey);
 
-            if (categoryNames.has(name)) {
-                filtered[name] = {
+            const hasMatchingConnection = normalizedConnections.some(conn => {
+                if (!conn.categoryName) return false;
+                if (String(conn.categoryName) !== String(parsedKey.categoryName)) return false;
+                if (!parsedKey.workspaceId || !conn.workspaceId) return true;
+                return String(conn.workspaceId) === String(parsedKey.workspaceId);
+            });
+
+            if (hasMatchingConnection) {
+                filtered[libraryKey] = {
                     ...categoryData,
                     entries: entries.filter(entry => entryIds.size === 0 || entryIds.has(entry.id))
                 };
@@ -123,7 +145,7 @@ window.EveDataStore = window.EveDataStore || {};
             if (entryIds.size > 0) {
                 const matched = entries.filter(entry => entryIds.has(entry.id));
                 if (matched.length > 0) {
-                    filtered[name] = { ...categoryData, entries: matched };
+                    filtered[libraryKey] = { ...categoryData, entries: matched };
                 }
             }
         });
@@ -171,6 +193,23 @@ window.EveDataStore = window.EveDataStore || {};
         return state;
     }
 
+    function findCategoryLibraryData(categories, workspaceId, categoryName) {
+        if (!categories || typeof categories !== 'object') return null;
+        if (Object.prototype.hasOwnProperty.call(categories, categoryName)) {
+            return categories[categoryName];
+        }
+
+        const normalizedWorkspace = String(workspaceId || '');
+        for (const [libraryKey, data] of Object.entries(categories)) {
+            const parsed = parseLibraryKey(libraryKey);
+            if (String(parsed.categoryName) !== String(categoryName)) continue;
+            if (!normalizedWorkspace || !parsed.workspaceId || String(parsed.workspaceId) === normalizedWorkspace) {
+                return data;
+            }
+        }
+        return null;
+    }
+
     function getWorkspaceName(workspaceId) {
         const ws = (getConfig().workspaces || []).find(w => w.id === workspaceId);
         return ws ? ws.name : workspaceId;
@@ -215,7 +254,7 @@ window.EveDataStore = window.EveDataStore || {};
         const existing = cloneConnections();
         const linkIds = new Set(connections.map(conn => conn.linkId).filter(Boolean));
         const filtered = existing.filter(conn => conn.workspace !== workspaceId && !linkIds.has(conn.linkId));
-        const annotated = connections.map(conn => ({ workspace: workspaceId, ...conn }));
+        const annotated = connections.map(conn => ({ ...conn, workspace: workspaceId }));
         const next = filtered.concat(annotated);
         if (window.EveLibrary?.ConnectionsAPI?.setAll) {
             window.EveLibrary.ConnectionsAPI.setAll(next);
@@ -294,7 +333,7 @@ window.EveDataStore = window.EveDataStore || {};
         setConfig({ activeWorkspace: workspaceId });
 
         if (state.library?.categories && typeof state.library.categories === 'object') {
-            const selectedCategory = state.library.categories[categoryName];
+            const selectedCategory = findCategoryLibraryData(state.library.categories, workspaceId, categoryName);
             if (selectedCategory) {
                 applyLibraryCategories({ [categoryName]: selectedCategory });
             } else {

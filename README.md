@@ -125,6 +125,8 @@ Reference JSON schema: `data/unified-state-template.json`
 
 - Bookmarks are primary workspace records.
 - Library records are optional enrichments linked by connection records.
+- Library category storage is tab-scoped with key format: `workspaceId::categoryName` (example: `main::Start`).
+- Connection records are location-aware and include both `workspace` and `categoryName`.
 - Editing and restoring JSON updates visible site state after import.
 - Linked bookmark/library fields sync through `library-connections.js` and module save hooks.
 

@@ -52,7 +52,15 @@ window.ctxWsDelete = async function () {
     if (config.workspaces.length <= 1) return showToast("Cannot delete last workspace", "error");
     if (await showConfirm("Delete Workspace? Links move to Main.")) {
         config.workspaces = config.workspaces.filter(w => w.id !== ctxWsId);
-        links.forEach(l => { if (l.workspace === ctxWsId) l.workspace = config.workspaces[0].id; });
+        const targetWorkspaceId = config.workspaces[0].id;
+        const syncLinked = window.EveLibrary?.ConnectionsAPI?.syncFromLink;
+        links.forEach(l => {
+            if (l.workspace !== ctxWsId) return;
+            l.workspace = targetWorkspaceId;
+            if (typeof syncLinked === 'function') {
+                syncLinked(l.id);
+            }
+        });
         config.activeWorkspace = config.workspaces[0].id;
         saveConfig();
         saveData();

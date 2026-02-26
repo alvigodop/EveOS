@@ -376,8 +376,13 @@ window.EveLibrary = window.EveLibrary || {};
         window.addEventListener('eve:library-link-updated', (event) => {
             const detail = event?.detail || {};
             const categoryName = detail.categoryName;
+            const workspaceId = String(detail.workspaceId || '');
+            const currentWorkspace = typeof State?.getCurrentWorkspaceId === 'function'
+                ? String(State.getCurrentWorkspaceId())
+                : String((window.eveState?.config?.activeWorkspace || config?.activeWorkspace || ''));
             const entry = detail.entry;
             if (!categoryName || !entry) return;
+            if (workspaceId && currentWorkspace && workspaceId !== currentWorkspace) return;
 
             const prefix = getPrefix(categoryName);
             const panel = document.getElementById(prefix + 'panel');

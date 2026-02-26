@@ -6,17 +6,54 @@ function allowDrop(ev) {
 }
 
 function drag(ev, id) {
-    ev.dataTransfer.setData("text/plain", id);
+    const draggedId = String(id);
+    const dragIds = (() => {
+        const hasBulkSelection = typeof bulkMode !== 'undefined'
+            && bulkMode
+            && typeof selectedIds !== 'undefined'
+            && selectedIds
+            && selectedIds.size > 0;
+
+        if (hasBulkSelection && selectedIds.has(draggedId)) {
+            return Array.from(selectedIds);
+        }
+        return [draggedId];
+    })();
+
+    const payload = JSON.stringify({ ids: dragIds.map(item => String(item)) });
+    ev.dataTransfer.setData("application/json", payload);
+    ev.dataTransfer.setData("text/plain", payload);
 }
 
 function drop(ev, newCategory) {
     ev.preventDefault();
     ev.currentTarget.classList.remove('drag-over');
-    const id = ev.dataTransfer.getData("text/plain");
-    const idx = links.findIndex(l => l.id == id);
-    if (idx > -1) {
+
+    const rawJson = ev.dataTransfer.getData("application/json") || ev.dataTransfer.getData("text/plain");
+    let movedAny = false;
+    let dragIds = [];
+
+    try {
+        const parsed = JSON.parse(rawJson);
+        if (Array.isArray(parsed?.ids)) {
+            dragIds = parsed.ids.map(item => String(item));
+        } else if (parsed !== null && parsed !== undefined) {
+            dragIds = [String(parsed)];
+        }
+    } catch (error) {
+        if (rawJson) dragIds = [String(rawJson)];
+    }
+
+    dragIds.forEach((id) => {
+        const idx = links.findIndex(l => String(l.id) === String(id));
+        if (idx < 0) return;
+        if (links[idx].category === newCategory) return;
         links[idx].category = newCategory;
         window.EveLibrary?.ConnectionsAPI?.syncFromLink?.(links[idx].id);
+        movedAny = true;
+    });
+
+    if (movedAny) {
         saveData();
     }
 }

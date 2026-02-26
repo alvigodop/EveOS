@@ -57,11 +57,30 @@
   },
   "library": {
     "categories": {
-      "Start": {
+      "main::Start": {
         "dataType": "graphicNovels",
-        "entries": []
+        "entries": [
+          {
+            "id": "lib-1",
+            "title": "Welcome",
+            "status": "Reading",
+            "rating": "",
+            "sourceUrl": "#",
+            "dateAdded": "2026-02-26T00:00:00.000Z",
+            "lastEdited": "2026-02-26T00:00:00.000Z"
+          }
+        ]
       }
     },
-    "connections": []
+    "connections": [
+      {
+        "id": "conn-1",
+        "linkId": "1",
+        "libraryEntryId": "lib-1",
+        "categoryName": "Start",
+        "workspace": "main",
+        "createdAt": "2026-02-26T00:00:00.000Z"
+      }
+    ]
   }
 }

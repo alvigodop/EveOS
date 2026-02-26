@@ -30,12 +30,13 @@ window.EveLibrary = window.EveLibrary || {};
         localStorage.setItem(STORAGE_KEY, JSON.stringify(window.EveLibrary.Connections));
     }
 
-    function emitLinkedEntryUpdated(linkId, categoryName, entry) {
+    function emitLinkedEntryUpdated(linkId, categoryName, entry, workspaceId) {
         const safeEntry = entry ? JSON.parse(JSON.stringify(entry)) : null;
         window.dispatchEvent(new CustomEvent('eve:library-link-updated', {
             detail: {
                 linkId: String(linkId),
                 categoryName,
+                workspaceId: String(workspaceId || findConnectionByLinkId(linkId)?.workspace || ''),
                 entry: safeEntry
             }
         }));
@@ -54,16 +55,113 @@ window.EveLibrary = window.EveLibrary || {};
         } catch (e) {
             connections = [];
         }
+        repairScopedLibraryEntries();
         window.EveLibrary.Connections = connections.map(item => ({ ...item }));
     }
 
     function setAll(nextConnections) {
         connections = Array.isArray(nextConnections) ? nextConnections.map(item => ({ ...item })) : [];
+        repairScopedLibraryEntries();
         saveConnections();
     }
 
     function getAll() {
         return connections.map(item => ({ ...item }));
+    }
+
+    function deepClone(value) {
+        try {
+            return JSON.parse(JSON.stringify(value));
+        } catch (error) {
+            return value;
+        }
+    }
+
+    function findEntryAcrossLibraries(entryId) {
+        const state = window.EveLibrary.State;
+        if (!state || !entryId) return null;
+        const libraries = state.getAllLibraries();
+        for (const lib of Object.values(libraries)) {
+            const matched = (lib?.entries || []).find(item => String(item?.id) === String(entryId));
+            if (matched) return matched;
+        }
+        return null;
+    }
+
+    function repairScopedLibraryEntries() {
+        const state = window.EveLibrary.State;
+        if (!state || !Array.isArray(connections) || connections.length === 0) return;
+
+        let changedConnections = false;
+        let changedLibraries = false;
+
+        // Keep only the latest connection per linkId and normalize link id shape.
+        const seenLinkIds = new Set();
+        const deduped = [];
+        for (let index = connections.length - 1; index >= 0; index -= 1) {
+            const conn = connections[index];
+            if (!conn || typeof conn !== 'object') {
+                changedConnections = true;
+                continue;
+            }
+            const linkId = String(conn.linkId || '').trim();
+            if (!linkId || seenLinkIds.has(linkId)) {
+                changedConnections = true;
+                continue;
+            }
+            conn.linkId = linkId;
+            seenLinkIds.add(linkId);
+            deduped.push(conn);
+        }
+        connections = deduped.reverse();
+
+        connections.forEach(conn => {
+            if (!conn || typeof conn !== 'object') return;
+            const link = findLinkById(conn.linkId);
+            const workspaceId = link
+                ? normalizeWorkspaceId(link.workspace || conn.workspace)
+                : normalizeWorkspaceId(conn.workspace);
+            const categoryName = link
+                ? normalizeCategoryName(link.category || conn.categoryName)
+                : normalizeCategoryName(conn.categoryName);
+
+            if (!conn.id) {
+                conn.id = generateId();
+                changedConnections = true;
+            }
+
+            if (conn.workspace !== workspaceId) {
+                conn.workspace = workspaceId;
+                changedConnections = true;
+            }
+            if (conn.categoryName !== categoryName) {
+                conn.categoryName = categoryName;
+                changedConnections = true;
+            }
+
+            const targetLib = state.getCategoryLibrary(categoryName, workspaceId);
+            if (!Array.isArray(targetLib.entries)) {
+                targetLib.entries = [];
+                changedLibraries = true;
+            }
+
+            const exists = targetLib.entries.some(entry => String(entry?.id) === String(conn.libraryEntryId));
+            if (exists) return;
+
+            const sourceEntry = findEntryAcrossLibraries(conn.libraryEntryId);
+            if (!sourceEntry) return;
+
+            targetLib.entries.push(deepClone(sourceEntry));
+            changedLibraries = true;
+        });
+
+        if (changedConnections) {
+            window.EveLibrary.Connections = connections.map(item => ({ ...item }));
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(window.EveLibrary.Connections));
+        }
+        if (changedLibraries) {
+            window.EveLibrary.Storage?.saveLibrary?.();
+        }
     }
 
     function generateId() {
@@ -78,31 +176,69 @@ window.EveLibrary = window.EveLibrary || {};
         return getLinks().find(item => String(item.id) === String(linkId)) || null;
     }
 
-    function findEntry(categoryName, entryId) {
+    function normalizeWorkspaceId(value) {
+        return String(value || '').trim() || String(getConfig().activeWorkspace || 'main');
+    }
+
+    function normalizeCategoryName(value) {
+        const normalized = String(value || '').trim();
+        return normalized || 'Unsorted';
+    }
+
+    function findEntry(categoryName, entryId, workspaceId) {
         const state = window.EveLibrary.State;
         if (!state) return null;
-        const lib = state.getCategoryLibrary(categoryName);
-        return (lib.entries || []).find(entry => entry.id === entryId) || null;
+        const lib = state.getCategoryLibrary(categoryName, workspaceId);
+        return (lib.entries || []).find(entry => String(entry.id) === String(entryId)) || null;
     }
 
     function findEntryByConnection(conn) {
         if (!conn) return null;
-        let entry = findEntry(conn.categoryName, conn.libraryEntryId);
-        if (entry) return { entry, categoryName: conn.categoryName };
+        const scopedWorkspace = normalizeWorkspaceId(conn.workspace);
+        const scopedCategory = normalizeCategoryName(conn.categoryName);
+        let entry = findEntry(scopedCategory, conn.libraryEntryId, scopedWorkspace);
+        if (entry) return { entry, categoryName: scopedCategory, workspaceId: scopedWorkspace };
+
         const state = window.EveLibrary.State;
         if (!state) return null;
+        const parseScoped = state.parseScopedCategoryKey;
         const libs = state.getAllLibraries();
-        for (const [categoryName, lib] of Object.entries(libs)) {
-            const matched = (lib.entries || []).find(item => item.id === conn.libraryEntryId);
-            if (matched) return { entry: matched, categoryName };
+        for (const [libraryKey, lib] of Object.entries(libs)) {
+            const parsed = typeof parseScoped === 'function'
+                ? parseScoped(libraryKey)
+                : { categoryName: libraryKey, workspaceId: '', scoped: false };
+            const keyCategory = parsed.categoryName;
+            const keyWorkspace = normalizeWorkspaceId(parsed.workspaceId || scopedWorkspace);
+            if (keyCategory !== scopedCategory) continue;
+            if (keyWorkspace !== scopedWorkspace) continue;
+
+            const matched = (lib.entries || []).find(item => String(item.id) === String(conn.libraryEntryId));
+            if (matched) return { entry: matched, categoryName: keyCategory, workspaceId: keyWorkspace };
         }
+
+        // Final fallback for legacy data: find by entry id only.
+        for (const [libraryKey, lib] of Object.entries(libs)) {
+            const parsed = typeof parseScoped === 'function'
+                ? parseScoped(libraryKey)
+                : { categoryName: libraryKey, workspaceId: '', scoped: false };
+            if (parsed.workspaceId && normalizeWorkspaceId(parsed.workspaceId) !== scopedWorkspace) continue;
+            const matched = (lib.entries || []).find(item => String(item.id) === String(conn.libraryEntryId));
+            if (matched) {
+                return {
+                    entry: matched,
+                    categoryName: parsed.categoryName,
+                    workspaceId: normalizeWorkspaceId(parsed.workspaceId || scopedWorkspace)
+                };
+            }
+        }
+
         return null;
     }
 
-    function getDefaultStatus(categoryName) {
+    function getDefaultStatus(categoryName, workspaceId) {
         const state = window.EveLibrary.State;
         if (!state) return '';
-        const dataType = state.getCategoryDataType(categoryName);
+        const dataType = state.getCategoryDataType(categoryName, workspaceId);
         const type = state.getDataType(dataType);
         return type?.statuses?.[0] || '';
     }
@@ -121,11 +257,12 @@ window.EveLibrary = window.EveLibrary || {};
         }
 
         const categoryName = link.category || 'Unsorted';
+        const workspaceId = normalizeWorkspaceId(link.workspace);
         const state = window.EveLibrary.State;
         const storage = window.EveLibrary.Storage;
         if (!state || !storage) return null;
 
-        const lib = state.getCategoryLibrary(categoryName);
+        const lib = state.getCategoryLibrary(categoryName, workspaceId);
         const newEntry = {
             id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
             title: link.title || 'Untitled',
@@ -134,7 +271,7 @@ window.EveLibrary = window.EveLibrary || {};
             authorAltNames: [],
             artist: '',
             genre: '',
-            status: getDefaultStatus(categoryName),
+            status: getDefaultStatus(categoryName, workspaceId),
             chapter: 0,
             season: 0,
             episode: 0,
@@ -163,10 +300,10 @@ window.EveLibrary = window.EveLibrary || {};
 
         const connection = {
             id: generateId(),
-            linkId: link.id,
+            linkId: String(link.id),
             libraryEntryId: newEntry.id,
             categoryName,
-            workspace: link.workspace || getConfig().activeWorkspace || 'main',
+            workspace: workspaceId,
             createdAt: new Date().toISOString()
         };
 
@@ -184,7 +321,7 @@ window.EveLibrary = window.EveLibrary || {};
             const found = findEntryByConnection(conn);
             if (found?.entry) {
                 const state = window.EveLibrary.State;
-                const lib = state.getCategoryLibrary(found.categoryName);
+                const lib = state.getCategoryLibrary(found.categoryName, found.workspaceId || conn.workspace);
                 lib.entries = (lib.entries || []).filter(item => item.id !== found.entry.id);
                 window.EveLibrary.Storage?.saveLibrary?.();
             }
@@ -203,17 +340,33 @@ window.EveLibrary = window.EveLibrary || {};
         }
     }
 
-    function removeByLibraryEntry(categoryName, entryId) {
+    function removeByLibraryEntry(categoryName, entryId, workspaceId) {
         const before = connections.length;
-        connections = connections.filter(item => !(item.categoryName === categoryName && item.libraryEntryId === entryId));
+        const normalizedCategory = normalizeCategoryName(categoryName);
+        const normalizedEntryId = String(entryId);
+        const normalizedWorkspace = String(workspaceId || '').trim();
+        connections = connections.filter(item => {
+            if (normalizeCategoryName(item.categoryName) !== normalizedCategory) return true;
+            if (String(item.libraryEntryId) !== normalizedEntryId) return true;
+            if (!normalizedWorkspace) return false;
+            return normalizeWorkspaceId(item.workspace) !== normalizeWorkspaceId(normalizedWorkspace);
+        });
         if (connections.length !== before) {
             saveConnections();
         }
     }
 
-    function syncFromLibraryEntry(categoryName, entry) {
+    function syncFromLibraryEntry(categoryName, entry, workspaceId) {
         if (!entry) return;
-        const linked = connections.filter(item => item.categoryName === categoryName && item.libraryEntryId === entry.id);
+        const normalizedCategory = normalizeCategoryName(categoryName);
+        const normalizedEntryId = String(entry.id);
+        const normalizedWorkspace = String(workspaceId || '').trim();
+        const linked = connections.filter(item => {
+            if (normalizeCategoryName(item.categoryName) !== normalizedCategory) return false;
+            if (String(item.libraryEntryId) !== normalizedEntryId) return false;
+            if (!normalizedWorkspace) return true;
+            return normalizeWorkspaceId(item.workspace) === normalizeWorkspaceId(normalizedWorkspace);
+        });
         if (linked.length === 0) return;
 
         const allLinks = getLinks();
@@ -234,7 +387,7 @@ window.EveLibrary = window.EveLibrary || {};
         if (changed) {
             saveLinks();
         }
-        linked.forEach(conn => emitLinkedEntryUpdated(conn.linkId, categoryName, entry));
+        linked.forEach(conn => emitLinkedEntryUpdated(conn.linkId, normalizedCategory, entry, conn.workspace));
     }
 
     function syncFromLink(linkId) {
@@ -243,9 +396,12 @@ window.EveLibrary = window.EveLibrary || {};
         const link = findLinkById(linkId);
         if (!link) return;
 
-        const nextCategory = String(link.category || 'Unsorted').trim() || 'Unsorted';
-        if (nextCategory !== conn.categoryName) {
-            moveLinkedEntryToCategory(linkId, nextCategory);
+        const currentWorkspace = normalizeWorkspaceId(conn.workspace);
+        const currentCategory = normalizeCategoryName(conn.categoryName);
+        const nextWorkspace = normalizeWorkspaceId(link.workspace || getConfig().activeWorkspace || currentWorkspace);
+        const nextCategory = normalizeCategoryName(link.category || currentCategory);
+        if (nextCategory !== currentCategory || nextWorkspace !== currentWorkspace) {
+            moveLinkedEntryToScope(linkId, nextCategory, nextWorkspace);
             conn = findConnectionByLinkId(linkId);
             if (!conn) return;
         }
@@ -257,7 +413,7 @@ window.EveLibrary = window.EveLibrary || {};
         if (link.url) entry.sourceUrl = link.url;
         entry.lastEdited = new Date().toISOString();
         window.EveLibrary.Storage?.saveLibrary?.();
-        emitLinkedEntryUpdated(linkId, found.categoryName, entry);
+        emitLinkedEntryUpdated(linkId, found.categoryName, entry, conn.workspace);
     }
 
     function getLinkedEntry(linkId) {
@@ -282,31 +438,47 @@ window.EveLibrary = window.EveLibrary || {};
         }
         found.entry.lastEdited = new Date().toISOString();
         window.EveLibrary.Storage?.saveLibrary?.();
-        syncFromLibraryEntry(found.categoryName, found.entry);
+        syncFromLibraryEntry(found.categoryName, found.entry, conn.workspace);
+        return true;
+    }
+
+    function moveLinkedEntryToScope(linkId, nextCategoryName, nextWorkspaceId) {
+        const conn = findConnectionByLinkId(linkId);
+        if (!conn) return false;
+        const categoryName = normalizeCategoryName(nextCategoryName);
+        const workspaceId = normalizeWorkspaceId(nextWorkspaceId || conn.workspace);
+        const currentCategory = normalizeCategoryName(conn.categoryName);
+        const currentWorkspace = normalizeWorkspaceId(conn.workspace);
+        if (currentCategory === categoryName && currentWorkspace === workspaceId) return true;
+
+        const state = window.EveLibrary.State;
+        if (!state) return false;
+
+        const source = state.getCategoryLibrary(currentCategory, currentWorkspace);
+        let entry = (source.entries || []).find(item => String(item?.id) === String(conn.libraryEntryId)) || null;
+        if (!entry) {
+            entry = findEntryAcrossLibraries(conn.libraryEntryId);
+        }
+
+        const target = state.getCategoryLibrary(categoryName, workspaceId);
+        if (entry) {
+            source.entries = (source.entries || []).filter(item => String(item?.id) !== String(entry.id));
+            if (!Array.isArray(target.entries)) target.entries = [];
+            const alreadyInTarget = target.entries.some(item => String(item?.id) === String(entry.id));
+            if (!alreadyInTarget) target.entries.push(entry);
+        }
+
+        conn.categoryName = categoryName;
+        conn.workspace = workspaceId;
+        saveConnections();
+        if (entry) window.EveLibrary.Storage?.saveLibrary?.();
         return true;
     }
 
     function moveLinkedEntryToCategory(linkId, nextCategoryName) {
         const conn = findConnectionByLinkId(linkId);
-        const categoryName = (nextCategoryName || '').trim();
-        if (!conn || !categoryName) return false;
-        if (conn.categoryName === categoryName) return true;
-
-        const found = findEntryByConnection(conn);
-        if (!found?.entry) return false;
-
-        const state = window.EveLibrary.State;
-        if (!state) return false;
-        const source = state.getCategoryLibrary(found.categoryName);
-        source.entries = (source.entries || []).filter(item => item.id !== found.entry.id);
-
-        const target = state.getCategoryLibrary(categoryName);
-        target.entries.push(found.entry);
-
-        conn.categoryName = categoryName;
-        saveConnections();
-        window.EveLibrary.Storage?.saveLibrary?.();
-        return true;
+        if (!conn) return false;
+        return moveLinkedEntryToScope(linkId, nextCategoryName, conn.workspace);
     }
 
     window.EveLibrary.ConnectionsAPI = {
@@ -322,6 +494,7 @@ window.EveLibrary = window.EveLibrary || {};
         syncFromLink,
         getLinkedEntry,
         updateLinkedEntry,
+        moveLinkedEntryToScope,
         moveLinkedEntryToCategory
     };
 })();
