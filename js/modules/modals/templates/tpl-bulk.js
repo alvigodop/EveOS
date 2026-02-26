@@ -3,7 +3,20 @@ window.modalTemplate += `
 <div class="modal-overlay" id="bulkModal">
     <div class="modal">
         <h2>Bulk Import</h2>
-        <textarea id="bulkText" style="min-height:150px;" placeholder="URL list..."></textarea>
+        <div style="display:flex; gap:14px; margin-bottom:10px; align-items:center;">
+            <label style="display:flex; align-items:center; gap:6px; font-size:0.9rem;">
+                <input type="radio" name="bulkMode" id="bulkModeUrl" value="url" checked>
+                <span>URLs</span>
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; font-size:0.9rem;">
+                <input type="radio" name="bulkMode" id="bulkModeName" value="name">
+                <span>Names Only</span>
+            </label>
+        </div>
+        <textarea id="bulkText" style="min-height:150px;" placeholder="One URL per line..."></textarea>
+        <div id="bulkModeHint" style="font-size:0.85rem; opacity:0.75; margin:6px 0 10px;">
+            URL mode: each line should be a URL.
+        </div>
         <input type="text" id="bulkCategory" placeholder="Category" list="availableCategories">
         <div style="display:flex; gap:10px; margin-top:10px;">
             <button class="btn-primary" onclick="processBulk()">Import</button>
