@@ -147,6 +147,7 @@ window.UnidexView = (function () {
             return `
                 <article class="unidex-card ${model.taskMode ? 'is-task-mode' : 'is-link-mode'}" title="${safeCategory}">
                     <button type="button" class="unidex-card-hit"
+                        data-text="${safeCategory.toUpperCase()}"
                         onclick="window.UnidexView.selectCategory('${encodedCategory}')"
                         aria-label="Open ${safeCategory}">
                         <div class="unidex-card-header">
