@@ -63,7 +63,7 @@ function processBulk() {
                 url: searchUrl,
                 category: targetCategory,
                 workspace: config.activeWorkspace,
-                icon: 'ðŸ”—',
+                icon: '',
                 done: false,
                 pinned: false
             });
@@ -75,7 +75,7 @@ function processBulk() {
                 url: normalizeUrl(url),
                 category: targetCategory,
                 workspace: config.activeWorkspace,
-                icon: 'ðŸ”—',
+                icon: '',
                 done: false,
                 pinned: false
             });

@@ -5,6 +5,15 @@ window.EveLinkForm = window.EveLinkForm || {};
         window.tempSources = [];
     }
 
+    function normalizeManualIcon(iconValue) {
+        const value = String(iconValue || '').trim();
+        const normalized = value.replace(/\uFE0F/g, '');
+        // Empty (or legacy link icon) means auto favicon behavior.
+        if (!normalized) return '';
+        if (normalized === '\u{1F517}') return '';
+        return value;
+    }
+
     window.toggleLibraryFieldsCollapse = function () {
         const toggle = ns.getLibraryFormToggle();
         if (!toggle?.checked) return;
@@ -51,7 +60,7 @@ window.EveLinkForm = window.EveLinkForm || {};
         document.getElementById('newUrl').value = l.url;
         document.getElementById('newCategory').value = l.category;
         document.getElementById('newPriority').value = l.priority || "";
-        document.getElementById('newIcon').value = l.icon || "";
+        document.getElementById('newIcon').value = normalizeManualIcon(l.icon);
 
         window.tempSources = l.sources ? [...l.sources] : [];
         renderSourcesList();
@@ -68,7 +77,7 @@ window.EveLinkForm = window.EveLinkForm || {};
         const url = normalizeUrl(document.getElementById('newUrl').value);
         const cat = document.getElementById('newCategory').value.trim() || "Unsorted";
         const prio = document.getElementById('newPriority').value;
-        const icon = document.getElementById('newIcon').value.trim();
+        const icon = normalizeManualIcon(document.getElementById('newIcon').value);
 
         if (!title || !url) return showToast("Missing Info", "warning");
 
@@ -81,7 +90,7 @@ window.EveLinkForm = window.EveLinkForm || {};
                 links[idx].url = url;
                 links[idx].category = cat;
                 links[idx].priority = prio;
-                if (icon) links[idx].icon = icon;
+                links[idx].icon = icon;
                 links[idx].sources = [...window.tempSources];
                 targetId = links[idx].id;
             }
@@ -92,7 +101,7 @@ window.EveLinkForm = window.EveLinkForm || {};
                 title,
                 url,
                 category: cat,
-                icon: icon || '🔗',
+                icon,
                 done: false,
                 pinned: false,
                 priority: prio,
