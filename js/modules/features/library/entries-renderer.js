@@ -8,6 +8,7 @@ window.EveLibrary = window.EveLibrary || {};
 (function () {
     const State = window.EveLibrary.State;
     const Search = window.EveLibrary.Search;
+    const Ratings = window.EveLibrary.Ratings;
 
     function parseUniqueCsvList(value) {
         const seen = new Set();
@@ -56,7 +57,7 @@ window.EveLibrary = window.EveLibrary || {};
         const sortOrder = document.getElementById(prefix + 'sort-order')?.value || 'asc';
 
         if (sortBy) {
-            entries = Search.sortEntries([...entries], sortBy, sortOrder);
+            entries = Search.sortEntries([...entries], sortBy, sortOrder, categoryName);
         }
 
         // Pagination
@@ -95,6 +96,10 @@ window.EveLibrary = window.EveLibrary || {};
         const artistValue = toDisplayCsv(entry.artist);
         const genreValue = toDisplayCsv(entry.genre);
         const tags = toUniqueList(entry.tags);
+        if (Ratings?.applyDerivedRatings) {
+            Ratings.applyDerivedRatings(entry);
+        }
+        const derived = entry.derivedRatings || {};
         const titleHtml = sourceUrl
             ? `<button class="lib-entry-title-btn" onclick="window.EveLibrary.UI.openEntryLink('${safeSourceUrl}')" title="Open source link">${displayNumber}. ${entry.title}</button>`
             : `<h4 class="lib-entry-title">${displayNumber}. ${entry.title}</h4>`;
@@ -122,6 +127,7 @@ window.EveLibrary = window.EveLibrary || {};
                     <p><strong>Status:</strong> ${entry.status || 'N/A'}</p>
                     ${renderTypeFields(entry, dataType)}
                     <p><strong>Rating:</strong> ${entry.rating || 'N/A'}</p>
+                    ${renderDerivedRatings(derived)}
                     ${tags.length ? `<p><strong>Tags:</strong> ${tags.join(', ')}</p>` : ''}
                 </div>
                 <div class="lib-entry-last-edited" title="Last edited">${lastEditedText}</div>
@@ -151,6 +157,27 @@ window.EveLibrary = window.EveLibrary || {};
             `;
         }
         return `<p><strong>Chapter:</strong> ${entry.chapter || 0}</p>`;
+    }
+
+    function renderDerivedRatings(derived) {
+        if (!derived || typeof derived !== 'object') return '';
+        const average = formatScore(derived.apiAverage10);
+        const weighted = formatScore(derived.apiWeighted10);
+        const hybrid = formatScore(derived.hybrid10);
+        const confidence = formatScore(derived.confidence);
+        if (!average && !weighted && !hybrid) return '';
+        const items = [];
+        if (average) items.push(`API Avg: ${average}`);
+        if (weighted) items.push(`API Weighted: ${weighted}`);
+        if (hybrid) items.push(`Unified: ${hybrid}`);
+        if (confidence) items.push(`Confidence: ${confidence}`);
+        return `<p><strong>Derived:</strong> ${items.join(' | ')}</p>`;
+    }
+
+    function formatScore(value) {
+        const n = Number(value);
+        if (!Number.isFinite(n)) return '';
+        return n.toFixed(2).replace(/\.?0+$/, '');
     }
 
     function renderPagination(categoryName, totalPages, currentPage) {

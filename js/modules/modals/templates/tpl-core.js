@@ -66,6 +66,37 @@ window.modalTemplate = `
                         <option value="5">5</option>
                     </select>
                 </div>
+                <div style="margin-bottom:8px; border:1px solid rgba(255,255,255,0.12); border-radius:6px; padding:8px;">
+                    <div style="font-size:0.78rem; opacity:0.8; margin-bottom:6px;">API Ratings (0-10)</div>
+                    <div style="display:flex; gap:5px; margin-bottom:5px;">
+                        <div style="display:flex; flex-direction:column; gap:3px; flex:1;">
+                            <label for="libApiRatingAniList" style="font-size:0.75rem; opacity:0.8;">AniList</label>
+                            <input type="number" id="libApiRatingAniList" min="0" max="10" step="0.01" placeholder="-" style="width:100%; padding:4px 6px;">
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:3px; flex:1;">
+                            <label for="libApiRatingMAL" style="font-size:0.75rem; opacity:0.8;">MyAnimeList</label>
+                            <input type="number" id="libApiRatingMAL" min="0" max="10" step="0.01" placeholder="-" style="width:100%; padding:4px 6px;">
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:3px; flex:1;">
+                            <label for="libApiRatingMangaDex" style="font-size:0.75rem; opacity:0.8;">MangaDex</label>
+                            <input type="number" id="libApiRatingMangaDex" min="0" max="10" step="0.01" placeholder="-" style="width:100%; padding:4px 6px;">
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:5px;">
+                        <div style="display:flex; flex-direction:column; gap:3px; flex:1;">
+                            <label for="libApiRatingAverage" style="font-size:0.75rem; opacity:0.8;">API Average</label>
+                            <input type="text" id="libApiRatingAverage" placeholder="-" readonly style="width:100%; opacity:0.85; padding:4px 6px;">
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:3px; flex:1;">
+                            <label for="libApiRatingWeighted" style="font-size:0.75rem; opacity:0.8;">API Weighted</label>
+                            <input type="text" id="libApiRatingWeighted" placeholder="-" readonly style="width:100%; opacity:0.85; padding:4px 6px;">
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:3px; flex:1;">
+                            <label for="libUnifiedRating" style="font-size:0.75rem; opacity:0.8;">Unified</label>
+                            <input type="text" id="libUnifiedRating" placeholder="-" readonly style="width:100%; opacity:0.85; padding:4px 6px;">
+                        </div>
+                    </div>
+                </div>
                 <div style="display:flex; gap:5px; margin-bottom:5px;">
                     <div id="libGraphicChapterWrap" style="display:flex; flex-direction:column; gap:3px; flex:1;">
                         <label for="libGraphicChapter" style="font-size:0.75rem; opacity:0.8;">Graphic Chapter</label>

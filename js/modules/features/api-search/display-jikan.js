@@ -72,6 +72,8 @@ window.EveOS.API.DisplayInternals = window.EveOS.API.DisplayInternals || {};
         const startDateRaw = isAnime ? item?.aired?.from : item?.published?.from;
         const endDateRaw = isAnime ? item?.aired?.to : item?.published?.to;
 
+        const providerUrl = item?.url || "";
+
         return {
             source: "MyAnimeList",
             mediaType,
@@ -103,7 +105,8 @@ window.EveOS.API.DisplayInternals = window.EveOS.API.DisplayInternals || {};
             contentRating,
             startDate: startDateRaw || "",
             endDate: endDateRaw || "",
-            url: item?.url || ""
+            url: providerUrl,
+            providerUrl
         };
     };
 })(window.EveOS.API.DisplayInternals);

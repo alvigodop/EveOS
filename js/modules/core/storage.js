@@ -21,6 +21,9 @@ function loadData() {
     if (storedLinks) { try { links = JSON.parse(storedLinks); } catch (e) { links = []; } }
     const storedConfig = localStorage.getItem('eveV22Config');
     if (storedConfig) { try { config = { ...config, ...JSON.parse(storedConfig) }; } catch (e) { } }
+    if (window.EveLibrary?.Ratings?.ensureConfigDefaults) {
+        window.EveLibrary.Ratings.ensureConfigDefaults(config);
+    }
     if (!config.workspaces || config.workspaces.length === 0) config.workspaces = [{ id: 'main', name: 'Main', icon: '🏠' }];
     if (!config.activeWorkspace) config.activeWorkspace = 'main';
 

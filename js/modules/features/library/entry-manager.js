@@ -8,6 +8,7 @@ window.EveLibrary = window.EveLibrary || {};
 (function () {
     const State = window.EveLibrary.State;
     const Storage = window.EveLibrary.Storage;
+    const Ratings = window.EveLibrary.Ratings;
 
     function generateUniqueId() {
         return Date.now() + Math.random().toString(36).substr(2, 9);
@@ -37,6 +38,18 @@ window.EveLibrary = window.EveLibrary || {};
         const author = document.getElementById(prefix + 'author')?.value.trim() || '';
         const authorAltNames = parseUniqueCsvList(document.getElementById(prefix + 'author-alt-names')?.value || '')
             .filter(name => name.toLowerCase() !== author.toLowerCase());
+        const apiRatingFieldMap = {
+            anilist: prefix + 'api-rating-anilist',
+            myanimelist: prefix + 'api-rating-myanimelist',
+            mangadex: prefix + 'api-rating-mangadex'
+        };
+        const apiRatingsProvided = Object.values(apiRatingFieldMap).some(id => !!document.getElementById(id));
+        const rawApiRatings = {
+            anilist: document.getElementById(apiRatingFieldMap.anilist)?.value ?? null,
+            myanimelist: document.getElementById(apiRatingFieldMap.myanimelist)?.value ?? null,
+            mangadex: document.getElementById(apiRatingFieldMap.mangadex)?.value ?? null
+        };
+        const apiRatings = Ratings?.sanitizeApiRatings ? Ratings.sanitizeApiRatings(rawApiRatings) : rawApiRatings;
         return {
             title: document.getElementById(prefix + 'title')?.value.trim() || '',
             author,
@@ -52,7 +65,9 @@ window.EveLibrary = window.EveLibrary || {};
             language: document.getElementById(prefix + 'language')?.value.trim() || '',
             sourceUrl: rawSourceUrl ? normalizeUrl(rawSourceUrl) : '',
             tags: parseUniqueCsvList(document.getElementById(prefix + 'tags')?.value || ''),
-            imageUrl: document.getElementById(prefix + 'image-url')?.value.trim() || ''
+            imageUrl: document.getElementById(prefix + 'image-url')?.value.trim() || '',
+            apiRatings,
+            apiRatingsProvided
         };
     }
 
@@ -78,14 +93,19 @@ window.EveLibrary = window.EveLibrary || {};
             episode: (dataType === 'films') ? data.episode : undefined,
             summary: data.summary,
             rating: data.rating,
+            apiRatings: data.apiRatings,
             language: data.language,
             sourceUrl: data.sourceUrl,
             tags: data.tags,
             dateAdded: nowIso,
             lastEdited: nowIso,
             favorite: false,
-            image: data.imageUrl
+            image: data.imageUrl,
+            derivedRatings: null
         };
+        if (Ratings?.applyDerivedRatings) {
+            Ratings.applyDerivedRatings(newEntry);
+        }
 
         lib.entries.push(newEntry);
         Storage.saveLibrary();
@@ -128,10 +148,18 @@ window.EveLibrary = window.EveLibrary || {};
         }
         entry.summary = data.summary;
         entry.rating = data.rating;
+        if (data.apiRatingsProvided) {
+            entry.apiRatings = data.apiRatings;
+        } else if (!entry.apiRatings) {
+            entry.apiRatings = data.apiRatings;
+        }
         entry.language = data.language;
         entry.sourceUrl = data.sourceUrl;
         entry.tags = data.tags;
         if (data.imageUrl) entry.image = data.imageUrl;
+        if (Ratings?.applyDerivedRatings) {
+            Ratings.applyDerivedRatings(entry);
+        }
         entry.lastEdited = nowIso;
 
         Storage.saveLibrary();

@@ -51,7 +51,7 @@ window.EveOS.API.DisplayInternals = window.EveOS.API.DisplayInternals || {};
         const mappedLinks = linkPairs
             .map(([key, value]) => internals.parseMangaDexLink(key, value))
             .filter(Boolean);
-        const url = mappedLinks[0] || `https://mangadex.org/title/${manga.id}`;
+        const providerUrl = `https://mangadex.org/title/${manga.id}`;
 
         const contentRating = internals.formatStatus(attributes?.contentRating);
         const demographic = internals.formatStatus(attributes?.publicationDemographic);
@@ -98,7 +98,9 @@ window.EveOS.API.DisplayInternals = window.EveOS.API.DisplayInternals || {};
             contentRating,
             startDate: attributes?.year ? `${attributes.year}-01-01` : "",
             endDate: "",
-            url
+            url: providerUrl,
+            providerUrl,
+            externalLinks: mappedLinks
         };
     };
 })(window.EveOS.API.DisplayInternals);

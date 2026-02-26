@@ -31,6 +31,47 @@ window.modalTemplate += `
                 </select>
                 <div style="font-size:0.8rem; opacity:0.75; margin-top:4px;">Tip: press Shift+Enter in search to open Expanded mode once.</div>
             </div>
+            <div style="border-top:1px solid #444; padding-top:10px; margin-top:5px;">
+                <h4 style="margin:0 0 10px 0; color:var(--accent);">Library Derived Ratings</h4>
+                <label style="display:block; margin-bottom:8px;">Default Scale:
+                    <select id="ratingScaleModeSelect" onchange="saveRatingSettingsScale()" style="width:100%;">
+                        <option value="hybrid">Unified (Hybrid)</option>
+                        <option value="personal">Personal Only</option>
+                        <option value="api_weighted">API Weighted</option>
+                        <option value="api_average">API Average</option>
+                    </select>
+                </label>
+                <label style="display:block; margin-bottom:10px;">Personal Weight in Unified (%):
+                    <input type="number" id="ratingPersonalWeight" min="0" max="100" step="5" onchange="saveRatingSettingsPersonalWeight()" style="width:100%;">
+                </label>
+                <div style="display:flex; flex-direction:column; gap:6px;">
+                    <div style="display:grid; grid-template-columns:auto 1fr auto; gap:8px; align-items:center;">
+                        <label style="display:flex; gap:6px; align-items:center;">
+                            <input type="checkbox" id="ratingProviderAniListEnabled" onchange="saveRatingProviderSettings()">
+                            <span>AniList</span>
+                        </label>
+                        <div></div>
+                        <input type="number" id="ratingProviderAniListWeight" min="0" max="100" step="0.5" onchange="saveRatingProviderSettings()" style="width:76px;" title="AniList Weight">
+                    </div>
+                    <div style="display:grid; grid-template-columns:auto 1fr auto; gap:8px; align-items:center;">
+                        <label style="display:flex; gap:6px; align-items:center;">
+                            <input type="checkbox" id="ratingProviderMALEnabled" onchange="saveRatingProviderSettings()">
+                            <span>MyAnimeList</span>
+                        </label>
+                        <div></div>
+                        <input type="number" id="ratingProviderMALWeight" min="0" max="100" step="0.5" onchange="saveRatingProviderSettings()" style="width:76px;" title="MyAnimeList Weight">
+                    </div>
+                    <div style="display:grid; grid-template-columns:auto 1fr auto; gap:8px; align-items:center;">
+                        <label style="display:flex; gap:6px; align-items:center;">
+                            <input type="checkbox" id="ratingProviderMangaDexEnabled" onchange="saveRatingProviderSettings()">
+                            <span>MangaDex</span>
+                        </label>
+                        <div></div>
+                        <input type="number" id="ratingProviderMangaDexWeight" min="0" max="100" step="0.5" onchange="saveRatingProviderSettings()" style="width:76px;" title="MangaDex Weight">
+                    </div>
+                </div>
+                <div style="font-size:0.78rem; opacity:0.75; margin-top:8px;">Unified = personalWeight * personal + (1 - personalWeight) * API weighted</div>
+            </div>
             <div>
                 <label style="color:var(--accent);">Header Readout:</label>
                 <button type="button" onclick="openHeaderControlsModal()" style="width:100%;">Open Header Controls</button>

@@ -72,6 +72,20 @@ window.EveLinkForm = window.EveLinkForm || {};
         return String(value || '').trim().toLowerCase();
     };
 
+    ns.readNumericRating = function (value) {
+        if (value === null || value === undefined || String(value).trim() === '') {
+            return null;
+        }
+        const n = Number(value);
+        return Number.isFinite(n) ? n : null;
+    };
+
+    ns.formatRating = function (value, digits = 2) {
+        const n = ns.readNumericRating(value);
+        if (n === null) return '';
+        return n.toFixed(digits).replace(/\.?0+$/, '');
+    };
+
     ns.normalizeLanguageFromCountryCode = function (value) {
         const raw = String(value || '').trim();
         if (!raw) return '';
@@ -117,6 +131,8 @@ window.EveLinkForm = window.EveLinkForm || {};
     };
 
     ns.buildSourceMetadata = function (source) {
+        const rawImageUrl = String(source?.coverUrl || source?.image || source?.imageUrl || '').trim();
+        const isPlaceholderImage = /placeholder\.com|placehold\.co|text=No\+Cover/i.test(rawImageUrl);
         const authors = ns.splitPeopleNames(source?.author);
         const artists = ns.splitPeopleNames(source?.artist);
         const genres = ns.normalizeSourceList(source?.genres);
@@ -125,9 +141,22 @@ window.EveLinkForm = window.EveLinkForm || {};
             ns.normalizeSourceList(source?.synonyms)
         );
         const language = ns.normalizeLanguageFromCountryCode(source?.countryOfOrigin);
-        const sourceUrl = normalizeUrl(String(source?.url || '').trim());
+        const sourceUrl = normalizeUrl(String(source?.providerUrl || source?.url || '').trim());
+        const imageUrl = isPlaceholderImage ? '' : normalizeUrl(rawImageUrl);
         const status = String(source?.status || '').trim();
-        return { authors, artists, genres, tags, language, sourceUrl, status };
+        const provider = window.EveLibrary?.Ratings?.sourceNameToProvider?.(source?.source);
+        const normalizedScore = provider
+            ? window.EveLibrary?.Ratings?.normalizeProviderScore?.(provider, source?.score)
+            : null;
+        const apiRatings = {
+            anilist: null,
+            myanimelist: null,
+            mangadex: null
+        };
+        if (provider && normalizedScore !== null) {
+            apiRatings[provider] = normalizedScore;
+        }
+        return { authors, artists, genres, tags, language, sourceUrl, imageUrl, status, apiRatings };
     };
 
     ns.getAttachedSourceByIndex = function (index) {

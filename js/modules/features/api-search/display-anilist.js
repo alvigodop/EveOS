@@ -110,7 +110,8 @@ window.EveOS.API.DisplayInternals = window.EveOS.API.DisplayInternals || {};
             contentRating: media?.isAdult ? "Adult" : "",
             startDate,
             endDate,
-            url: siteUrl
+            url: siteUrl,
+            providerUrl: siteUrl
         };
     };
 })(window.EveOS.API.DisplayInternals);

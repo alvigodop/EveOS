@@ -29,7 +29,22 @@ let config = {
     hideStats: [],
     workspaces: [{ id: "main", name: "Main", icon: "\u{1F3E0}" }],
     activeWorkspace: "main",
-    scrollableCategories: false
+    scrollableCategories: false,
+    ratingSettings: {
+        activeScale: "hybrid",
+        personalWeight: 0.5,
+        missingScoreMode: "ignore_missing",
+        enabledProviders: {
+            anilist: true,
+            myanimelist: true,
+            mangadex: true
+        },
+        providerWeights: {
+            anilist: 1,
+            myanimelist: 1,
+            mangadex: 1
+        }
+    }
 };
 let focusCategory = null;
 let timerInterval = null, timerSeconds = 1500, timerRunning = false;

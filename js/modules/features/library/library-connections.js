@@ -6,6 +6,7 @@ window.EveLibrary = window.EveLibrary || {};
 
 (function () {
     const STORAGE_KEY = 'eveLibraryConnections';
+    const Ratings = window.EveLibrary?.Ratings;
     let connections = [];
 
     function getLinks() {
@@ -140,6 +141,12 @@ window.EveLibrary = window.EveLibrary || {};
             sourceUrl: link.url || '',
             summary: '',
             rating: '',
+            apiRatings: {
+                anilist: null,
+                myanimelist: null,
+                mangadex: null
+            },
+            derivedRatings: null,
             language: '',
             tags: [],
             dateAdded: new Date().toISOString(),
@@ -147,6 +154,9 @@ window.EveLibrary = window.EveLibrary || {};
             favorite: false,
             image: ''
         };
+        if (Ratings?.applyDerivedRatings) {
+            Ratings.applyDerivedRatings(newEntry);
+        }
 
         lib.entries.push(newEntry);
         storage.saveLibrary();
@@ -259,6 +269,9 @@ window.EveLibrary = window.EveLibrary || {};
         const found = findEntryByConnection(conn);
         if (!found?.entry) return false;
         Object.assign(found.entry, patch);
+        if (Ratings?.applyDerivedRatings) {
+            Ratings.applyDerivedRatings(found.entry);
+        }
         found.entry.lastEdited = new Date().toISOString();
         window.EveLibrary.Storage?.saveLibrary?.();
         syncFromLibraryEntry(found.categoryName, found.entry);

@@ -86,7 +86,12 @@ window.EveLibrary = window.EveLibrary || {};
         sortBySelect.innerHTML = '<option value="">Sort By</option>';
         const labelMap = {
             dateAdded: 'Date Added',
-            lastEdited: 'Last Edited'
+            lastEdited: 'Last Edited',
+            selectedRating: 'Unified Rating',
+            apiAverageRating: 'API Average',
+            apiWeightedRating: 'API Weighted',
+            hybridRating: 'Hybrid Rating',
+            personal10Rating: 'Personal (10 Scale)'
         };
         (typeConfig?.sortOptions || []).forEach(field => {
             const option = document.createElement('option');

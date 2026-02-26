@@ -15,11 +15,18 @@
         return Array.isArray(value) ? value : [];
     }
 
+    function getPrimarySourceUrl(source) {
+        const providerUrl = String(source?.providerUrl || "").trim();
+        if (providerUrl) return providerUrl;
+        return String(source?.url || "").trim();
+    }
+
     function getSourceIdentity(source) {
-        const url = String(source?.url || "").trim().toLowerCase();
+        const provider = String(source?.source || "").trim().toLowerCase();
+        const url = getPrimarySourceUrl(source).toLowerCase();
+        if (provider && url) return `provider-url:${provider}|${url}`;
         if (url) return `url:${url}`;
 
-        const provider = String(source?.source || "").trim().toLowerCase();
         const title = String(source?.title || "").trim().toLowerCase();
         const mediaType = String(source?.mediaType || "").trim().toLowerCase();
         return `meta:${provider}|${title}|${mediaType}`;
@@ -110,7 +117,7 @@
             const mediaType = escapeHtml(source.mediaType || "");
             const score = escapeHtml(source.score ?? "-");
             const title = escapeHtml(source.title || "Untitled");
-            const safeUrl = escapeHtml(source.url || "#");
+            const safeUrl = escapeHtml(getPrimarySourceUrl(source) || "#");
             const coverUrl = escapeHtml(source.coverUrl || "");
             const author = escapeHtml(source.author || "");
             const artist = escapeHtml(source.artist || "");

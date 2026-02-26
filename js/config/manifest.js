@@ -41,12 +41,15 @@ window.EveModuleManifest = {
 
         // Library Feature (Category-based entry management)
         'js/modules/features/library/library-state.js',
+        'js/modules/features/library/ratings/engine.js',
         'js/modules/features/library/library-storage.js',
         'js/modules/features/library/entry-manager.js',
         'js/modules/features/library/library-connections.js',
         'js/modules/features/library/search-filters.js',
         'js/modules/features/library/options-updaters.js',
         'js/modules/features/library/entries-renderer.js',
+        'js/modules/features/library/library-ui.shared.js',
+        'js/modules/features/library/library-ui.template.js',
 
         // Library Stats
         'js/modules/features/library/stats/chart-utils.js',
@@ -71,7 +74,9 @@ window.EveModuleManifest = {
         // Modal Logic Modules
         'js/modules/modals/logic/utils.js',
         'js/modules/modals/logic/link-form.shared.js',
+        'js/modules/modals/logic/link-form.library.ratings.js',
         'js/modules/modals/logic/link-form.library.js',
+        'js/modules/modals/logic/link-form.library.metadata.js',
         'js/modules/modals/logic/link-form.js',
         'js/modules/modals/logic/category-rename.js',
         'js/modules/modals/logic/workspace.js',

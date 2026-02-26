@@ -63,26 +63,38 @@ The system is intentionally compartmentalized. Workspace tabs, category cards, b
 
 1. Bookmark modal logic split for maintainability:
    - `js/modules/modals/logic/link-form.shared.js`
+   - `js/modules/modals/logic/link-form.library.ratings.js`
    - `js/modules/modals/logic/link-form.library.js`
+   - `js/modules/modals/logic/link-form.library.metadata.js`
    - `js/modules/modals/logic/link-form.js` (orchestrator only)
 
-2. API search display pipeline split by responsibility:
+2. Library UI split for maintainability:
+   - `js/modules/features/library/library-ui.shared.js` (shared list/format helpers)
+   - `js/modules/features/library/library-ui.template.js` (panel HTML builder)
+   - `js/modules/features/library/library-ui.js` (UI orchestration only)
+
+3. API search display pipeline split by responsibility:
    - `js/modules/features/api-search/display-utils.js`
    - `js/modules/features/api-search/display-mangadex.js`
    - `js/modules/features/api-search/display-jikan.js`
    - `js/modules/features/api-search/display-anilist.js`
    - `js/modules/features/api-search/display.js` (orchestrator only)
 
-3. Source attachment flow improvement:
+4. Source attachment flow improvement:
    - `js/modules/features/sources/source-manager.js` now supports attaching multiple API results in one search session.
    - Duplicate prevention now uses URL-first identity and provider/title/media-type fallback.
 
-4. Metadata mapping improvement:
+5. Metadata mapping improvement:
    - API `countryOfOrigin` is normalized into Library `Language` when `Language` is empty.
    - Implemented in `link-form.shared.js` + `link-form.library.js`.
 
-5. Load order updates:
+6. Load order updates:
    - `js/config/manifest.js` now loads split modules before their orchestrators.
+
+7. Library rating engine:
+   - `js/modules/features/library/ratings/engine.js`
+   - Supports provider scores (`AniList`, `MyAnimeList`, `MangaDex`) plus personal rating blending.
+   - Derived values are stored on entries under `entry.derivedRatings`.
 
 ## Backup Scopes
 
@@ -106,6 +118,26 @@ Reference JSON schema: `data/unified-state-template.json`
 - Editing and restoring JSON updates visible site state after import.
 - Linked bookmark/library fields sync through `library-connections.js` and module save hooks.
 
+## Derived Rating Model
+
+- Personal rating remains the 1-5 field in library forms.
+- Personal rating is normalized to 10-scale (`personal10 = personal * 2`).
+- API provider scores are normalized to 10-scale and stored as:
+  - `entry.apiRatings.anilist`
+  - `entry.apiRatings.myanimelist`
+  - `entry.apiRatings.mangadex`
+- Derived values (computed and persisted):
+  - `apiAverage10`
+  - `apiWeighted10`
+  - `hybrid10`
+  - `activeValue`
+  - `confidence`
+
+Global controls live in `config.ratingSettings`:
+- `activeScale`: `hybrid`, `personal`, `api_weighted`, `api_average`
+- `personalWeight`: default `0.5`
+- provider on/off toggles and provider weights
+
 ## Console Log Triage (Bug Finder Workflow)
 
 Use console output as signal, but classify logs by severity:
@@ -125,6 +157,7 @@ Use console output as signal, but classify logs by severity:
 3. Actionable Errors (treat as real issues):
    - `Uncaught`, `TypeError`, `ReferenceError`, failed module dependency lines.
    - Repeated WebSocket/API failures when backend is expected online.
+     - If backend is intentionally off, `ERR_CONNECTION_REFUSED` is expected noise.
    - `Module ... not loaded` in runtime paths that should be active.
 
 4. Quick triage rule:

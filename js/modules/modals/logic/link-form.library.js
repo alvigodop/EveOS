@@ -16,6 +16,7 @@ window.EveLinkForm = window.EveLinkForm || {};
         if (document.getElementById('libTypeFilms')?.checked) mediaTypes.push('films');
         if (document.getElementById('libTypeNovels')?.checked) mediaTypes.push('novels');
 
+        const ratingsPatch = ns.buildRatingsPatch();
         return {
             author,
             authorAltNames,
@@ -32,7 +33,9 @@ window.EveLinkForm = window.EveLinkForm || {};
             image: document.getElementById('libImageUrl')?.value.trim() || '',
             tags: ns.parseUniqueCsvList(document.getElementById('libTags')?.value || ''),
             summary: document.getElementById('libSummary')?.value.trim() || '',
-            mediaTypes
+            mediaTypes,
+            apiRatings: ratingsPatch.apiRatings,
+            derivedRatings: ratingsPatch.derivedRatings
         };
     };
 
@@ -57,12 +60,14 @@ window.EveLinkForm = window.EveLinkForm || {};
         document.getElementById('libSourceUrl').value = entry?.sourceUrl || document.getElementById('newUrl')?.value || '';
         document.getElementById('libImageUrl').value = entry?.image || entry?.imageUrl || '';
         document.getElementById('libTags').value = ns.normalizeEntryListValue(entry?.tags);
+        ns.writeApiRatingsToInputs(entry?.apiRatings || null);
         const summaryValue = entry?.summary || '';
         document.getElementById('libSummary').value = ns.isAutoSourceSummary(summaryValue) ? '' : summaryValue;
         const addedMeta = document.getElementById('libDateAddedMeta');
         const editedMeta = document.getElementById('libLastEditedMeta');
         if (addedMeta) addedMeta.textContent = `Added: ${ns.formatLibraryTimestamp(entry?.dateAdded)}`;
         if (editedMeta) editedMeta.textContent = `Last Edited: ${ns.formatLibraryTimestamp(entry?.lastEdited || entry?.dateAdded)}`;
+        ns.refreshDerivedRatingsPreview(entry);
         ns.updateLibraryProgressFieldVisibility();
     };
 
@@ -114,108 +119,6 @@ window.EveLinkForm = window.EveLinkForm || {};
         if (episodeWrap) episodeWrap.style.display = hasFilms ? 'flex' : 'none';
     };
 
-    ns.ensureLibraryMetadataSectionEnabled = function () {
-        const toggle = ns.getLibraryFormToggle();
-        if (toggle && !toggle.checked) {
-            toggle.checked = true;
-        }
-        ns.setLibraryFieldsCollapsed(false);
-        ns.setLibraryFieldsVisibility(true);
-    };
-
-    ns.updateLinkedEntryFromMetadataPatch = function (patch) {
-        if (!patch || typeof patch !== 'object') return;
-        const editId = document.getElementById('editId')?.value;
-        if (!editId) return;
-        const api = ns.getConnectionsApi();
-        if (!api?.findConnectionByLinkId?.(editId)) return;
-        api.updateLinkedEntry?.(editId, patch);
-    };
-
-    ns.applySourceMetadataToLibraryFields = function (source) {
-        if (!source) return false;
-
-        ns.ensureLibraryMetadataSectionEnabled();
-
-        const meta = ns.buildSourceMetadata(source);
-        const updates = {};
-
-        const authorInput = document.getElementById('libAuthor');
-        const altAuthorsInput = document.getElementById('libAuthorAltNames');
-        const existingAuthor = String(authorInput?.value || '').trim();
-        let primaryAuthor = existingAuthor;
-        if (!primaryAuthor && meta.authors.length > 0) {
-            primaryAuthor = meta.authors[0];
-        }
-
-        const existingAltAuthors = ns.parseUniqueCsvList(altAuthorsInput?.value || '');
-        let nextAltAuthors = ns.mergeUniqueValues(existingAltAuthors, meta.authors);
-        const primaryKey = ns.toTrimmedLower(primaryAuthor);
-        nextAltAuthors = nextAltAuthors.filter(name => ns.toTrimmedLower(name) !== primaryKey);
-
-        if (authorInput) authorInput.value = primaryAuthor;
-        if (altAuthorsInput) altAuthorsInput.value = nextAltAuthors.join(', ');
-        updates.author = primaryAuthor;
-        updates.authorAltNames = nextAltAuthors;
-
-        const artistInput = document.getElementById('libArtist');
-        const existingArtists = ns.parseUniqueCsvList(artistInput?.value || '');
-        const mergedArtists = ns.mergeUniqueValues(existingArtists, meta.artists);
-        if (artistInput) artistInput.value = mergedArtists.join(', ');
-        updates.artist = mergedArtists.join(', ');
-
-        const genreInput = document.getElementById('libGenre');
-        const existingGenres = ns.parseUniqueCsvList(genreInput?.value || '');
-        const mergedGenres = ns.mergeUniqueValues(existingGenres, meta.genres);
-        if (genreInput) genreInput.value = mergedGenres.join(', ');
-        updates.genre = mergedGenres.join(', ');
-
-        const tagsInput = document.getElementById('libTags');
-        const existingTags = ns.parseUniqueCsvList(tagsInput?.value || '');
-        const mergedTags = ns.mergeUniqueValues(existingTags, meta.tags);
-        if (tagsInput) tagsInput.value = mergedTags.join(', ');
-        updates.tags = mergedTags;
-
-        const languageInput = document.getElementById('libLanguage');
-        if (languageInput && !ns.toTrimmedLower(languageInput.value) && meta.language) {
-            languageInput.value = meta.language;
-            updates.language = meta.language;
-        }
-
-        const sourceUrlInput = document.getElementById('libSourceUrl');
-        const bookmarkUrlInput = document.getElementById('newUrl');
-        const hasCurrentSourceUrl = ns.toTrimmedLower(sourceUrlInput?.value);
-        if (!hasCurrentSourceUrl && meta.sourceUrl) {
-            if (sourceUrlInput) sourceUrlInput.value = meta.sourceUrl;
-            if (bookmarkUrlInput && !ns.toTrimmedLower(bookmarkUrlInput.value)) {
-                bookmarkUrlInput.value = meta.sourceUrl;
-            }
-            updates.sourceUrl = meta.sourceUrl;
-        }
-
-        const statusSelect = document.getElementById('libStatus');
-        if (statusSelect && !statusSelect.value && meta.status) {
-            const statusMatch = Array.from(statusSelect.options || []).find(option =>
-                ns.toTrimmedLower(option.value) === ns.toTrimmedLower(meta.status)
-            );
-            if (statusMatch) {
-                statusSelect.value = statusMatch.value;
-                updates.status = statusMatch.value;
-            }
-        }
-
-        ns.updateLinkedEntryFromMetadataPatch(updates);
-
-        const summaryBits = [];
-        if (meta.tags.length) summaryBits.push(`${meta.tags.length} tags`);
-        if (meta.genres.length) summaryBits.push(`${meta.genres.length} genres`);
-        if (meta.authors.length) summaryBits.push(`${meta.authors.length} authors`);
-        if (meta.artists.length) summaryBits.push(`${meta.artists.length} artists`);
-        const summaryText = summaryBits.length ? summaryBits.join(', ') : 'no metadata fields available';
-        showToast(`Source metadata applied (${summaryText})`, "success");
-        return true;
-    };
-
     ns.setupLibraryToggleHandlers = function () {
         const toggle = ns.getLibraryFormToggle();
         const collapseBtn = ns.getLibraryCollapseButton();
@@ -225,6 +128,7 @@ window.EveLinkForm = window.EveLinkForm || {};
         const typeGraphic = document.getElementById('libTypeGraphic');
         const typeFilms = document.getElementById('libTypeFilms');
         const typeNovels = document.getElementById('libTypeNovels');
+
         if (toggle) {
             toggle.onchange = () => {
                 const enabled = !!toggle.checked;
@@ -232,11 +136,13 @@ window.EveLinkForm = window.EveLinkForm || {};
                     ns.isLibraryFieldsCollapsed = false;
                 }
                 ns.setLibraryFieldsVisibility(enabled);
+                if (enabled) ns.refreshDerivedRatingsPreview();
             };
         }
         if (collapseBtn) {
             collapseBtn.onclick = () => window.toggleLibraryFieldsCollapse();
         }
+
         const onTypesChanged = () => ns.updateLibraryProgressFieldVisibility(categoryInput?.value?.trim() || 'Unsorted');
         if (typeGraphic) typeGraphic.onchange = onTypesChanged;
         if (typeFilms) typeFilms.onchange = onTypesChanged;
@@ -248,36 +154,61 @@ window.EveLinkForm = window.EveLinkForm || {};
                 ns.updateLibraryProgressFieldVisibility(categoryName);
             };
         }
-        if (bookmarkUrlInput && libraryUrlInput) {
-            let liveSyncTimer = null;
-            const pushLiveSourceUrlToLinkedEntry = () => {
-                const editId = document.getElementById('editId')?.value;
-                if (!editId) return;
-                const api = ns.getConnectionsApi();
-                if (!api?.findConnectionByLinkId?.(editId)) return;
-                const sourceUrl = (libraryUrlInput.value || '').trim();
-                clearTimeout(liveSyncTimer);
-                liveSyncTimer = setTimeout(() => {
-                    api.updateLinkedEntry?.(editId, { sourceUrl });
-                }, 150);
-            };
 
+        let liveSyncTimer = null;
+        const pushLivePatchToLinkedEntry = (patchFactory) => {
+            const editId = document.getElementById('editId')?.value;
+            if (!editId) return;
+            const api = ns.getConnectionsApi();
+            if (!api?.findConnectionByLinkId?.(editId)) return;
+            clearTimeout(liveSyncTimer);
+            liveSyncTimer = setTimeout(() => {
+                const patch = patchFactory();
+                api.updateLinkedEntry?.(editId, patch);
+            }, 150);
+        };
+
+        if (bookmarkUrlInput && libraryUrlInput) {
             let syncing = false;
             bookmarkUrlInput.oninput = () => {
                 if (syncing) return;
                 syncing = true;
                 libraryUrlInput.value = bookmarkUrlInput.value;
                 syncing = false;
-                pushLiveSourceUrlToLinkedEntry();
+                pushLivePatchToLinkedEntry(() => ({ sourceUrl: (libraryUrlInput.value || '').trim() }));
             };
             libraryUrlInput.oninput = () => {
                 if (syncing) return;
                 syncing = true;
                 bookmarkUrlInput.value = libraryUrlInput.value;
                 syncing = false;
-                pushLiveSourceUrlToLinkedEntry();
+                pushLivePatchToLinkedEntry(() => ({ sourceUrl: (libraryUrlInput.value || '').trim() }));
             };
         }
+
+        const ratingInputs = [
+            'libRating',
+            'libApiRatingAniList',
+            'libApiRatingMAL',
+            'libApiRatingMangaDex'
+        ];
+        ratingInputs.forEach(id => {
+            const element = document.getElementById(id);
+            if (!element) return;
+            const onValueChanged = () => {
+                const derived = ns.refreshDerivedRatingsPreview();
+                pushLivePatchToLinkedEntry(() => {
+                    const ratingsPatch = ns.buildRatingsPatch();
+                    return {
+                        rating: document.getElementById('libRating')?.value || '',
+                        apiRatings: ratingsPatch.apiRatings,
+                        derivedRatings: derived || ratingsPatch.derivedRatings
+                    };
+                });
+            };
+            element.oninput = onValueChanged;
+            element.onchange = onValueChanged;
+        });
     };
 
     ns.loadLibraryStateForLink = function (linkId, categoryName) {
@@ -337,14 +268,5 @@ window.EveLinkForm = window.EveLinkForm || {};
         patch.title = title;
         if (!patch.sourceUrl && url) patch.sourceUrl = normalizeUrl(url);
         api.updateLinkedEntry?.(linkId, patch);
-    };
-
-    ns.applySourceMetadataFromAttachedSource = function (index) {
-        const source = ns.getAttachedSourceByIndex(index);
-        if (!source) {
-            showToast("Source metadata not found", "warning");
-            return;
-        }
-        ns.applySourceMetadataToLibraryFields(source);
     };
 })(window.EveLinkForm);

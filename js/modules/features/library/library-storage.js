@@ -7,17 +7,37 @@ window.EveLibrary = window.EveLibrary || {};
 
 (function () {
     const State = window.EveLibrary.State;
+    const Ratings = window.EveLibrary.Ratings;
     const STORAGE_KEY = 'eveLibraryData';
     const BACKUP_KEY = 'eveLibraryBackups';
     const maxBackups = 5;
 
     let backups = [];
 
+    function migrateLibraryDataStructure(rawData) {
+        if (!rawData || typeof rawData !== 'object') return {};
+        const migrated = JSON.parse(JSON.stringify(rawData));
+        Object.values(migrated).forEach(category => {
+            if (!category || typeof category !== 'object') return;
+            if (!Array.isArray(category.entries)) category.entries = [];
+            category.entries.forEach(entry => {
+                if (!entry || typeof entry !== 'object') return;
+                if (Ratings?.applyDerivedRatings) {
+                    Ratings.applyDerivedRatings(entry);
+                } else {
+                    entry.apiRatings = entry.apiRatings || {};
+                    entry.derivedRatings = entry.derivedRatings || {};
+                }
+            });
+        });
+        return migrated;
+    }
+
     function loadLibrary() {
         const stored = localStorage.getItem(STORAGE_KEY);
         if (stored) {
             try {
-                const data = JSON.parse(stored);
+                const data = migrateLibraryDataStructure(JSON.parse(stored));
                 State.setAllLibraries(data);
             } catch (e) {
                 console.error('Failed to load library data:', e);
@@ -27,7 +47,8 @@ window.EveLibrary = window.EveLibrary || {};
     }
 
     function saveLibrary() {
-        const data = State.getAllLibraries();
+        const data = migrateLibraryDataStructure(State.getAllLibraries());
+        State.setAllLibraries(data);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
         createBackup();
     }

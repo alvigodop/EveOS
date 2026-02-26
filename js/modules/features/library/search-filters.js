@@ -7,6 +7,7 @@ window.EveLibrary = window.EveLibrary || {};
 
 (function () {
     const State = window.EveLibrary.State;
+    const Ratings = window.EveLibrary.Ratings;
 
     function toArray(value) {
         return Array.isArray(value) ? value : [];
@@ -51,10 +52,17 @@ window.EveLibrary = window.EveLibrary || {};
         const authorFilter = (document.getElementById(prefix + 'search-author')?.value || '').toLowerCase();
         const genreFilter = document.getElementById(prefix + 'search-genre')?.value || '';
         const ratingFilter = document.getElementById(prefix + 'search-rating')?.value || '';
+        const ratingScale = document.getElementById(prefix + 'search-rating-scale')?.value
+            || Ratings?.getActiveScale?.(config)
+            || 'hybrid';
         const statusFilter = document.getElementById(prefix + 'search-status')?.value || '';
         const languageFilter = (document.getElementById(prefix + 'search-language')?.value || '').toLowerCase();
         const tagsInput = (document.getElementById(prefix + 'search-tags')?.value || '').toLowerCase();
         const showFavoritesOnly = document.getElementById(prefix + 'filter-favorites')?.checked || false;
+        const minDerivedRatingRaw = document.getElementById(prefix + 'min-derived-rating')?.value;
+        const maxDerivedRatingRaw = document.getElementById(prefix + 'max-derived-rating')?.value;
+        const minDerivedRating = Number.isFinite(Number(minDerivedRatingRaw)) && minDerivedRatingRaw !== '' ? Number(minDerivedRatingRaw) : 0;
+        const maxDerivedRating = Number.isFinite(Number(maxDerivedRatingRaw)) && maxDerivedRatingRaw !== '' ? Number(maxDerivedRatingRaw) : Infinity;
 
         // Numeric filters
         const minChapter = parseInt(document.getElementById(prefix + 'min-chapter')?.value) || 0;
@@ -69,6 +77,9 @@ window.EveLibrary = window.EveLibrary || {};
         const isInRange = (val, min, max) => (typeof val === 'number' && val >= min && val <= max);
 
         return entries.filter(entry => {
+            if (Ratings?.applyDerivedRatings) {
+                Ratings.applyDerivedRatings(entry);
+            }
             const entryTags = toArray(entry.tags)
                 .flatMap(tag => parseUniqueCsvList(tag))
                 .map(t => t.toLowerCase());
@@ -88,6 +99,13 @@ window.EveLibrary = window.EveLibrary || {};
             if (showFavoritesOnly && !entry.favorite) return false;
             if (languageFilter && !String(entry.language || '').toLowerCase().includes(languageFilter)) return false;
             if (tagsArray.length > 0 && !tagsArray.every(t => entryTags.includes(t))) return false;
+            const selectedDerivedRating = Ratings?.getRatingValue
+                ? Ratings.getRatingValue(entry, ratingScale)
+                : null;
+            const hasMinDerivedFilter = minDerivedRatingRaw !== '' && minDerivedRatingRaw !== undefined && minDerivedRatingRaw !== null;
+            const hasMaxDerivedFilter = maxDerivedRatingRaw !== '' && maxDerivedRatingRaw !== undefined && maxDerivedRatingRaw !== null;
+            if (hasMinDerivedFilter && !Number.isNaN(minDerivedRating) && (selectedDerivedRating === null || selectedDerivedRating < minDerivedRating)) return false;
+            if (hasMaxDerivedFilter && !Number.isNaN(maxDerivedRating) && (selectedDerivedRating === null || selectedDerivedRating > maxDerivedRating)) return false;
 
             // Numeric Range Filters
             if (dataType === 'graphicNovels' || dataType === 'novels') {
@@ -101,8 +119,12 @@ window.EveLibrary = window.EveLibrary || {};
         });
     }
 
-    function sortEntries(entries, sortBy, sortOrder) {
+    function sortEntries(entries, sortBy, sortOrder, categoryName) {
         if (!sortBy) return entries;
+        const prefix = categoryName ? `lib-${categoryName.replace(/[^a-zA-Z0-9]/g, '_')}-` : '';
+        const selectedScale = prefix
+            ? (document.getElementById(prefix + 'search-rating-scale')?.value || Ratings?.getActiveScale?.(config) || 'hybrid')
+            : (Ratings?.getActiveScale?.(config) || 'hybrid');
 
         return entries.sort((a, b) => {
             if (sortBy === 'dateAdded' || sortBy === 'lastEdited') {
@@ -111,6 +133,37 @@ window.EveLibrary = window.EveLibrary || {};
                 const dateA = Date.parse(rawA) || 0;
                 const dateB = Date.parse(rawB) || 0;
                 const comparison = dateA - dateB;
+                return sortOrder === 'desc' ? -comparison : comparison;
+            }
+            if (sortBy === 'selectedRating') {
+                if (Ratings?.applyDerivedRatings) {
+                    Ratings.applyDerivedRatings(a);
+                    Ratings.applyDerivedRatings(b);
+                }
+                const valA = Ratings?.getRatingValue ? Ratings.getRatingValue(a, selectedScale) : null;
+                const valB = Ratings?.getRatingValue ? Ratings.getRatingValue(b, selectedScale) : null;
+                const safeA = Number.isFinite(Number(valA)) ? Number(valA) : -1;
+                const safeB = Number.isFinite(Number(valB)) ? Number(valB) : -1;
+                const comparison = safeA - safeB;
+                return sortOrder === 'desc' ? -comparison : comparison;
+            }
+            if (sortBy === 'apiAverageRating' || sortBy === 'apiWeightedRating' || sortBy === 'hybridRating' || sortBy === 'personal10Rating') {
+                if (Ratings?.applyDerivedRatings) {
+                    Ratings.applyDerivedRatings(a);
+                    Ratings.applyDerivedRatings(b);
+                }
+                const keyMap = {
+                    apiAverageRating: 'apiAverage10',
+                    apiWeightedRating: 'apiWeighted10',
+                    hybridRating: 'hybrid10',
+                    personal10Rating: 'personal10'
+                };
+                const key = keyMap[sortBy];
+                const valA = a?.derivedRatings?.[key];
+                const valB = b?.derivedRatings?.[key];
+                const safeA = Number.isFinite(Number(valA)) ? Number(valA) : -1;
+                const safeB = Number.isFinite(Number(valB)) ? Number(valB) : -1;
+                const comparison = safeA - safeB;
                 return sortOrder === 'desc' ? -comparison : comparison;
             }
 
@@ -139,12 +192,14 @@ window.EveLibrary = window.EveLibrary || {};
             'search-title', 'search-author', 'search-genre', 'search-rating',
             'min-chapter', 'max-chapter', 'min-season', 'max-season',
             'min-episode', 'max-episode', 'search-tags', 'search-status',
-            'search-language', 'sort-by'
+            'search-language', 'sort-by', 'min-derived-rating', 'max-derived-rating'
         ];
         ids.forEach(id => {
             const el = document.getElementById(prefix + id);
             if (el) el.value = '';
         });
+        const ratingScale = document.getElementById(prefix + 'search-rating-scale');
+        if (ratingScale) ratingScale.value = Ratings?.getActiveScale?.(config) || 'hybrid';
 
         const sortOrder = document.getElementById(prefix + 'sort-order');
         if (sortOrder) sortOrder.value = 'asc';
