@@ -40,6 +40,7 @@ function readLibraryFormPatch() {
         season: toInt('libSeason'),
         episode: toInt('libEpisode'),
         language: document.getElementById('libLanguage')?.value.trim() || '',
+        image: document.getElementById('libImageUrl')?.value.trim() || '',
         tags: (document.getElementById('libTags')?.value || '')
             .split(',')
             .map(t => t.trim())
@@ -65,6 +66,7 @@ function fillLibraryForm(entry) {
     document.getElementById('libSeason').value = entry?.season ?? 0;
     document.getElementById('libEpisode').value = entry?.episode ?? 0;
     document.getElementById('libLanguage').value = entry?.language || '';
+    document.getElementById('libImageUrl').value = entry?.image || entry?.imageUrl || '';
     document.getElementById('libTags').value = Array.isArray(entry?.tags) ? entry.tags.join(', ') : '';
     document.getElementById('libSummary').value = entry?.summary || '';
     updateLibraryProgressFieldVisibility();
@@ -240,7 +242,7 @@ window.openEdit = function (id) {
     document.getElementById('edit-link-search-results').style.display = 'none';
 
     setupLibraryToggleHandlers();
-    loadLibraryStateForLink(Number(l.id), l.category || 'Unsorted');
+    loadLibraryStateForLink(l.id, l.category || 'Unsorted');
 
     document.getElementById('addModal').style.display = 'flex';
 };
@@ -266,7 +268,7 @@ window.saveLink = function () {
             links[idx].priority = prio;
             if (icon) links[idx].icon = icon;
             links[idx].sources = [...window.tempSources]; // Save sources
-            targetId = Number(editId);
+            targetId = links[idx].id;
         }
     } else {
         // Add new
@@ -291,7 +293,7 @@ window.saveLink = function () {
     if (targetId) {
         saveLibraryLinkState(targetId, cat, title, url);
         if (editId && window.EveLibrary?.ConnectionsAPI?.syncFromLink) {
-            window.EveLibrary.ConnectionsAPI.syncFromLink(Number(editId));
+            window.EveLibrary.ConnectionsAPI.syncFromLink(editId);
         }
     }
 

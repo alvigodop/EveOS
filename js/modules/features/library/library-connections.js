@@ -59,11 +59,11 @@ window.EveLibrary = window.EveLibrary || {};
     }
 
     function findConnectionByLinkId(linkId) {
-        return connections.find(item => item.linkId === linkId) || null;
+        return connections.find(item => String(item.linkId) === String(linkId)) || null;
     }
 
     function findLinkById(linkId) {
-        return getLinks().find(item => item.id === linkId) || null;
+        return getLinks().find(item => String(item.id) === String(linkId)) || null;
     }
 
     function findEntry(categoryName, entryId) {
@@ -165,14 +165,14 @@ window.EveLibrary = window.EveLibrary || {};
             }
         }
 
-        connections = connections.filter(item => item.linkId !== linkId);
+        connections = connections.filter(item => String(item.linkId) !== String(linkId));
         saveConnections();
         return true;
     }
 
     function removeByLinkId(linkId) {
         const before = connections.length;
-        connections = connections.filter(item => item.linkId !== linkId);
+        connections = connections.filter(item => String(item.linkId) !== String(linkId));
         if (connections.length !== before) {
             saveConnections();
         }

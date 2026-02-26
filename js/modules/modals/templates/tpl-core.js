@@ -81,6 +81,9 @@ window.modalTemplate = `
                     <input type="text" id="libLanguage" placeholder="Language" style="flex:1;">
                     <input type="text" id="libTags" placeholder="Tags (comma separated)" style="flex:1;">
                 </div>
+                <div style="display:flex; gap:5px; margin-bottom:5px;">
+                    <input type="url" id="libImageUrl" placeholder="Image URL (optional)" style="flex:1;">
+                </div>
                 <textarea id="libSummary" placeholder="Library summary/notes" rows="2" style="width:100%;"></textarea>
             </div>
         </div>

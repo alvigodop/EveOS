@@ -44,6 +44,8 @@ window.EveLibrary = window.EveLibrary || {};
             genre: data.genre,
             status: data.status,
             chapter: (dataType === 'films') ? undefined : data.chapter,
+            graphicChapter: (dataType === 'graphicNovels') ? data.chapter : undefined,
+            novelChapter: (dataType === 'novels') ? data.chapter : undefined,
             season: (dataType === 'films') ? data.season : undefined,
             episode: (dataType === 'films') ? data.episode : undefined,
             summary: data.summary,
@@ -77,9 +79,20 @@ window.EveLibrary = window.EveLibrary || {};
         if (!Array.isArray(entry.mediaTypes) || entry.mediaTypes.length === 0) {
             entry.mediaTypes = [dataType];
         }
-        entry.chapter = (dataType === 'films') ? entry.chapter : data.chapter;
-        entry.season = (dataType === 'films') ? data.season : undefined;
-        entry.episode = (dataType === 'films') ? data.episode : undefined;
+        const mediaTypes = Array.isArray(entry.mediaTypes) ? entry.mediaTypes : [dataType];
+        if (dataType === 'films') {
+            entry.season = data.season;
+            entry.episode = data.episode;
+            entry.chapter = undefined;
+            entry.graphicChapter = undefined;
+            entry.novelChapter = undefined;
+        } else {
+            entry.chapter = data.chapter;
+            entry.season = undefined;
+            entry.episode = undefined;
+            entry.graphicChapter = mediaTypes.includes('graphicNovels') ? data.chapter : undefined;
+            entry.novelChapter = mediaTypes.includes('novels') ? data.chapter : undefined;
+        }
         entry.summary = data.summary;
         entry.rating = data.rating;
         entry.language = data.language;
