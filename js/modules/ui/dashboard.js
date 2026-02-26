@@ -5,51 +5,57 @@ function renderDashboard() {
     const dock = document.getElementById('dock-container');
     const searchInput = document.getElementById('search');
     const focusBanner = document.getElementById('focus-banner');
+    const mainContent = document.getElementById('main-content');
 
     if (!grid) return;
 
-    const searchStr = searchInput ? searchInput.value.toLowerCase() : "";
+    const searchStr = searchInput ? searchInput.value.toLowerCase() : '';
+    const isListMode = config.viewMode === 'list';
+    const isUnidexMode = config.viewMode === 'unidex';
 
     grid.innerHTML = '';
     if (dock) dock.innerHTML = '';
-    grid.classList.toggle('list-mode', config.viewMode === 'list');
 
-    // Use global 'links' and 'config'
-    let visibleLinks = searchStr
-        ? links.filter(l => l.title.toLowerCase().includes(searchStr) || l.url.toLowerCase().includes(searchStr) || l.category.toLowerCase().includes(searchStr))
-        : links.filter(l => l.workspace === config.activeWorkspace);
+    grid.classList.toggle('list-mode', isListMode);
+    grid.classList.toggle('unidex-mode', isUnidexMode);
+    if (mainContent) mainContent.classList.toggle('unidex-view-active', isUnidexMode);
 
-    // Focus Banner
-    if (focusBanner) {
-        focusBanner.style.display = focusCategory ? 'block' : 'none';
-        if (focusCategory) focusBanner.innerHTML = `🎯 FOCUS: ${focusCategory} (Click to Exit)`;
+    const visibleLinks = searchStr
+        ? links.filter(function (link) {
+            return link.title.toLowerCase().includes(searchStr)
+                || link.url.toLowerCase().includes(searchStr)
+                || link.category.toLowerCase().includes(searchStr);
+        })
+        : links.filter(function (link) {
+            return link.workspace === config.activeWorkspace;
+        });
+
+    if (isUnidexMode) {
+        if (focusBanner) focusBanner.style.display = 'none';
+        if (dock) dock.classList.add('hidden');
+
+        if (window.UnidexView && typeof window.UnidexView.render === 'function') {
+            window.UnidexView.render(grid, { searchStr: searchStr });
+        } else {
+            grid.innerHTML = '<div class="unidex-empty-state"><h3>Unidex View Module Missing</h3><p>Reload to retry.</p></div>';
+        }
+        return;
     }
 
-    // Render Dock
+    if (focusBanner) {
+        focusBanner.style.display = focusCategory ? 'block' : 'none';
+        if (focusCategory) focusBanner.innerHTML = `&#127919; FOCUS: ${focusCategory} (Click to Exit)`;
+    }
+
     if (typeof window.renderDock === 'function') {
         window.renderDock(visibleLinks, dock, focusCategory);
     } else {
-        console.error("renderDock not found");
+        console.error('renderDock not found');
     }
 
-    // Render Categories
     if (typeof window.renderCategories === 'function') {
-        // Pass 'searchStr' via global scope or modification if needed, but the original logic used 'search' which is now 'searchStr'
-        // In the extracted categories module, I used: 
-        // let wsBadge = (typeof search !== 'undefined' && search ...
-        // So I need to make sure 'search' variable is available or passed. 
-        // The original code used 'search' from the closure. 
-        // I should probably pass 'searchStr' as an argument to renderCategories or rely on the input value directly inside the module?
-        // Actually, let's fix the module to use the argument or fix the call.
-        // I will re-write dashboard-categories.js to accept searchStr or read it from input.
-
-        // Wait, I already wrote dashboard-categories.js and it checks 'typeof search !== undefined'. 
-        // But 'search' was a local variable in the original function. 
-        // I should fix dashboard-categories.js to access the search input value directly if it's not passed.
-        // OR better, pass it.
-
         window.renderCategories(visibleLinks, grid, focusCategory, searchStr);
     } else {
-        console.error("renderCategories not found");
+        console.error('renderCategories not found');
     }
 }

@@ -1,7 +1,15 @@
 // --- VISUAL SETTINGS ---
 
 function toggleView() {
-    config.viewMode = config.viewMode === 'grid' ? 'list' : 'grid';
+    const orderedModes = ['grid', 'list', 'unidex'];
+    const currentIndex = orderedModes.indexOf(config.viewMode);
+    const safeIndex = currentIndex >= 0 ? currentIndex : 0;
+    config.viewMode = orderedModes[(safeIndex + 1) % orderedModes.length];
+
+    if (config.viewMode !== 'unidex' && window.UnidexView && typeof window.UnidexView.resetSelection === 'function') {
+        window.UnidexView.resetSelection();
+    }
+
     saveConfig();
     renderDashboard();
 }

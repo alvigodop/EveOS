@@ -21,6 +21,7 @@ function loadData() {
     if (storedLinks) { try { links = JSON.parse(storedLinks); } catch (e) { links = []; } }
     const storedConfig = localStorage.getItem('eveV22Config');
     if (storedConfig) { try { config = { ...config, ...JSON.parse(storedConfig) }; } catch (e) { } }
+    if (!['grid', 'list', 'unidex'].includes(config.viewMode)) config.viewMode = 'grid';
     if (window.EveLibrary?.Ratings?.ensureConfigDefaults) {
         window.EveLibrary.Ratings.ensureConfigDefaults(config);
     }

@@ -1,0 +1,347 @@
+/* --- UNIDEX VIEW (TABS -> CARDS -> ENTRIES) --- */
+#main-content.unidex-view-active .header {
+    display: none;
+}
+
+#main-content.unidex-view-active #focus-banner,
+#main-content.unidex-view-active #dock-container {
+    display: none !important;
+}
+
+.container.unidex-mode {
+    display: block;
+    max-width: min(1380px, 96vw);
+    margin: 16px auto 0;
+    padding-bottom: 40px;
+}
+
+.unidex-shell {
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 18px;
+    padding: 24px;
+    background: linear-gradient(160deg, rgba(255, 255, 255, 0.04), rgba(0, 0, 0, 0.18));
+    backdrop-filter: blur(4px);
+}
+
+.unidex-hero {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.unidex-title {
+    margin: 0;
+    font-size: clamp(1.8rem, 2.8vw, 2.6rem);
+    font-weight: 300;
+    letter-spacing: 0.08rem;
+    color: var(--accent);
+}
+
+.unidex-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.unidex-panel-title {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.unidex-back-btn {
+    border: 1px solid rgba(255, 255, 255, 0.24);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-main);
+    padding: 8px 12px;
+    cursor: pointer;
+}
+
+.unidex-back-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.unidex-tabs {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+}
+
+.unidex-tab-btn {
+    position: relative;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 12px;
+    padding: 14px;
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-main);
+    cursor: pointer;
+    text-align: left;
+    overflow: hidden;
+    transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.unidex-tab-btn:hover {
+    transform: translateY(-2px);
+    border-color: rgba(255, 255, 255, 0.34);
+}
+
+.unidex-tab-btn::before {
+    content: attr(data-text);
+    position: absolute;
+    left: 50%;
+    top: 56%;
+    transform: translate(-50%, -50%);
+    font-size: 2rem;
+    font-weight: 700;
+    letter-spacing: 0.08rem;
+    color: var(--accent);
+    opacity: 0;
+    pointer-events: none;
+    white-space: nowrap;
+    transition: opacity 0.25s ease;
+}
+
+.unidex-tab-btn:hover::before {
+    opacity: 0.12;
+}
+
+.unidex-tab-main {
+    display: block;
+    font-size: 0.94rem;
+    font-weight: 600;
+}
+
+.unidex-tab-count {
+    display: block;
+    margin-top: 8px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.unidex-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 14px;
+}
+
+.unidex-card {
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 14px;
+    background: rgba(10, 10, 10, 0.22);
+}
+
+.unidex-card-hit {
+    width: 100%;
+    border: 0;
+    border-radius: 14px;
+    padding: 16px;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    text-align: left;
+    transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.unidex-card-hit:hover {
+    transform: translateY(-3px);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.unidex-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 6px;
+}
+
+.unidex-card-title {
+    margin: 0;
+    font-size: 1.02rem;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.unidex-card-pill {
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 999px;
+    padding: 2px 8px;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.unidex-card-meta {
+    margin: 0 0 12px;
+    font-size: 0.84rem;
+    color: var(--text-muted);
+}
+
+.unidex-card-progress {
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.12);
+    overflow: hidden;
+}
+
+.unidex-card-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), #6bf1ff);
+}
+
+.unidex-entries {
+    display: grid;
+    gap: 10px;
+}
+
+.unidex-entry-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 12px;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.unidex-entry-item.is-done {
+    opacity: 0.75;
+}
+
+.unidex-entry-main {
+    min-width: 0;
+}
+
+.unidex-entry-title {
+    margin: 0;
+    color: var(--text-main);
+    font-size: 0.98rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.unidex-entry-domain,
+.unidex-entry-library {
+    margin: 4px 0 0;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+}
+
+.unidex-entry-tags {
+    margin-top: 8px;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.unidex-entry-tag {
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 999px;
+    padding: 2px 8px;
+    font-size: 0.72rem;
+    color: var(--text-main);
+}
+
+.unidex-entry-tag.done {
+    border-color: rgba(0, 255, 136, 0.5);
+}
+
+.unidex-entry-tag.pending {
+    border-color: rgba(255, 204, 0, 0.5);
+}
+
+.unidex-entry-tag.pinned {
+    border-color: rgba(0, 212, 255, 0.55);
+}
+
+.unidex-entry-actions {
+    flex-shrink: 0;
+}
+
+.unidex-entry-btn {
+    border: 1px solid rgba(255, 255, 255, 0.26);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-main);
+    padding: 8px 12px;
+    cursor: pointer;
+}
+
+.unidex-entry-btn:hover {
+    background: rgba(255, 255, 255, 0.14);
+}
+
+.unidex-empty-state {
+    text-align: center;
+    padding: 30px 18px;
+    border: 1px dashed rgba(255, 255, 255, 0.25);
+    border-radius: 14px;
+}
+
+.unidex-empty-state h3 {
+    margin: 0 0 8px;
+    font-size: 1.05rem;
+    color: var(--text-main);
+}
+
+.unidex-empty-state p {
+    margin: 0;
+    color: var(--text-muted);
+}
+
+.light-theme .unidex-shell {
+    border-color: rgba(0, 0, 0, 0.12);
+    background: linear-gradient(160deg, rgba(255, 255, 255, 0.92), rgba(240, 243, 249, 0.92));
+}
+
+.light-theme .unidex-tab-btn,
+.light-theme .unidex-card,
+.light-theme .unidex-entry-item {
+    border-color: rgba(0, 0, 0, 0.16);
+    background: rgba(255, 255, 255, 0.82);
+}
+
+.light-theme .unidex-card-hit:hover,
+.light-theme .unidex-back-btn:hover,
+.light-theme .unidex-entry-btn:hover {
+    background: rgba(0, 0, 0, 0.06);
+}
+
+.light-theme .unidex-card-progress {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.light-theme .unidex-empty-state {
+    border-color: rgba(0, 0, 0, 0.2);
+}
+
+@media (max-width: 900px) {
+    .container.unidex-mode {
+        max-width: 100%;
+        margin-top: 12px;
+    }
+
+    .unidex-shell {
+        padding: 16px;
+        border-radius: 14px;
+    }
+
+    .unidex-panel-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .unidex-tabs,
+    .unidex-cards {
+        grid-template-columns: 1fr;
+    }
+
+    .unidex-entry-item {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
