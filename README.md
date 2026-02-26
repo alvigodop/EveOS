@@ -2,6 +2,8 @@
 
 EveOS is a modular browser-first workspace with a Python backend. The project combines bookmarks, library metadata, scraper tooling, and Gemini-oriented backend services while keeping features split into focused modules.
 
+Local workspace folder is currently `EveOS-0.2`.
+
 ## Architecture Summary
 
 - Frontend entry: `EveOS-V1.html`
@@ -95,6 +97,14 @@ The system is intentionally compartmentalized. Workspace tabs, category cards, b
    - `js/modules/features/library/ratings/engine.js`
    - Supports provider scores (`AniList`, `MyAnimeList`, `MangaDex`) plus personal rating blending.
    - Derived values are stored on entries under `entry.derivedRatings`.
+
+8. Bookmark focus popup flow:
+   - New modal template: `js/modules/modals/templates/tpl-bookmark-focus.js`
+   - New modal logic: `js/modules/modals/modal-bookmark-focus.js`
+   - Dashboard link and dock clicks now route through the focus popup handler.
+   - Setting added in Settings modal:
+     - `config.bookmarkClickOpensLink` (default `false`)
+     - Default behavior is popup-first (no immediate tab open on click).
 
 ## Backup Scopes
 
