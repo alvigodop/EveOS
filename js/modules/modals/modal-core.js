@@ -16,8 +16,7 @@ function toggleScratchpad() {
 }
 
 function updateSuggestions() {
-    const container = document.getElementById('cat-suggestions');
-    if (container) {
-        container.innerHTML = [...new Set(links.map(l => l.category))].map(c => `<option value="${c}">`).join('');
+    if (typeof refreshCategoryDatalist === 'function') {
+        refreshCategoryDatalist();
     }
 }

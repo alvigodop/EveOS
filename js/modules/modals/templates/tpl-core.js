@@ -20,7 +20,14 @@ window.modalTemplate = `
             <div id="link-sources-container" style="display:flex; flex-direction:column; gap:5px; max-height: 150px; overflow-y: auto;"></div>
         </div>
 
-        <input type="text" id="newCategory" placeholder="Category (e.g., Work, Social)" list="availableCategories">
+        <div style="display:flex; flex-direction:column; gap:5px;">
+            <label for="newCategory" style="font-size:0.82rem; opacity:0.84;">Card (Category)</label>
+            <div style="position:relative;">
+                <input type="text" id="newCategory" placeholder="Select or type a card name" autocomplete="off"
+                    onfocus="showCategoryQuickPicker()" onclick="showCategoryQuickPicker()" oninput="filterCategoryQuickPicker(this.value)" onblur="handleCategoryQuickPickerBlur()">
+                <div id="newCategoryQuickPicker" style="display:none; position:absolute; left:0; right:0; top:100%; margin-top:4px; max-height:180px; overflow-y:auto; border:1px solid #444; border-radius:8px; background:var(--sidebar-bg, #141414); z-index:3205; box-shadow:0 8px 24px rgba(0,0,0,0.35);"></div>
+            </div>
+        </div>
         <datalist id="availableCategories"></datalist>
         <div style="margin:10px 0; border:1px solid #333; border-radius:8px; padding:10px;">
             <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px;">
