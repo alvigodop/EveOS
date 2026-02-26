@@ -11,6 +11,7 @@ let config = {
     userName: "",
     searchEngine: "https://www.google.com/search?q=",
     searchMode: "basic",
+    bookmarkClickOpensLink: false,
     headerMode: "greeting",
     headerControls: {
         showDate: true,

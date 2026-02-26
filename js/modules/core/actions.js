@@ -9,7 +9,8 @@ function switchWorkspace(id) {
 }
 
 function togglePin(id) {
-    const l = links.find(x => x.id === id);
+    const targetId = String(id);
+    const l = links.find(x => String(x.id) === targetId);
     if (l) {
         l.pinned = !l.pinned;
         // Check if we need to show/hide dock immediately
@@ -20,7 +21,8 @@ function togglePin(id) {
 }
 
 function toggleDone(id) {
-    const l = links.find(x => x.id === id);
+    const targetId = String(id);
+    const l = links.find(x => String(x.id) === targetId);
     if (l) {
         l.done = !l.done;
         saveData();
@@ -28,10 +30,11 @@ function toggleDone(id) {
 }
 
 async function deleteLink(id) {
+    const targetId = String(id);
     if (await showConfirm("Delete?")) {
-        links = links.filter(l => l.id !== id);
+        links = links.filter(l => String(l.id) !== targetId);
         if (window.EveLibrary?.ConnectionsAPI?.removeByLinkId) {
-            window.EveLibrary.ConnectionsAPI.removeByLinkId(id);
+            window.EveLibrary.ConnectionsAPI.removeByLinkId(targetId);
         }
         saveData();
     }

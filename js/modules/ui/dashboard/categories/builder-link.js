@@ -16,13 +16,14 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
 
     const pClass = l.priority ? `p-${l.priority}` : '';
     const isChecked = (typeof selectedIds !== 'undefined' && selectedIds.has(l.id)) ? 'checked' : '';
+    const encodedLinkId = encodeURIComponent(String(l.id));
 
     let wsBadge = (searchStr && l.workspace !== activeWorkspace)
         ? `<span class="search-badge">${workspaces.find(w => w.id === l.workspace)?.name || "?"}</span>` : "";
 
     return `<li class="${l.done ? 'done' : ''} ${isLocal ? 'is-local' : ''} ${pClass}" draggable="true" ondragstart="drag(event, ${l.id})" oncontextmenu="showLinkContextMenu(event, ${l.id})">
                 <input type="checkbox" class="bulk-check" onclick="toggleSelect(${l.id}, event)" ${isChecked}>
-                ${iconHtml} ${wsBadge} <a href="${l.url}" target="_blank">${l.title}</a>
+                ${iconHtml} ${wsBadge} <a href="${l.url}" target="_blank" rel="noopener noreferrer" onclick='return (typeof openBookmarkFromDashboard==="function") ? openBookmarkFromDashboard(event, decodeURIComponent("${encodedLinkId}")) : true;'>${l.title}</a>
                 <div class="actions">
                     <span class="icon-btn ${l.pinned ? 'pin-active' : ''}" onclick="togglePin(${l.id})">📌</span>
                     <span class="icon-btn" onclick="toggleDone(${l.id})">✔</span>

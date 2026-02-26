@@ -31,6 +31,10 @@ window.modalTemplate += `
                 </select>
                 <div style="font-size:0.8rem; opacity:0.75; margin-top:4px;">Tip: press Shift+Enter in search to open Expanded mode once.</div>
             </div>
+            <label style="display:flex; gap:10px; align-items:center;">
+                <input type="checkbox" id="bookmarkClickOpenToggle" onchange="saveSettingsBookmarkClickOpen()">
+                <span>Bookmark click opens link immediately</span>
+            </label>
             <div style="border-top:1px solid #444; padding-top:10px; margin-top:5px;">
                 <h4 style="margin:0 0 10px 0; color:var(--accent);">Library Derived Ratings</h4>
                 <label style="display:block; margin-bottom:8px;">Default Scale:
