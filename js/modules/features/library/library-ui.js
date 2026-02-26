@@ -426,4 +426,24 @@ window.EveLibrary = window.EveLibrary || {};
         }
     };
 
+    if (!window.__eveLibraryPanelRealtimeBound) {
+        window.__eveLibraryPanelRealtimeBound = true;
+        window.addEventListener('eve:library-link-updated', (event) => {
+            const detail = event?.detail || {};
+            const categoryName = detail.categoryName;
+            const entry = detail.entry;
+            if (!categoryName || !entry) return;
+
+            const prefix = `lib-${categoryName.replace(/[^a-zA-Z0-9]/g, '_')}-`;
+            const panel = document.getElementById(prefix + 'panel');
+            if (panel && panel.style.display !== 'none') {
+                refreshLibrary(categoryName);
+            }
+
+            if (currentEditingCategory === categoryName && String(currentEditingEntryId) === String(entry.id)) {
+                fillForm(categoryName, entry);
+            }
+        });
+    }
+
 })();

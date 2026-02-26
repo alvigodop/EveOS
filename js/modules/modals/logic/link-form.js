@@ -304,3 +304,26 @@ window.saveLink = function () {
 window.handleEnter = function (e) { if (e.key === 'Enter') saveLink(); };
 
 // --- Sources Logic ---
+
+if (!window.__eveLibraryBookmarkModalRealtimeBound) {
+    window.__eveLibraryBookmarkModalRealtimeBound = true;
+    window.addEventListener('eve:library-link-updated', (event) => {
+        const detail = event?.detail || {};
+        const editId = document.getElementById('editId')?.value;
+        const modalOpen = document.getElementById('addModal')?.style?.display === 'flex';
+        if (!modalOpen || !editId) return;
+        if (String(detail.linkId) !== String(editId)) return;
+
+        const entry = detail.entry || null;
+        if (!entry) return;
+
+        const toggle = getLibraryFormToggle();
+        if (toggle) toggle.checked = true;
+        setLibraryFieldsVisibility(true);
+        fillLibraryForm(entry);
+        const titleField = document.getElementById('newTitle');
+        if (titleField && !titleField.matches(':focus')) {
+            titleField.value = entry.title || titleField.value;
+        }
+    });
+}

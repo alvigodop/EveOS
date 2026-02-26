@@ -29,6 +29,17 @@ window.EveLibrary = window.EveLibrary || {};
         localStorage.setItem(STORAGE_KEY, JSON.stringify(window.EveLibrary.Connections));
     }
 
+    function emitLinkedEntryUpdated(linkId, categoryName, entry) {
+        const safeEntry = entry ? JSON.parse(JSON.stringify(entry)) : null;
+        window.dispatchEvent(new CustomEvent('eve:library-link-updated', {
+            detail: {
+                linkId: String(linkId),
+                categoryName,
+                entry: safeEntry
+            }
+        }));
+    }
+
     function loadConnections() {
         const stored = localStorage.getItem(STORAGE_KEY);
         if (!stored) {
@@ -204,6 +215,7 @@ window.EveLibrary = window.EveLibrary || {};
         if (changed) {
             saveLinks();
         }
+        linked.forEach(conn => emitLinkedEntryUpdated(conn.linkId, categoryName, entry));
     }
 
     function syncFromLink(linkId) {
