@@ -47,6 +47,10 @@ window.modalTemplate = `
                 </div>
                 <div style="display:flex; gap:5px; margin-bottom:5px;">
                     <input type="text" id="libAuthor" placeholder="Author" style="flex:1;">
+                    <input type="text" id="libAuthorAltNames" placeholder="Author Alt Names (comma separated)" style="flex:1;">
+                </div>
+                <div style="display:flex; gap:5px; margin-bottom:5px;">
+                    <input type="text" id="libArtist" placeholder="Artist" style="flex:1;">
                     <input type="text" id="libGenre" placeholder="Genre" style="flex:1;">
                 </div>
                 <div style="display:flex; gap:5px; margin-bottom:5px;">

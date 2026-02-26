@@ -45,6 +45,28 @@
     word-break: break-word;
 }
 
+.source-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+}
+
+.source-meta-btn {
+    border: 1px solid #3f5a77;
+    background: rgba(64, 116, 164, 0.2);
+    color: var(--text-main);
+    border-radius: 4px;
+    font-size: 0.7rem;
+    padding: 2px 6px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.source-meta-btn:hover {
+    background: rgba(64, 116, 164, 0.38);
+}
+
 .remove-source-btn {
     background: transparent;
     border: none;

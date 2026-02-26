@@ -8,6 +8,24 @@ window.EveLibrary = window.EveLibrary || {};
 (function () {
     const State = window.EveLibrary.State;
 
+    function toArray(value) {
+        return Array.isArray(value) ? value : [];
+    }
+
+    function parseUniqueCsvList(value) {
+        const seen = new Set();
+        return String(value || '')
+            .split(',')
+            .map(item => item.trim())
+            .filter(Boolean)
+            .filter(item => {
+                const key = item.toLowerCase();
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
+    }
+
     function isEntryVisibleForDataType(entry, dataType) {
         const mediaTypes = Array.isArray(entry?.mediaTypes) ? entry.mediaTypes : null;
         // Legacy entries without explicit mediaTypes stay visible.
@@ -51,16 +69,24 @@ window.EveLibrary = window.EveLibrary || {};
         const isInRange = (val, min, max) => (typeof val === 'number' && val >= min && val <= max);
 
         return entries.filter(entry => {
-            const entryTags = (entry.tags || []).map(t => t.toLowerCase());
+            const entryTags = toArray(entry.tags)
+                .flatMap(tag => parseUniqueCsvList(tag))
+                .map(t => t.toLowerCase());
+            const entryGenres = parseUniqueCsvList(entry.genre).map(genre => genre.toLowerCase());
+            const searchableAuthorFields = [
+                entry.author,
+                ...toArray(entry.authorAltNames),
+                ...parseUniqueCsvList(entry.artist)
+            ].map(value => String(value || '').toLowerCase());
 
             // Text & Selection Filters
-            if (titleFilter && !entry.title.toLowerCase().includes(titleFilter)) return false;
-            if (authorFilter && !entry.author.toLowerCase().includes(authorFilter)) return false;
-            if (genreFilter && entry.genre !== genreFilter) return false;
+            if (titleFilter && !String(entry.title || '').toLowerCase().includes(titleFilter)) return false;
+            if (authorFilter && !searchableAuthorFields.some(value => value.includes(authorFilter))) return false;
+            if (genreFilter && !entryGenres.includes(String(genreFilter).toLowerCase())) return false;
             if (ratingFilter && entry.rating?.toString() !== ratingFilter) return false;
             if (statusFilter && entry.status !== statusFilter) return false;
             if (showFavoritesOnly && !entry.favorite) return false;
-            if (languageFilter && !entry.language.toLowerCase().includes(languageFilter)) return false;
+            if (languageFilter && !String(entry.language || '').toLowerCase().includes(languageFilter)) return false;
             if (tagsArray.length > 0 && !tagsArray.every(t => entryTags.includes(t))) return false;
 
             // Numeric Range Filters

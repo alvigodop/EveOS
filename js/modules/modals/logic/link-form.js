@@ -1,6 +1,92 @@
 window.tempSources = []; // Store sources temporarily while editing
 let isLibraryFieldsCollapsed = false;
 
+function toArray(value) {
+    return Array.isArray(value) ? value : [];
+}
+
+function parseUniqueCsvList(value) {
+    const seen = new Set();
+    return String(value || '')
+        .split(',')
+        .map(item => item.trim())
+        .filter(Boolean)
+        .filter(item => {
+            const key = item.toLowerCase();
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
+}
+
+function normalizeCommaSeparatedValue(value) {
+    return parseUniqueCsvList(value).join(', ');
+}
+
+function mergeUniqueValues(existing, incoming) {
+    const seen = new Set();
+    const merged = [];
+    [...(existing || []), ...(incoming || [])]
+        .map(item => String(item || '').trim())
+        .filter(Boolean)
+        .forEach(item => {
+            const key = item.toLowerCase();
+            if (seen.has(key)) return;
+            seen.add(key);
+            merged.push(item);
+        });
+    return merged;
+}
+
+function splitPeopleNames(value) {
+    if (Array.isArray(value)) {
+        return mergeUniqueValues([], value.map(v => String(v || '').trim()));
+    }
+    return mergeUniqueValues([], String(value || '')
+        .split(/\s*(?:,|\/|;|&|\band\b)\s*/i)
+        .map(v => v.trim()));
+}
+
+function normalizeSourceList(value) {
+    if (Array.isArray(value)) {
+        return mergeUniqueValues([], value.map(item => String(item || '').trim()));
+    }
+    return parseUniqueCsvList(value || '');
+}
+
+function normalizeEntryListValue(value) {
+    if (Array.isArray(value)) {
+        return mergeUniqueValues([], value.map(item => String(item || '').trim())).join(', ');
+    }
+    return normalizeCommaSeparatedValue(value || '');
+}
+
+function toTrimmedLower(value) {
+    return String(value || '').trim().toLowerCase();
+}
+
+function buildSourceMetadata(source) {
+    const authors = splitPeopleNames(source?.author);
+    const artists = splitPeopleNames(source?.artist);
+    const genres = normalizeSourceList(source?.genres);
+    const tags = mergeUniqueValues(
+        normalizeSourceList(source?.tags),
+        normalizeSourceList(source?.synonyms)
+    );
+    const sourceUrl = normalizeUrl(String(source?.url || '').trim());
+    const status = String(source?.status || '').trim();
+    return { authors, artists, genres, tags, sourceUrl, status };
+}
+
+function getAttachedSourceByIndex(index) {
+    const safeIndex = Number(index);
+    const sources = toArray(window.tempSources);
+    if (!Number.isInteger(safeIndex) || safeIndex < 0 || safeIndex >= sources.length) {
+        return null;
+    }
+    return sources[safeIndex];
+}
+
 function getConnectionsApi() {
     return window.EveLibrary?.ConnectionsAPI || null;
 }
@@ -44,14 +130,20 @@ function readLibraryFormPatch() {
         const parsed = parseInt(raw, 10);
         return Number.isFinite(parsed) ? parsed : 0;
     };
+    const author = document.getElementById('libAuthor')?.value.trim() || '';
+    const authorAltNames = parseUniqueCsvList(document.getElementById('libAuthorAltNames')?.value || '')
+        .filter(name => name.toLowerCase() !== author.toLowerCase());
+
     const mediaTypes = [];
     if (document.getElementById('libTypeGraphic')?.checked) mediaTypes.push('graphicNovels');
     if (document.getElementById('libTypeFilms')?.checked) mediaTypes.push('films');
     if (document.getElementById('libTypeNovels')?.checked) mediaTypes.push('novels');
 
     return {
-        author: document.getElementById('libAuthor')?.value.trim() || '',
-        genre: document.getElementById('libGenre')?.value.trim() || '',
+        author,
+        authorAltNames,
+        artist: normalizeCommaSeparatedValue(document.getElementById('libArtist')?.value || ''),
+        genre: normalizeCommaSeparatedValue(document.getElementById('libGenre')?.value || ''),
         status: document.getElementById('libStatus')?.value || '',
         rating: document.getElementById('libRating')?.value || '',
         graphicChapter: toInt('libGraphicChapter'),
@@ -61,10 +153,7 @@ function readLibraryFormPatch() {
         language: document.getElementById('libLanguage')?.value.trim() || '',
         sourceUrl: normalizeUrl(document.getElementById('libSourceUrl')?.value.trim() || ''),
         image: document.getElementById('libImageUrl')?.value.trim() || '',
-        tags: (document.getElementById('libTags')?.value || '')
-            .split(',')
-            .map(t => t.trim())
-            .filter(Boolean),
+        tags: parseUniqueCsvList(document.getElementById('libTags')?.value || ''),
         summary: document.getElementById('libSummary')?.value.trim() || '',
         mediaTypes
     };
@@ -83,7 +172,9 @@ function fillLibraryForm(entry) {
     document.getElementById('libTypeFilms').checked = mediaTypes.includes('films');
     document.getElementById('libTypeNovels').checked = mediaTypes.includes('novels');
     document.getElementById('libAuthor').value = entry?.author || '';
-    document.getElementById('libGenre').value = entry?.genre || '';
+    document.getElementById('libAuthorAltNames').value = normalizeEntryListValue(entry?.authorAltNames);
+    document.getElementById('libArtist').value = normalizeEntryListValue(entry?.artist);
+    document.getElementById('libGenre').value = normalizeEntryListValue(entry?.genre);
     document.getElementById('libStatus').value = entry?.status || '';
     document.getElementById('libRating').value = entry?.rating || '';
     document.getElementById('libGraphicChapter').value = entry?.graphicChapter ?? entry?.chapter ?? 0;
@@ -93,7 +184,7 @@ function fillLibraryForm(entry) {
     document.getElementById('libLanguage').value = entry?.language || '';
     document.getElementById('libSourceUrl').value = entry?.sourceUrl || document.getElementById('newUrl')?.value || '';
     document.getElementById('libImageUrl').value = entry?.image || entry?.imageUrl || '';
-    document.getElementById('libTags').value = Array.isArray(entry?.tags) ? entry.tags.join(', ') : '';
+    document.getElementById('libTags').value = normalizeEntryListValue(entry?.tags);
     const summaryValue = entry?.summary || '';
     document.getElementById('libSummary').value = isAutoSourceSummary(summaryValue) ? '' : summaryValue;
     const addedMeta = document.getElementById('libDateAddedMeta');
@@ -162,6 +253,102 @@ function updateLibraryProgressFieldVisibility(categoryName) {
     if (novelChapterWrap) novelChapterWrap.style.display = hasNovels ? 'flex' : 'none';
     if (seasonWrap) seasonWrap.style.display = hasFilms ? 'flex' : 'none';
     if (episodeWrap) episodeWrap.style.display = hasFilms ? 'flex' : 'none';
+}
+
+function ensureLibraryMetadataSectionEnabled() {
+    const toggle = getLibraryFormToggle();
+    if (toggle && !toggle.checked) {
+        toggle.checked = true;
+    }
+    setLibraryFieldsCollapsed(false);
+    setLibraryFieldsVisibility(true);
+}
+
+function updateLinkedEntryFromMetadataPatch(patch) {
+    if (!patch || typeof patch !== 'object') return;
+    const editId = document.getElementById('editId')?.value;
+    if (!editId) return;
+    const api = getConnectionsApi();
+    if (!api?.findConnectionByLinkId?.(editId)) return;
+    api.updateLinkedEntry?.(editId, patch);
+}
+
+function applySourceMetadataToLibraryFields(source) {
+    if (!source) return false;
+
+    ensureLibraryMetadataSectionEnabled();
+
+    const meta = buildSourceMetadata(source);
+    const updates = {};
+
+    const authorInput = document.getElementById('libAuthor');
+    const altAuthorsInput = document.getElementById('libAuthorAltNames');
+    const existingAuthor = String(authorInput?.value || '').trim();
+    let primaryAuthor = existingAuthor;
+    if (!primaryAuthor && meta.authors.length > 0) {
+        primaryAuthor = meta.authors[0];
+    }
+
+    const existingAltAuthors = parseUniqueCsvList(altAuthorsInput?.value || '');
+    let nextAltAuthors = mergeUniqueValues(existingAltAuthors, meta.authors);
+    const primaryKey = toTrimmedLower(primaryAuthor);
+    nextAltAuthors = nextAltAuthors.filter(name => toTrimmedLower(name) !== primaryKey);
+
+    if (authorInput) authorInput.value = primaryAuthor;
+    if (altAuthorsInput) altAuthorsInput.value = nextAltAuthors.join(', ');
+    updates.author = primaryAuthor;
+    updates.authorAltNames = nextAltAuthors;
+
+    const artistInput = document.getElementById('libArtist');
+    const existingArtists = parseUniqueCsvList(artistInput?.value || '');
+    const mergedArtists = mergeUniqueValues(existingArtists, meta.artists);
+    if (artistInput) artistInput.value = mergedArtists.join(', ');
+    updates.artist = mergedArtists.join(', ');
+
+    const genreInput = document.getElementById('libGenre');
+    const existingGenres = parseUniqueCsvList(genreInput?.value || '');
+    const mergedGenres = mergeUniqueValues(existingGenres, meta.genres);
+    if (genreInput) genreInput.value = mergedGenres.join(', ');
+    updates.genre = mergedGenres.join(', ');
+
+    const tagsInput = document.getElementById('libTags');
+    const existingTags = parseUniqueCsvList(tagsInput?.value || '');
+    const mergedTags = mergeUniqueValues(existingTags, meta.tags);
+    if (tagsInput) tagsInput.value = mergedTags.join(', ');
+    updates.tags = mergedTags;
+
+    const sourceUrlInput = document.getElementById('libSourceUrl');
+    const bookmarkUrlInput = document.getElementById('newUrl');
+    const hasCurrentSourceUrl = toTrimmedLower(sourceUrlInput?.value);
+    if (!hasCurrentSourceUrl && meta.sourceUrl) {
+        if (sourceUrlInput) sourceUrlInput.value = meta.sourceUrl;
+        if (bookmarkUrlInput && !toTrimmedLower(bookmarkUrlInput.value)) {
+            bookmarkUrlInput.value = meta.sourceUrl;
+        }
+        updates.sourceUrl = meta.sourceUrl;
+    }
+
+    const statusSelect = document.getElementById('libStatus');
+    if (statusSelect && !statusSelect.value && meta.status) {
+        const statusMatch = Array.from(statusSelect.options || []).find(option =>
+            toTrimmedLower(option.value) === toTrimmedLower(meta.status)
+        );
+        if (statusMatch) {
+            statusSelect.value = statusMatch.value;
+            updates.status = statusMatch.value;
+        }
+    }
+
+    updateLinkedEntryFromMetadataPatch(updates);
+
+    const summaryBits = [];
+    if (meta.tags.length) summaryBits.push(`${meta.tags.length} tags`);
+    if (meta.genres.length) summaryBits.push(`${meta.genres.length} genres`);
+    if (meta.authors.length) summaryBits.push(`${meta.authors.length} authors`);
+    if (meta.artists.length) summaryBits.push(`${meta.artists.length} artists`);
+    const summaryText = summaryBits.length ? summaryBits.join(', ') : 'no metadata fields available';
+    showToast(`Source metadata applied (${summaryText})`, "success");
+    return true;
 }
 
 function setupLibraryToggleHandlers() {
@@ -292,6 +479,15 @@ window.toggleLibraryFieldsCollapse = function () {
     const toggle = getLibraryFormToggle();
     if (!toggle?.checked) return;
     setLibraryFieldsCollapsed(!isLibraryFieldsCollapsed);
+};
+
+window.applySourceMetadataFromAttachedSource = function (index) {
+    const source = getAttachedSourceByIndex(index);
+    if (!source) {
+        showToast("Source metadata not found", "warning");
+        return;
+    }
+    applySourceMetadataToLibraryFields(source);
 };
 
 window.openAddModal = function () {

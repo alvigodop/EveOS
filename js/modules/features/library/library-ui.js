@@ -17,6 +17,37 @@ window.EveLibrary = window.EveLibrary || {};
     let currentEditingCategory = null;
     let currentEditingEntryId = null;
 
+    function parseUniqueCsvList(value) {
+        const seen = new Set();
+        return String(value || '')
+            .split(',')
+            .map(item => item.trim())
+            .filter(Boolean)
+            .filter(item => {
+                const key = item.toLowerCase();
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
+    }
+
+    function normalizeListForInput(value) {
+        if (Array.isArray(value)) {
+            const seen = new Set();
+            return value
+                .map(item => String(item || '').trim())
+                .filter(Boolean)
+                .filter(item => {
+                    const key = item.toLowerCase();
+                    if (seen.has(key)) return false;
+                    seen.add(key);
+                    return true;
+                })
+                .join(', ');
+        }
+        return parseUniqueCsvList(value).join(', ');
+    }
+
     function createLibraryPanelHtml(categoryName) {
         const safeCat = categoryName.replace(/'/g, "\\'");
         const prefix = `lib-${categoryName.replace(/[^a-zA-Z0-9]/g, '_')}-`;
@@ -52,6 +83,8 @@ window.EveLibrary = window.EveLibrary || {};
                 <div class="lib-form-grid">
                     <label>Title: <input type="text" id="${prefix}title" required></label>
                     <label>Author: <input type="text" id="${prefix}author"></label>
+                    <label>Author Alt Names: <input type="text" id="${prefix}author-alt-names" placeholder="comma separated"></label>
+                    <label>Artist: <input type="text" id="${prefix}artist" placeholder="comma separated"></label>
                     <label>Genre: <input type="text" id="${prefix}genre"></label>
                     <label>Status: <select id="${prefix}status"></select></label>
                     <label id="${prefix}chapter-label">Chapter: <input type="number" id="${prefix}chapter" min="0" value="0"></label>
@@ -221,7 +254,7 @@ window.EveLibrary = window.EveLibrary || {};
 
     function clearForm(categoryName) {
         const prefix = `lib-${categoryName.replace(/[^a-zA-Z0-9]/g, '_')}-`;
-        ['title', 'author', 'genre', 'summary', 'language', 'tags', 'image-url'].forEach(field => {
+        ['title', 'author', 'author-alt-names', 'artist', 'genre', 'summary', 'language', 'tags', 'image-url'].forEach(field => {
             const el = document.getElementById(prefix + field);
             if (el) el.value = '';
         });
@@ -245,12 +278,17 @@ window.EveLibrary = window.EveLibrary || {};
         const prefix = `lib-${categoryName.replace(/[^a-zA-Z0-9]/g, '_')}-`;
         const summaryValue = (entry.summary || '');
         const safeSummary = /^Source:\s*https?:\/\//i.test(summaryValue.trim()) ? '' : summaryValue;
+        const authorAltNames = Array.isArray(entry.authorAltNames)
+            ? entry.authorAltNames
+            : (entry.authorAltNames ? String(entry.authorAltNames).split(',') : []);
         document.getElementById(prefix + 'title').value = entry.title || '';
         document.getElementById(prefix + 'author').value = entry.author || '';
-        document.getElementById(prefix + 'genre').value = entry.genre || '';
+        document.getElementById(prefix + 'author-alt-names').value = normalizeListForInput(authorAltNames);
+        document.getElementById(prefix + 'artist').value = normalizeListForInput(entry.artist);
+        document.getElementById(prefix + 'genre').value = normalizeListForInput(entry.genre);
         document.getElementById(prefix + 'summary').value = safeSummary;
         document.getElementById(prefix + 'language').value = entry.language || '';
-        document.getElementById(prefix + 'tags').value = (entry.tags || []).join(', ');
+        document.getElementById(prefix + 'tags').value = normalizeListForInput(entry.tags);
         document.getElementById(prefix + 'source-url').value = entry.sourceUrl || '';
         document.getElementById(prefix + 'image-url').value = entry.image || '';
         document.getElementById(prefix + 'chapter').value = entry.chapter || 0;

@@ -9,6 +9,20 @@ window.EveLibrary = window.EveLibrary || {};
     const State = window.EveLibrary.State;
     const Search = window.EveLibrary.Search;
 
+    function parseUniqueCsvList(value) {
+        const seen = new Set();
+        return String(value || '')
+            .split(',')
+            .map(item => item.trim())
+            .filter(Boolean)
+            .filter(item => {
+                const key = item.toLowerCase();
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
+    }
+
     function updateGenreOptions(categoryName) {
         const prefix = `lib-${categoryName.replace(/[^a-zA-Z0-9]/g, '_')}-`;
         const genreSelect = document.getElementById(prefix + 'search-genre');
@@ -16,7 +30,10 @@ window.EveLibrary = window.EveLibrary || {};
         if (!genreSelect) return;
 
         const entries = Search?.getTypeScopedEntries ? Search.getTypeScopedEntries(categoryName) : State.getCategoryLibrary(categoryName).entries;
-        const genres = new Set((entries || []).map(e => e.genre).filter(g => g));
+        const genres = new Set();
+        (entries || []).forEach(entry => {
+            parseUniqueCsvList(entry?.genre).forEach(genre => genres.add(genre));
+        });
         genreSelect.innerHTML = '<option value="">All Genres</option>';
         genres.forEach(g => {
             const option = document.createElement('option');

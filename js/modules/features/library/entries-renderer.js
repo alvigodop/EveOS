@@ -9,6 +9,40 @@ window.EveLibrary = window.EveLibrary || {};
     const State = window.EveLibrary.State;
     const Search = window.EveLibrary.Search;
 
+    function parseUniqueCsvList(value) {
+        const seen = new Set();
+        return String(value || '')
+            .split(',')
+            .map(item => item.trim())
+            .filter(Boolean)
+            .filter(item => {
+                const key = item.toLowerCase();
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
+    }
+
+    function toUniqueList(value) {
+        if (Array.isArray(value)) {
+            const seen = new Set();
+            return value
+                .map(item => String(item || '').trim())
+                .filter(Boolean)
+                .filter(item => {
+                    const key = item.toLowerCase();
+                    if (seen.has(key)) return false;
+                    seen.add(key);
+                    return true;
+                });
+        }
+        return parseUniqueCsvList(value);
+    }
+
+    function toDisplayCsv(value) {
+        return toUniqueList(value).join(', ');
+    }
+
     function renderEntries(categoryName, container) {
         if (!container) return;
 
@@ -57,6 +91,10 @@ window.EveLibrary = window.EveLibrary || {};
         const lastEditedText = formatLastEdited(entry.lastEdited || entry.dateAdded);
         const sourceUrl = entry.sourceUrl || '';
         const safeSourceUrl = sourceUrl.replace(/'/g, "\\'");
+        const authorAltNames = toUniqueList(entry.authorAltNames);
+        const artistValue = toDisplayCsv(entry.artist);
+        const genreValue = toDisplayCsv(entry.genre);
+        const tags = toUniqueList(entry.tags);
         const titleHtml = sourceUrl
             ? `<button class="lib-entry-title-btn" onclick="window.EveLibrary.UI.openEntryLink('${safeSourceUrl}')" title="Open source link">${displayNumber}. ${entry.title}</button>`
             : `<h4 class="lib-entry-title">${displayNumber}. ${entry.title}</h4>`;
@@ -78,11 +116,13 @@ window.EveLibrary = window.EveLibrary || {};
                 ${titleHtml}
                 <div class="lib-entry-details">
                     <p><strong>Author:</strong> ${entry.author || 'N/A'}</p>
-                    <p><strong>Genre:</strong> ${entry.genre || 'N/A'}</p>
+                    ${authorAltNames.length ? `<p><strong>Author Alt:</strong> ${authorAltNames.join(', ')}</p>` : ''}
+                    ${artistValue ? `<p><strong>Artist:</strong> ${artistValue}</p>` : ''}
+                    <p><strong>Genre:</strong> ${genreValue || 'N/A'}</p>
                     <p><strong>Status:</strong> ${entry.status || 'N/A'}</p>
                     ${renderTypeFields(entry, dataType)}
                     <p><strong>Rating:</strong> ${entry.rating || 'N/A'}</p>
-                    ${entry.tags?.length ? `<p><strong>Tags:</strong> ${entry.tags.join(', ')}</p>` : ''}
+                    ${tags.length ? `<p><strong>Tags:</strong> ${tags.join(', ')}</p>` : ''}
                 </div>
                 <div class="lib-entry-last-edited" title="Last edited">${lastEditedText}</div>
             </div>

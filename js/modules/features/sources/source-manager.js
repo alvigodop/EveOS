@@ -77,6 +77,14 @@
         renderSourcesList();
     }
 
+    function extractSourceMetadata(index) {
+        if (typeof window.applySourceMetadataFromAttachedSource === "function") {
+            window.applySourceMetadataFromAttachedSource(index);
+            return;
+        }
+        showToast("Metadata extractor is not ready", "warning");
+    }
+
     function renderSourcesList() {
         const container = document.getElementById("link-sources-container");
         if (!container) return;
@@ -115,7 +123,10 @@
                         <div class="source-meta"><a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="source-provider-link">${sourceName}</a> • Score: ${score}${statusPart}</div>
                         ${extraParts ? `<div class="source-extra">${extraParts}</div>` : ""}
                     </div>
-                    <button class="remove-source-btn" onclick="removeSource(${index})">&times;</button>
+                    <div class="source-actions">
+                        <button class="source-meta-btn" onclick="extractSourceMetadataFromSource(${index})" title="Extract metadata into library fields">Use Meta</button>
+                        <button class="remove-source-btn" onclick="removeSource(${index})">&times;</button>
+                    </div>
                 </div>
             `;
         }).join("");
@@ -124,5 +135,6 @@
     window.searchLinkName = searchLinkName;
     window.addSource = addSource;
     window.removeSource = removeSource;
+    window.extractSourceMetadataFromSource = extractSourceMetadata;
     window.renderSourcesList = renderSourcesList;
 })();

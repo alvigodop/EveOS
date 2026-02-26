@@ -13,13 +13,36 @@ window.EveLibrary = window.EveLibrary || {};
         return Date.now() + Math.random().toString(36).substr(2, 9);
     }
 
+    function parseUniqueCsvList(value) {
+        const seen = new Set();
+        return String(value || '')
+            .split(',')
+            .map(item => item.trim())
+            .filter(Boolean)
+            .filter(item => {
+                const key = item.toLowerCase();
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
+    }
+
+    function normalizeCommaSeparatedValue(value) {
+        return parseUniqueCsvList(value).join(', ');
+    }
+
     function getFormData(categoryName) {
         const prefix = `lib-${categoryName.replace(/[^a-zA-Z0-9]/g, '_')}-`;
         const rawSourceUrl = document.getElementById(prefix + 'source-url')?.value.trim() || '';
+        const author = document.getElementById(prefix + 'author')?.value.trim() || '';
+        const authorAltNames = parseUniqueCsvList(document.getElementById(prefix + 'author-alt-names')?.value || '')
+            .filter(name => name.toLowerCase() !== author.toLowerCase());
         return {
             title: document.getElementById(prefix + 'title')?.value.trim() || '',
-            author: document.getElementById(prefix + 'author')?.value.trim() || '',
-            genre: document.getElementById(prefix + 'genre')?.value.trim() || '',
+            author,
+            authorAltNames,
+            artist: normalizeCommaSeparatedValue(document.getElementById(prefix + 'artist')?.value || ''),
+            genre: normalizeCommaSeparatedValue(document.getElementById(prefix + 'genre')?.value || ''),
             status: document.getElementById(prefix + 'status')?.value || '',
             chapter: parseInt(document.getElementById(prefix + 'chapter')?.value) || 0,
             season: parseInt(document.getElementById(prefix + 'season')?.value) || 0,
@@ -28,7 +51,7 @@ window.EveLibrary = window.EveLibrary || {};
             rating: document.getElementById(prefix + 'rating')?.value || '',
             language: document.getElementById(prefix + 'language')?.value.trim() || '',
             sourceUrl: rawSourceUrl ? normalizeUrl(rawSourceUrl) : '',
-            tags: (document.getElementById(prefix + 'tags')?.value || '').split(',').map(t => t.trim()).filter(t => t),
+            tags: parseUniqueCsvList(document.getElementById(prefix + 'tags')?.value || ''),
             imageUrl: document.getElementById(prefix + 'image-url')?.value.trim() || ''
         };
     }
@@ -44,6 +67,8 @@ window.EveLibrary = window.EveLibrary || {};
             title: data.title,
             mediaTypes: [dataType],
             author: data.author,
+            authorAltNames: data.authorAltNames,
+            artist: data.artist,
             genre: data.genre,
             status: data.status,
             chapter: (dataType === 'films') ? undefined : data.chapter,
@@ -80,6 +105,8 @@ window.EveLibrary = window.EveLibrary || {};
 
         entry.title = data.title;
         entry.author = data.author;
+        entry.authorAltNames = data.authorAltNames;
+        entry.artist = data.artist;
         entry.genre = data.genre;
         entry.status = data.status;
         if (!Array.isArray(entry.mediaTypes) || entry.mediaTypes.length === 0) {

@@ -130,6 +130,8 @@ window.EveLibrary = window.EveLibrary || {};
             title: link.title || 'Untitled',
             mediaTypes: ['graphicNovels'],
             author: '',
+            authorAltNames: [],
+            artist: '',
             genre: '',
             status: getDefaultStatus(categoryName),
             chapter: 0,
