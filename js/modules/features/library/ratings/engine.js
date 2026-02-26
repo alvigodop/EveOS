@@ -34,6 +34,7 @@ window.EveLibrary = window.EveLibrary || {};
 
     function toNumberOrNull(value) {
         if (value === null || value === undefined || value === "") return null;
+        if (typeof value === "string" && value.trim() === "") return null;
         const n = Number(value);
         return Number.isFinite(n) ? n : null;
     }
@@ -64,6 +65,8 @@ window.EveLibrary = window.EveLibrary || {};
             // AniList is usually 0-100
             if (value > 10) value = value / 10;
         }
+        // Treat zero/negative as "missing" to avoid false confidence from placeholder values.
+        if (value <= 0) return null;
         return round(clamp(value, 0, 10), 2);
     }
 
@@ -219,9 +222,11 @@ window.EveLibrary = window.EveLibrary || {};
             hybrid10 = apiWeighted10;
         }
 
-        const providerCount = PROVIDERS.filter(provider => apiRatings[provider] !== null).length;
+        const providerCount = PROVIDERS.filter(provider =>
+            settings.enabledProviders[provider] && apiRatings[provider] !== null
+        ).length;
         const enabledCount = PROVIDERS.filter(provider => settings.enabledProviders[provider]).length || 1;
-        const confidence = round(providerCount / enabledCount, 2);
+        const confidence = round(clamp(providerCount / enabledCount, 0, 1), 2);
         const activeValue = pickActiveScaleValue(settings.activeScale, {
             personal10,
             apiAverage10,
