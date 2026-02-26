@@ -1,10 +1,183 @@
 // --- Data Transfer Module ---
 // Handles import/export of backup data
 (function () {
+    const dataStore = window.EveDataStore?.Store;
+
+    function getAppConfig() {
+        if (window.eveState?.config) return window.eveState.config;
+        if (typeof config !== 'undefined') return config;
+        return {};
+    }
+
+    function getAppLinks() {
+        if (window.eveState?.links) return window.eveState.links;
+        if (typeof links !== 'undefined') return links;
+        return [];
+    }
+
+    function getWorkspaceSelect() {
+        return document.getElementById('tabBackupSelect');
+    }
+
+    function getCardWorkspaceSelect() {
+        return document.getElementById('cardBackupWorkspaceSelect');
+    }
+
+    function getCardCategorySelect() {
+        return document.getElementById('cardBackupCategorySelect');
+    }
+
+    function refreshCardBackupList() {
+        const wsSelect = getCardWorkspaceSelect();
+        const categorySelect = getCardCategorySelect();
+        if (!wsSelect || !categorySelect) return;
+
+        const appConfig = getAppConfig();
+        const allLinks = getAppLinks();
+        const workspaces = appConfig.workspaces || [];
+        const activeWorkspace = wsSelect.value || appConfig.activeWorkspace || workspaces[0]?.id || '';
+
+        wsSelect.innerHTML = '';
+        workspaces.forEach(ws => {
+            const option = document.createElement('option');
+            option.value = ws.id;
+            option.textContent = ws.name || ws.id;
+            wsSelect.appendChild(option);
+        });
+        wsSelect.value = activeWorkspace;
+
+        const categories = [...new Set(
+            allLinks
+                .filter(entry => entry.workspace === activeWorkspace)
+                .map(entry => entry.category || 'Unsorted')
+        )].sort((a, b) => a.localeCompare(b));
+
+        categorySelect.innerHTML = '';
+        categories.forEach(cat => {
+            const option = document.createElement('option');
+            option.value = cat;
+            option.textContent = cat;
+            categorySelect.appendChild(option);
+        });
+    }
+
+    function refreshWorkspaceBackupList() {
+        const select = getWorkspaceSelect();
+        if (!select) {
+            refreshCardBackupList();
+            return;
+        }
+        const appConfig = getAppConfig();
+        const workspaces = appConfig.workspaces || [];
+        select.innerHTML = '';
+        workspaces.forEach(ws => {
+            const option = document.createElement('option');
+            option.value = ws.id;
+            option.textContent = ws.name || ws.id;
+            select.appendChild(option);
+        });
+        select.value = appConfig.activeWorkspace || workspaces[0]?.id || '';
+        refreshCardBackupList();
+        const cardWsSelect = getCardWorkspaceSelect();
+        if (cardWsSelect) {
+            cardWsSelect.onchange = refreshCardBackupList;
+        }
+    }
+
+    window.refreshWorkspaceBackupList = refreshWorkspaceBackupList;
+    window.refreshCardBackupList = refreshCardBackupList;
+
+    function buildWorkspacePayload(workspaceId) {
+        const payload = {
+            metadata: {
+                version: 1,
+                date: new Date().toISOString(),
+                generator: 'EveOS Workspace Backup',
+                workspaceId,
+                type: 'workspace'
+            },
+            bookmarks: {
+                links: [],
+                config: {
+                    ...getAppConfig(),
+                    activeWorkspace: workspaceId
+                }
+            },
+            library: {
+                categories: {},
+                connections: []
+            }
+        };
+        const allLinks = getAppLinks();
+        payload.bookmarks.links = allLinks.filter(entry => entry.workspace === workspaceId);
+        return payload;
+    }
+
+    window.exportWorkspaceBackup = function () {
+        const select = getWorkspaceSelect();
+        const appConfig = getAppConfig();
+        const workspaceId = (select?.value || appConfig.activeWorkspace || '').trim();
+        if (!workspaceId) {
+            return showToast("No workspace selected for export.", "error");
+        }
+        const workspaceName = appConfig.workspaces?.find(w => w.id === workspaceId)?.name || workspaceId;
+        const exportState = dataStore ? dataStore.captureWorkspace(workspaceId) : buildWorkspacePayload(workspaceId);
+        const blob = new Blob([JSON.stringify(exportState, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `eve_tab_${workspaceName.replace(/[^a-zA-Z0-9]/g, '_') || workspaceId}.json`;
+        a.click();
+    };
+
+    window.exportCardBackup = function () {
+        const appConfig = getAppConfig();
+        const wsSelect = getCardWorkspaceSelect();
+        const categorySelect = getCardCategorySelect();
+        const workspaceId = (wsSelect?.value || appConfig.activeWorkspace || '').trim();
+        const categoryName = (categorySelect?.value || '').trim();
+        if (!workspaceId || !categoryName) {
+            return showToast("Select workspace and card category first.", "error");
+        }
+        const workspaceName = appConfig.workspaces?.find(w => w.id === workspaceId)?.name || workspaceId;
+        const exportState = dataStore?.captureCard
+            ? dataStore.captureCard(workspaceId, categoryName)
+            : buildWorkspacePayload(workspaceId);
+        const blob = new Blob([JSON.stringify(exportState, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `eve_card_${workspaceName.replace(/[^a-zA-Z0-9]/g, '_')}_${categoryName.replace(/[^a-zA-Z0-9]/g, '_')}.json`;
+        a.click();
+    };
+
+    function resetFileInput(input) {
+        if (!input) return;
+        input.value = "";
+    }
+
+    function setLegacyLinks(nextLinks) {
+        if (typeof links !== 'undefined') {
+            links = nextLinks;
+        } else {
+            window.links = nextLinks;
+        }
+    }
+
+    function setLegacyConfig(nextConfig) {
+        if (typeof config !== 'undefined') {
+            config = nextConfig;
+        } else {
+            window.config = nextConfig;
+        }
+    }
+
     window.importData = function (inputElement) {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.json';
+        const input = inputElement || document.createElement('input');
+        if (!inputElement) {
+            input.type = 'file';
+            input.accept = '.json';
+        }
         input.onchange = (e) => {
             const file = e.target.files[0];
             if (!file) return;
@@ -14,10 +187,16 @@
                 try {
                     const json = JSON.parse(e.target.result);
 
-                    if (json.links && !json.config) {
+                    if (json.metadata && json.bookmarks && json.library && dataStore) {
+                        if (await showConfirm("Restore Unified Backup? (Overwrites bookmarks & library)")) {
+                            dataStore.applyState(json);
+                            location.reload();
+                            showToast("Unified Backup Restored!", "success");
+                        }
+                    } else if (json.links && !json.config) {
                         // Organized Backup (Links only)
                         if (await showConfirm("Restore Organized Backup? (Overwrites Everything)")) {
-                            window.links = json.links;
+                            setLegacyLinks(json.links);
                             if (json.date) console.log("Backup Date:", json.date);
                             saveData();
                             location.reload();
@@ -26,8 +205,8 @@
                     } else if (json.links && json.config) {
                         // Full Backup
                         if (await showConfirm("Restore Full Backup? (Overwrites Settings & Workspaces)")) {
-                            window.links = json.links;
-                            window.config = json.config;
+                            setLegacyLinks(json.links);
+                            setLegacyConfig(json.config);
                             saveData();
                             saveConfig();
                             location.reload();
@@ -35,7 +214,7 @@
                         }
                     } else if (Array.isArray(json)) {
                         // Legacy: Raw Array
-                        window.links = json;
+                        setLegacyLinks(json);
                         saveData();
                         location.reload();
                     } else if (json.children || json.title) {
@@ -49,20 +228,71 @@
             };
             reader.readAsText(file);
         };
-        input.click();
+        if (!inputElement) {
+            input.click();
+        }
     };
 
     window.exportData = function () {
-        const data = {
+        const exportState = dataStore ? dataStore.captureState() : {
             date: new Date().toISOString(),
-            config: window.config,
-            links: window.links
+            config: getAppConfig(),
+            links: getAppLinks()
         };
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+        const blob = new Blob([JSON.stringify(exportState, null, 2)], { type: "application/json" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
         a.download = `eve_backup_${new Date().toISOString().slice(0, 10)}.json`;
         a.click();
+    };
+
+    window.importWorkspaceBackup = function (inputElement) {
+        if (!inputElement?.files?.length) return;
+        const file = inputElement.files[0];
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            try {
+                const json = JSON.parse(e.target.result);
+                const isWorkspace = json.metadata?.type === 'workspace';
+                const success = isWorkspace && dataStore ? dataStore.applyWorkspaceState(json) : false;
+                if (success) {
+                    resetFileInput(inputElement);
+                    location.reload();
+                    return showToast("Workspace restored!", "success");
+                }
+                showToast("Invalid workspace backup", "error");
+            } catch (err) {
+                showToast("Error importing workspace: " + err.message, "error");
+            }
+        };
+        reader.readAsText(file);
+    };
+
+    window.importCardBackup = function (inputElement) {
+        if (!inputElement?.files?.length) return;
+        const file = inputElement.files[0];
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            try {
+                const json = JSON.parse(e.target.result);
+                const isCard = json.metadata?.type === 'card';
+                const success = isCard && dataStore?.applyCardState ? dataStore.applyCardState(json) : false;
+                if (success) {
+                    resetFileInput(inputElement);
+                    location.reload();
+                    return showToast("Card restored!", "success");
+                }
+                showToast("Invalid card backup", "error");
+            } catch (err) {
+                showToast("Error importing card: " + err.message, "error");
+            }
+        };
+        reader.readAsText(file);
+    };
+
+    window.triggerWorkspaceImport = function () {
+        const input = document.getElementById('importWorkspaceFile');
+        if (input) input.click();
     };
 })();

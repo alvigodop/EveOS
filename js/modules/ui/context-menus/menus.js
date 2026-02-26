@@ -20,6 +20,11 @@ window.showLinkContextMenu = function (e, id) {
     ctxLinkId = id;
     const m = document.getElementById('link-context-menu');
     if (m) {
+        const action = m.querySelector('#ctx-library-action');
+        const linked = !!window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId?.(id);
+        if (action) {
+            action.textContent = linked ? 'Remove From Library' : 'Add To Library';
+        }
         m.style.display = 'block';
         m.style.left = `${e.pageX}px`;
         m.style.top = `${e.pageY}px`;

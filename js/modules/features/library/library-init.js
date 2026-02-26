@@ -10,6 +10,9 @@ window.EveLibrary = window.EveLibrary || {};
         if (window.EveLibrary.Storage) {
             window.EveLibrary.Storage.loadLibrary();
         }
+        if (window.EveLibrary.ConnectionsAPI?.loadConnections) {
+            window.EveLibrary.ConnectionsAPI.loadConnections();
+        }
         console.log('EveLibrary initialized');
     }
 

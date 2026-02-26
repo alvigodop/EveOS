@@ -8,10 +8,24 @@ window.EveLibrary = window.EveLibrary || {};
 (function () {
     const State = window.EveLibrary.State;
 
-    function getFilteredEntries(categoryName) {
+    function isEntryVisibleForDataType(entry, dataType) {
+        const mediaTypes = Array.isArray(entry?.mediaTypes) ? entry.mediaTypes : null;
+        // Legacy entries without explicit mediaTypes stay visible.
+        if (!mediaTypes || mediaTypes.length === 0) return true;
+        return mediaTypes.includes(dataType);
+    }
+
+    function getTypeScopedEntries(categoryName) {
         const lib = State.getCategoryLibrary(categoryName);
         const dataType = lib.dataType || 'graphicNovels';
         const entries = lib.entries || [];
+        return entries.filter(entry => isEntryVisibleForDataType(entry, dataType));
+    }
+
+    function getFilteredEntries(categoryName) {
+        const lib = State.getCategoryLibrary(categoryName);
+        const dataType = lib.dataType || 'graphicNovels';
+        const entries = getTypeScopedEntries(categoryName);
         const prefix = `lib-${categoryName.replace(/[^a-zA-Z0-9]/g, '_')}-`;
 
         // Get filter values
@@ -105,6 +119,8 @@ window.EveLibrary = window.EveLibrary || {};
     }
 
     window.EveLibrary.Search = {
+        isEntryVisibleForDataType,
+        getTypeScopedEntries,
         getFilteredEntries,
         sortEntries,
         resetFilters

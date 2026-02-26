@@ -30,6 +30,9 @@ function toggleDone(id) {
 async function deleteLink(id) {
     if (await showConfirm("Delete?")) {
         links = links.filter(l => l.id !== id);
+        if (window.EveLibrary?.ConnectionsAPI?.removeByLinkId) {
+            window.EveLibrary.ConnectionsAPI.removeByLinkId(id);
+        }
         saveData();
     }
 }
@@ -39,7 +42,13 @@ async function sweepDone() {
     if (doneCount === 0) return showToast("Nothing to sweep!", "info");
 
     if (await showConfirm(`Remove ${doneCount} completed items?`)) {
+        const removedIds = links
+            .filter(l => l.done && l.workspace === config.activeWorkspace)
+            .map(l => l.id);
         links = links.filter(l => !(l.done && l.workspace === config.activeWorkspace));
+        if (window.EveLibrary?.ConnectionsAPI?.removeByLinkId) {
+            removedIds.forEach(id => window.EveLibrary.ConnectionsAPI.removeByLinkId(id));
+        }
         saveData();
         showToast("Swept!", "success");
     }

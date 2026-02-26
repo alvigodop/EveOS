@@ -1,0 +1,52 @@
+{
+  "metadata": {
+    "version": 1,
+    "date": "2026-02-26T00:00:00.000Z",
+    "generator": "EveOS Unified Backup"
+  },
+  "bookmarks": {
+    "links": [
+      {
+        "id": 1,
+        "title": "Welcome",
+        "url": "#",
+        "category": "Start",
+        "done": false,
+        "pinned": false,
+        "workspace": "main",
+        "icon": "👋"
+      }
+    ],
+    "config": {
+      "background": "",
+      "viewMode": "grid",
+      "timerEnabled": false,
+      "weatherEnabled": false,
+      "accent": "#00d4ff",
+      "collapsed": [],
+      "categoryOrder": [],
+      "userName": "",
+      "searchEngine": "https://www.google.com/search?q=",
+      "headerMode": "greeting",
+      "hideStats": [],
+      "workspaces": [
+        {
+          "id": "main",
+          "name": "Main",
+          "icon": "🗂"
+        }
+      ],
+      "activeWorkspace": "main",
+      "scrollableCategories": false
+    }
+  },
+  "library": {
+    "categories": {
+      "Start": {
+        "dataType": "graphicNovels",
+        "entries": []
+      }
+    },
+    "connections": []
+  }
+}

@@ -22,6 +22,68 @@ window.modalTemplate = `
 
         <input type="text" id="newCategory" placeholder="Category (e.g., Work, Social)" list="availableCategories">
         <datalist id="availableCategories"></datalist>
+        <div style="margin:10px 0; border:1px solid #333; border-radius:8px; padding:10px;">
+            <label style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+                <input type="checkbox" id="linkLibraryToggle">
+                <span>Add To Library</span>
+            </label>
+            <div id="linkLibraryFields" style="display:none;">
+                <div style="display:flex; gap:12px; align-items:center; margin-bottom:8px; flex-wrap:wrap;">
+                    <label style="display:flex; gap:6px; align-items:center; font-size:0.85rem;">
+                        <input type="checkbox" id="libTypeGraphic">
+                        <span>Graphic Novels</span>
+                    </label>
+                    <label style="display:flex; gap:6px; align-items:center; font-size:0.85rem;">
+                        <input type="checkbox" id="libTypeFilms">
+                        <span>Films</span>
+                    </label>
+                    <label style="display:flex; gap:6px; align-items:center; font-size:0.85rem;">
+                        <input type="checkbox" id="libTypeNovels">
+                        <span>Novels</span>
+                    </label>
+                </div>
+                <div style="display:flex; gap:5px; margin-bottom:5px;">
+                    <input type="text" id="libAuthor" placeholder="Author" style="flex:1;">
+                    <input type="text" id="libGenre" placeholder="Genre" style="flex:1;">
+                </div>
+                <div style="display:flex; gap:5px; margin-bottom:5px;">
+                    <select id="libStatus" style="flex:1;">
+                        <option value="">Status</option>
+                    </select>
+                    <select id="libRating" style="flex:1;">
+                        <option value="">Rating</option>
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                        <option value="5">5</option>
+                    </select>
+                </div>
+                <div style="display:flex; gap:5px; margin-bottom:5px;">
+                    <div id="libGraphicChapterWrap" style="display:flex; flex-direction:column; gap:3px; flex:1;">
+                        <label for="libGraphicChapter" style="font-size:0.75rem; opacity:0.8;">Graphic Chapter</label>
+                        <input type="number" id="libGraphicChapter" min="0" placeholder="0" style="width:100%; max-width:120px; padding:4px 6px;">
+                    </div>
+                    <div id="libNovelChapterWrap" style="display:flex; flex-direction:column; gap:3px; flex:1;">
+                        <label for="libNovelChapter" style="font-size:0.75rem; opacity:0.8;">Novel Chapter</label>
+                        <input type="number" id="libNovelChapter" min="0" placeholder="0" style="width:100%; max-width:120px; padding:4px 6px;">
+                    </div>
+                    <div id="libSeasonWrap" style="display:flex; flex-direction:column; gap:3px; flex:1;">
+                        <label for="libSeason" style="font-size:0.75rem; opacity:0.8;">Season</label>
+                        <input type="number" id="libSeason" min="0" placeholder="0" style="width:100%; max-width:120px; padding:4px 6px;">
+                    </div>
+                    <div id="libEpisodeWrap" style="display:flex; flex-direction:column; gap:3px; flex:1;">
+                        <label for="libEpisode" style="font-size:0.75rem; opacity:0.8;">Episode</label>
+                        <input type="number" id="libEpisode" min="0" placeholder="0" style="width:100%; max-width:120px; padding:4px 6px;">
+                    </div>
+                </div>
+                <div style="display:flex; gap:5px; margin-bottom:5px;">
+                    <input type="text" id="libLanguage" placeholder="Language" style="flex:1;">
+                    <input type="text" id="libTags" placeholder="Tags (comma separated)" style="flex:1;">
+                </div>
+                <textarea id="libSummary" placeholder="Library summary/notes" rows="2" style="width:100%;"></textarea>
+            </div>
+        </div>
         <div style="display:flex; gap:10px;">
             <select id="newPriority">
                 <option value="">No Priority</option>

@@ -6,12 +6,13 @@ window.EveLibrary = window.EveLibrary || {};
 
 (function () {
     const State = window.EveLibrary.State;
+    const Search = window.EveLibrary.Search;
     const StatsCalc = window.EveLibrary.StatsCalc;
     const ChartUtils = window.EveLibrary.ChartUtils;
 
     function renderStats(categoryName, container) {
         const lib = State.getCategoryLibrary(categoryName);
-        const entries = lib.entries;
+        const entries = Search?.getTypeScopedEntries ? Search.getTypeScopedEntries(categoryName) : (lib.entries || []);
         const prefix = `lib-${categoryName.replace(/[^a-zA-Z0-9]/g, '_')}-`;
 
         // Stats Container Layout

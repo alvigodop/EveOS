@@ -7,15 +7,16 @@ window.EveLibrary = window.EveLibrary || {};
 
 (function () {
     const State = window.EveLibrary.State;
+    const Search = window.EveLibrary.Search;
 
     function updateGenreOptions(categoryName) {
-        const lib = State.getCategoryLibrary(categoryName);
         const prefix = `lib-${categoryName.replace(/[^a-zA-Z0-9]/g, '_')}-`;
         const genreSelect = document.getElementById(prefix + 'search-genre');
 
         if (!genreSelect) return;
 
-        const genres = new Set(lib.entries.map(e => e.genre).filter(g => g));
+        const entries = Search?.getTypeScopedEntries ? Search.getTypeScopedEntries(categoryName) : State.getCategoryLibrary(categoryName).entries;
+        const genres = new Set((entries || []).map(e => e.genre).filter(g => g));
         genreSelect.innerHTML = '<option value="">All Genres</option>';
         genres.forEach(g => {
             const option = document.createElement('option');

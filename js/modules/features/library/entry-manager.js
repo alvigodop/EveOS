@@ -39,6 +39,7 @@ window.EveLibrary = window.EveLibrary || {};
         const newEntry = {
             id: generateUniqueId(),
             title: data.title,
+            mediaTypes: [dataType],
             author: data.author,
             genre: data.genre,
             status: data.status,
@@ -73,6 +74,9 @@ window.EveLibrary = window.EveLibrary || {};
         entry.author = data.author;
         entry.genre = data.genre;
         entry.status = data.status;
+        if (!Array.isArray(entry.mediaTypes) || entry.mediaTypes.length === 0) {
+            entry.mediaTypes = [dataType];
+        }
         entry.chapter = (dataType === 'films') ? entry.chapter : data.chapter;
         entry.season = (dataType === 'films') ? data.season : undefined;
         entry.episode = (dataType === 'films') ? data.episode : undefined;
@@ -83,6 +87,9 @@ window.EveLibrary = window.EveLibrary || {};
         if (data.imageUrl) entry.image = data.imageUrl;
 
         Storage.saveLibrary();
+        if (window.EveLibrary?.ConnectionsAPI?.syncFromLibraryEntry) {
+            window.EveLibrary.ConnectionsAPI.syncFromLibraryEntry(categoryName, entry);
+        }
         if (renderCallback) renderCallback();
         return entry;
     }
@@ -91,7 +98,11 @@ window.EveLibrary = window.EveLibrary || {};
         const lib = State.getCategoryLibrary(categoryName);
         const index = lib.entries.findIndex(e => e.id === entryId);
         if (index !== -1) {
+            const removed = lib.entries[index];
             lib.entries.splice(index, 1);
+            if (window.EveLibrary?.ConnectionsAPI?.removeByLibraryEntry) {
+                window.EveLibrary.ConnectionsAPI.removeByLibraryEntry(categoryName, removed.id);
+            }
             Storage.saveLibrary();
             if (renderCallback) renderCallback();
             return true;

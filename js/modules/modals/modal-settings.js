@@ -17,6 +17,8 @@ function openSettings() {
 
     // Set initial state of color inputs
     updateColorInputAvailability();
+    if (typeof refreshWorkspaceBackupList === 'function') refreshWorkspaceBackupList();
+    if (typeof refreshCardBackupList === 'function') refreshCardBackupList();
 }
 
 function saveSettingsTimer() { config.timerEnabled = document.getElementById('timerToggle').checked; saveConfig(); applySettings(); }

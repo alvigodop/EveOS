@@ -70,13 +70,36 @@ window.modalTemplate += `
             <div style="border-top:1px solid #444; padding-top:10px; margin-top:10px;">
                 <h4 style="margin:0 0 10px 0;">Data Management</h4>
                 <div class="btn-action-row">
-                    <button onclick="exportData()" class="btn-backup">💾 Backup</button>
+                    <button onclick="exportData()" class="btn-backup">Backup All Data</button>
                     <label class="btn-restore">
-                        📂 Restore
+                        Restore All Data
                         <input type="file" id="importFile" style="display: none;" onchange="importData(this)">
                     </label>
                 </div>
                 <button onclick="clearAllData()" class="btn-danger" style="width:100%; margin-top:10px;">⚠️ Wipe All Data</button>
+                <div style="border-top:1px solid #444; padding-top:10px; margin-top:10px;">
+                    <h4 style="margin:0 0 10px 0;">Tab Backup (Single Workspace)</h4>
+                    <select id="tabBackupSelect" style="width:100%; margin-bottom:10px;"></select>
+                    <div class="btn-action-row">
+                        <button onclick="exportWorkspaceBackup()" class="btn-backup">Backup Selected Tab</button>
+                        <label class="btn-restore">
+                            Restore Tab File
+                            <input type="file" id="importWorkspaceFile" style="display:none;" accept=".json" onchange="importWorkspaceBackup(this)">
+                        </label>
+                    </div>
+                </div>
+                <div style="border-top:1px solid #444; padding-top:10px; margin-top:10px;">
+                    <h4 style="margin:0 0 10px 0;">Card Backup (Single Category)</h4>
+                    <select id="cardBackupWorkspaceSelect" style="width:100%; margin-bottom:8px;"></select>
+                    <select id="cardBackupCategorySelect" style="width:100%; margin-bottom:10px;"></select>
+                    <div class="btn-action-row">
+                        <button onclick="exportCardBackup()" class="btn-backup">Backup Selected Card</button>
+                        <label class="btn-restore">
+                            Restore Card File
+                            <input type="file" id="importCardFile" style="display:none;" accept=".json" onchange="importCardBackup(this)">
+                        </label>
+                    </div>
+                </div>
             </div>
         </div>
         <button onclick="closeModals()" style="margin-top:15px; width: 100%;">Close</button>
