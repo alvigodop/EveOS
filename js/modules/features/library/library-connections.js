@@ -238,10 +238,18 @@ window.EveLibrary = window.EveLibrary || {};
     }
 
     function syncFromLink(linkId) {
-        const conn = findConnectionByLinkId(linkId);
+        let conn = findConnectionByLinkId(linkId);
         if (!conn) return;
         const link = findLinkById(linkId);
         if (!link) return;
+
+        const nextCategory = String(link.category || 'Unsorted').trim() || 'Unsorted';
+        if (nextCategory !== conn.categoryName) {
+            moveLinkedEntryToCategory(linkId, nextCategory);
+            conn = findConnectionByLinkId(linkId);
+            if (!conn) return;
+        }
+
         const found = findEntryByConnection(conn);
         if (!found?.entry) return;
         const entry = found.entry;

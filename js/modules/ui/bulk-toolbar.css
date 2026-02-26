@@ -34,3 +34,62 @@ body.bulk-active .bulk-check {
 body.bulk-active .actions {
     display: none !important;
 }
+
+#bulk-move-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    z-index: 10003;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+
+#bulk-move-modal {
+    width: min(480px, 95vw);
+    background: var(--card-bg, #1f1f1f);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 14px;
+    padding: 16px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+#bulk-move-modal h3 {
+    margin: 0;
+    color: var(--text-main);
+}
+
+#bulk-move-modal .bulk-move-subtitle {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+#bulk-move-modal .bulk-move-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+#bulk-move-modal .bulk-move-radio {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-main);
+}
+
+#bulk-move-modal select,
+#bulk-move-modal input[type="text"] {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+#bulk-move-modal .bulk-move-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 6px;
+}

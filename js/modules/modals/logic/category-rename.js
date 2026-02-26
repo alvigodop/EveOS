@@ -10,7 +10,11 @@ window.confirmRename = function () {
     const name = document.getElementById('renameInput').value.trim();
     if (!name) return showToast("Name required", "warning");
     if (name && name !== o) {
-        links.forEach(l => { if (l.category === o) l.category = name; });
+        links.forEach(l => {
+            if (l.category !== o) return;
+            l.category = name;
+            window.EveLibrary?.ConnectionsAPI?.syncFromLink?.(l.id);
+        });
         const idx = config.categoryOrder.indexOf(o);
         if (idx > -1) config.categoryOrder[idx] = name;
         if (config.hideStats.includes(o)) {

@@ -16,6 +16,7 @@ function drop(ev, newCategory) {
     const idx = links.findIndex(l => l.id == id);
     if (idx > -1) {
         links[idx].category = newCategory;
+        window.EveLibrary?.ConnectionsAPI?.syncFromLink?.(links[idx].id);
         saveData();
     }
 }
