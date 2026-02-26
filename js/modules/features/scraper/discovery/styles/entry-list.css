@@ -1,0 +1,189 @@
+/**
+ * Entry List CSS
+ * Entry/card grid layout for domain manager
+ * Extracted from discovery.css
+ * 
+ * @version 1.0.0
+ */
+
+/* --- Domain Manager Grid Layout --- */
+.entry-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 15px;
+    padding: 0;
+    list-style: none;
+    margin-top: 15px;
+}
+
+.entry-item {
+    background: #ffffff;
+    border: 1px solid #e0e0e0;
+    border-radius: 12px;
+    padding: 15px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.02);
+    /* Subtle base shadow */
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    /* Space between Info and Actions */
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.entry-item:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.08);
+    /* Lift effect */
+    border-color: #d0d0d0;
+}
+
+/* Info Section (Image + Title) */
+.entry-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.entry-image {
+    width: 48px;
+    height: 48px;
+    border-radius: 8px;
+    /* Soft square */
+    object-fit: contain;
+    background: #f8f9fa;
+    padding: 4px;
+    border: 1px solid #f1f3f4;
+    flex-shrink: 0;
+}
+
+.entry-name {
+    font-weight: 600;
+    font-size: 1.05rem;
+    color: #202124;
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    line-clamp: 2;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+/* Status Badge */
+.entry-status {
+    font-size: 0.75rem;
+    color: #5f6368;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* Actions Row */
+.entry-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    /* Allow wrapping on small cards */
+}
+
+/* Base Action Button Style */
+.entry-actions .action-btn {
+    flex: 1;
+    /* Distribute space evenly */
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+    text-decoration: none;
+    /* For download/link buttons */
+    white-space: nowrap;
+}
+
+/* Visit Button (Primary Action) */
+.entry-actions .visit-btn {
+    background-color: #e8f0fe;
+    color: #1a73e8;
+    flex: 0 0 auto;
+    /* Don't stretch */
+    width: auto;
+    padding-left: 12px;
+    padding-right: 12px;
+}
+
+.entry-actions .visit-btn:hover {
+    background-color: #d2e3fc;
+    color: #174ea6;
+}
+
+/* Cache Button (Secondary) */
+.entry-actions .cache-btn {
+    background-color: #f1f3f4;
+    color: #5f6368;
+}
+
+.entry-actions .cache-btn:hover {
+    background-color: #e8eaed;
+    color: #3c4043;
+}
+
+/* Clear/Remove Buttons (Danger) */
+.entry-actions .clean-btn,
+/* If used */
+.entry-actions .remove-btn {
+    background-color: transparent;
+    color: #ababab;
+    flex: 0 0 auto;
+    padding: 6px;
+}
+
+.entry-actions .remove-btn:hover {
+    background-color: #fce8e6;
+    color: #c5221f;
+}
+
+/* Reload Button */
+.entry-actions .reload-btn {
+    background-color: transparent;
+    color: #5f6368;
+    flex: 0 0 auto;
+    padding: 6px;
+}
+
+.entry-actions .reload-btn:hover {
+    background-color: #f1f3f4;
+    color: #202124;
+}
+
+/* Add Button (Discovery) */
+/* Styling is overridden in discovery-button-overrides.css to match 'Find Wikis' button */
+.add-btn {
+    cursor: pointer;
+}
+
+/* Placeholder for removed Fandom community search */
+.fandom-community-search-placeholder {
+    padding: 20px;
+    margin: 20px 0;
+    text-align: center;
+    background-color: var(--background-light);
+    border: 1px dashed var(--border-color);
+    border-radius: 5px;
+}
+
+.fandom-community-search-placeholder p {
+    color: var(--text-light);
+    font-style: italic;
+    margin: 0;
+}

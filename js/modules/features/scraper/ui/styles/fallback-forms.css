@@ -1,0 +1,141 @@
+/**
+ * Fallback Forms CSS
+ * Styles for emergency fallback forms and error recovery UI
+ * Extracted from inline styles in ScraperTest.html for modularity
+ * @version 1.0.0
+ */
+
+/* Emergency fallback container */
+.emergency-fallback-container {
+    padding: 20px;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    margin: 10px 0;
+}
+
+/* Error state styling */
+.emergency-fallback-error {
+    color: #d32f2f;
+}
+
+.emergency-fallback-error h3 {
+    color: #d32f2f;
+    margin-top: 0;
+    margin-bottom: 10px;
+}
+
+/* Form layout */
+.emergency-fallback-form {
+    display: flex;
+    gap: 0;
+}
+
+.emergency-fallback-input {
+    flex: 1;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px 0 0 4px;
+    font-size: 14px;
+}
+
+.emergency-fallback-input:focus {
+    outline: none;
+    border-color: #4285f4;
+}
+
+.emergency-fallback-button {
+    background: #4285f4;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 0 4px 4px 0;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background-color 0.2s;
+}
+
+.emergency-fallback-button:hover {
+    background: #3367d6;
+}
+
+/* Details/summary for error info */
+.emergency-fallback-details {
+    margin-top: 15px;
+}
+
+.emergency-fallback-details summary {
+    cursor: pointer;
+    color: #666;
+    font-size: 13px;
+}
+
+.emergency-fallback-details pre {
+    background: #f5f5f5;
+    padding: 10px;
+    overflow: auto;
+    max-height: 200px;
+    font-size: 12px;
+    border-radius: 4px;
+    margin-top: 8px;
+}
+
+/* Note styling */
+.emergency-fallback-note {
+    font-size: 12px;
+    color: #666;
+    margin-top: 10px;
+}
+
+/* Results placeholder */
+.emergency-results-container {
+    padding: 20px;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+}
+
+.emergency-reload-button {
+    background: #4285f4;
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-top: 10px;
+    font-size: 14px;
+}
+
+.emergency-reload-button:hover {
+    background: #3367d6;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+
+    .emergency-fallback-container,
+    .emergency-results-container {
+        background: #2d2d2d;
+        border-color: #444;
+    }
+
+    .emergency-fallback-input {
+        background: #3c3c3c;
+        border-color: #555;
+        color: #e8eaed;
+    }
+
+    .emergency-fallback-details summary {
+        color: #9aa0a6;
+    }
+
+    .emergency-fallback-details pre {
+        background: #1e1e1e;
+        color: #bdc1c6;
+    }
+
+    .emergency-fallback-note {
+        color: #9aa0a6;
+    }
+}

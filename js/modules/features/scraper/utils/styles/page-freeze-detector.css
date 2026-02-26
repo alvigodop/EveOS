@@ -1,0 +1,157 @@
+/**
+ * PageFreezeDetector Module Styles v1.0.0
+ * Styling for detection and recovery notifications
+ */
+
+/* Recovery notifications */
+#freeze-recovery-notification {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #4CAF50;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 4px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    z-index: 999999;
+    max-width: 80%;
+    text-align: center;
+    font-size: 14px;
+    line-height: 1.4;
+    animation: fadeInUp 0.3s ease-out;
+}
+
+/* Recovery button */
+#cse-recovery-button {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: #f44336;
+    color: white;
+    padding: 10px 15px;
+    border-radius: 5px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+    cursor: pointer;
+    z-index: 999999;
+    font-size: 14px;
+    font-weight: bold;
+    transition: background-color 0.2s, transform 0.2s;
+}
+
+#cse-recovery-button:hover {
+    background: #d32f2f;
+    transform: translateY(-2px);
+}
+
+/* Recovery options dialog */
+#freeze-recovery-options {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: white;
+    color: #333;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    z-index: 9999999;
+    max-width: 400px;
+    width: 90%;
+    text-align: center;
+    animation: scaleIn 0.3s ease-out;
+}
+
+#freeze-recovery-options h3 {
+    margin-top: 0;
+    color: #d32f2f;
+    font-size: 18px;
+}
+
+#freeze-recovery-options p {
+    margin-bottom: 15px;
+}
+
+#freeze-recovery-options button {
+    display: block;
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 10px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background-color 0.2s, transform 0.2s;
+}
+
+#freeze-recovery-options button:hover {
+    transform: translateY(-2px);
+}
+
+#freeze-recovery-reset {
+    background: #2196F3;
+    color: white;
+}
+
+#freeze-recovery-reload {
+    background: #FF9800;
+    color: white;
+}
+
+#freeze-recovery-close {
+    background: #9E9E9E;
+    color: white;
+}
+
+/* Animations */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translate(-50%, 20px);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, 0);
+    }
+}
+
+@keyframes scaleIn {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.8);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+}
+
+/* Hidden sentinel element for debugging */
+#page-freeze-sentinel {
+    display: none;
+}
+
+/* Hidden UI monitoring button */
+#freeze-detector-button {
+    position: absolute;
+    left: -9999px;
+    top: -9999px;
+    width: 1px;
+    height: 1px;
+    opacity: 0.01;
+}
+
+/* Error message styling in Google results container */
+.google-cse-error {
+    padding: 15px;
+    background-color: #fff8e1;
+    border-left: 4px solid #ffc107;
+    margin: 10px 0;
+    border-radius: 2px;
+}
+
+.google-cse-error h3 {
+    color: #e65100;
+    margin-top: 0;
+    font-size: 16px;
+} 

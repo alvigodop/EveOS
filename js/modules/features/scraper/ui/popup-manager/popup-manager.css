@@ -1,0 +1,278 @@
+/* Popup Manager CSS */
+
+/* Import extracted modular styles */
+@import 'data-popup.css';
+
+/* Popup Styles - .popup class */
+.popup {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    z-index: var(--z-index-popup);
+    display: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.popup.active {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow-y: auto;
+    opacity: 1;
+}
+
+.popup[style*="display: block"] {
+    opacity: 1;
+}
+
+/* Popup Overlay Styles - .popup-overlay class for backwards compatibility */
+.popup-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    z-index: var(--z-index-popup, 1000);
+    display: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.popup-overlay.active {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow-y: auto;
+    opacity: 1;
+}
+
+.popup-overlay[style*="display: flex"],
+.popup-overlay[style*="display: block"] {
+    opacity: 1;
+}
+
+/* Popup iframe container and frame */
+.popup-iframe-container {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    border-radius: 0 0 8px 8px;
+}
+
+.popup-iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+
+.popup-content {
+    position: relative;
+    width: 90%;
+    max-width: 1200px;
+    height: 90%;
+    margin: 2% auto;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.popup-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 20px;
+    background-color: #f8f9fa;
+    color: #333;
+    border-bottom: 1px solid #e0e0e0;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+}
+
+.popup-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    flex-grow: 1;
+    font-weight: 600;
+}
+
+.popup-nav {
+    display: flex;
+    gap: 8px;
+    margin-right: 15px;
+}
+
+.popup-nav button {
+    background-color: transparent;
+    color: #5f6368;
+    border: 1px solid transparent;
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    font-size: 1.2rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+}
+
+.popup-nav button:not(:disabled):hover {
+    background-color: rgba(0, 0, 0, 0.05);
+    color: #202124;
+}
+
+.popup-nav button:not(:disabled):active {
+    background-color: rgba(0, 0, 0, 0.1);
+    transform: translateY(0);
+}
+
+.popup-nav button:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.close-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    color: #5f6368;
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 0;
+    border-radius: 50%;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    font-weight: 300;
+}
+
+.close-btn:hover {
+    background-color: rgba(220, 53, 69, 0.12);
+    color: #dc3545;
+    border-color: rgba(220, 53, 69, 0.2);
+    transform: scale(1.05);
+}
+
+.close-btn:active {
+    transform: scale(0.95);
+    background-color: rgba(220, 53, 69, 0.2);
+}
+
+/* Popup Close Button (×) - Enhanced Legacy Style */
+.popup-close {
+    background: none;
+    border: 1px solid transparent;
+    font-size: 1.2em;
+    cursor: pointer;
+    padding: 6px 12px;
+    color: #666;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 4px;
+    margin-left: 5px;
+    min-width: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.popup-close:hover {
+    color: #dc3545;
+    background-color: rgba(220, 53, 69, 0.12);
+    border-color: rgba(220, 53, 69, 0.2);
+    transform: scale(1.05);
+}
+
+.popup-close:active {
+    transform: scale(0.95);
+    background-color: rgba(220, 53, 69, 0.2);
+}
+
+
+.popup-body {
+    flex-grow: 1;
+    overflow: hidden;
+    position: relative;
+}
+
+.popup-body iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+
+/* Note: Data popup styles (.data-popup-content, .data-stats, .cache-stats-container,
+   .stats-grid, .stat-item, .data-content, .json-data, .cache-array-data, .cache-array-item,
+   details styles) are now imported from data-popup.css */
+
+/* ============================================
+   URL NAVIGATION BAR
+   ============================================ */
+
+.url-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    background-color: #f8f9fa;
+    border-top: 1px solid #dee2e6;
+}
+
+.url-nav-btn {
+    background: none;
+    border: none;
+    font-size: 1.2em;
+    cursor: pointer;
+    padding: 5px 10px;
+    color: #666;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.5;
+    border-radius: 4px;
+}
+
+.url-nav-btn.active {
+    opacity: 1;
+    cursor: pointer;
+}
+
+.url-nav-btn:not(.active) {
+    cursor: not-allowed;
+}
+
+.url-nav-btn.active:hover {
+    color: #007bff;
+    background-color: rgba(0, 123, 255, 0.1);
+}
+
+/* ============================================
+   WIKIPEDIA POPUP THEME
+   ============================================ */
+
+.popup-content.wikipedia {
+    background: #f8f9fa;
+}
+
+.popup-content.wikipedia .popup-header {
+    background: #eaecf0;
+    border-bottom-color: #a2a9b1;
+}
+
+.popup-content.wikipedia .popup-title {
+    color: #202122;
+}
+
+.popup-content.wikipedia .popup-body {
+    background: white;
+}

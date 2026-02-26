@@ -1,0 +1,252 @@
+/* ============================================
+   SLEEKER BUTTON STYLES - Global Overrides
+   ============================================ */
+
+/* 1. Primary Buttons (Green) - Full Dark Outline */
+.wiki-discovery .search-btn,
+#fandom-search-container .search-btn,
+.search-actions-container .search-btn,
+.domain-add-form .primary-btn,
+.domain-actions-container .primary-btn,
+#addWikiCategoryBtn,
+/* Add Button matching Find Wikis */
+.add-btn,
+.wiki-discovery .add-btn {
+    padding: 6px 12px !important;
+    background: linear-gradient(135deg, #27ae60 0%, #219a52 100%) !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 2px !important;
+    /* Slight rounding for professional look */
+    cursor: pointer !important;
+    font-size: 0.8rem !important;
+    font-weight: 500 !important;
+    transition: all 0.2s ease !important;
+    box-shadow: inset 0 0 0 1px #145a32 !important;
+    /* Dark Green Full Outline */
+    white-space: nowrap !important;
+    outline: none !important;
+}
+
+.wiki-discovery .search-btn:hover,
+#fandom-search-container .search-btn:hover,
+.search-actions-container .search-btn:hover,
+.domain-add-form .primary-btn:hover,
+.domain-actions-container .primary-btn:hover,
+#addWikiCategoryBtn:hover,
+.add-btn:hover,
+.wiki-discovery .add-btn:hover {
+    background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%) !important;
+    box-shadow: inset 0 0 0 1px #0e3e23 !important;
+    transform: translateY(-1px) !important;
+}
+
+.wiki-discovery .search-btn:active,
+#fandom-search-container .search-btn:active,
+.search-actions-container .search-btn:active,
+.domain-add-form .primary-btn:active,
+.domain-actions-container .primary-btn:active,
+#addWikiCategoryBtn:active,
+.add-btn:active,
+.wiki-discovery .add-btn:active {
+    transform: translateY(0) !important;
+    box-shadow: inset 0 0 0 1px #145a32 !important;
+}
+
+/* Disabled State for Primary Buttons */
+.add-btn:disabled,
+.wiki-discovery .add-btn:disabled,
+.search-btn:disabled {
+    background: #e0e0e0 !important;
+    color: #999 !important;
+    box-shadow: none !important;
+    cursor: default !important;
+    transform: none !important;
+    pointer-events: none !important;
+}
+
+/* 2. Secondary Buttons (Gray) - Full Dark Outline */
+.wiki-discovery .btn.secondary-btn,
+#fandom-search-container .btn.secondary-btn,
+.search-actions-container .btn.secondary-btn,
+.domain-actions-container .secondary-btn,
+.entry-actions .action-btn {
+    padding: 6px 10px !important;
+    background: #f8f9fa !important;
+    color: #495057 !important;
+    border: none !important;
+    border-radius: 2px !important;
+    cursor: pointer !important;
+    font-size: 0.8rem !important;
+    font-weight: 500 !important;
+    transition: all 0.2s ease !important;
+    white-space: nowrap !important;
+    box-shadow: inset 0 0 0 1px #6c757d !important;
+    /* Dark Gray Full Outline */
+    outline: none !important;
+}
+
+.wiki-discovery .btn.secondary-btn:hover,
+#fandom-search-container .btn.secondary-btn:hover,
+.search-actions-container .btn.secondary-btn:hover,
+.domain-actions-container .secondary-btn:hover,
+.entry-actions .action-btn:hover {
+    background: #e9ecef !important;
+    box-shadow: inset 0 0 0 1px #343a40 !important;
+    color: #212529 !important;
+}
+
+/* 3. Danger Buttons (Red/Clear) - Full Dark Outline */
+.domain-actions-container .danger-btn,
+.entry-actions .remove-btn,
+.entry-actions .clear-btn {
+    background: #fff0f0 !important;
+    color: #d32f2f !important;
+    box-shadow: inset 0 0 0 1px #c62828 !important;
+    /* Dark Red Full Outline */
+}
+
+.domain-actions-container .danger-btn:hover,
+.entry-actions .remove-btn:hover,
+.entry-actions .clear-btn:hover {
+    background: #ffebee !important;
+    box-shadow: inset 0 0 0 1px #b71c1c !important;
+    color: #b71c1c !important;
+}
+
+/* 4. Visit Button (Blue) - Full Dark Outline */
+.entry-actions .visit-btn {
+    background: #e8f0fe !important;
+    color: #1a73e8 !important;
+    box-shadow: inset 0 0 0 1px #1967d2 !important;
+    /* Dark Blue Full Outline */
+}
+
+.entry-actions .visit-btn:hover {
+    background: #d2e3fc !important;
+    box-shadow: inset 0 0 0 1px #174ea6 !important;
+    color: #174ea6 !important;
+}
+
+/* 6. Top Management Buttons (Reload/Clear) - EXTRA COMPACT */
+.domain-actions-container .btn,
+.domain-actions-container .primary-btn,
+.domain-actions-container .secondary-btn,
+.domain-actions-container .danger-btn {
+    padding: 4px 8px !important;
+    /* Smaller padding */
+    font-size: 0.75rem !important;
+    /* Smaller text */
+    height: auto !important;
+}
+
+/* 7. Wiki Link Action - Slightly smaller */
+.wiki-link-action {
+    font-size: 0.75rem !important;
+    padding: 2px 6px !important;
+    margin-left: 8px !important;
+    background: transparent !important;
+    border: 1px solid transparent !important;
+    box-shadow: none !important;
+    /* No outline for the link itself unless hovered */
+}
+
+.wiki-link-action:hover {
+    text-decoration: underline !important;
+    background: #f5f5f5 !important;
+    border-color: #eee !important;
+    border-radius: 2px !important;
+}
+
+/* 8. Entry Actions Layout Fix - Natural Flow */
+.entry-actions {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+    align-items: center !important;
+    width: auto !important;
+    max-width: none !important;
+    justify-content: flex-end !important;
+    flex: 1 1 auto !important;
+}
+
+.entry-actions .action-btn {
+    flex: 0 0 auto !important;
+    /* Don't shrink or grow unexpectedly */
+    width: auto !important;
+    /* Allow natural width */
+    min-width: unset !important;
+    /* Remove any minimum width forcing column look */
+    max-width: none !important;
+    padding: 4px 10px !important;
+    /* Good touch target */
+    margin: 0 !important;
+    /* Remove partial margins */
+    display: inline-flex !important;
+}
+
+/* Ensure flex buttons work (Search section only) */
+.search-btn-flex {
+    flex: 1;
+    min-width: 80px;
+}
+
+/* ============================================
+   CARD LAYOUT OPTIMIZATIONS
+   ============================================ */
+
+/* 9. Maximize Space Usage in Cards */
+.entry-item {
+    padding: 10px !important;
+    /* Reduce padding from 15px to 10px */
+}
+
+.entry-info {
+    padding-bottom: 0 !important;
+    gap: 10px !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+}
+
+/* 10. Expand Title to Fill Space (Fixes "..." truncation) */
+.entry-name {
+    flex: 1 1 auto !important;
+    /* Grow to fill space, shrinking allowed */
+    min-width: 0 !important;
+    /* Critical for text-overflow to work in flex */
+    white-space: nowrap !important;
+    /* Keep single line or... */
+    /* If user wants full title visible, maybe allow wrap? User said "make out the title... using that space" */
+    /* Let's keep existing single-line behavior but give it space. */
+    margin-right: 5px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+/* 11. Status Column - Push to Right & Compact */
+.entry-status {
+    flex: 0 0 auto !important;
+    /* Don't shrink */
+    margin-left: auto !important;
+    /* Push to right */
+    text-align: right !important;
+    font-size: 0.7rem !important;
+    line-height: 1.2 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    /* Ensure vertical stack as requested */
+    align-items: flex-end !important;
+    min-width: fit-content !important;
+    margin-right: 0 !important;
+    /* Ensure no right margin */
+}
+
+/* Tweak image size if needed */
+.entry-image {
+    width: 40px !important;
+    height: 40px !important;
+}

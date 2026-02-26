@@ -1,0 +1,83 @@
+/**
+ * Cached Results CSS
+ * Styles for cached search results display
+ * Extracted from result-display.css for modularity
+ * @version 1.0.0
+ */
+
+/* Cached results display */
+.cached-searches {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.cached-search-item {
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+    background: #fff;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    transition: box-shadow 0.2s ease;
+}
+
+.cached-search-item:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.search-term-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.search-term-header h4 {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.results-count {
+    font-size: 0.8rem;
+    color: var(--text-light);
+}
+
+.cached-results {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 15px;
+    padding: 15px;
+}
+
+.cached-result {
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 12px;
+    background-color: white;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.cached-result:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Cached Search Item Enhancement */
+.cached-search-item {
+    background: #fff;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    transition: box-shadow 0.2s ease;
+}
+
+.cached-search-item:hover {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.cached-search-item:last-child {
+    margin-bottom: 0;
+}

@@ -1,0 +1,9 @@
+/* Error Suppressor CSS */
+#error-suppressor-hidden {
+    display: none !important;
+}
+
+.error-shield-active {
+    pointer-events: none;
+    user-select: none;
+}

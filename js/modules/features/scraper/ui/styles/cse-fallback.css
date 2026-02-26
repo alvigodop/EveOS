@@ -1,0 +1,90 @@
+/**
+ * CSE Fallback Styles
+ * Extracted from failsafe.css for modularity
+ * Styles for CSE fallback error and results containers
+ * 
+ * @version 1.0.0
+ */
+
+/* ============================================
+   CSE FALLBACK ERROR CONTAINER
+   ============================================ */
+
+.cse-fallback-error {
+    padding: 20px;
+    background: #fff;
+    border: 1px solid #ddd;
+}
+
+.cse-fallback-error h3 {
+    color: #d32f2f;
+    margin-top: 0;
+    margin-bottom: 10px;
+}
+
+.cse-fallback-error p {
+    margin: 10px 0;
+}
+
+.cse-fallback-error-form {
+    display: flex;
+}
+
+.cse-fallback-error-input {
+    flex: 1;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px 0 0 4px;
+}
+
+.cse-fallback-error-btn {
+    background: #4285f4;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 0 4px 4px 0;
+}
+
+.cse-fallback-error-note {
+    font-size: 12px;
+    color: #666;
+    margin-top: 10px;
+}
+
+.cse-fallback-error-details summary {
+    cursor: pointer;
+    color: #666;
+    margin-top: 15px;
+}
+
+.cse-fallback-error-details pre {
+    background: #f5f5f5;
+    padding: 10px;
+    overflow: auto;
+    max-height: 200px;
+    font-size: 12px;
+}
+
+/* ============================================
+   CSE FALLBACK RESULTS CONTAINER
+   ============================================ */
+
+.cse-fallback-results {
+    padding: 20px;
+    background: #fff;
+    border: 1px solid #ddd;
+}
+
+.cse-fallback-reload {
+    background: #4285f4;
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-top: 10px;
+}
+
+.cse-fallback-reload:hover {
+    background: #3367d6;
+}

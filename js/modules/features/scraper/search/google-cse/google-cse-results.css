@@ -1,0 +1,313 @@
+/**
+ * Google CSE Results CSS
+ * Result item styling, thumbnails, snippets
+ * 
+ * @version 1.1.0 - Modularized with extracted pagination and dark mode
+ */
+
+/* Import extracted modular styles */
+@import 'google-cse-pagination.css';
+/* @import 'google-cse-dark.css'; - DISABLED to keep CSE always light */
+
+/* Style search results to match our theme */
+#google-results-container .gsc-control-cse {
+    padding: 0 !important;
+    border: none !important;
+    background: transparent !important;
+}
+
+#google-results-container .gsc-results-wrapper-overlay,
+#google-results-container .gsc-results-wrapper-visible {
+    position: static !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    background: transparent !important;
+}
+
+#google-results-container .gsc-modal-background-image {
+    display: none !important;
+}
+
+/* Ensure links don't open in new tabs */
+#google-results-container a,
+#google-results-container a.gs-title {
+    display: inline-block !important;
+    text-decoration: none !important;
+    color: #1a0dab !important;
+    font-weight: bold !important;
+    margin-bottom: 3px !important;
+    transition: all 0.2s ease !important;
+    font-size: 16px !important;
+}
+
+#google-results-container a:hover,
+#google-results-container a.gs-title:hover {
+    text-decoration: underline !important;
+    color: #0000cc !important;
+}
+
+/* Special style for links we've fixed to stay on page */
+#google-results-container a[data-intercepted="true"]:hover::after {
+    content: " (opens in this window)";
+    font-size: 11px;
+    font-style: italic;
+    color: #777;
+    font-weight: normal;
+}
+
+/* Improve results styling */
+#google-results-container .gsc-webResult.gsc-result {
+    border-left: 3px solid transparent !important;
+    padding-left: 10px !important;
+    margin-bottom: 15px !important;
+    transition: border-color 0.2s ease !important;
+}
+
+#google-results-container .gsc-webResult.gsc-result:hover {
+    border-left-color: #4285f4 !important;
+}
+
+#google-results-container .gs-title {
+    height: auto !important;
+    line-height: 1.4 !important;
+}
+
+/* Fix thumbnail images */
+#google-results-container .gs-image-box.gs-web-image-box.gs-web-image-box-landscape {
+    width: auto !important;
+}
+
+#google-results-container .gs-image {
+    max-width: 100px !important;
+    height: auto !important;
+}
+
+/* Note: Container-specific pagination styles (#google-results-container .gsc-cursor-*)
+   are now imported from google-cse-pagination.css */
+
+/* Add left border to make results more distinct */
+.gsc-webResult.gsc-result {
+    border-left: 3px solid transparent;
+    padding-left: 15px;
+    transition: border-left-color 0.2s ease-in-out;
+    margin-bottom: 15px !important;
+}
+
+.gsc-webResult.gsc-result:hover {
+    border-left-color: #4285f4;
+    background-color: rgba(66, 133, 244, 0.03);
+}
+
+.gs-visibleUrl {
+    color: var(--success-color, #006621) !important;
+    font-size: 14px !important;
+    margin-top: 3px !important;
+    line-height: 1.4 !important;
+}
+
+.gs-snippet {
+    font-size: 14px !important;
+    line-height: 1.5 !important;
+    color: var(--text-muted, #545454) !important;
+    margin-top: 5px !important;
+    margin-bottom: 5px !important;
+    font-family: var(--font-family, inherit) !important;
+}
+
+/* Note: Global pagination styling (.gsc-cursor-*)
+   is now imported from google-cse-pagination.css */
+
+/* Visual indicator for links that stay on page */
+a[data-fixed="true"] {
+    position: relative;
+    text-decoration: none !important;
+}
+
+a[data-fixed="true"]::after {
+    content: "↗";
+    display: inline-block;
+    font-size: 12px;
+    margin-left: 4px;
+    opacity: 0.5;
+    transform: rotate(45deg);
+    text-decoration: none !important;
+}
+
+a[data-fixed="true"]:hover::after {
+    opacity: 0.8;
+}
+
+/* Fix image sizing in results */
+.gs-image-box {
+    max-width: 120px !important;
+    max-height: 80px !important;
+    overflow: hidden !important;
+}
+
+.gs-image {
+    max-width: 100% !important;
+    height: auto !important;
+    object-fit: cover !important;
+}
+
+/* Fix for thumbnails */
+.gs-image-box.gs-web-image-box.gs-web-image-box-portrait,
+.gs-image-box.gs-web-image-box.gs-web-image-box-landscape {
+    width: 120px !important;
+    height: auto !important;
+}
+
+/* Hide unwanted elements */
+.gsc-adBlock {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    overflow: hidden !important;
+}
+
+/* Fix font and spacing issues */
+body .gsc-control-cse,
+body .gsc-control-cse .gsc-table-result,
+body .gsc-control-cse .gs-snippet,
+body .gsc-control-cse .gs-result .gs-title,
+body .gsc-control-cse .gs-result .gs-title * {
+    font-family: var(--font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif) !important;
+}
+
+/* Hide branding if we don't want it */
+.gcsc-branding {
+    display: block;
+    opacity: 0.8;
+    margin-top: 8px;
+    text-align: right;
+}
+
+.gsc-table-result a,
+.gsc-thumbnail-inside a,
+.gsc-url-top a {
+    text-decoration: none !important;
+    /* Override target to force same window */
+    target: _self !important;
+}
+
+.gsc-table-result,
+.gsc-thumbnail-inside,
+.gsc-url-top {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+}
+
+/* Loading animation */
+.gsc-loading-fade {
+    display: none !important;
+}
+
+/* Empty results message */
+.gsc-results:empty::after {
+    content: "No search results found. Please try a different search term.";
+    display: block;
+    padding: 20px;
+    text-align: center;
+    color: #666;
+    font-style: italic;
+}
+
+/* Fix for search results showing in wrong container */
+.gsc-resultsbox-visible {
+    display: block !important;
+    visibility: visible !important;
+}
+
+/* Result styling - Detailed */
+.gsc-webResult.gsc-result {
+    padding: 12px !important;
+    border-left: 3px solid transparent !important;
+    transition: border-color 0.2s, background-color 0.2s !important;
+}
+
+.gsc-webResult.gsc-result:hover {
+    border-left-color: #4285f4 !important;
+    background-color: #f8f9fa !important;
+}
+
+/* Result title styling */
+.gs-title {
+    color: #1a73e8 !important;
+    font-size: 16px !important;
+    transition: color 0.2s !important;
+    text-decoration: none !important;
+}
+
+.gs-title:hover {
+    color: #1558d6 !important;
+    text-decoration: underline !important;
+}
+
+/* Fix underlined links */
+.gs-title b {
+    color: #1a73e8 !important;
+}
+
+.gs-title:hover b {
+    color: #1558d6 !important;
+}
+
+/* Visible URL styling */
+.gs-visibleUrl {
+    color: #34a853 !important;
+    font-size: 13px !important;
+}
+
+/* Snippet styling */
+.gs-snippet {
+    line-height: 1.5 !important;
+    color: #3c4043 !important;
+}
+
+/* Fix alignment in search box */
+.gsib_a {
+    padding-top: 5px !important;
+}
+
+/* Loading state */
+.gsc-loading-fade {
+    opacity: 0.5;
+}
+
+/* Links that have been intercepted to stay on same page */
+a[data-intercepted="true"] {
+    position: relative;
+    border-bottom: 1px dotted transparent;
+    transition: border-bottom-color 0.2s;
+}
+
+a[data-intercepted="true"]:hover {
+    border-bottom-color: #1a73e8;
+}
+
+/* Note: Dark mode support is now imported from google-cse-dark.css */
+
+/* Mobile responsive fixes */
+@media (max-width: 768px) {
+    #google-results-container .gs-image {
+        max-width: 60px !important;
+    }
+
+    #google-results-container .gs-title {
+        font-size: 14px !important;
+    }
+
+    #google-results-container .gs-snippet {
+        font-size: 12px !important;
+    }
+
+    .gs-title {
+        font-size: 16px !important;
+    }
+
+    .gs-snippet {
+        font-size: 13px !important;
+    }
+}

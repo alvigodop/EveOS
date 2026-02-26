@@ -1,0 +1,286 @@
+/**
+ * Failsafe CSS
+ * Styles for emergency recovery and failsafe UI elements
+ * Extracted from inline styles in ScraperTest.html
+ * 
+ * @version 1.1.0 - Modularized with extracted CSE fallback styles
+ */
+
+/* Import extracted modular styles */
+@import 'cse-fallback.css';
+
+/* Emergency Module Status Popup */
+#emergencyModuleStatusPopup {
+    position: fixed;
+    top: 50px;
+    right: 20px;
+    background-color: white;
+    color: #333;
+    padding: 0;
+    border-radius: 5px;
+    z-index: 999999;
+    max-height: 85vh;
+    width: 450px;
+    display: block;
+    overflow: hidden;
+    border: 1px solid #ccc;
+    font-family: Arial, sans-serif;
+    box-shadow: 0 3px 15px rgba(0, 0, 0, 0.3);
+}
+
+.emergency-header {
+    background-color: #3498db;
+    color: white;
+    padding: 10px 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #2980b9;
+}
+
+.emergency-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.emergency-close-btn {
+    background: rgba(0, 0, 0, 0.2);
+    border: none;
+    color: white;
+    font-size: 24px;
+    cursor: pointer;
+    padding: 2px 10px;
+    font-weight: bold;
+    border-radius: 4px;
+    line-height: 1;
+}
+
+.emergency-body {
+    padding: 15px;
+    overflow-y: auto;
+    max-height: calc(85vh - 50px);
+}
+
+.emergency-info-box {
+    margin-bottom: 15px;
+    padding: 10px;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    border-left: 4px solid #3498db;
+}
+
+.emergency-stats-box {
+    margin: 10px 0;
+    padding: 10px;
+    background-color: #f5f5f5;
+    border-radius: 5px;
+    font-size: 14px;
+}
+
+.emergency-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    font-size: 14px;
+}
+
+.emergency-table th {
+    text-align: left;
+    padding: 8px;
+    border-bottom: 1px solid #ddd;
+    background-color: #f2f2f2;
+}
+
+.emergency-table td {
+    border-bottom: 1px solid #eee;
+    padding: 8px;
+}
+
+.emergency-status-ok {
+    color: green;
+    font-weight: bold;
+}
+
+.emergency-status-note {
+    color: #666;
+    margin-left: 5px;
+}
+
+.emergency-status-warn {
+    color: orange;
+    margin-left: 5px;
+}
+
+/* CSE Recovery Button */
+#cse-recovery-button {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: #f44336;
+    color: white;
+    padding: 10px 15px;
+    border-radius: 5px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+    cursor: pointer;
+    z-index: 999999;
+}
+
+/* Recovery Toast */
+.recovery-toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #4CAF50;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 5px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+    z-index: 999999;
+}
+
+/* Emergency Alert View (Red Border) */
+.emergency-alert-popup {
+    position: fixed;
+    top: 50px;
+    right: 20px;
+    z-index: 9999999;
+    background-color: white;
+    padding: 20px;
+    border: 2px solid red;
+    border-radius: 5px;
+    max-height: 80vh;
+    overflow: auto;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+}
+
+.emergency-alert-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.emergency-alert-title {
+    margin: 0;
+    color: red;
+}
+
+.emergency-alert-close {
+    background: red;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 25px;
+    height: 25px;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+/* Note: CSE fallback styles (.cse-fallback-error, .cse-fallback-error-*,
+   .cse-fallback-results, .cse-fallback-reload) are now imported from cse-fallback.css */
+
+/* ============================================
+   EMERGENCY MODULE STATUS INLINE STYLES
+   ============================================ */
+
+.emergency-module-body {
+    padding: 15px;
+    overflow-y: auto;
+    max-height: calc(85vh - 50px);
+}
+
+.emergency-module-info {
+    margin-bottom: 15px;
+    padding: 10px;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    border-left: 4px solid #3498db;
+}
+
+.emergency-module-info p {
+    margin: 0;
+    font-size: 14px;
+}
+
+.emergency-module-stats {
+    margin: 10px 0;
+    padding: 10px;
+    background-color: #f5f5f5;
+    border-radius: 5px;
+    font-size: 14px;
+}
+
+.emergency-module-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    font-size: 14px;
+}
+
+.emergency-module-table thead tr {
+    background-color: #f2f2f2;
+}
+
+.emergency-module-table th {
+    text-align: left;
+    padding: 8px;
+    border-bottom: 1px solid #ddd;
+}
+
+.emergency-module-table tbody tr {
+    border-bottom: 1px solid #eee;
+}
+
+.emergency-module-table td {
+    padding: 8px;
+}
+
+.emergency-module-table td.module-name {
+    font-family: monospace;
+}
+
+.emergency-status-available {
+    color: green;
+    font-weight: bold;
+}
+
+.emergency-status-has-init {
+    color: #666;
+    margin-left: 5px;
+}
+
+.emergency-status-initialized {
+    color: green;
+    margin-left: 5px;
+}
+
+.emergency-status-not-initialized {
+    color: orange;
+    margin-left: 5px;
+}
+
+/* ============================================
+   EMERGENCY ALERT INNER DIV
+   ============================================ */
+
+.emergency-alert-inner {
+    margin-top: 10px;
+}
+
+/* ============================================
+   DIALOG BLOCKING IFRAME
+   Used for transparent overlays during error suppression
+   ============================================ */
+
+.dialog-blocking-iframe {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    border: none;
+    z-index: 2147483647;
+    opacity: 0.01;
+    pointer-events: none;
+}

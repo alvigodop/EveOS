@@ -1,0 +1,256 @@
+/* Search Manager CSS */
+
+/* Search Section Styles */
+#searchSection {
+    margin-bottom: 30px;
+}
+
+/* Unified Control Center */
+.control-center {
+    background: var(--glass-bg-light);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    padding: 20px;
+    border-radius: 16px;
+    box-shadow: var(--glass-shadow-light);
+    margin-bottom: 25px;
+    border: 1px solid var(--glass-border-light);
+    transition: box-shadow 0.3s ease, transform 0.3s ease;
+}
+
+.control-center:hover {
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);
+}
+
+.control-row {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 12px;
+}
+
+.control-row:last-child {
+    margin-bottom: 0;
+}
+
+.control-row.justify-between {
+    justify-content: space-between;
+}
+
+/* Sleek Search Input (Google Style) */
+.search-input {
+    width: 100%;
+    border: 1px solid rgba(223, 225, 229, 0.7);
+    border-radius: 24px;
+    padding: 12px 24px;
+    font-size: 1rem;
+    box-shadow: 0 1px 6px rgba(32, 33, 36, 0.1);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    background: rgba(255, 255, 255, 0.9);
+}
+
+.search-input:hover {
+    box-shadow: 0 2px 8px rgba(32, 33, 36, 0.15);
+    border-color: rgba(223, 225, 229, 0);
+}
+
+.search-input:focus {
+    box-shadow: 0 4px 12px rgba(32, 33, 36, 0.2);
+    border-color: rgba(223, 225, 229, 0);
+    outline: none;
+}
+
+.btn-search-primary {
+    background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+    color: white;
+    border: none;
+    border-radius: 24px;
+    padding: 10px 24px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(33, 150, 243, 0.3);
+    transition: all 0.2s ease;
+}
+
+.btn-search-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(33, 150, 243, 0.4);
+}
+
+/* Filter Group styling */
+.filter-group-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-right: 5px;
+}
+
+.separator-vertical {
+    width: 1px;
+    height: 24px;
+    background-color: var(--border-color);
+    margin: 0 10px;
+}
+
+.search-container {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+#searchInput {
+    flex: 1;
+    padding: 12px 15px;
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    font-size: 1rem;
+}
+
+#searchBtn {
+    padding: 12px 25px;
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: background-color 0.3s ease;
+}
+
+#searchBtn:hover {
+    background-color: var(--primary-dark);
+}
+
+.options-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.source-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    padding: 15px;
+    background-color: var(--card-background);
+    border-radius: 5px;
+    box-shadow: 0 2px 5px var(--shadow-color);
+}
+
+.option-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.option-group label {
+    font-weight: 500;
+}
+
+.option-group select {
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: white;
+}
+
+.option-group.checkbox {
+    cursor: pointer;
+}
+
+.option-group.checkbox input[type="checkbox"] {
+    cursor: pointer;
+}
+
+/* Dropdown menu styles */
+.dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.dropdown-btn {
+    cursor: pointer;
+    position: relative;
+}
+
+.dropdown-content {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: 100%;
+    background-color: #f9f9f9;
+    min-width: 160px;
+    box-shadow: 0px 8px 16px 0px rgba(0, 0, 0, 0.2);
+    z-index: var(--z-index-dropdown);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-top: 0;
+    padding-top: 2px;
+}
+
+/* Add an invisible padding zone to prevent hover loss */
+.dropdown-content:before {
+    content: '';
+    position: absolute;
+    top: -10px;
+    left: 0;
+    right: 0;
+    height: 10px;
+    background-color: transparent;
+}
+
+.dropdown-content a {
+    color: #333;
+    padding: 12px 16px;
+    text-decoration: none;
+    display: block;
+    font-size: 14px;
+    transition: background-color 0.2s ease;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.dropdown-content a:last-child {
+    border-bottom: none;
+}
+
+.dropdown-content a:hover {
+    background-color: #e3f2fd;
+}
+
+/* Show dropdown on hover */
+.dropdown:hover .dropdown-content {
+    display: block;
+}
+
+/* Also maintain display when hovering the dropdown content itself */
+.dropdown-content:hover {
+    display: block;
+}
+
+/* Active state for dropdown button */
+.dropdown-btn.active,
+.dropdown-btn:active {
+    background-color: var(--notice-info-bg);
+    color: var(--info-dark);
+}
+
+/* Loading indicator */
+#loading {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .search-container {
+        flex-direction: column;
+    }
+}
+
+@media (max-width: 992px) {
+    .source-options {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}

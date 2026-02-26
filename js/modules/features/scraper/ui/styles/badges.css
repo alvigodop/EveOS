@@ -1,0 +1,239 @@
+/**
+ * Badges CSS
+ * Content type badges, source badges, and special indicator badges
+ * Extracted from result-display.css
+ * 
+ * @version 1.0.0
+ */
+
+/* Refined Badge System */
+.content-type-badge,
+.source-badge {
+    font-size: 0.65rem;
+    padding: 3px 8px;
+    border-radius: 6px;
+    background-color: var(--badge-bg);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 700;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+/* Specific Content Types - Legacy Pastel Colors */
+.content-type-badge.character,
+.content-type-badge.fictional-character {
+    background-color: var(--badge-character-bg, #ffecb3);
+    color: var(--badge-character-text, #ff8f00);
+}
+
+.content-type-badge.location {
+    background-color: var(--badge-location-bg, #c8e6c9);
+    color: var(--badge-location-text, #2e7d32);
+}
+
+.content-type-badge.story,
+.content-type-badge.plot,
+.content-type-badge.arc {
+    background-color: var(--badge-story-bg, #bbdefb);
+    color: var(--badge-story-text, #1565c0);
+}
+
+.content-type-badge.person,
+.content-type-badge.real-person {
+    background-color: var(--badge-person-bg, #d1c4e9);
+    color: var(--badge-person-text, #4527a0);
+}
+
+.content-type-badge.technique,
+.content-type-badge.magic {
+    background-color: var(--badge-technique-bg, #ffccbc);
+    color: var(--badge-technique-text, #d84315);
+}
+
+/* Badge Positioning in Header */
+.result-header .content-type-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 10;
+    border-radius: 6px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    background-color: rgba(0, 0, 0, 0.4);
+    color: #fff;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    height: auto;
+    max-height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+.content-type-badge.article {
+    background-color: var(--badge-article-bg, #e1bee7);
+    color: var(--badge-article-text, #7b1fa2);
+}
+
+.result-header .status-badge {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 10;
+}
+
+.result-header .main-article-badge {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    z-index: 10;
+}
+
+.result-header .web-enhanced-badge {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    z-index: 10;
+}
+
+/* Source Badges */
+.source-badge.live-source {
+    background: linear-gradient(135deg, #F44336 0%, #D32F2F 100%);
+    color: white;
+    box-shadow: 0 2px 5px rgba(244, 67, 54, 0.3);
+}
+
+.source-badge.cache-source {
+    background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%);
+    color: white;
+    box-shadow: 0 2px 5px rgba(255, 152, 0, 0.3);
+}
+
+.source-badge.web-source {
+    background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
+    color: white;
+    box-shadow: 0 2px 5px rgba(33, 150, 243, 0.3);
+}
+
+/* Text Match Badge */
+.text-match-badge {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    box-shadow: 0 2px 4px rgba(118, 75, 162, 0.3);
+}
+
+.main-article-badge {
+    font-size: 0.7rem;
+    padding: 4px 10px;
+    border-radius: 99px;
+    background-color: var(--main-article-color, #FFC107);
+    color: #000;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    box-shadow: 0 2px 8px rgba(255, 193, 7, 0.4);
+}
+
+.main-article-badge::before {
+    content: "★";
+    margin-right: 4px;
+    font-size: 1.1em;
+}
+
+.web-enhanced-badge {
+    font-size: 0.7rem;
+    padding: 4px 10px;
+    border-radius: 99px;
+    background-color: var(--web-enhanced-color, #9C27B0);
+    color: white;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    box-shadow: 0 2px 8px rgba(156, 39, 176, 0.4);
+}
+
+.web-enhanced-badge::before {
+    content: "🌐";
+    margin-right: 4px;
+    font-size: 1.1em;
+}
+
+/* Verified badge styles */
+.verified-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    background-color: #4caf50;
+    color: white;
+    border-radius: 50%;
+    margin-left: 5px;
+    font-size: 12px;
+}
+
+/* ============================================
+   STATUS BADGES (Consolidated)
+   Single source of truth for cache status badges
+   ============================================ */
+
+.status-badge {
+    padding: 3px 10px;
+    border-radius: 14px;
+    font-size: 0.75em;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.status-badge.cached {
+    background: linear-gradient(135deg, rgba(76, 175, 80, 0.2) 0%, rgba(56, 142, 60, 0.3) 100%);
+    color: var(--secondary-color, #2ecc71);
+    border: 1px solid rgba(76, 175, 80, 0.3);
+}
+
+.status-badge.not-cached {
+    background: linear-gradient(135deg, rgba(231, 76, 60, 0.2) 0%, rgba(192, 57, 43, 0.3) 100%);
+    color: var(--accent-color, #e74c3c);
+    border: 1px solid rgba(231, 76, 60, 0.3);
+}
+
+.status-badge.outdated {
+    background: linear-gradient(135deg, rgba(243, 156, 18, 0.2) 0%, rgba(211, 84, 0, 0.3) 100%);
+    color: var(--warning-color, #f39c12);
+    border: 1px solid rgba(243, 156, 18, 0.3);
+}
+
+.status-badge.live {
+    background: linear-gradient(135deg, #cce5ff 0%, #b8daff 100%);
+    color: #004085;
+    box-shadow: 0 1px 3px rgba(0, 64, 133, 0.15);
+}
+
+/* Status info text */
+.status-info {
+    color: var(--text-muted);
+    font-size: 0.85em;
+}
+
+/* Entry status container */
+.entry-status {
+    margin-top: 5px;
+    font-size: 0.9em;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}

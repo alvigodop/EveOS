@@ -1,0 +1,150 @@
+#gemini-ui-root {
+    margin: 0;
+    padding: 0;
+    font-family: 'Roboto', 'Helvetica', 'Arial', sans-serif;
+    background-color: transparent;
+    /* Let theme_variables handle background */
+    overflow-x: hidden;
+}
+
+/* Fix for SVG viewBox issues - ensure any dynamically generated SVGs use correct numeric values */
+svg[viewBox*="%"] {
+    /* Override any SVG with percentage values in viewBox */
+    /* Default to reasonable numeric values to prevent browser errors */
+}
+
+/* Comprehensive fix for all common progress bar SVG viewBox patterns */
+.audio-progress-container svg,
+.mdl-progress svg,
+.progress-bar svg,
+.mdl-js-progress svg,
+.mdl-progress__bar svg {
+    /* Ensure any progress-related SVG elements don't use percentage viewBox */
+    viewBox: 0 0 100 4 !important;
+}
+
+/* Comprehensive fix for ALL Material Design Lite progress components */
+.mdl-progress svg,
+.mdl-js-progress svg,
+.mdl-progress__bar svg,
+.mdl-progress__buffer svg,
+.mdl-progress__primarybar svg,
+.mdl-progress__secondarybar svg,
+.mdl-progress .progressbar svg,
+.mdl-progress .bufferbar svg,
+.mdl-progress .auxbar svg,
+.mdl-spinner svg,
+.mdl-spinner__layer svg {
+    viewBox: 0 0 100 4 !important;
+}
+
+/* Catch any SVG with percentage-based viewBox attributes - all patterns */
+svg[viewBox*="%"],
+svg[viewBox="0 0 100% 4"],
+svg[viewBox="0 0 100% 8"],
+svg[viewBox="0 0 100% 2"],
+svg[viewBox="0 0 100% 1"],
+svg[viewBox="0 0 100% 3"],
+svg[viewBox="0 0 100% 5"],
+svg[viewBox="0 0 100% 6"],
+svg[viewBox="0 0 100% 10"] {
+    viewBox: 0 0 100 4 !important;
+}
+
+/* Material Design Lite specific overrides - target by class and attribute */
+.mdl-js-progress svg[viewBox*="%"],
+.mdl-progress svg[viewBox*="%"],
+.mdl-progress__bar svg[viewBox*="%"],
+.mdl-progress__buffer svg[viewBox*="%"],
+.mdl-spinner svg[viewBox*="%"] {
+    viewBox: 0 0 100 4 !important;
+}
+
+/* Audio progress related SVGs */
+.audio-progress-container svg,
+.audio-player svg,
+.progress-bar svg,
+.progress-indicator svg {
+    viewBox: 0 0 100 4 !important;
+}
+
+/* Generic catch-all for any dynamically created progress SVGs */
+svg[class*="progress"] {
+    viewBox: 0 0 100 4 !important;
+}
+
+/* Specific override patterns for common MDL progress variants */
+.mdl-progress[data-upgraded] svg,
+.mdl-progress.is-upgraded svg,
+.mdl-js-progress[data-upgraded] svg {
+    viewBox: 0 0 100 4 !important;
+}
+
+/* Override for any SVG inside progress-related containers */
+.progress svg,
+.progressbar svg,
+.progress-container svg,
+[class*="progress"] svg {
+    viewBox: 0 0 100 4 !important;
+}
+
+/* Fallback for any remaining percentage-based viewBox issues */
+svg:not([viewBox*="0 0 100 4"]):not([viewBox*="0 0 24 24"]):not([viewBox*="0 0 48 48"]) {
+    /* Only apply if viewBox contains percentages */
+}
+
+svg[viewBox*="%"]:not([viewBox*="0 0 24 24"]):not([viewBox*="0 0 48 48"]) {
+    viewBox: 0 0 100 4 !important;
+}
+
+/* Modern forced-colors mode support (replaces deprecated -ms-high-contrast) */
+@media (forced-colors: active) {
+
+    .mdl-button,
+    .mdl-card,
+    .mdl-switch,
+    .mdl-textfield,
+    .mdl-dialog,
+    .mdl-layout__header,
+    .mdl-layout__content,
+    .mdl-navigation,
+    .mdl-menu {
+        forced-color-adjust: none;
+        border: 1px solid ButtonText;
+    }
+
+    /* Ensure text is readable in forced colors mode */
+    .mdl-button,
+    .mdl-card__title,
+    .mdl-textfield__label {
+        color: ButtonText;
+    }
+}
+
+/* Additional accessibility support for high contrast preferences */
+@media (prefers-contrast: high) {
+
+    .mdl-button,
+    .mdl-card,
+    .mdl-switch,
+    .mdl-textfield,
+    .mdl-dialog {
+        border: 2px solid;
+        outline: 1px solid;
+    }
+
+    /* Enhance focus indicators for high contrast */
+    .mdl-button:focus,
+    .mdl-textfield:focus-within {
+        outline: 3px solid #0066CC;
+        outline-offset: 2px;
+    }
+}
+
+/* Override any remaining legacy high contrast styles from external libraries */
+@supports (forced-color-adjust: none) {
+    * {
+        /* This helps override deprecated -ms-high-contrast styles */
+        forced-color-adjust: auto;
+    }
+}

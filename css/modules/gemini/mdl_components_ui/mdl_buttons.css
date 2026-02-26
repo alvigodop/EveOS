@@ -1,0 +1,7 @@
+.mdl-button--fab.mdl-button--colored {
+    background-color: #4CAF50;
+}
+
+.mdl-button--fab.mdl-button--colored:hover {
+    background-color: #43A047;
+} 

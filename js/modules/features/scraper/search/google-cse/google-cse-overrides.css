@@ -1,0 +1,436 @@
+/**
+ * Google CSE Theme Overrides
+ * 
+ * Styles to customize Google Custom Search Engine appearance
+ * Updated to match site design with rounded corners and brand colors
+ * 
+ * @version 2.1.0
+ */
+
+/* ========================================
+   Search Box Container
+   ======================================== */
+.gcse-searchbox {
+    margin: 15px 0;
+    max-width: 100%;
+}
+
+/* Main control wrapper - match site card style */
+.gsc-control-cse {
+    background-color: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    font-family: inherit !important;
+}
+
+/* ========================================
+   Search Input Styling
+   ======================================== */
+.gsc-input-box {
+    border-radius: 24px !important;
+    border: 1px solid var(--border-color, #ddd) !important;
+    background: var(--card-background, #fff) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+    transition: var(--transition-smooth, 0.3s ease) !important;
+    overflow: hidden !important;
+}
+
+.gsc-input-box:focus-within {
+    border-color: var(--primary-color, #3498db) !important;
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.15), 0 2px 6px rgba(0, 0, 0, 0.08) !important;
+}
+
+.gsc-input-box input.gsc-input {
+    padding: 12px 16px !important;
+    font-size: 15px !important;
+    color: var(--text-color, #333) !important;
+    background-color: transparent !important;
+    background-position: left center !important;
+}
+
+.gsc-input-box input.gsc-input::placeholder {
+    color: var(--text-muted, #999) !important;
+}
+
+/* Clear button styling */
+.gsib_b .gsst_a {
+    padding: 8px !important;
+}
+
+/* ========================================
+   Search Button Styling
+   ======================================== */
+.gsc-search-button {
+    margin-left: 8px !important;
+}
+
+.gsc-search-button-v2 {
+    background: linear-gradient(135deg, var(--primary-color, #3498db), var(--primary-dark, #2980b9)) !important;
+    border: none !important;
+    border-radius: 20px !important;
+    padding: 12px 24px !important;
+    cursor: pointer !important;
+    transition: var(--transition-smooth, 0.3s ease) !important;
+    box-shadow: 0 3px 12px rgba(52, 152, 219, 0.35) !important;
+}
+
+.gsc-search-button-v2:hover {
+    background: linear-gradient(135deg, var(--primary-dark, #2980b9), #1a5276) !important;
+    box-shadow: 0 4px 12px rgba(52, 152, 219, 0.4) !important;
+    transform: translateY(-1px) !important;
+}
+
+.gsc-search-button-v2:active {
+    transform: translateY(0) !important;
+    box-shadow: 0 2px 4px rgba(52, 152, 219, 0.3) !important;
+}
+
+.gsc-search-button-v2 svg {
+    fill: white !important;
+}
+
+/* ========================================
+   Search Results Container - SCROLLABLE
+   ======================================== */
+
+/* Main CSE section container - natural height */
+#google-cse-section {
+    /* Scaling fix for sidebar integration */
+    transform: scale(0.9);
+    transform-origin: top left;
+    width: 111% !important;
+    /* Compensate for scale(0.9) -> 100/0.9 = 111% */
+    margin-bottom: -10%;
+    /* Compensate for vertical gap caused by scaling */
+
+    display: none;
+    /* Hidden by default, mostly empty when components are moved */
+}
+
+/* 
+   SPLIT LAYOUT STYLES 
+   Components are moved out of the wrapper when active 
+*/
+
+#google-searchbox-container {
+    /* Scale down slightly to match UI compact feel */
+    transform: scale(0.98);
+    transform-origin: top left;
+    width: 102%;
+    margin-bottom: 20px;
+    /* Add spacing below search box */
+}
+
+#google-results-container {
+    /* Scaling fix for sidebar integration */
+    transform: scale(0.92);
+    transform-origin: top left;
+    width: 108% !important;
+    margin-top: 15px;
+    /* Separation from settings */
+    margin-bottom: -10%;
+
+    padding-right: 5px;
+}
+
+/* Ensure no inner padding disrupts our layout */
+.gsc-control-cse {
+    background-color: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+}
+
+.gcse-searchresults {
+    margin-top: 15px;
+    padding-top: 10px;
+}
+
+/* Results wrapper */
+.gsc-results-wrapper-overlay,
+.gsc-results-wrapper-nooverlay {
+    background: transparent !important;
+}
+
+/* Above wrapper (result count, tabs, etc.) */
+.gsc-above-wrapper-area {
+    padding: 5px 0 !important;
+    border-bottom: 1px solid var(--border-color, #ddd) !important;
+    margin-bottom: 10px !important;
+}
+
+.gsc-result-info {
+    color: var(--text-muted, #999) !important;
+    font-size: 13px !important;
+}
+
+/* ========================================
+   Individual Result Cards
+   ======================================== */
+.gsc-webResult.gsc-result {
+    background: var(--card-background, #fff) !important;
+    border: 1px solid var(--border-color, #ddd) !important;
+    border-radius: 16px !important;
+    padding: 12px 18px !important;
+    /* Compact padding */
+    margin-bottom: 10px !important;
+    transition: var(--transition-smooth, 0.3s ease) !important;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04) !important;
+}
+
+.gsc-webResult.gsc-result:hover {
+    border-color: var(--primary-color, #3498db) !important;
+    box-shadow: var(--shadow-hover, 0 4px 10px rgba(0, 0, 0, 0.1)) !important;
+    transform: translateY(-2px) !important;
+}
+
+/* Result Title */
+.gs-title {
+    color: var(--primary-color, #3498db) !important;
+    font-size: 15px !important;
+    /* Smaller title */
+    font-weight: 600 !important;
+    text-decoration: none !important;
+    transition: color 0.2s ease !important;
+    line-height: 1.3 !important;
+}
+
+.gs-title:hover {
+    color: var(--primary-dark, #2980b9) !important;
+    text-decoration: underline !important;
+}
+
+.gs-title b {
+    font-weight: 700 !important;
+}
+
+/* Result URL */
+.gs-visibleUrl,
+.gs-visibleUrl-short,
+.gs-visibleUrl-long {
+    color: var(--secondary-color, #2ecc71) !important;
+    font-size: 12px !important;
+    margin-bottom: 4px !important;
+}
+
+/* Result Snippet */
+.gs-snippet {
+    color: var(--text-light, #666) !important;
+    font-size: 13px !important;
+    /* Smaller snippet */
+    line-height: 1.4 !important;
+    margin-top: 6px !important;
+}
+
+.gs-snippet b {
+    color: var(--text-color, #333) !important;
+    font-weight: 600 !important;
+}
+
+/* ========================================
+   Result Thumbnails
+   ======================================== */
+.gs-image-box {
+    margin-right: 12px !important;
+}
+
+.gs-image {
+    border-radius: 12px !important;
+    overflow: hidden !important;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1) !important;
+}
+
+.gs-image img {
+    border-radius: 12px !important;
+    transition: transform 0.2s ease !important;
+}
+
+.gsc-webResult.gsc-result:hover .gs-image img {
+    transform: scale(1.05) !important;
+}
+
+/* ========================================
+   Pagination
+   ======================================== */
+.gsc-cursor-box {
+    margin-top: 15px !important;
+    padding-top: 10px !important;
+    border-top: 1px solid var(--border-color, #ddd) !important;
+    text-align: center !important;
+}
+
+.gsc-cursor-page {
+    display: inline-block !important;
+    min-width: 30px !important;
+    /* Compact pagination */
+    height: 30px !important;
+    line-height: 30px !important;
+    padding: 0 10px !important;
+    margin: 0 4px !important;
+    border-radius: 15px !important;
+    background: var(--card-background, #fff) !important;
+    border: 1px solid var(--border-color, #ddd) !important;
+    color: var(--text-color, #333) !important;
+    font-weight: 500 !important;
+    cursor: pointer !important;
+    transition: var(--transition-smooth, 0.3s ease) !important;
+    font-size: 13px !important;
+}
+
+.gsc-cursor-page:hover {
+    background: var(--hover-color, #f0f0f0) !important;
+    border-color: var(--primary-color, #3498db) !important;
+}
+
+.gsc-cursor-current-page {
+    background: linear-gradient(135deg, var(--primary-color, #3498db), var(--primary-dark, #2980b9)) !important;
+    border-color: transparent !important;
+    color: white !important;
+    box-shadow: 0 2px 6px rgba(52, 152, 219, 0.3) !important;
+}
+
+/* ========================================
+   Tabs (if enabled)
+   ======================================== */
+.gsc-tabsArea {
+    margin-bottom: 12px !important;
+}
+
+.gsc-tabHeader {
+    padding: 8px 16px !important;
+    border-radius: 8px 8px 0 0 !important;
+    background: var(--hover-color, #f0f0f0) !important;
+    border: 1px solid var(--border-color, #ddd) !important;
+    border-bottom: none !important;
+    color: var(--text-light, #666) !important;
+    font-weight: 500 !important;
+    transition: var(--transition-fast, 0.2s ease) !important;
+    font-size: 13px !important;
+}
+
+.gsc-tabHeader.gsc-tabhActive {
+    background: var(--card-background, #fff) !important;
+    color: var(--primary-color, #3498db) !important;
+    border-bottom: 2px solid var(--primary-color, #3498db) !important;
+}
+
+/* ========================================
+   No Results Message
+   ======================================== */
+.gs-no-results-result .gs-snippet {
+    color: var(--text-muted, #999) !important;
+    font-style: italic !important;
+    text-align: center !important;
+    padding: 30px 20px !important;
+}
+
+/* ========================================
+   Refinement Labels
+   ======================================== */
+.gsc-refinementHeader {
+    color: var(--text-color, #333) !important;
+    font-weight: 600 !important;
+    font-size: 13px !important;
+    margin-bottom: 6px !important;
+}
+
+.gsc-refinement {
+    padding: 4px 10px !important;
+    border-radius: 12px !important;
+    background: var(--hover-color, #f0f0f0) !important;
+    color: var(--text-light, #666) !important;
+    font-size: 12px !important;
+    transition: var(--transition-fast, 0.2s ease) !important;
+}
+
+.gsc-refinement:hover {
+    background: var(--primary-color, #3498db) !important;
+    color: white !important;
+}
+
+.gsc-refinement.gsc-refinementActive {
+    background: var(--primary-color, #3498db) !important;
+    color: white !important;
+}
+
+/* ========================================
+   Promotions (if any)
+   ======================================== */
+.gsc-promotion {
+    background: linear-gradient(135deg, var(--notice-info-bg, #d1ecf1), #e8f4fd) !important;
+    border: 1px solid var(--notice-info-border, #bee5eb) !important;
+    border-radius: 12px !important;
+    padding: 12px 16px !important;
+    margin-bottom: 12px !important;
+}
+
+/* ========================================
+   Loading State
+   ======================================== */
+.gsc-loading-fade {
+    background: rgba(255, 255, 255, 0.8) !important;
+}
+
+/* ========================================
+   Spelling Suggestions
+   ======================================== */
+.gsc-correct-spelling {
+    color: var(--accent-color, #e74c3c) !important;
+    font-style: italic !important;
+}
+
+.gsc-correct-spelling b {
+    color: var(--primary-color, #3498db) !important;
+    font-weight: 600 !important;
+}
+
+/* ============================================
+   CRITICAL OVERRIDES: Disable Google Overlay & Scroll Lock
+   ============================================ */
+
+/* Force global scrollability - prevent "stretched page no scrollbar" */
+html,
+body {
+    overflow-y: auto !important;
+    height: auto !important;
+    min-height: 100vh !important;
+}
+
+/* Disable the body scroll lock Google attempts to enforce */
+body.gsc-overflow-hidden {
+    overflow: visible !important;
+    overflow-y: visible !important;
+    height: auto !important;
+}
+
+/* Force the "overlay" wrapper to behave like a normal block */
+.gsc-results-wrapper-overlay {
+    position: static !important;
+    width: auto !important;
+    height: auto !important;
+    top: auto !important;
+    left: auto !important;
+    z-index: 10 !important;
+    /* Low z-index to sit in flow */
+    background: transparent !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    overflow: visible !important;
+}
+
+/* Hide the modal background that dims the screen */
+.gsc-modal-background-image {
+    display: none !important;
+    z-index: -1 !important;
+    opacity: 0 !important;
+    width: 0 !important;
+    height: 0 !important;
+}
+
+/* Ensure results content handles its own layout */
+.gsc-results-wrapper-overlay .gsc-results-wrapper-visible {
+    position: static !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    transform: none !important;
+    /* Prevent centering transform */
+}

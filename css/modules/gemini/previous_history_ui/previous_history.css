@@ -1,0 +1,61 @@
+/* Previous message styling */
+.previous-user-message,
+.previous-gemini-message,
+.previous-system-message {
+    padding: 8px 12px;
+    margin-bottom: 10px;
+    border-radius: 8px;
+    position: relative;
+}
+
+.previous-user-message {
+    background-color: #e3f2fd;
+    border-left: 4px solid #2196F3;
+}
+
+.previous-gemini-message {
+    background-color: #f3e5f5;
+    border-left: 4px solid #9c27b0;
+}
+
+.previous-system-message {
+    background-color: #e8f5e9;
+    border-left: 4px solid #4CAF50;
+    font-style: italic;
+    color: #2e7d32;
+}
+
+.message-timestamp {
+    font-size: 0.8em;
+    color: #888;
+    margin-bottom: 3px;
+    font-style: italic;
+}
+
+/* Previous conversation log styling */
+#previousConversationLog {
+    border: 1px solid #673ab7;
+    border-radius: 8px;
+    padding: 16px !important;
+    margin-bottom: 16px;
+    background-color: #fff;
+    display: none;
+    flex: 2;
+    max-height: calc(100vh - 300px);
+    min-height: 200px;
+    overflow-y: auto;
+}
+
+
+
+.previous-chat-controls {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #e0e0e0;
+    position: sticky;
+    bottom: 0;
+    background-color: #fff;
+}

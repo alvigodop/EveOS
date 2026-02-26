@@ -1,0 +1,19 @@
+﻿# Node modules and logs
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+# Python caches and envs
+__pycache__/
+*.py[cod]
+*.pyo
+*.env
+# IDE/editor
+.vscode/
+.idea/
+.DS_Store
+# Build outputs
+dist/
+build/
+# System
+Thumbs.db

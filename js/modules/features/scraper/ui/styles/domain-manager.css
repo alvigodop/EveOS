@@ -1,0 +1,115 @@
+/**
+ * Domain Manager CSS
+ * Domain management UI including forms, cards, and action buttons
+ * Extracted from result-display.css
+ * 
+ * @version 1.0.0
+ */
+
+/* DOMAIN MANAGER FORM POLISH */
+.domain-add-form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: var(--input-bg);
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px dashed rgba(128, 128, 128, 0.3);
+    align-items: stretch;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.domain-add-form input {
+    flex: 1;
+    background: var(--bg-color);
+    border: 1px solid rgba(128, 128, 128, 0.3);
+    border-radius: 4px;
+    padding: 8px 12px;
+    color: var(--text-main);
+}
+
+.domain-add-form button {
+    background: var(--accent);
+    color: #000;
+    border-radius: 4px;
+    padding: 8px 20px;
+    font-weight: 700;
+    border: none;
+    cursor: pointer;
+}
+
+/* DOMAIN MANAGER ITEMS (Card Aesthetic) */
+.domain-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    background: var(--card-bg);
+    border: 1px solid rgba(128, 128, 128, 0.1);
+    margin-bottom: 10px;
+    border-radius: 12px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    transition: all 0.2s ease;
+    box-sizing: border-box;
+    max-width: 100%;
+}
+
+.domain-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+    border-color: var(--accent);
+}
+
+.domain-info {
+    flex: 1;
+}
+
+.domain-title {
+    font-weight: 600;
+    color: var(--text-main);
+    font-size: 1.05rem;
+    margin-bottom: 4px;
+}
+
+.domain-url {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+.domain-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.update-btn,
+.remove-btn {
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.9em;
+    cursor: pointer;
+    border: none;
+    transition: background 0.2s;
+}
+
+.update-btn {
+    background-color: rgba(0, 212, 255, 0.1);
+    color: var(--accent);
+    border: 1px solid rgba(0, 212, 255, 0.2);
+}
+
+.update-btn:hover {
+    background-color: var(--accent);
+    color: #000;
+}
+
+.remove-btn {
+    background-color: rgba(255, 77, 77, 0.1);
+    color: var(--danger);
+    border: 1px solid rgba(255, 77, 77, 0.2);
+}
+
+.remove-btn:hover {
+    background-color: var(--danger);
+    color: #fff;
+}

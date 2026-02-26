@@ -1,0 +1,88 @@
+#chatPopupOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+}
+
+#chatPopup {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 80%;
+    height: 80%;
+    display: flex;
+    flex-direction: column;
+    background: white;
+    border-radius: 8px;
+    z-index: 1001;
+    overflow: hidden;
+}
+
+/* Ensure chat container takes available space and allows internal scrolling */
+/* Ensure chat container takes available space and allows internal scrolling */
+#chatPopup .chat-container {
+    flex: 1;
+    /* implies flex: 1 1 0% */
+    min-height: 0;
+    width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+    /* Important: prevents container scroll, lets flex child scroll */
+    padding: 0;
+    /* Remove padding to stretch content */
+    margin: 0;
+    /* Remove margins */
+    border: none;
+    /* Remove borders */
+    background: transparent;
+    /* Remove background if any */
+    box-shadow: none;
+    /* remove shadow inside popup */
+    display: flex;
+    /* Force flex display */
+    flex-direction: column;
+}
+
+/* Ensure the log itself can scroll */
+/* Ensure the log itself can scroll */
+#chatPopup #chatLog,
+#chatPopup #main-chat-log-placeholder {
+    flex: 1;
+    /* implies flex: 1 1 0% */
+    width: 100%;
+    box-sizing: border-box;
+    overflow-y: scroll;
+    /* Force scrollbar */
+    min-height: 0;
+    max-height: none !important;
+    /* Override standard view limit */
+    display: flex;
+    /* Ensure container is flex to stretch children */
+    flex-direction: column;
+}
+
+#chatPopup #main-chat-log-placeholder {
+    overflow: hidden;
+    /* Placeholder shouldn't scroll, only chatLog */
+}
+
+#popoutCloseButton {
+    align-self: flex-end;
+    margin: 8px;
+    cursor: pointer;
+}
+
+/* Hide System Log and other extra components when in popup mode */
+#chatPopup #systemLog,
+#chatPopup .system-messages-container,
+#chatPopup #system-log-display-placeholder,
+#chatPopup #pastChatsLog,
+#chatPopup #previous-conversation-log-wrapper,
+#chatPopup #previous-conversation-log-placeholder {
+    display: none !important;
+}

@@ -1,0 +1,378 @@
+/* Wiki Manager CSS */
+
+/* Wiki Management Section Styles */
+#wikiManagementSection {
+    margin-bottom: 30px;
+}
+
+.wiki-management {
+    background-color: var(--card-background);
+    border-radius: 5px;
+    padding: 20px;
+    box-shadow: 0 2px 5px var(--shadow-color);
+}
+
+.wiki-management h2 {
+    margin-bottom: 20px;
+    color: var(--primary-color);
+}
+
+.wiki-management-panel {
+    margin-bottom: 20px;
+}
+
+.add-wiki-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.add-wiki-form input {
+    flex: 1;
+    min-width: 200px;
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 0.9rem;
+    transition: border-color 0.2s ease;
+}
+
+.add-wiki-form input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.1);
+    /* Assuming primary color is blue-ish */
+}
+
+.add-wiki-form button {
+    padding: 8px 18px;
+    background-color: var(--secondary-color);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.add-wiki-form button:hover {
+    background-color: var(--secondary-dark);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.wiki-entries h3 {
+    margin-bottom: 15px;
+    font-size: 1.2rem;
+    color: var(--text-color);
+}
+
+.entry-list {
+    list-style: none;
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+/* Updated Entry Item for Sleek Look */
+.entry-item {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    padding: 8px 12px;
+    background-color: var(--card-background);
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    transition: all 0.2s ease;
+}
+
+.entry-item:hover {
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+    transform: translateY(-1px);
+}
+
+.entry-info {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    text-align: left;
+    flex: 1;
+    min-width: 0;
+    padding-right: 15px;
+    gap: 10px;
+}
+
+.entry-name {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--text-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    /* Remove padding/margin to rely on gap */
+}
+
+.entry-domain {
+    display: none;
+    /* Hide if element still exists */
+}
+
+.entry-image {
+    display: block;
+    height: 40px;
+    width: 40px;
+    /* Fixed width to prevent CLS */
+    min-width: 40px;
+    /* Force fixed size */
+    object-fit: contain;
+    /* Ensure image fills the square or rounded rect */
+    border-radius: 4px;
+    margin-top: 0;
+    /* Remove top margin since we are in row */
+    /* Remove align-self since parent controls alignment */
+    background-color: #f0f0f0;
+    /* Placeholder color while loading */
+}
+
+.entry-header {
+    display: none;
+    /* Deprecated in new layout */
+}
+
+/* Compact Actions */
+.entry-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-top: 0;
+    flex-shrink: 0;
+    max-width: none;
+    /* Let it expand or wrap naturally */
+    justify-content: flex-end;
+}
+
+.action-btn {
+    padding: 5px 10px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    position: relative;
+    overflow: hidden;
+    white-space: nowrap;
+    text-align: center;
+    display: inline-block;
+    /* Standard display */
+    /* Removed min-width, flex, and tooltip styles */
+}
+
+.action-btn::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.2);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.action-btn:hover {
+    filter: brightness(90%);
+    transform: translateY(-2px);
+    box-shadow: 0 3px 5px rgba(0, 0, 0, 0.1);
+}
+
+.action-btn:hover::after {
+    opacity: 1;
+}
+
+.action-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.visit-btn {
+    /* Text-link style instead of button */
+    background: none !important;
+    color: var(--wiki-blue, #0645ad) !important;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-weight: 500;
+    font-size: 0.8rem;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+    position: relative;
+}
+
+/* Arrow is added directly in JavaScript text - no CSS ::after needed */
+.visit-btn::after {
+    content: none !important;
+}
+
+.visit-btn:hover {
+    color: var(--wiki-link-hover, #0b0080) !important;
+    text-decoration: underline;
+    transform: none !important;
+    box-shadow: none !important;
+    filter: none !important;
+}
+
+.cache-btn {
+    background-color: var(--secondary-color);
+    color: white;
+}
+
+.clear-btn {
+    background-color: var(--warning-color);
+    color: white;
+}
+
+.remove-btn {
+    background-color: var(--danger-color);
+    color: white;
+}
+
+.reload-btn {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+/* .add-btn styles are now handled in discovery-button-overrides.css 
+   to match the primary 'Find Wikis' button style (Green Gradient) */
+.add-btn {
+    /* Retaining basic properties just in case, but visual style is overridden */
+    cursor: pointer;
+}
+
+.empty-list {
+    padding: 15px;
+    text-align: center;
+    color: var(--text-muted);
+    font-style: italic;
+    background-color: var(--card-background);
+    border-radius: 5px;
+    border: 1px dashed var(--border-color);
+}
+
+/* Management buttons */
+.management-buttons {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding: 10px;
+    background-color: var(--card-background);
+    border-radius: 5px;
+    border: 1px solid var(--border-color);
+}
+
+.management-buttons .action-btn {
+    padding: 8px 12px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+}
+
+.management-buttons .reload-btn {
+    background-color: var(--secondary-color);
+    color: white;
+}
+
+.management-buttons .clear-btn {
+    background-color: var(--danger-color);
+    color: white;
+}
+
+.management-buttons .wiki-info {
+    margin-left: auto;
+    font-size: 0.8rem;
+}
+
+.management-buttons .wiki-info a {
+    color: var(--wiki-blue, #0645ad);
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 0.8rem;
+}
+
+.management-buttons .wiki-info a::after {
+    content: ' ↗';
+    font-size: 0.75em;
+    opacity: 0.8;
+}
+
+.management-buttons .wiki-info a:hover {
+    color: var(--wiki-link-hover, #0b0080);
+    text-decoration: underline;
+}
+
+/* Popular entries */
+.popular-entry {
+    background-color: #f8f9fa;
+    border-left: 3px solid #f39c12;
+}
+
+.popular-badge {
+    background-color: #f39c12;
+    color: white;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.7rem;
+    margin-left: 5px;
+    vertical-align: middle;
+}
+
+@media (max-width: 992px) {
+    .wiki-item {
+        flex-wrap: wrap;
+    }
+
+    .add-wiki-btn {
+        margin-top: 10px;
+    }
+}
+
+@media (max-width: 768px) {
+    .add-wiki-form {
+        flex-direction: column;
+    }
+}
+
+/* Note: Cache data visualization styles (.cache-cards-container, .cache-item-card, 
+   .cache-item-header, .cache-item-title, .cache-item-meta, .cache-item-badge,
+   .cache-item-date, .cache-item-body, .cache-item-row, .cache-item-label,
+   .cache-item-value, .cache-item-categories, .cache-category-tag) 
+   are now imported from cache-visualization.css */
+@import 'cache-visualization.css';
+
+/* Note: Status badge styles (.status-badge, .status-badge.cached, .status-badge.not-cached,
+   .status-badge.outdated, .entry-status, .status-info) are now consolidated in ui/badges.css */
+
+/* Ensure actions align properly */
+.entry-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.entry-item {
+    align-items: flex-start !important;
+    /* Allow growing for status */
+}

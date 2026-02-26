@@ -1,0 +1,115 @@
+/* Variables CSS - Global CSS Variables */
+:root {
+    --primary-color: #3498db;
+    --primary-dark: #2980b9;
+    --secondary-color: #2ecc71;
+    --secondary-dark: #27ae60;
+    --accent-color: #e74c3c;
+    --accent-dark: #c0392b;
+    --danger-color: #e74c3c;
+    --danger-dark: #c0392b;
+    --warning-color: #f39c12;
+    --warning-dark: #d35400;
+    --info-color: #3498db;
+    --info-dark: #2980b9;
+    --success-color: #2ecc71;
+    --success-dark: #27ae60;
+
+    --background-color: var(--bg-color, #f5f5f5);
+    --card-background: var(--card-bg, #ffffff);
+    --text-color: var(--text-main, #333333);
+    --text-light: var(--text-muted, #666666);
+    --text-muted: var(--text-muted, #999999);
+    --border-color: rgba(128, 128, 128, 0.2);
+    --shadow-color: rgba(0, 0, 0, 0.2);
+    --hover-color: var(--input-bg, #f0f0f0);
+    --hover-color-dark: var(--input-bg, #e0e0e0);
+
+    --wikipedia-color: #3498db;
+    --fandom-color: #ff6a00;
+
+    /* Badge Colors */
+    --badge-bg: #e0e0e0;
+    --badge-text: #333333;
+    --badge-character-bg: #ffecb3;
+    --badge-character-text: #ff8f00;
+    --badge-location-bg: #c8e6c9;
+    --badge-location-text: #2e7d32;
+    --badge-story-bg: #bbdefb;
+    --badge-story-text: #1565c0;
+    --badge-person-bg: #d1c4e9;
+    --badge-person-text: #4527a0;
+    --badge-technique-bg: #ffccbc;
+    --badge-technique-text: #d84315;
+
+    /* Notice Colors */
+    --notice-error-bg: #ffebee;
+    --notice-error-border: #ffcdd2;
+    --notice-error-text: #c62828;
+    --notice-warning-bg: #fff3cd;
+    --notice-warning-border: #ffeeba;
+    --notice-warning-text: #856404;
+    --notice-info-bg: #d1ecf1;
+    --notice-info-border: #bee5eb;
+    --notice-info-text: #0c5460;
+    --notice-success-bg: #d4edda;
+    --notice-success-border: #c3e6cb;
+    --notice-success-text: #155724;
+
+    /* Status Badge Colors */
+    --status-not-cached-bg: #f8d7da;
+    --status-not-cached-text: #721c24;
+    --status-cached-bg: #d4edda;
+    --status-cached-text: #155724;
+    --status-outdated-bg: #fff3cd;
+    --status-outdated-text: #856404;
+
+    /* Z-index values */
+    --z-index-dropdown: 100;
+    --z-index-popup: 1000;
+    --z-index-modal: 1100;
+
+    /* Sleek UI Effects */
+    --transition-fast: 0.2s ease;
+    --transition-smooth: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-bounce: 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+    /* Glass-morphism */
+    --glass-bg: rgba(0, 0, 0, 0.85);
+    --glass-blur: blur(8px);
+    --glass-border: rgba(255, 255, 255, 0.1);
+
+    /* Light Theme Glass */
+    --glass-bg-light: rgba(255, 255, 255, 0.75);
+    --glass-border-light: rgba(255, 255, 255, 0.4);
+    --glass-shadow-light: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+
+    /* Enhanced Shadows */
+    --shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.15);
+    --shadow-elevated: 0 6px 16px rgba(0, 0, 0, 0.12);
+    --shadow-popup: 0 8px 30px rgba(0, 0, 0, 0.25);
+
+    /* Accent Colors (from old UI) */
+    --main-article-color: #FFC107;
+    --main-article-bg: #fffef5;
+    --web-enhanced-color: #9C27B0;
+    --web-enhanced-bg: #fcf9ff;
+    --has-image-color: #2196F3;
+    --has-image-bg: #f9fdff;
+
+    /* Wikipedia Theme */
+    --wiki-blue: #0645ad;
+    --wiki-link-hover: #0b0080;
+    --wiki-header-bg: #3366cc;
+    --wiki-border: #a2a9b1;
+    --wiki-bg: #eaecf0;
+    --wiki-text: #202122;
+
+    /* Fandom Theme */
+    --fandom-orange: #ff6a00;
+    --fandom-bg: #fff9f5;
+    --fandom-border: #ffcc80;
+
+    /* Legacy Rainbow Gradient */
+    --rainbow-gradient: linear-gradient(90deg, #2196F3, #4CAF50, #FFC107, #F44336, #2196F3);
+}

@@ -1,0 +1,155 @@
+/**
+ * Google CSE Embedded Styles v1.0.5
+ * Styles for embedding Google Custom Search directly in the page
+ */
+
+/* Import shared styles */
+@import '../../utils/styles/loading-indicators.css';
+@import '../shared/search-forms.css';
+
+/* Import modular component styles */
+@import 'google-cse-layout.css';
+@import 'google-cse-results.css';
+
+/* [CRITICAL] Emergency visibility overrides - these ensure search boxes always display */
+/* These are duplicated here intentionally as a failsafe */
+#google-searchbox-container,
+#google-results-container,
+.google-cse-container,
+.gcse-searchbox-only,
+.gcse-searchresults-only,
+.gsc-control-cse,
+.gsc-control-wrapper-cse {
+    /* removed aggressive overrides to prevent FOUC/Global white space */
+    /* display: block !important; */
+    z-index: 10;
+}
+
+a.special-handled-link {
+    position: relative;
+    cursor: not-allowed;
+    color: #757575 !important;
+    text-decoration: line-through !important;
+    pointer-events: none;
+}
+
+a.special-handled-link::after {
+    content: "⚠️";
+    margin-left: 5px;
+    font-size: 14px;
+}
+
+/* Notice box styling */
+.google-cse-notice {
+    padding: 10px 15px;
+    background-color: #e8f5e9;
+    border-left: 4px solid #4caf50;
+    margin: 10px 0;
+    border-radius: 4px;
+    animation: fadeIn 0.3s ease-out;
+}
+
+/* Note: @keyframes fadeIn is imported from core/animations.css */
+
+/* Dark mode support - DISABLED to keep CSE always light */
+/* If you want dark mode back, uncomment this section */
+/*
+@media (prefers-color-scheme: dark) {
+    .gsc-webResult.gsc-result {
+        background-color: #222 !important;
+        border-color: #333 !important;
+    }
+    ... (dark mode styles disabled)
+}
+*/
+
+/* FORCE LIGHT MODE for CSE regardless of system preference */
+.gsc-control-cse,
+.gsc-control-wrapper-cse,
+#google-searchbox-container,
+#google-results-container,
+#google-cse-section {
+    background-color: #fff !important;
+    color: #333 !important;
+}
+
+.gsc-input-box {
+    background-color: #fff !important;
+}
+
+.gsc-input-box input.gsc-input {
+    background-color: #fff !important;
+    color: #333 !important;
+}
+
+/* AGGRESSIVE light mode overrides for dark mode systems */
+table.gsc-search-box,
+table.gsc-search-box td,
+table.gsc-search-box tr,
+.gsc-search-box,
+.gsc-input,
+.gsib_a,
+.gsib_b,
+.gsc-input-box,
+td.gsc-input,
+td.gsib_a,
+td.gsib_b {
+    background: #fff !important;
+    background-color: #fff !important;
+    color: #333 !important;
+}
+
+/* Override any inline styles Google might add */
+[style*="background-color: rgb(34"],
+[style*="background-color: #222"],
+[style*="background-color: #333"],
+[style*="background: rgb(34"],
+[style*="background: #222"],
+[style*="background: #333"] {
+    background: #fff !important;
+    background-color: #fff !important;
+}
+
+/* Mobile responsive styling */
+@media (max-width: 768px) {
+    .gsc-search-button-v2 {
+        padding: 7px 12px !important;
+    }
+
+    .gs-title {
+        font-size: 15px !important;
+    }
+
+    .gsc-webResult.gsc-result {
+        padding: 10px 8px !important;
+    }
+
+    .search-loading-indicator {
+        right: 50px;
+    }
+}
+
+/* Prevent focus outline on already-clicked links */
+.gs-title:focus {
+    outline: none !important;
+}
+
+/* Override intrusive Google styles */
+.gsc-control-cse {
+    font-family: inherit !important;
+}
+
+/* Fixed height for search box container to prevent layout shifts */
+.gsc-search-box-tools .gsc-search-box .gsc-input {
+    padding-right: 0 !important;
+    min-height: 40px !important;
+}
+
+/* Hide any unwanted elements */
+.gcsc-find-more-on-google {
+    display: none !important;
+}
+
+.gcsc-find-more-on-google-root {
+    display: none !important;
+}

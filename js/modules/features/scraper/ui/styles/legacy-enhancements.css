@@ -1,0 +1,281 @@
+/**
+ * Legacy UI Enhancements
+ * Action bar buttons and additional UI polish from ScraperTest[old].html
+ * 
+ * @version 1.0.0
+ */
+
+/* ============================================
+   DOMAIN ACTIONS BAR
+   ============================================ */
+
+.domain-actions-bar {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-bottom: 20px;
+}
+
+/* Clear All Button */
+.clear-all-btn {
+    background-color: #dc3545;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: background-color 0.2s;
+}
+
+.clear-all-btn:hover {
+    background-color: #c82333;
+}
+
+/* Update All Button */
+.update-all-btn {
+    background-color: #28a745;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: background-color 0.2s;
+}
+
+.update-all-btn:hover {
+    background-color: #218838;
+}
+
+/* Reload All Button */
+.reload-all-btn {
+    background-color: #17a2b8;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: background-color 0.2s;
+}
+
+.reload-all-btn:hover {
+    background-color: #138496;
+}
+
+/* ============================================
+   PREVIEW AND VIEW DATA BUTTONS
+   ============================================ */
+
+.preview-btn,
+.view-data-btn {
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin: 0 5px;
+    transition: background-color 0.2s;
+}
+
+.preview-btn:hover,
+.view-data-btn:hover {
+    background-color: #45a049;
+}
+
+/* Data Stats Container */
+.data-stats {
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    margin-bottom: 15px;
+}
+
+.data-preview {
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+/* ============================================
+   SEARCH CONTROLS ENHANCEMENT
+   ============================================ */
+
+.search-controls {
+    margin: 15px 0;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 5px;
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.layout-controls,
+.filter-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.view-btn {
+    padding: 5px 10px;
+    background: white;
+    border: 1px solid #007bff;
+    color: #007bff;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.view-btn.active {
+    background: #007bff;
+    color: white;
+}
+
+.view-btn:hover:not(.active) {
+    background: #e9ecef;
+}
+
+/* ============================================
+   SEARCH TITLE STYLING
+   ============================================ */
+
+.search-title {
+    margin-top: 30px;
+    color: #333;
+    border-bottom: 2px solid #007bff;
+    padding-bottom: 8px;
+    font-size: 1.4em;
+    font-weight: 600;
+}
+
+.search-description {
+    color: #666;
+    margin-bottom: 15px;
+    font-style: italic;
+}
+
+/* ============================================
+   FILTER BAR TITLE (Priority 2)
+   ============================================ */
+
+.filter-bar-title {
+    margin: 0 0 10px 0;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #e0e0e0;
+    color: #333;
+    font-size: 1.1em;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+}
+
+/* ============================================
+   ALIASES INFO BOX (Priority 2)
+   ============================================ */
+
+.aliases-info {
+    font-size: 0.9em;
+    color: #5f6368;
+    margin: 8px 0;
+    font-style: italic;
+    padding: 6px 12px;
+    background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+    border-radius: 6px;
+    display: inline-block;
+    border-left: 3px solid #1a73e8;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.aliases-label {
+    font-weight: 600;
+    color: #333;
+    font-style: normal;
+}
+
+.aliases-list {
+    margin-left: 5px;
+    color: #5f6368;
+}
+
+/* ============================================
+   ENHANCED SEARCH CONTROLS (Priority 2)
+   ============================================ */
+
+.search-controls {
+    margin: 15px 0;
+    padding: 12px 16px;
+    background: linear-gradient(135deg, rgba(248, 249, 250, 0.95) 0%, rgba(255, 255, 255, 0.98) 100%);
+    border-radius: 12px;
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    flex-wrap: wrap;
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+
+.search-controls:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+    border-color: rgba(0, 0, 0, 0.08);
+}
+
+/* ============================================
+   CATEGORY TAG ENHANCEMENTS (Priority 1)
+   ============================================ */
+
+.category-tag {
+    font-size: 0.78rem;
+    padding: 3px 10px;
+    border-radius: 14px;
+    background-color: #e9ecef;
+    color: #495057;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1px solid transparent;
+}
+
+.category-tag:hover {
+    background: #dee2e6;
+    transform: translateY(-2px);
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.12);
+    border-color: rgba(0, 0, 0, 0.05);
+}
+
+.category-tag:active {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.category-tag.primary {
+    background: linear-gradient(135deg, #cce5ff 0%, #e3f2fd 100%);
+    color: #004085;
+    font-weight: 600;
+    border-color: rgba(0, 64, 133, 0.1);
+}
+
+.category-tag.primary:hover {
+    background: linear-gradient(135deg, #b8daff 0%, #bbdefb 100%);
+    box-shadow: 0 3px 10px rgba(0, 64, 133, 0.2);
+}
+
+/* ============================================
+   STATUS BADGE STYLES
+   Note: Base .status-badge styles are now consolidated in ui/badges.css
+   Only legacy override/enhancement styles remain here if needed
+   ============================================ */
+
+/* Switch hover enhancement */
+.switch:hover input:checked+.slider {
+    background: linear-gradient(135deg, #42a5f5 0%, #1e88e5 100%);
+}
+
+/* Note: Base switch/slider styles are defined in base.css
+ * This file only contains legacy enhancement overrides */

@@ -1,0 +1,273 @@
+/**
+ * Result Layouts CSS
+ * Grid and list layout systems for search results
+ * Extracted from result-display.css for modularity
+ * @version 1.0.0
+ */
+
+/* Grid Layout */
+.grid-layout {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 1rem;
+    width: 100%;
+}
+
+/* List Layout */
+.list-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    width: 100%;
+}
+
+/* Result Card - Grid View */
+.result-card {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    overflow: hidden;
+    background-color: #fff;
+    transition: transform 0.2s, box-shadow 0.2s;
+    height: 100%;
+    position: relative;
+}
+
+.result-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+/* Main community special styling */
+.result-card.main-community,
+.result-item.main-community {
+    border-color: #1565c0;
+    background-color: #f8fbff;
+}
+
+.result-card.main-community:hover,
+.result-item.main-community:hover {
+    box-shadow: 0 5px 15px rgba(21, 101, 192, 0.2);
+}
+
+/* Result Item - List View */
+.result-item {
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    background-color: #fff;
+    overflow: hidden;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.result-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
+}
+
+.result-row {
+    display: flex;
+    padding: 0.75rem;
+}
+
+.result-item .result-thumbnail {
+    width: 80px;
+    height: 80px;
+    flex-shrink: 0;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-right: 1rem;
+}
+
+.result-item .result-icon {
+    width: 60px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #f5f5f5;
+    border-radius: 4px;
+    margin-right: 1rem;
+}
+
+.result-item .result-content {
+    flex-grow: 1;
+    padding: 0;
+}
+
+.result-item .result-title {
+    border: none;
+    padding: 0;
+    margin-bottom: 0.35rem;
+}
+
+.result-item .result-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-left: 1rem;
+    flex-shrink: 0;
+}
+
+/* Result Groups */
+.result-group {
+    margin-bottom: 1.5rem;
+}
+
+.group-header {
+    font-size: 1.2rem;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.35rem;
+    border-bottom: 2px solid #eee;
+    color: #444;
+}
+
+/* Empty Results */
+.empty-results {
+    text-align: center;
+    padding: 2rem;
+    color: #888;
+}
+
+.empty-results-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.3;
+}
+
+/* Result Header */
+.result-header {
+    padding: 0;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 120px;
+    background-color: #f5f5f5;
+}
+
+.result-thumbnail {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.result-thumbnail img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    transition: transform 0.2s;
+}
+
+.result-card:hover .result-thumbnail img {
+    transform: scale(1.05);
+}
+
+/* Result Title */
+.result-title {
+    padding: 0.75rem;
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    border-bottom: 1px solid #eee;
+    color: #333;
+}
+
+/* Main community title */
+.main-community .result-title {
+    color: #1565c0;
+}
+
+/* Result Content */
+.result-content {
+    padding: 0.75rem;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.result-domain {
+    font-size: 0.8rem;
+    color: #888;
+    margin-bottom: 0.5rem;
+}
+
+/* Result Footer */
+.result-footer {
+    padding: 0.75rem;
+    border-top: 1px solid #eee;
+    display: flex;
+    justify-content: space-between;
+}
+
+/* Source specific styling */
+.result-source-wikipedia .result-title {
+    color: #347bff;
+}
+
+.result-source-fandom .result-title {
+    color: #fa005a;
+}
+
+/* Type specific styling */
+.result-type-article {
+    border-left: 4px solid #9c27b0;
+}
+
+.result-type-category {
+    border-left: 4px solid #ff9800;
+}
+
+.result-type-image {
+    border-left: 4px solid #4caf50;
+}
+
+.result-type-community {
+    border-left: 4px solid #1565c0;
+}
+
+/* Fallback result styling */
+.result-card[data-fallback="true"],
+.result-item[data-fallback="true"] {
+    opacity: 0.8;
+    background-color: #f9f9f9;
+}
+
+/* Media queries for responsive layout */
+@media (max-width: 768px) {
+    .grid-layout {
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    }
+
+    .result-item .result-thumbnail {
+        width: 60px;
+        height: 60px;
+    }
+}
+
+@media (max-width: 480px) {
+    .grid-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .result-row {
+        flex-direction: column;
+    }
+
+    .result-item .result-thumbnail {
+        width: 100%;
+        height: 140px;
+        margin-right: 0;
+        margin-bottom: 0.75rem;
+    }
+
+    .result-item .result-actions {
+        flex-direction: row;
+        margin-left: 0;
+        margin-top: 0.75rem;
+    }
+}

@@ -1,0 +1,123 @@
+/**
+ * Toggle Switches CSS
+ * iOS-style toggle switches and source toggle components
+ * Extracted from result-display.css
+ * 
+ * @version 1.0.0
+ */
+
+/* 1. SEAMLESS SOURCE TOGGLES (Segmented Control) */
+.source-toggle-container {
+    display: flex;
+    background: #f1f3f4;
+    padding: 4px;
+    border-radius: 8px;
+    gap: 0;
+    border: 1px solid #dadce0;
+}
+
+.source-toggle-btn {
+    flex: 1;
+    padding: 8px 16px;
+    border: none;
+    background: transparent;
+    color: #5f6368;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    position: relative;
+}
+
+.source-toggle-btn:hover {
+    background: rgba(0, 0, 0, 0.04);
+    color: #202124;
+}
+
+.source-toggle-btn.active {
+    background: #fff;
+    color: #1a73e8;
+    /* Google Blue */
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    font-weight: 700;
+}
+
+/* Source-specific active colors */
+.source-toggle-btn[data-source="wikipedia"].active {
+    color: #000;
+    border-bottom: 2px solid #000;
+}
+
+.source-toggle-btn[data-source="fandom"].active {
+    color: #ff0050;
+    border-bottom: 2px solid #ff0050;
+}
+
+/* 2. IOS-STYLE TOGGLE SWITCHES */
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: .4s;
+    border-radius: 34px;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+input:checked+.toggle-slider {
+    background-color: #2196F3;
+}
+
+input:focus+.toggle-slider {
+    box-shadow: 0 0 1px #2196F3;
+}
+
+input:checked+.toggle-slider:before {
+    transform: translateX(20px);
+}
+
+/* Filter Label Styling to match switches */
+.filter-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.9rem;
+    color: #333;
+    cursor: pointer;
+    user-select: none;
+}
+
+/* Note: Search input styles (input[type="text"].search-input) are now in search/search-forms.css */

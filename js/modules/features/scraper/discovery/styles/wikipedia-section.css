@@ -1,0 +1,143 @@
+/**
+ * Wikipedia Section CSS
+ * Wikipedia-specific styling and theming
+ * Extracted from discovery.css
+ * 
+ * @version 1.0.0
+ */
+
+/* ============================================
+   WIKIPEDIA SECTION ENHANCEMENTS
+   ============================================ */
+
+.wikipedia-section {
+    display: none;
+}
+
+.wikipedia-section.visible {
+    display: block;
+}
+
+.wikipedia-section .domain-item {
+    background: #f8f9fa;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 15px;
+    transition: all 0.2s ease;
+}
+
+.wikipedia-section .domain-item:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px);
+}
+
+.wikipedia-section .domain-name {
+    font-size: 1.1em;
+    font-weight: 500;
+    color: #333;
+    margin-bottom: 5px;
+}
+
+.wikipedia-section .domain-url {
+    color: #0645ad;
+    text-decoration: none;
+    font-size: 0.9em;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.wikipedia-section .domain-url:hover {
+    text-decoration: underline;
+}
+
+.wikipedia-section .cache-status {
+    margin-top: 8px;
+    font-size: 0.9em;
+}
+
+.wikipedia-section .domain-actions {
+    margin-top: 10px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.wikipedia-section .domain-actions button {
+    padding: 6px 12px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: background-color 0.2s;
+}
+
+.wikipedia-section .reload-btn {
+    background-color: #17a2b8;
+    color: white;
+}
+
+.wikipedia-section .reload-btn:hover {
+    background-color: #138496;
+}
+
+.wikipedia-section .view-data-btn {
+    background-color: #28a745;
+    color: white;
+}
+
+.wikipedia-section .view-data-btn:hover {
+    background-color: #218838;
+}
+
+.wikipedia-section .clear-cache-btn {
+    background-color: #dc3545;
+    color: white;
+}
+
+.wikipedia-section .clear-cache-btn:hover {
+    background-color: #c82333;
+}
+
+.wikipedia-section .remove-btn {
+    background-color: #6c757d;
+    color: white;
+}
+
+.wikipedia-section .remove-btn:hover {
+    background-color: #5a6268;
+}
+
+/* Wikipedia Cache View Theme */
+.wikipedia-cache-view .cache-stats-container {
+    background: #f8f9fa;
+    border: 1px solid #a2a9b1;
+}
+
+.wikipedia-cache-view .stat-label {
+    color: #54595d;
+}
+
+.wikipedia-cache-view .stat-value {
+    color: #202122;
+}
+
+.wikipedia-cache-view .cached-search-item {
+    border: 1px solid #a2a9b1;
+    background: white;
+}
+
+.wikipedia-cache-view .search-term-header {
+    background: #f8f9fa;
+    border-bottom: 1px solid #a2a9b1;
+}
+
+.wikipedia-cache-view .category-tag {
+    background: #eaecf0;
+    color: #202122;
+}
+
+.wikipedia-cache-view .category-tag:hover {
+    background: #d5d7db;
+}

@@ -1,0 +1,121 @@
+/**
+ * Data Popup CSS
+ * Extracted from popup-manager.css for modularity
+ * Styles for data popup content, cache displays, and stats grids
+ * 
+ * @version 1.0.0
+ */
+
+/* Data Popup Specific Styles */
+.data-popup-content {
+    max-width: 1400px;
+}
+
+.data-stats {
+    padding: 15px 20px;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.cache-stats-container {
+    display: flex;
+    flex-direction: column;
+}
+
+.cache-stats-container h4 {
+    margin: 0 0 10px 0;
+    font-size: 1rem;
+    color: var(--text-color);
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
+}
+
+.stat-item {
+    display: flex;
+    flex-direction: column;
+}
+
+.stat-label {
+    font-size: 0.8rem;
+    color: var(--text-light);
+}
+
+.stat-value {
+    font-weight: 500;
+}
+
+.data-content {
+    padding: 20px;
+    overflow-y: auto;
+    height: 100%;
+    display: none;
+}
+
+.data-content.visible {
+    display: block;
+}
+
+#dataPopupFrame {
+    display: none;
+}
+
+#dataPopupFrame.visible {
+    display: block;
+}
+
+/* Cache popup specific styles */
+.json-data {
+    background-color: #f6f8fa;
+    border: 1px solid #e1e4e8;
+    border-radius: 4px;
+    padding: 10px;
+    max-height: 300px;
+    overflow: auto;
+    font-family: monospace;
+    font-size: 0.8rem;
+    line-height: 1.4;
+    margin-top: 10px;
+}
+
+.cache-array-data {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.cache-array-item {
+    background-color: #f8f9fa;
+    border: 1px solid #e1e4e8;
+    border-radius: 4px;
+    padding: 15px;
+}
+
+.cache-array-item h4 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    font-size: 1rem;
+    color: var(--primary-color);
+}
+
+details {
+    margin-top: 20px;
+    padding: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    background-color: rgba(0, 0, 0, 0.2);
+}
+
+details summary {
+    cursor: pointer;
+    padding: 5px;
+    color: var(--primary-color);
+    font-weight: 500;
+}
+
+details[open] summary {
+    margin-bottom: 10px;
+}

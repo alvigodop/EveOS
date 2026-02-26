@@ -1,0 +1,74 @@
+/* Tab Manager CSS */
+
+.tabs {
+    display: flex;
+    justify-content: center;
+    margin-top: 10px;
+    margin-bottom: 20px;
+    gap: 10px;
+}
+
+/* Style for tab buttons */
+.tab-btn,
+.tab {
+    padding: 8px 16px;
+    border: none;
+    background-color: transparent;
+    color: var(--text-muted);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: background-color 0.2s, color 0.2s;
+    outline: none;
+    text-align: center;
+    font-weight: 500;
+}
+
+/* Active state for tabs */
+.tab-btn.active,
+.tab.active {
+    background-color: var(--accent);
+    color: #000;
+    font-weight: bold;
+}
+
+/* Hover state for tabs */
+.tab-btn:hover:not(.active),
+.tab:hover:not(.active) {
+    background-color: rgba(128, 128, 128, 0.1);
+    color: var(--text-main);
+}
+
+/* Responsive styles */
+@media (max-width: 480px) {
+    .tab-btn,
+    .tab {
+        padding: 8px 15px;
+        font-size: 0.9rem;
+    }
+}
+
+/* Tab content containers */
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+/* Management panels */
+#wikipediaManagement,
+#fandomManagement {
+    margin-top: 20px;
+}
+
+/* Options panels */
+#wikipediaOptions,
+#fandomOptions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 10px 0;
+    justify-content: center;
+} 

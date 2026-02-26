@@ -1,0 +1,116 @@
+/**
+ * Google Result Items CSS
+ * Extracted from google-search-scraper.css for modularity
+ * Styles for Google-style search result items and containers
+ * 
+ * @version 1.0.0
+ */
+
+/* Google-style search results */
+.google-result {
+    margin-bottom: 20px;
+    padding: 15px;
+    border-radius: 12px;
+    background-color: #fff;
+    border: 1px solid #e0e0e0;
+    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+        box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+.google-result:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    background-color: #fff;
+    border-color: #d0d0d0;
+}
+
+.google-result h3 {
+    margin: 0 0 8px 0;
+    font-size: 20px;
+    color: #1a0dab;
+}
+
+.google-result h3 a {
+    color: #1a0dab;
+    text-decoration: none;
+}
+
+.google-result h3 a:hover {
+    text-decoration: underline;
+}
+
+.google-result .url {
+    color: #006621;
+    font-size: 14px;
+    margin-bottom: 6px;
+}
+
+.google-result .description {
+    color: #545454;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+/* Google search results container */
+.google-search-results {
+    margin: 16px 0;
+}
+
+/* Individual search result */
+.google-search-result {
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #eee;
+}
+
+.google-search-result-title {
+    font-size: 18px;
+    font-weight: 400;
+    color: #1a0dab;
+    margin-bottom: 4px;
+    text-decoration: none;
+    display: block;
+}
+
+.google-search-result-url {
+    color: #006621;
+    font-size: 14px;
+    margin-bottom: 4px;
+}
+
+.google-search-result-snippet {
+    color: #545454;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+/* Warning and info banners */
+.direct-search-note {
+    background-color: #e8f4fd;
+    border: 1px solid #b8daff;
+    color: #004085;
+    padding: 10px;
+    border-radius: 4px;
+    margin-bottom: 15px;
+}
+
+.small-text {
+    font-size: 12px;
+    margin: 4px 0;
+}
+
+.text-button {
+    background: none;
+    border: none;
+    color: #0366d6;
+    padding: 0;
+    font-size: inherit;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.text-button:hover {
+    color: #0056b3;
+}

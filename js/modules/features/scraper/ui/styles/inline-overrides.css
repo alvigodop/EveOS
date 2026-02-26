@@ -1,0 +1,286 @@
+/**
+ * Inline Style Overrides
+ * 
+ * Utility classes to replace inline styles from ScraperTest.html
+ * for improved maintainability and modularity
+ * 
+ * @version 1.1.0 - Modularized with extracted popup confirmation styles
+ */
+
+/* Import extracted modular styles */
+@import '../popup-manager/popup-confirmation.css';
+
+/* ============================================
+   TOOLBAR & LAYOUT STYLING
+   ============================================ */
+
+.scraper-toolbar {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    padding: 0 10px;
+    align-items: center;
+    justify-content: flex-start;
+}
+
+.scraper-ui-wrapper {
+    width: 100%;
+    overflow-x: hidden;
+}
+
+.app-layout {
+    display: flex;
+    gap: 20px;
+    margin-top: 10px;
+    padding: 0;
+    width: 100%;
+}
+
+.main-column {
+    flex: 2;
+    min-width: 0;
+}
+
+.sidebar-column {
+    flex: 0 0 420px;
+    min-width: 380px;
+}
+
+#resultsSection,
+.wiki-management,
+.wiki-discovery {
+    background: var(--card-bg) !important;
+    border-radius: 8px;
+    padding: 20px;
+    border: 1px solid rgba(128, 128, 128, 0.2);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.server-status-indicators {
+    display: flex;
+    gap: 8px;
+    margin-left: auto;
+}
+
+/* Tool Button Consistency */
+.tool-btn {
+    background: var(--input-bg) !important;
+    color: var(--text-main) !important;
+    border: 1px solid rgba(128, 128, 128, 0.2) !important;
+}
+
+.tool-btn:hover {
+    background: var(--accent) !important;
+    color: #000 !important;
+}
+
+/* ============================================
+   ERROR DISPLAY STYLING
+   ============================================ */
+
+.error-display {
+    display: none;
+    background-color: var(--input-bg);
+    border: 1px solid var(--danger);
+    padding: 10px;
+    margin: 10px 0;
+    color: var(--danger);
+}
+
+/* ============================================
+   LOADING INDICATOR STYLES
+   ============================================ */
+
+.loading-status {
+    margin-top: 10px;
+    font-size: 0.9em;
+    color: var(--text-muted, #666);
+}
+
+/* ============================================
+   CONTROL CENTER UTILITIES
+   ============================================ */
+
+/* Flex input that fills remaining space */
+.flex-fill {
+    flex: 1;
+}
+
+/* Control row with bottom margin */
+.control-row-margin {
+    margin-bottom: 5px;
+}
+
+/* Line break spacer for flex wrap */
+.flex-line-break {
+    width: 100%;
+    height: 0;
+    margin: 5px 0;
+}
+
+/* ============================================
+   FLEX LAYOUT UTILITIES
+   ============================================ */
+
+/* Flex container with gap and center alignment */
+.flex-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+/* Flex display with 15px gap */
+.flex-gap-15 {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+}
+
+/* Flex display with 5px gap and full width */
+.flex-actions-full {
+    display: flex;
+    gap: 5px;
+    width: 100%;
+}
+
+/* ============================================
+   DOMAIN ACTIONS LAYOUT
+   ============================================ */
+
+.domain-actions-flex {
+    margin-bottom: 15px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+/* Auto margin left for right-aligned items */
+.ml-auto {
+    margin-left: auto;
+}
+
+/* ============================================
+   WIKI LINK STYLING
+   ============================================ */
+
+.wiki-link-inline {
+    text-decoration: none;
+    color: var(--primary-color, #0060df);
+    font-size: 0.85em;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* ============================================
+   LINK BEHAVIOR OPTIONS
+   ============================================ */
+
+.link-behavior-options {
+    margin-top: 8px;
+    margin-bottom: 8px;
+    font-size: 0.9em;
+}
+
+.link-behavior-options label {
+    cursor: pointer;
+}
+
+.link-behavior-options .option-label {
+    margin-right: 5px;
+    font-weight: bold;
+}
+
+.link-behavior-options .radio-label {
+    margin-right: 10px;
+    cursor: pointer;
+}
+
+/* ============================================
+   SEARCH MODE SELECTOR
+   ============================================ */
+
+.search-mode-selector {
+    margin-top: 8px;
+    margin-bottom: 8px;
+    font-size: 0.9em;
+}
+
+.search-mode-selector label {
+    margin-right: 5px;
+    font-weight: bold;
+}
+
+.search-mode-selector select {
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px solid rgba(128, 128, 128, 0.3);
+    background: var(--input-bg);
+    color: var(--text-main);
+    cursor: pointer;
+}
+
+/* ============================================
+   GROUP BY SELECT STYLING
+   ============================================ */
+
+.group-by-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.group-by-container label {
+    font-size: 0.9rem;
+    color: var(--text-main);
+}
+
+.group-by-container select {
+    padding: 4px 8px;
+    border: 1px solid rgba(128, 128, 128, 0.3);
+    border-radius: 6px;
+    background: var(--input-bg);
+    color: var(--text-main);
+    font-size: 0.9rem;
+}
+
+/* ============================================
+   WIKI CATEGORIES SECTION
+   ============================================ */
+
+.wiki-categories-section {
+    margin-top: 25px;
+    padding-top: 20px;
+    border-top: 1px dashed rgba(128, 128, 128, 0.2);
+}
+
+/* ============================================
+   DISCOVERY SEARCH CONTAINER
+   ============================================ */
+
+.discovery-search-full {
+    width: 100%;
+    margin-bottom: 5px;
+}
+
+/* Note: Popup confirmation styles (.popup-confirmation, .popup-confirmation-*,
+   .btn-confirm-danger, .btn-confirm-cancel) are now imported from popup-confirmation.css */
+
+/* ============================================
+   BUTTON COLOR OVERRIDES (Tool Buttons)
+   ============================================ */
+
+/* Cache Stats Button */
+.btn-cache-stats {
+    background-color: var(--accent) !important;
+    color: #000 !important;
+    font-weight: bold;
+    margin-left: 5px;
+}
+
+/* Debug Button */
+.btn-debug {
+    background-color: var(--danger) !important;
+    color: white !important;
+    margin-left: 5px;
+}

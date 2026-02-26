@@ -1,0 +1,191 @@
+/**
+ * ingestCoordinator.js
+ * Coordinators the ingestion of audio chunks for playback.
+ * Orchestrates Sequential, Interim, Worklet, and Error Recovery handlers.
+ */
+
+window.AudioIngestCore = window.AudioIngestCore || {};
+
+// Centralized ingestion queue to prevent race conditions in scheduling
+let ingestionQueue = Promise.resolve();
+
+async function injestAudioChuckToPlay(base64AudioChunk, isFinalAudio = true) {
+    // Guard: Ignore null or undefined chunks
+    if (!base64AudioChunk) {
+        console.warn("[ingestCoordinator] Received null/undefined audio chunk, skipping.");
+        return Promise.resolve();
+    }
+
+    // Wrap the entire execution in a serial queue
+    return new Promise((resolve, reject) => {
+        ingestionQueue = ingestionQueue.then(async () => {
+            try {
+                await _processInjest(base64AudioChunk, isFinalAudio);
+                resolve();
+            } catch (err) {
+                console.error("Queue processing error:", err);
+                // We resolve even on error to prevent deadlocking the promise chain
+                resolve();
+            }
+        }).catch(err => {
+            console.error("Fatal queue error:", err);
+            resolve();
+        });
+    });
+}
+
+/**
+ * Internal ingestion logic (now run sequentially via queue)
+ */
+async function _processInjest(base64AudioChunk, isFinalAudio = true) {
+    // If master audio processing toggle is off, skip playback
+    if (!playProcessedAudio) {
+        console.log("Master audio toggle is off: skipping audio chunk ingestion");
+        return;
+    }
+
+    const SequentialHandler = window.AudioIngestCore.SequentialIngestHandler;
+    const InterimHandler = window.AudioIngestCore.InterimIngestHandler;
+    const WorkletHandler = window.AudioIngestCore.WorkletIngestHandler;
+    const ErrorHandler = window.AudioIngestCore.ErrorRecoveryHandler;
+
+    try {
+        if (isFinalAudio) {
+            console.log("Processing final audio chunk, length:", base64AudioChunk.length);
+            displayMessage("System Message: Processing audio data...", true);
+        }
+
+        // 1. Initialize or Resume Audio Context (Optimized hot-path)
+        if (!window.audioInputContext) {
+            await initializeAudioContext();
+            if (!window.audioInputContext) throw new Error("Failed to initialize audio context");
+        }
+        if (window.audioInputContext.state === "suspended") {
+            console.log("Resuming suspended audio context");
+            try { await window.audioInputContext.resume(); } catch(e) { console.warn('audioContext resume failed', e); }
+        }
+        console.log('[ingestCoordinator] audioInputContext currentTime=', window.audioInputContext ? window.audioInputContext.currentTime : 'NO_CTX');
+
+        // 2. Handle Interim Audio (Synchronous scheduling, MUST await to lock timeline)
+        if (!isFinalAudio) {
+            if (InterimHandler) {
+                // We MUST await here to ensure the internal scheduling clock 
+                // is updated before the next chunk in the queue is processed.
+                await InterimHandler.playInterimAudio(base64AudioChunk, window.audioInputContext);
+            } else {
+                console.warn("InterimIngestHandler missing");
+            }
+            return;
+        }
+
+        // 3. Handle Final Audio - Turn Handoff Logic
+        const wasStreaming = InterimHandler && typeof InterimHandler.isStillStreaming === 'function' && InterimHandler.isStillStreaming(window.audioInputContext);
+
+        if (wasStreaming) {
+            console.log("Turn handoff: detect active interim stream. Bypassing redundant final auto-play to prevent double-play/cutoff.");
+
+            // Mark for fresh start on NEXT turn, but don't reset now
+            if (InterimHandler && typeof InterimHandler.reset === 'function') {
+                // We don't want to reset the timeline yet as it's still streaming.
+            }
+
+            // Archive final audio to sequential handler which will ensure a valid container
+            if (SequentialHandler && sequentialAudioPlay) {
+                try {
+                    await SequentialHandler.handleSequentialIngest(base64AudioChunk, false);
+                    console.log("[TurnHandoff] Delegated final audio to SequentialIngestHandler for archival/playback.");
+                } catch (e) {
+                    console.error("[TurnHandoff] Error delegating to SequentialIngestHandler:", e);
+                }
+                return;
+            }
+
+            // sequentialAudioPlay is disabled — allow the normal final-audio fallback path to run so the final chunk isn't dropped.
+            console.log("[TurnHandoff] sequentialAudioPlay disabled — allowing fallback final playback.");
+        }
+
+        // NO TURN HANDOFF: This is a fresh non-streamed response or a manual completion
+        // Reset interim handler for clean start next time
+        if (InterimHandler && typeof InterimHandler.reset === 'function') {
+            InterimHandler.reset(window.audioInputContext);
+        }
+
+        // Standard auto-play logic for non-streamed responses
+        if (SequentialHandler && sequentialAudioPlay && autoAudioPlay) {
+            console.log("Final response received: sequential mode active - stopping interim and delegating to SequentialIngestHandler");
+
+            // CRITICAL: Stop the interim stream before starting high-quality sequential playback
+            if (typeof stopAllAudioPlayback === 'function') {
+                stopAllAudioPlayback();
+                // Wait briefly for interim sources/worklet to stop to avoid overlap
+                await new Promise(r => setTimeout(r, 100));
+                if (InterimHandler) {
+                    const startWait = Date.now();
+                    while (InterimHandler.activeSources && InterimHandler.activeSources.length > 0 && Date.now() - startWait < 200) {
+                        await new Promise(r => setTimeout(r, 10));
+                    }
+                }
+            }
+
+            await SequentialHandler.handleSequentialIngest(base64AudioChunk, false);
+            return;
+        }
+
+        // 4. Handle Final Audio (Fallback Path)
+        if (typeof stopAllAudioPlayback === 'function') {
+            stopAllAudioPlayback();
+            // Wait briefly for interim sources/worklet to stop to avoid overlap
+            await new Promise(r => setTimeout(r, 100));
+            if (InterimHandler) {
+                const startWait = Date.now();
+                while (InterimHandler.activeSources && InterimHandler.activeSources.length > 0 && Date.now() - startWait < 200) {
+                    await new Promise(r => setTimeout(r, 10));
+                }
+            }
+        }
+
+        // Re-check context existence/state after potential resets
+        if (!window.audioInputContext) {
+            await initializeAudioContext();
+            if (!window.audioInputContext) throw new Error("Failed to initialize audio context");
+        }
+        if (window.audioInputContext.state === "suspended") {
+            await window.audioInputContext.resume();
+        }
+
+        const arrayBuffer = base64ToArrayBuffer(base64AudioChunk);
+        console.log("Converted to array buffer, size:", arrayBuffer.byteLength);
+
+        // 5. Playback Strategy Selection (Worklet vs Fallback)
+        if (window.audioInputContext.usingWorklet && workletNode && WorkletHandler) {
+            await WorkletHandler.playViaWorklet(arrayBuffer, window.audioInputContext);
+        } else if (window.audioInputContext.usingFallback) {
+            // Fallback handled via global function for now or could be modularized too, 
+            // but plan said 'playViaWorklet' handles worklet logic.
+            // We'll keep the direct call to the existing fallback or error if missing.
+            if (typeof playAudioWithFallbackMethod === 'function') {
+                playAudioWithFallbackMethod(arrayBuffer);
+            } else {
+                throw new Error("playAudioWithFallbackMethod not available");
+            }
+        } else {
+            throw new Error("No valid audio playback method available");
+        }
+
+        displayMessage("System Message: Audio playback started", true);
+
+    } catch (error) {
+        console.error("Error processing audio chunk:", error);
+        if (ErrorHandler) {
+            await ErrorHandler.handleIngestError(error, base64AudioChunk);
+        } else {
+            // Basic fallback error display if handler missing
+            displayMessage("System Message: Error playing audio response - " + error.message, true);
+        }
+    }
+}
+
+// Expose globally
+window.injestAudioChuckToPlay = injestAudioChuckToPlay;
+
+console.log("ingestCoordinator.js loaded.");

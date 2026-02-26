@@ -1,0 +1,1612 @@
+/* Popup Manager CSS */
+
+/* Note: All styles consolidated into this file */
+
+/* Popup Styles - .popup class */
+.popup {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    z-index: var(--z-index-popup);
+    display: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.popup.active {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow-y: auto;
+    opacity: 1;
+}
+
+.popup[style*="display: block"] {
+    opacity: 1;
+}
+
+/* Popup Overlay Styles - .popup-overlay class for backwards compatibility */
+.popup-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    z-index: var(--z-index-popup, 1000);
+    display: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.popup-overlay.active {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow-y: auto;
+    opacity: 1;
+}
+
+.popup-overlay[style*="display: flex"],
+.popup-overlay[style*="display: block"] {
+    opacity: 1;
+}
+
+/* Popup iframe container and frame */
+.popup-iframe-container {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    border-radius: 0 0 8px 8px;
+}
+
+.popup-iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+
+.popup-content {
+    position: relative;
+    width: 90%;
+    max-width: 1200px;
+    height: 90%;
+    margin: 2% auto;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.popup-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 20px;
+    background-color: #f8f9fa;
+    color: #333;
+    border-bottom: 1px solid #e0e0e0;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+}
+
+.popup-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    flex-grow: 1;
+    font-weight: 600;
+}
+
+.popup-nav {
+    display: flex;
+    gap: 8px;
+    margin-right: 15px;
+}
+
+.popup-nav button {
+    background-color: transparent;
+    color: #5f6368;
+    border: 1px solid transparent;
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    font-size: 1.2rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+}
+
+.popup-nav button:not(:disabled):hover {
+    background-color: rgba(0, 0, 0, 0.05);
+    color: #202124;
+}
+
+.popup-nav button:not(:disabled):active {
+    background-color: rgba(0, 0, 0, 0.1);
+    transform: translateY(0);
+}
+
+.popup-nav button:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.close-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    color: #5f6368;
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 0;
+    border-radius: 50%;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    font-weight: 300;
+}
+
+.close-btn:hover {
+    background-color: rgba(220, 53, 69, 0.12);
+    color: #dc3545;
+    border-color: rgba(220, 53, 69, 0.2);
+    transform: scale(1.05);
+}
+
+.close-btn:active {
+    transform: scale(0.95);
+    background-color: rgba(220, 53, 69, 0.2);
+}
+
+/* Popup Close Button (×) - Enhanced Legacy Style */
+.popup-close {
+    background: none;
+    border: 1px solid transparent;
+    font-size: 1.2em;
+    cursor: pointer;
+    padding: 6px 12px;
+    color: #666;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 4px;
+    margin-left: 5px;
+    min-width: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.popup-close:hover {
+    color: #dc3545;
+    background-color: rgba(220, 53, 69, 0.12);
+    border-color: rgba(220, 53, 69, 0.2);
+    transform: scale(1.05);
+}
+
+.popup-close:active {
+    transform: scale(0.95);
+    background-color: rgba(220, 53, 69, 0.2);
+}
+
+
+.popup-body {
+    flex-grow: 1;
+    overflow: hidden;
+    position: relative;
+}
+
+.popup-body iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+
+/* Note: Data popup styles (.data-popup-content, .data-stats, .cache-stats-container,
+   .stats-grid, .stat-item, .data-content, .json-data, .cache-array-data, .cache-array-item,
+   details styles) are now imported from data-popup.css */
+
+/* ============================================
+   URL NAVIGATION BAR
+   ============================================ */
+
+.url-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    background-color: #f8f9fa;
+    border-top: 1px solid #dee2e6;
+}
+
+.url-nav-btn {
+    background: none;
+    border: none;
+    font-size: 1.2em;
+    cursor: pointer;
+    padding: 5px 10px;
+    color: #666;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.5;
+    border-radius: 4px;
+}
+
+.url-nav-btn.active {
+    opacity: 1;
+    cursor: pointer;
+}
+
+.url-nav-btn:not(.active) {
+    cursor: not-allowed;
+}
+
+.url-nav-btn.active:hover {
+    color: #007bff;
+    background-color: rgba(0, 123, 255, 0.1);
+}
+
+/* ============================================
+   WIKIPEDIA POPUP THEME
+   ============================================ */
+
+.popup-content.wikipedia {
+    background: #f8f9fa;
+}
+
+.popup-content.wikipedia .popup-header {
+    background: #eaecf0;
+    border-bottom-color: #a2a9b1;
+}
+
+.popup-content.wikipedia .popup-title {
+    color: #202122;
+}
+
+.popup-content.wikipedia .popup-body {
+    background: white;
+}
+
+/**
+ * Popup Confirmation Styles
+ * Extracted from inline-overrides.css for modularity
+ * 
+ * @version 1.0.0
+ */
+
+/* ============================================
+   POPUP CONFIRMATION STYLES
+   ============================================ */
+
+/* Confirmation Popup */
+.popup-confirmation {
+    display: none;
+    z-index: 10000;
+}
+
+.popup-confirmation-content {
+    max-width: 400px;
+    height: auto;
+    min-height: 200px;
+}
+
+.popup-confirmation-header {
+    background-color: #f44336;
+}
+
+.popup-confirmation-header h3 {
+    color: white;
+    margin: 0;
+}
+
+.popup-confirmation-header .close-btn {
+    color: white;
+}
+
+.popup-confirmation-body {
+    padding: 20px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.popup-confirmation-message {
+    font-size: 1.1em;
+    margin-bottom: 25px;
+    color: #333;
+}
+
+.popup-confirmation-actions {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+}
+
+/* Danger Confirmation Button */
+.btn-confirm-danger {
+    background-color: #f44336;
+    color: white;
+    border: none;
+    padding: 10px 25px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.btn-confirm-danger:hover {
+    background-color: #d32f2f;
+}
+
+/* Cancel Button */
+.btn-confirm-cancel {
+    background-color: #e0e0e0;
+    color: #333;
+    border: none;
+    padding: 10px 25px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.btn-confirm-cancel:hover {
+    background-color: #bdbdbd;
+}
+
+/**
+ * Data Popup CSS
+ * Extracted from popup-manager.css for modularity
+ * Styles for data popup content, cache displays, and stats grids
+ * 
+ * @version 1.0.0
+ */
+
+/* Data Popup Specific Styles */
+.data-popup-content {
+    max-width: 1400px;
+}
+
+.data-stats {
+    padding: 15px 20px;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.cache-stats-container {
+    display: flex;
+    flex-direction: column;
+}
+
+.cache-stats-container h4 {
+    margin: 0 0 10px 0;
+    font-size: 1rem;
+    color: var(--text-color);
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
+}
+
+.stat-item {
+    display: flex;
+    flex-direction: column;
+}
+
+.stat-label {
+    font-size: 0.8rem;
+    color: var(--text-light);
+}
+
+.stat-value {
+    font-weight: 500;
+}
+
+.data-content {
+    padding: 20px;
+    overflow-y: auto;
+    height: 100%;
+    display: none;
+}
+
+.data-content.visible {
+    display: block;
+}
+
+#dataPopupFrame {
+    display: none;
+}
+
+#dataPopupFrame.visible {
+    display: block;
+}
+
+/* Cache popup specific styles */
+.json-data {
+    background-color: #f6f8fa;
+    border: 1px solid #e1e4e8;
+    border-radius: 4px;
+    padding: 10px;
+    max-height: 300px;
+    overflow: auto;
+    font-family: monospace;
+    font-size: 0.8rem;
+    line-height: 1.4;
+    margin-top: 10px;
+}
+
+.cache-array-data {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.cache-array-item {
+    background-color: #f8f9fa;
+    border: 1px solid #e1e4e8;
+    border-radius: 4px;
+    padding: 15px;
+}
+
+.cache-array-item h4 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    font-size: 1rem;
+    color: var(--primary-color);
+}
+
+details {
+    margin-top: 20px;
+    padding: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    background-color: rgba(0, 0, 0, 0.2);
+}
+
+details summary {
+    cursor: pointer;
+    padding: 5px;
+    color: var(--primary-color);
+    font-weight: 500;
+}
+
+details[open] summary {
+    margin-bottom: 10px;
+}
+
+/* Result Display CSS */
+
+/* Note: All referenced styles have been consolidated into this file.
+ * The original modular imports have been removed.
+ */
+
+/* 
+ * NOTE: The following styles have been modularized:
+ * - .results-section, .results-header -> result-container.css
+ * - .results-container, .results-stats -> result-container.css
+ * - .results-grid, .results-list, .grid-layout -> result-grid.css
+ * - .result-card, .result-item, .result-snippet -> result-card.css
+ * - .view-more-btn, .article-categories, .category-tag -> article-cards.css / result-card.css
+ * - .wiki-link -> article-cards.css / result-card.css
+ */
+
+
+/* Article Styles - Specific Overrides or Contextual Styles not in result-card.css */
+
+.article-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 12px;
+}
+
+/* Note: Badge styles (.content-type-badge, .source-badge, .main-article-badge, 
+   .web-enhanced-badge, .text-match-badge, .verified-badge) are now imported from badges.css */
+
+/* Note: Article card styles (.article, .article.main-article, .article.web-enhanced, 
+   .article.has-image, .article-image, .article-thumbnail, placeholder styles, 
+   .article-content, .article h3) are now imported from article-cards.css */
+
+
+/* Article Specific Components - Keep generalized ones here if they don't fit perfectly in result-card */
+
+.article-snippet {
+    margin-bottom: 10px;
+    font-size: 0.9rem;
+    color: var(--text-color);
+    max-height: 4.8em;
+    /* Approximately 3 lines of text */
+    overflow: hidden;
+    position: relative;
+    transition: max-height 0.3s ease;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    -webkit-box-orient: vertical;
+    text-overflow: ellipsis;
+}
+
+.article-snippet.expanded {
+    max-height: none;
+    display: block;
+    -webkit-line-clamp: unset;
+    line-clamp: unset;
+}
+
+.article-categories {
+    margin-bottom: 10px;
+}
+
+.categories-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 5px;
+}
+
+.categories-title {
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.categories-list {
+    max-height: 3.6em;
+    /* Approximately 2 lines of tags */
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+    position: relative;
+}
+
+.categories-list.expanded {
+    max-height: none;
+}
+
+.categories-list:not(.expanded)::after {
+    content: "...";
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    background-color: white;
+    padding-left: 4px;
+}
+
+.category-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.category-tag {
+    font-size: 0.75rem;
+    padding: 2px 8px;
+    border-radius: 12px;
+    background-color: #e9ecef;
+    color: #495057;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+    transition: var(--transition-fast, all 0.2s ease);
+}
+
+.category-tag:hover {
+    background: #dee2e6;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.category-tag.primary {
+    background: #cce5ff;
+    color: #004085;
+    font-weight: bold;
+}
+
+.category-tag.primary:hover {
+    background: #b8daff;
+}
+
+.related-to {
+    margin-bottom: 10px;
+    font-size: 0.85rem;
+}
+
+.article-meta {
+    margin-top: auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.85rem;
+    color: var(--text-light);
+}
+
+.wiki-link {
+    color: var(--wiki-blue, #0645ad);
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 500;
+    font-size: 0.9em;
+    transition: color 0.2s ease;
+}
+
+.wiki-link:hover {
+    color: var(--wiki-link-hover, #0b0080);
+    text-decoration: underline;
+}
+
+.external-link-icon {
+    font-size: 0.75em;
+    opacity: 0.7;
+}
+
+/* Note: Cached results styles (.cached-searches, .cached-search-item, .search-term-header, 
+   .cached-results, .cached-result) are now imported from cached-results.css */
+
+
+/* Legacy UI Enhancements - now imported from legacy-enhancements.css */
+/* Cached Search Item Enhancement - now imported from cached-results.css */
+/**
+ * Result Card CSS
+ * Core styles for individual result cards/items
+ * Extracted from result-display.css
+ */
+
+/* Result Card (Grid View) */
+.result-card {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    overflow: hidden;
+    background-color: #fff;
+    transition: transform 0.2s, box-shadow 0.2s;
+    height: 100%;
+    position: relative;
+}
+
+.result-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.result-header {
+    padding: 0;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 120px;
+    background-color: #f5f5f5;
+}
+
+.result-thumbnail {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.result-thumbnail img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    transition: transform 0.2s;
+}
+
+.result-card:hover .result-thumbnail img {
+    transform: scale(1.05);
+}
+
+.result-title {
+    padding: 0.75rem;
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    border-bottom: 1px solid #eee;
+    color: #333;
+}
+
+.result-content {
+    padding: 0.75rem;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.result-snippet {
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+    color: #666;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    -webkit-box-orient: vertical;
+    text-overflow: ellipsis;
+}
+
+.result-snippet.expanded {
+    max-height: none !important;
+    display: block !important;
+    -webkit-line-clamp: unset;
+    line-clamp: unset;
+    -webkit-box-orient: vertical;
+}
+
+.result-domain {
+    font-size: 0.8rem;
+    color: #888;
+    margin-bottom: 0.5rem;
+}
+
+.result-footer {
+    padding: 0.75rem;
+    border-top: 1px solid #eee;
+    display: flex;
+    justify-content: space-between;
+}
+
+.result-action {
+    font-size: 0.85rem;
+    cursor: pointer;
+    text-decoration: none;
+    color: var(--wiki-blue, #0645ad);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 500;
+    transition: color 0.2s ease;
+    padding: 0;
+    background: none;
+    border: none;
+}
+
+.result-action:hover {
+    color: var(--wiki-link-hover, #0b0080);
+    text-decoration: underline;
+}
+
+.result-action .external-link-icon,
+.result-action::after {
+    font-size: 0.75em;
+    opacity: 0.7;
+}
+
+/* Result Item (List View) */
+.result-item {
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    background-color: #fff;
+    overflow: hidden;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.result-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
+}
+
+.result-row {
+    display: flex;
+    padding: 0.75rem;
+}
+
+.result-item .result-thumbnail {
+    width: 80px;
+    height: 80px;
+    flex-shrink: 0;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-right: 1rem;
+}
+
+.result-item .result-icon {
+    width: 60px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #f5f5f5;
+    border-radius: 4px;
+    margin-right: 1rem;
+}
+
+.result-item .result-content {
+    flex-grow: 1;
+    padding: 0;
+}
+
+.result-item .result-title {
+    border: none;
+    padding: 0;
+    margin-bottom: 0.35rem;
+}
+
+.result-item .result-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-left: 1rem;
+    flex-shrink: 0;
+}
+
+/* Common Components */
+.result-categories {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-bottom: 10px;
+}
+
+.result-link {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-size: 0.9rem;
+    display: inline-flex;
+    align-items: center;
+}
+
+.result-link:hover {
+    text-decoration: underline;
+}
+
+.relevance-indicator {
+    height: 3px;
+    background-color: rgba(0, 0, 0, 0.05);
+    border-radius: 2px;
+    margin-bottom: 12px;
+    overflow: hidden;
+}
+
+.relevance-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #4caf50, #81c784);
+    border-radius: 2px;
+}
+
+/* Special Styling */
+.result-card.main-community,
+.result-item.main-community {
+    border-color: #1565c0;
+    background-color: #f8fbff;
+}
+
+.result-card.main-community:hover,
+.result-item.main-community:hover {
+    box-shadow: 0 5px 15px rgba(21, 101, 192, 0.2);
+}
+
+.main-community .result-title {
+    color: #1565c0;
+}
+
+.result-content .content-type-badge {
+    align-self: flex-start;
+    margin-bottom: 5px;
+}
+
+.result-content .status-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    margin-left: 8px;
+    vertical-align: middle;
+}
+
+/* Type Specific Styling */
+.result-type-community {
+    border-left: 4px solid #1565c0;
+}
+
+.result-source-wikipedia .result-title {
+    color: #347bff;
+}
+
+.result-source-fandom .result-title {
+    color: #fa005a;
+}
+
+.result-type-article {
+    border-left: 4px solid #9c27b0;
+}
+
+.result-type-category {
+    border-left: 4px solid #ff9800;
+}
+
+.result-type-image {
+    border-left: 4px solid #4caf50;
+}
+
+.result-card[data-fallback="true"],
+.result-item[data-fallback="true"] {
+    opacity: 0.8;
+    background-color: #f9f9f9;
+}
+
+.view-more-btn {
+    font-size: 0.8rem;
+    color: var(--primary-color);
+    cursor: pointer;
+    margin-bottom: 10px;
+    display: none;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.view-more-btn:hover {
+    background-color: rgba(33, 150, 243, 0.1);
+    transform: translateX(2px);
+}
+
+.view-more-btn.visible {
+    display: inline-block;
+}
+
+/* Responsive Overrides for Cards */
+@media (max-width: 768px) {
+    .result-item .result-thumbnail {
+        width: 60px;
+        height: 60px;
+    }
+}
+
+@media (max-width: 480px) {
+    .result-row {
+        flex-direction: column;
+    }
+
+    .result-item .result-thumbnail {
+        width: 100%;
+        height: 140px;
+        margin-right: 0;
+        margin-bottom: 0.75rem;
+    }
+
+    .result-item .result-actions {
+        flex-direction: row;
+        margin-left: 0;
+        margin-top: 0.75rem;
+    }
+}
+
+/**
+ * Result Container CSS
+ * Styles for the main results container, header, and statistics
+ * Extracted from result-display.css
+ */
+
+/* Results Section Styles */
+#resultsSection {
+    margin-bottom: 30px;
+}
+
+.results-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.results-header h2 {
+    color: var(--primary-color);
+}
+
+.results-stats {
+    font-size: 0.9rem;
+    color: var(--text-light);
+}
+
+.results-container {
+    background-color: var(--card-background);
+    border-radius: 5px;
+    padding: 20px;
+    box-shadow: 0 2px 5px var(--shadow-color);
+    margin: 20px 0;
+    border: 1px solid var(--border-color, #ddd);
+}
+
+.results-title {
+    margin: 0 0 20px 0;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--primary-color, #007bff);
+    color: #333;
+    font-size: 1.5em;
+    font-weight: 600;
+}
+
+.empty-results {
+    text-align: center;
+    padding: 2rem;
+    color: #888;
+}
+
+.empty-results-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.3;
+}
+
+/**
+ * Result Grid CSS
+ * Styles for the grid and list layouts including responsiveness
+ * Extracted from result-display.css
+ */
+
+.results-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+}
+
+.results-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.result-group {
+    margin-bottom: 30px;
+}
+
+.result-group h3 {
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--primary-color);
+    color: var(--primary-color);
+    font-weight: 700;
+    font-size: 1.4rem;
+}
+
+.grid-layout {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 1rem;
+    width: 100%;
+}
+
+.list-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    width: 100%;
+}
+
+/* Responsive styles */
+@media (max-width: 992px) {
+    .results-grid {
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    }
+}
+
+@media (max-width: 768px) {
+    .results-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .grid-layout {
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    }
+
+    .article.list-view {
+        flex-direction: column;
+    }
+
+    .list-view .article-image {
+        width: 100%;
+        height: 180px;
+    }
+}
+
+@media (max-width: 480px) {
+    .grid-view .article-image {
+        height: 150px;
+    }
+
+    .grid-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Category Scraper Panel Styles */
+
+.scraper-panel {
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.05);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    margin-bottom: 10px;
+}
+
+.scraper-panel-content {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.scraper-source-toggle {
+    display: flex;
+    gap: 5px;
+}
+
+.scraper-source-toggle .source-btn {
+    flex: 1;
+    padding: 6px 10px;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--text-main);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    transition: all 0.2s;
+}
+
+.scraper-source-toggle .source-btn:hover {
+    background: rgba(0, 0, 0, 0.3);
+}
+
+.scraper-source-toggle .source-btn.active {
+    background: var(--accent);
+    color: #000;
+    border-color: var(--accent);
+}
+
+.scraper-source-toggle .source-btn .icon {
+    font-weight: bold;
+}
+
+.scraper-search-box {
+    display: flex;
+    gap: 5px;
+}
+
+.scraper-search-input {
+    flex: 1;
+    padding: 8px 12px;
+    background: var(--input-bg);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--text-main);
+    border-radius: 4px;
+    font-size: 0.9rem;
+}
+
+.scraper-search-input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.scraper-search-btn {
+    padding: 8px 12px;
+    background: var(--accent);
+    border: none;
+    color: #000;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: all 0.2s;
+}
+
+.scraper-search-btn:hover {
+    opacity: 0.9;
+    transform: scale(1.02);
+}
+
+.scraper-results {
+    max-height: 300px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.scraper-placeholder,
+.scraper-loading,
+.scraper-error {
+    text-align: center;
+    padding: 20px;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.scraper-loading {
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+}
+
+.scraper-error {
+    color: var(--danger);
+}
+
+.scraper-result-card {
+    display: flex;
+    gap: 10px;
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.scraper-result-card:hover {
+    background: rgba(0, 0, 0, 0.3);
+    border-color: var(--accent);
+    transform: translateY(-1px);
+}
+
+.scraper-result-card .result-thumb {
+    width: 50px;
+    height: 50px;
+    object-fit: cover;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+
+.scraper-result-card .result-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.scraper-result-card .result-title {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text-main);
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.scraper-result-card .result-snippet {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.scraper-toggle-btn {
+    padding: 2px 8px;
+    font-size: 1.2rem;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--text-main);
+    transition: all 0.2s;
+}
+
+.scraper-toggle-btn:hover {
+    color: var(--accent);
+    transform: scale(1.1);
+}
+
+/* ==========================================================================
+   PORTED STYLES FROM SCRAPER SUB-PROJECT (Advanced UI)
+   ========================================================================== */
+
+/* --- Control Center --- */
+.control-center {
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.05);
+    /* Adjusted for Dark Mode compatibility in Eve OS */
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.control-row {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.control-row.justify-between {
+    justify-content: space-between;
+}
+
+.control-row.search-row {
+    width: 100%;
+}
+
+.control-row.filters-row {
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding-top: 15px;
+}
+
+.filter-group-label {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: #aaa;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-right: 5px;
+}
+
+.separator-vertical {
+    width: 1px;
+    height: 24px;
+    background: rgba(255, 255, 255, 0.2);
+    margin: 0 5px;
+}
+
+.layout-toggles .layout-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 5px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9em;
+    color: #eee;
+    transition: all 0.2s ease;
+}
+
+.layout-toggles .layout-btn.active {
+    background: #0060df;
+    color: white;
+    border-color: #0050bc;
+    box-shadow: 0 2px 4px rgba(0, 96, 223, 0.2);
+}
+
+.layout-toggles .layout-btn:hover:not(.active) {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* --- Toggle Switches --- */
+.source-toggle-container {
+    display: flex;
+    background: rgba(255, 255, 255, 0.1);
+    padding: 4px;
+    border-radius: 8px;
+    gap: 0;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.source-toggle-btn {
+    flex: 1;
+    padding: 6px 16px;
+    border: none;
+    background: transparent;
+    color: #aaa;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    position: relative;
+}
+
+.source-toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: #fff;
+}
+
+.source-toggle-btn.active {
+    background: #333;
+    color: #4dabf7;
+    /* Adjusted blue for dark mode */
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    font-weight: 700;
+}
+
+.source-toggle-btn[data-source="wikipedia"].active {
+    color: #fff;
+    border-bottom: 2px solid #fff;
+}
+
+.source-toggle-btn[data-source="fandom"].active {
+    color: #ff4081;
+    border-bottom: 2px solid #ff4081;
+}
+
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #555;
+    transition: .4s;
+    border-radius: 34px;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+input:checked+.toggle-slider {
+    background-color: #2196F3;
+}
+
+input:focus+.toggle-slider {
+    box-shadow: 0 0 1px #2196F3;
+}
+
+input:checked+.toggle-slider:before {
+    transform: translateX(20px);
+}
+
+.filter-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.9rem;
+    color: #ccc;
+    cursor: pointer;
+    user-select: none;
+    margin-right: 15px;
+}
+
+/* --- Domain Manager & Wiki Management --- */
+.wiki-management {
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: 5px;
+    padding: 20px;
+    margin-top: 20px;
+}
+
+.wiki-management h2 {
+    margin-bottom: 20px;
+    color: var(--primary-color, #4dabf7);
+}
+
+.domain-add-form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px dashed rgba(255, 255, 255, 0.1);
+    margin-bottom: 20px;
+}
+
+.domain-add-form input {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white;
+    border-radius: 4px;
+    padding: 8px 12px;
+}
+
+.entry-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.entry-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.2);
+    margin-bottom: 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.entry-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.entry-image {
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
+    object-fit: contain;
+    background: #fff;
+}
+
+.entry-name {
+    font-weight: 600;
+    color: #eee;
+}
+
+.entry-actions {
+    display: flex;
+    gap: 5px;
+}
+
+.action-btn {
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    font-size: 0.8rem;
+}
+
+.update-btn {
+    background-color: #1976d2;
+    color: white;
+}
+
+.remove-btn {
+    background-color: #d32f2f;
+    color: white;
+}
+
+.visit-btn {
+    background: transparent;
+    color: #4dabf7;
+    text-decoration: none;
+}
+
+.discovery-search {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 15px;
+}
+
+.discovery-search-input {
+    flex: 1;
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(0, 0, 0, 0.3);
+    color: white;
+}

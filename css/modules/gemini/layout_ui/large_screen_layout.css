@@ -1,0 +1,67 @@
+@media (min-width: 1200px) {
+    .demo-content {
+        display: grid;
+        grid-template-columns: minmax(280px, 320px) 1fr;
+        /* More horizontal room for chat */
+        gap: 0px;
+        align-items: start;
+        min-height: auto;
+        height: auto;
+    }
+
+    .left-column {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        max-height: calc(100vh - 140px);
+        overflow-y: auto;
+        padding-right: 4px;
+    }
+
+    .left-column::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    .left-column::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .left-column::-webkit-scrollbar-thumb {
+        background-color: rgba(0, 0, 0, 0.2);
+        border-radius: 4px;
+    }
+
+    .left-column::-webkit-scrollbar-thumb:hover {
+        background-color: rgba(0, 0, 0, 0.35);
+    }
+
+    .right-column {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        width: 100%;
+    }
+
+    .chat-container {
+        overflow: hidden;
+        /* Ensure flex context for children shrinking */
+        display: flex;
+        flex-direction: column;
+        /* Center content */
+        width: 100%;
+        max-width: 1000px;
+        margin-left: auto;
+        margin-right: auto;
+        box-sizing: border-box;
+        /* Crucial for width: 100% + padding */
+    }
+
+    .text-input-section {
+        /* Match chat container width behavior */
+        width: 100%;
+        max-width: 800px;
+        margin-left: auto;
+        margin-right: auto;
+        box-sizing: border-box;
+    }
+}

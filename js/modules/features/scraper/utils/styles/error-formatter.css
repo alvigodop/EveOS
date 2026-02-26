@@ -1,0 +1,433 @@
+/**
+ * Error Formatter CSS
+ * Styles for the error formatter component that provides readable error messages
+ * 
+ * @version 1.0.0
+ */
+
+.error-formatter-container {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: rgba(255, 255, 255, 0.98);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    margin: 15px 0;
+    overflow: hidden;
+    border: 1px solid #e0e0e0;
+}
+
+.error-formatter-header {
+    background-color: #f0f0f0;
+    padding: 12px 16px;
+    border-bottom: 1px solid #e0e0e0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.error-formatter-title {
+    color: #333;
+    font-weight: 600;
+    font-size: 16px;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.error-formatter-icon {
+    width: 20px;
+    height: 20px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.error-formatter-icon svg {
+    fill: currentColor;
+}
+
+.error-formatter-type {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    color: white;
+}
+
+.error-formatter-type.error {
+    background-color: #e74c3c;
+}
+
+.error-formatter-type.warning {
+    background-color: #f39c12;
+}
+
+.error-formatter-type.info {
+    background-color: #3498db;
+}
+
+.error-formatter-type.cors {
+    background-color: #9b59b6;
+}
+
+.error-formatter-type.network {
+    background-color: #16a085;
+}
+
+.error-formatter-content {
+    padding: 16px;
+}
+
+.error-formatter-message {
+    margin: 0 0 15px 0;
+    color: #333;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.error-formatter-details {
+    margin: 0 0 15px 0;
+    color: #555;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.error-formatter-code {
+    background-color: #f8f8f8;
+    padding: 12px;
+    border-radius: 4px;
+    border: 1px solid #eee;
+    font-family: Consolas, monospace;
+    font-size: 13px;
+    white-space: pre-wrap;
+    overflow-x: auto;
+    color: #333;
+    margin: 0 0 15px 0;
+}
+
+.error-formatter-location {
+    font-size: 13px;
+    color: #666;
+    margin: 0 0 15px 0;
+}
+
+.error-formatter-location-file {
+    font-weight: 500;
+}
+
+.error-formatter-location-line {
+    font-weight: 500;
+}
+
+.error-formatter-stack {
+    font-family: Consolas, monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    background-color: #f8f8f8;
+    padding: 12px;
+    border-radius: 4px;
+    border: 1px solid #eee;
+    overflow-x: auto;
+    color: #333;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.error-formatter-stack-item {
+    margin-bottom: 4px;
+}
+
+.error-formatter-footer {
+    background-color: #f8f8f8;
+    padding: 12px 16px;
+    border-top: 1px solid #e0e0e0;
+    font-size: 13px;
+    color: #666;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.error-formatter-time {
+    font-size: 12px;
+    color: #777;
+}
+
+.error-formatter-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.error-formatter-action-button {
+    padding: 6px 12px;
+    background-color: #f8f8f8;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    color: #333;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.error-formatter-action-button:hover {
+    background-color: #eee;
+    border-color: #ccc;
+}
+
+.error-formatter-action-button.primary {
+    background-color: #3498db;
+    border-color: #2980b9;
+    color: white;
+}
+
+.error-formatter-action-button.primary:hover {
+    background-color: #2980b9;
+}
+
+.error-formatter-action-button.danger {
+    background-color: #e74c3c;
+    border-color: #c0392b;
+    color: white;
+}
+
+.error-formatter-action-button.danger:hover {
+    background-color: #c0392b;
+}
+
+.error-formatter-help-link {
+    color: #3498db;
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.2s;
+}
+
+.error-formatter-help-link:hover {
+    color: #2980b9;
+    text-decoration: underline;
+}
+
+.error-formatter-suggestions {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid #eee;
+}
+
+.error-formatter-suggestions-title {
+    font-weight: 600;
+    color: #333;
+    margin: 0 0 8px 0;
+    font-size: 14px;
+}
+
+.error-formatter-suggestions-list {
+    margin: 0;
+    padding: 0 0 0 20px;
+    list-style-type: disc;
+}
+
+.error-formatter-suggestion-item {
+    margin-bottom: 5px;
+    color: #555;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.error-formatter-copy-button {
+    background: none;
+    border: none;
+    color: #3498db;
+    cursor: pointer;
+    padding: 0;
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.error-formatter-copy-button:hover {
+    color: #2980b9;
+    text-decoration: underline;
+}
+
+.error-formatter-collapsible {
+    margin: 10px 0;
+}
+
+.error-formatter-collapsible-header {
+    padding: 8px 12px;
+    background-color: #f5f5f5;
+    border: 1px solid #eee;
+    border-radius: 4px;
+    font-weight: 500;
+    color: #333;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    user-select: none;
+}
+
+.error-formatter-collapsible-header:hover {
+    background-color: #f0f0f0;
+}
+
+.error-formatter-collapsible-content {
+    display: none;
+    padding: 10px;
+    border: 1px solid #eee;
+    border-top: none;
+    border-radius: 0 0 4px 4px;
+    background-color: #fff;
+}
+
+.error-formatter-collapsible.expanded .error-formatter-collapsible-content {
+    display: block;
+}
+
+/* Animation for the error formatter */
+@keyframes errorFormatterFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.error-formatter-animate {
+    animation: errorFormatterFadeIn 0.3s ease-out forwards;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .error-formatter-container {
+        background-color: rgba(40, 40, 40, 0.98);
+        border-color: #444;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+    
+    .error-formatter-header {
+        background-color: #333;
+        border-bottom-color: #444;
+    }
+    
+    .error-formatter-title {
+        color: #eee;
+    }
+    
+    .error-formatter-content {
+        color: #ccc;
+    }
+    
+    .error-formatter-message {
+        color: #ddd;
+    }
+    
+    .error-formatter-details {
+        color: #bbb;
+    }
+    
+    .error-formatter-code {
+        background-color: #282828;
+        border-color: #444;
+        color: #ddd;
+    }
+    
+    .error-formatter-location {
+        color: #aaa;
+    }
+    
+    .error-formatter-stack {
+        background-color: #282828;
+        border-color: #444;
+        color: #ddd;
+    }
+    
+    .error-formatter-footer {
+        background-color: #333;
+        border-top-color: #444;
+        color: #aaa;
+    }
+    
+    .error-formatter-action-button {
+        background-color: #444;
+        border-color: #555;
+        color: #ddd;
+    }
+    
+    .error-formatter-action-button:hover {
+        background-color: #505050;
+        border-color: #666;
+    }
+    
+    .error-formatter-help-link {
+        color: #5dade2;
+    }
+    
+    .error-formatter-help-link:hover {
+        color: #7fb3d5;
+    }
+    
+    .error-formatter-suggestions {
+        border-top-color: #444;
+    }
+    
+    .error-formatter-suggestions-title {
+        color: #ddd;
+    }
+    
+    .error-formatter-suggestion-item {
+        color: #bbb;
+    }
+    
+    .error-formatter-collapsible-header {
+        background-color: #333;
+        border-color: #444;
+        color: #ddd;
+    }
+    
+    .error-formatter-collapsible-header:hover {
+        background-color: #3a3a3a;
+    }
+    
+    .error-formatter-collapsible-content {
+        border-color: #444;
+        background-color: #282828;
+    }
+}
+
+/* Tooltip styling */
+.error-formatter-tooltip {
+    position: relative;
+    display: inline-block;
+    margin-left: 5px;
+    color: #757575;
+    cursor: help;
+}
+
+.error-formatter-tooltip .tooltip-text {
+    visibility: hidden;
+    width: 200px;
+    background-color: #616161;
+    color: #fff;
+    text-align: center;
+    border-radius: 4px;
+    padding: 5px;
+    position: absolute;
+    z-index: 1;
+    bottom: 125%;
+    left: 50%;
+    margin-left: -100px;
+    opacity: 0;
+    transition: opacity 0.3s;
+    font-size: 12px;
+    font-weight: normal;
+}
+
+.error-formatter-tooltip:hover .tooltip-text {
+    visibility: visible;
+    opacity: 1;
+} 

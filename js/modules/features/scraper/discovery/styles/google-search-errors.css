@@ -1,0 +1,137 @@
+/**
+ * Google Search Error Styles
+ * Error messages, no-results states, and retry buttons for Google search
+ * Extracted from google-search-scraper.css for modularity
+ * @version 1.0.0
+ */
+
+/* Enhanced error message for Google search failure */
+.google-search-error {
+    background-color: #fef7e0;
+    border-left: 4px solid #f6bd60;
+    padding: 15px;
+    margin: 15px 0;
+    border-radius: 4px;
+    color: #333;
+    font-size: 14px;
+    line-height: 1.5;
+    display: flex;
+    align-items: flex-start;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.google-search-error-icon {
+    font-size: 24px;
+    margin-right: 12px;
+    color: #e67e22;
+}
+
+.google-search-error-content {
+    flex: 1;
+}
+
+.google-search-error h3 {
+    margin: 0 0 10px 0;
+    font-size: 16px;
+    color: #d35400;
+}
+
+.google-search-error p {
+    margin: 0 0 8px 0;
+    font-size: 14px;
+}
+
+.google-search-error ul {
+    margin: 8px 0;
+    padding-left: 20px;
+}
+
+.google-search-error li {
+    margin-bottom: 5px;
+}
+
+.google-search-retry {
+    margin-top: 15px;
+    background-color: #f6bd60;
+    color: #333;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    transition: background-color 0.2s;
+}
+
+.google-search-retry:hover {
+    background-color: #e67e22;
+    color: white;
+}
+
+.google-search-retry-icon {
+    margin-right: 6px;
+}
+
+/* Error Message - General */
+.error-message {
+    padding: 20px;
+    margin: 20px 0;
+    background-color: #fff3f3;
+    border-left: 4px solid #e53935;
+    color: #d32f2f;
+}
+
+.error-message h3 {
+    margin-top: 0;
+    color: #c62828;
+}
+
+/* No Results State */
+.no-results {
+    padding: 20px;
+    margin: 20px 0;
+    background-color: #f5f5f5;
+    border-left: 4px solid #9e9e9e;
+    color: #616161;
+}
+
+.no-results h3 {
+    margin-top: 0;
+    color: #616161;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .google-search-error {
+        background-color: #3d3520;
+        border-left-color: #f6bd60;
+        color: #e0e0e0;
+    }
+
+    .google-search-error h3 {
+        color: #f6bd60;
+    }
+
+    .google-search-error-icon {
+        color: #f6bd60;
+    }
+
+    .error-message {
+        background-color: #3d2020;
+        color: #ffb4ab;
+    }
+
+    .error-message h3 {
+        color: #ff8a80;
+    }
+
+    .no-results {
+        background-color: #2a2a2a;
+        color: #bbb;
+    }
+
+    .no-results h3 {
+        color: #999;
+    }
+}

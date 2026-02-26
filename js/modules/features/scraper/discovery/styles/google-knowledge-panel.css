@@ -1,0 +1,91 @@
+/**
+ * Google Knowledge Panel CSS
+ * Styles for Google Knowledge Panel UI component
+ * Extracted from google-search-scraper.css for modularity
+ * @version 1.0.0
+ */
+
+/* Google Knowledge Panel style for featured wikis */
+.google-knowledge-panel {
+    margin-top: 20px;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    box-shadow: 0 1px 6px rgba(32, 33, 36, 0.12);
+}
+
+.google-knowledge-panel-title {
+    font-size: 18px;
+    font-weight: 500;
+    color: #202124;
+    margin-bottom: 12px;
+}
+
+.google-knowledge-panel-content {
+    display: flex;
+    gap: 15px;
+}
+
+.google-knowledge-panel-image {
+    width: 80px;
+    height: 80px;
+    object-fit: cover;
+    border-radius: 4px;
+}
+
+.google-knowledge-panel-description {
+    flex: 1;
+    font-size: 14px;
+    color: #4d5156;
+    line-height: 1.5;
+}
+
+.google-knowledge-panel-facts {
+    margin-top: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.google-knowledge-panel-fact {
+    font-size: 13px;
+    color: #4d5156;
+    background-color: #fff;
+    padding: 5px 10px;
+    border-radius: 4px;
+    border: 1px solid #dfe1e5;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .google-knowledge-panel-content {
+        flex-direction: column;
+    }
+
+    .google-knowledge-panel-image {
+        width: 60px;
+        height: 60px;
+    }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .google-knowledge-panel {
+        background-color: #2d2d2d;
+        box-shadow: 0 1px 6px rgba(0, 0, 0, 0.3);
+    }
+
+    .google-knowledge-panel-title {
+        color: #e8eaed;
+    }
+
+    .google-knowledge-panel-description {
+        color: #bdc1c6;
+    }
+
+    .google-knowledge-panel-fact {
+        background-color: #3c3c3c;
+        color: #bdc1c6;
+        border-color: #5f6368;
+    }
+}

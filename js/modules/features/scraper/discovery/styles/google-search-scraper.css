@@ -1,0 +1,365 @@
+/**
+ * Google Search Scraper CSS
+ * Styles for Google search results, loading indicators, and error messages
+ * Version: 1.0.3
+ */
+
+/* Import shared component styles */
+@import '../../utils/styles/loading-indicators.css';
+@import '../../core/styles/dark-mode.css';
+@import '../../ui/search-controls/toggle-switches.css';
+@import '../../search/shared/search-forms.css';
+
+/* Import extracted modular styles */
+@import 'google-knowledge-panel.css';
+@import 'empty-states.css';
+@import 'google-search-errors.css';
+@import 'google-result-items.css';
+@import 'google-style-interface.css';
+@import 'wiki-search-results.css';
+
+/* Google Search Scraper CSS */
+
+/* Additional Google UI styles to complement existing styles in discovery.css */
+
+/* Google search result containers */
+.google-search-results-container {
+    padding: 10px 0;
+}
+
+.google-search-results-container.all-results,
+.google-search-results-container.fandom-results {
+    min-height: 100px;
+}
+
+/* Google search result highlighting - for scraped results */
+.google-result-highlight {
+    font-weight: bold;
+    color: #000;
+    background-color: rgba(66, 133, 244, 0.1);
+    padding: 0 2px;
+}
+
+/* Google search result container enhancements */
+.google-scraped-results {
+    padding: 10px 0;
+    font-family: Arial, sans-serif;
+}
+
+/* Loading and error states */
+.google-fetch-error {
+    background-color: #fce8e6;
+    color: #d93025;
+    padding: 10px 15px;
+    border-radius: 5px;
+    margin: 20px 0;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.google-retry-btn {
+    margin-top: 10px;
+    background-color: #1a73e8;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.google-retry-btn:hover {
+    background-color: #1765cc;
+}
+
+/* Google search result with additional scraped data styling */
+.google-scraped-result {
+    margin-bottom: 25px;
+    position: relative;
+    padding: 5px 10px;
+    border-radius: 8px;
+    transition: background-color 0.2s;
+}
+
+.google-scraped-result:hover {
+    background-color: #f8f9fa;
+}
+
+/* Note: Google loading and spinner styles (.google-loading, .google-spinner, 
+   .google-spinner-dot, @keyframes google-spinner-pulse) are now imported from loading-indicators.css */
+
+
+.google-warning {
+    background-color: #fff3cd;
+    border: 1px solid #ffeeba;
+    color: #856404;
+    padding: 10px;
+    border-radius: 4px;
+    margin-bottom: 10px;
+}
+
+/* Metadata display */
+.google-result-metadata {
+    display: flex;
+    gap: 10px;
+    margin-top: 8px;
+    font-size: 13px;
+    color: #70757a;
+}
+
+.google-result-meta-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.google-result-meta-item svg {
+    width: 14px;
+    height: 14px;
+    fill: currentColor;
+}
+
+/* Enhanced thumbnail display */
+.google-result-thumbnail {
+    width: 40px;
+    height: 40px;
+    object-fit: cover;
+    border-radius: 4px;
+    float: left;
+    margin-right: 12px;
+    margin-top: 5px;
+    border: 1px solid #dfe1e5;
+}
+
+/* Suggestions styling */
+.google-suggestions {
+    margin-top: 30px;
+    padding-top: 15px;
+    border-top: 1px solid #e8eaed;
+}
+
+.google-suggestions-title {
+    font-size: 16px;
+    color: #202124;
+    margin-bottom: 15px;
+}
+
+.google-suggestions-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.google-suggestion {
+    padding: 8px 12px;
+    background-color: #f1f3f4;
+    border-radius: 18px;
+    font-size: 14px;
+    color: #202124;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+}
+
+.google-suggestion:hover {
+    background-color: #e8eaed;
+}
+
+.google-suggestion svg {
+    margin-right: 8px;
+    width: 16px;
+    height: 16px;
+    fill: #5f6368;
+}
+
+/* Proxy status indicator */
+.google-proxy-status {
+    display: flex;
+    align-items: center;
+    font-size: 12px;
+    color: #5f6368;
+    margin-top: 20px;
+    padding-top: 10px;
+    border-top: 1px solid #e8eaed;
+}
+
+.google-proxy-status .status-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 6px;
+}
+
+.google-proxy-status .status-indicator.success {
+    background-color: #34a853;
+}
+
+.google-proxy-status .status-indicator.failed {
+    background-color: #ea4335;
+}
+
+.google-proxy-status .status-indicator.warning {
+    background-color: #fbbc05;
+}
+
+/* Note: Google Knowledge Panel styles (.google-knowledge-panel, etc.) 
+   are now imported from google-knowledge-panel.css */
+
+/* Responsive adjustments for thumbnails */
+@media (max-width: 768px) {
+    .google-result-thumbnail {
+        width: 30px;
+        height: 30px;
+    }
+}
+
+/* Google error message styling */
+.google-error-message {
+    margin: 20px 0;
+    padding: 15px 20px;
+    background-color: #f8f9fa;
+    border-left: 4px solid #ea4335;
+    border-radius: 4px;
+    color: #202124;
+}
+
+.google-error-message h3 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    color: #ea4335;
+    font-size: 16px;
+}
+
+.google-error-message p {
+    margin: 10px 0;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.google-error-message ul {
+    margin: 10px 0;
+    padding-left: 20px;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+/* Fallback and potential wiki notes */
+.fallback-note,
+.potential-note {
+    margin-top: 15px;
+    padding: 10px 15px;
+    background-color: #e8f0fe;
+    border-radius: 4px;
+    font-size: 14px;
+    color: #1a73e8;
+    border-left: 4px solid #1a73e8;
+}
+
+/* Note: .fallback-message, .fallback-message p, .fallback-message .spinner 
+   are now imported from empty-states.css */
+
+/* Google Search Scraper Module Styles */
+
+/* Container for search results */
+.discovery-results {
+    padding: 20px;
+    font-family: 'Arial', sans-serif;
+}
+
+/* Note: Google result item styles (.google-result, .google-search-result, 
+   .google-search-result-title, .google-search-result-url, .google-search-result-snippet,
+   .direct-search-note, .small-text, .text-button) are now imported from google-result-items.css */
+
+
+/* Note: Google-style interface styles (.google-style-results, .google-search-info,
+   .google-search-results-list, .google-result-url, .google-result-favicon, .google-result-domain,
+   .google-result-title, .google-result-description, .google-no-results, .google-error-icon,
+   .google-error-content) are now imported from google-style-interface.css */
+
+/* Note: Loading indicator (.google-loading, .google-spinner, .google-spinner-dot, 
+   @keyframes google-spinner-animation) are now imported from loading-indicators.css */
+
+/* Note: Search error styles (.google-search-error) - base styles are defined above;
+   duplicate definitions removed, dark mode in dark-mode.css */
+
+/* Note: Toggle switch styling (.switch, .slider, .toggle-option, .search-toggle-options)
+   and their dark mode are now imported from toggle-switches.css and dark-mode.css */
+
+
+/* Google search toggle warning icon - for JavaScript rendering requirement */
+.google-warning-icon {
+    display: inline-block;
+    margin-left: 8px;
+    font-size: 16px;
+    color: #f1c40f;
+    cursor: help;
+    animation: pulse 2s infinite;
+}
+
+/* Note: @keyframes pulse is imported from core/animations.css */
+
+/* JavaScript rendering notice styling */
+.js-rendering-notice {
+    font-size: 12px;
+    background-color: #fff8e1;
+    border-left: 4px solid #f1c40f;
+    padding: 8px 12px;
+    margin: 10px 0;
+    border-radius: 0 4px 4px 0;
+}
+
+.js-rendering-notice code {
+    background-color: rgba(0, 0, 0, 0.05);
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-family: monospace;
+}
+
+/* Dark mode support for new elements */
+@media (prefers-color-scheme: dark) {
+    .google-warning-icon {
+        color: #f39c12;
+    }
+
+    .js-rendering-notice {
+        background-color: #2c2c2c;
+        border-left-color: #f39c12;
+        color: #e0e0e0;
+    }
+
+    .js-rendering-notice code {
+        background-color: rgba(255, 255, 255, 0.1);
+    }
+}
+
+/* Google Search Scraper Styles */
+
+/* Note: Search form styles (.search-container, .search-toggles, .search-form, 
+   .search-button, .search-message, .initial-message, .search-results-container) 
+   are now imported from search-forms.css */
+
+
+/* Note: Loading styles (.loading, @keyframes spin) are now imported from loading-indicators.css */
+
+
+/* Note: .error-message and .no-results styles are now imported from google-search-errors.css */
+
+/* Note: Search result wiki item styles (.search-result-item, .wiki-link, .wiki-favicon,
+   .wiki-info, .wiki-title, .wiki-description, .wiki-url) 
+   are now imported from wiki-search-results.css */
+
+/* Responsive Styles */
+@media (max-width: 768px) {
+    .search-form {
+        flex-direction: column;
+    }
+
+    #search-input {
+        border-radius: 4px;
+        margin-bottom: 10px;
+    }
+
+    .search-button {
+        border-radius: 4px;
+        width: 100%;
+    }
+}

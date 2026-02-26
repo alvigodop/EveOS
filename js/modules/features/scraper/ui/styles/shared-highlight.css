@@ -1,0 +1,55 @@
+/* ==============================
+ * SHARED HIGHLIGHT STYLES 
+ * These styles are used across modules for consistent highlighting
+ * ============================== */
+.search-highlight {
+    background-color: var(--highlight-color, rgba(255, 201, 14, 0.6));
+    border-radius: 2px;
+    padding: 0 2px;
+    font-weight: bold;
+    display: inline;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+    color: var(--text-dark, #333);
+    position: relative;
+    z-index: 1;
+    text-decoration: none;
+}
+
+.search-highlight-secondary {
+    background-color: rgba(255, 201, 14, 0.3);
+    border-radius: 2px;
+    padding: 0 2px;
+    display: inline;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+    color: var(--text-dark, #333);
+    position: relative;
+    z-index: 1;
+}
+
+/* Fix for the blinking issue - ensure highlights don't cause layout shifts */
+.result-title span, 
+.result-snippet span,
+.wiki-title span, 
+.wiki-description span {
+    line-height: inherit;
+    vertical-align: baseline;
+}
+
+/* Mark elements (primary highlighting method used across the application) */
+mark {
+    background-color: var(--highlight-color, rgba(255, 201, 14, 0.6));
+    border-radius: 2px;
+    padding: 0 2px;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+    color: var(--text-dark, #333);
+    font-weight: bold;
+}
+
+/* Secondary mark elements (for less important matches) */
+mark.secondary {
+    background-color: rgba(255, 201, 14, 0.3);
+    font-weight: normal;
+} 

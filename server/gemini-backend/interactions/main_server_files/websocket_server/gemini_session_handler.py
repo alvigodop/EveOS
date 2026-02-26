@@ -1,0 +1,95 @@
+from .session_handler.connection_setup import setup_connection_resources, acquire_session_slot
+from .session_handler.config_manager import handle_initial_config
+from .session_handler.session_loop import execute_session_loop
+import websockets
+import asyncio
+import json
+from main_server_files.session_management.session_manager import cleanup_resources
+from main_server_files.api_configuration.api_client_manager import initialize_api_client
+
+async def gemini_session_handler(websocket, client):
+    """Handles the interaction with Gemini API within a websocket session.
+    
+    Args:
+        websocket: The websocket connection
+        client: The default Gemini API client instance
+    """
+    # Track active connections to help with cleanup
+    connection_id = id(websocket)
+    print(f"New connection established: {connection_id}")
+    
+    # 1. SETUP CONNECTION RESOURCES
+    # Initially use the default client
+    connection_monitor, audio_processor, error_handler = setup_connection_resources(websocket, client, connection_id)
+    
+    # Start the connection monitor task
+    monitor_task = asyncio.create_task(connection_monitor.monitor_connection())
+    
+    try:
+        # 2. ACQUIRE SESSION SLOT
+        slot_acquired = await acquire_session_slot(connection_monitor, error_handler, connection_id)
+        if not slot_acquired:
+            return
+
+        # 3. INITIAL CONFIGURATION HANDSHAKE
+        voice_name, config_data = await handle_initial_config(websocket, connection_monitor, error_handler, connection_id)
+        if not voice_name:
+            # Error handled inside config manager
+            return
+            
+        # 3.5 CHECK FOR PER-SESSION API KEY
+        session_api_key = config_data.get("apiKey")
+        if session_api_key:
+            print(f"Connection {connection_id}: Using client-provided API key")
+            session_client = initialize_api_client(session_api_key)
+            if session_client:
+                # Update client for this session
+                client = session_client
+                # Also update audio processor's client
+                audio_processor.client = client
+                print(f"Connection {connection_id}: Successfully initialized session-specific client")
+            else:
+                print(f"Connection {connection_id}: Failed to initialize session-specific client")
+                if connection_monitor.is_websocket_open():
+                    await connection_monitor.safe_send(json.dumps({
+                        "text": "Error: Provided API key is invalid or failed to initialize.",
+                        "is_error": True,
+                        "is_system_message": True
+                    }))
+                return
+        elif not client:
+            # Check if we have no client at all (neither server default nor session-specific)
+            print(f"Connection {connection_id}: No API key available (none on server, none provided by client)")
+            if connection_monitor.is_websocket_open():
+                await connection_monitor.safe_send(json.dumps({
+                    "text": "Error: No API key configured. Please provide one in Session Controls settings.",
+                    "is_error": True,
+                    "is_system_message": True
+                }))
+            return
+
+        # 4. EXECUTE MAIN SESSION LOOP
+        await execute_session_loop(
+            websocket, 
+            client, 
+            connection_monitor, 
+            audio_processor, 
+            error_handler, 
+            connection_id,
+            voice_name,
+            config_data,
+            monitor_task
+        )
+
+    except asyncio.TimeoutError:
+        await error_handler.handle_timeout_error()
+    except websockets.exceptions.ConnectionClosed as e:
+        await error_handler.handle_connection_closed(e)
+    except Exception as e:
+        await error_handler.handle_session_error(e)
+    finally:
+        # Always clean up resources
+        if not monitor_task.done():
+            monitor_task.cancel()
+        await cleanup_resources(connection_id)
+        print(f"Connection {connection_id} handler completed")

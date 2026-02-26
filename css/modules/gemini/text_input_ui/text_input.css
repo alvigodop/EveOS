@@ -1,0 +1,23 @@
+.text-input-section {
+    display: flex;
+    gap: 12px;
+    /* margin-top removed - handled by parent gap */
+    padding: 16px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    align-items: center;
+    /* Vertically center content */
+}
+
+.mdl-textfield {
+    flex: 1;
+    margin: 0;
+}
+
+#text-input-field-placeholder {
+    flex: 1;
+    display: flex;
+    width: 100%;
+    /* Ensure full width availability */
+}

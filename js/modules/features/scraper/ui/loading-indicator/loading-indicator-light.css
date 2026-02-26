@@ -1,0 +1,55 @@
+/**
+ * Loading Indicator Light Theme
+ * Extracted from loading-indicator.css for modularity
+ * 
+ * @version 1.0.0
+ */
+
+/* ============================================
+   LIGHT THEME VARIANT
+   ============================================ */
+
+#loadingIndicator.light-theme {
+    background: rgba(255, 255, 255, 0.95);
+    color: #333;
+    border: 1px solid #ddd;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+#loadingIndicator.light-theme .indicator-title {
+    color: #666;
+    border-bottom-color: #eee;
+}
+
+#loadingIndicator.light-theme .status-text {
+    color: #333;
+}
+
+#loadingIndicator.light-theme .stats-label {
+    color: #666;
+}
+
+#loadingIndicator.light-theme .stats-value {
+    color: #333;
+}
+
+#loadingIndicator.light-theme .expanded-content {
+    border-top-color: #eee;
+}
+
+#loadingIndicator.light-theme .wave-container {
+    background: #f0f0f0;
+    border-color: #ddd;
+}
+
+#loadingIndicator.light-theme .wave {
+    background: linear-gradient(90deg,
+            transparent,
+            rgba(33, 150, 243, 0.4) 50%,
+            transparent 100%);
+}
+
+#loadingIndicator.light-theme:hover {
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+    background: rgba(255, 255, 255, 1);
+}

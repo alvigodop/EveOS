@@ -1,0 +1,349 @@
+/**
+ * Result Card CSS
+ * Core styles for individual result cards/items
+ * Extracted from result-display.css
+ */
+
+/* Result Card (Grid View) */
+.result-card {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid rgba(128, 128, 128, 0.2);
+    border-radius: 12px;
+    overflow: hidden;
+    background-color: var(--card-bg);
+    transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+    height: 100%;
+    position: relative;
+}
+
+.result-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+    border-color: var(--accent);
+}
+
+.result-header {
+    padding: 0;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 130px;
+    background-color: var(--bg-color);
+}
+
+.result-thumbnail {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.result-thumbnail img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    transition: transform 0.2s;
+}
+
+.result-card:hover .result-thumbnail img {
+    transform: scale(1.05);
+}
+
+.result-title {
+    padding: 0.75rem;
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    border-bottom: 1px solid rgba(128, 128, 128, 0.1);
+    color: var(--text-main);
+}
+
+.result-content {
+    padding: 0.75rem;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.result-snippet {
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    -webkit-box-orient: vertical;
+    text-overflow: ellipsis;
+}
+
+.result-snippet.expanded {
+    max-height: none !important;
+    display: block !important;
+    -webkit-line-clamp: unset;
+    line-clamp: unset;
+    -webkit-box-orient: vertical;
+}
+
+.result-domain {
+    font-size: 0.8rem;
+    color: #888;
+    margin-bottom: 0.5rem;
+}
+
+.result-footer {
+    padding: 0.75rem;
+    border-top: 1px solid rgba(128, 128, 128, 0.1);
+    display: flex;
+    justify-content: space-between;
+}
+
+.result-action {
+    font-size: 0.85rem;
+    cursor: pointer;
+    text-decoration: none;
+    color: var(--wiki-blue, #0645ad);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 500;
+    transition: color 0.2s ease;
+    padding: 0;
+    background: none;
+    border: none;
+}
+
+.result-action:hover {
+    color: var(--wiki-link-hover, #0b0080);
+    text-decoration: underline;
+}
+
+.result-action .external-link-icon,
+.result-action::after {
+    font-size: 0.75em;
+    opacity: 0.7;
+}
+
+/* Result Item (List View) */
+.result-item {
+    border: 1px solid rgba(128, 128, 128, 0.2);
+    border-radius: 12px;
+    background-color: var(--card-bg);
+    overflow: hidden;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.result-item:hover {
+    transform: translateX(4px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.result-row {
+    display: flex;
+    padding: 0.75rem;
+}
+
+.result-item .result-thumbnail {
+    width: 80px;
+    height: 80px;
+    flex-shrink: 0;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-right: 1rem;
+}
+
+.result-item .result-icon {
+    width: 60px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--bg-color);
+    border-radius: 4px;
+    margin-right: 1rem;
+}
+
+.result-item .result-content {
+    flex-grow: 1;
+    padding: 0;
+}
+
+.result-item .result-title {
+    border: none;
+    padding: 0;
+    margin-bottom: 0.35rem;
+}
+
+.result-item .result-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-left: 1rem;
+    flex-shrink: 0;
+}
+
+/* Common Components */
+.result-categories {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 12px;
+}
+
+.category-tag {
+    font-size: 0.75rem;
+    padding: 3px 10px;
+    border-radius: 6px;
+    background-color: var(--input-bg, rgba(128, 128, 128, 0.1));
+    color: var(--text-main);
+    border: 1px solid rgba(128, 128, 128, 0.15);
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.category-tag:hover {
+    background-color: var(--accent);
+    color: #000;
+    border-color: var(--accent);
+    transform: scale(1.02);
+}
+
+.result-link {
+    color: var(--wiki-blue, #3498db);
+    text-decoration: none;
+    font-size: 0.9rem;
+    display: inline-flex;
+    align-items: center;
+}
+
+.result-link:hover {
+    text-decoration: underline;
+}
+
+.relevance-indicator {
+    height: 3px;
+    background-color: rgba(128, 128, 128, 0.1);
+    border-radius: 2px;
+    margin-bottom: 12px;
+    overflow: hidden;
+}
+
+.relevance-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--secondary-color, #4caf50), #81c784);
+    border-radius: 2px;
+}
+
+/* Special Styling */
+.result-card.main-community,
+.result-item.main-community {
+    border-color: #1565c0;
+    background-color: #f8fbff;
+}
+
+.result-card.main-community:hover,
+.result-item.main-community:hover {
+    box-shadow: 0 5px 15px rgba(21, 101, 192, 0.2);
+}
+
+.main-community .result-title {
+    color: #1565c0;
+}
+
+.result-content .content-type-badge {
+    align-self: flex-start;
+    margin-bottom: 5px;
+}
+
+.result-content .status-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    margin-left: 8px;
+    vertical-align: middle;
+}
+
+/* Type Specific Styling */
+.result-type-community {
+    border-left: 4px solid #1565c0;
+}
+
+.result-source-wikipedia .result-title {
+    color: #347bff;
+}
+
+.result-source-fandom .result-title {
+    color: #fa005a;
+}
+
+.result-type-article {
+    border-left: 4px solid #9c27b0;
+}
+
+.result-type-category {
+    border-left: 4px solid #ff9800;
+}
+
+.result-type-image {
+    border-left: 4px solid #4caf50;
+}
+
+.result-card[data-fallback="true"],
+.result-item[data-fallback="true"] {
+    opacity: 0.8;
+    background-color: #f9f9f9;
+}
+
+.view-more-btn {
+    font-size: 0.8rem;
+    color: var(--primary-color);
+    cursor: pointer;
+    margin-bottom: 10px;
+    display: none;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.view-more-btn:hover {
+    background-color: rgba(128, 128, 128, 0.1);
+    transform: translateX(2px);
+}
+
+.view-more-btn.visible {
+    display: inline-block;
+}
+
+/* Responsive Overrides for Cards */
+@media (max-width: 768px) {
+    .result-item .result-thumbnail {
+        width: 60px;
+        height: 60px;
+    }
+}
+
+@media (max-width: 480px) {
+    .result-row {
+        flex-direction: column;
+    }
+
+    .result-item .result-thumbnail {
+        width: 100%;
+        height: 140px;
+        margin-right: 0;
+        margin-bottom: 0.75rem;
+    }
+
+    .result-item .result-actions {
+        flex-direction: row;
+        margin-left: 0;
+        margin-top: 0.75rem;
+    }
+}

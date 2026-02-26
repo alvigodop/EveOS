@@ -1,0 +1,140 @@
+/**
+ * Connectivity Test Module CSS
+ */
+
+.connectivity-results {
+    background-color: var(--bg-color-secondary, #f0f0f0);
+    border-radius: var(--border-radius, 8px);
+    padding: 15px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.connectivity-results h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: var(--text-color-primary, #333);
+    border-bottom: 1px solid var(--border-color, #e0e0e0);
+    padding-bottom: 8px;
+}
+
+.connectivity-score {
+    font-size: 1.2rem;
+    margin-bottom: 15px;
+    text-align: center;
+}
+
+.connectivity-score .score-value {
+    font-size: 2rem;
+    font-weight: bold;
+    color: var(--accent-color, #4b9ed9);
+}
+
+.connectivity-summary {
+    display: flex;
+    justify-content: space-around;
+    margin-bottom: 15px;
+    font-size: 0.9rem;
+}
+
+.connectivity-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    margin-bottom: 15px;
+}
+
+.connectivity-table th {
+    background-color: var(--accent-color-light, #e1f0fb);
+    padding: 8px;
+    text-align: left;
+    color: var(--accent-color-dark, #2c5c80);
+    border-bottom: 2px solid var(--accent-color, #4b9ed9);
+}
+
+.connectivity-table td {
+    padding: 8px;
+    border-bottom: 1px solid var(--border-color, #e0e0e0);
+}
+
+.connectivity-table tr.success td:nth-child(2) {
+    color: var(--success-color, #2e8540);
+}
+
+.connectivity-table tr.failure td:nth-child(2) {
+    color: var(--error-color, #d83933);
+}
+
+.connectivity-table span.critical {
+    color: var(--error-color, #d83933);
+    font-weight: bold;
+}
+
+.connectivity-note {
+    font-size: 0.8rem;
+    font-style: italic;
+    color: var(--text-color-secondary, #666);
+}
+
+/* Button for running connectivity tests */
+.run-connectivity-test {
+    background-color: var(--accent-color, #4b9ed9);
+    color: white;
+    border: none;
+    border-radius: var(--border-radius, 4px);
+    padding: 8px 15px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    margin-bottom: 15px;
+    transition: background-color 0.2s;
+}
+
+.run-connectivity-test:hover {
+    background-color: var(--accent-color-dark, #2c5c80);
+}
+
+/* Status indicator for global connectivity */
+.connectivity-status {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.8rem;
+    margin-left: 10px;
+}
+
+.connectivity-status::before {
+    content: '';
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 5px;
+}
+
+.connectivity-status.good::before {
+    background-color: var(--success-color, #2e8540);
+}
+
+.connectivity-status.warning::before {
+    background-color: var(--warning-color, #ffbe2e);
+}
+
+.connectivity-status.error::before {
+    background-color: var(--error-color, #d83933);
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+    .connectivity-summary {
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .connectivity-summary div {
+        margin-bottom: 5px;
+    }
+    
+    .connectivity-table th:nth-child(3),
+    .connectivity-table td:nth-child(3) {
+        display: none;
+    }
+} 

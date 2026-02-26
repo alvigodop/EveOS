@@ -1,0 +1,21 @@
+/* Context Menus */
+.context-menu {
+    position: fixed;
+    display: none;
+    background: #222;
+    border: 1px solid #444;
+    z-index: 2000;
+    min-width: 150px;
+    border-radius: 8px;
+}
+
+.ctx-item {
+    padding: 10px 15px;
+    cursor: pointer;
+    color: #ddd;
+}
+
+.ctx-item:hover {
+    background: var(--accent);
+    color: #000;
+}

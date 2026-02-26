@@ -1,0 +1,36 @@
+/* Bulk Toolbar */
+#bulk-toolbar {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #222;
+    padding: 15px 30px;
+    border-radius: 50px;
+    border: 1px solid var(--accent);
+    display: none;
+    align-items: center;
+    gap: 15px;
+    box-shadow: 0 10px 40px black;
+    z-index: 2000;
+}
+
+body.bulk-active #bulk-toolbar {
+    display: flex;
+}
+
+.bulk-check {
+    width: 18px;
+    height: 18px;
+    margin-right: 10px;
+    display: none;
+    cursor: pointer;
+}
+
+body.bulk-active .bulk-check {
+    display: block;
+}
+
+body.bulk-active .actions {
+    display: none !important;
+}

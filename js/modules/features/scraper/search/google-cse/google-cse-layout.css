@@ -1,0 +1,347 @@
+/**
+ * Google CSE Layout CSS
+ * Container styles, visibility overrides, and fallback form styles
+ */
+
+/* [CRITICAL] Emergency visibility overrides - these ensure search boxes always display */
+#google-searchbox-container,
+#google-results-container,
+.google-cse-container,
+.gcse-searchbox-only,
+.gcse-searchresults-only,
+.gsc-control-cse,
+.gsc-control-wrapper-cse {
+    /* removed aggressive overrides */
+    z-index: 10 !important;
+}
+
+/* Main container styles */
+.google-cse-container {
+    padding: 10px 0;
+    margin: 0 0 15px 0;
+    min-height: 50px;
+    width: 100%;
+    box-sizing: border-box;
+    position: relative;
+}
+
+/* Search wrapper styles */
+.google-cse-wrapper {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    overflow: hidden;
+    background: #fff;
+}
+
+/* Search box styles */
+#google-searchbox-container {
+    padding: 10px;
+    background-color: #f5f5f5;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+/* Ensure search box is always visible */
+#google-searchbox-container .gsc-control-cse {
+    padding: 0 !important;
+    border: none !important;
+    background: transparent !important;
+}
+
+#google-searchbox-container .gsc-search-box {
+    margin-bottom: 0 !important;
+}
+
+#google-searchbox-container table.gsc-search-box {
+    margin-bottom: 0 !important;
+}
+
+/* Results container styles */
+#google-results-container {
+    min-height: 100px;
+    border-top: 1px solid #e0e0e0;
+    position: relative;
+}
+
+/* Add loading indicator when results container is empty AND visible */
+/* disabled to prevent stuck loading state */
+/*
+#google-results-container:empty::before {
+    content: "Loading search results...";
+    display: block;
+    padding: 20px;
+    text-align: center;
+    color: #666;
+    font-style: italic;
+}
+*/
+
+/* Hide loading indicator when parent section is hidden */
+#google-cse-section[style*="display: none"] #google-results-container:empty::before,
+#google-cse-section:not(:visible) #google-results-container:empty::before {
+    display: none !important;
+}
+
+#google-results-container.gsc-searching::before {
+    content: "Loading search results...";
+    display: block;
+    padding: 20px;
+    text-align: center;
+    color: #666;
+    font-style: italic;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    background: rgba(255, 255, 255, 0.9);
+}
+
+/* Prevent iframes from being used */
+#google-results-container iframe,
+#google-searchbox-container iframe {
+    display: none !important;
+}
+
+/* General Google CSE fixes */
+.gsc-control-cse {
+    background-color: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    font-family: var(--font-family, inherit) !important;
+}
+
+/* Search box styles */
+.gsc-search-box {
+    margin-bottom: 0 !important;
+    min-height: 36px !important;
+}
+
+.gcse-searchbox-only {
+    /* reduced overrides */
+}
+
+/* Make sure search box is never hidden */
+.gcse-searchbox-only table {
+    display: table !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
+.gsc-search-button {
+    margin-left: 2px !important;
+}
+
+.gsc-search-button-v2 {
+    background-color: var(--primary-color, #0060df) !important;
+    border-color: var(--primary-color-dark, #0050bc) !important;
+    padding: 9px 15px !important;
+    border-radius: 4px !important;
+}
+
+.gsc-search-button-v2:hover {
+    background-color: var(--primary-color-dark, #0050bc) !important;
+}
+
+.gsc-input-box {
+    border-radius: 4px !important;
+    border: 1px solid var(--border-color, #ddd) !important;
+    height: auto !important;
+    padding: 2px !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+}
+
+.gsc-input-box input.gsc-input {
+    padding: 10px 12px !important;
+    font-size: 16px !important;
+    background-position: left center !important;
+}
+
+/* Fallback search form styling */
+.fallback-search-form {
+    padding: 10px 0;
+}
+
+.fallback-search-form input[type="text"] {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #dfe1e5;
+    border-radius: 4px 0 0 4px;
+    font-size: 14px;
+}
+
+.fallback-search-form button {
+    padding: 8px 16px;
+    background: #4285f4;
+    color: white;
+    border: none;
+    border-radius: 0 4px 4px 0;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+/* Error message styling */
+.google-cse-error {
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-left: 4px solid #ea4335;
+    margin: 10px 0;
+}
+
+.google-cse-error h3 {
+    color: #ea4335;
+    margin-top: 0;
+    font-size: 16px;
+}
+
+.google-cse-error ul {
+    margin-left: 20px;
+}
+
+.google-cse-error a {
+    color: #1a73e8;
+    text-decoration: none;
+}
+
+.google-cse-error a:hover {
+    text-decoration: underline;
+}
+
+/* Loading indicator */
+.google-cse-loading {
+    padding: 20px;
+    text-align: center;
+}
+
+/* Note: Base .spinner styles and @keyframes spin are imported from utils/loading-indicators.css 
+   which imports core/animations.css. Context-specific spinner overrides only below: */
+.google-cse-loading .spinner {
+    display: inline-block;
+    width: 30px;
+    height: 30px;
+    border: 3px solid rgba(66, 133, 244, 0.3);
+    border-radius: 50%;
+    border-top-color: #4285f4;
+    animation: spin 1s ease-in-out infinite;
+    margin-bottom: 10px;
+}
+
+/* Search Box Container Fix */
+.google-searchbox-container {
+    margin-bottom: 20px;
+    position: relative;
+}
+
+/* Results container Fix */
+.google-results-container {
+    position: relative;
+    min-height: 100px;
+}
+
+/* Mobile responsive fixes */
+@media (max-width: 768px) {
+    .gsc-above-wrapper-area-container td {
+        display: block !important;
+        width: 100% !important;
+        text-align: left !important;
+        margin-bottom: 10px !important;
+    }
+
+    .gsc-selected-option-container {
+        max-width: 100% !important;
+    }
+
+    .gsc-refinement {
+        margin-right: 0 !important;
+        margin-bottom: 5px !important;
+    }
+
+    .gsc-tabsArea>div {
+        display: block !important;
+        margin-bottom: 5px !important;
+    }
+
+    .gsc-input-box input.gsc-input {
+        font-size: 14px !important;
+    }
+
+    .fallback-search-container {
+        flex-direction: column;
+    }
+
+    .fallback-search-button {
+        border-radius: 0 0 4px 4px;
+        padding: 12px;
+    }
+}
+
+/* CSE Toggle Switch Styles */
+.cse-toggle-container {
+    display: flex;
+    align-items: center;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #eee;
+    margin-bottom: 10px;
+}
+
+.cse-toggle-label {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    margin-left: 10px;
+}
+
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 40px;
+    height: 20px;
+    margin-right: 8px;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: .4s;
+    border-radius: 20px;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 2px;
+    bottom: 2px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+}
+
+input:checked+.toggle-slider {
+    background-color: #4CAF50;
+}
+
+input:checked+.toggle-slider:before {
+    transform: translateX(20px);
+}
+
+.cse-toggle-text {
+    font-size: 14px;
+    font-weight: 500;
+    color: #666;
+}

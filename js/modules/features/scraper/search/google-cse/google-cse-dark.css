@@ -1,0 +1,45 @@
+/**
+ * Google CSE Dark Mode Styles
+ * Extracted from google-cse-results.css for modularity
+ * 
+ * @version 1.0.0
+ */
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+
+    #google-searchbox-container,
+    #google-results-container {
+        background-color: #222;
+        border-color: #444;
+    }
+
+    #google-searchbox-container .gsc-input {
+        background-color: #333 !important;
+        color: #fff !important;
+    }
+
+    #google-results-container a,
+    #google-results-container a.gs-title {
+        color: #8ab4f8 !important;
+    }
+
+    #google-results-container a:hover,
+    #google-results-container a.gs-title:hover {
+        color: #aecbfa !important;
+    }
+
+    #google-results-container .gs-snippet {
+        color: #bbb !important;
+    }
+
+    #google-results-container .gs-visibleUrl {
+        color: #81c995 !important;
+    }
+
+    .google-cse-loading p,
+    #google-results-container:empty::before,
+    #google-results-container.gsc-searching::before {
+        color: #bbb;
+    }
+}

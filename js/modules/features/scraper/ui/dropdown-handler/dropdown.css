@@ -1,0 +1,86 @@
+/**
+ * Dropdown CSS
+ * Click-based dropdown menu styles extracted from ScraperTest.html
+ * 
+ * @version 1.0.0
+ */
+
+/* Dropdown Container */
+.dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+/* Dropdown Content (Hidden by default) */
+.dropdown-content {
+    display: none;
+    position: absolute;
+    background-color: var(--card-bg, #1e1e1e);
+    color: var(--text-main, #eee);
+    min-width: 180px;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(128, 128, 128, 0.2);
+    border-radius: 6px;
+    z-index: 1000;
+    overflow: hidden;
+}
+
+/* Visible state */
+.dropdown-content.show {
+    display: block;
+}
+
+/* Menu Items */
+.dropdown-content a {
+    color: var(--text-main, #eee);
+    padding: 10px 16px;
+    text-decoration: none;
+    display: block;
+    transition: background-color 0.2s;
+    font-size: 0.9rem;
+}
+
+.dropdown-content a:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Destructive action hover style */
+.dropdown-content a[onclick*="clearData"]:hover {
+    background-color: #ffebee;
+    color: #c62828;
+}
+
+/* Override hover behavior - use click instead */
+.dropdown:hover .dropdown-content {
+    display: none;
+}
+
+/* Re-enable display only with show class */
+.dropdown .dropdown-content.show {
+    display: block !important;
+}
+
+/* Menu Divider */
+.dropdown-divider {
+    height: 1px;
+    background-color: rgba(128, 128, 128, 0.2);
+    margin: 5px 0;
+}
+
+/* Dropdown Button */
+.dropdown-btn {
+    background-color: var(--input-bg);
+    border: 1px solid rgba(128, 128, 128, 0.2);
+    color: var(--text-main);
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: all 0.2s ease;
+}
+
+.dropdown-btn:hover {
+    background-color: var(--accent);
+    color: #000;
+    border-color: var(--accent);
+}

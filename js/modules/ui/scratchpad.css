@@ -1,0 +1,39 @@
+/* Scratchpad */
+#scratchpad-container {
+    position: fixed;
+    top: 0;
+    right: -400px;
+    width: 350px;
+    height: 100vh;
+    background: #1a1a1a;
+    z-index: 4000;
+    transition: 0.3s;
+    padding: 20px;
+    border-left: 1px solid #444;
+    display: flex;
+    flex-direction: column;
+}
+
+#scratchpad-container.open {
+    right: 0;
+}
+
+.scratchpad-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: var(--accent);
+    margin-bottom: 10px;
+}
+
+#notes-area {
+    flex-grow: 1;
+    background: #111;
+    border: 1px solid #333;
+    color: #ddd;
+    padding: 15px;
+    resize: none;
+    margin-top: 10px;
+}

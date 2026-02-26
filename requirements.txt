@@ -1,0 +1,20 @@
+# Python requirements for Fandom Discovery Toolkit Server
+# These are the standard libraries used by the server
+
+# No external dependencies required - using standard library modules:
+# - http.server
+# - socketserver
+# - os
+# - sys
+# - logging
+# - socket
+# - urllib.parse
+
+# The server is designed to run with Python 3.6+ without additional packages
+
+# Python server dependencies
+# Nothing special needed for basic HTTP server
+
+# If you want to add more advanced features:
+# requests>=2.25.1
+# beautifulsoup4>=4.9.3 

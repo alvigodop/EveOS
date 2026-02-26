@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Server Monitor - Gemini Live Link</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+    <!-- Styles are now loaded via server_monitor_files/monitor_loader.js -->
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Server Monitor - Gemini Live Link</h1>
+
+            <!-- Server Control Button -->
+            <div class="server-controls">
+                <button id="startLauncherBtn" class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored"
+                    data-server="launcher" data-port="9084">
+                    <i class="material-icons" style="vertical-align: middle; margin-right: 4px;">play_arrow</i>
+                    Start Launcher Server
+                </button>
+                <button id="startMainBtn" class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored"
+                    data-server="main" data-port="9083">
+                    <i class="material-icons" style="vertical-align: middle; margin-right: 4px;">play_arrow</i>
+                    Start Main Server
+                </button>
+                <button id="startHttpBtn" class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored"
+                    data-server="http" data-port="8000">
+                    <i class="material-icons" style="vertical-align: middle; margin-right: 4px;">play_arrow</i>
+                    Start HTTP Server
+                </button>
+                <button id="stopAllBtn" class="mdl-button mdl-js-button mdl-button--raised mdl-button--accent">
+                    <i class="material-icons" style="vertical-align: middle; margin-right: 4px;">stop</i>
+                    Stop All Servers
+                </button>
+                <button id="startAllBtn" class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored">
+                    <i class="material-icons" style="vertical-align: middle; margin-right: 4px;">play_arrow</i>
+                    Start All Servers
+                </button>
+                <button id="restartAllBtn" class="mdl-button mdl-js-button mdl-button--raised mdl-button--accent"
+                    style="background-color: #ff9800;">
+                    <i class="material-icons" style="vertical-align: middle; margin-right: 4px;">refresh</i>
+                    Restart All
+                </button>
+                <span id="serverStatus" class="status-stopped">Server Status: Checking...</span>
+            </div>
+
+            <!-- Message Log -->
+            <div id="messageLog"></div>
+
+            <!-- Frame Controls -->
+            <div class="controls">
+                <button class="button refresh-btn" onclick="refreshFrame()">Refresh Frame</button>
+                <button class="button refresh-btn" onclick="checkServerStatus()">Check Status</button>
+                <button class="button refresh-btn" onclick="refreshGeminiDemo().catch(error => {
+                    console.error('Error in refreshGeminiDemo:', error);
+                    displayMessage('System Message: Failed to refresh Gemini Demo', true);
+                })" style="background-color: #3f51b5;">
+                    <i class="material-icons" style="vertical-align: middle; margin-right: 4px;">refresh</i>
+                    Refresh Gemini Demo
+                </button>
+            </div>
+            <div id="status" class="status">
+                Server Status: Checking...
+            </div>
+            <div id="error" class="error"></div>
+        </div>
+
+        <div class="frame-container">
+            <iframe id="serverFrame" src="gemini_chat_interface.html" title="Gemini Chat Interface"></iframe>
+        </div>
+    </div>
+
+    <!-- Modularized resource loader -->
+    <script src="server_monitor_files/monitor_loader.js"></script>
+</body>
+
+</html>

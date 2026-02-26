@@ -1,0 +1,248 @@
+/**
+ * Layout Overrides CSS
+ * Extracted inline styles from ScraperTest.html
+ */
+
+/* Main element - originally style="display: none;" */
+main {
+    display: none;
+}
+
+/* Results controls - originally style="display: flex; gap: 15px; align-items: center;" */
+.results-controls {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+}
+
+/* Loading indicator - originally style="display: none;" */
+#loading {
+    display: none;
+}
+
+/* Domain actions - originally style="margin-bottom: 15px; display: flex; gap: 10px; align-items: center;" */
+.domain-actions-container {
+    margin-bottom: 15px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+/* Wiki link - originally style="margin-left: auto; text-decoration: none; color: var(--primary-color); font-size: 0.85em; display: inline-flex; align-items: center; gap: 4px;" */
+.wiki-link-action {
+    margin-left: auto;
+    text-decoration: none;
+    color: var(--primary-color);
+    font-size: 0.85em;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* Wiki categories - originally style="margin-top: 25px; padding-top: 20px; border-top: 1px dashed #eee;" */
+.wiki-categories-container {
+    margin-top: 25px;
+    padding-top: 20px;
+    border-top: 1px dashed #eee;
+}
+
+/* Discovery search container - stacks input above buttons */
+.discovery-search-container.wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* Discovery search input - full width above buttons */
+.discovery-search-input.full-width {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.9rem;
+}
+
+/* Search actions - horizontal row of buttons */
+.search-actions-container {
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+    width: 100%;
+    flex-wrap: nowrap;
+    align-items: center;
+}
+
+/* Search buttons - equal sizing */
+.search-btn-flex {
+    flex: 1;
+    min-width: 0;
+}
+
+/* Search buttons - sleeker design */
+.search-btn-flex {
+    flex: 1;
+    min-width: 80px;
+}
+
+/* ============================================
+   SLEEKER BUTTON STYLES - Discovery Sections
+   ============================================ */
+
+/* Primary search button - flat design with dark bottom edge */
+.wiki-discovery .search-btn,
+#fandom-search-container .search-btn,
+.search-actions-container .search-btn {
+    padding: 6px 10px;
+    background: linear-gradient(135deg, #27ae60 0%, #219a52 100%);
+    color: white;
+    border: none;
+    border-radius: 0;
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    box-shadow: inset 0 -2px 0 #166638;
+    white-space: nowrap;
+}
+
+.wiki-discovery .search-btn:hover,
+#fandom-search-container .search-btn:hover,
+.search-actions-container .search-btn:hover {
+    background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
+    box-shadow: inset 0 -2px 0 #1a7a42;
+    transform: translateY(-1px);
+}
+
+.wiki-discovery .search-btn:active,
+#fandom-search-container .search-btn:active,
+.search-actions-container .search-btn:active {
+    transform: translateY(0);
+    box-shadow: inset 0 -2px 0 #166638;
+}
+
+/* Secondary buttons - flat design with dark bottom edge */
+.wiki-discovery .btn.secondary-btn,
+#fandom-search-container .btn.secondary-btn,
+.search-actions-container .btn.secondary-btn {
+    padding: 6px 10px;
+    background: #f8f9fa;
+    color: #495057;
+    border: none;
+    border-radius: 0;
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    box-shadow: inset 0 -2px 0 #6c757d;
+}
+
+.wiki-discovery .btn.secondary-btn:hover,
+#fandom-search-container .btn.secondary-btn:hover,
+.search-actions-container .btn.secondary-btn:hover {
+    background: #e9ecef;
+    box-shadow: inset 0 -2px 0 #495057;
+    color: #212529;
+}
+
+/* Link behavior options */
+.link-behavior-options {
+    margin-top: 8px;
+    margin-bottom: 8px;
+    font-size: 0.9em;
+}
+
+.link-behavior-label {
+    margin-right: 5px;
+    font-weight: bold;
+}
+
+.link-behavior-radio {
+    margin-right: 10px;
+    cursor: pointer;
+}
+
+/* Search mode selector */
+.search-mode-selector {
+    margin-top: 8px;
+    margin-bottom: 8px;
+    font-size: 0.9em;
+}
+
+.search-mode-select {
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+    background: #fff;
+    cursor: pointer;
+}
+
+/* Emergency results fallback */
+.emergency-results-box {
+    padding: 20px;
+    background: #fff;
+    border: 1px solid #ddd;
+}
+
+/* Confirmation popup styles extracted */
+.popup-content-confirm {
+    max-width: 400px;
+    height: auto;
+    min-height: 200px;
+}
+
+.popup-header-confirm {
+    background-color: #f44336;
+}
+
+.popup-title-confirm {
+    color: white;
+    margin: 0;
+}
+
+.popup-close-confirm {
+    color: white;
+}
+
+.popup-body-confirm {
+    padding: 20px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.confirm-message {
+    font-size: 1.1em;
+    margin-bottom: 25px;
+    color: #333;
+}
+
+.confirm-actions {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+}
+
+.confirm-yes-btn {
+    background-color: #f44336;
+    color: white;
+    border: none;
+    padding: 10px 25px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.confirm-cancel-btn {
+    background-color: #e0e0e0;
+    color: #333;
+    border: none;
+    padding: 10px 25px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.cursor-pointer {
+    cursor: pointer;
+}

@@ -1,0 +1,120 @@
+/**
+ * Empty States CSS
+ * Styles for empty results, fallback messages, and no-results states
+ * Extracted from google-search-scraper.css for modularity
+ * @version 1.0.0
+ */
+
+/* Empty results state */
+.empty-results {
+    padding: 30px;
+    text-align: center;
+}
+
+.empty-results-illustration {
+    width: 120px;
+    height: 120px;
+    margin: 0 auto 20px;
+    opacity: 0.7;
+}
+
+.empty-results h3 {
+    font-size: 18px;
+    color: #5f6368;
+    margin-bottom: 10px;
+}
+
+.empty-results p {
+    font-size: 14px;
+    color: #5f6368;
+    margin-bottom: 20px;
+}
+
+/* Fallback and potential wiki notes */
+.fallback-note,
+.potential-note {
+    margin-top: 15px;
+    padding: 10px 15px;
+    background-color: #e8f0fe;
+    border-radius: 4px;
+    font-size: 14px;
+    color: #1a73e8;
+    border-left: 4px solid #1a73e8;
+}
+
+.fallback-message {
+    text-align: center;
+    padding: 20px;
+    color: #5f6368;
+}
+
+.fallback-message p {
+    margin-bottom: 15px;
+}
+
+.fallback-message .spinner {
+    margin: 0 auto;
+}
+
+/* Google no results styling */
+.google-no-results {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    padding: 20px;
+    margin-top: 20px;
+}
+
+.google-error-icon {
+    font-size: 24px;
+    margin-bottom: 10px;
+}
+
+.google-error-content h3 {
+    font-size: 18px;
+    margin: 0 0 10px 0;
+    color: #202124;
+}
+
+.google-error-content p,
+.google-error-content ul {
+    color: #4d5156;
+    line-height: 1.5;
+    margin: 8px 0;
+}
+
+.google-error-content ul {
+    padding-left: 22px;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+
+    .empty-results h3,
+    .empty-results p {
+        color: #9aa0a6;
+    }
+
+    .fallback-note,
+    .potential-note {
+        background-color: #293548;
+        color: #8ab4f8;
+        border-left-color: #8ab4f8;
+    }
+
+    .fallback-message {
+        color: #9aa0a6;
+    }
+
+    .google-no-results {
+        background-color: #2d2d2d;
+    }
+
+    .google-error-content h3 {
+        color: #e8eaed;
+    }
+
+    .google-error-content p,
+    .google-error-content ul {
+        color: #bdc1c6;
+    }
+}

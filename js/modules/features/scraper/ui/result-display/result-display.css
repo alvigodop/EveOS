@@ -1,0 +1,185 @@
+/* Result Display CSS */
+
+/* Import shared highlight styles */
+@import '../styles/shared-highlight.css';
+
+/* Import modular component styles - these contain extracted duplicate code */
+@import '../styles/article-cards.css';
+@import 'result-card.css';
+/* Extracted Result Card Styles */
+@import 'result-grid.css';
+/* Extracted Grid Layout Styles */
+@import 'result-container.css';
+/* Extracted Container Styles */
+@import '../styles/badges.css';
+@import 'cached-results.css';
+@import '../search-controls/toggle-switches.css';
+@import '../styles/control-center.css';
+@import '../styles/domain-manager.css';
+
+/* 
+ * NOTE: The following styles have been modularized:
+ * - .results-section, .results-header -> result-container.css
+ * - .results-container, .results-stats -> result-container.css
+ * - .results-grid, .results-list, .grid-layout -> result-grid.css
+ * - .result-card, .result-item, .result-snippet -> result-card.css
+ * - .view-more-btn, .article-categories, .category-tag -> article-cards.css / result-card.css
+ * - .wiki-link -> article-cards.css / result-card.css
+ */
+
+
+/* Article Styles - Specific Overrides or Contextual Styles not in result-card.css */
+
+.article-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 12px;
+}
+
+/* Note: Badge styles (.content-type-badge, .source-badge, .main-article-badge, 
+   .web-enhanced-badge, .text-match-badge, .verified-badge) are now imported from badges.css */
+
+/* Note: Article card styles (.article, .article.main-article, .article.web-enhanced, 
+   .article.has-image, .article-image, .article-thumbnail, placeholder styles, 
+   .article-content, .article h3) are now imported from article-cards.css */
+
+
+/* Article Specific Components - Keep generalized ones here if they don't fit perfectly in result-card */
+
+.article-snippet {
+    margin-bottom: 10px;
+    font-size: 0.9rem;
+    color: var(--text-color);
+    max-height: 4.8em;
+    /* Approximately 3 lines of text */
+    overflow: hidden;
+    position: relative;
+    transition: max-height 0.3s ease;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    -webkit-box-orient: vertical;
+    text-overflow: ellipsis;
+}
+
+.article-snippet.expanded {
+    max-height: none;
+    display: block;
+    -webkit-line-clamp: unset;
+    line-clamp: unset;
+}
+
+.article-categories {
+    margin-bottom: 10px;
+}
+
+.categories-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 5px;
+}
+
+.categories-title {
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.categories-list {
+    max-height: 3.6em;
+    /* Approximately 2 lines of tags */
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+    position: relative;
+}
+
+.categories-list.expanded {
+    max-height: none;
+}
+
+.categories-list:not(.expanded)::after {
+    content: "...";
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    background-color: white;
+    padding-left: 4px;
+}
+
+.category-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.category-tag {
+    font-size: 0.75rem;
+    padding: 2px 8px;
+    border-radius: 12px;
+    background-color: #e9ecef;
+    color: #495057;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+    transition: var(--transition-fast, all 0.2s ease);
+}
+
+.category-tag:hover {
+    background: #dee2e6;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.category-tag.primary {
+    background: #cce5ff;
+    color: #004085;
+    font-weight: bold;
+}
+
+.category-tag.primary:hover {
+    background: #b8daff;
+}
+
+.related-to {
+    margin-bottom: 10px;
+    font-size: 0.85rem;
+}
+
+.article-meta {
+    margin-top: auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.85rem;
+    color: var(--text-light);
+}
+
+.wiki-link {
+    color: var(--wiki-blue, #0645ad);
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 500;
+    font-size: 0.9em;
+    transition: color 0.2s ease;
+}
+
+.wiki-link:hover {
+    color: var(--wiki-link-hover, #0b0080);
+    text-decoration: underline;
+}
+
+.external-link-icon {
+    font-size: 0.75em;
+    opacity: 0.7;
+}
+
+/* Note: Cached results styles (.cached-searches, .cached-search-item, .search-term-header, 
+   .cached-results, .cached-result) are now imported from cached-results.css */
+
+
+/* Legacy UI Enhancements - now imported from legacy-enhancements.css */
+/* Cached Search Item Enhancement - now imported from cached-results.css */
