@@ -100,6 +100,41 @@ window.UnidexView = (function () {
         return api.getLinkedEntry(linkId);
     }
 
+    function truncateText(value, maxLength) {
+        const text = String(value || '').trim();
+        if (!text) return '';
+        if (text.length <= maxLength) return text;
+        return `${text.slice(0, Math.max(0, maxLength - 1)).trimEnd()}...`;
+    }
+
+    function getMediaTypeLabel(entry) {
+        const rawType = Array.isArray(entry?.mediaTypes) && entry.mediaTypes.length
+            ? String(entry.mediaTypes[0] || '').trim()
+            : '';
+        if (!rawType) return '';
+        if (rawType === 'graphicNovels') return 'Graphic Novel';
+        if (rawType === 'novels') return 'Novel';
+        if (rawType === 'films') return 'Film/Series';
+        return rawType;
+    }
+
+    function getProgressLabel(entry) {
+        if (!entry || typeof entry !== 'object') return '';
+        const season = Number(entry.season || 0);
+        const episode = Number(entry.episode || 0);
+        if (season > 0 || episode > 0) return `S${Math.max(0, season)} E${Math.max(0, episode)}`;
+
+        const graphicChapter = Number(entry.graphicChapter || 0);
+        if (graphicChapter > 0) return `Chapter ${graphicChapter}`;
+
+        const novelChapter = Number(entry.novelChapter || 0);
+        if (novelChapter > 0) return `Chapter ${novelChapter}`;
+
+        const chapter = Number(entry.chapter || 0);
+        if (chapter > 0) return `Chapter ${chapter}`;
+        return '';
+    }
+
     function buildTabsHtml() {
         return (config.workspaces || []).map(function (workspace) {
             const workspaceCount = getAllLinks().filter(function (link) {
@@ -178,12 +213,49 @@ window.UnidexView = (function () {
             const safeDomain = escapeHtml(getDomain(link.url));
             const linkedRecord = getLinkedRecord(link.id);
             const isLibraryLinked = !!linkedRecord?.entry;
-            const libraryStatusRaw = String(linkedRecord?.entry?.status || '').trim();
-            const libraryRatingRaw = String(linkedRecord?.entry?.rating || '').trim();
+            const libraryEntry = linkedRecord?.entry || null;
+            const libraryStatusRaw = String(libraryEntry?.status || '').trim();
+            const libraryRatingRaw = String(libraryEntry?.rating || '').trim();
+            const libraryAuthorRaw = String(libraryEntry?.author || '').trim();
+            const libraryGenreRaw = String(libraryEntry?.genre || '').trim();
+            const librarySummaryRaw = truncateText(libraryEntry?.summary, 220);
+            const libraryLanguageRaw = String(libraryEntry?.language || '').trim();
+            const libraryMediaTypeRaw = getMediaTypeLabel(libraryEntry);
+            const progressRaw = getProgressLabel(libraryEntry);
+            const coverUrlRaw = String(libraryEntry?.image || libraryEntry?.imageUrl || '').trim();
             const libraryStatus = escapeHtml(libraryStatusRaw || 'No status');
             const libraryRating = escapeHtml(libraryRatingRaw || '-');
-            const libraryInfoHtml = isLibraryLinked
-                ? `<p class="unidex-entry-library linked">Library: ${libraryStatus} | Rating: ${libraryRating}</p>`
+            const libraryAuthor = escapeHtml(libraryAuthorRaw);
+            const libraryGenre = escapeHtml(libraryGenreRaw);
+            const librarySummary = escapeHtml(librarySummaryRaw);
+            const libraryLanguage = escapeHtml(libraryLanguageRaw);
+            const libraryMediaType = escapeHtml(libraryMediaTypeRaw);
+            const libraryProgress = escapeHtml(progressRaw);
+            const safeCoverUrl = escapeHtml(coverUrlRaw);
+            const libraryChips = [];
+            if (libraryStatusRaw) libraryChips.push(`<span class="unidex-entry-chip">${libraryStatus}</span>`);
+            if (libraryRatingRaw) libraryChips.push(`<span class="unidex-entry-chip">Rating ${libraryRating}</span>`);
+            if (libraryProgress) libraryChips.push(`<span class="unidex-entry-chip">${libraryProgress}</span>`);
+            if (libraryMediaType) libraryChips.push(`<span class="unidex-entry-chip">${libraryMediaType}</span>`);
+            if (libraryLanguage) libraryChips.push(`<span class="unidex-entry-chip">${libraryLanguage}</span>`);
+            const libraryDetailHtml = isLibraryLinked
+                ? `
+                    <div class="unidex-entry-library-wrap">
+                        ${libraryAuthor ? `<p class="unidex-entry-library-author">${libraryAuthor}</p>` : ''}
+                        ${libraryGenre ? `<p class="unidex-entry-library-genre">${libraryGenre}</p>` : ''}
+                        ${libraryChips.length ? `<div class="unidex-entry-library-chips">${libraryChips.join('')}</div>` : ''}
+                        ${librarySummary ? `<p class="unidex-entry-library-summary">${librarySummary}</p>` : ''}
+                    </div>
+                `
+                : '';
+            const coverHtml = isLibraryLinked
+                ? `
+                    <div class="unidex-entry-cover-slot">
+                        ${safeCoverUrl
+                            ? `<img class="unidex-entry-cover" src="${safeCoverUrl}" alt="${safeTitle} cover" loading="lazy" referrerpolicy="no-referrer">`
+                            : '<div class="unidex-entry-cover-fallback">📚</div>'}
+                    </div>
+                `
                 : '';
             const taskTagHtml = taskMode
                 ? `<span class="unidex-entry-tag ${link.done ? 'done' : 'pending'}">${link.done ? 'Done' : 'Pending'}</span>`
@@ -193,11 +265,12 @@ window.UnidexView = (function () {
                 : '';
 
             return `
-                <article class="unidex-entry-item ${taskMode && link.done ? 'is-done' : ''}">
+                <article class="unidex-entry-item ${taskMode && link.done ? 'is-done' : ''} ${isLibraryLinked ? 'is-library-linked' : ''}">
+                    ${coverHtml}
                     <div class="unidex-entry-main">
                         <h4 class="unidex-entry-title">${safeTitle}</h4>
                         <p class="unidex-entry-domain">${safeDomain}</p>
-                        ${libraryInfoHtml}
+                        ${libraryDetailHtml}
                         <div class="unidex-entry-tags">
                             ${taskTagHtml}
                             ${libraryTagHtml}
