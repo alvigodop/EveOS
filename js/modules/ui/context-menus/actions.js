@@ -2,6 +2,19 @@ function getCtxLinkId() {
     return String(window.ctxLinkId ?? '');
 }
 
+function getCtxCategoryName() {
+    const fromContext = String(window.ctxCatName ?? '').trim();
+    if (fromContext) return fromContext;
+
+    const fromModal = String(window.currentCategoryCtx ?? '').trim();
+    if (fromModal) {
+        window.ctxCatName = fromModal;
+        return fromModal;
+    }
+
+    return '';
+}
+
 function getCtxLink() {
     const targetId = getCtxLinkId();
     if (!targetId) return null;
@@ -73,15 +86,31 @@ window.ctxToggleLibraryLink = function () {
 };
 
 window.ctxCatToggleTask = function () {
-    if (config.hideStats.includes(ctxCatName)) config.hideStats = config.hideStats.filter(c => c !== ctxCatName);
-    else config.hideStats.push(ctxCatName);
+    const categoryName = getCtxCategoryName();
+    if (!categoryName) return showToast("No category selected", "error");
+
+    if (config.hideStats.includes(categoryName)) config.hideStats = config.hideStats.filter(c => c !== categoryName);
+    else config.hideStats.push(categoryName);
+
     saveConfig();
     renderDashboard();
 };
 
-window.ctxCatFocus = function () { setFocus(ctxCatName); };
-window.ctxCatRename = function () { openRenameModal(ctxCatName); };
-window.ctxCatLaunch = function () { launchCategory(ctxCatName); };
+window.ctxCatFocus = function () {
+    const categoryName = getCtxCategoryName();
+    if (!categoryName) return showToast("No category selected", "error");
+    setFocus(categoryName);
+};
+window.ctxCatRename = function () {
+    const categoryName = getCtxCategoryName();
+    if (!categoryName) return showToast("No category selected", "error");
+    openRenameModal(categoryName);
+};
+window.ctxCatLaunch = function () {
+    const categoryName = getCtxCategoryName();
+    if (!categoryName) return showToast("No category selected", "error");
+    launchCategory(categoryName);
+};
 
 window.ctxWsDelete = async function () {
     if (config.workspaces.length <= 1) return showToast("Cannot delete last workspace", "error");

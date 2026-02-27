@@ -115,6 +115,11 @@ body {
     max-width: 1200px;
 }
 
+.container.focus-mode {
+    grid-template-columns: 1fr !important;
+    max-width: min(1400px, 100%);
+}
+
 .container.list-mode .category-card {
     min-height: auto;
 }

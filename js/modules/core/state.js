@@ -35,6 +35,7 @@ let config = {
     unidexTabsUnified: false,
     unidexEntriesLayout: "rows",
     unidexEntriesFilter: "all",
+    focusedEntriesFilter: "all",
     ratingSettings: {
         activeScale: "hybrid",
         personalWeight: 0.5,

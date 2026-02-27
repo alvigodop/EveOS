@@ -18,6 +18,7 @@ function renderDashboard() {
 
     grid.classList.toggle('list-mode', isListMode);
     grid.classList.toggle('unidex-mode', isUnidexMode);
+    grid.classList.toggle('focus-mode', !!focusCategory && !isUnidexMode);
     if (mainContent) mainContent.classList.toggle('unidex-view-active', isUnidexMode);
 
     const visibleLinks = searchStr

@@ -1,0 +1,148 @@
+.category-card.is-focus-mode {
+    width: 100%;
+    border-radius: 14px;
+    padding: 22px;
+}
+
+.category-card.is-focus-mode .category-header {
+    align-items: flex-start;
+    gap: 14px;
+    flex-wrap: wrap;
+}
+
+.category-card.is-focus-mode .cat-title-group {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    min-width: 0;
+}
+
+.category-card.is-focus-mode .category-title {
+    font-size: clamp(1.2rem, 2.2vw, 1.6rem);
+    line-height: 1.2;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    letter-spacing: 0.06rem;
+    transition: letter-spacing 0.34s ease, transform 0.34s ease, opacity 0.34s ease;
+}
+
+.category-card.is-focus-mode .category-header:hover .category-title {
+    transform: scale(0.985);
+    letter-spacing: 0;
+    opacity: 0.9;
+}
+
+.category-card.is-focus-mode .cat-focus-meta {
+    font-size: 0.84rem;
+    color: var(--text-muted);
+}
+
+.focus-card-controls {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-left: auto;
+}
+
+.focus-card-controls .focus-filter-select {
+    min-width: 172px;
+}
+
+.category-action-btn {
+    border: 1px solid rgba(255, 255, 255, 0.24);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-main);
+    padding: 7px 10px;
+    font-size: 0.84rem;
+    line-height: 1.2;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.category-action-btn:hover {
+    background: rgba(255, 255, 255, 0.14);
+}
+
+.focused-category-entries {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+    align-items: start;
+}
+
+.focused-category-entries .focused-entry-item {
+    width: 100%;
+    margin: 0;
+}
+
+.focused-category-entries .focused-entry-item.has-visual-slot {
+    grid-template-columns: 92px minmax(0, 1fr) minmax(240px, auto) !important;
+    align-items: stretch;
+}
+
+.focused-category-entries .focused-entry-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(110px, 1fr));
+    gap: 8px;
+    align-self: start;
+    min-width: 240px;
+    justify-items: stretch;
+}
+
+.focused-category-entries .focused-entry-actions .unidex-entry-btn {
+    min-width: 0;
+    width: 100%;
+}
+
+.focused-category-entries .focused-entry-actions .unidex-entry-btn.danger {
+    border-color: rgba(255, 95, 95, 0.45);
+    color: #ff9c9c;
+}
+
+.focused-category-entries .focused-entry-actions .unidex-entry-btn.danger:hover {
+    background: rgba(255, 95, 95, 0.18);
+}
+
+@media (max-width: 900px) {
+    .focus-card-controls {
+        margin-left: 0;
+        width: 100%;
+    }
+
+    .focus-card-controls .focus-filter-select {
+        flex: 1 1 100%;
+        min-width: 0;
+    }
+
+    .category-action-btn {
+        flex: 1 1 32%;
+        justify-content: center;
+        min-width: 120px;
+    }
+
+    .focused-category-entries .focused-entry-actions {
+        width: 100%;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        min-width: 0;
+    }
+
+    .focused-category-entries .focused-entry-actions .unidex-entry-btn {
+        width: 100%;
+    }
+
+    .focused-category-entries .focused-entry-item.has-visual-slot {
+        grid-template-columns: 72px minmax(0, 1fr) !important;
+        grid-template-areas:
+            "cover main"
+            "actions actions";
+    }
+
+    .focused-category-entries .focused-entry-actions {
+        grid-area: actions;
+    }
+}

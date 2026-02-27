@@ -2,6 +2,7 @@ window.currentCategoryCtx = null; // Track which category is being edited
 
 window.openCategorySettings = function (categoryName, activeTab = 'general') {
     window.currentCategoryCtx = categoryName;
+    window.ctxCatName = categoryName;
 
     // Update Title
     const titleEl = document.getElementById('catSettingsTitle');

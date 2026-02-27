@@ -13,7 +13,8 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
             // Prepare config with searchStr override for the builder
             const buildConfig = {
                 ...config,
-                searchStr: searchStr
+                searchStr: searchStr,
+                focusMode: !!focusCategory
             };
             window.DashboardCategories.renderCard(cat, catLinks, gridContainer, buildConfig);
         }
