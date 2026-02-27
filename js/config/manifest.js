@@ -523,7 +523,7 @@ window.EveModuleManifest = {
         // UI Modules
         'js/modules/ui/sidebar.css',
         'js/modules/ui/dashboard/dashboard.css',
-        'js/modules/ui/dashboard/unidex-view.css?v=0.2.33',
+        'js/modules/ui/dashboard/unidex-view.css?v=0.2.35',
         'js/modules/ui/dashboard/dock.css',
         'js/modules/ui/bulk-toolbar.css',
         'js/modules/ui/scratchpad.css',

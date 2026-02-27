@@ -379,6 +379,7 @@
 .unidex-entries.is-grid-layout {
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)) !important;
     gap: 14px !important;
+    align-items: start;
 }
 
 .unidex-entry-item {
@@ -420,7 +421,7 @@
     max-width: calc(100% - 24px);
     overflow: hidden;
     text-overflow: ellipsis;
-    z-index: 0;
+    z-index: 2;
     transition: opacity 0.22s ease;
 }
 
@@ -466,7 +467,7 @@
 .unidex-entry-main {
     min-width: 0;
     position: relative;
-    z-index: 1;
+    z-index: 3;
 }
 
 .unidex-entry-visual-btn {
@@ -693,7 +694,7 @@
     flex-shrink: 0;
     align-self: center;
     position: relative;
-    z-index: 1;
+    z-index: 3;
 }
 
 .unidex-entries.is-grid-layout .unidex-entry-item.has-visual-slot {
@@ -702,8 +703,11 @@
         "cover"
         "main"
         "actions";
+    grid-auto-rows: auto !important;
     align-items: stretch;
     align-content: start;
+    height: auto !important;
+    min-height: 0 !important;
 }
 
 .unidex-entries.is-grid-layout .unidex-entry-cover-slot {
@@ -792,7 +796,7 @@
 
 .unidex-entries.is-grid-layout .unidex-entry-actions {
     grid-area: actions;
-    align-self: stretch;
+    align-self: start;
 }
 
 .unidex-entries.is-grid-layout .unidex-entry-btn {
