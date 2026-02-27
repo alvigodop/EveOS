@@ -11,7 +11,7 @@ window.UnidexView = (function () {
     const LIBRARY_READY_RETRY_MS = 180;
     const LIBRARY_READY_HINT_DELAY_MS = 320;
     const LIBRARY_READY_MAX_WAIT_MS = 2500;
-    const LAYOUT_MAINTENANCE_DELAYS_MS = [0, 600, 1800];
+    const LAYOUT_MAINTENANCE_DELAYS_MS = [0, 600, 1800, 3600];
 
     function getAllLinks() {
         if (window.eveState?.links) return window.eveState.links;
@@ -343,7 +343,7 @@ window.UnidexView = (function () {
         }).join('');
     }
 
-    function buildEntriesHtml(entryLinks, taskMode) {
+    function buildEntriesHtml(entryLinks, taskMode, layoutMode) {
         if (entryLinks.length === 0) {
             return `
                 <div class="unidex-empty-state">
@@ -352,6 +352,13 @@ window.UnidexView = (function () {
                 </div>
             `;
         }
+
+        const isGridLayout = String(layoutMode || '') === 'grid';
+        const isCompactViewport = window.matchMedia('(max-width: 900px)').matches;
+        const rowCoverWidth = isCompactViewport ? 72 : 84;
+        const rowCoverHeight = isCompactViewport ? 132 : 156;
+        const rowImageHeight = Math.round(rowCoverHeight * 1.32);
+        const rowImageOffset = Math.round((rowImageHeight - rowCoverHeight) / 2);
 
         return entryLinks.map(function (link) {
             const encodedId = encodeParam(link.id);
@@ -395,11 +402,20 @@ window.UnidexView = (function () {
                     </div>
                 `
                 : '';
+            const visualButtonStyle = isGridLayout
+                ? ' style="width:100% !important;min-width:0 !important;max-width:none !important;height:auto !important;min-height:0 !important;border:0 !important;background:transparent !important;overflow:visible !important;display:block !important;padding:0 !important;line-height:0 !important;"'
+                : ` style="width:${rowCoverWidth}px !important;height:${rowCoverHeight}px !important;min-height:${rowCoverHeight}px !important;border:1px solid rgba(255,255,255,0.18) !important;background:rgba(0,0,0,0.22) !important;overflow:hidden !important;display:block !important;padding:0 !important;line-height:0 !important;"`;
+            const coverSlotStyle = isGridLayout
+                ? ''
+                : ` style="width:100% !important;height:100% !important;min-height:100% !important;display:block !important;border:0 !important;background:transparent !important;overflow:hidden !important;"`;
+            const coverImageStyle = isGridLayout
+                ? ' style="width:100% !important;max-width:100% !important;height:100% !important;min-height:0 !important;margin-left:0 !important;margin-top:0 !important;object-fit:contain !important;object-position:center center !important;transform:none !important;"'
+                : ` style="width:100% !important;max-width:100% !important;height:${rowImageHeight}px !important;min-height:0 !important;max-height:none !important;margin-left:0 !important;margin-top:-${rowImageOffset}px !important;object-fit:cover !important;object-position:center top !important;transform:none !important;"`;
             const visualHtml = isLibraryLinked
                 ? `
-                    <div class="unidex-entry-cover-slot">
+                    <div class="unidex-entry-cover-slot"${coverSlotStyle}>
                         ${safeCoverUrl
-                            ? `<img class="unidex-entry-cover" src="${safeCoverUrl}" alt="${safeTitle} cover" loading="lazy" decoding="async" referrerpolicy="no-referrer">`
+                            ? `<img class="unidex-entry-cover" src="${safeCoverUrl}" alt="${safeTitle} cover" loading="lazy" decoding="async" referrerpolicy="no-referrer"${coverImageStyle}>`
                             : '<div class="unidex-entry-cover-fallback">&#128218;</div>'}
                     </div>
                 `
@@ -421,7 +437,7 @@ window.UnidexView = (function () {
                 <article class="unidex-entry-item has-visual-slot ${taskMode && link.done ? 'is-done' : ''} ${isLibraryLinked ? 'is-library-linked' : 'is-bookmark-only'}"
                     data-text="${hoverText}">
                     <button type="button"
-                        class="unidex-entry-visual-btn"
+                        class="unidex-entry-visual-btn"${visualButtonStyle}
                         onclick="return window.UnidexView.openEntryDirect('${encodedId}', event)"
                         title="Open ${safeTitle} in new tab"
                         aria-label="Open ${safeTitle} in new tab">
@@ -495,6 +511,100 @@ window.UnidexView = (function () {
         const isGrid = layoutMode === 'grid';
         entriesSection.classList.toggle('is-grid-layout', isGrid);
         entriesSection.classList.toggle('is-row-layout', !isGrid);
+
+        // Apply inline image sizing/position as final authority so late CSS loaders
+        // cannot break row/grid cover behavior.
+        const visualButtons = Array.from(entriesSection.querySelectorAll('.unidex-entry-visual-btn'));
+        const coverSlots = Array.from(entriesSection.querySelectorAll('.unidex-entry-cover-slot'))
+            .filter(function (slot) { return !slot.classList.contains('is-bookmark-only'); });
+        const covers = Array.from(entriesSection.querySelectorAll('.unidex-entry-cover'));
+
+        if (isGrid) {
+            visualButtons.forEach(function (button) {
+                button.style.setProperty('width', '100%', 'important');
+                button.style.setProperty('min-width', '0', 'important');
+                button.style.setProperty('max-width', 'none', 'important');
+                button.style.setProperty('height', 'auto', 'important');
+                button.style.setProperty('min-height', '0', 'important');
+                button.style.setProperty('border', '0', 'important');
+                button.style.setProperty('background', 'transparent', 'important');
+                button.style.setProperty('overflow', 'visible', 'important');
+                button.style.setProperty('display', 'block', 'important');
+                button.style.setProperty('padding', '0', 'important');
+                button.style.setProperty('line-height', '0', 'important');
+            });
+            coverSlots.forEach(function (slot) {
+                slot.style.removeProperty('height');
+                slot.style.removeProperty('min-height');
+                slot.style.removeProperty('width');
+                slot.style.removeProperty('display');
+                slot.style.removeProperty('border');
+                slot.style.removeProperty('background');
+                slot.style.removeProperty('overflow');
+            });
+            covers.forEach(function (image) {
+                image.style.removeProperty('height');
+                image.style.removeProperty('min-height');
+                image.style.removeProperty('max-width');
+                image.style.removeProperty('margin-left');
+                image.style.removeProperty('margin-top');
+                image.style.removeProperty('max-height');
+                image.style.removeProperty('transform');
+                image.style.removeProperty('transform-origin');
+                image.style.setProperty('width', '100%', 'important');
+                image.style.setProperty('max-width', '100%', 'important');
+                image.style.setProperty('height', '100%', 'important');
+                image.style.setProperty('min-height', '0', 'important');
+                image.style.setProperty('max-height', '100%', 'important');
+                image.style.setProperty('margin-left', '0', 'important');
+                image.style.setProperty('margin-top', '0', 'important');
+                image.style.setProperty('object-fit', 'contain', 'important');
+                image.style.setProperty('object-position', 'center center', 'important');
+                image.style.setProperty('transform', 'none', 'important');
+            });
+            return;
+        }
+
+        const isCompactViewport = window.matchMedia('(max-width: 900px)').matches;
+        const targetWidth = isCompactViewport ? 72 : 84;
+        const targetHeight = isCompactViewport ? 132 : 156;
+        const rowFillHeight = Math.round(targetHeight * 1.32);
+        const rowFillOffset = Math.round((rowFillHeight - targetHeight) / 2);
+        visualButtons.forEach(function (button) {
+            button.style.setProperty('width', `${targetWidth}px`, 'important');
+            button.style.setProperty('min-width', `${targetWidth}px`, 'important');
+            button.style.setProperty('height', `${targetHeight}px`, 'important');
+            button.style.setProperty('min-height', `${targetHeight}px`, 'important');
+            button.style.setProperty('border', '1px solid rgba(255,255,255,0.18)', 'important');
+            button.style.setProperty('background', 'rgba(0,0,0,0.22)', 'important');
+            button.style.setProperty('overflow', 'hidden', 'important');
+            button.style.setProperty('display', 'block', 'important');
+            button.style.setProperty('padding', '0', 'important');
+            button.style.setProperty('line-height', '0', 'important');
+        });
+        coverSlots.forEach(function (slot) {
+            slot.style.setProperty('width', '100%', 'important');
+            slot.style.setProperty('height', `${targetHeight}px`, 'important');
+            slot.style.setProperty('min-height', `${targetHeight}px`, 'important');
+            slot.style.setProperty('display', 'block', 'important');
+            slot.style.setProperty('border', '0', 'important');
+            slot.style.setProperty('background', 'transparent', 'important');
+            slot.style.setProperty('overflow', 'hidden', 'important');
+            slot.style.setProperty('align-self', 'stretch', 'important');
+        });
+        covers.forEach(function (image) {
+            image.style.setProperty('width', '100%', 'important');
+            image.style.setProperty('max-width', '100%', 'important');
+            image.style.setProperty('height', `${rowFillHeight}px`, 'important');
+            image.style.setProperty('max-height', 'none', 'important');
+            image.style.setProperty('margin-left', '0', 'important');
+            image.style.setProperty('margin-top', `-${rowFillOffset}px`, 'important');
+            image.style.setProperty('min-height', '0', 'important');
+            image.style.setProperty('object-fit', 'cover', 'important');
+            image.style.setProperty('object-position', 'center top', 'important');
+            image.style.setProperty('transform', 'none', 'important');
+            image.style.setProperty('transform-origin', 'center top', 'important');
+        });
     }
 
     function stabilizeEntriesLayout(gridContainer, layoutMode) {
@@ -624,7 +734,7 @@ window.UnidexView = (function () {
                     </div>
                 </header>
                 <section class="unidex-entries ${layoutMode === 'grid' ? 'is-grid-layout' : 'is-row-layout'}" aria-label="Bookmark and Library Entries">
-                    ${buildEntriesHtml(filteredEntries, taskMode)}
+                    ${buildEntriesHtml(filteredEntries, taskMode, layoutMode)}
                 </section>
             </section>
         `;

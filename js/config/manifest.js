@@ -25,7 +25,7 @@ window.EveModuleManifest = {
         'js/modules/ui/dashboard/categories/builder-link.js',
         'js/modules/ui/dashboard/categories/builder-card.js',
         'js/modules/ui/dashboard/categories/render.js',
-        'js/modules/ui/dashboard/unidex-view.js',
+        'js/modules/ui/dashboard/unidex-view.js?v=0.2.29',
         'js/modules/ui/dashboard.js', // Core dashboard (orchestrator)
         'js/modules/ui/context-menus/templates.js',
         'js/modules/ui/context-menus/actions.js',
@@ -523,7 +523,7 @@ window.EveModuleManifest = {
         // UI Modules
         'js/modules/ui/sidebar.css',
         'js/modules/ui/dashboard/dashboard.css',
-        'js/modules/ui/dashboard/unidex-view.css',
+        'js/modules/ui/dashboard/unidex-view.css?v=0.2.29',
         'js/modules/ui/dashboard/dock.css',
         'js/modules/ui/bulk-toolbar.css',
         'js/modules/ui/scratchpad.css',
