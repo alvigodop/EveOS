@@ -122,6 +122,21 @@ window.UnidexView = (function () {
         return api.getLinkedEntry(linkId);
     }
 
+    function getLinkedLibraryEntry(linkId) {
+        return getLinkedRecord(linkId)?.entry || null;
+    }
+
+    function getEntryConfidence(entry) {
+        if (!entry || typeof entry !== 'object') return null;
+        const ratingsApi = window.EveLibrary?.Ratings;
+        if (ratingsApi?.applyDerivedRatings) {
+            ratingsApi.applyDerivedRatings(entry);
+        }
+        const value = Number(entry?.derivedRatings?.confidence);
+        if (!Number.isFinite(value)) return null;
+        return Math.max(0, Math.min(1, value));
+    }
+
     function clearLayoutMaintenanceTimers() {
         layoutMaintenanceToken += 1;
         if (!layoutMaintenanceTimers.length) return;
@@ -387,9 +402,9 @@ window.UnidexView = (function () {
             const safeCategoryLabel = showCategoryTag
                 ? escapeHtml(String(rawCategoryLabel || 'Unsorted'))
                 : '';
-            const linkedRecord = getLinkedRecord(link.id);
-            const isLibraryLinked = !!linkedRecord?.entry;
-            const libraryEntry = linkedRecord?.entry || null;
+            const libraryEntry = getLinkedLibraryEntry(link.id);
+            const isLibraryLinked = !!libraryEntry;
+            const confidenceValue = isLibraryLinked ? getEntryConfidence(libraryEntry) : null;
             const libraryStatusRaw = String(libraryEntry?.status || '').trim();
             const libraryRatingRaw = String(libraryEntry?.rating || '').trim();
             const libraryAuthorRaw = String(libraryEntry?.author || '').trim();
@@ -399,6 +414,7 @@ window.UnidexView = (function () {
             const libraryMediaTypeRaw = getMediaTypeLabel(libraryEntry);
             const progressRaw = getProgressLabel(libraryEntry);
             const coverUrlRaw = String(libraryEntry?.image || libraryEntry?.imageUrl || '').trim();
+            const confidenceLabelRaw = Number.isFinite(confidenceValue) ? confidenceValue.toFixed(2) : '';
             const libraryStatus = escapeHtml(libraryStatusRaw || 'No status');
             const libraryRating = escapeHtml(libraryRatingRaw || '-');
             const libraryAuthor = escapeHtml(libraryAuthorRaw);
@@ -407,6 +423,7 @@ window.UnidexView = (function () {
             const libraryLanguage = escapeHtml(libraryLanguageRaw);
             const libraryMediaType = escapeHtml(libraryMediaTypeRaw);
             const libraryProgress = escapeHtml(progressRaw);
+            const confidenceLabel = escapeHtml(confidenceLabelRaw);
             const safeCoverUrl = escapeHtml(coverUrlRaw);
             const libraryChips = [];
             if (libraryStatusRaw) libraryChips.push(`<span class="unidex-entry-chip">${libraryStatus}</span>`);
@@ -414,6 +431,7 @@ window.UnidexView = (function () {
             if (libraryProgress) libraryChips.push(`<span class="unidex-entry-chip">${libraryProgress}</span>`);
             if (libraryMediaType) libraryChips.push(`<span class="unidex-entry-chip">${libraryMediaType}</span>`);
             if (libraryLanguage) libraryChips.push(`<span class="unidex-entry-chip">${libraryLanguage}</span>`);
+            if (confidenceLabelRaw) libraryChips.push(`<span class="unidex-entry-chip">Confidence ${confidenceLabel}</span>`);
             const libraryDetailHtml = isLibraryLinked
                 ? `
                     <div class="unidex-entry-library-wrap">
@@ -457,6 +475,9 @@ window.UnidexView = (function () {
             const libraryTagHtml = isLibraryLinked
                 ? '<span class="unidex-entry-tag library-linked">Library Linked</span>'
                 : '';
+            const confidenceTagHtml = confidenceLabelRaw
+                ? `<span class="unidex-entry-tag confidence">Conf ${confidenceLabel}</span>`
+                : '';
             const extraTagsHtml = typeof entryOptions.getExtraTagsHtml === 'function'
                 ? String(entryOptions.getExtraTagsHtml(link) || '')
                 : '';
@@ -480,6 +501,7 @@ window.UnidexView = (function () {
                             ${extraTagsHtml}
                             ${taskTagHtml}
                             ${libraryTagHtml}
+                            ${confidenceTagHtml}
                             ${link.pinned ? '<span class="unidex-entry-tag pinned">Pinned</span>' : ''}
                         </div>
                     </div>
@@ -562,10 +584,201 @@ window.UnidexView = (function () {
 
     function matchesEntriesFilter(link, filterMode) {
         if (filterMode === 'all') return true;
-        const isLinked = !!getLinkedRecord(link.id)?.entry;
+        const isLinked = !!getLinkedLibraryEntry(link.id);
         if (filterMode === 'linked') return isLinked;
         if (filterMode === 'bookmark-only') return !isLinked;
         return true;
+    }
+
+    function getEntriesSortBy() {
+        const mode = String(config?.unidexEntriesSortBy || 'none').toLowerCase();
+        if (mode === 'confidence') return 'confidence';
+        return 'none';
+    }
+
+    function getEntriesSortOrder() {
+        return String(config?.unidexEntriesSortOrder || 'desc').toLowerCase() === 'asc' ? 'asc' : 'desc';
+    }
+
+    function setEntriesSortBy(sortBy) {
+        const nextSortBy = String(sortBy || '').toLowerCase() === 'confidence' ? 'confidence' : 'none';
+        if (String(config?.unidexEntriesSortBy || 'none') === nextSortBy) return;
+        config.unidexEntriesSortBy = nextSortBy;
+        if (typeof saveConfig === 'function') saveConfig();
+        if (typeof renderDashboard === 'function') renderDashboard();
+    }
+
+    function setEntriesSortOrder(sortOrder) {
+        const nextOrder = String(sortOrder || '').toLowerCase() === 'asc' ? 'asc' : 'desc';
+        const currentOrder = String(config?.unidexEntriesSortOrder || 'desc');
+        const currentSortBy = getEntriesSortBy();
+        const shouldEnableConfidenceSort = currentSortBy === 'none';
+        if (currentOrder === nextOrder && !shouldEnableConfidenceSort) return;
+        config.unidexEntriesSortOrder = nextOrder;
+        if (shouldEnableConfidenceSort) {
+            config.unidexEntriesSortBy = 'confidence';
+        }
+        if (typeof saveConfig === 'function') saveConfig();
+        if (typeof renderDashboard === 'function') renderDashboard();
+    }
+
+    function normalizeConfidenceInput(rawValue) {
+        const text = String(rawValue ?? '').trim();
+        if (!text) return null;
+        const value = Number(text);
+        if (!Number.isFinite(value)) return null;
+        return Math.max(0, Math.min(1, value));
+    }
+
+    function getEntriesConfidenceMin() {
+        return normalizeConfidenceInput(config?.unidexEntriesConfidenceMin);
+    }
+
+    function getEntriesConfidenceMax() {
+        return normalizeConfidenceInput(config?.unidexEntriesConfidenceMax);
+    }
+
+    function formatConfidenceInput(value) {
+        if (!Number.isFinite(value)) return '';
+        return value.toFixed(2);
+    }
+
+    function setEntriesConfidenceMin(rawValue) {
+        const nextMin = normalizeConfidenceInput(rawValue);
+        const currentMax = getEntriesConfidenceMax();
+
+        config.unidexEntriesConfidenceMin = nextMin;
+        if (Number.isFinite(nextMin) && Number.isFinite(currentMax) && nextMin > currentMax) {
+            config.unidexEntriesConfidenceMax = nextMin;
+        }
+
+        if (typeof saveConfig === 'function') saveConfig();
+        if (typeof renderDashboard === 'function') renderDashboard();
+    }
+
+    function setEntriesConfidenceMax(rawValue) {
+        const nextMax = normalizeConfidenceInput(rawValue);
+        const currentMin = getEntriesConfidenceMin();
+
+        config.unidexEntriesConfidenceMax = nextMax;
+        if (Number.isFinite(nextMax) && Number.isFinite(currentMin) && nextMax < currentMin) {
+            config.unidexEntriesConfidenceMin = nextMax;
+        }
+
+        if (typeof saveConfig === 'function') saveConfig();
+        if (typeof renderDashboard === 'function') renderDashboard();
+    }
+
+    function matchesConfidenceRange(link, minConfidence, maxConfidence) {
+        if (!Number.isFinite(minConfidence) && !Number.isFinite(maxConfidence)) return true;
+
+        const entry = getLinkedLibraryEntry(link.id);
+        if (!entry) return true;
+
+        const confidence = getEntryConfidence(entry);
+        if (!Number.isFinite(confidence)) return false;
+        if (Number.isFinite(minConfidence) && confidence < minConfidence) return false;
+        if (Number.isFinite(maxConfidence) && confidence > maxConfidence) return false;
+        return true;
+    }
+
+    function sortByConfidence(links, sortOrder) {
+        const indexed = (Array.isArray(links) ? links : []).map(function (link, index) {
+            const entry = getLinkedLibraryEntry(link.id);
+            return {
+                index: index,
+                link: link,
+                confidence: entry ? getEntryConfidence(entry) : null
+            };
+        });
+
+        indexed.sort(function (a, b) {
+            const aValue = a.confidence;
+            const bValue = b.confidence;
+            const aMissing = !Number.isFinite(aValue);
+            const bMissing = !Number.isFinite(bValue);
+
+            if (aMissing && bMissing) return a.index - b.index;
+            if (aMissing) return 1;
+            if (bMissing) return -1;
+            if (aValue !== bValue) {
+                return sortOrder === 'asc' ? aValue - bValue : bValue - aValue;
+            }
+            return a.index - b.index;
+        });
+
+        return indexed.map(function (item) { return item.link; });
+    }
+
+    function applyEntriesViewTransforms(entryLinks, filterMode) {
+        const base = Array.isArray(entryLinks) ? entryLinks.slice() : [];
+        const minConfidence = getEntriesConfidenceMin();
+        const maxConfidence = getEntriesConfidenceMax();
+        const sortBy = getEntriesSortBy();
+        const sortOrder = getEntriesSortOrder();
+
+        const filtered = base.filter(function (link) {
+            return matchesEntriesFilter(link, filterMode)
+                && matchesConfidenceRange(link, minConfidence, maxConfidence);
+        });
+
+        if (sortBy === 'confidence') {
+            return sortByConfidence(filtered, sortOrder);
+        }
+        return filtered;
+    }
+
+    function buildEntriesControlsHtml(options) {
+        const controlOptions = options || {};
+        const filterMode = getEntriesFilterMode();
+        const sortBy = getEntriesSortBy();
+        const sortOrder = getEntriesSortOrder();
+        const minConfidence = getEntriesConfidenceMin();
+        const maxConfidence = getEntriesConfidenceMax();
+        const layoutLabel = getEntriesLayoutMode() === 'grid' ? 'Grid' : 'Rows';
+        const toggleHtml = String(controlOptions.toggleHtml || '');
+
+        return `
+            ${toggleHtml}
+            <select class="unidex-filter-select" aria-label="Bookmark filter" onchange="window.UnidexView.setEntriesFilter(this.value)">
+                <option value="all" ${filterMode === 'all' ? 'selected' : ''}>All Bookmarks</option>
+                <option value="linked" ${filterMode === 'linked' ? 'selected' : ''}>Library Linked</option>
+                <option value="bookmark-only" ${filterMode === 'bookmark-only' ? 'selected' : ''}>Bookmarks Only</option>
+            </select>
+            <select class="unidex-filter-select" aria-label="Entries sort" onchange="window.UnidexView.setEntriesSortBy(this.value)">
+                <option value="none" ${sortBy === 'none' ? 'selected' : ''}>Sort: Default</option>
+                <option value="confidence" ${sortBy === 'confidence' ? 'selected' : ''}>Sort: Confidence</option>
+            </select>
+            <select class="unidex-filter-select" aria-label="Sort direction" onchange="window.UnidexView.setEntriesSortOrder(this.value)">
+                <option value="desc" ${sortOrder === 'desc' ? 'selected' : ''}>High -> Low</option>
+                <option value="asc" ${sortOrder === 'asc' ? 'selected' : ''}>Low -> High</option>
+            </select>
+            <div class="unidex-confidence-controls" role="group" aria-label="Confidence threshold">
+                <span class="unidex-confidence-label">Confidence</span>
+                <input type="number"
+                    class="unidex-confidence-input"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value="${formatConfidenceInput(minConfidence)}"
+                    placeholder="Min"
+                    aria-label="Minimum confidence"
+                    onchange="window.UnidexView.setEntriesConfidenceMin(this.value)">
+                <span class="unidex-confidence-separator">to</span>
+                <input type="number"
+                    class="unidex-confidence-input"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value="${formatConfidenceInput(maxConfidence)}"
+                    placeholder="Max"
+                    aria-label="Maximum confidence"
+                    onchange="window.UnidexView.setEntriesConfidenceMax(this.value)">
+            </div>
+            <button type="button" class="unidex-layout-btn" onclick="window.UnidexView.toggleEntriesLayout()" title="Toggle entries layout">
+                Layout: ${layoutLabel}
+            </button>
+        `;
     }
 
     function forceEntriesLayoutPass(gridContainer, layoutMode) {
@@ -681,8 +894,6 @@ window.UnidexView = (function () {
     function renderTabsStage(gridContainer, searchStr) {
         const tabsUnifiedMode = getTabsUnifiedMode();
         const layoutMode = getEntriesLayoutMode();
-        const filterMode = getEntriesFilterMode();
-        const layoutLabel = layoutMode === 'grid' ? 'Grid' : 'Rows';
         const tabsUnifiedToggleHtml = `
             <label class="unidex-switch" title="Show bookmarks from all tabs in one unified view">
                 <input type="checkbox" class="unidex-switch-input" onchange="window.UnidexView.setTabsUnified(this.checked)" ${tabsUnifiedMode ? 'checked' : ''}>
@@ -722,15 +933,7 @@ window.UnidexView = (function () {
                         <h2 class="unidex-title unidex-echo-title" data-text="THE UNIDEX VIEW"><span>The Unidex View</span></h2>
                     </header>
                     <div class="unidex-panel-controls unidex-tabs-controls">
-                        ${tabsUnifiedToggleHtml}
-                        <select class="unidex-filter-select" aria-label="Bookmark filter" onchange="window.UnidexView.setEntriesFilter(this.value)">
-                            <option value="all" ${filterMode === 'all' ? 'selected' : ''}>All Bookmarks</option>
-                            <option value="linked" ${filterMode === 'linked' ? 'selected' : ''}>Library Linked</option>
-                            <option value="bookmark-only" ${filterMode === 'bookmark-only' ? 'selected' : ''}>Bookmarks Only</option>
-                        </select>
-                        <button type="button" class="unidex-layout-btn" onclick="window.UnidexView.toggleEntriesLayout()" title="Toggle entries layout">
-                            Layout: ${layoutLabel}
-                        </button>
+                        ${buildEntriesControlsHtml({ toggleHtml: tabsUnifiedToggleHtml })}
                     </div>
                     <section class="unidex-entries ${layoutMode === 'grid' ? 'is-grid-layout' : 'is-row-layout'}" aria-label="Unified entries across all tabs">
                         <div class="unidex-empty-state">
@@ -745,9 +948,7 @@ window.UnidexView = (function () {
             return;
         }
 
-        const filteredEntries = allLinks.filter(function (link) {
-            return matchesEntriesFilter(link, filterMode);
-        });
+        const filteredEntries = applyEntriesViewTransforms(allLinks, getEntriesFilterMode());
 
         gridContainer.innerHTML = `
             <section class="unidex-shell" aria-label="Unidex Unified Entries Across Tabs View">
@@ -755,15 +956,7 @@ window.UnidexView = (function () {
                     <h2 class="unidex-title unidex-echo-title" data-text="THE UNIDEX VIEW"><span>The Unidex View</span></h2>
                 </header>
                 <div class="unidex-panel-controls unidex-tabs-controls">
-                    ${tabsUnifiedToggleHtml}
-                    <select class="unidex-filter-select" aria-label="Bookmark filter" onchange="window.UnidexView.setEntriesFilter(this.value)">
-                        <option value="all" ${filterMode === 'all' ? 'selected' : ''}>All Bookmarks</option>
-                        <option value="linked" ${filterMode === 'linked' ? 'selected' : ''}>Library Linked</option>
-                        <option value="bookmark-only" ${filterMode === 'bookmark-only' ? 'selected' : ''}>Bookmarks Only</option>
-                    </select>
-                    <button type="button" class="unidex-layout-btn" onclick="window.UnidexView.toggleEntriesLayout()" title="Toggle entries layout">
-                        Layout: ${layoutLabel}
-                    </button>
+                    ${buildEntriesControlsHtml({ toggleHtml: tabsUnifiedToggleHtml })}
                 </div>
                 <section class="unidex-entries ${layoutMode === 'grid' ? 'is-grid-layout' : 'is-row-layout'}" aria-label="Unified entries across all tabs">
                     ${buildEntriesHtml(filteredEntries, false, layoutMode, {
@@ -795,8 +988,6 @@ window.UnidexView = (function () {
         const categoryModels = getCategoryModels(workspaceLinks);
         const cardsUnifiedMode = getCardsUnifiedMode();
         const layoutMode = getEntriesLayoutMode();
-        const filterMode = getEntriesFilterMode();
-        const layoutLabel = layoutMode === 'grid' ? 'Grid' : 'Rows';
         const unifiedToggleHtml = `
             <label class="unidex-switch" title="Show all bookmarks from all cards in this workspace">
                 <input type="checkbox" class="unidex-switch-input" onchange="window.UnidexView.setCardsUnified(this.checked)" ${cardsUnifiedMode ? 'checked' : ''}>
@@ -836,15 +1027,7 @@ window.UnidexView = (function () {
                         <button type="button" class="unidex-back-btn" onclick="window.UnidexView.backToTabs()">Back To Tabs</button>
                         <h3 class="unidex-panel-title unidex-echo-title" data-text="${escapeHtml(String(workspace.name || "").toUpperCase())}"><span>${escapeHtml(workspace.name)} Unified Entries</span></h3>
                         <div class="unidex-panel-controls">
-                            ${unifiedToggleHtml}
-                            <select class="unidex-filter-select" aria-label="Bookmark filter" onchange="window.UnidexView.setEntriesFilter(this.value)">
-                                <option value="all" ${filterMode === 'all' ? 'selected' : ''}>All Bookmarks</option>
-                                <option value="linked" ${filterMode === 'linked' ? 'selected' : ''}>Library Linked</option>
-                                <option value="bookmark-only" ${filterMode === 'bookmark-only' ? 'selected' : ''}>Bookmarks Only</option>
-                            </select>
-                            <button type="button" class="unidex-layout-btn" onclick="window.UnidexView.toggleEntriesLayout()" title="Toggle entries layout">
-                                Layout: ${layoutLabel}
-                            </button>
+                            ${buildEntriesControlsHtml({ toggleHtml: unifiedToggleHtml })}
                         </div>
                     </header>
                     <section class="unidex-entries ${layoutMode === 'grid' ? 'is-grid-layout' : 'is-row-layout'}" aria-label="Unified bookmark and library entries">
@@ -860,9 +1043,7 @@ window.UnidexView = (function () {
             return;
         }
 
-        const filteredEntries = workspaceLinks.filter(function (link) {
-            return matchesEntriesFilter(link, filterMode);
-        });
+        const filteredEntries = applyEntriesViewTransforms(workspaceLinks, getEntriesFilterMode());
 
         gridContainer.innerHTML = `
             <section class="unidex-shell" aria-label="Unidex Unified Entries View">
@@ -870,15 +1051,7 @@ window.UnidexView = (function () {
                     <button type="button" class="unidex-back-btn" onclick="window.UnidexView.backToTabs()">Back To Tabs</button>
                     <h3 class="unidex-panel-title unidex-echo-title" data-text="${escapeHtml(String(workspace.name || "").toUpperCase())}"><span>${escapeHtml(workspace.name)} Unified Entries</span></h3>
                     <div class="unidex-panel-controls">
-                        ${unifiedToggleHtml}
-                        <select class="unidex-filter-select" aria-label="Bookmark filter" onchange="window.UnidexView.setEntriesFilter(this.value)">
-                            <option value="all" ${filterMode === 'all' ? 'selected' : ''}>All Bookmarks</option>
-                            <option value="linked" ${filterMode === 'linked' ? 'selected' : ''}>Library Linked</option>
-                            <option value="bookmark-only" ${filterMode === 'bookmark-only' ? 'selected' : ''}>Bookmarks Only</option>
-                        </select>
-                        <button type="button" class="unidex-layout-btn" onclick="window.UnidexView.toggleEntriesLayout()" title="Toggle entries layout">
-                            Layout: ${layoutLabel}
-                        </button>
+                        ${buildEntriesControlsHtml({ toggleHtml: unifiedToggleHtml })}
                     </div>
                 </header>
                 <section class="unidex-entries ${layoutMode === 'grid' ? 'is-grid-layout' : 'is-row-layout'}" aria-label="Unified bookmark and library entries">
@@ -907,10 +1080,8 @@ window.UnidexView = (function () {
         const entries = workspaceLinks.filter(function (link) {
             return (link.category || 'Unsorted') === selectedCategory;
         });
-        const filterMode = getEntriesFilterMode();
         const taskMode = isTaskModeCategory(selectedCategory);
         const layoutMode = getEntriesLayoutMode();
-        const layoutLabel = layoutMode === 'grid' ? 'Grid' : 'Rows';
         const libraryReady = ensureLibraryReadyForEntries();
 
         if (!libraryReady) {
@@ -925,14 +1096,7 @@ window.UnidexView = (function () {
                         <button type="button" class="unidex-back-btn" onclick="window.UnidexView.backToCards()">Back To Cards</button>
                         <h3 class="unidex-panel-title unidex-echo-title" data-text="${escapeHtml(String(selectedCategory || "").toUpperCase())}"><span>${escapeHtml(selectedCategory)} Entries</span></h3>
                         <div class="unidex-panel-controls">
-                            <select class="unidex-filter-select" aria-label="Bookmark filter" onchange="window.UnidexView.setEntriesFilter(this.value)">
-                                <option value="all" ${filterMode === 'all' ? 'selected' : ''}>All Bookmarks</option>
-                                <option value="linked" ${filterMode === 'linked' ? 'selected' : ''}>Library Linked</option>
-                                <option value="bookmark-only" ${filterMode === 'bookmark-only' ? 'selected' : ''}>Bookmarks Only</option>
-                            </select>
-                            <button type="button" class="unidex-layout-btn" onclick="window.UnidexView.toggleEntriesLayout()" title="Toggle entries layout">
-                                Layout: ${layoutLabel}
-                            </button>
+                            ${buildEntriesControlsHtml()}
                         </div>
                     </header>
                     <section class="unidex-entries ${layoutMode === 'grid' ? 'is-grid-layout' : 'is-row-layout'}" aria-label="Bookmark and Library Entries">
@@ -948,9 +1112,7 @@ window.UnidexView = (function () {
             return;
         }
 
-        const filteredEntries = entries.filter(function (link) {
-            return matchesEntriesFilter(link, filterMode);
-        });
+        const filteredEntries = applyEntriesViewTransforms(entries, getEntriesFilterMode());
 
         gridContainer.innerHTML = `
             <section class="unidex-shell" aria-label="Unidex Entries View">
@@ -958,14 +1120,7 @@ window.UnidexView = (function () {
                     <button type="button" class="unidex-back-btn" onclick="window.UnidexView.backToCards()">Back To Cards</button>
                     <h3 class="unidex-panel-title unidex-echo-title" data-text="${escapeHtml(String(selectedCategory || "").toUpperCase())}"><span>${escapeHtml(selectedCategory)} Entries</span></h3>
                     <div class="unidex-panel-controls">
-                        <select class="unidex-filter-select" aria-label="Bookmark filter" onchange="window.UnidexView.setEntriesFilter(this.value)">
-                            <option value="all" ${filterMode === 'all' ? 'selected' : ''}>All Bookmarks</option>
-                            <option value="linked" ${filterMode === 'linked' ? 'selected' : ''}>Library Linked</option>
-                            <option value="bookmark-only" ${filterMode === 'bookmark-only' ? 'selected' : ''}>Bookmarks Only</option>
-                        </select>
-                        <button type="button" class="unidex-layout-btn" onclick="window.UnidexView.toggleEntriesLayout()" title="Toggle entries layout">
-                            Layout: ${layoutLabel}
-                        </button>
+                        ${buildEntriesControlsHtml()}
                     </div>
                 </header>
                 <section class="unidex-entries ${layoutMode === 'grid' ? 'is-grid-layout' : 'is-row-layout'}" aria-label="Bookmark and Library Entries">
@@ -1111,6 +1266,10 @@ window.UnidexView = (function () {
         backToTabs: backToTabs,
         backToCards: backToCards,
         setEntriesFilter: setEntriesFilter,
+        setEntriesSortBy: setEntriesSortBy,
+        setEntriesSortOrder: setEntriesSortOrder,
+        setEntriesConfidenceMin: setEntriesConfidenceMin,
+        setEntriesConfidenceMax: setEntriesConfidenceMax,
         setCardsUnified: setCardsUnified,
         setTabsUnified: setTabsUnified,
         toggleEntriesLayout: toggleEntriesLayout,

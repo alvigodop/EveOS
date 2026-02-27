@@ -4,7 +4,7 @@ window.EveModuleManifestParts.styles = [
         // UI Modules
         'js/modules/ui/sidebar.css?v=0.2.36',
         'js/modules/ui/dashboard/dashboard.css',
-        'js/modules/ui/dashboard/unidex-view.css?v=0.2.38',
+        'js/modules/ui/dashboard/unidex-view.css?v=0.2.39',
         'js/modules/ui/dashboard/categories/focused-card.css?v=0.2.68',
         'js/modules/ui/dashboard/dock.css',
         'js/modules/ui/bulk-toolbar.css',
