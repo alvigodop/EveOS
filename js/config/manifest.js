@@ -14,11 +14,11 @@ window.EveModuleManifest = {
         'js/modules/ui/notifications/dialogs.js',
         'js/modules/features/data-state.js',
         'js/modules/features/data-transfer.js',
-        'js/modules/ui/visuals.js',
+        'js/modules/ui/visuals.js?v=0.2.36',
         'js/modules/ui/header.js',
         'js/modules/features/header-controls/hc-state.js',
         'js/modules/features/header-controls/hc-ui.js',
-        'js/modules/ui/sidebar.js',
+        'js/modules/ui/sidebar.js?v=0.2.36',
         'js/modules/ui/dashboard/dashboard-dock.js',
         // Dashboard Categories Modules
         'js/modules/ui/dashboard/categories/sorter.js',
@@ -521,7 +521,7 @@ window.EveModuleManifest = {
 ],
     styles: [
         // UI Modules
-        'js/modules/ui/sidebar.css',
+        'js/modules/ui/sidebar.css?v=0.2.36',
         'js/modules/ui/dashboard/dashboard.css',
         'js/modules/ui/dashboard/unidex-view.css?v=0.2.35',
         'js/modules/ui/dashboard/dock.css',

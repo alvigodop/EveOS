@@ -1,16 +1,34 @@
 // --- VISUAL SETTINGS ---
 
 function toggleView() {
-    const orderedModes = ['grid', 'list', 'unidex'];
-    const currentIndex = orderedModes.indexOf(config.viewMode);
-    const safeIndex = currentIndex >= 0 ? currentIndex : 0;
-    config.viewMode = orderedModes[(safeIndex + 1) % orderedModes.length];
-
-    if (config.viewMode !== 'unidex' && window.UnidexView && typeof window.UnidexView.resetSelection === 'function') {
-        window.UnidexView.resetSelection();
+    if (config.viewMode === 'unidex') {
+        if (window.UnidexView && typeof window.UnidexView.resetSelection === 'function') {
+            window.UnidexView.resetSelection();
+        }
+        config.viewMode = 'grid';
+        saveConfig();
+        if (typeof renderSidebar === 'function') renderSidebar();
+        renderDashboard();
+        return;
     }
 
+    const orderedModes = ['grid', 'list'];
+    const currentMode = config.viewMode === 'list' ? 'list' : 'grid';
+    const currentIndex = orderedModes.indexOf(currentMode);
+    config.viewMode = orderedModes[(currentIndex + 1) % orderedModes.length];
+
     saveConfig();
+    if (typeof renderSidebar === 'function') renderSidebar();
+    renderDashboard();
+}
+
+function openUnidexView() {
+    if (window.UnidexView && typeof window.UnidexView.resetSelection === 'function') {
+        window.UnidexView.resetSelection();
+    }
+    config.viewMode = 'unidex';
+    saveConfig();
+    if (typeof renderSidebar === 'function') renderSidebar();
     renderDashboard();
 }
 
