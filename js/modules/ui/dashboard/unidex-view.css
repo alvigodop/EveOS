@@ -98,6 +98,7 @@
 .unidex-panel-controls {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 8px;
 }
 
@@ -155,6 +156,65 @@
 .unidex-filter-select:focus-visible {
     outline: 2px solid rgba(0, 212, 255, 0.4);
     outline-offset: 1px;
+}
+
+.unidex-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.unidex-switch-input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+}
+
+.unidex-switch-track {
+    width: 38px;
+    height: 22px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.08);
+    position: relative;
+    transition: background 0.2s ease, border-color 0.2s ease;
+    flex-shrink: 0;
+}
+
+.unidex-switch-track::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.92);
+    transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.unidex-switch-input:checked + .unidex-switch-track {
+    border-color: var(--accent);
+    background: rgba(0, 212, 255, 0.35);
+}
+
+.unidex-switch-input:checked + .unidex-switch-track::after {
+    transform: translateX(16px);
+    background: #0f0f0f;
+}
+
+.unidex-switch-label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.unidex-switch:hover .unidex-switch-label {
+    color: var(--text-main);
 }
 
 .unidex-tabs {
@@ -649,6 +709,11 @@
     border-color: rgba(0, 212, 255, 0.55);
 }
 
+.unidex-entry-tag.category {
+    border-color: rgba(0, 212, 255, 0.55);
+    color: var(--accent);
+}
+
 .unidex-entry-library-wrap {
     margin-top: 6px;
     display: grid;
@@ -911,6 +976,10 @@
     .unidex-filter-select {
         width: 100%;
         min-width: 0;
+    }
+
+    .unidex-switch {
+        width: 100%;
     }
 
     .unidex-tabs,
