@@ -28,7 +28,11 @@ window.EveModuleManifestParts.scripts = [
         'js/modules/ui/dashboard/categories/focused-sort.js?v=0.2.1',
         'js/modules/ui/dashboard/categories/builder-card.js?v=0.2.47',
         'js/modules/ui/dashboard/categories/render.js?v=0.2.41',
-'js/modules/ui/dashboard/unidex-view.core.js?v=0.2.41',
+'js/modules/ui/dashboard/unidex-view.builders.js?v=0.2.1',
+'js/modules/ui/dashboard/unidex-view.controls.js?v=0.2.1',
+'js/modules/ui/dashboard/unidex-view.layout.js?v=0.2.1',
+'js/modules/ui/dashboard/unidex-view.stages.js?v=0.2.1',
+'js/modules/ui/dashboard/unidex-view.core.js?v=0.2.43',
 'js/modules/ui/dashboard/unidex-view.js?v=0.2.39',
         'js/modules/ui/dashboard.js?v=0.2.42', // Core dashboard (orchestrator)
         'js/modules/ui/context-menus/templates.js?v=0.2.40',
@@ -62,7 +66,10 @@ window.EveModuleManifestParts.scripts = [
 
         // Library Stats
         'js/modules/features/library/stats/chart-utils.js',
-'js/modules/features/library/stats/stats-calc.js?v=0.2.6',
+'js/modules/features/library/stats/stats-calc.shared.js?v=0.2.1',
+'js/modules/features/library/stats/stats-calc.ratings.js?v=0.2.1',
+'js/modules/features/library/stats/stats-calc.analytics.js?v=0.2.1',
+'js/modules/features/library/stats/stats-calc.js?v=0.2.7',
 'js/modules/features/library/stats/stats-renderer-kpi.js?v=0.2.2',
 'js/modules/features/library/stats/stats-renderer-widgets.js?v=0.2.2',
 'js/modules/features/library/stats/stats-renderer-charts.js?v=0.2.3',

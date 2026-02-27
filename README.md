@@ -34,8 +34,8 @@ The system is intentionally compartmentalized. Workspace tabs, category cards, b
 
 ## Key Files For Modular Structure
 
-1. `js/config/manifest.js`  
-   Script load order and module registration. This is the source of truth for frontend composition.
+1. `js/config/manifest.js` (aggregator), `js/config/manifest/scripts.js`, `js/config/manifest/styles.js`  
+   Script/style load order and module registration. This is the source of truth for frontend composition.
 
 2. `js/modules/core/state.js` and `js/modules/core/storage.js`  
    Core bookmark/config state and persistence (`links`, `config`) used by UI and features.
@@ -105,6 +105,26 @@ The system is intentionally compartmentalized. Workspace tabs, category cards, b
    - Setting added in Settings modal:
      - `config.bookmarkClickOpensLink` (default `false`)
      - Default behavior is popup-first (no immediate tab open on click).
+
+9. Unidex view runtime split (JS):
+   - `js/modules/ui/dashboard/unidex-view.builders.js`
+   - `js/modules/ui/dashboard/unidex-view.controls.js`
+   - `js/modules/ui/dashboard/unidex-view.layout.js`
+   - `js/modules/ui/dashboard/unidex-view.stages.js`
+   - `js/modules/ui/dashboard/unidex-view.core.js` (orchestrator and public API only)
+
+10. Unidex view styles split (CSS):
+   - `js/modules/ui/dashboard/unidex-view.base.css`
+   - `js/modules/ui/dashboard/unidex-view.entries.css`
+   - `js/modules/ui/dashboard/unidex-view.theme.css`
+   - `js/modules/ui/dashboard/unidex-view.responsive.css`
+   - `js/modules/ui/dashboard/unidex-view.css` (facade placeholder; modular files loaded by manifest)
+
+11. Library stats calculator split:
+   - `js/modules/features/library/stats/stats-calc.shared.js`
+   - `js/modules/features/library/stats/stats-calc.ratings.js`
+   - `js/modules/features/library/stats/stats-calc.analytics.js`
+   - `js/modules/features/library/stats/stats-calc.js` (facade export only)
 
 ## Backup Scopes
 
