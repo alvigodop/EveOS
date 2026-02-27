@@ -128,13 +128,13 @@ def run_server(port=DEFAULT_PORT):
         handler = CORSHTTPRequestHandler
         with socketserver.ThreadingTCPServer(("", port), handler) as httpd:
             local_ip = get_local_ip()
-            url = f"http://localhost:{port}/EveOS-V1.html"
+            url = f"http://localhost:{port}/EveOS.html"
             
             # Print server information
             print("[OK] Fandom Discovery Toolkit Server")
             print("  ------------------------------")
             print(f"  Local:   {url}")
-            print(f"  Network: http://{local_ip}:{port}/EveOS-V1.html")
+            print(f"  Network: http://{local_ip}:{port}/EveOS.html")
             print("  ------------------------------")
             print("  Proxy:   Enabled at /api/proxy?url=...")
             print("  ------------------------------")
