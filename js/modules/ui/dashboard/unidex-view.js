@@ -409,8 +409,8 @@ window.UnidexView = (function () {
                 ? ' style="width:100% !important;height:auto !important;min-height:0 !important;display:block !important;aspect-ratio:auto !important;border:0 !important;background:transparent !important;overflow:visible !important;"'
                 : ` style="width:100% !important;height:100% !important;min-height:100% !important;display:block !important;border:0 !important;background:transparent !important;overflow:hidden !important;"`;
             const coverImageStyle = isGridLayout
-                ? ' style="display:block !important;width:100% !important;max-width:100% !important;height:auto !important;min-height:0 !important;max-height:none !important;margin:0 !important;object-fit:contain !important;object-position:center top !important;transform:none !important;"'
-                : ` style="width:100% !important;max-width:100% !important;height:${rowImageHeight}px !important;min-height:0 !important;max-height:none !important;margin-left:0 !important;margin-top:-${rowImageOffset}px !important;object-fit:cover !important;object-position:center top !important;transform:none !important;"`;
+                ? ' style="display:block !important;width:100% !important;max-width:100% !important;height:auto !important;min-height:0 !important;max-height:none !important;margin:0 !important;object-fit:contain !important;object-position:center top !important;"'
+                : ` style="width:100% !important;max-width:100% !important;height:${rowImageHeight}px !important;min-height:0 !important;max-height:none !important;margin-left:0 !important;margin-top:-${rowImageOffset}px !important;object-fit:cover !important;object-position:center top !important;"`;
             const visualHtml = isLibraryLinked
                 ? `
                     <div class="unidex-entry-cover-slot"${coverSlotStyle}>
@@ -552,7 +552,6 @@ window.UnidexView = (function () {
                 image.style.setProperty('margin', '0', 'important');
                 image.style.setProperty('object-fit', 'contain', 'important');
                 image.style.setProperty('object-position', 'center top', 'important');
-                image.style.setProperty('transform', 'none', 'important');
                 image.style.setProperty('transform-origin', 'center center', 'important');
             });
             return;
@@ -595,7 +594,6 @@ window.UnidexView = (function () {
             image.style.setProperty('min-height', '0', 'important');
             image.style.setProperty('object-fit', 'cover', 'important');
             image.style.setProperty('object-position', 'center top', 'important');
-            image.style.setProperty('transform', 'none', 'important');
             image.style.setProperty('transform-origin', 'center top', 'important');
         });
     }

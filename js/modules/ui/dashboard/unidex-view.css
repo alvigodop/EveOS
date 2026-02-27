@@ -516,6 +516,36 @@
     transition: transform 0.28s ease, filter 0.28s ease;
 }
 
+@keyframes unidex-cover-hover-burst {
+    0% {
+        transform: scale(1);
+    }
+    44% {
+        transform: scale(1.115);
+    }
+    74% {
+        transform: scale(1.045);
+    }
+    100% {
+        transform: scale(1.065);
+    }
+}
+
+@keyframes unidex-cover-hover-burst-row {
+    0% {
+        transform: scale(1, 1);
+    }
+    44% {
+        transform: scale(1.11, 1.16);
+    }
+    74% {
+        transform: scale(1.04, 1.09);
+    }
+    100% {
+        transform: scale(1.06, 1.12);
+    }
+}
+
 .unidex-entry-item.is-library-linked .unidex-entry-cover-slot:hover {
     border-color: rgba(0, 212, 255, 0.42);
     box-shadow: 0 0 0 1px rgba(0, 212, 255, 0.16);
@@ -523,16 +553,17 @@
 
 .unidex-entry-item.is-library-linked .unidex-entry-cover-slot:hover .unidex-entry-cover,
 .unidex-entry-item.is-library-linked .unidex-entry-visual-btn:hover .unidex-entry-cover {
-    transform: scale(1.02);
-    filter: saturate(1.1) contrast(1.03) brightness(1.02);
+    animation: unidex-cover-hover-burst 620ms cubic-bezier(0.18, 0.78, 0.2, 1) forwards;
+    filter: saturate(1.13) contrast(1.04) brightness(1.03);
 }
 
 .unidex-entries.is-row-layout .unidex-entry-item.is-library-linked .unidex-entry-cover-slot:hover .unidex-entry-cover,
 .unidex-entries.is-row-layout .unidex-entry-item.is-library-linked .unidex-entry-visual-btn:hover .unidex-entry-cover {
-    transform: scale(1.02, 1.08);
+    animation: unidex-cover-hover-burst-row 660ms cubic-bezier(0.18, 0.78, 0.2, 1) forwards;
 }
 
 .unidex-entries.is-layout-stabilizing .unidex-entry-item.is-library-linked .unidex-entry-cover-slot:hover .unidex-entry-cover {
+    animation: none !important;
     transform: none;
     filter: none;
 }
@@ -733,7 +764,6 @@
     min-height: 0 !important;
     object-fit: cover !important;
     object-position: center top !important;
-    transform: none !important;
     transform-origin: center top;
 }
 
@@ -800,6 +830,16 @@
 .unidex-empty-state p {
     margin: 0;
     color: var(--text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .unidex-entry-item.is-library-linked .unidex-entry-cover-slot:hover .unidex-entry-cover,
+    .unidex-entry-item.is-library-linked .unidex-entry-visual-btn:hover .unidex-entry-cover,
+    .unidex-entries.is-row-layout .unidex-entry-item.is-library-linked .unidex-entry-cover-slot:hover .unidex-entry-cover,
+    .unidex-entries.is-row-layout .unidex-entry-item.is-library-linked .unidex-entry-visual-btn:hover .unidex-entry-cover {
+        animation: none !important;
+        transform: scale(1.02) !important;
+    }
 }
 
 .light-theme .unidex-shell {
@@ -926,7 +966,6 @@
         min-height: 0 !important;
         object-fit: cover !important;
         object-position: center top !important;
-        transform: none !important;
         transform-origin: center top;
     }
 
