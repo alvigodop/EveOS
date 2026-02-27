@@ -678,9 +678,13 @@
 .unidex-entries.is-grid-layout .unidex-entry-cover-slot {
     grid-area: cover;
     width: 100%;
-    aspect-ratio: 3 / 4;
-    height: auto;
-    min-height: 0;
+    height: auto !important;
+    min-height: 0 !important;
+    aspect-ratio: auto !important;
+    display: block !important;
+    border: 0 !important;
+    background: transparent !important;
+    overflow: visible !important;
 }
 
 .unidex-entries.is-grid-layout .unidex-entry-visual-btn {
@@ -692,11 +696,13 @@
 .unidex-entries.is-grid-layout .unidex-entry-cover {
     width: 100% !important;
     max-width: 100% !important;
-    height: 100%;
-    min-height: 0;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
     margin-top: 0 !important;
     object-fit: contain !important;
     object-position: center center !important;
+    display: block !important;
 }
 
 .unidex-entries.is-row-layout .unidex-entry-cover-slot {
@@ -938,19 +944,25 @@
 
     .unidex-entries.is-grid-layout .unidex-entry-cover-slot {
         width: 100%;
-        aspect-ratio: 3 / 4;
-        height: auto;
-        min-height: 0;
+        height: auto !important;
+        min-height: 0 !important;
+        aspect-ratio: auto !important;
+        display: block !important;
+        border: 0 !important;
+        background: transparent !important;
+        overflow: visible !important;
     }
 
     .unidex-entries.is-grid-layout .unidex-entry-cover {
         width: 100% !important;
         max-width: 100% !important;
-        height: 100%;
-        min-height: 0;
+        height: auto !important;
+        min-height: 0 !important;
+        max-height: none !important;
         margin-top: 0 !important;
         object-fit: contain !important;
         object-position: center center !important;
+        display: block !important;
     }
 
     .unidex-entries.is-grid-layout .unidex-entry-cover-slot.is-bookmark-only {

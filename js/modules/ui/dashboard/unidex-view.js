@@ -406,10 +406,10 @@ window.UnidexView = (function () {
                 ? ' style="width:100% !important;min-width:0 !important;max-width:none !important;height:auto !important;min-height:0 !important;border:0 !important;background:transparent !important;overflow:visible !important;display:block !important;padding:0 !important;line-height:0 !important;"'
                 : ` style="width:${rowCoverWidth}px !important;height:${rowCoverHeight}px !important;min-height:${rowCoverHeight}px !important;border:1px solid rgba(255,255,255,0.18) !important;background:rgba(0,0,0,0.22) !important;overflow:hidden !important;display:block !important;padding:0 !important;line-height:0 !important;"`;
             const coverSlotStyle = isGridLayout
-                ? ''
+                ? ' style="width:100% !important;height:auto !important;min-height:0 !important;display:block !important;aspect-ratio:auto !important;border:0 !important;background:transparent !important;overflow:visible !important;"'
                 : ` style="width:100% !important;height:100% !important;min-height:100% !important;display:block !important;border:0 !important;background:transparent !important;overflow:hidden !important;"`;
             const coverImageStyle = isGridLayout
-                ? ' style="width:100% !important;max-width:100% !important;height:100% !important;min-height:0 !important;margin-left:0 !important;margin-top:0 !important;object-fit:contain !important;object-position:center center !important;transform:none !important;"'
+                ? ' style="display:block !important;width:100% !important;max-width:100% !important;height:auto !important;min-height:0 !important;max-height:none !important;margin:0 !important;object-fit:contain !important;object-position:center top !important;transform:none !important;"'
                 : ` style="width:100% !important;max-width:100% !important;height:${rowImageHeight}px !important;min-height:0 !important;max-height:none !important;margin-left:0 !important;margin-top:-${rowImageOffset}px !important;object-fit:cover !important;object-position:center top !important;transform:none !important;"`;
             const visualHtml = isLibraryLinked
                 ? `
@@ -534,33 +534,26 @@ window.UnidexView = (function () {
                 button.style.setProperty('line-height', '0', 'important');
             });
             coverSlots.forEach(function (slot) {
-                slot.style.removeProperty('height');
-                slot.style.removeProperty('min-height');
-                slot.style.removeProperty('width');
-                slot.style.removeProperty('display');
-                slot.style.removeProperty('border');
-                slot.style.removeProperty('background');
-                slot.style.removeProperty('overflow');
+                slot.style.setProperty('width', '100%', 'important');
+                slot.style.setProperty('height', 'auto', 'important');
+                slot.style.setProperty('min-height', '0', 'important');
+                slot.style.setProperty('display', 'block', 'important');
+                slot.style.setProperty('border', '0', 'important');
+                slot.style.setProperty('background', 'transparent', 'important');
+                slot.style.setProperty('overflow', 'visible', 'important');
+                slot.style.setProperty('aspect-ratio', 'auto', 'important');
             });
             covers.forEach(function (image) {
-                image.style.removeProperty('height');
-                image.style.removeProperty('min-height');
-                image.style.removeProperty('max-width');
-                image.style.removeProperty('margin-left');
-                image.style.removeProperty('margin-top');
-                image.style.removeProperty('max-height');
-                image.style.removeProperty('transform');
-                image.style.removeProperty('transform-origin');
                 image.style.setProperty('width', '100%', 'important');
                 image.style.setProperty('max-width', '100%', 'important');
-                image.style.setProperty('height', '100%', 'important');
+                image.style.setProperty('height', 'auto', 'important');
                 image.style.setProperty('min-height', '0', 'important');
-                image.style.setProperty('max-height', '100%', 'important');
-                image.style.setProperty('margin-left', '0', 'important');
-                image.style.setProperty('margin-top', '0', 'important');
+                image.style.setProperty('max-height', 'none', 'important');
+                image.style.setProperty('margin', '0', 'important');
                 image.style.setProperty('object-fit', 'contain', 'important');
-                image.style.setProperty('object-position', 'center center', 'important');
+                image.style.setProperty('object-position', 'center top', 'important');
                 image.style.setProperty('transform', 'none', 'important');
+                image.style.setProperty('transform-origin', 'center center', 'important');
             });
             return;
         }
