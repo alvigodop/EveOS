@@ -7,6 +7,8 @@ window.EveLibrary = window.EveLibrary || {};
 (function () {
     const State = window.EveLibrary.State;
     const Search = window.EveLibrary.Search;
+    const Storage = window.EveLibrary.Storage;
+    const Ratings = window.EveLibrary.Ratings;
     const StatsCalc = window.EveLibrary.StatsCalc;
     const ChartUtils = window.EveLibrary.ChartUtils;
     const Kpi = window.EveLibrary.StatsRendererKpi;
@@ -69,6 +71,27 @@ window.EveLibrary = window.EveLibrary || {};
         return { allTypeEntries, entries };
     }
 
+    function isFilmLikeEntry(entry) {
+        const mediaTypes = Array.isArray(entry?.mediaTypes)
+            ? entry.mediaTypes.map(item => String(item || '').toLowerCase())
+            : [];
+        if (mediaTypes.includes('films')) return true;
+        if (mediaTypes.includes('graphicnovels') || mediaTypes.includes('novels')) return false;
+
+        const episode = Number(entry?.episode);
+        const chapter = Number(entry?.chapter ?? entry?.graphicChapter ?? entry?.novelChapter);
+        return Number.isFinite(episode) && episode > 0 && (!Number.isFinite(chapter) || chapter <= 0);
+    }
+
+    function getWorkspaceId() {
+        if (typeof State?.getCurrentWorkspaceId === 'function') {
+            return State.getCurrentWorkspaceId();
+        }
+        if (window.eveState?.config?.activeWorkspace) return String(window.eveState.config.activeWorkspace);
+        if (typeof config !== 'undefined' && config?.activeWorkspace) return String(config.activeWorkspace);
+        return 'main';
+    }
+
     function getDistributionMode(categoryName) {
         return String(distributionModeByCategory[categoryName] || 'genre').toLowerCase() === 'tags' ? 'tags' : 'genre';
     }
@@ -107,6 +130,9 @@ window.EveLibrary = window.EveLibrary || {};
         const { allTypeEntries, entries } = getEntriesForStats(categoryName);
         const prefix = getPrefix(categoryName);
         const safeCat = String(categoryName || '').replace(/'/g, "\\'");
+        const activeEntries = StatsCalc.calcActiveReadingEntries
+            ? StatsCalc.calcActiveReadingEntries(entries, 12)
+            : [];
 
         const rating = StatsCalc.calcRatingOverview
             ? StatsCalc.calcRatingOverview(entries)
@@ -120,6 +146,18 @@ window.EveLibrary = window.EveLibrary || {};
 
         container.innerHTML = `
             <div class="lib-stats-grid lib-stats-grid-advanced">
+                <div class="lib-stat-card lib-stat-card-span-2">
+                    <div class="lib-stat-head">
+                        <h4>Currently Reading</h4>
+                        <span class="lib-stat-summary">${activeEntries.length} active</span>
+                    </div>
+                    ${Widgets?.renderActiveCards ? Widgets.renderActiveCards({
+                        categoryName,
+                        items: activeEntries,
+                        escapeHtml
+                    }) : ''}
+                </div>
+
                 <div class="lib-stat-card lib-stat-card-span-2">
                     <h4>Summary Cards</h4>
                     <div class="lib-kpi-grid">
@@ -163,6 +201,7 @@ window.EveLibrary = window.EveLibrary || {};
                 <div class="lib-stat-card"><h4>Demographic Split</h4><div class="lib-chart-wrapper"><canvas id="${prefix}demographicChart"></canvas></div></div>
                 <div class="lib-stat-card lib-stat-card-span-2"><h4>Tag Cloud</h4><div id="${prefix}tagCloud" class="lib-tag-cloud"></div></div>
                 <div class="lib-stat-card lib-stat-card-span-2"><h4>Reading Habits (Last 30 Days)</h4><div class="lib-chart-wrapper"><canvas id="${prefix}habitsChart"></canvas></div></div>
+                <div class="lib-stat-card lib-stat-card-span-2"><h4>Reading Progress (Monthly Chapters)</h4><div class="lib-chart-wrapper"><canvas id="${prefix}monthlyProgressChart"></canvas></div></div>
                 <div class="lib-stat-card lib-stat-card-span-2"><h4>Length vs Quality</h4><div class="lib-chart-wrapper lib-chart-wrapper-tall"><canvas id="${prefix}scatterChart"></canvas></div></div>
 
                 <div class="lib-stat-card">
@@ -196,9 +235,66 @@ window.EveLibrary = window.EveLibrary || {};
         updateCharts(categoryName);
     }
 
+    function quickIncrement(categoryName, entryId) {
+        const lib = State.getCategoryLibrary(categoryName);
+        if (!lib || !Array.isArray(lib.entries)) return false;
+        const entry = lib.entries.find(item => String(item?.id) === String(entryId));
+        if (!entry) return false;
+
+        if (isFilmLikeEntry(entry)) {
+            const current = Number(entry.episode);
+            entry.episode = Number.isFinite(current) ? current + 1 : 1;
+        } else {
+            const current = Number(entry.chapter ?? entry.graphicChapter ?? entry.novelChapter);
+            const next = Number.isFinite(current) ? current + 1 : 1;
+            entry.chapter = next;
+            const mediaTypes = Array.isArray(entry.mediaTypes) ? entry.mediaTypes : [];
+            if (!mediaTypes.length || mediaTypes.includes('graphicNovels')) {
+                entry.graphicChapter = next;
+            }
+            if (mediaTypes.includes('novels')) {
+                entry.novelChapter = next;
+            }
+        }
+
+        entry.lastEdited = new Date().toISOString();
+        if (Ratings?.applyDerivedRatings) {
+            Ratings.applyDerivedRatings(entry);
+        }
+        Storage?.saveLibrary?.();
+        if (window.EveLibrary?.ConnectionsAPI?.syncFromLibraryEntry) {
+            window.EveLibrary.ConnectionsAPI.syncFromLibraryEntry(categoryName, entry, getWorkspaceId());
+        }
+
+        if (window.EveLibrary?.UI?.refreshLibrary) {
+            window.EveLibrary.UI.refreshLibrary(categoryName);
+        } else {
+            const statsView = document.getElementById(`${getPrefix(categoryName)}stats-view`);
+            if (statsView) renderStats(categoryName, statsView);
+        }
+        return true;
+    }
+
+    function applyTagFilter(categoryName, tag) {
+        const prefix = getPrefix(categoryName);
+        const input = document.getElementById(`${prefix}search-tags`);
+        if (input) {
+            const next = String(tag || '').trim();
+            input.value = next;
+        }
+        if (window.EveLibrary?.UI?.refreshLibrary) {
+            window.EveLibrary.UI.refreshLibrary(categoryName);
+        } else {
+            const statsView = document.getElementById(`${prefix}stats-view`);
+            if (statsView) renderStats(categoryName, statsView);
+        }
+    }
+
     window.EveLibrary.StatsRenderer = {
         renderStats,
         setDistributionMode,
-        setBreakdownMode
+        setBreakdownMode,
+        quickIncrement,
+        applyTagFilter
     };
 })();

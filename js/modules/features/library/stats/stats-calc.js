@@ -92,6 +92,70 @@ window.EveLibrary = window.EveLibrary || {};
         return 0;
     }
 
+    function isFilmLikeEntry(entry) {
+        const mediaTypes = Array.isArray(entry?.mediaTypes)
+            ? entry.mediaTypes.map(item => String(item || '').toLowerCase())
+            : [];
+        if (mediaTypes.includes('films')) return true;
+
+        const explicitEpisode = toNumber(entry?.episode);
+        const explicitChapter = toNumber(entry?.chapter)
+            ?? toNumber(entry?.graphicChapter)
+            ?? toNumber(entry?.novelChapter);
+        if (explicitEpisode !== null && explicitEpisode > 0 && (explicitChapter === null || explicitChapter <= 0)) {
+            return true;
+        }
+        return false;
+    }
+
+    function extractTotalUnits(entry) {
+        const chapterCandidates = [];
+        const episodeCandidates = [];
+        const pushPositive = (bucket, value) => {
+            const n = toNumber(value);
+            if (n === null || n <= 0) return;
+            bucket.push(Math.floor(n));
+        };
+
+        [
+            entry?.totalChapters,
+            entry?.chapterTotal,
+            entry?.chapters,
+            entry?.lastChapter,
+            entry?.maxChapter
+        ].forEach(value => pushPositive(chapterCandidates, value));
+
+        [
+            entry?.totalEpisodes,
+            entry?.episodeTotal,
+            entry?.episodes,
+            entry?.lastEpisode,
+            entry?.maxEpisode
+        ].forEach(value => pushPositive(episodeCandidates, value));
+
+        const sources = Array.isArray(entry?.sources) ? entry.sources : [];
+        sources.forEach(source => {
+            pushPositive(chapterCandidates, source?.chapters);
+            pushPositive(chapterCandidates, source?.lastChapter);
+            pushPositive(episodeCandidates, source?.episodes);
+            pushPositive(episodeCandidates, source?.lastEpisode);
+        });
+
+        toList(entry?.tags).forEach(tag => {
+            const chapterMatch = String(tag).match(/chapters?\s*[:/=-]?\s*(\d+)/i);
+            const episodeMatch = String(tag).match(/episodes?\s*[:/=-]?\s*(\d+)/i);
+            if (chapterMatch) pushPositive(chapterCandidates, chapterMatch[1]);
+            if (episodeMatch) pushPositive(episodeCandidates, episodeMatch[1]);
+        });
+
+        const useEpisodes = isFilmLikeEntry(entry);
+        const preferred = useEpisodes ? episodeCandidates : chapterCandidates;
+        const fallback = useEpisodes ? chapterCandidates : episodeCandidates;
+        const all = preferred.length ? preferred : fallback;
+        if (!all.length) return null;
+        return Math.max(...all);
+    }
+
     function extractYearFromText(value) {
         const match = String(value || '').match(/(?:19|20)\d{2}/);
         if (!match) return null;
@@ -497,6 +561,15 @@ window.EveLibrary = window.EveLibrary || {};
         };
     }
 
+    function calcMonthlyReadingProgress(entries, months = 12) {
+        const velocity = calcReadingVelocity(entries, months);
+        return {
+            labels: velocity.labels || [],
+            chaptersRead: velocity.progressTotals || [],
+            activityCounts: velocity.activityCounts || []
+        };
+    }
+
     function calcDailyReadingHabits(entries, days = 30) {
         const safeDays = clamp(days, 7, 90);
         const now = new Date();
@@ -671,6 +744,7 @@ window.EveLibrary = window.EveLibrary || {};
         const topAuthor = creators.topAuthors[0] || null;
         const totalStatuses = calcStatusCounts(entries);
         const completedCount = totalStatuses.Completed || 0;
+        const health = calcLibraryHealth(entries);
 
         return {
             totalSeries: entries.length,
@@ -680,8 +754,50 @@ window.EveLibrary = window.EveLibrary || {};
             avgPersonal5: ratingOverview.personalAvg5,
             topAuthorName: topAuthor ? topAuthor.name : '',
             topAuthorCount: topAuthor ? topAuthor.count : 0,
-            completedCount
+            completedCount,
+            averageConfidence: health.averageConfidence,
+            highConfidenceShare: health.highConfidenceShare
         };
+    }
+
+    function calcActiveReadingEntries(entries, limit = 10) {
+        const maxEntries = clamp(limit, 1, 40);
+        return (Array.isArray(entries) ? entries : [])
+            .filter(entry => normalizeStatus(entry?.status) === 'In Progress')
+            .sort((a, b) => {
+                const aStamp = Date.parse(a?.lastEdited || a?.dateAdded || 0) || 0;
+                const bStamp = Date.parse(b?.lastEdited || b?.dateAdded || 0) || 0;
+                return bStamp - aStamp;
+            })
+            .slice(0, maxEntries)
+            .map(entry => {
+                const currentUnits = getProgressUnits(entry);
+                const totalUnits = extractTotalUnits(entry);
+                const image = String(entry?.image || '').trim();
+                const tagList = toList(entry?.tags).slice(0, 5);
+                const genreList = parseUniqueCsvList(entry?.genre).slice(0, 3);
+                const tags = tagList.length ? tagList : genreList;
+                const unitLabel = isFilmLikeEntry(entry) ? 'Ep.' : 'Ch.';
+                let percent;
+                if (totalUnits && totalUnits > 0) {
+                    percent = clamp((currentUnits / totalUnits) * 100, 0, 100);
+                } else if (currentUnits > 0) {
+                    percent = clamp(22 + (Math.log10(currentUnits + 1) * 26), 8, 92);
+                } else {
+                    percent = 6;
+                }
+
+                return {
+                    id: entry?.id,
+                    title: String(entry?.title || 'Untitled'),
+                    image,
+                    tags,
+                    currentUnits,
+                    totalUnits,
+                    percent: round(percent, 2),
+                    unitLabel
+                };
+            });
     }
 
     function calcLibraryHealth(entries) {
@@ -736,6 +852,7 @@ window.EveLibrary = window.EveLibrary || {};
         calcCreatorLoyalty,
         calcDropoffStats,
         calcReadingVelocity,
+        calcMonthlyReadingProgress,
         calcDailyReadingHabits,
         calcEstimatedReadingTime,
         calcPublicationYearCounts,
@@ -746,6 +863,7 @@ window.EveLibrary = window.EveLibrary || {};
         calcDemographicCounts,
         calcBacklogFunnel,
         calcSummaryKpis,
+        calcActiveReadingEntries,
         calcLibraryHealth
     };
 })();

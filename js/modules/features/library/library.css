@@ -546,6 +546,132 @@
     color: var(--text-muted, #a0a0a0);
 }
 
+.lib-active-carousel {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding-bottom: 6px;
+    scroll-snap-type: x proximity;
+}
+
+.lib-active-carousel::-webkit-scrollbar {
+    height: 8px;
+}
+
+.lib-active-carousel::-webkit-scrollbar-thumb {
+    background: rgba(166, 110, 255, 0.55);
+    border-radius: 999px;
+}
+
+.lib-active-empty {
+    padding: 14px 8px;
+    font-size: 0.85rem;
+    color: #8e8e8e;
+    text-align: left;
+}
+
+.lib-active-card {
+    min-width: 260px;
+    max-width: 290px;
+    display: grid;
+    grid-template-columns: 86px 1fr;
+    gap: 9px;
+    padding: 9px;
+    border-radius: 10px;
+    border: 1px solid rgba(166, 110, 255, 0.25);
+    background: linear-gradient(165deg, rgba(56, 46, 78, 0.52) 0%, rgba(20, 20, 20, 0.46) 100%);
+    scroll-snap-align: start;
+    text-align: left;
+}
+
+.lib-active-cover-wrap {
+    width: 86px;
+    height: 120px;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(18, 18, 18, 0.7);
+}
+
+.lib-active-cover {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+}
+
+.lib-active-main {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.lib-active-title {
+    margin: 0;
+    font-size: 0.86rem;
+    color: #ece7ff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.lib-active-progress-text {
+    font-size: 0.76rem;
+    color: #c7b2ff;
+}
+
+.lib-active-progress-bar {
+    width: 100%;
+    height: 7px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.12);
+    overflow: hidden;
+}
+
+.lib-active-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #8c52ff 0%, #c084ff 100%);
+    display: block;
+    transition: width 220ms ease;
+}
+
+.lib-active-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.lib-active-tag {
+    border: 1px solid rgba(183, 137, 255, 0.42);
+    background: rgba(127, 83, 255, 0.2);
+    color: #eadbff;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    line-height: 1;
+    padding: 4px 8px;
+    cursor: pointer;
+}
+
+.lib-active-tag:hover {
+    background: rgba(159, 102, 255, 0.34);
+}
+
+.lib-active-quick-btn {
+    margin-top: auto;
+    border: 1px solid rgba(186, 147, 255, 0.45);
+    background: rgba(152, 96, 255, 0.26);
+    color: #f1e7ff;
+    border-radius: 8px;
+    font-size: 0.74rem;
+    padding: 6px 8px;
+    cursor: pointer;
+}
+
+.lib-active-quick-btn:hover {
+    background: rgba(172, 116, 255, 0.38);
+}
+
 .lib-tag-cloud {
     min-height: 120px;
     display: flex;

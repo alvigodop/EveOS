@@ -172,6 +172,31 @@ window.EveLibrary = window.EveLibrary || {};
             }
         });
 
+        const monthly = StatsCalc.calcMonthlyReadingProgress
+            ? StatsCalc.calcMonthlyReadingProgress(entries, 12)
+            : { labels: [], chaptersRead: [] };
+        const monthlyLabels = monthly.labels?.length ? monthly.labels : ['No Data'];
+        const monthlyChapters = monthly.chaptersRead?.length ? monthly.chaptersRead : [0];
+        ChartUtils.createChart(`${prefix}monthlyProgressChart`, `${prefix}monthly-progress`, 'line', monthlyLabels, [{
+            label: 'Chapters Read',
+            data: monthlyChapters,
+            borderColor: 'rgba(170, 110, 255, 0.98)',
+            backgroundColor: 'rgba(170, 110, 255, 0.24)',
+            fill: true,
+            tension: 0.42,
+            pointRadius: 3,
+            pointHoverRadius: 5
+        }], {
+            scales: {
+                x: { ticks: { color: '#d8c4ff' }, grid: { color: '#443b5a' } },
+                y: { beginAtZero: true, max: axisMax(monthlyChapters), ticks: { color: '#c7a9ff', precision: 0 }, grid: { color: '#443b5a' } }
+            },
+            plugins: {
+                legend: { display: false },
+                title: { display: true, text: 'Reading Progress (Monthly Chapters)', color: '#e4d9ff' }
+            }
+        });
+
         const points = StatsCalc.calcLengthVsQuality ? StatsCalc.calcLengthVsQuality(entries).slice(0, 250) : [];
         ChartUtils.createChart(`${prefix}scatterChart`, `${prefix}scatter`, 'scatter', [], [{
             label: 'Series',
