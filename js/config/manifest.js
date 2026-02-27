@@ -25,7 +25,8 @@ window.EveModuleManifest = {
         'js/modules/ui/dashboard/categories/builder-link.js?v=0.2.41',
         'js/modules/ui/dashboard/categories/focused-link.js?v=0.2.43',
         'js/modules/ui/dashboard/categories/focused-filter.js?v=0.2.46',
-        'js/modules/ui/dashboard/categories/builder-card.js?v=0.2.46',
+        'js/modules/ui/dashboard/categories/focused-sort.js?v=0.2.1',
+        'js/modules/ui/dashboard/categories/builder-card.js?v=0.2.47',
         'js/modules/ui/dashboard/categories/render.js?v=0.2.41',
         'js/modules/ui/dashboard/unidex-view.js?v=0.2.38',
         'js/modules/ui/dashboard.js?v=0.2.42', // Core dashboard (orchestrator)
@@ -45,16 +46,16 @@ window.EveModuleManifest = {
         'https://cdn.jsdelivr.net/npm/chart.js',
 
         // Library Feature (Category-based entry management)
-        'js/modules/features/library/library-state.js',
-        'js/modules/features/library/ratings/engine.js',
+        'js/modules/features/library/library-state.js?v=0.2.2',
+        'js/modules/features/library/ratings/engine.js?v=0.2.2',
         'js/modules/features/library/library-storage.js',
-        'js/modules/features/library/entry-manager.js',
-        'js/modules/features/library/library-connections.js',
-        'js/modules/features/library/search-filters.js',
-        'js/modules/features/library/options-updaters.js',
-        'js/modules/features/library/entries-renderer.js?v=0.2.5',
+        'js/modules/features/library/entry-manager.js?v=0.2.2',
+        'js/modules/features/library/library-connections.js?v=0.2.2',
+        'js/modules/features/library/search-filters.js?v=0.2.2',
+        'js/modules/features/library/options-updaters.js?v=0.2.2',
+        'js/modules/features/library/entries-renderer.js?v=0.2.6',
         'js/modules/features/library/library-ui.shared.js',
-        'js/modules/features/library/library-ui.template.js',
+        'js/modules/features/library/library-ui.template.js?v=0.2.2',
 
         // Library Stats
         'js/modules/features/library/stats/chart-utils.js',
@@ -67,7 +68,7 @@ window.EveModuleManifest = {
 
         // Modal Modules
         'js/modules/modals/templates/tpl-core.js?v=0.2.40',
-        'js/modules/modals/templates/tpl-settings.js',
+        'js/modules/modals/templates/tpl-settings.js?v=0.2.2',
         'js/modules/modals/templates/tpl-bulk.js',
         'js/modules/modals/templates/tpl-emoji.js',
         'js/modules/modals/templates/tpl-category-settings.js',
@@ -79,10 +80,10 @@ window.EveModuleManifest = {
         'js/modules/modals/modal-category-settings.js?v=0.2.42',
         // Modal Logic Modules
         'js/modules/modals/logic/utils.js',
-        'js/modules/modals/logic/link-form.shared.js',
-        'js/modules/modals/logic/link-form.library.ratings.js',
+        'js/modules/modals/logic/link-form.shared.js?v=0.2.2',
+        'js/modules/modals/logic/link-form.library.ratings.js?v=0.2.2',
         'js/modules/modals/logic/link-form.library.js',
-        'js/modules/modals/logic/link-form.library.metadata.js',
+        'js/modules/modals/logic/link-form.library.metadata.js?v=0.2.2',
         'js/modules/modals/modal-bookmark-focus.js',
         'js/modules/modals/logic/link-form.js?v=0.2.38',
         'js/modules/modals/logic/category-rename.js',
@@ -95,7 +96,7 @@ window.EveModuleManifest = {
         'js/modules/features/api-search/jikan.js',
         'js/modules/features/api-search/anilist.js',
         'js/modules/features/api-search/display-utils.js',
-        'js/modules/features/api-search/display-mangadex.js',
+        'js/modules/features/api-search/display-mangadex.js?v=0.2.2',
         'js/modules/features/api-search/display-jikan.js',
         'js/modules/features/api-search/display-anilist.js',
         'js/modules/features/api-search/display.js',
@@ -110,7 +111,7 @@ window.EveModuleManifest = {
         'js/modules/features/autotitle/autotitle-core.js',
         'js/modules/features/autotitle/autotitle-ui.js',
         'js/modules/features/autotitle/autotitle-bulk.js',
-        'js/modules/features/library/library-bulk-auto.js',
+        'js/modules/features/library/library-bulk-auto.js?v=0.2.2',
 
         // --- Scraper Feature Modules (Ported) ---
         'js/modules/features/scraper/utils/error-handling/interceptor/components/core.js',
@@ -526,7 +527,7 @@ window.EveModuleManifest = {
         'js/modules/ui/sidebar.css?v=0.2.36',
         'js/modules/ui/dashboard/dashboard.css',
         'js/modules/ui/dashboard/unidex-view.css?v=0.2.38',
-        'js/modules/ui/dashboard/categories/focused-card.css?v=0.2.67',
+        'js/modules/ui/dashboard/categories/focused-card.css?v=0.2.68',
         'js/modules/ui/dashboard/dock.css',
         'js/modules/ui/bulk-toolbar.css',
         'js/modules/ui/scratchpad.css',

@@ -144,10 +144,17 @@ window.EveLinkForm = window.EveLinkForm || {};
         const sourceUrl = normalizeUrl(String(source?.providerUrl || source?.url || '').trim());
         const imageUrl = isPlaceholderImage ? '' : normalizeUrl(rawImageUrl);
         const status = String(source?.status || '').trim();
-        const provider = window.EveLibrary?.Ratings?.sourceNameToProvider?.(source?.source);
+        const ratingsApi = window.EveLibrary?.Ratings || null;
+        const provider = ratingsApi?.sourceNameToProvider?.(source?.source);
         const normalizedScore = provider
-            ? window.EveLibrary?.Ratings?.normalizeProviderScore?.(provider, source?.score)
+            ? ratingsApi?.normalizeProviderScore?.(provider, source?.score)
             : null;
+        const sourceStatus = ratingsApi?.normalizeSourceStatus
+            ? ratingsApi.normalizeSourceStatus(status)
+            : status;
+        const sourceSignals = ratingsApi?.extractSourceSignalsFromSources
+            ? ratingsApi.extractSourceSignalsFromSources([source])
+            : (ratingsApi?.createEmptySourceSignals ? ratingsApi.createEmptySourceSignals() : null);
         const apiRatings = {
             anilist: null,
             myanimelist: null,
@@ -156,7 +163,7 @@ window.EveLinkForm = window.EveLinkForm || {};
         if (provider && normalizedScore !== null) {
             apiRatings[provider] = normalizedScore;
         }
-        return { authors, artists, genres, tags, language, sourceUrl, imageUrl, status, apiRatings };
+        return { authors, artists, genres, tags, language, sourceUrl, imageUrl, status, sourceStatus, apiRatings, sourceSignals };
     };
 
     ns.getAttachedSourceByIndex = function (index) {

@@ -147,7 +147,7 @@ window.EveLibrary = window.EveLibrary || {};
                 const comparison = safeA - safeB;
                 return sortOrder === 'desc' ? -comparison : comparison;
             }
-            if (sortBy === 'apiAverageRating' || sortBy === 'apiWeightedRating' || sortBy === 'hybridRating' || sortBy === 'personal10Rating') {
+            if (sortBy === 'apiAverageRating' || sortBy === 'apiWeightedRating' || sortBy === 'hybridRating' || sortBy === 'personal10Rating' || sortBy === 'confidenceRating') {
                 if (Ratings?.applyDerivedRatings) {
                     Ratings.applyDerivedRatings(a);
                     Ratings.applyDerivedRatings(b);
@@ -156,7 +156,8 @@ window.EveLibrary = window.EveLibrary || {};
                     apiAverageRating: 'apiAverage10',
                     apiWeightedRating: 'apiWeighted10',
                     hybridRating: 'hybrid10',
-                    personal10Rating: 'personal10'
+                    personal10Rating: 'personal10',
+                    confidenceRating: 'confidence'
                 };
                 const key = keyMap[sortBy];
                 const valA = a?.derivedRatings?.[key];

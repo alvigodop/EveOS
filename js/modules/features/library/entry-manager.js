@@ -103,6 +103,10 @@ window.EveLibrary = window.EveLibrary || {};
             summary: data.summary,
             rating: data.rating,
             apiRatings: data.apiRatings,
+            sourceStatus: '',
+            sourceSignals: Ratings?.createEmptySourceSignals
+                ? Ratings.createEmptySourceSignals()
+                : null,
             language: data.language,
             sourceUrl: data.sourceUrl,
             tags: data.tags,

@@ -73,6 +73,8 @@ window.EveOS.API.DisplayInternals = window.EveOS.API.DisplayInternals || {};
             translatedCount ? `Translations: ${translatedCount}` : ""
         ]);
 
+        const follows = Number.isFinite(Number(stats?.follows)) ? Number(stats.follows) : "";
+
         return {
             source: "MangaDex",
             mediaType: "Manga",
@@ -87,8 +89,9 @@ window.EveOS.API.DisplayInternals = window.EveOS.API.DisplayInternals || {};
             status,
             score: numericScore === null ? "N/A" : Number(numericScore.toFixed(2)),
             rank: "",
-            popularity: "",
-            members: Number.isFinite(Number(stats?.follows)) ? Number(stats.follows) : "",
+            popularity: follows,
+            members: follows,
+            followers: follows,
             favorites: "",
             chapters: attributes?.lastChapter || "?",
             volumes: attributes?.lastVolume || "?",

@@ -5,6 +5,13 @@ window.EveLinkForm = window.EveLinkForm || {};
         return window.EveLibrary?.Ratings || null;
     }
 
+    function getCurrentLinkedEntrySnapshot() {
+        const editId = document.getElementById('editId')?.value;
+        if (!editId) return null;
+        const connectionsApi = window.EveLibrary?.ConnectionsAPI;
+        return connectionsApi?.getLinkedEntry?.(editId)?.entry || null;
+    }
+
     function parseApiRatingInputValue(inputId, provider) {
         const value = document.getElementById(inputId)?.value;
         const ratingsApi = getRatingsApi();
@@ -42,9 +49,19 @@ window.EveLinkForm = window.EveLinkForm || {};
         const ratingsApi = getRatingsApi();
         if (!ratingsApi?.computeDerivedRatings) return null;
 
+        const linkedEntry = getCurrentLinkedEntrySnapshot();
         const rating = entryLike?.rating ?? (document.getElementById('libRating')?.value || '');
         const apiRatings = entryLike?.apiRatings || ns.readApiRatingsFromInputs();
-        const derived = ratingsApi.computeDerivedRatings({ rating, apiRatings });
+        const sourceSignals = entryLike?.sourceSignals || linkedEntry?.sourceSignals || null;
+        const sourceStatus = entryLike?.sourceStatus || linkedEntry?.sourceStatus || '';
+        const derived = ratingsApi.computeDerivedRatings({
+            ...(linkedEntry || {}),
+            ...(entryLike || {}),
+            rating,
+            apiRatings,
+            sourceSignals,
+            sourceStatus
+        });
 
         const avgInput = document.getElementById('libApiRatingAverage');
         const weightedInput = document.getElementById('libApiRatingWeighted');
@@ -57,11 +74,18 @@ window.EveLinkForm = window.EveLinkForm || {};
 
     ns.buildRatingsPatch = function () {
         const ratingsApi = getRatingsApi();
+        const linkedEntry = getCurrentLinkedEntrySnapshot();
         const rating = document.getElementById('libRating')?.value || '';
         const apiRatings = ns.readApiRatingsFromInputs();
         const safeRatings = ratingsApi?.sanitizeApiRatings ? ratingsApi.sanitizeApiRatings(apiRatings) : apiRatings;
         const derivedRatings = ratingsApi?.computeDerivedRatings
-            ? ratingsApi.computeDerivedRatings({ rating, apiRatings: safeRatings })
+            ? ratingsApi.computeDerivedRatings({
+                ...(linkedEntry || {}),
+                rating,
+                apiRatings: safeRatings,
+                sourceSignals: linkedEntry?.sourceSignals || null,
+                sourceStatus: linkedEntry?.sourceStatus || ''
+            })
             : null;
         return {
             apiRatings: safeRatings,

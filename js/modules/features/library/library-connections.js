@@ -283,6 +283,10 @@ window.EveLibrary = window.EveLibrary || {};
                 myanimelist: null,
                 mangadex: null
             },
+            sourceStatus: '',
+            sourceSignals: Ratings?.createEmptySourceSignals
+                ? Ratings.createEmptySourceSignals()
+                : null,
             derivedRatings: null,
             language: '',
             tags: [],

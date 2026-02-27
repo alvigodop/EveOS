@@ -91,7 +91,8 @@ window.EveLibrary = window.EveLibrary || {};
             apiAverageRating: 'API Average',
             apiWeightedRating: 'API Weighted',
             hybridRating: 'Hybrid Rating',
-            personal10Rating: 'Personal (10 Scale)'
+            personal10Rating: 'Personal (10 Scale)',
+            confidenceRating: 'Confidence'
         };
         (typeConfig?.sortOptions || []).forEach(field => {
             const option = document.createElement('option');

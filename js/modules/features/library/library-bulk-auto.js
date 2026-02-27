@@ -100,6 +100,15 @@
         return raw;
     }
 
+    function mapSourceStatusToLibraryStatus(sourceStatus) {
+        const normalized = String(sourceStatus || '').trim().toLowerCase();
+        if (!normalized) return '';
+        if (normalized === 'completed') return 'Completed';
+        if (normalized === 'cancelled') return 'Dropped';
+        if (normalized === 'ongoing' || normalized === 'hiatus' || normalized === 'upcoming') return 'Reading';
+        return '';
+    }
+
     function inferMediaTypes(sources, fallbackTypes) {
         const set = new Set();
         (Array.isArray(sources) ? sources : []).forEach(source => {
@@ -148,8 +157,12 @@
         let sourceUrl = '';
         let imageUrl = '';
         let status = '';
+        let sourceStatus = '';
         let summary = '';
         const apiRatings = emptyApiRatings();
+        const sourceSignals = Ratings?.createEmptySourceSignals
+            ? Ratings.createEmptySourceSignals()
+            : null;
 
         (Array.isArray(sources) ? sources : []).forEach(source => {
             authors = uniqStrings([...authors, ...splitPeopleNames(source?.author)]);
@@ -176,6 +189,9 @@
             if (!status) {
                 status = String(source?.status || '').trim();
             }
+            if (!sourceStatus && Ratings?.normalizeSourceStatus) {
+                sourceStatus = Ratings.normalizeSourceStatus(source?.status);
+            }
             if (!summary) {
                 summary = String(source?.description || '').trim();
             }
@@ -190,6 +206,24 @@
             }
         });
 
+        const extractedSignals = Ratings?.extractSourceSignalsFromSources
+            ? Ratings.extractSourceSignalsFromSources(sources)
+            : sourceSignals;
+        const mergedSignals = Ratings?.mergeSourceSignals
+            ? Ratings.mergeSourceSignals(sourceSignals, extractedSignals)
+            : extractedSignals;
+        if (!sourceStatus && mergedSignals) {
+            sourceStatus = PROVIDERS
+                .map(providerName => {
+                    const key = String(providerName || '').toLowerCase();
+                    if (key.includes('anilist')) return mergedSignals.anilist?.status;
+                    if (key.includes('myanimelist')) return mergedSignals.myanimelist?.status;
+                    if (key.includes('mangadex')) return mergedSignals.mangadex?.status;
+                    return '';
+                })
+                .find(Boolean) || '';
+        }
+
         const author = authors[0] || '';
         const authorAltNames = authors.filter(name => name.toLowerCase() !== author.toLowerCase()).slice(0, 24);
 
@@ -203,8 +237,10 @@
             sourceUrl,
             imageUrl,
             status,
+            sourceStatus,
             summary,
-            apiRatings
+            apiRatings,
+            sourceSignals: mergedSignals
         };
     }
 
@@ -299,6 +335,17 @@
             ? Ratings.sanitizeApiRatings(currentEntry?.apiRatings || emptyApiRatings())
             : (currentEntry?.apiRatings || emptyApiRatings());
         const nextApiRatings = matchedSources.length ? metadata.apiRatings : existingApiRatings;
+        const existingSourceSignals = Ratings?.sanitizeSourceSignals
+            ? Ratings.sanitizeSourceSignals(currentEntry?.sourceSignals)
+            : (currentEntry?.sourceSignals || null);
+        const nextSourceSignals = matchedSources.length && Ratings?.mergeSourceSignals
+            ? Ratings.mergeSourceSignals(existingSourceSignals, metadata.sourceSignals)
+            : existingSourceSignals;
+        const nextSourceStatus = metadata.sourceStatus
+            || (Ratings?.normalizeSourceStatus ? Ratings.normalizeSourceStatus(currentEntry?.sourceStatus || '') : (currentEntry?.sourceStatus || ''));
+        const existingStatus = String(currentEntry?.status || '').trim();
+        const mappedStatus = mapSourceStatusToLibraryStatus(nextSourceStatus);
+        const nextStatus = existingStatus || mappedStatus || '';
         const nextRating = String(currentEntry?.rating ?? '').trim() ? String(currentEntry.rating) : '0';
         const nextMediaTypes = inferMediaTypes(matchedSources, currentEntry?.mediaTypes);
         const nextSourceUrl = metadata.sourceUrl || normalizeUrl(link.url || currentEntry?.sourceUrl || '');
@@ -316,19 +363,23 @@
                 : (Array.isArray(currentEntry?.authorAltNames) ? currentEntry.authorAltNames : []),
             artist: metadata.artist || currentEntry?.artist || '',
             genre: metadata.genre || currentEntry?.genre || '',
-            status: metadata.status || currentEntry?.status || '',
+            status: nextStatus,
+            sourceStatus: nextSourceStatus || '',
             language: metadata.language || currentEntry?.language || '',
             sourceUrl: nextSourceUrl,
             image: metadata.imageUrl || currentEntry?.image || '',
             tags: nextTags,
             summary: metadata.summary || currentEntry?.summary || '',
-            apiRatings: nextApiRatings
+            apiRatings: nextApiRatings,
+            sourceSignals: nextSourceSignals || undefined
         };
 
         if (Ratings?.computeDerivedRatings) {
             patch.derivedRatings = Ratings.computeDerivedRatings({
                 rating: patch.rating,
-                apiRatings: patch.apiRatings
+                apiRatings: patch.apiRatings,
+                sourceSignals: patch.sourceSignals,
+                sourceStatus: patch.sourceStatus
             });
         }
 

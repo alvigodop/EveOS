@@ -43,6 +43,7 @@ window.modalTemplate += `
                         <option value="personal">Personal Only</option>
                         <option value="api_weighted">API Weighted</option>
                         <option value="api_average">API Average</option>
+                        <option value="confidence">Confidence</option>
                     </select>
                 </label>
                 <label style="display:block; margin-bottom:10px;">Personal Weight in Unified (%):

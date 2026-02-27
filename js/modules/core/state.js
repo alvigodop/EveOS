@@ -36,6 +36,8 @@ let config = {
     unidexEntriesLayout: "rows",
     unidexEntriesFilter: "all",
     focusedEntriesFilter: "all",
+    focusedEntriesSortBy: "none",
+    focusedEntriesSortOrder: "desc",
     ratingSettings: {
         activeScale: "hybrid",
         personalWeight: 0.5,

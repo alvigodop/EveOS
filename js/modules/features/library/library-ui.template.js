@@ -94,6 +94,7 @@ window.EveLibrary.UIShared = window.EveLibrary.UIShared || {};
                         <option value="personal">Personal Only</option>
                         <option value="api_weighted">API Weighted</option>
                         <option value="api_average">API Average</option>
+                        <option value="confidence">Confidence</option>
                     </select>
                     <input type="number" id="${prefix}min-derived-rating" placeholder="Min U" min="0" max="10" step="0.1" style="width:70px;">
                     <input type="number" id="${prefix}max-derived-rating" placeholder="Max U" min="0" max="10" step="0.1" style="width:70px;">

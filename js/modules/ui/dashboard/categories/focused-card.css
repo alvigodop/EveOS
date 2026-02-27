@@ -49,6 +49,18 @@
     min-width: 172px;
 }
 
+.focus-card-controls .focus-sort-select {
+    min-width: 112px;
+    max-width: 132px;
+    opacity: 0.9;
+}
+
+.focus-card-controls .focus-sort-order-select {
+    min-width: 72px;
+    max-width: 84px;
+    opacity: 0.88;
+}
+
 .category-action-btn {
     border: 1px solid rgba(255, 255, 255, 0.24);
     border-radius: 10px;
@@ -248,6 +260,13 @@
     .focus-card-controls .focus-filter-select {
         flex: 1 1 100%;
         min-width: 0;
+    }
+
+    .focus-card-controls .focus-sort-select,
+    .focus-card-controls .focus-sort-order-select {
+        flex: 1 1 48%;
+        min-width: 0;
+        max-width: none;
     }
 
     .category-action-btn {

@@ -6,12 +6,21 @@ window.DashboardCategories.renderCard = function (cat, catLinks, gridContainer, 
     var focusedFilterMode = (isFocusMode && typeof window.DashboardCategories.getFocusedEntriesFilterMode === 'function')
         ? window.DashboardCategories.getFocusedEntriesFilterMode()
         : 'all';
+    var focusedSortBy = (isFocusMode && typeof window.DashboardCategories.getFocusedEntriesSortBy === 'function')
+        ? window.DashboardCategories.getFocusedEntriesSortBy()
+        : 'none';
+    var focusedSortOrder = (isFocusMode && typeof window.DashboardCategories.getFocusedEntriesSortOrder === 'function')
+        ? window.DashboardCategories.getFocusedEntriesSortOrder()
+        : 'desc';
 
     var visibleLinks = (isFocusMode && typeof window.DashboardCategories.matchesFocusedEntriesFilter === 'function')
         ? catLinks.filter(function (link) {
             return window.DashboardCategories.matchesFocusedEntriesFilter(link, focusedFilterMode);
         })
         : catLinks.slice();
+    var renderedLinks = (isFocusMode && typeof window.DashboardCategories.sortFocusedLinks === 'function')
+        ? window.DashboardCategories.sortFocusedLinks(visibleLinks)
+        : visibleLinks.slice();
 
     var card = document.createElement('div');
     card.className = 'category-card';
@@ -28,8 +37,8 @@ window.DashboardCategories.renderCard = function (cat, catLinks, gridContainer, 
 
     var totalAll = catLinks.length;
     var doneAll = catLinks.filter(function (link) { return !!link.done; }).length;
-    var totalVisible = visibleLinks.length;
-    var doneVisible = visibleLinks.filter(function (link) { return !!link.done; }).length;
+    var totalVisible = renderedLinks.length;
+    var doneVisible = renderedLinks.filter(function (link) { return !!link.done; }).length;
     var pct = totalAll === 0 ? 0 : (doneAll / totalAll) * 100;
     var barClass = pct === 100 ? 'complete' : '';
 
@@ -42,7 +51,7 @@ window.DashboardCategories.renderCard = function (cat, catLinks, gridContainer, 
 
     var listHtml;
     if (isFocusMode && typeof window.DashboardCategories.buildFocusedLinkHtml === 'function') {
-        listHtml = visibleLinks.map(function (link) {
+        listHtml = renderedLinks.map(function (link) {
             return window.DashboardCategories.buildFocusedLinkHtml(link, {
                 taskMode: isTaskMode
             });
@@ -95,6 +104,19 @@ window.DashboardCategories.renderCard = function (cat, catLinks, gridContainer, 
                     + '<option value="all"' + (focusedFilterMode === 'all' ? ' selected' : '') + '>All Bookmarks</option>'
                     + '<option value="linked"' + (focusedFilterMode === 'linked' ? ' selected' : '') + '>Library Linked</option>'
                     + '<option value="bookmark-only"' + (focusedFilterMode === 'bookmark-only' ? ' selected' : '') + '>Bookmarks Only</option>'
+                + '</select>'
+                + '<select class="unidex-filter-select focus-sort-select" aria-label="Focused linked rating sort" onchange="window.DashboardCategories.setFocusedEntriesSortBy(this.value)">'
+                    + '<option value="none"' + (focusedSortBy === 'none' ? ' selected' : '') + '>Sort Off</option>'
+                    + '<option value="active"' + (focusedSortBy === 'active' ? ' selected' : '') + '>Active</option>'
+                    + '<option value="unified"' + (focusedSortBy === 'unified' ? ' selected' : '') + '>Unified</option>'
+                    + '<option value="personal"' + (focusedSortBy === 'personal' ? ' selected' : '') + '>Personal</option>'
+                    + '<option value="api_weighted"' + (focusedSortBy === 'api_weighted' ? ' selected' : '') + '>API Weighted</option>'
+                    + '<option value="api_average"' + (focusedSortBy === 'api_average' ? ' selected' : '') + '>API Average</option>'
+                    + '<option value="confidence"' + (focusedSortBy === 'confidence' ? ' selected' : '') + '>Confidence</option>'
+                + '</select>'
+                + '<select class="unidex-filter-select focus-sort-order-select" aria-label="Focused linked rating sort order" onchange="window.DashboardCategories.setFocusedEntriesSortOrder(this.value)">'
+                    + '<option value="desc"' + (focusedSortOrder === 'desc' ? ' selected' : '') + '>Desc</option>'
+                    + '<option value="asc"' + (focusedSortOrder === 'asc' ? ' selected' : '') + '>Asc</option>'
                 + '</select>'
                 + '<button class="category-action-btn" onclick="clearFocus()" title="Exit Focus">&#127919; <span>Exit Focus</span></button>'
                 + '<button class="category-action-btn" onclick="openCategorySettings(\'' + safeCatJs + '\')" title="Settings">&#9881; <span>Settings</span></button>'

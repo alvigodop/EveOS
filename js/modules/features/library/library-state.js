@@ -15,19 +15,19 @@ window.EveLibrary = window.EveLibrary || {};
         graphicNovels: {
             label: 'Graphic Novels',
             statuses: ['Reading', 'Completed', 'Plan to Read'],
-            sortOptions: ['title', 'author', 'genre', 'rating', 'selectedRating', 'apiAverageRating', 'apiWeightedRating', 'hybridRating', 'personal10Rating', 'status', 'dateAdded', 'lastEdited', 'chapter'],
+            sortOptions: ['title', 'author', 'genre', 'rating', 'selectedRating', 'apiAverageRating', 'apiWeightedRating', 'hybridRating', 'personal10Rating', 'confidenceRating', 'status', 'dateAdded', 'lastEdited', 'chapter'],
             fields: ['chapter']
         },
         films: {
             label: 'Films',
             statuses: ['Watching', 'Completed', 'On Hold', 'Dropped', 'Plan to Watch'],
-            sortOptions: ['title', 'author', 'genre', 'rating', 'selectedRating', 'apiAverageRating', 'apiWeightedRating', 'hybridRating', 'personal10Rating', 'status', 'dateAdded', 'lastEdited', 'season', 'episode'],
+            sortOptions: ['title', 'author', 'genre', 'rating', 'selectedRating', 'apiAverageRating', 'apiWeightedRating', 'hybridRating', 'personal10Rating', 'confidenceRating', 'status', 'dateAdded', 'lastEdited', 'season', 'episode'],
             fields: ['season', 'episode']
         },
         novels: {
             label: 'Novels',
             statuses: ['Reading', 'Completed', 'Plan to Read'],
-            sortOptions: ['title', 'author', 'genre', 'rating', 'selectedRating', 'apiAverageRating', 'apiWeightedRating', 'hybridRating', 'personal10Rating', 'status', 'dateAdded', 'lastEdited', 'chapter'],
+            sortOptions: ['title', 'author', 'genre', 'rating', 'selectedRating', 'apiAverageRating', 'apiWeightedRating', 'hybridRating', 'personal10Rating', 'confidenceRating', 'status', 'dateAdded', 'lastEdited', 'chapter'],
             fields: ['chapter']
         }
     };

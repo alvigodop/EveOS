@@ -26,6 +26,11 @@ window.EveLinkForm = window.EveLinkForm || {};
 
         const meta = ns.buildSourceMetadata(source);
         const updates = {};
+        const editId = document.getElementById('editId')?.value || '';
+        const connectionsApi = ns.getConnectionsApi();
+        const linkedEntry = editId && connectionsApi?.getLinkedEntry
+            ? connectionsApi.getLinkedEntry(editId)?.entry
+            : null;
 
         const authorInput = document.getElementById('libAuthor');
         const altAuthorsInput = document.getElementById('libAuthorAltNames');
@@ -87,6 +92,11 @@ window.EveLinkForm = window.EveLinkForm || {};
             updates.image = meta.imageUrl;
         }
 
+        const sourceStatus = String(meta.sourceStatus || '').trim();
+        if (sourceStatus) {
+            updates.sourceStatus = sourceStatus;
+        }
+
         const statusSelect = document.getElementById('libStatus');
         if (statusSelect && !statusSelect.value && meta.status) {
             const statusMatch = Array.from(statusSelect.options || []).find(option =>
@@ -95,6 +105,24 @@ window.EveLinkForm = window.EveLinkForm || {};
             if (statusMatch) {
                 statusSelect.value = statusMatch.value;
                 updates.status = statusMatch.value;
+            } else if (sourceStatus) {
+                const mappedStatusValue = (function mapSourceStatusToLibraryStatus(value) {
+                    const normalized = ns.toTrimmedLower(value);
+                    if (!normalized) return '';
+                    if (normalized === 'completed') return 'Completed';
+                    if (normalized === 'ongoing' || normalized === 'hiatus' || normalized === 'upcoming') return 'Reading';
+                    if (normalized === 'cancelled') return 'Dropped';
+                    return '';
+                })(sourceStatus);
+                if (mappedStatusValue) {
+                    const mappedMatch = Array.from(statusSelect.options || []).find(option =>
+                        ns.toTrimmedLower(option.value) === ns.toTrimmedLower(mappedStatusValue)
+                    );
+                    if (mappedMatch) {
+                        statusSelect.value = mappedMatch.value;
+                        updates.status = mappedMatch.value;
+                    }
+                }
             }
         }
 
@@ -102,11 +130,19 @@ window.EveLinkForm = window.EveLinkForm || {};
         const mergedApiRatings = ratingsApi?.mergeApiRatings
             ? ratingsApi.mergeApiRatings(ns.readApiRatingsFromInputs(), meta.apiRatings)
             : ns.readApiRatingsFromInputs();
+        const mergedSourceSignals = ratingsApi?.mergeSourceSignals
+            ? ratingsApi.mergeSourceSignals(linkedEntry?.sourceSignals, meta.sourceSignals)
+            : (meta.sourceSignals || linkedEntry?.sourceSignals || null);
         ns.writeApiRatingsToInputs(mergedApiRatings);
         updates.apiRatings = mergedApiRatings;
+        if (mergedSourceSignals) {
+            updates.sourceSignals = mergedSourceSignals;
+        }
         const derived = ns.refreshDerivedRatingsPreview({
             rating: document.getElementById('libRating')?.value || '',
-            apiRatings: mergedApiRatings
+            apiRatings: mergedApiRatings,
+            sourceSignals: mergedSourceSignals,
+            sourceStatus: sourceStatus || linkedEntry?.sourceStatus || ''
         });
         if (derived) updates.derivedRatings = derived;
 
