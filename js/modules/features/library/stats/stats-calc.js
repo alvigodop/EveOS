@@ -673,7 +673,13 @@ window.EveLibrary = window.EveLibrary || {};
     }
 
     function calcTagCloud(entries, limit = 32) {
+        const BLOCKED_PREFIXES = ['original:', 'translations:', 'serialization:'];
         const pairs = Object.entries(calcTagCounts(entries))
+            .filter(([tag]) => {
+                const lowered = String(tag || '').trim().toLowerCase();
+                if (!lowered) return false;
+                return !BLOCKED_PREFIXES.some(prefix => lowered.startsWith(prefix));
+            })
             .filter(([, count]) => count > 0)
             .sort((a, b) => b[1] - a[1])
             .slice(0, Math.max(1, limit));

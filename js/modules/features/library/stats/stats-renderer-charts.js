@@ -163,7 +163,7 @@ window.EveLibrary = window.EveLibrary || {};
         const habitProgress = habits.progressTotals?.length ? habits.progressTotals : [0];
         ChartUtils.createChart(`${prefix}habitsChart`, `${prefix}habits`, 'line', habitLabels, [
             { label: 'Entries Updated', data: habitActivity, borderColor: 'rgba(130,227,159,0.95)', backgroundColor: 'rgba(130,227,159,0.2)', fill: true, tension: 0.28, yAxisID: 'y' },
-            { label: 'Progress Units', data: habitProgress, borderColor: 'rgba(255,159,64,0.95)', backgroundColor: 'rgba(255,159,64,0.2)', fill: false, tension: 0.28, yAxisID: 'y1' }
+            { label: 'Chapters / Episodes Read', data: habitProgress, borderColor: 'rgba(255,159,64,0.95)', backgroundColor: 'rgba(255,159,64,0.2)', fill: false, tension: 0.28, yAxisID: 'y1' }
         ], {
             scales: {
                 x: { ticks: { color: '#aaa', maxRotation: 0, callback(value, index) { return index % 3 === 0 ? habitLabels[index] : ''; } }, grid: { color: '#444' } },
@@ -191,10 +191,7 @@ window.EveLibrary = window.EveLibrary || {};
                 x: { ticks: { color: '#d8c4ff' }, grid: { color: '#443b5a' } },
                 y: { beginAtZero: true, max: axisMax(monthlyChapters), ticks: { color: '#c7a9ff', precision: 0 }, grid: { color: '#443b5a' } }
             },
-            plugins: {
-                legend: { display: false },
-                title: { display: true, text: 'Reading Progress (Monthly Chapters)', color: '#e4d9ff' }
-            }
+            plugins: { legend: { display: false } }
         });
 
         const points = StatsCalc.calcLengthVsQuality ? StatsCalc.calcLengthVsQuality(entries).slice(0, 250) : [];
@@ -206,7 +203,7 @@ window.EveLibrary = window.EveLibrary || {};
             pointRadius: 4
         }], {
             scales: {
-                x: { beginAtZero: true, ticks: { color: '#ddd', precision: 0 }, title: { display: true, text: 'Progress Units', color: '#b7dfff' }, grid: { color: '#444' } },
+                x: { beginAtZero: true, ticks: { color: '#ddd', precision: 0 }, title: { display: true, text: 'Chapters / Episodes Read', color: '#b7dfff' }, grid: { color: '#444' } },
                 y: { beginAtZero: true, max: 5, ticks: { color: '#ddd' }, title: { display: true, text: 'Personal Rating (0-5)', color: '#b7dfff' }, grid: { color: '#444' } }
             },
             plugins: {

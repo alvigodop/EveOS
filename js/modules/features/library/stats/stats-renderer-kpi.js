@@ -22,9 +22,9 @@ window.EveLibrary = window.EveLibrary || {};
                 hint: `${entriesCount || 0} shown / ${totalCount || 0} total`
             },
             {
-                label: 'Progress Units',
+                label: 'Chapters / Episodes Read',
                 value: String(safeKpis.totalProgressUnits || 0),
-                hint: 'Chapters / episodes tracked'
+                hint: 'Total progress tracked'
             },
             {
                 label: 'Estimated Time',

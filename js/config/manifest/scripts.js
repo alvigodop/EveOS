@@ -62,10 +62,10 @@ window.EveModuleManifestParts.scripts = [
 
         // Library Stats
         'js/modules/features/library/stats/chart-utils.js',
-'js/modules/features/library/stats/stats-calc.js?v=0.2.5',
-'js/modules/features/library/stats/stats-renderer-kpi.js?v=0.2.1',
+'js/modules/features/library/stats/stats-calc.js?v=0.2.6',
+'js/modules/features/library/stats/stats-renderer-kpi.js?v=0.2.2',
 'js/modules/features/library/stats/stats-renderer-widgets.js?v=0.2.2',
-'js/modules/features/library/stats/stats-renderer-charts.js?v=0.2.2',
+'js/modules/features/library/stats/stats-renderer-charts.js?v=0.2.3',
 'js/modules/features/library/stats/stats-renderer.js?v=0.2.8',
 
         'js/modules/features/library/library-ui.js?v=0.2.48',
