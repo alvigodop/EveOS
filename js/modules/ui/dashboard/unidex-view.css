@@ -102,6 +102,12 @@
     gap: 8px;
 }
 
+.unidex-tabs-controls {
+    justify-content: center;
+    width: min(100%, 980px);
+    margin: 0 auto 16px;
+}
+
 .unidex-panel-title {
     margin: 0;
     font-size: 1.1rem;
@@ -714,6 +720,11 @@
     color: var(--accent);
 }
 
+.unidex-entry-tag.workspace {
+    border-color: rgba(255, 255, 255, 0.38);
+    color: var(--text-muted);
+}
+
 .unidex-entry-library-wrap {
     margin-top: 6px;
     display: grid;
@@ -985,6 +996,11 @@
     .unidex-tabs,
     .unidex-cards {
         width: 100%;
+    }
+
+    .unidex-tabs-controls {
+        width: 100%;
+        justify-content: stretch;
     }
 
     .unidex-entry-item {

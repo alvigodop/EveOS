@@ -19,3 +19,9 @@
     background: var(--accent);
     color: #000;
 }
+
+.ctx-divider {
+    height: 1px;
+    margin: 4px 8px;
+    background: #444;
+}

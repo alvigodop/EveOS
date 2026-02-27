@@ -31,6 +31,7 @@ let config = {
     workspaces: [{ id: "main", name: "Main", icon: "\u{1F3E0}" }],
     activeWorkspace: "main",
     scrollableCategories: false,
+    unidexTabsUnified: false,
     ratingSettings: {
         activeScale: "hybrid",
         personalWeight: 0.5,

@@ -13,57 +13,93 @@ window.closeAllMenus = function () {
     document.querySelectorAll('.context-menu').forEach(m => m.style.display = 'none');
 };
 
+const ICON_LIBRARY_HTML = '&#128218;';
+
+function placeContextMenu(menuElement, event) {
+    if (!menuElement || !event) return;
+
+    const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+    const gap = 6;
+
+    const baseX = Number.isFinite(event.clientX) ? event.clientX : 0;
+    const baseY = Number.isFinite(event.clientY) ? event.clientY : 0;
+
+    menuElement.style.left = '0px';
+    menuElement.style.top = '0px';
+    menuElement.style.visibility = 'hidden';
+    menuElement.style.display = 'block';
+
+    const rect = menuElement.getBoundingClientRect();
+    const menuWidth = rect.width || 180;
+    const menuHeight = rect.height || 220;
+
+    let x = baseX + gap;
+    let y = baseY + gap;
+
+    if (x + menuWidth > viewportWidth - 8) x = Math.max(8, viewportWidth - menuWidth - 8);
+    if (y + menuHeight > viewportHeight - 8) y = Math.max(8, viewportHeight - menuHeight - 8);
+
+    menuElement.style.left = `${x}px`;
+    menuElement.style.top = `${y}px`;
+    menuElement.style.visibility = 'visible';
+}
+
 window.showLinkContextMenu = function (e, id) {
     e.preventDefault();
     e.stopPropagation();
     closeAllMenus();
-    ctxLinkId = id;
+
+    const normalizedId = String(id ?? '');
+    if (!normalizedId) return;
+    ctxLinkId = normalizedId;
+
     const m = document.getElementById('link-context-menu');
-    if (m) {
-        const action = m.querySelector('#ctx-library-action');
-        const linked = !!window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId?.(id);
-        if (action) {
-            action.textContent = linked ? 'Remove From Library' : 'Add To Library';
-        }
-        m.style.display = 'block';
-        m.style.left = `${e.pageX}px`;
-        m.style.top = `${e.pageY}px`;
+    if (!m) return;
+
+    const action = m.querySelector('#ctx-library-action');
+    const linked = !!window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId?.(normalizedId);
+    if (action) {
+        action.innerHTML = linked
+            ? `${ICON_LIBRARY_HTML} Remove From Library`
+            : `${ICON_LIBRARY_HTML} Add To Library`;
     }
+
+    placeContextMenu(m, e);
 };
 
 window.showCategoryContextMenu = function (e, name) {
     e.preventDefault();
     e.stopPropagation();
     closeAllMenus();
+
     ctxCatName = name;
     const m = document.getElementById('cat-context-menu');
-    if (m) {
-        m.style.display = 'block';
-        m.style.left = `${e.pageX}px`;
-        m.style.top = `${e.pageY}px`;
-        const safeName = name.replace(/'/g, "\\'");
-        m.innerHTML = `
-            <div class="ctx-item" onclick="openCategorySettings('${safeName}', 'search')">🔍 Search & Settings</div>
-            <div class="ctx-item" onclick="openRenameModal('${safeName}')">✎ Rename</div>
-            <div class="ctx-item" onclick="openBulkTitleModal('${safeName}')">🪄 Auto-Title Links</div>
-            <div class="ctx-item" onclick="ctxCatFocus()">🎯 Focus</div>
-            <div class="ctx-item" onclick="ctxCatToggleTask()">📝 Task Mode</div>
-            <div class="ctx-item" onclick="deleteCategory('${safeName}')" style="color:var(--danger)">🗑 Delete</div>
-        `;
-    }
+    if (!m) return;
+
+    const safeName = String(name || '').replace(/'/g, "\\'");
+    m.innerHTML = `
+        <div class="ctx-item" onclick="openCategorySettings('${safeName}', 'search')">&#128269; Search & Settings</div>
+        <div class="ctx-item" onclick="openRenameModal('${safeName}')">&#9998; Rename</div>
+        <div class="ctx-item" onclick="openBulkTitleModal('${safeName}')">&#129668; Auto-Title Links</div>
+        <div class="ctx-item" onclick="ctxCatFocus()">&#127919; Focus</div>
+        <div class="ctx-item" onclick="ctxCatToggleTask()">&#128221; Task Mode</div>
+        <div class="ctx-item" onclick="deleteCategory('${safeName}')" style="color:var(--danger)">&#128465; Delete</div>
+    `;
+
+    placeContextMenu(m, e);
 };
 
 window.showWsContext = function (e, id) {
     e.preventDefault();
     e.stopPropagation();
     closeAllMenus();
+
     ctxWsId = id;
     const m = document.getElementById('sidebar-context-menu');
-    if (m) {
-        m.style.display = 'block';
-        m.style.left = `${e.pageX}px`;
-        m.style.top = `${e.pageY}px`;
-    }
+    if (!m) return;
+
+    placeContextMenu(m, e);
 };
 
 // Initialize

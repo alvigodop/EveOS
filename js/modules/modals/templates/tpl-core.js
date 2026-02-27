@@ -33,7 +33,7 @@ window.modalTemplate = `
             <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px;">
                 <label style="display:flex; gap:8px; align-items:center; margin:0;">
                     <input type="checkbox" id="linkLibraryToggle">
-                    <span>Add To Library</span>
+                    <span>&#128218; Add To Library</span>
                 </label>
                 <button type="button" id="linkLibraryCollapseBtn" onclick="toggleLibraryFieldsCollapse()" style="display:none; padding:4px 8px; font-size:0.75rem;">Collapse</button>
             </div>

@@ -52,7 +52,8 @@ window.EveLinkForm = window.EveLinkForm || {};
     };
 
     window.openEdit = function (id) {
-        const l = links.find(x => x.id === id);
+        const targetId = String(id);
+        const l = links.find(x => String(x?.id) === targetId);
         if (!l) return;
         document.getElementById('modalTitle').innerText = "Edit Link";
         document.getElementById('editId').value = l.id;

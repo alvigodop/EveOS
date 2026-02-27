@@ -1,3 +1,13 @@
+function getCtxLinkId() {
+    return String(window.ctxLinkId ?? '');
+}
+
+function getCtxLink() {
+    const targetId = getCtxLinkId();
+    if (!targetId) return null;
+    return links.find(x => String(x?.id) === targetId) || null;
+}
+
 // Context Menu Global Actions
 window.deleteCategory = async function (name) {
     if (await showConfirm('Delete Category?')) {
@@ -10,26 +20,51 @@ window.deleteCategory = async function (name) {
     }
 };
 
-window.ctxLaunch = function () { const l = links.find(x => x.id === ctxLinkId); if (l) window.open(l.url, '_blank'); };
-window.ctxTogglePin = function () { togglePin(ctxLinkId); };
-window.ctxToggleDone = function () { toggleDone(ctxLinkId); };
-window.ctxEdit = function () { openEdit(ctxLinkId); };
-window.ctxDelete = function () { deleteLink(ctxLinkId); };
+window.ctxLaunch = function () {
+    const link = getCtxLink();
+    if (link?.url) window.open(link.url, '_blank');
+    closeAllMenus();
+};
+window.ctxTogglePin = function () {
+    const targetId = getCtxLinkId();
+    if (!targetId) return;
+    togglePin(targetId);
+    closeAllMenus();
+};
+window.ctxToggleDone = function () {
+    const targetId = getCtxLinkId();
+    if (!targetId) return;
+    toggleDone(targetId);
+    closeAllMenus();
+};
+window.ctxEdit = function () {
+    const targetId = getCtxLinkId();
+    if (!targetId) return;
+    openEdit(targetId);
+    closeAllMenus();
+};
+window.ctxDelete = function () {
+    const targetId = getCtxLinkId();
+    if (!targetId) return;
+    deleteLink(targetId);
+    closeAllMenus();
+};
 window.ctxToggleLibraryLink = function () {
-    if (!ctxLinkId) return;
+    const targetId = getCtxLinkId();
+    if (!targetId) return;
     const api = window.EveLibrary?.ConnectionsAPI;
     if (!api) {
         showToast("Library module not ready", "error");
         return;
     }
-    const existing = api.findConnectionByLinkId?.(ctxLinkId);
+    const existing = api.findConnectionByLinkId?.(targetId);
     if (existing) {
         const categoryName = existing.categoryName;
-        api.unlinkLink?.(ctxLinkId, true);
+        api.unlinkLink?.(targetId, true);
         showToast("Bookmark removed from library", "success");
         window.EveLibrary?.UI?.refreshLibrary?.(categoryName);
     } else {
-        const created = api.promoteLink?.(ctxLinkId);
+        const created = api.promoteLink?.(targetId);
         if (created?.categoryName) {
             window.EveLibrary?.UI?.refreshLibrary?.(created.categoryName);
         }

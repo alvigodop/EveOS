@@ -25,11 +25,11 @@ window.EveModuleManifest = {
         'js/modules/ui/dashboard/categories/builder-link.js',
         'js/modules/ui/dashboard/categories/builder-card.js',
         'js/modules/ui/dashboard/categories/render.js',
-        'js/modules/ui/dashboard/unidex-view.js?v=0.2.37',
+        'js/modules/ui/dashboard/unidex-view.js?v=0.2.38',
         'js/modules/ui/dashboard.js', // Core dashboard (orchestrator)
-        'js/modules/ui/context-menus/templates.js',
-        'js/modules/ui/context-menus/actions.js',
-        'js/modules/ui/context-menus/menus.js',
+        'js/modules/ui/context-menus/templates.js?v=0.2.40',
+        'js/modules/ui/context-menus/actions.js?v=0.2.40',
+        'js/modules/ui/context-menus/menus.js?v=0.2.40',
         'js/modules/ui/scratchpad.js',
         'js/modules/ui/bulk-toolbar.js',
 
@@ -64,7 +64,7 @@ window.EveModuleManifest = {
 
 
         // Modal Modules
-        'js/modules/modals/templates/tpl-core.js',
+        'js/modules/modals/templates/tpl-core.js?v=0.2.40',
         'js/modules/modals/templates/tpl-settings.js',
         'js/modules/modals/templates/tpl-bulk.js',
         'js/modules/modals/templates/tpl-emoji.js',
@@ -82,7 +82,7 @@ window.EveModuleManifest = {
         'js/modules/modals/logic/link-form.library.js',
         'js/modules/modals/logic/link-form.library.metadata.js',
         'js/modules/modals/modal-bookmark-focus.js',
-        'js/modules/modals/logic/link-form.js',
+        'js/modules/modals/logic/link-form.js?v=0.2.38',
         'js/modules/modals/logic/category-rename.js',
         'js/modules/modals/logic/workspace.js',
 
@@ -523,11 +523,11 @@ window.EveModuleManifest = {
         // UI Modules
         'js/modules/ui/sidebar.css?v=0.2.36',
         'js/modules/ui/dashboard/dashboard.css',
-        'js/modules/ui/dashboard/unidex-view.css?v=0.2.37',
+        'js/modules/ui/dashboard/unidex-view.css?v=0.2.38',
         'js/modules/ui/dashboard/dock.css',
         'js/modules/ui/bulk-toolbar.css',
         'js/modules/ui/scratchpad.css',
-        'js/modules/ui/context-menus/styles.css',
+        'js/modules/ui/context-menus/styles.css?v=0.2.40',
         'js/modules/features/scraper/ui/loading-indicator/loading-indicator.css',
 
         // Feature Modules

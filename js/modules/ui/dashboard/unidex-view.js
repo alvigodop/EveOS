@@ -63,6 +63,19 @@ window.UnidexView = (function () {
         });
     }
 
+    function getAllWorkspaceLinks(searchStr) {
+        return getAllLinks().filter(function (link) {
+            const hasWorkspace = getWorkspaceById(link.workspace);
+            return !!hasWorkspace && matchesSearch(link, searchStr);
+        });
+    }
+
+    function getWorkspaceLabel(workspaceId) {
+        const workspace = getWorkspaceById(workspaceId);
+        if (!workspace) return 'Unknown Tab';
+        return String(workspace.name || 'Unnamed Tab');
+    }
+
     function isTaskModeCategory(categoryName) {
         const hidden = Array.isArray(config.hideStats) ? config.hideStats : [];
         return !hidden.includes(categoryName);
@@ -144,8 +157,6 @@ window.UnidexView = (function () {
 
     function enforceStageLayoutGeometry(gridContainer) {
         if (!gridContainer) return;
-
-        if (stage !== 'entries') return;
         const entries = gridContainer.querySelector('.unidex-entries');
         if (!entries) return;
         forceEntriesLayoutPass(gridContainer, getEntriesLayoutMode());
@@ -446,6 +457,9 @@ window.UnidexView = (function () {
             const libraryTagHtml = isLibraryLinked
                 ? '<span class="unidex-entry-tag library-linked">Library Linked</span>'
                 : '';
+            const extraTagsHtml = typeof entryOptions.getExtraTagsHtml === 'function'
+                ? String(entryOptions.getExtraTagsHtml(link) || '')
+                : '';
 
             return `
                 <article class="unidex-entry-item has-visual-slot ${taskMode && link.done ? 'is-done' : ''} ${isLibraryLinked ? 'is-library-linked' : 'is-bookmark-only'}"
@@ -463,6 +477,7 @@ window.UnidexView = (function () {
                         ${libraryDetailHtml}
                         <div class="unidex-entry-tags">
                             ${categoryTagHtml}
+                            ${extraTagsHtml}
                             ${taskTagHtml}
                             ${libraryTagHtml}
                             ${link.pinned ? '<span class="unidex-entry-tag pinned">Pinned</span>' : ''}
@@ -507,6 +522,23 @@ window.UnidexView = (function () {
 
     function setCardsUnified(enabled) {
         setCardsUnifiedMode(enabled);
+        if (typeof renderDashboard === 'function') renderDashboard();
+    }
+
+    function getTabsUnifiedMode() {
+        return !!config?.unidexTabsUnified;
+    }
+
+    function setTabsUnifiedMode(enabled) {
+        const nextState = !!enabled;
+        if (!!config.unidexTabsUnified === nextState) return;
+        config.unidexTabsUnified = nextState;
+        resetLibraryReadyWait();
+        if (typeof saveConfig === 'function') saveConfig();
+    }
+
+    function setTabsUnified(enabled) {
+        setTabsUnifiedMode(enabled);
         if (typeof renderDashboard === 'function') renderDashboard();
     }
 
@@ -646,17 +678,109 @@ window.UnidexView = (function () {
         }, 220);
     }
 
-    function renderTabsStage(gridContainer) {
+    function renderTabsStage(gridContainer, searchStr) {
+        const tabsUnifiedMode = getTabsUnifiedMode();
+        const layoutMode = getEntriesLayoutMode();
+        const filterMode = getEntriesFilterMode();
+        const layoutLabel = layoutMode === 'grid' ? 'Grid' : 'Rows';
+        const tabsUnifiedToggleHtml = `
+            <label class="unidex-switch" title="Show bookmarks from all tabs in one unified view">
+                <input type="checkbox" class="unidex-switch-input" onchange="window.UnidexView.setTabsUnified(this.checked)" ${tabsUnifiedMode ? 'checked' : ''}>
+                <span class="unidex-switch-track" aria-hidden="true"></span>
+                <span class="unidex-switch-label">Unified Across Tabs</span>
+            </label>
+        `;
+
+        if (!tabsUnifiedMode) {
+            gridContainer.innerHTML = `
+                <section class="unidex-shell" aria-label="Unidex Tabs View">
+                    <header class="unidex-hero">
+                        <h2 class="unidex-title unidex-echo-title" data-text="THE UNIDEX VIEW"><span>The Unidex View</span></h2>
+                    </header>
+                    <div class="unidex-panel-controls unidex-tabs-controls">
+                        ${tabsUnifiedToggleHtml}
+                    </div>
+                    <section class="unidex-tabs" aria-label="Workspace Tabs">
+                        ${buildTabsHtml()}
+                    </section>
+                </section>
+            `;
+            return;
+        }
+
+        const allLinks = getAllWorkspaceLinks(searchStr);
+        const libraryReady = ensureLibraryReadyForEntries();
+        if (!libraryReady) {
+            if (!shouldShowLibraryLoadingHint()) {
+                scheduleEntriesRetry();
+                return;
+            }
+
+            gridContainer.innerHTML = `
+                <section class="unidex-shell" aria-label="Unidex Unified Entries Across Tabs View">
+                    <header class="unidex-hero">
+                        <h2 class="unidex-title unidex-echo-title" data-text="THE UNIDEX VIEW"><span>The Unidex View</span></h2>
+                    </header>
+                    <div class="unidex-panel-controls unidex-tabs-controls">
+                        ${tabsUnifiedToggleHtml}
+                        <select class="unidex-filter-select" aria-label="Bookmark filter" onchange="window.UnidexView.setEntriesFilter(this.value)">
+                            <option value="all" ${filterMode === 'all' ? 'selected' : ''}>All Bookmarks</option>
+                            <option value="linked" ${filterMode === 'linked' ? 'selected' : ''}>Library Linked</option>
+                            <option value="bookmark-only" ${filterMode === 'bookmark-only' ? 'selected' : ''}>Bookmarks Only</option>
+                        </select>
+                        <button type="button" class="unidex-layout-btn" onclick="window.UnidexView.toggleEntriesLayout()" title="Toggle entries layout">
+                            Layout: ${layoutLabel}
+                        </button>
+                    </div>
+                    <section class="unidex-entries ${layoutMode === 'grid' ? 'is-grid-layout' : 'is-row-layout'}" aria-label="Unified entries across all tabs">
+                        <div class="unidex-empty-state">
+                            <h3>Preparing Entries</h3>
+                            <p>Loading library links...</p>
+                        </div>
+                    </section>
+                </section>
+            `;
+
+            scheduleEntriesRetry();
+            return;
+        }
+
+        const filteredEntries = allLinks.filter(function (link) {
+            return matchesEntriesFilter(link, filterMode);
+        });
+
         gridContainer.innerHTML = `
-            <section class="unidex-shell" aria-label="Unidex Tabs View">
+            <section class="unidex-shell" aria-label="Unidex Unified Entries Across Tabs View">
                 <header class="unidex-hero">
                     <h2 class="unidex-title unidex-echo-title" data-text="THE UNIDEX VIEW"><span>The Unidex View</span></h2>
                 </header>
-                <section class="unidex-tabs" aria-label="Workspace Tabs">
-                    ${buildTabsHtml()}
+                <div class="unidex-panel-controls unidex-tabs-controls">
+                    ${tabsUnifiedToggleHtml}
+                    <select class="unidex-filter-select" aria-label="Bookmark filter" onchange="window.UnidexView.setEntriesFilter(this.value)">
+                        <option value="all" ${filterMode === 'all' ? 'selected' : ''}>All Bookmarks</option>
+                        <option value="linked" ${filterMode === 'linked' ? 'selected' : ''}>Library Linked</option>
+                        <option value="bookmark-only" ${filterMode === 'bookmark-only' ? 'selected' : ''}>Bookmarks Only</option>
+                    </select>
+                    <button type="button" class="unidex-layout-btn" onclick="window.UnidexView.toggleEntriesLayout()" title="Toggle entries layout">
+                        Layout: ${layoutLabel}
+                    </button>
+                </div>
+                <section class="unidex-entries ${layoutMode === 'grid' ? 'is-grid-layout' : 'is-row-layout'}" aria-label="Unified entries across all tabs">
+                    ${buildEntriesHtml(filteredEntries, false, layoutMode, {
+                        includeCategoryTag: true,
+                        resolveTaskMode: function (link) {
+                            return isTaskModeCategory(link.category || 'Unsorted');
+                        },
+                        getExtraTagsHtml: function (link) {
+                            const workspaceLabel = escapeHtml(getWorkspaceLabel(link.workspace));
+                            return `<span class="unidex-entry-tag workspace">${workspaceLabel}</span>`;
+                        }
+                    })}
                 </section>
             </section>
         `;
+
+        stabilizeEntriesLayout(gridContainer, layoutMode);
     }
 
     function renderCardsStage(gridContainer, searchStr) {
@@ -872,11 +996,13 @@ window.UnidexView = (function () {
 
         const searchStr = options && options.searchStr ? String(options.searchStr) : '';
         ensureValidState();
-        const keepLibraryWarm = stage === 'entries' || (stage === 'cards' && getCardsUnifiedMode());
+        const keepLibraryWarm = stage === 'entries'
+            || (stage === 'cards' && getCardsUnifiedMode())
+            || (stage === 'tabs' && getTabsUnifiedMode());
         if (!keepLibraryWarm) resetLibraryReadyWait();
 
         if (stage === 'tabs') {
-            renderTabsStage(gridContainer);
+            renderTabsStage(gridContainer, searchStr);
             scheduleLayoutMaintenance(gridContainer);
             return;
         }
@@ -986,6 +1112,7 @@ window.UnidexView = (function () {
         backToCards: backToCards,
         setEntriesFilter: setEntriesFilter,
         setCardsUnified: setCardsUnified,
+        setTabsUnified: setTabsUnified,
         toggleEntriesLayout: toggleEntriesLayout,
         openEntryDirect: openEntryDirect,
         openEntry: openEntry,
