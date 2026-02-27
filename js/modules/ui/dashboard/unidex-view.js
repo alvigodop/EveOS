@@ -3,6 +3,15 @@ window.UnidexView = (function () {
     let stage = 'tabs';
     let selectedWorkspaceId = '';
     let selectedCategory = '';
+    let entriesRetryTimer = null;
+    let layoutMaintenanceTimers = [];
+    let layoutMaintenanceToken = 0;
+    let libraryReadyWaitStartedAt = 0;
+
+    const LIBRARY_READY_RETRY_MS = 180;
+    const LIBRARY_READY_HINT_DELAY_MS = 320;
+    const LIBRARY_READY_MAX_WAIT_MS = 2500;
+    const LAYOUT_MAINTENANCE_DELAYS_MS = [0, 600, 1800];
 
     function getAllLinks() {
         if (window.eveState?.links) return window.eveState.links;
@@ -98,6 +107,117 @@ window.UnidexView = (function () {
         const api = window.EveLibrary?.ConnectionsAPI;
         if (!api?.getLinkedEntry) return null;
         return api.getLinkedEntry(linkId);
+    }
+
+    function clearLayoutMaintenanceTimers() {
+        layoutMaintenanceToken += 1;
+        if (!layoutMaintenanceTimers.length) return;
+        layoutMaintenanceTimers.forEach(function (timer) {
+            clearTimeout(timer);
+        });
+        layoutMaintenanceTimers = [];
+    }
+
+    function isUnidexStylesheetHref(href) {
+        const normalized = String(href || '')
+            .replace(/\\/g, '/')
+            .toLowerCase();
+        return normalized.includes('/js/modules/ui/dashboard/unidex-view.css')
+            || normalized.endsWith('/unidex-view.css')
+            || normalized.includes('/unidex-view.css?');
+    }
+
+    function promoteUnidexStylesheet() {
+        const head = document.head;
+        if (!head) return;
+
+        const styleLinks = Array.from(head.querySelectorAll('link[rel="stylesheet"]'));
+        const styleLink = styleLinks.find(function (node) {
+            return isUnidexStylesheetHref(node.href);
+        });
+
+        if (!styleLink || styleLink.parentNode !== head) return;
+        const lastStylesheet = styleLinks[styleLinks.length - 1];
+        if (styleLink === lastStylesheet) return;
+        head.appendChild(styleLink);
+    }
+
+    function enforceStageLayoutGeometry(gridContainer) {
+        if (!gridContainer) return;
+
+        if (stage !== 'entries') return;
+        const entries = gridContainer.querySelector('.unidex-entries');
+        if (!entries) return;
+        forceEntriesLayoutPass(gridContainer, getEntriesLayoutMode());
+    }
+
+    function scheduleLayoutMaintenance(gridContainer) {
+        clearLayoutMaintenanceTimers();
+        const token = layoutMaintenanceToken;
+
+        LAYOUT_MAINTENANCE_DELAYS_MS.forEach(function (delay) {
+            const timer = setTimeout(function () {
+                if (token !== layoutMaintenanceToken) return;
+                if (!gridContainer || !document.body?.contains(gridContainer)) return;
+                if (String(config?.viewMode || '') !== 'unidex') return;
+                promoteUnidexStylesheet();
+                enforceStageLayoutGeometry(gridContainer);
+            }, delay);
+            layoutMaintenanceTimers.push(timer);
+        });
+    }
+
+    function clearEntriesRetryTimer() {
+        if (!entriesRetryTimer) return;
+        clearTimeout(entriesRetryTimer);
+        entriesRetryTimer = null;
+    }
+
+    function scheduleEntriesRetry() {
+        if (entriesRetryTimer) return;
+        entriesRetryTimer = setTimeout(function () {
+            entriesRetryTimer = null;
+            if (stage !== 'entries') return;
+            if (typeof renderDashboard === 'function') renderDashboard();
+        }, LIBRARY_READY_RETRY_MS);
+    }
+
+    function resetLibraryReadyWait() {
+        libraryReadyWaitStartedAt = 0;
+        clearEntriesRetryTimer();
+    }
+
+    function ensureLibraryReadyForEntries() {
+        const lib = window.EveLibrary;
+        const api = lib?.ConnectionsAPI;
+        const state = lib?.State;
+
+        if (api?.loadConnections && !Array.isArray(lib?.Connections)) {
+            try {
+                api.loadConnections();
+            } catch (error) {
+                // best-effort; we'll retry shortly
+            }
+        }
+
+        const ready = !!(api?.getLinkedEntry && state && Array.isArray(lib?.Connections));
+
+        if (ready) {
+            resetLibraryReadyWait();
+            return true;
+        }
+
+        if (!libraryReadyWaitStartedAt) {
+            libraryReadyWaitStartedAt = Date.now();
+        }
+
+        const elapsed = Date.now() - libraryReadyWaitStartedAt;
+        return elapsed >= LIBRARY_READY_MAX_WAIT_MS;
+    }
+
+    function shouldShowLibraryLoadingHint() {
+        if (!libraryReadyWaitStartedAt) return false;
+        return (Date.now() - libraryReadyWaitStartedAt) >= LIBRARY_READY_HINT_DELAY_MS;
     }
 
     function truncateText(value, maxLength) {
@@ -279,7 +399,7 @@ window.UnidexView = (function () {
                 ? `
                     <div class="unidex-entry-cover-slot">
                         ${safeCoverUrl
-                            ? `<img class="unidex-entry-cover" src="${safeCoverUrl}" alt="${safeTitle} cover" loading="lazy" referrerpolicy="no-referrer">`
+                            ? `<img class="unidex-entry-cover" src="${safeCoverUrl}" alt="${safeTitle} cover" loading="lazy" decoding="async" referrerpolicy="no-referrer">`
                             : '<div class="unidex-entry-cover-fallback">&#128218;</div>'}
                     </div>
                 `
@@ -300,7 +420,13 @@ window.UnidexView = (function () {
             return `
                 <article class="unidex-entry-item has-visual-slot ${taskMode && link.done ? 'is-done' : ''} ${isLibraryLinked ? 'is-library-linked' : 'is-bookmark-only'}"
                     data-text="${hoverText}">
-                    ${visualHtml}
+                    <button type="button"
+                        class="unidex-entry-visual-btn"
+                        onclick="return window.UnidexView.openEntryDirect('${encodedId}', event)"
+                        title="Open ${safeTitle} in new tab"
+                        aria-label="Open ${safeTitle} in new tab">
+                        ${visualHtml}
+                    </button>
                     <div class="unidex-entry-main">
                         <h4 class="unidex-entry-title">${safeTitle}</h4>
                         <p class="unidex-entry-domain">${safeDomain}</p>
@@ -317,6 +443,74 @@ window.UnidexView = (function () {
                 </article>
             `;
         }).join('');
+    }
+
+    function getEntriesLayoutMode() {
+        return String(config?.unidexEntriesLayout || 'rows') === 'grid' ? 'grid' : 'rows';
+    }
+
+    function setEntriesLayoutMode(mode) {
+        const nextMode = String(mode || '') === 'grid' ? 'grid' : 'rows';
+        if (config.unidexEntriesLayout === nextMode) return;
+        config.unidexEntriesLayout = nextMode;
+        if (typeof saveConfig === 'function') saveConfig();
+    }
+
+    function toggleEntriesLayout() {
+        const nextMode = getEntriesLayoutMode() === 'grid' ? 'rows' : 'grid';
+        setEntriesLayoutMode(nextMode);
+        if (typeof renderDashboard === 'function') renderDashboard();
+    }
+
+    function getEntriesFilterMode() {
+        const mode = String(config?.unidexEntriesFilter || 'all');
+        if (mode === 'linked' || mode === 'bookmark-only') return mode;
+        return 'all';
+    }
+
+    function setEntriesFilter(mode) {
+        const nextMode = String(mode || '') === 'linked'
+            ? 'linked'
+            : String(mode || '') === 'bookmark-only'
+                ? 'bookmark-only'
+                : 'all';
+        if (config.unidexEntriesFilter === nextMode) return;
+        config.unidexEntriesFilter = nextMode;
+        if (typeof saveConfig === 'function') saveConfig();
+        if (typeof renderDashboard === 'function') renderDashboard();
+    }
+
+    function matchesEntriesFilter(link, filterMode) {
+        if (filterMode === 'all') return true;
+        const isLinked = !!getLinkedRecord(link.id)?.entry;
+        if (filterMode === 'linked') return isLinked;
+        if (filterMode === 'bookmark-only') return !isLinked;
+        return true;
+    }
+
+    function forceEntriesLayoutPass(gridContainer, layoutMode) {
+        if (!gridContainer) return;
+        const entriesSection = gridContainer.querySelector('.unidex-entries');
+        if (!entriesSection) return;
+        const isGrid = layoutMode === 'grid';
+        entriesSection.classList.toggle('is-grid-layout', isGrid);
+        entriesSection.classList.toggle('is-row-layout', !isGrid);
+    }
+
+    function stabilizeEntriesLayout(gridContainer, layoutMode) {
+        if (!gridContainer) return;
+        const entriesSection = gridContainer.querySelector('.unidex-entries');
+        if (entriesSection) entriesSection.classList.add('is-layout-stabilizing');
+
+        requestAnimationFrame(function () {
+            forceEntriesLayoutPass(gridContainer, layoutMode);
+        });
+
+        // Briefly suppress hover during first paint to avoid pointer-on-load flicker.
+        setTimeout(function () {
+            const currentEntries = gridContainer.querySelector('.unidex-entries');
+            if (currentEntries) currentEntries.classList.remove('is-layout-stabilizing');
+        }, 220);
     }
 
     function renderTabsStage(gridContainer) {
@@ -368,19 +562,74 @@ window.UnidexView = (function () {
         const entries = workspaceLinks.filter(function (link) {
             return (link.category || 'Unsorted') === selectedCategory;
         });
+        const filterMode = getEntriesFilterMode();
         const taskMode = isTaskModeCategory(selectedCategory);
+        const layoutMode = getEntriesLayoutMode();
+        const layoutLabel = layoutMode === 'grid' ? 'Grid' : 'Rows';
+        const libraryReady = ensureLibraryReadyForEntries();
+
+        if (!libraryReady) {
+            if (!shouldShowLibraryLoadingHint()) {
+                scheduleEntriesRetry();
+                return;
+            }
+
+            gridContainer.innerHTML = `
+                <section class="unidex-shell" aria-label="Unidex Entries View">
+                    <header class="unidex-panel-header">
+                        <button type="button" class="unidex-back-btn" onclick="window.UnidexView.backToCards()">Back To Cards</button>
+                        <h3 class="unidex-panel-title unidex-echo-title" data-text="${escapeHtml(String(selectedCategory || "").toUpperCase())}"><span>${escapeHtml(selectedCategory)} Entries</span></h3>
+                        <div class="unidex-panel-controls">
+                            <select class="unidex-filter-select" aria-label="Bookmark filter" onchange="window.UnidexView.setEntriesFilter(this.value)">
+                                <option value="all" ${filterMode === 'all' ? 'selected' : ''}>All Bookmarks</option>
+                                <option value="linked" ${filterMode === 'linked' ? 'selected' : ''}>Library Linked</option>
+                                <option value="bookmark-only" ${filterMode === 'bookmark-only' ? 'selected' : ''}>Bookmarks Only</option>
+                            </select>
+                            <button type="button" class="unidex-layout-btn" onclick="window.UnidexView.toggleEntriesLayout()" title="Toggle entries layout">
+                                Layout: ${layoutLabel}
+                            </button>
+                        </div>
+                    </header>
+                    <section class="unidex-entries ${layoutMode === 'grid' ? 'is-grid-layout' : 'is-row-layout'}" aria-label="Bookmark and Library Entries">
+                        <div class="unidex-empty-state">
+                            <h3>Preparing Entries</h3>
+                            <p>Loading library links...</p>
+                        </div>
+                    </section>
+                </section>
+            `;
+
+            scheduleEntriesRetry();
+            return;
+        }
+
+        const filteredEntries = entries.filter(function (link) {
+            return matchesEntriesFilter(link, filterMode);
+        });
 
         gridContainer.innerHTML = `
             <section class="unidex-shell" aria-label="Unidex Entries View">
                 <header class="unidex-panel-header">
                     <button type="button" class="unidex-back-btn" onclick="window.UnidexView.backToCards()">Back To Cards</button>
                     <h3 class="unidex-panel-title unidex-echo-title" data-text="${escapeHtml(String(selectedCategory || "").toUpperCase())}"><span>${escapeHtml(selectedCategory)} Entries</span></h3>
+                    <div class="unidex-panel-controls">
+                        <select class="unidex-filter-select" aria-label="Bookmark filter" onchange="window.UnidexView.setEntriesFilter(this.value)">
+                            <option value="all" ${filterMode === 'all' ? 'selected' : ''}>All Bookmarks</option>
+                            <option value="linked" ${filterMode === 'linked' ? 'selected' : ''}>Library Linked</option>
+                            <option value="bookmark-only" ${filterMode === 'bookmark-only' ? 'selected' : ''}>Bookmarks Only</option>
+                        </select>
+                        <button type="button" class="unidex-layout-btn" onclick="window.UnidexView.toggleEntriesLayout()" title="Toggle entries layout">
+                            Layout: ${layoutLabel}
+                        </button>
+                    </div>
                 </header>
-                <section class="unidex-entries" aria-label="Bookmark and Library Entries">
-                    ${buildEntriesHtml(entries, taskMode)}
+                <section class="unidex-entries ${layoutMode === 'grid' ? 'is-grid-layout' : 'is-row-layout'}" aria-label="Bookmark and Library Entries">
+                    ${buildEntriesHtml(filteredEntries, taskMode)}
                 </section>
             </section>
         `;
+
+        stabilizeEntriesLayout(gridContainer, layoutMode);
     }
 
     function ensureValidState() {
@@ -402,18 +651,22 @@ window.UnidexView = (function () {
 
         const searchStr = options && options.searchStr ? String(options.searchStr) : '';
         ensureValidState();
+        if (stage !== 'entries') resetLibraryReadyWait();
 
         if (stage === 'tabs') {
             renderTabsStage(gridContainer);
+            scheduleLayoutMaintenance(gridContainer);
             return;
         }
 
         if (stage === 'cards') {
             renderCardsStage(gridContainer, searchStr);
+            scheduleLayoutMaintenance(gridContainer);
             return;
         }
 
         renderEntriesStage(gridContainer, searchStr);
+        scheduleLayoutMaintenance(gridContainer);
     }
 
     function switchWorkspaceTab(workspaceIdParam) {
@@ -441,6 +694,7 @@ window.UnidexView = (function () {
     }
 
     function backToTabs() {
+        resetLibraryReadyWait();
         resetSelection();
         if (typeof renderDashboard === 'function') renderDashboard();
     }
@@ -450,6 +704,7 @@ window.UnidexView = (function () {
             backToTabs();
             return;
         }
+        resetLibraryReadyWait();
         stage = 'cards';
         selectedCategory = '';
         if (typeof renderDashboard === 'function') renderDashboard();
@@ -476,7 +731,26 @@ window.UnidexView = (function () {
         return false;
     }
 
+    function openEntryDirect(linkIdParam, event) {
+        if (event?.preventDefault) event.preventDefault();
+        if (event?.stopPropagation) event.stopPropagation();
+
+        const linkId = decodeParam(linkIdParam);
+        if (!linkId) return false;
+
+        const link = getAllLinks().find(function (item) {
+            return String(item.id) === String(linkId);
+        });
+        if (!link?.url) return false;
+
+        const safeUrl = typeof normalizeUrl === 'function' ? normalizeUrl(link.url) : link.url;
+        window.open(safeUrl, '_blank', 'noopener,noreferrer');
+        return false;
+    }
+
     function resetSelection() {
+        clearLayoutMaintenanceTimers();
+        resetLibraryReadyWait();
         stage = 'tabs';
         selectedWorkspaceId = '';
         selectedCategory = '';
@@ -488,6 +762,9 @@ window.UnidexView = (function () {
         selectCategory: selectCategory,
         backToTabs: backToTabs,
         backToCards: backToCards,
+        setEntriesFilter: setEntriesFilter,
+        toggleEntriesLayout: toggleEntriesLayout,
+        openEntryDirect: openEntryDirect,
         openEntry: openEntry,
         resetSelection: resetSelection
     };

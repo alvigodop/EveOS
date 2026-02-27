@@ -9,21 +9,44 @@
 }
 
 .container.unidex-mode {
-    display: block;
+    display: block !important;
     max-width: min(1380px, 96vw);
     margin: 16px auto 0;
-    padding-bottom: 40px;
+    padding: 0 0 40px;
 }
 
 .unidex-shell {
+    display: block;
+    margin: 0;
     border: 1px solid rgba(255, 255, 255, 0.14);
     border-radius: 18px;
     padding: 24px;
     background: linear-gradient(160deg, rgba(255, 255, 255, 0.04), rgba(0, 0, 0, 0.18));
     backdrop-filter: blur(4px);
+    line-height: 1.25;
+}
+
+/* Keep Unidex geometry stable even when late-loaded global resets apply. */
+.unidex-shell,
+.unidex-shell *,
+.unidex-shell *::before,
+.unidex-shell *::after {
+    box-sizing: border-box;
+}
+
+.unidex-shell h2,
+.unidex-shell h3,
+.unidex-shell h4,
+.unidex-shell p,
+.unidex-shell button,
+.unidex-shell select {
+    margin: 0;
 }
 
 .unidex-hero {
+    display: block;
+    padding: 0;
+    border: 0;
     text-align: center;
     margin-bottom: 20px;
 }
@@ -63,10 +86,19 @@
 
 .unidex-panel-header {
     display: flex;
+    flex-direction: row;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
+    padding: 0;
+    border: 0;
     margin-bottom: 16px;
+}
+
+.unidex-panel-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
 .unidex-panel-title {
@@ -83,25 +115,61 @@
     color: var(--text-main);
     padding: 8px 12px;
     cursor: pointer;
+    line-height: 1.2;
+    font-family: inherit;
 }
 
 .unidex-back-btn:hover {
     background: rgba(255, 255, 255, 0.12);
 }
 
+.unidex-layout-btn {
+    border: 1px solid rgba(255, 255, 255, 0.24);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-main);
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 0.82rem;
+    line-height: 1.2;
+    font-family: inherit;
+}
+
+.unidex-layout-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.unidex-filter-select {
+    border: 1px solid rgba(255, 255, 255, 0.24);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-main);
+    padding: 8px 10px;
+    cursor: pointer;
+    font-size: 0.82rem;
+    min-width: 152px;
+    line-height: 1.2;
+    font-family: inherit;
+}
+
+.unidex-filter-select:focus-visible {
+    outline: 2px solid rgba(0, 212, 255, 0.4);
+    outline-offset: 1px;
+}
+
 .unidex-tabs {
-    display: flex;
-    flex-direction: column;
+    display: flex !important;
+    flex-direction: column !important;
     align-items: stretch;
     width: min(100%, 980px);
     margin: 0 auto;
-    gap: 12px;
+    gap: 12px !important;
 }
 
 .unidex-tab-btn {
     position: relative;
     width: 100%;
-    min-height: 78px;
+    min-height: 78px !important;
     box-sizing: border-box;
     align-self: stretch;
     border: 1px solid rgba(255, 255, 255, 0.18);
@@ -111,12 +179,14 @@
     color: var(--text-main);
     cursor: pointer;
     text-align: center;
-    display: flex;
-    flex-direction: column;
+    display: flex !important;
+    flex-direction: column !important;
     align-items: center;
     justify-content: center;
     overflow: hidden;
     transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+    line-height: 1.2;
+    font-family: inherit;
 }
 
 .unidex-tab-btn:hover {
@@ -169,16 +239,16 @@
 }
 
 .unidex-cards {
-    display: flex;
-    flex-direction: column;
+    display: flex !important;
+    flex-direction: column !important;
     align-items: stretch;
     width: min(100%, 980px);
     margin: 0 auto;
-    gap: 14px;
+    gap: 14px !important;
 }
 
 .unidex-card {
-    width: 100%;
+    width: 100% !important;
     box-sizing: border-box;
     align-self: stretch;
     border: 1px solid rgba(255, 255, 255, 0.18);
@@ -188,7 +258,7 @@
 
 .unidex-card-hit {
     position: relative;
-    width: 100%;
+    width: 100% !important;
     border: 0;
     border-radius: 14px;
     padding: 16px;
@@ -198,6 +268,8 @@
     text-align: center;
     overflow: hidden;
     transition: transform 0.2s ease, background 0.2s ease;
+    line-height: 1.2;
+    font-family: inherit;
 }
 
 .unidex-card-hit:hover {
@@ -300,8 +372,13 @@
 }
 
 .unidex-entries {
-    display: grid;
-    gap: 10px;
+    display: grid !important;
+    gap: 10px !important;
+}
+
+.unidex-entries.is-grid-layout {
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)) !important;
+    gap: 14px !important;
 }
 
 .unidex-entry-item {
@@ -319,8 +396,8 @@
 }
 
 .unidex-entry-item.has-visual-slot {
-    display: grid;
-    grid-template-columns: 84px minmax(0, 1fr) auto;
+    display: grid !important;
+    grid-template-columns: 84px minmax(0, 1fr) auto !important;
     align-items: stretch;
     gap: 12px;
 }
@@ -368,6 +445,19 @@
     opacity: 0.58;
 }
 
+.unidex-entries.is-layout-stabilizing .unidex-entry-item {
+    transition: none;
+}
+
+.unidex-entries.is-layout-stabilizing .unidex-entry-item:hover {
+    transform: none;
+    box-shadow: none;
+}
+
+.unidex-entries.is-layout-stabilizing .unidex-entry-visual-btn {
+    pointer-events: none;
+}
+
 .unidex-entry-item.is-done {
     opacity: 0.75;
 }
@@ -376,6 +466,23 @@
     min-width: 0;
     position: relative;
     z-index: 1;
+}
+
+.unidex-entry-visual-btn {
+    border: 0;
+    background: transparent;
+    padding: 0;
+    margin: 0;
+    cursor: pointer;
+    line-height: 0;
+    border-radius: 10px;
+    align-self: stretch;
+    font-family: inherit;
+}
+
+.unidex-entry-visual-btn:focus-visible {
+    outline: 2px solid rgba(0, 212, 255, 0.5);
+    outline-offset: 1px;
 }
 
 .unidex-entry-cover-slot {
@@ -390,6 +497,8 @@
     justify-content: center;
     position: relative;
     z-index: 1;
+    contain: paint;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .unidex-entry-cover {
@@ -398,6 +507,24 @@
     min-height: 112px;
     object-fit: cover;
     display: block;
+    transform-origin: center center;
+    will-change: transform;
+    transition: transform 0.28s ease, filter 0.28s ease;
+}
+
+.unidex-entry-item.is-library-linked .unidex-entry-cover-slot:hover {
+    border-color: rgba(0, 212, 255, 0.42);
+    box-shadow: 0 0 0 1px rgba(0, 212, 255, 0.16);
+}
+
+.unidex-entry-item.is-library-linked .unidex-entry-cover-slot:hover .unidex-entry-cover {
+    transform: none;
+    filter: saturate(1.12) contrast(1.04) brightness(1.03);
+}
+
+.unidex-entries.is-layout-stabilizing .unidex-entry-item.is-library-linked .unidex-entry-cover-slot:hover .unidex-entry-cover {
+    transform: none;
+    filter: none;
 }
 
 .unidex-entry-cover-fallback {
@@ -528,6 +655,67 @@
     z-index: 1;
 }
 
+.unidex-entries.is-grid-layout .unidex-entry-item.has-visual-slot {
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-areas:
+        "cover"
+        "main"
+        "actions";
+    align-items: stretch;
+    align-content: start;
+}
+
+.unidex-entries.is-grid-layout .unidex-entry-cover-slot {
+    grid-area: cover;
+    width: 100%;
+    aspect-ratio: 3 / 4;
+    height: auto;
+    min-height: 0;
+}
+
+.unidex-entries.is-grid-layout .unidex-entry-visual-btn {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+}
+
+.unidex-entries.is-grid-layout .unidex-entry-cover {
+    height: 100%;
+    min-height: 0;
+}
+
+.unidex-entries.is-grid-layout .unidex-entry-cover-slot.is-bookmark-only {
+    aspect-ratio: 4 / 3;
+    height: auto;
+    min-height: 0;
+}
+
+.unidex-entries.is-grid-layout .unidex-entry-item:hover {
+    transform: none;
+    border-color: rgba(255, 255, 255, 0.32);
+    background: rgba(255, 255, 255, 0.06);
+    box-shadow: 0 10px 22px rgba(0, 0, 0, 0.18);
+}
+
+.unidex-entries.is-grid-layout .unidex-entry-bookmark-icon-wrap {
+    width: 72px;
+    height: 72px;
+    border-radius: 16px;
+}
+
+.unidex-entries.is-grid-layout .unidex-entry-main {
+    grid-area: main;
+}
+
+.unidex-entries.is-grid-layout .unidex-entry-actions {
+    grid-area: actions;
+    align-self: stretch;
+}
+
+.unidex-entries.is-grid-layout .unidex-entry-btn {
+    width: 100%;
+}
+
 .unidex-entry-btn {
     border: 1px solid rgba(255, 255, 255, 0.26);
     border-radius: 10px;
@@ -535,6 +723,8 @@
     color: var(--text-main);
     padding: 8px 12px;
     cursor: pointer;
+    line-height: 1.2;
+    font-family: inherit;
 }
 
 .unidex-entry-btn:hover {
@@ -579,8 +769,14 @@
 
 .light-theme .unidex-card-hit:hover,
 .light-theme .unidex-back-btn:hover,
+.light-theme .unidex-layout-btn:hover,
 .light-theme .unidex-entry-btn:hover {
     background: rgba(0, 0, 0, 0.06);
+}
+
+.light-theme .unidex-filter-select {
+    border-color: rgba(0, 0, 0, 0.22);
+    background: rgba(255, 255, 255, 0.92);
 }
 
 .light-theme .unidex-card-progress {
@@ -605,6 +801,19 @@
     .unidex-panel-header {
         flex-direction: column;
         align-items: flex-start;
+    }
+
+    .unidex-panel-controls {
+        width: 100%;
+    }
+
+    .unidex-layout-btn {
+        width: 100%;
+    }
+
+    .unidex-filter-select {
+        width: 100%;
+        min-width: 0;
     }
 
     .unidex-tabs,
@@ -641,5 +850,26 @@
 
     .unidex-entry-actions {
         grid-area: actions;
+    }
+
+    .unidex-entries.is-grid-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .unidex-entries.is-grid-layout .unidex-entry-cover-slot {
+        aspect-ratio: 3 / 4;
+        height: auto;
+        min-height: 0;
+    }
+
+    .unidex-entries.is-grid-layout .unidex-entry-cover {
+        height: 100%;
+        min-height: 0;
+    }
+
+    .unidex-entries.is-grid-layout .unidex-entry-cover-slot.is-bookmark-only {
+        aspect-ratio: 4 / 3;
+        height: auto;
+        min-height: 0;
     }
 }
