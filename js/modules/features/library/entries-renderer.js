@@ -44,6 +44,66 @@ window.EveLibrary = window.EveLibrary || {};
         return toUniqueList(value).join(', ');
     }
 
+    function escapeHtml(value) {
+        return String(value || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function sanitizeForId(value) {
+        return String(value || '').replace(/[^a-zA-Z0-9_-]/g, '');
+    }
+
+    function buildExpandableDetail(label, value, expandId, maxChars) {
+        const compact = String(value || '').replace(/\s+/g, ' ').trim();
+        if (!compact) return '';
+
+        const escapedLabel = escapeHtml(label);
+        if (compact.length <= maxChars) {
+            return `<p><strong>${escapedLabel}:</strong> ${escapeHtml(compact)}</p>`;
+        }
+
+        const preview = escapeHtml(compact.slice(0, maxChars).trimEnd()) + '&hellip;';
+        const full = escapeHtml(compact);
+        return `
+            <p class="lib-entry-expandable">
+                <strong>${escapedLabel}:</strong>
+                <span id="${expandId}-preview">${preview}</span>
+                <span id="${expandId}-full" style="display:none;">${full}</span>
+                <button type="button" class="lib-expand-toggle" onclick="window.EveLibrary.EntriesRenderer.toggleExpandableDetail('${expandId}', this)" aria-expanded="false" title="Show more">more</button>
+            </p>
+        `;
+    }
+
+    function toggleExpandableDetail(expandId, buttonEl) {
+        const preview = document.getElementById(`${expandId}-preview`);
+        const full = document.getElementById(`${expandId}-full`);
+        if (!preview || !full) return;
+
+        const isExpanded = full.style.display !== 'none';
+        if (isExpanded) {
+            full.style.display = 'none';
+            preview.style.display = '';
+            if (buttonEl) {
+                buttonEl.textContent = 'more';
+                buttonEl.setAttribute('aria-expanded', 'false');
+                buttonEl.title = 'Show more';
+            }
+            return;
+        }
+
+        full.style.display = '';
+        preview.style.display = 'none';
+        if (buttonEl) {
+            buttonEl.textContent = 'less';
+            buttonEl.setAttribute('aria-expanded', 'true');
+            buttonEl.title = 'Show less';
+        }
+    }
+
     function renderEntries(categoryName, container) {
         if (!container) return;
 
@@ -89,6 +149,7 @@ window.EveLibrary = window.EveLibrary || {};
     function createEntryHtml(entry, displayNumber, dataType, categoryName) {
         const safeCat = categoryName.replace(/'/g, "\\'");
         const safeId = entry.id;
+        const safeEntryIdBase = sanitizeForId(`${categoryName}-${safeId}`);
         const lastEditedText = formatLastEdited(entry.lastEdited || entry.dateAdded);
         const sourceUrl = entry.sourceUrl || '';
         const safeSourceUrl = sourceUrl.replace(/'/g, "\\'");
@@ -96,6 +157,9 @@ window.EveLibrary = window.EveLibrary || {};
         const artistValue = toDisplayCsv(entry.artist);
         const genreValue = toDisplayCsv(entry.genre);
         const tags = toUniqueList(entry.tags);
+        const authorAltHtml = buildExpandableDetail('Author Alt', authorAltNames.join(', '), `${safeEntryIdBase}-author-alt`, 84);
+        const tagsHtml = buildExpandableDetail('Tags', tags.join(', '), `${safeEntryIdBase}-tags`, 92);
+        const notesHtml = buildExpandableDetail('Notes', entry.summary || '', `${safeEntryIdBase}-notes`, 96);
         if (Ratings?.applyDerivedRatings) {
             Ratings.applyDerivedRatings(entry);
         }
@@ -121,14 +185,15 @@ window.EveLibrary = window.EveLibrary || {};
                 ${titleHtml}
                 <div class="lib-entry-details">
                     <p><strong>Author:</strong> ${entry.author || 'N/A'}</p>
-                    ${authorAltNames.length ? `<p><strong>Author Alt:</strong> ${authorAltNames.join(', ')}</p>` : ''}
-                    ${artistValue ? `<p><strong>Artist:</strong> ${artistValue}</p>` : ''}
-                    <p><strong>Genre:</strong> ${genreValue || 'N/A'}</p>
                     <p><strong>Status:</strong> ${entry.status || 'N/A'}</p>
                     ${renderTypeFields(entry, dataType)}
                     <p><strong>Rating:</strong> ${entry.rating || 'N/A'}</p>
+                    ${authorAltHtml}
+                    ${artistValue ? `<p><strong>Artist:</strong> ${artistValue}</p>` : ''}
+                    <p><strong>Genre:</strong> ${genreValue || 'N/A'}</p>
                     ${renderDerivedRatings(derived)}
-                    ${tags.length ? `<p><strong>Tags:</strong> ${tags.join(', ')}</p>` : ''}
+                    ${tagsHtml}
+                    ${notesHtml}
                 </div>
                 <div class="lib-entry-last-edited" title="Last edited">${lastEditedText}</div>
             </div>
@@ -216,6 +281,7 @@ window.EveLibrary = window.EveLibrary || {};
     }
 
     window.EveLibrary.EntriesRenderer = {
-        renderEntries
+        renderEntries,
+        toggleExpandableDetail
     };
 })();

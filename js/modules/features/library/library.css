@@ -227,6 +227,66 @@
     color: var(--text-main, #e0e0e0);
 }
 
+.lib-entry-expandable {
+    margin: 4px 0;
+}
+
+.lib-expand-toggle {
+    margin-left: 6px;
+    border: none;
+    background: transparent;
+    color: var(--accent, #00d4ff);
+    cursor: pointer;
+    font-size: 0.75rem;
+    padding: 0;
+    line-height: 1;
+}
+
+.lib-expand-toggle:hover {
+    text-decoration: underline;
+}
+
+.container.focus-mode .lib-entries-grid {
+    grid-template-columns: repeat(3, minmax(0, 235px)) !important;
+    justify-content: center;
+    gap: 9px !important;
+    width: 100%;
+    padding: 0 !important;
+    max-height: none;
+    overflow: visible;
+}
+
+.container.focus-mode .lib-entry {
+    width: 100%;
+    max-width: 235px;
+    min-width: 0;
+    padding: 16px;
+}
+
+.container.focus-mode .lib-entry-image {
+    height: 150px;
+}
+
+.container.focus-mode .lib-entry-title,
+.container.focus-mode .lib-entry-title-btn {
+    font-size: 0.88rem;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+}
+
+.container.focus-mode .lib-entry-details {
+    font-size: 0.74rem;
+    max-height: 260px;
+    overflow-y: auto;
+    padding-right: 4px;
+    line-height: 1.25;
+}
+
+.container.focus-mode .lib-entry-details p {
+    margin: 2px 0;
+    overflow-wrap: anywhere;
+}
+
 .lib-entry-last-edited {
     margin-top: 8px;
     font-size: 0.72rem;
@@ -383,4 +443,21 @@
 .lib-entry,
 .lib-stat-card {
     animation: fadeIn 0.3s ease-out;
+}
+
+@media (max-width: 900px) {
+    .container.focus-mode .lib-entries-grid {
+        grid-template-columns: repeat(2, minmax(0, 235px)) !important;
+    }
+}
+
+@media (max-width: 900px) {
+    .container.focus-mode .lib-entries-grid {
+        grid-template-columns: 1fr !important;
+        justify-content: stretch;
+    }
+
+    .container.focus-mode .lib-entry {
+        max-width: none;
+    }
 }

@@ -52,7 +52,7 @@ window.EveModuleManifest = {
         'js/modules/features/library/library-connections.js',
         'js/modules/features/library/search-filters.js',
         'js/modules/features/library/options-updaters.js',
-        'js/modules/features/library/entries-renderer.js',
+        'js/modules/features/library/entries-renderer.js?v=0.2.4',
         'js/modules/features/library/library-ui.shared.js',
         'js/modules/features/library/library-ui.template.js',
 
@@ -526,7 +526,7 @@ window.EveModuleManifest = {
         'js/modules/ui/sidebar.css?v=0.2.36',
         'js/modules/ui/dashboard/dashboard.css',
         'js/modules/ui/dashboard/unidex-view.css?v=0.2.38',
-        'js/modules/ui/dashboard/categories/focused-card.css?v=0.2.54',
+        'js/modules/ui/dashboard/categories/focused-card.css?v=0.2.67',
         'js/modules/ui/dashboard/dock.css',
         'js/modules/ui/bulk-toolbar.css',
         'js/modules/ui/scratchpad.css',
@@ -540,7 +540,7 @@ window.EveModuleManifest = {
         'js/modules/features/search-advanced/sa.css',
         'js/modules/features/api-search/search-results.css',
         'js/modules/features/sources/sources.css',
-        'js/modules/features/library/library.css',
+        'js/modules/features/library/library.css?v=0.2.11',
 
         // --- Scraper Feature Styles (Ported) ---
         'js/modules/features/scraper/core/styles/variables.css?v=1.0.1',
