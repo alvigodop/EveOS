@@ -19,7 +19,7 @@ window.EveModuleManifestParts.styles = [
         'js/modules/features/search-advanced/sa.css',
         'js/modules/features/api-search/search-results.css',
         'js/modules/features/sources/sources.css',
-        'js/modules/features/library/library.css?v=0.2.13',
+'js/modules/features/library/library.css?v=0.2.16',
 
         // --- Scraper Feature Styles (Ported) ---
         'js/modules/features/scraper/core/styles/variables.css?v=1.0.1',
