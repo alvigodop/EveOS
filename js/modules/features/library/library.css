@@ -217,6 +217,8 @@
 .lib-entry-details {
     font-size: 0.8rem;
     color: var(--text-muted, #a0a0a0);
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
 }
 
 .lib-entry-details p {
@@ -225,6 +227,23 @@
 
 .lib-entry-details strong {
     color: var(--text-main, #e0e0e0);
+}
+
+.lib-entry-details::-webkit-scrollbar {
+    width: 6px;
+}
+
+.lib-entry-details::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.lib-entry-details::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.16);
+    border-radius: 999px;
+}
+
+.lib-entry-details:hover::-webkit-scrollbar-thumb {
+    background: rgba(0, 212, 255, 0.42);
 }
 
 .lib-entry-expandable {
@@ -331,6 +350,29 @@
 .lib-favorite-btn:hover,
 .lib-favorite-btn.active {
     opacity: 1;
+}
+
+.lib-entry-select {
+    position: absolute;
+    top: 36px;
+    left: 8px;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    z-index: 2;
+}
+
+.lib-entry-select .lib-batch-checkbox {
+    width: 14px;
+    height: 14px;
+    margin: 0;
+    cursor: pointer;
+    accent-color: var(--accent, #00d4ff);
 }
 
 .lib-no-entries {

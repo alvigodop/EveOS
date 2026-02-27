@@ -110,8 +110,13 @@ window.EveLibrary = window.EveLibrary || {};
     function refreshLibrary(categoryName) {
         const prefix = getPrefix(categoryName);
         const entriesContainer = document.getElementById(prefix + 'entries');
+        const statsView = document.getElementById(prefix + 'stats-view');
         OptionsUpdaters.updateGenreOptions(categoryName);
         EntriesRenderer.renderEntries(categoryName, entriesContainer);
+
+        if (statsView && statsView.style.display !== 'none' && StatsRenderer) {
+            StatsRenderer.renderStats(categoryName, statsView);
+        }
     }
 
     function resetAndRefresh(categoryName) {

@@ -52,16 +52,16 @@ window.EveModuleManifest = {
         'js/modules/features/library/library-connections.js',
         'js/modules/features/library/search-filters.js',
         'js/modules/features/library/options-updaters.js',
-        'js/modules/features/library/entries-renderer.js?v=0.2.4',
+        'js/modules/features/library/entries-renderer.js?v=0.2.5',
         'js/modules/features/library/library-ui.shared.js',
         'js/modules/features/library/library-ui.template.js',
 
         // Library Stats
         'js/modules/features/library/stats/chart-utils.js',
-        'js/modules/features/library/stats/stats-calc.js',
-        'js/modules/features/library/stats/stats-renderer.js',
+        'js/modules/features/library/stats/stats-calc.js?v=0.2.1',
+        'js/modules/features/library/stats/stats-renderer.js?v=0.2.1',
 
-        'js/modules/features/library/library-ui.js?v=0.2.47',
+        'js/modules/features/library/library-ui.js?v=0.2.48',
         'js/modules/features/library/library-init.js',
 
 
@@ -540,7 +540,7 @@ window.EveModuleManifest = {
         'js/modules/features/search-advanced/sa.css',
         'js/modules/features/api-search/search-results.css',
         'js/modules/features/sources/sources.css',
-        'js/modules/features/library/library.css?v=0.2.11',
+        'js/modules/features/library/library.css?v=0.2.13',
 
         // --- Scraper Feature Styles (Ported) ---
         'js/modules/features/scraper/core/styles/variables.css?v=1.0.1',
