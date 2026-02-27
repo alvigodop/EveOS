@@ -135,6 +135,32 @@ window.UnidexView = (function () {
         return '';
     }
 
+    function buildBookmarkIconHtml(link, safeTitle) {
+        const iconRaw = String(link?.icon || '').trim();
+        const iconNormalized = iconRaw.replace(/\uFE0F/g, '');
+        const isLegacyLinkIcon = iconNormalized === '\u{1F517}';
+        const hasCustomIcon = !!iconNormalized && !isLegacyLinkIcon;
+
+        if (hasCustomIcon) {
+            if (/^https?:\/\//i.test(iconRaw)) {
+                const safeIconUrl = escapeHtml(iconRaw);
+                return `<img class="unidex-entry-bookmark-icon-img" src="${safeIconUrl}" alt="${safeTitle} icon" loading="lazy" referrerpolicy="no-referrer">`;
+            }
+            return `<span class="unidex-entry-bookmark-icon-emoji">${escapeHtml(iconRaw)}</span>`;
+        }
+
+        const sourceUrl = String(link?.url || '').trim();
+        const isLocal = sourceUrl.startsWith('file://');
+        const domain = getDomain(sourceUrl);
+        const hasDomain = !isLocal && domain.includes('.');
+        if (hasDomain) {
+            const safeDomain = escapeHtml(domain);
+            return `<img class="unidex-entry-bookmark-icon-img" src="https://www.google.com/s2/favicons?domain=${safeDomain}&sz=64" alt="${safeTitle} icon" loading="lazy" referrerpolicy="no-referrer">`;
+        }
+
+        return '<span class="unidex-entry-bookmark-icon-fallback">&#128279;</span>';
+    }
+
     function buildTabsHtml() {
         return (config.workspaces || []).map(function (workspace) {
             const workspaceCount = getAllLinks().filter(function (link) {
@@ -210,6 +236,7 @@ window.UnidexView = (function () {
         return entryLinks.map(function (link) {
             const encodedId = encodeParam(link.id);
             const safeTitle = escapeHtml(link.title || 'Untitled');
+            const hoverText = escapeHtml(truncateText(String(link.title || 'Untitled').toUpperCase(), 34));
             const safeDomain = escapeHtml(getDomain(link.url));
             const linkedRecord = getLinkedRecord(link.id);
             const isLibraryLinked = !!linkedRecord?.entry;
@@ -248,15 +275,21 @@ window.UnidexView = (function () {
                     </div>
                 `
                 : '';
-            const coverHtml = isLibraryLinked
+            const visualHtml = isLibraryLinked
                 ? `
                     <div class="unidex-entry-cover-slot">
                         ${safeCoverUrl
                             ? `<img class="unidex-entry-cover" src="${safeCoverUrl}" alt="${safeTitle} cover" loading="lazy" referrerpolicy="no-referrer">`
-                            : '<div class="unidex-entry-cover-fallback">📚</div>'}
+                            : '<div class="unidex-entry-cover-fallback">&#128218;</div>'}
                     </div>
                 `
-                : '';
+                : `
+                    <div class="unidex-entry-cover-slot is-bookmark-only">
+                        <div class="unidex-entry-bookmark-icon-wrap">
+                            ${buildBookmarkIconHtml(link, safeTitle)}
+                        </div>
+                    </div>
+                `;
             const taskTagHtml = taskMode
                 ? `<span class="unidex-entry-tag ${link.done ? 'done' : 'pending'}">${link.done ? 'Done' : 'Pending'}</span>`
                 : '';
@@ -265,8 +298,9 @@ window.UnidexView = (function () {
                 : '';
 
             return `
-                <article class="unidex-entry-item ${taskMode && link.done ? 'is-done' : ''} ${isLibraryLinked ? 'is-library-linked' : ''}">
-                    ${coverHtml}
+                <article class="unidex-entry-item has-visual-slot ${taskMode && link.done ? 'is-done' : ''} ${isLibraryLinked ? 'is-library-linked' : 'is-bookmark-only'}"
+                    data-text="${hoverText}">
+                    ${visualHtml}
                     <div class="unidex-entry-main">
                         <h4 class="unidex-entry-title">${safeTitle}</h4>
                         <p class="unidex-entry-domain">${safeDomain}</p>
@@ -289,7 +323,7 @@ window.UnidexView = (function () {
         gridContainer.innerHTML = `
             <section class="unidex-shell" aria-label="Unidex Tabs View">
                 <header class="unidex-hero">
-                    <h2 class="unidex-title">The Unidex View</h2>
+                    <h2 class="unidex-title unidex-echo-title" data-text="THE UNIDEX VIEW"><span>The Unidex View</span></h2>
                 </header>
                 <section class="unidex-tabs" aria-label="Workspace Tabs">
                     ${buildTabsHtml()}
@@ -313,7 +347,7 @@ window.UnidexView = (function () {
             <section class="unidex-shell" aria-label="Unidex Cards View">
                 <header class="unidex-panel-header">
                     <button type="button" class="unidex-back-btn" onclick="window.UnidexView.backToTabs()">Back To Tabs</button>
-                    <h3 class="unidex-panel-title">${escapeHtml(workspace.name)} Cards</h3>
+                    <h3 class="unidex-panel-title unidex-echo-title" data-text="${escapeHtml(String(workspace.name || "").toUpperCase())}"><span>${escapeHtml(workspace.name)} Cards</span></h3>
                 </header>
                 <section class="unidex-cards" aria-label="Category Cards">
                     ${buildCardsHtml(categoryModels)}
@@ -340,7 +374,7 @@ window.UnidexView = (function () {
             <section class="unidex-shell" aria-label="Unidex Entries View">
                 <header class="unidex-panel-header">
                     <button type="button" class="unidex-back-btn" onclick="window.UnidexView.backToCards()">Back To Cards</button>
-                    <h3 class="unidex-panel-title">${escapeHtml(selectedCategory)} Entries</h3>
+                    <h3 class="unidex-panel-title unidex-echo-title" data-text="${escapeHtml(String(selectedCategory || "").toUpperCase())}"><span>${escapeHtml(selectedCategory)} Entries</span></h3>
                 </header>
                 <section class="unidex-entries" aria-label="Bookmark and Library Entries">
                     ${buildEntriesHtml(entries, taskMode)}
