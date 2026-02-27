@@ -71,9 +71,14 @@ window.EveLibrary = window.EveLibrary || {};
         const prefix = getPrefix(categoryName);
         const panel = document.getElementById(prefix + 'panel');
         if (!panel) return;
+        const parentCard = panel.closest('.category-card');
+        const isFocusedCard = !!parentCard?.classList.contains('is-focus-mode');
 
         const isHidden = panel.style.display === 'none';
         panel.style.display = isHidden ? 'block' : 'none';
+        if (isFocusedCard) {
+            parentCard.classList.toggle('focus-library-only', isHidden);
+        }
 
         if (isHidden) {
             initLibraryPanel(categoryName);

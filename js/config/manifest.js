@@ -61,7 +61,7 @@ window.EveModuleManifest = {
         'js/modules/features/library/stats/stats-calc.js',
         'js/modules/features/library/stats/stats-renderer.js',
 
-        'js/modules/features/library/library-ui.js',
+        'js/modules/features/library/library-ui.js?v=0.2.47',
         'js/modules/features/library/library-init.js',
 
 
@@ -526,7 +526,7 @@ window.EveModuleManifest = {
         'js/modules/ui/sidebar.css?v=0.2.36',
         'js/modules/ui/dashboard/dashboard.css',
         'js/modules/ui/dashboard/unidex-view.css?v=0.2.38',
-        'js/modules/ui/dashboard/categories/focused-card.css?v=0.2.46',
+        'js/modules/ui/dashboard/categories/focused-card.css?v=0.2.54',
         'js/modules/ui/dashboard/dock.css',
         'js/modules/ui/bulk-toolbar.css',
         'js/modules/ui/scratchpad.css',
