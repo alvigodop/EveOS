@@ -340,7 +340,9 @@ def _paths_equal(left, right):
 def _resolve_card_category_name(card_data, fallback_name):
     if not isinstance(card_data, dict):
         card_data = {}
-    for key in ("title", "categoryName", "name"):
+    # Prefer explicit structural keys over display/title text to reduce
+    # canonical-name flip-flopping during reload/save cycles.
+    for key in ("categoryName", "name", "title"):
         candidate = str(card_data.get(key) or "").strip()
         if candidate:
             return candidate

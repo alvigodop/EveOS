@@ -14,6 +14,35 @@ window.EveLinkForm = window.EveLinkForm || {};
         return value;
     }
 
+    function ensureAddModalElements() {
+        if (!document.getElementById('addModal') && typeof initModals === 'function') {
+            initModals();
+        }
+
+        const elements = {
+            addModal: document.getElementById('addModal'),
+            modalTitle: document.getElementById('modalTitle'),
+            editId: document.getElementById('editId'),
+            newTitle: document.getElementById('newTitle'),
+            newUrl: document.getElementById('newUrl'),
+            newCategory: document.getElementById('newCategory'),
+            newPriority: document.getElementById('newPriority'),
+            newIcon: document.getElementById('newIcon'),
+            searchResults: document.getElementById('edit-link-search-results')
+        };
+
+        const missing = Object.entries(elements)
+            .filter(([, el]) => !el)
+            .map(([name]) => name);
+        if (!missing.length) return elements;
+
+        console.warn(`[LinkForm] Missing modal elements: ${missing.join(', ')}`);
+        if (typeof showToast === 'function') {
+            showToast('Link modal is not ready yet. Please try again.', 'warning');
+        }
+        return null;
+    }
+
     window.toggleLibraryFieldsCollapse = function () {
         const toggle = ns.getLibraryFormToggle();
         if (!toggle?.checked) return;
@@ -26,18 +55,21 @@ window.EveLinkForm = window.EveLinkForm || {};
 
     window.openAddModal = function (preferredCategory) {
         var initialCategory = String(preferredCategory || '').trim();
-        document.getElementById('modalTitle').innerText = "Add Link";
-        document.getElementById('editId').value = "";
+        const modal = ensureAddModalElements();
+        if (!modal) return;
+
+        modal.modalTitle.innerText = "Add Link";
+        modal.editId.value = "";
         refreshCategoryDatalist();
-        document.getElementById('newTitle').value = "";
-        document.getElementById('newUrl').value = "";
-        document.getElementById('newCategory').value = initialCategory;
-        document.getElementById('newPriority').value = "";
-        document.getElementById('newIcon').value = "";
+        modal.newTitle.value = "";
+        modal.newUrl.value = "";
+        modal.newCategory.value = initialCategory;
+        modal.newPriority.value = "";
+        modal.newIcon.value = "";
 
         window.tempSources = [];
         renderSourcesList();
-        document.getElementById('edit-link-search-results').style.display = 'none';
+        modal.searchResults.style.display = 'none';
 
         ns.setupLibraryToggleHandlers();
         ns.refreshLibraryStatusOptions(initialCategory || 'Unsorted');
@@ -47,46 +79,52 @@ window.EveLinkForm = window.EveLinkForm || {};
         ns.setLibraryFieldsVisibility(false);
         ns.resetLibraryForm();
 
-        document.getElementById('addModal').style.display = 'flex';
+        modal.addModal.style.display = 'flex';
         if (typeof hideCategoryQuickPicker === 'function') hideCategoryQuickPicker();
-        document.getElementById('newTitle').focus();
+        modal.newTitle.focus();
     };
 
     window.openEdit = function (id) {
         const targetId = String(id);
         const l = links.find(x => String(x?.id) === targetId);
         if (!l) return;
-        document.getElementById('modalTitle').innerText = "Edit Link";
-        document.getElementById('editId').value = l.id;
+        const modal = ensureAddModalElements();
+        if (!modal) return;
+
+        modal.modalTitle.innerText = "Edit Link";
+        modal.editId.value = l.id;
         refreshCategoryDatalist();
-        document.getElementById('newTitle').value = l.title;
-        document.getElementById('newUrl').value = l.url;
-        document.getElementById('newCategory').value = l.category;
-        document.getElementById('newPriority').value = l.priority || "";
-        document.getElementById('newIcon').value = normalizeManualIcon(l.icon);
+        modal.newTitle.value = l.title;
+        modal.newUrl.value = l.url;
+        modal.newCategory.value = l.category;
+        modal.newPriority.value = l.priority || "";
+        modal.newIcon.value = normalizeManualIcon(l.icon);
 
         window.tempSources = l.sources ? [...l.sources] : [];
         renderSourcesList();
-        document.getElementById('edit-link-search-results').style.display = 'none';
+        modal.searchResults.style.display = 'none';
 
         ns.setupLibraryToggleHandlers();
         ns.loadLibraryStateForLink(l.id, l.category || 'Unsorted');
 
-        document.getElementById('addModal').style.display = 'flex';
+        modal.addModal.style.display = 'flex';
         if (typeof hideCategoryQuickPicker === 'function') hideCategoryQuickPicker();
     };
 
     window.saveLink = function () {
-        const title = document.getElementById('newTitle').value.trim();
-        const url = normalizeUrl(document.getElementById('newUrl').value);
-        const cat = document.getElementById('newCategory').value.trim() || "Unsorted";
-        const prio = document.getElementById('newPriority').value;
-        const icon = normalizeManualIcon(document.getElementById('newIcon').value);
+        const modal = ensureAddModalElements();
+        if (!modal) return;
+
+        const title = modal.newTitle.value.trim();
+        const url = normalizeUrl(modal.newUrl.value);
+        const cat = modal.newCategory.value.trim() || "Unsorted";
+        const prio = modal.newPriority.value;
+        const icon = normalizeManualIcon(modal.newIcon.value);
 
         if (!title || !url) return showToast("Missing Info", "warning");
 
         let targetId = null;
-        const editId = document.getElementById('editId').value;
+        const editId = modal.editId.value;
         if (editId) {
             const idx = links.findIndex(l => l.id == editId);
             if (idx > -1) {

@@ -7,6 +7,7 @@ window.EveDataStore = window.EveDataStore || {};
     const MIN_INTERVAL_MS = 2000;
     const MAX_INTERVAL_MS = 60000;
     const MUTATION_DEBOUNCE_MS = 650;
+    const IDLE_REMOTE_CHECK_INTERVAL_MS = 30000;
     const CONFLICT_REMOTE_WINS = 'remote_wins';
     const CONFLICT_LOCAL_WINS = 'local_wins';
 
@@ -16,6 +17,7 @@ window.EveDataStore = window.EveDataStore || {};
     let remoteSignature = '';
     let lastUploadedHash = '';
     let lastSyncedLocalHash = '';
+    let lastRemoteCheckAt = 0;
     let applyingRemoteState = false;
     let syncInFlight = false;
 
@@ -70,11 +72,41 @@ window.EveDataStore = window.EveDataStore || {};
         return (hash >>> 0).toString(16);
     }
 
+    function normalizeStateForHash(state) {
+        if (!state || typeof state !== 'object') return {};
+        let normalized = null;
+        try {
+            normalized = JSON.parse(JSON.stringify(state));
+        } catch {
+            return state;
+        }
+
+        if (normalized.metadata && typeof normalized.metadata === 'object') {
+            delete normalized.metadata.date;
+            delete normalized.metadata.generatedAt;
+            delete normalized.metadata.lastUpdated;
+        }
+        return normalized;
+    }
+
+    function hashState(state) {
+        try {
+            return hashString(JSON.stringify(normalizeStateForHash(state)));
+        } catch {
+            return '';
+        }
+    }
+
+    function shouldRunIdleRemoteCheck() {
+        if (!lastRemoteCheckAt) return true;
+        return (Date.now() - lastRemoteCheckAt) >= IDLE_REMOTE_CHECK_INTERVAL_MS;
+    }
+
     function captureStateHash() {
         const store = getStore();
         if (!store?.captureState) return '';
         try {
-            return hashString(JSON.stringify(store.captureState()));
+            return hashState(store.captureState());
         } catch {
             return '';
         }
@@ -110,7 +142,7 @@ window.EveDataStore = window.EveDataStore || {};
 
         const state = store.captureState();
         const stateJson = JSON.stringify(state);
-        const stateHash = knownHash || hashString(stateJson);
+        const stateHash = knownHash || hashState(state);
         if (!force && (stateHash === lastUploadedHash || stateHash === lastSyncedLocalHash)) return false;
 
         const { ok, payload } = await requestJson('/api/eve-state/modular/save', {
@@ -147,7 +179,7 @@ window.EveDataStore = window.EveDataStore || {};
         if (!incomingState || typeof incomingState !== 'object') return false;
 
         const localHash = captureStateHash();
-        const incomingHash = hashString(JSON.stringify(incomingState));
+        const incomingHash = hashState(incomingState);
         if (!force && localHash && incomingHash === localHash) {
             remoteSignature = payload?.status?.signature || knownSignature || remoteSignature;
             lastUploadedHash = incomingHash;
@@ -172,21 +204,40 @@ window.EveDataStore = window.EveDataStore || {};
         if (syncInFlight || applyingRemoteState) return;
         syncInFlight = true;
         try {
-            const status = await getRemoteStatus();
             const localHash = captureStateHash();
             const localDirty = isLocalDirty(localHash);
-            if (status?.signature && remoteSignature && status.signature !== remoteSignature) {
-                if (localDirty && getConflictStrategy() === CONFLICT_LOCAL_WINS) {
-                    await pushLocalState(true, localHash);
-                } else {
+            const hasBaseline = !!(lastUploadedHash || lastSyncedLocalHash);
+            const shouldCheckRemote = localDirty || !remoteSignature || shouldRunIdleRemoteCheck();
+            let status = null;
+
+            if (shouldCheckRemote) {
+                lastRemoteCheckAt = Date.now();
+                status = await getRemoteStatus();
+                if (!hasBaseline && status?.signature) {
                     await pullRemoteState(true, status.signature);
+                    return;
                 }
+                if (status?.signature && remoteSignature && status.signature !== remoteSignature) {
+                    if (localDirty && getConflictStrategy() === CONFLICT_LOCAL_WINS) {
+                        await pushLocalState(true, localHash);
+                    } else {
+                        await pullRemoteState(true, status.signature);
+                    }
+                    return;
+                }
+                if (status?.signature && !remoteSignature) {
+                    remoteSignature = status.signature;
+                }
+            }
+
+            if (!hasBaseline && (!status || !status.signature) && localHash) {
+                await pushLocalState(true, localHash);
                 return;
             }
-            if (status?.signature && !remoteSignature) {
-                remoteSignature = status.signature;
+
+            if (localDirty) {
+                await pushLocalState(false, localHash);
             }
-            await pushLocalState(false, localHash);
         } catch (error) {
             console.warn('[ModularStateSync] Sync cycle failed:', error);
         } finally {
@@ -216,6 +267,7 @@ window.EveDataStore = window.EveDataStore || {};
 
         const status = await getRemoteStatus();
         if (!status) return;
+        lastRemoteCheckAt = Date.now();
 
         if ((status.fileCount || 0) > 0 && status.signature) {
             await pullRemoteState(true, status.signature);
