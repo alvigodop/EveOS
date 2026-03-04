@@ -63,7 +63,7 @@ The system is intentionally compartmentalized. Workspace tabs, category cards, b
    Library CRUD and synchronization hooks to linked bookmarks.
 
 10. `js/modules/features/modular-state-sync.js` + `server_modules/eve_state_store.py`  
-   Two-way sync between live app state and a folder-based JSON store (`data/modular-state`) with one JSON file per bookmark.
+   Two-way sync between live app state and a folder-based JSON store (default `data/modular-state`, configurable in Settings) with one JSON file per bookmark.
 
 ## Recent Modularization Updates
 
@@ -149,7 +149,8 @@ Reference JSON schema: `data/unified-state-template.json`
 
 When running via `python-server.py` (`http://localhost:*`), EveOS can keep a folder-structured JSON store in:
 
-- `data/modular-state/`
+- default: `data/modular-state/`
+- or any configured folder path set in Settings (`Modular JSON Store`)
 
 Structure mirrors UI hierarchy:
 
@@ -164,16 +165,18 @@ Notes:
 - Reader remains backward compatible with older card-named bookmark folders.
 - Each bookmark file can include optional linked library payload (`connection` + `entry`).
 - Unlinked library entries in a card are saved to `_library-unlinked.json` in that card folder.
-- Store metadata/config lives under `data/modular-state/_meta/`.
+- Store metadata/config lives under `<active-store-path>/_meta/`.
 
 Settings UI includes:
 
 - `Enable live modular JSON sync`
+- `Active Store Folder Path` (switch the live data-pack root)
 - `Sync Interval (ms)`
 - `Conflict Strategy` (`remote_wins` / `local_wins`)
 - `Save To Modular Store`
 - `Load From Modular Store`
 - `Normalize Bookmark File Titles` (runs server-side canonical rename from bookmark `id + title`)
+- `Layered Folder Backup / Import` (`store`, `tab`, `card`, `bookmark`) using folder paths
 - `Send To Gemini` (summary/full context built from modular JSON source)
 
 This keeps on-disk data modular for drag/drop reorganization while preserving the existing unified in-memory runtime schema.

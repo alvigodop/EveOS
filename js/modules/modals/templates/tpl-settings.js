@@ -178,6 +178,17 @@ window.modalTemplate += `
                         <input type="checkbox" id="modularSyncToggle" onchange="saveSettingsModularSyncEnabled()">
                         <span>Enable live modular JSON sync (server mode)</span>
                     </label>
+                    <label style="display:block; margin-bottom:10px;">Active Store Folder Path:
+                        <input type="text" id="modularStorePathInput" onchange="saveSettingsModularStorePathDraft()" placeholder="C:\\path\\to\\data-pack" style="width:100%;">
+                    </label>
+                    <label style="display:flex; gap:8px; align-items:center; margin-bottom:10px;">
+                        <input type="checkbox" id="modularStoreCreateIfMissing" checked>
+                        <span>Create folder if missing</span>
+                    </label>
+                    <div class="btn-action-row" style="margin-bottom:10px;">
+                        <button onclick="refreshModularStorePathFromServer()" class="btn-backup">Refresh Path</button>
+                        <button onclick="applyModularStorePath()" class="btn-restore" style="border:none;">Set Active Folder</button>
+                    </div>
                     <label style="display:block; margin-bottom:10px;">Sync Interval (ms):
                         <input type="number" id="modularSyncIntervalMs" min="2000" max="60000" step="500" onchange="saveSettingsModularSyncInterval()" style="width:100%;">
                     </label>
@@ -199,8 +210,29 @@ window.modalTemplate += `
                         </select>
                         <button onclick="sendModularStateToGemini()" class="btn-backup">Send To Gemini</button>
                     </div>
+                    <div style="border-top:1px solid #444; padding-top:10px; margin-top:10px;">
+                        <h5 style="margin:0 0 10px 0;">Layered Folder Backup / Import</h5>
+                        <label style="display:block; margin-bottom:8px;">Layer Scope:
+                            <select id="modularLayerScope" onchange="saveSettingsModularLayerScope()" style="width:100%;">
+                                <option value="store">Full Store Folder</option>
+                                <option value="tab">Tab Folder</option>
+                                <option value="card">Card Folder</option>
+                                <option value="bookmark">Bookmark Folder</option>
+                            </select>
+                        </label>
+                        <select id="modularLayerWorkspaceSelect" style="width:100%; margin-bottom:8px;"></select>
+                        <select id="modularLayerCategorySelect" style="width:100%; margin-bottom:8px;"></select>
+                        <select id="modularLayerBookmarkSelect" style="width:100%; margin-bottom:8px;"></select>
+                        <label style="display:block; margin-bottom:10px;">Folder Path:
+                            <input type="text" id="modularLayerPathInput" onchange="saveSettingsModularLayerPathDraft()" placeholder="Leave empty for auto backup path" style="width:100%;">
+                        </label>
+                        <div class="btn-action-row">
+                            <button onclick="backupModularLayerToFolder()" class="btn-backup">Backup Layer To Folder</button>
+                            <button onclick="importModularLayerFromFolder()" class="btn-restore" style="border:none;">Import Layer From Folder</button>
+                        </div>
+                    </div>
                     <div style="font-size:0.78rem; opacity:0.75; margin-top:8px;">
-                        Path: <code>data/modular-state/</code> (tabs/card folders + one JSON per bookmark)
+                        Active folder is configurable. Layout: <code>tabs/</code> → <code>cards/</code> → <code>entries/*.json</code>.
                     </div>
                 </div>
             </div>

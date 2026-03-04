@@ -68,7 +68,120 @@ function saveDerivedRatingSettingsFromInputs() {
     saveConfig();
 }
 
+function getAllLinksForSettings() {
+    if (window.eveState?.links) return window.eveState.links;
+    if (typeof links !== 'undefined') return links;
+    return [];
+}
+
+function getAllWorkspacesForSettings() {
+    const workspaces = Array.isArray(config.workspaces) ? config.workspaces : [];
+    if (workspaces.length > 0) return workspaces;
+    return [{ id: 'main', name: 'Main', icon: '🏠' }];
+}
+
+function updateModularLayerSelectionVisibility() {
+    const scope = document.getElementById('modularLayerScope')?.value || 'store';
+    const wsSelect = document.getElementById('modularLayerWorkspaceSelect');
+    const catSelect = document.getElementById('modularLayerCategorySelect');
+    const bookmarkSelect = document.getElementById('modularLayerBookmarkSelect');
+    if (!wsSelect || !catSelect || !bookmarkSelect) return;
+
+    const showWorkspace = scope === 'tab' || scope === 'card' || scope === 'bookmark';
+    const showCategory = scope === 'card' || scope === 'bookmark';
+    const showBookmark = scope === 'bookmark';
+
+    wsSelect.style.display = showWorkspace ? 'block' : 'none';
+    catSelect.style.display = showCategory ? 'block' : 'none';
+    bookmarkSelect.style.display = showBookmark ? 'block' : 'none';
+}
+
+function refreshModularLayerSelectors() {
+    const wsSelect = document.getElementById('modularLayerWorkspaceSelect');
+    const catSelect = document.getElementById('modularLayerCategorySelect');
+    const bookmarkSelect = document.getElementById('modularLayerBookmarkSelect');
+    if (!wsSelect || !catSelect || !bookmarkSelect) return;
+
+    const allLinks = getAllLinksForSettings();
+    const workspaces = getAllWorkspacesForSettings();
+    const selectedWorkspace = wsSelect.value || config.modularLayerWorkspaceId || config.activeWorkspace || workspaces[0]?.id || 'main';
+
+    wsSelect.innerHTML = '';
+    workspaces.forEach(ws => {
+        const option = document.createElement('option');
+        option.value = ws.id;
+        option.textContent = ws.name || ws.id;
+        wsSelect.appendChild(option);
+    });
+    wsSelect.value = workspaces.some(ws => ws.id === selectedWorkspace) ? selectedWorkspace : (workspaces[0]?.id || 'main');
+
+    const categories = [...new Set(
+        allLinks
+            .filter(link => String(link.workspace || 'main') === wsSelect.value)
+            .map(link => String(link.category || 'Unsorted'))
+    )].sort((a, b) => a.localeCompare(b));
+    const selectedCategory = catSelect.value || config.modularLayerCategoryName || categories[0] || 'Unsorted';
+    catSelect.innerHTML = '';
+    categories.forEach(category => {
+        const option = document.createElement('option');
+        option.value = category;
+        option.textContent = category;
+        catSelect.appendChild(option);
+    });
+    if (categories.length > 0) {
+        catSelect.value = categories.includes(selectedCategory) ? selectedCategory : categories[0];
+    }
+
+    const selectedCard = catSelect.value || selectedCategory;
+    const bookmarks = allLinks
+        .filter(link => String(link.workspace || 'main') === wsSelect.value && String(link.category || 'Unsorted') === selectedCard)
+        .slice()
+        .sort((a, b) => String(a.title || '').localeCompare(String(b.title || '')));
+    const selectedBookmark = bookmarkSelect.value || config.modularLayerBookmarkId || (bookmarks[0] ? String(bookmarks[0].id) : '');
+    bookmarkSelect.innerHTML = '';
+    bookmarks.forEach(link => {
+        const option = document.createElement('option');
+        option.value = String(link.id);
+        option.textContent = `${link.title || 'Untitled'}${link.url ? ` - ${link.url}` : ''}`;
+        bookmarkSelect.appendChild(option);
+    });
+    if (bookmarks.length > 0) {
+        bookmarkSelect.value = bookmarks.some(link => String(link.id) === String(selectedBookmark))
+            ? String(selectedBookmark)
+            : String(bookmarks[0].id);
+    }
+
+    wsSelect.onchange = function () {
+        config.modularLayerWorkspaceId = wsSelect.value;
+        saveConfig();
+        refreshModularLayerSelectors();
+    };
+    catSelect.onchange = function () {
+        config.modularLayerCategoryName = catSelect.value;
+        saveConfig();
+        refreshModularLayerSelectors();
+    };
+    bookmarkSelect.onchange = function () {
+        config.modularLayerBookmarkId = bookmarkSelect.value;
+        saveConfig();
+    };
+
+    updateModularLayerSelectionVisibility();
+}
+
+function ensureSettingsOutsideClickCloseBinding() {
+    const settingsOverlay = document.getElementById('settingsModal');
+    if (!settingsOverlay || settingsOverlay.dataset.outsideCloseBound === '1') return;
+    settingsOverlay.dataset.outsideCloseBound = '1';
+    settingsOverlay.addEventListener('mousedown', (event) => {
+        if (event.target === settingsOverlay) {
+            closeModals();
+        }
+    });
+}
+
 function openSettings() {
+    ensureSettingsOutsideClickCloseBinding();
     document.getElementById('settingsModal').style.display = 'flex';
     document.getElementById('bgUrl').value = "";
     document.getElementById('timerToggle').checked = config.timerEnabled;
@@ -89,6 +202,12 @@ function openSettings() {
     }
     const modularGeminiMode = document.getElementById('modularGeminiMode');
     if (modularGeminiMode) modularGeminiMode.value = String(config.modularGeminiMode || 'summary').toLowerCase() === 'full' ? 'full' : 'summary';
+    const modularStorePathInput = document.getElementById('modularStorePathInput');
+    if (modularStorePathInput) modularStorePathInput.value = String(config.modularStateRootPath || '');
+    const modularLayerScope = document.getElementById('modularLayerScope');
+    if (modularLayerScope) modularLayerScope.value = String(config.modularLayerScope || 'store').toLowerCase();
+    const modularLayerPathInput = document.getElementById('modularLayerPathInput');
+    if (modularLayerPathInput) modularLayerPathInput.value = String(config.modularLayerPath || '');
     // Theme Settings
     const theme = config.themeMode || 'dark';
     const radios = document.getElementsByName('themeMode');
@@ -103,6 +222,8 @@ function openSettings() {
     if (typeof refreshWorkspaceBackupList === 'function') refreshWorkspaceBackupList();
     if (typeof refreshCardBackupList === 'function') refreshCardBackupList();
     if (typeof refreshBookmarkBackupList === 'function') refreshBookmarkBackupList();
+    refreshModularLayerSelectors();
+    refreshModularStorePathFromServer();
 }
 
 function saveSettingsTimer() { config.timerEnabled = document.getElementById('timerToggle').checked; saveConfig(); applySettings(); }
@@ -161,6 +282,133 @@ function saveSettingsModularSyncConflictStrategy() {
     if (window.EveDataStore?.ModularSync?.setConflictStrategy) {
         window.EveDataStore.ModularSync.setConflictStrategy(value);
     }
+}
+function saveSettingsModularStorePathDraft() {
+    const value = String(document.getElementById('modularStorePathInput')?.value || '').trim();
+    config.modularStateRootPath = value;
+    saveConfig();
+}
+async function refreshModularStorePathFromServer() {
+    const input = document.getElementById('modularStorePathInput');
+    if (!input) return;
+    if (!window.EveDataStore?.ModularSync?.getStorePath) return;
+
+    const result = await window.EveDataStore.ModularSync.getStorePath();
+    if (!result?.ok) {
+        return;
+    }
+    input.value = String(result.activePath || '');
+    config.modularStateRootPath = String(result.activePath || '');
+    saveConfig();
+}
+async function applyModularStorePath() {
+    const pathValue = String(document.getElementById('modularStorePathInput')?.value || '').trim();
+    const createIfMissing = !!document.getElementById('modularStoreCreateIfMissing')?.checked;
+    if (!window.EveDataStore?.ModularSync?.setStorePath) {
+        return showToast('Modular sync module not loaded', 'error');
+    }
+
+    const result = await window.EveDataStore.ModularSync.setStorePath(pathValue, {
+        createIfMissing,
+        bootstrap: true
+    });
+    if (!result?.ok) {
+        return showToast(result?.error || 'Could not set modular store folder', 'error');
+    }
+
+    config.modularStateRootPath = String(result.activePath || pathValue || '');
+    saveConfig();
+    await refreshModularStorePathFromServer();
+    refreshModularLayerSelectors();
+    showToast('Modular store folder updated', 'success');
+}
+function saveSettingsModularLayerPathDraft() {
+    const value = String(document.getElementById('modularLayerPathInput')?.value || '').trim();
+    config.modularLayerPath = value;
+    saveConfig();
+}
+function saveSettingsModularLayerScope() {
+    const scope = String(document.getElementById('modularLayerScope')?.value || 'store').toLowerCase();
+    config.modularLayerScope = scope;
+    saveConfig();
+    updateModularLayerSelectionVisibility();
+}
+function getModularLayerScopeInputs() {
+    const scope = String(document.getElementById('modularLayerScope')?.value || 'store').toLowerCase();
+    const workspaceId = String(document.getElementById('modularLayerWorkspaceSelect')?.value || '').trim();
+    const categoryName = String(document.getElementById('modularLayerCategorySelect')?.value || '').trim();
+    const bookmarkId = String(document.getElementById('modularLayerBookmarkSelect')?.value || '').trim();
+    const layerPath = String(document.getElementById('modularLayerPathInput')?.value || '').trim();
+    return { scope, workspaceId, categoryName, bookmarkId, layerPath };
+}
+async function backupModularLayerToFolder() {
+    if (!window.EveDataStore?.ModularSync?.backupLayer) {
+        return showToast('Modular sync module not loaded', 'error');
+    }
+    const { scope, workspaceId, categoryName, bookmarkId, layerPath } = getModularLayerScopeInputs();
+    if ((scope === 'tab' || scope === 'card' || scope === 'bookmark') && !workspaceId) {
+        return showToast('Select a workspace for this layer backup', 'warning');
+    }
+    if ((scope === 'card' || scope === 'bookmark') && !categoryName) {
+        return showToast('Select a card for this layer backup', 'warning');
+    }
+    if (scope === 'bookmark' && !bookmarkId) {
+        return showToast('Select a bookmark for this layer backup', 'warning');
+    }
+
+    const result = await window.EveDataStore.ModularSync.backupLayer({
+        layer: scope,
+        workspaceId,
+        categoryName,
+        bookmarkId,
+        destinationPath: layerPath
+    });
+    if (!result?.ok) {
+        return showToast(result?.error || 'Layer backup failed', 'error');
+    }
+
+    if (result.destinationPath) {
+        const input = document.getElementById('modularLayerPathInput');
+        if (input) input.value = result.destinationPath;
+        config.modularLayerPath = result.destinationPath;
+        saveConfig();
+    }
+    showToast('Layer folder backup created', 'success');
+}
+async function importModularLayerFromFolder() {
+    if (!window.EveDataStore?.ModularSync?.importLayer) {
+        return showToast('Modular sync module not loaded', 'error');
+    }
+    const { scope, workspaceId, categoryName, bookmarkId, layerPath } = getModularLayerScopeInputs();
+    if (!layerPath) {
+        return showToast('Enter a source folder path to import from', 'warning');
+    }
+    if ((scope === 'tab' || scope === 'card' || scope === 'bookmark') && !workspaceId) {
+        return showToast('Select a workspace for this layer import', 'warning');
+    }
+    if ((scope === 'card' || scope === 'bookmark') && !categoryName) {
+        return showToast('Select a card for this layer import', 'warning');
+    }
+    if (scope === 'bookmark' && !bookmarkId) {
+        return showToast('Select a bookmark for this layer import', 'warning');
+    }
+
+    const result = await window.EveDataStore.ModularSync.importLayer({
+        layer: scope,
+        workspaceId,
+        categoryName,
+        bookmarkId,
+        sourcePath: layerPath
+    });
+    if (!result?.ok) {
+        return showToast(result?.error || 'Layer import failed', 'error');
+    }
+
+    config.modularLayerPath = layerPath;
+    saveConfig();
+    refreshModularLayerSelectors();
+    if (typeof refreshWorkspaceBackupList === 'function') refreshWorkspaceBackupList();
+    showToast('Layer folder imported into active modular store', 'success');
 }
 async function syncModularStateNow() {
     if (!window.EveDataStore?.ModularSync?.syncNow) {

@@ -4,16 +4,107 @@ import logging
 import os
 import re
 import shutil
+import threading
 import time
+from contextlib import contextmanager
+from datetime import datetime
 from http import HTTPStatus
 from pathlib import Path
 
 logger = logging.getLogger("FandomDiscoveryServer")
 
-STORE_ROOT = Path(os.getcwd()) / "data" / "modular-state"
+DATA_ROOT = Path(os.getcwd()) / "data"
+DEFAULT_STORE_ROOT = DATA_ROOT / "modular-state"
+STORE_SETTINGS_FILE = DATA_ROOT / "modular-store-settings.json"
+
+STORE_ROOT = DEFAULT_STORE_ROOT
 META_DIR = STORE_ROOT / "_meta"
 TABS_DIR = STORE_ROOT / "tabs"
 FORMAT_VERSION = 1
+STORE_SETTINGS_VERSION = 1
+_STATE_LOCK = threading.RLock()
+
+
+def _resolve_store_path(path_value):
+    raw = str(path_value or "").strip().strip('"')
+    if not raw:
+        return DEFAULT_STORE_ROOT.resolve()
+    path = Path(raw).expanduser()
+    if not path.is_absolute():
+        path = (Path(os.getcwd()) / path)
+    return path.resolve()
+
+
+def _set_store_root_paths(path_value):
+    global STORE_ROOT, META_DIR, TABS_DIR
+    resolved = _resolve_store_path(path_value)
+    STORE_ROOT = resolved
+    META_DIR = STORE_ROOT / "_meta"
+    TABS_DIR = STORE_ROOT / "tabs"
+    return STORE_ROOT
+
+
+def _save_store_settings(active_path):
+    DATA_ROOT.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema": "eveos.modular-store-settings.v1",
+        "version": STORE_SETTINGS_VERSION,
+        "activePath": str(active_path),
+        "updatedAt": datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    }
+    STORE_SETTINGS_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _load_store_settings_path():
+    if not STORE_SETTINGS_FILE.exists():
+        return DEFAULT_STORE_ROOT
+    try:
+        payload = json.loads(STORE_SETTINGS_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        logger.warning("Ignoring invalid modular store settings file: %s", STORE_SETTINGS_FILE)
+        return DEFAULT_STORE_ROOT
+    active = payload.get("activePath")
+    if not active:
+        return DEFAULT_STORE_ROOT
+    return _resolve_store_path(active)
+
+
+def get_active_store_root():
+    return STORE_ROOT
+
+
+def set_active_store_root(path_value, create_if_missing=False, persist=True):
+    resolved = _resolve_store_path(path_value)
+    if resolved.exists() and not resolved.is_dir():
+        raise ValueError(f"Path is not a directory: {resolved}")
+    if not resolved.exists() and create_if_missing:
+        resolved.mkdir(parents=True, exist_ok=True)
+    _set_store_root_paths(resolved)
+    if persist:
+        _save_store_settings(resolved)
+    return resolved
+
+
+@contextmanager
+def _temporary_store_root(path_value):
+    global STORE_ROOT, META_DIR, TABS_DIR
+    prev_store_root = STORE_ROOT
+    prev_meta_dir = META_DIR
+    prev_tabs_dir = TABS_DIR
+    _set_store_root_paths(path_value)
+    try:
+        yield
+    finally:
+        STORE_ROOT = prev_store_root
+        META_DIR = prev_meta_dir
+        TABS_DIR = prev_tabs_dir
+
+
+try:
+    set_active_store_root(_load_store_settings_path(), create_if_missing=False, persist=False)
+except Exception as exc:
+    logger.warning("Failed to load modular store path from settings: %s", exc)
+    _set_store_root_paths(DEFAULT_STORE_ROOT)
 
 
 def _send_json(handler, status_code, payload):
@@ -753,109 +844,751 @@ def normalize_modular_bookmark_filenames():
     return _collect_status()
 
 
-def handle_get_request(handler, path, query):
-    if path == "/api/eve-state/modular/status":
-        status = _collect_status()
-        _send_json(handler, HTTPStatus.OK, {"ok": True, **status})
-        return True
+VALID_LAYER_SCOPES = {"store", "tab", "card", "bookmark"}
 
-    if path == "/api/eve-state/modular/load":
-        try:
-            unified = read_modular_state()
+
+def _empty_unified_state():
+    return {
+        "metadata": {
+            "version": FORMAT_VERSION,
+            "date": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "generator": "EveOS Modular State Loader"
+        },
+        "bookmarks": {
+            "links": [],
+            "config": {
+                "workspaces": [{"id": "main", "name": "Main", "icon": "🏠"}],
+                "activeWorkspace": "main"
+            }
+        },
+        "library": {
+            "categories": {},
+            "connections": []
+        }
+    }
+
+
+def _read_state_from_root(root_path):
+    with _temporary_store_root(root_path):
+        return read_modular_state()
+
+
+def _write_state_to_root(state, root_path):
+    with _temporary_store_root(root_path):
+        return write_modular_state(state)
+
+
+def _normalize_link_record(link, fallback_workspace="", fallback_category=""):
+    item = dict(link or {})
+    link_id = str(item.get("id") or "").strip()
+    if not link_id:
+        return None
+    item["id"] = link_id
+    item["workspace"] = str(item.get("workspace") or fallback_workspace or "main").strip() or "main"
+    item["category"] = str(item.get("category") or fallback_category or "Unsorted").strip() or "Unsorted"
+    return item
+
+
+def _dedupe_links(links):
+    deduped = {}
+    for link in links or []:
+        item = _normalize_link_record(link)
+        if not item:
+            continue
+        link_id = item["id"]
+        if link_id in deduped:
+            deduped.pop(link_id)
+        deduped[link_id] = item
+    return list(deduped.values())
+
+
+def _normalize_categories(categories):
+    normalized = {}
+    entry_ids_by_scope = {}
+
+    for key, data in (categories or {}).items():
+        parsed = _parse_scoped_category_key(key)
+        workspace_id = str(parsed.get("workspace_id") or "main").strip() or "main"
+        category_name = str(parsed.get("category_name") or "Unsorted").strip() or "Unsorted"
+        scoped = _scoped_key(workspace_id, category_name)
+
+        if scoped not in normalized:
+            normalized[scoped] = {
+                "dataType": (data or {}).get("dataType") or "graphicNovels",
+                "entries": []
+            }
+            entry_ids_by_scope[scoped] = set()
+
+        if not normalized[scoped].get("dataType"):
+            normalized[scoped]["dataType"] = (data or {}).get("dataType") or "graphicNovels"
+
+        for entry in (data or {}).get("entries") or []:
+            entry_obj = dict(entry or {})
+            entry_id = str(entry_obj.get("id") or "").strip()
+            if entry_id and entry_id in entry_ids_by_scope[scoped]:
+                continue
+            normalized[scoped]["entries"].append(entry_obj)
+            if entry_id:
+                entry_ids_by_scope[scoped].add(entry_id)
+
+    return normalized
+
+
+def _merge_entries(existing_entries, incoming_entries):
+    merged = []
+    by_id = {}
+    for entry in existing_entries or []:
+        item = dict(entry or {})
+        entry_id = str(item.get("id") or "").strip()
+        if entry_id:
+            by_id[entry_id] = item
+        else:
+            merged.append(item)
+
+    for entry in incoming_entries or []:
+        item = dict(entry or {})
+        entry_id = str(item.get("id") or "").strip()
+        if entry_id:
+            by_id[entry_id] = item
+        else:
+            merged.append(item)
+
+    merged.extend(by_id.values())
+    return merged
+
+
+def _normalize_connections(connections, fallback_workspace="", fallback_category=""):
+    deduped = {}
+    for conn in connections or []:
+        item = dict(conn or {})
+        link_id = str(item.get("linkId") or "").strip()
+        if not link_id:
+            continue
+        workspace_id = str(item.get("workspace") or fallback_workspace or "main").strip() or "main"
+        category_name = str(_connection_category_name(item) or fallback_category or "Unsorted").strip() or "Unsorted"
+        item["linkId"] = link_id
+        item["workspace"] = workspace_id
+        item["categoryName"] = category_name
+        if not item.get("id"):
+            item["id"] = f"conn-{link_id}"
+        entry_id = _connection_entry_id(item)
+        if entry_id and not item.get("libraryEntryId"):
+            item["libraryEntryId"] = entry_id
+        if link_id in deduped:
+            deduped.pop(link_id)
+        deduped[link_id] = item
+    return list(deduped.values())
+
+
+def _normalize_state_payload(state):
+    source = state if isinstance(state, dict) else {}
+    config = dict((source.get("bookmarks") or {}).get("config") or {})
+    workspaces = _build_workspaces(config)
+    config["workspaces"] = workspaces
+    config["activeWorkspace"] = str(config.get("activeWorkspace") or workspaces[0]["id"]).strip() or workspaces[0]["id"]
+
+    links = []
+    for raw in (source.get("bookmarks") or {}).get("links") or []:
+        item = _normalize_link_record(raw, fallback_workspace=config["activeWorkspace"])
+        if item:
+            links.append(item)
+    links = _dedupe_links(links)
+
+    categories = _normalize_categories((source.get("library") or {}).get("categories") or {})
+    connections = _normalize_connections((source.get("library") or {}).get("connections") or [])
+
+    return {
+        "metadata": dict(source.get("metadata") or {}),
+        "bookmarks": {
+            "links": links,
+            "config": config
+        },
+        "library": {
+            "categories": categories,
+            "connections": connections
+        }
+    }
+
+
+def _categories_scope_workspace(scoped_key):
+    parsed = _parse_scoped_category_key(scoped_key)
+    return str(parsed.get("workspace_id") or "main").strip() or "main"
+
+
+def _categories_scope_category(scoped_key):
+    parsed = _parse_scoped_category_key(scoped_key)
+    return str(parsed.get("category_name") or "Unsorted").strip() or "Unsorted"
+
+
+def _ensure_workspace_config_entry(config, workspace_id, incoming_config=None):
+    ws_id = str(workspace_id or "").strip() or "main"
+    workspaces = _build_workspaces(config)
+    if any(str((ws or {}).get("id") or "").strip() == ws_id for ws in workspaces):
+        config["workspaces"] = workspaces
+        return
+
+    incoming_workspaces = _build_workspaces(incoming_config or {})
+    match = next((ws for ws in incoming_workspaces if str(ws.get("id") or "").strip() == ws_id), None)
+    workspaces.append(match or {"id": ws_id, "name": ws_id, "icon": "📁"})
+    config["workspaces"] = workspaces
+
+
+def _build_layer_state(links, config, categories, connections, layer_type, workspace_id="", category_name="", bookmark_id=""):
+    safe_config = dict(config or {})
+    safe_workspaces = _build_workspaces(safe_config)
+    safe_config["workspaces"] = safe_workspaces
+    if workspace_id:
+        safe_config["activeWorkspace"] = workspace_id
+    elif safe_workspaces:
+        safe_config["activeWorkspace"] = str(safe_config.get("activeWorkspace") or safe_workspaces[0]["id"]).strip() or safe_workspaces[0]["id"]
+
+    metadata = {
+        "version": FORMAT_VERSION,
+        "date": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "generator": "EveOS Modular Layer",
+        "type": layer_type
+    }
+    if workspace_id:
+        metadata["workspaceId"] = workspace_id
+    if category_name:
+        metadata["categoryName"] = category_name
+    if bookmark_id:
+        metadata["bookmarkId"] = bookmark_id
+
+    return {
+        "metadata": metadata,
+        "bookmarks": {
+            "links": _dedupe_links(links),
+            "config": safe_config
+        },
+        "library": {
+            "categories": {k: v for k, v in (categories or {}).items()},
+            "connections": _normalize_connections(connections or [])
+        }
+    }
+
+
+def _extract_layer_state(state, layer, workspace_id="", category_name="", bookmark_id=""):
+    normalized = _normalize_state_payload(state)
+    links = list(normalized["bookmarks"]["links"])
+    config = dict(normalized["bookmarks"]["config"])
+    categories = dict(normalized["library"]["categories"])
+    connections = list(normalized["library"]["connections"])
+
+    scope = str(layer or "store").strip().lower()
+    if scope not in VALID_LAYER_SCOPES:
+        raise ValueError(f"Unsupported layer scope: {scope}")
+    if scope == "store":
+        return _build_layer_state(links, config, categories, connections, "store")
+
+    ws_id = str(workspace_id or "").strip() or str(config.get("activeWorkspace") or "").strip()
+    if scope in {"tab", "card", "bookmark"} and not ws_id:
+        raise ValueError("workspaceId is required for the selected layer scope.")
+
+    if scope == "tab":
+        scoped_links = [link for link in links if str(link.get("workspace")) == ws_id]
+        scoped_link_ids = {str(link.get("id")) for link in scoped_links}
+        scoped_connections = [
+            conn for conn in connections
+            if str(conn.get("workspace")) == ws_id or str(conn.get("linkId")) in scoped_link_ids
+        ]
+        scoped_categories = {
+            key: value for key, value in categories.items()
+            if _categories_scope_workspace(key) == ws_id
+        }
+        tab_config = dict(config)
+        _ensure_workspace_config_entry(tab_config, ws_id, incoming_config=config)
+        tab_config["workspaces"] = [ws for ws in _build_workspaces(tab_config) if str(ws.get("id")) == ws_id] or [{"id": ws_id, "name": ws_id, "icon": "📁"}]
+        return _build_layer_state(scoped_links, tab_config, scoped_categories, scoped_connections, "workspace", workspace_id=ws_id)
+
+    cat_name = str(category_name or "").strip()
+    if scope in {"card", "bookmark"} and not cat_name:
+        raise ValueError("categoryName is required for card/bookmark layer scope.")
+
+    if scope == "card":
+        scoped_links = [
+            link for link in links
+            if str(link.get("workspace")) == ws_id and str(link.get("category") or "Unsorted") == cat_name
+        ]
+        scoped_link_ids = {str(link.get("id")) for link in scoped_links}
+        scoped_connections = [
+            conn for conn in connections
+            if (
+                str(conn.get("workspace")) == ws_id
+                and str(_connection_category_name(conn) or "Unsorted") == cat_name
+            ) or str(conn.get("linkId")) in scoped_link_ids
+        ]
+        scoped_key = _scoped_key(ws_id, cat_name)
+        scoped_categories = {scoped_key: categories.get(scoped_key)} if scoped_key in categories else {}
+        card_config = dict(config)
+        _ensure_workspace_config_entry(card_config, ws_id, incoming_config=config)
+        card_config["workspaces"] = [ws for ws in _build_workspaces(card_config) if str(ws.get("id")) == ws_id] or [{"id": ws_id, "name": ws_id, "icon": "📁"}]
+        return _build_layer_state(scoped_links, card_config, scoped_categories, scoped_connections, "card", workspace_id=ws_id, category_name=cat_name)
+
+    target_bookmark_id = str(bookmark_id or "").strip()
+    if not target_bookmark_id:
+        raise ValueError("bookmarkId is required for bookmark layer scope.")
+
+    matched_link = next((link for link in links if str(link.get("id")) == target_bookmark_id), None)
+    if not matched_link:
+        raise ValueError(f"Bookmark '{target_bookmark_id}' not found in source state.")
+
+    ws_from_link = str(matched_link.get("workspace") or ws_id).strip() or ws_id
+    cat_from_link = str(matched_link.get("category") or cat_name).strip() or cat_name
+    scoped_connections = [conn for conn in connections if str(conn.get("linkId")) == target_bookmark_id]
+    entry_ids = {
+        str(_connection_entry_id(conn) or "").strip()
+        for conn in scoped_connections
+        if str(_connection_entry_id(conn) or "").strip()
+    }
+    scoped_key = _scoped_key(ws_from_link, cat_from_link)
+    scoped_categories = {}
+    if scoped_key in categories and entry_ids:
+        source_entries = (categories.get(scoped_key) or {}).get("entries") or []
+        scoped_categories[scoped_key] = {
+            "dataType": (categories.get(scoped_key) or {}).get("dataType") or "graphicNovels",
+            "entries": [entry for entry in source_entries if str((entry or {}).get("id") or "").strip() in entry_ids]
+        }
+
+    bookmark_config = dict(config)
+    _ensure_workspace_config_entry(bookmark_config, ws_from_link, incoming_config=config)
+    bookmark_config["workspaces"] = [ws for ws in _build_workspaces(bookmark_config) if str(ws.get("id")) == ws_from_link] or [{"id": ws_from_link, "name": ws_from_link, "icon": "📁"}]
+    return _build_layer_state([matched_link], bookmark_config, scoped_categories, scoped_connections, "bookmark", workspace_id=ws_from_link, category_name=cat_from_link, bookmark_id=target_bookmark_id)
+
+
+def _merge_layer_state(base_state, incoming_state, layer, workspace_id="", category_name="", bookmark_id=""):
+    base = _normalize_state_payload(base_state)
+    incoming = _normalize_state_payload(incoming_state)
+    scope = str(layer or "").strip().lower()
+    if scope not in VALID_LAYER_SCOPES:
+        raise ValueError(f"Unsupported layer scope: {scope}")
+
+    if scope == "store":
+        return _build_layer_state(
+            incoming["bookmarks"]["links"],
+            incoming["bookmarks"]["config"],
+            incoming["library"]["categories"],
+            incoming["library"]["connections"],
+            "store"
+        )
+
+    base_links = list(base["bookmarks"]["links"])
+    base_categories = dict(base["library"]["categories"])
+    base_connections = list(base["library"]["connections"])
+    base_config = dict(base["bookmarks"]["config"])
+    incoming_links = list(incoming["bookmarks"]["links"])
+    incoming_categories = dict(incoming["library"]["categories"])
+    incoming_connections = list(incoming["library"]["connections"])
+    incoming_config = dict(incoming["bookmarks"]["config"])
+
+    ws_id = str(workspace_id or "").strip() or str(incoming_config.get("activeWorkspace") or "").strip()
+    if scope in {"tab", "card", "bookmark"} and not ws_id:
+        raise ValueError("workspaceId is required for import.")
+
+    if scope == "tab":
+        import_links = [link for link in incoming_links if str(link.get("workspace")) == ws_id]
+        import_link_ids = {str(link.get("id")) for link in import_links}
+        import_connections = [
+            conn for conn in incoming_connections
+            if str(conn.get("workspace")) == ws_id or str(conn.get("linkId")) in import_link_ids
+        ]
+        import_categories = {
+            key: value for key, value in incoming_categories.items()
+            if _categories_scope_workspace(key) == ws_id
+        }
+
+        base_links = [link for link in base_links if str(link.get("workspace")) != ws_id] + import_links
+        base_connections = [
+            conn for conn in base_connections
+            if str(conn.get("workspace")) != ws_id and str(conn.get("linkId")) not in import_link_ids
+        ] + import_connections
+        base_categories = {
+            key: value for key, value in base_categories.items()
+            if _categories_scope_workspace(key) != ws_id
+        }
+        base_categories.update(import_categories)
+        _ensure_workspace_config_entry(base_config, ws_id, incoming_config=incoming_config)
+        base_config["activeWorkspace"] = ws_id
+        return _build_layer_state(base_links, base_config, base_categories, base_connections, "workspace", workspace_id=ws_id)
+
+    cat_name = str(category_name or "").strip()
+    if scope in {"card", "bookmark"} and not cat_name:
+        raise ValueError("categoryName is required for card/bookmark import.")
+
+    if scope == "card":
+        import_links = [
+            link for link in incoming_links
+            if str(link.get("workspace")) == ws_id and str(link.get("category") or "Unsorted") == cat_name
+        ]
+        import_link_ids = {str(link.get("id")) for link in import_links}
+        import_connections = [
+            conn for conn in incoming_connections
+            if (
+                str(conn.get("workspace")) == ws_id
+                and str(_connection_category_name(conn) or "Unsorted") == cat_name
+            ) or str(conn.get("linkId")) in import_link_ids
+        ]
+        target_scoped_key = _scoped_key(ws_id, cat_name)
+        import_categories = {
+            key: value for key, value in incoming_categories.items()
+            if key == target_scoped_key
+        }
+
+        base_links = [
+            link for link in base_links
+            if not (
+                str(link.get("workspace")) == ws_id
+                and str(link.get("category") or "Unsorted") == cat_name
+            )
+        ] + import_links
+        base_connections = [
+            conn for conn in base_connections
+            if not (
+                str(conn.get("workspace")) == ws_id
+                and str(_connection_category_name(conn) or "Unsorted") == cat_name
+            ) and str(conn.get("linkId")) not in import_link_ids
+        ] + import_connections
+        if target_scoped_key in base_categories:
+            base_categories.pop(target_scoped_key)
+        base_categories.update(import_categories)
+        _ensure_workspace_config_entry(base_config, ws_id, incoming_config=incoming_config)
+        base_config["activeWorkspace"] = ws_id
+        return _build_layer_state(base_links, base_config, base_categories, base_connections, "card", workspace_id=ws_id, category_name=cat_name)
+
+    target_bookmark_id = str(bookmark_id or "").strip()
+    if not target_bookmark_id:
+        raise ValueError("bookmarkId is required for bookmark import.")
+
+    import_link = next((link for link in incoming_links if str(link.get("id")) == target_bookmark_id), None)
+    if not import_link:
+        raise ValueError(f"Bookmark '{target_bookmark_id}' was not found in import layer.")
+    ws_from_link = str(import_link.get("workspace") or ws_id).strip() or ws_id
+    cat_from_link = str(import_link.get("category") or cat_name).strip() or cat_name
+    import_connections = [conn for conn in incoming_connections if str(conn.get("linkId")) == target_bookmark_id]
+
+    base_links = [link for link in base_links if str(link.get("id")) != target_bookmark_id] + [import_link]
+    base_connections = [conn for conn in base_connections if str(conn.get("linkId")) != target_bookmark_id] + import_connections
+
+    entry_ids = {
+        str(_connection_entry_id(conn) or "").strip()
+        for conn in import_connections
+        if str(_connection_entry_id(conn) or "").strip()
+    }
+    scoped_key = _scoped_key(ws_from_link, cat_from_link)
+    if scoped_key in incoming_categories and entry_ids:
+        incoming_entries = [
+            entry for entry in (incoming_categories.get(scoped_key) or {}).get("entries") or []
+            if str((entry or {}).get("id") or "").strip() in entry_ids
+        ]
+        existing_data = base_categories.get(scoped_key) or {"dataType": "graphicNovels", "entries": []}
+        base_categories[scoped_key] = {
+            "dataType": existing_data.get("dataType") or (incoming_categories.get(scoped_key) or {}).get("dataType") or "graphicNovels",
+            "entries": _merge_entries(existing_data.get("entries") or [], incoming_entries)
+        }
+
+    _ensure_workspace_config_entry(base_config, ws_from_link, incoming_config=incoming_config)
+    base_config["activeWorkspace"] = ws_from_link
+    return _build_layer_state(
+        base_links,
+        base_config,
+        base_categories,
+        base_connections,
+        "bookmark",
+        workspace_id=ws_from_link,
+        category_name=cat_from_link,
+        bookmark_id=target_bookmark_id
+    )
+
+
+def _default_backup_destination(layer):
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    safe_layer = _slugify(layer or "layer", "layer")
+    return (DATA_ROOT / "modular-backups" / f"{stamp}-{safe_layer}").resolve()
+
+
+def _resolve_destination_path(path_value, fallback_layer):
+    raw = str(path_value or "").strip().strip('"')
+    if not raw:
+        return _default_backup_destination(fallback_layer)
+    return _resolve_store_path(raw)
+
+
+def _ensure_destination_ready(destination, overwrite=False):
+    dest = Path(destination).resolve()
+    if dest.exists():
+        if not dest.is_dir():
+            raise ValueError(f"Destination path is not a directory: {dest}")
+        has_content = any(dest.iterdir())
+        if has_content and not overwrite:
+            raise ValueError(f"Destination folder is not empty: {dest}")
+        if has_content and overwrite:
+            shutil.rmtree(dest)
+    dest.mkdir(parents=True, exist_ok=True)
+    return dest
+
+
+def handle_get_request(handler, path, query):
+    with _STATE_LOCK:
+        if path == "/api/eve-state/modular/status":
             status = _collect_status()
+            _send_json(handler, HTTPStatus.OK, {"ok": True, **status})
+            return True
+
+        if path == "/api/eve-state/modular/path":
+            active_root = get_active_store_root().resolve()
             _send_json(handler, HTTPStatus.OK, {
                 "ok": True,
-                "state": unified,
-                "status": status
-            })
-        except FileNotFoundError:
-            _send_json(handler, HTTPStatus.OK, {
-                "ok": True,
-                "state": None,
+                "activePath": str(active_root),
+                "defaultPath": str(DEFAULT_STORE_ROOT.resolve()),
+                "settingsFile": str(STORE_SETTINGS_FILE.resolve()),
                 "status": _collect_status()
             })
-        except Exception as exc:
-            logger.exception("Failed to load modular state")
-            _send_json(handler, HTTPStatus.INTERNAL_SERVER_ERROR, {
-                "ok": False,
-                "error": f"Failed to load modular state: {exc}"
-            })
-        return True
+            return True
 
-    if path == "/api/eve-state/modular/gemini-context":
-        try:
-            mode = (query.get("mode") or ["summary"])[0]
-            sample_limit = (query.get("limit") or [25])[0]
-            context = build_gemini_context(mode=mode, sample_limit=sample_limit)
-            _send_json(handler, HTTPStatus.OK, {
-                "ok": True,
-                "mode": context["mode"],
-                "contextText": context["contextText"],
-                "payload": context["payload"]
-            })
-        except FileNotFoundError:
-            _send_json(handler, HTTPStatus.OK, {
-                "ok": False,
-                "error": "Modular state store not found."
-            })
-        except Exception as exc:
-            logger.exception("Failed to build Gemini context from modular state")
-            _send_json(handler, HTTPStatus.INTERNAL_SERVER_ERROR, {
-                "ok": False,
-                "error": f"Failed to build Gemini context: {exc}"
-            })
-        return True
+        if path == "/api/eve-state/modular/load":
+            try:
+                unified = read_modular_state()
+                status = _collect_status()
+                _send_json(handler, HTTPStatus.OK, {
+                    "ok": True,
+                    "state": unified,
+                    "status": status
+                })
+            except FileNotFoundError:
+                _send_json(handler, HTTPStatus.OK, {
+                    "ok": True,
+                    "state": None,
+                    "status": _collect_status()
+                })
+            except Exception as exc:
+                logger.exception("Failed to load modular state")
+                _send_json(handler, HTTPStatus.INTERNAL_SERVER_ERROR, {
+                    "ok": False,
+                    "error": f"Failed to load modular state: {exc}"
+                })
+            return True
 
-    return False
+        if path == "/api/eve-state/modular/gemini-context":
+            try:
+                mode = (query.get("mode") or ["summary"])[0]
+                sample_limit = (query.get("limit") or [25])[0]
+                context = build_gemini_context(mode=mode, sample_limit=sample_limit)
+                _send_json(handler, HTTPStatus.OK, {
+                    "ok": True,
+                    "mode": context["mode"],
+                    "contextText": context["contextText"],
+                    "payload": context["payload"]
+                })
+            except FileNotFoundError:
+                _send_json(handler, HTTPStatus.OK, {
+                    "ok": False,
+                    "error": "Modular state store not found."
+                })
+            except Exception as exc:
+                logger.exception("Failed to build Gemini context from modular state")
+                _send_json(handler, HTTPStatus.INTERNAL_SERVER_ERROR, {
+                    "ok": False,
+                    "error": f"Failed to build Gemini context: {exc}"
+                })
+            return True
+
+        return False
 
 
 def handle_post_request(handler, path):
-    if path == "/api/eve-state/modular/normalize-filenames":
-        try:
-            status = normalize_modular_bookmark_filenames()
-            _send_json(handler, HTTPStatus.OK, {
-                "ok": True,
-                "status": status
-            })
-        except FileNotFoundError as exc:
+    with _STATE_LOCK:
+        if path == "/api/eve-state/modular/path":
+            payload, error = _read_request_json(handler)
+            if error:
+                _send_json(handler, HTTPStatus.BAD_REQUEST, {"ok": False, "error": error})
+                return True
+
+            requested_path = payload.get("path")
+            create_if_missing = bool(payload.get("createIfMissing"))
+            try:
+                if str(requested_path or "").strip().lower() in {"", "default", "<default>"}:
+                    resolved = set_active_store_root(DEFAULT_STORE_ROOT, create_if_missing=create_if_missing, persist=True)
+                else:
+                    resolved = set_active_store_root(requested_path, create_if_missing=create_if_missing, persist=True)
+                _send_json(handler, HTTPStatus.OK, {
+                    "ok": True,
+                    "activePath": str(resolved),
+                    "defaultPath": str(DEFAULT_STORE_ROOT.resolve()),
+                    "status": _collect_status()
+                })
+            except Exception as exc:
+                _send_json(handler, HTTPStatus.BAD_REQUEST, {
+                    "ok": False,
+                    "error": f"Failed to set modular store path: {exc}"
+                })
+            return True
+
+        if path == "/api/eve-state/modular/normalize-filenames":
+            try:
+                status = normalize_modular_bookmark_filenames()
+                _send_json(handler, HTTPStatus.OK, {
+                    "ok": True,
+                    "status": status
+                })
+            except FileNotFoundError as exc:
+                _send_json(handler, HTTPStatus.BAD_REQUEST, {
+                    "ok": False,
+                    "error": str(exc)
+                })
+            except Exception as exc:
+                logger.exception("Failed to normalize modular bookmark filenames")
+                _send_json(handler, HTTPStatus.INTERNAL_SERVER_ERROR, {
+                    "ok": False,
+                    "error": f"Failed to normalize modular bookmark filenames: {exc}"
+                })
+            return True
+
+        if path == "/api/eve-state/modular/backup-layer":
+            payload, error = _read_request_json(handler)
+            if error:
+                _send_json(handler, HTTPStatus.BAD_REQUEST, {"ok": False, "error": error})
+                return True
+
+            layer = str(payload.get("layer") or "").strip().lower()
+            if layer not in VALID_LAYER_SCOPES:
+                _send_json(handler, HTTPStatus.BAD_REQUEST, {
+                    "ok": False,
+                    "error": "layer must be one of: store, tab, card, bookmark"
+                })
+                return True
+
+            workspace_id = str(payload.get("workspaceId") or "").strip()
+            category_name = str(payload.get("categoryName") or "").strip()
+            bookmark_id = str(payload.get("bookmarkId") or "").strip()
+            destination_path = payload.get("destinationPath")
+            overwrite = bool(payload.get("overwrite"))
+
+            try:
+                source_state = read_modular_state()
+                layer_state = _extract_layer_state(
+                    source_state,
+                    layer=layer,
+                    workspace_id=workspace_id,
+                    category_name=category_name,
+                    bookmark_id=bookmark_id
+                )
+                destination_root = _resolve_destination_path(destination_path, fallback_layer=layer)
+                destination_root = _ensure_destination_ready(destination_root, overwrite=overwrite)
+                result = _write_state_to_root(layer_state, destination_root)
+                _send_json(handler, HTTPStatus.OK, {
+                    "ok": True,
+                    "layer": layer,
+                    "destinationPath": str(destination_root),
+                    "summary": result.get("summary") or {},
+                    "status": result.get("status") or {},
+                    "activeStorePath": str(get_active_store_root())
+                })
+            except Exception as exc:
+                logger.exception("Failed to backup modular layer")
+                _send_json(handler, HTTPStatus.BAD_REQUEST, {
+                    "ok": False,
+                    "error": f"Failed to backup layer: {exc}"
+                })
+            return True
+
+        if path == "/api/eve-state/modular/import-layer":
+            payload, error = _read_request_json(handler)
+            if error:
+                _send_json(handler, HTTPStatus.BAD_REQUEST, {"ok": False, "error": error})
+                return True
+
+            layer = str(payload.get("layer") or "").strip().lower()
+            source_path = payload.get("sourcePath")
+            if not source_path:
+                _send_json(handler, HTTPStatus.BAD_REQUEST, {
+                    "ok": False,
+                    "error": "sourcePath is required for layer import."
+                })
+                return True
+
+            try:
+                source_root = _resolve_store_path(source_path)
+                if not source_root.exists() or not source_root.is_dir():
+                    raise FileNotFoundError(f"Import source folder not found: {source_root}")
+
+                incoming_state = _read_state_from_root(source_root)
+                inferred_type = str((incoming_state.get("metadata") or {}).get("type") or "").strip().lower()
+                if not layer and inferred_type:
+                    layer = "tab" if inferred_type == "workspace" else inferred_type
+                if layer not in VALID_LAYER_SCOPES:
+                    raise ValueError("layer must be one of: store, tab, card, bookmark")
+
+                workspace_id = str(
+                    payload.get("workspaceId")
+                    or (incoming_state.get("metadata") or {}).get("workspaceId")
+                    or ""
+                ).strip()
+                category_name = str(
+                    payload.get("categoryName")
+                    or (incoming_state.get("metadata") or {}).get("categoryName")
+                    or ""
+                ).strip()
+                bookmark_id = str(
+                    payload.get("bookmarkId")
+                    or (incoming_state.get("metadata") or {}).get("bookmarkId")
+                    or ""
+                ).strip()
+
+                try:
+                    current_state = read_modular_state()
+                except FileNotFoundError:
+                    current_state = _empty_unified_state()
+
+                merged = _merge_layer_state(
+                    current_state,
+                    incoming_state,
+                    layer=layer,
+                    workspace_id=workspace_id,
+                    category_name=category_name,
+                    bookmark_id=bookmark_id
+                )
+                result = write_modular_state(merged)
+                _send_json(handler, HTTPStatus.OK, {
+                    "ok": True,
+                    "layer": layer,
+                    "sourcePath": str(source_root),
+                    "summary": result.get("summary") or {},
+                    "status": result.get("status") or _collect_status()
+                })
+            except Exception as exc:
+                logger.exception("Failed to import modular layer")
+                _send_json(handler, HTTPStatus.BAD_REQUEST, {
+                    "ok": False,
+                    "error": f"Failed to import layer: {exc}"
+                })
+            return True
+
+        if path != "/api/eve-state/modular/save":
+            return False
+
+        payload, error = _read_request_json(handler)
+        if error:
+            _send_json(handler, HTTPStatus.BAD_REQUEST, {"ok": False, "error": error})
+            return True
+
+        if not isinstance(payload, dict) or "bookmarks" not in payload:
             _send_json(handler, HTTPStatus.BAD_REQUEST, {
                 "ok": False,
-                "error": str(exc)
+                "error": "Expected unified state JSON payload."
+            })
+            return True
+
+        try:
+            result = write_modular_state(payload)
+            _send_json(handler, HTTPStatus.OK, {
+                "ok": True,
+                "summary": result.get("summary") or {},
+                "status": result.get("status") or _collect_status()
             })
         except Exception as exc:
-            logger.exception("Failed to normalize modular bookmark filenames")
+            logger.exception("Failed to save modular state")
             _send_json(handler, HTTPStatus.INTERNAL_SERVER_ERROR, {
                 "ok": False,
-                "error": f"Failed to normalize modular bookmark filenames: {exc}"
+                "error": f"Failed to save modular state: {exc}"
             })
         return True
-
-    if path != "/api/eve-state/modular/save":
-        return False
-
-    payload, error = _read_request_json(handler)
-    if error:
-        _send_json(handler, HTTPStatus.BAD_REQUEST, {"ok": False, "error": error})
-        return True
-
-    if not isinstance(payload, dict) or "bookmarks" not in payload:
-        _send_json(handler, HTTPStatus.BAD_REQUEST, {
-            "ok": False,
-            "error": "Expected unified state JSON payload."
-        })
-        return True
-
-    try:
-        result = write_modular_state(payload)
-        _send_json(handler, HTTPStatus.OK, {
-            "ok": True,
-            "summary": result.get("summary") or {},
-            "status": result.get("status") or _collect_status()
-        })
-    except Exception as exc:
-        logger.exception("Failed to save modular state")
-        _send_json(handler, HTTPStatus.INTERNAL_SERVER_ERROR, {
-            "ok": False,
-            "error": f"Failed to save modular state: {exc}"
-        })
-    return True

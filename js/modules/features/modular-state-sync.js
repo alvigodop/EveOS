@@ -50,6 +50,9 @@ window.EveDataStore = window.EveDataStore || {};
         if (![CONFLICT_REMOTE_WINS, CONFLICT_LOCAL_WINS].includes(String(cfg.modularStateConflictStrategy || ''))) {
             cfg.modularStateConflictStrategy = CONFLICT_REMOTE_WINS;
         }
+        if (typeof cfg.modularStateRootPath !== 'string') cfg.modularStateRootPath = '';
+        if (typeof cfg.modularLayerPath !== 'string') cfg.modularLayerPath = '';
+        if (typeof cfg.modularLayerScope !== 'string') cfg.modularLayerScope = 'store';
     }
 
     function getIntervalMs() {
@@ -367,6 +370,122 @@ window.EveDataStore = window.EveDataStore || {};
         };
     }
 
+    async function getStorePath() {
+        if (!isHttpContext()) {
+            return { ok: false, error: 'Store path endpoint requires server mode (http://localhost).' };
+        }
+        const { ok, payload } = await requestJson('/api/eve-state/modular/path');
+        if (!ok || !payload?.ok) {
+            return { ok: false, error: payload?.error || 'Failed to load modular store path.' };
+        }
+        return {
+            ok: true,
+            activePath: String(payload.activePath || ''),
+            defaultPath: String(payload.defaultPath || ''),
+            settingsFile: String(payload.settingsFile || ''),
+            status: payload.status || null
+        };
+    }
+
+    async function setStorePath(path, options = {}) {
+        if (!isHttpContext()) {
+            return { ok: false, error: 'Store path changes require server mode (http://localhost).' };
+        }
+
+        const createIfMissing = options?.createIfMissing === undefined ? true : !!options.createIfMissing;
+        const bootstrap = options?.bootstrap === undefined ? true : !!options.bootstrap;
+        const { ok, payload } = await requestJson('/api/eve-state/modular/path', {
+            method: 'POST',
+            body: JSON.stringify({
+                path: String(path || '').trim(),
+                createIfMissing
+            })
+        });
+        if (!ok || !payload?.ok) {
+            return { ok: false, error: payload?.error || 'Failed to set modular store path.' };
+        }
+
+        remoteSignature = '';
+        lastUploadedHash = '';
+        lastSyncedLocalHash = '';
+
+        if (bootstrap) {
+            const fileCount = Number(payload?.status?.fileCount || 0);
+            if (fileCount > 0) {
+                await pullRemoteState(true, payload?.status?.signature || '');
+            } else {
+                await pushLocalState(true);
+            }
+            await syncCycle();
+        }
+
+        if (isEnabled()) startPolling();
+
+        return {
+            ok: true,
+            activePath: String(payload.activePath || ''),
+            defaultPath: String(payload.defaultPath || ''),
+            status: payload.status || null
+        };
+    }
+
+    async function backupLayer(options = {}) {
+        if (!isHttpContext()) {
+            return { ok: false, error: 'Layer backup requires server mode (http://localhost).' };
+        }
+        const payload = {
+            layer: String(options.layer || 'store').toLowerCase(),
+            workspaceId: options.workspaceId || '',
+            categoryName: options.categoryName || '',
+            bookmarkId: options.bookmarkId || '',
+            destinationPath: String(options.destinationPath || '').trim(),
+            overwrite: !!options.overwrite
+        };
+        const { ok, payload: responsePayload } = await requestJson('/api/eve-state/modular/backup-layer', {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+        if (!ok || !responsePayload?.ok) {
+            return { ok: false, error: responsePayload?.error || 'Failed to backup modular layer.' };
+        }
+        return {
+            ok: true,
+            layer: responsePayload.layer,
+            destinationPath: responsePayload.destinationPath || '',
+            summary: responsePayload.summary || {},
+            status: responsePayload.status || null
+        };
+    }
+
+    async function importLayer(options = {}) {
+        if (!isHttpContext()) {
+            return { ok: false, error: 'Layer import requires server mode (http://localhost).' };
+        }
+        const payload = {
+            layer: String(options.layer || '').toLowerCase(),
+            workspaceId: options.workspaceId || '',
+            categoryName: options.categoryName || '',
+            bookmarkId: options.bookmarkId || '',
+            sourcePath: String(options.sourcePath || '').trim()
+        };
+        const { ok, payload: responsePayload } = await requestJson('/api/eve-state/modular/import-layer', {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+        if (!ok || !responsePayload?.ok) {
+            return { ok: false, error: responsePayload?.error || 'Failed to import modular layer.' };
+        }
+
+        await pullRemoteState(true, responsePayload?.status?.signature || '');
+        return {
+            ok: true,
+            layer: responsePayload.layer,
+            sourcePath: responsePayload.sourcePath || '',
+            summary: responsePayload.summary || {},
+            status: responsePayload.status || null
+        };
+    }
+
     window.EveDataStore.ModularSync = {
         init,
         syncNow,
@@ -374,6 +493,10 @@ window.EveDataStore = window.EveDataStore || {};
         normalizeBookmarkFilenames,
         fetchGeminiContext,
         sendContextToGemini,
+        getStorePath,
+        setStorePath,
+        backupLayer,
+        importLayer,
         setEnabled,
         setIntervalMs,
         setConflictStrategy,
