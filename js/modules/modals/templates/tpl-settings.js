@@ -159,6 +159,36 @@ window.modalTemplate += `
                         </label>
                     </div>
                 </div>
+                <div style="border-top:1px solid #444; padding-top:10px; margin-top:10px;">
+                    <h4 style="margin:0 0 10px 0;">Modular JSON Store (Live Folder Sync)</h4>
+                    <label style="display:flex; gap:10px; align-items:center; margin-bottom:10px;">
+                        <input type="checkbox" id="modularSyncToggle" onchange="saveSettingsModularSyncEnabled()">
+                        <span>Enable live modular JSON sync (server mode)</span>
+                    </label>
+                    <label style="display:block; margin-bottom:10px;">Sync Interval (ms):
+                        <input type="number" id="modularSyncIntervalMs" min="2000" max="60000" step="500" onchange="saveSettingsModularSyncInterval()" style="width:100%;">
+                    </label>
+                    <label style="display:block; margin-bottom:10px;">Conflict Strategy:
+                        <select id="modularSyncConflictStrategy" onchange="saveSettingsModularSyncConflictStrategy()" style="width:100%;">
+                            <option value="remote_wins">Remote Wins (disk edits override UI)</option>
+                            <option value="local_wins">Local Wins (UI state overwrites disk)</option>
+                        </select>
+                    </label>
+                    <div class="btn-action-row">
+                        <button onclick="syncModularStateNow()" class="btn-backup">Save To Modular Store</button>
+                        <button onclick="pullModularStateNow()" class="btn-restore" style="border:none;">Load From Modular Store</button>
+                    </div>
+                    <div class="btn-action-row" style="margin-top:10px;">
+                        <select id="modularGeminiMode" style="flex:1;">
+                            <option value="summary">Gemini Context: Summary</option>
+                            <option value="full">Gemini Context: Full JSON</option>
+                        </select>
+                        <button onclick="sendModularStateToGemini()" class="btn-backup">Send To Gemini</button>
+                    </div>
+                    <div style="font-size:0.78rem; opacity:0.75; margin-top:8px;">
+                        Path: <code>data/modular-state/</code> (tabs/card folders + one JSON per bookmark)
+                    </div>
+                </div>
             </div>
         </div>
         <button onclick="closeModals()" style="margin-top:15px; width: 100%;">Close</button>

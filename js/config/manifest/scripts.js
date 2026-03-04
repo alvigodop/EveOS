@@ -14,6 +14,7 @@ window.EveModuleManifestParts.scripts = [
         'js/modules/ui/notifications/dialogs.js',
         'js/modules/features/data-state.js',
         'js/modules/features/data-transfer.js',
+        'js/modules/features/modular-state-sync.js?v=0.3.0',
         'js/modules/ui/visuals.js?v=0.2.36',
         'js/modules/ui/header.js',
         'js/modules/features/header-controls/hc-state.js',

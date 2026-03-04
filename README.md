@@ -31,6 +31,7 @@ The system is intentionally compartmentalized. Workspace tabs, category cards, b
 - `python-server.py`
 - `config.js`
 - `data/unified-state-template.json`
+- `data/modular-state/` (generated at runtime in server mode)
 
 ## Key Files For Modular Structure
 
@@ -60,6 +61,9 @@ The system is intentionally compartmentalized. Workspace tabs, category cards, b
 
 9. `js/modules/features/library/entry-manager.js`  
    Library CRUD and synchronization hooks to linked bookmarks.
+
+10. `js/modules/features/modular-state-sync.js` + `server_modules/eve_state_store.py`  
+   Two-way sync between live app state and a folder-based JSON store (`data/modular-state`) with one JSON file per bookmark.
 
 ## Recent Modularization Updates
 
@@ -140,6 +144,37 @@ EveOS now has three restore/export scopes:
    Exports/restores one category card inside one workspace and its linked library subset.
 
 Reference JSON schema: `data/unified-state-template.json`
+
+## Modular Flat-File Store (Live Sync)
+
+When running via `python-server.py` (`http://localhost:*`), EveOS can keep a folder-structured JSON store in:
+
+- `data/modular-state/`
+
+Structure mirrors UI hierarchy:
+
+- `tabs/<workspace-folder>/tab.json`
+- `tabs/<workspace-folder>/cards/<card-folder>/card.json`
+- `tabs/<workspace-folder>/cards/<card-folder>/entries/<bookmark-id>.json` (one file per bookmark)
+
+Notes:
+
+- Bookmark records are stored under `entries/` inside each card folder.
+- Reader remains backward compatible with older card-named bookmark folders.
+- Each bookmark file can include optional linked library payload (`connection` + `entry`).
+- Unlinked library entries in a card are saved to `_library-unlinked.json` in that card folder.
+- Store metadata/config lives under `data/modular-state/_meta/`.
+
+Settings UI includes:
+
+- `Enable live modular JSON sync`
+- `Sync Interval (ms)`
+- `Conflict Strategy` (`remote_wins` / `local_wins`)
+- `Save To Modular Store`
+- `Load From Modular Store`
+- `Send To Gemini` (summary/full context built from modular JSON source)
+
+This keeps on-disk data modular for drag/drop reorganization while preserving the existing unified in-memory runtime schema.
 
 ## Data and Sync Behavior
 

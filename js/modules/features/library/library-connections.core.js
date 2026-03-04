@@ -28,6 +28,7 @@ window.EveLibrary = window.EveLibrary || {};
     function saveConnections() {
         window.EveLibrary.Connections = connections.map(item => ({ ...item }));
         localStorage.setItem(STORAGE_KEY, JSON.stringify(window.EveLibrary.Connections));
+        window.dispatchEvent(new CustomEvent('eve:state-mutated', { detail: { source: 'library-connections-save' } }));
     }
 
     function emitLinkedEntryUpdated(linkId, categoryName, entry, workspaceId) {

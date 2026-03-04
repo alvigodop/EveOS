@@ -2,12 +2,14 @@
 
 function saveData() {
     localStorage.setItem('eveV22Data', JSON.stringify(links));
+    window.dispatchEvent(new CustomEvent('eve:state-mutated', { detail: { source: 'saveData' } }));
     if (typeof renderDashboard === 'function') renderDashboard();
     if (typeof updateSuggestions === 'function') updateSuggestions();
 }
 
 function saveConfig() {
     localStorage.setItem('eveV22Config', JSON.stringify(config));
+    window.dispatchEvent(new CustomEvent('eve:state-mutated', { detail: { source: 'saveConfig' } }));
 }
 
 // Add save functions to global state object

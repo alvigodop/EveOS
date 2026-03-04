@@ -50,6 +50,7 @@ window.EveLibrary = window.EveLibrary || {};
         const data = migrateLibraryDataStructure(State.getAllLibraries());
         State.setAllLibraries(data);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        window.dispatchEvent(new CustomEvent('eve:state-mutated', { detail: { source: 'library-save' } }));
         createBackup();
     }
 

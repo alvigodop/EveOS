@@ -21,6 +21,7 @@ from http import HTTPStatus
 try:
     from server_modules import wikipedia
     from server_modules import proxy
+    from server_modules import eve_state_store
 except ImportError as e:
     print(f"Error importing modules: {e}")
     # Fallback or exit? For now, let's assume it works.
@@ -76,6 +77,20 @@ class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_error(HTTPStatus.INTERNAL_SERVER_ERROR, f"Server error: {str(e)}")
             except:
                 pass # Headers likely already sent
+
+    def do_POST(self):
+        """Handle POST requests for API endpoints"""
+        try:
+            if self.path.startswith('/api/'):
+                self.handle_api_post_request()
+                return
+            self.send_error(HTTPStatus.METHOD_NOT_ALLOWED, "POST not supported for this endpoint")
+        except Exception as e:
+            logger.error(f"Error handling POST request: {str(e)}")
+            try:
+                self.send_error(HTTPStatus.INTERNAL_SERVER_ERROR, f"Server error: {str(e)}")
+            except:
+                pass
     
     def log_message(self, format, *args):
         """Override log_message to use our logger"""
@@ -101,6 +116,13 @@ class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         elif path == '/api/proxy':
             # Handle proxy request
             proxy.handle_proxy_request(self, query)
+
+        elif path.startswith('/api/eve-state/modular/'):
+            if not eve_state_store.handle_get_request(self, path, query):
+                self.send_response(HTTPStatus.NOT_FOUND)
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(b'{"error": "Unknown modular state endpoint"}')
             
         else:
             # Unknown API endpoint
@@ -108,6 +130,25 @@ class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.send_header('Content-Type', 'application/json')
             self.end_headers()
             self.wfile.write(b'{"error": "Unknown API endpoint"}')
+
+    def handle_api_post_request(self):
+        """Handle API POST endpoints"""
+        parsed_path = urlparse(self.path)
+        path = parsed_path.path
+
+        if path.startswith('/api/eve-state/modular/'):
+            if eve_state_store.handle_post_request(self, path):
+                return
+            self.send_response(HTTPStatus.NOT_FOUND)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(b'{"error": "Unknown modular state endpoint"}')
+            return
+
+        self.send_response(HTTPStatus.NOT_FOUND)
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        self.wfile.write(b'{"error": "Unknown API endpoint"}')
 
 def get_local_ip():
     """Get local IP address for displaying server URLs"""
