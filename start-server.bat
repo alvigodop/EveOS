@@ -59,14 +59,12 @@ echo ========================================
 echo   Start EveOS Instance
 echo ========================================
 echo.
-set "INSTANCE_PORT="
-set /p "INSTANCE_PORT=Port (default 3000): "
-if "%INSTANCE_PORT%"=="" set "INSTANCE_PORT=3000"
-echo %INSTANCE_PORT% | findstr /r "^[0-9][0-9]*$" >nul
+set "INSTANCE_PORT_INPUT="
+set /p "INSTANCE_PORT_INPUT=Port (default 3000): "
+call :NormalizePortInput "%INSTANCE_PORT_INPUT%" "3000" INSTANCE_PORT
 if %ERRORLEVEL% NEQ 0 (
-    echo [ERROR] Port must be a numeric value.
-    timeout /t 1 /nobreak >nul
-    exit /b 1
+    echo [ERROR] Port must be a numeric value between 1 and 65535.
+    goto :StartEveServer
 )
 
 if "%INSTANCE_PORT%"=="3000" (
@@ -256,6 +254,38 @@ if /I "%rel%"=="start-server.bat" (
 )
 set "BATCH_NOTE=Project-specific batch script."
 exit /b 0
+
+:NormalizePortInput
+setlocal EnableDelayedExpansion
+set "raw=%~1"
+set "defaultPort=%~2"
+
+for /f "tokens=* delims= " %%A in ("!raw!") do set "raw=%%~A"
+if not defined raw set "raw=!defaultPort!"
+
+set "bad="
+for /f "delims=0123456789" %%A in ("!raw!") do set "bad=%%A"
+if defined bad (
+    endlocal
+    exit /b 1
+)
+
+set /a portValue=!raw!+0 >nul 2>&1
+if errorlevel 1 (
+    endlocal
+    exit /b 1
+)
+
+if !portValue! LSS 1 (
+    endlocal
+    exit /b 1
+)
+if !portValue! GTR 65535 (
+    endlocal
+    exit /b 1
+)
+
+endlocal & set "%~3=%raw%" & exit /b 0
 
 :TrackInstance
 set "trackPort=%~1"
