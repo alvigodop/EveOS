@@ -22,9 +22,11 @@ echo [3] Run Gemini auto-start helper ^(server\start-gemini.bat^)
 echo     - Compatibility launcher: starts monitor flow via server-menu option 10.
 echo [4] Browse and launch any .bat in this EveOS project
 echo     - Shows every local project batch script with purpose notes.
-echo [5] Exit
+echo [5] Start additional EveOS instance ^(custom port + data-pack folder^)
+echo     - Runs in a new console so multiple EveOS servers stay active at once.
+echo [6] Exit
 echo.
-set /p "choice=Enter your choice (1-5): "
+set /p "choice=Enter your choice (1-6): "
 
 if "%choice%"=="1" (
     call :StartEveServer
@@ -42,7 +44,11 @@ if "%choice%"=="4" (
     call :BrowseProjectBatchFiles
     goto :MainMenu
 )
-if "%choice%"=="5" exit /b 0
+if "%choice%"=="5" (
+    call :StartIsolatedInstance
+    goto :MainMenu
+)
+if "%choice%"=="6" exit /b 0
 
 echo.
 echo [ERROR] Invalid option.
@@ -70,13 +76,9 @@ echo [OK] Python found:
 python --version
 echo.
 
-echo [INFO] Cleaning up existing server instances...
-wmic process where "name='python.exe' and commandline like '%%python-server.py%%'" call terminate >nul 2>nul
-timeout /t 1 /nobreak >nul
-
 netstat -ano | findstr ":3000" >nul 2>nul
 if %ERRORLEVEL% EQU 0 (
-    echo [INFO] Port 3000 is in use. Killing existing process...
+    echo [INFO] Port 3000 is in use. Stopping only listeners on port 3000...
     for /f "tokens=5" %%a in ('netstat -aon ^| find ":3000" ^| find "LISTENING"') do (
         if "%%a" NEQ "0" (
             echo Killing PID %%a...
@@ -96,6 +98,61 @@ if %ERRORLEVEL% NEQ 0 (
     pause
     exit /b 1
 )
+exit /b 0
+
+:StartIsolatedInstance
+echo.
+echo ========================================
+echo   Start Additional EveOS Instance
+echo ========================================
+echo.
+where python >nul 2>nul
+if %ERRORLEVEL% NEQ 0 (
+    echo [ERROR] Python is not installed or not in PATH.
+    echo Install Python from https://www.python.org/downloads/
+    echo Make sure "Add Python to PATH" is enabled.
+    echo.
+    pause
+    exit /b 1
+)
+
+set "INSTANCE_PORT="
+set /p "INSTANCE_PORT=Port for new instance (default 3100): "
+if "%INSTANCE_PORT%"=="" set "INSTANCE_PORT=3100"
+echo %INSTANCE_PORT% | findstr /r "^[0-9][0-9]*$" >nul
+if %ERRORLEVEL% NEQ 0 (
+    echo [ERROR] Port must be a numeric value.
+    timeout /t 1 /nobreak >nul
+    exit /b 1
+)
+
+set "DEFAULT_PACK_PATH=%PROJECT_ROOT%\data\modular-packs\instance-%INSTANCE_PORT%"
+set "INSTANCE_PACK_PATH="
+set /p "INSTANCE_PACK_PATH=Data-pack folder path (default %DEFAULT_PACK_PATH%): "
+if "%INSTANCE_PACK_PATH%"=="" set "INSTANCE_PACK_PATH=%DEFAULT_PACK_PATH%"
+
+if /I "%INSTANCE_PACK_PATH:~0,2%"=="\\" (
+    rem keep UNC absolute path
+) else (
+    if /I not "%INSTANCE_PACK_PATH:~1,1%"==":" (
+        set "INSTANCE_PACK_PATH=%PROJECT_ROOT%\%INSTANCE_PACK_PATH%"
+    )
+)
+
+if not exist "%INSTANCE_PACK_PATH%" mkdir "%INSTANCE_PACK_PATH%" >nul 2>nul
+
+netstat -ano | findstr ":%INSTANCE_PORT%" | find "LISTENING" >nul 2>nul
+if %ERRORLEVEL% EQU 0 (
+    echo [ERROR] Port %INSTANCE_PORT% is already in use. Pick another port.
+    timeout /t 1 /nobreak >nul
+    exit /b 1
+)
+
+echo.
+echo [OK] Launching new instance:
+echo      Port: %INSTANCE_PORT%
+echo      Data: %INSTANCE_PACK_PATH%
+start "EveOS Instance %INSTANCE_PORT%" cmd /k "cd /d \"%PROJECT_ROOT%\" && python python-server.py %INSTANCE_PORT% --modular-root \"%INSTANCE_PACK_PATH%\""
 exit /b 0
 
 :LaunchBatch

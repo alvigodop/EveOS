@@ -181,6 +181,22 @@ Settings UI includes:
 
 This keeps on-disk data modular for drag/drop reorganization while preserving the existing unified in-memory runtime schema.
 
+### Parallel Instances
+
+You can run multiple EveOS servers simultaneously, each with its own data-pack folder:
+
+```bash
+python python-server.py 3000 --modular-root "data/modular-packs/work"
+python python-server.py 3001 --modular-root "data/modular-packs/personal"
+```
+
+Notes:
+
+- Different ports = different browser origins, so localStorage/config are isolated per instance.
+- `--modular-root` is process-local by default (does not overwrite shared store-path settings).
+- Use `--persist-modular-root` only if you want to make a chosen path the default for future server starts.
+- `start-server.bat` now includes `Start additional EveOS instance` for quick multi-instance launch.
+
 ## Data and Sync Behavior
 
 - Bookmarks are primary workspace records.

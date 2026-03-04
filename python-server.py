@@ -10,6 +10,7 @@ import http.server
 import socketserver
 import os
 import sys
+import argparse
 import logging
 import socket
 import webbrowser
@@ -37,6 +38,31 @@ logger = logging.getLogger("FandomDiscoveryServer")
 
 # Default port
 DEFAULT_PORT = 3000
+
+
+def configure_modular_store(modular_root=None, persist_modular_root=False):
+    """
+    Apply an optional per-process modular store override.
+    This enables multiple server instances (different ports) to run against
+    different data-pack folders at the same time.
+    """
+    if not modular_root:
+        return
+
+    if "eve_state_store" not in globals():
+        print("[WARN] eve_state_store module unavailable; modular root override skipped.")
+        return
+
+    try:
+        resolved = eve_state_store.set_active_store_root(
+            modular_root,
+            create_if_missing=True,
+            persist=bool(persist_modular_root)
+        )
+        print(f"[OK] Modular store root: {resolved}")
+    except Exception as exc:
+        print(f"[ERROR] Failed to apply modular store path '{modular_root}': {exc}")
+        sys.exit(1)
 
 class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     """Custom HTTP request handler with CORS support"""
@@ -162,7 +188,7 @@ def get_local_ip():
     except Exception:
         return "127.0.0.1"
 
-def run_server(port=DEFAULT_PORT):
+def run_server(port=DEFAULT_PORT, open_browser=True):
     """Run the HTTP server"""
     try:
         # Create server with threading support
@@ -170,20 +196,29 @@ def run_server(port=DEFAULT_PORT):
         with socketserver.ThreadingTCPServer(("", port), handler) as httpd:
             local_ip = get_local_ip()
             url = f"http://localhost:{port}/EveOS.html"
+            active_store = ""
+            if "eve_state_store" in globals():
+                try:
+                    active_store = str(eve_state_store.get_active_store_root())
+                except Exception:
+                    active_store = ""
             
             # Print server information
             print("[OK] Fandom Discovery Toolkit Server")
             print("  ------------------------------")
             print(f"  Local:   {url}")
             print(f"  Network: http://{local_ip}:{port}/EveOS.html")
+            if active_store:
+                print(f"  Data:    {active_store}")
             print("  ------------------------------")
             print("  Proxy:   Enabled at /api/proxy?url=...")
             print("  ------------------------------")
             print("  Press Ctrl+C to stop the server")
             
             # Open browser
-            print("  Opening browser...")
-            webbrowser.open(url)
+            if open_browser:
+                print("  Opening browser...")
+                webbrowser.open(url)
             
             # Start server
             httpd.serve_forever()
@@ -200,14 +235,35 @@ def run_server(port=DEFAULT_PORT):
     return 0
 
 if __name__ == "__main__":
-    # Get port from command line argument
-    port = DEFAULT_PORT
-    if len(sys.argv) > 1:
-        try:
-            port = int(sys.argv[1])
-        except ValueError:
-            print(f"\033[91m✗\033[0m Invalid port: {sys.argv[1]}")
-            sys.exit(1)
-    
-    # Run server
-    sys.exit(run_server(port))
+    parser = argparse.ArgumentParser(
+        description="Fandom Discovery Toolkit Server (EveOS backend)"
+    )
+    parser.add_argument(
+        "port",
+        nargs="?",
+        type=int,
+        default=DEFAULT_PORT,
+        help=f"HTTP port to bind (default: {DEFAULT_PORT})"
+    )
+    parser.add_argument(
+        "--modular-root",
+        dest="modular_root",
+        default="",
+        help="Override modular state root folder for this server instance."
+    )
+    parser.add_argument(
+        "--persist-modular-root",
+        dest="persist_modular_root",
+        action="store_true",
+        help="Persist --modular-root into shared modular-store settings."
+    )
+    parser.add_argument(
+        "--no-browser",
+        dest="no_browser",
+        action="store_true",
+        help="Start server without auto-opening a browser tab."
+    )
+
+    args = parser.parse_args()
+    configure_modular_store(args.modular_root, args.persist_modular_root)
+    sys.exit(run_server(args.port, open_browser=not args.no_browser))
