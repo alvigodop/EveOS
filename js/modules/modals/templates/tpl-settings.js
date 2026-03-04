@@ -160,6 +160,19 @@ window.modalTemplate += `
                     </div>
                 </div>
                 <div style="border-top:1px solid #444; padding-top:10px; margin-top:10px;">
+                    <h4 style="margin:0 0 10px 0;">Bookmark Backup (Single Bookmark)</h4>
+                    <select id="bookmarkBackupWorkspaceSelect" style="width:100%; margin-bottom:8px;"></select>
+                    <select id="bookmarkBackupCategorySelect" style="width:100%; margin-bottom:8px;"></select>
+                    <select id="bookmarkBackupLinkSelect" style="width:100%; margin-bottom:10px;"></select>
+                    <div class="btn-action-row">
+                        <button onclick="exportBookmarkBackup()" class="btn-backup">Backup Selected Bookmark</button>
+                        <label class="btn-restore">
+                            Restore Bookmark File
+                            <input type="file" id="importBookmarkFile" style="display:none;" accept=".json" onchange="importBookmarkBackup(this)">
+                        </label>
+                    </div>
+                </div>
+                <div style="border-top:1px solid #444; padding-top:10px; margin-top:10px;">
                     <h4 style="margin:0 0 10px 0;">Modular JSON Store (Live Folder Sync)</h4>
                     <label style="display:flex; gap:10px; align-items:center; margin-bottom:10px;">
                         <input type="checkbox" id="modularSyncToggle" onchange="saveSettingsModularSyncEnabled()">

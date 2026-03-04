@@ -99,6 +99,7 @@ window.DashboardCategories.renderCard = function (cat, catLinks, gridContainer, 
     var headerButtonsHtml = isFocusMode
         ? ''
             + '<div class="focus-card-controls">'
+                + '<button class="category-action-btn" onclick="openAddModal(\'' + safeCatJs + '\')" title="Add Bookmark">&#10133; <span>Add</span></button>'
                 + '<button class="category-action-btn" onclick="toggleCategoryLibrary(\'' + safeCatJs + '\')" title="Library">&#128218; <span>Library</span></button>'
                 + '<select class="unidex-filter-select focus-filter-select" aria-label="Focused bookmark filter" onchange="window.DashboardCategories.setFocusedEntriesFilterMode(this.value)">'
                     + '<option value="all"' + (focusedFilterMode === 'all' ? ' selected' : '') + '>All Bookmarks</option>'
@@ -124,6 +125,7 @@ window.DashboardCategories.renderCard = function (cat, catLinks, gridContainer, 
             + '</div>'
         : ''
             + '<div style="display:flex; gap:5px;">'
+                + '<button onclick="openAddModal(\'' + safeCatJs + '\')" style="padding: 2px 8px; font-size: 1.2rem;" title="Add Bookmark">&#10133;</button>'
                 + '<button class="lib-toggle-btn" onclick="toggleCategoryLibrary(\'' + safeCatJs + '\')" title="Library">&#128218;</button>'
                 + '<button onclick="setFocus(\'' + safeCatJs + '\')" style="padding: 2px 8px; font-size: 1.2rem;" title="Focus">&#127919;</button>'
                 + '<button onclick="openCategorySettings(\'' + safeCatJs + '\')" style="padding: 2px 8px; font-size: 1.2rem;" title="Settings">&#9881;</button>'

@@ -193,6 +193,34 @@ window.EveDataStore = window.EveDataStore || {};
         return state;
     }
 
+    function captureBookmark(workspaceId, categoryName, linkId) {
+        const normalizedWorkspace = String(workspaceId || '').trim();
+        const normalizedCategory = String(categoryName || 'Unsorted').trim() || 'Unsorted';
+        const normalizedLinkId = String(linkId || '').trim();
+        if (!normalizedWorkspace || !normalizedLinkId) return null;
+
+        const state = captureWorkspace(normalizedWorkspace);
+        const selectedLink = (state.bookmarks.links || []).find(entry => String(entry.id) === normalizedLinkId);
+        if (!selectedLink) return null;
+
+        const bookmarkCategory = String(selectedLink.category || normalizedCategory || 'Unsorted');
+        const bookmarkConnections = (state.library.connections || []).filter(conn => String(conn.linkId) === normalizedLinkId);
+
+        state.metadata.workspaceId = normalizedWorkspace;
+        state.metadata.workspaceName = getWorkspaceName(normalizedWorkspace);
+        state.metadata.categoryName = bookmarkCategory;
+        state.metadata.bookmarkId = normalizedLinkId;
+        state.metadata.type = 'bookmark';
+        state.bookmarks.links = [{ ...selectedLink, workspace: normalizedWorkspace, category: bookmarkCategory }];
+        state.bookmarks.config = {
+            ...state.bookmarks.config,
+            activeWorkspace: normalizedWorkspace
+        };
+        state.library.connections = bookmarkConnections;
+        state.library.categories = filterCategoriesForConnections(state.library.categories, bookmarkConnections);
+        return state;
+    }
+
     function findCategoryLibraryData(categories, workspaceId, categoryName) {
         if (!categories || typeof categories !== 'object') return null;
         if (Object.prototype.hasOwnProperty.call(categories, categoryName)) {
@@ -367,12 +395,68 @@ window.EveDataStore = window.EveDataStore || {};
         return true;
     }
 
+    function applyBookmarkState(state) {
+        if (!state || typeof state !== 'object') return false;
+        const incomingLinks = Array.isArray(state.bookmarks?.links) ? state.bookmarks.links : [];
+        if (!incomingLinks.length) return false;
+
+        const incomingLink = { ...incomingLinks[0] };
+        const workspaceId = String(
+            state.metadata?.workspaceId
+            || incomingLink.workspace
+            || state.bookmarks?.config?.activeWorkspace
+            || ''
+        ).trim();
+        if (!workspaceId) return false;
+
+        const categoryName = String(
+            state.metadata?.categoryName
+            || incomingLink.category
+            || 'Unsorted'
+        ).trim() || 'Unsorted';
+        incomingLink.workspace = workspaceId;
+        incomingLink.category = categoryName;
+
+        if (!incomingLink.id) return false;
+        const normalizedLinkId = String(incomingLink.id);
+
+        const remaining = getLinks().filter(entry => String(entry.id) !== normalizedLinkId);
+        setLinks(remaining.concat(incomingLink));
+        setConfig({ activeWorkspace: workspaceId });
+
+        if (state.library?.categories && typeof state.library.categories === 'object') {
+            applyLibraryCategories(state.library.categories);
+        }
+
+        const existing = cloneConnections();
+        const incomingConnections = Array.isArray(state.library?.connections)
+            ? state.library.connections.map(conn => ({
+                ...conn,
+                linkId: normalizedLinkId,
+                workspace: workspaceId,
+                categoryName: conn.categoryName || categoryName
+            }))
+            : [];
+        const filtered = existing.filter(conn => String(conn.linkId) !== normalizedLinkId);
+        const next = filtered.concat(incomingConnections);
+        if (window.EveLibrary?.ConnectionsAPI?.setAll) {
+            window.EveLibrary.ConnectionsAPI.setAll(next);
+        } else {
+            window.EveLibrary = window.EveLibrary || {};
+            window.EveLibrary.Connections = next;
+        }
+
+        return true;
+    }
+
     window.EveDataStore.Store = {
         captureState,
         captureWorkspace,
         captureCard,
+        captureBookmark,
         applyState,
         applyWorkspaceState,
-        applyCardState
+        applyCardState,
+        applyBookmarkState
     };
 })();

@@ -27,6 +27,18 @@
         return document.getElementById('cardBackupCategorySelect');
     }
 
+    function getBookmarkWorkspaceSelect() {
+        return document.getElementById('bookmarkBackupWorkspaceSelect');
+    }
+
+    function getBookmarkCategorySelect() {
+        return document.getElementById('bookmarkBackupCategorySelect');
+    }
+
+    function getBookmarkLinkSelect() {
+        return document.getElementById('bookmarkBackupLinkSelect');
+    }
+
     function refreshCardBackupList() {
         const wsSelect = getCardWorkspaceSelect();
         const categorySelect = getCardCategorySelect();
@@ -61,10 +73,69 @@
         });
     }
 
+    function refreshBookmarkBackupList() {
+        const wsSelect = getBookmarkWorkspaceSelect();
+        const categorySelect = getBookmarkCategorySelect();
+        const linkSelect = getBookmarkLinkSelect();
+        if (!wsSelect || !categorySelect || !linkSelect) return;
+
+        const appConfig = getAppConfig();
+        const allLinks = getAppLinks();
+        const workspaces = appConfig.workspaces || [];
+        const selectedWorkspace = wsSelect.value || appConfig.activeWorkspace || workspaces[0]?.id || '';
+        const selectedCategory = categorySelect.value || 'Unsorted';
+        const selectedLinkId = linkSelect.value || '';
+
+        wsSelect.innerHTML = '';
+        workspaces.forEach(ws => {
+            const option = document.createElement('option');
+            option.value = ws.id;
+            option.textContent = ws.name || ws.id;
+            wsSelect.appendChild(option);
+        });
+        wsSelect.value = selectedWorkspace;
+
+        const categories = [...new Set(
+            allLinks
+                .filter(entry => entry.workspace === selectedWorkspace)
+                .map(entry => entry.category || 'Unsorted')
+        )].sort((a, b) => a.localeCompare(b));
+
+        categorySelect.innerHTML = '';
+        categories.forEach(cat => {
+            const option = document.createElement('option');
+            option.value = cat;
+            option.textContent = cat;
+            categorySelect.appendChild(option);
+        });
+        if (categories.length > 0) {
+            categorySelect.value = categories.includes(selectedCategory) ? selectedCategory : categories[0];
+        }
+
+        const activeCategory = categorySelect.value || categories[0] || '';
+        const bookmarkLinks = allLinks
+            .filter(entry => entry.workspace === selectedWorkspace && (entry.category || 'Unsorted') === activeCategory)
+            .slice()
+            .sort((a, b) => String(a.title || '').localeCompare(String(b.title || '')));
+
+        linkSelect.innerHTML = '';
+        bookmarkLinks.forEach(link => {
+            const option = document.createElement('option');
+            option.value = String(link.id);
+            option.textContent = (link.title || 'Untitled') + (link.url ? ` - ${link.url}` : '');
+            linkSelect.appendChild(option);
+        });
+        if (bookmarkLinks.length > 0) {
+            const hasExistingSelection = bookmarkLinks.some(link => String(link.id) === String(selectedLinkId));
+            linkSelect.value = hasExistingSelection ? String(selectedLinkId) : String(bookmarkLinks[0].id);
+        }
+    }
+
     function refreshWorkspaceBackupList() {
         const select = getWorkspaceSelect();
         if (!select) {
             refreshCardBackupList();
+            refreshBookmarkBackupList();
             return;
         }
         const appConfig = getAppConfig();
@@ -78,14 +149,24 @@
         });
         select.value = appConfig.activeWorkspace || workspaces[0]?.id || '';
         refreshCardBackupList();
+        refreshBookmarkBackupList();
         const cardWsSelect = getCardWorkspaceSelect();
         if (cardWsSelect) {
             cardWsSelect.onchange = refreshCardBackupList;
+        }
+        const bookmarkWsSelect = getBookmarkWorkspaceSelect();
+        const bookmarkCategorySelect = getBookmarkCategorySelect();
+        if (bookmarkWsSelect) {
+            bookmarkWsSelect.onchange = refreshBookmarkBackupList;
+        }
+        if (bookmarkCategorySelect) {
+            bookmarkCategorySelect.onchange = refreshBookmarkBackupList;
         }
     }
 
     window.refreshWorkspaceBackupList = refreshWorkspaceBackupList;
     window.refreshCardBackupList = refreshCardBackupList;
+    window.refreshBookmarkBackupList = refreshBookmarkBackupList;
 
     function buildWorkspacePayload(workspaceId) {
         const payload = {
@@ -148,6 +229,36 @@
         const a = document.createElement('a');
         a.href = url;
         a.download = `eve_card_${workspaceName.replace(/[^a-zA-Z0-9]/g, '_')}_${categoryName.replace(/[^a-zA-Z0-9]/g, '_')}.json`;
+        a.click();
+    };
+
+    window.exportBookmarkBackup = function () {
+        const appConfig = getAppConfig();
+        const wsSelect = getBookmarkWorkspaceSelect();
+        const categorySelect = getBookmarkCategorySelect();
+        const linkSelect = getBookmarkLinkSelect();
+        const workspaceId = (wsSelect?.value || appConfig.activeWorkspace || '').trim();
+        const categoryName = (categorySelect?.value || '').trim();
+        const linkId = String(linkSelect?.value || '').trim();
+        if (!workspaceId || !categoryName || !linkId) {
+            return showToast("Select workspace, category, and bookmark first.", "error");
+        }
+
+        const selectedLink = getAppLinks().find(entry => String(entry.id) === linkId);
+        const exportState = dataStore?.captureBookmark
+            ? dataStore.captureBookmark(workspaceId, categoryName, linkId)
+            : null;
+        if (!exportState) {
+            return showToast("Could not build bookmark backup payload.", "error");
+        }
+
+        const workspaceName = appConfig.workspaces?.find(w => w.id === workspaceId)?.name || workspaceId;
+        const bookmarkName = (selectedLink?.title || `bookmark_${linkId}`).replace(/[^a-zA-Z0-9]/g, '_');
+        const blob = new Blob([JSON.stringify(exportState, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `eve_bookmark_${workspaceName.replace(/[^a-zA-Z0-9]/g, '_')}_${categoryName.replace(/[^a-zA-Z0-9]/g, '_')}_${bookmarkName}.json`;
         a.click();
     };
 
@@ -286,6 +397,28 @@
                 showToast("Invalid card backup", "error");
             } catch (err) {
                 showToast("Error importing card: " + err.message, "error");
+            }
+        };
+        reader.readAsText(file);
+    };
+
+    window.importBookmarkBackup = function (inputElement) {
+        if (!inputElement?.files?.length) return;
+        const file = inputElement.files[0];
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            try {
+                const json = JSON.parse(e.target.result);
+                const isBookmark = json.metadata?.type === 'bookmark';
+                const success = isBookmark && dataStore?.applyBookmarkState ? dataStore.applyBookmarkState(json) : false;
+                if (success) {
+                    resetFileInput(inputElement);
+                    location.reload();
+                    return showToast("Bookmark restored!", "success");
+                }
+                showToast("Invalid bookmark backup", "error");
+            } catch (err) {
+                showToast("Error importing bookmark: " + err.message, "error");
             }
         };
         reader.readAsText(file);

@@ -102,6 +102,7 @@ function openSettings() {
     updateColorInputAvailability();
     if (typeof refreshWorkspaceBackupList === 'function') refreshWorkspaceBackupList();
     if (typeof refreshCardBackupList === 'function') refreshCardBackupList();
+    if (typeof refreshBookmarkBackupList === 'function') refreshBookmarkBackupList();
 }
 
 function saveSettingsTimer() { config.timerEnabled = document.getElementById('timerToggle').checked; saveConfig(); applySettings(); }

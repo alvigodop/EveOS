@@ -24,13 +24,14 @@ window.EveLinkForm = window.EveLinkForm || {};
         ns.applySourceMetadataFromAttachedSource(index);
     };
 
-    window.openAddModal = function () {
+    window.openAddModal = function (preferredCategory) {
+        var initialCategory = String(preferredCategory || '').trim();
         document.getElementById('modalTitle').innerText = "Add Link";
         document.getElementById('editId').value = "";
         refreshCategoryDatalist();
         document.getElementById('newTitle').value = "";
         document.getElementById('newUrl').value = "";
-        document.getElementById('newCategory').value = "";
+        document.getElementById('newCategory').value = initialCategory;
         document.getElementById('newPriority').value = "";
         document.getElementById('newIcon').value = "";
 
@@ -39,7 +40,7 @@ window.EveLinkForm = window.EveLinkForm || {};
         document.getElementById('edit-link-search-results').style.display = 'none';
 
         ns.setupLibraryToggleHandlers();
-        ns.refreshLibraryStatusOptions('Unsorted');
+        ns.refreshLibraryStatusOptions(initialCategory || 'Unsorted');
         const toggle = ns.getLibraryFormToggle();
         if (toggle) toggle.checked = false;
         ns.setLibraryFieldsCollapsed(false);

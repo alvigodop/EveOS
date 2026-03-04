@@ -53,11 +53,18 @@ window.EveModuleManifestParts.scripts = [
 
         // Library Feature (Category-based entry management)
         'js/modules/features/library/library-state.js?v=0.2.2',
-'js/modules/features/library/ratings/engine-core.js?v=0.2.3',
+'js/modules/features/library/ratings/engine-components/engine-foundation.js?v=0.2.4',
+'js/modules/features/library/ratings/engine-components/engine-settings.js?v=0.2.4',
+'js/modules/features/library/ratings/engine-components/engine-confidence.js?v=0.2.4',
+'js/modules/features/library/ratings/engine-components/engine-derived.js?v=0.2.4',
+'js/modules/features/library/ratings/engine-core.js?v=0.2.4',
 'js/modules/features/library/ratings/engine.js?v=0.2.3',
         'js/modules/features/library/library-storage.js',
         'js/modules/features/library/entry-manager.js?v=0.2.2',
-'js/modules/features/library/library-connections.core.js?v=0.2.3',
+'js/modules/features/library/library-connections-components/lc-state.js?v=0.2.4',
+'js/modules/features/library/library-connections-components/lc-entry-lookup.js?v=0.2.4',
+'js/modules/features/library/library-connections-components/lc-actions.js?v=0.2.4',
+'js/modules/features/library/library-connections.core.js?v=0.2.4',
 'js/modules/features/library/library-connections.js?v=0.2.3',
         'js/modules/features/library/search-filters.js?v=0.2.2',
         'js/modules/features/library/options-updaters.js?v=0.2.2',
@@ -125,7 +132,10 @@ window.EveModuleManifestParts.scripts = [
         'js/modules/features/autotitle/autotitle-core.js',
         'js/modules/features/autotitle/autotitle-ui.js',
         'js/modules/features/autotitle/autotitle-bulk.js',
-'js/modules/features/library/library-bulk-auto.core.js?v=0.2.3',
+'js/modules/features/library/library-bulk-auto-components/lba-utils.js?v=0.2.4',
+'js/modules/features/library/library-bulk-auto-components/lba-api.js?v=0.2.4',
+'js/modules/features/library/library-bulk-auto-components/lba-patch.js?v=0.2.4',
+'js/modules/features/library/library-bulk-auto.core.js?v=0.2.4',
 'js/modules/features/library/library-bulk-auto.js?v=0.2.3',
 
         // --- Scraper Feature Modules (Ported) ---
