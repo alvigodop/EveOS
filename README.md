@@ -155,11 +155,12 @@ Structure mirrors UI hierarchy:
 
 - `tabs/<workspace-folder>/tab.json`
 - `tabs/<workspace-folder>/cards/<card-folder>/card.json`
-- `tabs/<workspace-folder>/cards/<card-folder>/entries/<bookmark-id>.json` (one file per bookmark)
+- `tabs/<workspace-folder>/cards/<card-folder>/entries/<bookmark-id>--<bookmark-title>.json` (one file per bookmark)
 
 Notes:
 
 - Bookmark records are stored under `entries/` inside each card folder.
+- Bookmark filenames are canonicalized from bookmark payload (`id + title`) and auto-renamed when titles change (site edits or direct file edits).
 - Reader remains backward compatible with older card-named bookmark folders.
 - Each bookmark file can include optional linked library payload (`connection` + `entry`).
 - Unlinked library entries in a card are saved to `_library-unlinked.json` in that card folder.
@@ -172,6 +173,7 @@ Settings UI includes:
 - `Conflict Strategy` (`remote_wins` / `local_wins`)
 - `Save To Modular Store`
 - `Load From Modular Store`
+- `Normalize Bookmark File Titles` (runs server-side canonical rename from bookmark `id + title`)
 - `Send To Gemini` (summary/full context built from modular JSON source)
 
 This keeps on-disk data modular for drag/drop reorganization while preserving the existing unified in-memory runtime schema.

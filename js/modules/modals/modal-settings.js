@@ -136,7 +136,10 @@ function saveSettingsModularSyncEnabled() {
     config.modularStateSyncEnabled = !!document.getElementById('modularSyncToggle')?.checked;
     saveConfig();
     if (window.EveDataStore?.ModularSync?.setEnabled) {
-        window.EveDataStore.ModularSync.setEnabled(config.modularStateSyncEnabled);
+        const applied = window.EveDataStore.ModularSync.setEnabled(config.modularStateSyncEnabled);
+        if (applied === false && config.modularStateSyncEnabled) {
+            showToast('Modular sync requires server mode (http://localhost)', 'info');
+        }
     }
 }
 function saveSettingsModularSyncInterval() {
@@ -163,14 +166,30 @@ async function syncModularStateNow() {
         return showToast('Modular sync module not loaded', 'error');
     }
     const ok = await window.EveDataStore.ModularSync.syncNow(true);
-    showToast(ok ? 'Modular store saved' : 'Could not save modular store', ok ? 'success' : 'error');
+    showToast(
+        ok ? 'Modular store saved' : 'Could not save modular store (server mode required)',
+        ok ? 'success' : 'error'
+    );
 }
 async function pullModularStateNow() {
     if (!window.EveDataStore?.ModularSync?.pullNow) {
         return showToast('Modular sync module not loaded', 'error');
     }
     const ok = await window.EveDataStore.ModularSync.pullNow(true);
-    showToast(ok ? 'Loaded modular state' : 'No modular changes to load', ok ? 'success' : 'info');
+    showToast(
+        ok ? 'Loaded modular state' : 'No modular changes to load (or server mode required)',
+        ok ? 'success' : 'info'
+    );
+}
+async function normalizeModularBookmarkTitles() {
+    if (!window.EveDataStore?.ModularSync?.normalizeBookmarkFilenames) {
+        return showToast('Modular sync module not loaded', 'error');
+    }
+    const result = await window.EveDataStore.ModularSync.normalizeBookmarkFilenames();
+    if (!result?.ok) {
+        return showToast(result?.error || 'Could not normalize bookmark filenames', 'error');
+    }
+    showToast('Bookmark filenames normalized from id + title', 'success');
 }
 async function sendModularStateToGemini() {
     const modeSelect = document.getElementById('modularGeminiMode');

@@ -178,6 +178,7 @@ window.modalTemplate += `
                         <button onclick="syncModularStateNow()" class="btn-backup">Save To Modular Store</button>
                         <button onclick="pullModularStateNow()" class="btn-restore" style="border:none;">Load From Modular Store</button>
                     </div>
+                    <button onclick="normalizeModularBookmarkTitles()" class="btn-backup" style="width:100%; margin-top:10px;">Normalize Bookmark File Titles</button>
                     <div class="btn-action-row" style="margin-top:10px;">
                         <select id="modularGeminiMode" style="flex:1;">
                             <option value="summary">Gemini Context: Summary</option>

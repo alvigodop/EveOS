@@ -262,12 +262,17 @@ window.EveDataStore = window.EveDataStore || {};
         const cfg = getConfig();
         cfg.modularStateSyncEnabled = !!enabled;
         if (typeof saveConfig === 'function') saveConfig();
+        if (!isHttpContext()) {
+            stopPolling();
+            return false;
+        }
         if (cfg.modularStateSyncEnabled) {
             startPolling();
             syncCycle();
         } else {
             stopPolling();
         }
+        return true;
     }
 
     function setConflictStrategy(strategy) {
@@ -285,16 +290,34 @@ window.EveDataStore = window.EveDataStore || {};
             ? Math.max(MIN_INTERVAL_MS, Math.min(MAX_INTERVAL_MS, Math.round(n)))
             : DEFAULT_INTERVAL_MS;
         if (typeof saveConfig === 'function') saveConfig();
-        startPolling();
+        if (isHttpContext()) startPolling();
     }
 
     async function syncNow(force = true) {
+        if (!isHttpContext()) return false;
         return pushLocalState(!!force);
     }
 
     async function pullNow(force = true) {
+        if (!isHttpContext()) return false;
         const status = await getRemoteStatus();
         return pullRemoteState(!!force, status?.signature || '');
+    }
+
+    async function normalizeBookmarkFilenames() {
+        if (!isHttpContext()) {
+            return { ok: false, error: 'Normalization requires server mode (http://localhost).' };
+        }
+
+        const { ok, payload } = await requestJson('/api/eve-state/modular/normalize-filenames', {
+            method: 'POST'
+        });
+        if (!ok || !payload?.ok) {
+            return { ok: false, error: payload?.error || 'Failed to normalize modular bookmark filenames.' };
+        }
+
+        await pullRemoteState(true, payload?.status?.signature || '');
+        return { ok: true, status: payload?.status || null };
     }
 
     async function fetchGeminiContext(mode = 'summary', limit = 25) {
@@ -348,6 +371,7 @@ window.EveDataStore = window.EveDataStore || {};
         init,
         syncNow,
         pullNow,
+        normalizeBookmarkFilenames,
         fetchGeminiContext,
         sendContextToGemini,
         setEnabled,

@@ -42,6 +42,25 @@ const ModuleDebugger = {
     },
 
     /**
+     * Safely resolve a window property as a module candidate.
+     * Avoids cross-origin frame access errors when probing `window[key].version`.
+     */
+    _getModuleCandidate: function (key) {
+        let value = null;
+        try {
+            value = window[key];
+        } catch (e) {
+            return null;
+        }
+        if (!value || typeof value !== 'object') return null;
+        try {
+            return value.version ? value : null;
+        } catch (e) {
+            return null;
+        }
+    },
+
+    /**
      * Show the status of all modules
      */
     showModuleStatus: function () {
@@ -55,14 +74,16 @@ const ModuleDebugger = {
         };
 
         // Check each module in the window object
-        for (const key in window) {
-            if (typeof window[key] === 'object' && window[key] !== null && window[key].version) {
+        const keys = Object.getOwnPropertyNames(window);
+        for (const key of keys) {
+            const moduleCandidate = this._getModuleCandidate(key);
+            if (moduleCandidate) {
                 status.total++;
                 status.modules[key] = {
                     loaded: true,
                     registered: window.ModuleRegistry && window.ModuleRegistry.hasModule ? window.ModuleRegistry.hasModule(key) : false,
-                    initialized: !!window[key]._initialized,
-                    version: window[key].version || 'unknown'
+                    initialized: !!moduleCandidate._initialized,
+                    version: moduleCandidate.version || 'unknown'
                 };
 
                 if (status.modules[key].registered) {
@@ -147,12 +168,11 @@ const ModuleDebugger = {
         };
 
         // Register all module-like objects (silent)
-        for (const key in window) {
-            if (typeof window[key] === 'object' &&
-                window[key] !== null &&
-                window[key].version &&
-                !safeHasModule(key)) {
-                window.ModuleRegistry.register(key, window[key]);
+        const keys = Object.getOwnPropertyNames(window);
+        for (const key of keys) {
+            const moduleCandidate = this._getModuleCandidate(key);
+            if (moduleCandidate && !safeHasModule(key)) {
+                window.ModuleRegistry.register(key, moduleCandidate);
             }
         }
 

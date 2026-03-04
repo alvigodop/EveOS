@@ -76,6 +76,41 @@ def _safe_filename(value, fallback):
     return text or fallback
 
 
+def _build_bookmark_filename(bookmark):
+    item = bookmark or {}
+    link_id = str(item.get("id") or "").strip() or "bookmark"
+    title_raw = str(item.get("title") or "").strip()
+    title_part = re.sub(r"\s+", " ", title_raw).strip()
+    title_part = _safe_filename(title_part, "untitled")
+    if len(title_part) > 80:
+        title_part = title_part[:80].rstrip(" .-")
+    base_name = f"{link_id}--{title_part}.json"
+    fallback = f"{link_id}.json"
+    return _safe_filename(base_name, fallback)
+
+
+def _normalize_bookmark_filename(path, bookmark):
+    expected_name = _build_bookmark_filename(bookmark)
+    if path.name == expected_name:
+        return path
+
+    target = path.with_name(expected_name)
+    if target.exists() and target != path:
+        # Avoid clobbering an existing file.
+        short_hash = hashlib.sha1(str(path).encode("utf-8")).hexdigest()[:6]
+        stem = target.stem
+        suffix = target.suffix
+        target = path.with_name(_safe_filename(f"{stem}--{short_hash}{suffix}", path.name))
+
+    try:
+        path.rename(target)
+        logger.info("Renamed bookmark file to canonical name: %s -> %s", path.name, target.name)
+        return target
+    except Exception:
+        logger.warning("Failed to rename bookmark file '%s' to '%s'", path, target)
+        return path
+
+
 def _connection_category_name(conn):
     return (
         conn.get("categoryName")
@@ -430,7 +465,7 @@ def write_modular_state(state):
                         "entry": linked_entry or None
                     }
                 }
-                bookmark_file = _safe_filename(f"{link.get('id')}.json", "bookmark.json")
+                bookmark_file = _build_bookmark_filename(link)
                 (bookmark_folder / bookmark_file).write_text(
                     json.dumps(bookmark_payload, ensure_ascii=False, indent=2), encoding="utf-8"
                 )
@@ -485,6 +520,8 @@ def read_modular_state():
     categories = {}
     workspaces = []
     seen_workspace_ids = set()
+    bookmark_records = []
+    entry_ids_by_scope = {}
 
     if TABS_DIR.exists():
         for ws_folder in sorted(TABS_DIR.iterdir()):
@@ -529,10 +566,17 @@ def read_modular_state():
 
                 category_name = str(card_data.get("categoryName") or "").strip() or card_folder.name
                 data_type = card_data.get("dataType") or "graphicNovels"
-                bookmark_folder_name = card_data.get("bookmarkFolder") or card_folder.name
+                bookmark_folder_name = card_data.get("bookmarkFolder") or "entries"
                 bookmark_folder = card_folder / bookmark_folder_name
                 if not bookmark_folder.exists():
-                    bookmark_folder = card_folder
+                    entries_folder = card_folder / "entries"
+                    legacy_named_folder = card_folder / card_folder.name
+                    if entries_folder.exists():
+                        bookmark_folder = entries_folder
+                    elif legacy_named_folder.exists():
+                        bookmark_folder = legacy_named_folder
+                    else:
+                        bookmark_folder = card_folder
 
                 scoped = _scoped_key(workspace_id, category_name)
                 if scoped not in categories:
@@ -540,7 +584,13 @@ def read_modular_state():
                 else:
                     categories[scoped]["dataType"] = categories[scoped].get("dataType") or data_type
 
-                entry_ids_for_scope = {str((e or {}).get("id") or "") for e in categories[scoped]["entries"]}
+                if scoped not in entry_ids_by_scope:
+                    entry_ids_by_scope[scoped] = {
+                        str((e or {}).get("id") or "").strip()
+                        for e in categories[scoped]["entries"]
+                        if str((e or {}).get("id") or "").strip()
+                    }
+                entry_ids_for_scope = entry_ids_by_scope[scoped]
 
                 for bookmark_file in sorted(bookmark_folder.glob("*.json")):
                     if bookmark_file.name.startswith("_"):
@@ -560,31 +610,23 @@ def read_modular_state():
                     if not link_id:
                         continue
 
-                    bookmark["workspace"] = workspace_id
-                    bookmark["category"] = category_name
-                    links.append(bookmark)
+                    bookmark_file = _normalize_bookmark_filename(bookmark_file, bookmark)
 
-                    library_payload = payload.get("library") if isinstance(payload, dict) else None
-                    if not isinstance(library_payload, dict):
-                        continue
+                    try:
+                        mtime_ns = int(bookmark_file.stat().st_mtime_ns)
+                    except Exception:
+                        mtime_ns = 0
 
-                    connection = library_payload.get("connection")
-                    entry = library_payload.get("entry")
-                    linked = bool(library_payload.get("linked"))
-
-                    if linked and isinstance(connection, dict) and isinstance(entry, dict):
-                        normalized_connection = dict(connection)
-                        normalized_connection["linkId"] = link_id
-                        normalized_connection["workspace"] = workspace_id
-                        normalized_connection["categoryName"] = category_name
-                        if not normalized_connection.get("libraryEntryId") and entry.get("id"):
-                            normalized_connection["libraryEntryId"] = entry.get("id")
-                        connections_by_link[link_id] = normalized_connection
-
-                        entry_id = str(entry.get("id") or "").strip()
-                        if entry_id and entry_id not in entry_ids_for_scope:
-                            categories[scoped]["entries"].append(entry)
-                            entry_ids_for_scope.add(entry_id)
+                    bookmark_records.append({
+                        "link_id": link_id,
+                        "bookmark": bookmark,
+                        "library_payload": payload.get("library") if isinstance(payload, dict) else None,
+                        "workspace_id": workspace_id,
+                        "category_name": category_name,
+                        "scoped_key": scoped,
+                        "source_path": str(bookmark_file),
+                        "mtime_ns": mtime_ns
+                    })
 
                 unlinked_file = card_folder / "_library-unlinked.json"
                 if unlinked_file.exists():
@@ -599,6 +641,79 @@ def read_modular_state():
                             entry_ids_for_scope.add(entry_id)
                     except Exception:
                         logger.warning("Skipping invalid unlinked library file: %s", unlinked_file)
+
+    # Resolve duplicate bookmark IDs by taking the most recently modified file.
+    resolved_by_link = {}
+    for record in bookmark_records:
+        link_id = record["link_id"]
+        existing = resolved_by_link.get(link_id)
+        if existing is None:
+            resolved_by_link[link_id] = record
+            continue
+        existing_mtime = int(existing.get("mtime_ns") or 0)
+        next_mtime = int(record.get("mtime_ns") or 0)
+        if (next_mtime, record.get("source_path", "")) >= (existing_mtime, existing.get("source_path", "")):
+            logger.warning(
+                "Duplicate bookmark id '%s' detected. Keeping newer file '%s' (replacing '%s').",
+                link_id,
+                record.get("source_path"),
+                existing.get("source_path")
+            )
+            resolved_by_link[link_id] = record
+        else:
+            logger.warning(
+                "Duplicate bookmark id '%s' detected. Keeping newer file '%s' and skipping '%s'.",
+                link_id,
+                existing.get("source_path"),
+                record.get("source_path")
+            )
+
+    for record in sorted(
+        resolved_by_link.values(),
+        key=lambda item: (item.get("workspace_id", ""), item.get("category_name", ""), item.get("source_path", ""))
+    ):
+        workspace_id = record["workspace_id"]
+        category_name = record["category_name"]
+        scoped = record["scoped_key"]
+        link_id = record["link_id"]
+
+        bookmark = dict(record.get("bookmark") or {})
+        bookmark["workspace"] = workspace_id
+        bookmark["category"] = category_name
+        links.append(bookmark)
+
+        library_payload = record.get("library_payload")
+        if not isinstance(library_payload, dict):
+            continue
+
+        connection = library_payload.get("connection")
+        entry = library_payload.get("entry")
+        linked = bool(library_payload.get("linked"))
+        if not linked or not isinstance(entry, dict):
+            continue
+
+        normalized_connection = dict(connection) if isinstance(connection, dict) else {}
+        normalized_connection["linkId"] = link_id
+        normalized_connection["workspace"] = workspace_id
+        normalized_connection["categoryName"] = category_name
+        if not normalized_connection.get("id"):
+            normalized_connection["id"] = f"conn-{link_id}"
+        if not normalized_connection.get("libraryEntryId") and entry.get("id"):
+            normalized_connection["libraryEntryId"] = entry.get("id")
+
+        if normalized_connection.get("libraryEntryId"):
+            connections_by_link[link_id] = normalized_connection
+
+        entry_id = str(entry.get("id") or "").strip()
+        if not entry_id:
+            continue
+        if scoped not in categories:
+            categories[scoped] = {"entries": [], "dataType": "graphicNovels"}
+        if scoped not in entry_ids_by_scope:
+            entry_ids_by_scope[scoped] = set()
+        if entry_id not in entry_ids_by_scope[scoped]:
+            categories[scoped]["entries"].append(entry)
+            entry_ids_by_scope[scoped].add(entry_id)
 
     if not workspaces:
         workspaces = [{"id": "main", "name": "Main", "icon": "🏠"}]
@@ -628,6 +743,14 @@ def read_modular_state():
         }
     }
     return unified
+
+
+def normalize_modular_bookmark_filenames():
+    if not STORE_ROOT.exists():
+        raise FileNotFoundError(f"Modular state store not found at: {STORE_ROOT}")
+    # read_modular_state() performs canonical bookmark filename normalization.
+    read_modular_state()
+    return _collect_status()
 
 
 def handle_get_request(handler, path, query):
@@ -687,6 +810,26 @@ def handle_get_request(handler, path, query):
 
 
 def handle_post_request(handler, path):
+    if path == "/api/eve-state/modular/normalize-filenames":
+        try:
+            status = normalize_modular_bookmark_filenames()
+            _send_json(handler, HTTPStatus.OK, {
+                "ok": True,
+                "status": status
+            })
+        except FileNotFoundError as exc:
+            _send_json(handler, HTTPStatus.BAD_REQUEST, {
+                "ok": False,
+                "error": str(exc)
+            })
+        except Exception as exc:
+            logger.exception("Failed to normalize modular bookmark filenames")
+            _send_json(handler, HTTPStatus.INTERNAL_SERVER_ERROR, {
+                "ok": False,
+                "error": f"Failed to normalize modular bookmark filenames: {exc}"
+            })
+        return True
+
     if path != "/api/eve-state/modular/save":
         return False
 
