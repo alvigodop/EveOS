@@ -151,6 +151,7 @@ window.modalTemplate += `
                             <input type="file" id="importFile" style="display: none;" onchange="importData(this)">
                         </label>
                     </div>
+                    <button onclick="importDataFolderBrowserOnly()" class="btn-restore" style="width:100%; border:none; margin-top:8px;">Restore Backup Folder (Browser Only)</button>
                     <button onclick="clearAllData()" class="btn-danger" style="width:100%; margin-top:10px;">Wipe All Data</button>
                 </div>
 
@@ -158,12 +159,13 @@ window.modalTemplate += `
                     <h4 style="margin:0 0 10px 0;">Tab Backup (Single Workspace)</h4>
                     <select id="tabBackupSelect" style="width:100%; margin-bottom:10px;"></select>
                     <div class="btn-action-row">
-                        <button onclick="exportWorkspaceBackup()" class="btn-backup">Backup Selected Tab</button>
+                        <button onclick="exportWorkspaceBackup()" class="btn-backup">Backup Tab Folder</button>
                         <label class="btn-restore">
-                            Restore Tab File
+                            Restore Tab JSON File
                             <input type="file" id="importWorkspaceFile" style="display:none;" accept=".json" onchange="importWorkspaceBackup(this)">
                         </label>
                     </div>
+                    <button onclick="importWorkspaceFolderBackupBrowserOnly()" class="btn-restore" style="width:100%; border:none; margin-top:8px;">Restore Tab Folder (Browser Only)</button>
                 </div>
 
                 <div class="backup-panel" data-backup-panel="card">
@@ -171,12 +173,13 @@ window.modalTemplate += `
                     <select id="cardBackupWorkspaceSelect" style="width:100%; margin-bottom:8px;"></select>
                     <select id="cardBackupCategorySelect" style="width:100%; margin-bottom:10px;"></select>
                     <div class="btn-action-row">
-                        <button onclick="exportCardBackup()" class="btn-backup">Backup Selected Card</button>
+                        <button onclick="exportCardBackup()" class="btn-backup">Backup Card Folder</button>
                         <label class="btn-restore">
-                            Restore Card File
+                            Restore Card JSON File
                             <input type="file" id="importCardFile" style="display:none;" accept=".json" onchange="importCardBackup(this)">
                         </label>
                     </div>
+                    <button onclick="importCardFolderBackupBrowserOnly()" class="btn-restore" style="width:100%; border:none; margin-top:8px;">Restore Card Folder (Browser Only)</button>
                 </div>
 
                 <div class="backup-panel" data-backup-panel="bookmark">
@@ -224,6 +227,7 @@ window.modalTemplate += `
                         <button onclick="pullModularStateNow()" class="btn-restore" style="border:none;">Load From Modular Store</button>
                     </div>
                     <button onclick="normalizeModularBookmarkTitles()" class="btn-backup" style="width:100%; margin-top:10px;">Normalize Bookmark File Titles</button>
+                    <button onclick="normalizeBookmarkTitlesBrowserOnly()" class="btn-backup" style="width:100%; margin-top:8px;">Normalize Bookmark File Titles (Browser Only)</button>
                     <div style="font-size:0.78rem; opacity:0.75; margin-top:8px;">
                         Active folder is configurable. Layout: <code>tabs/</code> -> <code>cards/</code> -> <code>entries/*.json</code>.
                     </div>
@@ -231,23 +235,11 @@ window.modalTemplate += `
 
                 <div class="backup-panel" data-backup-panel="layer">
                     <h4 style="margin:0 0 10px 0;">Copy Between Packs (Advanced)</h4>
-                    <label style="display:block; margin-bottom:8px;">Layer Scope:
-                        <select id="modularLayerScope" onchange="saveSettingsModularLayerScope()" style="width:100%;">
-                            <option value="store">Full Store Folder</option>
-                            <option value="tab">Tab Folder</option>
-                            <option value="card">Card Folder</option>
-                            <option value="bookmark">Bookmark Folder</option>
-                        </select>
-                    </label>
-                    <select id="modularLayerWorkspaceSelect" style="width:100%; margin-bottom:8px;"></select>
-                    <select id="modularLayerCategorySelect" style="width:100%; margin-bottom:8px;"></select>
-                    <select id="modularLayerBookmarkSelect" style="width:100%; margin-bottom:8px;"></select>
                     <label style="display:block; margin-bottom:10px;">Folder Path:
                         <input type="text" id="modularLayerPathInput" onchange="saveSettingsModularLayerPathDraft()" placeholder="Leave empty for auto backup path" style="width:100%;">
                     </label>
-                    <div class="btn-action-row">
-                        <button onclick="backupModularLayerToFolder()" class="btn-backup">Backup Layer To Folder</button>
-                        <button onclick="importModularLayerFromFolder()" class="btn-restore" style="border:none;">Import Layer From Folder</button>
+                    <div style="font-size:0.78rem; opacity:0.75;">
+                        This path is used by <strong>Tab Backup</strong> and <strong>Card Backup</strong> folder exports.
                     </div>
                 </div>
             </div>
