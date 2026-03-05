@@ -8,7 +8,10 @@ set "SELF_PATH=%~f0"
 set "GEMINI_MENU_BAT=%PROJECT_ROOT%\server\server-menu.bat"
 set "GEMINI_AUTOSTART_BAT=%PROJECT_ROOT%\server\start-gemini.bat"
 set "MAIN_DATA_PACK=%PROJECT_ROOT%\data\modular-state"
+set "LAST_USED_PACK_FILE=%PROJECT_ROOT%\data\launcher-last-pack.txt"
+set "LAST_USED_PACK_PATH="
 set "ACTIVE_INSTANCE_PORTS="
+call :LoadLastUsedPackPath
 
 :MainMenu
 cls
@@ -79,10 +82,7 @@ if "%INSTANCE_PORT%"=="3000" (
 )
 
 set "INSTANCE_PACK_PATH="
-set /p "INSTANCE_PACK_PATH=Data-pack folder path (default %DEFAULT_PACK_PATH%): "
-if "%INSTANCE_PACK_PATH%"=="" set "INSTANCE_PACK_PATH=%DEFAULT_PACK_PATH%"
-
-call :ResolveAbsolutePath "%INSTANCE_PACK_PATH%" INSTANCE_PACK_PATH
+call :PromptDataPackPath "%DEFAULT_PACK_PATH%" INSTANCE_PACK_PATH
 
 call :LaunchEveInstance "%INSTANCE_PORT%" "%INSTANCE_PACK_PATH%" "%INSTANCE_KIND%" "%PORT_MODE%"
 exit /b %ERRORLEVEL%
@@ -97,6 +97,85 @@ if exist "%SETTINGS_FILE%" (
 )
 call :ResolveAbsolutePath "%MAIN_DATA_PACK%" MAIN_DATA_PACK
 exit /b 0
+
+:LoadLastUsedPackPath
+set "LAST_USED_PACK_PATH="
+if exist "%LAST_USED_PACK_FILE%" (
+    for /f "usebackq delims=" %%P in ("%LAST_USED_PACK_FILE%") do (
+        if not "%%P"=="" (
+            set "LAST_USED_PACK_PATH=%%P"
+            goto :LoadLastUsedPackPathDone
+        )
+    )
+)
+:LoadLastUsedPackPathDone
+if defined LAST_USED_PACK_PATH call :ResolveAbsolutePath "%LAST_USED_PACK_PATH%" LAST_USED_PACK_PATH
+exit /b 0
+
+:PersistLastUsedPackPath
+set "SAVE_PACK_PATH=%~1"
+if "%SAVE_PACK_PATH%"=="" exit /b 0
+if not exist "%PROJECT_ROOT%\data" mkdir "%PROJECT_ROOT%\data" >nul 2>nul
+> "%LAST_USED_PACK_FILE%" (
+    echo %SAVE_PACK_PATH%
+)
+exit /b 0
+
+:PromptDataPackPath
+setlocal EnableDelayedExpansion
+set "DEFAULT_PACK_PATH=%~1"
+set "SELECTED_PACK_PATH="
+
+if not defined DEFAULT_PACK_PATH set "DEFAULT_PACK_PATH=%PROJECT_ROOT%\data\modular-state"
+call :ResolveAbsolutePath "!DEFAULT_PACK_PATH!" DEFAULT_PACK_PATH
+if defined LAST_USED_PACK_PATH call :ResolveAbsolutePath "!LAST_USED_PACK_PATH!" LAST_USED_PACK_PATH
+
+echo.
+echo Data-pack selection:
+echo   [1] Default path
+echo       !DEFAULT_PACK_PATH!
+if defined LAST_USED_PACK_PATH (
+    echo   [2] Last used path
+    echo       !LAST_USED_PACK_PATH!
+) else (
+    echo   [2] Last used path
+    echo       ^(not set yet^)
+)
+echo   [3] New custom path
+echo.
+set /p "PACK_PICK=Choose data-pack option (default 1): "
+if not defined PACK_PICK set "PACK_PICK=1"
+
+if "!PACK_PICK!"=="1" (
+    set "SELECTED_PACK_PATH=!DEFAULT_PACK_PATH!"
+    goto :PromptDataPackPathDone
+)
+if "!PACK_PICK!"=="2" (
+    if defined LAST_USED_PACK_PATH (
+        set "SELECTED_PACK_PATH=!LAST_USED_PACK_PATH!"
+    ) else (
+        echo [WARN] No last used path found. Using default.
+        set "SELECTED_PACK_PATH=!DEFAULT_PACK_PATH!"
+    )
+    goto :PromptDataPackPathDone
+)
+if "!PACK_PICK!"=="3" (
+    set "CUSTOM_PACK_PATH="
+    set /p "CUSTOM_PACK_PATH=Enter custom data-pack folder path: "
+    if not defined CUSTOM_PACK_PATH (
+        echo [WARN] Empty custom path. Using default.
+        set "SELECTED_PACK_PATH=!DEFAULT_PACK_PATH!"
+    ) else (
+        call :ResolveAbsolutePath "!CUSTOM_PACK_PATH!" SELECTED_PACK_PATH
+    )
+    goto :PromptDataPackPathDone
+)
+
+echo [WARN] Invalid option. Using default.
+set "SELECTED_PACK_PATH=!DEFAULT_PACK_PATH!"
+
+:PromptDataPackPathDone
+endlocal & set "%~2=%SELECTED_PACK_PATH%" & exit /b 0
 
 :LaunchEveInstance
 set "INSTANCE_PORT=%~1"
@@ -305,6 +384,8 @@ set "ACTIVE_INSTANCE_PORTS=%trackPort% %newPortList%"
 for /f "tokens=1,2,3,4,5" %%A in ("%ACTIVE_INSTANCE_PORTS%") do set "ACTIVE_INSTANCE_PORTS=%%A %%B %%C %%D %%E"
 set "INSTANCE_DATA_%trackPort%=%trackPath%"
 set "INSTANCE_KIND_%trackPort%=%trackKind%"
+set "LAST_USED_PACK_PATH=%trackPath%"
+call :PersistLastUsedPackPath "%trackPath%"
 exit /b 0
 
 :ShowTrackedInstances

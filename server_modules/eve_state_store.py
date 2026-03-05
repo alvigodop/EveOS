@@ -1969,20 +1969,21 @@ def _build_unique_child_destination(parent_dir, layer):
 
 def _ensure_destination_ready(destination, overwrite=False, layer="layer"):
     dest = Path(destination).resolve()
-    if dest.exists():
-        if not dest.is_dir():
-            raise ValueError(f"Destination path is not a directory: {dest}")
-        has_content = any(dest.iterdir())
-        if has_content and not overwrite:
-            # Treat non-empty destination as a backup parent folder and create
-            # a fresh timestamped child per backup run.
-            child = _build_unique_child_destination(dest, layer)
-            child.mkdir(parents=True, exist_ok=False)
-            return child
-        if has_content and overwrite:
+    if dest.exists() and not dest.is_dir():
+        raise ValueError(f"Destination path is not a directory: {dest}")
+
+    if overwrite:
+        if dest.exists() and any(dest.iterdir()):
             shutil.rmtree(dest)
+        dest.mkdir(parents=True, exist_ok=True)
+        return dest
+
+    # Non-overwrite backups always create a timestamped child folder under the
+    # selected destination so tabs/_meta are never written directly to parent.
     dest.mkdir(parents=True, exist_ok=True)
-    return dest
+    child = _build_unique_child_destination(dest, layer)
+    child.mkdir(parents=True, exist_ok=False)
+    return child
 
 
 def handle_get_request(handler, path, query):
