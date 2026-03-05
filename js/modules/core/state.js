@@ -11,6 +11,7 @@ let config = {
     userName: "",
     searchEngine: "https://www.google.com/search?q=",
     searchMode: "basic",
+    backupSettingsMode: "all",
     bookmarkClickOpensLink: false,
     headerMode: "greeting",
     headerControls: {
@@ -46,6 +47,7 @@ let config = {
     modularLayerPath: "",
     modularLayerScope: "store",
     modularGeminiMode: "summary",
+    geminiLiveLinkEnabled: true,
     focusedEntriesFilter: "all",
     focusedEntriesSortBy: "none",
     focusedEntriesSortOrder: "desc",

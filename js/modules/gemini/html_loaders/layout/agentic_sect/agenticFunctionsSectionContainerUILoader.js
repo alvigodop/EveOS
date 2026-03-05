@@ -15,6 +15,8 @@ async function loadAgenticFunctionsSectionContainer() {
         <div id="time-perception-card-placeholder"></div>
         <!-- Placeholder for Conversation Memory Card - Loaded by JavaScript -->
         <div id="conversation-memory-card-placeholder"></div>
+        <!-- Placeholder for Gemini Live Link Card - Loaded by JavaScript -->
+        <div id="gemini-live-link-card-placeholder"></div>
         <!-- Add AI Self-talk toggle as a card in the Agentic Functions section -->
         <div id="ai-self-talk-card-placeholder"></div>
 

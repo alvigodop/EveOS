@@ -126,17 +126,35 @@ window.modalTemplate += `
                     onchange="saveSettingsFile(this)">
             </label>
 
-            <div style="border-top:1px solid #444; padding-top:10px; margin-top:10px;">
+            <div style="border-top:1px solid #444; padding-top:10px; margin-top:10px;" class="settings-backup-shell">
                 <h4 style="margin:0 0 10px 0;">Data Management</h4>
-                <div class="btn-action-row">
-                    <button onclick="exportData()" class="btn-backup">Backup All Data</button>
-                    <label class="btn-restore">
-                        Restore All Data
-                        <input type="file" id="importFile" style="display: none;" onchange="importData(this)">
-                    </label>
+                <div class="backup-mode-row">
+                    <label for="backupSettingsMode">Backup Process:</label>
+                    <select id="backupSettingsMode" onchange="saveSettingsBackupMode()">
+                        <option value="all">Show All Tools</option>
+                        <option value="full">Full Backup / Restore</option>
+                        <option value="workspace">Tab Backup</option>
+                        <option value="card">Card Backup</option>
+                        <option value="bookmark">Bookmark Backup</option>
+                        <option value="modular">Active Data Pack (Primary)</option>
+                        <option value="layer">Copy Between Packs (Advanced)</option>
+                    </select>
                 </div>
-                <button onclick="clearAllData()" class="btn-danger" style="width:100%; margin-top:10px;">⚠️ Wipe All Data</button>
-                <div style="border-top:1px solid #444; padding-top:10px; margin-top:10px;">
+                <div class="backup-mode-hint">Pick one process type to keep this panel focused, or show all tools.</div>
+
+                <div class="backup-panel" data-backup-panel="full">
+                    <h4 style="margin:0 0 10px 0;">Full Backup / Restore</h4>
+                    <div class="btn-action-row">
+                        <button onclick="exportData()" class="btn-backup">Backup All Data</button>
+                        <label class="btn-restore">
+                            Restore All Data
+                            <input type="file" id="importFile" style="display: none;" onchange="importData(this)">
+                        </label>
+                    </div>
+                    <button onclick="clearAllData()" class="btn-danger" style="width:100%; margin-top:10px;">Wipe All Data</button>
+                </div>
+
+                <div class="backup-panel" data-backup-panel="workspace">
                     <h4 style="margin:0 0 10px 0;">Tab Backup (Single Workspace)</h4>
                     <select id="tabBackupSelect" style="width:100%; margin-bottom:10px;"></select>
                     <div class="btn-action-row">
@@ -147,7 +165,8 @@ window.modalTemplate += `
                         </label>
                     </div>
                 </div>
-                <div style="border-top:1px solid #444; padding-top:10px; margin-top:10px;">
+
+                <div class="backup-panel" data-backup-panel="card">
                     <h4 style="margin:0 0 10px 0;">Card Backup (Single Category)</h4>
                     <select id="cardBackupWorkspaceSelect" style="width:100%; margin-bottom:8px;"></select>
                     <select id="cardBackupCategorySelect" style="width:100%; margin-bottom:10px;"></select>
@@ -159,7 +178,8 @@ window.modalTemplate += `
                         </label>
                     </div>
                 </div>
-                <div style="border-top:1px solid #444; padding-top:10px; margin-top:10px;">
+
+                <div class="backup-panel" data-backup-panel="bookmark">
                     <h4 style="margin:0 0 10px 0;">Bookmark Backup (Single Bookmark)</h4>
                     <select id="bookmarkBackupWorkspaceSelect" style="width:100%; margin-bottom:8px;"></select>
                     <select id="bookmarkBackupCategorySelect" style="width:100%; margin-bottom:8px;"></select>
@@ -172,8 +192,9 @@ window.modalTemplate += `
                         </label>
                     </div>
                 </div>
-                <div style="border-top:1px solid #444; padding-top:10px; margin-top:10px;">
-                    <h4 style="margin:0 0 10px 0;">Modular JSON Store (Live Folder Sync)</h4>
+
+                <div class="backup-panel" data-backup-panel="modular">
+                    <h4 style="margin:0 0 10px 0;">Active Data Pack (Primary)</h4>
                     <label style="display:flex; gap:10px; align-items:center; margin-bottom:10px;">
                         <input type="checkbox" id="modularSyncToggle" onchange="saveSettingsModularSyncEnabled()">
                         <span>Enable live modular JSON sync (server mode)</span>
@@ -203,39 +224,34 @@ window.modalTemplate += `
                         <button onclick="pullModularStateNow()" class="btn-restore" style="border:none;">Load From Modular Store</button>
                     </div>
                     <button onclick="normalizeModularBookmarkTitles()" class="btn-backup" style="width:100%; margin-top:10px;">Normalize Bookmark File Titles</button>
-                    <div class="btn-action-row" style="margin-top:10px;">
-                        <select id="modularGeminiMode" style="flex:1;">
-                            <option value="summary">Gemini Context: Summary</option>
-                            <option value="full">Gemini Context: Full JSON</option>
-                        </select>
-                        <button onclick="sendModularStateToGemini()" class="btn-backup">Send To Gemini</button>
-                    </div>
-                    <div style="border-top:1px solid #444; padding-top:10px; margin-top:10px;">
-                        <h5 style="margin:0 0 10px 0;">Layered Folder Backup / Import</h5>
-                        <label style="display:block; margin-bottom:8px;">Layer Scope:
-                            <select id="modularLayerScope" onchange="saveSettingsModularLayerScope()" style="width:100%;">
-                                <option value="store">Full Store Folder</option>
-                                <option value="tab">Tab Folder</option>
-                                <option value="card">Card Folder</option>
-                                <option value="bookmark">Bookmark Folder</option>
-                            </select>
-                        </label>
-                        <select id="modularLayerWorkspaceSelect" style="width:100%; margin-bottom:8px;"></select>
-                        <select id="modularLayerCategorySelect" style="width:100%; margin-bottom:8px;"></select>
-                        <select id="modularLayerBookmarkSelect" style="width:100%; margin-bottom:8px;"></select>
-                        <label style="display:block; margin-bottom:10px;">Folder Path:
-                            <input type="text" id="modularLayerPathInput" onchange="saveSettingsModularLayerPathDraft()" placeholder="Leave empty for auto backup path" style="width:100%;">
-                        </label>
-                        <div class="btn-action-row">
-                            <button onclick="backupModularLayerToFolder()" class="btn-backup">Backup Layer To Folder</button>
-                            <button onclick="importModularLayerFromFolder()" class="btn-restore" style="border:none;">Import Layer From Folder</button>
-                        </div>
-                    </div>
                     <div style="font-size:0.78rem; opacity:0.75; margin-top:8px;">
-                        Active folder is configurable. Layout: <code>tabs/</code> → <code>cards/</code> → <code>entries/*.json</code>.
+                        Active folder is configurable. Layout: <code>tabs/</code> -> <code>cards/</code> -> <code>entries/*.json</code>.
+                    </div>
+                </div>
+
+                <div class="backup-panel" data-backup-panel="layer">
+                    <h4 style="margin:0 0 10px 0;">Copy Between Packs (Advanced)</h4>
+                    <label style="display:block; margin-bottom:8px;">Layer Scope:
+                        <select id="modularLayerScope" onchange="saveSettingsModularLayerScope()" style="width:100%;">
+                            <option value="store">Full Store Folder</option>
+                            <option value="tab">Tab Folder</option>
+                            <option value="card">Card Folder</option>
+                            <option value="bookmark">Bookmark Folder</option>
+                        </select>
+                    </label>
+                    <select id="modularLayerWorkspaceSelect" style="width:100%; margin-bottom:8px;"></select>
+                    <select id="modularLayerCategorySelect" style="width:100%; margin-bottom:8px;"></select>
+                    <select id="modularLayerBookmarkSelect" style="width:100%; margin-bottom:8px;"></select>
+                    <label style="display:block; margin-bottom:10px;">Folder Path:
+                        <input type="text" id="modularLayerPathInput" onchange="saveSettingsModularLayerPathDraft()" placeholder="Leave empty for auto backup path" style="width:100%;">
+                    </label>
+                    <div class="btn-action-row">
+                        <button onclick="backupModularLayerToFolder()" class="btn-backup">Backup Layer To Folder</button>
+                        <button onclick="importModularLayerFromFolder()" class="btn-restore" style="border:none;">Import Layer From Folder</button>
                     </div>
                 </div>
             </div>
+
         </div>
         <button onclick="closeModals()" style="margin-top:15px; width: 100%;">Close</button>
     </div>

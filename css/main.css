@@ -375,6 +375,61 @@ body {
     gap: 10px;
 }
 
+.settings-backup-shell {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.backup-mode-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+}
+
+.backup-mode-row label {
+    min-width: 120px;
+    color: var(--accent);
+    font-size: 0.9rem;
+}
+
+.backup-mode-row select {
+    flex: 1 1 220px;
+}
+
+.backup-mode-hint {
+    font-size: 0.8rem;
+    opacity: 0.75;
+    margin-top: -2px;
+}
+
+.backup-panel {
+    border: 1px solid rgba(128, 128, 128, 0.35);
+    border-radius: 10px;
+    padding: 12px;
+    background: rgba(128, 128, 128, 0.06);
+}
+
+.backup-panel .btn-action-row {
+    flex-wrap: wrap;
+}
+
+.backup-panel .btn-backup,
+.backup-panel .btn-restore {
+    flex: 1 1 190px;
+}
+
+.backup-panel .backup-mixed-row select {
+    flex: 1 1 220px;
+    min-width: 180px;
+}
+
+.light-theme .backup-panel {
+    background: #f7f7f7;
+    border-color: #d8d8d8;
+}
+
 .btn-backup,
 .btn-restore {
     flex: 1;

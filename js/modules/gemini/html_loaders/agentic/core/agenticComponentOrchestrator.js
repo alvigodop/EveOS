@@ -54,6 +54,16 @@ async function initializeAgenticHtmlComponents() {
             }
         });
 
+        // --- Gemini Live Link ---
+        await safeInitializeFeature('loadGeminiLiveLinkCard', 'Gemini Live Link', async () => {
+            if (window.GeminiLiveLinkAgentic?.initializeGeminiLiveLinkCard) {
+                await window.GeminiLiveLinkAgentic.initializeGeminiLiveLinkCard();
+                console.log('Gemini Live Link feature initialized.');
+            } else {
+                console.error('GeminiLiveLinkAgentic.initializeGeminiLiveLinkCard not found.');
+            }
+        });
+
         // --- Audio Processing Controls ---
         await safeInitializeFeature('loadAudioProcessingControlsCard', 'Audio Processing Controls', async () => {
             console.log('Audio Processing Controls UI loaded.');

@@ -80,6 +80,42 @@ function getAllWorkspacesForSettings() {
     return [{ id: 'main', name: 'Main', icon: '🏠' }];
 }
 
+
+function normalizeBackupSettingsMode(mode) {
+    const normalized = String(mode || 'all').toLowerCase();
+    const allowed = ['all', 'full', 'workspace', 'card', 'bookmark', 'modular', 'layer'];
+    return allowed.includes(normalized) ? normalized : 'all';
+}
+
+function applyBackupSettingsLayout(mode) {
+    const normalized = normalizeBackupSettingsMode(mode);
+    const select = document.getElementById('backupSettingsMode');
+    if (select && select.value !== normalized) {
+        select.value = normalized;
+    }
+
+    const panels = document.querySelectorAll('#settingsModal [data-backup-panel]');
+    if (!panels.length) return;
+
+    const visibleByMode = {
+        all: ['full', 'workspace', 'card', 'bookmark', 'modular', 'layer'],
+        full: ['full'],
+        workspace: ['workspace'],
+        card: ['card'],
+        bookmark: ['bookmark'],
+        modular: ['modular'],
+        layer: ['layer']
+    };
+    const visibleSet = new Set(visibleByMode[normalized] || visibleByMode.all);
+
+    panels.forEach((panel) => {
+        const panelKey = panel.getAttribute('data-backup-panel');
+        const shouldShow = normalized === 'all' ? true : visibleSet.has(panelKey);
+        panel.style.display = shouldShow ? 'block' : 'none';
+        panel.setAttribute('aria-hidden', shouldShow ? 'false' : 'true');
+    });
+}
+
 function updateModularLayerSelectionVisibility() {
     const scope = document.getElementById('modularLayerScope')?.value || 'store';
     const wsSelect = document.getElementById('modularLayerWorkspaceSelect');
@@ -191,6 +227,12 @@ function openSettings() {
     document.getElementById('searchEngineSelect').value = config.searchEngine || "https://www.google.com/search?q=";
     document.getElementById('searchModeSelect').value = config.searchMode || "basic";
     document.getElementById('bookmarkClickOpenToggle').checked = !!config.bookmarkClickOpensLink;
+    const backupModeSelect = document.getElementById('backupSettingsMode');
+    if (backupModeSelect) {
+        const mode = normalizeBackupSettingsMode(config.backupSettingsMode || 'all');
+        backupModeSelect.value = mode;
+        applyBackupSettingsLayout(mode);
+    }
     const modularSyncToggle = document.getElementById('modularSyncToggle');
     if (modularSyncToggle) modularSyncToggle.checked = config.modularStateSyncEnabled !== false;
     const modularSyncInterval = document.getElementById('modularSyncIntervalMs');
@@ -200,8 +242,6 @@ function openSettings() {
         const strategy = String(config.modularStateConflictStrategy || 'remote_wins').toLowerCase();
         modularConflict.value = strategy === 'local_wins' ? 'local_wins' : 'remote_wins';
     }
-    const modularGeminiMode = document.getElementById('modularGeminiMode');
-    if (modularGeminiMode) modularGeminiMode.value = String(config.modularGeminiMode || 'summary').toLowerCase() === 'full' ? 'full' : 'summary';
     const modularStorePathInput = document.getElementById('modularStorePathInput');
     if (modularStorePathInput) modularStorePathInput.value = String(config.modularStateRootPath || '');
     const modularLayerScope = document.getElementById('modularLayerScope');
@@ -254,6 +294,12 @@ function saveSettingsCardColor() { config.cardColor = document.getElementById('c
 function saveSettingsEngine() { config.searchEngine = document.getElementById('searchEngineSelect').value; saveConfig(); }
 function saveSettingsSearchMode() { config.searchMode = document.getElementById('searchModeSelect').value; saveConfig(); }
 function saveSettingsBookmarkClickOpen() { config.bookmarkClickOpensLink = !!document.getElementById('bookmarkClickOpenToggle').checked; saveConfig(); }
+function saveSettingsBackupMode() {
+    const mode = normalizeBackupSettingsMode(document.getElementById('backupSettingsMode')?.value || 'all');
+    config.backupSettingsMode = mode;
+    saveConfig();
+    applyBackupSettingsLayout(mode);
+}
 function saveSettingsModularSyncEnabled() {
     config.modularStateSyncEnabled = !!document.getElementById('modularSyncToggle')?.checked;
     saveConfig();
