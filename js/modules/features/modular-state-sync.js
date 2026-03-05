@@ -145,8 +145,9 @@ window.EveDataStore = window.EveDataStore || {};
         return currentHash !== baseline;
     }
 
-    async function pushLocalState(force = false, knownHash = '') {
-        if (!isHttpContext() || !isEnabled()) return false;
+    async function pushLocalState(force = false, knownHash = '', options = {}) {
+        const ignoreEnabled = !!options?.ignoreEnabled;
+        if (!isHttpContext() || (!ignoreEnabled && !isEnabled())) return false;
         const store = getStore();
         if (!store?.captureState) return false;
 
@@ -170,8 +171,9 @@ window.EveDataStore = window.EveDataStore || {};
         return true;
     }
 
-    async function pullRemoteState(force = false, knownSignature = '') {
-        if (!isHttpContext() || !isEnabled()) return false;
+    async function pullRemoteState(force = false, knownSignature = '', options = {}) {
+        const ignoreEnabled = !!options?.ignoreEnabled;
+        if (!isHttpContext() || (!ignoreEnabled && !isEnabled())) return false;
         const store = getStore();
         if (!store?.applyState) return false;
 
@@ -364,18 +366,20 @@ window.EveDataStore = window.EveDataStore || {};
 
     async function syncNow(force = true) {
         if (!isHttpContext()) return false;
-        return pushLocalState(!!force);
+        // Manual save should work even when periodic live sync toggle is off.
+        return pushLocalState(!!force, '', { ignoreEnabled: true });
     }
 
     async function pullNow(force = true) {
         if (!isHttpContext()) return false;
         const status = await getRemoteStatus();
-        return pullRemoteState(!!force, status?.signature || '');
+        // Manual load should work even when periodic live sync toggle is off.
+        return pullRemoteState(!!force, status?.signature || '', { ignoreEnabled: true });
     }
 
     async function normalizeBookmarkFilenames() {
         if (!isHttpContext()) {
-            return { ok: false, error: 'Normalization requires server mode (http://localhost).' };
+            return { ok: false, error: 'Normalization requires server mode (localhost or LAN URL).' };
         }
 
         const { ok, payload } = await requestJson('/api/eve-state/modular/normalize-filenames', {
@@ -385,7 +389,7 @@ window.EveDataStore = window.EveDataStore || {};
             return { ok: false, error: payload?.error || 'Failed to normalize modular bookmark filenames.' };
         }
 
-        await pullRemoteState(true, payload?.status?.signature || '');
+        await pullRemoteState(true, payload?.status?.signature || '', { ignoreEnabled: true });
         return { ok: true, status: payload?.status || null };
     }
 
@@ -438,7 +442,7 @@ window.EveDataStore = window.EveDataStore || {};
 
     async function getStorePath() {
         if (!isHttpContext()) {
-            return { ok: false, error: 'Store path endpoint requires server mode (http://localhost).' };
+            return { ok: false, error: 'Store path endpoint requires server mode (localhost or LAN URL).' };
         }
         const { ok, payload } = await requestJson('/api/eve-state/modular/path');
         if (!ok || !payload?.ok) {
@@ -457,7 +461,7 @@ window.EveDataStore = window.EveDataStore || {};
 
     async function pickFolderPath(initialPath = '') {
         if (!isHttpContext()) {
-            return { ok: false, error: 'Folder picker requires server mode (http://localhost).' };
+            return { ok: false, error: 'Folder picker requires server mode (localhost or LAN URL).' };
         }
         const { ok, payload } = await requestJson('/api/eve-state/modular/pick-folder', {
             method: 'POST',
@@ -477,7 +481,7 @@ window.EveDataStore = window.EveDataStore || {};
 
     async function setStorePath(path, options = {}) {
         if (!isHttpContext()) {
-            return { ok: false, error: 'Store path changes require server mode (http://localhost).' };
+            return { ok: false, error: 'Store path changes require server mode (localhost or LAN URL).' };
         }
 
         const createIfMissing = options?.createIfMissing === undefined ? true : !!options.createIfMissing;
@@ -500,7 +504,7 @@ window.EveDataStore = window.EveDataStore || {};
         if (bootstrap) {
             const fileCount = Number(payload?.status?.fileCount || 0);
             if (fileCount > 0) {
-                const pulled = await pullRemoteState(true, payload?.status?.signature || '');
+                const pulled = await pullRemoteState(true, payload?.status?.signature || '', { ignoreEnabled: true });
                 if (!pulled) {
                     // Safety: if the target folder has files but cannot be loaded
                     // as modular state, do not immediately overwrite it.
@@ -510,7 +514,7 @@ window.EveDataStore = window.EveDataStore || {};
                     lastSyncedLocalHash = currentHash;
                 }
             } else {
-                await pushLocalState(true);
+                await pushLocalState(true, '', { ignoreEnabled: true });
             }
         }
 
@@ -528,7 +532,7 @@ window.EveDataStore = window.EveDataStore || {};
 
     async function backupLayer(options = {}) {
         if (!isHttpContext()) {
-            return { ok: false, error: 'Layer backup requires server mode (http://localhost).' };
+            return { ok: false, error: 'Layer backup requires server mode (localhost or LAN URL).' };
         }
         const payload = {
             layer: String(options.layer || 'store').toLowerCase(),
@@ -556,7 +560,7 @@ window.EveDataStore = window.EveDataStore || {};
 
     async function importLayer(options = {}) {
         if (!isHttpContext()) {
-            return { ok: false, error: 'Layer import requires server mode (http://localhost).' };
+            return { ok: false, error: 'Layer import requires server mode (localhost or LAN URL).' };
         }
         const payload = {
             layer: String(options.layer || '').toLowerCase(),
@@ -573,7 +577,7 @@ window.EveDataStore = window.EveDataStore || {};
             return { ok: false, error: responsePayload?.error || 'Failed to import modular layer.' };
         }
 
-        await pullRemoteState(true, responsePayload?.status?.signature || '');
+        await pullRemoteState(true, responsePayload?.status?.signature || '', { ignoreEnabled: true });
         return {
             ok: true,
             layer: responsePayload.layer,

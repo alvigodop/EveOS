@@ -1480,6 +1480,14 @@
                 if (!confirmed) {
                     return { ok: false, canceled: true };
                 }
+                if (options.confirmTwice) {
+                    const finalConfirmMessage = options.finalConfirmMessage
+                        || 'Final confirmation: apply selected data pack now? This overwrites current bookmarks & library.';
+                    const finalConfirmed = await showConfirm(finalConfirmMessage);
+                    if (!finalConfirmed) {
+                        return { ok: false, canceled: true };
+                    }
+                }
             }
 
             const applied = !!dataStore.applyState(parsed.state);

@@ -226,8 +226,8 @@ window.modalTemplate += `
                         </select>
                     </label>
                     <div class="btn-action-row">
-                        <button onclick="syncModularStateNow()" class="btn-backup">Save To Modular Store</button>
-                        <button onclick="pullModularStateNow()" class="btn-restore" style="border:none;">Load Store / Pick Folder</button>
+                        <button onclick="syncModularStateNow()" class="btn-backup">Save To Active Data Pack</button>
+                        <button onclick="pullModularStateNow()" class="btn-restore" style="border:none;">Load Active / Pick Folder</button>
                     </div>
                     <button onclick="normalizeModularBookmarkTitles()" class="btn-backup" style="width:100%; margin-top:10px;">Normalize Bookmark File Titles</button>
                     <button onclick="normalizeBookmarkTitlesBrowserOnly()" class="btn-backup" style="width:100%; margin-top:8px;">Normalize Bookmark File Titles (Browser Only)</button>

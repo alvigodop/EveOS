@@ -306,7 +306,7 @@ function saveSettingsModularSyncEnabled() {
     if (window.EveDataStore?.ModularSync?.setEnabled) {
         const applied = window.EveDataStore.ModularSync.setEnabled(config.modularStateSyncEnabled);
         if (applied === false && config.modularStateSyncEnabled) {
-            showToast('Modular sync requires server mode (http://localhost)', 'info');
+            showToast('Modular sync requires server mode (localhost or LAN URL)', 'info');
         }
     }
 }
@@ -337,6 +337,17 @@ function saveSettingsModularStorePathDraft() {
 function _isHttpSettingsContext() {
     return /^https?:$/i.test(window.location.protocol || '');
 }
+
+async function confirmDataPackOverwrite(actionLabel, detailMessage = '') {
+    const action = String(actionLabel || 'This action').trim() || 'This action';
+    const detail = String(detailMessage || '').trim();
+    const firstMessage = `${action} can overwrite your current bookmarks and library${detail ? ` (${detail})` : ''}. Continue?`;
+    const secondMessage = `Final confirmation: ${action}? This can revert your active data pack to a previous state.`;
+    if (!(await showConfirm(firstMessage))) return false;
+    if (!(await showConfirm(secondMessage))) return false;
+    return true;
+}
+
 async function _activateDataPackFolderViaPicker(options = {}) {
     if (typeof window.activateDataPackFolderFromPicker !== 'function') {
         showToast('Folder picker activation is unavailable', 'error');
@@ -391,8 +402,18 @@ async function applyModularStorePath() {
 
     if (!canSetStorePath || !pathValue) {
         return _activateDataPackFolderViaPicker({
-            confirmMessage: 'Set selected folder as active data pack? (Overwrites current bookmarks & library)'
+            confirmMessage: 'Set selected folder as active data pack? (Overwrites current bookmarks & library)',
+            confirmTwice: true,
+            finalConfirmMessage: 'Final confirmation: set this folder as active data pack now? This may revert loaded state.'
         });
+    }
+
+    const confirmed = await confirmDataPackOverwrite(
+        'Set active data-pack folder',
+        pathValue
+    );
+    if (!confirmed) {
+        return showToast('Set active folder canceled.', 'info');
     }
 
     const result = await window.EveDataStore.ModularSync.setStorePath(pathValue, {
@@ -534,14 +555,22 @@ async function syncModularStateNow() {
     if (!window.EveDataStore?.ModularSync?.syncNow) {
         return showToast('Modular sync module not loaded', 'error');
     }
+    const confirmed = await confirmDataPackOverwrite('Save UI state to active modular store');
+    if (!confirmed) {
+        return showToast('Save to modular store canceled.', 'info');
+    }
     const ok = await window.EveDataStore.ModularSync.syncNow(true);
     showToast(
-        ok ? 'Modular store saved' : 'Could not save modular store (server mode required)',
+        ok ? 'Modular store saved' : 'Could not save modular store (check server mode/path)',
         ok ? 'success' : 'error'
     );
 }
 async function pullModularStateNow() {
     if (_isHttpSettingsContext() && window.EveDataStore?.ModularSync?.pullNow) {
+        const confirmed = await confirmDataPackOverwrite('Load from active modular store');
+        if (!confirmed) {
+            return showToast('Load from modular store canceled.', 'info');
+        }
         const ok = await window.EveDataStore.ModularSync.pullNow(true);
         showToast(
             ok ? 'Loaded modular state' : 'No modular changes to load',
@@ -551,7 +580,9 @@ async function pullModularStateNow() {
     }
 
     await _activateDataPackFolderViaPicker({
-        confirmMessage: 'Load selected data-pack folder as active data? (Overwrites current bookmarks & library)'
+        confirmMessage: 'Load selected data-pack folder as active data? (Overwrites current bookmarks & library)',
+        confirmTwice: true,
+        finalConfirmMessage: 'Final confirmation: load this selected data-pack now? This may revert loaded state.'
     });
 }
 async function normalizeModularBookmarkTitles() {
