@@ -182,8 +182,8 @@ window.EveDataStore = window.EveDataStore || {};
         const incomingHash = hashState(incomingState);
         if (!force && localHash && incomingHash === localHash) {
             remoteSignature = payload?.status?.signature || knownSignature || remoteSignature;
-            lastUploadedHash = incomingHash;
-            lastSyncedLocalHash = incomingHash;
+            lastUploadedHash = localHash;
+            lastSyncedLocalHash = localHash;
             return false;
         }
 
@@ -191,9 +191,12 @@ window.EveDataStore = window.EveDataStore || {};
         try {
             const applied = !!store.applyState(incomingState);
             if (!applied) return false;
+            // applyState can normalize/merge config and mutate fields, so
+            // baseline should use the post-apply hash to avoid immediate re-save.
+            const appliedHash = captureStateHash() || incomingHash;
             remoteSignature = payload?.status?.signature || knownSignature || remoteSignature;
-            lastUploadedHash = incomingHash;
-            lastSyncedLocalHash = incomingHash;
+            lastUploadedHash = appliedHash;
+            lastSyncedLocalHash = appliedHash;
             return true;
         } finally {
             applyingRemoteState = false;
@@ -433,6 +436,8 @@ window.EveDataStore = window.EveDataStore || {};
         return {
             ok: true,
             activePath: String(payload.activePath || ''),
+            rootPath: String(payload.rootPath || payload.activePath || ''),
+            selection: payload.selection || null,
             defaultPath: String(payload.defaultPath || ''),
             settingsFile: String(payload.settingsFile || ''),
             status: payload.status || null
@@ -464,11 +469,18 @@ window.EveDataStore = window.EveDataStore || {};
         if (bootstrap) {
             const fileCount = Number(payload?.status?.fileCount || 0);
             if (fileCount > 0) {
-                await pullRemoteState(true, payload?.status?.signature || '');
+                const pulled = await pullRemoteState(true, payload?.status?.signature || '');
+                if (!pulled) {
+                    // Safety: if the target folder has files but cannot be loaded
+                    // as modular state, do not immediately overwrite it.
+                    remoteSignature = payload?.status?.signature || remoteSignature;
+                    const currentHash = captureStateHash();
+                    lastUploadedHash = currentHash;
+                    lastSyncedLocalHash = currentHash;
+                }
             } else {
                 await pushLocalState(true);
             }
-            await syncCycle();
         }
 
         if (isEnabled()) startPolling();
@@ -476,6 +488,8 @@ window.EveDataStore = window.EveDataStore || {};
         return {
             ok: true,
             activePath: String(payload.activePath || ''),
+            rootPath: String(payload.rootPath || payload.activePath || ''),
+            selection: payload.selection || null,
             defaultPath: String(payload.defaultPath || ''),
             status: payload.status || null
         };

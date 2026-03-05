@@ -23,9 +23,16 @@ TABS_DIR = STORE_ROOT / "tabs"
 FORMAT_VERSION = 1
 STORE_SETTINGS_VERSION = 1
 _STATE_LOCK = threading.RLock()
+ACTIVE_STORE_SELECTION = {
+    "layer": "store",
+    "workspaceId": "",
+    "categoryName": "",
+    "bookmarkId": "",
+    "requestedPath": str(DEFAULT_STORE_ROOT.resolve())
+}
 
 
-def _resolve_store_path(path_value):
+def _resolve_raw_path(path_value):
     raw = str(path_value or "").strip().strip('"')
     if not raw:
         return DEFAULT_STORE_ROOT.resolve()
@@ -33,6 +40,185 @@ def _resolve_store_path(path_value):
     if not path.is_absolute():
         path = (Path(os.getcwd()) / path)
     return path.resolve()
+
+
+def _read_json_dict(path_obj):
+    try:
+        payload = json.loads(Path(path_obj).read_text(encoding="utf-8"))
+    except Exception:
+        payload = {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _guess_workspace_id_from_folder_name(folder_name):
+    raw = str(folder_name or "").strip()
+    if not raw:
+        return "main"
+    pre_hash = raw.split("--", 1)[0]
+    token = pre_hash.split("-", 1)[0].strip()
+    return token or "main"
+
+
+def _infer_workspace_from_tab_folder(tab_folder):
+    tab_data = _read_json_dict(Path(tab_folder) / "tab.json")
+    workspace_id = str(tab_data.get("id") or "").strip()
+    return workspace_id or _guess_workspace_id_from_folder_name(Path(tab_folder).name)
+
+
+def _infer_category_from_card_folder(card_folder):
+    card_data = _read_json_dict(Path(card_folder) / "card.json")
+    for key in ("categoryName", "name", "title"):
+        value = str(card_data.get(key) or "").strip()
+        if value:
+            return value
+    return str(Path(card_folder).name or "Unsorted").strip() or "Unsorted"
+
+
+def _infer_workspace_from_card_folder(card_folder):
+    card_data = _read_json_dict(Path(card_folder) / "card.json")
+    from_card = str(card_data.get("workspaceId") or "").strip()
+    if from_card:
+        return from_card
+
+    card_path = Path(card_folder)
+    if card_path.parent.name.lower() == "cards":
+        tab_folder = card_path.parent.parent
+        if _looks_like_tab_folder(tab_folder):
+            return _infer_workspace_from_tab_folder(tab_folder)
+    return "main"
+
+
+def _looks_like_store_root(path_obj):
+    try:
+        return (path_obj / "tabs").is_dir() or (path_obj / "_meta").is_dir()
+    except Exception:
+        return False
+
+
+def _looks_like_tabs_root(path_obj):
+    try:
+        return path_obj.is_dir() and path_obj.name.lower() == "tabs"
+    except Exception:
+        return False
+
+
+def _looks_like_tab_folder(path_obj):
+    try:
+        return path_obj.is_dir() and (path_obj / "tab.json").is_file() and (path_obj / "cards").is_dir()
+    except Exception:
+        return False
+
+
+def _looks_like_card_folder(path_obj):
+    try:
+        if not path_obj.is_dir():
+            return False
+        return (path_obj / "card.json").is_file() or (path_obj / "entries").is_dir()
+    except Exception:
+        return False
+
+
+def _coerce_store_root(path_obj, depth=0):
+    candidate = Path(path_obj).resolve()
+    if depth > 6:
+        return candidate
+
+    if _looks_like_store_root(candidate):
+        return candidate
+
+    if _looks_like_tabs_root(candidate):
+        return candidate.parent.resolve()
+
+    if candidate.name.lower() == "cards":
+        tab_folder = candidate.parent
+        if _looks_like_tab_folder(tab_folder):
+            if tab_folder.parent.name.lower() == "tabs":
+                return tab_folder.parent.parent.resolve()
+            return tab_folder.parent.resolve()
+
+    if candidate.name.lower() == "entries":
+        return _coerce_store_root(candidate.parent, depth + 1)
+
+    if _looks_like_tab_folder(candidate):
+        if candidate.parent.name.lower() == "tabs":
+            return candidate.parent.parent.resolve()
+        return candidate.parent.resolve()
+
+    if _looks_like_card_folder(candidate):
+        if candidate.parent.name.lower() == "cards":
+            tab_folder = candidate.parent.parent
+            if _looks_like_tab_folder(tab_folder):
+                if tab_folder.parent.name.lower() == "tabs":
+                    return tab_folder.parent.parent.resolve()
+                return tab_folder.parent.resolve()
+            return candidate.parent.parent.resolve()
+
+    try:
+        child_dirs = [child for child in candidate.iterdir() if child.is_dir()]
+    except Exception:
+        child_dirs = []
+
+    if len(child_dirs) == 1:
+        only_child = child_dirs[0]
+        if (
+            _looks_like_store_root(only_child)
+            or _looks_like_tabs_root(only_child)
+            or _looks_like_tab_folder(only_child)
+            or _looks_like_card_folder(only_child)
+            or only_child.name.lower() == "entries"
+        ):
+            return _coerce_store_root(only_child, depth + 1)
+
+    return candidate
+
+
+def _resolve_store_path(path_value):
+    return _coerce_store_root(_resolve_raw_path(path_value))
+
+
+def _resolve_store_target(path_value):
+    requested = _resolve_raw_path(path_value)
+    resolved_root = _coerce_store_root(requested)
+    requested_lower = requested.name.lower()
+
+    selection = {
+        "layer": "store",
+        "workspaceId": "",
+        "categoryName": "",
+        "bookmarkId": "",
+        "requestedPath": str(requested)
+    }
+
+    # Selecting tabs root means loading all tabs from that data pack.
+    if _looks_like_tabs_root(requested):
+        return requested, resolved_root, selection
+
+    # Selecting a single tab folder means scoped tab view.
+    if _looks_like_tab_folder(requested):
+        selection["layer"] = "tab"
+        selection["workspaceId"] = _infer_workspace_from_tab_folder(requested)
+        return requested, resolved_root, selection
+
+    # Selecting cards folder inside a tab should scope to that tab.
+    if requested_lower == "cards" and _looks_like_tab_folder(requested.parent):
+        selection["layer"] = "tab"
+        selection["workspaceId"] = _infer_workspace_from_tab_folder(requested.parent)
+        return requested, resolved_root, selection
+
+    # Selecting entries folder should scope to the parent card.
+    if requested_lower == "entries" and requested.parent.exists():
+        requested = requested.parent
+        requested_lower = requested.name.lower()
+
+    # Selecting a card folder means scoped card view.
+    if _looks_like_card_folder(requested):
+        selection["layer"] = "card"
+        selection["workspaceId"] = _infer_workspace_from_card_folder(requested)
+        selection["categoryName"] = _infer_category_from_card_folder(requested)
+        selection["requestedPath"] = str(requested)
+        return requested, resolved_root, selection
+
+    return requested, resolved_root, selection
 
 
 def _set_store_root_paths(path_value):
@@ -44,12 +230,13 @@ def _set_store_root_paths(path_value):
     return STORE_ROOT
 
 
-def _save_store_settings(active_path):
+def _save_store_settings(active_path, requested_path=None):
     DATA_ROOT.mkdir(parents=True, exist_ok=True)
     payload = {
         "schema": "eveos.modular-store-settings.v1",
         "version": STORE_SETTINGS_VERSION,
         "activePath": str(active_path),
+        "requestedPath": str(requested_path or active_path),
         "updatedAt": datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
     }
     STORE_SETTINGS_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -63,25 +250,43 @@ def _load_store_settings_path():
     except Exception:
         logger.warning("Ignoring invalid modular store settings file: %s", STORE_SETTINGS_FILE)
         return DEFAULT_STORE_ROOT
+    requested = payload.get("requestedPath")
     active = payload.get("activePath")
-    if not active:
+    chosen = requested or active
+    if not chosen:
         return DEFAULT_STORE_ROOT
-    return _resolve_store_path(active)
+    return _resolve_raw_path(chosen)
 
 
 def get_active_store_root():
     return STORE_ROOT
 
 
+def get_active_store_selection():
+    return dict(ACTIVE_STORE_SELECTION)
+
+
 def set_active_store_root(path_value, create_if_missing=False, persist=True):
-    resolved = _resolve_store_path(path_value)
+    global ACTIVE_STORE_SELECTION
+    requested, resolved, selection = _resolve_store_target(path_value)
+    if str(resolved) != str(requested):
+        logger.info("Adjusted modular store root from '%s' to '%s'", requested, resolved)
+    if selection.get("layer") != "store":
+        logger.info(
+            "Activated scoped modular selection: layer=%s workspace=%s category=%s source=%s",
+            selection.get("layer"),
+            selection.get("workspaceId") or "-",
+            selection.get("categoryName") or "-",
+            selection.get("requestedPath") or str(requested)
+        )
     if resolved.exists() and not resolved.is_dir():
         raise ValueError(f"Path is not a directory: {resolved}")
     if not resolved.exists() and create_if_missing:
         resolved.mkdir(parents=True, exist_ok=True)
     _set_store_root_paths(resolved)
+    ACTIVE_STORE_SELECTION = selection
     if persist:
-        _save_store_settings(resolved)
+        _save_store_settings(resolved, requested_path=selection.get("requestedPath") or str(requested))
     return resolved
 
 
@@ -682,7 +887,7 @@ def build_gemini_context(mode="summary", sample_limit=25):
     }
 
 
-def write_modular_state(state):
+def _write_modular_state_full(state):
     if not isinstance(state, dict):
         raise ValueError("State payload must be a JSON object.")
 
@@ -848,7 +1053,32 @@ def write_modular_state(state):
     }
 
 
-def read_modular_state():
+def write_modular_state(state):
+    if not isinstance(state, dict):
+        raise ValueError("State payload must be a JSON object.")
+
+    selection = get_active_store_selection()
+    layer = str(selection.get("layer") or "store").strip().lower()
+    if layer not in {"tab", "card", "bookmark"}:
+        return _write_modular_state_full(state)
+
+    try:
+        base_state = read_modular_state(apply_selection=False)
+    except FileNotFoundError:
+        base_state = _empty_unified_state()
+
+    merged_state = _merge_layer_state(
+        base_state,
+        state,
+        layer=layer,
+        workspace_id=str(selection.get("workspaceId") or "").strip(),
+        category_name=str(selection.get("categoryName") or "").strip(),
+        bookmark_id=str(selection.get("bookmarkId") or "").strip()
+    )
+    return _write_modular_state_full(merged_state)
+
+
+def read_modular_state(apply_selection=True):
     if not STORE_ROOT.exists():
         raise FileNotFoundError(f"Modular state store not found at: {STORE_ROOT}")
 
@@ -1075,14 +1305,33 @@ def read_modular_state():
             "connections": list(connections_by_link.values())
         }
     }
-    return unified
+
+    if not apply_selection:
+        return unified
+
+    selection = get_active_store_selection()
+    layer = str(selection.get("layer") or "store").strip().lower()
+    if layer not in {"tab", "card", "bookmark"}:
+        return unified
+
+    try:
+        return _extract_layer_state(
+            unified,
+            layer=layer,
+            workspace_id=str(selection.get("workspaceId") or "").strip(),
+            category_name=str(selection.get("categoryName") or "").strip(),
+            bookmark_id=str(selection.get("bookmarkId") or "").strip()
+        )
+    except Exception as exc:
+        logger.warning("Failed to apply modular selection filter (layer=%s): %s", layer, exc)
+        return unified
 
 
 def normalize_modular_bookmark_filenames():
     if not STORE_ROOT.exists():
         raise FileNotFoundError(f"Modular state store not found at: {STORE_ROOT}")
     # read_modular_state() performs canonical bookmark filename normalization.
-    read_modular_state()
+    read_modular_state(apply_selection=False)
     return _collect_status()
 
 
@@ -1112,7 +1361,7 @@ def _empty_unified_state():
 
 def _read_state_from_root(root_path):
     with _temporary_store_root(root_path):
-        return read_modular_state()
+        return read_modular_state(apply_selection=False)
 
 
 def _write_state_to_root(state, root_path):
@@ -1578,9 +1827,12 @@ def handle_get_request(handler, path, query):
 
         if path == "/api/eve-state/modular/path":
             active_root = get_active_store_root().resolve()
+            selection = get_active_store_selection()
             _send_json(handler, HTTPStatus.OK, {
                 "ok": True,
-                "activePath": str(active_root),
+                "activePath": str(selection.get("requestedPath") or active_root),
+                "rootPath": str(active_root),
+                "selection": selection,
                 "defaultPath": str(DEFAULT_STORE_ROOT.resolve()),
                 "settingsFile": str(STORE_SETTINGS_FILE.resolve()),
                 "status": _collect_status()
@@ -1652,9 +1904,12 @@ def handle_post_request(handler, path):
                     resolved = set_active_store_root(DEFAULT_STORE_ROOT, create_if_missing=create_if_missing, persist=True)
                 else:
                     resolved = set_active_store_root(requested_path, create_if_missing=create_if_missing, persist=True)
+                selection = get_active_store_selection()
                 _send_json(handler, HTTPStatus.OK, {
                     "ok": True,
-                    "activePath": str(resolved),
+                    "activePath": str(selection.get("requestedPath") or resolved),
+                    "rootPath": str(resolved),
+                    "selection": selection,
                     "defaultPath": str(DEFAULT_STORE_ROOT.resolve()),
                     "status": _collect_status()
                 })
