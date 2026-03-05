@@ -82,15 +82,7 @@ set "INSTANCE_PACK_PATH="
 set /p "INSTANCE_PACK_PATH=Data-pack folder path (default %DEFAULT_PACK_PATH%): "
 if "%INSTANCE_PACK_PATH%"=="" set "INSTANCE_PACK_PATH=%DEFAULT_PACK_PATH%"
 
-if /I "%INSTANCE_PACK_PATH:~0,2%"=="\\" (
-    rem keep UNC absolute path
-) else (
-    if /I not "%INSTANCE_PACK_PATH:~1,1%"==":" (
-        set "INSTANCE_PACK_PATH=%PROJECT_ROOT%\%INSTANCE_PACK_PATH%"
-    )
-)
-
-if not exist "%INSTANCE_PACK_PATH%" mkdir "%INSTANCE_PACK_PATH%" >nul 2>nul
+call :ResolveAbsolutePath "%INSTANCE_PACK_PATH%" INSTANCE_PACK_PATH
 
 call :LaunchEveInstance "%INSTANCE_PORT%" "%INSTANCE_PACK_PATH%" "%INSTANCE_KIND%" "%PORT_MODE%"
 exit /b %ERRORLEVEL%
@@ -103,14 +95,7 @@ if exist "%SETTINGS_FILE%" (
         if not "%%P"=="" set "MAIN_DATA_PACK=%%P"
     )
 )
-
-if /I "%MAIN_DATA_PACK:~0,2%"=="\\" (
-    rem keep UNC absolute path
-) else (
-    if /I not "%MAIN_DATA_PACK:~1,1%"==":" (
-        set "MAIN_DATA_PACK=%PROJECT_ROOT%\%MAIN_DATA_PACK%"
-    )
-)
+call :ResolveAbsolutePath "%MAIN_DATA_PACK%" MAIN_DATA_PACK
 exit /b 0
 
 :LaunchEveInstance
@@ -286,6 +271,27 @@ if !portValue! GTR 65535 (
 )
 
 endlocal & set "%~3=%raw%" & exit /b 0
+
+:ResolveAbsolutePath
+setlocal EnableDelayedExpansion
+set "raw=%~1"
+set "resolved="
+
+if not defined raw (
+    set "resolved=%PROJECT_ROOT%"
+) else (
+    if /I "!raw:~0,2!"=="\\" (
+        set "resolved=!raw!"
+    ) else (
+        if /I "!raw:~1,1!"==":" (
+            set "resolved=!raw!"
+        ) else (
+            set "resolved=%PROJECT_ROOT%\!raw!"
+        )
+    )
+)
+
+endlocal & set "%~2=%resolved%" & exit /b 0
 
 :TrackInstance
 set "trackPort=%~1"
