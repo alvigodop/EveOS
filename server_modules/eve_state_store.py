@@ -46,6 +46,10 @@ from server_modules.eve_state_store_files import (
     slugify as _slugify,
     upsert_card_metadata as _upsert_card_metadata,
 )
+from server_modules.eve_state_store_io import (
+    read_modular_state_raw as _read_modular_state_raw,
+    write_modular_state_full as _write_modular_state_full_io,
+)
 from server_modules.eve_state_store_paths import (
     coerce_store_root as _coerce_store_root,
     infer_category_from_card_folder as _infer_category_from_card_folder,
@@ -278,169 +282,15 @@ def build_gemini_context(mode="summary", sample_limit=25):
 
 
 def _write_modular_state_full(state):
-    if not isinstance(state, dict):
-        raise ValueError("State payload must be a JSON object.")
-
-    bookmarks = state.get("bookmarks") or {}
-    library = state.get("library") or {}
-    config = bookmarks.get("config") or {}
-    links = list(bookmarks.get("links") or [])
-    connections = list(library.get("connections") or [])
-    categories = library.get("categories") or {}
-
-    _ensure_clean_store()
-
-    workspaces = _build_workspaces(config)
-    workspace_map = _prepare_workspace_map(links, workspaces)
-    library_index = _build_library_index(categories)
-
-    # Connection index by link id.
-    connections_by_link = {}
-    connected_entry_ids = set()
-    for conn in connections:
-        link_id = str((conn or {}).get("linkId") or "").strip()
-        if not link_id:
-            continue
-        connections_by_link[link_id] = dict(conn)
-        entry_id = _connection_entry_id(conn or {})
-        if entry_id:
-            connected_entry_ids.add(str(entry_id))
-
-    store_meta = {
-        "format": "eveos.modular-state.v1",
-        "version": FORMAT_VERSION,
-        "updatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "activeWorkspace": config.get("activeWorkspace") or "main",
-        "workspaces": workspaces
-    }
-
-    (META_DIR / "store.json").write_text(
-        json.dumps(store_meta, ensure_ascii=False, indent=2), encoding="utf-8"
+    return _write_modular_state_full_io(
+        state,
+        store_root=STORE_ROOT,
+        meta_dir=META_DIR,
+        tabs_dir=TABS_DIR,
+        format_version=FORMAT_VERSION,
+        ensure_clean_store=_ensure_clean_store,
+        collect_status=_collect_status,
     )
-    (META_DIR / "config.json").write_text(
-        json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
-
-    bookmark_count = 0
-    tab_count = 0
-    card_count = 0
-
-    for workspace_id, ws_data in workspace_map.items():
-        ws_meta = ws_data["meta"]
-        workspace_folder = TABS_DIR / _folder_name(
-            f"{workspace_id}-{ws_meta.get('name', workspace_id)}", workspace_id
-        )
-        cards_root = workspace_folder / "cards"
-        cards_root.mkdir(parents=True, exist_ok=True)
-
-        tab_payload = {
-            "schema": "eveos.tab.v1",
-            "id": workspace_id,
-            "name": ws_meta.get("name") or workspace_id,
-            "icon": ws_meta.get("icon") or "📁",
-            "bookmarkCount": len(ws_data["links"]),
-            "cardCount": len(ws_data["categories"])
-        }
-        (workspace_folder / "tab.json").write_text(
-            json.dumps(tab_payload, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
-        tab_count += 1
-
-        for category_name, category_links in ws_data["categories"].items():
-            card_folder_name = _folder_name(category_name, "card")
-            card_folder = cards_root / card_folder_name
-            card_folder.mkdir(parents=True, exist_ok=True)
-
-            # Keep bookmark records in a stable inner folder to avoid repeated
-            # path segments like cards/start--xxxx/start--xxxx.
-            bookmark_folder_name = "entries"
-            bookmark_folder = card_folder / bookmark_folder_name
-            bookmark_folder.mkdir(parents=True, exist_ok=True)
-
-            scoped = _scoped_key(workspace_id, category_name)
-            scoped_library = library_index.get(scoped, {})
-            data_type = scoped_library.get("data_type") or "graphicNovels"
-
-            card_payload = {
-                "schema": "eveos.card.v1",
-                "workspaceId": workspace_id,
-                "categoryName": category_name,
-                "title": category_name,
-                "dataType": data_type,
-                "bookmarkFolder": bookmark_folder_name,
-                "bookmarkCount": len(category_links)
-            }
-            (card_folder / "card.json").write_text(
-                json.dumps(card_payload, ensure_ascii=False, indent=2), encoding="utf-8"
-            )
-            card_count += 1
-
-            # Track linked entries for this card.
-            used_entry_ids = set()
-
-            for link in category_links:
-                link_id = str(link.get("id") or "").strip()
-                conn = connections_by_link.get(link_id)
-                linked_entry = None
-                linked = False
-
-                if conn:
-                    entry_id = str(_connection_entry_id(conn) or "").strip()
-                    if entry_id:
-                        used_entry_ids.add(entry_id)
-                        linked_entry = (scoped_library.get("entries") or {}).get(entry_id)
-                        if not linked_entry:
-                            # Fallback search across all scoped categories.
-                            for candidate in library_index.values():
-                                entry_map = candidate.get("entries") or {}
-                                if entry_id in entry_map:
-                                    linked_entry = entry_map[entry_id]
-                                    break
-                        linked = linked_entry is not None
-
-                bookmark_payload = {
-                    "schema": "eveos.bookmark.v1",
-                    "bookmark": link,
-                    "library": {
-                        "linked": linked,
-                        "connection": conn or None,
-                        "entry": linked_entry or None
-                    }
-                }
-                bookmark_file = _build_bookmark_filename(link, category_name=category_name)
-                (bookmark_folder / bookmark_file).write_text(
-                    json.dumps(bookmark_payload, ensure_ascii=False, indent=2), encoding="utf-8"
-                )
-                bookmark_count += 1
-
-            # Keep category library entries that are not tied to bookmark connections.
-            unlinked_entries = []
-            for entry_id, entry in (scoped_library.get("entries") or {}).items():
-                if entry_id in used_entry_ids or entry_id in connected_entry_ids:
-                    continue
-                unlinked_entries.append(entry)
-
-            if unlinked_entries:
-                unlinked_payload = {
-                    "schema": "eveos.card-library-unlinked.v1",
-                    "workspaceId": workspace_id,
-                    "categoryName": category_name,
-                    "entries": unlinked_entries
-                }
-                (card_folder / "_library-unlinked.json").write_text(
-                    json.dumps(unlinked_payload, ensure_ascii=False, indent=2), encoding="utf-8"
-                )
-
-    status = _collect_status()
-    return {
-        "ok": True,
-        "summary": {
-            "tabs": tab_count,
-            "cards": card_count,
-            "bookmarks": bookmark_count
-        },
-        "status": status
-    }
 
 
 def write_modular_state(state):
@@ -468,257 +318,13 @@ def write_modular_state(state):
     return _write_modular_state_full(merged_state)
 
 
-def _ingest_cards_root(cards_root, workspace_id, categories, entry_ids_by_scope, bookmark_records):
-    if not cards_root.exists() or not cards_root.is_dir():
-        return
-
-    _normalize_workspace_card_layout(cards_root, workspace_id)
-
-    for card_folder in sorted(cards_root.iterdir()):
-        if not card_folder.is_dir():
-            continue
-
-        card_file = card_folder / "card.json"
-        card_data = _load_json_file(card_file, fallback={})
-        category_name = _resolve_card_category_name(card_data, card_folder.name)
-        data_type = card_data.get("dataType") or "graphicNovels"
-        bookmark_folder = _resolve_bookmark_folder(card_folder, card_data)
-
-        scoped = _scoped_key(workspace_id, category_name)
-        if scoped not in categories:
-            categories[scoped] = {"entries": [], "dataType": data_type}
-        else:
-            categories[scoped]["dataType"] = categories[scoped].get("dataType") or data_type
-
-        if scoped not in entry_ids_by_scope:
-            entry_ids_by_scope[scoped] = {
-                str((e or {}).get("id") or "").strip()
-                for e in categories[scoped]["entries"]
-                if str((e or {}).get("id") or "").strip()
-            }
-        entry_ids_for_scope = entry_ids_by_scope[scoped]
-
-        for bookmark_file in sorted(bookmark_folder.glob("*.json")):
-            if bookmark_file.name.startswith("_"):
-                continue
-            try:
-                payload = json.loads(bookmark_file.read_text(encoding="utf-8"))
-            except Exception:
-                logger.warning("Skipping invalid bookmark file: %s", bookmark_file)
-                continue
-
-            bookmark = payload.get("bookmark") if isinstance(payload, dict) else None
-            if not isinstance(bookmark, dict):
-                # Backward compatibility: allow bookmark JSON directly.
-                bookmark = payload if isinstance(payload, dict) else {}
-
-            link_id = str(bookmark.get("id") or "").strip()
-            if not link_id:
-                continue
-
-            bookmark_file = _normalize_bookmark_filename(bookmark_file, bookmark, category_name=category_name)
-
-            try:
-                mtime_ns = int(bookmark_file.stat().st_mtime_ns)
-            except Exception:
-                mtime_ns = 0
-
-            bookmark_records.append({
-                "link_id": link_id,
-                "bookmark": bookmark,
-                "library_payload": payload.get("library") if isinstance(payload, dict) else None,
-                "workspace_id": workspace_id,
-                "category_name": category_name,
-                "scoped_key": scoped,
-                "source_path": str(bookmark_file),
-                "mtime_ns": mtime_ns
-            })
-
-        unlinked_file = card_folder / "_library-unlinked.json"
-        if unlinked_file.exists():
-            try:
-                unlinked_payload = json.loads(unlinked_file.read_text(encoding="utf-8"))
-                unlinked_entries = unlinked_payload.get("entries") or []
-                for entry in unlinked_entries:
-                    entry_id = str((entry or {}).get("id") or "").strip()
-                    if not entry_id or entry_id in entry_ids_for_scope:
-                        continue
-                    categories[scoped]["entries"].append(entry)
-                    entry_ids_for_scope.add(entry_id)
-            except Exception:
-                logger.warning("Skipping invalid unlinked library file: %s", unlinked_file)
-
-
 def read_modular_state(apply_selection=True):
-    if not STORE_ROOT.exists():
-        raise FileNotFoundError(f"Modular state store not found at: {STORE_ROOT}")
-
-    store_meta = {}
-    config = {}
-    store_file = META_DIR / "store.json"
-    config_file = META_DIR / "config.json"
-
-    if store_file.exists():
-        store_meta = json.loads(store_file.read_text(encoding="utf-8"))
-    if config_file.exists():
-        config = json.loads(config_file.read_text(encoding="utf-8"))
-
-    links = []
-    connections_by_link = {}
-    categories = {}
-    workspaces = []
-    seen_workspace_ids = set()
-    bookmark_records = []
-    entry_ids_by_scope = {}
-
-    if TABS_DIR.exists():
-        for ws_folder in sorted(TABS_DIR.iterdir()):
-            if not ws_folder.is_dir():
-                continue
-
-            tab_file = ws_folder / "tab.json"
-            tab_data = {}
-            if tab_file.exists():
-                try:
-                    tab_data = json.loads(tab_file.read_text(encoding="utf-8"))
-                except Exception:
-                    tab_data = {}
-
-            workspace_id = str(tab_data.get("id") or "").strip() or ws_folder.name
-            workspace_name = tab_data.get("name") or workspace_id
-            workspace_icon = tab_data.get("icon") or "📁"
-
-            if workspace_id not in seen_workspace_ids:
-                seen_workspace_ids.add(workspace_id)
-                workspaces.append({
-                    "id": workspace_id,
-                    "name": workspace_name,
-                    "icon": workspace_icon
-                })
-
-            cards_root = ws_folder / "cards"
-            _ingest_cards_root(cards_root, workspace_id, categories, entry_ids_by_scope, bookmark_records)
-    else:
-        direct_cards_root = STORE_ROOT / "cards"
-        if direct_cards_root.exists() and direct_cards_root.is_dir():
-            workspace_id = _infer_workspace_from_cards_root(direct_cards_root, config=config, store_meta=store_meta)
-            workspace_meta = next(
-                (ws for ws in _build_workspaces(config) if str((ws or {}).get("id") or "").strip() == workspace_id),
-                None
-            )
-            workspace_name = (workspace_meta or {}).get("name") or workspace_id
-            workspace_icon = (workspace_meta or {}).get("icon") or "📁"
-
-            if workspace_id not in seen_workspace_ids:
-                seen_workspace_ids.add(workspace_id)
-                workspaces.append({
-                    "id": workspace_id,
-                    "name": workspace_name,
-                    "icon": workspace_icon
-                })
-
-            _ingest_cards_root(direct_cards_root, workspace_id, categories, entry_ids_by_scope, bookmark_records)
-
-    # Resolve duplicate bookmark IDs by taking the most recently modified file.
-    resolved_by_link = {}
-    for record in bookmark_records:
-        link_id = record["link_id"]
-        existing = resolved_by_link.get(link_id)
-        if existing is None:
-            resolved_by_link[link_id] = record
-            continue
-        existing_mtime = int(existing.get("mtime_ns") or 0)
-        next_mtime = int(record.get("mtime_ns") or 0)
-        if (next_mtime, record.get("source_path", "")) >= (existing_mtime, existing.get("source_path", "")):
-            logger.warning(
-                "Duplicate bookmark id '%s' detected. Keeping newer file '%s' (replacing '%s').",
-                link_id,
-                record.get("source_path"),
-                existing.get("source_path")
-            )
-            resolved_by_link[link_id] = record
-        else:
-            logger.warning(
-                "Duplicate bookmark id '%s' detected. Keeping newer file '%s' and skipping '%s'.",
-                link_id,
-                existing.get("source_path"),
-                record.get("source_path")
-            )
-
-    for record in sorted(
-        resolved_by_link.values(),
-        key=lambda item: (item.get("workspace_id", ""), item.get("category_name", ""), item.get("source_path", ""))
-    ):
-        workspace_id = record["workspace_id"]
-        category_name = record["category_name"]
-        scoped = record["scoped_key"]
-        link_id = record["link_id"]
-
-        bookmark = dict(record.get("bookmark") or {})
-        bookmark["workspace"] = workspace_id
-        bookmark["category"] = category_name
-        links.append(bookmark)
-
-        library_payload = record.get("library_payload")
-        if not isinstance(library_payload, dict):
-            continue
-
-        connection = library_payload.get("connection")
-        entry = library_payload.get("entry")
-        linked = bool(library_payload.get("linked"))
-        if not linked or not isinstance(entry, dict):
-            continue
-
-        normalized_connection = dict(connection) if isinstance(connection, dict) else {}
-        normalized_connection["linkId"] = link_id
-        normalized_connection["workspace"] = workspace_id
-        normalized_connection["categoryName"] = category_name
-        if not normalized_connection.get("id"):
-            normalized_connection["id"] = f"conn-{link_id}"
-        if not normalized_connection.get("libraryEntryId") and entry.get("id"):
-            normalized_connection["libraryEntryId"] = entry.get("id")
-
-        if normalized_connection.get("libraryEntryId"):
-            connections_by_link[link_id] = normalized_connection
-
-        entry_id = str(entry.get("id") or "").strip()
-        if not entry_id:
-            continue
-        if scoped not in categories:
-            categories[scoped] = {"entries": [], "dataType": "graphicNovels"}
-        if scoped not in entry_ids_by_scope:
-            entry_ids_by_scope[scoped] = set()
-        if entry_id not in entry_ids_by_scope[scoped]:
-            categories[scoped]["entries"].append(entry)
-            entry_ids_by_scope[scoped].add(entry_id)
-
-    if not workspaces:
-        workspaces = [{"id": "main", "name": "Main", "icon": "🏠"}]
-
-    merged_config = dict(config or {})
-    merged_config["workspaces"] = workspaces
-    merged_config["activeWorkspace"] = (
-        merged_config.get("activeWorkspace")
-        or store_meta.get("activeWorkspace")
-        or workspaces[0]["id"]
+    unified = _read_modular_state_raw(
+        store_root=STORE_ROOT,
+        meta_dir=META_DIR,
+        tabs_dir=TABS_DIR,
+        format_version=FORMAT_VERSION,
     )
-
-    unified = {
-        "metadata": {
-            "version": FORMAT_VERSION,
-            "date": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            "generator": "EveOS Modular State Loader",
-            "source": "modular-state"
-        },
-        "bookmarks": {
-            "links": links,
-            "config": merged_config
-        },
-        "library": {
-            "categories": categories,
-            "connections": list(connections_by_link.values())
-        }
-    }
 
     if not apply_selection:
         return unified
@@ -734,7 +340,7 @@ def read_modular_state(apply_selection=True):
             layer=layer,
             workspace_id=str(selection.get("workspaceId") or "").strip(),
             category_name=str(selection.get("categoryName") or "").strip(),
-            bookmark_id=str(selection.get("bookmarkId") or "").strip()
+            bookmark_id=str(selection.get("bookmarkId") or "").strip(),
         )
     except Exception as exc:
         logger.warning("Failed to apply modular selection filter (layer=%s): %s", layer, exc)
