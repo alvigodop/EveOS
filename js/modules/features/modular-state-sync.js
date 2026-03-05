@@ -7,7 +7,7 @@ window.EveDataStore = window.EveDataStore || {};
     const MIN_INTERVAL_MS = 2000;
     const MAX_INTERVAL_MS = 60000;
     const MUTATION_DEBOUNCE_MS = 650;
-    const IDLE_REMOTE_CHECK_INTERVAL_MS = 30000;
+    const IDLE_REMOTE_CHECK_INTERVAL_MS = 120000;
     const CONFLICT_REMOTE_WINS = 'remote_wins';
     const CONFLICT_LOCAL_WINS = 'local_wins';
 

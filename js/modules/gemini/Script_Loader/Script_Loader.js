@@ -1,10 +1,9 @@
 // js/modules/gemini/Script_Loader/Script_Loader.js
-// Centralized Script Loader for Gemini Chat Interface
-// Consolidates all script loading logic from scattered aggregator files.
+// Centralized Script Loader for Gemini Chat Interface.
+// Loads Gemini child modules lazily to avoid blocking initial app startup.
 
-console.log("js/modules/gemini/Script_Loader/Script_Loader.js started loading");
+console.log('js/modules/gemini/Script_Loader/Script_Loader.js started loading');
 
-// Define Base Paths
 const APP_ROOT = window.GEMINI_APP_ROOT || '';
 const BASE_PATHS = {
     AGENTIC: APP_ROOT + 'js/modules/gemini/agentic',
@@ -13,9 +12,10 @@ const BASE_PATHS = {
     COMM_PANEL: APP_ROOT + 'js/modules/gemini/comm'
 };
 
-// --- Master Script List ---
-// Order matters: Core -> Components -> Features -> UI
+const AUTO_BOOT_IDLE_TIMEOUT_MS = 4000;
+const AUTO_BOOT_FALLBACK_DELAY_MS = 1500;
 
+// Order matters: Core -> Components -> Features -> UI
 const masterScriptList = [
     // Debugging
     APP_ROOT + 'js/modules/gemini/debugTranscription.js',
@@ -35,7 +35,7 @@ const masterScriptList = [
     `${BASE_PATHS.CLIENT_CORE}/connection_management/socket_core/socketCoreLoader.js`,
     `${BASE_PATHS.CLIENT_CORE}/connection_management/waitForConnection.js`,
 
-    // 4. Agentic Functions (Independent Modules)
+    // 2. Agentic Functions
     `${BASE_PATHS.AGENTIC}/audio_proc/audio_proc.js`,
     `${BASE_PATHS.AGENTIC}/self_talk/self_talk.js`,
     `${BASE_PATHS.AGENTIC}/scr_cap/scr_cap.js`,
@@ -51,33 +51,70 @@ const masterScriptList = [
     `${BASE_PATHS.LOG_INTERFACE}/msg_int/text_message_operations/textMessageSender.js`,
     `${BASE_PATHS.LOG_INTERFACE}/msg_int/text_input_handling/textInputHandler.js`,
 
-    // 5. Communication Panel
+    // 4. Communication Panel
     `${BASE_PATHS.COMM_PANEL}/mm_panel/Multimodal_Commuication_Panel.js`,
     `${BASE_PATHS.COMM_PANEL}/new_chat/Start_New_Chat_Commuication_Panel.js`,
-    // `${BASE_PATHS.COMM_PANEL}/send_hist/Send_Chat_History_Communication_Panel.js`, // REMOVED in original
     `${BASE_PATHS.COMM_PANEL}/clear_chat/Clear_Chat_Communication_Panel.js`,
     `${BASE_PATHS.COMM_PANEL}/clear_sys_log/Clear_System_Log_Commuication_Panel.js`,
     `${BASE_PATHS.COMM_PANEL}/past_chats/Toggle_Past_Chats_Commuication_Panel.js`,
     `${BASE_PATHS.COMM_PANEL}/sys_msg_toggle/System_Message_Toggle_Commuication_Panel.js`,
-    // `${BASE_PATHS.COMM_PANEL}/hist_toggle/Toggle_Conversation_History_Commuication_Panel.js`, // REMOVED in original
     `${BASE_PATHS.COMM_PANEL}/reinit_model/Reinitiate_Model_Commuication_Panel.js`,
 
-    // 6. Aggregator Modules (for initialization logic only)
-    // These files now only contain initialization code, but we still load them to ensure that logic runs.
+    // 5. Aggregator Modules
     APP_ROOT + 'js/modules/gemini/client/Client_Core_Control.js',
     APP_ROOT + 'js/modules/gemini/agentic/Agentic_js_Functions.js',
     APP_ROOT + 'js/modules/gemini/logs/Log_Interface_Display.js',
-    APP_ROOT + 'js/modules/gemini/comm/Communication_Panel.js',
+    APP_ROOT + 'js/modules/gemini/comm/Communication_Panel.js'
 ];
 
+let bootStarted = false;
+
+function normalizeScriptPath(path) {
+    return String(path || '').replace(/^https?:\/\/[^/]+\//i, '/');
+}
+
+function hasScriptTag(path) {
+    const target = normalizeScriptPath(path);
+    const scripts = document.querySelectorAll('script[src]');
+    for (const script of scripts) {
+        if (normalizeScriptPath(script.getAttribute('src')) === target) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function shouldEagerBoot() {
+    try {
+        const qs = new URLSearchParams(window.location.search || '');
+        if (qs.get('geminiBoot') === 'eager') return true;
+        return window.localStorage && window.localStorage.getItem('eve.geminiBoot') === 'eager';
+    } catch (e) {
+        return false;
+    }
+}
+
 function loadAllScripts() {
-    console.log("Script_Loader: Starting to load all application scripts...");
+    console.log('Script_Loader: Starting to load all application scripts...');
 
-    // Using a counter to track progress
+    const deduped = [];
+    const seen = new Set();
+    for (const path of masterScriptList) {
+        const key = normalizeScriptPath(path);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        deduped.push(path);
+    }
+
     let loadedCount = 0;
-    const totalScripts = masterScriptList.length;
+    const totalScripts = deduped.length;
 
-    masterScriptList.forEach(scriptPath => {
+    deduped.forEach(scriptPath => {
+        if (hasScriptTag(scriptPath)) {
+            loadedCount++;
+            return;
+        }
+
         const script = document.createElement('script');
         script.src = scriptPath;
         script.defer = true;
@@ -93,12 +130,50 @@ function loadAllScripts() {
             console.error(`ERROR: Failed to load script: ${scriptPath}`, e);
         };
 
-        // Append directly to head instead of using fragment for maximum compatibility
         document.head.appendChild(script);
     });
 
     console.log(`Script_Loader: All ${totalScripts} script tags appended to head.`);
 }
 
-// Execute the loader
-loadAllScripts();
+function startGeminiBoot(reason) {
+    if (bootStarted) return;
+    bootStarted = true;
+    window.__GEMINI_BOOT_STARTED = true;
+    console.log(`Script_Loader: Starting Gemini module load (${reason || 'auto'})`);
+    loadAllScripts();
+}
+
+function scheduleDeferredBoot() {
+    const run = () => {
+        if (window.__GEMINI_BOOT_REQUESTED) {
+            startGeminiBoot('requested');
+            return;
+        }
+
+        if (typeof window.requestIdleCallback === 'function') {
+            window.requestIdleCallback(() => startGeminiBoot('idle'), { timeout: AUTO_BOOT_IDLE_TIMEOUT_MS });
+            return;
+        }
+
+        window.setTimeout(() => startGeminiBoot('timeout-fallback'), AUTO_BOOT_FALLBACK_DELAY_MS);
+    };
+
+    if (document.readyState === 'complete') {
+        run();
+    } else {
+        window.addEventListener('load', run, { once: true });
+    }
+}
+
+// Expose manual trigger for on-demand startup from gemini-init.js.
+window.__loadGeminiScriptsNow = function () {
+    window.__GEMINI_BOOT_REQUESTED = true;
+    startGeminiBoot('manual');
+};
+
+if (window.__GEMINI_BOOT_REQUESTED || shouldEagerBoot()) {
+    startGeminiBoot(window.__GEMINI_BOOT_REQUESTED ? 'pre-requested' : 'eager');
+} else {
+    scheduleDeferredBoot();
+}

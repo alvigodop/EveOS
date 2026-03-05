@@ -42,11 +42,11 @@ async function loadSessionControlsSettingsDialog() {
             <textarea id="systemInstructionInputSess" rows="3" style="width: 100%; font-size: 12px; font-family: monospace; border: 1px solid #ddd; resize: vertical;" placeholder="Enter system instructions (persona, behavior)..."></textarea>
         </div>
 
-        <div style="margin-top: 12px;">
+        <form autocomplete="off" onsubmit="return false;" style="margin-top: 12px;">
             <label for="apiKeyInputSess" style="font-size:12px; color:#333; display:block;">Gemini API Key:</label>
-            <input type="password" id="apiKeyInputSess" style="width: 100%; margin-top: 4px; border: 1px solid #ddd; padding: 4px;" placeholder="Optional: Enter your API key">
+            <input type="password" id="apiKeyInputSess" name="gemini-api-key" autocomplete="new-password" data-lpignore="true" data-1p-ignore="true" style="width: 100%; margin-top: 4px; border: 1px solid #ddd; padding: 4px;" placeholder="Optional: Enter your API key">
             <p style="font-size: 10px; color: #666; margin: 4px 0 0;">If provided, this key will be used instead of the server's default. It is stored safely in your browser.</p>
-        </div>
+        </form>
 
         <div style="margin-top: 12px;">
             <label for="modelSelectSess" style="font-size:12px; color:#333; display:block;">Gemini Model:</label>

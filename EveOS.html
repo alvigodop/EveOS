@@ -53,7 +53,9 @@
 
             <div class="search-container">
                 <div class="search-wrapper">
-                    <input type="text" id="search" placeholder="Search or Type URL..." autofocus
+                    <input type="text" id="search" name="eve-main-search" placeholder="Search or Type URL..."
+                        autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
+                        data-lpignore="true" data-1p-ignore="true" autofocus
                         onkeypress="handleOmniboxKey(event)">
                     <button class="search-icon-btn" onclick="performWebSearch()">🔍</button>
                     <button class="search-advanced-btn" onclick="openExpandedSearchFromMain(false)" title="Expanded Search">⚙</button>

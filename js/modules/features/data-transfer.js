@@ -1,7 +1,9 @@
 // --- Data Transfer Module ---
 // Handles import/export of backup data
 (function () {
-    const dataStore = window.EveDataStore?.Store;
+    function getDataStore() {
+        return window.EveDataStore?.Store || null;
+    }
 
     function getAppConfig() {
         if (window.eveState?.config) return window.eveState.config;
@@ -195,6 +197,7 @@
     }
 
     window.exportWorkspaceBackup = function () {
+        const dataStore = getDataStore();
         const select = getWorkspaceSelect();
         const appConfig = getAppConfig();
         const workspaceId = (select?.value || appConfig.activeWorkspace || '').trim();
@@ -212,6 +215,7 @@
     };
 
     window.exportCardBackup = function () {
+        const dataStore = getDataStore();
         const appConfig = getAppConfig();
         const wsSelect = getCardWorkspaceSelect();
         const categorySelect = getCardCategorySelect();
@@ -233,6 +237,7 @@
     };
 
     window.exportBookmarkBackup = function () {
+        const dataStore = getDataStore();
         const appConfig = getAppConfig();
         const wsSelect = getBookmarkWorkspaceSelect();
         const categorySelect = getBookmarkCategorySelect();
@@ -283,68 +288,101 @@
         }
     }
 
-    window.importData = function (inputElement) {
-        const input = inputElement || document.createElement('input');
-        if (!inputElement) {
-            input.type = 'file';
-            input.accept = '.json';
-        }
-        input.onchange = (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
+    async function processImportFile(file, input) {
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            try {
+                const json = JSON.parse(e.target.result);
+                const dataStore = getDataStore();
 
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                try {
-                    const json = JSON.parse(e.target.result);
-
-                    if (json.metadata && json.bookmarks && json.library && dataStore) {
-                        if (await showConfirm("Restore Unified Backup? (Overwrites bookmarks & library)")) {
-                            dataStore.applyState(json);
-                            location.reload();
-                            showToast("Unified Backup Restored!", "success");
+                if (json.metadata && json.bookmarks && json.library) {
+                    if (!dataStore?.applyState) {
+                        showToast("Unified backup support is unavailable right now.", "error");
+                        return;
+                    }
+                    if (await showConfirm("Restore Unified Backup? (Overwrites bookmarks & library)")) {
+                        const applied = dataStore.applyState(json);
+                        if (!applied) {
+                            showToast("Unified backup could not be applied.", "error");
+                            return;
                         }
-                    } else if (json.links && !json.config) {
-                        // Organized Backup (Links only)
-                        if (await showConfirm("Restore Organized Backup? (Overwrites Everything)")) {
-                            setLegacyLinks(json.links);
-                            if (json.date) console.log("Backup Date:", json.date);
-                            saveData();
-                            location.reload();
-                            showToast("Organized Backup Restored!", "success");
-                        }
-                    } else if (json.links && json.config) {
-                        // Full Backup
-                        if (await showConfirm("Restore Full Backup? (Overwrites Settings & Workspaces)")) {
-                            setLegacyLinks(json.links);
-                            setLegacyConfig(json.config);
-                            saveData();
-                            saveConfig();
-                            location.reload();
-                            showToast("Full Backup Restored!", "success");
-                        }
-                    } else if (Array.isArray(json)) {
-                        // Legacy: Raw Array
-                        setLegacyLinks(json);
+                        location.reload();
+                        showToast("Unified Backup Restored!", "success");
+                    }
+                } else if (json.links && !json.config) {
+                    // Organized Backup (Links only)
+                    if (await showConfirm("Restore Organized Backup? (Overwrites Everything)")) {
+                        setLegacyLinks(json.links);
+                        if (json.date) console.log("Backup Date:", json.date);
                         saveData();
                         location.reload();
-                    } else if (json.children || json.title) {
-                        showToast("Importing bookmarks structure...", "info");
-                    } else {
-                        showToast("Invalid Backup File", "error");
+                        showToast("Organized Backup Restored!", "success");
                     }
-                } catch (err) {
-                    showToast("Error importing: " + err.message, "error");
+                } else if (json.links && json.config) {
+                    // Full Backup
+                    if (await showConfirm("Restore Full Backup? (Overwrites Settings & Workspaces)")) {
+                        setLegacyLinks(json.links);
+                        setLegacyConfig(json.config);
+                        saveData();
+                        saveConfig();
+                        location.reload();
+                        showToast("Full Backup Restored!", "success");
+                    }
+                } else if (Array.isArray(json)) {
+                    // Legacy: Raw Array
+                    setLegacyLinks(json);
+                    saveData();
+                    location.reload();
+                } else if (json.children || json.title) {
+                    showToast("Importing bookmarks structure...", "info");
+                } else {
+                    showToast("Invalid Backup File", "error");
                 }
-            };
-            reader.readAsText(file);
+            } catch (err) {
+                showToast("Error importing: " + err.message, "error");
+            } finally {
+                resetFileInput(input);
+            }
         };
-        if (!inputElement) {
-            input.click();
+        reader.readAsText(file);
+    }
+
+    function bindImportInput(input) {
+        if (!input || input.dataset.eveImportBound === '1') return;
+        input.dataset.eveImportBound = '1';
+        input.addEventListener('change', () => {
+            const file = input.files && input.files[0];
+            processImportFile(file, input);
+        });
+    }
+
+    window.importData = function (inputOrEvent) {
+        const fromEvent = inputOrEvent?.target instanceof HTMLInputElement ? inputOrEvent.target : null;
+        const input = inputOrEvent instanceof HTMLInputElement
+            ? inputOrEvent
+            : fromEvent;
+
+        // Inline onchange="importData(this)" fires after selection; process immediately.
+        if (input?.files?.length) {
+            processImportFile(input.files[0], input);
+            return;
         }
+
+        if (input) {
+            bindImportInput(input);
+            return;
+        }
+
+        const picker = document.createElement('input');
+        picker.type = 'file';
+        picker.accept = '.json';
+        bindImportInput(picker);
+        picker.click();
     };
 
     window.exportData = function () {
+        const dataStore = getDataStore();
         const exportState = dataStore ? dataStore.captureState() : {
             date: new Date().toISOString(),
             config: getAppConfig(),
@@ -359,6 +397,7 @@
     };
 
     window.importWorkspaceBackup = function (inputElement) {
+        const dataStore = getDataStore();
         if (!inputElement?.files?.length) return;
         const file = inputElement.files[0];
         const reader = new FileReader();
@@ -381,6 +420,7 @@
     };
 
     window.importCardBackup = function (inputElement) {
+        const dataStore = getDataStore();
         if (!inputElement?.files?.length) return;
         const file = inputElement.files[0];
         const reader = new FileReader();
@@ -403,6 +443,7 @@
     };
 
     window.importBookmarkBackup = function (inputElement) {
+        const dataStore = getDataStore();
         if (!inputElement?.files?.length) return;
         const file = inputElement.files[0];
         const reader = new FileReader();

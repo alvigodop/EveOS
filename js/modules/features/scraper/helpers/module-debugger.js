@@ -1,22 +1,20 @@
 /**
  * Module Debugger
- * 
+ *
  * Provides tools for debugging module loading and initialization issues
- * 
- * @version 1.0.0
+ *
+ * @version 1.0.1
  */
 
 // Create namespace
 const ModuleDebugger = {
-    version: '1.0.0',
+    version: '1.0.1',
     _initialized: true,
 
     /**
      * Initialize the debugger
      */
     init: function () {
-        // ModuleDebugger init
-
         // Add debugging utilities to console
         this.exposeConsoleCommands();
 
@@ -37,8 +35,6 @@ const ModuleDebugger = {
         window.debugModules = this.showModuleStatus.bind(this);
         window.fixRegistry = this.fixModuleRegistry.bind(this);
         window.reregisterModule = this.reregisterModule.bind(this);
-
-        // Debug commands exposed
     },
 
     /**
@@ -61,10 +57,9 @@ const ModuleDebugger = {
     },
 
     /**
-     * Show the status of all modules
+     * Build module status snapshot.
      */
-    showModuleStatus: function () {
-        // Create status summary object
+    _collectStatus: function () {
         const status = {
             total: 0,
             registered: 0,
@@ -73,61 +68,82 @@ const ModuleDebugger = {
             modules: {}
         };
 
-        // Check each module in the window object
         const keys = Object.getOwnPropertyNames(window);
         for (const key of keys) {
             const moduleCandidate = this._getModuleCandidate(key);
-            if (moduleCandidate) {
-                status.total++;
-                status.modules[key] = {
-                    loaded: true,
-                    registered: window.ModuleRegistry && window.ModuleRegistry.hasModule ? window.ModuleRegistry.hasModule(key) : false,
-                    initialized: !!moduleCandidate._initialized,
-                    version: moduleCandidate.version || 'unknown'
-                };
+            if (!moduleCandidate) continue;
 
-                if (status.modules[key].registered) {
-                    status.registered++;
-                } else {
-                    status.unregistered++;
-                }
+            status.total++;
+            status.modules[key] = {
+                loaded: true,
+                registered: window.ModuleRegistry && window.ModuleRegistry.hasModule ? window.ModuleRegistry.hasModule(key) : false,
+                initialized: !!moduleCandidate._initialized,
+                version: moduleCandidate.version || 'unknown'
+            };
 
-                if (status.modules[key].initialized) {
-                    status.initialized++;
-                }
+            if (status.modules[key].registered) {
+                status.registered++;
+            } else {
+                status.unregistered++;
+            }
+
+            if (status.modules[key].initialized) {
+                status.initialized++;
             }
         }
-
-        // Create console group for module status
-        console.group('Module Status Summary');
-        // Module status summary (use debugModules() for details)
-        // Registered count: status.registered
-        // Unregistered count: status.unregistered
-        // Initialized count: status.initialized
-        console.groupEnd();
-
-        // Create console group for detailed module status
-        console.group('Module Details');
-        for (const moduleName in status.modules) {
-            const module = status.modules[moduleName];
-            console.log(
-                `${moduleName}: ${module.loaded ? '✓' : '✗'} Loaded, ` +
-                `${module.registered ? '✓' : '✗'} Registered, ` +
-                `${module.initialized ? '✓' : '✗'} Initialized, ` +
-                `v${module.version}`
-            );
-        }
-        console.groupEnd();
 
         return status;
     },
 
     /**
-     * Fix module registry issues
+     * Show the status of all modules.
+     * @param {{quiet?: boolean, includeDetails?: boolean}=} options
      */
-    fixModuleRegistry: function () {
+    showModuleStatus: function (options) {
+        const opts = options || {};
+        const quiet = !!opts.quiet;
+        const includeDetails = opts.includeDetails !== false;
+        const status = this._collectStatus();
+
+        if (!quiet) {
+            console.group('Module Status Summary');
+            console.log(`Total: ${status.total}`);
+            console.log(`Registered: ${status.registered}`);
+            console.log(`Unregistered: ${status.unregistered}`);
+            console.log(`Initialized: ${status.initialized}`);
+            console.groupEnd();
+
+            if (includeDetails) {
+                console.group('Module Details');
+                for (const moduleName in status.modules) {
+                    const module = status.modules[moduleName];
+                    console.log(
+                        `${moduleName}: ${module.loaded ? '[OK]' : '[X]'} Loaded, ` +
+                        `${module.registered ? '[OK]' : '[X]'} Registered, ` +
+                        `${module.initialized ? '[OK]' : '[X]'} Initialized, ` +
+                        `v${module.version}`
+                    );
+                }
+                console.groupEnd();
+            }
+        }
+
+        return status;
+    },
+
+    /**
+     * Fix module registry issues.
+     * @param {{quiet?: boolean, includeDetails?: boolean}=} options
+     */
+    fixModuleRegistry: function (options) {
+        const opts = typeof options === 'object' && options ? options : {};
+        const quiet = !!opts.quiet;
+        const includeDetails = opts.includeDetails !== false;
+
         // Guard against multiple runs
-        if (this._registryFixed) return this.showModuleStatus();
+        if (this._registryFixed) {
+            return this.showModuleStatus({ quiet, includeDetails });
+        }
         this._registryFixed = true;
 
         // First ensure ModuleRegistry exists
@@ -158,16 +174,13 @@ const ModuleDebugger = {
             };
         }
 
-        // Safe hasModule check helper
         const safeHasModule = (name) => {
             if (typeof window.ModuleRegistry.hasModule === 'function') {
                 return window.ModuleRegistry.hasModule(name);
             }
-            // Fallback: check modules object directly
             return window.ModuleRegistry.modules && !!window.ModuleRegistry.modules[name];
         };
 
-        // Register all module-like objects (silent)
         const keys = Object.getOwnPropertyNames(window);
         for (const key of keys) {
             const moduleCandidate = this._getModuleCandidate(key);
@@ -176,10 +189,8 @@ const ModuleDebugger = {
             }
         }
 
-        // Initialize uninitialized modules if they have an init method
         for (const key in window.ModuleRegistry.modules) {
             const module = window.ModuleRegistry.modules[key];
-            // Check instance._initialized for wrapped modules
             const instance = module.instance || module;
             if (!instance._initialized && typeof instance.init === 'function') {
                 try {
@@ -191,7 +202,7 @@ const ModuleDebugger = {
             }
         }
 
-        return this.showModuleStatus();
+        return this.showModuleStatus({ quiet, includeDetails });
     },
 
     /**
@@ -209,12 +220,9 @@ const ModuleDebugger = {
             return false;
         }
 
-        // Re-registering module (silent)
         window.ModuleRegistry.register(moduleName, window[moduleName]);
 
-        // Initialize if not already initialized
         if (!window[moduleName]._initialized && typeof window[moduleName].init === 'function') {
-            // Initializing module (silent)
             try {
                 window[moduleName].init();
                 window[moduleName]._initialized = true;
@@ -238,5 +246,3 @@ window.ModuleDebugger = ModuleDebugger;
 
 // Self-initialize
 ModuleDebugger.init();
-
-// Module Debugger ready

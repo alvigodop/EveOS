@@ -9,6 +9,32 @@ function handleOmniboxKey(e) {
     else if (typeof renderDashboard === 'function') renderDashboard();
 }
 
+function hardenSearchInputAutofill() {
+    const input = document.getElementById('search');
+    if (!input) return;
+
+    input.setAttribute('autocomplete', 'off');
+    input.setAttribute('autocapitalize', 'off');
+    input.setAttribute('autocorrect', 'off');
+    input.setAttribute('spellcheck', 'false');
+    input.setAttribute('data-lpignore', 'true');
+    input.setAttribute('data-1p-ignore', 'true');
+
+    input.addEventListener('input', function markUserInput() {
+        input.dataset.userEdited = '1';
+    }, { once: true });
+
+    function clearIfAutoFilled() {
+        if (!input.dataset.userEdited && input.value) {
+            input.value = '';
+        }
+    }
+
+    clearIfAutoFilled();
+    setTimeout(clearIfAutoFilled, 250);
+    setTimeout(clearIfAutoFilled, 1200);
+}
+
 function performWebSearch() {
     const q = document.getElementById('search').value;
     const useExpanded = (typeof config !== 'undefined' && config.searchMode === 'expanded');
@@ -34,4 +60,10 @@ function openExpandedSearchFromMain(autoSearch) {
     if (typeof showToast === 'function') {
         showToast('Expanded search is still loading. Try again.', 'warning');
     }
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', hardenSearchInputAutofill);
+} else {
+    hardenSearchInputAutofill();
 }
