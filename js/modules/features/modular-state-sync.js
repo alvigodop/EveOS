@@ -112,6 +112,16 @@ window.EveDataStore = window.EveDataStore || {};
         }
     }
 
+    function refreshUiAfterRemoteApply() {
+        try {
+            if (typeof renderSidebar === 'function') renderSidebar();
+            if (typeof renderDashboard === 'function') renderDashboard();
+            if (typeof updateSuggestions === 'function') updateSuggestions();
+        } catch (error) {
+            console.warn('[ModularStateSync] UI refresh failed after remote apply:', error);
+        }
+    }
+
     async function requestJson(path, options = {}) {
         const response = await fetch(path, {
             headers: { 'Content-Type': 'application/json' },
@@ -194,6 +204,7 @@ window.EveDataStore = window.EveDataStore || {};
             // applyState can normalize/merge config and mutate fields, so
             // baseline should use the post-apply hash to avoid immediate re-save.
             const appliedHash = captureStateHash() || incomingHash;
+            refreshUiAfterRemoteApply();
             remoteSignature = payload?.status?.signature || knownSignature || remoteSignature;
             lastUploadedHash = appliedHash;
             lastSyncedLocalHash = appliedHash;
@@ -444,6 +455,26 @@ window.EveDataStore = window.EveDataStore || {};
         };
     }
 
+    async function pickFolderPath(initialPath = '') {
+        if (!isHttpContext()) {
+            return { ok: false, error: 'Folder picker requires server mode (http://localhost).' };
+        }
+        const { ok, payload } = await requestJson('/api/eve-state/modular/pick-folder', {
+            method: 'POST',
+            body: JSON.stringify({
+                initialPath: String(initialPath || '').trim()
+            })
+        });
+        if (!ok || !payload?.ok) {
+            return { ok: false, error: payload?.error || 'Failed to open folder picker.' };
+        }
+        return {
+            ok: true,
+            canceled: !!payload.canceled,
+            path: String(payload.path || '')
+        };
+    }
+
     async function setStorePath(path, options = {}) {
         if (!isHttpContext()) {
             return { ok: false, error: 'Store path changes require server mode (http://localhost).' };
@@ -560,6 +591,7 @@ window.EveDataStore = window.EveDataStore || {};
         fetchGeminiContext,
         sendContextToGemini,
         getStorePath,
+        pickFolderPath,
         setStorePath,
         backupLayer,
         importLayer,

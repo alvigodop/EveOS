@@ -176,6 +176,42 @@ def _resolve_store_path(path_value):
     return _coerce_store_root(_resolve_raw_path(path_value))
 
 
+def _pick_folder_path_native(initial_path=""):
+    """Open a native folder picker and return an absolute path or empty string on cancel."""
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+    except Exception as exc:
+        raise RuntimeError(f"Native folder picker is unavailable: {exc}") from exc
+
+    root = None
+    try:
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes("-topmost", True)
+        kwargs = {}
+        initial = str(initial_path or "").strip()
+        if initial:
+            try:
+                initial_dir = _resolve_raw_path(initial)
+                if initial_dir.exists() and initial_dir.is_dir():
+                    kwargs["initialdir"] = str(initial_dir)
+            except Exception:
+                pass
+        selected = filedialog.askdirectory(**kwargs)
+        if not selected:
+            return ""
+        return str(_resolve_raw_path(selected))
+    except Exception as exc:
+        raise RuntimeError(f"Failed to open native folder picker: {exc}") from exc
+    finally:
+        if root is not None:
+            try:
+                root.destroy()
+            except Exception:
+                pass
+
+
 def _resolve_store_target(path_value):
     requested = _resolve_raw_path(path_value)
     resolved_root = _coerce_store_root(requested)
@@ -1366,7 +1402,9 @@ def _read_state_from_root(root_path):
 
 def _write_state_to_root(state, root_path):
     with _temporary_store_root(root_path):
-        return write_modular_state(state)
+        # Backups must write the provided snapshot as-is into the destination
+        # root, independent of the currently active scoped selection.
+        return _write_modular_state_full(state)
 
 
 def _normalize_link_record(link, fallback_workspace="", fallback_category=""):
@@ -1791,27 +1829,41 @@ def _merge_layer_state(base_state, incoming_state, layer, workspace_id="", categ
     )
 
 
-def _default_backup_destination(layer):
+def _default_backup_folder_name(layer):
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     safe_layer = _slugify(layer or "layer", "layer")
-    return (DATA_ROOT / "modular-backups" / f"{stamp}-{safe_layer}").resolve()
+    return f"{stamp}-{safe_layer}"
 
-
-def _resolve_destination_path(path_value, fallback_layer):
+def _resolve_destination_path(path_value):
     raw = str(path_value or "").strip().strip('"')
     if not raw:
-        return _default_backup_destination(fallback_layer)
-    return _resolve_store_path(raw)
+        raise ValueError("destinationPath is required for layer backup.")
+    return _resolve_raw_path(raw)
 
 
-def _ensure_destination_ready(destination, overwrite=False):
+def _build_unique_child_destination(parent_dir, layer):
+    parent = Path(parent_dir).resolve()
+    base_name = _default_backup_folder_name(layer)
+    candidate = parent / base_name
+    counter = 1
+    while candidate.exists():
+        candidate = parent / f"{base_name}-{counter}"
+        counter += 1
+    return candidate
+
+
+def _ensure_destination_ready(destination, overwrite=False, layer="layer"):
     dest = Path(destination).resolve()
     if dest.exists():
         if not dest.is_dir():
             raise ValueError(f"Destination path is not a directory: {dest}")
         has_content = any(dest.iterdir())
         if has_content and not overwrite:
-            raise ValueError(f"Destination folder is not empty: {dest}")
+            # Treat non-empty destination as a backup parent folder and create
+            # a fresh timestamped child per backup run.
+            child = _build_unique_child_destination(dest, layer)
+            child.mkdir(parents=True, exist_ok=False)
+            return child
         if has_content and overwrite:
             shutil.rmtree(dest)
     dest.mkdir(parents=True, exist_ok=True)
@@ -1891,6 +1943,34 @@ def handle_get_request(handler, path, query):
 
 def handle_post_request(handler, path):
     with _STATE_LOCK:
+        if path == "/api/eve-state/modular/pick-folder":
+            payload = {}
+            try:
+                content_length = int(handler.headers.get("Content-Length", "0"))
+            except ValueError:
+                content_length = 0
+            if content_length > 0:
+                payload, error = _read_request_json(handler)
+                if error:
+                    _send_json(handler, HTTPStatus.BAD_REQUEST, {"ok": False, "error": error})
+                    return True
+            payload = payload or {}
+            initial_path = str(payload.get("initialPath") or "").strip()
+            try:
+                picked_path = _pick_folder_path_native(initial_path)
+                _send_json(handler, HTTPStatus.OK, {
+                    "ok": True,
+                    "path": picked_path,
+                    "canceled": not bool(picked_path)
+                })
+            except Exception as exc:
+                logger.exception("Failed to open native folder picker")
+                _send_json(handler, HTTPStatus.INTERNAL_SERVER_ERROR, {
+                    "ok": False,
+                    "error": f"Failed to open folder picker: {exc}"
+                })
+            return True
+
         if path == "/api/eve-state/modular/path":
             payload, error = _read_request_json(handler)
             if error:
@@ -1961,7 +2041,9 @@ def handle_post_request(handler, path):
             overwrite = bool(payload.get("overwrite"))
 
             try:
-                source_state = read_modular_state()
+                # Always derive backup layers from the full active store so
+                # current scoped view selection does not hide requested data.
+                source_state = read_modular_state(apply_selection=False)
                 layer_state = _extract_layer_state(
                     source_state,
                     layer=layer,
@@ -1969,8 +2051,8 @@ def handle_post_request(handler, path):
                     category_name=category_name,
                     bookmark_id=bookmark_id
                 )
-                destination_root = _resolve_destination_path(destination_path, fallback_layer=layer)
-                destination_root = _ensure_destination_ready(destination_root, overwrite=overwrite)
+                destination_root = _resolve_destination_path(destination_path)
+                destination_root = _ensure_destination_ready(destination_root, overwrite=overwrite, layer=layer)
                 result = _write_state_to_root(layer_state, destination_root)
                 _send_json(handler, HTTPStatus.OK, {
                     "ok": True,

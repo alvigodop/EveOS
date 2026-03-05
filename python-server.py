@@ -264,6 +264,18 @@ if __name__ == "__main__":
         help="Start server without auto-opening a browser tab."
     )
 
-    args = parser.parse_args()
+    args, unknown = parser.parse_known_args()
+    if unknown:
+        # Be tolerant if a modular-root path with spaces was passed without
+        # proper quoting (common when launched from batch scripts).
+        if args.modular_root and all(not str(token).startswith("-") for token in unknown):
+            args.modular_root = " ".join([args.modular_root] + [str(token) for token in unknown]).strip()
+        else:
+            parser.error(f"unrecognized arguments: {' '.join(str(token) for token in unknown)}")
+    if not args.modular_root:
+        env_modular_root = os.environ.get("EVEOS_MODULAR_ROOT", "").strip()
+        if env_modular_root:
+            args.modular_root = env_modular_root
+
     configure_modular_store(args.modular_root, args.persist_modular_root)
     sys.exit(run_server(args.port, open_browser=not args.no_browser))

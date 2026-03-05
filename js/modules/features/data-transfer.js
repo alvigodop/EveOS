@@ -745,6 +745,28 @@
         return String(getAppConfig().modularLayerPath || '').trim();
     }
 
+    async function requireLayerDestinationPath() {
+        const path = getLayerDestinationPath();
+        if (path) return path;
+
+        const modularSync = window.EveDataStore?.ModularSync;
+        if (modularSync?.pickFolderPath) {
+            showToast('Folder path is missing. Opening folder picker...', 'info');
+            try {
+                const picked = await modularSync.pickFolderPath(String(getAppConfig().modularLayerPath || '').trim());
+                if (picked?.ok && !picked.canceled && picked.path) {
+                    persistLayerDestinationPath(picked.path);
+                    return picked.path;
+                }
+            } catch (error) {
+                console.warn('[DataTransfer] Could not open folder picker for layer path:', error);
+            }
+        }
+
+        showToast('Set Folder Path in Copy Between Packs (Advanced) before running server folder backups.', 'warning');
+        return '';
+    }
+
     function persistLayerDestinationPath(nextPath) {
         const value = String(nextPath || '').trim();
         if (!value) return;
@@ -792,14 +814,16 @@
             : buildWorkspacePayload(workspaceId);
 
         if (modularSync?.backupLayer) {
+            const destinationPath = await requireLayerDestinationPath();
+            if (!destinationPath) return;
             try {
                 const result = await modularSync.backupLayer({
                     layer: 'tab',
                     workspaceId,
-                    destinationPath: getLayerDestinationPath()
+                    destinationPath
                 });
                 if (result?.ok) {
-                    persistLayerDestinationPath(result.destinationPath);
+                    persistLayerDestinationPath(result.destinationPath || destinationPath);
                     return showToast(`Tab folder backup created: ${result.destinationPath}`, "success");
                 }
                 console.warn('[DataTransfer] Tab layer backup failed in server mode, trying browser folder fallback:', result?.error);
@@ -849,15 +873,17 @@
             : buildCardPayload(workspaceId, categoryName);
 
         if (modularSync?.backupLayer) {
+            const destinationPath = await requireLayerDestinationPath();
+            if (!destinationPath) return;
             try {
                 const result = await modularSync.backupLayer({
                     layer: 'card',
                     workspaceId,
                     categoryName,
-                    destinationPath: getLayerDestinationPath()
+                    destinationPath
                 });
                 if (result?.ok) {
-                    persistLayerDestinationPath(result.destinationPath);
+                    persistLayerDestinationPath(result.destinationPath || destinationPath);
                     return showToast(`Card folder backup created: ${result.destinationPath}`, "success");
                 }
                 console.warn('[DataTransfer] Card layer backup failed in server mode, trying browser folder fallback:', result?.error);

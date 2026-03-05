@@ -142,7 +142,7 @@ if %ERRORLEVEL% EQU 0 (
 echo [OK] Launching %INSTANCE_KIND% EveOS instance in a new window:
 echo      Port: %INSTANCE_PORT%
 echo      Data: %INSTANCE_PACK_PATH%
-start "EveOS Instance %INSTANCE_PORT%" cmd /k "cd /d ""%PROJECT_ROOT%"" && python python-server.py %INSTANCE_PORT% --modular-root ""%INSTANCE_PACK_PATH%"""
+start "EveOS Instance %INSTANCE_PORT%" cmd /k "set ""EVEOS_MODULAR_ROOT=%INSTANCE_PACK_PATH%"" && cd /d ""%PROJECT_ROOT%"" && python python-server.py %INSTANCE_PORT%"
 call :TrackInstance "%INSTANCE_PORT%" "%INSTANCE_PACK_PATH%" "%INSTANCE_KIND%"
 exit /b 0
 

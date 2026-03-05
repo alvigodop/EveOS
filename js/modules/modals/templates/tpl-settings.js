@@ -239,10 +239,13 @@ window.modalTemplate += `
                 <div class="backup-panel" data-backup-panel="layer">
                     <h4 style="margin:0 0 10px 0;">Copy Between Packs (Advanced)</h4>
                     <label style="display:block; margin-bottom:10px;">Folder Path:
-                        <input type="text" id="modularLayerPathInput" onchange="saveSettingsModularLayerPathDraft()" placeholder="Leave empty for auto backup path" style="width:100%;">
+                        <input type="text" id="modularLayerPathInput" onchange="saveSettingsModularLayerPathDraft()" placeholder="Set your own backup target path (e.g. C:\\path\\to\\backups)" style="width:100%;">
                     </label>
+                    <div class="btn-action-row" style="margin-bottom:10px;">
+                        <button onclick="pickModularLayerFolderPath()" class="btn-backup">Browse Folder</button>
+                    </div>
                     <div style="font-size:0.78rem; opacity:0.75;">
-                        This path is used by <strong>Tab Backup</strong> and <strong>Card Backup</strong> folder exports.
+                        This path is required for localhost <strong>Tab Backup</strong> and <strong>Card Backup</strong> folder exports.
                     </div>
                 </div>
             </div>
