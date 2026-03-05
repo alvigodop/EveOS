@@ -334,13 +334,50 @@ function saveSettingsModularStorePathDraft() {
     config.modularStateRootPath = value;
     saveConfig();
 }
+function _isHttpSettingsContext() {
+    return /^https?:$/i.test(window.location.protocol || '');
+}
+async function _activateDataPackFolderViaPicker(options = {}) {
+    if (typeof window.activateDataPackFolderFromPicker !== 'function') {
+        showToast('Folder picker activation is unavailable', 'error');
+        return false;
+    }
+
+    const result = await window.activateDataPackFolderFromPicker(options);
+    if (!result?.ok) {
+        if (result?.canceled) {
+            showToast('Active data pack selection canceled', 'info');
+            return false;
+        }
+        showToast(result?.error || 'Could not load selected data pack folder', 'error');
+        return false;
+    }
+
+    const tabs = Number(result?.summary?.tabs || 0);
+    const cards = Number(result?.summary?.cards || 0);
+    const bookmarks = Number(result?.summary?.bookmarks || 0);
+    showToast(`Active data pack loaded (${tabs} tabs, ${cards} cards, ${bookmarks} bookmarks).`, 'success');
+
+    if (options?.reload !== false) {
+        location.reload();
+    } else {
+        if (typeof refreshWorkspaceBackupList === 'function') refreshWorkspaceBackupList();
+        refreshModularLayerSelectors();
+    }
+    return true;
+}
 async function refreshModularStorePathFromServer() {
     const input = document.getElementById('modularStorePathInput');
     if (!input) return;
-    if (!window.EveDataStore?.ModularSync?.getStorePath) return;
+    const localDraft = String(config.modularStateRootPath || '');
+    if (!_isHttpSettingsContext() || !window.EveDataStore?.ModularSync?.getStorePath) {
+        input.value = localDraft;
+        return;
+    }
 
     const result = await window.EveDataStore.ModularSync.getStorePath();
     if (!result?.ok) {
+        input.value = localDraft;
         return;
     }
     input.value = String(result.activePath || '');
@@ -350,8 +387,12 @@ async function refreshModularStorePathFromServer() {
 async function applyModularStorePath() {
     const pathValue = String(document.getElementById('modularStorePathInput')?.value || '').trim();
     const createIfMissing = !!document.getElementById('modularStoreCreateIfMissing')?.checked;
-    if (!window.EveDataStore?.ModularSync?.setStorePath) {
-        return showToast('Modular sync module not loaded', 'error');
+    const canSetStorePath = _isHttpSettingsContext() && !!window.EveDataStore?.ModularSync?.setStorePath;
+
+    if (!canSetStorePath || !pathValue) {
+        return _activateDataPackFolderViaPicker({
+            confirmMessage: 'Set selected folder as active data pack? (Overwrites current bookmarks & library)'
+        });
     }
 
     const result = await window.EveDataStore.ModularSync.setStorePath(pathValue, {
@@ -467,14 +508,18 @@ async function syncModularStateNow() {
     );
 }
 async function pullModularStateNow() {
-    if (!window.EveDataStore?.ModularSync?.pullNow) {
-        return showToast('Modular sync module not loaded', 'error');
+    if (_isHttpSettingsContext() && window.EveDataStore?.ModularSync?.pullNow) {
+        const ok = await window.EveDataStore.ModularSync.pullNow(true);
+        showToast(
+            ok ? 'Loaded modular state' : 'No modular changes to load',
+            ok ? 'success' : 'info'
+        );
+        return;
     }
-    const ok = await window.EveDataStore.ModularSync.pullNow(true);
-    showToast(
-        ok ? 'Loaded modular state' : 'No modular changes to load (or server mode required)',
-        ok ? 'success' : 'info'
-    );
+
+    await _activateDataPackFolderViaPicker({
+        confirmMessage: 'Load selected data-pack folder as active data? (Overwrites current bookmarks & library)'
+    });
 }
 async function normalizeModularBookmarkTitles() {
     if (!window.EveDataStore?.ModularSync?.normalizeBookmarkFilenames) {
@@ -551,6 +596,56 @@ async function _readBookmarkIdFromHandle(fileHandle) {
     }
 }
 
+function _buildLiveBookmarkMap() {
+    const map = new Map();
+    const liveLinks = Array.isArray(window.eveState?.links)
+        ? window.eveState.links
+        : (Array.isArray(window.links) ? window.links : []);
+    liveLinks.forEach((link) => {
+        const id = String(link?.id || '').trim();
+        if (!id) return;
+        map.set(id, { ...link });
+    });
+    return map;
+}
+
+function _applyLiveBookmarkToPayload(json, fallbackBookmark, liveBookmark, bookmarkId) {
+    if (!liveBookmark || typeof liveBookmark !== 'object') {
+        return {
+            nextJson: json,
+            effectiveBookmark: fallbackBookmark,
+            contentChanged: false
+        };
+    }
+
+    const mergedBookmark = {
+        ...(fallbackBookmark || {}),
+        ...liveBookmark,
+        id: bookmarkId
+    };
+
+    if (json && typeof json === 'object' && json.bookmark && typeof json.bookmark === 'object') {
+        const currentText = JSON.stringify(json.bookmark || {});
+        const nextText = JSON.stringify(mergedBookmark);
+        if (currentText === nextText) {
+            return { nextJson: json, effectiveBookmark: mergedBookmark, contentChanged: false };
+        }
+        return {
+            nextJson: { ...json, bookmark: mergedBookmark },
+            effectiveBookmark: mergedBookmark,
+            contentChanged: true
+        };
+    }
+
+    const currentText = JSON.stringify(json || {});
+    const nextText = JSON.stringify(mergedBookmark);
+    return {
+        nextJson: mergedBookmark,
+        effectiveBookmark: mergedBookmark,
+        contentChanged: currentText !== nextText
+    };
+}
+
 async function _pickUniqueBookmarkName(directoryHandle, desiredName, currentName, bookmarkId) {
     if (desiredName === currentName) return desiredName;
 
@@ -577,7 +672,8 @@ async function _pickUniqueBookmarkName(directoryHandle, desiredName, currentName
     throw new Error(`Could not find unique filename for ${desiredName}`);
 }
 
-async function _normalizeBookmarkFilesInDirectory(directoryHandle, stats) {
+async function _normalizeBookmarkFilesInDirectory(directoryHandle, stats, options = {}) {
+    const liveBookmarkMap = options.liveBookmarkMap instanceof Map ? options.liveBookmarkMap : new Map();
     // Skip non-bookmark control files in modular folders.
     const blockedFileNames = new Set([
         'store.json',
@@ -589,7 +685,7 @@ async function _normalizeBookmarkFilesInDirectory(directoryHandle, stats) {
 
     for await (const [entryName, entryHandle] of directoryHandle.entries()) {
         if (entryHandle.kind === 'directory') {
-            await _normalizeBookmarkFilesInDirectory(entryHandle, stats);
+            await _normalizeBookmarkFilesInDirectory(entryHandle, stats, options);
             continue;
         }
 
@@ -603,7 +699,7 @@ async function _normalizeBookmarkFilesInDirectory(directoryHandle, stats) {
 
         stats.scanned += 1;
         try {
-            const { text, json } = await _readJsonFromFileHandle(entryHandle);
+            const { json } = await _readJsonFromFileHandle(entryHandle);
             const bookmark = _extractBookmarkPayload(json);
             const bookmarkId = String(bookmark?.id || '').trim();
             if (!bookmarkId) {
@@ -611,16 +707,27 @@ async function _normalizeBookmarkFilesInDirectory(directoryHandle, stats) {
                 continue;
             }
 
-            const categoryName = String(bookmark?.category || 'uncategorized').trim() || 'uncategorized';
-            let targetName = _buildBrowserBookmarkFilename(bookmark, categoryName);
-            if (targetName === entryName) {
+            const liveBookmark = liveBookmarkMap.get(bookmarkId) || null;
+            const payloadUpdate = _applyLiveBookmarkToPayload(json, bookmark, liveBookmark, bookmarkId);
+            const effectiveBookmark = payloadUpdate.effectiveBookmark || bookmark;
+            const categoryName = String(effectiveBookmark?.category || 'uncategorized').trim() || 'uncategorized';
+            let targetName = _buildBrowserBookmarkFilename(effectiveBookmark, categoryName);
+            const contentChanged = !!payloadUpdate.contentChanged;
+            const outputText = contentChanged
+                ? JSON.stringify(payloadUpdate.nextJson, null, 2)
+                : JSON.stringify(json, null, 2);
+
+            targetName = await _pickUniqueBookmarkName(directoryHandle, targetName, entryName, bookmarkId);
+            if (targetName === entryName && !contentChanged) {
                 stats.unchanged += 1;
                 continue;
             }
 
-            targetName = await _pickUniqueBookmarkName(directoryHandle, targetName, entryName, bookmarkId);
-            if (targetName === entryName) {
-                stats.unchanged += 1;
+            if (targetName === entryName && contentChanged) {
+                const writableCurrent = await entryHandle.createWritable();
+                await writableCurrent.write(outputText);
+                await writableCurrent.close();
+                stats.contentUpdated += 1;
                 continue;
             }
 
@@ -638,10 +745,13 @@ async function _normalizeBookmarkFilesInDirectory(directoryHandle, stats) {
 
             const newHandle = await directoryHandle.getFileHandle(targetName, { create: true });
             const writable = await newHandle.createWritable();
-            await writable.write(text);
+            await writable.write(outputText);
             await writable.close();
             await directoryHandle.removeEntry(entryName);
             stats.renamed += 1;
+            if (contentChanged) {
+                stats.contentUpdated += 1;
+            }
         } catch (error) {
             stats.errors += 1;
             console.warn('[Settings] Browser bookmark filename normalize failed for', entryName, error);
@@ -663,17 +773,19 @@ async function normalizeBookmarkTitlesBrowserOnly() {
             scanned: 0,
             renamed: 0,
             removed: 0,
+            contentUpdated: 0,
             unchanged: 0,
             skipped: 0,
             errors: 0
         };
+        const liveBookmarkMap = _buildLiveBookmarkMap();
 
-        await _normalizeBookmarkFilesInDirectory(directoryHandle, stats);
+        await _normalizeBookmarkFilesInDirectory(directoryHandle, stats, { liveBookmarkMap });
         if (stats.scanned === 0) {
             return showToast('No bookmark JSON files found in selected folder', 'info');
         }
 
-        const summary = `Normalized bookmarks: ${stats.renamed} renamed, ${stats.removed} duplicates removed, ${stats.unchanged} unchanged`;
+        const summary = `Normalized bookmarks: ${stats.renamed} renamed, ${stats.contentUpdated} content synced, ${stats.removed} duplicates removed, ${stats.unchanged} unchanged`;
         if (stats.errors > 0) {
             showToast(`${summary} (${stats.errors} errors)`, 'warning');
         } else {

@@ -213,6 +213,9 @@ window.modalTemplate += `
                         <button onclick="refreshModularStorePathFromServer()" class="btn-backup">Refresh Path</button>
                         <button onclick="applyModularStorePath()" class="btn-restore" style="border:none;">Set Active Folder</button>
                     </div>
+                    <div style="font-size:0.78rem; opacity:0.75; margin-bottom:10px;">
+                        Leave path empty to pick a data-pack folder directly in browser mode.
+                    </div>
                     <label style="display:block; margin-bottom:10px;">Sync Interval (ms):
                         <input type="number" id="modularSyncIntervalMs" min="2000" max="60000" step="500" onchange="saveSettingsModularSyncInterval()" style="width:100%;">
                     </label>
@@ -224,7 +227,7 @@ window.modalTemplate += `
                     </label>
                     <div class="btn-action-row">
                         <button onclick="syncModularStateNow()" class="btn-backup">Save To Modular Store</button>
-                        <button onclick="pullModularStateNow()" class="btn-restore" style="border:none;">Load From Modular Store</button>
+                        <button onclick="pullModularStateNow()" class="btn-restore" style="border:none;">Load Store / Pick Folder</button>
                     </div>
                     <button onclick="normalizeModularBookmarkTitles()" class="btn-backup" style="width:100%; margin-top:10px;">Normalize Bookmark File Titles</button>
                     <button onclick="normalizeBookmarkTitlesBrowserOnly()" class="btn-backup" style="width:100%; margin-top:8px;">Normalize Bookmark File Titles (Browser Only)</button>

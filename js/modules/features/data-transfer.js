@@ -1195,8 +1195,7 @@
         }
 
         const hasTabJson = !!(await getFileHandleIfExists(rootHandle, 'tab.json'));
-        const hasCardsDir = !!(await getDirectoryHandleIfExists(rootHandle, 'cards'));
-        if (hasTabJson || hasCardsDir) {
+        if (hasTabJson) {
             return [rootHandle];
         }
 
@@ -1347,6 +1346,134 @@
         });
     }
 
+    function summarizeStateCounts(state) {
+        const links = Array.isArray(state?.bookmarks?.links) ? state.bookmarks.links : [];
+        const cards = new Set();
+        const tabs = new Set();
+
+        links.forEach((link) => {
+            const workspaceId = String(link?.workspace || 'main').trim() || 'main';
+            const categoryName = String(link?.category || 'Unsorted').trim() || 'Unsorted';
+            tabs.add(workspaceId);
+            cards.add(`${workspaceId}::${categoryName}`);
+        });
+
+        const configTabs = Array.isArray(state?.bookmarks?.config?.workspaces)
+            ? state.bookmarks.config.workspaces.length
+            : 0;
+        return {
+            tabs: Math.max(tabs.size, configTabs),
+            cards: cards.size,
+            bookmarks: links.length
+        };
+    }
+
+    function buildParsedTabsFromCards(parsedCards) {
+        const tabsByWorkspace = new Map();
+        (Array.isArray(parsedCards) ? parsedCards : []).forEach((card) => {
+            const workspaceId = String(card?.workspaceId || 'main').trim() || 'main';
+            if (!tabsByWorkspace.has(workspaceId)) {
+                const meta = getWorkspaceMeta(workspaceId);
+                tabsByWorkspace.set(workspaceId, {
+                    workspaceId,
+                    workspaceName: meta.name || workspaceId,
+                    workspaceIcon: meta.icon || 'folder',
+                    parsedCards: []
+                });
+            }
+            tabsByWorkspace.get(workspaceId).parsedCards.push(card);
+        });
+        return Array.from(tabsByWorkspace.values());
+    }
+
+    async function parseAnyDataPackFolder(rootHandle, options = {}) {
+        try {
+            const fullState = await parseFullStateFromFolder(rootHandle);
+            return {
+                state: fullState,
+                sourceType: 'store'
+            };
+        } catch (fullError) {
+            const preferredWorkspaceId = String(
+                options.workspaceId
+                || getWorkspaceSelect()?.value
+                || getCardWorkspaceSelect()?.value
+                || getAppConfig().activeWorkspace
+                || 'main'
+            ).trim() || 'main';
+
+            const cardFolders = await resolveCardFoldersFromRoot(rootHandle);
+            if (!cardFolders.length) {
+                throw new Error(fullError?.message || 'No importable data-pack structure found.');
+            }
+
+            const parsedCards = [];
+            for (const cardFolder of cardFolders) {
+                parsedCards.push(await parseCardFolderHandle(cardFolder, {
+                    workspaceId: preferredWorkspaceId
+                }));
+            }
+            const parsedTabs = buildParsedTabsFromCards(parsedCards);
+            if (!parsedTabs.length) {
+                throw new Error('No importable card data found in selected folder.');
+            }
+
+            const currentConfig = getAppConfig();
+            const state = buildUnifiedStateFromParsed(parsedTabs, {
+                metadataType: 'store',
+                config: currentConfig && typeof currentConfig === 'object' ? currentConfig : {},
+                activeWorkspace: parsedTabs[0]?.workspaceId || preferredWorkspaceId
+            });
+            return {
+                state,
+                sourceType: 'card'
+            };
+        }
+    }
+
+    async function activateDataPackFolderFromPicker(options = {}) {
+        if (typeof window.showDirectoryPicker !== 'function') {
+            return { ok: false, error: 'Folder picker is not supported in this browser.' };
+        }
+        const dataStore = getDataStore();
+        if (!dataStore?.applyState) {
+            return { ok: false, error: 'Unified state restore is unavailable right now.' };
+        }
+
+        try {
+            const rootHandle = await window.showDirectoryPicker({ mode: 'read' });
+            const parsed = await parseAnyDataPackFolder(rootHandle, options);
+            const summary = summarizeStateCounts(parsed.state);
+            const confirmMessage = options.confirmMessage
+                || `Set selected folder as active data pack (${summary.tabs} tabs, ${summary.cards} cards, ${summary.bookmarks} bookmarks)?`;
+            if (options.confirm !== false) {
+                const confirmed = await showConfirm(confirmMessage);
+                if (!confirmed) {
+                    return { ok: false, canceled: true };
+                }
+            }
+
+            const applied = !!dataStore.applyState(parsed.state);
+            if (!applied) {
+                return { ok: false, error: 'Could not apply selected data pack.' };
+            }
+
+            return {
+                ok: true,
+                sourceType: parsed.sourceType,
+                summary
+            };
+        } catch (error) {
+            if (error?.name === 'AbortError') {
+                return { ok: false, canceled: true };
+            }
+            return {
+                ok: false,
+                error: error?.message || String(error)
+            };
+        }
+    }
+
     async function importFullDataFromFolderBrowserOnly() {
         if (typeof window.showDirectoryPicker !== 'function') {
             return showToast('Folder restore needs browser directory picker support', 'error');
@@ -1492,6 +1619,7 @@
     window.importDataFolderBrowserOnly = importFullDataFromFolderBrowserOnly;
     window.importWorkspaceFolderBackupBrowserOnly = importWorkspaceFromFolderBrowserOnly;
     window.importCardFolderBackupBrowserOnly = importCardFromFolderBrowserOnly;
+    window.activateDataPackFolderFromPicker = activateDataPackFolderFromPicker;
 
     function resetFileInput(input) {
         if (!input) return;
