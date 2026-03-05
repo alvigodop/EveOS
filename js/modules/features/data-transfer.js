@@ -746,23 +746,26 @@
     }
 
     async function requireLayerDestinationPath() {
-        const path = getLayerDestinationPath();
-        if (path) return path;
-
         const modularSync = window.EveDataStore?.ModularSync;
         if (modularSync?.pickFolderPath) {
-            showToast('Folder path is missing. Opening folder picker...', 'info');
             try {
-                const picked = await modularSync.pickFolderPath(String(getAppConfig().modularLayerPath || '').trim());
+                const initialPath = getLayerDestinationPath() || String(getAppConfig().modularLayerPath || '').trim();
+                const picked = await modularSync.pickFolderPath(initialPath);
                 if (picked?.ok && !picked.canceled && picked.path) {
                     persistLayerDestinationPath(picked.path);
                     return picked.path;
+                }
+                if (picked?.ok && picked.canceled) {
+                    showToast('Backup canceled: folder not selected.', 'info');
+                    return '';
                 }
             } catch (error) {
                 console.warn('[DataTransfer] Could not open folder picker for layer path:', error);
             }
         }
 
+        const path = getLayerDestinationPath();
+        if (path) return path;
         showToast('Set Folder Path in Copy Between Packs (Advanced) before running server folder backups.', 'warning');
         return '';
     }
@@ -823,7 +826,7 @@
                     destinationPath
                 });
                 if (result?.ok) {
-                    persistLayerDestinationPath(result.destinationPath || destinationPath);
+                    persistLayerDestinationPath(destinationPath);
                     return showToast(`Tab folder backup created: ${result.destinationPath}`, "success");
                 }
                 console.warn('[DataTransfer] Tab layer backup failed in server mode, trying browser folder fallback:', result?.error);
@@ -883,7 +886,7 @@
                     destinationPath
                 });
                 if (result?.ok) {
-                    persistLayerDestinationPath(result.destinationPath || destinationPath);
+                    persistLayerDestinationPath(destinationPath);
                     return showToast(`Card folder backup created: ${result.destinationPath}`, "success");
                 }
                 console.warn('[DataTransfer] Card layer backup failed in server mode, trying browser folder fallback:', result?.error);

@@ -5,6 +5,7 @@ import os
 import re
 import shutil
 import threading
+import tempfile
 import time
 from contextlib import contextmanager
 from datetime import datetime
@@ -88,9 +89,36 @@ def _infer_workspace_from_card_folder(card_folder):
     return "main"
 
 
+def _infer_workspace_from_cards_root(cards_root, config=None, store_meta=None):
+    cfg = config if isinstance(config, dict) else {}
+    meta = store_meta if isinstance(store_meta, dict) else {}
+
+    configured_active = str(cfg.get("activeWorkspace") or "").strip()
+    if configured_active:
+        return configured_active
+
+    meta_active = str(meta.get("activeWorkspace") or "").strip()
+    if meta_active:
+        return meta_active
+
+    cards_path = Path(cards_root)
+    try:
+        for child in sorted(cards_path.iterdir()):
+            if not child.is_dir():
+                continue
+            if not _looks_like_card_folder(child):
+                continue
+            inferred = _infer_workspace_from_card_folder(child)
+            if inferred:
+                return inferred
+    except Exception:
+        pass
+    return "main"
+
+
 def _looks_like_store_root(path_obj):
     try:
-        return (path_obj / "tabs").is_dir() or (path_obj / "_meta").is_dir()
+        return (path_obj / "tabs").is_dir() or (path_obj / "_meta").is_dir() or (path_obj / "cards").is_dir()
     except Exception:
         return False
 
@@ -135,6 +163,13 @@ def _coerce_store_root(path_obj, depth=0):
             if tab_folder.parent.name.lower() == "tabs":
                 return tab_folder.parent.parent.resolve()
             return tab_folder.parent.resolve()
+        # cards/ directly under a backup root (card-layer export)
+        if candidate.is_dir():
+            try:
+                if any(child.is_dir() for child in candidate.iterdir()):
+                    return candidate.parent.resolve()
+            except Exception:
+                pass
 
     if candidate.name.lower() == "entries":
         return _coerce_store_root(candidate.parent, depth + 1)
@@ -165,6 +200,7 @@ def _coerce_store_root(path_obj, depth=0):
             or _looks_like_tabs_root(only_child)
             or _looks_like_tab_folder(only_child)
             or _looks_like_card_folder(only_child)
+            or only_child.name.lower() == "cards"
             or only_child.name.lower() == "entries"
         ):
             return _coerce_store_root(only_child, depth + 1)
@@ -239,6 +275,12 @@ def _resolve_store_target(path_value):
     if requested_lower == "cards" and _looks_like_tab_folder(requested.parent):
         selection["layer"] = "tab"
         selection["workspaceId"] = _infer_workspace_from_tab_folder(requested.parent)
+        return requested, resolved_root, selection
+
+    # Selecting cards root from a card-layer backup should scope to that workspace.
+    if requested_lower == "cards" and requested.is_dir():
+        selection["layer"] = "tab"
+        selection["workspaceId"] = _infer_workspace_from_cards_root(requested)
         return requested, resolved_root, selection
 
     # Selecting entries folder should scope to the parent card.
@@ -1114,6 +1156,87 @@ def write_modular_state(state):
     return _write_modular_state_full(merged_state)
 
 
+def _ingest_cards_root(cards_root, workspace_id, categories, entry_ids_by_scope, bookmark_records):
+    if not cards_root.exists() or not cards_root.is_dir():
+        return
+
+    _normalize_workspace_card_layout(cards_root, workspace_id)
+
+    for card_folder in sorted(cards_root.iterdir()):
+        if not card_folder.is_dir():
+            continue
+
+        card_file = card_folder / "card.json"
+        card_data = _load_json_file(card_file, fallback={})
+        category_name = _resolve_card_category_name(card_data, card_folder.name)
+        data_type = card_data.get("dataType") or "graphicNovels"
+        bookmark_folder = _resolve_bookmark_folder(card_folder, card_data)
+
+        scoped = _scoped_key(workspace_id, category_name)
+        if scoped not in categories:
+            categories[scoped] = {"entries": [], "dataType": data_type}
+        else:
+            categories[scoped]["dataType"] = categories[scoped].get("dataType") or data_type
+
+        if scoped not in entry_ids_by_scope:
+            entry_ids_by_scope[scoped] = {
+                str((e or {}).get("id") or "").strip()
+                for e in categories[scoped]["entries"]
+                if str((e or {}).get("id") or "").strip()
+            }
+        entry_ids_for_scope = entry_ids_by_scope[scoped]
+
+        for bookmark_file in sorted(bookmark_folder.glob("*.json")):
+            if bookmark_file.name.startswith("_"):
+                continue
+            try:
+                payload = json.loads(bookmark_file.read_text(encoding="utf-8"))
+            except Exception:
+                logger.warning("Skipping invalid bookmark file: %s", bookmark_file)
+                continue
+
+            bookmark = payload.get("bookmark") if isinstance(payload, dict) else None
+            if not isinstance(bookmark, dict):
+                # Backward compatibility: allow bookmark JSON directly.
+                bookmark = payload if isinstance(payload, dict) else {}
+
+            link_id = str(bookmark.get("id") or "").strip()
+            if not link_id:
+                continue
+
+            bookmark_file = _normalize_bookmark_filename(bookmark_file, bookmark, category_name=category_name)
+
+            try:
+                mtime_ns = int(bookmark_file.stat().st_mtime_ns)
+            except Exception:
+                mtime_ns = 0
+
+            bookmark_records.append({
+                "link_id": link_id,
+                "bookmark": bookmark,
+                "library_payload": payload.get("library") if isinstance(payload, dict) else None,
+                "workspace_id": workspace_id,
+                "category_name": category_name,
+                "scoped_key": scoped,
+                "source_path": str(bookmark_file),
+                "mtime_ns": mtime_ns
+            })
+
+        unlinked_file = card_folder / "_library-unlinked.json"
+        if unlinked_file.exists():
+            try:
+                unlinked_payload = json.loads(unlinked_file.read_text(encoding="utf-8"))
+                unlinked_entries = unlinked_payload.get("entries") or []
+                for entry in unlinked_entries:
+                    entry_id = str((entry or {}).get("id") or "").strip()
+                    if not entry_id or entry_id in entry_ids_for_scope:
+                        continue
+                    categories[scoped]["entries"].append(entry)
+                    entry_ids_for_scope.add(entry_id)
+            except Exception:
+                logger.warning("Skipping invalid unlinked library file: %s", unlinked_file)
+
+
 def read_modular_state(apply_selection=True):
     if not STORE_ROOT.exists():
         raise FileNotFoundError(f"Modular state store not found at: {STORE_ROOT}")
@@ -1162,84 +1285,27 @@ def read_modular_state(apply_selection=True):
                 })
 
             cards_root = ws_folder / "cards"
-            if not cards_root.exists():
-                continue
+            _ingest_cards_root(cards_root, workspace_id, categories, entry_ids_by_scope, bookmark_records)
+    else:
+        direct_cards_root = STORE_ROOT / "cards"
+        if direct_cards_root.exists() and direct_cards_root.is_dir():
+            workspace_id = _infer_workspace_from_cards_root(direct_cards_root, config=config, store_meta=store_meta)
+            workspace_meta = next(
+                (ws for ws in _build_workspaces(config) if str((ws or {}).get("id") or "").strip() == workspace_id),
+                None
+            )
+            workspace_name = (workspace_meta or {}).get("name") or workspace_id
+            workspace_icon = (workspace_meta or {}).get("icon") or "📁"
 
-            _normalize_workspace_card_layout(cards_root, workspace_id)
+            if workspace_id not in seen_workspace_ids:
+                seen_workspace_ids.add(workspace_id)
+                workspaces.append({
+                    "id": workspace_id,
+                    "name": workspace_name,
+                    "icon": workspace_icon
+                })
 
-            for card_folder in sorted(cards_root.iterdir()):
-                if not card_folder.is_dir():
-                    continue
-
-                card_file = card_folder / "card.json"
-                card_data = _load_json_file(card_file, fallback={})
-                category_name = _resolve_card_category_name(card_data, card_folder.name)
-                data_type = card_data.get("dataType") or "graphicNovels"
-                bookmark_folder = _resolve_bookmark_folder(card_folder, card_data)
-
-                scoped = _scoped_key(workspace_id, category_name)
-                if scoped not in categories:
-                    categories[scoped] = {"entries": [], "dataType": data_type}
-                else:
-                    categories[scoped]["dataType"] = categories[scoped].get("dataType") or data_type
-
-                if scoped not in entry_ids_by_scope:
-                    entry_ids_by_scope[scoped] = {
-                        str((e or {}).get("id") or "").strip()
-                        for e in categories[scoped]["entries"]
-                        if str((e or {}).get("id") or "").strip()
-                    }
-                entry_ids_for_scope = entry_ids_by_scope[scoped]
-
-                for bookmark_file in sorted(bookmark_folder.glob("*.json")):
-                    if bookmark_file.name.startswith("_"):
-                        continue
-                    try:
-                        payload = json.loads(bookmark_file.read_text(encoding="utf-8"))
-                    except Exception:
-                        logger.warning("Skipping invalid bookmark file: %s", bookmark_file)
-                        continue
-
-                    bookmark = payload.get("bookmark") if isinstance(payload, dict) else None
-                    if not isinstance(bookmark, dict):
-                        # Backward compatibility: allow bookmark JSON directly.
-                        bookmark = payload if isinstance(payload, dict) else {}
-
-                    link_id = str(bookmark.get("id") or "").strip()
-                    if not link_id:
-                        continue
-
-                    bookmark_file = _normalize_bookmark_filename(bookmark_file, bookmark, category_name=category_name)
-
-                    try:
-                        mtime_ns = int(bookmark_file.stat().st_mtime_ns)
-                    except Exception:
-                        mtime_ns = 0
-
-                    bookmark_records.append({
-                        "link_id": link_id,
-                        "bookmark": bookmark,
-                        "library_payload": payload.get("library") if isinstance(payload, dict) else None,
-                        "workspace_id": workspace_id,
-                        "category_name": category_name,
-                        "scoped_key": scoped,
-                        "source_path": str(bookmark_file),
-                        "mtime_ns": mtime_ns
-                    })
-
-                unlinked_file = card_folder / "_library-unlinked.json"
-                if unlinked_file.exists():
-                    try:
-                        unlinked_payload = json.loads(unlinked_file.read_text(encoding="utf-8"))
-                        unlinked_entries = unlinked_payload.get("entries") or []
-                        for entry in unlinked_entries:
-                            entry_id = str((entry or {}).get("id") or "").strip()
-                            if not entry_id or entry_id in entry_ids_for_scope:
-                                continue
-                            categories[scoped]["entries"].append(entry)
-                            entry_ids_for_scope.add(entry_id)
-                    except Exception:
-                        logger.warning("Skipping invalid unlinked library file: %s", unlinked_file)
+            _ingest_cards_root(direct_cards_root, workspace_id, categories, entry_ids_by_scope, bookmark_records)
 
     # Resolve duplicate bookmark IDs by taking the most recently modified file.
     resolved_by_link = {}
@@ -1405,6 +1471,55 @@ def _write_state_to_root(state, root_path):
         # Backups must write the provided snapshot as-is into the destination
         # root, independent of the currently active scoped selection.
         return _write_modular_state_full(state)
+
+
+def _write_card_layer_backup_to_root(state, root_path):
+    """
+    Write a card-layer backup with structure starting at:
+      <root>/cards/<card>/...
+    (without tab-level wrappers).
+    """
+    target_root = Path(root_path).resolve()
+    temp_root = Path(tempfile.mkdtemp(prefix="eveos-card-layer-"))
+    try:
+        with _temporary_store_root(temp_root):
+            _write_modular_state_full(state)
+
+        copied_scopes = 0
+        copied_cards = 0
+        tabs_root = temp_root / "tabs"
+        dst_cards_root = target_root / "cards"
+        dst_cards_root.mkdir(parents=True, exist_ok=True)
+        if tabs_root.exists():
+            for workspace_folder in sorted(tabs_root.iterdir()):
+                if not workspace_folder.is_dir():
+                    continue
+                src_cards_root = workspace_folder / "cards"
+                if not src_cards_root.exists() or not src_cards_root.is_dir():
+                    continue
+                copied_scopes += 1
+                for card_dir in sorted(src_cards_root.iterdir()):
+                    if not card_dir.is_dir():
+                        continue
+                    target_card_dir = dst_cards_root / card_dir.name
+                    if target_card_dir.exists():
+                        scoped_name = _safe_filename(f"{workspace_folder.name}--{card_dir.name}", card_dir.name)
+                        target_card_dir = dst_cards_root / scoped_name
+                    shutil.copytree(card_dir, target_card_dir, dirs_exist_ok=True)
+                    copied_cards += 1
+
+        bookmark_count = len(list((state.get("bookmarks") or {}).get("links") or []))
+        return {
+            "ok": True,
+            "summary": {
+                "tabs": copied_scopes,
+                "cards": copied_cards,
+                "bookmarks": bookmark_count
+            },
+            "status": {}
+        }
+    finally:
+        shutil.rmtree(temp_root, ignore_errors=True)
 
 
 def _normalize_link_record(link, fallback_workspace="", fallback_category=""):
@@ -2041,9 +2156,9 @@ def handle_post_request(handler, path):
             overwrite = bool(payload.get("overwrite"))
 
             try:
-                # Always derive backup layers from the full active store so
-                # current scoped view selection does not hide requested data.
-                source_state = read_modular_state(apply_selection=False)
+                # Respect currently loaded scope (store/tab/card/bookmark) so
+                # backups match what the user is actively viewing in EveOS.
+                source_state = read_modular_state()
                 layer_state = _extract_layer_state(
                     source_state,
                     layer=layer,
@@ -2053,7 +2168,10 @@ def handle_post_request(handler, path):
                 )
                 destination_root = _resolve_destination_path(destination_path)
                 destination_root = _ensure_destination_ready(destination_root, overwrite=overwrite, layer=layer)
-                result = _write_state_to_root(layer_state, destination_root)
+                if layer == "card":
+                    result = _write_card_layer_backup_to_root(layer_state, destination_root)
+                else:
+                    result = _write_state_to_root(layer_state, destination_root)
                 _send_json(handler, HTTPStatus.OK, {
                     "ok": True,
                     "layer": layer,

@@ -459,11 +459,14 @@ async function backupModularLayerToFolder() {
         return showToast('Modular sync module not loaded', 'error');
     }
     let { scope, workspaceId, categoryName, bookmarkId, layerPath } = getModularLayerScopeInputs();
-    if (!layerPath) {
+    const hasServerPicker = !!window.EveDataStore?.ModularSync?.pickFolderPath;
+    if (hasServerPicker) {
         layerPath = await pickModularLayerFolderPath({ silentOnCancel: true });
         if (!layerPath) {
-            return showToast('Set Folder Path in Copy Between Packs (Advanced) before running server folder backups.', 'warning');
+            return showToast('Backup canceled: folder not selected.', 'info');
         }
+    } else if (!layerPath) {
+        return showToast('Set Folder Path in Copy Between Packs (Advanced) before running server folder backups.', 'warning');
     }
     if ((scope === 'tab' || scope === 'card' || scope === 'bookmark') && !workspaceId) {
         return showToast('Select a workspace for this layer backup', 'warning');
@@ -486,13 +489,9 @@ async function backupModularLayerToFolder() {
         return showToast(result?.error || 'Layer backup failed', 'error');
     }
 
-    if (result.destinationPath) {
-        const input = document.getElementById('modularLayerPathInput');
-        if (input) input.value = result.destinationPath;
-        config.modularLayerPath = result.destinationPath;
-    } else {
-        config.modularLayerPath = layerPath;
-    }
+    const input = document.getElementById('modularLayerPathInput');
+    if (input) input.value = layerPath;
+    config.modularLayerPath = layerPath;
     saveConfig();
     showToast('Layer folder backup created', 'success');
 }
