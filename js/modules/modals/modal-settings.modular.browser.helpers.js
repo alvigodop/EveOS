@@ -2,3 +2,5 @@
 if (!window.__modalSettingsBrowserHelperFilesReady || !window.__modalSettingsBrowserHelperNormalizeReady) {
     console.warn('[Settings] Browser helper fragments missing.');
 }
+
+window.EveSettingsModularBrowserHelpers = window.EveSettingsModularBrowserHelpers || {};

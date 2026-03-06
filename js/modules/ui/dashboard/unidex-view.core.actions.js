@@ -6,21 +6,33 @@ window.UnidexViewModules = window.UnidexViewModules || {};
 
     window.UnidexViewModules.createCoreEntryActions = function createCoreEntryActions(deps) {
         const helpers = deps.helpers;
+        const openFromDashboard = typeof deps?.openFromDashboard === 'function'
+            ? deps.openFromDashboard
+            : (typeof openBookmarkFromDashboard === 'function' ? openBookmarkFromDashboard : null);
+        const normalizeEntryUrl = typeof deps?.normalizeEntryUrl === 'function'
+            ? deps.normalizeEntryUrl
+            : function (url) {
+                return typeof normalizeUrl === 'function' ? normalizeUrl(url) : url;
+            };
+        const openUrl = typeof deps?.openUrl === 'function'
+            ? deps.openUrl
+            : function (url) {
+                window.open(url, '_blank', 'noopener,noreferrer');
+            };
 
         function openEntry(linkIdParam, event) {
             if (event?.preventDefault) event.preventDefault();
             if (event?.stopPropagation) event.stopPropagation();
             const linkId = helpers.decodeParam(linkIdParam);
             if (!linkId) return false;
-            if (typeof openBookmarkFromDashboard === 'function') {
-                return openBookmarkFromDashboard(event, linkId);
+            if (openFromDashboard) {
+                return openFromDashboard(event, linkId);
             }
             const link = helpers.getAllLinks().find(function (item) {
                 return String(item.id) === String(linkId);
             });
             if (link?.url) {
-                const safeUrl = typeof normalizeUrl === 'function' ? normalizeUrl(link.url) : link.url;
-                window.open(safeUrl, '_blank', 'noopener,noreferrer');
+                openUrl(normalizeEntryUrl(link.url));
             }
             return false;
         }
@@ -34,8 +46,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 return String(item.id) === String(linkId);
             });
             if (!link?.url) return false;
-            const safeUrl = typeof normalizeUrl === 'function' ? normalizeUrl(link.url) : link.url;
-            window.open(safeUrl, '_blank', 'noopener,noreferrer');
+            openUrl(normalizeEntryUrl(link.url));
             return false;
         }
 

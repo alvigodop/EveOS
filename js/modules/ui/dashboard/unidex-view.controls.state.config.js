@@ -4,60 +4,84 @@ window.UnidexViewModules = window.UnidexViewModules || {};
 (function () {
     if (window.UnidexViewModules.createControlsStateConfig) return;
 
-    window.UnidexViewModules.createControlsStateConfig = function createControlsStateConfig() {
+    window.UnidexViewModules.createControlsStateConfig = function createControlsStateConfig(deps) {
+        const readConfig = typeof deps?.readConfig === 'function'
+            ? deps.readConfig
+            : function () {
+                return typeof config !== 'undefined' && config ? config : {};
+            };
+        const persistConfig = typeof deps?.persistConfig === 'function'
+            ? deps.persistConfig
+            : function () {
+                if (typeof saveConfig === 'function') saveConfig();
+            };
+        const requestRender = typeof deps?.requestRender === 'function'
+            ? deps.requestRender
+            : function () {
+                if (typeof renderDashboard === 'function') renderDashboard();
+            };
+
+        function getConfigState() {
+            const currentConfig = readConfig();
+            return currentConfig && typeof currentConfig === 'object' ? currentConfig : {};
+        }
+
         function getEntriesLayoutMode() {
-            return String(config?.unidexEntriesLayout || 'rows') === 'grid' ? 'grid' : 'rows';
+            return String(getConfigState().unidexEntriesLayout || 'rows') === 'grid' ? 'grid' : 'rows';
         }
 
         function setEntriesLayoutMode(mode) {
             const nextMode = String(mode || '') === 'grid' ? 'grid' : 'rows';
-            if (config.unidexEntriesLayout === nextMode) return;
-            config.unidexEntriesLayout = nextMode;
-            if (typeof saveConfig === 'function') saveConfig();
+            const currentConfig = getConfigState();
+            if (currentConfig.unidexEntriesLayout === nextMode) return;
+            currentConfig.unidexEntriesLayout = nextMode;
+            persistConfig();
         }
 
         function toggleEntriesLayout() {
             const nextMode = getEntriesLayoutMode() === 'grid' ? 'rows' : 'grid';
             setEntriesLayoutMode(nextMode);
-            if (typeof renderDashboard === 'function') renderDashboard();
+            requestRender();
         }
 
         function getCardsUnifiedMode() {
-            return !!config?.unidexCardsUnified;
+            return !!getConfigState().unidexCardsUnified;
         }
 
         function setCardsUnifiedMode(enabled) {
             const nextState = !!enabled;
-            if (!!config.unidexCardsUnified === nextState) return false;
-            config.unidexCardsUnified = nextState;
-            if (typeof saveConfig === 'function') saveConfig();
+            const currentConfig = getConfigState();
+            if (!!currentConfig.unidexCardsUnified === nextState) return false;
+            currentConfig.unidexCardsUnified = nextState;
+            persistConfig();
             return true;
         }
 
         function setCardsUnified(enabled) {
             setCardsUnifiedMode(enabled);
-            if (typeof renderDashboard === 'function') renderDashboard();
+            requestRender();
         }
 
         function getTabsUnifiedMode() {
-            return !!config?.unidexTabsUnified;
+            return !!getConfigState().unidexTabsUnified;
         }
 
         function setTabsUnifiedMode(enabled) {
             const nextState = !!enabled;
-            if (!!config.unidexTabsUnified === nextState) return false;
-            config.unidexTabsUnified = nextState;
-            if (typeof saveConfig === 'function') saveConfig();
+            const currentConfig = getConfigState();
+            if (!!currentConfig.unidexTabsUnified === nextState) return false;
+            currentConfig.unidexTabsUnified = nextState;
+            persistConfig();
             return true;
         }
 
         function setTabsUnified(enabled) {
             setTabsUnifiedMode(enabled);
-            if (typeof renderDashboard === 'function') renderDashboard();
+            requestRender();
         }
 
         function getEntriesFilterMode() {
-            const mode = String(config?.unidexEntriesFilter || 'all');
+            const mode = String(getConfigState().unidexEntriesFilter || 'all');
             if (mode === 'linked' || mode === 'bookmark-only') return mode;
             return 'all';
         }
@@ -68,41 +92,44 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 : String(mode || '') === 'bookmark-only'
                     ? 'bookmark-only'
                     : 'all';
-            if (config.unidexEntriesFilter === nextMode) return;
-            config.unidexEntriesFilter = nextMode;
-            if (typeof saveConfig === 'function') saveConfig();
-            if (typeof renderDashboard === 'function') renderDashboard();
+            const currentConfig = getConfigState();
+            if (currentConfig.unidexEntriesFilter === nextMode) return;
+            currentConfig.unidexEntriesFilter = nextMode;
+            persistConfig();
+            requestRender();
         }
 
         function getEntriesSortBy() {
-            const mode = String(config?.unidexEntriesSortBy || 'none').toLowerCase();
+            const mode = String(getConfigState().unidexEntriesSortBy || 'none').toLowerCase();
             return mode === 'confidence' ? 'confidence' : 'none';
         }
 
         function getEntriesSortOrder() {
-            return String(config?.unidexEntriesSortOrder || 'desc').toLowerCase() === 'asc' ? 'asc' : 'desc';
+            return String(getConfigState().unidexEntriesSortOrder || 'desc').toLowerCase() === 'asc' ? 'asc' : 'desc';
         }
 
         function setEntriesSortBy(sortBy) {
             const nextSortBy = String(sortBy || '').toLowerCase() === 'confidence' ? 'confidence' : 'none';
-            if (String(config?.unidexEntriesSortBy || 'none') === nextSortBy) return;
-            config.unidexEntriesSortBy = nextSortBy;
-            if (typeof saveConfig === 'function') saveConfig();
-            if (typeof renderDashboard === 'function') renderDashboard();
+            const currentConfig = getConfigState();
+            if (String(currentConfig.unidexEntriesSortBy || 'none') === nextSortBy) return;
+            currentConfig.unidexEntriesSortBy = nextSortBy;
+            persistConfig();
+            requestRender();
         }
 
         function setEntriesSortOrder(sortOrder) {
             const nextOrder = String(sortOrder || '').toLowerCase() === 'asc' ? 'asc' : 'desc';
-            const currentOrder = String(config?.unidexEntriesSortOrder || 'desc');
+            const currentConfig = getConfigState();
+            const currentOrder = String(currentConfig.unidexEntriesSortOrder || 'desc');
             const currentSortBy = getEntriesSortBy();
             const shouldEnableConfidenceSort = currentSortBy === 'none';
             if (currentOrder === nextOrder && !shouldEnableConfidenceSort) return;
-            config.unidexEntriesSortOrder = nextOrder;
+            currentConfig.unidexEntriesSortOrder = nextOrder;
             if (shouldEnableConfidenceSort) {
-                config.unidexEntriesSortBy = 'confidence';
+                currentConfig.unidexEntriesSortBy = 'confidence';
             }
-            if (typeof saveConfig === 'function') saveConfig();
-            if (typeof renderDashboard === 'function') renderDashboard();
+            persistConfig();
+            requestRender();
         }
 
         function normalizeConfidenceInput(rawValue) {
@@ -114,11 +141,11 @@ window.UnidexViewModules = window.UnidexViewModules || {};
         }
 
         function getEntriesConfidenceMin() {
-            return normalizeConfidenceInput(config?.unidexEntriesConfidenceMin);
+            return normalizeConfidenceInput(getConfigState().unidexEntriesConfidenceMin);
         }
 
         function getEntriesConfidenceMax() {
-            return normalizeConfidenceInput(config?.unidexEntriesConfidenceMax);
+            return normalizeConfidenceInput(getConfigState().unidexEntriesConfidenceMax);
         }
 
         function formatConfidenceInput(value) {
@@ -129,23 +156,25 @@ window.UnidexViewModules = window.UnidexViewModules || {};
         function setEntriesConfidenceMin(rawValue) {
             const nextMin = normalizeConfidenceInput(rawValue);
             const currentMax = getEntriesConfidenceMax();
-            config.unidexEntriesConfidenceMin = nextMin;
+            const currentConfig = getConfigState();
+            currentConfig.unidexEntriesConfidenceMin = nextMin;
             if (Number.isFinite(nextMin) && Number.isFinite(currentMax) && nextMin > currentMax) {
-                config.unidexEntriesConfidenceMax = nextMin;
+                currentConfig.unidexEntriesConfidenceMax = nextMin;
             }
-            if (typeof saveConfig === 'function') saveConfig();
-            if (typeof renderDashboard === 'function') renderDashboard();
+            persistConfig();
+            requestRender();
         }
 
         function setEntriesConfidenceMax(rawValue) {
             const nextMax = normalizeConfidenceInput(rawValue);
             const currentMin = getEntriesConfidenceMin();
-            config.unidexEntriesConfidenceMax = nextMax;
+            const currentConfig = getConfigState();
+            currentConfig.unidexEntriesConfidenceMax = nextMax;
             if (Number.isFinite(nextMax) && Number.isFinite(currentMin) && nextMax < currentMin) {
-                config.unidexEntriesConfidenceMin = nextMax;
+                currentConfig.unidexEntriesConfidenceMin = nextMax;
             }
-            if (typeof saveConfig === 'function') saveConfig();
-            if (typeof renderDashboard === 'function') renderDashboard();
+            persistConfig();
+            requestRender();
         }
 
         return {

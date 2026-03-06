@@ -32,7 +32,16 @@ window.UnidexView = (function () {
     const controls = helpers && modules.createControls ? modules.createControls({
         state,
         getLinkedLibraryEntry: helpers.getLinkedLibraryEntry,
-        getEntryConfidence: helpers.getEntryConfidence
+        getEntryConfidence: helpers.getEntryConfidence,
+        readConfig: function () {
+            return typeof config !== 'undefined' && config ? config : {};
+        },
+        persistConfig: function () {
+            if (typeof saveConfig === 'function') saveConfig();
+        },
+        requestRender: function () {
+            if (typeof renderDashboard === 'function') renderDashboard();
+        }
     }) : null;
     const layout = modules.createLayout ? modules.createLayout({ state }) : null;
     const stages = helpers && builders && controls && layout && modules.createStages ? modules.createStages({
@@ -61,8 +70,34 @@ window.UnidexView = (function () {
         applyEntriesViewTransforms: controls.applyEntriesViewTransforms,
         buildEntriesControlsHtml: controls.buildEntriesControlsHtml
     }) : null;
-    const navigation = helpers && stages && modules.createCoreNavigation ? modules.createCoreNavigation({ state, helpers, stages }) : null;
-    const entryActions = helpers && modules.createCoreEntryActions ? modules.createCoreEntryActions({ helpers }) : null;
+    const navigation = helpers && stages && modules.createCoreNavigation ? modules.createCoreNavigation({
+        state,
+        helpers,
+        stages,
+        getActiveWorkspaceId: function () {
+            return typeof config !== 'undefined' ? String(config?.activeWorkspace || '') : '';
+        },
+        switchWorkspaceById: function (workspaceId) {
+            if (typeof switchWorkspace === 'function') {
+                switchWorkspace(workspaceId);
+            }
+        },
+        requestRender: function () {
+            if (typeof renderDashboard === 'function') renderDashboard();
+        }
+    }) : null;
+    const entryActions = helpers && modules.createCoreEntryActions ? modules.createCoreEntryActions({
+        helpers,
+        openFromDashboard: typeof openBookmarkFromDashboard === 'function'
+            ? openBookmarkFromDashboard
+            : null,
+        normalizeEntryUrl: function (url) {
+            return typeof normalizeUrl === 'function' ? normalizeUrl(url) : url;
+        },
+        openUrl: function (url) {
+            window.open(url, '_blank', 'noopener,noreferrer');
+        }
+    }) : null;
 
     if (!helpers || !builders || !controls || !layout || !stages || !navigation || !entryActions) {
         console.warn('[UnidexView] Modular components missing (helpers/builders/controls/layout/stages/navigation/actions).');

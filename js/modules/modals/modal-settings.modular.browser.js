@@ -1,8 +1,15 @@
 // --- SETTINGS MODULAR BROWSER ACTIONS ---
 
 async function normalizeBookmarkTitlesBrowserOnly() {
+    const helpers = window.EveSettingsModularBrowserHelpers || {};
+    const buildLiveBookmarkMap = helpers.buildLiveBookmarkMap;
+    const normalizeBookmarkFilesInDirectory = helpers.normalizeBookmarkFilesInDirectory;
+
     if (typeof window.showDirectoryPicker !== 'function') {
         return showToast('Browser folder normalization needs Chrome/Edge Directory Picker support', 'error');
+    }
+    if (typeof buildLiveBookmarkMap !== 'function' || typeof normalizeBookmarkFilesInDirectory !== 'function') {
+        return showToast('Browser normalization helpers are unavailable right now', 'error');
     }
     try {
         const directoryHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
@@ -19,9 +26,9 @@ async function normalizeBookmarkTitlesBrowserOnly() {
             skipped: 0,
             errors: 0
         };
-        const liveBookmarkMap = _buildLiveBookmarkMap();
+        const liveBookmarkMap = buildLiveBookmarkMap();
 
-        await _normalizeBookmarkFilesInDirectory(directoryHandle, stats, { liveBookmarkMap });
+        await normalizeBookmarkFilesInDirectory(directoryHandle, stats, { liveBookmarkMap });
         if (stats.scanned === 0) {
             return showToast('No bookmark JSON files found in selected folder', 'info');
         }

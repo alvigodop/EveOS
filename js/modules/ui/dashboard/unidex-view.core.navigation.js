@@ -8,6 +8,23 @@ window.UnidexViewModules = window.UnidexViewModules || {};
         const state = deps.state;
         const helpers = deps.helpers;
         const stages = deps.stages;
+        const getActiveWorkspaceId = typeof deps?.getActiveWorkspaceId === 'function'
+            ? deps.getActiveWorkspaceId
+            : function () {
+                return typeof config !== 'undefined' ? String(config?.activeWorkspace || '') : '';
+            };
+        const switchWorkspaceById = typeof deps?.switchWorkspaceById === 'function'
+            ? deps.switchWorkspaceById
+            : function (workspaceId) {
+                if (typeof switchWorkspace === 'function') {
+                    switchWorkspace(workspaceId);
+                }
+            };
+        const requestRender = typeof deps?.requestRender === 'function'
+            ? deps.requestRender
+            : function () {
+                if (typeof renderDashboard === 'function') renderDashboard();
+            };
 
         function switchWorkspaceTab(workspaceIdParam) {
             const workspaceId = helpers.decodeParam(workspaceIdParam);
@@ -15,11 +32,11 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             state.selectedWorkspaceId = workspaceId;
             state.selectedCategory = '';
             state.stage = 'cards';
-            if (String(config.activeWorkspace) !== String(workspaceId) && typeof switchWorkspace === 'function') {
-                switchWorkspace(workspaceId);
+            if (String(getActiveWorkspaceId() || '') !== String(workspaceId)) {
+                switchWorkspaceById(workspaceId);
                 return;
             }
-            if (typeof renderDashboard === 'function') renderDashboard();
+            requestRender();
         }
 
         function selectCategory(categoryParam) {
@@ -27,12 +44,12 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             if (!category) return;
             state.selectedCategory = category;
             state.stage = 'entries';
-            if (typeof renderDashboard === 'function') renderDashboard();
+            requestRender();
         }
 
         function backToTabs() {
             stages.resetSelection();
-            if (typeof renderDashboard === 'function') renderDashboard();
+            requestRender();
         }
 
         function backToCards() {
@@ -43,7 +60,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             helpers.resetLibraryReadyWait();
             state.stage = 'cards';
             state.selectedCategory = '';
-            if (typeof renderDashboard === 'function') renderDashboard();
+            requestRender();
         }
 
         return { switchWorkspaceTab, selectCategory, backToTabs, backToCards };

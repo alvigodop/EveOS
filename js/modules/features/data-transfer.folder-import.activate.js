@@ -9,29 +9,34 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         return;
     }
 
-    const getDataStore = ns.getDataStore;
-    const parseAnyDataPackFolder = ns.parseAnyDataPackFolder;
-    const summarizeStateCounts = ns.summarizeStateCounts;
-
     async function activateDataPackFolderFromPicker(options = {}) {
-        if (typeof window.showDirectoryPicker !== 'function') {
+        const pickDirectory = typeof options.pickDirectory === 'function'
+            ? options.pickDirectory
+            : window.showDirectoryPicker;
+        const confirmDialog = typeof options.confirmDialog === 'function'
+            ? options.confirmDialog
+            : (typeof ns.confirmDialog === 'function'
+                ? ns.confirmDialog
+                : async function (message) { return showConfirm(message); });
+
+        if (typeof pickDirectory !== 'function') {
             return { ok: false, error: 'Folder picker is not supported in this browser.' };
         }
-        const dataStore = getDataStore();
+        const dataStore = typeof ns.getDataStore === 'function' ? ns.getDataStore() : null;
         if (!dataStore?.applyState) {
             return { ok: false, error: 'Unified state restore is unavailable right now.' };
         }
         try {
-            const rootHandle = await window.showDirectoryPicker({ mode: 'read' });
-            const parsed = await parseAnyDataPackFolder(rootHandle, options);
-            const summary = summarizeStateCounts(parsed.state);
+            const rootHandle = await pickDirectory({ mode: 'read' });
+            const parsed = await ns.parseAnyDataPackFolder(rootHandle, options);
+            const summary = ns.summarizeStateCounts(parsed.state);
             const confirmMessage = options.confirmMessage || `Set selected folder as active data pack (${summary.tabs} tabs, ${summary.cards} cards, ${summary.bookmarks} bookmarks)?`;
             if (options.confirm !== false) {
-                const confirmed = await showConfirm(confirmMessage);
+                const confirmed = await confirmDialog(confirmMessage);
                 if (!confirmed) return { ok: false, canceled: true };
                 if (options.confirmTwice) {
                     const finalConfirmMessage = options.finalConfirmMessage || 'Final confirmation: apply selected data pack now? This overwrites current bookmarks & library.';
-                    const finalConfirmed = await showConfirm(finalConfirmMessage);
+                    const finalConfirmed = await confirmDialog(finalConfirmMessage);
                     if (!finalConfirmed) return { ok: false, canceled: true };
                 }
             }

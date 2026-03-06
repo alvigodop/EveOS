@@ -13,6 +13,12 @@ window.EveLibrary.UIModules = window.EveLibrary.UIModules || {};
         const Search = deps.Search;
         const Shared = deps.Shared;
         const forms = deps.forms;
+        const getDocument = typeof deps?.getDocument === 'function'
+            ? deps.getDocument
+            : function () { return document; };
+        const getRatingsApi = typeof deps?.getRatingsApi === 'function'
+            ? deps.getRatingsApi
+            : function () { return window.EveLibrary?.Ratings; };
 
         function createLibraryPanelHtml(categoryName) {
             if (typeof Shared.createLibraryPanelHtml === 'function') {
@@ -23,20 +29,21 @@ window.EveLibrary.UIModules = window.EveLibrary.UIModules || {};
 
         function initLibraryPanel(categoryName) {
             const prefix = forms.getPrefix(categoryName);
-            const panel = document.getElementById(prefix + 'panel');
+            const doc = getDocument();
+            const panel = doc?.getElementById(prefix + 'panel');
             if (!panel) return;
             panel.innerHTML = createLibraryPanelHtml(categoryName);
             OptionsUpdaters.updateStatusOptions(categoryName);
             OptionsUpdaters.updateGenreOptions(categoryName);
             OptionsUpdaters.updateSortByOptions(categoryName);
             OptionsUpdaters.updateFieldsVisibility(categoryName);
-            const ratingScaleSelect = document.getElementById(prefix + 'search-rating-scale');
-            const ratingsApi = window.EveLibrary?.Ratings;
+            const ratingScaleSelect = doc?.getElementById(prefix + 'search-rating-scale');
+            const ratingsApi = getRatingsApi();
             const currentConfig = State?.getConfig ? State.getConfig() : null;
             if (ratingScaleSelect && ratingsApi?.getActiveScale) {
                 ratingScaleSelect.value = ratingsApi.getActiveScale(currentConfig);
             }
-            const entriesContainer = document.getElementById(prefix + 'entries');
+            const entriesContainer = doc?.getElementById(prefix + 'entries');
             EntriesRenderer.renderEntries(categoryName, entriesContainer);
         }
 
@@ -58,8 +65,9 @@ window.EveLibrary.UIModules = window.EveLibrary.UIModules || {};
 
         function toggleStats(categoryName) {
             const prefix = forms.getPrefix(categoryName);
-            const entriesView = document.getElementById(prefix + 'entries-view');
-            const statsView = document.getElementById(prefix + 'stats-view');
+            const doc = getDocument();
+            const entriesView = doc?.getElementById(prefix + 'entries-view');
+            const statsView = doc?.getElementById(prefix + 'stats-view');
             if (!entriesView || !statsView) return;
             if (statsView.style.display === 'none') {
                 entriesView.style.display = 'none';
@@ -77,8 +85,9 @@ window.EveLibrary.UIModules = window.EveLibrary.UIModules || {};
 
         function refreshLibrary(categoryName) {
             const prefix = forms.getPrefix(categoryName);
-            const entriesContainer = document.getElementById(prefix + 'entries');
-            const statsView = document.getElementById(prefix + 'stats-view');
+            const doc = getDocument();
+            const entriesContainer = doc?.getElementById(prefix + 'entries');
+            const statsView = doc?.getElementById(prefix + 'stats-view');
             OptionsUpdaters.updateGenreOptions(categoryName);
             EntriesRenderer.renderEntries(categoryName, entriesContainer);
             if (statsView && statsView.style.display !== 'none' && StatsRenderer) {
