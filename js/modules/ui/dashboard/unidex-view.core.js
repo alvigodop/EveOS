@@ -15,71 +15,57 @@ window.UnidexView = (function () {
     };
 
     const modules = window.UnidexViewModules || {};
-    const helpers = modules.createCoreHelpers
-        ? modules.createCoreHelpers({ state })
-        : null;
+    const helpers = modules.createCoreHelpers ? modules.createCoreHelpers({ state }) : null;
+    const builders = helpers && modules.createBuilders ? modules.createBuilders({
+        state,
+        getAllLinks: helpers.getAllLinks,
+        encodeParam: helpers.encodeParam,
+        escapeHtml: helpers.escapeHtml,
+        getDomain: helpers.getDomain,
+        truncateText: helpers.truncateText,
+        getLinkedLibraryEntry: helpers.getLinkedLibraryEntry,
+        getEntryConfidence: helpers.getEntryConfidence,
+        getMediaTypeLabel: helpers.getMediaTypeLabel,
+        getProgressLabel: helpers.getProgressLabel,
+        buildBookmarkIconHtml: helpers.buildBookmarkIconHtml
+    }) : null;
+    const controls = helpers && modules.createControls ? modules.createControls({
+        state,
+        getLinkedLibraryEntry: helpers.getLinkedLibraryEntry,
+        getEntryConfidence: helpers.getEntryConfidence
+    }) : null;
+    const layout = modules.createLayout ? modules.createLayout({ state }) : null;
+    const stages = helpers && builders && controls && layout && modules.createStages ? modules.createStages({
+        state,
+        getWorkspaceById: helpers.getWorkspaceById,
+        getWorkspaceLinks: helpers.getWorkspaceLinks,
+        getAllWorkspaceLinks: helpers.getAllWorkspaceLinks,
+        getCategoryModels: helpers.getCategoryModels,
+        isTaskModeCategory: helpers.isTaskModeCategory,
+        getWorkspaceLabel: helpers.getWorkspaceLabel,
+        escapeHtml: helpers.escapeHtml,
+        ensureLibraryReadyForEntries: helpers.ensureLibraryReadyForEntries,
+        shouldShowLibraryLoadingHint: helpers.shouldShowLibraryLoadingHint,
+        scheduleEntriesRetry: helpers.scheduleEntriesRetry,
+        resetLibraryReadyWait: helpers.resetLibraryReadyWait,
+        stabilizeEntriesLayout: layout.stabilizeEntriesLayout,
+        clearLayoutMaintenanceTimers: layout.clearLayoutMaintenanceTimers,
+        scheduleLayoutMaintenance: function (gridContainer) { layout.scheduleLayoutMaintenance(gridContainer, controls.getEntriesLayoutMode); },
+        buildTabsHtml: builders.buildTabsHtml,
+        buildCardsHtml: builders.buildCardsHtml,
+        buildEntriesHtml: builders.buildEntriesHtml,
+        getEntriesLayoutMode: controls.getEntriesLayoutMode,
+        getCardsUnifiedMode: controls.getCardsUnifiedMode,
+        getTabsUnifiedMode: controls.getTabsUnifiedMode,
+        getEntriesFilterMode: controls.getEntriesFilterMode,
+        applyEntriesViewTransforms: controls.applyEntriesViewTransforms,
+        buildEntriesControlsHtml: controls.buildEntriesControlsHtml
+    }) : null;
+    const navigation = helpers && stages && modules.createCoreNavigation ? modules.createCoreNavigation({ state, helpers, stages }) : null;
+    const entryActions = helpers && modules.createCoreEntryActions ? modules.createCoreEntryActions({ helpers }) : null;
 
-    const builders = helpers && modules.createBuilders
-        ? modules.createBuilders({
-            state,
-            getAllLinks: helpers.getAllLinks,
-            encodeParam: helpers.encodeParam,
-            escapeHtml: helpers.escapeHtml,
-            getDomain: helpers.getDomain,
-            truncateText: helpers.truncateText,
-            getLinkedLibraryEntry: helpers.getLinkedLibraryEntry,
-            getEntryConfidence: helpers.getEntryConfidence,
-            getMediaTypeLabel: helpers.getMediaTypeLabel,
-            getProgressLabel: helpers.getProgressLabel,
-            buildBookmarkIconHtml: helpers.buildBookmarkIconHtml
-        })
-        : null;
-
-    const controls = helpers && modules.createControls
-        ? modules.createControls({
-            state,
-            getLinkedLibraryEntry: helpers.getLinkedLibraryEntry,
-            getEntryConfidence: helpers.getEntryConfidence
-        })
-        : null;
-
-    const layout = modules.createLayout
-        ? modules.createLayout({ state })
-        : null;
-
-    const stages = helpers && builders && controls && layout && modules.createStages
-        ? modules.createStages({
-            state,
-            getWorkspaceById: helpers.getWorkspaceById,
-            getWorkspaceLinks: helpers.getWorkspaceLinks,
-            getAllWorkspaceLinks: helpers.getAllWorkspaceLinks,
-            getCategoryModels: helpers.getCategoryModels,
-            isTaskModeCategory: helpers.isTaskModeCategory,
-            getWorkspaceLabel: helpers.getWorkspaceLabel,
-            escapeHtml: helpers.escapeHtml,
-            ensureLibraryReadyForEntries: helpers.ensureLibraryReadyForEntries,
-            shouldShowLibraryLoadingHint: helpers.shouldShowLibraryLoadingHint,
-            scheduleEntriesRetry: helpers.scheduleEntriesRetry,
-            resetLibraryReadyWait: helpers.resetLibraryReadyWait,
-            stabilizeEntriesLayout: layout.stabilizeEntriesLayout,
-            clearLayoutMaintenanceTimers: layout.clearLayoutMaintenanceTimers,
-            scheduleLayoutMaintenance: function (gridContainer) {
-                layout.scheduleLayoutMaintenance(gridContainer, controls.getEntriesLayoutMode);
-            },
-            buildTabsHtml: builders.buildTabsHtml,
-            buildCardsHtml: builders.buildCardsHtml,
-            buildEntriesHtml: builders.buildEntriesHtml,
-            getEntriesLayoutMode: controls.getEntriesLayoutMode,
-            getCardsUnifiedMode: controls.getCardsUnifiedMode,
-            getTabsUnifiedMode: controls.getTabsUnifiedMode,
-            getEntriesFilterMode: controls.getEntriesFilterMode,
-            applyEntriesViewTransforms: controls.applyEntriesViewTransforms,
-            buildEntriesControlsHtml: controls.buildEntriesControlsHtml
-        })
-        : null;
-
-    if (!helpers || !builders || !controls || !layout || !stages) {
-        console.warn('[UnidexView] Modular components missing (helpers/builders/controls/layout/stages).');
+    if (!helpers || !builders || !controls || !layout || !stages || !navigation || !entryActions) {
+        console.warn('[UnidexView] Modular components missing (helpers/builders/controls/layout/stages/navigation/actions).');
         return {
             render: function () { },
             switchWorkspaceTab: function () { },
@@ -100,84 +86,6 @@ window.UnidexView = (function () {
         };
     }
 
-    function switchWorkspaceTab(workspaceIdParam) {
-        const workspaceId = helpers.decodeParam(workspaceIdParam);
-        if (!workspaceId) return;
-
-        state.selectedWorkspaceId = workspaceId;
-        state.selectedCategory = '';
-        state.stage = 'cards';
-
-        if (String(config.activeWorkspace) !== String(workspaceId) && typeof switchWorkspace === 'function') {
-            switchWorkspace(workspaceId);
-            return;
-        }
-
-        if (typeof renderDashboard === 'function') renderDashboard();
-    }
-
-    function selectCategory(categoryParam) {
-        const category = helpers.decodeParam(categoryParam);
-        if (!category) return;
-        state.selectedCategory = category;
-        state.stage = 'entries';
-        if (typeof renderDashboard === 'function') renderDashboard();
-    }
-
-    function backToTabs() {
-        stages.resetSelection();
-        if (typeof renderDashboard === 'function') renderDashboard();
-    }
-
-    function backToCards() {
-        if (!state.selectedWorkspaceId) {
-            backToTabs();
-            return;
-        }
-        helpers.resetLibraryReadyWait();
-        state.stage = 'cards';
-        state.selectedCategory = '';
-        if (typeof renderDashboard === 'function') renderDashboard();
-    }
-
-    function openEntry(linkIdParam, event) {
-        if (event?.preventDefault) event.preventDefault();
-        if (event?.stopPropagation) event.stopPropagation();
-
-        const linkId = helpers.decodeParam(linkIdParam);
-        if (!linkId) return false;
-
-        if (typeof openBookmarkFromDashboard === 'function') {
-            return openBookmarkFromDashboard(event, linkId);
-        }
-
-        const link = helpers.getAllLinks().find(function (item) {
-            return String(item.id) === String(linkId);
-        });
-        if (link?.url) {
-            const safeUrl = typeof normalizeUrl === 'function' ? normalizeUrl(link.url) : link.url;
-            window.open(safeUrl, '_blank', 'noopener,noreferrer');
-        }
-        return false;
-    }
-
-    function openEntryDirect(linkIdParam, event) {
-        if (event?.preventDefault) event.preventDefault();
-        if (event?.stopPropagation) event.stopPropagation();
-
-        const linkId = helpers.decodeParam(linkIdParam);
-        if (!linkId) return false;
-
-        const link = helpers.getAllLinks().find(function (item) {
-            return String(item.id) === String(linkId);
-        });
-        if (!link?.url) return false;
-
-        const safeUrl = typeof normalizeUrl === 'function' ? normalizeUrl(link.url) : link.url;
-        window.open(safeUrl, '_blank', 'noopener,noreferrer');
-        return false;
-    }
-
     function setCardsUnified(enabled) {
         const changed = controls.setCardsUnifiedMode(enabled);
         if (changed) helpers.resetLibraryReadyWait();
@@ -192,20 +100,20 @@ window.UnidexView = (function () {
 
     return {
         render: stages.render,
-        switchWorkspaceTab: switchWorkspaceTab,
-        selectCategory: selectCategory,
-        backToTabs: backToTabs,
-        backToCards: backToCards,
+        switchWorkspaceTab: navigation.switchWorkspaceTab,
+        selectCategory: navigation.selectCategory,
+        backToTabs: navigation.backToTabs,
+        backToCards: navigation.backToCards,
         setEntriesFilter: controls.setEntriesFilter,
         setEntriesSortBy: controls.setEntriesSortBy,
         setEntriesSortOrder: controls.setEntriesSortOrder,
         setEntriesConfidenceMin: controls.setEntriesConfidenceMin,
         setEntriesConfidenceMax: controls.setEntriesConfidenceMax,
-        setCardsUnified: setCardsUnified,
-        setTabsUnified: setTabsUnified,
+        setCardsUnified,
+        setTabsUnified,
         toggleEntriesLayout: controls.toggleEntriesLayout,
-        openEntryDirect: openEntryDirect,
-        openEntry: openEntry,
+        openEntryDirect: entryActions.openEntryDirect,
+        openEntry: entryActions.openEntry,
         resetSelection: stages.resetSelection
     };
 })();
