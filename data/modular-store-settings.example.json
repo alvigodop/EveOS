@@ -1,0 +1,7 @@
+{
+  "schema": "eveos.modular-store-settings.v1",
+  "version": 1,
+  "activePath": "<active-store-root-path>",
+  "requestedPath": "<requested-store-or-scoped-path>",
+  "updatedAt": "2026-01-01T00:00:00Z"
+}

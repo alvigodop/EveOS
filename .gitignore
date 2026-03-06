@@ -158,3 +158,7 @@ Thumbs.db
 
 # EveOS local modular state store (generated at runtime)
 data/modular-state/
+
+# EveOS local runtime path/session state (machine-specific)
+data/launcher-last-pack.txt
+data/modular-store-settings.json
