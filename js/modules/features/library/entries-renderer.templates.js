@@ -1,0 +1,112 @@
+/**
+ * Entries Renderer Templates for Eve OS
+ */
+window.EveLibrary = window.EveLibrary || {};
+window.EveLibrary.Modules = window.EveLibrary.Modules || {};
+
+(function () {
+    window.EveLibrary.Modules.createEntriesRendererTemplates = function createEntriesRendererTemplates(deps) {
+        const helpers = deps?.helpers || {};
+        const Ratings = deps?.Ratings;
+        const toUniqueList = helpers.toUniqueList || (() => []);
+        const toDisplayCsv = helpers.toDisplayCsv || (() => '');
+        const sanitizeForId = helpers.sanitizeForId || (value => String(value || ''));
+        const buildExpandableDetail = helpers.buildExpandableDetail || (() => '');
+        const formatLastEdited = helpers.formatLastEdited || (() => 'Last edited: -');
+        const renderTypeFields = helpers.renderTypeFields || (() => '');
+        const renderDerivedRatings = helpers.renderDerivedRatings || (() => '');
+
+        function createEntryHtml(entry, displayNumber, dataType, categoryName) {
+            const safeCat = categoryName.replace(/'/g, "\\'");
+            const safeId = entry.id;
+            const safeEntryIdBase = sanitizeForId(`${categoryName}-${safeId}`);
+            const lastEditedText = formatLastEdited(entry.lastEdited || entry.dateAdded);
+            const sourceUrl = entry.sourceUrl || '';
+            const safeSourceUrl = sourceUrl.replace(/'/g, "\\'");
+            const authorAltNames = toUniqueList(entry.authorAltNames);
+            const artistValue = toDisplayCsv(entry.artist);
+            const genreValue = toDisplayCsv(entry.genre);
+            const tags = toUniqueList(entry.tags);
+            const sourceStatus = String(entry.sourceStatus || '').trim();
+            const authorAltHtml = buildExpandableDetail('Author Alt', authorAltNames.join(', '), `${safeEntryIdBase}-author-alt`, 84);
+            const tagsHtml = buildExpandableDetail('Tags', tags.join(', '), `${safeEntryIdBase}-tags`, 92);
+            const notesHtml = buildExpandableDetail('Notes', entry.summary || '', `${safeEntryIdBase}-notes`, 96);
+            if (Ratings?.applyDerivedRatings) {
+                Ratings.applyDerivedRatings(entry);
+            }
+            const derived = entry.derivedRatings || {};
+            const titleHtml = sourceUrl
+                ? `<button class="lib-entry-title-btn" onclick="window.EveLibrary.UI.openEntryLink('${safeSourceUrl}')" title="Open source link">${displayNumber}. ${entry.title}</button>`
+                : `<h4 class="lib-entry-title">${displayNumber}. ${entry.title}</h4>`;
+
+            return `
+            <div class="lib-entry" data-id="${safeId}">
+                <div class="lib-entry-actions">
+                    <button onclick="window.EveLibrary.UI.editEntry('${safeCat}', '${safeId}')" title="Edit">&#9998;</button>
+                    <button onclick="window.EveLibrary.UI.confirmDeleteEntry('${safeCat}', '${safeId}')" title="Delete">&#128465;</button>
+                </div>
+                <button class="lib-favorite-btn ${entry.favorite ? 'active' : ''}"
+                        onclick="window.EveLibrary.UI.toggleFavorite('${safeCat}', '${safeId}')" title="Favorite">
+                    ${entry.favorite ? '&#11088;' : '&#9734;'}
+                </button>
+                <div class="lib-entry-select">
+                   <input type="checkbox" class="lib-batch-checkbox" data-category="${safeCat}" data-id="${safeId}">
+                </div>
+                ${entry.image ? `<img class="lib-entry-image" src="${entry.image}" alt="${entry.title}" onclick="window.EveLibrary.UI.openLightbox('${entry.image}')" title="View Fullsize">` : ''}
+                ${titleHtml}
+                <div class="lib-entry-details">
+                    <p><strong>Author:</strong> ${entry.author || 'N/A'}</p>
+                    <p><strong>Status:</strong> ${entry.status || 'N/A'}</p>
+                    ${sourceStatus ? `<p><strong>Source Status:</strong> ${sourceStatus}</p>` : ''}
+                    ${renderTypeFields(entry, dataType)}
+                    <p><strong>Rating:</strong> ${entry.rating || 'N/A'}</p>
+                    ${authorAltHtml}
+                    ${artistValue ? `<p><strong>Artist:</strong> ${artistValue}</p>` : ''}
+                    <p><strong>Genre:</strong> ${genreValue || 'N/A'}</p>
+                    ${renderDerivedRatings(derived)}
+                    ${tagsHtml}
+                    ${notesHtml}
+                </div>
+                <div class="lib-entry-last-edited" title="Last edited">${lastEditedText}</div>
+            </div>
+        `;
+        }
+
+        function renderPagination(categoryName, totalPages, currentPage) {
+            const prefix = `lib-${categoryName.replace(/[^a-zA-Z0-9]/g, '_')}-`;
+            const container = document.getElementById(prefix + 'pagination');
+            if (!container) return;
+
+            if (totalPages <= 1) {
+                container.innerHTML = '';
+                return;
+            }
+
+            const safeCat = categoryName.replace(/'/g, "\\'");
+            let html = '';
+
+            if (currentPage > 1) {
+                html += `<button onclick="window.EveLibrary.UI.goToPage('${safeCat}', ${currentPage - 1})">&#9664;</button>`;
+            }
+
+            const startPage = Math.max(1, currentPage - 2);
+            const endPage = Math.min(totalPages, startPage + 4);
+
+            for (let i = startPage; i <= endPage; i++) {
+                html += `<button class="${i === currentPage ? 'active' : ''}"
+                            onclick="window.EveLibrary.UI.goToPage('${safeCat}', ${i})">${i}</button>`;
+            }
+
+            if (currentPage < totalPages) {
+                html += `<button onclick="window.EveLibrary.UI.goToPage('${safeCat}', ${currentPage + 1})">&#9654;</button>`;
+            }
+
+            container.innerHTML = html;
+        }
+
+        return {
+            createEntryHtml,
+            renderPagination
+        };
+    };
+})();

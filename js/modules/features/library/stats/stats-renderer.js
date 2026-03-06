@@ -14,83 +14,29 @@ window.EveLibrary = window.EveLibrary || {};
     const Kpi = window.EveLibrary.StatsRendererKpi;
     const Charts = window.EveLibrary.StatsRendererCharts;
     const Widgets = window.EveLibrary.StatsRendererWidgets;
+    const createHelpers = window.EveLibrary.createStatsRendererHelpers;
+    const createActions = window.EveLibrary.createStatsRendererActions;
 
-    if (!Kpi || !Charts || !Widgets) {
-        console.warn('[EveLibrary.StatsRenderer] One or more renderer modules are missing (kpi/widgets/charts).');
+    if (!Kpi || !Charts || !Widgets || !createHelpers || !createActions) {
+        console.warn('[EveLibrary.StatsRenderer] One or more renderer modules are missing.');
+        return;
     }
+
+    const helpers = createHelpers({ State, Search });
+    const {
+        escapeHtml,
+        formatAverage,
+        formatPercent,
+        formatSigned,
+        axisMax,
+        getPrefix,
+        getEntriesForStats,
+        isFilmLikeEntry,
+        getWorkspaceId
+    } = helpers;
 
     const distributionModeByCategory = {};
     const breakdownModeByCategory = {};
-
-    function escapeHtml(value) {
-        return String(value || '')
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#39;');
-    }
-
-    function formatAverage(value, digits) {
-        const n = Number(value);
-        return Number.isFinite(n) ? n.toFixed(digits) : 'N/A';
-    }
-
-    function formatPercent(value) {
-        const n = Number(value);
-        return Number.isFinite(n) ? `${Math.round(n * 100)}%` : '0%';
-    }
-
-    function formatSigned(value) {
-        const n = Number(value);
-        if (!Number.isFinite(n)) return '0';
-        const abs = Math.abs(n).toFixed(2).replace(/\.?0+$/, '');
-        return n > 0 ? `+${abs}` : (n < 0 ? `-${abs}` : abs);
-    }
-
-    function axisMax(values) {
-        const max = (values || []).reduce((acc, value) => Math.max(acc, Number(value) || 0), 0);
-        if (max <= 0) return 1;
-        if (max <= 3) return max + 1;
-        if (max <= 10) return max + 2;
-        return Math.ceil(max * 1.15);
-    }
-
-    function getPrefix(categoryName) {
-        return `lib-${categoryName.replace(/[^a-zA-Z0-9]/g, '_')}-`;
-    }
-
-    function getEntriesForStats(categoryName) {
-        const lib = State.getCategoryLibrary(categoryName);
-        const allTypeEntries = Search?.getTypeScopedEntries
-            ? Search.getTypeScopedEntries(categoryName)
-            : (lib.entries || []);
-        const entries = Search?.getFilteredEntries
-            ? Search.getFilteredEntries(categoryName)
-            : allTypeEntries;
-        return { allTypeEntries, entries };
-    }
-
-    function isFilmLikeEntry(entry) {
-        const mediaTypes = Array.isArray(entry?.mediaTypes)
-            ? entry.mediaTypes.map(item => String(item || '').toLowerCase())
-            : [];
-        if (mediaTypes.includes('films')) return true;
-        if (mediaTypes.includes('graphicnovels') || mediaTypes.includes('novels')) return false;
-
-        const episode = Number(entry?.episode);
-        const chapter = Number(entry?.chapter ?? entry?.graphicChapter ?? entry?.novelChapter);
-        return Number.isFinite(episode) && episode > 0 && (!Number.isFinite(chapter) || chapter <= 0);
-    }
-
-    function getWorkspaceId() {
-        if (typeof State?.getCurrentWorkspaceId === 'function') {
-            return State.getCurrentWorkspaceId();
-        }
-        if (window.eveState?.config?.activeWorkspace) return String(window.eveState.config.activeWorkspace);
-        if (typeof config !== 'undefined' && config?.activeWorkspace) return String(config.activeWorkspace);
-        return 'main';
-    }
 
     function getDistributionMode(categoryName) {
         return String(distributionModeByCategory[categoryName] || 'genre').toLowerCase() === 'tags' ? 'tags' : 'genre';
@@ -235,66 +181,21 @@ window.EveLibrary = window.EveLibrary || {};
         updateCharts(categoryName);
     }
 
-    function quickIncrement(categoryName, entryId) {
-        const lib = State.getCategoryLibrary(categoryName);
-        if (!lib || !Array.isArray(lib.entries)) return false;
-        const entry = lib.entries.find(item => String(item?.id) === String(entryId));
-        if (!entry) return false;
-
-        if (isFilmLikeEntry(entry)) {
-            const current = Number(entry.episode);
-            entry.episode = Number.isFinite(current) ? current + 1 : 1;
-        } else {
-            const current = Number(entry.chapter ?? entry.graphicChapter ?? entry.novelChapter);
-            const next = Number.isFinite(current) ? current + 1 : 1;
-            entry.chapter = next;
-            const mediaTypes = Array.isArray(entry.mediaTypes) ? entry.mediaTypes : [];
-            if (!mediaTypes.length || mediaTypes.includes('graphicNovels')) {
-                entry.graphicChapter = next;
-            }
-            if (mediaTypes.includes('novels')) {
-                entry.novelChapter = next;
-            }
-        }
-
-        entry.lastEdited = new Date().toISOString();
-        if (Ratings?.applyDerivedRatings) {
-            Ratings.applyDerivedRatings(entry);
-        }
-        Storage?.saveLibrary?.();
-        if (window.EveLibrary?.ConnectionsAPI?.syncFromLibraryEntry) {
-            window.EveLibrary.ConnectionsAPI.syncFromLibraryEntry(categoryName, entry, getWorkspaceId());
-        }
-
-        if (window.EveLibrary?.UI?.refreshLibrary) {
-            window.EveLibrary.UI.refreshLibrary(categoryName);
-        } else {
-            const statsView = document.getElementById(`${getPrefix(categoryName)}stats-view`);
-            if (statsView) renderStats(categoryName, statsView);
-        }
-        return true;
-    }
-
-    function applyTagFilter(categoryName, tag) {
-        const prefix = getPrefix(categoryName);
-        const input = document.getElementById(`${prefix}search-tags`);
-        if (input) {
-            const next = String(tag || '').trim();
-            input.value = next;
-        }
-        if (window.EveLibrary?.UI?.refreshLibrary) {
-            window.EveLibrary.UI.refreshLibrary(categoryName);
-        } else {
-            const statsView = document.getElementById(`${prefix}stats-view`);
-            if (statsView) renderStats(categoryName, statsView);
-        }
-    }
+    const actions = createActions({
+        State,
+        Storage,
+        Ratings,
+        renderStats,
+        getPrefix,
+        getWorkspaceId,
+        isFilmLikeEntry
+    });
 
     window.EveLibrary.StatsRenderer = {
         renderStats,
         setDistributionMode,
         setBreakdownMode,
-        quickIncrement,
-        applyTagFilter
+        quickIncrement: actions.quickIncrement,
+        applyTagFilter: actions.applyTagFilter
     };
 })();
