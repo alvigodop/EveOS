@@ -12,6 +12,7 @@ from server_modules.eve_state_store_files import (
     load_json_file,
     normalize_bookmark_folder_node,
     normalize_bookmark_folder_tree,
+    normalize_library_folder_view,
     normalize_bookmark_filename,
     normalize_workspace_card_layout,
     prepare_workspace_map,
@@ -267,7 +268,7 @@ def write_modular_state_full(
     ensure_clean_store()
 
     workspaces = build_workspaces(config)
-    workspace_map = prepare_workspace_map(links, workspaces)
+    workspace_map = prepare_workspace_map(links, workspaces, categories=categories, folder_trees=bookmark_folders)
     library_index = build_library_index(categories)
     library_index_values = list(library_index.values())
 
@@ -373,6 +374,7 @@ def write_modular_state_full(
                 "categoryName": category_name,
                 "title": category_name,
                 "dataType": data_type,
+                "libraryFolderView": normalize_library_folder_view(scoped_library.get("folder_view") or {}),
                 "bookmarkFolder": bookmark_folder_name,
                 "bookmarkCount": len(category_links),
                 "folderRoot": "folders",
@@ -466,9 +468,15 @@ def ingest_cards_root(cards_root, workspace_id, categories, entry_ids_by_scope, 
 
         scoped = scoped_key(workspace_id, category_name)
         if scoped not in categories:
-            categories[scoped] = {"entries": [], "dataType": data_type}
+            categories[scoped] = {
+                "entries": [],
+                "dataType": data_type,
+                "folderView": normalize_library_folder_view(card_data.get("libraryFolderView") or {}),
+            }
         else:
             categories[scoped]["dataType"] = categories[scoped].get("dataType") or data_type
+            if "folderView" not in categories[scoped]:
+                categories[scoped]["folderView"] = normalize_library_folder_view(card_data.get("libraryFolderView") or {})
 
         if scoped not in entry_ids_by_scope:
             entry_ids_by_scope[scoped] = {

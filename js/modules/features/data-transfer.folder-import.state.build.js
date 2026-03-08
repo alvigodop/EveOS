@@ -23,13 +23,36 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         workspaceMap.set(id, { id, name: String(workspaceName || id).trim() || id, icon: workspaceIcon || 'folder' });
     }
 
-    function addCategoryEntries(categoriesMap, workspaceId, categoryName, entries, dataType = 'graphicNovels') {
+    function normalizeFolderView(folderView) {
+        const source = folderView && typeof folderView === 'object' ? folderView : {};
+        return {
+            root: String(source.root || 'all').trim() || 'all',
+            chain: Array.isArray(source.chain)
+                ? source.chain
+                    .map((step) => {
+                        if (!step || typeof step !== 'object') return null;
+                        const selection = String(step.selection || '').trim();
+                        return selection ? { selection } : null;
+                    })
+                    .filter(Boolean)
+                : [],
+            expanded: !!source.expanded
+        };
+    }
+
+    function addCategoryEntries(categoriesMap, workspaceId, categoryName, entries, dataType = 'graphicNovels', folderView = null) {
         const scopedKey = buildScopedCategoryKey(workspaceId, categoryName);
         if (!categoriesMap.has(scopedKey)) {
-            categoriesMap.set(scopedKey, { dataType: dataType || 'graphicNovels', entries: [], entryIds: new Set() });
+            categoriesMap.set(scopedKey, {
+                dataType: dataType || 'graphicNovels',
+                entries: [],
+                entryIds: new Set(),
+                folderView: normalizeFolderView(folderView)
+            });
         }
         const bucket = categoriesMap.get(scopedKey);
         if (!bucket.dataType) bucket.dataType = dataType || 'graphicNovels';
+        if (folderView && typeof folderView === 'object') bucket.folderView = normalizeFolderView(folderView);
         (Array.isArray(entries) ? entries : []).forEach((entry) => {
             const normalized = { ...(entry || {}) };
             const entryId = String(normalized.id || '').trim();
@@ -46,7 +69,8 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         for (const [key, bucket] of categoriesMap.entries()) {
             categories[key] = {
                 dataType: bucket.dataType || 'graphicNovels',
-                entries: Array.isArray(bucket.entries) ? bucket.entries : []
+                entries: Array.isArray(bucket.entries) ? bucket.entries : [],
+                folderView: normalizeFolderView(bucket.folderView)
             };
         }
         return categories;
@@ -140,7 +164,14 @@ window.EveDataTransfer = window.EveDataTransfer || {};
                         categoryName: conn?.categoryName || card.categoryName
                     });
                 });
-                addCategoryEntries(categoriesMap, card.workspaceId, card.categoryName, card.categoryEntries, card.dataType || 'graphicNovels');
+                addCategoryEntries(
+                    categoriesMap,
+                    card.workspaceId,
+                    card.categoryName,
+                    card.categoryEntries,
+                    card.dataType || 'graphicNovels',
+                    card.folderView
+                );
                 addFolderTree(folderMap, card.workspaceId, card.categoryName, card.folderTree);
             });
         });

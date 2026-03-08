@@ -7,6 +7,11 @@ window.EveLibrary = window.EveLibrary || {};
 
 (function () {
     const LIB_SCOPE_SEPARATOR = '::';
+    const DEFAULT_FOLDER_VIEW = Object.freeze({
+        root: 'all',
+        chain: [],
+        expanded: false
+    });
     // Libraries stored per scoped category: { "workspaceId::categoryName": { entries: [], dataType: 'graphicNovels' } }
     let categoryLibraries = {};
 
@@ -61,6 +66,49 @@ window.EveLibrary = window.EveLibrary || {};
         return `${normalizeWorkspaceId(workspaceId)}${LIB_SCOPE_SEPARATOR}${normalizeCategoryName(categoryName)}`;
     }
 
+    function getBookmarkFolderStore() {
+        if (window.eveState?.bookmarkFolders && typeof window.eveState.bookmarkFolders === 'object') {
+            return window.eveState.bookmarkFolders;
+        }
+        if (typeof bookmarkFolders !== 'undefined' && bookmarkFolders && typeof bookmarkFolders === 'object') {
+            return bookmarkFolders;
+        }
+        if (window.bookmarkFolders && typeof window.bookmarkFolders === 'object') {
+            return window.bookmarkFolders;
+        }
+        return {};
+    }
+
+    function normalizeFolderViewState(folderView) {
+        const source = folderView && typeof folderView === 'object' ? folderView : {};
+        const root = String(source.root || DEFAULT_FOLDER_VIEW.root).trim() || DEFAULT_FOLDER_VIEW.root;
+        const chain = Array.isArray(source.chain)
+            ? source.chain
+                .map((step) => {
+                    if (!step || typeof step !== 'object') return null;
+                    const selection = String(step.selection || '').trim();
+                    if (!selection) return null;
+                    return { selection };
+                })
+                .filter(Boolean)
+            : [];
+        return {
+            root,
+            chain,
+            expanded: !!source.expanded
+        };
+    }
+
+    function normalizeLibraryBucket(data) {
+        const source = data && typeof data === 'object' ? data : {};
+        return {
+            ...source,
+            entries: Array.isArray(source.entries) ? source.entries : [],
+            dataType: source.dataType || 'graphicNovels',
+            folderView: normalizeFolderViewState(source.folderView)
+        };
+    }
+
     function parseScopedCategoryKey(key) {
         const raw = String(key || '');
         const pivot = raw.indexOf(LIB_SCOPE_SEPARATOR);
@@ -99,10 +147,12 @@ window.EveLibrary = window.EveLibrary || {};
     function getCategoryLibrary(categoryName, workspaceId) {
         const key = resolveLibraryKey(categoryName, workspaceId);
         if (!categoryLibraries[key]) {
-            categoryLibraries[key] = {
+            categoryLibraries[key] = normalizeLibraryBucket({
                 entries: [],
-                dataType: 'graphicNovels' // default
-            };
+                dataType: 'graphicNovels'
+            });
+        } else {
+            categoryLibraries[key] = normalizeLibraryBucket(categoryLibraries[key]);
         }
         return categoryLibraries[key];
     }
@@ -112,7 +162,7 @@ window.EveLibrary = window.EveLibrary || {};
         const key = parsed.scoped
             ? buildScopedCategoryKey(parsed.categoryName, parsed.workspaceId)
             : buildScopedCategoryKey(parsed.categoryName, workspaceId);
-        categoryLibraries[key] = data;
+        categoryLibraries[key] = normalizeLibraryBucket(data);
 
         // Remove any legacy unscoped key if it exists.
         const legacyKey = parsed.categoryName;
@@ -122,7 +172,13 @@ window.EveLibrary = window.EveLibrary || {};
     }
 
     function getAllLibraries() { return categoryLibraries; }
-    function setAllLibraries(data) { categoryLibraries = data; }
+    function setAllLibraries(data) {
+        const next = {};
+        Object.entries(data && typeof data === 'object' ? data : {}).forEach(([key, value]) => {
+            next[key] = normalizeLibraryBucket(value);
+        });
+        categoryLibraries = next;
+    }
 
     function getDataTypes() { return dataTypes; }
     function getDataType(typeName) { return dataTypes[typeName]; }
@@ -135,6 +191,35 @@ window.EveLibrary = window.EveLibrary || {};
     function setCategoryDataType(categoryName, typeName, workspaceId) {
         const lib = getCategoryLibrary(categoryName, workspaceId);
         lib.dataType = typeName;
+    }
+
+    function getCategoryFolderView(categoryName, workspaceId) {
+        const lib = getCategoryLibrary(categoryName, workspaceId);
+        lib.folderView = normalizeFolderViewState(lib.folderView);
+        return lib.folderView;
+    }
+
+    function setCategoryFolderView(categoryName, folderView, workspaceId) {
+        const lib = getCategoryLibrary(categoryName, workspaceId);
+        lib.folderView = normalizeFolderViewState(folderView);
+        return lib.folderView;
+    }
+
+    function getBookmarkFolderTree(categoryName, workspaceId) {
+        const store = getBookmarkFolderStore();
+        const scopedKey = buildScopedCategoryKey(categoryName, workspaceId);
+        const rawTree = store && typeof store === 'object' ? store[scopedKey] : null;
+        if (rawTree && Array.isArray(rawTree.nodes)) {
+            return { nodes: rawTree.nodes.map((node) => ({ ...(node || {}) })) };
+        }
+        if (Array.isArray(rawTree)) {
+            return { nodes: rawTree.map((node) => ({ ...(node || {}) })) };
+        }
+        return { nodes: [] };
+    }
+
+    function getBookmarkFolderNodes(categoryName, workspaceId) {
+        return getBookmarkFolderTree(categoryName, workspaceId).nodes || [];
     }
 
     function getPage(categoryName, workspaceId) {
@@ -158,6 +243,10 @@ window.EveLibrary = window.EveLibrary || {};
         getDataType,
         getCategoryDataType,
         setCategoryDataType,
+        getCategoryFolderView,
+        setCategoryFolderView,
+        getBookmarkFolderTree,
+        getBookmarkFolderNodes,
         getPage,
         setPage,
         getEntriesPerPage,

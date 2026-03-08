@@ -107,7 +107,16 @@ def _normalize_categories(categories):
         if scoped not in normalized:
             normalized[scoped] = {
                 "dataType": (data or {}).get("dataType") or "graphicNovels",
-                "entries": []
+                "entries": [],
+                "folderView": {
+                    "root": str(((data or {}).get("folderView") or {}).get("root") or "all").strip() or "all",
+                    "chain": [
+                        {"selection": str(step.get("selection") or "").strip()}
+                        for step in (((data or {}).get("folderView") or {}).get("chain") or [])
+                        if isinstance(step, dict) and str(step.get("selection") or "").strip()
+                    ],
+                    "expanded": bool(((data or {}).get("folderView") or {}).get("expanded")),
+                }
             }
             entry_ids_by_scope[scoped] = set()
 

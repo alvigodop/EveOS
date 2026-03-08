@@ -7,12 +7,14 @@ window.EveLibrary.SearchModules = window.EveLibrary.SearchModules || {};
     const State = window.EveLibrary.State;
     const Ratings = window.EveLibrary.Ratings;
     const helpers = modules.helpers || {};
-    const { toArray, parseUniqueCsvList, getTypeScopedEntries } = helpers;
+    const { toArray, parseUniqueCsvList, getTypeScopedEntries, getFolderScopedEntries } = helpers;
 
     function getFilteredEntries(categoryName) {
         const lib = State.getCategoryLibrary(categoryName);
         const dataType = lib.dataType || 'graphicNovels';
-        const entries = getTypeScopedEntries(categoryName);
+        const entries = typeof getFolderScopedEntries === 'function'
+            ? getFolderScopedEntries(categoryName)
+            : getTypeScopedEntries(categoryName);
         const prefix = `lib-${categoryName.replace(/[^a-zA-Z0-9]/g, '_')}-`;
 
         const titleFilter = (document.getElementById(prefix + 'search-title')?.value || '').toLowerCase();

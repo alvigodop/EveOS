@@ -130,6 +130,9 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             workspaceId,
             categoryName,
             dataType,
+            folderView: cardJson?.libraryFolderView && typeof cardJson.libraryFolderView === 'object'
+                ? { ...cardJson.libraryFolderView }
+                : null,
             links,
             connections: Array.from(connectionMap.values()),
             categoryEntries,

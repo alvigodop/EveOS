@@ -20,9 +20,12 @@ window.EveLibrary.UIShared = window.EveLibrary.UIShared || {};
 
         return `
             <div class="lib-panel-header">
-                <select id="${prefix}data-type" class="lib-type-select" onchange="window.EveLibrary.UI.changeDataType('${safeCat}', this.value)">
-                    ${typeOptionsHtml}
-                </select>
+                <div class="lib-panel-header-left">
+                    <select id="${prefix}data-type" class="lib-type-select" onchange="window.EveLibrary.UI.changeDataType('${safeCat}', this.value)">
+                        ${typeOptionsHtml}
+                    </select>
+                    <div id="${prefix}folder-filter-bar" class="lib-folder-filter-bar"></div>
+                </div>
                 <div class="lib-panel-controls">
                     <button class="lib-btn lib-btn-primary" onclick="window.EveLibrary.UI.showAddForm('${safeCat}')">+ Add Entry</button>
                     <button class="lib-btn" onclick="window.EveLibrary.UI.toggleStats('${safeCat}')">&#128202; Stats</button>

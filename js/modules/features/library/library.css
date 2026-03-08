@@ -24,6 +24,14 @@
     border-bottom: 1px solid #333;
 }
 
+.lib-panel-header-left {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-width: 0;
+}
+
 .lib-type-select {
     background: var(--input-bg, #2c2c2c);
     color: var(--text-main, #e0e0e0);
@@ -31,6 +39,58 @@
     border-radius: 4px;
     padding: 6px 10px;
     font-size: 0.9rem;
+}
+
+.lib-folder-filter-bar {
+    display: flex;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-width: 0;
+}
+
+.lib-folder-filter-bar.is-empty {
+    display: none;
+}
+
+.lib-folder-select-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+
+.lib-folder-select-label {
+    font-size: 0.68rem;
+    color: var(--text-muted, #8f8f8f);
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.lib-folder-select {
+    background: var(--input-bg, #2c2c2c);
+    color: var(--text-main, #e0e0e0);
+    border: 1px solid #444;
+    border-radius: 4px;
+    padding: 5px 8px;
+    font-size: 0.78rem;
+    max-width: 170px;
+}
+
+.lib-folder-chain-toggle {
+    background: transparent;
+    color: var(--text-muted, #a0a0a0);
+    border: 1px dashed #555;
+    border-radius: 999px;
+    padding: 4px 9px;
+    font-size: 0.76rem;
+    cursor: pointer;
+    align-self: center;
+}
+
+.lib-folder-chain-toggle:hover {
+    color: var(--text-main, #e0e0e0);
+    border-color: #777;
 }
 
 .lib-panel-controls {

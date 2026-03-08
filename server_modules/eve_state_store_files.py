@@ -143,6 +143,23 @@ def connection_entry_id(conn):
     return conn.get("libraryEntryId") or conn.get("entryId")
 
 
+def normalize_library_folder_view(folder_view):
+    source = folder_view if isinstance(folder_view, dict) else {}
+    chain = []
+    for step in source.get("chain") or []:
+        if not isinstance(step, dict):
+            continue
+        selection = str(step.get("selection") or "").strip()
+        if not selection:
+            continue
+        chain.append({"selection": selection})
+    return {
+        "root": str(source.get("root") or "all").strip() or "all",
+        "chain": chain,
+        "expanded": bool(source.get("expanded")),
+    }
+
+
 def build_library_index(categories):
     by_scope = {}
     for key, data in (categories or {}).items():
@@ -156,7 +173,8 @@ def build_library_index(categories):
                 entry_map[entry_id] = entry
         by_scope[scoped] = {
             "data_type": (data or {}).get("dataType") or "graphicNovels",
-            "entries": entry_map
+            "entries": entry_map,
+            "folder_view": normalize_library_folder_view((data or {}).get("folderView") or {}),
         }
     return by_scope
 
@@ -180,7 +198,7 @@ def build_workspaces(config):
     return normalized
 
 
-def prepare_workspace_map(links, workspaces):
+def prepare_workspace_map(links, workspaces, categories=None, folder_trees=None):
     by_workspace = {}
     for ws in workspaces:
         by_workspace[ws["id"]] = {
@@ -203,6 +221,18 @@ def prepare_workspace_map(links, workspaces):
             }
         by_workspace[workspace_id]["links"].append(item)
         by_workspace[workspace_id]["categories"].setdefault(category_name, []).append(item)
+
+    for scoped_key_value in list((categories or {}).keys()) + list((folder_trees or {}).keys()):
+        parsed = parse_scoped_category_key(scoped_key_value)
+        workspace_id = str(parsed.get("workspace_id") or "").strip() or "main"
+        category_name = str(parsed.get("category_name") or "").strip() or "Unsorted"
+        if workspace_id not in by_workspace:
+            by_workspace[workspace_id] = {
+                "meta": {"id": workspace_id, "name": workspace_id, "icon": "\U0001F4C1"},
+                "links": [],
+                "categories": {}
+            }
+        by_workspace[workspace_id]["categories"].setdefault(category_name, [])
 
     return by_workspace
 

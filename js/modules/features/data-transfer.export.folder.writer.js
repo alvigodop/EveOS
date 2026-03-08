@@ -307,6 +307,9 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             categoryName,
             title: categoryName,
             dataType: scopedLibrary?.dataType || 'graphicNovels',
+            libraryFolderView: scopedLibrary?.folderView && typeof scopedLibrary.folderView === 'object'
+                ? { ...scopedLibrary.folderView }
+                : undefined,
             bookmarkFolder: 'entries',
             bookmarkCount: sortedLinks.length,
             folderRoot: 'folders',

@@ -29,7 +29,9 @@ window.EveLibrary = window.EveLibrary || {};
 
         if (!genreSelect) return;
 
-        const entries = Search?.getTypeScopedEntries ? Search.getTypeScopedEntries(categoryName) : State.getCategoryLibrary(categoryName).entries;
+        const entries = Search?.getFolderScopedEntries
+            ? Search.getFolderScopedEntries(categoryName)
+            : (Search?.getTypeScopedEntries ? Search.getTypeScopedEntries(categoryName) : State.getCategoryLibrary(categoryName).entries);
         const genres = new Set();
         (entries || []).forEach(entry => {
             parseUniqueCsvList(entry?.genre).forEach(genre => genres.add(genre));
