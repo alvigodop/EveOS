@@ -7,6 +7,7 @@ let config = {
     timerEnabled: false,
     weatherEnabled: false,
     accent: "#00d4ff",
+    popupColor: "#1e1e1e",
     collapsed: [],
     categoryOrder: [],
     userName: "",

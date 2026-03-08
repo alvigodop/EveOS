@@ -18,6 +18,59 @@ window.DashboardCategories = window.DashboardCategories || {};
             .replace(/'/g, "\\'");
     }
 
+    function ensureCardTitleHoverOverlay() {
+        var overlay = document.getElementById('category-title-hover-overlay');
+        if (overlay) return overlay;
+
+        overlay = document.createElement('div');
+        overlay.id = 'category-title-hover-overlay';
+        overlay.className = 'category-title-hover-overlay';
+        document.body.appendChild(overlay);
+        return overlay;
+    }
+
+    function positionCardTitleHoverOverlay(target, overlay) {
+        if (!target || !overlay) return;
+
+        var rect = target.getBoundingClientRect();
+        var viewportPadding = 8;
+        var top = rect.top - overlay.offsetHeight - 10;
+        if (top < viewportPadding) {
+            top = rect.bottom + 10;
+        }
+
+        var left = rect.left;
+        var maxLeft = window.innerWidth - overlay.offsetWidth - viewportPadding;
+        if (left > maxLeft) left = maxLeft;
+        if (left < viewportPadding) left = viewportPadding;
+
+        overlay.style.top = Math.round(top) + 'px';
+        overlay.style.left = Math.round(left) + 'px';
+    }
+
+    function showCardTitleHover(event, titleText) {
+        var target = event && event.currentTarget;
+        if (!target || !titleText) return;
+
+        var overlay = ensureCardTitleHoverOverlay();
+        overlay.textContent = String(titleText);
+        overlay.classList.add('is-visible');
+        positionCardTitleHoverOverlay(target, overlay);
+    }
+
+    function moveCardTitleHover(event) {
+        var target = event && event.currentTarget;
+        var overlay = document.getElementById('category-title-hover-overlay');
+        if (!target || !overlay || !overlay.classList.contains('is-visible')) return;
+        positionCardTitleHoverOverlay(target, overlay);
+    }
+
+    function hideCardTitleHover() {
+        var overlay = document.getElementById('category-title-hover-overlay');
+        if (!overlay) return;
+        overlay.classList.remove('is-visible');
+    }
+
     function buildFolderAction(categoryName, folderId, action) {
         const safeCategory = escapeCardJs(categoryName);
         const safeFolderId = escapeCardJs(folderId);
@@ -322,7 +375,13 @@ window.DashboardCategories = window.DashboardCategories || {};
             + '<div class="category-header" oncontextmenu="showCategoryContextMenu(event, \'' + safeCatJs + '\')">'
                 + '<div class="cat-title-group">'
                     + titleControlsHtml
-                    + '<div class="category-title" title="' + safeCatHtml + '">' + safeCatHtml + '</div>'
+                    + '<div class="category-title-wrap"'
+                        + ' data-title="' + safeCatHtml + '"'
+                        + ' onmouseenter="showCardTitleHover(event, this.dataset.title)"'
+                        + ' onmousemove="moveCardTitleHover(event)"'
+                        + ' onmouseleave="hideCardTitleHover()">'
+                        + '<div class="category-title">' + safeCatHtml + '</div>'
+                    + '</div>'
                     + titleMetaHtml
                 + '</div>'
                 + headerButtonsHtml
@@ -337,4 +396,7 @@ window.DashboardCategories = window.DashboardCategories || {};
     window.DashboardCategories.getCardHeaderButtonsForCategory = getCardHeaderButtonsForCategory;
     window.DashboardCategories.setCardHeaderButtonsForCategory = setCardHeaderButtonsForCategory;
     window.DashboardCategories.cardHeaderButtonOptions = DEFAULT_CARD_HEADER_BUTTONS.slice();
+    window.showCardTitleHover = showCardTitleHover;
+    window.moveCardTitleHover = moveCardTitleHover;
+    window.hideCardTitleHover = hideCardTitleHover;
 })();

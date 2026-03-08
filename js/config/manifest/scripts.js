@@ -2,7 +2,7 @@
 window.EveModuleManifestParts = window.EveModuleManifestParts || {};
 window.EveModuleManifestParts.scripts = [
         // Core Modules (Ordered by Dependency)
-        'js/modules/core/state.js?v=0.2.1',
+        'js/modules/core/state.js?v=0.2.2',
         'js/modules/core/utils.js',
         'js/modules/core/storage.js',
         'js/modules/features/bookmark-folders.js?v=0.2.4',
@@ -50,7 +50,7 @@ window.EveModuleManifestParts.scripts = [
         'js/modules/features/modular-state-sync.api.store.js?v=0.3.2',
         'js/modules/features/modular-state-sync.api.js?v=0.3.1',
         'js/modules/features/modular-state-sync.js?v=0.3.0',
-        'js/modules/ui/visuals.js?v=0.2.38',
+        'js/modules/ui/visuals.js?v=0.2.39',
         'js/modules/ui/header.js',
         'js/modules/features/header-controls/hc-state.js',
         'js/modules/features/header-controls/hc-ui.form.js',
@@ -65,7 +65,7 @@ window.EveModuleManifestParts.scripts = [
         'js/modules/ui/dashboard/categories/focused-link.js?v=0.2.44',
         'js/modules/ui/dashboard/categories/focused-filter.js?v=0.2.46',
         'js/modules/ui/dashboard/categories/focused-sort.js?v=0.2.1',
-        'js/modules/ui/dashboard/categories/builder-card.js?v=0.2.50',
+'js/modules/ui/dashboard/categories/builder-card.js?v=0.2.52',
         'js/modules/ui/dashboard/categories/render.js?v=0.2.41',
 'js/modules/ui/dashboard/unidex-view.builders.panels.js?v=0.2.1',
 'js/modules/ui/dashboard/unidex-view.builders.entries.js?v=0.2.1',
@@ -175,7 +175,7 @@ window.EveModuleManifestParts.scripts = [
         // Modal Modules
         'js/modules/modals/templates/tpl-core.js?v=0.2.41',
         'js/modules/modals/templates/tpl-settings.backup.js?v=0.2.7',
-        'js/modules/modals/templates/tpl-settings.js?v=0.2.3',
+        'js/modules/modals/templates/tpl-settings.js?v=0.2.4',
         'js/modules/modals/templates/tpl-bulk.js',
         'js/modules/modals/templates/tpl-emoji.js',
         'js/modules/modals/templates/tpl-category-settings.js?v=0.2.8',
@@ -193,7 +193,7 @@ window.EveModuleManifestParts.scripts = [
         'js/modules/modals/modal-settings.modular.store.actions.js',
         'js/modules/modals/modal-settings.modular.store.js',
         'js/modules/modals/modal-settings.modular.js',
-        'js/modules/modals/modal-settings.js?v=0.2.3',
+        'js/modules/modals/modal-settings.js?v=0.2.4',
         'js/modules/modals/modal-bulk.js',
         'js/modules/modals/modal-category-settings.js?v=0.2.47',
         // Modal Logic Modules

@@ -42,6 +42,14 @@
             return luminance >= 0.62 ? 'light' : 'dark';
         }
 
+        function resolveSurfaceScheme(colorValue, fallbackScheme) {
+            const parsed = parseThemeColor(colorValue || '');
+            if (!parsed) return fallbackScheme || 'dark';
+
+            const luminance = ((0.299 * parsed.r) + (0.587 * parsed.g) + (0.114 * parsed.b)) / 255;
+            return luminance >= 0.62 ? 'light' : 'dark';
+        }
+
         const storedConfig = localStorage.getItem('eveV22Config');
         let config = {};
 
@@ -96,14 +104,21 @@
 
         // 4. Apply Feature Color (if custom)
         if (isCustom && config.cardColor) {
+            const popupBg = config.popupColor || '#1e1e1e';
+            const popupScheme = resolveSurfaceScheme(popupBg, 'dark');
             bgStyle += ` :root { 
                 --card-bg: ${config.cardColor}; 
                 --sidebar-bg: ${config.cardColor};
                 --input-bg: ${config.cardColor};
+                --modal-bg: ${popupBg};
+                --modal-text: ${popupScheme === 'light' ? '#222222' : '#e0e0e0'};
+                --modal-border: ${popupScheme === 'light' ? '#cccccc' : '#555555'};
             }`;
         } else if (isCustom && !config.cardColor) {
             // Fallback for custom mode if no color set
-            bgStyle += ` :root { --card-bg: #1e1e1e; --sidebar-bg: #1e1e1e; --input-bg: #1e1e1e; }`;
+            const popupBg = config.popupColor || '#1e1e1e';
+            const popupScheme = resolveSurfaceScheme(popupBg, 'dark');
+            bgStyle += ` :root { --card-bg: #1e1e1e; --sidebar-bg: #1e1e1e; --input-bg: #1e1e1e; --modal-bg: ${popupBg}; --modal-text: ${popupScheme === 'light' ? '#222222' : '#e0e0e0'}; --modal-border: ${popupScheme === 'light' ? '#cccccc' : '#555555'}; }`;
         }
 
         // 5. Inject Style Tag

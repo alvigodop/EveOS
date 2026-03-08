@@ -41,6 +41,14 @@ function resolveThemeColorScheme(themeMode, nextConfig) {
     return luminance >= 0.62 ? 'light' : 'dark';
 }
 
+function resolveSurfaceScheme(colorValue, fallbackScheme) {
+    const parsed = parseThemeColor(colorValue || '');
+    if (!parsed) return fallbackScheme || 'dark';
+
+    const luminance = ((0.299 * parsed.r) + (0.587 * parsed.g) + (0.114 * parsed.b)) / 255;
+    return luminance >= 0.62 ? 'light' : 'dark';
+}
+
 function applyNativeThemeScheme(themeMode, nextConfig) {
     const scheme = resolveThemeColorScheme(themeMode, nextConfig);
     document.documentElement.dataset.nativeScheme = scheme;
@@ -140,6 +148,12 @@ function applySettings() {
             document.documentElement.style.setProperty('--sidebar-bg', fallback);
             document.documentElement.style.setProperty('--input-bg', fallback);
         }
+
+        const popupBg = config.popupColor || '#1e1e1e';
+        const popupScheme = resolveSurfaceScheme(popupBg, 'dark');
+        document.documentElement.style.setProperty('--modal-bg', popupBg);
+        document.documentElement.style.setProperty('--modal-text', popupScheme === 'light' ? '#222222' : '#e0e0e0');
+        document.documentElement.style.setProperty('--modal-border', popupScheme === 'light' ? '#cccccc' : '#555555');
     } else {
         // Reset to defaults
         const defaultAccent = theme === 'light' ? '#0060df' : '#00d4ff';
@@ -148,6 +162,9 @@ function applySettings() {
         document.documentElement.style.removeProperty('--card-bg');
         document.documentElement.style.removeProperty('--sidebar-bg');
         document.documentElement.style.removeProperty('--input-bg');
+        document.documentElement.style.removeProperty('--modal-bg');
+        document.documentElement.style.removeProperty('--modal-text');
+        document.documentElement.style.removeProperty('--modal-border');
     }
 
     // Init Modules if loaded

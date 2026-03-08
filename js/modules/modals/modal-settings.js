@@ -96,6 +96,7 @@ function openSettings() {
 
     document.getElementById('bgColor').value = config.bgColor || '#222222';
     document.getElementById('cardColor').value = config.cardColor || '#1e1e1e';
+    document.getElementById('popupColor').value = config.popupColor || '#1e1e1e';
     loadRatingSettingsInputs();
     updateColorInputAvailability();
 
@@ -134,6 +135,7 @@ function saveSettingsTheme(mode) {
 function saveSettingsAccent() { config.accent = document.getElementById('accentColor').value; saveConfig(); applySettings(); }
 function saveSettingsBgColor() { config.bgColor = document.getElementById('bgColor').value; saveConfig(); applySettings(); }
 function saveSettingsCardColor() { config.cardColor = document.getElementById('cardColor').value; saveConfig(); applySettings(); }
+function saveSettingsPopupColor() { config.popupColor = document.getElementById('popupColor').value; saveConfig(); applySettings(); }
 function saveSettingsEngine() { config.searchEngine = document.getElementById('searchEngineSelect').value; saveConfig(); }
 function saveSettingsSearchMode() { config.searchMode = document.getElementById('searchModeSelect').value; saveConfig(); }
 function saveSettingsBookmarkClickOpen() { config.bookmarkClickOpensLink = !!document.getElementById('bookmarkClickOpenToggle').checked; saveConfig(); }

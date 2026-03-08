@@ -98,7 +98,7 @@ window.modalTemplate += `
                 </div>
 
                 <!-- Colors (Only active in Custom Mode) -->
-                <div id="customColorsArea" style="display:flex; justify-content: space-between; gap:10px; transition: opacity 0.3s; opacity: 0.5; pointer-events: none;">
+                <div id="customColorsArea" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:10px; transition: opacity 0.3s; opacity: 0.5; pointer-events: none;">
                     <label class="color-picker-wrapper" title="Main Accent Color">
                         <input type="color" id="accentColor" onchange="saveSettingsAccent()"
                             style="width:40px; height:30px; border:none; border-radius:4px; padding:0; cursor:pointer;">
@@ -116,6 +116,12 @@ window.modalTemplate += `
                             style="width:40px; height:30px; border:none; border-radius:4px; padding:0; cursor:pointer;">
                         <span>Feature Color</span>
                     </label>
+
+                    <label class="color-picker-wrapper" title="Popup / Modal Surface Color">
+                        <input type="color" id="popupColor" onchange="saveSettingsPopupColor()"
+                            style="width:40px; height:30px; border:none; border-radius:4px; padding:0; cursor:pointer;">
+                        <span>Popup Color</span>
+                    </label>
                 </div>
             </div>
 
@@ -132,4 +138,3 @@ ${window.EveSettingsTemplates.backupPanel || ''}
     </div>
 </div>
 `;
-

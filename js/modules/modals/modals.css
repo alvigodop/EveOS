@@ -76,12 +76,13 @@ input:focus {
 }
 
 .modal {
-    background: #1e1e1e;
+    background: var(--modal-bg, #1e1e1e);
+    color: var(--modal-text, var(--text-main));
     padding: 30px;
     border-radius: 12px;
     width: 90%;
     max-width: 500px;
-    border: 1px solid #555;
+    border: 1px solid var(--modal-border, #555);
     display: flex;
     flex-direction: column;
     gap: 15px;
