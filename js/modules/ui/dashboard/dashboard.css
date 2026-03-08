@@ -10,6 +10,17 @@
     overflow: hidden;
 }
 
+#dashboard-grid.masonry-layout {
+    align-items: start;
+    grid-auto-rows: 8px;
+}
+
+#dashboard-grid.masonry-layout .category-card {
+    align-self: start;
+    height: fit-content;
+    min-height: 0;
+}
+
 .category-header {
     display: flex;
     justify-content: space-between;
