@@ -17,10 +17,45 @@ input,
 select {
     padding: 10px;
     border-radius: 6px;
-    border: 1px solid #444;
-    background: var(--input-bg);
-    color: white;
+    border: 1px solid rgba(128, 128, 128, 0.35);
+    background-color: var(--input-bg);
+    color: var(--text-main);
     outline: none;
+}
+
+select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-color: var(--input-bg);
+    background-image:
+        linear-gradient(45deg, transparent 50%, currentColor 50%),
+        linear-gradient(135deg, currentColor 50%, transparent 50%);
+    background-position:
+        calc(100% - 16px) calc(50% - 1px),
+        calc(100% - 11px) calc(50% - 1px);
+    background-size: 6px 6px, 6px 6px;
+    background-repeat: no-repeat;
+    padding-right: 34px;
+}
+
+select::-ms-expand {
+    display: none;
+}
+
+option {
+    background-color: var(--input-bg);
+    color: var(--text-main);
+}
+
+input::placeholder {
+    color: var(--text-muted);
+}
+
+select:focus,
+input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.14);
 }
 
 .modal-overlay {
@@ -57,6 +92,54 @@ select {
     scrollbar-color: var(--accent) transparent;
 }
 
+#settingsModal .modal input,
+#settingsModal .modal select,
+#settingsModal .modal textarea {
+    background-color: var(--input-bg) !important;
+    color: var(--text-main) !important;
+    border: 1px solid rgba(128, 128, 128, 0.35) !important;
+}
+
+#settingsModal .modal select {
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    color-scheme: inherit !important;
+    padding-right: 34px !important;
+    background-image:
+        linear-gradient(45deg, transparent 50%, currentColor 50%),
+        linear-gradient(135deg, currentColor 50%, transparent 50%) !important;
+    background-position:
+        calc(100% - 16px) calc(50% - 1px),
+        calc(100% - 11px) calc(50% - 1px) !important;
+    background-size: 6px 6px, 6px 6px !important;
+    background-repeat: no-repeat !important;
+}
+
+#settingsModal .modal option {
+    background-color: var(--input-bg) !important;
+    color: var(--text-main) !important;
+}
+
+.light-theme #settingsModal .modal input,
+.light-theme #settingsModal .modal select,
+.light-theme #settingsModal .modal textarea,
+html[data-native-scheme="light"] #settingsModal .modal input,
+html[data-native-scheme="light"] #settingsModal .modal select,
+html[data-native-scheme="light"] #settingsModal .modal textarea {
+    background-color: #fff !important;
+    color: #222 !important;
+    border: 1px solid #ccc !important;
+    color-scheme: light !important;
+}
+
+.light-theme #settingsModal .modal option,
+html[data-native-scheme="light"] #settingsModal .modal option {
+    background-color: #fff !important;
+    color: #222 !important;
+    color-scheme: light !important;
+}
+
 .modal::-webkit-scrollbar {
     width: 6px;
 }
@@ -79,6 +162,50 @@ select {
 .btn-danger:hover {
     background: var(--danger);
     color: white;
+}
+
+.settings-disclosure {
+    border: 1px solid rgba(128, 128, 128, 0.28);
+    border-radius: 10px;
+    background: rgba(128, 128, 128, 0.04);
+    overflow: hidden;
+}
+
+.settings-disclosure-summary {
+    list-style: none;
+    cursor: pointer;
+    user-select: none;
+    font-weight: 600;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    background: rgba(128, 128, 128, 0.08);
+    transition: background 0.2s ease, color 0.2s ease;
+}
+
+.settings-disclosure-summary::-webkit-details-marker {
+    display: none;
+}
+
+.settings-disclosure-summary::after {
+    content: '▸';
+    color: var(--text-muted);
+    font-size: 0.88rem;
+}
+
+.settings-disclosure[open] .settings-disclosure-summary::after {
+    content: '▾';
+}
+
+.settings-disclosure-summary:hover {
+    background: rgba(128, 128, 128, 0.14);
+    color: var(--text-main);
+}
+
+.settings-disclosure-body {
+    padding: 12px;
 }
 
 /* Emoji Picker */

@@ -269,6 +269,7 @@ def handle_post_request(handler, path, deps):
     set_active_store_root = deps["set_active_store_root"]
     valid_layer_scopes = deps["valid_layer_scopes"]
     write_card_layer_backup_to_root = deps["write_card_layer_backup_to_root"]
+    write_folder_layer_backup_to_root = deps["write_folder_layer_backup_to_root"]
     write_modular_state = deps["write_modular_state"]
     write_state_to_root = deps["write_state_to_root"]
 
@@ -385,6 +386,8 @@ def handle_post_request(handler, path, deps):
             destination_root = ensure_destination_ready(destination_root, overwrite=overwrite, layer=layer)
             if layer == "card":
                 result = write_card_layer_backup_to_root(layer_state, destination_root)
+            elif layer == "folder":
+                result = write_folder_layer_backup_to_root(layer_state, destination_root)
             else:
                 result = write_state_to_root(layer_state, destination_root)
             send_json(handler, HTTPStatus.OK, {

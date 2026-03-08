@@ -1,6 +1,8 @@
 window.DashboardCategories = window.DashboardCategories || {};
 
 (function () {
+    var DEFAULT_CARD_HEADER_BUTTONS = ['add', 'folders', 'library', 'focus', 'launch'];
+
     function escapeCardHtml(value) {
         return String(value || '')
             .replace(/&/g, '&amp;')
@@ -20,6 +22,55 @@ window.DashboardCategories = window.DashboardCategories || {};
         const safeCategory = escapeCardJs(categoryName);
         const safeFolderId = escapeCardJs(folderId);
         return `event.preventDefault();event.stopPropagation();${action}('${safeCategory}', '${safeFolderId}')`;
+    }
+
+    function buildScopedCategoryKey(workspaceId, categoryName) {
+        if (window.EveBookmarkFolders?.buildScopedKey) {
+            return window.EveBookmarkFolders.buildScopedKey(workspaceId, categoryName);
+        }
+        var safeWorkspace = String(workspaceId || 'main').trim() || 'main';
+        var safeCategory = String(categoryName || 'Unsorted').trim() || 'Unsorted';
+        return safeWorkspace + '::' + safeCategory;
+    }
+
+    function getCardHeaderButtonStore() {
+        if (!window.eveState?.config) return {};
+        if (!window.eveState.config.cardHeaderButtonsVisible || typeof window.eveState.config.cardHeaderButtonsVisible !== 'object' || Array.isArray(window.eveState.config.cardHeaderButtonsVisible)) {
+            window.eveState.config.cardHeaderButtonsVisible = {};
+        }
+        return window.eveState.config.cardHeaderButtonsVisible;
+    }
+
+    function normalizeHeaderButtons(buttonIds) {
+        var allowed = new Set(DEFAULT_CARD_HEADER_BUTTONS);
+        return Array.from(new Set((Array.isArray(buttonIds) ? buttonIds : []).map(function (entry) {
+            return String(entry || '').trim().toLowerCase();
+        }).filter(function (entry) {
+            return allowed.has(entry);
+        })));
+    }
+
+    function getCardHeaderButtonsForCategory(workspaceId, categoryName) {
+        var scopedKey = buildScopedCategoryKey(workspaceId, categoryName);
+        var store = getCardHeaderButtonStore();
+        if (!Object.prototype.hasOwnProperty.call(store, scopedKey)) {
+            return DEFAULT_CARD_HEADER_BUTTONS.slice();
+        }
+        return normalizeHeaderButtons(store[scopedKey]);
+    }
+
+    function setCardHeaderButtonsForCategory(workspaceId, categoryName, buttonIds) {
+        var scopedKey = buildScopedCategoryKey(workspaceId, categoryName);
+        var store = getCardHeaderButtonStore();
+        var normalizedButtons = normalizeHeaderButtons(buttonIds);
+        if (normalizedButtons.length === DEFAULT_CARD_HEADER_BUTTONS.length) {
+            delete store[scopedKey];
+        } else {
+            store[scopedKey] = normalizedButtons;
+        }
+        if (typeof saveConfig === 'function') saveConfig();
+        if (typeof renderDashboard === 'function') renderDashboard();
+        return getCardHeaderButtonsForCategory(workspaceId, categoryName);
     }
 
     function buildFolderSectionsHtml(categoryName, linksForCard, options, renderer) {
@@ -213,6 +264,26 @@ window.DashboardCategories = window.DashboardCategories || {};
                 + '<span class="sort-btn" onclick="moveCategory(\'' + safeCatJs + '\', -1)">&#9650;</span>'
                 + '<span class="sort-btn" onclick="moveCategory(\'' + safeCatJs + '\', 1)">&#9660;</span>';
 
+        var activeWorkspaceId = String(options.activeWorkspace || window.eveState?.config?.activeWorkspace || 'main').trim() || 'main';
+        var visibleHeaderButtons = new Set(getCardHeaderButtonsForCategory(activeWorkspaceId, cat));
+        var nonFocusButtons = [];
+        if (visibleHeaderButtons.has('add')) {
+            nonFocusButtons.push('<button class="card-header-icon-btn" onclick="openAddModal(\'' + safeCatJs + '\')" title="Add Bookmark">&#10133;</button>');
+        }
+        if (visibleHeaderButtons.has('folders')) {
+            nonFocusButtons.push('<button class="' + (folderToolbarExpanded ? 'card-header-icon-btn card-folder-toggle-btn is-active' : 'card-header-icon-btn card-folder-toggle-btn') + '" onclick="toggleBookmarkFolderToolbar(\'' + safeCatJs + '\', \'' + escapeCardJs(options.activeWorkspace || 'main') + '\')" title="Folders">&#128193;</button>');
+        }
+        if (visibleHeaderButtons.has('library')) {
+            nonFocusButtons.push('<button class="card-header-icon-btn lib-toggle-btn" onclick="toggleCategoryLibrary(\'' + safeCatJs + '\')" title="Library">&#128218;</button>');
+        }
+        if (visibleHeaderButtons.has('focus')) {
+            nonFocusButtons.push('<button class="card-header-icon-btn" onclick="setFocus(\'' + safeCatJs + '\')" title="Focus">&#127919;</button>');
+        }
+        nonFocusButtons.push('<button class="card-header-icon-btn" onclick="openCategorySettings(\'' + safeCatJs + '\')" title="Settings">&#9881;</button>');
+        if (visibleHeaderButtons.has('launch')) {
+            nonFocusButtons.push('<button class="card-header-icon-btn launch-btn" data-cat="' + safeCatHtml + '" onclick="launchCategory(this.dataset.cat)" title="Launch">&#128640;</button>');
+        }
+
         var headerButtonsHtml = isFocusMode
             ? ''
                 + '<div class="focus-card-controls">'
@@ -242,13 +313,8 @@ window.DashboardCategories = window.DashboardCategories || {};
                     + '<button class="category-action-btn" data-cat="' + safeCatHtml + '" onclick="launchCategory(this.dataset.cat)" title="Launch">&#128640; <span>Launch</span></button>'
                 + '</div>'
             : ''
-                + '<div style="display:flex; gap:5px;">'
-                    + '<button onclick="openAddModal(\'' + safeCatJs + '\')" style="padding: 2px 8px; font-size: 1.2rem;" title="Add Bookmark">&#10133;</button>'
-                    + '<button class="' + (folderToolbarExpanded ? 'card-folder-toggle-btn is-active' : 'card-folder-toggle-btn') + '" onclick="toggleBookmarkFolderToolbar(\'' + safeCatJs + '\', \'' + escapeCardJs(options.activeWorkspace || 'main') + '\')" style="padding: 2px 8px; font-size: 1.2rem;" title="Folders">&#128193;</button>'
-                    + '<button class="lib-toggle-btn" onclick="toggleCategoryLibrary(\'' + safeCatJs + '\')" title="Library">&#128218;</button>'
-                    + '<button onclick="setFocus(\'' + safeCatJs + '\')" style="padding: 2px 8px; font-size: 1.2rem;" title="Focus">&#127919;</button>'
-                    + '<button onclick="openCategorySettings(\'' + safeCatJs + '\')" style="padding: 2px 8px; font-size: 1.2rem;" title="Settings">&#9881;</button>'
-                    + '<button class="launch-btn" data-cat="' + safeCatHtml + '" onclick="launchCategory(this.dataset.cat)" title="Launch">&#128640;</button>'
+                + '<div class="card-header-icon-row">'
+                    + nonFocusButtons.join('')
                 + '</div>';
 
         card.innerHTML = ''
@@ -267,4 +333,8 @@ window.DashboardCategories = window.DashboardCategories || {};
 
         gridContainer.appendChild(card);
     };
+
+    window.DashboardCategories.getCardHeaderButtonsForCategory = getCardHeaderButtonsForCategory;
+    window.DashboardCategories.setCardHeaderButtonsForCategory = setCardHeaderButtonsForCategory;
+    window.DashboardCategories.cardHeaderButtonOptions = DEFAULT_CARD_HEADER_BUTTONS.slice();
 })();

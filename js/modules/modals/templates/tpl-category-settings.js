@@ -18,9 +18,23 @@ window.modalTemplate += `
                 <button onclick="closeModals(); openRenameModal(window.currentCategoryCtx)" style="width:100%;">Rename Category</button>
                 <button onclick="closeModals(); openBulkTitleModal(window.currentCategoryCtx)" style="width:100%;">Auto-Title Links</button>
                 <button onclick="closeModals(); openBulkLibraryAutoModal(window.currentCategoryCtx)" style="width:100%;">Auto-Add Library Entries</button>
-                <button onclick="openFolderCreator(window.currentCategoryCtx, '')" style="width:100%;">New Bookmark Folder</button>
-                <button onclick="switchCategoryTab('folders')" style="width:100%;">Manage Bookmark Folders</button>
-                <button onclick="closeModals(); ctxCatFocus()" style="width:100%;">Focus Mode</button>
+                <details class="settings-disclosure">
+                    <summary class="settings-disclosure-summary">Card Actions</summary>
+                    <div class="settings-disclosure-body" style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <button onclick="closeModals(); openAddModal(window.currentCategoryCtx)" style="flex:1 1 180px;">➕ Add Bookmark</button>
+                        <button onclick="closeModals(); toggleCategoryLibrary(window.currentCategoryCtx)" style="flex:1 1 180px;">📚 Open Library</button>
+                        <button onclick="switchCategoryTab('folders')" style="flex:1 1 180px;">🗂 Manage Bookmark Folders</button>
+                        <button onclick="closeModals(); ctxCatFocus()" style="flex:1 1 180px;">🎯 Focus Mode</button>
+                        <button onclick="closeModals(); launchCategory(window.currentCategoryCtx)" style="flex:1 1 180px;">🚀 Launch</button>
+                    </div>
+                </details>
+                <details class="settings-disclosure">
+                    <summary class="settings-disclosure-summary">Header Quick Actions</summary>
+                    <div class="settings-disclosure-body">
+                    <div style="font-size:0.82rem; opacity:0.78; margin:0 0 10px 0;">Choose which quick-action icons stay visible on this card. Settings always stays visible.</div>
+                    <div id="categoryHeaderButtonSettings" style="display:flex; flex-direction:column; gap:8px;"></div>
+                    </div>
+                </details>
                 <button onclick="closeModals(); ctxCatToggleTask()" style="width:100%;">Toggle Task Mode</button>
                 <div style="border-top:1px solid #444; margin-top:10px; padding-top:10px;">
                     <button onclick="deleteCategory(window.currentCategoryCtx)" class="btn-danger" style="width:100%;">Delete Category</button>
@@ -32,8 +46,8 @@ window.modalTemplate += `
             <div style="display:flex; flex-direction:column; gap:12px;">
                 <p style="opacity:0.75; font-size:0.9rem; margin:0;">Folders are bookmark organizers inside this card only. They are separate from tabs.</p>
                 <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                    <button onclick="openFolderCreator(window.currentCategoryCtx, '')" style="flex:1 1 180px;">New Folder</button>
-                    <button onclick="closeModals(); openAddModal(window.currentCategoryCtx)" style="flex:1 1 180px;">Add Root Bookmark</button>
+                    <button onclick="openFolderCreator(window.currentCategoryCtx, '')" style="flex:1 1 180px;">📁 New Folder</button>
+                    <button onclick="closeModals(); openAddModal(window.currentCategoryCtx)" style="flex:1 1 180px;">➕ Add Root Bookmark</button>
                 </div>
                 <div id="category-folder-manager" style="display:flex; flex-direction:column; gap:8px; max-height:420px; overflow-y:auto;"></div>
             </div>

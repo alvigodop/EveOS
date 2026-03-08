@@ -111,13 +111,38 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         }
     }
 
+    async function importFolderFromFolderBrowserOnly() {
+        const pickDirectory = getDirectoryPicker();
+        if (typeof pickDirectory !== 'function') return showToast('Folder restore needs browser directory picker support', 'error');
+        const dataStore = typeof ns.getDataStore === 'function' ? ns.getDataStore() : null;
+        if (!dataStore?.applyFolderState) return showToast('Folder restore is unavailable right now.', 'error');
+        try {
+            const rootHandle = await pickDirectory({ mode: 'read' });
+            if (!(await confirmDialog('Restore folder subtree from selected folder? (Overwrites the matching folder subtree)'))) return;
+            const stateRoot = await ns.getDirectoryHandleIfExists(rootHandle, 'state');
+            const folderState = stateRoot ? await ns.readJsonFileIfExists(stateRoot, 'folder-state.json') : null;
+            if (!folderState || folderState?.metadata?.type !== 'folder') {
+                throw new Error('No state/folder-state.json file found in the selected folder backup.');
+            }
+            const ok = dataStore.applyFolderState(folderState);
+            if (!ok) return showToast('Folder subtree restore could not be applied.', 'error');
+            showToast('Folder subtree restored!', 'success');
+            location.reload();
+        } catch (error) {
+            if (error?.name === 'AbortError') return showToast('Folder subtree restore canceled.', 'info');
+            showToast(`Folder subtree restore failed: ${error.message || error}`, 'error');
+        }
+    }
+
     Object.assign(ns, {
         importFullDataFromFolderBrowserOnly,
         importWorkspaceFromFolderBrowserOnly,
-        importCardFromFolderBrowserOnly
+        importCardFromFolderBrowserOnly,
+        importFolderFromFolderBrowserOnly
     });
     window.importDataFolderBrowserOnly = importFullDataFromFolderBrowserOnly;
     window.importWorkspaceFolderBackupBrowserOnly = importWorkspaceFromFolderBrowserOnly;
     window.importCardFolderBackupBrowserOnly = importCardFromFolderBrowserOnly;
+    window.importFolderFolderBackupBrowserOnly = importFolderFromFolderBrowserOnly;
     ns.importRestoreReady = true;
 })();

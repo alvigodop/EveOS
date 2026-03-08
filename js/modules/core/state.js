@@ -33,6 +33,7 @@ let config = {
     workspaces: [{ id: "main", name: "Main", icon: "\u{1F3E0}" }],
     activeWorkspace: "main",
     bookmarkFolderToolbarExpanded: [],
+    cardHeaderButtonsVisible: {},
     scrollableCategories: false,
     unidexCardsUnified: false,
     unidexTabsUnified: false,

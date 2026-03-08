@@ -27,6 +27,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
     const exportFullBackupAsFolder = ns.exportFullBackupAsFolder;
     const exportWorkspaceFolderFallback = ns.exportWorkspaceFolderFallback;
     const exportCardFolderFallback = ns.exportCardFolderFallback;
+    const exportFolderFolderFallback = ns.exportFolderFolderFallback;
     const buildWorkspaceBackupJsonName = ns.buildWorkspaceBackupJsonName;
     const buildCardBackupJsonName = ns.buildCardBackupJsonName;
     const buildFolderBackupJsonName = ns.buildFolderBackupJsonName;
@@ -252,6 +253,23 @@ window.EveDataTransfer = window.EveDataTransfer || {};
                 console.warn('[DataTransfer] Folder layer backup failed in server mode, falling back to JSON:', result?.error);
             } catch (error) {
                 console.warn('[DataTransfer] Folder layer backup failed in server mode, falling back to JSON:', error);
+            }
+        }
+
+        if (typeof window.showDirectoryPicker === 'function') {
+            try {
+                const folderResult = await exportFolderFolderFallback(exportState, workspaceId, categoryName, workspaceName);
+                if (folderResult?.ok) {
+                    return showToast(`Folder subtree backup created (${folderResult.bookmarks} bookmarks).`, 'success');
+                }
+                if (folderResult?.error) {
+                    showToast(`${folderResult.error} Falling back to JSON download.`, 'info');
+                }
+            } catch (error) {
+                if (error?.name === 'AbortError') {
+                    return showToast('Folder subtree backup canceled.', 'info');
+                }
+                console.warn('[DataTransfer] Browser folder subtree backup failed, falling back to JSON:', error);
             }
         }
 

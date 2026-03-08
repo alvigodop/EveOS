@@ -202,10 +202,55 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
             }
         }
 
+        async function exportFolderFolderFallback(folderState, workspaceId, categoryName, workspaceName) {
+            if (typeof window.showDirectoryPicker !== 'function') {
+                return { ok: false, error: 'Folder export is not supported in this browser.' };
+            }
+
+            const parentHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+            const folderName = buildScopedBackupFolderName('folder-backup', workspaceName || workspaceId, categoryName);
+            try {
+                const rootHandle = await parentHandle.getDirectoryHandle(folderName, { create: true });
+                const links = sortLinksForExport(folderState?.bookmarks?.links || []);
+                const categories = folderState?.library?.categories || {};
+                const connections = folderState?.library?.connections || [];
+                const folderTrees = folderState?.bookmarks?.folders || {};
+                const connectionMap = buildConnectionMap(connections);
+                const workspaceMeta = getWorkspaceMeta(workspaceId, folderState?.bookmarks?.config);
+                const scopedConfig = buildFallbackConfig(folderState?.bookmarks?.config, workspaceMeta);
+                const cardFolder = buildCardFolderName(categoryName);
+                const cardRootPath = `cards/${cardFolder}`;
+
+                await writeJsonFileToFolder(rootHandle, 'state/folder-state.json', folderState || {});
+                await writeFallbackMetaFiles(rootHandle, scopedConfig, workspaceMeta);
+                const writtenBookmarks = await writeScopedCardFolder(
+                    rootHandle,
+                    cardRootPath,
+                    workspaceId,
+                    categoryName,
+                    links,
+                    categories,
+                    connectionMap,
+                    folderTrees
+                );
+
+                return {
+                    ok: true,
+                    folderName,
+                    cardFolder,
+                    bookmarks: writtenBookmarks
+                };
+            } catch (error) {
+                await cleanupPartialFolder(parentHandle, folderName);
+                throw error;
+            }
+        }
+
         return {
             exportFullBackupAsFolder,
             exportWorkspaceFolderFallback,
             exportCardFolderFallback,
+            exportFolderFolderFallback,
             writeFullStoreFolderBackup
         };
     };

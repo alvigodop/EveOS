@@ -3,7 +3,7 @@ window.EveModuleManifestParts = window.EveModuleManifestParts || {};
 window.EveModuleManifestParts.styles = [
         // UI Modules
         'js/modules/ui/sidebar.css?v=0.2.36',
-        'js/modules/ui/dashboard/dashboard.css',
+        'js/modules/ui/dashboard/dashboard.css?v=0.2.1',
         'js/modules/ui/dashboard/unidex-view.css?v=0.2.40',
         'js/modules/ui/dashboard/unidex-view.base.css?v=0.2.1',
         'js/modules/ui/dashboard/unidex-view.entries.css?v=0.2.1',
@@ -75,7 +75,7 @@ window.EveModuleManifestParts.styles = [
         'js/modules/features/scraper/utils/styles/utility.css?v=1.0.1',
 
         // Modal Modules
-        'js/modules/modals/modals.css'
+        'js/modules/modals/modals.css?v=0.2.3'
     ,
         // Gemini Integration Styles
         'css/modules/gemini/main_css_files.css',

@@ -90,10 +90,11 @@ window.EveSettingsTemplates.backupPanel = `
                     <div class="btn-action-row">
                         <button onclick="exportFolderBackup()" class="btn-backup">Backup Folder/Subtree</button>
                         <label class="btn-restore">
-                            Restore Folder Backup
+                            Restore Folder JSON File
                             <input type="file" id="importFolderFile" style="display:none;" accept=".json" onchange="importFolderBackup(this)">
                         </label>
                     </div>
+                    <button onclick="importFolderFolderBackupBrowserOnly()" class="btn-restore" style="width:100%; border:none; margin-top:8px;">Restore Folder/Subtree Folder</button>
                     <div class="btn-action-row" style="margin-top:8px;">
                         <button onclick="runDuplicateSensorForFolder()" class="btn-backup">Run Folder Duplicate Scan</button>
                         <button onclick="clearDuplicateSensorResults('folder')" class="btn-restore" style="border:none;">Clear Scan</button>

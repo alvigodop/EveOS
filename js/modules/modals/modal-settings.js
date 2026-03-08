@@ -10,6 +10,42 @@ function ensureSettingsOutsideClickCloseBinding() {
     });
 }
 
+function refreshModalThemedControls(root = document) {
+    const scope = root && typeof root.querySelectorAll === 'function' ? root : document;
+    const docStyles = getComputedStyle(document.documentElement);
+    const inputBg = (docStyles.getPropertyValue('--input-bg') || '#2c2c2c').trim();
+    const textMain = (docStyles.getPropertyValue('--text-main') || '#e0e0e0').trim();
+    const scheme = String(document.documentElement.dataset.nativeScheme || document.documentElement.style.colorScheme || 'dark').toLowerCase() === 'light'
+        ? 'light'
+        : 'dark';
+    const borderColor = scheme === 'light' ? '#ccc' : 'rgba(128, 128, 128, 0.35)';
+
+    scope.querySelectorAll('.modal input, .modal select, .modal textarea').forEach((field) => {
+        field.style.setProperty('background-color', inputBg, 'important');
+        field.style.setProperty('color', textMain, 'important');
+        field.style.setProperty('border', `1px solid ${borderColor}`, 'important');
+        field.style.setProperty('box-shadow', 'none', 'important');
+
+        if (field.tagName === 'SELECT') {
+            field.style.setProperty('appearance', 'none', 'important');
+            field.style.setProperty('-webkit-appearance', 'none', 'important');
+            field.style.setProperty('-moz-appearance', 'none', 'important');
+            field.style.setProperty('color-scheme', scheme, 'important');
+            field.style.setProperty('padding-right', '34px', 'important');
+            field.style.setProperty('background-image', 'linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%)', 'important');
+            field.style.setProperty('background-position', 'calc(100% - 16px) calc(50% - 1px), calc(100% - 11px) calc(50% - 1px)', 'important');
+            field.style.setProperty('background-size', '6px 6px, 6px 6px', 'important');
+            field.style.setProperty('background-repeat', 'no-repeat', 'important');
+        }
+    });
+
+    scope.querySelectorAll('.modal option').forEach((option) => {
+        option.style.setProperty('background-color', inputBg, 'important');
+        option.style.setProperty('color', textMain, 'important');
+        option.style.setProperty('color-scheme', scheme, 'important');
+    });
+}
+
 function openSettings() {
     ensureSettingsOutsideClickCloseBinding();
     document.getElementById('settingsModal').style.display = 'flex';
@@ -71,6 +107,7 @@ function openSettings() {
 
     refreshModularLayerSelectors();
     refreshModularStorePathFromServer();
+    refreshModalThemedControls(document.getElementById('settingsModal'));
 }
 
 function saveSettingsTimer() { config.timerEnabled = document.getElementById('timerToggle').checked; saveConfig(); applySettings(); }
@@ -91,6 +128,7 @@ function saveSettingsTheme(mode) {
     saveConfig();
     applySettings();
     updateColorInputAvailability();
+    refreshModalThemedControls(document.getElementById('settingsModal'));
 }
 
 function saveSettingsAccent() { config.accent = document.getElementById('accentColor').value; saveConfig(); applySettings(); }
@@ -119,3 +157,5 @@ function saveSettingsFile(input) {
     };
     reader.readAsDataURL(file);
 }
+
+window.refreshModalThemedControls = refreshModalThemedControls;

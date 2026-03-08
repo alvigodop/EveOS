@@ -1,6 +1,47 @@
 (function () {
     console.log("Theme Boot: Initializing...");
     try {
+        function parseThemeColor(colorValue) {
+            if (typeof colorValue !== 'string') return null;
+            const value = colorValue.trim();
+            if (!value) return null;
+
+            const hexMatch = value.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+            if (hexMatch) {
+                const hex = hexMatch[1];
+                const expanded = hex.length === 3
+                    ? hex.split('').map((part) => part + part).join('')
+                    : hex;
+                return {
+                    r: parseInt(expanded.slice(0, 2), 16),
+                    g: parseInt(expanded.slice(2, 4), 16),
+                    b: parseInt(expanded.slice(4, 6), 16)
+                };
+            }
+
+            const rgbMatch = value.match(/^rgba?\(\s*([0-9]{1,3})\s*,\s*([0-9]{1,3})\s*,\s*([0-9]{1,3})/i);
+            if (rgbMatch) {
+                return {
+                    r: Number(rgbMatch[1]),
+                    g: Number(rgbMatch[2]),
+                    b: Number(rgbMatch[3])
+                };
+            }
+
+            return null;
+        }
+
+        function resolveThemeColorScheme(themeMode, nextConfig) {
+            if (themeMode === 'light') return 'light';
+            if (themeMode !== 'custom') return 'dark';
+
+            const parsed = parseThemeColor(nextConfig.cardColor || nextConfig.bgColor || '');
+            if (!parsed) return 'dark';
+
+            const luminance = ((0.299 * parsed.r) + (0.587 * parsed.g) + (0.114 * parsed.b)) / 255;
+            return luminance >= 0.62 ? 'light' : 'dark';
+        }
+
         const storedConfig = localStorage.getItem('eveV22Config');
         let config = {};
 
@@ -22,6 +63,10 @@
         } else {
             document.documentElement.classList.remove('light-theme');
         }
+
+        const colorScheme = resolveThemeColorScheme(theme, config);
+        document.documentElement.dataset.nativeScheme = colorScheme;
+        document.documentElement.style.colorScheme = colorScheme;
 
         // 2. Determine Background Style
         let bgStyle = '';

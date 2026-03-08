@@ -353,6 +353,63 @@ def _write_card_layer_backup_to_root(state, root_path):
     finally:
         shutil.rmtree(temp_root, ignore_errors=True)
 
+
+def _write_folder_layer_backup_to_root(state, root_path):
+    """
+    Write a folder-layer backup with structure starting at:
+      <root>/cards/<card>/...
+    and include a folder-scoped restore snapshot at:
+      <root>/state/folder-state.json
+    """
+    target_root = Path(root_path).resolve()
+    temp_root = Path(tempfile.mkdtemp(prefix="eveos-folder-layer-"))
+    try:
+        with _temporary_store_root(temp_root):
+            _write_modular_state_full(state)
+
+        state_root = target_root / "state"
+        state_root.mkdir(parents=True, exist_ok=True)
+        (state_root / "folder-state.json").write_text(
+            json.dumps(state, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+        copied_scopes = 0
+        copied_cards = 0
+        tabs_root = temp_root / "tabs"
+        dst_cards_root = target_root / "cards"
+        dst_cards_root.mkdir(parents=True, exist_ok=True)
+        if tabs_root.exists():
+            for workspace_folder in sorted(tabs_root.iterdir()):
+                if not workspace_folder.is_dir():
+                    continue
+                src_cards_root = workspace_folder / "cards"
+                if not src_cards_root.exists() or not src_cards_root.is_dir():
+                    continue
+                copied_scopes += 1
+                for card_dir in sorted(src_cards_root.iterdir()):
+                    if not card_dir.is_dir():
+                        continue
+                    target_card_dir = dst_cards_root / card_dir.name
+                    if target_card_dir.exists():
+                        scoped_name = _safe_filename(f"{workspace_folder.name}--{card_dir.name}", card_dir.name)
+                        target_card_dir = dst_cards_root / scoped_name
+                    shutil.copytree(card_dir, target_card_dir, dirs_exist_ok=True)
+                    copied_cards += 1
+
+        bookmark_count = len(list((state.get("bookmarks") or {}).get("links") or []))
+        return {
+            "ok": True,
+            "summary": {
+                "tabs": copied_scopes,
+                "cards": copied_cards,
+                "bookmarks": bookmark_count
+            },
+            "status": {}
+        }
+    finally:
+        shutil.rmtree(temp_root, ignore_errors=True)
+
 def _build_api_deps():
     return {
         "collect_status": _collect_status,
@@ -375,6 +432,7 @@ def _build_api_deps():
         "settings_file": STORE_SETTINGS_FILE,
         "valid_layer_scopes": VALID_LAYER_SCOPES,
         "write_card_layer_backup_to_root": _write_card_layer_backup_to_root,
+        "write_folder_layer_backup_to_root": _write_folder_layer_backup_to_root,
         "write_modular_state": write_modular_state,
         "write_state_to_root": _write_state_to_root,
     }

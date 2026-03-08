@@ -36,6 +36,41 @@
     text-overflow: ellipsis;
 }
 
+.card-header-icon-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.card-header-icon-btn,
+.card-header-icon-row .lib-toggle-btn,
+.card-header-icon-row .launch-btn,
+.card-header-icon-row .card-folder-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    height: 30px;
+    padding: 0 8px;
+    font-size: 0.95rem;
+    line-height: 1;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-main);
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.card-header-icon-btn:hover,
+.card-header-icon-row .lib-toggle-btn:hover,
+.card-header-icon-row .launch-btn:hover,
+.card-header-icon-row .card-folder-toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    transform: translateY(-1px);
+}
+
 .cat-progress-bg {
     position: absolute;
     top: 0;

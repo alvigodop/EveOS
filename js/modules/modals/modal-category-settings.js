@@ -31,6 +31,14 @@ window.categoryFolderCreateDraft = window.categoryFolderCreateDraft || {
         return window.EveBookmarkFolders || null;
     }
 
+    const HEADER_BUTTON_OPTIONS = [
+        { id: 'add', label: '➕ Add Bookmark' },
+        { id: 'folders', label: '📁 Folders' },
+        { id: 'library', label: '📚 Library' },
+        { id: 'focus', label: '🎯 Focus' },
+        { id: 'launch', label: '🚀 Launch' }
+    ];
+
     function getFolderDraft() {
         if (!window.categoryFolderCreateDraft || typeof window.categoryFolderCreateDraft !== 'object') {
             window.categoryFolderCreateDraft = {
@@ -62,11 +70,33 @@ window.categoryFolderCreateDraft = window.categoryFolderCreateDraft || {
         return getFolderDraft().mode === 'rename' ? 'rename' : 'create';
     }
 
+    function getHeaderButtonApi() {
+        return window.DashboardCategories || null;
+    }
+
     function isCategorySettingsVisibleFor(categoryName) {
         const modal = document.getElementById('categorySettingsModal');
         return !!modal
             && modal.style.display === 'flex'
             && String(window.currentCategoryCtx || '').trim() === String(categoryName || '').trim();
+    }
+
+    function renderCategoryHeaderButtonSettings() {
+        const container = document.getElementById('categoryHeaderButtonSettings');
+        if (!container) return;
+        const categoryName = String(window.currentCategoryCtx || '').trim() || 'Unsorted';
+        const workspaceId = getCategorySettingsWorkspaceId();
+        const headerButtonApi = getHeaderButtonApi();
+        const visibleButtons = new Set(headerButtonApi?.getCardHeaderButtonsForCategory?.(workspaceId, categoryName) || []);
+
+        container.innerHTML = HEADER_BUTTON_OPTIONS.map((option) => {
+            const checked = visibleButtons.has(option.id) ? ' checked' : '';
+            return ''
+                + '<label style="display:flex; align-items:center; gap:10px; padding:8px 10px; border:1px solid rgba(255,255,255,0.08); border-radius:8px; cursor:pointer;">'
+                    + `<input type="checkbox" data-header-button-id="${escapeCategorySettingsHtml(option.id)}"${checked} onchange="toggleCategoryHeaderButtonSetting('${escapeCategorySettingsJs(option.id)}', this.checked)">`
+                    + `<span>${escapeCategorySettingsHtml(option.label)}</span>`
+                + '</label>';
+        }).join('');
     }
 
     function renderCategoryFolderCreateForm(preferredParentId) {
@@ -333,6 +363,21 @@ window.categoryFolderCreateDraft = window.categoryFolderCreateDraft || {
         return true;
     };
 
+    window.toggleCategoryHeaderButtonSetting = function (buttonId, visible) {
+        const categoryName = String(window.currentCategoryCtx || '').trim() || 'Unsorted';
+        const workspaceId = getCategorySettingsWorkspaceId();
+        const headerButtonApi = getHeaderButtonApi();
+        if (!headerButtonApi?.getCardHeaderButtonsForCategory || !headerButtonApi?.setCardHeaderButtonsForCategory) {
+            return;
+        }
+
+        const currentButtons = headerButtonApi.getCardHeaderButtonsForCategory(workspaceId, categoryName);
+        const nextButtons = currentButtons.filter((entry) => entry !== buttonId);
+        if (visible) nextButtons.push(buttonId);
+        headerButtonApi.setCardHeaderButtonsForCategory(workspaceId, categoryName, nextButtons);
+        renderCategoryHeaderButtonSettings();
+    };
+
     window.handleCategoryFolderNameEnter = function (event) {
         if (event?.key === 'Enter') {
             event.preventDefault();
@@ -377,6 +422,11 @@ window.categoryFolderCreateDraft = window.categoryFolderCreateDraft || {
                 modalInner.style.width = '620px';
                 modalInner.style.maxWidth = '94%';
             }
+            return;
+        }
+
+        if (tabName === 'general') {
+            renderCategoryHeaderButtonSettings();
             return;
         }
 

@@ -12,6 +12,7 @@
     --p-high: #ff4d4d;
     --p-med: #ffcc00;
     --p-low: #00d4ff;
+    color-scheme: dark;
 }
 
 html,
@@ -223,6 +224,20 @@ body {
 }
 
 /* Light Mode Theme */
+html[data-native-scheme="dark"],
+html[data-native-scheme="dark"] body,
+html[data-native-scheme="dark"] select,
+html[data-native-scheme="dark"] option {
+    color-scheme: dark;
+}
+
+html[data-native-scheme="light"],
+html[data-native-scheme="light"] body,
+html[data-native-scheme="light"] select,
+html[data-native-scheme="light"] option {
+    color-scheme: light;
+}
+
 .light-theme {
     --bg-color: #f0f2f5;
     --text-color: #222;
@@ -232,6 +247,7 @@ body {
     /* Default blue for light mode */
     --text-main: #222;
     --input-bg: #fff;
+    color-scheme: light;
 }
 
 /* Light Mode Overrides */
