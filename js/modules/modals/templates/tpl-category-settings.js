@@ -18,6 +18,7 @@ window.modalTemplate += `
                 <button onclick="closeModals(); openRenameModal(window.currentCategoryCtx)" style="width:100%;">Rename Category</button>
                 <button onclick="closeModals(); openBulkTitleModal(window.currentCategoryCtx)" style="width:100%;">Auto-Title Links</button>
                 <button onclick="closeModals(); openBulkLibraryAutoModal(window.currentCategoryCtx)" style="width:100%;">Auto-Add Library Entries</button>
+                <button onclick="openFolderCreator(window.currentCategoryCtx, '')" style="width:100%;">New Bookmark Folder</button>
                 <button onclick="switchCategoryTab('folders')" style="width:100%;">Manage Bookmark Folders</button>
                 <button onclick="closeModals(); ctxCatFocus()" style="width:100%;">Focus Mode</button>
                 <button onclick="closeModals(); ctxCatToggleTask()" style="width:100%;">Toggle Task Mode</button>
@@ -31,7 +32,7 @@ window.modalTemplate += `
             <div style="display:flex; flex-direction:column; gap:12px;">
                 <p style="opacity:0.75; font-size:0.9rem; margin:0;">Folders are bookmark organizers inside this card only. They are separate from tabs.</p>
                 <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                    <button onclick="promptCreateBookmarkFolder(window.currentCategoryCtx, '')" style="flex:1 1 180px;">Create Root Folder</button>
+                    <button onclick="openFolderCreator(window.currentCategoryCtx, '')" style="flex:1 1 180px;">New Folder</button>
                     <button onclick="closeModals(); openAddModal(window.currentCategoryCtx)" style="flex:1 1 180px;">Add Root Bookmark</button>
                 </div>
                 <div id="category-folder-manager" style="display:flex; flex-direction:column; gap:8px; max-height:420px; overflow-y:auto;"></div>
@@ -50,6 +51,25 @@ window.modalTemplate += `
         </div>
 
         <button onclick="closeModals()" style="margin-top:15px; width:100%;">Close</button>
+    </div>
+</div>
+
+<div class="modal-overlay" id="bookmarkFolderCreatorModal" style="z-index:3004;">
+    <div class="modal" style="width:460px; max-width:92%;">
+        <h2 id="bookmarkFolderCreatorTitle">New Bookmark Folder</h2>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+            <label for="bookmarkFolderCreatorNameInput" style="font-size:0.82rem; opacity:0.84;">Folder Name</label>
+            <input type="text" id="bookmarkFolderCreatorNameInput" placeholder="Folder name" onkeypress="handleCategoryFolderNameEnter(event)">
+        </div>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+            <label for="bookmarkFolderCreatorParentSelect" style="font-size:0.82rem; opacity:0.84;">Parent Folder</label>
+            <select id="bookmarkFolderCreatorParentSelect"></select>
+        </div>
+        <div style="display:flex; gap:10px; margin-top:10px;">
+            <button class="btn-primary" onclick="submitCategoryFolderCreate()">Create Folder</button>
+            <button onclick="clearCategoryFolderCreateForm()">Clear</button>
+            <button onclick="closeBookmarkFolderCreatorModal()">Cancel</button>
+        </div>
     </div>
 </div>
 `;

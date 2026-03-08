@@ -1,4 +1,5 @@
 window.currentCategoryCtx = null;
+window.categoryFolderCreateDraft = window.categoryFolderCreateDraft || { categoryName: '', parentId: '' };
 
 (function () {
     function escapeCategorySettingsHtml(value) {
@@ -18,6 +19,56 @@ window.currentCategoryCtx = null;
 
     function getCategorySettingsWorkspaceId() {
         return String(window.eveState?.config?.activeWorkspace || (typeof config !== 'undefined' ? config?.activeWorkspace : '') || 'main').trim() || 'main';
+    }
+
+    function getFolderApi() {
+        return window.EveBookmarkFolders || null;
+    }
+
+    function getFolderDraft() {
+        if (!window.categoryFolderCreateDraft || typeof window.categoryFolderCreateDraft !== 'object') {
+            window.categoryFolderCreateDraft = { categoryName: '', parentId: '' };
+        }
+        return window.categoryFolderCreateDraft;
+    }
+
+    function setFolderDraft(nextDraft) {
+        window.categoryFolderCreateDraft = {
+            categoryName: String(nextDraft?.categoryName || '').trim(),
+            parentId: String(nextDraft?.parentId || '').trim()
+        };
+    }
+
+    function getFolderDraftCategoryName() {
+        return String(getFolderDraft().categoryName || window.currentCategoryCtx || 'Unsorted').trim() || 'Unsorted';
+    }
+
+    function isCategorySettingsVisibleFor(categoryName) {
+        const modal = document.getElementById('categorySettingsModal');
+        return !!modal
+            && modal.style.display === 'flex'
+            && String(window.currentCategoryCtx || '').trim() === String(categoryName || '').trim();
+    }
+
+    function renderCategoryFolderCreateForm(preferredParentId) {
+        const folderApi = getFolderApi();
+        const categoryName = getFolderDraftCategoryName();
+        const workspaceId = getCategorySettingsWorkspaceId();
+        const title = document.getElementById('bookmarkFolderCreatorTitle');
+        const input = document.getElementById('bookmarkFolderCreatorNameInput');
+        const select = document.getElementById('bookmarkFolderCreatorParentSelect');
+        if (!input || !select || !folderApi?.populateFolderSelect) return;
+
+        if (title) title.innerText = `New Bookmark Folder: ${categoryName}`;
+        const draft = getFolderDraft();
+        const selectedParentId = String(preferredParentId !== undefined ? preferredParentId : draft.parentId || '').trim();
+        folderApi.populateFolderSelect(select, workspaceId, categoryName, selectedParentId, {
+            rootLabel: 'Root Level'
+        });
+        if (String(select.value || '').trim() !== selectedParentId && selectedParentId) {
+            select.value = '';
+        }
+        draft.parentId = String(select.value || '').trim();
     }
 
     function countFolderBookmarks(folderLinks, folderId) {
@@ -45,7 +96,7 @@ window.currentCategoryCtx = null;
                         + '</div>'
                         + '<div style="display:flex; gap:6px; flex-wrap:wrap;">'
                             + `<button type="button" onclick="closeModals(); openAddModalForFolder('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">Add Bookmark</button>`
-                            + `<button type="button" onclick="promptCreateBookmarkFolder('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">Subfolder</button>`
+                            + `<button type="button" onclick="openFolderCreator('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">Subfolder</button>`
                             + `<button type="button" onclick="promptRenameBookmarkFolder('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">Rename</button>`
                             + `<button type="button" onclick="deleteBookmarkFolderPrompt('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">Delete</button>`
                         + '</div>'
@@ -60,7 +111,7 @@ window.currentCategoryCtx = null;
         if (!container) return;
         const categoryName = String(window.currentCategoryCtx || '').trim() || 'Unsorted';
         const workspaceId = getCategorySettingsWorkspaceId();
-        const folderApi = window.EveBookmarkFolders;
+        const folderApi = getFolderApi();
 
         if (!folderApi?.buildFolderView) {
             container.innerHTML = '<div style="opacity:0.72; font-size:0.9rem;">Folder controls are not available yet.</div>';
@@ -80,7 +131,7 @@ window.currentCategoryCtx = null;
         if (!folderCount) {
             container.innerHTML = ''
                 + '<div style="padding:12px; border:1px dashed rgba(255,255,255,0.18); border-radius:10px; opacity:0.8;">'
-                    + `<div style="font-weight:600; margin-bottom:4px;">No folders in this card yet</div>`
+                    + '<div style="font-weight:600; margin-bottom:4px;">No folders in this card yet</div>'
                     + `<div style="font-size:0.84rem;">Root bookmarks currently visible in this card: ${rootBookmarks}</div>`
                 + '</div>';
             return;
@@ -88,10 +139,84 @@ window.currentCategoryCtx = null;
 
         container.innerHTML = ''
             + '<div style="padding:10px 12px; border:1px solid rgba(255,255,255,0.08); border-radius:10px; background:rgba(255,255,255,0.02);">'
-                + `<div style="font-weight:600; margin-bottom:4px;">Root bookmarks</div>`
+                + '<div style="font-weight:600; margin-bottom:4px;">Root bookmarks</div>'
                 + `<div style="font-size:0.84rem; opacity:0.76;">${rootBookmarks} bookmark${rootBookmarks === 1 ? '' : 's'} not assigned to a folder</div>`
             + '</div>'
             + renderFolderManagerRows(categoryName, workspaceId, viewModel, null, 0);
+    };
+
+    window.openFolderCreator = function (categoryName, parentId) {
+        const resolvedCategory = String(categoryName || window.currentCategoryCtx || 'Unsorted').trim() || 'Unsorted';
+        const modal = document.getElementById('bookmarkFolderCreatorModal');
+        setFolderDraft({
+            categoryName: resolvedCategory,
+            parentId: String(parentId || '').trim()
+        });
+        if (modal) modal.style.display = 'flex';
+        setTimeout(() => {
+            renderCategoryFolderCreateForm(String(parentId || '').trim());
+            const input = document.getElementById('bookmarkFolderCreatorNameInput');
+            if (input) input.focus();
+        }, 0);
+    };
+
+    window.closeBookmarkFolderCreatorModal = function () {
+        const modal = document.getElementById('bookmarkFolderCreatorModal');
+        if (modal) modal.style.display = 'none';
+    };
+
+    window.clearCategoryFolderCreateForm = function () {
+        const input = document.getElementById('bookmarkFolderCreatorNameInput');
+        if (input) input.value = '';
+        setFolderDraft({
+            categoryName: getFolderDraftCategoryName(),
+            parentId: ''
+        });
+        renderCategoryFolderCreateForm('');
+    };
+
+    window.submitCategoryFolderCreate = function () {
+        const folderApi = getFolderApi();
+        if (!folderApi?.createFolder) return false;
+        const categoryName = getFolderDraftCategoryName();
+        const workspaceId = getCategorySettingsWorkspaceId();
+        const input = document.getElementById('bookmarkFolderCreatorNameInput');
+        const select = document.getElementById('bookmarkFolderCreatorParentSelect');
+        const folderName = String(input?.value || '').trim();
+        const parentId = String(select?.value || '').trim();
+
+        if (!folderName) {
+            if (typeof showToast === 'function') showToast('Folder name required', 'warning');
+            if (input) input.focus();
+            return false;
+        }
+
+        const created = folderApi.createFolder({
+            workspaceId,
+            categoryName,
+            parentId,
+            name: folderName
+        });
+        if (!created) return false;
+
+        if (typeof showToast === 'function') showToast(`Folder "${folderName}" created`, 'success');
+        if (input) input.value = '';
+        setFolderDraft({
+            categoryName,
+            parentId
+        });
+        if (isCategorySettingsVisibleFor(categoryName)) {
+            window.renderCategoryFolderManager();
+        }
+        window.closeBookmarkFolderCreatorModal();
+        return true;
+    };
+
+    window.handleCategoryFolderNameEnter = function (event) {
+        if (event?.key === 'Enter') {
+            event.preventDefault();
+            window.submitCategoryFolderCreate();
+        }
     };
 
     window.openCategorySettings = function (categoryName, activeTab = 'general') {

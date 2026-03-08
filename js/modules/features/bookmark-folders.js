@@ -434,13 +434,6 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         writeStore(nextStore, false);
     }
 
-    function promptForFolderName(message, initialValue) {
-        const response = window.prompt(message, String(initialValue || '').trim());
-        if (response === null) return null;
-        const nextValue = response.trim();
-        return nextValue || null;
-    }
-
     function getActiveCategoryContext(categoryName) {
         return normalizeCategoryName(categoryName || window.currentCategoryCtx || window.ctxCatName || 'Unsorted');
     }
@@ -516,18 +509,8 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
 
     window.promptCreateBookmarkFolder = function (categoryName, parentId) {
         const resolvedCategory = getActiveCategoryContext(categoryName);
-        const folderName = promptForFolderName('Folder name?', '');
-        if (!folderName) return;
-        const created = createFolder({
-            workspaceId: normalizeWorkspaceId(),
-            categoryName: resolvedCategory,
-            parentId,
-            name: folderName
-        });
-        if (!created) return;
-        if (typeof showToast === 'function') showToast(`Folder "${folderName}" created`, 'success');
-        if (typeof window.renderCategoryFolderManager === 'function') {
-            window.renderCategoryFolderManager();
+        if (typeof window.openFolderCreator === 'function') {
+            window.openFolderCreator(resolvedCategory, parentId);
         }
     };
 
@@ -535,7 +518,9 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         const resolvedCategory = getActiveCategoryContext(categoryName);
         const current = getFolderById(normalizeWorkspaceId(), resolvedCategory, folderId);
         if (!current) return;
-        const nextName = promptForFolderName('Rename folder', current.name);
+        const response = window.prompt('Rename folder', current.name);
+        if (response === null) return;
+        const nextName = String(response || '').trim();
         if (!nextName || nextName === current.name) return;
         if (!renameFolder({
             workspaceId: normalizeWorkspaceId(),
