@@ -10,6 +10,7 @@ window.EveSettingsTemplates.backupPanel = `
                         <option value="full">Full Backup / Restore</option>
                         <option value="workspace">Tab Backup</option>
                         <option value="card">Card Backup</option>
+                        <option value="folder">Folder Backup</option>
                         <option value="bookmark">Bookmark Backup</option>
                         <option value="modular">Active Data Pack (Primary)</option>
                         <option value="layer">Copy Between Packs (Advanced)</option>
@@ -55,6 +56,20 @@ window.EveSettingsTemplates.backupPanel = `
                         </label>
                     </div>
                     <button onclick="importCardFolderBackupBrowserOnly()" class="btn-restore" style="width:100%; border:none; margin-top:8px;">Restore Card Folder (Browser Only)</button>
+                </div>
+
+                <div class="backup-panel" data-backup-panel="folder">
+                    <h4 style="margin:0 0 10px 0;">Folder Backup (Single Bookmark Folder/Subtree)</h4>
+                    <select id="folderBackupWorkspaceSelect" style="width:100%; margin-bottom:8px;"></select>
+                    <select id="folderBackupCategorySelect" style="width:100%; margin-bottom:8px;"></select>
+                    <select id="folderBackupFolderSelect" style="width:100%; margin-bottom:10px;"></select>
+                    <div class="btn-action-row">
+                        <button onclick="exportFolderBackup()" class="btn-backup">Backup Folder/Subtree</button>
+                        <label class="btn-restore">
+                            Restore Folder JSON
+                            <input type="file" id="importFolderFile" style="display:none;" accept=".json" onchange="importFolderBackup(this)">
+                        </label>
+                    </div>
                 </div>
 
                 <div class="backup-panel" data-backup-panel="bookmark">
@@ -113,6 +128,17 @@ window.EveSettingsTemplates.backupPanel = `
 
                 <div class="backup-panel" data-backup-panel="layer">
                     <h4 style="margin:0 0 10px 0;">Copy Between Packs (Advanced)</h4>
+                    <select id="modularLayerScope" onchange="saveSettingsModularLayerScope(); refreshModularLayerSelectors();" style="width:100%; margin-bottom:8px;">
+                        <option value="store">Full Pack</option>
+                        <option value="tab">Tab</option>
+                        <option value="card">Card</option>
+                        <option value="folder">Folder/Subtree</option>
+                        <option value="bookmark">Bookmark</option>
+                    </select>
+                    <select id="modularLayerWorkspaceSelect" style="width:100%; margin-bottom:8px;"></select>
+                    <select id="modularLayerCategorySelect" style="width:100%; margin-bottom:8px;"></select>
+                    <select id="modularLayerFolderSelect" style="width:100%; margin-bottom:8px;"></select>
+                    <select id="modularLayerBookmarkSelect" style="width:100%; margin-bottom:10px;"></select>
                     <label style="display:block; margin-bottom:10px;">Folder Path:
                         <input type="text" id="modularLayerPathInput" onchange="saveSettingsModularLayerPathDraft()" placeholder="Set your own backup target path (e.g. C:\\path\\to\\backups)" style="width:100%;">
                     </label>

@@ -65,6 +65,7 @@ function openSettings() {
 
     if (typeof refreshWorkspaceBackupList === 'function') refreshWorkspaceBackupList();
     if (typeof refreshCardBackupList === 'function') refreshCardBackupList();
+    if (typeof refreshFolderBackupList === 'function') refreshFolderBackupList();
     if (typeof refreshBookmarkBackupList === 'function') refreshBookmarkBackupList();
 
     refreshModularLayerSelectors();

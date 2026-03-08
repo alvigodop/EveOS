@@ -79,6 +79,75 @@ window.EveDataStore.CaptureModules = window.EveDataStore.CaptureModules || {};
                 : {};
         }
 
+        function getScopedFolderNodes(folderTrees, workspaceId, categoryName) {
+            const scoped = filterFolderTreesForCard(folderTrees, workspaceId, categoryName);
+            const key = buildScopedCategoryKey(workspaceId, categoryName);
+            const tree = scoped[key];
+            if (Array.isArray(tree?.nodes)) return tree.nodes.map((node) => ({ ...(node || {}) }));
+            if (Array.isArray(tree)) return tree.map((node) => ({ ...(node || {}) }));
+            return [];
+        }
+
+        function buildFolderMaps(nodes) {
+            const list = Array.isArray(nodes) ? nodes.map((node) => ({ ...(node || {}) })) : [];
+            const nodeById = new Map();
+            const childrenByParent = new Map();
+            list.forEach((node) => {
+                const id = String(node?.id || '').trim();
+                if (!id) return;
+                const normalized = {
+                    ...node,
+                    id,
+                    parentId: String(node?.parentId || '').trim() || null,
+                    name: String(node?.name || node?.title || 'Folder').trim() || 'Folder',
+                    order: Number.isFinite(Number(node?.order)) ? Number(node.order) : 0
+                };
+                nodeById.set(id, normalized);
+                const parentKey = normalized.parentId || '__root__';
+                if (!childrenByParent.has(parentKey)) childrenByParent.set(parentKey, []);
+                childrenByParent.get(parentKey).push(normalized);
+            });
+            childrenByParent.forEach((childNodes) => {
+                childNodes.sort((a, b) => {
+                    if (a.order !== b.order) return a.order - b.order;
+                    return String(a.name || '').localeCompare(String(b.name || ''));
+                });
+            });
+            return { nodeById, childrenByParent };
+        }
+
+        function collectFolderSubtreeIds(folderId, childrenByParent) {
+            const targetId = String(folderId || '').trim();
+            if (!targetId) return new Set();
+            const pending = [targetId];
+            const seen = new Set();
+            while (pending.length) {
+                const currentId = pending.pop();
+                if (!currentId || seen.has(currentId)) continue;
+                seen.add(currentId);
+                (childrenByParent.get(currentId) || []).forEach((child) => {
+                    const childId = String(child?.id || '').trim();
+                    if (childId && !seen.has(childId)) pending.push(childId);
+                });
+            }
+            return seen;
+        }
+
+        function buildFolderSubtree(nodes, folderId) {
+            const normalizedFolderId = String(folderId || '').trim();
+            const { nodeById, childrenByParent } = buildFolderMaps(nodes);
+            if (!nodeById.has(normalizedFolderId)) return [];
+            const subtreeIds = collectFolderSubtreeIds(normalizedFolderId, childrenByParent);
+            return (Array.isArray(nodes) ? nodes : [])
+                .map((node) => ({ ...(node || {}) }))
+                .filter((node) => subtreeIds.has(String(node?.id || '').trim()))
+                .map((node) => (
+                    String(node?.id || '').trim() === normalizedFolderId
+                        ? { ...node, parentId: null }
+                        : node
+                ));
+        }
+
         function filterCategoriesForConnections(categories, workspaceConnections) {
             if (!categories || typeof categories !== 'object') return {};
             if (!Array.isArray(workspaceConnections) || workspaceConnections.length === 0) return {};
@@ -201,6 +270,54 @@ window.EveDataStore.CaptureModules = window.EveDataStore.CaptureModules || {};
             return state;
         }
 
+        function captureFolder(workspaceId, categoryName, folderId) {
+            const normalizedWorkspace = String(workspaceId || '').trim();
+            const normalizedCategory = String(categoryName || 'Unsorted').trim() || 'Unsorted';
+            const normalizedFolderId = String(folderId || '').trim();
+            if (!normalizedWorkspace || !normalizedCategory || !normalizedFolderId) return null;
+
+            const state = captureCard(normalizedWorkspace, normalizedCategory);
+            if (!state) return null;
+
+            const scopedKey = buildScopedCategoryKey(normalizedWorkspace, normalizedCategory);
+            const folderNodes = getScopedFolderNodes(state.bookmarks?.folders, normalizedWorkspace, normalizedCategory);
+            const subtreeNodes = buildFolderSubtree(folderNodes, normalizedFolderId);
+            if (!subtreeNodes.length) return null;
+
+            const { childrenByParent } = buildFolderMaps(subtreeNodes);
+            const subtreeIds = collectFolderSubtreeIds(normalizedFolderId, childrenByParent);
+            const folderLinks = (state.bookmarks?.links || []).filter((entry) => (
+                subtreeIds.has(String(entry?.folderId || '').trim())
+            ));
+            const linkIds = new Set(folderLinks.map((entry) => String(entry?.id || '').trim()).filter(Boolean));
+            const folderConnections = (state.library?.connections || []).filter((conn) => (
+                linkIds.has(String(conn?.linkId || '').trim())
+            ));
+
+            state.metadata.workspaceId = normalizedWorkspace;
+            state.metadata.workspaceName = getWorkspaceName(normalizedWorkspace);
+            state.metadata.categoryName = normalizedCategory;
+            state.metadata.folderId = normalizedFolderId;
+            state.metadata.type = 'folder';
+            state.bookmarks.links = folderLinks.map((entry) => ({
+                ...entry,
+                workspace: normalizedWorkspace,
+                category: normalizedCategory
+            }));
+            state.bookmarks.config = {
+                ...state.bookmarks.config,
+                activeWorkspace: normalizedWorkspace
+            };
+            state.bookmarks.folders = {
+                [scopedKey]: {
+                    nodes: subtreeNodes
+                }
+            };
+            state.library.connections = folderConnections;
+            state.library.categories = filterCategoriesForConnections(state.library.categories, folderConnections);
+            return state;
+        }
+
         function findCategoryLibraryData(categories, workspaceId, categoryName) {
             if (!categories || typeof categories !== 'object') return null;
             if (Object.prototype.hasOwnProperty.call(categories, categoryName)) {
@@ -222,6 +339,7 @@ window.EveDataStore.CaptureModules = window.EveDataStore.CaptureModules || {};
             getConnectionCategoryName,
             captureWorkspace,
             captureCard,
+            captureFolder,
             captureBookmark,
             getWorkspaceName,
             findCategoryLibraryData

@@ -108,6 +108,7 @@ window.EveDataStore = window.EveDataStore || {};
             layer: String(options.layer || 'store').toLowerCase(),
             workspaceId: options.workspaceId || '',
             categoryName: options.categoryName || '',
+            folderId: options.folderId || '',
             bookmarkId: options.bookmarkId || '',
             destinationPath: String(options.destinationPath || '').trim(),
             overwrite: !!options.overwrite
@@ -137,6 +138,7 @@ window.EveDataStore = window.EveDataStore || {};
             layer: String(options.layer || '').toLowerCase(),
             workspaceId: options.workspaceId || '',
             categoryName: options.categoryName || '',
+            folderId: options.folderId || '',
             bookmarkId: options.bookmarkId || '',
             sourcePath: String(options.sourcePath || '').trim()
         };

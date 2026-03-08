@@ -17,6 +17,10 @@ window.EveDataTransfer = window.EveDataTransfer || {};
     const getBookmarkWorkspaceSelect = ns.getBookmarkWorkspaceSelect;
     const getBookmarkCategorySelect = ns.getBookmarkCategorySelect;
     const getBookmarkLinkSelect = ns.getBookmarkLinkSelect;
+    const getFolderWorkspaceSelect = ns.getFolderWorkspaceSelect;
+    const getFolderCategorySelect = ns.getFolderCategorySelect;
+    const getFolderSelect = ns.getFolderSelect;
+    const getBookmarkFolderNodesForScope = ns.getBookmarkFolderNodesForScope;
     const buildWorkspacePayload = ns.buildWorkspacePayload;
     const buildCardPayload = ns.buildCardPayload;
     const isLocalhostHost = ns.isLocalhostHost;
@@ -25,6 +29,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
     const exportCardFolderFallback = ns.exportCardFolderFallback;
     const buildWorkspaceBackupJsonName = ns.buildWorkspaceBackupJsonName;
     const buildCardBackupJsonName = ns.buildCardBackupJsonName;
+    const buildFolderBackupJsonName = ns.buildFolderBackupJsonName;
     const buildBookmarkBackupJsonName = ns.buildBookmarkBackupJsonName;
     const requireLayerDestinationPath = ns.requireLayerDestinationPath;
     const persistLayerDestinationPath = ns.persistLayerDestinationPath;
@@ -44,6 +49,15 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         const a = document.createElement('a');
         a.href = url;
         a.download = buildCardBackupJsonName(workspaceId, workspaceName, categoryName);
+        a.click();
+    }
+
+    function downloadFolderBackupJson(workspaceId, workspaceName, categoryName, folderNode, exportState) {
+        const blob = new Blob([JSON.stringify(exportState, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = buildFolderBackupJsonName(workspaceId, workspaceName, categoryName, folderNode);
         a.click();
     }
 
@@ -194,6 +208,55 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             selectedLink || exportState?.bookmarks?.links?.[0] || { id: linkId }
         );
         a.click();
+    };
+
+    window.exportFolderBackup = async function () {
+        const dataStore = getDataStore();
+        const appConfig = getAppConfig();
+        const wsSelect = getFolderWorkspaceSelect();
+        const categorySelect = getFolderCategorySelect();
+        const folderSelect = getFolderSelect();
+        const workspaceId = String(wsSelect?.value || appConfig.activeWorkspace || '').trim();
+        const categoryName = String(categorySelect?.value || '').trim();
+        const folderId = String(folderSelect?.value || '').trim();
+        if (!workspaceId || !categoryName || !folderId) {
+            return showToast('Select workspace, card, and folder first.', 'error');
+        }
+
+        const workspaceName = appConfig.workspaces?.find((ws) => ws.id === workspaceId)?.name || workspaceId;
+        const folderNode = getBookmarkFolderNodesForScope(workspaceId, categoryName)
+            .find((node) => String(node?.id || '').trim() === folderId) || { id: folderId };
+        const modularSync = window.EveDataStore?.ModularSync;
+        const exportState = dataStore?.captureFolder
+            ? dataStore.captureFolder(workspaceId, categoryName, folderId)
+            : null;
+        if (!exportState) {
+            return showToast('Could not build folder backup payload.', 'error');
+        }
+
+        if (modularSync?.backupLayer) {
+            const destinationPath = await requireLayerDestinationPath();
+            if (!destinationPath) return;
+            try {
+                const result = await modularSync.backupLayer({
+                    layer: 'folder',
+                    workspaceId,
+                    categoryName,
+                    folderId,
+                    destinationPath
+                });
+                if (result?.ok) {
+                    persistLayerDestinationPath(destinationPath);
+                    return showToast(`Folder subtree backup created: ${result.destinationPath}`, 'success');
+                }
+                console.warn('[DataTransfer] Folder layer backup failed in server mode, falling back to JSON:', result?.error);
+            } catch (error) {
+                console.warn('[DataTransfer] Folder layer backup failed in server mode, falling back to JSON:', error);
+            }
+        }
+
+        downloadFolderBackupJson(workspaceId, workspaceName, categoryName, folderNode, exportState);
+        showToast('Folder export downloaded as JSON.', 'info');
     };
 
     ns.exportReady = true;

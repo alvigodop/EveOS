@@ -189,6 +189,29 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         reader.readAsText(file);
     };
 
+    window.importFolderBackup = function (inputElement) {
+        const dataStore = getDataStore();
+        if (!inputElement?.files?.length) return;
+        const file = inputElement.files[0];
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            try {
+                const json = JSON.parse(e.target.result);
+                const isFolder = json.metadata?.type === 'folder';
+                const success = isFolder && dataStore?.applyFolderState ? dataStore.applyFolderState(json) : false;
+                if (success) {
+                    resetFileInput(inputElement);
+                    location.reload();
+                    return showToast('Folder subtree restored!', 'success');
+                }
+                showToast('Invalid folder backup', 'error');
+            } catch (err) {
+                showToast('Error importing folder: ' + err.message, 'error');
+            }
+        };
+        reader.readAsText(file);
+    };
+
     window.triggerWorkspaceImport = function () {
         const input = document.getElementById('importWorkspaceFile');
         if (input) input.click();

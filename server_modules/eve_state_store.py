@@ -90,6 +90,7 @@ ACTIVE_STORE_SELECTION = {
     "layer": "store",
     "workspaceId": "",
     "categoryName": "",
+    "folderId": "",
     "bookmarkId": "",
     "requestedPath": str(DEFAULT_STORE_ROOT.resolve())
 }
@@ -233,7 +234,7 @@ def write_modular_state(state):
 
     selection = get_active_store_selection()
     layer = str(selection.get("layer") or "store").strip().lower()
-    if layer not in {"tab", "card", "bookmark"}:
+    if layer not in {"tab", "card", "folder", "bookmark"}:
         return _write_modular_state_full(state)
 
     try:
@@ -247,6 +248,7 @@ def write_modular_state(state):
         layer=layer,
         workspace_id=str(selection.get("workspaceId") or "").strip(),
         category_name=str(selection.get("categoryName") or "").strip(),
+        folder_id=str(selection.get("folderId") or "").strip(),
         bookmark_id=str(selection.get("bookmarkId") or "").strip()
     )
     return _write_modular_state_full(merged_state)
@@ -265,7 +267,7 @@ def read_modular_state(apply_selection=True):
 
     selection = get_active_store_selection()
     layer = str(selection.get("layer") or "store").strip().lower()
-    if layer not in {"tab", "card", "bookmark"}:
+    if layer not in {"tab", "card", "folder", "bookmark"}:
         return unified
 
     try:
@@ -274,6 +276,7 @@ def read_modular_state(apply_selection=True):
             layer=layer,
             workspace_id=str(selection.get("workspaceId") or "").strip(),
             category_name=str(selection.get("categoryName") or "").strip(),
+            folder_id=str(selection.get("folderId") or "").strip(),
             bookmark_id=str(selection.get("bookmarkId") or "").strip(),
         )
     except Exception as exc:

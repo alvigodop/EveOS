@@ -14,7 +14,7 @@ function getAllWorkspacesForSettings() {
 
 function normalizeBackupSettingsMode(mode) {
     const normalized = String(mode || 'all').toLowerCase();
-    const allowed = ['all', 'full', 'workspace', 'card', 'bookmark', 'modular', 'layer'];
+    const allowed = ['all', 'full', 'workspace', 'card', 'folder', 'bookmark', 'modular', 'layer'];
     return allowed.includes(normalized) ? normalized : 'all';
 }
 
@@ -29,10 +29,11 @@ function applyBackupSettingsLayout(mode) {
     if (!panels.length) return;
 
     const visibleByMode = {
-        all: ['full', 'workspace', 'card', 'bookmark', 'modular', 'layer'],
+        all: ['full', 'workspace', 'card', 'folder', 'bookmark', 'modular', 'layer'],
         full: ['full'],
         workspace: ['workspace'],
         card: ['card'],
+        folder: ['folder'],
         bookmark: ['bookmark'],
         modular: ['modular'],
         layer: ['layer']
@@ -51,23 +52,27 @@ function updateModularLayerSelectionVisibility() {
     const scope = document.getElementById('modularLayerScope')?.value || 'store';
     const wsSelect = document.getElementById('modularLayerWorkspaceSelect');
     const catSelect = document.getElementById('modularLayerCategorySelect');
+    const folderSelect = document.getElementById('modularLayerFolderSelect');
     const bookmarkSelect = document.getElementById('modularLayerBookmarkSelect');
-    if (!wsSelect || !catSelect || !bookmarkSelect) return;
+    if (!wsSelect || !catSelect || !folderSelect || !bookmarkSelect) return;
 
-    const showWorkspace = scope === 'tab' || scope === 'card' || scope === 'bookmark';
-    const showCategory = scope === 'card' || scope === 'bookmark';
+    const showWorkspace = scope === 'tab' || scope === 'card' || scope === 'folder' || scope === 'bookmark';
+    const showCategory = scope === 'card' || scope === 'folder' || scope === 'bookmark';
+    const showFolder = scope === 'folder';
     const showBookmark = scope === 'bookmark';
 
     wsSelect.style.display = showWorkspace ? 'block' : 'none';
     catSelect.style.display = showCategory ? 'block' : 'none';
+    folderSelect.style.display = showFolder ? 'block' : 'none';
     bookmarkSelect.style.display = showBookmark ? 'block' : 'none';
 }
 
 function refreshModularLayerSelectors() {
     const wsSelect = document.getElementById('modularLayerWorkspaceSelect');
     const catSelect = document.getElementById('modularLayerCategorySelect');
+    const folderSelect = document.getElementById('modularLayerFolderSelect');
     const bookmarkSelect = document.getElementById('modularLayerBookmarkSelect');
-    if (!wsSelect || !catSelect || !bookmarkSelect) return;
+    if (!wsSelect || !catSelect || !folderSelect || !bookmarkSelect) return;
 
     const allLinks = getAllLinksForSettings();
     const workspaces = getAllWorkspacesForSettings();
@@ -83,9 +88,20 @@ function refreshModularLayerSelectors() {
     wsSelect.value = workspaces.some((ws) => ws.id === selectedWorkspace) ? selectedWorkspace : (workspaces[0]?.id || 'main');
 
     const categories = [...new Set(
-        allLinks
-            .filter((link) => String(link.workspace || 'main') === wsSelect.value)
-            .map((link) => String(link.category || 'Unsorted'))
+        []
+            .concat(
+                allLinks
+                    .filter((link) => String(link.workspace || 'main') === wsSelect.value)
+                    .map((link) => String(link.category || 'Unsorted'))
+            )
+            .concat(
+                typeof window.EveDataTransfer?.getBookmarkFolderScopedKeys === 'function'
+                    ? window.EveDataTransfer.getBookmarkFolderScopedKeys()
+                        .map((key) => String(key || '').split('::'))
+                        .filter((parts) => String(parts[0] || 'main') === String(wsSelect.value || 'main'))
+                        .map((parts) => String(parts.slice(1).join('::') || 'Unsorted'))
+                    : []
+            )
     )].sort((a, b) => a.localeCompare(b));
     const selectedCategory = catSelect.value || config.modularLayerCategoryName || categories[0] || 'Unsorted';
     catSelect.innerHTML = '';
@@ -117,6 +133,10 @@ function refreshModularLayerSelectors() {
             ? String(selectedBookmark)
             : String(bookmarks[0].id);
     }
+    if (window.EveDataTransfer?.populateFolderSelect) {
+        const selectedFolderId = folderSelect.value || config.modularLayerFolderId || '';
+        window.EveDataTransfer.populateFolderSelect(folderSelect, wsSelect.value, selectedCard, selectedFolderId);
+    }
 
     wsSelect.onchange = function () {
         config.modularLayerWorkspaceId = wsSelect.value;
@@ -127,6 +147,10 @@ function refreshModularLayerSelectors() {
         config.modularLayerCategoryName = catSelect.value;
         saveConfig();
         refreshModularLayerSelectors();
+    };
+    folderSelect.onchange = function () {
+        config.modularLayerFolderId = folderSelect.value;
+        saveConfig();
     };
     bookmarkSelect.onchange = function () {
         config.modularLayerBookmarkId = bookmarkSelect.value;
@@ -198,7 +222,8 @@ function getModularLayerScopeInputs() {
     const scope = String(document.getElementById('modularLayerScope')?.value || 'store').toLowerCase();
     const workspaceId = String(document.getElementById('modularLayerWorkspaceSelect')?.value || '').trim();
     const categoryName = String(document.getElementById('modularLayerCategorySelect')?.value || '').trim();
+    const folderId = String(document.getElementById('modularLayerFolderSelect')?.value || '').trim();
     const bookmarkId = String(document.getElementById('modularLayerBookmarkSelect')?.value || '').trim();
     const layerPath = String(document.getElementById('modularLayerPathInput')?.value || '').trim();
-    return { scope, workspaceId, categoryName, bookmarkId, layerPath };
+    return { scope, workspaceId, categoryName, folderId, bookmarkId, layerPath };
 }

@@ -14,10 +14,12 @@ window.EveDataStore = window.EveDataStore || {};
         captureState: ns.captureState,
         captureWorkspace: ns.captureWorkspace,
         captureCard: ns.captureCard,
+        captureFolder: ns.captureFolder,
         captureBookmark: ns.captureBookmark,
         applyState: ns.applyState,
         applyWorkspaceState: ns.applyWorkspaceState,
         applyCardState: ns.applyCardState,
+        applyFolderState: ns.applyFolderState,
         applyBookmarkState: ns.applyBookmarkState
     };
 })();

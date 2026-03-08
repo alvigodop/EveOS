@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 FORMAT_VERSION = 1
-VALID_LAYER_SCOPES = {"store", "tab", "card", "bookmark"}
+VALID_LAYER_SCOPES = {"store", "tab", "card", "folder", "bookmark"}
 
 
 def _to_number(value, default):
@@ -238,6 +238,121 @@ def _normalize_bookmark_folders(folder_trees):
     return normalized
 
 
+def _folder_nodes_for_tree(tree):
+    if isinstance(tree, dict):
+        return list(tree.get("nodes") or [])
+    if isinstance(tree, list):
+        return list(tree)
+    return []
+
+
+def _build_folder_tree_maps(tree):
+    nodes = [_normalize_folder_node(node) for node in _folder_nodes_for_tree(tree)]
+    node_by_id = {str(node.get("id") or ""): node for node in nodes if str(node.get("id") or "").strip()}
+    children_by_parent = {}
+    for node in nodes:
+        parent_key = str(node.get("parentId") or "").strip() or "__root__"
+        children_by_parent.setdefault(parent_key, []).append(node)
+    for child_nodes in children_by_parent.values():
+        child_nodes.sort(
+            key=lambda item: (
+                int(item.get("order") or 0),
+                str(item.get("name") or "").lower(),
+                str(item.get("id") or ""),
+            )
+        )
+    return nodes, node_by_id, children_by_parent
+
+
+def _collect_descendant_folder_ids(root_folder_id, children_by_parent):
+    target_id = str(root_folder_id or "").strip()
+    if not target_id:
+        return set()
+    pending = [target_id]
+    collected = set()
+    while pending:
+        current_id = pending.pop()
+        if current_id in collected:
+            continue
+        collected.add(current_id)
+        for child in children_by_parent.get(current_id, []):
+            child_id = str((child or {}).get("id") or "").strip()
+            if child_id and child_id not in collected:
+                pending.append(child_id)
+    return collected
+
+
+def _extract_folder_subtree(tree, root_folder_id):
+    nodes, node_by_id, children_by_parent = _build_folder_tree_maps(tree)
+    target_id = str(root_folder_id or "").strip()
+    if target_id not in node_by_id:
+        raise ValueError(f"Folder '{target_id}' not found in source state.")
+    subtree_ids = _collect_descendant_folder_ids(target_id, children_by_parent)
+    scoped_nodes = []
+    for node in nodes:
+        node_id = str(node.get("id") or "").strip()
+        if node_id not in subtree_ids:
+            continue
+        next_node = dict(node)
+        if node_id == target_id:
+            next_node["parentId"] = None
+        scoped_nodes.append(next_node)
+    return {"nodes": scoped_nodes}
+
+
+def _replace_folder_subtree(existing_tree, incoming_tree, target_folder_id):
+    target_id = str(target_folder_id or "").strip()
+    if not target_id:
+        raise ValueError("folderId is required for folder import.")
+
+    existing_nodes, existing_by_id, existing_children = _build_folder_tree_maps(existing_tree)
+    incoming_nodes, incoming_by_id, _ = _build_folder_tree_maps(incoming_tree)
+    if not incoming_nodes:
+        raise ValueError("Incoming folder layer does not contain any folder nodes.")
+
+    incoming_roots = [node for node in incoming_nodes if not str(node.get("parentId") or "").strip()]
+    incoming_root = incoming_by_id.get(target_id) or (incoming_roots[0] if incoming_roots else None)
+    if not incoming_root:
+        raise ValueError("Incoming folder layer does not contain a root folder node.")
+
+    source_root_id = str(incoming_root.get("id") or "").strip()
+    if not source_root_id:
+        raise ValueError("Incoming folder layer root is missing an id.")
+
+    existing_target = existing_by_id.get(target_id)
+    existing_parent_id = existing_target.get("parentId") if existing_target else None
+    removed_ids = _collect_descendant_folder_ids(target_id, existing_children) if existing_target else set()
+
+    remap = {}
+    if source_root_id != target_id:
+        remap[source_root_id] = target_id
+
+    transformed_incoming = []
+    incoming_ids = set()
+    for raw_node in incoming_nodes:
+        source_id = str(raw_node.get("id") or "").strip()
+        source_parent_id = str(raw_node.get("parentId") or "").strip()
+        next_id = remap.get(source_id, source_id)
+        next_parent_id = remap.get(source_parent_id, source_parent_id) if source_parent_id else None
+        next_node = dict(raw_node)
+        next_node["id"] = next_id
+        if source_id == source_root_id:
+            next_node["parentId"] = existing_parent_id
+        else:
+            next_node["parentId"] = next_parent_id or None
+        transformed_incoming.append(next_node)
+        incoming_ids.add(next_id)
+
+    merged_nodes = [
+        dict(node)
+        for node in existing_nodes
+        if str(node.get("id") or "").strip() not in removed_ids
+        and str(node.get("id") or "").strip() not in incoming_ids
+    ]
+    merged_nodes.extend(transformed_incoming)
+    return _normalize_bookmark_folders({"merged": {"nodes": merged_nodes}}).get("merged", {"nodes": []})
+
+
 def _normalize_state_payload(state):
     source = state if isinstance(state, dict) else {}
     config = dict((source.get("bookmarks") or {}).get("config") or {})
@@ -288,7 +403,19 @@ def _ensure_workspace_config_entry(config, workspace_id, incoming_config=None):
     config["workspaces"] = workspaces
 
 
-def _build_layer_state(links, config, folders, categories, connections, layer_type, workspace_id="", category_name="", bookmark_id="", format_version=FORMAT_VERSION):
+def _build_layer_state(
+    links,
+    config,
+    folders,
+    categories,
+    connections,
+    layer_type,
+    workspace_id="",
+    category_name="",
+    folder_id="",
+    bookmark_id="",
+    format_version=FORMAT_VERSION,
+):
     safe_config = dict(config or {})
     safe_workspaces = _build_workspaces(safe_config)
     safe_config["workspaces"] = safe_workspaces
@@ -307,6 +434,8 @@ def _build_layer_state(links, config, folders, categories, connections, layer_ty
         metadata["workspaceId"] = workspace_id
     if category_name:
         metadata["categoryName"] = category_name
+    if folder_id:
+        metadata["folderId"] = folder_id
     if bookmark_id:
         metadata["bookmarkId"] = bookmark_id
 
@@ -445,7 +574,7 @@ def build_gemini_context_from_state(state, mode="summary", sample_limit=25):
     }
 
 
-def extract_layer_state(state, layer, workspace_id="", category_name="", bookmark_id="", format_version=FORMAT_VERSION):
+def extract_layer_state(state, layer, workspace_id="", category_name="", folder_id="", bookmark_id="", format_version=FORMAT_VERSION):
     normalized = _normalize_state_payload(state)
     links = list(normalized["bookmarks"]["links"])
     config = dict(normalized["bookmarks"]["config"])
@@ -460,7 +589,7 @@ def extract_layer_state(state, layer, workspace_id="", category_name="", bookmar
         return _build_layer_state(links, config, folders, categories, connections, "store", format_version=format_version)
 
     ws_id = str(workspace_id or "").strip() or str(config.get("activeWorkspace") or "").strip()
-    if scope in {"tab", "card", "bookmark"} and not ws_id:
+    if scope in {"tab", "card", "folder", "bookmark"} and not ws_id:
         raise ValueError("workspaceId is required for the selected layer scope.")
 
     if scope == "tab":
@@ -496,8 +625,8 @@ def extract_layer_state(state, layer, workspace_id="", category_name="", bookmar
         )
 
     cat_name = str(category_name or "").strip()
-    if scope in {"card", "bookmark"} and not cat_name:
-        raise ValueError("categoryName is required for card/bookmark layer scope.")
+    if scope in {"card", "folder", "bookmark"} and not cat_name:
+        raise ValueError("categoryName is required for card/folder/bookmark layer scope.")
 
     if scope == "card":
         scoped_links = [
@@ -533,6 +662,69 @@ def extract_layer_state(state, layer, workspace_id="", category_name="", bookmar
             format_version=format_version
         )
 
+    if scope == "folder":
+        target_folder_id = str(folder_id or "").strip()
+        if not target_folder_id:
+            raise ValueError("folderId is required for folder layer scope.")
+
+        scoped_key = _scoped_key(ws_id, cat_name)
+        if scoped_key not in folders:
+            raise ValueError(f"Folder '{target_folder_id}' not found in source state.")
+
+        scoped_folder_tree = _extract_folder_subtree(folders.get(scoped_key), target_folder_id)
+        folder_nodes, _, children_by_parent = _build_folder_tree_maps(scoped_folder_tree)
+        subtree_ids = _collect_descendant_folder_ids(target_folder_id, children_by_parent)
+        if not subtree_ids:
+            raise ValueError(f"Folder '{target_folder_id}' not found in source state.")
+
+        scoped_links = [
+            link for link in links
+            if str(link.get("workspace")) == ws_id
+            and str(link.get("category") or "Unsorted") == cat_name
+            and str(link.get("folderId") or "").strip() in subtree_ids
+        ]
+        scoped_link_ids = {str(link.get("id")) for link in scoped_links}
+        scoped_connections = [
+            conn for conn in connections
+            if str(conn.get("linkId")) in scoped_link_ids
+        ]
+        entry_ids = {
+            str(_connection_entry_id(conn) or "").strip()
+            for conn in scoped_connections
+            if str(_connection_entry_id(conn) or "").strip()
+        }
+        scoped_categories = {}
+        if scoped_key in categories:
+            source_category = categories.get(scoped_key) or {}
+            source_entries = source_category.get("entries") or []
+            scoped_categories[scoped_key] = {
+                "dataType": source_category.get("dataType") or "graphicNovels",
+                "entries": [
+                    entry for entry in source_entries
+                    if str((entry or {}).get("id") or "").strip() in entry_ids
+                ],
+                "folderView": dict(source_category.get("folderView") or {})
+            }
+
+        folder_config = dict(config)
+        _ensure_workspace_config_entry(folder_config, ws_id, incoming_config=config)
+        folder_config["workspaces"] = [
+            ws for ws in _build_workspaces(folder_config)
+            if str(ws.get("id")) == ws_id
+        ] or [{"id": ws_id, "name": ws_id, "icon": "ðŸ“"}]
+        return _build_layer_state(
+            scoped_links,
+            folder_config,
+            {scoped_key: scoped_folder_tree},
+            scoped_categories,
+            scoped_connections,
+            "folder",
+            workspace_id=ws_id,
+            category_name=cat_name,
+            folder_id=target_folder_id,
+            format_version=format_version
+        )
+
     target_bookmark_id = str(bookmark_id or "").strip()
     if not target_bookmark_id:
         raise ValueError("bookmarkId is required for bookmark layer scope.")
@@ -555,6 +747,7 @@ def extract_layer_state(state, layer, workspace_id="", category_name="", bookmar
         source_entries = (categories.get(scoped_key) or {}).get("entries") or []
         scoped_categories[scoped_key] = {
             "dataType": (categories.get(scoped_key) or {}).get("dataType") or "graphicNovels",
+            "folderView": dict((categories.get(scoped_key) or {}).get("folderView") or {}),
             "entries": [
                 entry for entry in source_entries
                 if str((entry or {}).get("id") or "").strip() in entry_ids
@@ -582,7 +775,7 @@ def extract_layer_state(state, layer, workspace_id="", category_name="", bookmar
     )
 
 
-def merge_layer_state(base_state, incoming_state, layer, workspace_id="", category_name="", bookmark_id="", format_version=FORMAT_VERSION):
+def merge_layer_state(base_state, incoming_state, layer, workspace_id="", category_name="", folder_id="", bookmark_id="", format_version=FORMAT_VERSION):
     base = _normalize_state_payload(base_state)
     incoming = _normalize_state_payload(incoming_state)
     scope = str(layer or "").strip().lower()
@@ -612,7 +805,7 @@ def merge_layer_state(base_state, incoming_state, layer, workspace_id="", catego
     incoming_folders = dict(incoming["bookmarks"].get("folders") or {})
 
     ws_id = str(workspace_id or "").strip() or str(incoming_config.get("activeWorkspace") or "").strip()
-    if scope in {"tab", "card", "bookmark"} and not ws_id:
+    if scope in {"tab", "card", "folder", "bookmark"} and not ws_id:
         raise ValueError("workspaceId is required for import.")
 
     if scope == "tab":
@@ -659,8 +852,8 @@ def merge_layer_state(base_state, incoming_state, layer, workspace_id="", catego
         )
 
     cat_name = str(category_name or "").strip()
-    if scope in {"card", "bookmark"} and not cat_name:
-        raise ValueError("categoryName is required for card/bookmark import.")
+    if scope in {"card", "folder", "bookmark"} and not cat_name:
+        raise ValueError("categoryName is required for card/folder/bookmark import.")
 
     if scope == "card":
         import_links = [
@@ -716,6 +909,91 @@ def merge_layer_state(base_state, incoming_state, layer, workspace_id="", catego
             format_version=format_version
         )
 
+    if scope == "folder":
+        target_folder_id = str(folder_id or "").strip()
+        if not target_folder_id:
+            raise ValueError("folderId is required for folder import.")
+
+        scoped_key = _scoped_key(ws_id, cat_name)
+        incoming_tree = incoming_folders.get(scoped_key)
+        if not incoming_tree:
+            raise ValueError("Incoming folder layer does not contain the selected card folder tree.")
+
+        existing_tree = base_folders.get(scoped_key) or {"nodes": []}
+        existing_nodes, _, existing_children = _build_folder_tree_maps(existing_tree)
+        removed_ids = _collect_descendant_folder_ids(target_folder_id, existing_children)
+        removed_link_ids = {
+            str(link.get("id") or "").strip()
+            for link in base_links
+            if str(link.get("workspace")) == ws_id
+            and str(link.get("category") or "Unsorted") == cat_name
+            and str(link.get("folderId") or "").strip() in removed_ids
+        }
+
+        import_links = [
+            link for link in incoming_links
+            if str(link.get("workspace")) == ws_id
+            and str(link.get("category") or "Unsorted") == cat_name
+        ]
+        import_link_ids = {str(link.get("id")) for link in import_links}
+        import_connections = [
+            conn for conn in incoming_connections
+            if str(conn.get("linkId")) in import_link_ids
+        ]
+
+        base_links = [
+            link for link in base_links
+            if not (
+                str(link.get("workspace")) == ws_id
+                and str(link.get("category") or "Unsorted") == cat_name
+                and (
+                    str(link.get("folderId") or "").strip() in removed_ids
+                    or str(link.get("id") or "").strip() in import_link_ids
+                )
+            )
+            and str(link.get("id") or "").strip() not in import_link_ids
+        ] + import_links
+        base_connections = [
+            conn for conn in base_connections
+            if str(conn.get("linkId") or "").strip() not in removed_link_ids
+            and str(conn.get("linkId") or "").strip() not in import_link_ids
+        ] + import_connections
+
+        merged_tree = _replace_folder_subtree(existing_tree, incoming_tree, target_folder_id)
+        base_folders[scoped_key] = merged_tree
+
+        entry_ids = {
+            str(_connection_entry_id(conn) or "").strip()
+            for conn in import_connections
+            if str(_connection_entry_id(conn) or "").strip()
+        }
+        existing_category = base_categories.get(scoped_key) or {}
+        incoming_category = incoming_categories.get(scoped_key) or {}
+        incoming_entries = [
+            entry for entry in (incoming_category.get("entries") or [])
+            if str((entry or {}).get("id") or "").strip() in entry_ids
+        ]
+        base_categories[scoped_key] = {
+            "dataType": existing_category.get("dataType") or incoming_category.get("dataType") or "graphicNovels",
+            "entries": _merge_entries(existing_category.get("entries") or [], incoming_entries),
+            "folderView": dict(existing_category.get("folderView") or incoming_category.get("folderView") or {}),
+        }
+
+        _ensure_workspace_config_entry(base_config, ws_id, incoming_config=incoming_config)
+        base_config["activeWorkspace"] = ws_id
+        return _build_layer_state(
+            base_links,
+            base_config,
+            base_folders,
+            base_categories,
+            base_connections,
+            "folder",
+            workspace_id=ws_id,
+            category_name=cat_name,
+            folder_id=target_folder_id,
+            format_version=format_version
+        )
+
     target_bookmark_id = str(bookmark_id or "").strip()
     if not target_bookmark_id:
         raise ValueError("bookmarkId is required for bookmark import.")
@@ -737,14 +1015,15 @@ def merge_layer_state(base_state, incoming_state, layer, workspace_id="", catego
     }
     scoped_key = _scoped_key(ws_from_link, cat_from_link)
     if scoped_key in incoming_categories and entry_ids:
+        existing_data = base_categories.get(scoped_key) or {"dataType": "graphicNovels", "entries": [], "folderView": {}}
         incoming_entries = [
             entry for entry in (incoming_categories.get(scoped_key) or {}).get("entries") or []
             if str((entry or {}).get("id") or "").strip() in entry_ids
         ]
-        existing_data = base_categories.get(scoped_key) or {"dataType": "graphicNovels", "entries": []}
         base_categories[scoped_key] = {
             "dataType": existing_data.get("dataType") or (incoming_categories.get(scoped_key) or {}).get("dataType") or "graphicNovels",
-            "entries": _merge_entries(existing_data.get("entries") or [], incoming_entries)
+            "entries": _merge_entries(existing_data.get("entries") or [], incoming_entries),
+            "folderView": dict(existing_data.get("folderView") or (incoming_categories.get(scoped_key) or {}).get("folderView") or {}),
         }
     if scoped_key in incoming_folders:
         base_folders[scoped_key] = incoming_folders[scoped_key]

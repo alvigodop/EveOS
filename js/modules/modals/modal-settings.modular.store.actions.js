@@ -4,7 +4,7 @@ async function backupModularLayerToFolder() {
     if (!window.EveDataStore?.ModularSync?.backupLayer) {
         return showToast('Modular sync module not loaded', 'error');
     }
-    let { scope, workspaceId, categoryName, bookmarkId, layerPath } = getModularLayerScopeInputs();
+    let { scope, workspaceId, categoryName, folderId, bookmarkId, layerPath } = getModularLayerScopeInputs();
     const hasServerPicker = !!window.EveDataStore?.ModularSync?.pickFolderPath;
     if (hasServerPicker) {
         layerPath = await pickModularLayerFolderPath({ silentOnCancel: true });
@@ -14,11 +14,14 @@ async function backupModularLayerToFolder() {
     } else if (!layerPath) {
         return showToast('Set Folder Path in Copy Between Packs (Advanced) before running server folder backups.', 'warning');
     }
-    if ((scope === 'tab' || scope === 'card' || scope === 'bookmark') && !workspaceId) {
+    if ((scope === 'tab' || scope === 'card' || scope === 'folder' || scope === 'bookmark') && !workspaceId) {
         return showToast('Select a workspace for this layer backup', 'warning');
     }
-    if ((scope === 'card' || scope === 'bookmark') && !categoryName) {
+    if ((scope === 'card' || scope === 'folder' || scope === 'bookmark') && !categoryName) {
         return showToast('Select a card for this layer backup', 'warning');
+    }
+    if (scope === 'folder' && !folderId) {
+        return showToast('Select a folder for this layer backup', 'warning');
     }
     if (scope === 'bookmark' && !bookmarkId) {
         return showToast('Select a bookmark for this layer backup', 'warning');
@@ -28,6 +31,7 @@ async function backupModularLayerToFolder() {
         layer: scope,
         workspaceId,
         categoryName,
+        folderId,
         bookmarkId,
         destinationPath: layerPath
     });
@@ -46,15 +50,18 @@ async function importModularLayerFromFolder() {
     if (!window.EveDataStore?.ModularSync?.importLayer) {
         return showToast('Modular sync module not loaded', 'error');
     }
-    const { scope, workspaceId, categoryName, bookmarkId, layerPath } = getModularLayerScopeInputs();
+    const { scope, workspaceId, categoryName, folderId, bookmarkId, layerPath } = getModularLayerScopeInputs();
     if (!layerPath) {
         return showToast('Enter a source folder path to import from', 'warning');
     }
-    if ((scope === 'tab' || scope === 'card' || scope === 'bookmark') && !workspaceId) {
+    if ((scope === 'tab' || scope === 'card' || scope === 'folder' || scope === 'bookmark') && !workspaceId) {
         return showToast('Select a workspace for this layer import', 'warning');
     }
-    if ((scope === 'card' || scope === 'bookmark') && !categoryName) {
+    if ((scope === 'card' || scope === 'folder' || scope === 'bookmark') && !categoryName) {
         return showToast('Select a card for this layer import', 'warning');
+    }
+    if (scope === 'folder' && !folderId) {
+        return showToast('Select a folder for this layer import', 'warning');
     }
     if (scope === 'bookmark' && !bookmarkId) {
         return showToast('Select a bookmark for this layer import', 'warning');
@@ -64,6 +71,7 @@ async function importModularLayerFromFolder() {
         layer: scope,
         workspaceId,
         categoryName,
+        folderId,
         bookmarkId,
         sourcePath: layerPath
     });

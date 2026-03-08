@@ -212,12 +212,13 @@ def handle_post_request(handler, path, deps):
         if layer not in valid_layer_scopes:
             send_json(handler, HTTPStatus.BAD_REQUEST, {
                 "ok": False,
-                "error": "layer must be one of: store, tab, card, bookmark",
+                "error": "layer must be one of: store, tab, card, folder, bookmark",
             })
             return True
 
         workspace_id = str(payload.get("workspaceId") or "").strip()
         category_name = str(payload.get("categoryName") or "").strip()
+        folder_id = str(payload.get("folderId") or "").strip()
         bookmark_id = str(payload.get("bookmarkId") or "").strip()
         destination_path = payload.get("destinationPath")
         overwrite = bool(payload.get("overwrite"))
@@ -230,6 +231,7 @@ def handle_post_request(handler, path, deps):
                 layer=layer,
                 workspace_id=workspace_id,
                 category_name=category_name,
+                folder_id=folder_id,
                 bookmark_id=bookmark_id,
             )
             destination_root = resolve_destination_path(destination_path)
@@ -285,7 +287,7 @@ def handle_post_request(handler, path, deps):
             if not layer and inferred_type:
                 layer = "tab" if inferred_type == "workspace" else inferred_type
             if layer not in valid_layer_scopes:
-                raise ValueError("layer must be one of: store, tab, card, bookmark")
+                raise ValueError("layer must be one of: store, tab, card, folder, bookmark")
 
             workspace_id = str(
                 payload.get("workspaceId")
@@ -295,6 +297,11 @@ def handle_post_request(handler, path, deps):
             category_name = str(
                 payload.get("categoryName")
                 or (incoming_state.get("metadata") or {}).get("categoryName")
+                or ""
+            ).strip()
+            folder_id = str(
+                payload.get("folderId")
+                or (incoming_state.get("metadata") or {}).get("folderId")
                 or ""
             ).strip()
             bookmark_id = str(
@@ -314,6 +321,7 @@ def handle_post_request(handler, path, deps):
                 layer=layer,
                 workspace_id=workspace_id,
                 category_name=category_name,
+                folder_id=folder_id,
                 bookmark_id=bookmark_id,
             )
             result = write_modular_state(merged)

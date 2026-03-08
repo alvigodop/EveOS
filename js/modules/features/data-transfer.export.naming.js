@@ -115,6 +115,19 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
             return sanitizePathSegment(`eve_bookmark_${bookmarkPart}_${titlePart}--${hash}.json`, `eve_bookmark_${hash}.json`, 60);
         }
 
+        function buildFolderBackupJsonName(workspaceId, workspaceName, categoryName, folder) {
+            const rawWorkspaceId = String(workspaceId || 'main').trim() || 'main';
+            const rawWorkspaceName = String(workspaceName || workspaceId || 'main').trim() || 'main';
+            const rawCategory = String(categoryName || 'unsorted').trim() || 'unsorted';
+            const rawFolderId = String(folder?.id || 'folder').trim() || 'folder';
+            const rawFolderName = String(folder?.name || folder?.title || 'folder').trim() || 'folder';
+            const workspacePart = compactSlug(rawWorkspaceName, 'tab', 10);
+            const cardPart = compactSlug(rawCategory, 'card', 10);
+            const folderPart = compactSlug(rawFolderName, 'folder', 10);
+            const hash = shortHashHex(`${rawWorkspaceId}::${rawWorkspaceName}::${rawCategory}::${rawFolderId}::${rawFolderName}`, 8);
+            return sanitizePathSegment(`eve_folder_${workspacePart}_${cardPart}_${folderPart}--${hash}.json`, `eve_folder_${hash}.json`, 64);
+        }
+
         return {
             sanitizePathSegment,
             getSuggestedBackupFolderName,
@@ -128,7 +141,8 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
             buildBookmarkFileName,
             buildWorkspaceBackupJsonName,
             buildCardBackupJsonName,
-            buildBookmarkBackupJsonName
+            buildBookmarkBackupJsonName,
+            buildFolderBackupJsonName
         };
     };
 })();
