@@ -1,14 +1,22 @@
 // --- STORAGE & INIT ---
+const EVE_LINKS_KEY = 'eveV22Data';
+const EVE_CONFIG_KEY = 'eveV22Config';
+const EVE_BOOKMARK_FOLDERS_KEY = 'eveV22BookmarkFolders';
 
 function saveData() {
-    localStorage.setItem('eveV22Data', JSON.stringify(links));
+    localStorage.setItem(EVE_LINKS_KEY, JSON.stringify(links));
+    localStorage.setItem(EVE_BOOKMARK_FOLDERS_KEY, JSON.stringify(
+        (typeof bookmarkFolders !== 'undefined' && bookmarkFolders && typeof bookmarkFolders === 'object')
+            ? bookmarkFolders
+            : {}
+    ));
     window.dispatchEvent(new CustomEvent('eve:state-mutated', { detail: { source: 'saveData' } }));
     if (typeof renderDashboard === 'function') renderDashboard();
     if (typeof updateSuggestions === 'function') updateSuggestions();
 }
 
 function saveConfig() {
-    localStorage.setItem('eveV22Config', JSON.stringify(config));
+    localStorage.setItem(EVE_CONFIG_KEY, JSON.stringify(config));
     window.dispatchEvent(new CustomEvent('eve:state-mutated', { detail: { source: 'saveConfig' } }));
 }
 
@@ -19,9 +27,20 @@ if (window.eveState) {
 }
 
 function loadData() {
-    const storedLinks = localStorage.getItem('eveV22Data');
+    const storedLinks = localStorage.getItem(EVE_LINKS_KEY);
     if (storedLinks) { try { links = JSON.parse(storedLinks); } catch (e) { links = []; } }
-    const storedConfig = localStorage.getItem('eveV22Config');
+    const storedBookmarkFolders = localStorage.getItem(EVE_BOOKMARK_FOLDERS_KEY);
+    if (storedBookmarkFolders) {
+        try {
+            const parsed = JSON.parse(storedBookmarkFolders);
+            bookmarkFolders = parsed && typeof parsed === 'object' ? parsed : {};
+        } catch (e) {
+            bookmarkFolders = {};
+        }
+    } else {
+        bookmarkFolders = {};
+    }
+    const storedConfig = localStorage.getItem(EVE_CONFIG_KEY);
     if (storedConfig) { try { config = { ...config, ...JSON.parse(storedConfig) }; } catch (e) { } }
     if (!['grid', 'list', 'unidex'].includes(config.viewMode)) config.viewMode = 'grid';
     if (window.EveLibrary?.Ratings?.ensureConfigDefaults) {

@@ -14,6 +14,7 @@ window.EveDataStore = window.EveDataStore || {};
     const getLibraryStateModule = ns.getLibraryStateModule;
     const getLibraryStorageModule = ns.getLibraryStorageModule;
     const getConfig = ns.getConfig;
+    const getBookmarkFolders = ns.getBookmarkFolders;
     const cloneConnections = ns.cloneConnections;
 
     function setLinks(newLinks) {
@@ -35,6 +36,18 @@ window.EveDataStore = window.EveDataStore || {};
             window.config = merged;
         }
         if (typeof saveConfig === 'function') saveConfig();
+    }
+
+    function setBookmarkFolders(newBookmarkFolders) {
+        const sanitized = (newBookmarkFolders && typeof newBookmarkFolders === 'object')
+            ? JSON.parse(JSON.stringify(newBookmarkFolders))
+            : {};
+        if (typeof bookmarkFolders !== 'undefined') {
+            bookmarkFolders = sanitized;
+        } else {
+            window.bookmarkFolders = sanitized;
+        }
+        if (typeof saveData === 'function') saveData();
     }
 
     function applyLibraryCategories(categories) {
@@ -68,8 +81,10 @@ window.EveDataStore = window.EveDataStore || {};
     Object.assign(ns, {
         setLinks,
         setConfig,
+        setBookmarkFolders,
         applyLibraryCategories,
-        applyConnections
+        applyConnections,
+        getBookmarkFolders
     });
 
     ns.applySharedReady = true;

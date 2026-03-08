@@ -52,6 +52,65 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         return categories;
     }
 
+    function normalizeFolderNode(rawNode, fallbackIndex = 0) {
+        const source = rawNode && typeof rawNode === 'object' ? rawNode : {};
+        const parentId = String(source.parentId || '').trim();
+        const name = String(source.name || source.title || 'Folder').trim() || 'Folder';
+        const parsedOrder = Number(source.order);
+        const order = Number.isFinite(parsedOrder) ? parsedOrder : 0;
+        let id = String(source.id || '').trim();
+        if (!id) id = `folder-${fallbackIndex}`;
+        return {
+            id,
+            parentId: parentId || null,
+            name,
+            order,
+            createdAt: String(source.createdAt || '').trim(),
+            updatedAt: String(source.updatedAt || '').trim()
+        };
+    }
+
+    function addFolderTree(folderMap, workspaceId, categoryName, folderTree) {
+        const scopedKey = buildScopedCategoryKey(workspaceId, categoryName);
+        const rawNodes = Array.isArray(folderTree?.nodes)
+            ? folderTree.nodes
+            : (Array.isArray(folderTree) ? folderTree : []);
+        if (rawNodes.length === 0) return;
+        if (!folderMap.has(scopedKey)) {
+            folderMap.set(scopedKey, { nodes: [], nodeIds: new Set() });
+        }
+        const bucket = folderMap.get(scopedKey);
+        rawNodes.forEach((rawNode, index) => {
+            const node = normalizeFolderNode(rawNode, index + 1);
+            if (bucket.nodeIds.has(node.id)) return;
+            bucket.nodeIds.add(node.id);
+            bucket.nodes.push(node);
+        });
+    }
+
+    function finalizeFolderTrees(folderMap) {
+        const folders = {};
+        for (const [key, bucket] of folderMap.entries()) {
+            const nodes = Array.isArray(bucket?.nodes) ? bucket.nodes.map((node) => ({ ...(node || {}) })) : [];
+            const validIds = new Set(nodes.map((node) => String(node?.id || '').trim()).filter(Boolean));
+            nodes.forEach((node) => {
+                const parentId = String(node?.parentId || '').trim();
+                if (!parentId || parentId === node.id || !validIds.has(parentId)) {
+                    node.parentId = null;
+                }
+            });
+            nodes.sort((a, b) => {
+                const parentA = String(a.parentId || '');
+                const parentB = String(b.parentId || '');
+                if (parentA !== parentB) return parentA.localeCompare(parentB);
+                if (a.order !== b.order) return a.order - b.order;
+                return String(a.name || '').localeCompare(String(b.name || ''));
+            });
+            folders[key] = { nodes };
+        }
+        return folders;
+    }
+
     function buildUnifiedStateFromParsed(parsedTabs, options = {}) {
         const metadataType = options.metadataType || 'store';
         const inputConfig = options.config && typeof options.config === 'object' ? options.config : {};
@@ -60,6 +119,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         const linkMap = new Map();
         const connectionMap = new Map();
         const categoriesMap = new Map();
+        const folderMap = new Map();
 
         parsedTabs.forEach((tab) => {
             addWorkspaceRecord(workspaceMap, tab.workspaceId, tab.workspaceName, tab.workspaceIcon);
@@ -81,6 +141,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
                     });
                 });
                 addCategoryEntries(categoriesMap, card.workspaceId, card.categoryName, card.categoryEntries, card.dataType || 'graphicNovels');
+                addFolderTree(folderMap, card.workspaceId, card.categoryName, card.folderTree);
             });
         });
 
@@ -95,7 +156,11 @@ window.EveDataTransfer = window.EveDataTransfer || {};
                 generator: 'EveOS Folder Restore',
                 type: metadataType
             },
-            bookmarks: { links: Array.from(linkMap.values()), config },
+            bookmarks: {
+                links: Array.from(linkMap.values()),
+                config,
+                folders: finalizeFolderTrees(folderMap)
+            },
             library: {
                 categories: finalizeCategories(categoriesMap),
                 connections: Array.from(connectionMap.values())
@@ -112,6 +177,16 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             const categoryName = String(link?.category || 'Unsorted').trim() || 'Unsorted';
             tabs.add(workspaceId);
             cards.add(`${workspaceId}::${categoryName}`);
+        });
+        Object.keys(state?.library?.categories || {}).forEach((scopedKey) => {
+            cards.add(scopedKey);
+            const [workspaceId] = String(scopedKey || '').split('::', 2);
+            tabs.add(String(workspaceId || 'main').trim() || 'main');
+        });
+        Object.keys(state?.bookmarks?.folders || {}).forEach((scopedKey) => {
+            cards.add(scopedKey);
+            const [workspaceId] = String(scopedKey || '').split('::', 2);
+            tabs.add(String(workspaceId || 'main').trim() || 'main');
         });
         const configTabs = Array.isArray(state?.bookmarks?.config?.workspaces) ? state.bookmarks.config.workspaces.length : 0;
         return { tabs: Math.max(tabs.size, configTabs), cards: cards.size, bookmarks: links.length };

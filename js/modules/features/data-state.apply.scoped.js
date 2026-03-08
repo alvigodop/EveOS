@@ -12,9 +12,35 @@ window.EveDataStore = window.EveDataStore || {};
     }
 
     const getLinks = ns.getLinks;
+    const getBookmarkFolders = ns.getBookmarkFolders;
+    const setBookmarkFolders = ns.setBookmarkFolders;
     const cloneConnections = ns.cloneConnections;
     const getConnectionCategoryName = ns.getConnectionCategoryName;
     const findCategoryLibraryData = ns.findCategoryLibraryData;
+
+    function getFolderTreesObject(value) {
+        return value && typeof value === 'object' ? value : {};
+    }
+
+    function buildScopedCategoryKey(workspaceId, categoryName) {
+        const stateModule = window.EveLibrary?.State;
+        if (stateModule?.buildScopedCategoryKey) {
+            return stateModule.buildScopedCategoryKey(categoryName, workspaceId);
+        }
+        const ws = String(workspaceId || 'main').trim() || 'main';
+        const cat = String(categoryName || 'Unsorted').trim() || 'Unsorted';
+        return `${ws}::${cat}`;
+    }
+
+    function filterFolderTreesByWorkspace(folderTrees, workspaceId) {
+        const trees = getFolderTreesObject(folderTrees);
+        const filtered = {};
+        Object.entries(trees).forEach(([key, value]) => {
+            if (String(key || '').split('::', 1)[0] !== String(workspaceId || 'main')) return;
+            filtered[key] = value;
+        });
+        return filtered;
+    }
 
     function applyState(state) {
         if (!state || typeof state !== 'object') return false;
@@ -26,6 +52,7 @@ window.EveDataStore = window.EveDataStore || {};
             if (state.bookmarks.config && typeof state.bookmarks.config === 'object') {
                 ns.setConfig(state.bookmarks.config);
             }
+            setBookmarkFolders(getFolderTreesObject(state.bookmarks.folders));
         }
 
         if (state.library) {
@@ -56,6 +83,12 @@ window.EveDataStore = window.EveDataStore || {};
         if (state.bookmarks?.config) {
             ns.setConfig({ activeWorkspace: workspaceId });
         }
+        const existingFolderTrees = getFolderTreesObject(getBookmarkFolders());
+        const incomingFolderTrees = filterFolderTreesByWorkspace(state.bookmarks?.folders, workspaceId);
+        const remainingFolderTrees = Object.fromEntries(
+            Object.entries(existingFolderTrees).filter(([key]) => String(key || '').split('::', 1)[0] !== String(workspaceId))
+        );
+        setBookmarkFolders({ ...remainingFolderTrees, ...incomingFolderTrees });
 
         if (state.library) {
             ns.applyLibraryCategories(state.library.categories);
@@ -82,6 +115,14 @@ window.EveDataStore = window.EveDataStore || {};
         }
 
         ns.setConfig({ activeWorkspace: workspaceId });
+        const targetScopedKey = buildScopedCategoryKey(workspaceId, categoryName);
+        const existingFolderTrees = getFolderTreesObject(getBookmarkFolders());
+        const nextFolderTrees = { ...existingFolderTrees };
+        delete nextFolderTrees[targetScopedKey];
+        if (Object.prototype.hasOwnProperty.call(getFolderTreesObject(state.bookmarks?.folders), targetScopedKey)) {
+            nextFolderTrees[targetScopedKey] = state.bookmarks.folders[targetScopedKey];
+        }
+        setBookmarkFolders(nextFolderTrees);
 
         if (state.library?.categories && typeof state.library.categories === 'object') {
             const selectedCategory = findCategoryLibraryData(state.library.categories, workspaceId, categoryName);
@@ -146,6 +187,15 @@ window.EveDataStore = window.EveDataStore || {};
         const remaining = getLinks().filter(entry => String(entry.id) !== normalizedLinkId);
         ns.setLinks(remaining.concat(incomingLink));
         ns.setConfig({ activeWorkspace: workspaceId });
+        const targetScopedKey = buildScopedCategoryKey(workspaceId, categoryName);
+        const incomingFolderTrees = getFolderTreesObject(state.bookmarks?.folders);
+        if (Object.prototype.hasOwnProperty.call(incomingFolderTrees, targetScopedKey)) {
+            const existingFolderTrees = getFolderTreesObject(getBookmarkFolders());
+            setBookmarkFolders({
+                ...existingFolderTrees,
+                [targetScopedKey]: incomingFolderTrees[targetScopedKey]
+            });
+        }
 
         if (state.library?.categories && typeof state.library.categories === 'object') {
             ns.applyLibraryCategories(state.library.categories);

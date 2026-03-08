@@ -19,6 +19,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         writeJsonFileToFolder: ns.writeJsonFileToFolder,
         writeFallbackMetaFiles: ns.writeFallbackMetaFiles,
         writeFullStoreFolderBackup: ns.writeFullStoreFolderBackup,
+        writeScopedCardFolder: ns.writeScopedCardFolder,
         sortLinksForExport: ns.sortLinksForExport,
         buildConnectionMap: ns.buildConnectionMap,
         getConnectionEntryId: ns.getConnectionEntryId,

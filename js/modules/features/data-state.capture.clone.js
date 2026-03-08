@@ -20,6 +20,10 @@ window.EveDataStore.CaptureModules = window.EveDataStore.CaptureModules || {};
             return window.eveState?.links || window.links || [];
         }
 
+        function getBookmarkFolders() {
+            return window.eveState?.bookmarkFolders || window.bookmarkFolders || {};
+        }
+
         function getConfig() {
             if (window.eveState?.config) return window.eveState.config;
             if (typeof config !== 'undefined') return config;
@@ -33,6 +37,14 @@ window.EveDataStore.CaptureModules = window.EveDataStore.CaptureModules || {};
         function cloneConfig() {
             const current = getConfig();
             return { ...current };
+        }
+
+        function cloneBookmarkFolders() {
+            try {
+                return JSON.parse(JSON.stringify(getBookmarkFolders() || {}));
+            } catch (error) {
+                return {};
+            }
         }
 
         function cloneLibraries() {
@@ -60,7 +72,8 @@ window.EveDataStore.CaptureModules = window.EveDataStore.CaptureModules || {};
                 },
                 bookmarks: {
                     links: cloneLinks(),
-                    config: cloneConfig()
+                    config: cloneConfig(),
+                    folders: cloneBookmarkFolders()
                 },
                 library: {
                     categories: cloneLibraries(),
@@ -73,9 +86,11 @@ window.EveDataStore.CaptureModules = window.EveDataStore.CaptureModules || {};
             getLibraryStateModule,
             getLibraryStorageModule,
             getLinks,
+            getBookmarkFolders,
             getConfig,
             cloneLinks,
             cloneConfig,
+            cloneBookmarkFolders,
             cloneConnections,
             captureState
         };

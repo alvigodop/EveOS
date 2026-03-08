@@ -12,13 +12,42 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
         const writeJsonFileToFolder = deps.writeJsonFileToFolder;
         const writeFallbackMetaFiles = deps.writeFallbackMetaFiles;
         const writeFullStoreFolderBackup = deps.writeFullStoreFolderBackup;
+        const writeScopedCardFolder = deps.writeScopedCardFolder;
         const sortLinksForExport = deps.sortLinksForExport;
         const buildConnectionMap = deps.buildConnectionMap;
-        const getConnectionEntryId = deps.getConnectionEntryId;
-        const findLibraryEntryById = deps.findLibraryEntryById;
         const buildCardFolderName = deps.buildCardFolderName;
         const buildWorkspaceFolderName = deps.buildWorkspaceFolderName;
-        const buildBookmarkFileName = deps.buildBookmarkFileName;
+
+        function parseScopedCategoryKey(scopedKey) {
+            const raw = String(scopedKey || '').trim();
+            if (!raw) return { workspaceId: 'main', categoryName: 'Unsorted' };
+            if (!raw.includes('::')) return { workspaceId: 'main', categoryName: raw };
+            const [workspaceId, categoryName] = raw.split('::', 2);
+            return {
+                workspaceId: String(workspaceId || 'main').trim() || 'main',
+                categoryName: String(categoryName || 'Unsorted').trim() || 'Unsorted'
+            };
+        }
+
+        function buildWorkspaceCardEntries(workspaceId, links, categories, folderTrees) {
+            const cards = new Map();
+            sortLinksForExport(links || []).forEach((link) => {
+                const categoryName = String(link?.category || 'Unsorted').trim() || 'Unsorted';
+                if (!cards.has(categoryName)) cards.set(categoryName, []);
+                cards.get(categoryName).push({ ...link, workspace: workspaceId, category: categoryName });
+            });
+            Object.keys(categories || {}).forEach((scopedKey) => {
+                const parsed = parseScopedCategoryKey(scopedKey);
+                if (parsed.workspaceId !== workspaceId) return;
+                if (!cards.has(parsed.categoryName)) cards.set(parsed.categoryName, []);
+            });
+            Object.keys(folderTrees || {}).forEach((scopedKey) => {
+                const parsed = parseScopedCategoryKey(scopedKey);
+                if (parsed.workspaceId !== workspaceId) return;
+                if (!cards.has(parsed.categoryName)) cards.set(parsed.categoryName, []);
+            });
+            return Array.from(cards.entries()).sort((a, b) => String(a[0] || '').localeCompare(String(b[0] || '')));
+        }
 
         async function cleanupPartialFolder(parentHandle, folderName) {
             if (!parentHandle || !folderName || typeof parentHandle.removeEntry !== 'function') return;
@@ -81,18 +110,13 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
                 const links = sortLinksForExport(workspaceState?.bookmarks?.links || []);
                 const categories = workspaceState?.library?.categories || {};
                 const connections = workspaceState?.library?.connections || [];
+                const folderTrees = workspaceState?.bookmarks?.folders || {};
                 const connectionMap = buildConnectionMap(connections);
                 const workspaceMeta = getWorkspaceMeta(workspaceId, workspaceState?.bookmarks?.config);
                 const scopedConfig = buildFallbackConfig(workspaceState?.bookmarks?.config, workspaceMeta);
                 const workspaceFolder = buildWorkspaceFolderName(workspaceId, workspaceMeta.name);
                 const tabRootPath = `tabs/${workspaceFolder}`;
-
-                const linksByCategory = new Map();
-                links.forEach((link) => {
-                    const categoryName = String(link?.category || 'Unsorted').trim() || 'Unsorted';
-                    if (!linksByCategory.has(categoryName)) linksByCategory.set(categoryName, []);
-                    linksByCategory.get(categoryName).push({ ...link, workspace: workspaceId, category: categoryName });
-                });
+                const cardEntries = buildWorkspaceCardEntries(workspaceId, links, categories, folderTrees);
 
                 await writeJsonFileToFolder(rootHandle, 'state/workspace-state.json', workspaceState || {});
                 await writeFallbackMetaFiles(rootHandle, scopedConfig, workspaceMeta);
@@ -102,47 +126,30 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
                     name: workspaceMeta.name,
                     icon: workspaceMeta.icon,
                     bookmarkCount: links.length,
-                    cardCount: linksByCategory.size
+                    cardCount: cardEntries.length
                 });
 
                 let writtenBookmarks = 0;
-                for (const [categoryName, categoryLinks] of linksByCategory.entries()) {
+                for (const [categoryName, categoryLinks] of cardEntries) {
                     const cardFolder = buildCardFolderName(categoryName);
                     const cardRootPath = `${tabRootPath}/cards/${cardFolder}`;
-                    await writeJsonFileToFolder(rootHandle, `${cardRootPath}/card.json`, {
-                        schema: 'eveos.card.v1',
+                    writtenBookmarks += await writeScopedCardFolder(
+                        rootHandle,
+                        cardRootPath,
                         workspaceId,
                         categoryName,
-                        title: categoryName,
-                        bookmarkFolder: 'entries',
-                        bookmarkCount: categoryLinks.length
-                    });
-
-                    for (const link of sortLinksForExport(categoryLinks)) {
-                        const linkId = String(link?.id || '').trim();
-                        const connection = connectionMap.get(linkId) || null;
-                        const entryId = getConnectionEntryId(connection);
-                        const libraryEntry = findLibraryEntryById(categories, workspaceId, categoryName, entryId);
-                        const bookmarkPayload = {
-                            schema: 'eveos.bookmark.v1',
-                            bookmark: link,
-                            library: {
-                                linked: !!libraryEntry,
-                                connection,
-                                entry: libraryEntry || null
-                            }
-                        };
-                        const fileName = buildBookmarkFileName(link, categoryName);
-                        await writeJsonFileToFolder(rootHandle, `${cardRootPath}/entries/${fileName}`, bookmarkPayload);
-                        writtenBookmarks += 1;
-                    }
+                        categoryLinks,
+                        categories,
+                        connectionMap,
+                        folderTrees
+                    );
                 }
 
                 return {
                     ok: true,
                     folderName,
                     workspaceFolder,
-                    cards: linksByCategory.size,
+                    cards: cardEntries.length,
                     bookmarks: writtenBookmarks
                 };
             } catch (error) {
@@ -163,6 +170,7 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
                 const links = sortLinksForExport(cardState?.bookmarks?.links || []);
                 const categories = cardState?.library?.categories || {};
                 const connections = cardState?.library?.connections || [];
+                const folderTrees = cardState?.bookmarks?.folders || {};
                 const connectionMap = buildConnectionMap(connections);
                 const workspaceMeta = getWorkspaceMeta(workspaceId, cardState?.bookmarks?.config);
                 const scopedConfig = buildFallbackConfig(cardState?.bookmarks?.config, workspaceMeta);
@@ -171,34 +179,16 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
 
                 await writeJsonFileToFolder(rootHandle, 'state/card-state.json', cardState || {});
                 await writeFallbackMetaFiles(rootHandle, scopedConfig, workspaceMeta);
-                await writeJsonFileToFolder(rootHandle, `${cardRootPath}/card.json`, {
-                    schema: 'eveos.card.v1',
+                const writtenBookmarks = await writeScopedCardFolder(
+                    rootHandle,
+                    cardRootPath,
                     workspaceId,
                     categoryName,
-                    title: categoryName,
-                    bookmarkFolder: 'entries',
-                    bookmarkCount: links.length
-                });
-
-                let writtenBookmarks = 0;
-                for (const link of links) {
-                    const linkId = String(link?.id || '').trim();
-                    const connection = connectionMap.get(linkId) || null;
-                    const entryId = getConnectionEntryId(connection);
-                    const libraryEntry = findLibraryEntryById(categories, workspaceId, categoryName, entryId);
-                    const bookmarkPayload = {
-                        schema: 'eveos.bookmark.v1',
-                        bookmark: link,
-                        library: {
-                            linked: !!libraryEntry,
-                            connection,
-                            entry: libraryEntry || null
-                        }
-                    };
-                    const fileName = buildBookmarkFileName(link, categoryName);
-                    await writeJsonFileToFolder(rootHandle, `${cardRootPath}/entries/${fileName}`, bookmarkPayload);
-                    writtenBookmarks += 1;
-                }
+                    links,
+                    categories,
+                    connectionMap,
+                    folderTrees
+                );
 
                 return {
                     ok: true,

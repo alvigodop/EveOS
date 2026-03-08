@@ -172,6 +172,63 @@ def _normalize_connections(connections, fallback_workspace="", fallback_category
     return list(deduped.values())
 
 
+def _normalize_folder_node(node):
+    item = dict(node or {})
+    folder_id = str(item.get("id") or "").strip()
+    parent_id = str(item.get("parentId") or "").strip()
+    name = str(item.get("name") or item.get("title") or "").strip() or "Folder"
+    try:
+        order = int(item.get("order") or 0)
+    except Exception:
+        order = 0
+    if not folder_id:
+        folder_id = f"folder-{_slugify(f'{parent_id}-{name}-{order}', 'folder')}"
+    return {
+        "id": folder_id,
+        "parentId": parent_id or None,
+        "name": name,
+        "order": order,
+        "createdAt": str(item.get("createdAt") or "").strip(),
+        "updatedAt": str(item.get("updatedAt") or "").strip(),
+    }
+
+
+def _normalize_bookmark_folders(folder_trees):
+    normalized = {}
+    for key, tree in (folder_trees or {}).items():
+        parsed = _parse_scoped_category_key(key)
+        scoped = _scoped_key(parsed["workspace_id"], parsed["category_name"])
+        raw_nodes = []
+        if isinstance(tree, dict):
+            raw_nodes = list(tree.get("nodes") or [])
+        elif isinstance(tree, list):
+            raw_nodes = list(tree)
+        nodes = []
+        seen_ids = set()
+        for raw_node in raw_nodes:
+            node = _normalize_folder_node(raw_node)
+            if node["id"] in seen_ids:
+                continue
+            seen_ids.add(node["id"])
+            nodes.append(node)
+        valid_ids = {node["id"] for node in nodes}
+        for node in nodes:
+            parent_id = str(node.get("parentId") or "").strip()
+            if not parent_id or parent_id == node["id"] or parent_id not in valid_ids:
+                node["parentId"] = None
+        nodes.sort(
+            key=lambda item: (
+                str(item.get("parentId") or ""),
+                int(item.get("order") or 0),
+                str(item.get("name") or "").lower(),
+                str(item.get("id") or ""),
+            )
+        )
+        if nodes:
+            normalized[scoped] = {"nodes": nodes}
+    return normalized
+
+
 def _normalize_state_payload(state):
     source = state if isinstance(state, dict) else {}
     config = dict((source.get("bookmarks") or {}).get("config") or {})
@@ -188,12 +245,14 @@ def _normalize_state_payload(state):
 
     categories = _normalize_categories((source.get("library") or {}).get("categories") or {})
     connections = _normalize_connections((source.get("library") or {}).get("connections") or [])
+    folders = _normalize_bookmark_folders((source.get("bookmarks") or {}).get("folders") or {})
 
     return {
         "metadata": dict(source.get("metadata") or {}),
         "bookmarks": {
             "links": links,
-            "config": config
+            "config": config,
+            "folders": folders
         },
         "library": {
             "categories": categories,
@@ -220,7 +279,7 @@ def _ensure_workspace_config_entry(config, workspace_id, incoming_config=None):
     config["workspaces"] = workspaces
 
 
-def _build_layer_state(links, config, categories, connections, layer_type, workspace_id="", category_name="", bookmark_id="", format_version=FORMAT_VERSION):
+def _build_layer_state(links, config, folders, categories, connections, layer_type, workspace_id="", category_name="", bookmark_id="", format_version=FORMAT_VERSION):
     safe_config = dict(config or {})
     safe_workspaces = _build_workspaces(safe_config)
     safe_config["workspaces"] = safe_workspaces
@@ -246,7 +305,8 @@ def _build_layer_state(links, config, categories, connections, layer_type, works
         "metadata": metadata,
         "bookmarks": {
             "links": _dedupe_links(links),
-            "config": safe_config
+            "config": safe_config,
+            "folders": _normalize_bookmark_folders(folders or {})
         },
         "library": {
             "categories": {key: value for key, value in (categories or {}).items()},
@@ -267,7 +327,8 @@ def empty_unified_state(format_version=FORMAT_VERSION):
             "config": {
                 "workspaces": [{"id": "main", "name": "Main", "icon": "🏠"}],
                 "activeWorkspace": "main"
-            }
+            },
+            "folders": {}
         },
         "library": {
             "categories": {},
@@ -379,6 +440,7 @@ def extract_layer_state(state, layer, workspace_id="", category_name="", bookmar
     normalized = _normalize_state_payload(state)
     links = list(normalized["bookmarks"]["links"])
     config = dict(normalized["bookmarks"]["config"])
+    folders = dict(normalized["bookmarks"].get("folders") or {})
     categories = dict(normalized["library"]["categories"])
     connections = list(normalized["library"]["connections"])
 
@@ -386,7 +448,7 @@ def extract_layer_state(state, layer, workspace_id="", category_name="", bookmar
     if scope not in VALID_LAYER_SCOPES:
         raise ValueError(f"Unsupported layer scope: {scope}")
     if scope == "store":
-        return _build_layer_state(links, config, categories, connections, "store", format_version=format_version)
+        return _build_layer_state(links, config, folders, categories, connections, "store", format_version=format_version)
 
     ws_id = str(workspace_id or "").strip() or str(config.get("activeWorkspace") or "").strip()
     if scope in {"tab", "card", "bookmark"} and not ws_id:
@@ -403,6 +465,10 @@ def extract_layer_state(state, layer, workspace_id="", category_name="", bookmar
             key: value for key, value in categories.items()
             if _categories_scope_workspace(key) == ws_id
         }
+        scoped_folders = {
+            key: value for key, value in folders.items()
+            if _categories_scope_workspace(key) == ws_id
+        }
         tab_config = dict(config)
         _ensure_workspace_config_entry(tab_config, ws_id, incoming_config=config)
         tab_config["workspaces"] = [
@@ -412,6 +478,7 @@ def extract_layer_state(state, layer, workspace_id="", category_name="", bookmar
         return _build_layer_state(
             scoped_links,
             tab_config,
+            scoped_folders,
             scoped_categories,
             scoped_connections,
             "workspace",
@@ -438,6 +505,7 @@ def extract_layer_state(state, layer, workspace_id="", category_name="", bookmar
         ]
         scoped_key = _scoped_key(ws_id, cat_name)
         scoped_categories = {scoped_key: categories.get(scoped_key)} if scoped_key in categories else {}
+        scoped_folders = {scoped_key: folders.get(scoped_key)} if scoped_key in folders else {}
         card_config = dict(config)
         _ensure_workspace_config_entry(card_config, ws_id, incoming_config=config)
         card_config["workspaces"] = [
@@ -447,6 +515,7 @@ def extract_layer_state(state, layer, workspace_id="", category_name="", bookmar
         return _build_layer_state(
             scoped_links,
             card_config,
+            scoped_folders,
             scoped_categories,
             scoped_connections,
             "card",
@@ -482,6 +551,7 @@ def extract_layer_state(state, layer, workspace_id="", category_name="", bookmar
                 if str((entry or {}).get("id") or "").strip() in entry_ids
             ]
         }
+    scoped_folders = {scoped_key: folders.get(scoped_key)} if scoped_key in folders else {}
 
     bookmark_config = dict(config)
     _ensure_workspace_config_entry(bookmark_config, ws_from_link, incoming_config=config)
@@ -492,6 +562,7 @@ def extract_layer_state(state, layer, workspace_id="", category_name="", bookmar
     return _build_layer_state(
         [matched_link],
         bookmark_config,
+        scoped_folders,
         scoped_categories,
         scoped_connections,
         "bookmark",
@@ -513,6 +584,7 @@ def merge_layer_state(base_state, incoming_state, layer, workspace_id="", catego
         return _build_layer_state(
             incoming["bookmarks"]["links"],
             incoming["bookmarks"]["config"],
+            incoming["bookmarks"].get("folders") or {},
             incoming["library"]["categories"],
             incoming["library"]["connections"],
             "store",
@@ -523,10 +595,12 @@ def merge_layer_state(base_state, incoming_state, layer, workspace_id="", catego
     base_categories = dict(base["library"]["categories"])
     base_connections = list(base["library"]["connections"])
     base_config = dict(base["bookmarks"]["config"])
+    base_folders = dict(base["bookmarks"].get("folders") or {})
     incoming_links = list(incoming["bookmarks"]["links"])
     incoming_categories = dict(incoming["library"]["categories"])
     incoming_connections = list(incoming["library"]["connections"])
     incoming_config = dict(incoming["bookmarks"]["config"])
+    incoming_folders = dict(incoming["bookmarks"].get("folders") or {})
 
     ws_id = str(workspace_id or "").strip() or str(incoming_config.get("activeWorkspace") or "").strip()
     if scope in {"tab", "card", "bookmark"} and not ws_id:
@@ -554,11 +628,20 @@ def merge_layer_state(base_state, incoming_state, layer, workspace_id="", catego
             if _categories_scope_workspace(key) != ws_id
         }
         base_categories.update(import_categories)
+        base_folders = {
+            key: value for key, value in base_folders.items()
+            if _categories_scope_workspace(key) != ws_id
+        }
+        base_folders.update({
+            key: value for key, value in incoming_folders.items()
+            if _categories_scope_workspace(key) == ws_id
+        })
         _ensure_workspace_config_entry(base_config, ws_id, incoming_config=incoming_config)
         base_config["activeWorkspace"] = ws_id
         return _build_layer_state(
             base_links,
             base_config,
+            base_folders,
             base_categories,
             base_connections,
             "workspace",
@@ -606,11 +689,16 @@ def merge_layer_state(base_state, incoming_state, layer, workspace_id="", catego
         if target_scoped_key in base_categories:
             base_categories.pop(target_scoped_key)
         base_categories.update(import_categories)
+        if target_scoped_key in base_folders:
+            base_folders.pop(target_scoped_key)
+        if target_scoped_key in incoming_folders:
+            base_folders[target_scoped_key] = incoming_folders[target_scoped_key]
         _ensure_workspace_config_entry(base_config, ws_id, incoming_config=incoming_config)
         base_config["activeWorkspace"] = ws_id
         return _build_layer_state(
             base_links,
             base_config,
+            base_folders,
             base_categories,
             base_connections,
             "card",
@@ -649,12 +737,15 @@ def merge_layer_state(base_state, incoming_state, layer, workspace_id="", catego
             "dataType": existing_data.get("dataType") or (incoming_categories.get(scoped_key) or {}).get("dataType") or "graphicNovels",
             "entries": _merge_entries(existing_data.get("entries") or [], incoming_entries)
         }
+    if scoped_key in incoming_folders:
+        base_folders[scoped_key] = incoming_folders[scoped_key]
 
     _ensure_workspace_config_entry(base_config, ws_from_link, incoming_config=incoming_config)
     base_config["activeWorkspace"] = ws_from_link
     return _build_layer_state(
         base_links,
         base_config,
+        base_folders,
         base_categories,
         base_connections,
         "bookmark",

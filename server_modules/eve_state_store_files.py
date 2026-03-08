@@ -235,6 +235,104 @@ def resolve_card_category_name(card_data, fallback_name):
     return fallback or "Unsorted"
 
 
+def normalize_bookmark_folder_node(node, fallback_name="Folder"):
+    item = dict(node or {})
+    folder_id = str(item.get("id") or "").strip()
+    parent_id = str(item.get("parentId") or "").strip()
+    name = str(item.get("name") or item.get("title") or "").strip() or fallback_name
+    if not folder_id:
+        folder_seed = f"{parent_id}::{name}::{item.get('order')}"
+        folder_id = f"folder-{short_hash(folder_seed, 10)}"
+    try:
+        order = int(item.get("order") or 0)
+    except Exception:
+        order = 0
+    return {
+        "id": folder_id,
+        "parentId": parent_id or None,
+        "name": name,
+        "order": order,
+        "createdAt": str(item.get("createdAt") or "").strip(),
+        "updatedAt": str(item.get("updatedAt") or "").strip(),
+    }
+
+
+def normalize_bookmark_folder_tree(tree):
+    raw_nodes = []
+    if isinstance(tree, dict):
+        raw_nodes = list(tree.get("nodes") or [])
+    elif isinstance(tree, list):
+        raw_nodes = list(tree)
+
+    normalized = []
+    seen_ids = set()
+    for raw_node in raw_nodes:
+        node = normalize_bookmark_folder_node(raw_node)
+        folder_id = node["id"]
+        if folder_id in seen_ids:
+            continue
+        seen_ids.add(folder_id)
+        normalized.append(node)
+
+    valid_ids = {node["id"] for node in normalized}
+    for node in normalized:
+        parent_id = str(node.get("parentId") or "").strip()
+        if not parent_id or parent_id == node["id"] or parent_id not in valid_ids:
+            node["parentId"] = None
+
+    normalized.sort(
+        key=lambda item: (
+            str(item.get("parentId") or ""),
+            int(item.get("order") or 0),
+            str(item.get("name") or "").lower(),
+            str(item.get("id") or ""),
+        )
+    )
+    return {"nodes": normalized}
+
+
+def build_bookmark_folder_dirname(folder_node):
+    item = normalize_bookmark_folder_node(folder_node)
+    slug = clean_name_segment(slugify(item.get("name") or "folder", "folder"), "folder", 20)
+    return f"{slug}--{short_hash(item.get('id') or item.get('name') or 'folder', 8)}"
+
+
+def count_card_bookmarks(card_folder, card_data):
+    total = 0
+    bookmark_folder = resolve_bookmark_folder(card_folder, card_data)
+    if bookmark_folder.exists() and bookmark_folder.is_dir():
+        total += len(
+            [
+                p for p in bookmark_folder.glob("*.json")
+                if p.is_file() and not p.name.startswith("_")
+            ]
+        )
+
+    folders_root = card_folder / "folders"
+    if folders_root.exists() and folders_root.is_dir():
+        for bookmark_file in folders_root.rglob("*.json"):
+            if not bookmark_file.is_file():
+                continue
+            if bookmark_file.name in {"folder.json"} or bookmark_file.name.startswith("_"):
+                continue
+            if bookmark_file.parent.name != "entries":
+                continue
+            total += 1
+    return total
+
+
+def count_card_folder_nodes(card_folder):
+    folders_root = card_folder / "folders"
+    if not folders_root.exists() or not folders_root.is_dir():
+        return 0
+    return len(
+        [
+            path for path in folders_root.rglob("folder.json")
+            if path.is_file()
+        ]
+    )
+
+
 def resolve_bookmark_folder(card_folder, card_data):
     bookmark_folder_name = (card_data or {}).get("bookmarkFolder") or "entries"
     bookmark_folder = card_folder / bookmark_folder_name
@@ -247,7 +345,13 @@ def resolve_bookmark_folder(card_folder, card_data):
         return entries_folder
     if legacy_named_folder.exists():
         return legacy_named_folder
-    return card_folder
+    root_bookmark_files = [
+        path for path in card_folder.glob("*.json")
+        if path.is_file() and path.name not in {"card.json", "_library-unlinked.json"}
+    ]
+    if root_bookmark_files:
+        return card_folder
+    return bookmark_folder
 
 
 def upsert_card_metadata(card_folder, workspace_id, category_name):
@@ -259,17 +363,23 @@ def upsert_card_metadata(card_folder, workspace_id, category_name):
     bookmark_folder = resolve_bookmark_folder(card_folder, card_data)
     bookmark_folder_name = "entries" if paths_equal(bookmark_folder, card_folder / "entries") else (card_data.get("bookmarkFolder") or "entries")
     try:
-        bookmark_count = len([p for p in bookmark_folder.glob("*.json") if p.is_file() and not p.name.startswith("_")])
+        bookmark_count = count_card_bookmarks(card_folder, card_data)
     except Exception:
         bookmark_count = int(card_data.get("bookmarkCount") or 0)
+    try:
+        folder_count = count_card_folder_nodes(card_folder)
+    except Exception:
+        folder_count = int(card_data.get("folderCount") or 0)
 
     updated = dict(card_data)
-    updated["schema"] = "eveos.card.v1"
+    updated["schema"] = "eveos.card.v2"
     updated["workspaceId"] = workspace_id
     updated["categoryName"] = category_name
     updated["title"] = category_name
     updated["bookmarkFolder"] = bookmark_folder_name
     updated["bookmarkCount"] = bookmark_count
+    updated["folderRoot"] = "folders"
+    updated["folderCount"] = folder_count
 
     if updated != card_data:
         card_file.write_text(json.dumps(updated, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -351,6 +461,19 @@ def merge_card_folders(source_folder, target_folder, workspace_id, category_name
                 move_bookmark_file(bookmark_file, target_bookmark_folder)
             except Exception:
                 logger.warning("Failed to move bookmark file during card merge: %s", bookmark_file)
+
+    source_folders_root = source_folder / "folders"
+    target_folders_root = target_folder / "folders"
+    if source_folders_root.exists() and source_folders_root.is_dir():
+        try:
+            shutil.copytree(source_folders_root, target_folders_root, dirs_exist_ok=True)
+            shutil.rmtree(source_folders_root, ignore_errors=True)
+        except Exception:
+            logger.warning(
+                "Failed to merge nested bookmark folders during card merge: %s -> %s",
+                source_folders_root,
+                target_folders_root
+            )
 
     source_unlinked = source_folder / "_library-unlinked.json"
     target_unlinked = target_folder / "_library-unlinked.json"

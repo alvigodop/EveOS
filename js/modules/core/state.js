@@ -1,5 +1,6 @@
 // --- STATE ---
 let links = [];
+let bookmarkFolders = {};
 let config = {
     background: "",
     viewMode: "grid",
@@ -73,5 +74,6 @@ let timerInterval = null, timerSeconds = 1500, timerRunning = false;
 // Expose state globally for debug/access patterns used in this app
 window.eveState = {
     get config() { return config; },
-    get links() { return links; }
+    get links() { return links; },
+    get bookmarkFolders() { return bookmarkFolders; }
 };

@@ -9,6 +9,7 @@ window.EveDataStore.CaptureModules = window.EveDataStore.CaptureModules || {};
         const getLibraryStateModule = base.getLibraryStateModule;
         const getLinks = base.getLinks;
         const getConfig = base.getConfig;
+        const cloneBookmarkFolders = base.cloneBookmarkFolders;
         const cloneConnections = base.cloneConnections;
         const captureState = base.captureState;
 
@@ -47,6 +48,35 @@ window.EveDataStore.CaptureModules = window.EveDataStore.CaptureModules || {};
                 workspaceId: '',
                 scoped: false
             };
+        }
+
+        function buildScopedCategoryKey(workspaceId, categoryName) {
+            const stateModule = getLibraryStateModule();
+            if (stateModule?.buildScopedCategoryKey) {
+                return stateModule.buildScopedCategoryKey(categoryName, workspaceId);
+            }
+            const ws = String(workspaceId || 'main').trim() || 'main';
+            const cat = String(categoryName || 'Unsorted').trim() || 'Unsorted';
+            return `${ws}::${cat}`;
+        }
+
+        function filterFolderTreesForWorkspace(folderTrees, workspaceId) {
+            const trees = folderTrees && typeof folderTrees === 'object' ? folderTrees : {};
+            const filtered = {};
+            Object.entries(trees).forEach(([key, value]) => {
+                const parsed = parseLibraryKey(key);
+                if (String(parsed.workspaceId || 'main') !== String(workspaceId || 'main')) return;
+                filtered[buildScopedCategoryKey(parsed.workspaceId || 'main', parsed.categoryName || 'Unsorted')] = value;
+            });
+            return filtered;
+        }
+
+        function filterFolderTreesForCard(folderTrees, workspaceId, categoryName) {
+            const trees = folderTrees && typeof folderTrees === 'object' ? folderTrees : {};
+            const key = buildScopedCategoryKey(workspaceId, categoryName);
+            return Object.prototype.hasOwnProperty.call(trees, key)
+                ? { [key]: trees[key] }
+                : {};
         }
 
         function filterCategoriesForConnections(categories, workspaceConnections) {
@@ -112,6 +142,7 @@ window.EveDataStore.CaptureModules = window.EveDataStore.CaptureModules || {};
                 ...state.bookmarks.config,
                 activeWorkspace: workspaceId
             };
+            state.bookmarks.folders = filterFolderTreesForWorkspace(cloneBookmarkFolders(), workspaceId);
             state.library.connections = workspaceConnections;
             state.library.categories = filterCategoriesForConnections(state.library.categories, workspaceConnections);
             return state;
@@ -135,6 +166,7 @@ window.EveDataStore.CaptureModules = window.EveDataStore.CaptureModules || {};
                 ...state.bookmarks.config,
                 activeWorkspace: workspaceId
             };
+            state.bookmarks.folders = filterFolderTreesForCard(cloneBookmarkFolders(), workspaceId, categoryName);
             state.library.connections = cardConnections;
             state.library.categories = filterCategoriesForConnections(state.library.categories, cardConnections);
             return state;
@@ -163,6 +195,7 @@ window.EveDataStore.CaptureModules = window.EveDataStore.CaptureModules || {};
                 ...state.bookmarks.config,
                 activeWorkspace: normalizedWorkspace
             };
+            state.bookmarks.folders = filterFolderTreesForCard(cloneBookmarkFolders(), normalizedWorkspace, bookmarkCategory);
             state.library.connections = bookmarkConnections;
             state.library.categories = filterCategoriesForConnections(state.library.categories, bookmarkConnections);
             return state;
