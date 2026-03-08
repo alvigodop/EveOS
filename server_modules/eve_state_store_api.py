@@ -1,4 +1,5 @@
 import json
+import shutil
 from http import HTTPStatus
 
 
@@ -220,6 +221,7 @@ def handle_post_request(handler, path, deps):
         bookmark_id = str(payload.get("bookmarkId") or "").strip()
         destination_path = payload.get("destinationPath")
         overwrite = bool(payload.get("overwrite"))
+        destination_root = None
 
         try:
             source_state = read_modular_state()
@@ -245,6 +247,12 @@ def handle_post_request(handler, path, deps):
                 "activeStorePath": str(get_active_store_root()),
             })
         except Exception as exc:
+            if destination_root is not None and not overwrite:
+                try:
+                    if destination_root.exists() and destination_root.is_dir():
+                        shutil.rmtree(destination_root)
+                except Exception:
+                    logger.warning("Failed to remove partial layer backup folder after error: %s", destination_root)
             logger.exception("Failed to backup modular layer")
             send_json(handler, HTTPStatus.BAD_REQUEST, {
                 "ok": False,

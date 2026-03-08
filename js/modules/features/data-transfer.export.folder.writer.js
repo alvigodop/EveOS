@@ -30,17 +30,24 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             .filter(Boolean);
         if (!segments.length) return;
 
-        let currentHandle = rootHandle;
-        for (let i = 0; i < segments.length - 1; i += 1) {
-            const dirName = sanitizePathSegment(segments[i], 'folder');
-            currentHandle = await currentHandle.getDirectoryHandle(dirName, { create: true });
-        }
+        try {
+            let currentHandle = rootHandle;
+            for (let i = 0; i < segments.length - 1; i += 1) {
+                const dirName = sanitizePathSegment(segments[i], 'folder', 40);
+                currentHandle = await currentHandle.getDirectoryHandle(dirName, { create: true });
+            }
 
-        const fileName = sanitizePathSegment(segments[segments.length - 1], 'file.txt');
-        const fileHandle = await currentHandle.getFileHandle(fileName, { create: true });
-        const writable = await fileHandle.createWritable();
-        await writable.write(content);
-        await writable.close();
+            const fileName = sanitizePathSegment(segments[segments.length - 1], 'file.txt', 64);
+            const fileHandle = await currentHandle.getFileHandle(fileName, { create: true });
+            const writable = await fileHandle.createWritable();
+            await writable.write(content);
+            await writable.close();
+        } catch (error) {
+            const detail = error?.message ? ` ${error.message}` : '';
+            throw new Error(`Failed to write backup file "${segments.join('/')}".${
+                detail ? detail : ''
+            }`);
+        }
     }
 
     async function writeJsonFileToFolder(rootHandle, relativePath, payload) {
@@ -136,6 +143,14 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         const connectionMap = buildConnectionMap(connections);
         const linksByWorkspace = groupLinksByWorkspaceAndCategory(links, activeWorkspace);
 
+        await writeJsonFileToFolder(rootHandle, 'state/eve_state.json', {
+            ...(fullState || {}),
+            bookmarks: {
+                ...(fullState?.bookmarks || {}),
+                config: normalizedConfig
+            }
+        });
+
         let tabCount = 0;
         let cardCount = 0;
         let bookmarkCount = 0;
@@ -173,14 +188,6 @@ window.EveDataTransfer = window.EveDataTransfer || {};
                 bookmarkCount += written;
             }
         }
-
-        await writeJsonFileToFolder(rootHandle, 'state/eve_state.json', {
-            ...(fullState || {}),
-            bookmarks: {
-                ...(fullState?.bookmarks || {}),
-                config: normalizedConfig
-            }
-        });
 
         return {
             tabsCount: tabCount,

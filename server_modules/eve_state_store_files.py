@@ -16,10 +16,14 @@ def slugify(value, fallback="item"):
     return text or fallback
 
 
+def short_hash(value, length=6):
+    size = max(1, int(length or 6))
+    return hashlib.sha1(str(value or "").encode("utf-8")).hexdigest()[:size]
+
+
 def folder_name(label, fallback):
-    slug = slugify(label, fallback)
-    short_hash = hashlib.sha1(str(label or "").encode("utf-8")).hexdigest()[:6]
-    return f"{slug}--{short_hash}"
+    slug = clean_name_segment(slugify(label, fallback), fallback, 20)
+    return f"{slug}--{short_hash(label, 6)}"
 
 
 def parse_scoped_category_key(key):
@@ -78,11 +82,13 @@ def read_bookmark_id_from_file(path):
 def build_bookmark_filename(bookmark, category_name=""):
     item = bookmark or {}
     link_id_raw = str(item.get("id") or "").strip() or "bookmark"
-    link_part = clean_name_segment(link_id_raw, "bookmark", 40)
-    card_part = clean_name_segment(category_name, "uncategorized", 60)
-    title_part = clean_name_segment(item.get("title"), "untitled", 80)
-    base_name = f"{link_part}--{card_part}--{title_part}.json"
-    fallback = f"{link_part}.json"
+    title_raw = str(item.get("title") or "").strip() or "untitled"
+    url_raw = str(item.get("url") or "").strip()
+    link_part = clean_name_segment(link_id_raw, "bookmark", 12)
+    title_part = clean_name_segment(title_raw, "untitled", 14)
+    file_hash = short_hash(f"{link_id_raw}::{title_raw}::{url_raw}::{category_name}", 8)
+    base_name = f"{link_part}--{title_part}--{file_hash}.json"
+    fallback = f"{link_part}--{file_hash}.json"
     return safe_filename(base_name, fallback)
 
 

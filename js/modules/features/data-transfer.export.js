@@ -23,6 +23,9 @@ window.EveDataTransfer = window.EveDataTransfer || {};
     const exportFullBackupAsFolder = ns.exportFullBackupAsFolder;
     const exportWorkspaceFolderFallback = ns.exportWorkspaceFolderFallback;
     const exportCardFolderFallback = ns.exportCardFolderFallback;
+    const buildWorkspaceBackupJsonName = ns.buildWorkspaceBackupJsonName;
+    const buildCardBackupJsonName = ns.buildCardBackupJsonName;
+    const buildBookmarkBackupJsonName = ns.buildBookmarkBackupJsonName;
     const requireLayerDestinationPath = ns.requireLayerDestinationPath;
     const persistLayerDestinationPath = ns.persistLayerDestinationPath;
 
@@ -31,7 +34,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `eve_tab_${workspaceName.replace(/[^a-zA-Z0-9]/g, '_') || workspaceId}.json`;
+        a.download = buildWorkspaceBackupJsonName(workspaceId, workspaceName);
         a.click();
     }
 
@@ -40,7 +43,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `eve_card_${workspaceName.replace(/[^a-zA-Z0-9]/g, '_')}_${categoryName.replace(/[^a-zA-Z0-9]/g, '_')}.json`;
+        a.download = buildCardBackupJsonName(workspaceId, workspaceName, categoryName);
         a.click();
     }
 
@@ -180,12 +183,16 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         }
 
         const workspaceName = appConfig.workspaces?.find(w => w.id === workspaceId)?.name || workspaceId;
-        const bookmarkName = (selectedLink?.title || `bookmark_${linkId}`).replace(/[^a-zA-Z0-9]/g, '_');
         const blob = new Blob([JSON.stringify(exportState, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `eve_bookmark_${workspaceName.replace(/[^a-zA-Z0-9]/g, '_')}_${categoryName.replace(/[^a-zA-Z0-9]/g, '_')}_${bookmarkName}.json`;
+        a.download = buildBookmarkBackupJsonName(
+            workspaceId,
+            workspaceName,
+            categoryName,
+            selectedLink || exportState?.bookmarks?.links?.[0] || { id: linkId }
+        );
         a.click();
     };
 
