@@ -105,6 +105,11 @@
     window.bookmarkFocusToggleDone = function () {
         const linkId = getCurrentLinkId();
         if (!linkId) return;
+        const currentLink = findLinkById(linkId);
+        const isTaskEnabled = typeof window.EveBookmarkFolders?.isTaskEnabledForLink === 'function'
+            ? !!window.EveBookmarkFolders.isTaskEnabledForLink(currentLink)
+            : true;
+        if (!isTaskEnabled) return;
         toggleDone(linkId);
         const nextLink = findLinkById(linkId);
         refreshActionButtons(nextLink);

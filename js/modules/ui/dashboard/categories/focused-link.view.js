@@ -51,7 +51,9 @@ window.DashboardCategoriesModules = window.DashboardCategoriesModules || {};
 
     function buildFocusedLinkHtml(link, options) {
         const renderOptions = options || {};
-        const isTaskMode = !!renderOptions.taskMode;
+        const isTaskMode = renderOptions.taskEnabled !== undefined
+            ? !!renderOptions.taskEnabled
+            : !!renderOptions.taskMode;
         const normalizedId = normalizeId(link?.id);
         const jsIdLiteral = "'" + escapeJsString(normalizedId) + "'";
 

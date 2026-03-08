@@ -85,6 +85,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         let id = String(source.id || '').trim();
         if (!id) id = `folder-${fallbackIndex}`;
         const clickBehaviorMode = String(source.clickBehaviorMode || '').trim().toLowerCase();
+        const taskMode = String(source.taskMode || '').trim().toLowerCase();
         return {
             id,
             parentId: parentId || null,
@@ -94,6 +95,9 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             updatedAt: String(source.updatedAt || '').trim(),
             clickBehaviorMode: ['inherit', 'invert', 'focus_only', 'open_and_focus', 'open_only'].includes(clickBehaviorMode)
                 ? clickBehaviorMode
+                : 'inherit',
+            taskMode: ['inherit', 'task', 'non_task'].includes(taskMode)
+                ? taskMode
                 : 'inherit'
         };
     }

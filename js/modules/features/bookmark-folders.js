@@ -2,6 +2,7 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
 
 (function (ns) {
     const CLICK_BEHAVIOR_MODES = new Set(['inherit', 'invert', 'focus_only', 'open_and_focus', 'open_only']);
+    const TASK_MODES = new Set(['inherit', 'task', 'non_task']);
 
     function getFolderStore() {
         if (window.eveState?.bookmarkFolders && typeof window.eveState.bookmarkFolders === 'object') {
@@ -42,6 +43,11 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
     function normalizeClickBehaviorMode(value) {
         const normalized = String(value || '').trim().toLowerCase();
         return CLICK_BEHAVIOR_MODES.has(normalized) ? normalized : 'inherit';
+    }
+
+    function normalizeTaskMode(value) {
+        const normalized = String(value || '').trim().toLowerCase();
+        return TASK_MODES.has(normalized) ? normalized : 'inherit';
     }
 
     function normalizeTreeSettings(settings) {
@@ -86,7 +92,8 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
             order: Number.isFinite(Number(node?.order)) ? Number(node.order) : index,
             createdAt: Number.isFinite(Number(node?.createdAt)) ? Number(node.createdAt) : Date.now(),
             updatedAt: Number.isFinite(Number(node?.updatedAt)) ? Number(node.updatedAt) : Date.now(),
-            clickBehaviorMode: normalizeClickBehaviorMode(node?.clickBehaviorMode)
+            clickBehaviorMode: normalizeClickBehaviorMode(node?.clickBehaviorMode),
+            taskMode: normalizeTaskMode(node?.taskMode)
         };
     }
 
@@ -350,7 +357,8 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
             order: getNextSiblingOrder(nodes, parentId),
             createdAt: now,
             updatedAt: now,
-            clickBehaviorMode: 'inherit'
+            clickBehaviorMode: 'inherit',
+            taskMode: 'inherit'
         };
         nodes.push(folder);
         setScopedNodes(workspaceId, categoryName, nodes);
@@ -400,8 +408,102 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         const target = nodes.find((node) => node.id === normalizedFolderId);
         if (!target) return 'inherit';
         target.clickBehaviorMode = normalizeClickBehaviorMode(mode);
+        target.updatedAt = Date.now();
         setScopedNodes(workspaceId, categoryName, nodes);
         return target.clickBehaviorMode;
+    }
+
+    function getFolderTaskMode(workspaceId, categoryName, folderId) {
+        const folder = getFolderById(workspaceId, categoryName, folderId);
+        return normalizeTaskMode(folder?.taskMode);
+    }
+
+    function setFolderTaskMode(workspaceId, categoryName, folderId, mode) {
+        const normalizedFolderId = normalizeFolderId(folderId);
+        if (!normalizedFolderId) return 'inherit';
+        const nodes = getScopedNodes(workspaceId, categoryName);
+        const target = nodes.find((node) => node.id === normalizedFolderId);
+        if (!target) return 'inherit';
+        target.taskMode = normalizeTaskMode(mode);
+        target.updatedAt = Date.now();
+        setScopedNodes(workspaceId, categoryName, nodes);
+        return target.taskMode;
+    }
+
+    function getFolderTaskModeChain(workspaceId, categoryName, folderId) {
+        const normalizedFolderId = normalizeFolderId(folderId);
+        if (!normalizedFolderId) return [];
+        const nodeMap = buildNodeMap(getScopedNodes(workspaceId, categoryName));
+        const chain = [];
+        let cursor = nodeMap.get(normalizedFolderId) || null;
+        let guard = 0;
+        while (cursor && guard < 64) {
+            chain.unshift(cursor);
+            cursor = cursor.parentId ? (nodeMap.get(cursor.parentId) || null) : null;
+            guard += 1;
+        }
+        return chain;
+    }
+
+    function getHideStatsStore() {
+        if (Array.isArray(window.eveState?.config?.hideStats)) return window.eveState.config.hideStats;
+        if (typeof config !== 'undefined' && Array.isArray(config?.hideStats)) return config.hideStats;
+        return [];
+    }
+
+    function isCardTaskEnabled(workspaceId, categoryName) {
+        const normalizedCategoryName = normalizeCategoryName(categoryName);
+        return !getHideStatsStore().includes(normalizedCategoryName);
+    }
+
+    function resolveTaskState(workspaceId, categoryName, folderId) {
+        let isEnabled = isCardTaskEnabled(workspaceId, categoryName);
+        getFolderTaskModeChain(workspaceId, categoryName, folderId).forEach((node) => {
+            const mode = normalizeTaskMode(node?.taskMode);
+            if (mode === 'task') isEnabled = true;
+            if (mode === 'non_task') isEnabled = false;
+        });
+        return isEnabled;
+    }
+
+    function findLinkById(linkId) {
+        const targetId = String(linkId || '').trim();
+        if (!targetId) return null;
+        const source = Array.isArray(window.eveState?.links)
+            ? window.eveState.links
+            : (typeof links !== 'undefined' && Array.isArray(links) ? links : []);
+        return source.find((link) => String(link?.id || '').trim() === targetId) || null;
+    }
+
+    function isTaskEnabledForLink(linkOrId) {
+        const link = (linkOrId && typeof linkOrId === 'object')
+            ? linkOrId
+            : findLinkById(linkOrId);
+        if (!link || typeof link !== 'object') return false;
+        return resolveTaskState(
+            normalizeWorkspaceId(link.workspace),
+            normalizeCategoryName(link.category),
+            normalizeFolderId(link.folderId)
+        );
+    }
+
+    function getTaskModeOptions() {
+        return [
+            { value: 'inherit', label: 'Inherit Card Task Mode' },
+            { value: 'task', label: 'Force Task' },
+            { value: 'non_task', label: 'Force Non-Task' }
+        ];
+    }
+
+    function describeTaskMode(mode) {
+        switch (normalizeTaskMode(mode)) {
+            case 'task':
+                return 'Bookmarks in this folder behave as tasks even if the card is not in task mode.';
+            case 'non_task':
+                return 'Bookmarks in this folder do not behave as tasks even if the card is in task mode.';
+            default:
+                return 'This folder follows the card task mode unless a deeper subfolder overrides it.';
+        }
     }
 
     function clearLinkFolderAssignment(link) {
@@ -674,8 +776,17 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
     ns.moveWorkspaceTrees = moveWorkspaceTrees;
     ns.moveLinksToFolderTarget = moveLinksToFolderTarget;
     ns.normalizeClickBehaviorMode = normalizeClickBehaviorMode;
+    ns.normalizeTaskMode = normalizeTaskMode;
     ns.getCardClickBehaviorMode = getCardClickBehaviorMode;
     ns.setCardClickBehaviorMode = setCardClickBehaviorMode;
     ns.getFolderClickBehaviorMode = getFolderClickBehaviorMode;
     ns.setFolderClickBehaviorMode = setFolderClickBehaviorMode;
+    ns.getFolderTaskMode = getFolderTaskMode;
+    ns.setFolderTaskMode = setFolderTaskMode;
+    ns.getFolderTaskModeChain = getFolderTaskModeChain;
+    ns.isCardTaskEnabled = isCardTaskEnabled;
+    ns.resolveTaskState = resolveTaskState;
+    ns.isTaskEnabledForLink = isTaskEnabledForLink;
+    ns.getTaskModeOptions = getTaskModeOptions;
+    ns.describeTaskMode = describeTaskMode;
 })(window.EveBookmarkFolders);

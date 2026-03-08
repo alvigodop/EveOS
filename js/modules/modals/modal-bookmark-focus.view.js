@@ -56,10 +56,14 @@ window.EveBookmarkFocus = window.EveBookmarkFocus || {};
     function refreshActionButtons(link) {
         const pinBtn = document.getElementById('bookmarkFocusPinBtn');
         const doneBtn = document.getElementById('bookmarkFocusDoneBtn');
+        const isTaskEnabled = typeof window.EveBookmarkFolders?.isTaskEnabledForLink === 'function'
+            ? !!window.EveBookmarkFolders.isTaskEnabledForLink(link)
+            : true;
         if (pinBtn) {
             pinBtn.textContent = link?.pinned ? 'Unpin' : 'Pin';
         }
         if (doneBtn) {
+            doneBtn.style.display = isTaskEnabled ? '' : 'none';
             doneBtn.textContent = link?.done ? 'Mark Pending' : 'Mark Done';
         }
     }

@@ -107,6 +107,13 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             : 'inherit';
     }
 
+    function normalizeTaskMode(value) {
+        const normalized = String(value || '').trim().toLowerCase();
+        return ['inherit', 'task', 'non_task'].includes(normalized)
+            ? normalized
+            : 'inherit';
+    }
+
     function normalizeTreeSettings(settings) {
         const source = settings && typeof settings === 'object' ? settings : {};
         return {
@@ -131,7 +138,8 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             order,
             createdAt: String(source.createdAt || '').trim(),
             updatedAt: String(source.updatedAt || '').trim(),
-            clickBehaviorMode: normalizeClickBehaviorMode(source.clickBehaviorMode)
+            clickBehaviorMode: normalizeClickBehaviorMode(source.clickBehaviorMode),
+            taskMode: normalizeTaskMode(source.taskMode)
         };
     }
 
@@ -264,7 +272,8 @@ window.EveDataTransfer = window.EveDataTransfer || {};
                 order: node.order,
                 createdAt: node.createdAt || '',
                 updatedAt: node.updatedAt || '',
-                clickBehaviorMode: normalizeClickBehaviorMode(node.clickBehaviorMode)
+                clickBehaviorMode: normalizeClickBehaviorMode(node.clickBehaviorMode),
+                taskMode: normalizeTaskMode(node.taskMode)
             });
 
             const childLinks = sortLinksForExport(folderLinks.get(node.id) || []);

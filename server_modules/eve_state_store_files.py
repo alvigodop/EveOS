@@ -276,6 +276,15 @@ def normalize_click_behavior_mode(value):
     } else "inherit"
 
 
+def normalize_task_mode(value):
+    normalized = str(value or "").strip().lower()
+    return normalized if normalized in {
+        "inherit",
+        "task",
+        "non_task",
+    } else "inherit"
+
+
 def normalize_bookmark_folder_tree_settings(settings):
     source = settings if isinstance(settings, dict) else {}
     return {
@@ -303,6 +312,7 @@ def normalize_bookmark_folder_node(node, fallback_name="Folder"):
         "createdAt": str(item.get("createdAt") or "").strip(),
         "updatedAt": str(item.get("updatedAt") or "").strip(),
         "clickBehaviorMode": normalize_click_behavior_mode(item.get("clickBehaviorMode")),
+        "taskMode": normalize_task_mode(item.get("taskMode")),
     }
 
 

@@ -235,20 +235,36 @@ window.DashboardCategories = window.DashboardCategories || {};
         if (!isFocusMode && Array.isArray(options.collapsed) && options.collapsed.includes(cat)) {
             card.classList.add('collapsed');
         }
-        if (!Array.isArray(options.hideStats) || !options.hideStats.includes(cat)) {
-            card.classList.add('task-mode');
-        }
-        var isTaskMode = card.classList.contains('task-mode');
-        if (isFocusMode) {
-            card.classList.add('is-focus-mode');
+        var folderTaskApi = window.EveBookmarkFolders;
+        var safeCatHtml = escapeCardHtml(cat || 'Unsorted');
+        var safeCatJs = escapeCardJs(cat || 'Unsorted');
+        var libPanelId = 'lib-' + String(cat || 'Unsorted').replace(/[^a-zA-Z0-9]/g, '_') + '-panel';
+        var folderToolbarExpanded = !!folderTaskApi?.isToolbarExpanded?.(options.activeWorkspace, cat);
+        var folderHeaderBtnClass = 'category-action-btn' + (folderToolbarExpanded ? ' is-active' : '');
+
+        function isTaskEnabledForLink(link) {
+            if (typeof folderTaskApi?.isTaskEnabledForLink === 'function') {
+                return !!folderTaskApi.isTaskEnabledForLink(link);
+            }
+            return !Array.isArray(options.hideStats) || !options.hideStats.includes(cat);
         }
 
         var totalAll = catLinks.length;
-        var doneAll = catLinks.filter(function (link) { return !!link.done; }).length;
+        var totalAllTasks = catLinks.filter(function (link) { return isTaskEnabledForLink(link); }).length;
+        var doneAll = catLinks.filter(function (link) { return isTaskEnabledForLink(link) && !!link.done; }).length;
         var totalVisible = renderedLinks.length;
-        var doneVisible = renderedLinks.filter(function (link) { return !!link.done; }).length;
-        var pct = totalAll === 0 ? 0 : (doneAll / totalAll) * 100;
-        var barClass = pct === 100 ? 'complete' : '';
+        var totalVisibleTasks = renderedLinks.filter(function (link) { return isTaskEnabledForLink(link); }).length;
+        var doneVisible = renderedLinks.filter(function (link) { return isTaskEnabledForLink(link) && !!link.done; }).length;
+        var hasTaskBookmarks = totalAllTasks > 0;
+        if (hasTaskBookmarks) {
+            card.classList.add('task-mode');
+        }
+        var isTaskMode = hasTaskBookmarks;
+        if (isFocusMode) {
+            card.classList.add('is-focus-mode');
+        }
+        var pct = totalAllTasks === 0 ? 0 : (doneAll / totalAllTasks) * 100;
+        var barClass = pct === 100 && totalAllTasks > 0 ? 'complete' : '';
 
         card.ondragover = function (event) {
             if (typeof allowDrop === 'function') allowDrop(event);
@@ -257,17 +273,12 @@ window.DashboardCategories = window.DashboardCategories || {};
             if (typeof drop === 'function') drop(event, cat);
         };
 
-        var safeCatHtml = escapeCardHtml(cat || 'Unsorted');
-        var safeCatJs = escapeCardJs(cat || 'Unsorted');
-        var libPanelId = 'lib-' + String(cat || 'Unsorted').replace(/[^a-zA-Z0-9]/g, '_') + '-panel';
-        var folderToolbarExpanded = !!window.EveBookmarkFolders?.isToolbarExpanded?.(options.activeWorkspace, cat);
-        var folderHeaderBtnClass = 'category-action-btn' + (folderToolbarExpanded ? ' is-active' : '');
-
         function renderLinkCollection(linksForRender) {
             if (isFocusMode && typeof window.DashboardCategories.buildFocusedLinkHtml === 'function') {
                 var focusedHtml = linksForRender.map(function (link) {
                     return window.DashboardCategories.buildFocusedLinkHtml(link, {
-                        taskMode: isTaskMode
+                        taskMode: isTaskEnabledForLink(link),
+                        taskEnabled: isTaskEnabledForLink(link)
                     });
                 }).join('');
 
@@ -287,7 +298,8 @@ window.DashboardCategories = window.DashboardCategories || {};
                     folderLabel = window.EveBookmarkFolders.buildFolderPathLabel(link.workspace, link.category, link.folderId);
                 }
                 return window.DashboardCategories.buildLinkHtml(link, options.searchStr, options.activeWorkspace, options.workspaces, {
-                    folderLabel: folderLabel
+                    folderLabel: folderLabel,
+                    isTaskEnabled: isTaskEnabledForLink(link)
                 });
             }).join('');
             return '<ul class="' + (options.scrollableCategories ? 'category-scrollable' : '') + '">' + flatHtml + '</ul>';
@@ -304,7 +316,7 @@ window.DashboardCategories = window.DashboardCategories || {};
 
         var shownSuffix = (isFocusMode && focusedFilterMode !== 'all') ? ' shown' : '';
         var titleMetaText = isTaskMode
-            ? (totalVisible + ' bookmarks' + shownSuffix + ' &bull; ' + doneVisible + ' done' + ' &bull; ' + Math.max(totalVisible - doneVisible, 0) + ' pending')
+            ? (totalVisible + ' bookmarks' + shownSuffix + ' &bull; ' + doneVisible + ' done' + ' &bull; ' + Math.max(totalVisibleTasks - doneVisible, 0) + ' pending')
             : (totalVisible + ' bookmarks' + shownSuffix);
         var titleMetaHtml = isFocusMode
             ? '<div class="cat-focus-meta">' + titleMetaText + '</div>'
@@ -340,9 +352,15 @@ window.DashboardCategories = window.DashboardCategories || {};
         var headerButtonsHtml = isFocusMode
             ? ''
                 + '<div class="focus-card-controls">'
-                    + '<button class="category-action-btn" onclick="openAddModal(\'' + safeCatJs + '\')" title="Add Bookmark">&#10133; <span>Add</span></button>'
-                    + '<button class="' + folderHeaderBtnClass + '" onclick="toggleBookmarkFolderToolbar(\'' + safeCatJs + '\', \'' + escapeCardJs(options.activeWorkspace || 'main') + '\')" title="Folders">&#128193; <span>Folders</span></button>'
-                    + '<button class="category-action-btn" onclick="toggleCategoryLibrary(\'' + safeCatJs + '\')" title="Library">&#128218; <span>Library</span></button>'
+                    + (visibleHeaderButtons.has('add')
+                        ? '<button class="category-action-btn" onclick="openAddModal(\'' + safeCatJs + '\')" title="Add Bookmark">&#10133; <span>Add</span></button>'
+                        : '')
+                    + (visibleHeaderButtons.has('folders')
+                        ? '<button class="' + folderHeaderBtnClass + '" onclick="toggleBookmarkFolderToolbar(\'' + safeCatJs + '\', \'' + escapeCardJs(options.activeWorkspace || 'main') + '\')" title="Folders">&#128193; <span>Folders</span></button>'
+                        : '')
+                    + (visibleHeaderButtons.has('library')
+                        ? '<button class="category-action-btn" onclick="toggleCategoryLibrary(\'' + safeCatJs + '\')" title="Library">&#128218; <span>Library</span></button>'
+                        : '')
                     + '<select class="unidex-filter-select focus-filter-select" aria-label="Focused bookmark filter" onchange="window.DashboardCategories.setFocusedEntriesFilterMode(this.value)">'
                         + '<option value="all"' + (focusedFilterMode === 'all' ? ' selected' : '') + '>All Bookmarks</option>'
                         + '<option value="linked"' + (focusedFilterMode === 'linked' ? ' selected' : '') + '>Library Linked</option>'
@@ -363,7 +381,9 @@ window.DashboardCategories = window.DashboardCategories || {};
                     + '</select>'
                     + '<button class="category-action-btn" onclick="clearFocus()" title="Exit Focus">&#127919; <span>Exit Focus</span></button>'
                     + '<button class="category-action-btn" onclick="openCategorySettings(\'' + safeCatJs + '\')" title="Settings">&#9881; <span>Settings</span></button>'
-                    + '<button class="category-action-btn" data-cat="' + safeCatHtml + '" onclick="launchCategory(this.dataset.cat)" title="Launch">&#128640; <span>Launch</span></button>'
+                    + (visibleHeaderButtons.has('launch')
+                        ? '<button class="category-action-btn" data-cat="' + safeCatHtml + '" onclick="launchCategory(this.dataset.cat)" title="Launch">&#128640; <span>Launch</span></button>'
+                        : '')
                 + '</div>'
             : ''
                 + '<div class="card-header-icon-row">'
@@ -388,7 +408,7 @@ window.DashboardCategories = window.DashboardCategories || {};
             + '</div>'
             + '<div id="' + libPanelId + '" class="lib-panel" style="display:none;"></div>'
             + listHtml
-            + '<div class="category-footer"><span class="stat-pending">Pending: ' + (totalVisible - doneVisible) + '</span><span class="stat-done">Done: ' + doneVisible + '</span></div>';
+            + '<div class="category-footer"><span class="stat-pending">Pending: ' + Math.max(totalVisibleTasks - doneVisible, 0) + '</span><span class="stat-done">Done: ' + doneVisible + '</span></div>';
 
         gridContainer.appendChild(card);
     };

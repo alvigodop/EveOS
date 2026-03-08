@@ -11,7 +11,7 @@ window.ContextMenus.template = `
     <div class="ctx-item" onclick="ctxEdit()">&#9998; Edit</div>
     <div class="ctx-item" id="ctx-library-action" onclick="ctxToggleLibraryLink()">&#128218; Add To Library</div>
     <div class="ctx-item" onclick="ctxTogglePin()">&#128204; Pin/Unpin</div>
-    <div class="ctx-item" onclick="ctxToggleDone()">&#10004; Toggle Done</div>
+    <div class="ctx-item" id="ctx-toggle-done-action" onclick="ctxToggleDone()">&#10004; Toggle Done</div>
     <div class="ctx-item" onclick="ctxLaunch()">&#128640; Launch</div>
     <div class="ctx-divider"></div>
     <div class="ctx-item" style="color:var(--danger)" onclick="ctxDelete()">&#128465; Delete</div>

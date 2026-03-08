@@ -58,11 +58,20 @@ window.showLinkContextMenu = function (e, id) {
     if (!m) return;
 
     const action = m.querySelector('#ctx-library-action');
+    const doneAction = m.querySelector('#ctx-toggle-done-action');
+    const link = links.find(item => String(item?.id ?? '') === normalizedId) || null;
     const linked = !!window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId?.(normalizedId);
     if (action) {
         action.innerHTML = linked
             ? `${ICON_LIBRARY_HTML} Remove From Library`
             : `${ICON_LIBRARY_HTML} Add To Library`;
+    }
+    if (doneAction) {
+        const isTaskEnabled = typeof window.EveBookmarkFolders?.isTaskEnabledForLink === 'function'
+            ? !!window.EveBookmarkFolders.isTaskEnabledForLink(link)
+            : true;
+        doneAction.style.display = isTaskEnabled ? '' : 'none';
+        doneAction.innerHTML = `&#10004; ${link?.done ? 'Mark Pending' : 'Mark Done'}`;
     }
 
     placeContextMenu(m, e);

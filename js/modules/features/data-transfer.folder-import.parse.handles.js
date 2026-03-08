@@ -17,12 +17,19 @@ window.EveDataTransfer = window.EveDataTransfer || {};
     const inferCategoryFromFolderName = ns.inferCategoryFromFolderName;
     const makePlaceholderBookmark = ns.makePlaceholderBookmark;
 
-    function normalizeClickBehaviorMode(value) {
-        const normalized = String(value || '').trim().toLowerCase();
-        return ['inherit', 'invert', 'focus_only', 'open_and_focus', 'open_only'].includes(normalized)
-            ? normalized
-            : 'inherit';
-    }
+ function normalizeClickBehaviorMode(value) {
+     const normalized = String(value || '').trim().toLowerCase();
+     return ['inherit', 'invert', 'focus_only', 'open_and_focus', 'open_only'].includes(normalized)
+         ? normalized
+         : 'inherit';
+ }
+
+ function normalizeTaskMode(value) {
+     const normalized = String(value || '').trim().toLowerCase();
+     return ['inherit', 'task', 'non_task'].includes(normalized)
+         ? normalized
+         : 'inherit';
+ }
 
     function normalizeTreeSettings(settings) {
         const source = settings && typeof settings === 'object' ? settings : {};
@@ -45,12 +52,13 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             id,
             parentId: parentId || (String(source.parentId || '').trim() || null),
             name,
-            order,
-            createdAt: String(source.createdAt || '').trim(),
-            updatedAt: String(source.updatedAt || '').trim(),
-            clickBehaviorMode: normalizeClickBehaviorMode(source.clickBehaviorMode)
-        };
-    }
+         order,
+         createdAt: String(source.createdAt || '').trim(),
+         updatedAt: String(source.updatedAt || '').trim(),
+         clickBehaviorMode: normalizeClickBehaviorMode(source.clickBehaviorMode),
+         taskMode: normalizeTaskMode(source.taskMode)
+     };
+ }
 
     async function parseEntriesDirectory(entriesHandle, workspaceId, categoryName, links, connectionMap, categoryEntries, folderId = null) {
         if (!entriesHandle) return;

@@ -173,6 +173,7 @@ window.categoryFolderCreateDraft = window.categoryFolderCreateDraft || {
 
     function renderFolderManagerRows(categoryName, workspaceId, viewModel, folderId, depth) {
         const clickApi = getClickBehaviorApi();
+        const folderApi = getFolderApi();
         const folders = viewModel.childrenMap.get(folderId) || [];
         return folders.map((folder) => {
             const safeCategoryJs = escapeCategorySettingsJs(categoryName);
@@ -191,6 +192,14 @@ window.categoryFolderCreateDraft = window.categoryFolderCreateDraft || {
                 }).join('')
                 : '<option value="inherit">Inherit Current Behavior</option>';
             const modeHint = clickApi?.describeMode ? clickApi.describeMode(selectedMode) : '';
+            const selectedTaskMode = folderApi?.getFolderTaskMode ? folderApi.getFolderTaskMode(workspaceId, categoryName, folder.id) : 'inherit';
+            const taskModeOptionsHtml = folderApi?.getTaskModeOptions
+                ? folderApi.getTaskModeOptions().map((option) => {
+                    const selected = option.value === selectedTaskMode ? ' selected' : '';
+                    return `<option value="${escapeCategorySettingsHtml(option.value)}"${selected}>${escapeCategorySettingsHtml(option.label)}</option>`;
+                }).join('')
+                : '<option value="inherit">Inherit Card Task Mode</option>';
+            const taskModeHint = folderApi?.describeTaskMode ? folderApi.describeTaskMode(selectedTaskMode) : '';
 
             return ''
                 + `<div class="bookmark-folder-manager-row" style="display:flex; flex-direction:column; gap:8px; padding:10px 12px; border:1px solid rgba(255,255,255,0.08); border-radius:10px; background:rgba(255,255,255,0.03); margin-left:${indentPx}px;">`
@@ -210,6 +219,11 @@ window.categoryFolderCreateDraft = window.categoryFolderCreateDraft || {
                         + '<label style="font-size:0.74rem; opacity:0.76;">Folder Click Behavior</label>'
                         + `<select onchange="saveFolderClickBehaviorSetting('${safeCategoryJs}', '${safeFolderJs}', this.value)">${modeOptionsHtml}</select>`
                         + `<div style="font-size:0.76rem; opacity:0.68;">${escapeCategorySettingsHtml(modeHint)}</div>`
+                    + '</div>'
+                    + '<div style="display:flex; flex-direction:column; gap:4px;">'
+                        + '<label style="font-size:0.74rem; opacity:0.76;">Folder Task Behavior</label>'
+                        + `<select onchange="saveFolderTaskModeSetting('${safeCategoryJs}', '${safeFolderJs}', this.value)">${taskModeOptionsHtml}</select>`
+                        + `<div style="font-size:0.76rem; opacity:0.68;">${escapeCategorySettingsHtml(taskModeHint)}</div>`
                     + '</div>'
                     + renderFolderManagerRows(categoryName, workspaceId, viewModel, folder.id, depth + 1)
                 + '</div>';
@@ -430,6 +444,17 @@ window.categoryFolderCreateDraft = window.categoryFolderCreateDraft || {
         clickApi.setFolderMode(workspaceId, resolvedCategory, folderId, mode);
         window.renderCategoryFolderManager();
         showToast('Folder click behavior updated', 'success');
+    };
+
+    window.saveFolderTaskModeSetting = function (categoryName, folderId, mode) {
+        const folderApi = getFolderApi();
+        if (!folderApi?.setFolderTaskMode) return;
+        const workspaceId = getCategorySettingsWorkspaceId();
+        const resolvedCategory = String(categoryName || window.currentCategoryCtx || 'Unsorted').trim() || 'Unsorted';
+        folderApi.setFolderTaskMode(workspaceId, resolvedCategory, folderId, mode);
+        window.renderCategoryFolderManager();
+        if (typeof renderDashboard === 'function') renderDashboard();
+        showToast('Folder task behavior updated', 'success');
     };
 
     window.handleCategoryFolderNameEnter = function (event) {

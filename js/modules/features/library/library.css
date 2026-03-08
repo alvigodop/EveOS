@@ -6,11 +6,13 @@
 
 /* Library Panel Container */
 .lib-panel {
-    background: rgba(20, 20, 20, 0.9);
+    background: var(--modal-bg, rgba(20, 20, 20, 0.9));
+    color: var(--modal-text, var(--text-main, #e0e0e0));
     border-radius: 8px;
     padding: 12px;
     margin-top: 10px;
-    border: 1px solid #333;
+    border: 1px solid var(--modal-border, #333);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16);
 }
 
 .lib-panel-header {
@@ -21,7 +23,7 @@
     gap: 10px;
     margin-bottom: 10px;
     padding-bottom: 10px;
-    border-bottom: 1px solid #333;
+    border-bottom: 1px solid var(--modal-border, #333);
 }
 
 .lib-panel-header-left {
@@ -35,7 +37,7 @@
 .lib-type-select {
     background: var(--input-bg, #2c2c2c);
     color: var(--text-main, #e0e0e0);
-    border: 1px solid #444;
+    border: 1px solid var(--modal-border, #444);
     border-radius: 4px;
     padding: 6px 10px;
     font-size: 0.9rem;
@@ -70,7 +72,7 @@
 .lib-folder-select {
     background: var(--input-bg, #2c2c2c);
     color: var(--text-main, #e0e0e0);
-    border: 1px solid #444;
+    border: 1px solid var(--modal-border, #444);
     border-radius: 4px;
     padding: 5px 8px;
     font-size: 0.78rem;
@@ -80,7 +82,7 @@
 .lib-folder-chain-toggle {
     background: transparent;
     color: var(--text-muted, #a0a0a0);
-    border: 1px dashed #555;
+    border: 1px dashed var(--modal-border, #555);
     border-radius: 999px;
     padding: 4px 9px;
     font-size: 0.76rem;
@@ -90,7 +92,7 @@
 
 .lib-folder-chain-toggle:hover {
     color: var(--text-main, #e0e0e0);
-    border-color: #777;
+    border-color: var(--accent, #777);
 }
 
 .lib-panel-controls {
@@ -101,9 +103,9 @@
 
 /* Buttons */
 .lib-btn {
-    background: var(--card-bg, rgba(30, 30, 30, 0.85));
+    background: var(--input-bg, rgba(30, 30, 30, 0.85));
     color: var(--text-main, #e0e0e0);
-    border: 1px solid #444;
+    border: 1px solid var(--modal-border, #444);
     border-radius: 4px;
     padding: 5px 10px;
     font-size: 0.85rem;
@@ -112,22 +114,23 @@
 }
 
 .lib-btn:hover {
-    background: #444;
+    background: color-mix(in srgb, var(--input-bg, #2c2c2c) 72%, var(--accent, #00d4ff) 28%);
 }
 
 .lib-btn-primary {
-    background: #4B0082;
-    border-color: #6A0DAD;
+    background: var(--accent, #4B0082);
+    border-color: var(--accent, #6A0DAD);
+    color: #000;
 }
 
 .lib-btn-primary:hover {
-    background: #6A0DAD;
+    filter: brightness(1.08);
 }
 
 /* Entry Form */
 .lib-entry-form {
-    background: rgba(30, 30, 30, 0.9);
-    border: 1px solid #444;
+    background: color-mix(in srgb, var(--modal-bg, #1e1e1e) 82%, var(--input-bg, #2c2c2c) 18%);
+    border: 1px solid var(--modal-border, #444);
     border-radius: 6px;
     padding: 12px;
     margin-bottom: 10px;
@@ -156,7 +159,7 @@
 .lib-form-grid textarea {
     background: var(--input-bg, #2c2c2c);
     color: var(--text-main, #e0e0e0);
-    border: 1px solid #444;
+    border: 1px solid var(--modal-border, #444);
     border-radius: 4px;
     padding: 6px;
     margin-top: 4px;
@@ -189,15 +192,16 @@
     gap: 6px;
     margin-bottom: 10px;
     padding: 8px;
-    background: rgba(25, 25, 25, 0.8);
+    background: color-mix(in srgb, var(--modal-bg, #1e1e1e) 76%, transparent);
     border-radius: 6px;
+    border: 1px solid color-mix(in srgb, var(--modal-border, #555) 75%, transparent);
 }
 
 .lib-search-bar input,
 .lib-search-bar select {
     background: var(--input-bg, #2c2c2c);
     color: var(--text-main, #e0e0e0);
-    border: 1px solid #444;
+    border: 1px solid var(--modal-border, #444);
     border-radius: 4px;
     padding: 5px 8px;
     font-size: 0.8rem;
@@ -231,11 +235,11 @@
 }
 
 .lib-entry {
-    background: rgba(40, 40, 40, 0.9);
+    background: color-mix(in srgb, var(--input-bg, #2c2c2c) 82%, var(--modal-bg, #1e1e1e) 18%);
     border-radius: 8px;
     padding: 10px;
     position: relative;
-    border: 1px solid #333;
+    border: 1px solid var(--modal-border, #333);
     transition: border-color 0.2s;
 }
 
@@ -383,12 +387,13 @@
 }
 
 .lib-entry-actions button {
-    background: none;
+    background: transparent;
     border: none;
     cursor: pointer;
     font-size: 1rem;
     opacity: 0.7;
     transition: opacity 0.2s;
+    color: var(--text-main, #e0e0e0);
 }
 
 .lib-entry-actions button:hover {
@@ -399,12 +404,13 @@
     position: absolute;
     top: 8px;
     left: 8px;
-    background: none;
+    background: transparent;
     border: none;
     cursor: pointer;
     font-size: 1.2rem;
     opacity: 0.6;
     transition: opacity 0.2s;
+    color: var(--text-main, #e0e0e0);
 }
 
 .lib-favorite-btn:hover,
@@ -421,8 +427,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(0, 0, 0, 0.35);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: color-mix(in srgb, var(--modal-bg, #1e1e1e) 74%, transparent);
+    border: 1px solid color-mix(in srgb, var(--modal-border, #555) 70%, transparent);
     border-radius: 4px;
     z-index: 2;
 }
@@ -452,9 +458,9 @@
 }
 
 .lib-pagination button {
-    background: var(--card-bg, rgba(30, 30, 30, 0.85));
+    background: var(--input-bg, rgba(30, 30, 30, 0.85));
     color: var(--text-main, #e0e0e0);
-    border: 1px solid #444;
+    border: 1px solid var(--modal-border, #444);
     border-radius: 4px;
     padding: 4px 10px;
     cursor: pointer;
@@ -463,7 +469,7 @@
 }
 
 .lib-pagination button:hover {
-    background: #444;
+    background: color-mix(in srgb, var(--input-bg, #2c2c2c) 72%, var(--accent, #00d4ff) 28%);
 }
 
 .lib-pagination button.active {
@@ -474,8 +480,8 @@
 
 /* Toggle Button in Category Header */
 .lib-toggle-btn {
-    background: var(--card-bg, rgba(30, 30, 30, 0.85));
-    border: 1px solid #444;
+    background: var(--input-bg, rgba(30, 30, 30, 0.85));
+    border: 1px solid var(--modal-border, #444);
     border-radius: 4px;
     padding: 2px 8px;
     font-size: 1rem;
@@ -484,7 +490,7 @@
 }
 
 .lib-toggle-btn:hover {
-    background: #444;
+    background: color-mix(in srgb, var(--input-bg, #2c2c2c) 72%, var(--accent, #00d4ff) 28%);
 }
 
 /* Statistics */
@@ -500,8 +506,8 @@
 }
 
 .lib-stat-card {
-    background: rgba(35, 35, 35, 0.9);
-    border: 1px solid #444;
+    background: color-mix(in srgb, var(--modal-bg, #1e1e1e) 78%, var(--input-bg, #2c2c2c) 22%);
+    border: 1px solid var(--modal-border, #444);
     border-radius: 6px;
     padding: 10px;
     text-align: center;
@@ -515,7 +521,7 @@
     margin: 0 0 10px 0;
     color: var(--text-main, #e0e0e0);
     font-size: 0.9rem;
-    border-bottom: 1px solid #333;
+    border-bottom: 1px solid var(--modal-border, #333);
     padding-bottom: 5px;
 }
 
@@ -525,7 +531,7 @@
     justify-content: space-between;
     gap: 8px;
     margin-bottom: 10px;
-    border-bottom: 1px solid #333;
+    border-bottom: 1px solid var(--modal-border, #333);
     padding-bottom: 5px;
 }
 
@@ -537,9 +543,9 @@
 }
 
 .lib-stat-select {
-    border: 1px solid #444;
+    border: 1px solid var(--modal-border, #444);
     border-radius: 4px;
-    background: rgba(20, 20, 20, 0.92);
+    background: var(--input-bg, rgba(20, 20, 20, 0.92));
     color: var(--text-main, #e0e0e0);
     font-size: 0.78rem;
     padding: 4px 8px;
@@ -573,8 +579,8 @@
 }
 
 .lib-kpi-card {
-    background: rgba(12, 12, 12, 0.38);
-    border: 1px solid rgba(255, 255, 255, 0.09);
+    background: color-mix(in srgb, var(--input-bg, #2c2c2c) 68%, transparent);
+    border: 1px solid color-mix(in srgb, var(--modal-border, #555) 56%, transparent);
     border-radius: 8px;
     padding: 8px;
     text-align: left;
@@ -582,7 +588,7 @@
 
 .lib-kpi-label {
     font-size: 0.72rem;
-    color: #9cb5d8;
+    color: var(--text-muted, #9cb5d8);
     text-transform: uppercase;
     letter-spacing: 0.04em;
 }
@@ -590,7 +596,7 @@
 .lib-kpi-value {
     margin-top: 2px;
     font-size: 1.08rem;
-    color: #e9f3ff;
+    color: var(--text-main, #e9f3ff);
     font-weight: 700;
     line-height: 1.25;
 }
@@ -598,7 +604,7 @@
 .lib-kpi-hint {
     margin-top: 3px;
     font-size: 0.7rem;
-    color: #94a0b3;
+    color: var(--text-muted, #94a0b3);
 }
 
 .lib-stat-summary {
@@ -619,14 +625,14 @@
 }
 
 .lib-active-carousel::-webkit-scrollbar-thumb {
-    background: rgba(166, 110, 255, 0.55);
+    background: color-mix(in srgb, var(--accent, #8c52ff) 62%, transparent);
     border-radius: 999px;
 }
 
 .lib-active-empty {
     padding: 14px 8px;
     font-size: 0.85rem;
-    color: #8e8e8e;
+    color: var(--text-muted, #8e8e8e);
     text-align: left;
 }
 
@@ -638,8 +644,12 @@
     gap: 9px;
     padding: 9px;
     border-radius: 10px;
-    border: 1px solid rgba(166, 110, 255, 0.25);
-    background: linear-gradient(165deg, rgba(56, 46, 78, 0.52) 0%, rgba(20, 20, 20, 0.46) 100%);
+    border: 1px solid color-mix(in srgb, var(--accent, #8c52ff) 35%, transparent);
+    background: linear-gradient(
+        165deg,
+        color-mix(in srgb, var(--accent, #8c52ff) 22%, var(--modal-bg, #1e1e1e)) 0%,
+        color-mix(in srgb, var(--modal-bg, #1e1e1e) 74%, transparent) 100%
+    );
     scroll-snap-align: start;
     text-align: left;
 }
@@ -649,8 +659,8 @@
     height: 120px;
     border-radius: 8px;
     overflow: hidden;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    background: rgba(18, 18, 18, 0.7);
+    border: 1px solid color-mix(in srgb, var(--modal-border, #555) 48%, transparent);
+    background: color-mix(in srgb, var(--modal-bg, #1e1e1e) 76%, transparent);
 }
 
 .lib-active-cover {
@@ -670,7 +680,7 @@
 .lib-active-title {
     margin: 0;
     font-size: 0.86rem;
-    color: #ece7ff;
+    color: var(--text-main, #ece7ff);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -678,20 +688,20 @@
 
 .lib-active-progress-text {
     font-size: 0.76rem;
-    color: #c7b2ff;
+    color: color-mix(in srgb, var(--accent, #c7b2ff) 72%, var(--text-main, #e0e0e0));
 }
 
 .lib-active-progress-bar {
     width: 100%;
     height: 7px;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.12);
+    background: color-mix(in srgb, var(--modal-border, #555) 40%, transparent);
     overflow: hidden;
 }
 
 .lib-active-progress-fill {
     height: 100%;
-    background: linear-gradient(90deg, #8c52ff 0%, #c084ff 100%);
+    background: linear-gradient(90deg, var(--accent, #8c52ff) 0%, color-mix(in srgb, var(--accent, #8c52ff) 62%, white) 100%);
     display: block;
     transition: width 220ms ease;
 }
@@ -703,9 +713,9 @@
 }
 
 .lib-active-tag {
-    border: 1px solid rgba(183, 137, 255, 0.42);
-    background: rgba(127, 83, 255, 0.2);
-    color: #eadbff;
+    border: 1px solid color-mix(in srgb, var(--accent, #8c52ff) 44%, transparent);
+    background: color-mix(in srgb, var(--accent, #8c52ff) 20%, transparent);
+    color: var(--text-main, #eadbff);
     border-radius: 999px;
     font-size: 0.68rem;
     line-height: 1;
