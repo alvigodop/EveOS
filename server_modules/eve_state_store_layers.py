@@ -181,6 +181,24 @@ def _normalize_connections(connections, fallback_workspace="", fallback_category
     return list(deduped.values())
 
 
+def _normalize_click_behavior_mode(value):
+    normalized = str(value or "").strip().lower()
+    return normalized if normalized in {
+        "inherit",
+        "invert",
+        "focus_only",
+        "open_and_focus",
+        "open_only",
+    } else "inherit"
+
+
+def _normalize_folder_tree_settings(settings):
+    source = settings if isinstance(settings, dict) else {}
+    return {
+        "clickBehaviorMode": _normalize_click_behavior_mode(source.get("clickBehaviorMode"))
+    }
+
+
 def _normalize_folder_node(node):
     item = dict(node or {})
     folder_id = str(item.get("id") or "").strip()
@@ -199,6 +217,7 @@ def _normalize_folder_node(node):
         "order": order,
         "createdAt": str(item.get("createdAt") or "").strip(),
         "updatedAt": str(item.get("updatedAt") or "").strip(),
+        "clickBehaviorMode": _normalize_click_behavior_mode(item.get("clickBehaviorMode")),
     }
 
 
@@ -208,8 +227,10 @@ def _normalize_bookmark_folders(folder_trees):
         parsed = _parse_scoped_category_key(key)
         scoped = _scoped_key(parsed["workspace_id"], parsed["category_name"])
         raw_nodes = []
+        settings = _normalize_folder_tree_settings({})
         if isinstance(tree, dict):
             raw_nodes = list(tree.get("nodes") or [])
+            settings = _normalize_folder_tree_settings(tree.get("settings") or tree)
         elif isinstance(tree, list):
             raw_nodes = list(tree)
         nodes = []
@@ -233,9 +254,18 @@ def _normalize_bookmark_folders(folder_trees):
                 str(item.get("id") or ""),
             )
         )
-        if nodes:
-            normalized[scoped] = {"nodes": nodes}
+        if nodes or settings.get("clickBehaviorMode") != "inherit":
+            normalized[scoped] = {
+                "nodes": nodes,
+                "settings": settings,
+            }
     return normalized
+
+
+def _normalize_single_folder_tree(tree):
+    temp_key = "main::TempFolderTree"
+    normalized = _normalize_bookmark_folders({temp_key: tree})
+    return normalized.get(temp_key, {"nodes": [], "settings": _normalize_folder_tree_settings({})})
 
 
 def _folder_nodes_for_tree(tree):
@@ -297,7 +327,7 @@ def _extract_folder_subtree(tree, root_folder_id):
         if node_id == target_id:
             next_node["parentId"] = None
         scoped_nodes.append(next_node)
-    return {"nodes": scoped_nodes}
+    return {"nodes": scoped_nodes, "settings": _normalize_folder_tree_settings({})}
 
 
 def _replace_folder_subtree(existing_tree, incoming_tree, target_folder_id):
@@ -350,7 +380,11 @@ def _replace_folder_subtree(existing_tree, incoming_tree, target_folder_id):
         and str(node.get("id") or "").strip() not in incoming_ids
     ]
     merged_nodes.extend(transformed_incoming)
-    return _normalize_bookmark_folders({"merged": {"nodes": merged_nodes}}).get("merged", {"nodes": []})
+    normalized_existing = _normalize_single_folder_tree(existing_tree)
+    return _normalize_single_folder_tree({
+        "nodes": merged_nodes,
+        "settings": normalized_existing.get("settings") or _normalize_folder_tree_settings({}),
+    })
 
 
 def _normalize_state_payload(state):

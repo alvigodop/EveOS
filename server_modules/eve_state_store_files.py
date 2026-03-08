@@ -265,6 +265,24 @@ def resolve_card_category_name(card_data, fallback_name):
     return fallback or "Unsorted"
 
 
+def normalize_click_behavior_mode(value):
+    normalized = str(value or "").strip().lower()
+    return normalized if normalized in {
+        "inherit",
+        "invert",
+        "focus_only",
+        "open_and_focus",
+        "open_only",
+    } else "inherit"
+
+
+def normalize_bookmark_folder_tree_settings(settings):
+    source = settings if isinstance(settings, dict) else {}
+    return {
+        "clickBehaviorMode": normalize_click_behavior_mode(source.get("clickBehaviorMode"))
+    }
+
+
 def normalize_bookmark_folder_node(node, fallback_name="Folder"):
     item = dict(node or {})
     folder_id = str(item.get("id") or "").strip()
@@ -284,13 +302,16 @@ def normalize_bookmark_folder_node(node, fallback_name="Folder"):
         "order": order,
         "createdAt": str(item.get("createdAt") or "").strip(),
         "updatedAt": str(item.get("updatedAt") or "").strip(),
+        "clickBehaviorMode": normalize_click_behavior_mode(item.get("clickBehaviorMode")),
     }
 
 
 def normalize_bookmark_folder_tree(tree):
     raw_nodes = []
+    settings = normalize_bookmark_folder_tree_settings({})
     if isinstance(tree, dict):
         raw_nodes = list(tree.get("nodes") or [])
+        settings = normalize_bookmark_folder_tree_settings(tree.get("settings") or tree)
     elif isinstance(tree, list):
         raw_nodes = list(tree)
 
@@ -318,7 +339,10 @@ def normalize_bookmark_folder_tree(tree):
             str(item.get("id") or ""),
         )
     )
-    return {"nodes": normalized}
+    return {
+        "nodes": normalized,
+        "settings": settings,
+    }
 
 
 def build_bookmark_folder_dirname(folder_node):
@@ -406,6 +430,7 @@ def upsert_card_metadata(card_folder, workspace_id, category_name):
     updated["workspaceId"] = workspace_id
     updated["categoryName"] = category_name
     updated["title"] = category_name
+    updated["clickBehaviorMode"] = normalize_click_behavior_mode(card_data.get("clickBehaviorMode"))
     updated["bookmarkFolder"] = bookmark_folder_name
     updated["bookmarkCount"] = bookmark_count
     updated["folderRoot"] = "folders"

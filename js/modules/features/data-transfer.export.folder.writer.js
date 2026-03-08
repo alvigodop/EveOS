@@ -100,6 +100,20 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         };
     }
 
+    function normalizeClickBehaviorMode(value) {
+        const normalized = String(value || '').trim().toLowerCase();
+        return ['inherit', 'invert', 'focus_only', 'open_and_focus', 'open_only'].includes(normalized)
+            ? normalized
+            : 'inherit';
+    }
+
+    function normalizeTreeSettings(settings) {
+        const source = settings && typeof settings === 'object' ? settings : {};
+        return {
+            clickBehaviorMode: normalizeClickBehaviorMode(source.clickBehaviorMode)
+        };
+    }
+
     function normalizeFolderNode(rawNode, fallbackIndex = 0) {
         const source = rawNode && typeof rawNode === 'object' ? rawNode : {};
         const parentId = String(source.parentId || '').trim();
@@ -116,13 +130,15 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             name,
             order,
             createdAt: String(source.createdAt || '').trim(),
-            updatedAt: String(source.updatedAt || '').trim()
+            updatedAt: String(source.updatedAt || '').trim(),
+            clickBehaviorMode: normalizeClickBehaviorMode(source.clickBehaviorMode)
         };
     }
 
-    function getScopedFolderNodes(folderTrees, workspaceId, categoryName) {
+    function getScopedFolderTree(folderTrees, workspaceId, categoryName) {
         const scopedKey = buildScopedCategoryKey(workspaceId, categoryName);
         const rawTree = folderTrees && typeof folderTrees === 'object' ? folderTrees[scopedKey] : null;
+        const settings = normalizeTreeSettings(rawTree?.settings);
         const rawNodes = Array.isArray(rawTree?.nodes)
             ? rawTree.nodes
             : (Array.isArray(rawTree) ? rawTree : []);
@@ -147,7 +163,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             if (a.order !== b.order) return a.order - b.order;
             return String(a.name || '').localeCompare(String(b.name || ''));
         });
-        return nodes;
+        return { nodes, settings };
     }
 
     function buildFolderChildrenMap(nodes) {
@@ -247,7 +263,8 @@ window.EveDataTransfer = window.EveDataTransfer || {};
                 name: node.name,
                 order: node.order,
                 createdAt: node.createdAt || '',
-                updatedAt: node.updatedAt || ''
+                updatedAt: node.updatedAt || '',
+                clickBehaviorMode: normalizeClickBehaviorMode(node.clickBehaviorMode)
             });
 
             const childLinks = sortLinksForExport(folderLinks.get(node.id) || []);
@@ -284,7 +301,8 @@ window.EveDataTransfer = window.EveDataTransfer || {};
     async function writeScopedCardFolder(rootHandle, cardRootPath, workspaceId, categoryName, links, categories, connectionMap, folderTrees = {}) {
         const sortedLinks = sortLinksForExport(links);
         const scopedLibrary = findScopedCategoryData(categories, workspaceId, categoryName);
-        const folderNodes = getScopedFolderNodes(folderTrees, workspaceId, categoryName);
+        const folderTree = getScopedFolderTree(folderTrees, workspaceId, categoryName);
+        const folderNodes = folderTree.nodes;
         const folderIds = new Set(folderNodes.map((node) => node.id));
         const folderLinks = new Map();
         const rootLinks = [];
@@ -310,6 +328,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             libraryFolderView: scopedLibrary?.folderView && typeof scopedLibrary.folderView === 'object'
                 ? { ...scopedLibrary.folderView }
                 : undefined,
+            clickBehaviorMode: normalizeClickBehaviorMode(folderTree.settings.clickBehaviorMode),
             bookmarkFolder: 'entries',
             bookmarkCount: sortedLinks.length,
             folderRoot: 'folders',

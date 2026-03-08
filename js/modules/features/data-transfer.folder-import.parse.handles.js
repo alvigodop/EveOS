@@ -17,6 +17,20 @@ window.EveDataTransfer = window.EveDataTransfer || {};
     const inferCategoryFromFolderName = ns.inferCategoryFromFolderName;
     const makePlaceholderBookmark = ns.makePlaceholderBookmark;
 
+    function normalizeClickBehaviorMode(value) {
+        const normalized = String(value || '').trim().toLowerCase();
+        return ['inherit', 'invert', 'focus_only', 'open_and_focus', 'open_only'].includes(normalized)
+            ? normalized
+            : 'inherit';
+    }
+
+    function normalizeTreeSettings(settings) {
+        const source = settings && typeof settings === 'object' ? settings : {};
+        return {
+            clickBehaviorMode: normalizeClickBehaviorMode(source.clickBehaviorMode)
+        };
+    }
+
     function normalizeFolderNode(rawNode, folderName, parentId = null, fallbackIndex = 0) {
         const source = rawNode && typeof rawNode === 'object' ? rawNode : {};
         const fallbackName = String(folderName || 'Folder').trim() || 'Folder';
@@ -33,7 +47,8 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             name,
             order,
             createdAt: String(source.createdAt || '').trim(),
-            updatedAt: String(source.updatedAt || '').trim()
+            updatedAt: String(source.updatedAt || '').trim(),
+            clickBehaviorMode: normalizeClickBehaviorMode(source.clickBehaviorMode)
         };
     }
 
@@ -111,6 +126,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         const connectionMap = new Map();
         const categoryEntries = [];
         const folderTreeNodes = [];
+        const folderTreeSettings = normalizeTreeSettings({ clickBehaviorMode: cardJson?.clickBehaviorMode });
         await parseEntriesDirectory(entriesHandle, workspaceId, categoryName, links, connectionMap, categoryEntries, null);
 
         const foldersHandle = await getDirectoryHandleIfExists(cardFolderHandle, 'folders');
@@ -122,7 +138,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         if (Array.isArray(unlinkedPayload?.entries)) {
             unlinkedPayload.entries.forEach((entry) => categoryEntries.push({ ...(entry || {}) }));
         }
-        if (links.length === 0 && folderTreeNodes.length === 0 && categoryEntries.length === 0) {
+        if (links.length === 0 && folderTreeNodes.length === 0 && categoryEntries.length === 0 && folderTreeSettings.clickBehaviorMode === 'inherit') {
             links.push(makePlaceholderBookmark(workspaceId, categoryName));
         }
 
@@ -136,7 +152,10 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             links,
             connections: Array.from(connectionMap.values()),
             categoryEntries,
-            folderTree: { nodes: folderTreeNodes }
+            folderTree: {
+                nodes: folderTreeNodes,
+                settings: folderTreeSettings
+            }
         };
     }
 

@@ -62,6 +62,18 @@ window.EveDataStore = window.EveDataStore || {};
         return [];
     }
 
+    function normalizeFolderTreeSettings(settings) {
+        const normalizeMode = window.EveBookmarkFolders?.normalizeClickBehaviorMode;
+        const clickBehaviorMode = typeof normalizeMode === 'function'
+            ? normalizeMode(settings?.clickBehaviorMode)
+            : String(settings?.clickBehaviorMode || '').trim().toLowerCase();
+        return {
+            clickBehaviorMode: ['inherit', 'invert', 'focus_only', 'open_and_focus', 'open_only'].includes(clickBehaviorMode)
+                ? clickBehaviorMode
+                : 'inherit'
+        };
+    }
+
     function buildFolderMaps(nodes) {
         const nodeById = new Map();
         const childrenByParent = new Map();
@@ -387,7 +399,10 @@ window.EveDataStore = window.EveDataStore || {};
         const mergedNodes = mergeFolderSubtree(existingTree, incomingTree, targetFolderId);
         setBookmarkFolders({
             ...existingFolderTrees,
-            [scopedKey]: { nodes: mergedNodes }
+            [scopedKey]: {
+                nodes: mergedNodes,
+                settings: normalizeFolderTreeSettings(existingTree?.settings)
+            }
         });
 
         const existingConnections = cloneConnections();

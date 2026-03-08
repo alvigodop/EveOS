@@ -18,6 +18,12 @@ window.modalTemplate += `
                 <button onclick="closeModals(); openRenameModal(window.currentCategoryCtx)" style="width:100%;">Rename Category</button>
                 <button onclick="closeModals(); openBulkTitleModal(window.currentCategoryCtx)" style="width:100%;">Auto-Title Links</button>
                 <button onclick="closeModals(); openBulkLibraryAutoModal(window.currentCategoryCtx)" style="width:100%;">Auto-Add Library Entries</button>
+                <div style="display:flex; flex-direction:column; gap:6px; padding:12px; border:1px solid rgba(255,255,255,0.08); border-radius:10px; background:rgba(255,255,255,0.03);">
+                    <strong>Bookmark Click Behavior</strong>
+                    <div style="font-size:0.82rem; opacity:0.76;">Override how bookmarks in this card react when clicked.</div>
+                    <select id="categoryClickBehaviorSelect" onchange="saveCategoryClickBehaviorSetting(this.value)"></select>
+                    <div id="categoryClickBehaviorHint" style="font-size:0.78rem; opacity:0.72;"></div>
+                </div>
                 <details class="settings-disclosure">
                     <summary class="settings-disclosure-summary">Card Actions</summary>
                     <div class="settings-disclosure-body" style="display:flex; gap:8px; flex-wrap:wrap;">

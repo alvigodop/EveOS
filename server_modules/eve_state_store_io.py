@@ -10,6 +10,8 @@ from server_modules.eve_state_store_files import (
     connection_entry_id,
     folder_name,
     load_json_file,
+    normalize_bookmark_folder_tree_settings,
+    normalize_click_behavior_mode,
     normalize_bookmark_folder_node,
     normalize_bookmark_folder_tree,
     normalize_library_folder_view,
@@ -45,8 +47,12 @@ def _normalize_bookmark_folders_map(raw_folders):
         scoped = scoped_key(workspace_id, category_name)
         normalized_tree = normalize_bookmark_folder_tree(tree)
         nodes = list(normalized_tree.get("nodes") or [])
-        if nodes:
-            normalized[scoped] = {"nodes": nodes}
+        settings = normalize_bookmark_folder_tree_settings(normalized_tree.get("settings"))
+        if nodes or settings.get("clickBehaviorMode") != "inherit":
+            normalized[scoped] = {
+                "nodes": nodes,
+                "settings": settings,
+            }
     return normalized
 
 
@@ -337,6 +343,7 @@ def write_modular_state_full(
             data_type = scoped_library.get("data_type") or "graphicNovels"
             folder_tree = bookmark_folders.get(scoped) or {"nodes": []}
             folder_nodes = list(folder_tree.get("nodes") or [])
+            folder_settings = normalize_bookmark_folder_tree_settings(folder_tree.get("settings"))
             folder_lookup = {
                 str((node or {}).get("id") or "").strip(): normalize_bookmark_folder_node(node)
                 for node in folder_nodes
@@ -375,6 +382,7 @@ def write_modular_state_full(
                 "title": category_name,
                 "dataType": data_type,
                 "libraryFolderView": normalize_library_folder_view(scoped_library.get("folder_view") or {}),
+                "clickBehaviorMode": normalize_click_behavior_mode(folder_settings.get("clickBehaviorMode")),
                 "bookmarkFolder": bookmark_folder_name,
                 "bookmarkCount": len(category_links),
                 "folderRoot": "folders",
@@ -503,8 +511,14 @@ def ingest_cards_root(cards_root, workspace_id, categories, entry_ids_by_scope, 
             folder_tree_nodes,
             parent_id=None,
         )
-        if folder_tree_nodes:
-            bookmark_folders[scoped] = normalize_bookmark_folder_tree(folder_tree_nodes)
+        folder_tree = normalize_bookmark_folder_tree({
+            "nodes": folder_tree_nodes,
+            "settings": {
+                "clickBehaviorMode": card_data.get("clickBehaviorMode")
+            }
+        })
+        if folder_tree.get("nodes") or normalize_bookmark_folder_tree_settings(folder_tree.get("settings")).get("clickBehaviorMode") != "inherit":
+            bookmark_folders[scoped] = folder_tree
 
         unlinked_file = card_folder / "_library-unlinked.json"
         if unlinked_file.exists():

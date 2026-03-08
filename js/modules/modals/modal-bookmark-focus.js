@@ -16,6 +16,25 @@
     const loadLinkedRecord = focus.loadLinkedRecord;
     const buildLibraryPatch = focus.buildLibraryPatch;
     const buildMetadataPatch = focus.buildMetadataPatch;
+    const clickBehaviorApi = window.EveBookmarkClickBehavior;
+
+    function refreshClickBehaviorControls(link) {
+        const select = document.getElementById('bookmarkFocusClickBehavior');
+        const hint = document.getElementById('bookmarkFocusClickHint');
+        const summary = document.getElementById('bookmarkFocusClickSummary');
+        if (!select || !clickBehaviorApi?.getModeOptions) return;
+
+        const selectedMode = clickBehaviorApi.getBookmarkMode(link);
+        const optionsHtml = clickBehaviorApi.getModeOptions().map((option) => {
+            const selected = option.value === selectedMode ? ' selected' : '';
+            return `<option value="${option.value}"${selected}>${option.label}</option>`;
+        }).join('');
+        select.innerHTML = optionsHtml;
+
+        const resolution = clickBehaviorApi.resolveBehaviorForLink(link);
+        if (summary) summary.textContent = `Current Result: ${resolution.summary}`;
+        if (hint) hint.textContent = clickBehaviorApi.describeMode(selectedMode);
+    }
 
     window.openBookmarkFocusModal = function (linkId) {
         const modal = ensureModalAvailable();
@@ -27,6 +46,7 @@
 
         refreshHeader(link);
         refreshActionButtons(link);
+        refreshClickBehaviorControls(link);
         loadLinkedRecord(link.id);
         modal.style.display = 'flex';
         return true;
@@ -50,12 +70,28 @@
         const link = findLinkById(linkId);
         if (!link) return false;
 
-        const shouldAutoOpen = (typeof config !== 'undefined') && !!config.bookmarkClickOpensLink;
-        if (shouldAutoOpen) {
+        const resolution = clickBehaviorApi?.resolveBehaviorForLink
+            ? clickBehaviorApi.resolveBehaviorForLink(link)
+            : {
+                openLink: (typeof config !== 'undefined') && !!config.bookmarkClickOpensLink,
+                openFocus: true
+            };
+        if (resolution.openLink) {
             openInNewTab(link.url);
         }
-        window.openBookmarkFocusModal(link.id);
+        if (resolution.openFocus) {
+            window.openBookmarkFocusModal(link.id);
+        }
         return false;
+    };
+
+    window.bookmarkFocusSaveClickBehavior = function (mode) {
+        const linkId = getCurrentLinkId();
+        if (!linkId || !clickBehaviorApi?.setBookmarkMode) return;
+        clickBehaviorApi.setBookmarkMode(linkId, mode);
+        const nextLink = findLinkById(linkId);
+        refreshClickBehaviorControls(nextLink);
+        showToast('Bookmark click behavior updated', 'success');
     };
 
     window.bookmarkFocusTogglePin = function () {
@@ -166,6 +202,7 @@
         const link = findLinkById(currentId);
         refreshHeader(link);
         refreshActionButtons(link);
+        refreshClickBehaviorControls(link);
         loadLinkedRecord(currentId);
     });
 

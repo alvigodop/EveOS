@@ -84,13 +84,27 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         const order = Number.isFinite(parsedOrder) ? parsedOrder : 0;
         let id = String(source.id || '').trim();
         if (!id) id = `folder-${fallbackIndex}`;
+        const clickBehaviorMode = String(source.clickBehaviorMode || '').trim().toLowerCase();
         return {
             id,
             parentId: parentId || null,
             name,
             order,
             createdAt: String(source.createdAt || '').trim(),
-            updatedAt: String(source.updatedAt || '').trim()
+            updatedAt: String(source.updatedAt || '').trim(),
+            clickBehaviorMode: ['inherit', 'invert', 'focus_only', 'open_and_focus', 'open_only'].includes(clickBehaviorMode)
+                ? clickBehaviorMode
+                : 'inherit'
+        };
+    }
+
+    function normalizeTreeSettings(settings) {
+        const source = settings && typeof settings === 'object' ? settings : {};
+        const clickBehaviorMode = String(source.clickBehaviorMode || '').trim().toLowerCase();
+        return {
+            clickBehaviorMode: ['inherit', 'invert', 'focus_only', 'open_and_focus', 'open_only'].includes(clickBehaviorMode)
+                ? clickBehaviorMode
+                : 'inherit'
         };
     }
 
@@ -99,11 +113,19 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         const rawNodes = Array.isArray(folderTree?.nodes)
             ? folderTree.nodes
             : (Array.isArray(folderTree) ? folderTree : []);
-        if (rawNodes.length === 0) return;
+        const nextSettings = normalizeTreeSettings(folderTree?.settings);
+        if (rawNodes.length === 0 && nextSettings.clickBehaviorMode === 'inherit') return;
         if (!folderMap.has(scopedKey)) {
-            folderMap.set(scopedKey, { nodes: [], nodeIds: new Set() });
+            folderMap.set(scopedKey, {
+                nodes: [],
+                nodeIds: new Set(),
+                settings: normalizeTreeSettings({})
+            });
         }
         const bucket = folderMap.get(scopedKey);
+        bucket.settings = nextSettings.clickBehaviorMode !== 'inherit'
+            ? nextSettings
+            : normalizeTreeSettings(bucket.settings);
         rawNodes.forEach((rawNode, index) => {
             const node = normalizeFolderNode(rawNode, index + 1);
             if (bucket.nodeIds.has(node.id)) return;
@@ -116,6 +138,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         const folders = {};
         for (const [key, bucket] of folderMap.entries()) {
             const nodes = Array.isArray(bucket?.nodes) ? bucket.nodes.map((node) => ({ ...(node || {}) })) : [];
+            const settings = normalizeTreeSettings(bucket?.settings);
             const validIds = new Set(nodes.map((node) => String(node?.id || '').trim()).filter(Boolean));
             nodes.forEach((node) => {
                 const parentId = String(node?.parentId || '').trim();
@@ -130,7 +153,9 @@ window.EveDataTransfer = window.EveDataTransfer || {};
                 if (a.order !== b.order) return a.order - b.order;
                 return String(a.name || '').localeCompare(String(b.name || ''));
             });
-            folders[key] = { nodes };
+            if (nodes.length > 0 || settings.clickBehaviorMode !== 'inherit') {
+                folders[key] = { nodes, settings };
+            }
         }
         return folders;
     }

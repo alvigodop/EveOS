@@ -1,6 +1,8 @@
 window.EveBookmarkFolders = window.EveBookmarkFolders || {};
 
 (function (ns) {
+    const CLICK_BEHAVIOR_MODES = new Set(['inherit', 'invert', 'focus_only', 'open_and_focus', 'open_only']);
+
     function getFolderStore() {
         if (window.eveState?.bookmarkFolders && typeof window.eveState.bookmarkFolders === 'object') {
             return window.eveState.bookmarkFolders;
@@ -37,6 +39,18 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         return normalized || null;
     }
 
+    function normalizeClickBehaviorMode(value) {
+        const normalized = String(value || '').trim().toLowerCase();
+        return CLICK_BEHAVIOR_MODES.has(normalized) ? normalized : 'inherit';
+    }
+
+    function normalizeTreeSettings(settings) {
+        const source = settings && typeof settings === 'object' ? settings : {};
+        return {
+            clickBehaviorMode: normalizeClickBehaviorMode(source.clickBehaviorMode)
+        };
+    }
+
     function buildScopedKey(workspaceId, categoryName) {
         return `${normalizeWorkspaceId(workspaceId)}::${normalizeCategoryName(categoryName)}`;
     }
@@ -49,9 +63,17 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         return window.eveState.config.bookmarkFolderToolbarExpanded;
     }
 
-    function getScopedTree(workspaceId, categoryName) {
+    function getScopedTreeByKey(scopedKey) {
         const store = getFolderStore();
-        return store[buildScopedKey(workspaceId, categoryName)] || { nodes: [] };
+        const rawTree = store[scopedKey] || {};
+        return {
+            nodes: dedupeNodes(rawTree?.nodes || []),
+            settings: normalizeTreeSettings(rawTree?.settings)
+        };
+    }
+
+    function getScopedTree(workspaceId, categoryName) {
+        return getScopedTreeByKey(buildScopedKey(workspaceId, categoryName));
     }
 
     function normalizeNode(node, index) {
@@ -63,7 +85,8 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
             name: String(node?.name || 'Folder').trim() || 'Folder',
             order: Number.isFinite(Number(node?.order)) ? Number(node.order) : index,
             createdAt: Number.isFinite(Number(node?.createdAt)) ? Number(node.createdAt) : Date.now(),
-            updatedAt: Number.isFinite(Number(node?.updatedAt)) ? Number(node.updatedAt) : Date.now()
+            updatedAt: Number.isFinite(Number(node?.updatedAt)) ? Number(node.updatedAt) : Date.now(),
+            clickBehaviorMode: normalizeClickBehaviorMode(node?.clickBehaviorMode)
         };
     }
 
@@ -78,6 +101,12 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
             });
     }
 
+    function treeHasMeaningfulState(tree) {
+        const settings = normalizeTreeSettings(tree?.settings);
+        const nodes = Array.isArray(tree?.nodes) ? tree.nodes : [];
+        return nodes.length > 0 || settings.clickBehaviorMode !== 'inherit';
+    }
+
     function getScopedNodes(workspaceId, categoryName) {
         return dedupeNodes(getScopedTree(workspaceId, categoryName)?.nodes || []);
     }
@@ -86,8 +115,11 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         const store = getFolderStore();
         const nextStore = {};
         Object.keys(store || {}).forEach((key) => {
+            const normalizedTree = getScopedTreeByKey(key);
+            if (!treeHasMeaningfulState(normalizedTree)) return;
             nextStore[key] = {
-                nodes: dedupeNodes(store[key]?.nodes || [])
+                nodes: normalizedTree.nodes,
+                settings: normalizedTree.settings
             };
         });
         return nextStore;
@@ -103,18 +135,31 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         }
     }
 
-    function setScopedNodes(workspaceId, categoryName, nodes, options = {}) {
+    function setScopedTree(workspaceId, categoryName, tree, options = {}) {
         const persist = options.persist !== false;
-        const normalizedNodes = dedupeNodes(nodes);
+        const normalizedNodes = dedupeNodes(tree?.nodes || []);
+        const normalizedSettings = normalizeTreeSettings(tree?.settings);
         const nextStore = cloneStore();
         const scopedKey = buildScopedKey(workspaceId, categoryName);
-        if (normalizedNodes.length > 0) {
-            nextStore[scopedKey] = { nodes: normalizedNodes };
+        if (normalizedNodes.length > 0 || normalizedSettings.clickBehaviorMode !== 'inherit') {
+            nextStore[scopedKey] = {
+                nodes: normalizedNodes,
+                settings: normalizedSettings
+            };
         } else {
             delete nextStore[scopedKey];
         }
         writeStore(nextStore, persist);
-        return normalizedNodes;
+        return nextStore[scopedKey] || { nodes: [], settings: normalizeTreeSettings({}) };
+    }
+
+    function setScopedNodes(workspaceId, categoryName, nodes, options = {}) {
+        const currentTree = getScopedTree(workspaceId, categoryName);
+        const nextTree = setScopedTree(workspaceId, categoryName, {
+            nodes,
+            settings: currentTree.settings
+        }, options);
+        return nextTree.nodes;
     }
 
     function buildNodeMap(nodes) {
@@ -304,7 +349,8 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
             name,
             order: getNextSiblingOrder(nodes, parentId),
             createdAt: now,
-            updatedAt: now
+            updatedAt: now,
+            clickBehaviorMode: 'inherit'
         };
         nodes.push(folder);
         setScopedNodes(workspaceId, categoryName, nodes);
@@ -325,6 +371,37 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         target.updatedAt = Date.now();
         setScopedNodes(workspaceId, categoryName, nodes);
         return true;
+    }
+
+    function getCardClickBehaviorMode(workspaceId, categoryName) {
+        return normalizeTreeSettings(getScopedTree(workspaceId, categoryName)?.settings).clickBehaviorMode;
+    }
+
+    function setCardClickBehaviorMode(workspaceId, categoryName, mode, options = {}) {
+        const currentTree = getScopedTree(workspaceId, categoryName);
+        return setScopedTree(workspaceId, categoryName, {
+            nodes: currentTree.nodes,
+            settings: {
+                ...currentTree.settings,
+                clickBehaviorMode: normalizeClickBehaviorMode(mode)
+            }
+        }, options).settings.clickBehaviorMode;
+    }
+
+    function getFolderClickBehaviorMode(workspaceId, categoryName, folderId) {
+        const folder = getFolderById(workspaceId, categoryName, folderId);
+        return normalizeClickBehaviorMode(folder?.clickBehaviorMode);
+    }
+
+    function setFolderClickBehaviorMode(workspaceId, categoryName, folderId, mode) {
+        const normalizedFolderId = normalizeFolderId(folderId);
+        if (!normalizedFolderId) return 'inherit';
+        const nodes = getScopedNodes(workspaceId, categoryName);
+        const target = nodes.find((node) => node.id === normalizedFolderId);
+        if (!target) return 'inherit';
+        target.clickBehaviorMode = normalizeClickBehaviorMode(mode);
+        setScopedNodes(workspaceId, categoryName, nodes);
+        return target.clickBehaviorMode;
     }
 
     function clearLinkFolderAssignment(link) {
@@ -387,8 +464,14 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
             if (!nextStore[nextKey]) {
                 nextStore[nextKey] = nextStore[key];
             } else {
+                const mergedSettings = normalizeTreeSettings({
+                    clickBehaviorMode: nextStore[key]?.settings?.clickBehaviorMode !== 'inherit'
+                        ? nextStore[key]?.settings?.clickBehaviorMode
+                        : nextStore[nextKey]?.settings?.clickBehaviorMode
+                });
                 nextStore[nextKey] = {
-                    nodes: dedupeNodes([...(nextStore[nextKey]?.nodes || []), ...(nextStore[key]?.nodes || [])])
+                    nodes: dedupeNodes([...(nextStore[nextKey]?.nodes || []), ...(nextStore[key]?.nodes || [])]),
+                    settings: mergedSettings
                 };
             }
             if (nextKey !== key) delete nextStore[key];
@@ -425,8 +508,14 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
             if (!nextStore[nextKey]) {
                 nextStore[nextKey] = nextStore[key];
             } else {
+                const mergedSettings = normalizeTreeSettings({
+                    clickBehaviorMode: nextStore[key]?.settings?.clickBehaviorMode !== 'inherit'
+                        ? nextStore[key]?.settings?.clickBehaviorMode
+                        : nextStore[nextKey]?.settings?.clickBehaviorMode
+                });
                 nextStore[nextKey] = {
-                    nodes: dedupeNodes([...(nextStore[nextKey]?.nodes || []), ...(nextStore[key]?.nodes || [])])
+                    nodes: dedupeNodes([...(nextStore[nextKey]?.nodes || []), ...(nextStore[key]?.nodes || [])]),
+                    settings: mergedSettings
                 };
             }
             if (nextKey !== key) delete nextStore[key];
@@ -563,6 +652,8 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
     }
 
     ns.buildScopedKey = buildScopedKey;
+    ns.getScopedTree = getScopedTree;
+    ns.setScopedTree = setScopedTree;
     ns.getScopedNodes = getScopedNodes;
     ns.setScopedNodes = setScopedNodes;
     ns.getFolderById = getFolderById;
@@ -582,4 +673,9 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
     ns.deleteCategoryEverywhere = deleteCategoryEverywhere;
     ns.moveWorkspaceTrees = moveWorkspaceTrees;
     ns.moveLinksToFolderTarget = moveLinksToFolderTarget;
+    ns.normalizeClickBehaviorMode = normalizeClickBehaviorMode;
+    ns.getCardClickBehaviorMode = getCardClickBehaviorMode;
+    ns.setCardClickBehaviorMode = setCardClickBehaviorMode;
+    ns.getFolderClickBehaviorMode = getFolderClickBehaviorMode;
+    ns.setFolderClickBehaviorMode = setFolderClickBehaviorMode;
 })(window.EveBookmarkFolders);

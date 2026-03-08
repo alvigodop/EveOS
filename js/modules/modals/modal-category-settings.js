@@ -74,6 +74,10 @@ window.categoryFolderCreateDraft = window.categoryFolderCreateDraft || {
         return window.DashboardCategories || null;
     }
 
+    function getClickBehaviorApi() {
+        return window.EveBookmarkClickBehavior || null;
+    }
+
     function isCategorySettingsVisibleFor(categoryName) {
         const modal = document.getElementById('categorySettingsModal');
         return !!modal
@@ -97,6 +101,22 @@ window.categoryFolderCreateDraft = window.categoryFolderCreateDraft || {
                     + `<span>${escapeCategorySettingsHtml(option.label)}</span>`
                 + '</label>';
         }).join('');
+    }
+
+    function renderCategoryClickBehaviorSettings() {
+        const select = document.getElementById('categoryClickBehaviorSelect');
+        const hint = document.getElementById('categoryClickBehaviorHint');
+        const clickApi = getClickBehaviorApi();
+        if (!select || !clickApi?.getModeOptions) return;
+
+        const categoryName = String(window.currentCategoryCtx || '').trim() || 'Unsorted';
+        const workspaceId = getCategorySettingsWorkspaceId();
+        const selectedMode = clickApi.getCardMode(workspaceId, categoryName);
+        select.innerHTML = clickApi.getModeOptions().map((option) => {
+            const selected = option.value === selectedMode ? ' selected' : '';
+            return `<option value="${escapeCategorySettingsHtml(option.value)}"${selected}>${escapeCategorySettingsHtml(option.label)}</option>`;
+        }).join('');
+        if (hint) hint.textContent = clickApi.describeMode(selectedMode);
     }
 
     function renderCategoryFolderCreateForm(preferredParentId) {
@@ -152,6 +172,7 @@ window.categoryFolderCreateDraft = window.categoryFolderCreateDraft || {
     }
 
     function renderFolderManagerRows(categoryName, workspaceId, viewModel, folderId, depth) {
+        const clickApi = getClickBehaviorApi();
         const folders = viewModel.childrenMap.get(folderId) || [];
         return folders.map((folder) => {
             const safeCategoryJs = escapeCategorySettingsJs(categoryName);
@@ -162,6 +183,14 @@ window.categoryFolderCreateDraft = window.categoryFolderCreateDraft || {
             metaParts.push(`${bookmarkCount} bookmark${bookmarkCount === 1 ? '' : 's'}`);
             metaParts.push(`${childCount} subfolder${childCount === 1 ? '' : 's'}`);
             const indentPx = depth * 18;
+            const selectedMode = clickApi?.getFolderMode ? clickApi.getFolderMode(workspaceId, categoryName, folder.id) : 'inherit';
+            const modeOptionsHtml = clickApi?.getModeOptions
+                ? clickApi.getModeOptions().map((option) => {
+                    const selected = option.value === selectedMode ? ' selected' : '';
+                    return `<option value="${escapeCategorySettingsHtml(option.value)}"${selected}>${escapeCategorySettingsHtml(option.label)}</option>`;
+                }).join('')
+                : '<option value="inherit">Inherit Current Behavior</option>';
+            const modeHint = clickApi?.describeMode ? clickApi.describeMode(selectedMode) : '';
 
             return ''
                 + `<div class="bookmark-folder-manager-row" style="display:flex; flex-direction:column; gap:8px; padding:10px 12px; border:1px solid rgba(255,255,255,0.08); border-radius:10px; background:rgba(255,255,255,0.03); margin-left:${indentPx}px;">`
@@ -176,6 +205,11 @@ window.categoryFolderCreateDraft = window.categoryFolderCreateDraft || {
                             + `<button type="button" onclick="promptRenameBookmarkFolder('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">Rename</button>`
                             + `<button type="button" onclick="deleteBookmarkFolderPrompt('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">Delete</button>`
                         + '</div>'
+                    + '</div>'
+                    + '<div style="display:flex; flex-direction:column; gap:4px;">'
+                        + '<label style="font-size:0.74rem; opacity:0.76;">Folder Click Behavior</label>'
+                        + `<select onchange="saveFolderClickBehaviorSetting('${safeCategoryJs}', '${safeFolderJs}', this.value)">${modeOptionsHtml}</select>`
+                        + `<div style="font-size:0.76rem; opacity:0.68;">${escapeCategorySettingsHtml(modeHint)}</div>`
                     + '</div>'
                     + renderFolderManagerRows(categoryName, workspaceId, viewModel, folder.id, depth + 1)
                 + '</div>';
@@ -378,6 +412,26 @@ window.categoryFolderCreateDraft = window.categoryFolderCreateDraft || {
         renderCategoryHeaderButtonSettings();
     };
 
+    window.saveCategoryClickBehaviorSetting = function (mode) {
+        const clickApi = getClickBehaviorApi();
+        if (!clickApi?.setCardMode) return;
+        const categoryName = String(window.currentCategoryCtx || '').trim() || 'Unsorted';
+        const workspaceId = getCategorySettingsWorkspaceId();
+        clickApi.setCardMode(workspaceId, categoryName, mode);
+        renderCategoryClickBehaviorSettings();
+        showToast('Card click behavior updated', 'success');
+    };
+
+    window.saveFolderClickBehaviorSetting = function (categoryName, folderId, mode) {
+        const clickApi = getClickBehaviorApi();
+        if (!clickApi?.setFolderMode) return;
+        const workspaceId = getCategorySettingsWorkspaceId();
+        const resolvedCategory = String(categoryName || window.currentCategoryCtx || 'Unsorted').trim() || 'Unsorted';
+        clickApi.setFolderMode(workspaceId, resolvedCategory, folderId, mode);
+        window.renderCategoryFolderManager();
+        showToast('Folder click behavior updated', 'success');
+    };
+
     window.handleCategoryFolderNameEnter = function (event) {
         if (event?.key === 'Enter') {
             event.preventDefault();
@@ -427,6 +481,7 @@ window.categoryFolderCreateDraft = window.categoryFolderCreateDraft || {
 
         if (tabName === 'general') {
             renderCategoryHeaderButtonSettings();
+            renderCategoryClickBehaviorSettings();
             return;
         }
 
