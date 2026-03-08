@@ -50,17 +50,20 @@ async function refreshModularStorePathFromServer() {
     const localDraft = String(config.modularStateRootPath || '');
     if (!_isHttpSettingsContext() || !window.EveDataStore?.ModularSync?.getStorePath) {
         input.value = localDraft;
+        if (typeof refreshModularLayerPathPreview === 'function') refreshModularLayerPathPreview();
         return;
     }
 
     const result = await window.EveDataStore.ModularSync.getStorePath();
     if (!result?.ok) {
         input.value = localDraft;
+        if (typeof refreshModularLayerPathPreview === 'function') refreshModularLayerPathPreview();
         return;
     }
     input.value = String(result.activePath || '');
     config.modularStateRootPath = String(result.activePath || '');
     saveConfig();
+    if (typeof refreshModularLayerPathPreview === 'function') refreshModularLayerPathPreview();
 }
 
 async function applyModularStorePath() {

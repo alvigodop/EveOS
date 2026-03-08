@@ -44,6 +44,10 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         return document.getElementById('bookmarkBackupLinkSelect');
     }
 
+    function getBookmarkLocationSelect() {
+        return document.getElementById('bookmarkBackupLocationSelect');
+    }
+
     function getFolderWorkspaceSelect() {
         return document.getElementById('folderBackupWorkspaceSelect');
     }
@@ -58,6 +62,25 @@ window.EveDataTransfer = window.EveDataTransfer || {};
 
     function getLayerPathInput() {
         return document.getElementById('modularLayerPathInput');
+    }
+
+    function buildBookmarkLocationValue(folderId) {
+        const normalizedFolderId = String(folderId || '').trim();
+        return normalizedFolderId ? `folder:${normalizedFolderId}` : 'root';
+    }
+
+    function parseBookmarkLocationValue(value) {
+        const rawValue = String(value || '').trim();
+        if (rawValue.startsWith('folder:')) {
+            return {
+                mode: 'folder',
+                folderId: rawValue.slice('folder:'.length).trim()
+            };
+        }
+        return {
+            mode: 'root',
+            folderId: ''
+        };
     }
 
     function getBookmarkFolderNodesForScope(workspaceId, categoryName) {
@@ -107,6 +130,35 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         }
     }
 
+    function populateBookmarkLocationSelect(locationSelect, workspaceId, categoryName, selectedValue) {
+        if (!locationSelect) return buildBookmarkLocationValue('');
+        const nodes = getBookmarkFolderNodesForScope(workspaceId, categoryName);
+        const nodeById = new Map(nodes.map((node) => [String(node?.id || '').trim(), node]));
+        const normalizedSelectedValue = String(selectedValue || '').trim() || buildBookmarkLocationValue('');
+        locationSelect.innerHTML = '';
+
+        const rootOption = document.createElement('option');
+        rootOption.value = buildBookmarkLocationValue('');
+        rootOption.textContent = 'Root Bookmarks Only';
+        locationSelect.appendChild(rootOption);
+
+        nodes
+            .slice()
+            .sort((a, b) => buildFolderOptionLabel(a, nodeById).localeCompare(buildFolderOptionLabel(b, nodeById)))
+            .forEach((node) => {
+                const nodeId = String(node?.id || '').trim();
+                if (!nodeId) return;
+                const option = document.createElement('option');
+                option.value = buildBookmarkLocationValue(nodeId);
+                option.textContent = `Folder: ${buildFolderOptionLabel(node, nodeById)}`;
+                locationSelect.appendChild(option);
+            });
+
+        const hasSelected = Array.from(locationSelect.options).some((option) => option.value === normalizedSelectedValue);
+        locationSelect.value = hasSelected ? normalizedSelectedValue : buildBookmarkLocationValue('');
+        return locationSelect.value;
+    }
+
     function refreshCardBackupList() {
         const wsSelect = getCardWorkspaceSelect();
         const categorySelect = getCardCategorySelect();
@@ -153,14 +205,16 @@ window.EveDataTransfer = window.EveDataTransfer || {};
     function refreshBookmarkBackupList() {
         const wsSelect = getBookmarkWorkspaceSelect();
         const categorySelect = getBookmarkCategorySelect();
+        const locationSelect = getBookmarkLocationSelect();
         const linkSelect = getBookmarkLinkSelect();
-        if (!wsSelect || !categorySelect || !linkSelect) return;
+        if (!wsSelect || !categorySelect || !locationSelect || !linkSelect) return;
 
         const appConfig = getAppConfig();
         const allLinks = getAppLinks();
         const workspaces = appConfig.workspaces || [];
         const selectedWorkspace = wsSelect.value || appConfig.activeWorkspace || workspaces[0]?.id || '';
         const selectedCategory = categorySelect.value || 'Unsorted';
+        const selectedLocation = locationSelect.value || buildBookmarkLocationValue('');
         const selectedLinkId = linkSelect.value || '';
 
         wsSelect.innerHTML = '';
@@ -190,8 +244,19 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         }
 
         const activeCategory = categorySelect.value || categories[0] || '';
+        const activeLocationValue = populateBookmarkLocationSelect(
+            locationSelect,
+            selectedWorkspace,
+            activeCategory,
+            selectedLocation
+        );
+        const { folderId: activeFolderId } = parseBookmarkLocationValue(activeLocationValue);
         const bookmarkLinks = allLinks
-            .filter(entry => entry.workspace === selectedWorkspace && (entry.category || 'Unsorted') === activeCategory)
+            .filter(entry => (
+                entry.workspace === selectedWorkspace
+                && (entry.category || 'Unsorted') === activeCategory
+                && String(entry.folderId || '').trim() === activeFolderId
+            ))
             .slice()
             .sort((a, b) => String(a.title || '').localeCompare(String(b.title || '')));
 
@@ -286,11 +351,15 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         }
         const bookmarkWsSelect = getBookmarkWorkspaceSelect();
         const bookmarkCategorySelect = getBookmarkCategorySelect();
+        const bookmarkLocationSelect = getBookmarkLocationSelect();
         if (bookmarkWsSelect) {
             bookmarkWsSelect.onchange = refreshBookmarkBackupList;
         }
         if (bookmarkCategorySelect) {
             bookmarkCategorySelect.onchange = refreshBookmarkBackupList;
+        }
+        if (bookmarkLocationSelect) {
+            bookmarkLocationSelect.onchange = refreshBookmarkBackupList;
         }
         const folderWsSelect = getFolderWorkspaceSelect();
         const folderCategorySelect = getFolderCategorySelect();
@@ -317,14 +386,18 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         getBookmarkWorkspaceSelect,
         getBookmarkCategorySelect,
         getBookmarkLinkSelect,
+        getBookmarkLocationSelect,
         getFolderWorkspaceSelect,
         getFolderCategorySelect,
         getFolderSelect,
         getLayerPathInput,
+        buildBookmarkLocationValue,
+        parseBookmarkLocationValue,
         getBookmarkFolderNodesForScope,
         getBookmarkFolderScopedKeys,
         buildFolderOptionLabel,
         populateFolderSelect,
+        populateBookmarkLocationSelect,
         refreshCardBackupList,
         refreshBookmarkBackupList,
         refreshFolderBackupList,

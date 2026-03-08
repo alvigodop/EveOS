@@ -12,7 +12,6 @@ window.EveSettingsTemplates.backupPanel = `
                         <option value="card">Card Backup</option>
                         <option value="folder">Folder Backup</option>
                         <option value="bookmark">Bookmark Backup</option>
-                        <option value="duplicates">Duplicate Sensor</option>
                         <option value="modular">Active Data Pack (Primary)</option>
                         <option value="layer">Copy Between Packs (Advanced)</option>
                     </select>
@@ -28,7 +27,15 @@ window.EveSettingsTemplates.backupPanel = `
                             <input type="file" id="importFile" style="display: none;" onchange="importData(this)">
                         </label>
                     </div>
-                    <button onclick="importDataFolderBrowserOnly()" class="btn-restore" style="width:100%; border:none; margin-top:8px;">Restore Backup Folder (Browser Only)</button>
+                    <button onclick="importDataFolderBrowserOnly()" class="btn-restore" style="width:100%; border:none; margin-top:8px;">Restore Backup Folder</button>
+                    <div class="btn-action-row" style="margin-top:8px;">
+                        <button onclick="runDuplicateSensorForFullBackup()" class="btn-backup">Run Cross-Tab Duplicate Scan</button>
+                        <button onclick="clearDuplicateSensorResults('full')" class="btn-restore" style="border:none;">Clear Scan</button>
+                    </div>
+                    <div id="duplicateSensorSummaryFull" style="font-size:0.8rem; opacity:0.82; margin-top:10px;">
+                        Run a duplicate scan across all tabs.
+                    </div>
+                    <div id="duplicateSensorResultsFull" style="margin-top:8px; max-height:240px; overflow:auto; display:flex; flex-direction:column; gap:8px;"></div>
                     <button onclick="clearAllData()" class="btn-danger" style="width:100%; margin-top:10px;">Wipe All Data</button>
                 </div>
 
@@ -42,7 +49,15 @@ window.EveSettingsTemplates.backupPanel = `
                             <input type="file" id="importWorkspaceFile" style="display:none;" accept=".json" onchange="importWorkspaceBackup(this)">
                         </label>
                     </div>
-                    <button onclick="importWorkspaceFolderBackupBrowserOnly()" class="btn-restore" style="width:100%; border:none; margin-top:8px;">Restore Tab Folder (Browser Only)</button>
+                    <button onclick="importWorkspaceFolderBackupBrowserOnly()" class="btn-restore" style="width:100%; border:none; margin-top:8px;">Restore Tab Folder</button>
+                    <div class="btn-action-row" style="margin-top:8px;">
+                        <button onclick="runDuplicateSensorForWorkspace()" class="btn-backup">Run Tab Duplicate Scan</button>
+                        <button onclick="clearDuplicateSensorResults('workspace')" class="btn-restore" style="border:none;">Clear Scan</button>
+                    </div>
+                    <div id="duplicateSensorSummaryWorkspace" style="font-size:0.8rem; opacity:0.82; margin-top:10px;">
+                        Run a duplicate scan inside the selected tab.
+                    </div>
+                    <div id="duplicateSensorResultsWorkspace" style="margin-top:8px; max-height:240px; overflow:auto; display:flex; flex-direction:column; gap:8px;"></div>
                 </div>
 
                 <div class="backup-panel" data-backup-panel="card">
@@ -56,7 +71,15 @@ window.EveSettingsTemplates.backupPanel = `
                             <input type="file" id="importCardFile" style="display:none;" accept=".json" onchange="importCardBackup(this)">
                         </label>
                     </div>
-                    <button onclick="importCardFolderBackupBrowserOnly()" class="btn-restore" style="width:100%; border:none; margin-top:8px;">Restore Card Folder (Browser Only)</button>
+                    <button onclick="importCardFolderBackupBrowserOnly()" class="btn-restore" style="width:100%; border:none; margin-top:8px;">Restore Card Folder</button>
+                    <div class="btn-action-row" style="margin-top:8px;">
+                        <button onclick="runDuplicateSensorForCard()" class="btn-backup">Run Card Duplicate Scan</button>
+                        <button onclick="clearDuplicateSensorResults('card')" class="btn-restore" style="border:none;">Clear Scan</button>
+                    </div>
+                    <div id="duplicateSensorSummaryCard" style="font-size:0.8rem; opacity:0.82; margin-top:10px;">
+                        Run a duplicate scan inside the selected card.
+                    </div>
+                    <div id="duplicateSensorResultsCard" style="margin-top:8px; max-height:240px; overflow:auto; display:flex; flex-direction:column; gap:8px;"></div>
                 </div>
 
                 <div class="backup-panel" data-backup-panel="folder">
@@ -67,16 +90,25 @@ window.EveSettingsTemplates.backupPanel = `
                     <div class="btn-action-row">
                         <button onclick="exportFolderBackup()" class="btn-backup">Backup Folder/Subtree</button>
                         <label class="btn-restore">
-                            Restore Folder JSON
+                            Restore Folder Backup
                             <input type="file" id="importFolderFile" style="display:none;" accept=".json" onchange="importFolderBackup(this)">
                         </label>
                     </div>
+                    <div class="btn-action-row" style="margin-top:8px;">
+                        <button onclick="runDuplicateSensorForFolder()" class="btn-backup">Run Folder Duplicate Scan</button>
+                        <button onclick="clearDuplicateSensorResults('folder')" class="btn-restore" style="border:none;">Clear Scan</button>
+                    </div>
+                    <div id="duplicateSensorSummaryFolder" style="font-size:0.8rem; opacity:0.82; margin-top:10px;">
+                        Run a duplicate scan inside the selected folder subtree.
+                    </div>
+                    <div id="duplicateSensorResultsFolder" style="margin-top:8px; max-height:240px; overflow:auto; display:flex; flex-direction:column; gap:8px;"></div>
                 </div>
 
                 <div class="backup-panel" data-backup-panel="bookmark">
                     <h4 style="margin:0 0 10px 0;">Bookmark Backup (Single Bookmark)</h4>
                     <select id="bookmarkBackupWorkspaceSelect" style="width:100%; margin-bottom:8px;"></select>
                     <select id="bookmarkBackupCategorySelect" style="width:100%; margin-bottom:8px;"></select>
+                    <select id="bookmarkBackupLocationSelect" style="width:100%; margin-bottom:8px;"></select>
                     <select id="bookmarkBackupLinkSelect" style="width:100%; margin-bottom:10px;"></select>
                     <div class="btn-action-row">
                         <button onclick="exportBookmarkBackup()" class="btn-backup">Backup Selected Bookmark</button>
@@ -85,30 +117,9 @@ window.EveSettingsTemplates.backupPanel = `
                             <input type="file" id="importBookmarkFile" style="display:none;" accept=".json" onchange="importBookmarkBackup(this)">
                         </label>
                     </div>
-                </div>
-
-                <div class="backup-panel" data-backup-panel="duplicates">
-                    <h4 style="margin:0 0 10px 0;">Duplicate Sensor</h4>
-                    <div style="font-size:0.78rem; opacity:0.75; margin-bottom:10px;">
-                        Run duplicate scans on demand. This does not change bookmarks or backup state.
+                    <div style="font-size:0.78rem; opacity:0.75; margin-top:8px;">
+                        Pick <strong>Root Bookmarks Only</strong> for bookmarks outside folders, or choose a specific folder to back up a single bookmark from there.
                     </div>
-                    <select id="duplicateSensorScope" onchange="saveSettingsDuplicateSensorScope()" style="width:100%; margin-bottom:8px;">
-                        <option value="folder">Same Folder</option>
-                        <option value="card">Same Card</option>
-                        <option value="workspace">Same Tab</option>
-                        <option value="all_tabs">Across Tabs</option>
-                    </select>
-                    <select id="duplicateSensorWorkspaceSelect" style="width:100%; margin-bottom:8px;"></select>
-                    <select id="duplicateSensorCategorySelect" style="width:100%; margin-bottom:8px;"></select>
-                    <select id="duplicateSensorFolderSelect" style="width:100%; margin-bottom:10px;"></select>
-                    <div class="btn-action-row">
-                        <button onclick="runDuplicateSensor()" class="btn-backup">Run Duplicate Scan</button>
-                        <button onclick="clearDuplicateSensorResults()" class="btn-restore" style="border:none;">Clear Results</button>
-                    </div>
-                    <div id="duplicateSensorSummary" style="font-size:0.8rem; opacity:0.82; margin-top:10px;">
-                        Choose a scope and run a scan.
-                    </div>
-                    <div id="duplicateSensorResults" style="margin-top:8px; max-height:240px; overflow:auto; display:flex; flex-direction:column; gap:8px;"></div>
                 </div>
 
                 <div class="backup-panel" data-backup-panel="modular">
@@ -145,7 +156,7 @@ window.EveSettingsTemplates.backupPanel = `
                         <button onclick="pullModularStateNow()" class="btn-restore" style="border:none;">Load Active / Pick Folder</button>
                     </div>
                     <button onclick="normalizeModularBookmarkTitles()" class="btn-backup" style="width:100%; margin-top:10px;">Normalize Bookmark File Titles</button>
-                    <button onclick="normalizeBookmarkTitlesBrowserOnly()" class="btn-backup" style="width:100%; margin-top:8px;">Normalize Bookmark File Titles (Browser Only)</button>
+                    <button onclick="normalizeBookmarkTitlesBrowserOnly()" class="btn-backup" style="width:100%; margin-top:8px;">Normalize Bookmark File Titles (Picked Folder)</button>
                     <div style="font-size:0.78rem; opacity:0.75; margin-top:8px;">
                         Active folder is configurable. Layout: <code>tabs/</code> -> <code>cards/</code> -> <code>entries/*.json</code>.
                     </div>
@@ -164,14 +175,14 @@ window.EveSettingsTemplates.backupPanel = `
                     <select id="modularLayerCategorySelect" style="width:100%; margin-bottom:8px;"></select>
                     <select id="modularLayerFolderSelect" style="width:100%; margin-bottom:8px;"></select>
                     <select id="modularLayerBookmarkSelect" style="width:100%; margin-bottom:10px;"></select>
-                    <label style="display:block; margin-bottom:10px;">Folder Path:
-                        <input type="text" id="modularLayerPathInput" onchange="saveSettingsModularLayerPathDraft()" placeholder="Set your own backup target path (e.g. C:\\path\\to\\backups)" style="width:100%;">
+                    <label style="display:block; margin-bottom:10px;">Current Layer Path:
+                        <input type="text" id="modularLayerPathInput" onchange="saveSettingsModularLayerPathDraft()" placeholder="Auto-fills from the active data pack and selected scope" style="width:100%;">
                     </label>
                     <div class="btn-action-row" style="margin-bottom:10px;">
                         <button onclick="pickModularLayerFolderPath()" class="btn-backup">Browse Folder</button>
                     </div>
                     <div style="font-size:0.78rem; opacity:0.75;">
-                        This path is required for localhost <strong>Tab Backup</strong> and <strong>Card Backup</strong> folder exports.
+                        This path auto-fills from the active localhost data pack and updates as you switch between full pack, tab, card, folder, and bookmark scope.
                     </div>
                 </div>
             </div>

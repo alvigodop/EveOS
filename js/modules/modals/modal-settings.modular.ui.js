@@ -1,4 +1,6 @@
-﻿// --- SETTINGS MODULAR UI HELPERS ---
+// --- SETTINGS MODULAR UI HELPERS ---
+
+let modularLayerPathPreviewRequestId = 0;
 
 function getAllLinksForSettings() {
     if (window.eveState?.links) return window.eveState.links;
@@ -14,8 +16,46 @@ function getAllWorkspacesForSettings() {
 
 function normalizeBackupSettingsMode(mode) {
     const normalized = String(mode || 'all').toLowerCase();
-    const allowed = ['all', 'full', 'workspace', 'card', 'folder', 'bookmark', 'duplicates', 'modular', 'layer'];
+    const allowed = ['all', 'full', 'workspace', 'card', 'folder', 'bookmark', 'modular', 'layer'];
     return allowed.includes(normalized) ? normalized : 'all';
+}
+
+function getModularLayerSelectionState() {
+    return {
+        scope: String(document.getElementById('modularLayerScope')?.value || 'store').toLowerCase(),
+        workspaceId: String(document.getElementById('modularLayerWorkspaceSelect')?.value || '').trim(),
+        categoryName: String(document.getElementById('modularLayerCategorySelect')?.value || '').trim(),
+        folderId: String(document.getElementById('modularLayerFolderSelect')?.value || '').trim(),
+        bookmarkId: String(document.getElementById('modularLayerBookmarkSelect')?.value || '').trim()
+    };
+}
+
+async function refreshModularLayerPathPreview() {
+    const input = document.getElementById('modularLayerPathInput');
+    if (!input) return '';
+
+    const fallbackPath = String(
+        document.getElementById('modularStorePathInput')?.value
+        || config.modularStateRootPath
+        || config.modularLayerPath
+        || ''
+    ).trim();
+
+    if (!window.EveDataStore?.ModularSync?.getStorePath) {
+        input.value = fallbackPath;
+        return input.value;
+    }
+
+    const requestId = ++modularLayerPathPreviewRequestId;
+    const result = await window.EveDataStore.ModularSync.getStorePath(getModularLayerSelectionState());
+    if (requestId !== modularLayerPathPreviewRequestId) {
+        return '';
+    }
+
+    const nextPath = String(result?.layerPath || result?.rootPath || result?.activePath || fallbackPath || '').trim();
+    input.value = nextPath;
+    config.modularLayerPath = nextPath;
+    return nextPath;
 }
 
 function applyBackupSettingsLayout(mode) {
@@ -29,13 +69,12 @@ function applyBackupSettingsLayout(mode) {
     if (!panels.length) return;
 
     const visibleByMode = {
-        all: ['full', 'workspace', 'card', 'folder', 'bookmark', 'duplicates', 'modular', 'layer'],
+        all: ['full', 'workspace', 'card', 'folder', 'bookmark', 'modular', 'layer'],
         full: ['full'],
         workspace: ['workspace'],
         card: ['card'],
         folder: ['folder'],
         bookmark: ['bookmark'],
-        duplicates: ['duplicates'],
         modular: ['modular'],
         layer: ['layer']
     };
@@ -152,13 +191,16 @@ function refreshModularLayerSelectors() {
     folderSelect.onchange = function () {
         config.modularLayerFolderId = folderSelect.value;
         saveConfig();
+        refreshModularLayerPathPreview();
     };
     bookmarkSelect.onchange = function () {
         config.modularLayerBookmarkId = bookmarkSelect.value;
         saveConfig();
+        refreshModularLayerPathPreview();
     };
 
     updateModularLayerSelectionVisibility();
+    refreshModularLayerPathPreview();
 }
 
 function saveSettingsBackupMode() {
@@ -217,6 +259,7 @@ function saveSettingsModularLayerScope() {
     config.modularLayerScope = scope;
     saveConfig();
     updateModularLayerSelectionVisibility();
+    refreshModularLayerPathPreview();
 }
 
 function getModularLayerScopeInputs() {
@@ -228,3 +271,6 @@ function getModularLayerScopeInputs() {
     const layerPath = String(document.getElementById('modularLayerPathInput')?.value || '').trim();
     return { scope, workspaceId, categoryName, folderId, bookmarkId, layerPath };
 }
+
+window.refreshModularLayerPathPreview = refreshModularLayerPathPreview;
+

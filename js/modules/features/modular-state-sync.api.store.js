@@ -11,11 +11,21 @@ window.EveDataStore = window.EveDataStore || {};
 
     const { state } = ns;
 
-    async function getStorePath() {
+    async function getStorePath(options = {}) {
         if (!ns.isHttpContext()) {
             return { ok: false, error: 'Store path endpoint requires server mode (localhost or LAN URL).' };
         }
-        const { ok, payload } = await ns.requestJson('/api/eve-state/modular/path');
+        const params = new URLSearchParams();
+        const scope = String(options.layer || options.scope || '').trim().toLowerCase();
+        if (scope) params.set('layer', scope);
+        if (options.workspaceId) params.set('workspaceId', String(options.workspaceId));
+        if (options.categoryName) params.set('categoryName', String(options.categoryName));
+        if (options.folderId) params.set('folderId', String(options.folderId));
+        if (options.bookmarkId) params.set('bookmarkId', String(options.bookmarkId));
+        const path = params.toString()
+            ? `/api/eve-state/modular/path?${params.toString()}`
+            : '/api/eve-state/modular/path';
+        const { ok, payload } = await ns.requestJson(path);
         if (!ok || !payload?.ok) {
             return { ok: false, error: payload?.error || 'Failed to load modular store path.' };
         }
@@ -23,6 +33,8 @@ window.EveDataStore = window.EveDataStore || {};
             ok: true,
             activePath: String(payload.activePath || ''),
             rootPath: String(payload.rootPath || payload.activePath || ''),
+            layer: String(payload.layer || scope || 'store'),
+            layerPath: String(payload.layerPath || payload.rootPath || payload.activePath || ''),
             selection: payload.selection || null,
             defaultPath: String(payload.defaultPath || ''),
             settingsFile: String(payload.settingsFile || ''),

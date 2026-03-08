@@ -10,36 +10,6 @@ window.EveSettingsDuplicateSensor = window.EveSettingsDuplicateSensor || {};
         return {};
     }
 
-    function saveAppConfig() {
-        if (typeof saveConfig === 'function') {
-            saveConfig();
-        }
-    }
-
-    function getScopeSelect() {
-        return document.getElementById('duplicateSensorScope');
-    }
-
-    function getWorkspaceSelect() {
-        return document.getElementById('duplicateSensorWorkspaceSelect');
-    }
-
-    function getCategorySelect() {
-        return document.getElementById('duplicateSensorCategorySelect');
-    }
-
-    function getFolderSelect() {
-        return document.getElementById('duplicateSensorFolderSelect');
-    }
-
-    function getSummaryNode() {
-        return document.getElementById('duplicateSensorSummary');
-    }
-
-    function getResultsNode() {
-        return document.getElementById('duplicateSensorResults');
-    }
-
     function escapeHtml(value) {
         return String(value || '')
             .replace(/&/g, '&amp;')
@@ -49,132 +19,50 @@ window.EveSettingsDuplicateSensor = window.EveSettingsDuplicateSensor || {};
             .replace(/'/g, '&#39;');
     }
 
-    function getWorkspaces() {
-        const workspaces = Array.isArray(getConfig().workspaces) ? getConfig().workspaces : [];
-        return workspaces.length > 0 ? workspaces : [{ id: 'main', name: 'Main', icon: 'folder' }];
-    }
-
-    function getCategoriesForWorkspace(workspaceId) {
-        const allLinks = window.EveDataTransfer?.getAppLinks ? window.EveDataTransfer.getAppLinks() : [];
-        const categoriesFromLinks = allLinks
-            .filter((entry) => String(entry?.workspace || 'main') === String(workspaceId || 'main'))
-            .map((entry) => String(entry?.category || 'Unsorted'));
-        const categoriesFromFolders = typeof window.EveDataTransfer?.getBookmarkFolderScopedKeys === 'function'
-            ? window.EveDataTransfer.getBookmarkFolderScopedKeys()
-                .map((key) => String(key || '').split('::'))
-                .filter((parts) => String(parts[0] || 'main') === String(workspaceId || 'main'))
-                .map((parts) => String(parts.slice(1).join('::') || 'Unsorted'))
-            : [];
-        return [...new Set([].concat(categoriesFromLinks, categoriesFromFolders))]
-            .filter(Boolean)
-            .sort((left, right) => left.localeCompare(right));
-    }
-
-    function populateWorkspaceSelect(selectedWorkspaceId) {
-        const select = getWorkspaceSelect();
-        if (!select) return 'main';
-        const workspaces = getWorkspaces();
-        const fallback = String(getConfig().activeWorkspace || workspaces[0]?.id || 'main');
-        const nextValue = workspaces.some((workspace) => String(workspace.id) === String(selectedWorkspaceId || ''))
-            ? String(selectedWorkspaceId)
-            : fallback;
-
-        select.innerHTML = '';
-        workspaces.forEach((workspace) => {
-            const option = document.createElement('option');
-            option.value = String(workspace.id);
-            option.textContent = String(workspace.name || workspace.id || 'Main');
-            select.appendChild(option);
-        });
-        select.value = nextValue;
-        return select.value || fallback;
-    }
-
-    function populateCategorySelect(workspaceId, selectedCategoryName) {
-        const select = getCategorySelect();
-        if (!select) return '';
-        const categories = getCategoriesForWorkspace(workspaceId);
-        const fallback = categories[0] || 'Unsorted';
-        const nextValue = categories.includes(String(selectedCategoryName || ''))
-            ? String(selectedCategoryName)
-            : fallback;
-
-        select.innerHTML = '';
-        categories.forEach((category) => {
-            const option = document.createElement('option');
-            option.value = category;
-            option.textContent = category;
-            select.appendChild(option);
-        });
-        if (categories.length > 0) {
-            select.value = nextValue;
-        }
-        return select.value || nextValue || '';
-    }
-
-    function populateFolderSelect(workspaceId, categoryName, selectedFolderId) {
-        const select = getFolderSelect();
-        if (!select) return '';
-        const nodes = typeof window.EveDataTransfer?.getBookmarkFolderNodesForScope === 'function'
-            ? window.EveDataTransfer.getBookmarkFolderNodesForScope(workspaceId, categoryName)
-            : [];
-        const nodeById = new Map(nodes.map((node) => [String(node?.id || '').trim(), node]));
-        const labelForNode = (node) => {
-            if (typeof window.EveDataTransfer?.buildFolderOptionLabel === 'function') {
-                return window.EveDataTransfer.buildFolderOptionLabel(node, nodeById);
-            }
-            return String(node?.name || node?.title || node?.id || 'Folder').trim() || 'Folder';
+    function getPanelNodes(panelKey) {
+        const suffixMap = {
+            full: 'Full',
+            workspace: 'Workspace',
+            card: 'Card',
+            folder: 'Folder'
         };
-
-        select.innerHTML = '';
-        const rootOption = document.createElement('option');
-        rootOption.value = '';
-        rootOption.textContent = 'Root (No Folder)';
-        select.appendChild(rootOption);
-
-        nodes
-            .slice()
-            .sort((left, right) => labelForNode(left).localeCompare(labelForNode(right)))
-            .forEach((node) => {
-                const nodeId = String(node?.id || '').trim();
-                if (!nodeId) return;
-                const option = document.createElement('option');
-                option.value = nodeId;
-                option.textContent = labelForNode(node);
-                select.appendChild(option);
-            });
-
-        const normalizedSelectedFolderId = String(selectedFolderId || '').trim();
-        const hasSelectedFolder = nodes.some((node) => String(node?.id || '').trim() === normalizedSelectedFolderId);
-        select.value = hasSelectedFolder ? normalizedSelectedFolderId : '';
-        return select.value || '';
+        const suffix = suffixMap[String(panelKey || '').toLowerCase()];
+        if (!suffix) {
+            return { summary: null, results: null };
+        }
+        return {
+            summary: document.getElementById(`duplicateSensorSummary${suffix}`),
+            results: document.getElementById(`duplicateSensorResults${suffix}`)
+        };
     }
 
-    function updateSelectionVisibility(scope) {
-        const workspaceSelect = getWorkspaceSelect();
-        const categorySelect = getCategorySelect();
-        const folderSelect = getFolderSelect();
-        if (!workspaceSelect || !categorySelect || !folderSelect) return;
-
-        const normalizedScope = window.EveDuplicateSensor?.normalizeScope
-            ? window.EveDuplicateSensor.normalizeScope(scope)
-            : String(scope || 'card').toLowerCase();
-
-        workspaceSelect.style.display = normalizedScope === 'all_tabs' ? 'none' : 'block';
-        categorySelect.style.display = normalizedScope === 'card' || normalizedScope === 'folder' ? 'block' : 'none';
-        folderSelect.style.display = normalizedScope === 'folder' ? 'block' : 'none';
+    function getDefaultMessage(panelKey) {
+        switch (String(panelKey || '').toLowerCase()) {
+        case 'full':
+            return 'Run a duplicate scan across all tabs.';
+        case 'workspace':
+            return 'Run a duplicate scan inside the selected tab.';
+        case 'card':
+            return 'Run a duplicate scan inside the selected card.';
+        case 'folder':
+            return 'Run a duplicate scan inside the selected folder subtree.';
+        default:
+            return 'Run a duplicate scan.';
+        }
     }
 
-    function saveDuplicateSensorSelectionState() {
-        const appConfig = getConfig();
-        const scope = window.EveDuplicateSensor?.normalizeScope
-            ? window.EveDuplicateSensor.normalizeScope(getScopeSelect()?.value || appConfig.duplicateSensorScope || 'card')
-            : String(getScopeSelect()?.value || appConfig.duplicateSensorScope || 'card').toLowerCase();
-        appConfig.duplicateSensorScope = scope;
-        appConfig.duplicateSensorWorkspaceId = String(getWorkspaceSelect()?.value || appConfig.activeWorkspace || 'main');
-        appConfig.duplicateSensorCategoryName = String(getCategorySelect()?.value || '');
-        appConfig.duplicateSensorFolderId = String(getFolderSelect()?.value || '');
-        saveAppConfig();
+    function resetDuplicateSensorResults(panelKey, message) {
+        const { summary, results } = getPanelNodes(panelKey);
+        if (summary) summary.textContent = String(message || getDefaultMessage(panelKey));
+        if (results) results.innerHTML = '';
+    }
+
+    function clearDuplicateSensorResults(panelKey) {
+        if (!panelKey) {
+            ['full', 'workspace', 'card', 'folder'].forEach((key) => resetDuplicateSensorResults(key));
+            return;
+        }
+        resetDuplicateSensorResults(panelKey);
     }
 
     function scopeLabel(scope) {
@@ -191,20 +79,8 @@ window.EveSettingsDuplicateSensor = window.EveSettingsDuplicateSensor || {};
         }
     }
 
-    function resetDuplicateSensorResults(message) {
-        const summary = getSummaryNode();
-        const results = getResultsNode();
-        if (summary) {
-            summary.textContent = String(message || 'Choose a scope and run a scan.');
-        }
-        if (results) {
-            results.innerHTML = '';
-        }
-    }
-
-    function renderDuplicateSensorReport(report) {
-        const summary = getSummaryNode();
-        const results = getResultsNode();
+    function renderDuplicateSensorReport(panelKey, report) {
+        const { summary, results } = getPanelNodes(panelKey);
         if (!summary || !results) return;
 
         const contextParts = [];
@@ -247,94 +123,107 @@ window.EveSettingsDuplicateSensor = window.EveSettingsDuplicateSensor || {};
         `).join('');
     }
 
-    function refreshDuplicateSensorControls() {
-        const scopeSelect = getScopeSelect();
-        if (!scopeSelect) return;
-
-        const appConfig = getConfig();
-        const workspaceSelect = getWorkspaceSelect();
-        const categorySelect = getCategorySelect();
-        const folderSelect = getFolderSelect();
-        const normalizedScope = window.EveDuplicateSensor?.normalizeScope
-            ? window.EveDuplicateSensor.normalizeScope(scopeSelect.value || appConfig.duplicateSensorScope || 'card')
-            : String(scopeSelect.value || appConfig.duplicateSensorScope || 'card').toLowerCase();
-
-        scopeSelect.value = normalizedScope;
-        const workspaceId = populateWorkspaceSelect(
-            workspaceSelect?.value || appConfig.duplicateSensorWorkspaceId || appConfig.activeWorkspace || 'main'
-        );
-        const categoryName = populateCategorySelect(
-            workspaceId,
-            categorySelect?.value || appConfig.duplicateSensorCategoryName || ''
-        );
-        populateFolderSelect(
-            workspaceId,
-            categoryName,
-            folderSelect?.value || appConfig.duplicateSensorFolderId || ''
-        );
-        updateSelectionVisibility(normalizedScope);
-        saveDuplicateSensorSelectionState();
-        if (workspaceSelect) {
-            workspaceSelect.onchange = function () {
-                saveDuplicateSensorSelectionState();
-                refreshDuplicateSensorControls();
-                resetDuplicateSensorResults('Scope changed. Run a new duplicate scan.');
-            };
-        }
-        if (categorySelect) {
-            categorySelect.onchange = function () {
-                saveDuplicateSensorSelectionState();
-                refreshDuplicateSensorControls();
-                resetDuplicateSensorResults('Scope changed. Run a new duplicate scan.');
-            };
-        }
-        if (folderSelect) {
-            folderSelect.onchange = function () {
-                saveDuplicateSensorSelectionState();
-                resetDuplicateSensorResults('Scope changed. Run a new duplicate scan.');
-            };
-        }
-
-        const summary = getSummaryNode();
-        const results = getResultsNode();
-        if (summary && !summary.textContent.trim() && results && !results.innerHTML.trim()) {
-            resetDuplicateSensorResults();
-        }
-    }
-
-    function saveSettingsDuplicateSensorScope() {
-        saveDuplicateSensorSelectionState();
-        refreshDuplicateSensorControls();
-        resetDuplicateSensorResults('Scope changed. Run a new duplicate scan.');
-    }
-
-    function runDuplicateSensor() {
+    function scanAndRender(panelKey, options, unavailableMessage) {
         if (!window.EveDuplicateSensor?.scan) {
-            resetDuplicateSensorResults('Duplicate sensor is unavailable right now.');
+            resetDuplicateSensorResults(panelKey, unavailableMessage || 'Duplicate sensor is unavailable right now.');
             return null;
         }
-
-        refreshDuplicateSensorControls();
-        const report = window.EveDuplicateSensor.scan({
-            scope: getScopeSelect()?.value || 'card',
-            workspaceId: getWorkspaceSelect()?.value || '',
-            categoryName: getCategorySelect()?.value || '',
-            folderId: getFolderSelect()?.value || ''
-        });
-        renderDuplicateSensorReport(report);
+        const report = window.EveDuplicateSensor.scan(options);
+        renderDuplicateSensorReport(panelKey, report);
         return report;
     }
 
-    window.refreshDuplicateSensorControls = refreshDuplicateSensorControls;
-    window.saveSettingsDuplicateSensorScope = saveSettingsDuplicateSensorScope;
-    window.runDuplicateSensor = runDuplicateSensor;
-    window.clearDuplicateSensorResults = resetDuplicateSensorResults;
+    function runDuplicateSensorForFullBackup() {
+        return scanAndRender('full', { scope: 'all_tabs' });
+    }
+
+    function runDuplicateSensorForWorkspace() {
+        const workspaceId = String(document.getElementById('tabBackupSelect')?.value || getConfig().activeWorkspace || 'main').trim();
+        if (!workspaceId) {
+            resetDuplicateSensorResults('workspace', 'Select a tab first.');
+            return null;
+        }
+        return scanAndRender('workspace', {
+            scope: 'workspace',
+            workspaceId
+        });
+    }
+
+    function runDuplicateSensorForCard() {
+        const appConfig = getConfig();
+        const workspaceId = String(document.getElementById('cardBackupWorkspaceSelect')?.value || appConfig.activeWorkspace || 'main').trim();
+        const categoryName = String(document.getElementById('cardBackupCategorySelect')?.value || '').trim();
+        if (!workspaceId || !categoryName) {
+            resetDuplicateSensorResults('card', 'Select a tab and card first.');
+            return null;
+        }
+        return scanAndRender('card', {
+            scope: 'card',
+            workspaceId,
+            categoryName
+        });
+    }
+
+    function runDuplicateSensorForFolder() {
+        const appConfig = getConfig();
+        const workspaceId = String(document.getElementById('folderBackupWorkspaceSelect')?.value || appConfig.activeWorkspace || 'main').trim();
+        const categoryName = String(document.getElementById('folderBackupCategorySelect')?.value || '').trim();
+        const folderId = String(document.getElementById('folderBackupFolderSelect')?.value || '').trim();
+        if (!workspaceId || !categoryName) {
+            resetDuplicateSensorResults('folder', 'Select a tab and card first.');
+            return null;
+        }
+        if (!folderId) {
+            resetDuplicateSensorResults('folder', 'Select a folder first.');
+            return null;
+        }
+        return scanAndRender('folder', {
+            scope: 'folder',
+            workspaceId,
+            categoryName,
+            folderId
+        });
+    }
+
+    function bindResetOnChange(elementId, panelKey, message) {
+        const element = document.getElementById(elementId);
+        if (!element || element.dataset.duplicateSensorBound === '1') return;
+        element.dataset.duplicateSensorBound = '1';
+        element.addEventListener('change', () => {
+            resetDuplicateSensorResults(panelKey, message || `Selection changed. ${getDefaultMessage(panelKey)}`);
+        });
+    }
+
+    function refreshIntegratedDuplicateSensorControls() {
+        bindResetOnChange('tabBackupSelect', 'workspace', 'Selection changed. Run a new tab duplicate scan.');
+        bindResetOnChange('cardBackupWorkspaceSelect', 'card', 'Selection changed. Run a new card duplicate scan.');
+        bindResetOnChange('cardBackupCategorySelect', 'card', 'Selection changed. Run a new card duplicate scan.');
+        bindResetOnChange('folderBackupWorkspaceSelect', 'folder', 'Selection changed. Run a new folder duplicate scan.');
+        bindResetOnChange('folderBackupCategorySelect', 'folder', 'Selection changed. Run a new folder duplicate scan.');
+        bindResetOnChange('folderBackupFolderSelect', 'folder', 'Selection changed. Run a new folder duplicate scan.');
+
+        ['full', 'workspace', 'card', 'folder'].forEach((panelKey) => {
+            const { summary, results } = getPanelNodes(panelKey);
+            if (summary && !summary.textContent.trim() && results && !results.innerHTML.trim()) {
+                resetDuplicateSensorResults(panelKey);
+            }
+        });
+    }
+
+    window.refreshIntegratedDuplicateSensorControls = refreshIntegratedDuplicateSensorControls;
+    window.runDuplicateSensorForFullBackup = runDuplicateSensorForFullBackup;
+    window.runDuplicateSensorForWorkspace = runDuplicateSensorForWorkspace;
+    window.runDuplicateSensorForCard = runDuplicateSensorForCard;
+    window.runDuplicateSensorForFolder = runDuplicateSensorForFolder;
+    window.clearDuplicateSensorResults = clearDuplicateSensorResults;
 
     Object.assign(ns, {
-        refreshDuplicateSensorControls,
-        saveSettingsDuplicateSensorScope,
-        runDuplicateSensor,
-        clearDuplicateSensorResults: resetDuplicateSensorResults
+        refreshIntegratedDuplicateSensorControls,
+        runDuplicateSensorForFullBackup,
+        runDuplicateSensorForWorkspace,
+        runDuplicateSensorForCard,
+        runDuplicateSensorForFolder,
+        clearDuplicateSensorResults
     });
 
     ns.ready = true;
