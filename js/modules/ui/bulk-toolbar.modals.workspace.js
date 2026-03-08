@@ -90,6 +90,7 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
             getLinks().forEach(link => {
                 if (!getSelectedIds().has(toBulkId(link.id))) return;
                 link.workspace = targetWorkspaceId;
+                window.EveBookmarkFolders?.clearLinkFolderAssignment?.(link);
                 if (typeof syncLinked === 'function') {
                     syncLinked(link.id);
                 }

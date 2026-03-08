@@ -26,6 +26,7 @@ window.EveLinkForm = window.EveLinkForm || {};
             newTitle: document.getElementById('newTitle'),
             newUrl: document.getElementById('newUrl'),
             newCategory: document.getElementById('newCategory'),
+            newFolderId: document.getElementById('newFolderId'),
             newPriority: document.getElementById('newPriority'),
             newIcon: document.getElementById('newIcon'),
             searchResults: document.getElementById('edit-link-search-results')
@@ -53,8 +54,22 @@ window.EveLinkForm = window.EveLinkForm || {};
         ns.applySourceMetadataFromAttachedSource(index);
     };
 
+    function resolveAddModalPrefs(preferredCategory) {
+        if (preferredCategory && typeof preferredCategory === 'object') {
+            return {
+                category: String(preferredCategory.category || preferredCategory.categoryName || '').trim(),
+                folderId: String(preferredCategory.folderId || '').trim()
+            };
+        }
+        return {
+            category: String(preferredCategory || '').trim(),
+            folderId: ''
+        };
+    }
+
     window.openAddModal = function (preferredCategory) {
-        var initialCategory = String(preferredCategory || '').trim();
+        const prefs = resolveAddModalPrefs(preferredCategory);
+        var initialCategory = prefs.category;
         const modal = ensureAddModalElements();
         if (!modal) return;
 
@@ -64,6 +79,11 @@ window.EveLinkForm = window.EveLinkForm || {};
         modal.newTitle.value = "";
         modal.newUrl.value = "";
         modal.newCategory.value = initialCategory;
+        if (window.EveBookmarkFolders?.refreshEditorFolderSelect) {
+            window.EveBookmarkFolders.refreshEditorFolderSelect(prefs.folderId);
+        } else if (modal.newFolderId) {
+            modal.newFolderId.value = '';
+        }
         modal.newPriority.value = "";
         modal.newIcon.value = "";
 
@@ -97,6 +117,11 @@ window.EveLinkForm = window.EveLinkForm || {};
         modal.newTitle.value = l.title;
         modal.newUrl.value = l.url;
         modal.newCategory.value = l.category;
+        if (window.EveBookmarkFolders?.refreshEditorFolderSelect) {
+            window.EveBookmarkFolders.refreshEditorFolderSelect(String(l.folderId || '').trim());
+        } else if (modal.newFolderId) {
+            modal.newFolderId.value = String(l.folderId || '').trim();
+        }
         modal.newPriority.value = l.priority || "";
         modal.newIcon.value = normalizeManualIcon(l.icon);
 
@@ -118,6 +143,7 @@ window.EveLinkForm = window.EveLinkForm || {};
         const title = modal.newTitle.value.trim();
         const url = normalizeUrl(modal.newUrl.value);
         const cat = modal.newCategory.value.trim() || "Unsorted";
+        const folderId = String(modal.newFolderId?.value || '').trim();
         const prio = modal.newPriority.value;
         const icon = normalizeManualIcon(modal.newIcon.value);
 
@@ -131,6 +157,8 @@ window.EveLinkForm = window.EveLinkForm || {};
                 links[idx].title = title;
                 links[idx].url = url;
                 links[idx].category = cat;
+                if (folderId) links[idx].folderId = folderId;
+                else delete links[idx].folderId;
                 links[idx].priority = prio;
                 links[idx].icon = icon;
                 links[idx].sources = [...window.tempSources];
@@ -143,6 +171,7 @@ window.EveLinkForm = window.EveLinkForm || {};
                 title,
                 url,
                 category: cat,
+                folderId: folderId || undefined,
                 icon,
                 done: false,
                 pinned: false,

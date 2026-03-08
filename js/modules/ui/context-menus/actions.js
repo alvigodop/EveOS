@@ -26,6 +26,7 @@ window.deleteCategory = async function (name) {
     if (await showConfirm('Delete Category?')) {
         const removedIds = links.filter(l => l.category === name).map(l => l.id);
         links = links.filter(l => l.category !== name);
+        window.EveBookmarkFolders?.deleteCategoryEverywhere?.(name);
         if (window.EveLibrary?.ConnectionsAPI?.removeByLinkId) {
             removedIds.forEach(id => window.EveLibrary.ConnectionsAPI.removeByLinkId(id));
         }
@@ -125,6 +126,7 @@ window.ctxWsDelete = async function () {
                 syncLinked(l.id);
             }
         });
+        window.EveBookmarkFolders?.moveWorkspaceTrees?.(ctxWsId, targetWorkspaceId);
         config.activeWorkspace = config.workspaces[0].id;
         saveConfig();
         saveData();

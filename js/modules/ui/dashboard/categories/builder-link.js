@@ -1,6 +1,7 @@
 window.DashboardCategories = window.DashboardCategories || {};
 
-window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspace, workspaces) {
+window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspace, workspaces, options) {
+    const extraOptions = options || {};
     const LINK_ICON = '\u{1F517}';
     const GLOBE_ICON = '\u{1F310}';
     const PIN_ICON = '\u{1F4CC}';
@@ -34,10 +35,13 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
     let wsBadge = (searchStr && l.workspace !== activeWorkspace)
         ? `<span class="search-badge">${workspaces.find(w => w.id === l.workspace)?.name || "?"}</span>`
         : '';
+    const folderBadge = extraOptions.folderLabel
+        ? `<span class="bookmark-folder-link-badge">${extraOptions.folderLabel}</span>`
+        : '';
 
     return `<li class="${l.done ? 'done' : ''} ${isLocal ? 'is-local' : ''} ${pClass}" draggable="true" ondragstart="drag(event, ${jsLinkIdLiteral})" oncontextmenu="showLinkContextMenu(event, ${jsLinkIdLiteral})">
                 <input type="checkbox" class="bulk-check" onclick="toggleSelect(${jsLinkIdLiteral}, event)" ${isChecked}>
-                ${iconHtml} ${wsBadge} <a href="${l.url}" target="_blank" rel="noopener noreferrer" onclick='return (typeof openBookmarkFromDashboard==="function") ? openBookmarkFromDashboard(event, decodeURIComponent("${encodedLinkId}")) : true;'>${l.title}</a>
+                ${iconHtml} ${wsBadge} ${folderBadge} <a href="${l.url}" target="_blank" rel="noopener noreferrer" onclick='return (typeof openBookmarkFromDashboard==="function") ? openBookmarkFromDashboard(event, decodeURIComponent("${encodedLinkId}")) : true;'>${l.title}</a>
                 <div class="actions">
                     <span class="icon-btn ${l.pinned ? 'pin-active' : ''}" onclick="togglePin(${jsLinkIdLiteral})">${PIN_ICON}</span>
                     <span class="icon-btn" onclick="toggleDone(${jsLinkIdLiteral})">${CHECK_ICON}</span>

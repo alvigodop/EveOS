@@ -5,6 +5,7 @@ window.EveModuleManifestParts.scripts = [
         'js/modules/core/state.js',
         'js/modules/core/utils.js',
         'js/modules/core/storage.js',
+        'js/modules/features/bookmark-folders.js?v=0.2.2',
         'js/modules/core/actions.js',
         'js/modules/core/categories.js',
 
@@ -58,13 +59,13 @@ window.EveModuleManifestParts.scripts = [
         'js/modules/ui/dashboard/dashboard-dock.js',
         // Dashboard Categories Modules
         'js/modules/ui/dashboard/categories/sorter.js?v=0.2.41',
-        'js/modules/ui/dashboard/categories/builder-link.js?v=0.2.41',
+        'js/modules/ui/dashboard/categories/builder-link.js?v=0.2.42',
         'js/modules/ui/dashboard/categories/focused-link.helpers.js?v=0.2.1',
         'js/modules/ui/dashboard/categories/focused-link.view.js?v=0.2.1',
         'js/modules/ui/dashboard/categories/focused-link.js?v=0.2.44',
         'js/modules/ui/dashboard/categories/focused-filter.js?v=0.2.46',
         'js/modules/ui/dashboard/categories/focused-sort.js?v=0.2.1',
-        'js/modules/ui/dashboard/categories/builder-card.js?v=0.2.47',
+        'js/modules/ui/dashboard/categories/builder-card.js?v=0.2.49',
         'js/modules/ui/dashboard/categories/render.js?v=0.2.41',
 'js/modules/ui/dashboard/unidex-view.builders.panels.js?v=0.2.1',
 'js/modules/ui/dashboard/unidex-view.builders.entries.js?v=0.2.1',
@@ -172,12 +173,12 @@ window.EveModuleManifestParts.scripts = [
 
 
         // Modal Modules
-        'js/modules/modals/templates/tpl-core.js?v=0.2.40',
+        'js/modules/modals/templates/tpl-core.js?v=0.2.41',
         'js/modules/modals/templates/tpl-settings.backup.js?v=0.2.2',
         'js/modules/modals/templates/tpl-settings.js?v=0.2.3',
         'js/modules/modals/templates/tpl-bulk.js',
         'js/modules/modals/templates/tpl-emoji.js',
-        'js/modules/modals/templates/tpl-category-settings.js',
+        'js/modules/modals/templates/tpl-category-settings.js?v=0.2.2',
         'js/modules/modals/templates/tpl-bookmark-focus.js',
         'js/modules/modals/modal-core.js',
         'js/modules/modals/emoji-picker.js',
@@ -194,7 +195,7 @@ window.EveModuleManifestParts.scripts = [
         'js/modules/modals/modal-settings.modular.js',
         'js/modules/modals/modal-settings.js',
         'js/modules/modals/modal-bulk.js',
-        'js/modules/modals/modal-category-settings.js?v=0.2.42',
+        'js/modules/modals/modal-category-settings.js?v=0.2.43',
         // Modal Logic Modules
         'js/modules/modals/logic/utils.js',
         'js/modules/modals/logic/link-form.shared.data.js?v=0.2.1',
@@ -209,7 +210,7 @@ window.EveModuleManifestParts.scripts = [
         'js/modules/modals/modal-bookmark-focus.metadata.js',
         'js/modules/modals/modal-bookmark-focus.helpers.js',
         'js/modules/modals/modal-bookmark-focus.js',
-        'js/modules/modals/logic/link-form.js?v=0.2.38',
+        'js/modules/modals/logic/link-form.js?v=0.2.39',
         'js/modules/modals/logic/category-rename.js',
         'js/modules/modals/logic/workspace.js',
 

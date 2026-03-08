@@ -15,6 +15,7 @@ window.confirmRename = function () {
             l.category = name;
             window.EveLibrary?.ConnectionsAPI?.syncFromLink?.(l.id);
         });
+        window.EveBookmarkFolders?.renameCategoryEverywhere?.(o, name);
         const idx = config.categoryOrder.indexOf(o);
         if (idx > -1) config.categoryOrder[idx] = name;
         if (config.hideStats.includes(o)) {

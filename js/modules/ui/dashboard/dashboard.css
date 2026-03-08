@@ -70,6 +70,8 @@
 }
 
 .category-card.collapsed ul,
+.category-card.collapsed .bookmark-folder-toolbar,
+.category-card.collapsed .bookmark-folder-sections,
 .category-card.collapsed .category-footer {
     display: none;
 }
@@ -198,4 +200,179 @@ li:hover .actions {
     padding: 10px;
     margin-bottom: 20px;
     cursor: pointer;
+}
+
+.bookmark-folder-toolbar {
+    display: none;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+
+.bookmark-folder-toolbar.is-visible {
+    display: flex;
+}
+
+.bookmark-folder-toolbar-btn,
+.bookmark-folder-inline-btn {
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-main);
+    border-radius: 8px;
+    cursor: pointer;
+    font: inherit;
+}
+
+.bookmark-folder-toolbar-btn {
+    padding: 6px 10px;
+    font-size: 0.82rem;
+}
+
+.bookmark-folder-inline-btn {
+    padding: 4px 8px;
+    font-size: 0.75rem;
+}
+
+.bookmark-folder-inline-btn.danger {
+    border-color: rgba(255, 108, 108, 0.24);
+    color: #ffb1b1;
+}
+
+.bookmark-folder-toolbar-btn:hover,
+.bookmark-folder-inline-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.bookmark-folder-sections {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.bookmark-folder-root-group {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.02);
+    padding: 10px;
+}
+
+.bookmark-folder-root-header,
+.bookmark-folder-summary {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.bookmark-folder-root-copy,
+.bookmark-folder-summary-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.bookmark-folder-root-title,
+.bookmark-folder-title {
+    font-size: 0.92rem;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.bookmark-folder-meta {
+    color: var(--text-muted);
+    font-size: 0.76rem;
+}
+
+.bookmark-folder-group {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.02);
+    padding: 10px;
+    transition: border-color 0.18s ease, background 0.18s ease;
+}
+
+.bookmark-folder-group + .bookmark-folder-group {
+    margin-top: 12px;
+}
+
+.bookmark-folder-summary {
+    cursor: pointer;
+    list-style: none;
+}
+
+.bookmark-folder-summary::-webkit-details-marker {
+    display: none;
+}
+
+.bookmark-folder-summary-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.bookmark-folder-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-top: 10px;
+}
+
+.bookmark-folder-empty {
+    border: 1px dashed rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    padding: 10px 12px;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+}
+
+.bookmark-folder-link-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: rgba(0, 212, 255, 0.12);
+    color: var(--accent);
+    font-size: 0.7rem;
+    white-space: nowrap;
+}
+
+.bookmark-folder-root-group {
+    transition: border-color 0.18s ease, background 0.18s ease;
+}
+
+.card-folder-toggle-btn {
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-main);
+}
+
+.card-folder-toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.bookmark-folder-drop-target {
+    border-color: rgba(0, 212, 255, 0.55);
+    background: rgba(0, 212, 255, 0.08);
+}
+
+.category-action-btn.is-active,
+.card-folder-toggle-btn.is-active {
+    background: rgba(0, 212, 255, 0.14);
+    border-color: rgba(0, 212, 255, 0.32);
+    color: var(--accent);
+}
+
+@media (max-width: 720px) {
+    .bookmark-folder-root-header,
+    .bookmark-folder-summary {
+        flex-direction: column;
+    }
+
+    .bookmark-folder-summary-actions {
+        width: 100%;
+        justify-content: flex-start;
+    }
 }

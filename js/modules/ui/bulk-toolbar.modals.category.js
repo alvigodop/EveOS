@@ -76,6 +76,7 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
             getLinks().forEach(link => {
                 if (!getSelectedIds().has(toBulkId(link.id))) return;
                 link.category = categoryName;
+                window.EveBookmarkFolders?.clearLinkFolderAssignment?.(link);
                 if (typeof syncLinked === 'function') {
                     syncLinked(link.id);
                 }

@@ -49,6 +49,7 @@ function drop(ev, newCategory) {
         if (idx < 0) return;
         if (links[idx].category === newCategory) return;
         links[idx].category = newCategory;
+        window.EveBookmarkFolders?.clearLinkFolderAssignment?.(links[idx]);
         window.EveLibrary?.ConnectionsAPI?.syncFromLink?.(links[idx].id);
         movedAny = true;
     });

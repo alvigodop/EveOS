@@ -32,6 +32,7 @@ let config = {
     hideStats: [],
     workspaces: [{ id: "main", name: "Main", icon: "\u{1F3E0}" }],
     activeWorkspace: "main",
+    bookmarkFolderToolbarExpanded: [],
     scrollableCategories: false,
     unidexCardsUnified: false,
     unidexTabsUnified: false,
