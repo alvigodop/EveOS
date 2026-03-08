@@ -1,5 +1,11 @@
 window.currentCategoryCtx = null;
-window.categoryFolderCreateDraft = window.categoryFolderCreateDraft || { categoryName: '', parentId: '' };
+window.categoryFolderCreateDraft = window.categoryFolderCreateDraft || {
+    mode: 'create',
+    categoryName: '',
+    parentId: '',
+    folderId: '',
+    initialName: ''
+};
 
 (function () {
     function escapeCategorySettingsHtml(value) {
@@ -27,20 +33,33 @@ window.categoryFolderCreateDraft = window.categoryFolderCreateDraft || { categor
 
     function getFolderDraft() {
         if (!window.categoryFolderCreateDraft || typeof window.categoryFolderCreateDraft !== 'object') {
-            window.categoryFolderCreateDraft = { categoryName: '', parentId: '' };
+            window.categoryFolderCreateDraft = {
+                mode: 'create',
+                categoryName: '',
+                parentId: '',
+                folderId: '',
+                initialName: ''
+            };
         }
         return window.categoryFolderCreateDraft;
     }
 
     function setFolderDraft(nextDraft) {
         window.categoryFolderCreateDraft = {
+            mode: String(nextDraft?.mode || 'create').trim() || 'create',
             categoryName: String(nextDraft?.categoryName || '').trim(),
-            parentId: String(nextDraft?.parentId || '').trim()
+            parentId: String(nextDraft?.parentId || '').trim(),
+            folderId: String(nextDraft?.folderId || '').trim(),
+            initialName: String(nextDraft?.initialName || '').trim()
         };
     }
 
     function getFolderDraftCategoryName() {
         return String(getFolderDraft().categoryName || window.currentCategoryCtx || 'Unsorted').trim() || 'Unsorted';
+    }
+
+    function getFolderDraftMode() {
+        return getFolderDraft().mode === 'rename' ? 'rename' : 'create';
     }
 
     function isCategorySettingsVisibleFor(categoryName) {
@@ -53,15 +72,42 @@ window.categoryFolderCreateDraft = window.categoryFolderCreateDraft || { categor
     function renderCategoryFolderCreateForm(preferredParentId) {
         const folderApi = getFolderApi();
         const categoryName = getFolderDraftCategoryName();
+        const mode = getFolderDraftMode();
         const workspaceId = getCategorySettingsWorkspaceId();
         const title = document.getElementById('bookmarkFolderCreatorTitle');
+        const context = document.getElementById('bookmarkFolderCreatorContext');
         const input = document.getElementById('bookmarkFolderCreatorNameInput');
         const select = document.getElementById('bookmarkFolderCreatorParentSelect');
-        if (!input || !select || !folderApi?.populateFolderSelect) return;
-
-        if (title) title.innerText = `New Bookmark Folder: ${categoryName}`;
         const draft = getFolderDraft();
+        const parentRow = document.getElementById('bookmarkFolderCreatorParentRow');
+        const clearBtn = document.getElementById('bookmarkFolderCreatorClearBtn');
+        const submitBtn = document.getElementById('bookmarkFolderCreatorSubmitBtn');
+        if (!input || !folderApi) return;
+
         const selectedParentId = String(preferredParentId !== undefined ? preferredParentId : draft.parentId || '').trim();
+        const selectedFolder = draft.folderId ? folderApi.getFolderById?.(workspaceId, categoryName, draft.folderId) : null;
+        const parentPath = selectedParentId ? (folderApi.buildFolderPathLabel?.(workspaceId, categoryName, selectedParentId) || 'Selected Parent') : 'Root Level';
+        const currentPath = draft.folderId ? (folderApi.buildFolderPathLabel?.(workspaceId, categoryName, draft.folderId) || draft.initialName || 'Folder') : '';
+
+        if (mode === 'rename') {
+            if (title) title.innerText = 'Rename Bookmark Folder';
+            if (context) context.innerText = `Card: ${categoryName}${currentPath ? ` | Current: ${currentPath}` : ''}`;
+            if (parentRow) parentRow.style.display = 'none';
+            if (clearBtn) clearBtn.style.display = 'none';
+            if (submitBtn) submitBtn.innerText = 'Save Rename';
+            input.placeholder = 'Folder name';
+            input.value = draft.initialName || selectedFolder?.name || '';
+            return;
+        }
+
+        if (!select || !folderApi.populateFolderSelect) return;
+        if (title) title.innerText = 'New Bookmark Folder';
+        if (context) context.innerText = `Card: ${categoryName} | Parent: ${parentPath}`;
+        if (parentRow) parentRow.style.display = 'flex';
+        if (clearBtn) clearBtn.style.display = '';
+        if (submitBtn) submitBtn.innerText = selectedParentId ? 'Create Subfolder' : 'Create Folder';
+        input.placeholder = selectedParentId ? 'Subfolder name' : 'Folder name';
+        input.value = '';
         folderApi.populateFolderSelect(select, workspaceId, categoryName, selectedParentId, {
             rootLabel: 'Root Level'
         });
@@ -149,14 +195,46 @@ window.categoryFolderCreateDraft = window.categoryFolderCreateDraft || { categor
         const resolvedCategory = String(categoryName || window.currentCategoryCtx || 'Unsorted').trim() || 'Unsorted';
         const modal = document.getElementById('bookmarkFolderCreatorModal');
         setFolderDraft({
+            mode: 'create',
             categoryName: resolvedCategory,
-            parentId: String(parentId || '').trim()
+            parentId: String(parentId || '').trim(),
+            folderId: '',
+            initialName: ''
         });
         if (modal) modal.style.display = 'flex';
         setTimeout(() => {
             renderCategoryFolderCreateForm(String(parentId || '').trim());
             const input = document.getElementById('bookmarkFolderCreatorNameInput');
-            if (input) input.focus();
+            if (input) {
+                input.focus();
+                input.select();
+            }
+        }, 0);
+    };
+
+    window.openFolderRenamer = function (categoryName, folderId) {
+        const folderApi = getFolderApi();
+        const resolvedCategory = String(categoryName || window.currentCategoryCtx || 'Unsorted').trim() || 'Unsorted';
+        const workspaceId = getCategorySettingsWorkspaceId();
+        const target = folderApi?.getFolderById?.(workspaceId, resolvedCategory, folderId);
+        if (!target) return;
+
+        const modal = document.getElementById('bookmarkFolderCreatorModal');
+        setFolderDraft({
+            mode: 'rename',
+            categoryName: resolvedCategory,
+            parentId: String(target.parentId || '').trim(),
+            folderId: String(target.id || '').trim(),
+            initialName: String(target.name || '').trim()
+        });
+        if (modal) modal.style.display = 'flex';
+        setTimeout(() => {
+            renderCategoryFolderCreateForm(String(target.parentId || '').trim());
+            const input = document.getElementById('bookmarkFolderCreatorNameInput');
+            if (input) {
+                input.focus();
+                input.select();
+            }
         }, 0);
     };
 
@@ -166,24 +244,43 @@ window.categoryFolderCreateDraft = window.categoryFolderCreateDraft || { categor
     };
 
     window.clearCategoryFolderCreateForm = function () {
+        const mode = getFolderDraftMode();
         const input = document.getElementById('bookmarkFolderCreatorNameInput');
-        if (input) input.value = '';
+        if (mode === 'rename') {
+            if (input) {
+                input.value = String(getFolderDraft().initialName || '').trim();
+                input.focus();
+                input.select();
+            }
+            return;
+        }
+
+        if (input) {
+            input.value = '';
+            input.focus();
+        }
         setFolderDraft({
+            mode: 'create',
             categoryName: getFolderDraftCategoryName(),
-            parentId: ''
+            parentId: '',
+            folderId: '',
+            initialName: ''
         });
         renderCategoryFolderCreateForm('');
     };
 
     window.submitCategoryFolderCreate = function () {
         const folderApi = getFolderApi();
-        if (!folderApi?.createFolder) return false;
+        if (!folderApi) return false;
+        const mode = getFolderDraftMode();
         const categoryName = getFolderDraftCategoryName();
         const workspaceId = getCategorySettingsWorkspaceId();
         const input = document.getElementById('bookmarkFolderCreatorNameInput');
         const select = document.getElementById('bookmarkFolderCreatorParentSelect');
         const folderName = String(input?.value || '').trim();
         const parentId = String(select?.value || '').trim();
+        const folderId = String(getFolderDraft().folderId || '').trim();
+        const initialName = String(getFolderDraft().initialName || '').trim();
 
         if (!folderName) {
             if (typeof showToast === 'function') showToast('Folder name required', 'warning');
@@ -191,7 +288,28 @@ window.categoryFolderCreateDraft = window.categoryFolderCreateDraft || { categor
             return false;
         }
 
-        const created = folderApi.createFolder({
+        if (mode === 'rename') {
+            if (!folderId) return false;
+            if (folderName === initialName) {
+                window.closeBookmarkFolderCreatorModal();
+                return true;
+            }
+            const renamed = folderApi.renameFolder?.({
+                workspaceId,
+                categoryName,
+                folderId,
+                name: folderName
+            });
+            if (!renamed) return false;
+            if (typeof showToast === 'function') showToast(`Folder renamed to "${folderName}"`, 'success');
+            if (isCategorySettingsVisibleFor(categoryName)) {
+                window.renderCategoryFolderManager();
+            }
+            window.closeBookmarkFolderCreatorModal();
+            return true;
+        }
+
+        const created = folderApi.createFolder?.({
             workspaceId,
             categoryName,
             parentId,
@@ -202,8 +320,11 @@ window.categoryFolderCreateDraft = window.categoryFolderCreateDraft || { categor
         if (typeof showToast === 'function') showToast(`Folder "${folderName}" created`, 'success');
         if (input) input.value = '';
         setFolderDraft({
+            mode: 'create',
             categoryName,
-            parentId
+            parentId,
+            folderId: '',
+            initialName: ''
         });
         if (isCategorySettingsVisibleFor(categoryName)) {
             window.renderCategoryFolderManager();

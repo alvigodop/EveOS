@@ -5,7 +5,7 @@ window.EveModuleManifestParts.scripts = [
         'js/modules/core/state.js',
         'js/modules/core/utils.js',
         'js/modules/core/storage.js',
-        'js/modules/features/bookmark-folders.js?v=0.2.3',
+        'js/modules/features/bookmark-folders.js?v=0.2.4',
         'js/modules/core/actions.js',
         'js/modules/core/categories.js',
 
@@ -178,7 +178,7 @@ window.EveModuleManifestParts.scripts = [
         'js/modules/modals/templates/tpl-settings.js?v=0.2.3',
         'js/modules/modals/templates/tpl-bulk.js',
         'js/modules/modals/templates/tpl-emoji.js',
-        'js/modules/modals/templates/tpl-category-settings.js?v=0.2.4',
+        'js/modules/modals/templates/tpl-category-settings.js?v=0.2.5',
         'js/modules/modals/templates/tpl-bookmark-focus.js',
         'js/modules/modals/modal-core.js',
         'js/modules/modals/emoji-picker.js',
@@ -195,7 +195,7 @@ window.EveModuleManifestParts.scripts = [
         'js/modules/modals/modal-settings.modular.js',
         'js/modules/modals/modal-settings.js',
         'js/modules/modals/modal-bulk.js',
-        'js/modules/modals/modal-category-settings.js?v=0.2.45',
+        'js/modules/modals/modal-category-settings.js?v=0.2.46',
         // Modal Logic Modules
         'js/modules/modals/logic/utils.js',
         'js/modules/modals/logic/link-form.shared.data.js?v=0.2.1',

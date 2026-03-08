@@ -57,17 +57,18 @@ window.modalTemplate += `
 <div class="modal-overlay" id="bookmarkFolderCreatorModal" style="z-index:3004;">
     <div class="modal" style="width:460px; max-width:92%;">
         <h2 id="bookmarkFolderCreatorTitle">New Bookmark Folder</h2>
+        <div id="bookmarkFolderCreatorContext" style="font-size:0.84rem; opacity:0.74; margin-top:-6px;">Card: Unsorted | Parent: Root Level</div>
         <div style="display:flex; flex-direction:column; gap:8px;">
             <label for="bookmarkFolderCreatorNameInput" style="font-size:0.82rem; opacity:0.84;">Folder Name</label>
             <input type="text" id="bookmarkFolderCreatorNameInput" placeholder="Folder name" onkeypress="handleCategoryFolderNameEnter(event)">
         </div>
-        <div style="display:flex; flex-direction:column; gap:8px;">
+        <div id="bookmarkFolderCreatorParentRow" style="display:flex; flex-direction:column; gap:8px;">
             <label for="bookmarkFolderCreatorParentSelect" style="font-size:0.82rem; opacity:0.84;">Parent Folder</label>
             <select id="bookmarkFolderCreatorParentSelect"></select>
         </div>
-        <div style="display:flex; gap:10px; margin-top:10px;">
-            <button class="btn-primary" onclick="submitCategoryFolderCreate()">Create Folder</button>
-            <button onclick="clearCategoryFolderCreateForm()">Clear</button>
+        <div style="display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;">
+            <button class="btn-primary" id="bookmarkFolderCreatorSubmitBtn" onclick="submitCategoryFolderCreate()">Create Folder</button>
+            <button id="bookmarkFolderCreatorClearBtn" onclick="clearCategoryFolderCreateForm()">Clear</button>
             <button onclick="closeBookmarkFolderCreatorModal()">Cancel</button>
         </div>
     </div>

@@ -516,21 +516,8 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
 
     window.promptRenameBookmarkFolder = function (categoryName, folderId) {
         const resolvedCategory = getActiveCategoryContext(categoryName);
-        const current = getFolderById(normalizeWorkspaceId(), resolvedCategory, folderId);
-        if (!current) return;
-        const response = window.prompt('Rename folder', current.name);
-        if (response === null) return;
-        const nextName = String(response || '').trim();
-        if (!nextName || nextName === current.name) return;
-        if (!renameFolder({
-            workspaceId: normalizeWorkspaceId(),
-            categoryName: resolvedCategory,
-            folderId,
-            name: nextName
-        })) return;
-        if (typeof showToast === 'function') showToast(`Folder renamed to "${nextName}"`, 'success');
-        if (typeof window.renderCategoryFolderManager === 'function') {
-            window.renderCategoryFolderManager();
+        if (typeof window.openFolderRenamer === 'function') {
+            window.openFolderRenamer(resolvedCategory, folderId);
         }
     };
 
