@@ -40,6 +40,7 @@ window.EveModuleManifestParts.scripts = [
         'js/modules/features/data-transfer.folder-import.js?v=0.2.1',
         'js/modules/features/data-transfer.import-actions.js',
         'js/modules/features/data-transfer.js',
+        'js/modules/features/duplicate-sensor.js',
         'js/modules/features/modular-state-sync.shared.js?v=0.3.0',
         'js/modules/features/modular-state-sync.engine.sync.js?v=0.3.1',
         'js/modules/features/modular-state-sync.engine.runtime.js?v=0.3.1',
@@ -172,7 +173,7 @@ window.EveModuleManifestParts.scripts = [
 
         // Modal Modules
         'js/modules/modals/templates/tpl-core.js?v=0.2.40',
-        'js/modules/modals/templates/tpl-settings.backup.js?v=0.2.1',
+        'js/modules/modals/templates/tpl-settings.backup.js?v=0.2.2',
         'js/modules/modals/templates/tpl-settings.js?v=0.2.3',
         'js/modules/modals/templates/tpl-bulk.js',
         'js/modules/modals/templates/tpl-emoji.js',
@@ -182,6 +183,7 @@ window.EveModuleManifestParts.scripts = [
         'js/modules/modals/emoji-picker.js',
         'js/modules/modals/modal-settings.ratings.js',
         'js/modules/modals/modal-settings.modular.ui.js',
+        'js/modules/modals/modal-settings.duplicates.js?v=0.2.1',
         'js/modules/modals/modal-settings.modular.browser.helpers.files.js?v=0.2.2',
         'js/modules/modals/modal-settings.modular.browser.helpers.normalize.js?v=0.2.2',
         'js/modules/modals/modal-settings.modular.browser.helpers.js?v=0.2.2',

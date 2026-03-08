@@ -12,6 +12,7 @@ window.EveSettingsTemplates.backupPanel = `
                         <option value="card">Card Backup</option>
                         <option value="folder">Folder Backup</option>
                         <option value="bookmark">Bookmark Backup</option>
+                        <option value="duplicates">Duplicate Sensor</option>
                         <option value="modular">Active Data Pack (Primary)</option>
                         <option value="layer">Copy Between Packs (Advanced)</option>
                     </select>
@@ -84,6 +85,30 @@ window.EveSettingsTemplates.backupPanel = `
                             <input type="file" id="importBookmarkFile" style="display:none;" accept=".json" onchange="importBookmarkBackup(this)">
                         </label>
                     </div>
+                </div>
+
+                <div class="backup-panel" data-backup-panel="duplicates">
+                    <h4 style="margin:0 0 10px 0;">Duplicate Sensor</h4>
+                    <div style="font-size:0.78rem; opacity:0.75; margin-bottom:10px;">
+                        Run duplicate scans on demand. This does not change bookmarks or backup state.
+                    </div>
+                    <select id="duplicateSensorScope" onchange="saveSettingsDuplicateSensorScope()" style="width:100%; margin-bottom:8px;">
+                        <option value="folder">Same Folder</option>
+                        <option value="card">Same Card</option>
+                        <option value="workspace">Same Tab</option>
+                        <option value="all_tabs">Across Tabs</option>
+                    </select>
+                    <select id="duplicateSensorWorkspaceSelect" style="width:100%; margin-bottom:8px;"></select>
+                    <select id="duplicateSensorCategorySelect" style="width:100%; margin-bottom:8px;"></select>
+                    <select id="duplicateSensorFolderSelect" style="width:100%; margin-bottom:10px;"></select>
+                    <div class="btn-action-row">
+                        <button onclick="runDuplicateSensor()" class="btn-backup">Run Duplicate Scan</button>
+                        <button onclick="clearDuplicateSensorResults()" class="btn-restore" style="border:none;">Clear Results</button>
+                    </div>
+                    <div id="duplicateSensorSummary" style="font-size:0.8rem; opacity:0.82; margin-top:10px;">
+                        Choose a scope and run a scan.
+                    </div>
+                    <div id="duplicateSensorResults" style="margin-top:8px; max-height:240px; overflow:auto; display:flex; flex-direction:column; gap:8px;"></div>
                 </div>
 
                 <div class="backup-panel" data-backup-panel="modular">

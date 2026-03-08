@@ -67,6 +67,7 @@ function openSettings() {
     if (typeof refreshCardBackupList === 'function') refreshCardBackupList();
     if (typeof refreshFolderBackupList === 'function') refreshFolderBackupList();
     if (typeof refreshBookmarkBackupList === 'function') refreshBookmarkBackupList();
+    if (typeof refreshDuplicateSensorControls === 'function') refreshDuplicateSensorControls();
 
     refreshModularLayerSelectors();
     refreshModularStorePathFromServer();
