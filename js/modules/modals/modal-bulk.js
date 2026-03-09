@@ -64,8 +64,7 @@ function processBulk() {
                 category: targetCategory,
                 workspace: config.activeWorkspace,
                 icon: '',
-                done: false,
-                pinned: false
+                done: false
             });
         } else {
             const url = raw;
@@ -76,8 +75,7 @@ function processBulk() {
                 category: targetCategory,
                 workspace: config.activeWorkspace,
                 icon: '',
-                done: false,
-                pinned: false
+                done: false
             });
         }
 

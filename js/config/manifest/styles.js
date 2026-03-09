@@ -3,14 +3,14 @@ window.EveModuleManifestParts = window.EveModuleManifestParts || {};
 window.EveModuleManifestParts.styles = [
         // UI Modules
         'js/modules/ui/sidebar.css?v=0.2.36',
-        'js/modules/ui/dashboard/dashboard.css?v=0.2.4',
+        'js/modules/ui/dashboard/dashboard.css?v=0.2.5',
         'js/modules/ui/dashboard/unidex-view.css?v=0.2.40',
         'js/modules/ui/dashboard/unidex-view.base.css?v=0.2.1',
         'js/modules/ui/dashboard/unidex-view.entries.css?v=0.2.1',
         'js/modules/ui/dashboard/unidex-view.theme.css?v=0.2.1',
         'js/modules/ui/dashboard/unidex-view.responsive.css?v=0.2.1',
         'js/modules/ui/dashboard/categories/focused-card.css?v=0.2.68',
-        'js/modules/ui/dashboard/dock.css?v=0.2.2',
+        'js/modules/ui/dashboard/dock.css?v=0.2.3',
         'js/modules/ui/bulk-toolbar.css',
         'js/modules/ui/scratchpad.css',
         'js/modules/ui/context-menus/styles.css?v=0.2.40',

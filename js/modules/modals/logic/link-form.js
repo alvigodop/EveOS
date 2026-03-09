@@ -174,7 +174,6 @@ window.EveLinkForm = window.EveLinkForm || {};
                 folderId: folderId || undefined,
                 icon,
                 done: false,
-                pinned: false,
                 priority: prio,
                 workspace: config.activeWorkspace,
                 sources: [...window.tempSources]

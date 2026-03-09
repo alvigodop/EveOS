@@ -49,6 +49,10 @@ window.DashboardCategoriesModules = window.DashboardCategoriesModules || {};
         return false;
     }
 
+    function isPinned(linkId) {
+        return !!window.EveQuickPins?.isBookmarkPinned?.(linkId);
+    }
+
     function buildFocusedLinkHtml(link, options) {
         const renderOptions = options || {};
         const isTaskMode = renderOptions.taskEnabled !== undefined
@@ -117,7 +121,8 @@ window.DashboardCategoriesModules = window.DashboardCategoriesModules || {};
         const taskTagHtml = isTaskMode
             ? '<span class="unidex-entry-tag ' + (link.done ? 'done' : 'pending') + '">' + (link.done ? 'Done' : 'Pending') + '</span>'
             : '';
-        const pinnedTagHtml = link.pinned ? '<span class="unidex-entry-tag pinned">Pinned</span>' : '';
+        const bookmarkPinned = isPinned(normalizedId);
+        const pinnedTagHtml = bookmarkPinned ? '<span class="unidex-entry-tag pinned">Pinned</span>' : '';
         const doneActionHtml = isTaskMode
             ? '<button type="button" class="unidex-entry-btn" onclick="toggleDone(' + jsIdLiteral + ')">' + (link.done ? 'Undo Done' : 'Mark Done') + '</button>'
             : '';
@@ -146,7 +151,7 @@ window.DashboardCategoriesModules = window.DashboardCategoriesModules || {};
                 + '</div>'
                 + '<div class="unidex-entry-actions focused-entry-actions">'
                     + '<button type="button" class="unidex-entry-btn" onclick="return window.DashboardCategories.openFocusedEntry(' + jsIdLiteral + ', event)">Open</button>'
-                    + '<button type="button" class="unidex-entry-btn" onclick="togglePin(' + jsIdLiteral + ')">' + (link.pinned ? 'Unpin' : 'Pin') + '</button>'
+                    + '<button type="button" class="unidex-entry-btn" onclick="togglePin(' + jsIdLiteral + ')">' + (bookmarkPinned ? 'Unpin' : 'Pin') + '</button>'
                     + doneActionHtml
                     + '<button type="button" class="unidex-entry-btn" onclick="openEdit(' + jsIdLiteral + ')">Edit</button>'
                     + '<button type="button" class="unidex-entry-btn danger" onclick="deleteLink(' + jsIdLiteral + ')">Delete</button>'

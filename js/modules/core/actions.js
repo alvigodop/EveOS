@@ -10,22 +10,20 @@ function switchWorkspace(id) {
 
 function togglePin(id) {
     const targetId = String(id);
-    if (window.EveQuickPins?.toggleBookmarkPin) {
-        const link = typeof window.EveQuickPins.getLinkById === 'function'
-            ? window.EveQuickPins.getLinkById(targetId)
-            : (links.find(x => String(x?.id) === targetId) || null);
-        const scopeType = typeof window.EveQuickPins.resolveDefaultBookmarkScopeType === 'function'
-            ? window.EveQuickPins.resolveDefaultBookmarkScopeType(link || targetId)
-            : 'tab';
-        return window.EveQuickPins.toggleBookmarkPin(targetId, { scopeType });
+    if (!window.EveQuickPins?.toggleBookmarkPin) {
+        console.warn('[QuickPins] toggleBookmarkPin unavailable; pin toggle skipped.');
+        if (typeof showToast === 'function') {
+            showToast('Pin controls are not ready yet.', 'warning');
+        }
+        return false;
     }
-    const l = links.find(x => String(x.id) === targetId);
-    if (!l) return false;
-    l.pinned = !l.pinned;
-    const dock = document.getElementById('dock-container');
-    if (dock && typeof renderDashboard === 'function') renderDashboard();
-    saveData();
-    return !!l.pinned;
+    const link = typeof window.EveQuickPins.getLinkById === 'function'
+        ? window.EveQuickPins.getLinkById(targetId)
+        : (links.find(x => String(x?.id) === targetId) || null);
+    const scopeType = typeof window.EveQuickPins.resolveDefaultBookmarkScopeType === 'function'
+        ? window.EveQuickPins.resolveDefaultBookmarkScopeType(link || targetId)
+        : 'card';
+    return window.EveQuickPins.toggleBookmarkPin(targetId, { scopeType });
 }
 
 function toggleDone(id) {

@@ -50,6 +50,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 const safeCategoryLabel = showCategoryTag
                     ? escapeHtml(String(rawCategoryLabel || 'Unsorted'))
                     : '';
+                const isPinned = !!window.EveQuickPins?.isBookmarkPinned?.(link.id);
                 const libraryEntry = getLinkedLibraryEntry(link.id);
                 const isLibraryLinked = !!libraryEntry;
                 const confidenceValue = isLibraryLinked ? getEntryConfidence(libraryEntry) : null;
@@ -150,7 +151,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                             ${taskTagHtml}
                             ${libraryTagHtml}
                             ${confidenceTagHtml}
-                            ${link.pinned ? '<span class="unidex-entry-tag pinned">Pinned</span>' : ''}
+                            ${isPinned ? '<span class="unidex-entry-tag pinned">Pinned</span>' : ''}
                         </div>
                     </div>
                     <div class="unidex-entry-actions">

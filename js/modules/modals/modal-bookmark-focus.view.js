@@ -60,9 +60,7 @@ window.EveBookmarkFocus = window.EveBookmarkFocus || {};
             ? !!window.EveBookmarkFolders.isTaskEnabledForLink(link)
             : true;
         if (pinBtn) {
-            const isPinned = window.EveQuickPins?.isBookmarkPinned
-                ? !!window.EveQuickPins.isBookmarkPinned(link?.id)
-                : !!link?.pinned;
+            const isPinned = !!window.EveQuickPins?.isBookmarkPinned?.(link?.id);
             pinBtn.textContent = isPinned ? 'Unpin' : 'Pin';
         }
         if (doneBtn) {

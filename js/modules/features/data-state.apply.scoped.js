@@ -20,6 +20,13 @@ window.EveDataStore = window.EveDataStore || {};
     const getConnectionCategoryName = ns.getConnectionCategoryName;
     const findCategoryLibraryData = ns.findCategoryLibraryData;
 
+    function stripLegacyPinnedFlag(entry) {
+        if (!entry || typeof entry !== 'object') return entry;
+        const nextEntry = { ...(entry || {}) };
+        delete nextEntry.pinned;
+        return nextEntry;
+    }
+
     function mergeLibraryEntries(existingEntries, incomingEntries) {
         const merged = new Map();
         (Array.isArray(existingEntries) ? existingEntries : []).forEach((entry) => {
@@ -217,7 +224,7 @@ window.EveDataStore = window.EveDataStore || {};
 
         if (state.bookmarks) {
             if (Array.isArray(state.bookmarks.links)) {
-                ns.setLinks(state.bookmarks.links);
+                ns.setLinks(state.bookmarks.links.map(stripLegacyPinnedFlag));
             }
             if (state.bookmarks.config && typeof state.bookmarks.config === 'object') {
                 ns.setConfig(state.bookmarks.config);
@@ -252,7 +259,7 @@ window.EveDataStore = window.EveDataStore || {};
 
         if (Array.isArray(state.bookmarks?.links)) {
             const remaining = getLinks().filter(entry => entry.workspace !== workspaceId);
-            ns.setLinks(remaining.concat(state.bookmarks.links.map(entry => ({ ...entry, workspace: workspaceId }))));
+            ns.setLinks(remaining.concat(state.bookmarks.links.map(entry => ({ ...stripLegacyPinnedFlag(entry), workspace: workspaceId }))));
         }
 
         if (state.bookmarks?.config) {
@@ -287,7 +294,7 @@ window.EveDataStore = window.EveDataStore || {};
         if (Array.isArray(state.bookmarks?.links)) {
             const remaining = getLinks().filter(entry => !(entry.workspace === workspaceId && (entry.category || 'Unsorted') === categoryName));
             const incoming = state.bookmarks.links.map(entry => ({
-                ...entry,
+                ...stripLegacyPinnedFlag(entry),
                 workspace: workspaceId,
                 category: categoryName
             }));
@@ -349,7 +356,7 @@ window.EveDataStore = window.EveDataStore || {};
         const incomingLinks = Array.isArray(state.bookmarks?.links) ? state.bookmarks.links : [];
         if (!incomingLinks.length) return false;
 
-        const incomingLink = { ...incomingLinks[0] };
+        const incomingLink = stripLegacyPinnedFlag(incomingLinks[0]);
         const workspaceId = String(
             state.metadata?.workspaceId
             || incomingLink.workspace
@@ -445,7 +452,7 @@ window.EveDataStore = window.EveDataStore || {};
 
         const incomingLinks = Array.isArray(state.bookmarks?.links)
             ? state.bookmarks.links.map((entry) => ({
-                ...entry,
+                ...stripLegacyPinnedFlag(entry),
                 workspace: workspaceId,
                 category: categoryName
             }))

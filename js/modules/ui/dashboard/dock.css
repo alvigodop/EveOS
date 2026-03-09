@@ -1,4 +1,16 @@
 /* --- DOCK --- */
+:root {
+    --dock-icon-bg: color-mix(in srgb, var(--input-bg, #2c2c2c) 78%, black 22%);
+    --dock-icon-border: color-mix(in srgb, var(--border, rgba(255,255,255,0.15)) 72%, transparent 28%);
+    --dock-badge-bg: color-mix(in srgb, var(--input-bg, #444) 26%, transparent 74%);
+}
+
+html[data-native-scheme="light"] {
+    --dock-icon-bg: color-mix(in srgb, var(--input-bg, #ffffff) 82%, #d9d9d9 18%);
+    --dock-icon-border: color-mix(in srgb, rgba(0, 0, 0, 0.16) 70%, transparent 30%);
+    --dock-badge-bg: color-mix(in srgb, var(--input-bg, #ffffff) 72%, #d9d9d9 28%);
+}
+
 #dock-container {
     margin: 0 auto 30px auto;
     background: var(--dock-bg);
@@ -43,7 +55,9 @@
     width: 32px;
     height: 32px;
     border-radius: 6px;
-    background: color-mix(in srgb, var(--feature-color, #333) 82%, black 18%);
+    background: var(--dock-icon-bg);
+    border: 1px solid var(--dock-icon-border);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
     padding: 5px;
     display: flex;
     align-items: center;
@@ -59,7 +73,7 @@
     letter-spacing: 0.04em;
     text-transform: uppercase;
     color: var(--text-muted);
-    background: color-mix(in srgb, var(--feature-color, #444) 26%, transparent 74%);
+    background: var(--dock-badge-bg);
     border: 1px solid color-mix(in srgb, var(--border, rgba(255,255,255,0.15)) 68%, transparent 32%);
 }
 

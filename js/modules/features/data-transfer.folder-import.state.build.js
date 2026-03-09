@@ -191,6 +191,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             (Array.isArray(tab.parsedCards) ? tab.parsedCards : []).forEach((card) => {
                 (Array.isArray(card.links) ? card.links : []).forEach((link) => {
                     const normalized = { ...link, workspace: card.workspaceId, category: card.categoryName };
+                    delete normalized.pinned;
                     const linkId = String(normalized.id || '').trim();
                     if (!linkId) return;
                     linkMap.set(linkId, normalized);

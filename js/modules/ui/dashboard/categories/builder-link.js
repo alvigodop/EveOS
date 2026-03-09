@@ -29,9 +29,7 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
     const pClass = l.priority ? `p-${l.priority}` : '';
     const linkId = String(l.id);
     const isChecked = (typeof selectedIds !== 'undefined' && selectedIds.has(linkId)) ? 'checked' : '';
-    const isPinned = window.EveQuickPins?.isBookmarkPinned
-        ? !!window.EveQuickPins.isBookmarkPinned(linkId)
-        : !!l.pinned;
+    const isPinned = !!window.EveQuickPins?.isBookmarkPinned?.(linkId);
     const encodedLinkId = encodeURIComponent(linkId);
     const jsLinkIdLiteral = `'${linkId.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
 

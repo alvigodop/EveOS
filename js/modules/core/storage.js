@@ -5,7 +5,15 @@ const EVE_BOOKMARK_FOLDERS_KEY = 'eveV22BookmarkFolders';
 const EVE_QUICK_PINS_KEY = 'eveV22QuickPins';
 
 function saveData() {
-    localStorage.setItem(EVE_LINKS_KEY, JSON.stringify(links));
+    const sanitizedLinks = Array.isArray(links)
+        ? links.map((link) => {
+            if (!link || typeof link !== 'object') return link;
+            const nextLink = { ...link };
+            delete nextLink.pinned;
+            return nextLink;
+        })
+        : [];
+    localStorage.setItem(EVE_LINKS_KEY, JSON.stringify(sanitizedLinks));
     localStorage.setItem(EVE_BOOKMARK_FOLDERS_KEY, JSON.stringify(
         (typeof bookmarkFolders !== 'undefined' && bookmarkFolders && typeof bookmarkFolders === 'object')
             ? bookmarkFolders
@@ -75,7 +83,7 @@ function loadData() {
     if (notesArea) notesArea.value = notes || "";
 
     // Default links if empty
-    if (links.length === 0) links = [{ id: 1, title: "Welcome", url: "#", category: "Start", done: false, pinned: false, workspace: 'main', icon: '👋' }];
+    if (links.length === 0) links = [{ id: 1, title: "Welcome", url: "#", category: "Start", done: false, workspace: 'main', icon: '👋' }];
 
     if (window.EveQuickPins?.migrateLegacyPins) {
         window.EveQuickPins.migrateLegacyPins();

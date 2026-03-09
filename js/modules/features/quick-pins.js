@@ -176,23 +176,16 @@ window.EveQuickPins = window.EveQuickPins || {};
         return normalized.map((pin, index) => ({ ...pin, order: index }));
     }
 
-    function syncLegacyBookmarkPinnedFlags() {
-        const pinnedBookmarkIds = new Set(
-            getStore()
-                .filter((pin) => pin?.targetType === 'bookmark')
-                .map((pin) => toId(pin.targetId))
-                .filter(Boolean)
-        );
+    function clearLegacyBookmarkPinnedFlags() {
         getLinks().forEach((link) => {
-            const linkId = toId(link?.id);
-            if (!linkId) return;
-            link.pinned = pinnedBookmarkIds.has(linkId);
+            if (!link || typeof link !== 'object' || !Object.prototype.hasOwnProperty.call(link, 'pinned')) return;
+            delete link.pinned;
         });
     }
 
     function writeStore(nextPins, options = {}) {
         setRawStore(normalizePins(nextPins));
-        syncLegacyBookmarkPinnedFlags();
+        clearLegacyBookmarkPinnedFlags();
         if (typeof renderDashboard === 'function') {
             renderDashboard();
         }
@@ -219,7 +212,7 @@ window.EveQuickPins = window.EveQuickPins || {};
         if (JSON.stringify(currentPins) !== JSON.stringify(getStore())) {
             setRawStore(currentPins);
         }
-        syncLegacyBookmarkPinnedFlags();
+        clearLegacyBookmarkPinnedFlags();
         return false;
     }
 
