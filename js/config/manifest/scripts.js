@@ -58,7 +58,7 @@ window.EveModuleManifestParts.scripts = [
         'js/modules/features/header-controls/hc-ui.form.js',
         'js/modules/features/header-controls/hc-ui.js',
         'js/modules/ui/sidebar.js?v=0.2.36',
-        'js/modules/ui/dashboard/dashboard-dock.js?v=0.2.1',
+        'js/modules/ui/dashboard/dashboard-dock.js?v=0.2.2',
         // Dashboard Categories Modules
         'js/modules/ui/dashboard/categories/sorter.js?v=0.2.41',
         'js/modules/ui/dashboard/categories/builder-link.js?v=0.2.44',

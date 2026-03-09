@@ -12,10 +12,17 @@ window.renderDock = function (_visibleLinks, dockContainer, focusCategory) {
         activeWorkspace: window.eveState?.config?.activeWorkspace,
         focusCategory: focusCategory || ''
     });
+    const activePinIds = activePins.map((pin) => String(pin.id || '')).filter(Boolean);
 
     if (!activePins.length) {
         dockContainer.classList.add('hidden');
         return;
+    }
+
+    function getTargetBadgeLabel(pin) {
+        if (pin.targetType === 'folder') return 'Folder';
+        if (pin.targetType === 'card') return 'Card';
+        return 'Link';
     }
 
     function buildBookmarkIcon(pin) {
@@ -85,9 +92,9 @@ window.renderDock = function (_visibleLinks, dockContainer, focusCategory) {
 
     dockContainer.classList.remove('hidden');
 
-    activePins.forEach((pin) => {
+    activePins.forEach((pin, index) => {
         const item = document.createElement('div');
-        item.className = 'dock-item';
+        item.className = `dock-item dock-item--${pin.targetType || 'bookmark'}`;
         item.dataset.pinId = String(pin.id || '');
         item.title = String(pin.meta || pin.label || pin.targetId || 'Pinned');
         item.addEventListener('click', function () {
@@ -102,7 +109,12 @@ window.renderDock = function (_visibleLinks, dockContainer, focusCategory) {
         title.className = 'dock-title';
         title.textContent = String(pin.label || pin.targetId || 'Pinned');
 
+        const badge = document.createElement('div');
+        badge.className = 'dock-badge';
+        badge.textContent = getTargetBadgeLabel(pin);
+
         item.appendChild(icon);
+        item.appendChild(badge);
         item.appendChild(title);
 
         if (pin.meta) {
@@ -112,14 +124,33 @@ window.renderDock = function (_visibleLinks, dockContainer, focusCategory) {
             item.appendChild(meta);
         }
 
-        const remove = document.createElement('div');
-        remove.className = 'dock-remove';
-        remove.innerHTML = '&times;';
-        remove.addEventListener('click', function (event) {
-            event.stopPropagation();
+        const controls = document.createElement('div');
+        controls.className = 'dock-controls';
+
+        function buildControl(label, className, disabled, handler) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = `dock-control ${className}`;
+            button.textContent = label;
+            button.disabled = !!disabled;
+            button.addEventListener('click', function (event) {
+                event.stopPropagation();
+                if (button.disabled) return;
+                handler();
+            });
+            return button;
+        }
+
+        controls.appendChild(buildControl('←', 'dock-control--move-left', index === 0, function () {
+            pinApi.movePin?.(pin.id, 'left', { visiblePinIds: activePinIds });
+        }));
+        controls.appendChild(buildControl('→', 'dock-control--move-right', index === activePins.length - 1, function () {
+            pinApi.movePin?.(pin.id, 'right', { visiblePinIds: activePinIds });
+        }));
+        controls.appendChild(buildControl('×', 'dock-control--remove', false, function () {
             pinApi.removePin?.(pin.id);
-        });
-        item.appendChild(remove);
+        }));
+        item.appendChild(controls);
 
         dockContainer.appendChild(item);
     });

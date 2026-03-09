@@ -699,6 +699,40 @@ window.EveQuickPins = window.EveQuickPins || {};
         return removePins((pin) => toId(pin.id) === normalizedId, options);
     }
 
+    function movePin(pinId, direction, options = {}) {
+        const normalizedId = toId(pinId);
+        const pins = getPins();
+        if (!normalizedId || !pins.length) return false;
+
+        const step = direction === 'left' || direction === -1 ? -1 : 1;
+        const existingIds = new Set(pins.map((pin) => toId(pin.id)).filter(Boolean));
+        const requestedSubset = Array.isArray(options.visiblePinIds)
+            ? options.visiblePinIds.map(toId).filter((id) => existingIds.has(id))
+            : pins.map((pin) => toId(pin.id));
+        const subsetIds = Array.from(new Set(requestedSubset));
+        const subsetIndex = subsetIds.indexOf(normalizedId);
+        if (subsetIndex < 0) return false;
+
+        const targetIndex = subsetIndex + step;
+        if (targetIndex < 0 || targetIndex >= subsetIds.length) return false;
+
+        const reorderedSubsetIds = subsetIds.slice();
+        [reorderedSubsetIds[subsetIndex], reorderedSubsetIds[targetIndex]] = [reorderedSubsetIds[targetIndex], reorderedSubsetIds[subsetIndex]];
+
+        const subsetIdSet = new Set(reorderedSubsetIds);
+        const pinsById = new Map(pins.map((pin) => [toId(pin.id), pin]));
+        let replacementIndex = 0;
+        const nextPins = pins.map((pin) => {
+            const currentId = toId(pin.id);
+            if (!subsetIdSet.has(currentId)) return pin;
+            const replacementId = reorderedSubsetIds[replacementIndex++];
+            return pinsById.get(replacementId) || pin;
+        }).map((pin, index) => ({ ...pin, order: index }));
+
+        writeStore(nextPins, options);
+        return true;
+    }
+
     function filterPinsForWorkspace(workspaceId) {
         const targetWorkspaceId = normalizeWorkspaceId(workspaceId);
         return getPins().filter((pin) => getTargetContext(pin)?.workspaceId === targetWorkspaceId);
@@ -817,6 +851,7 @@ window.EveQuickPins = window.EveQuickPins || {};
         getActiveDockPins,
         activatePin,
         removePin,
+        movePin,
         filterPinsForWorkspace,
         filterPinsForCard,
         filterPinsForFolder,
