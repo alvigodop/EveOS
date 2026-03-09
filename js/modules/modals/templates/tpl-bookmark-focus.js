@@ -16,17 +16,19 @@ window.modalTemplate += `
             <button type="button" onclick="bookmarkFocusDelete()" style="border:1px solid var(--danger); color:var(--danger); background:transparent;">Delete</button>
         </div>
 
-        <div id="bookmarkFocusClickSection" style="border-top:1px solid rgba(255,255,255,0.14); padding-top:12px; display:flex; flex-direction:column; gap:8px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
-                <strong>Click Behavior Override</strong>
-                <span id="bookmarkFocusClickSummary" style="font-size:0.78rem; opacity:0.8;"></span>
+        <details id="bookmarkFocusClickSection" class="settings-disclosure">
+            <summary class="settings-disclosure-summary settings-disclosure-summary--split">
+                <span class="settings-disclosure-summary__label">&#128433; Click Behavior Override</span>
+                <span id="bookmarkFocusClickSummary" class="settings-disclosure-summary__meta"></span>
+            </summary>
+            <div class="settings-disclosure-body" style="display:flex; flex-direction:column; gap:8px;">
+                <div style="display:flex; flex-direction:column; gap:4px;">
+                    <label for="bookmarkFocusClickBehavior" style="font-size:0.75rem; opacity:0.8;">Bookmark Click Behavior</label>
+                    <select id="bookmarkFocusClickBehavior" onchange="bookmarkFocusSaveClickBehavior(this.value)"></select>
+                </div>
+                <div id="bookmarkFocusClickHint" style="font-size:0.8rem; opacity:0.72;"></div>
             </div>
-            <div style="display:flex; flex-direction:column; gap:4px;">
-                <label for="bookmarkFocusClickBehavior" style="font-size:0.75rem; opacity:0.8;">Bookmark Click Behavior</label>
-                <select id="bookmarkFocusClickBehavior" onchange="bookmarkFocusSaveClickBehavior(this.value)"></select>
-            </div>
-            <div id="bookmarkFocusClickHint" style="font-size:0.8rem; opacity:0.72;"></div>
-        </div>
+        </details>
 
         <div id="bookmarkFocusLibrarySection" style="border-top:1px solid rgba(255,255,255,0.14); padding-top:12px; display:flex; flex-direction:column; gap:10px;">
             <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">

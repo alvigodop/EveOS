@@ -180,7 +180,7 @@ window.EveModuleManifestParts.scripts = [
         'js/modules/modals/templates/tpl-bulk.js',
         'js/modules/modals/templates/tpl-emoji.js',
         'js/modules/modals/templates/tpl-category-settings.js?v=0.2.12',
-        'js/modules/modals/templates/tpl-bookmark-focus.js?v=0.2.1',
+'js/modules/modals/templates/tpl-bookmark-focus.js?v=0.2.2',
         'js/modules/modals/modal-core.js',
         'js/modules/modals/emoji-picker.js',
         'js/modules/modals/modal-settings.ratings.js',

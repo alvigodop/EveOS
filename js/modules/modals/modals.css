@@ -178,7 +178,8 @@ html[data-native-scheme="light"] #settingsModal .modal option {
     list-style: none;
     cursor: pointer;
     user-select: none;
-    font-weight: 600;
+    font: inherit;
+    font-weight: 400;
     padding: 8px 12px;
     display: block;
     position: relative;
@@ -186,13 +187,13 @@ html[data-native-scheme="light"] #settingsModal .modal option {
     box-sizing: border-box;
     text-align: center;
     color: var(--text-main);
-    background: #333;
-    border: none;
+    background: var(--input-bg);
+    border: 1px solid rgba(128, 128, 128, 0.35);
     border-radius: 6px;
     margin: 0;
     min-height: 37px;
-    line-height: 21px;
-    transition: background 0.2s ease, color 0.2s ease;
+    line-height: normal;
+    transition: filter 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 }
 
 .settings-disclosure-summary::-webkit-details-marker {
@@ -214,8 +215,35 @@ html[data-native-scheme="light"] #settingsModal .modal option {
 }
 
 .settings-disclosure-summary:hover {
-    background: #444;
+    background: var(--input-bg);
+    border-color: var(--accent);
     color: var(--text-main);
+    filter: brightness(1.05);
+}
+
+.settings-disclosure-summary--split {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    text-align: left;
+    padding-right: 34px;
+}
+
+.settings-disclosure-summary__label {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.settings-disclosure-summary__meta {
+    flex: 0 1 auto;
+    min-width: 0;
+    margin-right: 10px;
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .settings-disclosure-body {
@@ -223,7 +251,7 @@ html[data-native-scheme="light"] #settingsModal .modal option {
     padding: 12px;
     border: 1px solid rgba(128, 128, 128, 0.28);
     border-radius: 10px;
-    background: rgba(128, 128, 128, 0.04);
+    background: color-mix(in srgb, var(--modal-bg) 92%, var(--input-bg) 8%);
 }
 
 /* Emoji Picker */
