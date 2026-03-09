@@ -6,10 +6,15 @@ window.EveQuickPins = window.EveQuickPins || {};
 
     const TARGET_TYPES = new Set(['bookmark', 'card', 'folder']);
     const BOOKMARK_SCOPE_TYPES = new Set(['tab', 'card', 'folder']);
+    const TARGET_VISIBILITY_SCOPE_TYPES = new Set(['tab', 'card']);
     const BOOKMARK_SCOPE_OPTIONS = [
         { value: 'tab', label: 'Tab' },
         { value: 'card', label: 'Card' },
         { value: 'folder', label: 'Folder' }
+    ];
+    const TARGET_VISIBILITY_SCOPE_OPTIONS = [
+        { value: 'tab', label: 'This Tab' },
+        { value: 'card', label: 'Focused Card Only' }
     ];
 
     function getLinks() {
@@ -64,6 +69,11 @@ window.EveQuickPins = window.EveQuickPins || {};
     function normalizeBookmarkScopeType(value) {
         const normalized = toId(value).toLowerCase();
         return BOOKMARK_SCOPE_TYPES.has(normalized) ? normalized : 'tab';
+    }
+
+    function normalizeTargetVisibilityScopeType(value) {
+        const normalized = toId(value).toLowerCase();
+        return TARGET_VISIBILITY_SCOPE_TYPES.has(normalized) ? normalized : 'tab';
     }
 
     function buildCardTargetId(workspaceId, categoryName) {
@@ -130,12 +140,12 @@ window.EveQuickPins = window.EveQuickPins || {};
             const parsed = parseCardTargetId(source.targetId || buildCardTargetId(source.workspaceId, source.categoryName));
             targetId = buildCardTargetId(parsed.workspaceId, parsed.categoryName);
             if (!targetId) return null;
-            scopeType = 'tab';
+            scopeType = normalizeTargetVisibilityScopeType(source.scopeType || source.scope || 'tab');
         } else if (targetType === 'folder') {
             const parsed = parseFolderTargetId(source.targetId || buildFolderTargetId(source.workspaceId, source.categoryName, source.folderId));
             targetId = buildFolderTargetId(parsed.workspaceId, parsed.categoryName, parsed.folderId);
             if (!targetId) return null;
-            scopeType = 'tab';
+            scopeType = normalizeTargetVisibilityScopeType(source.scopeType || source.scope || 'tab');
         }
 
         const parsedOrder = Number(source.order);
@@ -264,14 +274,44 @@ window.EveQuickPins = window.EveQuickPins || {};
         return BOOKMARK_SCOPE_OPTIONS.filter((option) => option.value !== 'folder' || !!folderId);
     }
 
+    function resolveDefaultBookmarkScopeType(linkOrLinkId) {
+        const link = typeof linkOrLinkId === 'object' && linkOrLinkId
+            ? linkOrLinkId
+            : getLinkById(linkOrLinkId);
+        if (!link) return 'tab';
+        return toId(link.folderId) ? 'folder' : 'card';
+    }
+
     function isCardPinned(workspaceId, categoryName) {
         const targetId = buildCardTargetId(workspaceId, categoryName);
         return getPins().some((pin) => pin.targetType === 'card' && pin.targetId === targetId);
     }
 
+    function getCardScopeType(workspaceId, categoryName) {
+        const targetId = buildCardTargetId(workspaceId, categoryName);
+        const currentPin = getPins().find((pin) => pin.targetType === 'card' && pin.targetId === targetId);
+        return currentPin ? normalizeTargetVisibilityScopeType(currentPin.scopeType) : 'tab';
+    }
+
     function isFolderPinned(workspaceId, categoryName, folderId) {
         const targetId = buildFolderTargetId(workspaceId, categoryName, folderId);
         return !!targetId && getPins().some((pin) => pin.targetType === 'folder' && pin.targetId === targetId);
+    }
+
+    function getFolderScopeType(workspaceId, categoryName, folderId) {
+        const targetId = buildFolderTargetId(workspaceId, categoryName, folderId);
+        const currentPin = getPins().find((pin) => pin.targetType === 'folder' && pin.targetId === targetId);
+        return currentPin ? normalizeTargetVisibilityScopeType(currentPin.scopeType) : 'tab';
+    }
+
+    function getTargetVisibilityScopeOptions() {
+        return TARGET_VISIBILITY_SCOPE_OPTIONS.slice();
+    }
+
+    function describeTargetVisibilityScope(scopeType) {
+        return normalizeTargetVisibilityScopeType(scopeType) === 'card'
+            ? 'Show this pin only while the card is focused.'
+            : 'Show this pin anywhere on the current tab.';
     }
 
     function removePins(predicate, options = {}) {
@@ -392,6 +432,48 @@ window.EveQuickPins = window.EveQuickPins || {};
         return removePins((pin) => pin.targetType === 'bookmark' && validIds.has(toId(pin.targetId)), options);
     }
 
+    function bulkPinBookmarks(linkIds, options = {}) {
+        const validIds = Array.from(new Set((Array.isArray(linkIds) ? linkIds : []).map(toId).filter((linkId) => !!getLinkById(linkId))));
+        if (!validIds.length) return getPins();
+
+        const preserveExisting = options.preserveExisting !== false;
+        const requestedScopeType = toId(options.scopeType) ? normalizeBookmarkScopeType(options.scopeType) : '';
+        const nextPins = getPins().slice();
+
+        validIds.forEach((linkId) => {
+            const link = getLinkById(linkId);
+            if (!link) return;
+
+            const existingIndex = nextPins.findIndex((pin) => pin.targetType === 'bookmark' && toId(pin.targetId) === linkId);
+            if (existingIndex >= 0 && preserveExisting && !requestedScopeType) {
+                return;
+            }
+
+            const allowedScopeTypes = new Set(getBookmarkScopeOptions(link).map((option) => option.value));
+            const fallbackScopeType = resolveDefaultBookmarkScopeType(link);
+            const resolvedScopeType = allowedScopeTypes.has(requestedScopeType)
+                ? requestedScopeType
+                : (allowedScopeTypes.has(fallbackScopeType) ? fallbackScopeType : 'tab');
+
+            const nextPin = {
+                id: existingIndex >= 0 ? nextPins[existingIndex].id : `pin-bookmark-${linkId}`,
+                targetType: 'bookmark',
+                targetId: linkId,
+                scopeType: resolvedScopeType,
+                order: existingIndex >= 0 ? nextPins[existingIndex].order : nextPins.length
+            };
+
+            if (existingIndex >= 0) nextPins[existingIndex] = nextPin;
+            else nextPins.push(nextPin);
+        });
+
+        return writeStore(nextPins, options);
+    }
+
+    function bulkUnpinBookmarks(linkIds, options = {}) {
+        return removeBookmarkPinsByLinkIds(linkIds, options);
+    }
+
     function pinCardRootBookmarks(workspaceId, categoryName, options = {}) {
         const rootLinkIds = getCardRootLinks(workspaceId, categoryName).map((link) => link?.id);
         return upsertBookmarkPins(rootLinkIds, options.scopeType || 'card', options);
@@ -419,7 +501,7 @@ window.EveQuickPins = window.EveQuickPins || {};
             removePins((pin) => pin.targetType === 'card' && pin.targetId === targetId, options);
             return false;
         }
-        upsertPin({ targetType: 'card', targetId }, options);
+        upsertPin({ targetType: 'card', targetId, scopeType: normalizeTargetVisibilityScopeType(options.scopeType || 'tab') }, options);
         return true;
     }
 
@@ -430,7 +512,29 @@ window.EveQuickPins = window.EveQuickPins || {};
             removePins((pin) => pin.targetType === 'folder' && pin.targetId === targetId, options);
             return false;
         }
-        upsertPin({ targetType: 'folder', targetId }, options);
+        upsertPin({ targetType: 'folder', targetId, scopeType: normalizeTargetVisibilityScopeType(options.scopeType || 'tab') }, options);
+        return true;
+    }
+
+    function setCardScopeType(workspaceId, categoryName, scopeType, options = {}) {
+        const targetId = buildCardTargetId(workspaceId, categoryName);
+        const currentPin = getPins().find((pin) => pin.targetType === 'card' && pin.targetId === targetId);
+        if (!currentPin) return false;
+        upsertPin({
+            ...currentPin,
+            scopeType: normalizeTargetVisibilityScopeType(scopeType)
+        }, options);
+        return true;
+    }
+
+    function setFolderScopeType(workspaceId, categoryName, folderId, scopeType, options = {}) {
+        const targetId = buildFolderTargetId(workspaceId, categoryName, folderId);
+        const currentPin = getPins().find((pin) => pin.targetType === 'folder' && pin.targetId === targetId);
+        if (!currentPin) return false;
+        upsertPin({
+            ...currentPin,
+            scopeType: normalizeTargetVisibilityScopeType(scopeType)
+        }, options);
         return true;
     }
 
@@ -464,10 +568,12 @@ window.EveQuickPins = window.EveQuickPins || {};
             return `${context.categoryName} | ${folderLabel} | ${scopeLabel}`;
         }
         if (pin.targetType === 'card') {
-            return `${context.categoryName} card`;
+            const scopeLabel = normalizeTargetVisibilityScopeType(pin.scopeType) === 'card' ? 'Focused card only' : 'Tab scoped';
+            return `${context.categoryName} card | ${scopeLabel}`;
         }
         if (pin.targetType === 'folder') {
-            return `${context.categoryName} | Folder`;
+            const scopeLabel = normalizeTargetVisibilityScopeType(pin.scopeType) === 'card' ? 'Focused card only' : 'Tab scoped';
+            return `${context.categoryName} | Folder | ${scopeLabel}`;
         }
         return '';
     }
@@ -495,8 +601,15 @@ window.EveQuickPins = window.EveQuickPins || {};
             if (pin.scopeType === 'folder') return !!resolved.folderId && (!activeCategory || activeCategory === resolved.categoryName);
             return true;
         }
+        if (pin.targetType === 'card') {
+            return normalizeTargetVisibilityScopeType(pin.scopeType) === 'card'
+                ? activeCategory === resolved.categoryName
+                : true;
+        }
         if (pin.targetType === 'folder') {
-            return !activeCategory || activeCategory === resolved.categoryName;
+            return normalizeTargetVisibilityScopeType(pin.scopeType) === 'card'
+                ? activeCategory === resolved.categoryName
+                : true;
         }
         return true;
     }
@@ -682,16 +795,25 @@ window.EveQuickPins = window.EveQuickPins || {};
         isBookmarkPinned,
         getBookmarkScopeType,
         getBookmarkScopeOptions,
+        resolveDefaultBookmarkScopeType,
         isCardPinned,
+        getCardScopeType,
         isFolderPinned,
+        getFolderScopeType,
+        getTargetVisibilityScopeOptions,
+        describeTargetVisibilityScope,
         toggleBookmarkPin,
         setBookmarkScopeType,
+        bulkPinBookmarks,
+        bulkUnpinBookmarks,
         pinCardRootBookmarks,
         unpinCardBookmarks,
         pinFolderBookmarks,
         unpinFolderBookmarks,
         toggleCardPin,
         toggleFolderPin,
+        setCardScopeType,
+        setFolderScopeType,
         getActiveDockPins,
         activatePin,
         removePin,

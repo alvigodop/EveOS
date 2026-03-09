@@ -35,6 +35,11 @@ window.modalTemplate += `
                         <button onclick="switchCategoryTab('folders')" style="flex:1 1 180px;">&#128450; Manage Bookmark Folders</button>
                         <button onclick="closeModals(); ctxCatFocus()" style="flex:1 1 180px;">&#127919; Focus Mode</button>
                         <button onclick="closeModals(); launchCategory(window.currentCategoryCtx)" style="flex:1 1 180px;">&#128640; Launch</button>
+                        <div id="categoryPinCardScopeWrap" style="display:none; flex:1 1 100%; flex-direction:column; gap:6px; margin-top:4px;">
+                            <label for="categoryPinCardScopeSelect" style="font-size:0.78rem; opacity:0.78;">Card Pin Visibility</label>
+                            <select id="categoryPinCardScopeSelect" onchange="saveCategoryCardPinScope(this.value)"></select>
+                            <div id="categoryPinCardScopeHint" style="font-size:0.76rem; opacity:0.68;"></div>
+                        </div>
                     </div>
                 </details>
                 <details class="settings-disclosure">

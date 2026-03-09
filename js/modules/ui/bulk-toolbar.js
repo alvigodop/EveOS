@@ -47,12 +47,49 @@ window.EveBulkToolbar = window.EveBulkToolbar || {};
         updateBulkUI();
     }
 
+    function getSelectedLinkIds() {
+        const selected = getSelectedIds();
+        return getLinks()
+            .filter((link) => selected.has(toBulkId(link?.id)))
+            .map((link) => String(link.id));
+    }
+
     async function bulkDeleteAction() {
         const selected = getSelectedIds();
         if (!(await showConfirm(`Delete ${selected.size}?`))) return;
         replaceLinks(getLinks().filter(link => !selected.has(toBulkId(link.id))));
         toggleBulkModeAction();
         saveData();
+    }
+
+    function bulkPinSelectedAction() {
+        const selectedLinkIds = getSelectedLinkIds();
+        if (!selectedLinkIds.length) {
+            showToast('Select at least one bookmark first.', 'warning');
+            return;
+        }
+        const pinApi = window.EveQuickPins;
+        if (!pinApi?.bulkPinBookmarks) {
+            showToast('Pinning is not available yet.', 'warning');
+            return;
+        }
+        pinApi.bulkPinBookmarks(selectedLinkIds);
+        showToast(`Pinned ${selectedLinkIds.length} selected bookmark${selectedLinkIds.length === 1 ? '' : 's'}.`, 'success');
+    }
+
+    function bulkUnpinSelectedAction() {
+        const selectedLinkIds = getSelectedLinkIds();
+        if (!selectedLinkIds.length) {
+            showToast('Select at least one bookmark first.', 'warning');
+            return;
+        }
+        const pinApi = window.EveQuickPins;
+        if (!pinApi?.bulkUnpinBookmarks) {
+            showToast('Pinning is not available yet.', 'warning');
+            return;
+        }
+        pinApi.bulkUnpinBookmarks(selectedLinkIds);
+        showToast(`Unpinned ${selectedLinkIds.length} selected bookmark${selectedLinkIds.length === 1 ? '' : 's'}.`, 'success');
     }
 
     async function bulkMoveAction() {
@@ -79,6 +116,8 @@ window.EveBulkToolbar = window.EveBulkToolbar || {};
 
     window.toggleBulkMode = toggleBulkModeAction;
     window.toggleSelect = toggleSelectAction;
+    window.bulkPinSelected = bulkPinSelectedAction;
+    window.bulkUnpinSelected = bulkUnpinSelectedAction;
     window.bulkDelete = bulkDeleteAction;
     window.bulkMove = bulkMoveAction;
     window.bulkWorkspace = bulkWorkspaceAction;

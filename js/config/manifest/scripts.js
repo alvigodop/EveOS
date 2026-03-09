@@ -7,7 +7,7 @@ window.EveModuleManifestParts.scripts = [
         'js/modules/core/storage.js?v=0.2.1',
         'js/modules/features/bookmark-folders.js?v=0.2.6',
         'js/modules/features/bookmark-click-behavior.js?v=0.2.1',
-        'js/modules/features/quick-pins.js?v=0.2.4',
+'js/modules/features/quick-pins.js?v=0.2.6',
         'js/modules/core/actions.js?v=0.2.2',
         'js/modules/core/categories.js',
 
@@ -95,11 +95,11 @@ window.EveModuleManifestParts.scripts = [
         'js/modules/ui/context-menus/menus.js?v=0.2.41',
         'js/modules/ui/scratchpad.js',
         'js/modules/ui/bulk-toolbar.shared.js',
-        'js/modules/ui/bulk-toolbar.templates.js',
+        'js/modules/ui/bulk-toolbar.templates.js?v=0.2.2',
         'js/modules/ui/bulk-toolbar.modals.category.js',
         'js/modules/ui/bulk-toolbar.modals.workspace.js',
         'js/modules/ui/bulk-toolbar.modals.js',
-        'js/modules/ui/bulk-toolbar.js',
+        'js/modules/ui/bulk-toolbar.js?v=0.2.2',
 
         // Feature Modules (Consolidated)
         'js/modules/features/weather.js',
@@ -180,7 +180,7 @@ window.EveModuleManifestParts.scripts = [
         'js/modules/modals/templates/tpl-settings.js?v=0.2.4',
         'js/modules/modals/templates/tpl-bulk.js',
         'js/modules/modals/templates/tpl-emoji.js',
-        'js/modules/modals/templates/tpl-category-settings.js?v=0.2.13',
+        'js/modules/modals/templates/tpl-category-settings.js?v=0.2.14',
 'js/modules/modals/templates/tpl-bookmark-focus.js?v=0.2.3',
         'js/modules/modals/modal-core.js',
         'js/modules/modals/emoji-picker.js',
@@ -197,7 +197,7 @@ window.EveModuleManifestParts.scripts = [
         'js/modules/modals/modal-settings.modular.js',
         'js/modules/modals/modal-settings.js?v=0.2.4',
         'js/modules/modals/modal-bulk.js',
-        'js/modules/modals/modal-category-settings.js?v=0.2.52',
+        'js/modules/modals/modal-category-settings.js?v=0.2.53',
         // Modal Logic Modules
         'js/modules/modals/logic/utils.js',
         'js/modules/modals/logic/link-form.shared.data.js?v=0.2.1',

@@ -125,12 +125,30 @@ window.categoryFolderCreateDraft = window.categoryFolderCreateDraft || {
 
     function renderCategoryPinSettings() {
         const pinBtn = document.getElementById('categoryPinCardBtn');
+        const scopeWrap = document.getElementById('categoryPinCardScopeWrap');
+        const scopeSelect = document.getElementById('categoryPinCardScopeSelect');
+        const scopeHint = document.getElementById('categoryPinCardScopeHint');
         const pinApi = getPinApi();
         if (!pinBtn || !pinApi?.isCardPinned) return;
         const categoryName = String(window.currentCategoryCtx || '').trim() || 'Unsorted';
         const workspaceId = getCategorySettingsWorkspaceId();
         const isPinned = !!pinApi.isCardPinned(workspaceId, categoryName);
         pinBtn.innerText = isPinned ? '📌 Unpin Card' : '📌 Pin Card';
+        if (!scopeWrap || !scopeSelect) return;
+        if (!isPinned) {
+            scopeWrap.style.display = 'none';
+            scopeSelect.innerHTML = '';
+            if (scopeHint) scopeHint.textContent = '';
+            return;
+        }
+        const selectedScope = pinApi.getCardScopeType?.(workspaceId, categoryName) || 'tab';
+        const options = pinApi.getTargetVisibilityScopeOptions?.() || [];
+        scopeSelect.innerHTML = options.map((option) => {
+            const selected = option.value === selectedScope ? ' selected' : '';
+            return `<option value="${escapeCategorySettingsHtml(option.value)}"${selected}>${escapeCategorySettingsHtml(option.label)}</option>`;
+        }).join('');
+        if (scopeHint) scopeHint.textContent = pinApi.describeTargetVisibilityScope?.(selectedScope) || '';
+        scopeWrap.style.display = 'flex';
     }
 
     function refreshCategoryPinViews(categoryName) {
@@ -226,6 +244,17 @@ window.categoryFolderCreateDraft = window.categoryFolderCreateDraft || {
                 }).join('')
                 : '<option value="inherit">Inherit Card Task Mode</option>';
             const taskModeHint = folderApi?.describeTaskMode ? folderApi.describeTaskMode(selectedTaskMode) : '';
+            const isFolderPinned = !!pinApi?.isFolderPinned?.(workspaceId, categoryName, folder.id);
+            const selectedPinScope = pinApi?.getFolderScopeType?.(workspaceId, categoryName, folder.id) || 'tab';
+            const pinScopeOptionsHtml = pinApi?.getTargetVisibilityScopeOptions
+                ? pinApi.getTargetVisibilityScopeOptions().map((option) => {
+                    const selected = option.value === selectedPinScope ? ' selected' : '';
+                    return `<option value="${escapeCategorySettingsHtml(option.value)}"${selected}>${escapeCategorySettingsHtml(option.label)}</option>`;
+                }).join('')
+                : '<option value="tab">This Tab</option>';
+            const pinScopeHint = isFolderPinned
+                ? (pinApi?.describeTargetVisibilityScope?.(selectedPinScope) || '')
+                : 'Pin this folder to control where its dock shortcut appears.';
 
             return ''
                 + `<div class="bookmark-folder-manager-row" style="display:flex; flex-direction:column; gap:8px; padding:10px 12px; border:1px solid rgba(255,255,255,0.08); border-radius:10px; background:rgba(255,255,255,0.03); margin-left:${indentPx}px;">`
@@ -236,13 +265,18 @@ window.categoryFolderCreateDraft = window.categoryFolderCreateDraft || {
                         + '</div>'
                         + '<div style="display:flex; gap:6px; flex-wrap:wrap;">'
                             + `<button type="button" onclick="closeModals(); openAddModalForFolder('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">Add Bookmark</button>`
-                            + `<button type="button" onclick="toggleCategoryFolderPin('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">${pinApi?.isFolderPinned?.(workspaceId, categoryName, folder.id) ? 'Unpin' : 'Pin'}</button>`
+                            + `<button type="button" onclick="toggleCategoryFolderPin('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">${isFolderPinned ? 'Unpin' : 'Pin'}</button>`
                             + `<button type="button" onclick="pinCategoryFolderBookmarks('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">Pin Subtree</button>`
                             + `<button type="button" onclick="unpinCategoryFolderBookmarks('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">Unpin Subtree</button>`
                             + `<button type="button" onclick="openFolderCreator('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">Subfolder</button>`
                             + `<button type="button" onclick="promptRenameBookmarkFolder('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">Rename</button>`
                             + `<button type="button" onclick="deleteBookmarkFolderPrompt('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">Delete</button>`
                         + '</div>'
+                    + '</div>'
+                    + '<div style="display:flex; flex-direction:column; gap:4px;">'
+                        + '<label style="font-size:0.74rem; opacity:0.76;">Folder Pin Visibility</label>'
+                        + `<select onchange="saveCategoryFolderPinScope('${safeCategoryJs}', '${safeFolderJs}', this.value)" ${isFolderPinned ? '' : 'disabled'}>${pinScopeOptionsHtml}</select>`
+                        + `<div style="font-size:0.76rem; opacity:0.68;">${escapeCategorySettingsHtml(pinScopeHint)}</div>`
                     + '</div>'
                     + '<div style="display:flex; flex-direction:column; gap:4px;">'
                         + '<label style="font-size:0.74rem; opacity:0.76;">Folder Click Behavior</label>'
@@ -506,6 +540,16 @@ window.categoryFolderCreateDraft = window.categoryFolderCreateDraft || {
         showToast(isPinned ? 'Card pinned to dock' : 'Card unpinned from dock', 'success');
     };
 
+    window.saveCategoryCardPinScope = function (scopeType) {
+        const pinApi = getPinApi();
+        if (!pinApi?.setCardScopeType) return;
+        const categoryName = String(window.currentCategoryCtx || '').trim() || 'Unsorted';
+        const workspaceId = getCategorySettingsWorkspaceId();
+        if (!pinApi.setCardScopeType(workspaceId, categoryName, scopeType)) return;
+        refreshCategoryPinViews(categoryName);
+        showToast('Card pin visibility updated', 'success');
+    };
+
     window.toggleCategoryFolderPin = function (categoryName, folderId) {
         const pinApi = getPinApi();
         if (!pinApi?.toggleFolderPin) return;
@@ -514,6 +558,16 @@ window.categoryFolderCreateDraft = window.categoryFolderCreateDraft || {
         const isPinned = !!pinApi.toggleFolderPin(workspaceId, resolvedCategory, folderId);
         refreshCategoryPinViews(resolvedCategory);
         showToast(isPinned ? 'Folder pinned to dock' : 'Folder unpinned from dock', 'success');
+    };
+
+    window.saveCategoryFolderPinScope = function (categoryName, folderId, scopeType) {
+        const pinApi = getPinApi();
+        if (!pinApi?.setFolderScopeType) return;
+        const workspaceId = getCategorySettingsWorkspaceId();
+        const resolvedCategory = String(categoryName || window.currentCategoryCtx || 'Unsorted').trim() || 'Unsorted';
+        if (!pinApi.setFolderScopeType(workspaceId, resolvedCategory, folderId, scopeType)) return;
+        refreshCategoryPinViews(resolvedCategory);
+        showToast('Folder pin visibility updated', 'success');
     };
 
     window.pinCategoryRootBookmarks = function (categoryName) {
