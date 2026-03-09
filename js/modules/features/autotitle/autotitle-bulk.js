@@ -63,6 +63,7 @@
                     if (data && data.title && data.title !== "CLOUDFLARE_BLOCK") {
                         l.title = data.title;
                         if (data.icon) l.icon = data.icon; // Set the icon!
+                        if (data.coverUrl) l.coverImage = data.coverUrl;
                         statusSpan.innerText = "✅";
                         updatedCount++;
                     } else if (data && data.title === "CLOUDFLARE_BLOCK") {

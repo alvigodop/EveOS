@@ -22,6 +22,10 @@ window.fetchTitle = async function (btn) {
                     const iconInput = document.getElementById('newIcon');
                     if (iconInput) iconInput.value = data.icon;
                 }
+                if (data.coverUrl) {
+                    const coverInput = document.getElementById('newCoverImage');
+                    if (coverInput) coverInput.value = data.coverUrl;
+                }
             }
         } else {
             showToast("Could not find a title on that page.", "error");

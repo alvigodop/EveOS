@@ -1,5 +1,124 @@
 window.DashboardCategories = window.DashboardCategories || {};
 
+(function () {
+    function toLinkId(value) {
+        if (value === null || value === undefined) return '';
+        return String(value);
+    }
+
+    function findLinkById(linkId) {
+        const targetId = toLinkId(linkId);
+        const linkList = window.eveState?.links || (typeof links !== 'undefined' ? links : []);
+        return Array.isArray(linkList)
+            ? linkList.find((entry) => toLinkId(entry?.id) === targetId) || null
+            : null;
+    }
+
+    function getBookmarkHoverPreview(link) {
+        if (!link) return null;
+        const libraryEntry = window.EveLibrary?.ConnectionsAPI?.getLinkedEntry?.(link.id)?.entry || null;
+        const coverUrl = String(link.coverImage || libraryEntry?.image || libraryEntry?.imageUrl || '').trim();
+        if (!coverUrl) return null;
+
+        let domain = '';
+        try {
+            domain = new URL(link.url).hostname.replace(/^www\./i, '');
+        } catch (error) {
+            domain = String(link.url || '').replace(/^https?:\/\//i, '').split('/')[0];
+        }
+
+        return {
+            coverUrl,
+            title: String(link.title || 'Untitled').trim() || 'Untitled',
+            subtitle: domain || ''
+        };
+    }
+
+    function ensureBookmarkCoverHoverOverlay() {
+        let overlay = document.getElementById('bookmark-cover-hover-overlay');
+        if (overlay) return overlay;
+
+        overlay = document.createElement('div');
+        overlay.id = 'bookmark-cover-hover-overlay';
+        overlay.className = 'bookmark-cover-hover-overlay';
+        overlay.innerHTML = ''
+            + '<div class="bookmark-cover-hover-media">'
+            + '  <img class="bookmark-cover-hover-image" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">'
+            + '</div>'
+            + '<div class="bookmark-cover-hover-copy">'
+            + '  <div class="bookmark-cover-hover-title"></div>'
+            + '  <div class="bookmark-cover-hover-subtitle"></div>'
+            + '</div>';
+        document.body.appendChild(overlay);
+        return overlay;
+    }
+
+    function positionBookmarkCoverHoverOverlay(target, overlay) {
+        if (!target || !overlay) return;
+        const rect = target.getBoundingClientRect();
+        const viewportPadding = 10;
+        const gap = 12;
+        let left = rect.right + gap;
+        if (left + overlay.offsetWidth > window.innerWidth - viewportPadding) {
+            left = rect.left - overlay.offsetWidth - gap;
+        }
+        if (left < viewportPadding) {
+            left = Math.max(viewportPadding, window.innerWidth - overlay.offsetWidth - viewportPadding);
+        }
+
+        let top = rect.top + (rect.height / 2) - (overlay.offsetHeight / 2);
+        const maxTop = window.innerHeight - overlay.offsetHeight - viewportPadding;
+        if (top > maxTop) top = maxTop;
+        if (top < viewportPadding) top = viewportPadding;
+
+        overlay.style.left = Math.round(left) + 'px';
+        overlay.style.top = Math.round(top) + 'px';
+    }
+
+    function showBookmarkCoverHover(event, linkId) {
+        const target = event?.currentTarget;
+        const preview = getBookmarkHoverPreview(findLinkById(linkId));
+        if (!target || !preview) {
+            hideBookmarkCoverHover();
+            return;
+        }
+
+        const overlay = ensureBookmarkCoverHoverOverlay();
+        const image = overlay.querySelector('.bookmark-cover-hover-image');
+        const title = overlay.querySelector('.bookmark-cover-hover-title');
+        const subtitle = overlay.querySelector('.bookmark-cover-hover-subtitle');
+        if (!image || !title || !subtitle) return;
+
+        title.textContent = preview.title;
+        subtitle.textContent = preview.subtitle;
+        image.src = preview.coverUrl;
+        image.alt = preview.title + ' cover';
+        image.onerror = function () {
+            overlay.classList.remove('is-visible');
+        };
+
+        overlay.classList.add('is-visible');
+        positionBookmarkCoverHoverOverlay(target, overlay);
+    }
+
+    function moveBookmarkCoverHover(event) {
+        const target = event?.currentTarget;
+        const overlay = document.getElementById('bookmark-cover-hover-overlay');
+        if (!target || !overlay || !overlay.classList.contains('is-visible')) return;
+        positionBookmarkCoverHoverOverlay(target, overlay);
+    }
+
+    function hideBookmarkCoverHover() {
+        const overlay = document.getElementById('bookmark-cover-hover-overlay');
+        if (!overlay) return;
+        overlay.classList.remove('is-visible');
+    }
+
+    window.showBookmarkCoverHover = showBookmarkCoverHover;
+    window.moveBookmarkCoverHover = moveBookmarkCoverHover;
+    window.hideBookmarkCoverHover = hideBookmarkCoverHover;
+})();
+
 window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspace, workspaces, options) {
     const extraOptions = options || {};
     const LINK_ICON = '\u{1F517}';
@@ -45,7 +164,7 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
         ? `<span class="icon-btn" onclick="toggleDone(${jsLinkIdLiteral})">${CHECK_ICON}</span>`
         : '';
 
-    return `<li class="${doneClass} ${isLocal ? 'is-local' : ''} ${pClass}" draggable="true" ondragstart="drag(event, ${jsLinkIdLiteral})" oncontextmenu="showLinkContextMenu(event, ${jsLinkIdLiteral})">
+    return `<li class="${doneClass} ${isLocal ? 'is-local' : ''} ${pClass}" draggable="true" ondragstart="drag(event, ${jsLinkIdLiteral})" oncontextmenu="showLinkContextMenu(event, ${jsLinkIdLiteral})" onmouseenter="showBookmarkCoverHover(event, ${jsLinkIdLiteral})" onmousemove="moveBookmarkCoverHover(event)" onmouseleave="hideBookmarkCoverHover()">
                 <input type="checkbox" class="bulk-check" onclick="toggleSelect(${jsLinkIdLiteral}, event)" ${isChecked}>
                 ${iconHtml} ${wsBadge} ${folderBadge} <a href="${l.url}" target="_blank" rel="noopener noreferrer" onclick='return (typeof openBookmarkFromDashboard==="function") ? openBookmarkFromDashboard(event, decodeURIComponent("${encodedLinkId}")) : true;'>${l.title}</a>
                 <div class="actions">

@@ -61,9 +61,9 @@ window.EveModuleManifestParts.scripts = [
         'js/modules/ui/dashboard/dashboard-dock.js?v=0.2.2',
         // Dashboard Categories Modules
         'js/modules/ui/dashboard/categories/sorter.js?v=0.2.41',
-        'js/modules/ui/dashboard/categories/builder-link.js?v=0.2.44',
+        'js/modules/ui/dashboard/categories/builder-link.js?v=0.2.45',
         'js/modules/ui/dashboard/categories/focused-link.helpers.js?v=0.2.1',
-        'js/modules/ui/dashboard/categories/focused-link.view.js?v=0.2.2',
+        'js/modules/ui/dashboard/categories/focused-link.view.js?v=0.2.3',
         'js/modules/ui/dashboard/categories/focused-link.js?v=0.2.44',
         'js/modules/ui/dashboard/categories/focused-filter.js?v=0.2.46',
         'js/modules/ui/dashboard/categories/focused-sort.js?v=0.2.1',
@@ -175,7 +175,7 @@ window.EveModuleManifestParts.scripts = [
 
 
         // Modal Modules
-        'js/modules/modals/templates/tpl-core.js?v=0.2.41',
+        'js/modules/modals/templates/tpl-core.js?v=0.2.42',
         'js/modules/modals/templates/tpl-settings.backup.js?v=0.2.7',
         'js/modules/modals/templates/tpl-settings.js?v=0.2.4',
         'js/modules/modals/templates/tpl-bulk.js',
@@ -212,7 +212,7 @@ window.EveModuleManifestParts.scripts = [
         'js/modules/modals/modal-bookmark-focus.metadata.js',
         'js/modules/modals/modal-bookmark-focus.helpers.js',
         'js/modules/modals/modal-bookmark-focus.js?v=0.2.3',
-        'js/modules/modals/logic/link-form.js?v=0.2.39',
+        'js/modules/modals/logic/link-form.js?v=0.2.40',
         'js/modules/modals/logic/category-rename.js',
         'js/modules/modals/logic/workspace.js',
 
@@ -231,13 +231,13 @@ window.EveModuleManifestParts.scripts = [
         'js/modules/features/sources/source-manager.js',
 
         // Autotitle
-        'js/modules/features/autotitle/strategies/allorigins.js',
-        'js/modules/features/autotitle/strategies/corsproxy.js',
+        'js/modules/features/autotitle/strategies/allorigins.js?v=0.2.1',
+        'js/modules/features/autotitle/strategies/corsproxy.js?v=0.2.1',
         'js/modules/features/autotitle/strategies/google-search.js',
         'js/modules/features/autotitle/strategies/url-slug.js',
-        'js/modules/features/autotitle/autotitle-core.js',
-        'js/modules/features/autotitle/autotitle-ui.js',
-        'js/modules/features/autotitle/autotitle-bulk.js',
+        'js/modules/features/autotitle/autotitle-core.js?v=0.2.1',
+        'js/modules/features/autotitle/autotitle-ui.js?v=0.2.1',
+        'js/modules/features/autotitle/autotitle-bulk.js?v=0.2.1',
 'js/modules/features/library/library-bulk-auto-components/lba-utils.text.js?v=0.2.1',
 'js/modules/features/library/library-bulk-auto-components/lba-utils.sources.js?v=0.2.1',
 'js/modules/features/library/library-bulk-auto-components/lba-utils.js?v=0.2.5',

@@ -50,6 +50,37 @@ window.getTitleFromUrl = async function (url) {
         return false;
     }
 
+    function mergeAutotitleResult(primaryResult, candidateResult) {
+        if (!candidateResult) return primaryResult;
+        if (!primaryResult) return { ...candidateResult };
+        return {
+            ...primaryResult,
+            icon: candidateResult.icon || primaryResult.icon || null,
+            coverUrl: candidateResult.coverUrl || primaryResult.coverUrl || null,
+            description: candidateResult.description || primaryResult.description || null,
+            source: candidateResult.source || primaryResult.source,
+            isFallback: !!(primaryResult.isFallback || candidateResult.isFallback),
+            isMicrolinkFallback: !!(primaryResult.isMicrolinkFallback || candidateResult.isMicrolinkFallback)
+        };
+    }
+
+    function adoptAutotitleTitle(primaryResult, candidateResult) {
+        if (!candidateResult?.title) return mergeAutotitleResult(primaryResult, candidateResult);
+        return {
+            ...mergeAutotitleResult(primaryResult, candidateResult),
+            title: candidateResult.title
+        };
+    }
+
+    function isClearlyBetterTitle(candidateResult, primaryResult, url) {
+        if (!candidateResult?.title) return false;
+        if (!primaryResult?.title) return true;
+        if (looksLikeGenericSiteName(primaryResult.title, url) && !looksLikeGenericSiteName(candidateResult.title, url)) {
+            return true;
+        }
+        return candidateResult.title.length > primaryResult.title.length + 5;
+    }
+
     try {
         // For video/content sites, try MicroLink FIRST (OpenGraph has the real title)
         if (isVideoOrContentSite(url) && strats.GoogleSearch) {
@@ -69,8 +100,10 @@ window.getTitleFromUrl = async function (url) {
             primaryResult = await strats.AllOrigins(url, controller.signal);
             if (primaryResult && !looksLikeGenericSiteName(primaryResult.title, url)) {
                 console.log("Autotitle: AllOrigins returned good title:", primaryResult.title);
-                clearTimeout(timeoutId);
-                return primaryResult;
+                if (primaryResult.coverUrl) {
+                    clearTimeout(timeoutId);
+                    return primaryResult;
+                }
             }
         }
 
@@ -80,11 +113,20 @@ window.getTitleFromUrl = async function (url) {
             const corsResult = await strats.CorsProxy(url, controller.signal);
             if (corsResult && !looksLikeGenericSiteName(corsResult.title, url)) {
                 console.log("Autotitle: CorsProxy returned good title:", corsResult.title);
-                clearTimeout(timeoutId);
-                return corsResult;
+                if (!primaryResult || isClearlyBetterTitle(corsResult, primaryResult, url)) {
+                    primaryResult = adoptAutotitleTitle(primaryResult, corsResult);
+                } else if (!primaryResult.coverUrl && corsResult.coverUrl) {
+                    primaryResult = mergeAutotitleResult(primaryResult, corsResult);
+                }
+                if (primaryResult?.coverUrl) {
+                    clearTimeout(timeoutId);
+                    return primaryResult;
+                }
             }
-            if (corsResult && (!primaryResult || corsResult.title.length > primaryResult.title.length)) {
-                primaryResult = corsResult;
+            if (corsResult && (!primaryResult || isClearlyBetterTitle(corsResult, primaryResult, url))) {
+                primaryResult = adoptAutotitleTitle(primaryResult, corsResult);
+            } else if (corsResult && primaryResult && !primaryResult.coverUrl && corsResult.coverUrl) {
+                primaryResult = mergeAutotitleResult(primaryResult, corsResult);
             }
         }
 
@@ -93,10 +135,11 @@ window.getTitleFromUrl = async function (url) {
             console.log("Autotitle: Trying MicroLink for OpenGraph...");
             const microResult = await strats.GoogleSearch(url, controller.signal);
             if (microResult && microResult.title) {
-                if (!primaryResult || microResult.title.length > primaryResult.title.length + 5) {
+                if (!primaryResult || isClearlyBetterTitle(microResult, primaryResult, url)) {
                     console.log("Autotitle: MicroLink returned better title:", microResult.title);
-                    clearTimeout(timeoutId);
-                    return microResult;
+                    primaryResult = adoptAutotitleTitle(primaryResult, microResult);
+                } else if (!primaryResult.coverUrl && microResult.coverUrl) {
+                    primaryResult = mergeAutotitleResult(primaryResult, microResult);
                 }
             }
         }

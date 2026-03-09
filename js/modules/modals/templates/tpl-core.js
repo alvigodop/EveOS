@@ -13,6 +13,10 @@ window.modalTemplate = `
             <input type="text" id="newTitle" placeholder="Title" style="flex:1;">
             <button onclick="searchLinkName()" title="Search by Name">🔍</button>
         </div>
+        <div style="display:flex; flex-direction:column; gap:5px; margin-top:8px;">
+            <label for="newCoverImage" style="font-size:0.82rem; opacity:0.84;">Bookmark Cover Image URL</label>
+            <input type="url" id="newCoverImage" placeholder="https://... (optional)">
+        </div>
         <div id="edit-link-search-results" style="display:none; max-height: 200px; overflow-y: auto; background: rgba(0,0,0,0.3); margin-bottom: 10px; padding: 5px; border-radius: 4px;"></div>
         
         <div style="margin-bottom: 10px;">

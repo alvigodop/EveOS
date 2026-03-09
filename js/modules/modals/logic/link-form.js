@@ -14,6 +14,12 @@ window.EveLinkForm = window.EveLinkForm || {};
         return value;
     }
 
+    function normalizeCoverImageUrl(urlValue) {
+        const value = String(urlValue || '').trim();
+        if (!value) return '';
+        return normalizeUrl(value);
+    }
+
     function ensureAddModalElements() {
         if (!document.getElementById('addModal') && typeof initModals === 'function') {
             initModals();
@@ -27,6 +33,7 @@ window.EveLinkForm = window.EveLinkForm || {};
             newUrl: document.getElementById('newUrl'),
             newCategory: document.getElementById('newCategory'),
             newFolderId: document.getElementById('newFolderId'),
+            newCoverImage: document.getElementById('newCoverImage'),
             newPriority: document.getElementById('newPriority'),
             newIcon: document.getElementById('newIcon'),
             searchResults: document.getElementById('edit-link-search-results')
@@ -84,6 +91,9 @@ window.EveLinkForm = window.EveLinkForm || {};
         } else if (modal.newFolderId) {
             modal.newFolderId.value = '';
         }
+        if (modal.newCoverImage) {
+            modal.newCoverImage.value = '';
+        }
         modal.newPriority.value = "";
         modal.newIcon.value = "";
 
@@ -122,6 +132,9 @@ window.EveLinkForm = window.EveLinkForm || {};
         } else if (modal.newFolderId) {
             modal.newFolderId.value = String(l.folderId || '').trim();
         }
+        if (modal.newCoverImage) {
+            modal.newCoverImage.value = String(l.coverImage || '').trim();
+        }
         modal.newPriority.value = l.priority || "";
         modal.newIcon.value = normalizeManualIcon(l.icon);
 
@@ -144,6 +157,7 @@ window.EveLinkForm = window.EveLinkForm || {};
         const url = normalizeUrl(modal.newUrl.value);
         const cat = modal.newCategory.value.trim() || "Unsorted";
         const folderId = String(modal.newFolderId?.value || '').trim();
+        const coverImage = normalizeCoverImageUrl(modal.newCoverImage?.value);
         const prio = modal.newPriority.value;
         const icon = normalizeManualIcon(modal.newIcon.value);
 
@@ -159,6 +173,8 @@ window.EveLinkForm = window.EveLinkForm || {};
                 links[idx].category = cat;
                 if (folderId) links[idx].folderId = folderId;
                 else delete links[idx].folderId;
+                if (coverImage) links[idx].coverImage = coverImage;
+                else delete links[idx].coverImage;
                 links[idx].priority = prio;
                 links[idx].icon = icon;
                 links[idx].sources = [...window.tempSources];
@@ -172,6 +188,7 @@ window.EveLinkForm = window.EveLinkForm || {};
                 url,
                 category: cat,
                 folderId: folderId || undefined,
+                coverImage: coverImage || undefined,
                 icon,
                 done: false,
                 priority: prio,
