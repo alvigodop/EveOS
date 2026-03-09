@@ -17,6 +17,14 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
         const buildConnectionMap = deps.buildConnectionMap;
         const buildCardFolderName = deps.buildCardFolderName;
         const buildWorkspaceFolderName = deps.buildWorkspaceFolderName;
+        const backupDirs = deps.BACKUP_DIRS || {
+            meta: '_meta',
+            state: 'state',
+            tabs: 'tabs',
+            cards: 'cards',
+            folders: 'folders',
+            entries: 'entries'
+        };
 
         function parseScopedCategoryKey(scopedKey) {
             const raw = String(scopedKey || '').trim();
@@ -74,8 +82,8 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
                     pageUrl: window.location.href,
                     notes: 'Client folder backup snapshot (full data-pack layout + unified state).',
                     files: {
-                        state: 'state/eve_state.json',
-                        tabsRoot: 'tabs/'
+                        state: `${backupDirs.state}/eve_state.json`,
+                        tabsRoot: `${backupDirs.tabs}/`
                     },
                     dataPack: {
                         tabs: Number(storeSummary?.tabsCount || 0),
@@ -115,10 +123,10 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
                 const workspaceMeta = getWorkspaceMeta(workspaceId, workspaceState?.bookmarks?.config);
                 const scopedConfig = buildFallbackConfig(workspaceState?.bookmarks?.config, workspaceMeta);
                 const workspaceFolder = buildWorkspaceFolderName(workspaceId, workspaceMeta.name);
-                const tabRootPath = `tabs/${workspaceFolder}`;
+                const tabRootPath = `${backupDirs.tabs}/${workspaceFolder}`;
                 const cardEntries = buildWorkspaceCardEntries(workspaceId, links, categories, folderTrees);
 
-                await writeJsonFileToFolder(rootHandle, 'state/workspace-state.json', workspaceState || {});
+                await writeJsonFileToFolder(rootHandle, `${backupDirs.state}/workspace-state.json`, workspaceState || {});
                 await writeFallbackMetaFiles(rootHandle, scopedConfig, workspaceMeta);
                 await writeJsonFileToFolder(rootHandle, `${tabRootPath}/tab.json`, {
                     schema: 'eveos.tab.v1',
@@ -132,7 +140,7 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
                 let writtenBookmarks = 0;
                 for (const [categoryName, categoryLinks] of cardEntries) {
                     const cardFolder = buildCardFolderName(categoryName);
-                    const cardRootPath = `${tabRootPath}/cards/${cardFolder}`;
+                    const cardRootPath = `${tabRootPath}/${backupDirs.cards}/${cardFolder}`;
                     writtenBookmarks += await writeScopedCardFolder(
                         rootHandle,
                         cardRootPath,
@@ -175,9 +183,9 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
                 const workspaceMeta = getWorkspaceMeta(workspaceId, cardState?.bookmarks?.config);
                 const scopedConfig = buildFallbackConfig(cardState?.bookmarks?.config, workspaceMeta);
                 const cardFolder = buildCardFolderName(categoryName);
-                const cardRootPath = `cards/${cardFolder}`;
+                const cardRootPath = `${backupDirs.cards}/${cardFolder}`;
 
-                await writeJsonFileToFolder(rootHandle, 'state/card-state.json', cardState || {});
+                await writeJsonFileToFolder(rootHandle, `${backupDirs.state}/card-state.json`, cardState || {});
                 await writeFallbackMetaFiles(rootHandle, scopedConfig, workspaceMeta);
                 const writtenBookmarks = await writeScopedCardFolder(
                     rootHandle,
@@ -219,9 +227,9 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
                 const workspaceMeta = getWorkspaceMeta(workspaceId, folderState?.bookmarks?.config);
                 const scopedConfig = buildFallbackConfig(folderState?.bookmarks?.config, workspaceMeta);
                 const cardFolder = buildCardFolderName(categoryName);
-                const cardRootPath = `cards/${cardFolder}`;
+                const cardRootPath = `${backupDirs.cards}/${cardFolder}`;
 
-                await writeJsonFileToFolder(rootHandle, 'state/folder-state.json', folderState || {});
+                await writeJsonFileToFolder(rootHandle, `${backupDirs.state}/folder-state.json`, folderState || {});
                 await writeFallbackMetaFiles(rootHandle, scopedConfig, workspaceMeta);
                 const writtenBookmarks = await writeScopedCardFolder(
                     rootHandle,

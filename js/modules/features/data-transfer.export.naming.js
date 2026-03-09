@@ -13,8 +13,10 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
         }
 
         function getSuggestedBackupFolderName() {
-            const stamp = new Date().toISOString().replace(/[:]/g, '-').replace(/\..+$/, '');
-            return `eve_backup_${stamp}`;
+            const now = new Date();
+            const pad = (num) => String(num).padStart(2, '0');
+            const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+            return `eve-${stamp}`;
         }
 
         function slugifyFolderSegment(value, fallback = 'item') {
@@ -60,28 +62,28 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
         function buildWorkspaceFolderName(workspaceId, workspaceName) {
             const rawId = String(workspaceId || 'main').trim() || 'main';
             const rawName = String(workspaceName || workspaceId || 'main').trim() || 'main';
-            const idPart = compactSlug(rawId, 'main', 10);
-            const namePart = compactSlug(rawName, 'main', 10);
-            const hash = shortHashHex(`${rawId}::${rawName}`, 6);
-            const stem = idPart === namePart ? idPart : `${idPart}-${namePart}`;
-            return sanitizePathSegment(`${stem}--${hash}`, `${idPart}--${hash}`, 28);
+            const stemSource = rawId || rawName;
+            const stem = compactSlug(stemSource, 'main', 4);
+            const hash = shortHashHex(`${rawId}::${rawName}`, 3);
+            return sanitizePathSegment(`${stem}-${hash}`, `${stem}-${hash}`, 8);
         }
 
         function buildCardFolderName(categoryName) {
             const rawCategory = String(categoryName || 'unsorted').trim() || 'unsorted';
-            const slug = compactSlug(rawCategory, 'unsorted', 18);
-            const hash = shortHashHex(rawCategory, 6);
-            return sanitizePathSegment(`${slug}--${hash}`, `${slug}--${hash}`, 28);
+            const slug = compactSlug(rawCategory, 'unsorted', 7);
+            const hash = shortHashHex(rawCategory, 4);
+            return sanitizePathSegment(`${slug}-${hash}`, `${slug}-${hash}`, 12);
         }
 
         function buildBookmarkFileName(link, categoryName) {
             const rawId = String(link?.id || 'bookmark').trim() || 'bookmark';
             const rawTitle = String(link?.title || 'untitled').trim() || 'untitled';
             const rawUrl = String(link?.url || '').trim();
-            const idPart = sanitizePathSegment(rawId, 'bookmark', 12);
-            const titlePart = sanitizePathSegment(rawTitle, 'untitled', 14);
-            const hash = shortHashHex(`${rawId}::${rawTitle}::${rawUrl}::${categoryName || ''}`, 8);
-            return sanitizePathSegment(`${idPart}--${titlePart}--${hash}.json`, `${idPart}--${hash}.json`, 44);
+            const idPart = sanitizePathSegment(rawId, 'bookmark', 4);
+            const titlePart = sanitizePathSegment(rawTitle, 'untitled', 7);
+            const hash = shortHashHex(`${rawId}::${rawTitle}::${rawUrl}::${categoryName || ''}`, 6);
+            const stem = sanitizePathSegment(`${idPart}-${titlePart}-${hash}`, `${idPart}-${hash}`, 19);
+            return `${stem}.json`;
         }
 
         function buildWorkspaceBackupJsonName(workspaceId, workspaceName) {

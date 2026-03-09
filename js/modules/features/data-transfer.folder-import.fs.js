@@ -13,12 +13,30 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         }
     }
 
+    async function getDirectoryHandleByAliases(parentHandle, names) {
+        const candidates = Array.isArray(names) ? names : [names];
+        for (const name of candidates) {
+            const handle = await getDirectoryHandleIfExists(parentHandle, name);
+            if (handle) return handle;
+        }
+        return null;
+    }
+
     async function getFileHandleIfExists(parentHandle, name) {
         try {
             return await parentHandle.getFileHandle(name);
         } catch {
             return null;
         }
+    }
+
+    async function getFileHandleByAliases(parentHandle, names) {
+        const candidates = Array.isArray(names) ? names : [names];
+        for (const name of candidates) {
+            const handle = await getFileHandleIfExists(parentHandle, name);
+            if (handle) return handle;
+        }
+        return null;
     }
 
     async function readJsonFromFileHandle(fileHandle) {
@@ -46,7 +64,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
     }
 
     async function resolveCardFoldersFromRoot(rootHandle) {
-        const cardsRoot = await getDirectoryHandleIfExists(rootHandle, 'cards');
+        const cardsRoot = await getDirectoryHandleByAliases(rootHandle, ['cards', 'c']);
         if (cardsRoot) {
             const cardFolders = [];
             const entries = await listDirectoryEntries(cardsRoot);
@@ -57,7 +75,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         }
 
         const hasCardFile = !!(await getFileHandleIfExists(rootHandle, 'card.json'));
-        const hasEntriesDir = !!(await getDirectoryHandleIfExists(rootHandle, 'entries'));
+        const hasEntriesDir = !!(await getDirectoryHandleByAliases(rootHandle, ['entries', 'e']));
         if (hasCardFile || hasEntriesDir) {
             return [rootHandle];
         }
@@ -67,21 +85,21 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         for (const { handle } of directEntries) {
             if (handle.kind !== 'directory') continue;
             const childHasCard = !!(await getFileHandleIfExists(handle, 'card.json'));
-            const childHasEntries = !!(await getDirectoryHandleIfExists(handle, 'entries'));
+            const childHasEntries = !!(await getDirectoryHandleByAliases(handle, ['entries', 'e']));
             if (childHasCard || childHasEntries) {
                 directCardFolders.push(handle);
             }
         }
         if (directCardFolders.length > 0) return directCardFolders;
 
-        const tabsRoot = await getDirectoryHandleIfExists(rootHandle, 'tabs');
+        const tabsRoot = await getDirectoryHandleByAliases(rootHandle, ['tabs', 't']);
         if (!tabsRoot) return [];
 
         const fromTabs = [];
         const tabEntries = await listDirectoryEntries(tabsRoot);
         for (const { handle: tabHandle } of tabEntries) {
             if (tabHandle.kind !== 'directory') continue;
-            const tabCardsRoot = await getDirectoryHandleIfExists(tabHandle, 'cards');
+            const tabCardsRoot = await getDirectoryHandleByAliases(tabHandle, ['cards', 'c']);
             if (!tabCardsRoot) continue;
             const cardEntries = await listDirectoryEntries(tabCardsRoot);
             cardEntries.forEach(({ handle }) => {
@@ -92,7 +110,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
     }
 
     async function resolveTabFoldersFromRoot(rootHandle) {
-        const tabsRoot = await getDirectoryHandleIfExists(rootHandle, 'tabs');
+        const tabsRoot = await getDirectoryHandleByAliases(rootHandle, ['tabs', 't']);
         if (tabsRoot) {
             const tabFolders = [];
             const entries = await listDirectoryEntries(tabsRoot);
@@ -112,7 +130,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         for (const { handle } of directEntries) {
             if (handle.kind !== 'directory') continue;
             const childHasTabJson = !!(await getFileHandleIfExists(handle, 'tab.json'));
-            const childHasCardsDir = !!(await getDirectoryHandleIfExists(handle, 'cards'));
+            const childHasCardsDir = !!(await getDirectoryHandleByAliases(handle, ['cards', 'c']));
             if (childHasTabJson || childHasCardsDir) {
                 directTabs.push(handle);
             }
@@ -122,7 +140,9 @@ window.EveDataTransfer = window.EveDataTransfer || {};
 
     Object.assign(ns, {
         getDirectoryHandleIfExists,
+        getDirectoryHandleByAliases,
         getFileHandleIfExists,
+        getFileHandleByAliases,
         readJsonFromFileHandle,
         readJsonFileIfExists,
         listDirectoryEntries,

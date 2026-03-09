@@ -26,7 +26,8 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         findLibraryEntryById: ns.findLibraryEntryById,
         buildCardFolderName: ns.buildCardFolderName,
         buildWorkspaceFolderName: ns.buildWorkspaceFolderName,
-        buildBookmarkFileName: ns.buildBookmarkFileName
+        buildBookmarkFileName: ns.buildBookmarkFileName,
+        BACKUP_DIRS: ns.BACKUP_DIRS
     };
 
     const modules = window.EveDataTransfer.ExportModules || {};

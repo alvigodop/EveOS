@@ -21,6 +21,15 @@ window.EveDataTransfer = window.EveDataTransfer || {};
     const buildConnectionMap = ns.buildConnectionMap;
     const sortLinksForExport = ns.sortLinksForExport;
     const buildBookmarkFileName = ns.buildBookmarkFileName;
+    const shortHashHex = ns.shortHashHex;
+    const BACKUP_DIRS = Object.freeze({
+        meta: '_meta',
+        state: 'state',
+        tabs: 'tabs',
+        cards: 'cards',
+        folders: 'folders',
+        entries: 'entries'
+    });
 
     async function writeTextFileToFolder(rootHandle, relativePath, content) {
         const segments = String(relativePath || '')
@@ -68,14 +77,14 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             workspaces: workspaceList,
             activeWorkspace
         };
-        await writeJsonFileToFolder(rootHandle, '_meta/store.json', {
+        await writeJsonFileToFolder(rootHandle, `${BACKUP_DIRS.meta}/store.json`, {
             format: 'eveos.modular-state.v1',
             version: 1,
             updatedAt: new Date().toISOString(),
             activeWorkspace,
             workspaces: workspaceList
         });
-        await writeJsonFileToFolder(rootHandle, '_meta/config.json', normalizedConfig);
+        await writeJsonFileToFolder(rootHandle, `${BACKUP_DIRS.meta}/config.json`, normalizedConfig);
         return normalizedConfig;
     }
 
@@ -191,8 +200,10 @@ window.EveDataTransfer = window.EveDataTransfer || {};
     }
 
     function buildFolderDirName(node) {
-        const orderPrefix = String(Number.isFinite(Number(node?.order)) ? Number(node.order) : 0).padStart(3, '0');
-        return sanitizePathSegment(`${orderPrefix}-${node?.name || 'Folder'}-${node?.id || 'folder'}`, 'folder', 48);
+        const orderPrefix = String(Number.isFinite(Number(node?.order)) ? Number(node.order) : 0).padStart(2, '0');
+        const namePart = sanitizePathSegment(node?.name || 'Folder', 'folder', 3);
+        const hashPart = shortHashHex(String(node?.id || node?.name || 'folder'), 2);
+        return sanitizePathSegment(`${orderPrefix}-${namePart}-${hashPart}`, 'folder', 9);
     }
 
     function buildWorkspaceCardEntries(workspaceId, categoryMap, categories, folderTrees) {
@@ -261,7 +272,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         let writtenBookmarks = 0;
 
         for (const node of childNodes) {
-            const folderRootPath = `${cardRootPath}/folders/${buildFolderDirName(node)}`;
+            const folderRootPath = `${cardRootPath}/${BACKUP_DIRS.folders}/${buildFolderDirName(node)}`;
             await writeJsonFileToFolder(rootHandle, `${folderRootPath}/folder.json`, {
                 schema: 'eveos.bookmark-folder.v1',
                 workspaceId,
@@ -280,7 +291,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             for (const link of childLinks) {
                 writtenBookmarks += await writeBookmarkPayloadAtPath(
                     rootHandle,
-                    `${folderRootPath}/entries`,
+                    `${folderRootPath}/${BACKUP_DIRS.entries}`,
                     link,
                     categories,
                     connectionMap,
@@ -338,9 +349,9 @@ window.EveDataTransfer = window.EveDataTransfer || {};
                 ? { ...scopedLibrary.folderView }
                 : undefined,
             clickBehaviorMode: normalizeClickBehaviorMode(folderTree.settings.clickBehaviorMode),
-            bookmarkFolder: 'entries',
+            bookmarkFolder: BACKUP_DIRS.entries,
             bookmarkCount: sortedLinks.length,
-            folderRoot: 'folders',
+            folderRoot: BACKUP_DIRS.folders,
             folderCount: folderNodes.length
         });
 
@@ -349,7 +360,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         for (const link of rootLinks) {
             writtenBookmarks += await writeBookmarkPayloadAtPath(
                 rootHandle,
-                `${cardRootPath}/entries`,
+                `${cardRootPath}/${BACKUP_DIRS.entries}`,
                 link,
                 categories,
                 connectionMap,
@@ -397,7 +408,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         const connectionMap = buildConnectionMap(connections);
         const linksByWorkspace = groupLinksByWorkspaceAndCategory(links, activeWorkspace);
 
-        await writeJsonFileToFolder(rootHandle, 'state/eve_state.json', {
+        await writeJsonFileToFolder(rootHandle, `${BACKUP_DIRS.state}/eve_state.json`, {
             ...(fullState || {}),
             bookmarks: {
                 ...(fullState?.bookmarks || {}),
@@ -412,7 +423,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         for (const workspace of workspaces) {
             const workspaceId = String(workspace?.id || '').trim() || 'main';
             const workspaceFolder = buildWorkspaceFolderName(workspaceId, workspace?.name || workspaceId);
-            const tabRootPath = `tabs/${workspaceFolder}`;
+            const tabRootPath = `${BACKUP_DIRS.tabs}/${workspaceFolder}`;
             const categoryMap = linksByWorkspace.get(workspaceId) || new Map();
             const cardEntries = buildWorkspaceCardEntries(workspaceId, categoryMap, categories, folderTrees);
 
@@ -428,7 +439,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
 
             for (const [categoryName, categoryLinks] of cardEntries) {
                 const cardFolder = buildCardFolderName(categoryName);
-                const cardRootPath = `${tabRootPath}/cards/${cardFolder}`;
+                const cardRootPath = `${tabRootPath}/${BACKUP_DIRS.cards}/${cardFolder}`;
                 const written = await writeScopedCardFolder(
                     rootHandle,
                     cardRootPath,
@@ -464,7 +475,8 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         findLibraryEntryById,
         buildCardFolderName,
         buildWorkspaceFolderName,
-        buildBookmarkFileName
+        buildBookmarkFileName,
+        BACKUP_DIRS
     });
     ns.exportFolderWriterReady = true;
 })();

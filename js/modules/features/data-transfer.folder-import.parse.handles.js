@@ -10,6 +10,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
     }
 
     const getDirectoryHandleIfExists = ns.getDirectoryHandleIfExists;
+    const getDirectoryHandleByAliases = ns.getDirectoryHandleByAliases;
     const readJsonFromFileHandle = ns.readJsonFromFileHandle;
     const readJsonFileIfExists = ns.readJsonFileIfExists;
     const listDirectoryEntries = ns.listDirectoryEntries;
@@ -109,11 +110,11 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             const folderJson = await readJsonFileIfExists(handle, 'folder.json');
             const node = normalizeFolderNode(folderJson, handle.name, parentId, folderIndex);
             folderTreeNodes.push(node);
-            const entriesHandle = await getDirectoryHandleIfExists(handle, 'entries');
+            const entriesHandle = await getDirectoryHandleByAliases(handle, ['entries', 'e']);
             if (entriesHandle) {
                 await parseEntriesDirectory(entriesHandle, workspaceId, categoryName, links, connectionMap, categoryEntries, node.id);
             }
-            const nestedFoldersHandle = await getDirectoryHandleIfExists(handle, 'folders');
+            const nestedFoldersHandle = await getDirectoryHandleByAliases(handle, ['folders', 'f']);
             if (nestedFoldersHandle) {
                 await parseFolderTree(nestedFoldersHandle, workspaceId, categoryName, links, connectionMap, categoryEntries, folderTreeNodes, node.id);
             }
@@ -127,7 +128,10 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         const dataType = String(cardJson?.dataType || 'graphicNovels').trim() || 'graphicNovels';
         const bookmarkFolderName = String(cardJson?.bookmarkFolder || 'entries').trim() || 'entries';
         let entriesHandle = await getDirectoryHandleIfExists(cardFolderHandle, bookmarkFolderName);
-        if (!entriesHandle && bookmarkFolderName !== 'entries') entriesHandle = await getDirectoryHandleIfExists(cardFolderHandle, 'entries');
+        if (!entriesHandle && !['entries', 'e'].includes(bookmarkFolderName)) {
+            entriesHandle = await getDirectoryHandleByAliases(cardFolderHandle, ['entries', 'e']);
+        }
+        if (!entriesHandle) entriesHandle = await getDirectoryHandleByAliases(cardFolderHandle, ['entries', 'e']);
         if (!entriesHandle) entriesHandle = cardFolderHandle;
 
         const links = [];
@@ -137,7 +141,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         const folderTreeSettings = normalizeTreeSettings({ clickBehaviorMode: cardJson?.clickBehaviorMode });
         await parseEntriesDirectory(entriesHandle, workspaceId, categoryName, links, connectionMap, categoryEntries, null);
 
-        const foldersHandle = await getDirectoryHandleIfExists(cardFolderHandle, 'folders');
+        const foldersHandle = await getDirectoryHandleByAliases(cardFolderHandle, ['folders', 'f']);
         if (foldersHandle) {
             await parseFolderTree(foldersHandle, workspaceId, categoryName, links, connectionMap, categoryEntries, folderTreeNodes, null);
         }
@@ -172,7 +176,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         const workspaceId = String(tabJson?.id || defaults.workspaceId || inferWorkspaceIdFromFolderName(tabFolderHandle.name, 'main')).trim() || 'main';
         const workspaceName = String(tabJson?.name || defaults.workspaceName || workspaceId).trim() || workspaceId;
         const workspaceIcon = tabJson?.icon || defaults.workspaceIcon || 'folder';
-        const cardsRoot = await getDirectoryHandleIfExists(tabFolderHandle, 'cards');
+        const cardsRoot = await getDirectoryHandleByAliases(tabFolderHandle, ['cards', 'c']);
         const cardFolders = cardsRoot ? (await listDirectoryEntries(cardsRoot)).filter((entry) => entry.handle.kind === 'directory').map((entry) => entry.handle) : [];
         const parsedCards = [];
         for (const cardFolder of cardFolders) {

@@ -13,6 +13,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
     const getWorkspaceSelect = ns.getWorkspaceSelect;
     const getCardWorkspaceSelect = ns.getCardWorkspaceSelect;
     const getDirectoryHandleIfExists = ns.getDirectoryHandleIfExists;
+    const getDirectoryHandleByAliases = ns.getDirectoryHandleByAliases;
     const readJsonFileIfExists = ns.readJsonFileIfExists;
     const resolveTabFoldersFromRoot = ns.resolveTabFoldersFromRoot;
     const resolveCardFoldersFromRoot = ns.resolveCardFoldersFromRoot;
@@ -22,7 +23,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
     const buildParsedTabsFromCards = ns.buildParsedTabsFromCards;
 
     async function tryReadUnifiedStateFromFolder(rootHandle) {
-        const stateRoot = await getDirectoryHandleIfExists(rootHandle, 'state');
+        const stateRoot = await getDirectoryHandleByAliases(rootHandle, ['state', 's']);
         if (!stateRoot) return null;
         const statePayload = await readJsonFileIfExists(stateRoot, 'eve_state.json');
         if (!statePayload || typeof statePayload !== 'object' || !statePayload.bookmarks || !statePayload.library) return null;
@@ -32,7 +33,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
     async function parseFullStateFromFolder(rootHandle) {
         const directState = await tryReadUnifiedStateFromFolder(rootHandle);
         if (directState) return directState;
-        const metaRoot = await getDirectoryHandleIfExists(rootHandle, '_meta');
+        const metaRoot = await getDirectoryHandleByAliases(rootHandle, ['_meta', 'm']);
         const configPayload = metaRoot ? await readJsonFileIfExists(metaRoot, 'config.json') : null;
         const pinsPayload = metaRoot ? await readJsonFileIfExists(metaRoot, 'pins.json') : null;
         const tabFolders = await resolveTabFoldersFromRoot(rootHandle);
