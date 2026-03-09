@@ -2,6 +2,7 @@ window.DashboardCategories = window.DashboardCategories || {};
 
 (function () {
     var DEFAULT_CARD_HEADER_BUTTONS = ['add', 'folders', 'library', 'focus', 'launch'];
+    window.categoryCardFolderActionExpansion = window.categoryCardFolderActionExpansion || {};
 
     function escapeCardHtml(value) {
         return String(value || '')
@@ -75,6 +76,25 @@ window.DashboardCategories = window.DashboardCategories || {};
         const safeCategory = escapeCardJs(categoryName);
         const safeFolderId = escapeCardJs(folderId);
         return `event.preventDefault();event.stopPropagation();${action}('${safeCategory}', '${safeFolderId}')`;
+    }
+
+    function getFolderActionExpansionStore() {
+        if (!window.categoryCardFolderActionExpansion || typeof window.categoryCardFolderActionExpansion !== 'object') {
+            window.categoryCardFolderActionExpansion = {};
+        }
+        return window.categoryCardFolderActionExpansion;
+    }
+
+    function buildFolderActionExpansionKey(workspaceId, categoryName, folderId) {
+        return [
+            String(workspaceId || 'main').trim() || 'main',
+            String(categoryName || 'Unsorted').trim() || 'Unsorted',
+            String(folderId || '').trim()
+        ].join('::');
+    }
+
+    function isFolderActionExpanded(workspaceId, categoryName, folderId) {
+        return !!getFolderActionExpansionStore()[buildFolderActionExpansionKey(workspaceId, categoryName, folderId)];
     }
 
     function buildScopedCategoryKey(workspaceId, categoryName) {
@@ -155,6 +175,9 @@ window.DashboardCategories = window.DashboardCategories || {};
             const folderTargetId = window.EveQuickPins?.buildFolderTargetId
                 ? window.EveQuickPins.buildFolderTargetId(workspaceId, categoryName, node.id)
                 : '';
+            const actionsExpanded = isFolderActionExpanded(workspaceId, categoryName, node.id);
+            const actionsExpandedAttr = actionsExpanded ? 'true' : 'false';
+            const actionsHiddenAttr = actionsExpanded ? '' : ' hidden';
 
             return ''
                 + `<details class="bookmark-folder-group" open data-bookmark-folder-target-id="${escapeCardHtml(folderTargetId)}" ${buildDropTargetAttributes(node.id)}>`
@@ -164,10 +187,13 @@ window.DashboardCategories = window.DashboardCategories || {};
                             + `<span class="bookmark-folder-meta">${escapeCardHtml(folderCountLabel)} | ${escapeCardHtml(childCountLabel)}</span>`
                         + '</div>'
                         + '<div class="bookmark-folder-summary-actions">'
-                            + `<button type="button" class="bookmark-folder-inline-btn" onclick="${buildFolderAction(categoryName, node.id, 'openAddModalForFolder')}">Add</button>`
-                            + `<button type="button" class="bookmark-folder-inline-btn" onclick="${buildFolderAction(categoryName, node.id, 'promptCreateBookmarkFolder')}">Subfolder</button>`
-                            + `<button type="button" class="bookmark-folder-inline-btn" onclick="${buildFolderAction(categoryName, node.id, 'promptRenameBookmarkFolder')}">Rename</button>`
-                            + `<button type="button" class="bookmark-folder-inline-btn danger" onclick="${buildFolderAction(categoryName, node.id, 'deleteBookmarkFolderPrompt')}">Delete</button>`
+                            + `<button type="button" class="bookmark-folder-inline-btn bookmark-folder-summary-edit-toggle" aria-expanded="${actionsExpandedAttr}" onclick="event.preventDefault();event.stopPropagation();toggleCategoryCardFolderActions(this, '${safeCategoryJs}', '${escapeCardJs(node.id)}', '${safeWorkspaceJs}')">&#9998;</button>`
+                            + `<div class="bookmark-folder-summary-action-list"${actionsHiddenAttr}>`
+                                + `<button type="button" class="bookmark-folder-inline-btn" onclick="${buildFolderAction(categoryName, node.id, 'openAddModalForFolder')}">Add</button>`
+                                + `<button type="button" class="bookmark-folder-inline-btn" onclick="${buildFolderAction(categoryName, node.id, 'promptCreateBookmarkFolder')}">Subfolder</button>`
+                                + `<button type="button" class="bookmark-folder-inline-btn" onclick="${buildFolderAction(categoryName, node.id, 'promptRenameBookmarkFolder')}">Rename</button>`
+                                + `<button type="button" class="bookmark-folder-inline-btn danger" onclick="${buildFolderAction(categoryName, node.id, 'deleteBookmarkFolderPrompt')}">Delete</button>`
+                            + '</div>'
                         + '</div>'
                     + '</summary>'
                     + '<div class="bookmark-folder-body">'
@@ -182,6 +208,9 @@ window.DashboardCategories = window.DashboardCategories || {};
         const topLevelHtml = (viewModel.topLevelFolders || []).map(renderFolderNode).join('');
         const hasFolders = viewModel.nodes.length > 0;
         const hasRootLinks = viewModel.rootLinks.length > 0;
+        const rootActionsExpanded = isFolderActionExpanded(workspaceId, categoryName, '__root__');
+        const rootActionsExpandedAttr = rootActionsExpanded ? 'true' : 'false';
+        const rootActionsHiddenAttr = rootActionsExpanded ? '' : ' hidden';
         const toolbarHtml = ''
             + `<div class="bookmark-folder-toolbar${toolbarExpanded ? ' is-visible' : ''}">`
                 + `<button type="button" class="bookmark-folder-toolbar-btn" onclick="promptCreateBookmarkFolder('${safeCategoryJs}', '')">New Folder</button>`
@@ -201,7 +230,12 @@ window.DashboardCategories = window.DashboardCategories || {};
                             + '<span class="bookmark-folder-root-title">Root Bookmarks</span>'
                             + `<span class="bookmark-folder-meta">${viewModel.rootLinks.length} bookmark${viewModel.rootLinks.length === 1 ? '' : 's'}</span>`
                         + '</div>'
-                        + `<button type="button" class="bookmark-folder-inline-btn" onclick="openAddModal('${safeCategoryJs}')">Add Root</button>`
+                        + '<div class="bookmark-folder-summary-actions">'
+                            + `<button type="button" class="bookmark-folder-inline-btn bookmark-folder-summary-edit-toggle" aria-expanded="${rootActionsExpandedAttr}" onclick="event.preventDefault();event.stopPropagation();toggleCategoryCardFolderActions(this, '${safeCategoryJs}', '__root__', '${safeWorkspaceJs}')">&#9998;</button>`
+                            + `<div class="bookmark-folder-summary-action-list"${rootActionsHiddenAttr}>`
+                                + `<button type="button" class="bookmark-folder-inline-btn" onclick="openAddModal('${safeCategoryJs}')">Add Root</button>`
+                            + '</div>'
+                        + '</div>'
                     + '</div>'
                     + (hasRootLinks
                         ? renderer(viewModel.rootLinks)
@@ -210,6 +244,34 @@ window.DashboardCategories = window.DashboardCategories || {};
                 + topLevelHtml
             + '</div>';
     }
+
+    window.toggleCategoryCardFolderActions = function (triggerEl, categoryName, folderId, workspaceId) {
+        var resolvedCategory = String(categoryName || 'Unsorted').trim() || 'Unsorted';
+        var resolvedFolderId = String(folderId || '').trim();
+        var resolvedWorkspace = String(workspaceId || window.eveState?.config?.activeWorkspace || 'main').trim() || 'main';
+        if (!resolvedFolderId) return;
+        var store = getFolderActionExpansionStore();
+        var key = buildFolderActionExpansionKey(resolvedWorkspace, resolvedCategory, resolvedFolderId);
+        var nextExpanded = !store[key];
+        store[key] = nextExpanded;
+
+        var button = triggerEl && triggerEl.nodeType === 1 ? triggerEl : null;
+        if (button) {
+            button.setAttribute('aria-expanded', nextExpanded ? 'true' : 'false');
+            var actions = button.parentElement ? button.parentElement.querySelector('.bookmark-folder-summary-action-list') : null;
+            if (actions) {
+                actions.hidden = !nextExpanded;
+            }
+            var card = button.closest('.category-card');
+            var grid = card ? card.parentElement : document.getElementById('dashboard-grid');
+            if (grid && typeof window.scheduleDashboardMasonryLayout === 'function') {
+                window.scheduleDashboardMasonryLayout(grid);
+            }
+            return;
+        }
+
+        if (typeof renderDashboard === 'function') renderDashboard();
+    };
 
     window.DashboardCategories.renderCard = function (cat, catLinks, gridContainer, configOptions) {
         var options = configOptions || {};
@@ -342,7 +404,7 @@ window.DashboardCategories = window.DashboardCategories || {};
             nonFocusButtons.push('<button class="card-header-icon-btn" onclick="openAddModal(\'' + safeCatJs + '\')" title="Add Bookmark">&#10133;</button>');
         }
         if (visibleHeaderButtons.has('folders')) {
-            nonFocusButtons.push('<button class="' + (folderToolbarExpanded ? 'card-header-icon-btn card-folder-toggle-btn is-active' : 'card-header-icon-btn card-folder-toggle-btn') + '" onclick="toggleBookmarkFolderToolbar(\'' + safeCatJs + '\', \'' + escapeCardJs(options.activeWorkspace || 'main') + '\')" title="Folders">&#128193;</button>');
+            nonFocusButtons.push('<button class="' + (folderToolbarExpanded ? 'card-header-icon-btn card-folder-toggle-btn is-active' : 'card-header-icon-btn card-folder-toggle-btn') + '" data-folder-toolbar-toggle="1" onclick="toggleBookmarkFolderToolbar(\'' + safeCatJs + '\', \'' + escapeCardJs(options.activeWorkspace || 'main') + '\')" title="Folders">&#128193;</button>');
         }
         if (visibleHeaderButtons.has('library')) {
             nonFocusButtons.push('<button class="card-header-icon-btn lib-toggle-btn" onclick="toggleCategoryLibrary(\'' + safeCatJs + '\')" title="Library">&#128218;</button>');
@@ -362,7 +424,7 @@ window.DashboardCategories = window.DashboardCategories || {};
                         ? '<button class="category-action-btn" onclick="openAddModal(\'' + safeCatJs + '\')" title="Add Bookmark">&#10133; <span>Add</span></button>'
                         : '')
                     + (visibleHeaderButtons.has('folders')
-                        ? '<button class="' + folderHeaderBtnClass + '" onclick="toggleBookmarkFolderToolbar(\'' + safeCatJs + '\', \'' + escapeCardJs(options.activeWorkspace || 'main') + '\')" title="Folders">&#128193; <span>Folders</span></button>'
+                        ? '<button class="' + folderHeaderBtnClass + '" data-folder-toolbar-toggle="1" onclick="toggleBookmarkFolderToolbar(\'' + safeCatJs + '\', \'' + escapeCardJs(options.activeWorkspace || 'main') + '\')" title="Folders">&#128193; <span>Folders</span></button>'
                         : '')
                     + (visibleHeaderButtons.has('library')
                         ? '<button class="category-action-btn" onclick="toggleCategoryLibrary(\'' + safeCatJs + '\')" title="Library">&#128218; <span>Library</span></button>'

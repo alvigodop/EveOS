@@ -125,6 +125,22 @@ def coerce_store_root(path_obj, depth=0):
     if depth > 6:
         return candidate
 
+    candidate_name = candidate.name.lower()
+
+    # Structural child paths can be persisted even when the target store
+    # folder no longer exists. Reduce them back to the intended store root
+    # before relying on filesystem existence checks.
+    if candidate_name == "tabs":
+        return candidate.parent.resolve()
+
+    if candidate_name == "cards":
+        if candidate.parent.name.lower() == "tabs":
+            return candidate.parent.parent.resolve()
+        return candidate.parent.resolve()
+
+    if candidate_name in {"entries", "folders", "state"}:
+        return coerce_store_root(candidate.parent, depth + 1)
+
     if looks_like_store_root(candidate):
         return candidate
 

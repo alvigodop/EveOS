@@ -121,6 +121,7 @@ def _load_store_settings_path():
         DEFAULT_STORE_ROOT,
         STORE_SETTINGS_FILE,
         _resolve_raw_path,
+        _resolve_store_path,
         logger,
     )
 
@@ -164,7 +165,10 @@ def _temporary_store_root(path_value):
 
 
 try:
-    set_active_store_root(_load_store_settings_path(), create_if_missing=False, persist=False)
+    startup_path, repaired_settings = _load_store_settings_path()
+    resolved_startup_root = set_active_store_root(startup_path, create_if_missing=False, persist=False)
+    if repaired_settings:
+        _save_store_settings(resolved_startup_root, requested_path=str(resolved_startup_root))
 except Exception as exc:
     logger.warning("Failed to load modular store path from settings: %s", exc)
     _set_store_root_paths(DEFAULT_STORE_ROOT)

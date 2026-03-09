@@ -254,6 +254,23 @@ html[data-native-scheme="light"] #settingsModal .modal option {
     background: color-mix(in srgb, var(--modal-bg) 92%, var(--input-bg) 8%);
 }
 
+.bookmark-folder-manager-row__info {
+    flex: 1 1 180px;
+}
+
+.bookmark-folder-row-edit-toggle {
+    min-width: 34px;
+    min-height: 30px;
+    padding: 5px 8px;
+    font-size: 0.9rem;
+    line-height: 1;
+}
+
+.bookmark-folder-row-actions {
+    align-items: flex-start;
+    justify-content: flex-end;
+}
+
 /* Emoji Picker */
 #emoji-picker-container {
     display: none;

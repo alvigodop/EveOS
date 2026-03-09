@@ -375,13 +375,13 @@ li:hover .actions {
 }
 
 .bookmark-folder-toolbar-btn {
-    padding: 6px 10px;
-    font-size: 0.82rem;
+    padding: 5px 9px;
+    font-size: 0.79rem;
 }
 
 .bookmark-folder-inline-btn {
-    padding: 4px 8px;
-    font-size: 0.75rem;
+    padding: 3px 7px;
+    font-size: 0.72rem;
 }
 
 .bookmark-folder-inline-btn.danger {
@@ -461,6 +461,25 @@ li:hover .actions {
     gap: 6px;
     flex-wrap: wrap;
     justify-content: flex-end;
+    align-items: flex-start;
+}
+
+.bookmark-folder-summary-edit-toggle {
+    min-width: 30px;
+    min-height: 26px;
+    padding: 3px 7px;
+    line-height: 1;
+}
+
+.bookmark-folder-summary-action-list {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.bookmark-folder-summary-action-list[hidden] {
+    display: none;
 }
 
 .bookmark-folder-body {

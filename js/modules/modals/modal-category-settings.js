@@ -6,6 +6,7 @@ window.categoryFolderCreateDraft = window.categoryFolderCreateDraft || {
     folderId: '',
     initialName: ''
 };
+window.categoryFolderActionExpansion = window.categoryFolderActionExpansion || {};
 
 (function () {
     function escapeCategorySettingsHtml(value) {
@@ -29,6 +30,25 @@ window.categoryFolderCreateDraft = window.categoryFolderCreateDraft || {
 
     function getFolderApi() {
         return window.EveBookmarkFolders || null;
+    }
+
+    function getFolderActionExpansionStore() {
+        if (!window.categoryFolderActionExpansion || typeof window.categoryFolderActionExpansion !== 'object') {
+            window.categoryFolderActionExpansion = {};
+        }
+        return window.categoryFolderActionExpansion;
+    }
+
+    function folderActionExpansionKey(workspaceId, categoryName, folderId) {
+        return [
+            String(workspaceId || 'main').trim() || 'main',
+            String(categoryName || 'Unsorted').trim() || 'Unsorted',
+            String(folderId || '').trim()
+        ].join('::');
+    }
+
+    function isFolderActionExpanded(workspaceId, categoryName, folderId) {
+        return !!getFolderActionExpansionStore()[folderActionExpansionKey(workspaceId, categoryName, folderId)];
     }
 
     const HEADER_BUTTON_OPTIONS = [
@@ -255,22 +275,28 @@ window.categoryFolderCreateDraft = window.categoryFolderCreateDraft || {
             const pinScopeHint = isFolderPinned
                 ? (pinApi?.describeTargetVisibilityScope?.(selectedPinScope) || '')
                 : 'Pin this folder to control where its dock shortcut appears.';
+            const actionsExpanded = isFolderActionExpanded(workspaceId, categoryName, folder.id);
+            const actionsExpandedAttr = actionsExpanded ? 'true' : 'false';
+            const actionsHiddenAttr = actionsExpanded ? '' : ' hidden';
 
             return ''
                 + `<div class="bookmark-folder-manager-row" style="display:flex; flex-direction:column; gap:8px; padding:10px 12px; border:1px solid rgba(255,255,255,0.08); border-radius:10px; background:rgba(255,255,255,0.03); margin-left:${indentPx}px;">`
-                    + '<div style="display:flex; gap:10px; justify-content:space-between; align-items:flex-start; flex-wrap:wrap;">'
-                        + '<div style="display:flex; flex-direction:column; gap:4px; min-width:0;">'
+                    + '<div class="bookmark-folder-manager-row__header" style="display:flex; gap:10px; justify-content:space-between; align-items:flex-start; flex-wrap:wrap;">'
+                        + '<div class="bookmark-folder-manager-row__info" style="display:flex; flex-direction:column; gap:4px; min-width:0;">'
                             + `<div style="font-weight:600; color:var(--text-main); overflow-wrap:anywhere;">${escapeCategorySettingsHtml(folder.name)}</div>`
                             + `<div style="font-size:0.78rem; opacity:0.72;">${escapeCategorySettingsHtml(metaParts.join(' | '))}</div>`
                         + '</div>'
-                        + '<div style="display:flex; gap:6px; flex-wrap:wrap;">'
-                            + `<button type="button" onclick="closeModals(); openAddModalForFolder('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">Add Bookmark</button>`
-                            + `<button type="button" onclick="toggleCategoryFolderPin('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">${isFolderPinned ? 'Unpin' : 'Pin'}</button>`
-                            + `<button type="button" onclick="pinCategoryFolderBookmarks('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">Pin Subtree</button>`
-                            + `<button type="button" onclick="unpinCategoryFolderBookmarks('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">Unpin Subtree</button>`
-                            + `<button type="button" onclick="openFolderCreator('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">Subfolder</button>`
-                            + `<button type="button" onclick="promptRenameBookmarkFolder('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">Rename</button>`
-                            + `<button type="button" onclick="deleteBookmarkFolderPrompt('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">Delete</button>`
+                        + '<div class="bookmark-folder-manager-row__controls" style="display:flex; gap:6px; flex-wrap:wrap; align-items:flex-start; justify-content:flex-end;">'
+                            + `<button type="button" class="bookmark-folder-row-edit-toggle" aria-expanded="${actionsExpandedAttr}" onclick="toggleCategoryFolderActionRow('${safeCategoryJs}', '${safeFolderJs}')">&#9998;</button>`
+                            + `<div class="bookmark-folder-row-actions" ${actionsHiddenAttr} style="display:flex; gap:6px; flex-wrap:wrap;">`
+                                + `<button type="button" onclick="closeModals(); openAddModalForFolder('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">Add Bookmark</button>`
+                                + `<button type="button" onclick="toggleCategoryFolderPin('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">${isFolderPinned ? 'Unpin' : 'Pin'}</button>`
+                                + `<button type="button" onclick="pinCategoryFolderBookmarks('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">Pin Subtree</button>`
+                                + `<button type="button" onclick="unpinCategoryFolderBookmarks('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">Unpin Subtree</button>`
+                                + `<button type="button" onclick="openFolderCreator('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">Subfolder</button>`
+                                + `<button type="button" onclick="promptRenameBookmarkFolder('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">Rename</button>`
+                                + `<button type="button" onclick="deleteBookmarkFolderPrompt('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">Delete</button>`
+                            + '</div>'
                         + '</div>'
                     + '</div>'
                     + '<div style="display:flex; flex-direction:column; gap:4px;">'
@@ -340,6 +366,17 @@ window.categoryFolderCreateDraft = window.categoryFolderCreateDraft || {
                         + '<div style="font-weight:600; margin-bottom:4px;">No folders in this card yet</div>'
                         + `<div style="font-size:0.84rem;">Root bookmarks currently visible in this card: ${rootBookmarks}</div>`
                     + '</div>');
+    };
+
+    window.toggleCategoryFolderActionRow = function (categoryName, folderId) {
+        const resolvedCategory = String(categoryName || window.currentCategoryCtx || 'Unsorted').trim() || 'Unsorted';
+        const resolvedFolderId = String(folderId || '').trim();
+        if (!resolvedFolderId) return;
+        const workspaceId = getCategorySettingsWorkspaceId();
+        const store = getFolderActionExpansionStore();
+        const key = folderActionExpansionKey(workspaceId, resolvedCategory, resolvedFolderId);
+        store[key] = !store[key];
+        window.renderCategoryFolderManager();
     };
 
     window.openFolderCreator = function (categoryName, parentId) {
