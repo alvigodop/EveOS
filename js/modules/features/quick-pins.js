@@ -327,10 +327,39 @@ window.EveQuickPins = window.EveQuickPins || {};
         ));
     }
 
+    function getFolderSubtreeIds(workspaceId, categoryName, folderId) {
+        const targetFolderId = toId(folderId);
+        if (!targetFolderId) return [];
+        const folderApi = getFolderApi();
+        const view = folderApi?.buildFolderView?.(normalizeWorkspaceId(workspaceId), normalizeCategoryName(categoryName), getCardLinks(workspaceId, categoryName));
+        const childrenMap = view?.childrenMap;
+        const subtreeIds = new Set([targetFolderId]);
+        if (childrenMap && typeof childrenMap.get === 'function') {
+            const pending = [targetFolderId];
+            while (pending.length) {
+                const currentId = pending.pop();
+                (childrenMap.get(currentId) || []).forEach((child) => {
+                    const childId = toId(child?.id);
+                    if (childId && !subtreeIds.has(childId)) {
+                        subtreeIds.add(childId);
+                        pending.push(childId);
+                    }
+                });
+            }
+        }
+        return Array.from(subtreeIds);
+    }
+
     function getDirectFolderLinks(workspaceId, categoryName, folderId) {
         const targetFolderId = toId(folderId);
         if (!targetFolderId) return [];
         return getCardLinks(workspaceId, categoryName).filter((link) => toId(link?.folderId) === targetFolderId);
+    }
+
+    function getFolderSubtreeLinks(workspaceId, categoryName, folderId) {
+        const subtreeIds = new Set(getFolderSubtreeIds(workspaceId, categoryName, folderId));
+        if (!subtreeIds.size) return [];
+        return getCardLinks(workspaceId, categoryName).filter((link) => subtreeIds.has(toId(link?.folderId)));
     }
 
     function getCardRootLinks(workspaceId, categoryName) {
@@ -374,12 +403,12 @@ window.EveQuickPins = window.EveQuickPins || {};
     }
 
     function pinFolderBookmarks(workspaceId, categoryName, folderId, options = {}) {
-        const folderLinkIds = getDirectFolderLinks(workspaceId, categoryName, folderId).map((link) => link?.id);
+        const folderLinkIds = getFolderSubtreeLinks(workspaceId, categoryName, folderId).map((link) => link?.id);
         return upsertBookmarkPins(folderLinkIds, options.scopeType || 'folder', options);
     }
 
     function unpinFolderBookmarks(workspaceId, categoryName, folderId, options = {}) {
-        const folderLinkIds = getDirectFolderLinks(workspaceId, categoryName, folderId).map((link) => link?.id);
+        const folderLinkIds = getFolderSubtreeLinks(workspaceId, categoryName, folderId).map((link) => link?.id);
         return removeBookmarkPinsByLinkIds(folderLinkIds, options);
     }
 
@@ -588,7 +617,7 @@ window.EveQuickPins = window.EveQuickPins || {};
         )));
         const childrenMap = view?.childrenMap;
         const subtreeIds = new Set([targetFolderId]);
-        if (childrenMap instanceof Map) {
+        if (childrenMap && typeof childrenMap.get === 'function') {
             const pending = [targetFolderId];
             while (pending.length) {
                 const currentId = pending.pop();

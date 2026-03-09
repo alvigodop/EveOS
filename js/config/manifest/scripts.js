@@ -7,7 +7,7 @@ window.EveModuleManifestParts.scripts = [
         'js/modules/core/storage.js?v=0.2.1',
         'js/modules/features/bookmark-folders.js?v=0.2.6',
         'js/modules/features/bookmark-click-behavior.js?v=0.2.1',
-        'js/modules/features/quick-pins.js?v=0.2.3',
+        'js/modules/features/quick-pins.js?v=0.2.4',
         'js/modules/core/actions.js?v=0.2.2',
         'js/modules/core/categories.js',
 
@@ -197,7 +197,7 @@ window.EveModuleManifestParts.scripts = [
         'js/modules/modals/modal-settings.modular.js',
         'js/modules/modals/modal-settings.js?v=0.2.4',
         'js/modules/modals/modal-bulk.js',
-        'js/modules/modals/modal-category-settings.js?v=0.2.51',
+        'js/modules/modals/modal-category-settings.js?v=0.2.52',
         // Modal Logic Modules
         'js/modules/modals/logic/utils.js',
         'js/modules/modals/logic/link-form.shared.data.js?v=0.2.1',

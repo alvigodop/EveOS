@@ -237,8 +237,8 @@ window.categoryFolderCreateDraft = window.categoryFolderCreateDraft || {
                         + '<div style="display:flex; gap:6px; flex-wrap:wrap;">'
                             + `<button type="button" onclick="closeModals(); openAddModalForFolder('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">Add Bookmark</button>`
                             + `<button type="button" onclick="toggleCategoryFolderPin('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">${pinApi?.isFolderPinned?.(workspaceId, categoryName, folder.id) ? 'Unpin' : 'Pin'}</button>`
-                            + `<button type="button" onclick="pinCategoryFolderBookmarks('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">Pin Bookmarks</button>`
-                            + `<button type="button" onclick="unpinCategoryFolderBookmarks('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">Unpin Bookmarks</button>`
+                            + `<button type="button" onclick="pinCategoryFolderBookmarks('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">Pin Subtree</button>`
+                            + `<button type="button" onclick="unpinCategoryFolderBookmarks('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">Unpin Subtree</button>`
                             + `<button type="button" onclick="openFolderCreator('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">Subfolder</button>`
                             + `<button type="button" onclick="promptRenameBookmarkFolder('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">Rename</button>`
                             + `<button type="button" onclick="deleteBookmarkFolderPrompt('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">Delete</button>`
@@ -543,7 +543,7 @@ window.categoryFolderCreateDraft = window.categoryFolderCreateDraft || {
         const workspaceId = getCategorySettingsWorkspaceId();
         pinApi.pinFolderBookmarks(workspaceId, resolvedCategory, folderId, { scopeType: 'folder' });
         refreshCategoryPinViews(resolvedCategory);
-        showToast('Pinned folder bookmarks', 'success');
+        showToast('Pinned folder subtree bookmarks', 'success');
     };
 
     window.unpinCategoryFolderBookmarks = function (categoryName, folderId) {
@@ -553,7 +553,7 @@ window.categoryFolderCreateDraft = window.categoryFolderCreateDraft || {
         const workspaceId = getCategorySettingsWorkspaceId();
         pinApi.unpinFolderBookmarks(workspaceId, resolvedCategory, folderId);
         refreshCategoryPinViews(resolvedCategory);
-        showToast('Unpinned folder bookmark pins', 'success');
+        showToast('Unpinned folder subtree bookmarks', 'success');
     };
 
     window.handleCategoryFolderNameEnter = function (event) {
