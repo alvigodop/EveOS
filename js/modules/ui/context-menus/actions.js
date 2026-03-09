@@ -45,6 +45,15 @@ window.ctxTogglePin = function () {
     togglePin(targetId);
     closeAllMenus();
 };
+window.ctxSetPinScope = function (scopeType) {
+    const targetId = getCtxLinkId();
+    if (!targetId) return;
+    const pinApi = window.EveQuickPins;
+    if (!pinApi?.isBookmarkPinned || !pinApi?.setBookmarkScopeType) return;
+    if (!pinApi.isBookmarkPinned(targetId)) return;
+    pinApi.setBookmarkScopeType(targetId, scopeType);
+    closeAllMenus();
+};
 window.ctxToggleDone = function () {
     const targetId = getCtxLinkId();
     if (!targetId) return;

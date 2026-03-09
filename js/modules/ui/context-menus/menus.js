@@ -58,13 +58,39 @@ window.showLinkContextMenu = function (e, id) {
     if (!m) return;
 
     const action = m.querySelector('#ctx-library-action');
+    const pinAction = m.querySelector('#ctx-pin-action');
+    const pinScopeTab = m.querySelector('#ctx-pin-scope-tab');
+    const pinScopeCard = m.querySelector('#ctx-pin-scope-card');
+    const pinScopeFolder = m.querySelector('#ctx-pin-scope-folder');
     const doneAction = m.querySelector('#ctx-toggle-done-action');
     const link = links.find(item => String(item?.id ?? '') === normalizedId) || null;
     const linked = !!window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId?.(normalizedId);
+    const pinApi = window.EveQuickPins;
+    const isPinned = !!pinApi?.isBookmarkPinned?.(normalizedId);
+    const selectedScope = pinApi?.getBookmarkScopeType?.(normalizedId) || 'tab';
+    const scopeOptions = pinApi?.getBookmarkScopeOptions?.(link) || [];
+    const allowedScopes = new Set(scopeOptions.map((option) => option.value));
     if (action) {
         action.innerHTML = linked
             ? `${ICON_LIBRARY_HTML} Remove From Library`
             : `${ICON_LIBRARY_HTML} Add To Library`;
+    }
+    if (pinAction) {
+        const defaultScope = pinApi?.resolveDefaultBookmarkScopeType?.(link) || 'tab';
+        const scopeLabel = defaultScope === 'folder' ? 'Pin To Folder' : (defaultScope === 'card' ? 'Pin To Card' : 'Pin To Tab');
+        pinAction.innerHTML = isPinned ? '&#128204; Unpin' : `&#128204; ${scopeLabel}`;
+    }
+    if (pinScopeTab) {
+        pinScopeTab.style.display = isPinned && allowedScopes.has('tab') ? '' : 'none';
+        pinScopeTab.innerHTML = `${selectedScope === 'tab' ? '&#10003; ' : ''}&#128204; Pin Scope: This Tab`;
+    }
+    if (pinScopeCard) {
+        pinScopeCard.style.display = isPinned && allowedScopes.has('card') ? '' : 'none';
+        pinScopeCard.innerHTML = `${selectedScope === 'card' ? '&#10003; ' : ''}&#128204; Pin Scope: This Card`;
+    }
+    if (pinScopeFolder) {
+        pinScopeFolder.style.display = isPinned && allowedScopes.has('folder') ? '' : 'none';
+        pinScopeFolder.innerHTML = `${selectedScope === 'folder' ? '&#10003; ' : ''}&#128204; Pin Scope: This Folder`;
     }
     if (doneAction) {
         const isTaskEnabled = typeof window.EveBookmarkFolders?.isTaskEnabledForLink === 'function'

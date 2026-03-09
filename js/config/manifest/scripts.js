@@ -8,7 +8,7 @@ window.EveModuleManifestParts.scripts = [
         'js/modules/features/bookmark-folders.js?v=0.2.6',
         'js/modules/features/bookmark-click-behavior.js?v=0.2.1',
 'js/modules/features/quick-pins.js?v=0.2.6',
-        'js/modules/core/actions.js?v=0.2.2',
+'js/modules/core/actions.js?v=0.2.3',
         'js/modules/core/categories.js',
 
         // UI Modules
@@ -90,9 +90,9 @@ window.EveModuleManifestParts.scripts = [
 'js/modules/ui/dashboard/unidex-view.core.js?v=0.2.45',
 'js/modules/ui/dashboard/unidex-view.js?v=0.2.39',
         'js/modules/ui/dashboard.js?v=0.2.43', // Core dashboard (orchestrator)
-        'js/modules/ui/context-menus/templates.js?v=0.2.41',
-        'js/modules/ui/context-menus/actions.js?v=0.2.42',
-        'js/modules/ui/context-menus/menus.js?v=0.2.41',
+        'js/modules/ui/context-menus/templates.js?v=0.2.42',
+        'js/modules/ui/context-menus/actions.js?v=0.2.43',
+        'js/modules/ui/context-menus/menus.js?v=0.2.42',
         'js/modules/ui/scratchpad.js',
         'js/modules/ui/bulk-toolbar.shared.js',
         'js/modules/ui/bulk-toolbar.templates.js?v=0.2.2',

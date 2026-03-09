@@ -11,7 +11,13 @@ function switchWorkspace(id) {
 function togglePin(id) {
     const targetId = String(id);
     if (window.EveQuickPins?.toggleBookmarkPin) {
-        return window.EveQuickPins.toggleBookmarkPin(targetId);
+        const link = typeof window.EveQuickPins.getLinkById === 'function'
+            ? window.EveQuickPins.getLinkById(targetId)
+            : (links.find(x => String(x?.id) === targetId) || null);
+        const scopeType = typeof window.EveQuickPins.resolveDefaultBookmarkScopeType === 'function'
+            ? window.EveQuickPins.resolveDefaultBookmarkScopeType(link || targetId)
+            : 'tab';
+        return window.EveQuickPins.toggleBookmarkPin(targetId, { scopeType });
     }
     const l = links.find(x => String(x.id) === targetId);
     if (!l) return false;

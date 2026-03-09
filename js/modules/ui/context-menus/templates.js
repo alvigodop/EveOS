@@ -10,7 +10,10 @@ window.ContextMenus.template = `
 <div id="link-context-menu" class="context-menu">
     <div class="ctx-item" onclick="ctxEdit()">&#9998; Edit</div>
     <div class="ctx-item" id="ctx-library-action" onclick="ctxToggleLibraryLink()">&#128218; Add To Library</div>
-    <div class="ctx-item" onclick="ctxTogglePin()">&#128204; Pin/Unpin</div>
+    <div class="ctx-item" id="ctx-pin-action" onclick="ctxTogglePin()">&#128204; Pin</div>
+    <div class="ctx-item" id="ctx-pin-scope-tab" onclick="ctxSetPinScope('tab')" style="display:none;">&#128204; Pin Scope: This Tab</div>
+    <div class="ctx-item" id="ctx-pin-scope-card" onclick="ctxSetPinScope('card')" style="display:none;">&#128204; Pin Scope: This Card</div>
+    <div class="ctx-item" id="ctx-pin-scope-folder" onclick="ctxSetPinScope('folder')" style="display:none;">&#128204; Pin Scope: This Folder</div>
     <div class="ctx-item" id="ctx-toggle-done-action" onclick="ctxToggleDone()">&#10004; Toggle Done</div>
     <div class="ctx-item" onclick="ctxLaunch()">&#128640; Launch</div>
     <div class="ctx-divider"></div>
