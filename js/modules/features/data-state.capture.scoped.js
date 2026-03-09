@@ -10,6 +10,7 @@ window.EveDataStore.CaptureModules = window.EveDataStore.CaptureModules || {};
         const getLinks = base.getLinks;
         const getConfig = base.getConfig;
         const cloneBookmarkFolders = base.cloneBookmarkFolders;
+        const cloneQuickPins = base.cloneQuickPins;
         const cloneConnections = base.cloneConnections;
         const captureState = base.captureState;
 
@@ -199,6 +200,102 @@ window.EveDataStore.CaptureModules = window.EveDataStore.CaptureModules || {};
             return ws ? ws.name : workspaceId;
         }
 
+        function parseCardTargetId(value) {
+            const raw = String(value || '').trim();
+            if (!raw.includes('::')) {
+                return { workspaceId: 'main', categoryName: String(raw || 'Unsorted').trim() || 'Unsorted' };
+            }
+            const [workspaceId, categoryName] = raw.split('::', 2);
+            return {
+                workspaceId: String(workspaceId || 'main').trim() || 'main',
+                categoryName: String(categoryName || 'Unsorted').trim() || 'Unsorted'
+            };
+        }
+
+        function parseFolderTargetId(value) {
+            const raw = String(value || '').trim();
+            const parts = raw.split('::');
+            return {
+                workspaceId: String(parts[0] || 'main').trim() || 'main',
+                categoryName: String(parts[1] || 'Unsorted').trim() || 'Unsorted',
+                folderId: String(parts.slice(2).join('::') || '').trim()
+            };
+        }
+
+        function getPinContext(pin) {
+            if (!pin || typeof pin !== 'object') return null;
+            const targetType = String(pin.targetType || '').trim().toLowerCase();
+            if (targetType === 'bookmark') {
+                const targetId = String(pin.targetId || '').trim();
+                const link = getLinks().find((entry) => String(entry?.id || '').trim() === targetId);
+                if (!link) return null;
+                return {
+                    workspaceId: String(link.workspace || 'main').trim() || 'main',
+                    categoryName: String(link.category || 'Unsorted').trim() || 'Unsorted',
+                    folderId: String(link.folderId || '').trim()
+                };
+            }
+            if (targetType === 'card') return parseCardTargetId(pin.targetId);
+            if (targetType === 'folder') return parseFolderTargetId(pin.targetId);
+            return null;
+        }
+
+        function clonePinsByPredicate(predicate) {
+            return (cloneQuickPins() || [])
+                .filter((pin) => predicate(pin, getPinContext(pin)))
+                .map((pin) => ({ ...(pin || {}) }));
+        }
+
+        function filterPinsForWorkspace(workspaceId) {
+            const normalizedWorkspace = String(workspaceId || 'main').trim() || 'main';
+            return clonePinsByPredicate((_pin, context) => (
+                !!context && String(context.workspaceId || 'main') === normalizedWorkspace
+            ));
+        }
+
+        function filterPinsForCard(workspaceId, categoryName) {
+            const normalizedWorkspace = String(workspaceId || 'main').trim() || 'main';
+            const normalizedCategory = String(categoryName || 'Unsorted').trim() || 'Unsorted';
+            return clonePinsByPredicate((_pin, context) => (
+                !!context
+                && String(context.workspaceId || 'main') === normalizedWorkspace
+                && String(context.categoryName || 'Unsorted') === normalizedCategory
+            ));
+        }
+
+        function filterPinsForBookmark(linkId) {
+            const normalizedLinkId = String(linkId || '').trim();
+            if (!normalizedLinkId) return [];
+            return clonePinsByPredicate((pin) => (
+                String(pin?.targetType || '').trim().toLowerCase() === 'bookmark'
+                && String(pin?.targetId || '').trim() === normalizedLinkId
+            ));
+        }
+
+        function filterPinsForFolder(workspaceId, categoryName, folderId) {
+            const normalizedWorkspace = String(workspaceId || 'main').trim() || 'main';
+            const normalizedCategory = String(categoryName || 'Unsorted').trim() || 'Unsorted';
+            const normalizedFolderId = String(folderId || '').trim();
+            if (!normalizedFolderId) return [];
+
+            const scopedNodes = getScopedFolderNodes(cloneBookmarkFolders(), normalizedWorkspace, normalizedCategory);
+            const { childrenByParent } = buildFolderMaps(scopedNodes);
+            const subtreeIds = collectFolderSubtreeIds(normalizedFolderId, childrenByParent);
+            return clonePinsByPredicate((pin, context) => {
+                if (!context) return false;
+                if (String(context.workspaceId || 'main') !== normalizedWorkspace) return false;
+                if (String(context.categoryName || 'Unsorted') !== normalizedCategory) return false;
+                const targetType = String(pin?.targetType || '').trim().toLowerCase();
+                if (targetType === 'folder') {
+                    return subtreeIds.has(String(context.folderId || '').trim());
+                }
+                if (targetType === 'bookmark') {
+                    return subtreeIds.has(String(context.folderId || '').trim());
+                }
+                return false;
+            });
+        }
+
         function captureWorkspace(workspaceId) {
             const state = captureState();
             const workspaceLinks = filterLinksForWorkspace(workspaceId);
@@ -212,6 +309,7 @@ window.EveDataStore.CaptureModules = window.EveDataStore.CaptureModules || {};
                 activeWorkspace: workspaceId
             };
             state.bookmarks.folders = filterFolderTreesForWorkspace(cloneBookmarkFolders(), workspaceId);
+            state.bookmarks.pins = filterPinsForWorkspace(workspaceId);
             state.library.connections = workspaceConnections;
             state.library.categories = filterCategoriesForConnections(state.library.categories, workspaceConnections);
             return state;
@@ -236,6 +334,7 @@ window.EveDataStore.CaptureModules = window.EveDataStore.CaptureModules || {};
                 activeWorkspace: workspaceId
             };
             state.bookmarks.folders = filterFolderTreesForCard(cloneBookmarkFolders(), workspaceId, categoryName);
+            state.bookmarks.pins = filterPinsForCard(workspaceId, categoryName);
             state.library.connections = cardConnections;
             state.library.categories = filterCategoriesForConnections(state.library.categories, cardConnections);
             return state;
@@ -265,6 +364,7 @@ window.EveDataStore.CaptureModules = window.EveDataStore.CaptureModules || {};
                 activeWorkspace: normalizedWorkspace
             };
             state.bookmarks.folders = filterFolderTreesForCard(cloneBookmarkFolders(), normalizedWorkspace, bookmarkCategory);
+            state.bookmarks.pins = filterPinsForBookmark(normalizedLinkId);
             state.library.connections = bookmarkConnections;
             state.library.categories = filterCategoriesForConnections(state.library.categories, bookmarkConnections);
             return state;
@@ -313,6 +413,7 @@ window.EveDataStore.CaptureModules = window.EveDataStore.CaptureModules || {};
                     nodes: subtreeNodes
                 }
             };
+            state.bookmarks.pins = filterPinsForFolder(normalizedWorkspace, normalizedCategory, normalizedFolderId);
             state.library.connections = folderConnections;
             state.library.categories = filterCategoriesForConnections(state.library.categories, folderConnections);
             return state;

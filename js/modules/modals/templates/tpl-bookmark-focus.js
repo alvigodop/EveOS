@@ -16,6 +16,20 @@ window.modalTemplate += `
             <button type="button" onclick="bookmarkFocusDelete()" style="border:1px solid var(--danger); color:var(--danger); background:transparent;">Delete</button>
         </div>
 
+        <details id="bookmarkFocusPinSection" class="settings-disclosure">
+            <summary class="settings-disclosure-summary settings-disclosure-summary--split">
+                <span class="settings-disclosure-summary__label">&#128204; Pin Scope</span>
+                <span id="bookmarkFocusPinSummary" class="settings-disclosure-summary__meta"></span>
+            </summary>
+            <div class="settings-disclosure-body" style="display:flex; flex-direction:column; gap:8px;">
+                <div style="display:flex; flex-direction:column; gap:4px;">
+                    <label for="bookmarkFocusPinScope" style="font-size:0.75rem; opacity:0.8;">Pinned Bookmark Scope</label>
+                    <select id="bookmarkFocusPinScope" onchange="bookmarkFocusSavePinScope(this.value)"></select>
+                </div>
+                <div id="bookmarkFocusPinHint" style="font-size:0.8rem; opacity:0.72;">Choose where this bookmark pin appears in the dock.</div>
+            </div>
+        </details>
+
         <details id="bookmarkFocusClickSection" class="settings-disclosure">
             <summary class="settings-disclosure-summary settings-disclosure-summary--split">
                 <span class="settings-disclosure-summary__label">&#128433; Click Behavior Override</span>

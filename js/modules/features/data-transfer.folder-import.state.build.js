@@ -164,6 +164,18 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         return folders;
     }
 
+    function deriveLegacyPinsFromLinks(links) {
+        return (Array.isArray(links) ? links : [])
+            .filter((link) => !!link?.pinned && String(link?.id || '').trim())
+            .map((link, index) => ({
+                id: `pin-bookmark-${String(link.id).trim()}`,
+                targetType: 'bookmark',
+                targetId: String(link.id).trim(),
+                scopeType: 'tab',
+                order: index
+            }));
+    }
+
     function buildUnifiedStateFromParsed(parsedTabs, options = {}) {
         const metadataType = options.metadataType || 'store';
         const inputConfig = options.config && typeof options.config === 'object' ? options.config : {};
@@ -208,6 +220,10 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         const workspaces = workspaceMap.size > 0 ? Array.from(workspaceMap.values()) : [{ id: 'main', name: 'Main', icon: 'folder' }];
         const activeWorkspace = String(inputConfig.activeWorkspace || activeWorkspaceFallback || workspaces[0].id).trim() || workspaces[0].id;
         const config = { ...inputConfig, workspaces, activeWorkspace };
+        const links = Array.from(linkMap.values());
+        const pins = Array.isArray(options.quickPins)
+            ? options.quickPins.map((pin) => ({ ...(pin || {}) }))
+            : deriveLegacyPinsFromLinks(links);
 
         return {
             metadata: {
@@ -217,9 +233,10 @@ window.EveDataTransfer = window.EveDataTransfer || {};
                 type: metadataType
             },
             bookmarks: {
-                links: Array.from(linkMap.values()),
+                links,
                 config,
-                folders: finalizeFolderTrees(folderMap)
+                folders: finalizeFolderTrees(folderMap),
+                pins
             },
             library: {
                 categories: finalizeCategories(categoriesMap),

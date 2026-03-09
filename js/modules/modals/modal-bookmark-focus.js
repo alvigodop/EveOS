@@ -17,6 +17,34 @@
     const buildLibraryPatch = focus.buildLibraryPatch;
     const buildMetadataPatch = focus.buildMetadataPatch;
     const clickBehaviorApi = window.EveBookmarkClickBehavior;
+    const pinApi = window.EveQuickPins;
+
+    function describePinScope(scopeType) {
+        if (scopeType === 'folder') return 'Visible only when this bookmark folder card is active.';
+        if (scopeType === 'card') return 'Visible only when this bookmark card is active.';
+        return 'Visible anywhere on the current tab.';
+    }
+
+    function refreshPinControls(link) {
+        const select = document.getElementById('bookmarkFocusPinScope');
+        const summary = document.getElementById('bookmarkFocusPinSummary');
+        const hint = document.getElementById('bookmarkFocusPinHint');
+        if (!select || !pinApi?.getBookmarkScopeOptions) return;
+
+        const options = pinApi.getBookmarkScopeOptions(link);
+        const selectedScope = pinApi.getBookmarkScopeType?.(link?.id) || 'tab';
+        select.innerHTML = options.map((option) => {
+            const selected = option.value === selectedScope ? ' selected' : '';
+            return `<option value="${option.value}"${selected}>${option.label}</option>`;
+        }).join('');
+        if (!options.some((option) => option.value === select.value)) {
+            select.value = options[0]?.value || 'tab';
+        }
+
+        const isPinned = !!pinApi?.isBookmarkPinned?.(link?.id);
+        if (summary) summary.textContent = isPinned ? `Current: ${select.options[select.selectedIndex]?.text || 'Tab'}` : 'Applies when pinned';
+        if (hint) hint.textContent = describePinScope(select.value);
+    }
 
     function refreshClickBehaviorControls(link) {
         const select = document.getElementById('bookmarkFocusClickBehavior');
@@ -46,6 +74,7 @@
 
         refreshHeader(link);
         refreshActionButtons(link);
+        refreshPinControls(link);
         refreshClickBehaviorControls(link);
         loadLinkedRecord(link.id);
         modal.style.display = 'flex';
@@ -97,9 +126,28 @@
     window.bookmarkFocusTogglePin = function () {
         const linkId = getCurrentLinkId();
         if (!linkId) return;
-        togglePin(linkId);
+        const scopeSelect = document.getElementById('bookmarkFocusPinScope');
+        const scopeType = String(scopeSelect?.value || 'tab').trim() || 'tab';
+        if (window.EveQuickPins?.toggleBookmarkPin) {
+            window.EveQuickPins.toggleBookmarkPin(linkId, { scopeType });
+        } else {
+            togglePin(linkId);
+        }
         const nextLink = findLinkById(linkId);
         refreshActionButtons(nextLink);
+        refreshPinControls(nextLink);
+    };
+
+    window.bookmarkFocusSavePinScope = function (scopeType) {
+        const linkId = getCurrentLinkId();
+        if (!linkId || !pinApi?.isBookmarkPinned) return;
+        const normalizedScopeType = String(scopeType || 'tab').trim() || 'tab';
+        if (pinApi.isBookmarkPinned(linkId)) {
+            pinApi.setBookmarkScopeType?.(linkId, normalizedScopeType);
+            showToast('Pin scope updated', 'success');
+        }
+        const nextLink = findLinkById(linkId);
+        refreshPinControls(nextLink);
     };
 
     window.bookmarkFocusToggleDone = function () {
@@ -207,6 +255,7 @@
         const link = findLinkById(currentId);
         refreshHeader(link);
         refreshActionButtons(link);
+        refreshPinControls(link);
         refreshClickBehaviorControls(link);
         loadLinkedRecord(currentId);
     });

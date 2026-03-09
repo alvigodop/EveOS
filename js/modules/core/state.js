@@ -1,6 +1,7 @@
 // --- STATE ---
 let links = [];
 let bookmarkFolders = {};
+let quickPins = [];
 let config = {
     background: "",
     viewMode: "grid",
@@ -78,5 +79,7 @@ let timerInterval = null, timerSeconds = 1500, timerRunning = false;
 window.eveState = {
     get config() { return config; },
     get links() { return links; },
-    get bookmarkFolders() { return bookmarkFolders; }
+    get bookmarkFolders() { return bookmarkFolders; },
+    get quickPins() { return quickPins; },
+    set quickPins(value) { quickPins = Array.isArray(value) ? value : []; }
 };

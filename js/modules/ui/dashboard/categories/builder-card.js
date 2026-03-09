@@ -152,9 +152,12 @@ window.DashboardCategories = window.DashboardCategories || {};
             const childHtml = childFolders.map(renderFolderNode).join('');
             const folderCountLabel = `${folderLinks.length} bookmark${folderLinks.length === 1 ? '' : 's'}`;
             const childCountLabel = `${childFolders.length} subfolder${childFolders.length === 1 ? '' : 's'}`;
+            const folderTargetId = window.EveQuickPins?.buildFolderTargetId
+                ? window.EveQuickPins.buildFolderTargetId(workspaceId, categoryName, node.id)
+                : '';
 
             return ''
-                + `<details class="bookmark-folder-group" open ${buildDropTargetAttributes(node.id)}>`
+                + `<details class="bookmark-folder-group" open data-bookmark-folder-target-id="${escapeCardHtml(folderTargetId)}" ${buildDropTargetAttributes(node.id)}>`
                     + '<summary class="bookmark-folder-summary">'
                         + '<div class="bookmark-folder-summary-copy">'
                             + `<span class="bookmark-folder-title">${escapeCardHtml(node.name)}</span>`
@@ -330,6 +333,9 @@ window.DashboardCategories = window.DashboardCategories || {};
                 + '<span class="sort-btn" onclick="moveCategory(\'' + safeCatJs + '\', 1)">&#9660;</span>';
 
         var activeWorkspaceId = String(options.activeWorkspace || window.eveState?.config?.activeWorkspace || 'main').trim() || 'main';
+        var cardTargetId = window.EveQuickPins?.buildCardTargetId
+            ? window.EveQuickPins.buildCardTargetId(activeWorkspaceId, cat)
+            : buildScopedCategoryKey(activeWorkspaceId, cat);
         var visibleHeaderButtons = new Set(getCardHeaderButtonsForCategory(activeWorkspaceId, cat));
         var nonFocusButtons = [];
         if (visibleHeaderButtons.has('add')) {
@@ -409,6 +415,9 @@ window.DashboardCategories = window.DashboardCategories || {};
             + '<div id="' + libPanelId + '" class="lib-panel" style="display:none;"></div>'
             + listHtml
             + '<div class="category-footer"><span class="stat-pending">Pending: ' + Math.max(totalVisibleTasks - doneVisible, 0) + '</span><span class="stat-done">Done: ' + doneVisible + '</span></div>';
+        card.setAttribute('data-card-target-id', cardTargetId);
+        card.setAttribute('data-card-category', String(cat || 'Unsorted'));
+        card.setAttribute('data-card-workspace', activeWorkspaceId);
 
         gridContainer.appendChild(card);
     };

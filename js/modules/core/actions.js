@@ -10,14 +10,16 @@ function switchWorkspace(id) {
 
 function togglePin(id) {
     const targetId = String(id);
-    const l = links.find(x => String(x.id) === targetId);
-    if (l) {
-        l.pinned = !l.pinned;
-        // Check if we need to show/hide dock immediately
-        const dock = document.getElementById('dock-container');
-        if (dock && typeof renderDashboard === 'function') renderDashboard();
-        saveData();
+    if (window.EveQuickPins?.toggleBookmarkPin) {
+        return window.EveQuickPins.toggleBookmarkPin(targetId);
     }
+    const l = links.find(x => String(x.id) === targetId);
+    if (!l) return false;
+    l.pinned = !l.pinned;
+    const dock = document.getElementById('dock-container');
+    if (dock && typeof renderDashboard === 'function') renderDashboard();
+    saveData();
+    return !!l.pinned;
 }
 
 function toggleDone(id) {

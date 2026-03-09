@@ -29,6 +29,9 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
     const pClass = l.priority ? `p-${l.priority}` : '';
     const linkId = String(l.id);
     const isChecked = (typeof selectedIds !== 'undefined' && selectedIds.has(linkId)) ? 'checked' : '';
+    const isPinned = window.EveQuickPins?.isBookmarkPinned
+        ? !!window.EveQuickPins.isBookmarkPinned(linkId)
+        : !!l.pinned;
     const encodedLinkId = encodeURIComponent(linkId);
     const jsLinkIdLiteral = `'${linkId.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
 
@@ -48,7 +51,7 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
                 <input type="checkbox" class="bulk-check" onclick="toggleSelect(${jsLinkIdLiteral}, event)" ${isChecked}>
                 ${iconHtml} ${wsBadge} ${folderBadge} <a href="${l.url}" target="_blank" rel="noopener noreferrer" onclick='return (typeof openBookmarkFromDashboard==="function") ? openBookmarkFromDashboard(event, decodeURIComponent("${encodedLinkId}")) : true;'>${l.title}</a>
                 <div class="actions">
-                    <span class="icon-btn ${l.pinned ? 'pin-active' : ''}" onclick="togglePin(${jsLinkIdLiteral})">${PIN_ICON}</span>
+                    <span class="icon-btn ${isPinned ? 'pin-active' : ''}" onclick="togglePin(${jsLinkIdLiteral})">${PIN_ICON}</span>
                     ${doneActionHtml}
                     <span class="icon-btn" onclick="openEdit(${jsLinkIdLiteral})">${EDIT_ICON}</span>
                     <span class="icon-btn" onclick="deleteLink(${jsLinkIdLiteral})" style="color:var(--danger)">${DELETE_ICON}</span>

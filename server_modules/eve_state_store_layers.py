@@ -201,6 +201,124 @@ def _normalize_task_mode(value):
     } else "inherit"
 
 
+def _normalize_quick_pin_scope(value, target_type="bookmark"):
+    normalized = str(value or "").strip().lower()
+    if normalized in {"workspace", "tab", "card", "folder"}:
+        return normalized
+    return "tab" if str(target_type or "").strip().lower() == "bookmark" else "workspace"
+
+
+def _normalize_quick_pin(pin, fallback_order=0):
+    item = dict(pin or {})
+    target_type = str(item.get("targetType") or "").strip().lower()
+    if target_type not in {"bookmark", "card", "folder"}:
+        return None
+    target_id = str(item.get("targetId") or item.get("linkId") or item.get("id") or "").strip()
+    if not target_id:
+        return None
+    try:
+        order = int(item.get("order") if item.get("order") is not None else fallback_order)
+    except Exception:
+        order = int(fallback_order or 0)
+    pin_id = str(item.get("id") or "").strip() or f"pin-{target_type}-{_slugify(f'{target_type}-{target_id}', 'pin')}"
+    return {
+        "id": pin_id,
+        "targetType": target_type,
+        "targetId": target_id,
+        "scopeType": _normalize_quick_pin_scope(item.get("scopeType"), target_type=target_type),
+        "order": order,
+    }
+
+
+def _derive_quick_pins_from_links(links):
+    derived = []
+    for index, link in enumerate(links or []):
+        link_id = str((link or {}).get("id") or "").strip()
+        if not link_id or not (link or {}).get("pinned"):
+            continue
+        derived.append({
+            "id": f"pin-bookmark-{link_id}",
+            "targetType": "bookmark",
+            "targetId": link_id,
+            "scopeType": "tab",
+            "order": index,
+        })
+    return derived
+
+
+def _normalize_quick_pins(pins, links=None):
+    normalized = []
+    seen = set()
+    source_pins = pins if pins is not None else _derive_quick_pins_from_links(links or [])
+    for index, raw_pin in enumerate(source_pins or []):
+        pin = _normalize_quick_pin(raw_pin, fallback_order=index)
+        if not pin:
+            continue
+        dedupe_key = f"{pin['targetType']}::{pin['targetId']}"
+        if dedupe_key in seen:
+            continue
+        seen.add(dedupe_key)
+        normalized.append(pin)
+    normalized.sort(key=lambda item: (int(item.get("order") or 0), str(item.get("id") or "")))
+    for index, pin in enumerate(normalized):
+        pin["order"] = index
+    return normalized
+
+
+def _pin_target_context(pin, links=None):
+    item = dict(pin or {})
+    target_type = str(item.get("targetType") or "").strip().lower()
+    target_id = str(item.get("targetId") or "").strip()
+    if target_type == "bookmark":
+        for link in links or []:
+            if str((link or {}).get("id") or "").strip() != target_id:
+                continue
+            return {
+                "workspace_id": str((link or {}).get("workspace") or "main").strip() or "main",
+                "category_name": str((link or {}).get("category") or "Unsorted").strip() or "Unsorted",
+                "folder_id": str((link or {}).get("folderId") or "").strip(),
+            }
+        return None
+    if target_type == "card":
+        parsed = _parse_scoped_category_key(target_id)
+        return {
+            "workspace_id": str(parsed.get("workspace_id") or "main").strip() or "main",
+            "category_name": str(parsed.get("category_name") or "Unsorted").strip() or "Unsorted",
+            "folder_id": "",
+        }
+    if target_type == "folder":
+        parts = target_id.split("::")
+        return {
+            "workspace_id": str(parts[0] or "main").strip() or "main",
+            "category_name": str(parts[1] or "Unsorted").strip() or "Unsorted",
+            "folder_id": str("::".join(parts[2:]) or "").strip(),
+        }
+    return None
+
+
+def _pin_matches_card_scope(pin, workspace_id, category_name, links=None):
+    context = _pin_target_context(pin, links=links)
+    return bool(
+        context
+        and str(context.get("workspace_id") or "main").strip() == str(workspace_id or "main").strip()
+        and str(context.get("category_name") or "Unsorted").strip() == str(category_name or "Unsorted").strip()
+    )
+
+
+def _pin_matches_folder_subtree(pin, workspace_id, category_name, folder_ids, links=None):
+    context = _pin_target_context(pin, links=links)
+    if not context:
+        return False
+    if str(context.get("workspace_id") or "main").strip() != str(workspace_id or "main").strip():
+        return False
+    if str(context.get("category_name") or "Unsorted").strip() != str(category_name or "Unsorted").strip():
+        return False
+    target_type = str((pin or {}).get("targetType") or "").strip().lower()
+    if target_type not in {"bookmark", "folder"}:
+        return False
+    return str(context.get("folder_id") or "").strip() in {str(folder_id or "").strip() for folder_id in (folder_ids or set())}
+
+
 def _normalize_folder_tree_settings(settings):
     source = settings if isinstance(settings, dict) else {}
     return {
@@ -414,13 +532,15 @@ def _normalize_state_payload(state):
     categories = _normalize_categories((source.get("library") or {}).get("categories") or {})
     connections = _normalize_connections((source.get("library") or {}).get("connections") or [])
     folders = _normalize_bookmark_folders((source.get("bookmarks") or {}).get("folders") or {})
+    pins = _normalize_quick_pins((source.get("bookmarks") or {}).get("pins"), links=links)
 
     return {
         "metadata": dict(source.get("metadata") or {}),
         "bookmarks": {
             "links": links,
             "config": config,
-            "folders": folders
+            "folders": folders,
+            "pins": pins
         },
         "library": {
             "categories": categories,
@@ -451,6 +571,7 @@ def _build_layer_state(
     links,
     config,
     folders,
+    pins,
     categories,
     connections,
     layer_type,
@@ -488,7 +609,8 @@ def _build_layer_state(
         "bookmarks": {
             "links": _dedupe_links(links),
             "config": safe_config,
-            "folders": _normalize_bookmark_folders(folders or {})
+            "folders": _normalize_bookmark_folders(folders or {}),
+            "pins": _normalize_quick_pins(pins, links=links)
         },
         "library": {
             "categories": {key: value for key, value in (categories or {}).items()},
@@ -510,7 +632,8 @@ def empty_unified_state(format_version=FORMAT_VERSION):
                 "workspaces": [{"id": "main", "name": "Main", "icon": "🏠"}],
                 "activeWorkspace": "main"
             },
-            "folders": {}
+            "folders": {},
+            "pins": []
         },
         "library": {
             "categories": {},
@@ -623,6 +746,7 @@ def extract_layer_state(state, layer, workspace_id="", category_name="", folder_
     links = list(normalized["bookmarks"]["links"])
     config = dict(normalized["bookmarks"]["config"])
     folders = dict(normalized["bookmarks"].get("folders") or {})
+    pins = list(normalized["bookmarks"].get("pins") or [])
     categories = dict(normalized["library"]["categories"])
     connections = list(normalized["library"]["connections"])
 
@@ -630,7 +754,7 @@ def extract_layer_state(state, layer, workspace_id="", category_name="", folder_
     if scope not in VALID_LAYER_SCOPES:
         raise ValueError(f"Unsupported layer scope: {scope}")
     if scope == "store":
-        return _build_layer_state(links, config, folders, categories, connections, "store", format_version=format_version)
+        return _build_layer_state(links, config, folders, pins, categories, connections, "store", format_version=format_version)
 
     ws_id = str(workspace_id or "").strip() or str(config.get("activeWorkspace") or "").strip()
     if scope in {"tab", "card", "folder", "bookmark"} and not ws_id:
@@ -651,6 +775,10 @@ def extract_layer_state(state, layer, workspace_id="", category_name="", folder_
             key: value for key, value in folders.items()
             if _categories_scope_workspace(key) == ws_id
         }
+        scoped_pins = [
+            pin for pin in pins
+            if str((_pin_target_context(pin, links=links) or {}).get("workspace_id") or "main").strip() == ws_id
+        ]
         tab_config = dict(config)
         _ensure_workspace_config_entry(tab_config, ws_id, incoming_config=config)
         tab_config["workspaces"] = [
@@ -661,6 +789,7 @@ def extract_layer_state(state, layer, workspace_id="", category_name="", folder_
             scoped_links,
             tab_config,
             scoped_folders,
+            scoped_pins,
             scoped_categories,
             scoped_connections,
             "workspace",
@@ -688,6 +817,10 @@ def extract_layer_state(state, layer, workspace_id="", category_name="", folder_
         scoped_key = _scoped_key(ws_id, cat_name)
         scoped_categories = {scoped_key: categories.get(scoped_key)} if scoped_key in categories else {}
         scoped_folders = {scoped_key: folders.get(scoped_key)} if scoped_key in folders else {}
+        scoped_pins = [
+            pin for pin in pins
+            if _pin_matches_card_scope(pin, ws_id, cat_name, links=links)
+        ]
         card_config = dict(config)
         _ensure_workspace_config_entry(card_config, ws_id, incoming_config=config)
         card_config["workspaces"] = [
@@ -698,6 +831,7 @@ def extract_layer_state(state, layer, workspace_id="", category_name="", folder_
             scoped_links,
             card_config,
             scoped_folders,
+            scoped_pins,
             scoped_categories,
             scoped_connections,
             "card",
@@ -749,6 +883,10 @@ def extract_layer_state(state, layer, workspace_id="", category_name="", folder_
                 ],
                 "folderView": dict(source_category.get("folderView") or {})
             }
+        scoped_pins = [
+            pin for pin in pins
+            if _pin_matches_folder_subtree(pin, ws_id, cat_name, subtree_ids, links=links)
+        ]
 
         folder_config = dict(config)
         _ensure_workspace_config_entry(folder_config, ws_id, incoming_config=config)
@@ -760,6 +898,7 @@ def extract_layer_state(state, layer, workspace_id="", category_name="", folder_
             scoped_links,
             folder_config,
             {scoped_key: scoped_folder_tree},
+            scoped_pins,
             scoped_categories,
             scoped_connections,
             "folder",
@@ -796,8 +935,13 @@ def extract_layer_state(state, layer, workspace_id="", category_name="", folder_
                 entry for entry in source_entries
                 if str((entry or {}).get("id") or "").strip() in entry_ids
             ]
-        }
+    }
     scoped_folders = {scoped_key: folders.get(scoped_key)} if scoped_key in folders else {}
+    scoped_pins = [
+        pin for pin in pins
+        if str((pin or {}).get("targetType") or "").strip().lower() == "bookmark"
+        and str((pin or {}).get("targetId") or "").strip() == target_bookmark_id
+    ]
 
     bookmark_config = dict(config)
     _ensure_workspace_config_entry(bookmark_config, ws_from_link, incoming_config=config)
@@ -809,6 +953,7 @@ def extract_layer_state(state, layer, workspace_id="", category_name="", folder_
         [matched_link],
         bookmark_config,
         scoped_folders,
+        scoped_pins,
         scoped_categories,
         scoped_connections,
         "bookmark",
@@ -831,6 +976,7 @@ def merge_layer_state(base_state, incoming_state, layer, workspace_id="", catego
             incoming["bookmarks"]["links"],
             incoming["bookmarks"]["config"],
             incoming["bookmarks"].get("folders") or {},
+            incoming["bookmarks"].get("pins") or [],
             incoming["library"]["categories"],
             incoming["library"]["connections"],
             "store",
@@ -842,11 +988,15 @@ def merge_layer_state(base_state, incoming_state, layer, workspace_id="", catego
     base_connections = list(base["library"]["connections"])
     base_config = dict(base["bookmarks"]["config"])
     base_folders = dict(base["bookmarks"].get("folders") or {})
+    base_pins = list(base["bookmarks"].get("pins") or [])
     incoming_links = list(incoming["bookmarks"]["links"])
     incoming_categories = dict(incoming["library"]["categories"])
     incoming_connections = list(incoming["library"]["connections"])
     incoming_config = dict(incoming["bookmarks"]["config"])
     incoming_folders = dict(incoming["bookmarks"].get("folders") or {})
+    incoming_pins = list(incoming["bookmarks"].get("pins") or [])
+    existing_links_for_pins = list(base_links)
+    incoming_links_for_pins = list(incoming_links)
 
     ws_id = str(workspace_id or "").strip() or str(incoming_config.get("activeWorkspace") or "").strip()
     if scope in {"tab", "card", "folder", "bookmark"} and not ws_id:
@@ -882,12 +1032,20 @@ def merge_layer_state(base_state, incoming_state, layer, workspace_id="", catego
             key: value for key, value in incoming_folders.items()
             if _categories_scope_workspace(key) == ws_id
         })
+        base_pins = [
+            pin for pin in base_pins
+            if str((_pin_target_context(pin, links=existing_links_for_pins) or {}).get("workspace_id") or "main").strip() != ws_id
+        ] + [
+            pin for pin in incoming_pins
+            if str((_pin_target_context(pin, links=incoming_links_for_pins) or {}).get("workspace_id") or "main").strip() == ws_id
+        ]
         _ensure_workspace_config_entry(base_config, ws_id, incoming_config=incoming_config)
         base_config["activeWorkspace"] = ws_id
         return _build_layer_state(
             base_links,
             base_config,
             base_folders,
+            base_pins,
             base_categories,
             base_connections,
             "workspace",
@@ -939,12 +1097,20 @@ def merge_layer_state(base_state, incoming_state, layer, workspace_id="", catego
             base_folders.pop(target_scoped_key)
         if target_scoped_key in incoming_folders:
             base_folders[target_scoped_key] = incoming_folders[target_scoped_key]
+        base_pins = [
+            pin for pin in base_pins
+            if not _pin_matches_card_scope(pin, ws_id, cat_name, links=existing_links_for_pins)
+        ] + [
+            pin for pin in incoming_pins
+            if _pin_matches_card_scope(pin, ws_id, cat_name, links=incoming_links_for_pins)
+        ]
         _ensure_workspace_config_entry(base_config, ws_id, incoming_config=incoming_config)
         base_config["activeWorkspace"] = ws_id
         return _build_layer_state(
             base_links,
             base_config,
             base_folders,
+            base_pins,
             base_categories,
             base_connections,
             "card",
@@ -1005,6 +1171,10 @@ def merge_layer_state(base_state, incoming_state, layer, workspace_id="", catego
 
         merged_tree = _replace_folder_subtree(existing_tree, incoming_tree, target_folder_id)
         base_folders[scoped_key] = merged_tree
+        base_pins = [
+            pin for pin in base_pins
+            if not _pin_matches_folder_subtree(pin, ws_id, cat_name, removed_ids, links=existing_links_for_pins)
+        ] + list(incoming_pins)
 
         entry_ids = {
             str(_connection_entry_id(conn) or "").strip()
@@ -1029,6 +1199,7 @@ def merge_layer_state(base_state, incoming_state, layer, workspace_id="", catego
             base_links,
             base_config,
             base_folders,
+            base_pins,
             base_categories,
             base_connections,
             "folder",
@@ -1071,6 +1242,19 @@ def merge_layer_state(base_state, incoming_state, layer, workspace_id="", catego
         }
     if scoped_key in incoming_folders:
         base_folders[scoped_key] = incoming_folders[scoped_key]
+    base_pins = [
+        pin for pin in base_pins
+        if not (
+            str((pin or {}).get("targetType") or "").strip().lower() == "bookmark"
+            and str((pin or {}).get("targetId") or "").strip() == target_bookmark_id
+        )
+    ] + [
+        pin for pin in incoming_pins
+        if (
+            str((pin or {}).get("targetType") or "").strip().lower() == "bookmark"
+            and str((pin or {}).get("targetId") or "").strip() == target_bookmark_id
+        )
+    ]
 
     _ensure_workspace_config_entry(base_config, ws_from_link, incoming_config=incoming_config)
     base_config["activeWorkspace"] = ws_from_link
@@ -1078,6 +1262,7 @@ def merge_layer_state(base_state, incoming_state, layer, workspace_id="", catego
         base_links,
         base_config,
         base_folders,
+        base_pins,
         base_categories,
         base_connections,
         "bookmark",

@@ -14,6 +14,8 @@ window.EveDataStore = window.EveDataStore || {};
     const getLinks = ns.getLinks;
     const getBookmarkFolders = ns.getBookmarkFolders;
     const setBookmarkFolders = ns.setBookmarkFolders;
+    const cloneQuickPins = ns.cloneQuickPins;
+    const setQuickPins = ns.setQuickPins;
     const cloneConnections = ns.cloneConnections;
     const getConnectionCategoryName = ns.getConnectionCategoryName;
     const findCategoryLibraryData = ns.findCategoryLibraryData;
@@ -30,6 +32,54 @@ window.EveDataStore = window.EveDataStore || {};
             merged.set(id, { ...(entry || {}) });
         });
         return Array.from(merged.values());
+    }
+
+    function deriveLegacyPinsFromLinks(links) {
+        return (Array.isArray(links) ? links : [])
+            .filter((entry) => !!entry?.pinned && String(entry?.id || '').trim())
+            .map((entry, index) => ({
+                id: `pin-bookmark-${String(entry.id).trim()}`,
+                targetType: 'bookmark',
+                targetId: String(entry.id).trim(),
+                scopeType: 'tab',
+                order: index
+            }));
+    }
+
+    function replaceQuickPinsForWorkspace(workspaceId, incomingPins) {
+        if (window.EveQuickPins?.replacePinsForWorkspace) {
+            window.EveQuickPins.replacePinsForWorkspace(workspaceId, incomingPins, { persist: false });
+            if (typeof saveData === 'function') saveData();
+            return;
+        }
+        setQuickPins(Array.isArray(incomingPins) ? incomingPins : []);
+    }
+
+    function replaceQuickPinsForCard(workspaceId, categoryName, incomingPins) {
+        if (window.EveQuickPins?.replacePinsForCard) {
+            window.EveQuickPins.replacePinsForCard(workspaceId, categoryName, incomingPins, { persist: false });
+            if (typeof saveData === 'function') saveData();
+            return;
+        }
+        setQuickPins(Array.isArray(incomingPins) ? incomingPins : []);
+    }
+
+    function replaceQuickPinsForBookmark(bookmarkId, incomingPins) {
+        if (window.EveQuickPins?.replacePinsForBookmark) {
+            window.EveQuickPins.replacePinsForBookmark(bookmarkId, incomingPins, { persist: false });
+            if (typeof saveData === 'function') saveData();
+            return;
+        }
+        setQuickPins(Array.isArray(incomingPins) ? incomingPins : []);
+    }
+
+    function replaceQuickPinsForFolder(workspaceId, categoryName, folderId, incomingPins) {
+        if (window.EveQuickPins?.replacePinsForFolder) {
+            window.EveQuickPins.replacePinsForFolder(workspaceId, categoryName, folderId, incomingPins, { persist: false });
+            if (typeof saveData === 'function') saveData();
+            return;
+        }
+        setQuickPins(Array.isArray(incomingPins) ? incomingPins : []);
     }
 
     function getFolderTreesObject(value) {
@@ -163,6 +213,7 @@ window.EveDataStore = window.EveDataStore || {};
 
     function applyState(state) {
         if (!state || typeof state !== 'object') return false;
+        const hasIncomingPins = !!(state.bookmarks && Object.prototype.hasOwnProperty.call(state.bookmarks, 'pins'));
 
         if (state.bookmarks) {
             if (Array.isArray(state.bookmarks.links)) {
@@ -172,6 +223,11 @@ window.EveDataStore = window.EveDataStore || {};
                 ns.setConfig(state.bookmarks.config);
             }
             setBookmarkFolders(getFolderTreesObject(state.bookmarks.folders));
+            if (hasIncomingPins) {
+                setQuickPins(Array.isArray(state.bookmarks.pins) ? state.bookmarks.pins : []);
+            } else if (window.EveQuickPins?.migrateLegacyPins) {
+                window.EveQuickPins.migrateLegacyPins();
+            }
         }
 
         if (state.library) {
@@ -208,6 +264,11 @@ window.EveDataStore = window.EveDataStore || {};
             Object.entries(existingFolderTrees).filter(([key]) => String(key || '').split('::', 1)[0] !== String(workspaceId))
         );
         setBookmarkFolders({ ...remainingFolderTrees, ...incomingFolderTrees });
+        if (state.bookmarks && Object.prototype.hasOwnProperty.call(state.bookmarks, 'pins')) {
+            replaceQuickPinsForWorkspace(workspaceId, Array.isArray(state.bookmarks?.pins) ? state.bookmarks.pins : []);
+        } else if (Array.isArray(state.bookmarks?.links)) {
+            replaceQuickPinsForWorkspace(workspaceId, deriveLegacyPinsFromLinks(state.bookmarks.links));
+        }
 
         if (state.library) {
             ns.applyLibraryCategories(state.library.categories);
@@ -242,6 +303,11 @@ window.EveDataStore = window.EveDataStore || {};
             nextFolderTrees[targetScopedKey] = state.bookmarks.folders[targetScopedKey];
         }
         setBookmarkFolders(nextFolderTrees);
+        if (state.bookmarks && Object.prototype.hasOwnProperty.call(state.bookmarks, 'pins')) {
+            replaceQuickPinsForCard(workspaceId, categoryName, Array.isArray(state.bookmarks?.pins) ? state.bookmarks.pins : []);
+        } else if (Array.isArray(state.bookmarks?.links)) {
+            replaceQuickPinsForCard(workspaceId, categoryName, deriveLegacyPinsFromLinks(state.bookmarks.links));
+        }
 
         if (state.library?.categories && typeof state.library.categories === 'object') {
             const selectedCategory = findCategoryLibraryData(state.library.categories, workspaceId, categoryName);
@@ -314,6 +380,11 @@ window.EveDataStore = window.EveDataStore || {};
                 ...existingFolderTrees,
                 [targetScopedKey]: incomingFolderTrees[targetScopedKey]
             });
+        }
+        if (state.bookmarks && Object.prototype.hasOwnProperty.call(state.bookmarks, 'pins')) {
+            replaceQuickPinsForBookmark(normalizedLinkId, Array.isArray(state.bookmarks?.pins) ? state.bookmarks.pins : []);
+        } else if (Array.isArray(state.bookmarks?.links)) {
+            replaceQuickPinsForBookmark(normalizedLinkId, deriveLegacyPinsFromLinks(state.bookmarks.links));
         }
 
         if (state.library?.categories && typeof state.library.categories === 'object') {
@@ -404,6 +475,11 @@ window.EveDataStore = window.EveDataStore || {};
                 settings: normalizeFolderTreeSettings(existingTree?.settings)
             }
         });
+        if (state.bookmarks && Object.prototype.hasOwnProperty.call(state.bookmarks, 'pins')) {
+            replaceQuickPinsForFolder(workspaceId, categoryName, targetFolderId, Array.isArray(state.bookmarks?.pins) ? state.bookmarks.pins : []);
+        } else if (Array.isArray(state.bookmarks?.links)) {
+            replaceQuickPinsForFolder(workspaceId, categoryName, targetFolderId, deriveLegacyPinsFromLinks(state.bookmarks.links));
+        }
 
         const existingConnections = cloneConnections();
         const incomingConnections = Array.isArray(state.library?.connections)

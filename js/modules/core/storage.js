@@ -2,6 +2,7 @@
 const EVE_LINKS_KEY = 'eveV22Data';
 const EVE_CONFIG_KEY = 'eveV22Config';
 const EVE_BOOKMARK_FOLDERS_KEY = 'eveV22BookmarkFolders';
+const EVE_QUICK_PINS_KEY = 'eveV22QuickPins';
 
 function saveData() {
     localStorage.setItem(EVE_LINKS_KEY, JSON.stringify(links));
@@ -9,6 +10,11 @@ function saveData() {
         (typeof bookmarkFolders !== 'undefined' && bookmarkFolders && typeof bookmarkFolders === 'object')
             ? bookmarkFolders
             : {}
+    ));
+    localStorage.setItem(EVE_QUICK_PINS_KEY, JSON.stringify(
+        (typeof quickPins !== 'undefined' && Array.isArray(quickPins))
+            ? quickPins
+            : []
     ));
     window.dispatchEvent(new CustomEvent('eve:state-mutated', { detail: { source: 'saveData' } }));
     if (typeof renderDashboard === 'function') renderDashboard();
@@ -40,6 +46,17 @@ function loadData() {
     } else {
         bookmarkFolders = {};
     }
+    const storedQuickPins = localStorage.getItem(EVE_QUICK_PINS_KEY);
+    if (storedQuickPins) {
+        try {
+            const parsedQuickPins = JSON.parse(storedQuickPins);
+            quickPins = Array.isArray(parsedQuickPins) ? parsedQuickPins : [];
+        } catch (e) {
+            quickPins = [];
+        }
+    } else {
+        quickPins = [];
+    }
     const storedConfig = localStorage.getItem(EVE_CONFIG_KEY);
     if (storedConfig) { try { config = { ...config, ...JSON.parse(storedConfig) }; } catch (e) { } }
     if (!['grid', 'list', 'unidex'].includes(config.viewMode)) config.viewMode = 'grid';
@@ -59,6 +76,10 @@ function loadData() {
 
     // Default links if empty
     if (links.length === 0) links = [{ id: 1, title: "Welcome", url: "#", category: "Start", done: false, pinned: false, workspace: 'main', icon: '👋' }];
+
+    if (window.EveQuickPins?.migrateLegacyPins) {
+        window.EveQuickPins.migrateLegacyPins();
+    }
 
     // Render
     if (typeof renderSidebar === 'function') renderSidebar();

@@ -15,6 +15,7 @@ window.EveDataStore = window.EveDataStore || {};
     const getLibraryStorageModule = ns.getLibraryStorageModule;
     const getConfig = ns.getConfig;
     const getBookmarkFolders = ns.getBookmarkFolders;
+    const cloneQuickPins = ns.cloneQuickPins;
     const cloneConnections = ns.cloneConnections;
 
     function setLinks(newLinks) {
@@ -46,6 +47,20 @@ window.EveDataStore = window.EveDataStore || {};
             bookmarkFolders = sanitized;
         } else {
             window.bookmarkFolders = sanitized;
+        }
+        if (typeof saveData === 'function') saveData();
+    }
+
+    function setQuickPins(newQuickPins) {
+        const sanitized = Array.isArray(newQuickPins)
+            ? JSON.parse(JSON.stringify(newQuickPins))
+            : [];
+        if (window.EveQuickPins?.writeStore) {
+            window.EveQuickPins.writeStore(sanitized, { persist: false });
+        } else if (typeof quickPins !== 'undefined') {
+            quickPins = sanitized;
+        } else {
+            window.quickPins = sanitized;
         }
         if (typeof saveData === 'function') saveData();
     }
@@ -82,9 +97,11 @@ window.EveDataStore = window.EveDataStore || {};
         setLinks,
         setConfig,
         setBookmarkFolders,
+        setQuickPins,
         applyLibraryCategories,
         applyConnections,
-        getBookmarkFolders
+        getBookmarkFolders,
+        cloneQuickPins
     });
 
     ns.applySharedReady = true;

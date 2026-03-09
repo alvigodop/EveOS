@@ -44,6 +44,15 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         try {
             const rootHandle = await pickDirectory({ mode: 'read' });
             if (!(await confirmDialog('Restore tab from selected folder? (Overwrites selected tab workspace)'))) return;
+            const stateRoot = await ns.getDirectoryHandleIfExists(rootHandle, 'state');
+            const directWorkspaceState = stateRoot ? await ns.readJsonFileIfExists(stateRoot, 'workspace-state.json') : null;
+            if (directWorkspaceState?.metadata?.type === 'workspace') {
+                const ok = dataStore.applyWorkspaceState(directWorkspaceState);
+                if (!ok) return showToast('Tab folder restore could not be applied.', 'error');
+                showToast('Tab folder restored!', 'success');
+                location.reload();
+                return;
+            }
             const appConfig = typeof ns.getAppConfig === 'function' ? ns.getAppConfig() : {};
             const selectedWorkspaceId = String(ns.getWorkspaceSelect?.()?.value || appConfig.activeWorkspace || '').trim() || 'main';
             const tabFolders = await ns.resolveTabFoldersFromRoot(rootHandle);
@@ -80,6 +89,15 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         try {
             const rootHandle = await pickDirectory({ mode: 'read' });
             if (!(await confirmDialog('Restore card from selected folder? (Overwrites selected workspace/card)'))) return;
+            const stateRoot = await ns.getDirectoryHandleIfExists(rootHandle, 'state');
+            const directCardState = stateRoot ? await ns.readJsonFileIfExists(stateRoot, 'card-state.json') : null;
+            if (directCardState?.metadata?.type === 'card') {
+                const ok = dataStore.applyCardState(directCardState);
+                if (!ok) return showToast('Card folder restore could not be applied.', 'error');
+                showToast('Card folder restored!', 'success');
+                location.reload();
+                return;
+            }
             const appConfig = typeof ns.getAppConfig === 'function' ? ns.getAppConfig() : {};
             const selectedWorkspaceId = String(ns.getCardWorkspaceSelect?.()?.value || appConfig.activeWorkspace || '').trim() || 'main';
             const selectedCategoryName = String(ns.getCardCategorySelect?.()?.value || '').trim();

@@ -8,8 +8,10 @@ from server_modules.eve_state_store_files import (
     build_library_index,
     build_workspaces,
     connection_entry_id,
+    derive_quick_pins_from_links,
     folder_name,
     load_json_file,
+    normalize_quick_pins,
     normalize_bookmark_folder_tree_settings,
     normalize_click_behavior_mode,
     normalize_bookmark_folder_node,
@@ -268,6 +270,7 @@ def write_modular_state_full(
     config = bookmarks.get("config") or {}
     links = list(bookmarks.get("links") or [])
     bookmark_folders = _normalize_bookmark_folders_map(bookmarks.get("folders") or {})
+    quick_pins = normalize_quick_pins(bookmarks.get("pins"), links=links)
     connections = list(library.get("connections") or [])
     categories = library.get("categories") or {}
 
@@ -302,6 +305,13 @@ def write_modular_state_full(
     )
     (meta_dir / "config.json").write_text(
         json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    (meta_dir / "pins.json").write_text(
+        json.dumps({
+            "schema": "eveos.quick-pins.v1",
+            "pins": quick_pins,
+        }, ensure_ascii=False, indent=2),
+        encoding="utf-8"
     )
 
     bookmark_count = 0
@@ -545,11 +555,16 @@ def read_modular_state_raw(*, store_root, meta_dir, tabs_dir, format_version):
     config = {}
     store_file = meta_dir / "store.json"
     config_file = meta_dir / "config.json"
+    pins_file = meta_dir / "pins.json"
 
     if store_file.exists():
         store_meta = json.loads(store_file.read_text(encoding="utf-8"))
     if config_file.exists():
         config = json.loads(config_file.read_text(encoding="utf-8"))
+    quick_pins = []
+    if pins_file.exists():
+        pins_payload = load_json_file(pins_file, fallback={})
+        quick_pins = normalize_quick_pins((pins_payload or {}).get("pins"), links=None)
 
     links = []
     connections_by_link = {}
@@ -706,6 +721,11 @@ def read_modular_state_raw(*, store_root, meta_dir, tabs_dir, format_version):
             categories[scoped]["entries"].append(entry)
             entry_ids_by_scope[scoped].add(entry_id)
 
+    if not quick_pins:
+        quick_pins = derive_quick_pins_from_links(links)
+    else:
+        quick_pins = normalize_quick_pins(quick_pins, links=links)
+
     if not workspaces:
         workspaces = [{"id": "main", "name": "Main", "icon": "home"}]
 
@@ -728,6 +748,7 @@ def read_modular_state_raw(*, store_root, meta_dir, tabs_dir, format_version):
             "links": links,
             "config": merged_config,
             "folders": bookmark_folders,
+            "pins": quick_pins,
         },
         "library": {
             "categories": categories,

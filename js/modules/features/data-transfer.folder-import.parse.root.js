@@ -34,6 +34,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         if (directState) return directState;
         const metaRoot = await getDirectoryHandleIfExists(rootHandle, '_meta');
         const configPayload = metaRoot ? await readJsonFileIfExists(metaRoot, 'config.json') : null;
+        const pinsPayload = metaRoot ? await readJsonFileIfExists(metaRoot, 'pins.json') : null;
         const tabFolders = await resolveTabFoldersFromRoot(rootHandle);
         if (!tabFolders.length) {
             throw new Error('No tab folders found. Expected tabs/<tab>/cards/... structure.');
@@ -45,6 +46,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         return buildUnifiedStateFromParsed(parsedTabs, {
             metadataType: 'store',
             config: configPayload || {},
+            quickPins: Array.isArray(pinsPayload?.pins) ? pinsPayload.pins : [],
             activeWorkspace: configPayload?.activeWorkspace || parsedTabs[0]?.workspaceId || 'main'
         });
     }

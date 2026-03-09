@@ -78,6 +78,10 @@ window.categoryFolderCreateDraft = window.categoryFolderCreateDraft || {
         return window.EveBookmarkClickBehavior || null;
     }
 
+    function getPinApi() {
+        return window.EveQuickPins || null;
+    }
+
     function isCategorySettingsVisibleFor(categoryName) {
         const modal = document.getElementById('categorySettingsModal');
         return !!modal
@@ -117,6 +121,23 @@ window.categoryFolderCreateDraft = window.categoryFolderCreateDraft || {
             return `<option value="${escapeCategorySettingsHtml(option.value)}"${selected}>${escapeCategorySettingsHtml(option.label)}</option>`;
         }).join('');
         if (hint) hint.textContent = clickApi.describeMode(selectedMode);
+    }
+
+    function renderCategoryPinSettings() {
+        const pinBtn = document.getElementById('categoryPinCardBtn');
+        const pinApi = getPinApi();
+        if (!pinBtn || !pinApi?.isCardPinned) return;
+        const categoryName = String(window.currentCategoryCtx || '').trim() || 'Unsorted';
+        const workspaceId = getCategorySettingsWorkspaceId();
+        const isPinned = !!pinApi.isCardPinned(workspaceId, categoryName);
+        pinBtn.innerText = isPinned ? '📌 Unpin Card' : '📌 Pin Card';
+    }
+
+    function refreshCategoryPinViews(categoryName) {
+        if (!isCategorySettingsVisibleFor(categoryName)) return;
+        renderCategoryPinSettings();
+        renderCategoryHeaderButtonSettings();
+        renderCategoryFolderManager();
     }
 
     function renderCategoryFolderCreateForm(preferredParentId) {
@@ -174,15 +195,20 @@ window.categoryFolderCreateDraft = window.categoryFolderCreateDraft || {
     function renderFolderManagerRows(categoryName, workspaceId, viewModel, folderId, depth) {
         const clickApi = getClickBehaviorApi();
         const folderApi = getFolderApi();
+        const pinApi = getPinApi();
         const folders = viewModel.childrenMap.get(folderId) || [];
         return folders.map((folder) => {
             const safeCategoryJs = escapeCategorySettingsJs(categoryName);
             const safeFolderJs = escapeCategorySettingsJs(folder.id);
             const bookmarkCount = countFolderBookmarks(viewModel.folderLinks, folder.id);
             const childCount = (viewModel.childrenMap.get(folder.id) || []).length;
+            const pinnedBookmarkCount = Array.isArray(pinApi?.filterPinsForFolder?.(workspaceId, categoryName, folder.id))
+                ? pinApi.filterPinsForFolder(workspaceId, categoryName, folder.id).filter((pin) => pin?.targetType === 'bookmark').length
+                : 0;
             const metaParts = [];
             metaParts.push(`${bookmarkCount} bookmark${bookmarkCount === 1 ? '' : 's'}`);
             metaParts.push(`${childCount} subfolder${childCount === 1 ? '' : 's'}`);
+            metaParts.push(`${pinnedBookmarkCount} bookmark pin${pinnedBookmarkCount === 1 ? '' : 's'}`);
             const indentPx = depth * 18;
             const selectedMode = clickApi?.getFolderMode ? clickApi.getFolderMode(workspaceId, categoryName, folder.id) : 'inherit';
             const modeOptionsHtml = clickApi?.getModeOptions
@@ -210,6 +236,9 @@ window.categoryFolderCreateDraft = window.categoryFolderCreateDraft || {
                         + '</div>'
                         + '<div style="display:flex; gap:6px; flex-wrap:wrap;">'
                             + `<button type="button" onclick="closeModals(); openAddModalForFolder('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">Add Bookmark</button>`
+                            + `<button type="button" onclick="toggleCategoryFolderPin('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">${pinApi?.isFolderPinned?.(workspaceId, categoryName, folder.id) ? 'Unpin' : 'Pin'}</button>`
+                            + `<button type="button" onclick="pinCategoryFolderBookmarks('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">Pin Bookmarks</button>`
+                            + `<button type="button" onclick="unpinCategoryFolderBookmarks('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">Unpin Bookmarks</button>`
                             + `<button type="button" onclick="openFolderCreator('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">Subfolder</button>`
                             + `<button type="button" onclick="promptRenameBookmarkFolder('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">Rename</button>`
                             + `<button type="button" onclick="deleteBookmarkFolderPrompt('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">Delete</button>`
@@ -236,6 +265,8 @@ window.categoryFolderCreateDraft = window.categoryFolderCreateDraft || {
         const categoryName = String(window.currentCategoryCtx || '').trim() || 'Unsorted';
         const workspaceId = getCategorySettingsWorkspaceId();
         const folderApi = getFolderApi();
+        const pinApi = getPinApi();
+        const safeCategoryJs = escapeCategorySettingsJs(categoryName);
 
         if (!folderApi?.buildFolderView) {
             container.innerHTML = '<div style="opacity:0.72; font-size:0.9rem;">Folder controls are not available yet.</div>';
@@ -251,22 +282,30 @@ window.categoryFolderCreateDraft = window.categoryFolderCreateDraft || {
         const viewModel = folderApi.buildFolderView(workspaceId, categoryName, scopedLinks);
         const rootBookmarks = viewModel.rootLinks.length;
         const folderCount = viewModel.nodes.length;
-
-        if (!folderCount) {
-            container.innerHTML = ''
-                + '<div style="padding:12px; border:1px dashed rgba(255,255,255,0.18); border-radius:10px; opacity:0.8;">'
-                    + '<div style="font-weight:600; margin-bottom:4px;">No folders in this card yet</div>'
-                    + `<div style="font-size:0.84rem;">Root bookmarks currently visible in this card: ${rootBookmarks}</div>`
-                + '</div>';
-            return;
-        }
+        const cardPinnedCount = Array.isArray(pinApi?.filterPinsForCard?.(workspaceId, categoryName))
+            ? pinApi.filterPinsForCard(workspaceId, categoryName).filter((pin) => pin?.targetType === 'bookmark').length
+            : 0;
 
         container.innerHTML = ''
             + '<div style="padding:10px 12px; border:1px solid rgba(255,255,255,0.08); border-radius:10px; background:rgba(255,255,255,0.02);">'
-                + '<div style="font-weight:600; margin-bottom:4px;">Root bookmarks</div>'
-                + `<div style="font-size:0.84rem; opacity:0.76;">${rootBookmarks} bookmark${rootBookmarks === 1 ? '' : 's'} not assigned to a folder</div>`
+                + '<div style="display:flex; gap:10px; justify-content:space-between; align-items:flex-start; flex-wrap:wrap;">'
+                    + '<div style="display:flex; flex-direction:column; gap:4px; min-width:0;">'
+                        + '<div style="font-weight:600; margin-bottom:4px;">Root bookmarks</div>'
+                        + `<div style="font-size:0.84rem; opacity:0.76;">${rootBookmarks} bookmark${rootBookmarks === 1 ? '' : 's'} not assigned to a folder | ${cardPinnedCount} bookmark pin${cardPinnedCount === 1 ? '' : 's'} active in this card</div>`
+                    + '</div>'
+                    + '<div style="display:flex; gap:6px; flex-wrap:wrap;">'
+                        + `<button type="button" onclick="pinCategoryRootBookmarks('${safeCategoryJs}')" style="padding:5px 8px; font-size:0.78rem;">Pin Root Bookmarks</button>`
+                        + `<button type="button" onclick="unpinCategoryBookmarks('${safeCategoryJs}')" style="padding:5px 8px; font-size:0.78rem;">Unpin All In Card</button>`
+                    + '</div>'
+                + '</div>'
             + '</div>'
-            + renderFolderManagerRows(categoryName, workspaceId, viewModel, null, 0);
+            + (folderCount
+                ? renderFolderManagerRows(categoryName, workspaceId, viewModel, null, 0)
+                : ''
+                    + '<div style="padding:12px; border:1px dashed rgba(255,255,255,0.18); border-radius:10px; opacity:0.8;">'
+                        + '<div style="font-weight:600; margin-bottom:4px;">No folders in this card yet</div>'
+                        + `<div style="font-size:0.84rem;">Root bookmarks currently visible in this card: ${rootBookmarks}</div>`
+                    + '</div>');
     };
 
     window.openFolderCreator = function (categoryName, parentId) {
@@ -457,6 +496,66 @@ window.categoryFolderCreateDraft = window.categoryFolderCreateDraft || {
         showToast('Folder task behavior updated', 'success');
     };
 
+    window.toggleCategoryCardPin = function () {
+        const pinApi = getPinApi();
+        if (!pinApi?.toggleCardPin) return;
+        const categoryName = String(window.currentCategoryCtx || '').trim() || 'Unsorted';
+        const workspaceId = getCategorySettingsWorkspaceId();
+        const isPinned = !!pinApi.toggleCardPin(workspaceId, categoryName);
+        refreshCategoryPinViews(categoryName);
+        showToast(isPinned ? 'Card pinned to dock' : 'Card unpinned from dock', 'success');
+    };
+
+    window.toggleCategoryFolderPin = function (categoryName, folderId) {
+        const pinApi = getPinApi();
+        if (!pinApi?.toggleFolderPin) return;
+        const workspaceId = getCategorySettingsWorkspaceId();
+        const resolvedCategory = String(categoryName || window.currentCategoryCtx || 'Unsorted').trim() || 'Unsorted';
+        const isPinned = !!pinApi.toggleFolderPin(workspaceId, resolvedCategory, folderId);
+        refreshCategoryPinViews(resolvedCategory);
+        showToast(isPinned ? 'Folder pinned to dock' : 'Folder unpinned from dock', 'success');
+    };
+
+    window.pinCategoryRootBookmarks = function (categoryName) {
+        const pinApi = getPinApi();
+        if (!pinApi?.pinCardRootBookmarks) return;
+        const resolvedCategory = String(categoryName || window.currentCategoryCtx || 'Unsorted').trim() || 'Unsorted';
+        const workspaceId = getCategorySettingsWorkspaceId();
+        pinApi.pinCardRootBookmarks(workspaceId, resolvedCategory, { scopeType: 'card' });
+        refreshCategoryPinViews(resolvedCategory);
+        showToast(`Pinned root bookmarks in ${resolvedCategory}`, 'success');
+    };
+
+    window.unpinCategoryBookmarks = function (categoryName) {
+        const pinApi = getPinApi();
+        if (!pinApi?.unpinCardBookmarks) return;
+        const resolvedCategory = String(categoryName || window.currentCategoryCtx || 'Unsorted').trim() || 'Unsorted';
+        const workspaceId = getCategorySettingsWorkspaceId();
+        pinApi.unpinCardBookmarks(workspaceId, resolvedCategory);
+        refreshCategoryPinViews(resolvedCategory);
+        showToast(`Unpinned bookmark pins in ${resolvedCategory}`, 'success');
+    };
+
+    window.pinCategoryFolderBookmarks = function (categoryName, folderId) {
+        const pinApi = getPinApi();
+        if (!pinApi?.pinFolderBookmarks) return;
+        const resolvedCategory = String(categoryName || window.currentCategoryCtx || 'Unsorted').trim() || 'Unsorted';
+        const workspaceId = getCategorySettingsWorkspaceId();
+        pinApi.pinFolderBookmarks(workspaceId, resolvedCategory, folderId, { scopeType: 'folder' });
+        refreshCategoryPinViews(resolvedCategory);
+        showToast('Pinned folder bookmarks', 'success');
+    };
+
+    window.unpinCategoryFolderBookmarks = function (categoryName, folderId) {
+        const pinApi = getPinApi();
+        if (!pinApi?.unpinFolderBookmarks) return;
+        const resolvedCategory = String(categoryName || window.currentCategoryCtx || 'Unsorted').trim() || 'Unsorted';
+        const workspaceId = getCategorySettingsWorkspaceId();
+        pinApi.unpinFolderBookmarks(workspaceId, resolvedCategory, folderId);
+        refreshCategoryPinViews(resolvedCategory);
+        showToast('Unpinned folder bookmark pins', 'success');
+    };
+
     window.handleCategoryFolderNameEnter = function (event) {
         if (event?.key === 'Enter') {
             event.preventDefault();
@@ -507,6 +606,7 @@ window.categoryFolderCreateDraft = window.categoryFolderCreateDraft || {
         if (tabName === 'general') {
             renderCategoryHeaderButtonSettings();
             renderCategoryClickBehaviorSettings();
+            renderCategoryPinSettings();
             return;
         }
 

@@ -30,6 +30,7 @@ window.modalTemplate += `
                     <summary class="settings-disclosure-summary">&#128736; Card Actions</summary>
                     <div class="settings-disclosure-body" style="display:flex; gap:8px; flex-wrap:wrap;">
                         <button onclick="closeModals(); openAddModal(window.currentCategoryCtx)" style="flex:1 1 180px;">&#10133; Add Bookmark</button>
+                        <button id="categoryPinCardBtn" onclick="toggleCategoryCardPin()" style="flex:1 1 180px;">&#128204; Pin Card</button>
                         <button onclick="closeModals(); toggleCategoryLibrary(window.currentCategoryCtx)" style="flex:1 1 180px;">&#128218; Open Library</button>
                         <button onclick="switchCategoryTab('folders')" style="flex:1 1 180px;">&#128450; Manage Bookmark Folders</button>
                         <button onclick="closeModals(); ctxCatFocus()" style="flex:1 1 180px;">&#127919; Focus Mode</button>
