@@ -7,7 +7,9 @@ window.EveLinkForm = window.EveLinkForm || {};
             const collapseBtn = ns.getLibraryCollapseButton();
             const categoryInput = document.getElementById('newCategory');
             const bookmarkUrlInput = document.getElementById('newUrl');
+            const bookmarkCoverInput = document.getElementById('newCoverImage');
             const libraryUrlInput = document.getElementById('libSourceUrl');
+            const libraryImageInput = document.getElementById('libImageUrl');
             const typeGraphic = document.getElementById('libTypeGraphic');
             const typeFilms = document.getElementById('libTypeFilms');
             const typeNovels = document.getElementById('libTypeNovels');
@@ -17,6 +19,9 @@ window.EveLinkForm = window.EveLinkForm || {};
                     const enabled = !!toggle.checked;
                     if (enabled) {
                         ns.isLibraryFieldsCollapsed = false;
+                        if (bookmarkCoverInput && libraryImageInput) {
+                            libraryImageInput.value = bookmarkCoverInput.value || libraryImageInput.value || '';
+                        }
                     }
                     ns.setLibraryFieldsVisibility(enabled);
                     if (enabled) ns.refreshDerivedRatingsPreview();
@@ -73,6 +78,34 @@ window.EveLinkForm = window.EveLinkForm || {};
                     syncing = false;
                     pushLivePatchToLinkedEntry(function () {
                         return { sourceUrl: (libraryUrlInput.value || '').trim() };
+                    });
+                };
+            }
+
+            if (bookmarkCoverInput && libraryImageInput) {
+                let syncingCover = false;
+                bookmarkCoverInput.oninput = function () {
+                    if (syncingCover) return;
+                    syncingCover = true;
+                    libraryImageInput.value = bookmarkCoverInput.value;
+                    syncingCover = false;
+                    ns.refreshCoverImagesSummary?.();
+                    pushLivePatchToLinkedEntry(function () {
+                        return {
+                            image: ns.normalizeLibraryImageUrl(bookmarkCoverInput.value || '')
+                        };
+                    });
+                };
+                libraryImageInput.oninput = function () {
+                    if (syncingCover) return;
+                    syncingCover = true;
+                    bookmarkCoverInput.value = libraryImageInput.value;
+                    syncingCover = false;
+                    ns.refreshCoverImagesSummary?.();
+                    pushLivePatchToLinkedEntry(function () {
+                        return {
+                            image: ns.normalizeLibraryImageUrl(libraryImageInput.value || '')
+                        };
                     });
                 };
             }
@@ -158,6 +191,7 @@ window.EveLinkForm = window.EveLinkForm || {};
             patch.chapter = patch.graphicChapter || patch.novelChapter || 0;
             patch.title = title;
             if (!patch.sourceUrl && url) patch.sourceUrl = normalizeUrl(url);
+            patch.image = ns.normalizeLibraryImageUrl(document.getElementById('newCoverImage')?.value || patch.image || '');
             api.updateLinkedEntry?.(linkId, patch);
         };
     };

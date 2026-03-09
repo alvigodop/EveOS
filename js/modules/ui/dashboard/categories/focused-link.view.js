@@ -77,7 +77,13 @@ window.DashboardCategoriesModules = window.DashboardCategoriesModules || {};
         const libraryLanguageRaw = String(libraryEntry?.language || '').trim();
         const libraryMediaTypeRaw = getMediaTypeLabel(libraryEntry);
         const progressRaw = getProgressLabel(libraryEntry);
-        const coverUrlRaw = String(libraryEntry?.image || libraryEntry?.imageUrl || '').trim();
+        const coverUrlRaw = String(
+            window.EveBookmarkCovers?.getDisplayCover?.(link, libraryEntry?.image || libraryEntry?.imageUrl)
+            || link?.coverImage
+            || libraryEntry?.image
+            || libraryEntry?.imageUrl
+            || ''
+        ).trim();
 
         const libraryStatus = escapeHtml(libraryStatusRaw || 'No status');
         const libraryRating = escapeHtml(libraryRatingRaw || '-');
@@ -105,15 +111,15 @@ window.DashboardCategoriesModules = window.DashboardCategoriesModules || {};
             + '</div>'
             : '';
 
-        const visualHtml = isLibraryLinked
+        const visualHtml = safeCoverUrl
             ? '<div class="unidex-entry-cover-slot">'
-                + (safeCoverUrl
-                    ? '<img class="unidex-entry-cover" src="' + safeCoverUrl + '" alt="' + safeTitle + ' cover" loading="lazy" decoding="async" referrerpolicy="no-referrer">'
-                    : '<div class="unidex-entry-cover-fallback">&#128218;</div>')
+                + '<img class="unidex-entry-cover" src="' + safeCoverUrl + '" alt="' + safeTitle + ' cover" loading="lazy" decoding="async" referrerpolicy="no-referrer">'
             + '</div>'
-            : '<div class="unidex-entry-cover-slot is-bookmark-only"><div class="unidex-entry-bookmark-icon-wrap">'
-                + buildBookmarkIconHtml(link, safeTitle)
-            + '</div></div>';
+            : (isLibraryLinked
+                ? '<div class="unidex-entry-cover-slot"><div class="unidex-entry-cover-fallback">&#128218;</div></div>'
+                : '<div class="unidex-entry-cover-slot is-bookmark-only"><div class="unidex-entry-bookmark-icon-wrap">'
+                    + buildBookmarkIconHtml(link, safeTitle)
+                + '</div></div>');
 
         const libraryTagHtml = isLibraryLinked
             ? '<span class="unidex-entry-tag library-linked">Library Linked</span>'

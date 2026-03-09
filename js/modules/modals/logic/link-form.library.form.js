@@ -2,6 +2,13 @@ window.EveLinkForm = window.EveLinkForm || {};
 
 (function (ns) {
     ns.registerLibraryFormCore = function registerLibraryFormCore() {
+        ns.normalizeLibraryImageUrl = function normalizeLibraryImageUrl(value) {
+            const raw = String(value || '').trim();
+            if (!raw) return '';
+            if (/^(?:https?:\/\/|file:\/\/|data:|blob:)/i.test(raw)) return raw;
+            return normalizeUrl(raw);
+        };
+
         ns.readLibraryFormPatch = function () {
             const toInt = function (id) {
                 const raw = document.getElementById(id)?.value;
@@ -17,6 +24,9 @@ window.EveLinkForm = window.EveLinkForm || {};
             if (document.getElementById('libTypeFilms')?.checked) mediaTypes.push('films');
             if (document.getElementById('libTypeNovels')?.checked) mediaTypes.push('novels');
 
+            const coverImageInput = document.getElementById('newCoverImage');
+            const libraryImageInput = document.getElementById('libImageUrl');
+            const resolvedImage = ns.normalizeLibraryImageUrl(coverImageInput?.value || libraryImageInput?.value || '');
             const ratingsPatch = ns.buildRatingsPatch();
             return {
                 author,
@@ -31,7 +41,7 @@ window.EveLinkForm = window.EveLinkForm || {};
                 episode: toInt('libEpisode'),
                 language: document.getElementById('libLanguage')?.value.trim() || '',
                 sourceUrl: normalizeUrl(document.getElementById('libSourceUrl')?.value.trim() || ''),
-                image: document.getElementById('libImageUrl')?.value.trim() || '',
+                image: resolvedImage,
                 tags: ns.parseUniqueCsvList(document.getElementById('libTags')?.value || ''),
                 summary: document.getElementById('libSummary')?.value.trim() || '',
                 mediaTypes,
@@ -59,7 +69,14 @@ window.EveLinkForm = window.EveLinkForm || {};
             document.getElementById('libEpisode').value = entry?.episode ?? 0;
             document.getElementById('libLanguage').value = entry?.language || '';
             document.getElementById('libSourceUrl').value = entry?.sourceUrl || document.getElementById('newUrl')?.value || '';
-            document.getElementById('libImageUrl').value = entry?.image || entry?.imageUrl || '';
+            const existingBookmarkCover = document.getElementById('newCoverImage')?.value || '';
+            const resolvedImage = ns.normalizeLibraryImageUrl(existingBookmarkCover || entry?.image || entry?.imageUrl || '');
+            document.getElementById('libImageUrl').value = resolvedImage;
+            if (entry) {
+                const bookmarkCoverInput = document.getElementById('newCoverImage');
+                if (bookmarkCoverInput) bookmarkCoverInput.value = resolvedImage;
+                ns.refreshCoverImagesSummary?.();
+            }
             document.getElementById('libTags').value = ns.normalizeEntryListValue(entry?.tags);
             ns.writeApiRatingsToInputs(entry?.apiRatings || null);
             const summaryValue = entry?.summary || '';

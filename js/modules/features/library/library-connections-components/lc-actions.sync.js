@@ -34,6 +34,16 @@ window.EveLibrary.ConnectionsCoreModules = window.EveLibrary.ConnectionsCoreModu
                     link.url = sourceUrl;
                     changed = true;
                 }
+                const coverImage = String(entry.image || entry.imageUrl || '').trim();
+                if (coverImage) {
+                    if (link.coverImage !== coverImage) {
+                        link.coverImage = coverImage;
+                        changed = true;
+                    }
+                } else if (link.coverImage) {
+                    delete link.coverImage;
+                    changed = true;
+                }
             });
             if (changed) {
                 Core.saveLinks();
@@ -95,6 +105,12 @@ window.EveLibrary.ConnectionsCoreModules = window.EveLibrary.ConnectionsCoreModu
             const entry = found.entry;
             entry.title = link.title || entry.title;
             if (link.url) entry.sourceUrl = link.url;
+            const coverImage = String(link.coverImage || '').trim();
+            if (coverImage) {
+                entry.image = coverImage;
+            } else if (entry.image) {
+                delete entry.image;
+            }
             entry.lastEdited = new Date().toISOString();
             window.EveLibrary.Storage?.saveLibrary?.();
             Core.emitLinkedEntryUpdated(linkId, found.categoryName, entry, conn.workspace);

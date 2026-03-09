@@ -17,7 +17,13 @@ window.DashboardCategories = window.DashboardCategories || {};
     function getBookmarkHoverPreview(link) {
         if (!link) return null;
         const libraryEntry = window.EveLibrary?.ConnectionsAPI?.getLinkedEntry?.(link.id)?.entry || null;
-        const coverUrl = String(link.coverImage || libraryEntry?.image || libraryEntry?.imageUrl || '').trim();
+        const coverUrl = String(
+            window.EveBookmarkCovers?.getDisplayCover?.(link, libraryEntry?.image || libraryEntry?.imageUrl)
+            || link?.coverImage
+            || libraryEntry?.image
+            || libraryEntry?.imageUrl
+            || ''
+        ).trim();
         if (!coverUrl) return null;
 
         let domain = '';

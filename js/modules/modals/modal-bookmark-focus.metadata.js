@@ -97,7 +97,7 @@ window.EveBookmarkFocus = window.EveBookmarkFocus || {};
         let tags = normalizeList(entry?.tags);
         let language = String(entry?.language || '').trim();
         let sourceUrl = String(entry?.sourceUrl || '').trim();
-        let image = String(entry?.image || entry?.imageUrl || '').trim();
+        let image = String(link?.coverImage || entry?.image || entry?.imageUrl || '').trim();
         let sourceStatus = '';
         let apiRatings = getSafeApiRatings(entry?.apiRatings);
 

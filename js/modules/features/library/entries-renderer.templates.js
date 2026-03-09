@@ -23,6 +23,8 @@ window.EveLibrary.Modules = window.EveLibrary.Modules || {};
             const lastEditedText = formatLastEdited(entry.lastEdited || entry.dateAdded);
             const sourceUrl = entry.sourceUrl || '';
             const safeSourceUrl = sourceUrl.replace(/'/g, "\\'");
+            const displayImage = window.EveBookmarkCovers?.getDisplayCoverForLibraryEntry?.(categoryName, entry) || entry.image || entry.imageUrl || '';
+            const safeDisplayImage = String(displayImage || '').replace(/'/g, "\\'");
             const authorAltNames = toUniqueList(entry.authorAltNames);
             const artistValue = toDisplayCsv(entry.artist);
             const genreValue = toDisplayCsv(entry.genre);
@@ -52,7 +54,7 @@ window.EveLibrary.Modules = window.EveLibrary.Modules || {};
                 <div class="lib-entry-select">
                    <input type="checkbox" class="lib-batch-checkbox" data-category="${safeCat}" data-id="${safeId}">
                 </div>
-                ${entry.image ? `<img class="lib-entry-image" src="${entry.image}" alt="${entry.title}" onclick="window.EveLibrary.UI.openLightbox('${entry.image}')" title="View Fullsize">` : ''}
+                ${displayImage ? `<img class="lib-entry-image" src="${displayImage}" alt="${entry.title}" onclick="window.EveLibrary.UI.openLightbox('${safeDisplayImage}')" title="View Fullsize">` : ''}
                 ${titleHtml}
                 <div class="lib-entry-details">
                     <p><strong>Author:</strong> ${entry.author || 'N/A'}</p>

@@ -17,6 +17,22 @@ window.modalTemplate = `
             <label for="newCoverImage" style="font-size:0.82rem; opacity:0.84;">Bookmark Cover Image URL</label>
             <input type="url" id="newCoverImage" placeholder="https://... (optional)">
         </div>
+        <details class="settings-disclosure" style="margin-top:8px;">
+            <summary class="settings-disclosure-summary settings-disclosure-summary--split">
+                <span class="settings-disclosure-summary__label">&#128444; Additional Cover Images</span>
+                <span id="newCoverImagesSummary" class="settings-disclosure-summary__meta">0 extra</span>
+            </summary>
+            <div class="settings-disclosure-body" style="display:flex; flex-direction:column; gap:6px;">
+                <div style="font-size:0.8rem; opacity:0.72;">Add one image at a time. If extras exist, EveOS will pick one of them at random on reload. If none exist, the main cover URL above stays as the permanent fallback. You can also lock one extra as the permanent image.</div>
+                <div style="display:flex; gap:6px; align-items:center;">
+                    <input type="url" id="newCoverImageCandidate" placeholder="https://...">
+                    <button type="button" id="newCoverImageAddBtn" onclick="addBookmarkCoverImageCandidate()">Add</button>
+                </div>
+                <div id="newCoverImagesList" style="display:flex; flex-direction:column; gap:6px;"></div>
+                <textarea id="newCoverImages" style="display:none;"></textarea>
+                <input type="hidden" id="newFixedCoverImage">
+            </div>
+        </details>
         <div id="edit-link-search-results" style="display:none; max-height: 200px; overflow-y: auto; background: rgba(0,0,0,0.3); margin-bottom: 10px; padding: 5px; border-radius: 4px;"></div>
         
         <div style="margin-bottom: 10px;">

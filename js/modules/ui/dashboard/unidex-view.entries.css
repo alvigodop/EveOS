@@ -174,23 +174,23 @@
     }
 }
 
-.unidex-entry-item.is-library-linked .unidex-entry-cover-slot:hover {
+.unidex-entry-item.has-cover-image .unidex-entry-cover-slot:hover {
     border-color: rgba(0, 212, 255, 0.42);
     box-shadow: 0 0 0 1px rgba(0, 212, 255, 0.16);
 }
 
-.unidex-entry-item.is-library-linked .unidex-entry-cover-slot:hover .unidex-entry-cover,
-.unidex-entry-item.is-library-linked .unidex-entry-visual-btn:hover .unidex-entry-cover {
+.unidex-entry-item.has-cover-image .unidex-entry-cover-slot:hover .unidex-entry-cover,
+.unidex-entry-item.has-cover-image .unidex-entry-visual-btn:hover .unidex-entry-cover {
     animation: unidex-cover-hover-burst 620ms cubic-bezier(0.18, 0.78, 0.2, 1) forwards;
     filter: saturate(1.13) contrast(1.04) brightness(1.03);
 }
 
-.unidex-entries.is-row-layout .unidex-entry-item.is-library-linked .unidex-entry-cover-slot:hover .unidex-entry-cover,
-.unidex-entries.is-row-layout .unidex-entry-item.is-library-linked .unidex-entry-visual-btn:hover .unidex-entry-cover {
+.unidex-entries.is-row-layout .unidex-entry-item.has-cover-image .unidex-entry-cover-slot:hover .unidex-entry-cover,
+.unidex-entries.is-row-layout .unidex-entry-item.has-cover-image .unidex-entry-visual-btn:hover .unidex-entry-cover {
     animation: unidex-cover-hover-burst-row 660ms cubic-bezier(0.18, 0.78, 0.2, 1) forwards;
 }
 
-.unidex-entries.is-layout-stabilizing .unidex-entry-item.is-library-linked .unidex-entry-cover-slot:hover .unidex-entry-cover {
+.unidex-entries.is-layout-stabilizing .unidex-entry-item.has-cover-image .unidex-entry-cover-slot:hover .unidex-entry-cover {
     animation: none !important;
     transform: none;
     filter: none;

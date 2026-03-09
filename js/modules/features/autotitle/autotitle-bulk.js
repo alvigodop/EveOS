@@ -64,6 +64,9 @@
                         l.title = data.title;
                         if (data.icon) l.icon = data.icon; // Set the icon!
                         if (data.coverUrl) l.coverImage = data.coverUrl;
+                        if (window.EveLibrary?.ConnectionsAPI?.syncFromLink) {
+                            window.EveLibrary.ConnectionsAPI.syncFromLink(l.id);
+                        }
                         statusSpan.innerText = "✅";
                         updatedCount++;
                     } else if (data && data.title === "CLOUDFLARE_BLOCK") {

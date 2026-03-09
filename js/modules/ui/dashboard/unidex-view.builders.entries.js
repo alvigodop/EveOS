@@ -62,7 +62,13 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 const libraryLanguageRaw = String(libraryEntry?.language || '').trim();
                 const libraryMediaTypeRaw = getMediaTypeLabel(libraryEntry);
                 const progressRaw = getProgressLabel(libraryEntry);
-                const coverUrlRaw = String(libraryEntry?.image || libraryEntry?.imageUrl || '').trim();
+                const coverUrlRaw = String(
+                    window.EveBookmarkCovers?.getDisplayCover?.(link, libraryEntry?.image || libraryEntry?.imageUrl)
+                    || link?.coverImage
+                    || libraryEntry?.image
+                    || libraryEntry?.imageUrl
+                    || ''
+                ).trim();
                 const confidenceLabelRaw = Number.isFinite(confidenceValue) ? confidenceValue.toFixed(2) : '';
                 const libraryStatus = escapeHtml(libraryStatusRaw || 'No status');
                 const libraryRating = escapeHtml(libraryRatingRaw || '-');
@@ -100,21 +106,25 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 const coverImageStyle = isGridLayout
                     ? ' style="display:block !important;width:100% !important;max-width:100% !important;height:auto !important;min-height:0 !important;max-height:none !important;margin:0 !important;object-fit:contain !important;object-position:center top !important;"'
                     : ` style="width:100% !important;max-width:100% !important;height:${rowImageHeight}px !important;min-height:0 !important;max-height:none !important;margin-left:0 !important;margin-top:-${rowImageOffset}px !important;object-fit:cover !important;object-position:center top !important;"`;
-                const visualHtml = isLibraryLinked
+                const visualHtml = safeCoverUrl
                     ? `
                     <div class="unidex-entry-cover-slot"${coverSlotStyle}>
-                        ${safeCoverUrl
-                            ? `<img class="unidex-entry-cover" src="${safeCoverUrl}" alt="${safeTitle} cover" loading="lazy" decoding="async" referrerpolicy="no-referrer"${coverImageStyle}>`
-                            : '<div class="unidex-entry-cover-fallback">&#128218;</div>'}
+                        <img class="unidex-entry-cover" src="${safeCoverUrl}" alt="${safeTitle} cover" loading="lazy" decoding="async" referrerpolicy="no-referrer"${coverImageStyle}>
                     </div>
                 `
-                    : `
+                    : (isLibraryLinked
+                        ? `
+                    <div class="unidex-entry-cover-slot"${coverSlotStyle}>
+                        <div class="unidex-entry-cover-fallback">&#128218;</div>
+                    </div>
+                `
+                        : `
                     <div class="unidex-entry-cover-slot is-bookmark-only">
                         <div class="unidex-entry-bookmark-icon-wrap">
                             ${buildBookmarkIconHtml(link, safeTitle)}
                         </div>
                     </div>
-                `;
+                `);
                 const categoryTagHtml = showCategoryTag
                     ? `<span class="unidex-entry-tag category">${safeCategoryLabel}</span>`
                     : '';
@@ -132,7 +142,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                     : '';
 
                 return `
-                <article class="unidex-entry-item has-visual-slot ${taskMode && link.done ? 'is-done' : ''} ${isLibraryLinked ? 'is-library-linked' : 'is-bookmark-only'}"
+                <article class="unidex-entry-item has-visual-slot ${taskMode && link.done ? 'is-done' : ''} ${isLibraryLinked ? 'is-library-linked' : 'is-bookmark-only'} ${safeCoverUrl ? 'has-cover-image' : 'has-no-cover-image'}"
                     data-text="${hoverText}">
                     <button type="button"
                         class="unidex-entry-visual-btn"${visualButtonStyle}

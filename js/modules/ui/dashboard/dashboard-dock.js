@@ -97,6 +97,20 @@ window.renderDock = function (_visibleLinks, dockContainer, focusCategory) {
         item.className = `dock-item dock-item--${pin.targetType || 'bookmark'}`;
         item.dataset.pinId = String(pin.id || '');
         item.title = String(pin.meta || pin.label || pin.targetId || 'Pinned');
+        if (pin.targetType === 'bookmark') {
+            item.addEventListener('mouseenter', function (event) {
+                if (typeof window.showBookmarkCoverHover !== 'function') return;
+                window.showBookmarkCoverHover(event, pin.targetId);
+            });
+            item.addEventListener('mousemove', function (event) {
+                if (typeof window.moveBookmarkCoverHover !== 'function') return;
+                window.moveBookmarkCoverHover(event);
+            });
+            item.addEventListener('mouseleave', function () {
+                if (typeof window.hideBookmarkCoverHover !== 'function') return;
+                window.hideBookmarkCoverHover();
+            });
+        }
         item.addEventListener('click', function () {
             pinApi.activatePin?.(pin.id);
         });

@@ -1,8 +1,8 @@
-﻿@media (prefers-reduced-motion: reduce) {
-    .unidex-entry-item.is-library-linked .unidex-entry-cover-slot:hover .unidex-entry-cover,
-    .unidex-entry-item.is-library-linked .unidex-entry-visual-btn:hover .unidex-entry-cover,
-    .unidex-entries.is-row-layout .unidex-entry-item.is-library-linked .unidex-entry-cover-slot:hover .unidex-entry-cover,
-    .unidex-entries.is-row-layout .unidex-entry-item.is-library-linked .unidex-entry-visual-btn:hover .unidex-entry-cover {
+@media (prefers-reduced-motion: reduce) {
+    .unidex-entry-item.has-cover-image .unidex-entry-cover-slot:hover .unidex-entry-cover,
+    .unidex-entry-item.has-cover-image .unidex-entry-visual-btn:hover .unidex-entry-cover,
+    .unidex-entries.is-row-layout .unidex-entry-item.has-cover-image .unidex-entry-cover-slot:hover .unidex-entry-cover,
+    .unidex-entries.is-row-layout .unidex-entry-item.has-cover-image .unidex-entry-visual-btn:hover .unidex-entry-cover {
         animation: none !important;
         transform: scale(1.02) !important;
     }

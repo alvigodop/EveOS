@@ -25,6 +25,9 @@ window.fetchTitle = async function (btn) {
                 if (data.coverUrl) {
                     const coverInput = document.getElementById('newCoverImage');
                     if (coverInput) coverInput.value = data.coverUrl;
+                    const libraryImageInput = document.getElementById('libImageUrl');
+                    if (libraryImageInput) libraryImageInput.value = data.coverUrl;
+                    window.EveLinkForm?.refreshCoverImagesSummary?.();
                 }
             }
         } else {
