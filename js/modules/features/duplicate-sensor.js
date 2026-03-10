@@ -131,6 +131,13 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
         ));
     }
 
+    function normalizeTitle(rawTitle) {
+        const cleaned = String(rawTitle || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
+        // Ignore extremely short or generic titles to prevent catastrophic over-merging
+        if (!cleaned || cleaned === 'untitled' || cleaned.length < 3) return null;
+        return cleaned;
+    }
+
     function scan(options = {}) {
         const scope = normalizeScope(options.scope);
         const workspaceId = String(options.workspaceId || '').trim();
@@ -138,13 +145,35 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
         const folderId = String(options.folderId || '').trim();
         const scopeLinks = getScopedLinks(scope, workspaceId, categoryName, folderId);
         const folderLookupCache = new Map();
-        const groupsByUrl = new Map();
-        let scannedUrls = 0;
 
-        scopeLinks.forEach((link) => {
-            const normalized = normalizeUrl(link?.url);
-            if (!normalized) return;
-            scannedUrls += 1;
+        let scannedUrls = scopeLinks.length;
+
+        // DSU Structures
+        const parent = new Map();
+        const find = (i) => {
+            if (!parent.has(i)) parent.set(i, i);
+            let root = i;
+            while (root !== parent.get(root)) root = parent.get(root);
+            let curr = i;
+            while (curr !== root) {
+                let nxt = parent.get(curr);
+                parent.set(curr, root);
+                curr = nxt;
+            }
+            return root;
+        };
+        const union = (i, j) => {
+            let rootI = find(i);
+            let rootJ = find(j);
+            if (rootI !== rootJ) parent.set(rootI, rootJ);
+        };
+
+        const urlToNode = new Map();
+        const titleToNode = new Map();
+
+        const nodes = scopeLinks.map((link, idx) => {
+            const nUrl = normalizeUrl(link?.url);
+            const nTitle = normalizeTitle(link?.title);
 
             const linkWorkspaceId = String(link?.workspace || 'main').trim() || 'main';
             const linkCategoryName = String(link?.category || 'Unsorted').trim() || 'Unsorted';
@@ -154,10 +183,8 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
             }
             const folderLookup = folderLookupCache.get(cacheKey);
 
-            if (!groupsByUrl.has(normalized)) {
-                groupsByUrl.set(normalized, []);
-            }
-            groupsByUrl.get(normalized).push({
+            return {
+                idx,
                 linkId: String(link?.id || '').trim(),
                 title: String(link?.title || 'Untitled').trim() || 'Untitled',
                 url: String(link?.url || '').trim(),
@@ -165,23 +192,52 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
                 workspaceName: getWorkspaceName(linkWorkspaceId),
                 categoryName: linkCategoryName,
                 folderId: String(link?.folderId || '').trim(),
-                folderLabel: folderLookup.getFolderLabel(link?.folderId)
-            });
+                folderLabel: folderLookup.getFolderLabel(link?.folderId),
+                nUrl,
+                nTitle
+            };
         });
 
-        const groups = Array.from(groupsByUrl.entries())
-            .filter(([, items]) => items.length > 1)
-            .map(([normalizedUrl, items]) => ({
-                normalizedUrl,
-                count: items.length,
-                duplicateCount: items.length - 1,
-                items: items.slice().sort((left, right) => {
-                    if (left.workspaceName !== right.workspaceName) return left.workspaceName.localeCompare(right.workspaceName);
-                    if (left.categoryName !== right.categoryName) return left.categoryName.localeCompare(right.categoryName);
-                    if (left.folderLabel !== right.folderLabel) return left.folderLabel.localeCompare(right.folderLabel);
-                    return left.title.localeCompare(right.title);
-                })
-            }))
+        // Group by URL and Title
+        nodes.forEach((node) => {
+            if (node.nUrl) {
+                if (urlToNode.has(node.nUrl)) union(node.idx, urlToNode.get(node.nUrl));
+                else urlToNode.set(node.nUrl, node.idx);
+            }
+            if (node.nTitle) {
+                if (titleToNode.has(node.nTitle)) union(node.idx, titleToNode.get(node.nTitle));
+                else titleToNode.set(node.nTitle, node.idx);
+            }
+        });
+
+        const groupsByRoot = new Map();
+        nodes.forEach((node) => {
+            const root = find(node.idx);
+            if (!groupsByRoot.has(root)) groupsByRoot.set(root, []);
+            groupsByRoot.get(root).push(node);
+        });
+
+        const groups = Array.from(groupsByRoot.values())
+            .filter(items => items.length > 1)
+            .map(items => {
+                const uniqueUrls = new Set(items.map(i => i.nUrl).filter(Boolean));
+                const uniqueTitles = new Set(items.map(i => i.nTitle).filter(Boolean));
+                let mainLabel = Array.from(uniqueUrls)[0] || Array.from(uniqueTitles)[0] || 'Unknown';
+                if (uniqueUrls.size > 1) mainLabel = `${mainLabel} (+${uniqueUrls.size - 1} related)`;
+                else if (uniqueTitles.size > 1) mainLabel = `${mainLabel} (Title matched)`;
+
+                return {
+                    normalizedUrl: mainLabel, // Repurposed as mainLabel for UI
+                    count: items.length,
+                    duplicateCount: items.length - 1,
+                    items: items.slice().sort((left, right) => {
+                        if (left.workspaceName !== right.workspaceName) return left.workspaceName.localeCompare(right.workspaceName);
+                        if (left.categoryName !== right.categoryName) return left.categoryName.localeCompare(right.categoryName);
+                        if (left.folderLabel !== right.folderLabel) return left.folderLabel.localeCompare(right.folderLabel);
+                        return left.title.localeCompare(right.title);
+                    })
+                };
+            })
             .sort((left, right) => {
                 if (right.count !== left.count) return right.count - left.count;
                 return left.normalizedUrl.localeCompare(right.normalizedUrl);
@@ -201,11 +257,72 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
         };
     }
 
+    function mergeDuplicateGroup(linkIds) {
+        if (!Array.isArray(linkIds) || linkIds.length < 2) return null;
+
+        const links = getLinks();
+        const targetLinks = links.filter(l => linkIds.includes(String(l.id)));
+        if (targetLinks.length < 2) return null;
+
+        const isSearch = (url) => {
+            const lower = String(url || '').toLowerCase();
+            return lower.includes('google.com/search') || lower.includes('duckduckgo.com/?q=') || lower.includes('bing.com/search');
+        };
+
+        const nonSearchLinks = targetLinks.filter(l => !isSearch(l.url));
+        let bestUrlLink = targetLinks[0];
+        if (nonSearchLinks.length > 0) {
+            bestUrlLink = nonSearchLinks.reduce((best, curr) => (String(curr.url).length > String(best.url).length) ? curr : best);
+        } else {
+            bestUrlLink = targetLinks.reduce((best, curr) => (String(curr.url).length > String(best.url).length) ? curr : best);
+        }
+        const bestUrl = String(bestUrlLink.url || '');
+
+        const isRawUrl = (title) => {
+            const lower = String(title || '').toLowerCase().trim();
+            return lower.startsWith('http://') || lower.startsWith('https://') || lower.startsWith('www.');
+        };
+
+        let bestTitleLink = targetLinks[0];
+        const nonRawUrlTitles = targetLinks.filter(l => !isRawUrl(l.title));
+        if (nonRawUrlTitles.length > 0) {
+            bestTitleLink = nonRawUrlTitles.reduce((best, curr) => (String(curr.title).length > String(best.title).length) ? curr : best);
+        } else {
+            bestTitleLink = targetLinks.reduce((best, curr) => (String(curr.title).length > String(best.title).length) ? curr : best);
+        }
+        const bestTitle = String(bestTitleLink.title || 'Untitled');
+
+        const baseLinkId = String(bestUrlLink.id);
+        const baseLink = links.find(l => String(l.id) === baseLinkId);
+        if (!baseLink) return null;
+
+        baseLink.url = bestUrl;
+        baseLink.title = bestTitle;
+
+        const idsToRemove = targetLinks.map(l => String(l.id)).filter(id => id !== baseLinkId);
+        if (idsToRemove.length > 0) {
+            const actualLinksArray = getLinks();
+            for (let i = actualLinksArray.length - 1; i >= 0; i--) {
+                if (idsToRemove.includes(String(actualLinksArray[i].id))) {
+                    actualLinksArray.splice(i, 1);
+                }
+            }
+            if (window.EveLibrary && window.EveLibrary.ConnectionsAPI && window.EveLibrary.ConnectionsAPI.removeByLinkId) {
+                idsToRemove.forEach(id => window.EveLibrary.ConnectionsAPI.removeByLinkId(id));
+            }
+        }
+
+        if (typeof window.saveData === 'function') window.saveData();
+
+        return { mergedId: baseLinkId, removedIds: idsToRemove };
+    }
+
     Object.assign(ns, {
         normalizeScope,
         normalizeUrl,
         buildScopedKey,
-        scan
+        scan,
+        mergeDuplicateGroup
     });
 
     ns.ready = true;
