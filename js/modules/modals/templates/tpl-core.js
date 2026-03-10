@@ -33,7 +33,7 @@ window.modalTemplate = `
                 <input type="hidden" id="newFixedCoverImage">
             </div>
         </details>
-        <div id="edit-link-search-results" style="display:none; max-height: 200px; overflow-y: auto; background: rgba(0,0,0,0.3); margin-bottom: 10px; padding: 5px; border-radius: 4px;"></div>
+        <div id="edit-link-search-results" style="display:none; min-height: 180px; max-height: 45vh; overflow-y: auto; background: rgba(0,0,0,0.3); margin-bottom: 10px; padding: 5px; border-radius: 4px;"></div>
         
         <div style="margin-bottom: 10px;">
             <label style="font-size:0.9rem; color:var(--text-muted); display:block; margin-bottom:5px;">Attached Sources</label>

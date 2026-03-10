@@ -443,7 +443,7 @@ li:hover .actions {
     transition: border-color 0.18s ease, background 0.18s ease;
 }
 
-.bookmark-folder-group + .bookmark-folder-group {
+.bookmark-folder-group+.bookmark-folder-group {
     margin-top: 12px;
 }
 
@@ -536,6 +536,7 @@ li:hover .actions {
 }
 
 @media (max-width: 720px) {
+
     .bookmark-folder-root-header,
     .bookmark-folder-summary {
         flex-direction: column;
