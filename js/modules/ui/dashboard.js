@@ -104,7 +104,42 @@ if (!window.__dashboardMasonryResizeBound) {
     });
 }
 
+var _dashboardScrollLock = { active: false, scrollTop: 0, rafId: 0 };
+
 function renderDashboard() {
+    var scrollEl = document.documentElement;
+    var body = document.body;
+
+    // Capture scroll position only on the FIRST render call in a batch
+    if (!_dashboardScrollLock.active) {
+        _dashboardScrollLock.active = true;
+        _dashboardScrollLock.scrollTop = scrollEl.scrollTop;
+    }
+
+    // Cancel any pending cleanup from a previous call
+    if (_dashboardScrollLock.rafId) {
+        cancelAnimationFrame(_dashboardScrollLock.rafId);
+        _dashboardScrollLock.rafId = 0;
+    }
+
+    // Pin body height to the FULL scrollable height so the page can't shrink
+    body.style.minHeight = scrollEl.scrollHeight + 'px';
+
+    // Run the actual render synchronously
+    _renderDashboardCore();
+
+    // Restore scroll synchronously — body min-height keeps page tall enough
+    scrollEl.scrollTop = _dashboardScrollLock.scrollTop;
+
+    // Release body min-height and lock after paint
+    _dashboardScrollLock.rafId = requestAnimationFrame(function () {
+        body.style.minHeight = '';
+        _dashboardScrollLock.active = false;
+        _dashboardScrollLock.rafId = 0;
+    });
+}
+
+function _renderDashboardCore() {
     const grid = document.getElementById('dashboard-grid');
     const dock = document.getElementById('dock-container');
     const searchInput = document.getElementById('search');
