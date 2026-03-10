@@ -264,6 +264,7 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
         const targetLinks = links.filter(l => linkIds.includes(String(l.id)));
         if (targetLinks.length < 2) return null;
 
+        // 1. Determine best URL and trace discarded URLs
         const isSearch = (url) => {
             const lower = String(url || '').toLowerCase();
             return lower.includes('google.com/search') || lower.includes('duckduckgo.com/?q=') || lower.includes('bing.com/search');
@@ -277,7 +278,19 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
             bestUrlLink = targetLinks.reduce((best, curr) => (String(curr.url).length > String(best.url).length) ? curr : best);
         }
         const bestUrl = String(bestUrlLink.url || '');
+        const baseLinkId = String(bestUrlLink.id);
+        const baseLink = links.find(l => String(l.id) === baseLinkId);
+        if (!baseLink) return null;
 
+        // Track discarded data for notes
+        const discardedUrls = new Set();
+        const discardedTitles = new Set();
+        targetLinks.forEach(l => {
+            const u = String(l.url || '').trim();
+            if (u && u !== bestUrl) discardedUrls.add(u);
+        });
+
+        // 2. Determine best Title and trace discarded Titles
         const isRawUrl = (title) => {
             const lower = String(title || '').toLowerCase().trim();
             return lower.startsWith('http://') || lower.startsWith('https://') || lower.startsWith('www.');
@@ -292,13 +305,137 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
         }
         const bestTitle = String(bestTitleLink.title || 'Untitled');
 
-        const baseLinkId = String(bestUrlLink.id);
-        const baseLink = links.find(l => String(l.id) === baseLinkId);
-        if (!baseLink) return null;
+        targetLinks.forEach(l => {
+            const t = String(l.title || '').trim();
+            if (t && t !== bestTitle && !isRawUrl(t)) discardedTitles.add(t);
+        });
+
+        // 3. Merge primitives (icon, priority, fixedCoverImage)
+        const firstWithIcon = targetLinks.find(l => !!String(l.icon || '').trim());
+        const firstWithPriority = targetLinks.find(l => !!String(l.priority || '').trim());
+        const firstWithFixedCover = targetLinks.find(l => !!String(l.fixedCoverImage || '').trim());
 
         baseLink.url = bestUrl;
         baseLink.title = bestTitle;
+        if (firstWithIcon && !String(baseLink.icon || '').trim()) baseLink.icon = firstWithIcon.icon;
+        if (firstWithPriority && !String(baseLink.priority || '').trim()) baseLink.priority = firstWithPriority.priority;
+        if (firstWithFixedCover && !String(baseLink.fixedCoverImage || '').trim()) baseLink.fixedCoverImage = firstWithFixedCover.fixedCoverImage;
 
+        // 4. Merge Primary Cover Image
+        const allMainCovers = targetLinks.map(l => String(l.coverImage || '').trim()).filter(Boolean);
+        if (allMainCovers.length > 0 && !String(baseLink.coverImage || '').trim()) {
+            baseLink.coverImage = allMainCovers[0];
+        }
+
+        // 5. Merge Arrays (coverImages, sources)
+        const mergedCoverImages = new Set(Array.isArray(baseLink.coverImages) ? baseLink.coverImages : []);
+        targetLinks.forEach(l => {
+            if (Array.isArray(l.coverImages)) l.coverImages.forEach(img => mergedCoverImages.add(img));
+            const mainCov = String(l.coverImage || '').trim();
+            if (mainCov && mainCov !== String(baseLink.coverImage || '').trim()) mergedCoverImages.add(mainCov);
+        });
+        if (mergedCoverImages.size > 0) baseLink.coverImages = Array.from(mergedCoverImages);
+
+        const mergedSources = new Set(Array.isArray(baseLink.sources) ? baseLink.sources : []);
+        targetLinks.forEach(l => {
+            if (Array.isArray(l.sources)) l.sources.forEach(src => mergedSources.add(src));
+        });
+        if (mergedSources.size > 0) baseLink.sources = Array.from(mergedSources);
+
+        // 6. Merge Library Connections
+        let maxProgress = null;
+        let maxScore = null;
+        let mergedStatus = '';
+        let mergedLibImage = '';
+        const notesLines = [];
+
+        const connectionsApi = window.EveLibrary?.ConnectionsAPI;
+        let baseHasConnection = false;
+        let bestConnection = null;
+
+        if (connectionsApi) {
+            targetLinks.forEach(l => {
+                const conn = connectionsApi.findConnectionByLinkId?.(String(l.id));
+                if (conn) {
+                    if (String(l.id) === baseLinkId) {
+                        baseHasConnection = true;
+                        bestConnection = conn;
+                    } else if (!bestConnection) {
+                        bestConnection = conn;
+                    }
+                }
+
+                const linked = connectionsApi.getLinkedEntry(String(l.id));
+                const entry = linked?.entry;
+                if (!entry) return;
+
+                const parseNum = (val) => { const n = Number.parseInt(val, 10); return Number.isNaN(n) ? null : n; };
+                const p = parseNum(entry.progress) ?? parseNum(entry.chapter) ?? parseNum(entry.episode);
+                if (p !== null && (maxProgress === null || p > maxProgress)) maxProgress = p;
+
+                const s = parseNum(entry.score) ?? parseNum(entry.rating);
+                if (s !== null && (maxScore === null || s > maxScore)) maxScore = s;
+
+                if (!mergedStatus && entry.status) mergedStatus = entry.status;
+                if (!mergedLibImage && entry.image) mergedLibImage = entry.image;
+
+                const n = String(entry.summary || '').trim();
+                if (n && !notesLines.includes(n)) notesLines.push(n);
+            });
+        }
+
+        // 7. Inject Discarded Data into Notes
+        if (discardedTitles.size > 0) {
+            notesLines.push(`=== Other Titles ===\n${Array.from(discardedTitles).join('\n')}`);
+        }
+        if (discardedUrls.size > 0) {
+            notesLines.push(`=== Alternate Links ===\n${Array.from(discardedUrls).join('\n')}`);
+        }
+
+        const finalSummary = notesLines.join('\n\n').trim();
+
+        // 8. Output Library Data & Relink Connection
+        if (connectionsApi) {
+            if (bestConnection && !baseHasConnection) {
+                const allConns = connectionsApi.getAll();
+                const connToSteal = allConns.find(c => c.id === bestConnection.id);
+                if (connToSteal) {
+                    connToSteal.linkId = baseLinkId;
+                    const workspaceFallback = window.EveDuplicateSensor.getConfig?.()?.activeWorkspace || 'main';
+                    connToSteal.categoryName = baseLink.category || 'Unsorted';
+                    connToSteal.workspace = baseLink.workspace || workspaceFallback;
+                    if (connectionsApi.setAll) connectionsApi.setAll(allConns);
+                    baseHasConnection = true;
+                }
+            }
+
+            if (baseHasConnection || finalSummary || maxProgress !== null || maxScore !== null || mergedStatus) {
+                const patchData = {
+                    title: bestTitle,
+                    sourceUrl: bestUrl
+                };
+                if (maxProgress !== null) {
+                    patchData.progress = maxProgress;
+                    patchData.chapter = maxProgress;
+                    patchData.episode = maxProgress;
+                }
+                if (maxScore !== null) {
+                    patchData.score = maxScore;
+                    patchData.rating = maxScore;
+                }
+                if (mergedStatus) patchData.status = mergedStatus;
+                if (mergedLibImage) patchData.image = mergedLibImage;
+                if (finalSummary) patchData.summary = finalSummary;
+
+                if (baseHasConnection && connectionsApi.updateLinkedEntry) {
+                    connectionsApi.updateLinkedEntry(baseLinkId, patchData);
+                } else if (connectionsApi.promoteLinkWithData) {
+                    connectionsApi.promoteLinkWithData(baseLinkId, patchData);
+                }
+            }
+        }
+
+        // 9. Remove redundant links
         const idsToRemove = targetLinks.map(l => String(l.id)).filter(id => id !== baseLinkId);
         if (idsToRemove.length > 0) {
             const actualLinksArray = getLinks();
@@ -307,8 +444,8 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
                     actualLinksArray.splice(i, 1);
                 }
             }
-            if (window.EveLibrary && window.EveLibrary.ConnectionsAPI && window.EveLibrary.ConnectionsAPI.removeByLinkId) {
-                idsToRemove.forEach(id => window.EveLibrary.ConnectionsAPI.removeByLinkId(id));
+            if (connectionsApi && connectionsApi.removeByLinkId) {
+                idsToRemove.forEach(id => connectionsApi.removeByLinkId(id));
             }
         }
 
