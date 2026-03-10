@@ -497,12 +497,7 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
                 const patchData = {
                     ...mergedEntryData,
                     title: bestTitle,
-                    sourceUrl: bestUrl,
-                    progress: '',
-                    chapter: '',
-                    episode: '',
-                    score: '',
-                    rating: ''
+                    sourceUrl: bestUrl
                 };
 
                 if (maxProgress !== null && maxProgressKey) {
