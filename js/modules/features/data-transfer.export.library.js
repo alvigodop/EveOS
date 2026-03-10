@@ -65,6 +65,8 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
             const addWorkspace = function (workspace) {
                 const id = String(workspace?.id || '').trim();
                 if (!id) return;
+                
+                // If a workspace is configured, we MUST use its name/icon from the config
                 byId.set(id, {
                     id,
                     name: workspace?.name || id,
@@ -74,6 +76,8 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
 
             const configured = Array.isArray(config.workspaces) ? config.workspaces : [];
             configured.forEach(addWorkspace);
+            
+            // Only add placeholders for workspaces found in links that AREN'T in the formal config
             links.forEach(link => {
                 const id = String(link?.workspace || activeWorkspace || 'main').trim() || 'main';
                 if (!byId.has(id)) {
@@ -92,9 +96,11 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
         function groupLinksByWorkspaceAndCategory(links, fallbackWorkspaceId = 'main') {
             const byWorkspace = new Map();
             (Array.isArray(links) ? links : []).forEach(rawLink => {
+                // Ensure we respect the workspace the link actually belongs to
                 const workspaceId = String(rawLink?.workspace || fallbackWorkspaceId || 'main').trim() || 'main';
                 const categoryName = String(rawLink?.category || 'Unsorted').trim() || 'Unsorted';
                 const normalizedLink = { ...rawLink, workspace: workspaceId, category: categoryName };
+                
                 if (!byWorkspace.has(workspaceId)) byWorkspace.set(workspaceId, new Map());
                 const categories = byWorkspace.get(workspaceId);
                 if (!categories.has(categoryName)) categories.set(categoryName, []);

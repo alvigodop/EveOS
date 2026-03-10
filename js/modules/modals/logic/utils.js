@@ -31,6 +31,14 @@ function getEditorWorkspaceId() {
         const link = getModalLinks().find(item => String(item?.id) === editId);
         if (link?.workspace) return String(link.workspace);
     }
+    
+    // Support for Bulk Import modal tab sensing
+    const bulkModal = document.getElementById('bulkModal');
+    if (bulkModal && bulkModal.style.display === 'flex') {
+        if (window.eveState?.config?.activeWorkspace) return String(window.eveState.config.activeWorkspace);
+        if (typeof config !== 'undefined' && config?.activeWorkspace) return String(config.activeWorkspace);
+    }
+
     if (window.eveState?.config?.activeWorkspace) return String(window.eveState.config.activeWorkspace);
     if (typeof config !== 'undefined' && config?.activeWorkspace) return String(config.activeWorkspace);
     return '';
@@ -53,11 +61,11 @@ function getCategoryNamesByScope(scope) {
     return scope === 'editor' ? getEditorCategoryNames() : getAllCategoryNames();
 }
 
-function renderCategoryQuickPicker(filterText) {
-    const picker = document.getElementById('newCategoryQuickPicker');
+function renderCategoryQuickPicker(filterText, pickerId = 'newCategoryQuickPicker', inputId = 'newCategory') {
+    const picker = document.getElementById(pickerId);
     if (!picker) return;
 
-    const categories = getAllCategoryNames();
+    const categories = getEditorCategoryNames();
     const query = toSafeText(filterText).toLowerCase();
     const filtered = query
         ? categories.filter(name => name.toLowerCase().includes(query))
@@ -74,7 +82,7 @@ function renderCategoryQuickPicker(filterText) {
         return `
             <button type="button"
                 style="display:block; width:100%; text-align:left; background:transparent; border:0; border-bottom:1px solid rgba(255,255,255,0.08); padding:8px 10px; color:var(--text-main); cursor:pointer;"
-                onmousedown="selectCategoryQuickPicker('${encoded}')"
+                onmousedown="selectCategoryQuickPicker('${encoded}', '${inputId}', '${pickerId}')"
                 title="${safeLabel}">
                 ${safeLabel}
             </button>
@@ -95,36 +103,37 @@ window.refreshCategoryDatalist = function (options = {}) {
         dataList.appendChild(option);
     });
 
-    renderCategoryQuickPicker(document.getElementById('newCategory')?.value || '');
+    renderCategoryQuickPicker(document.getElementById('newCategory')?.value || '', 'newCategoryQuickPicker', 'newCategory');
+    renderCategoryQuickPicker(document.getElementById('bulkCategory')?.value || '', 'bulkCategoryQuickPicker', 'bulkCategory');
 };
 
-window.showCategoryQuickPicker = function () {
-    const picker = document.getElementById('newCategoryQuickPicker');
+window.showCategoryQuickPicker = function (pickerId = 'newCategoryQuickPicker', inputId = 'newCategory') {
+    const picker = document.getElementById(pickerId);
     if (!picker) return;
     // On open, always show the full card list so users don't have to clear current value first.
-    renderCategoryQuickPicker('');
+    renderCategoryQuickPicker('', pickerId, inputId);
     picker.style.display = 'block';
 };
 
-window.filterCategoryQuickPicker = function (value) {
-    const picker = document.getElementById('newCategoryQuickPicker');
+window.filterCategoryQuickPicker = function (value, pickerId = 'newCategoryQuickPicker', inputId = 'newCategory') {
+    const picker = document.getElementById(pickerId);
     if (!picker) return;
-    renderCategoryQuickPicker(value || '');
+    renderCategoryQuickPicker(value || '', pickerId, inputId);
     picker.style.display = 'block';
 };
 
-window.hideCategoryQuickPicker = function () {
-    const picker = document.getElementById('newCategoryQuickPicker');
+window.hideCategoryQuickPicker = function (pickerId = 'newCategoryQuickPicker') {
+    const picker = document.getElementById(pickerId);
     if (picker) picker.style.display = 'none';
 };
 
-window.handleCategoryQuickPickerBlur = function () {
+window.handleCategoryQuickPickerBlur = function (pickerId = 'newCategoryQuickPicker') {
     window.setTimeout(() => {
-        window.hideCategoryQuickPicker();
+        window.hideCategoryQuickPicker(pickerId);
     }, 120);
 };
 
-window.selectCategoryQuickPicker = function (encodedCategory) {
+window.selectCategoryQuickPicker = function (encodedCategory, inputId = 'newCategory', pickerId = 'newCategoryQuickPicker') {
     let decoded = '';
     try {
         decoded = decodeURIComponent(String(encodedCategory || ''));
@@ -132,26 +141,30 @@ window.selectCategoryQuickPicker = function (encodedCategory) {
         decoded = String(encodedCategory || '');
     }
 
-    const input = document.getElementById('newCategory');
+    const input = document.getElementById(inputId);
     if (input) {
         input.value = decoded;
         input.dispatchEvent(new Event('input', { bubbles: true }));
         input.focus();
     }
-    window.hideCategoryQuickPicker();
+    window.hideCategoryQuickPicker(pickerId);
 };
 
 if (!window.__eveCategoryQuickPickerOutsideCloseBound) {
     window.__eveCategoryQuickPickerOutsideCloseBound = true;
     document.addEventListener('mousedown', (event) => {
-        const picker = document.getElementById('newCategoryQuickPicker');
-        const input = document.getElementById('newCategory');
-        if (!picker || picker.style.display !== 'block') return;
+        const pickers = [
+            { p: document.getElementById('newCategoryQuickPicker'), i: document.getElementById('newCategory') },
+            { p: document.getElementById('bulkCategoryQuickPicker'), i: document.getElementById('bulkCategory') }
+        ];
 
-        const clickedInput = !!input && (event.target === input || input.contains(event.target));
-        const clickedPicker = picker.contains(event.target);
-        if (!clickedInput && !clickedPicker) {
-            window.hideCategoryQuickPicker();
-        }
+        pickers.forEach(({ p, i }) => {
+            if (!p || p.style.display !== 'block') return;
+            const clickedInput = !!i && (event.target === i || i.contains(event.target));
+            const clickedPicker = p.contains(event.target);
+            if (!clickedInput && !clickedPicker) {
+                p.style.display = 'none';
+            }
+        });
     });
 }

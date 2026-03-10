@@ -79,7 +79,7 @@ function initBulkModeUi() {
 }
 
 function openBulkModal() {
-    refreshCategoryDatalist();
+    refreshCategoryDatalist({ scope: 'editor' });
     document.getElementById('bulkModal').style.display = 'flex';
     initBulkModeUi();
     document.getElementById('bulkText').focus();
@@ -262,13 +262,22 @@ function processStructuredFile(content, fileName, targetCategory) {
         // Infer type if not explicitly set
         if (type.includes('film') || type.includes('show') || type.includes('anime')) {
             dataType = 'films';
+        } else if (type.includes('graphic') || type.includes('manga')) {
+            dataType = 'graphicNovels';
         } else if (type.includes('novel')) {
             dataType = 'novels';
         } else if (type === '') {
             // Heuristic fallback based on parsed data
-            if (episode > 0) dataType = 'films';
-            else if (summaryText.toLowerCase().includes('novel')) dataType = 'novels';
-            else if (chapter > 0 || summaryText.toLowerCase().includes('manga')) dataType = 'graphicNovels';
+            if (episode > 0) {
+                dataType = 'films';
+            } else if (chapter > 0) {
+                // If there is a chapter, strongly prefer graphicNovels since standard novels are rarely added
+                dataType = 'graphicNovels';
+            } else if (summaryText.toLowerCase().includes('manga') || summaryText.toLowerCase().includes('graphic')) {
+                dataType = 'graphicNovels';
+            } else if (summaryText.toLowerCase().includes('novel')) {
+                dataType = 'novels';
+            }
         }
 
         window.EveLibrary.ConnectionsAPI.promoteLinkWithData(newLinkId, {
