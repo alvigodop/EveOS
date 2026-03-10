@@ -8,16 +8,29 @@ function getBulkMode() {
 function updateBulkModeUi() {
     const mode = getBulkMode();
     const text = document.getElementById('bulkText');
-    const fileInput = document.getElementById('bulkFileInput');
+    const fileDropZone = document.getElementById('bulkFileDropZone');
     const hint = document.getElementById('bulkModeHint');
     if (!text || !hint) return;
 
     if (mode === 'file') {
         text.style.display = 'none';
-        if (fileInput) fileInput.style.display = 'block';
+        if (fileDropZone) {
+            fileDropZone.style.display = 'flex';
+            const fileInput = document.getElementById('bulkFileInput');
+            const dropText = document.getElementById('bulkFileDropText');
+            if (fileInput && fileInput.files && fileInput.files.length > 0) {
+                dropText.textContent = `${fileInput.files.length} file(s) selected`;
+                fileDropZone.style.borderColor = '#00a8ff';
+                fileDropZone.style.color = '#fff';
+            } else {
+                dropText.textContent = 'Click to select or drag & drop .txt files here';
+                fileDropZone.style.borderColor = '#444';
+                fileDropZone.style.color = '#aaa';
+            }
+        }
         hint.textContent = "Smart Extract mode: Upload .txt files. It auto-detects URLs, Names, or Library data.";
     } else {
-        if (fileInput) fileInput.style.display = 'none';
+        if (fileDropZone) fileDropZone.style.display = 'none';
         text.style.display = 'block';
         if (mode === 'name') {
             text.placeholder = "One name per line...";
@@ -36,6 +49,32 @@ function initBulkModeUi() {
     if (url) url.onchange = updateBulkModeUi;
     if (name) name.onchange = updateBulkModeUi;
     if (file) file.onchange = updateBulkModeUi;
+
+    const fileInput = document.getElementById('bulkFileInput');
+    const dropZone = document.getElementById('bulkFileDropZone');
+
+    if (fileInput && dropZone) {
+        fileInput.addEventListener('change', updateBulkModeUi);
+
+        // Drag and drop styles
+        fileInput.addEventListener('dragenter', () => {
+            dropZone.style.borderColor = '#00a8ff';
+            dropZone.style.backgroundColor = '#1a1a1a';
+        });
+        
+        fileInput.addEventListener('dragleave', () => {
+            if (!fileInput.files || fileInput.files.length === 0) {
+                dropZone.style.borderColor = '#444';
+                dropZone.style.backgroundColor = '#111';
+            }
+        });
+        
+        fileInput.addEventListener('drop', () => {
+            dropZone.style.backgroundColor = '#111';
+            setTimeout(updateBulkModeUi, 50); // slight delay to allow files to populate
+        });
+    }
+
     updateBulkModeUi();
 }
 
