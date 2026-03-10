@@ -28,8 +28,17 @@ window.modalTemplate += `
         <div id="bulkModeHint" style="font-size:0.85rem; opacity:0.75; margin:6px 0 10px;">
             URL mode: each line should be a URL.
         </div>
-        <input type="text" id="bulkCategory" placeholder="Category" list="availableCategories">
-        <div style="display:flex; gap:10px; margin-top:10px;">
+        
+        <div style="position:relative; margin-top:10px;">
+            <input type="text" id="bulkCategory" placeholder="Select or type a card name" autocomplete="off"
+                onfocus="showCategoryQuickPicker('bulkCategoryQuickPicker', 'bulkCategory')" 
+                onclick="showCategoryQuickPicker('bulkCategoryQuickPicker', 'bulkCategory')" 
+                oninput="filterCategoryQuickPicker(this.value, 'bulkCategoryQuickPicker', 'bulkCategory')" 
+                onblur="handleCategoryQuickPickerBlur('bulkCategoryQuickPicker')">
+            <div id="bulkCategoryQuickPicker" style="display:none; position:absolute; left:0; right:0; bottom:100%; margin-bottom:4px; max-height:180px; overflow-y:auto; border:1px solid #444; border-radius:8px; background:var(--sidebar-bg, #141414); z-index:3205; box-shadow:0 -8px 24px rgba(0,0,0,0.35);"></div>
+        </div>
+
+        <div style="display:flex; gap:10px; margin-top:15px;">
             <button class="btn-primary" onclick="processBulk()">Import</button>
             <button onclick="clearBulkInput()">Clear</button>
             <button onclick="closeModals()">Cancel</button>

@@ -53,9 +53,8 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             await writable.close();
         } catch (error) {
             const detail = error?.message ? ` ${error.message}` : '';
-            throw new Error(`Failed to write backup file "${segments.join('/')}".${
-                detail ? detail : ''
-            }`);
+            throw new Error(`Failed to write backup file "${segments.join('/')}".${detail ? detail : ''
+                }`);
         }
     }
 
@@ -208,21 +207,38 @@ window.EveDataTransfer = window.EveDataTransfer || {};
 
     function buildWorkspaceCardEntries(workspaceId, categoryMap, categories, folderTrees) {
         const cards = new Map();
+        const targetWorkspaceId = String(workspaceId || 'main').trim() || 'main';
+
+        // 1. Populate from links already grouped by workspace
         if (categoryMap instanceof Map) {
             categoryMap.forEach((links, categoryName) => {
-                cards.set(String(categoryName || 'Unsorted').trim() || 'Unsorted', Array.isArray(links) ? links : []);
+                const normalizedCategory = String(categoryName || 'Unsorted').trim() || 'Unsorted';
+                // Only add "Unsorted" if it has actual links
+                if (normalizedCategory === 'Unsorted' && (!links || links.length === 0)) return;
+                cards.set(normalizedCategory, Array.isArray(links) ? links : []);
             });
         }
-        Object.keys(categories || {}).forEach((scopedKey) => {
-            const parsed = parseScopedCategoryKey(scopedKey);
-            if (parsed.workspaceId !== workspaceId) return;
-            if (!cards.has(parsed.categoryName)) cards.set(parsed.categoryName, []);
-        });
-        Object.keys(folderTrees || {}).forEach((scopedKey) => {
-            const parsed = parseScopedCategoryKey(scopedKey);
-            if (parsed.workspaceId !== workspaceId) return;
-            if (!cards.has(parsed.categoryName)) cards.set(parsed.categoryName, []);
-        });
+
+        // Helper to check if a scoped key belongs to the current workspace
+        const keyBelongsToWorkspace = (key) => {
+            const raw = String(key || '').trim();
+            if (!raw) return false;
+            if (raw.includes('::')) {
+                const [wsId] = raw.split('::', 2);
+                return String(wsId || 'main').trim() === targetWorkspaceId;
+            }
+            // Unscoped keys default strictly to 'main'
+            return targetWorkspaceId === 'main';
+        };
+
+        const extractCategoryName = (key) => {
+            const raw = String(key || '').trim();
+            if (raw.includes('::')) return raw.split('::', 2)[1] || 'Unsorted';
+            return raw || 'Unsorted';
+        };
+
+
+
         return Array.from(cards.entries()).sort((a, b) => String(a[0] || '').localeCompare(String(b[0] || '')));
     }
 
@@ -406,7 +422,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         const activeWorkspace = String(config.activeWorkspace || workspaces[0]?.id || 'main').trim() || 'main';
         const normalizedConfig = await writeStoreMetaFiles(rootHandle, config, workspaces, activeWorkspace);
         const connectionMap = buildConnectionMap(connections);
-        const linksByWorkspace = groupLinksByWorkspaceAndCategory(links, activeWorkspace);
+        const linksByWorkspace = groupLinksByWorkspaceAndCategory(links);
 
         await writeJsonFileToFolder(rootHandle, `${BACKUP_DIRS.state}/eve_state.json`, {
             ...(fullState || {}),
