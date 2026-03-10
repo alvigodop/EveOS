@@ -104,39 +104,48 @@ if (!window.__dashboardMasonryResizeBound) {
     });
 }
 
-var _dashboardScrollLock = { active: false, scrollTop: 0, rafId: 0 };
+var _scrollSave = -1;
+var _scrollRafId = 0;
+var _scrollSpacer = null;
 
 function renderDashboard() {
-    var scrollEl = document.documentElement;
-    var body = document.body;
+    // Capture scroll position ONCE per synchronous batch
+    if (_scrollSave < 0) {
+        _scrollSave = document.documentElement.scrollTop || window.pageYOffset || 0;
 
-    // Capture scroll position only on the FIRST render call in a batch
-    if (!_dashboardScrollLock.active) {
-        _dashboardScrollLock.active = true;
-        _dashboardScrollLock.scrollTop = scrollEl.scrollTop;
+        // Create a proper block-level spacer on the body to physically hold height
+        // This is necessary because Masonry layout takes time/frames to expand the grid
+        if (_scrollSave > 0) {
+            _scrollSpacer = document.createElement('div');
+            _scrollSpacer.style.cssText = 'height:' + Math.max(document.documentElement.scrollHeight, document.body.scrollHeight) + 'px; width:100%; position:absolute; top:0; left:0; z-index:-1; pointer-events:none; visibility:hidden; display:block;';
+            document.body.appendChild(_scrollSpacer);
+        }
     }
 
-    // Cancel any pending cleanup from a previous call
-    if (_dashboardScrollLock.rafId) {
-        cancelAnimationFrame(_dashboardScrollLock.rafId);
-        _dashboardScrollLock.rafId = 0;
+    // Cancel any pending cleanup from a previous call in this batch
+    if (_scrollRafId) {
+        clearTimeout(_scrollRafId);
+        _scrollRafId = 0;
     }
 
-    // Pin body height to the FULL scrollable height so the page can't shrink
-    body.style.minHeight = scrollEl.scrollHeight + 'px';
-
-    // Run the actual render synchronously
+    // Run render synchronously — DOM is rebuilt immediately but Masonry takes later frames
     _renderDashboardCore();
 
-    // Restore scroll synchronously — body min-height keeps page tall enough
-    scrollEl.scrollTop = _dashboardScrollLock.scrollTop;
+    // Restore scroll position immediately
+    window.scrollTo(0, _scrollSave);
 
-    // Release body min-height and lock after paint
-    _dashboardScrollLock.rafId = requestAnimationFrame(function () {
-        body.style.minHeight = '';
-        _dashboardScrollLock.active = false;
-        _dashboardScrollLock.rafId = 0;
-    });
+    // Remove spacer and affirm scroll position AFTER Masonry has likely finished
+    // 300ms is generous enough to span typical reflows and transitions
+    var target = _scrollSave;
+    _scrollRafId = setTimeout(function () {
+        window.scrollTo(0, target);
+        if (_scrollSpacer && _scrollSpacer.parentNode) {
+            _scrollSpacer.parentNode.removeChild(_scrollSpacer);
+        }
+        _scrollSpacer = null;
+        _scrollSave = -1;
+        _scrollRafId = 0;
+    }, 300);
 }
 
 function _renderDashboardCore() {
