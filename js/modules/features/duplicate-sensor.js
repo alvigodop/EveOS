@@ -487,7 +487,7 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
             }
 
             if (baseHasConnection || finalSummary || maxProgress !== null || maxScore !== null || mergedStatus || Object.keys(mergedEntryData).length > 0) {
-                // Ensure legacy fields don't accidentally leak and contaminate the base
+                // Wipe legacy fields from mergedEntryData so they don't leak
                 delete mergedEntryData.progress;
                 delete mergedEntryData.chapter;
                 delete mergedEntryData.episode;
@@ -497,7 +497,12 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
                 const patchData = {
                     ...mergedEntryData,
                     title: bestTitle,
-                    sourceUrl: bestUrl
+                    sourceUrl: bestUrl,
+                    progress: '',
+                    chapter: '',
+                    episode: '',
+                    score: '',
+                    rating: ''
                 };
 
                 if (maxProgress !== null && maxProgressKey) {
@@ -536,6 +541,15 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
         }
 
         if (typeof window.saveData === 'function') window.saveData();
+
+        // 10. Force UI Resyncs
+        if (typeof window.renderSidebar === 'function') window.renderSidebar();
+        if (typeof window.renderDashboard === 'function') window.renderDashboard();
+        if (window.EveLibrary && window.EveLibrary.UI && typeof window.EveLibrary.UI.renderLibrary === 'function') {
+            window.EveLibrary.UI.renderLibrary();
+        } else if (typeof window.renderLibrary === 'function') {
+            window.renderLibrary();
+        }
 
         return { mergedId: baseLinkId, removedIds: idsToRemove };
     }
