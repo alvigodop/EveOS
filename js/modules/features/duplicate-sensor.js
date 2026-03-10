@@ -336,11 +336,24 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
         });
         if (mergedCoverImages.size > 0) baseLink.coverImages = Array.from(mergedCoverImages);
 
-        const mergedSources = new Set(Array.isArray(baseLink.sources) ? baseLink.sources : []);
+        const mergedSourcesMap = new Map();
+        if (Array.isArray(baseLink.sources)) {
+            baseLink.sources.forEach(src => {
+                if (!src) return;
+                const key = typeof src === 'object' ? JSON.stringify(src) : String(src);
+                mergedSourcesMap.set(key, src);
+            });
+        }
         targetLinks.forEach(l => {
-            if (Array.isArray(l.sources)) l.sources.forEach(src => mergedSources.add(src));
+            if (Array.isArray(l.sources)) {
+                l.sources.forEach(src => {
+                    if (!src) return;
+                    const key = typeof src === 'object' ? JSON.stringify(src) : String(src);
+                    mergedSourcesMap.set(key, src);
+                });
+            }
         });
-        if (mergedSources.size > 0) baseLink.sources = Array.from(mergedSources);
+        if (mergedSourcesMap.size > 0) baseLink.sources = Array.from(mergedSourcesMap.values());
 
         // 6. Merge Library Connections
         let maxProgress = null;
@@ -352,21 +365,54 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
         const connectionsApi = window.EveLibrary?.ConnectionsAPI;
         let baseHasConnection = false;
         let bestConnection = null;
+        let maxEntryKeys = -1;
+        let mergedEntryData = {};
 
         if (connectionsApi) {
             targetLinks.forEach(l => {
                 const conn = connectionsApi.findConnectionByLinkId?.(String(l.id));
-                if (conn) {
-                    if (String(l.id) === baseLinkId) {
-                        baseHasConnection = true;
+                const linked = connectionsApi.getLinkedEntry(String(l.id));
+                const entry = linked?.entry;
+
+                if (String(l.id) === baseLinkId && conn) {
+                    baseHasConnection = true;
+                }
+
+                if (conn && entry) {
+                    let keysCount = 0;
+                    for (const [k, v] of Object.entries(entry)) {
+                        if (k === 'id' || k === 'dateAdded' || k === 'lastEdited') continue;
+                        if (v !== null && v !== '' && (!Array.isArray(v) || v.length > 0)) keysCount++;
+                    }
+                    if (keysCount > maxEntryKeys) {
+                        maxEntryKeys = keysCount;
                         bestConnection = conn;
-                    } else if (!bestConnection) {
-                        bestConnection = conn;
+                    }
+
+                    for (const [k, v] of Object.entries(entry)) {
+                        if (k === 'id' || k === 'dateAdded' || k === 'lastEdited') continue;
+                        if (v !== null && v !== '' && (!Array.isArray(v) || v.length > 0)) {
+                            if (Array.isArray(v)) {
+                                const currentArr = Array.isArray(mergedEntryData[k]) ? mergedEntryData[k] : [];
+                                const combinedMap = new Map();
+                                currentArr.forEach(item => {
+                                    if (!item) return;
+                                    const key = typeof item === 'object' ? JSON.stringify(item) : String(item);
+                                    combinedMap.set(key, item);
+                                });
+                                v.forEach(item => {
+                                    if (!item) return;
+                                    const key = typeof item === 'object' ? JSON.stringify(item) : String(item);
+                                    combinedMap.set(key, item);
+                                });
+                                mergedEntryData[k] = Array.from(combinedMap.values());
+                            } else {
+                                if (!mergedEntryData[k]) mergedEntryData[k] = v;
+                            }
+                        }
                     }
                 }
 
-                const linked = connectionsApi.getLinkedEntry(String(l.id));
-                const entry = linked?.entry;
                 if (!entry) return;
 
                 const parseNum = (val) => { const n = Number.parseInt(val, 10); return Number.isNaN(n) ? null : n; };
@@ -396,21 +442,27 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
 
         // 8. Output Library Data & Relink Connection
         if (connectionsApi) {
-            if (bestConnection && !baseHasConnection) {
+            if (bestConnection && bestConnection.linkId !== baseLinkId) {
+                if (baseHasConnection) {
+                    connectionsApi.removeByLinkId(baseLinkId);
+                }
                 const allConns = connectionsApi.getAll();
                 const connToSteal = allConns.find(c => c.id === bestConnection.id);
                 if (connToSteal) {
                     connToSteal.linkId = baseLinkId;
-                    const workspaceFallback = window.EveDuplicateSensor.getConfig?.()?.activeWorkspace || 'main';
-                    connToSteal.categoryName = baseLink.category || 'Unsorted';
-                    connToSteal.workspace = baseLink.workspace || workspaceFallback;
                     if (connectionsApi.setAll) connectionsApi.setAll(allConns);
                     baseHasConnection = true;
+
+                    if (connectionsApi.moveLinkedEntryToScope) {
+                        const workspaceFallback = window.EveDuplicateSensor.getConfig?.()?.activeWorkspace || 'main';
+                        connectionsApi.moveLinkedEntryToScope(baseLinkId, baseLink.category || 'Unsorted', baseLink.workspace || workspaceFallback);
+                    }
                 }
             }
 
-            if (baseHasConnection || finalSummary || maxProgress !== null || maxScore !== null || mergedStatus) {
+            if (baseHasConnection || finalSummary || maxProgress !== null || maxScore !== null || mergedStatus || Object.keys(mergedEntryData).length > 0) {
                 const patchData = {
+                    ...mergedEntryData,
                     title: bestTitle,
                     sourceUrl: bestUrl
                 };
