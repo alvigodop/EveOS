@@ -71,8 +71,8 @@ async function processBulk() {
             const file = fileInput.files[i];
             try {
                 const content = await file.text();
-                // Check if the file contains structured library data fields
-                if (content.match(/^(Title|URL|Episode|Chapter|Type|Notes)\s*:/mi)) {
+                // Check if the file contains structured library data fields, or shorthands like "Ep:" or "Ch:"
+                if (content.match(/^(Title|URL|Episode|Ep|Chapter|Ch|Type|Notes|Finished Ep|Going To Ep)\s*:/mi)) {
                     processStructuredFile(content, file.name, targetCategory);
                     count++;
                 } else {
@@ -143,7 +143,9 @@ async function processBulk() {
 
 function processStructuredFile(content, fileName, targetCategory) {
     const lines = content.split('\n');
-    let title = fileName.replace(/\.txt$/i, '');
+    
+    // Clean filename: remove things like "_260228_000943.txt" and ".txt"
+    let title = fileName.replace(/_\d{6}_\d{6}\.txt$/i, '').replace(/\.txt$/i, '').trim();
     let url = '';
     let episode = 0;
     let chapter = 0;
@@ -153,18 +155,42 @@ function processStructuredFile(content, fileName, targetCategory) {
     lines.forEach(line => {
         const trimmed = line.trim();
         if (!trimmed) return;
+        
+        let processedAsCoreKey = false;
         const colonIdx = trimmed.indexOf(':');
+        
         if (colonIdx > 0) {
             const key = trimmed.slice(0, colonIdx).trim().toLowerCase();
             const val = trimmed.slice(colonIdx + 1).trim();
-            if (key === 'title' || key === 'name') { title = val; }
-            else if (key === 'url' || key === 'link') { url = val; }
-            else if (key === 'episode') { episode = parseInt(val, 10) || 0; }
-            else if (key === 'chapter') { chapter = parseInt(val, 10) || 0; }
-            else if (key === 'type' || key === 'category') { type = val.toLowerCase(); }
-            else if (key === 'notes' || key === 'summary') { notesArr.push(val); }
-            else { notesArr.push(trimmed); }
-        } else {
+            
+            if (key === 'title' || key === 'name') { 
+                title = val; 
+                processedAsCoreKey = true;
+            } else if (key === 'url' || key === 'link') { 
+                url = val; 
+                processedAsCoreKey = true;
+            } else if (key === 'type' || key === 'category') { 
+                type = val.toLowerCase(); 
+                processedAsCoreKey = true;
+            } else if (key === 'notes' || key === 'summary') { 
+                notesArr.push(val); 
+                processedAsCoreKey = true;
+            }
+        }
+        
+        // Match heuristic shorthands
+        const epMatch = trimmed.match(/^(?:Finished Ep|Going To Ep|Ep|Episode)\s*:\s*(\d+)/i);
+        if (epMatch) {
+            episode = Math.max(episode, parseInt(epMatch[1], 10));
+            // Keep in notes as well to avoid losing context like "Finished Ep" vs "Going To Ep"
+        }
+        
+        const chMatch = trimmed.match(/^(?:Ch|Chapter)\s*:\s*(\d+)/i);
+        if (chMatch) {
+            chapter = Math.max(chapter, parseInt(chMatch[1], 10));
+        }
+
+        if (!processedAsCoreKey) {
             notesArr.push(trimmed);
         }
     });
@@ -192,8 +218,18 @@ function processStructuredFile(content, fileName, targetCategory) {
     if (window.EveLibrary?.State && window.EveLibrary?.Storage) {
         const lib = window.EveLibrary.State.getCategoryLibrary(targetCategory, config.activeWorkspace);
         let dataType = lib.dataType || 'graphicNovels';
-        if (type.includes('film') || type.includes('show') || type.includes('anime')) dataType = 'films';
-        else if (type.includes('novel')) dataType = 'novels';
+        
+        // Infer type if not explicitly set
+        if (type.includes('film') || type.includes('show') || type.includes('anime')) {
+            dataType = 'films';
+        } else if (type.includes('novel')) {
+            dataType = 'novels';
+        } else if (type === '') {
+            // Heuristic fallback based on parsed data
+            if (episode > 0) dataType = 'films';
+            else if (summaryText.toLowerCase().includes('novel')) dataType = 'novels';
+            else if (chapter > 0 || summaryText.toLowerCase().includes('manga')) dataType = 'graphicNovels';
+        }
 
         const libraryEntryId = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
         const newEntry = {
