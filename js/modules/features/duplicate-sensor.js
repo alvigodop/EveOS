@@ -198,19 +198,15 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
             };
         });
 
-        // Group by URL and Title, perfectly isolated by Workspace and Category
+        // Group by URL and Title
         nodes.forEach((node) => {
-            const boundaryKey = `${node.workspaceId}::${node.categoryName}`;
-
             if (node.nUrl) {
-                const uniqueUrlKey = `${boundaryKey}::URL::${node.nUrl}`;
-                if (urlToNode.has(uniqueUrlKey)) union(node.idx, urlToNode.get(uniqueUrlKey));
-                else urlToNode.set(uniqueUrlKey, node.idx);
+                if (urlToNode.has(node.nUrl)) union(node.idx, urlToNode.get(node.nUrl));
+                else urlToNode.set(node.nUrl, node.idx);
             }
             if (node.nTitle) {
-                const uniqueTitleKey = `${boundaryKey}::TITLE::${node.nTitle}`;
-                if (titleToNode.has(uniqueTitleKey)) union(node.idx, titleToNode.get(uniqueTitleKey));
-                else titleToNode.set(uniqueTitleKey, node.idx);
+                if (titleToNode.has(node.nTitle)) union(node.idx, titleToNode.get(node.nTitle));
+                else titleToNode.set(node.nTitle, node.idx);
             }
         });
 
@@ -490,7 +486,7 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
                 }
             }
 
-            if (baseHasConnection || finalSummary || maxProgress !== null || maxScore !== null || mergedStatus || Object.keys(mergedEntryData).length > 0) {
+            if (baseHasConnection) {
                 // Wipe legacy fields from mergedEntryData so they don't leak
                 delete mergedEntryData.progress;
                 delete mergedEntryData.chapter;
