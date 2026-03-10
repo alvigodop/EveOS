@@ -12,8 +12,13 @@ window.modalTemplate += `
                 <input type="radio" name="bulkMode" id="bulkModeName" value="name">
                 <span>Names Only</span>
             </label>
+            <label style="display:flex; align-items:center; gap:6px; font-size:0.9rem;">
+                <input type="radio" name="bulkMode" id="bulkModeFile" value="file">
+                <span>Files (Smart Extract)</span>
+            </label>
         </div>
         <textarea id="bulkText" style="min-height:150px;" placeholder="One URL per line..."></textarea>
+        <input type="file" id="bulkFileInput" multiple accept=".txt" style="display:none; min-height:150px; background:#1a1a1a; color:#fff; border:1px solid #444; width:100%; box-sizing:border-box; padding:20px;">
         <div id="bulkModeHint" style="font-size:0.85rem; opacity:0.75; margin:6px 0 10px;">
             URL mode: each line should be a URL.
         </div>
