@@ -357,7 +357,9 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
 
         // 6. Merge Library Connections
         let maxProgress = null;
+        let maxProgressKey = null;
         let maxScore = null;
+        let maxScoreKey = null;
         let mergedStatus = '';
         let mergedLibImage = '';
         const notesLines = [];
@@ -416,11 +418,32 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
                 if (!entry) return;
 
                 const parseNum = (val) => { const n = Number.parseInt(val, 10); return Number.isNaN(n) ? null : n; };
-                const p = parseNum(entry.progress) ?? parseNum(entry.chapter) ?? parseNum(entry.episode);
-                if (p !== null && (maxProgress === null || p > maxProgress)) maxProgress = p;
 
-                const s = parseNum(entry.score) ?? parseNum(entry.rating);
-                if (s !== null && (maxScore === null || s > maxScore)) maxScore = s;
+                const ep = parseNum(entry.episode);
+                const ch = parseNum(entry.chapter);
+                const pr = parseNum(entry.progress);
+                let localMaxP = null;
+                let localPKey = null;
+                if (ep !== null && ep > (localMaxP || -1)) { localMaxP = ep; localPKey = 'episode'; }
+                if (ch !== null && ch > (localMaxP || -1)) { localMaxP = ch; localPKey = 'chapter'; }
+                if (pr !== null && pr > (localMaxP || -1)) { localMaxP = pr; localPKey = 'progress'; }
+
+                if (localMaxP !== null && (maxProgress === null || localMaxP > maxProgress)) {
+                    maxProgress = localMaxP;
+                    maxProgressKey = localPKey;
+                }
+
+                const ra = parseNum(entry.rating);
+                const sc = parseNum(entry.score);
+                let localMaxS = null;
+                let localSKey = null;
+                if (ra !== null && ra > (localMaxS || -1)) { localMaxS = ra; localSKey = 'rating'; }
+                if (sc !== null && sc > (localMaxS || -1)) { localMaxS = sc; localSKey = 'score'; }
+
+                if (localMaxS !== null && (maxScore === null || localMaxS > maxScore)) {
+                    maxScore = localMaxS;
+                    maxScoreKey = localSKey;
+                }
 
                 if (!mergedStatus && entry.status) mergedStatus = entry.status;
                 if (!mergedLibImage && entry.image) mergedLibImage = entry.image;
@@ -444,37 +467,46 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
         if (connectionsApi) {
             if (bestConnection && bestConnection.linkId !== baseLinkId) {
                 if (baseHasConnection) {
-                    connectionsApi.removeByLinkId(baseLinkId);
+                    if (connectionsApi.unlinkLink) connectionsApi.unlinkLink(baseLinkId, true);
+                    else connectionsApi.removeByLinkId(baseLinkId);
                 }
+
+                // Move the entry safely BEFORE reassigning the connection linkId to avoid EveOS cloning ghosts
+                if (connectionsApi.moveLinkedEntryToScope) {
+                    const workspaceFallback = window.EveDuplicateSensor.getConfig?.()?.activeWorkspace || 'main';
+                    connectionsApi.moveLinkedEntryToScope(bestConnection.linkId, baseLink.category || 'Unsorted', baseLink.workspace || workspaceFallback);
+                }
+
                 const allConns = connectionsApi.getAll();
                 const connToSteal = allConns.find(c => c.id === bestConnection.id);
                 if (connToSteal) {
                     connToSteal.linkId = baseLinkId;
                     if (connectionsApi.setAll) connectionsApi.setAll(allConns);
                     baseHasConnection = true;
-
-                    if (connectionsApi.moveLinkedEntryToScope) {
-                        const workspaceFallback = window.EveDuplicateSensor.getConfig?.()?.activeWorkspace || 'main';
-                        connectionsApi.moveLinkedEntryToScope(baseLinkId, baseLink.category || 'Unsorted', baseLink.workspace || workspaceFallback);
-                    }
                 }
             }
 
             if (baseHasConnection || finalSummary || maxProgress !== null || maxScore !== null || mergedStatus || Object.keys(mergedEntryData).length > 0) {
+                // Ensure legacy fields don't accidentally leak and contaminate the base
+                delete mergedEntryData.progress;
+                delete mergedEntryData.chapter;
+                delete mergedEntryData.episode;
+                delete mergedEntryData.score;
+                delete mergedEntryData.rating;
+
                 const patchData = {
                     ...mergedEntryData,
                     title: bestTitle,
                     sourceUrl: bestUrl
                 };
-                if (maxProgress !== null) {
-                    patchData.progress = maxProgress;
-                    patchData.chapter = maxProgress;
-                    patchData.episode = maxProgress;
+
+                if (maxProgress !== null && maxProgressKey) {
+                    patchData[maxProgressKey] = maxProgress;
                 }
-                if (maxScore !== null) {
-                    patchData.score = maxScore;
-                    patchData.rating = maxScore;
+                if (maxScore !== null && maxScoreKey) {
+                    patchData[maxScoreKey] = maxScore;
                 }
+
                 if (mergedStatus) patchData.status = mergedStatus;
                 if (mergedLibImage) patchData.image = mergedLibImage;
                 if (finalSummary) patchData.summary = finalSummary;
@@ -496,7 +528,9 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
                     actualLinksArray.splice(i, 1);
                 }
             }
-            if (connectionsApi && connectionsApi.removeByLinkId) {
+            if (connectionsApi && connectionsApi.unlinkLink) {
+                idsToRemove.forEach(id => connectionsApi.unlinkLink(id, true));
+            } else if (connectionsApi && connectionsApi.removeByLinkId) {
                 idsToRemove.forEach(id => connectionsApi.removeByLinkId(id));
             }
         }
