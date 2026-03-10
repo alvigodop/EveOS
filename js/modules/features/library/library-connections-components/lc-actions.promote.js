@@ -8,6 +8,10 @@ window.EveLibrary.ConnectionsCoreModules = window.EveLibrary.ConnectionsCoreModu
         }
 
         function promoteLink(linkId) {
+            return promoteLinkWithData(linkId, {});
+        }
+
+        function promoteLinkWithData(linkId, entryData) {
             const link = Core.findLinkById(linkId);
             if (!link) {
                 showToast?.('Link not found', 'error');
@@ -16,7 +20,9 @@ window.EveLibrary.ConnectionsCoreModules = window.EveLibrary.ConnectionsCoreModu
 
             const existing = Core.findConnectionByLinkId(linkId);
             if (existing) {
-                showToast?.('This bookmark is already linked to library', 'info');
+                if (Object.keys(entryData || {}).length === 0) {
+                    showToast?.('This bookmark is already linked to library', 'info');
+                }
                 return existing;
             }
 
@@ -28,20 +34,22 @@ window.EveLibrary.ConnectionsCoreModules = window.EveLibrary.ConnectionsCoreModu
 
             const lib = state.getCategoryLibrary(categoryName, workspaceId);
             const Ratings = getRatings();
+            const safeData = entryData || {};
+
             const newEntry = {
                 id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-                title: link.title || 'Untitled',
-                mediaTypes: ['graphicNovels'],
+                title: safeData.title || link.title || 'Untitled',
+                mediaTypes: safeData.mediaTypes || ['graphicNovels'],
                 author: '',
                 authorAltNames: [],
                 artist: '',
                 genre: '',
-                status: Core.getDefaultStatus(categoryName, workspaceId),
-                chapter: 0,
-                season: 0,
-                episode: 0,
-                sourceUrl: link.url || '',
-                summary: '',
+                status: safeData.status || Core.getDefaultStatus(categoryName, workspaceId),
+                chapter: safeData.chapter || 0,
+                season: safeData.season || (safeData.mediaTypes && safeData.mediaTypes.includes('films') ? 1 : 0),
+                episode: safeData.episode || 0,
+                sourceUrl: safeData.sourceUrl || link.url || '',
+                summary: safeData.summary || '',
                 rating: '',
                 apiRatings: {
                     anilist: null,
@@ -58,7 +66,7 @@ window.EveLibrary.ConnectionsCoreModules = window.EveLibrary.ConnectionsCoreModu
                 dateAdded: new Date().toISOString(),
                 lastEdited: new Date().toISOString(),
                 favorite: false,
-                image: ''
+                image: safeData.image || ''
             };
             if (Ratings?.applyDerivedRatings) {
                 Ratings.applyDerivedRatings(newEntry);
@@ -78,7 +86,10 @@ window.EveLibrary.ConnectionsCoreModules = window.EveLibrary.ConnectionsCoreModu
 
             Core.connections.push(connection);
             Core.saveConnections();
-            showToast?.('Bookmark added to library', 'success');
+
+            if (Object.keys(safeData).length === 0) {
+                showToast?.('Bookmark added to library', 'success');
+            }
             return connection;
         }
 
@@ -96,14 +107,14 @@ window.EveLibrary.ConnectionsCoreModules = window.EveLibrary.ConnectionsCoreModu
                 }
             }
 
-            Core.connections = Core.connections.filter(item => String(item.linkId) !== String(linkId));
+            Core.connections = Core.connections.filter(item => String(item.linkId) !== String(linkId));   
             Core.saveConnections();
             return true;
         }
 
         function removeByLinkId(linkId) {
             const before = Core.connections.length;
-            Core.connections = Core.connections.filter(item => String(item.linkId) !== String(linkId));
+            Core.connections = Core.connections.filter(item => String(item.linkId) !== String(linkId));   
             if (Core.connections.length !== before) {
                 Core.saveConnections();
             }
@@ -115,7 +126,7 @@ window.EveLibrary.ConnectionsCoreModules = window.EveLibrary.ConnectionsCoreModu
             const normalizedEntryId = String(entryId);
             const normalizedWorkspace = String(workspaceId || '').trim();
             Core.connections = Core.connections.filter(item => {
-                if (Core.normalizeCategoryName(item.categoryName) !== normalizedCategory) return true;
+                if (Core.normalizeCategoryName(item.categoryName) !== normalizedCategory) return true;    
                 if (String(item.libraryEntryId) !== normalizedEntryId) return true;
                 if (!normalizedWorkspace) return false;
                 return Core.normalizeWorkspaceId(item.workspace) !== Core.normalizeWorkspaceId(normalizedWorkspace);
@@ -127,6 +138,7 @@ window.EveLibrary.ConnectionsCoreModules = window.EveLibrary.ConnectionsCoreModu
 
         return {
             promoteLink,
+            promoteLinkWithData,
             unlinkLink,
             removeByLinkId,
             removeByLibraryEntry

@@ -253,10 +253,11 @@ function processStructuredFile(content, fileName, targetCategory) {
         notes: summaryText
     };
 
+    links.push(newBookmark);
+
     // Attempt Library Connection Integration
-    if (window.EveLibrary?.State && window.EveLibrary?.Storage) {
-        const lib = window.EveLibrary.State.getCategoryLibrary(targetCategory, config.activeWorkspace);
-        let dataType = lib.dataType || 'graphicNovels';
+    if (window.EveLibrary?.ConnectionsAPI?.promoteLinkWithData) {
+        let dataType = 'graphicNovels';
         
         // Infer type if not explicitly set
         if (type.includes('film') || type.includes('show') || type.includes('anime')) {
@@ -270,60 +271,17 @@ function processStructuredFile(content, fileName, targetCategory) {
             else if (chapter > 0 || summaryText.toLowerCase().includes('manga')) dataType = 'graphicNovels';
         }
 
-        const libraryEntryId = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-        const newEntry = {
-            id: libraryEntryId,
+        window.EveLibrary.ConnectionsAPI.promoteLinkWithData(newLinkId, {
             title: title || 'Untitled',
             mediaTypes: [dataType],
-            author: '',
-            authorAltNames: [],
-            artist: '',
-            genre: '',
             status: dataType === 'films' ? 'Plan to Watch' : 'Plan to Read',
             chapter: dataType !== 'films' ? chapter : 0,
             season: dataType === 'films' ? 1 : 0,
             episode: dataType === 'films' ? episode : 0,
             sourceUrl: url,
-            summary: summaryText,
-            rating: '',
-            apiRatings: { anilist: null, myanimelist: null, mangadex: null },
-            sourceStatus: '',
-            sourceSignals: window.EveLibrary.Ratings?.createEmptySourceSignals ? window.EveLibrary.Ratings.createEmptySourceSignals() : null,
-            derivedRatings: null,
-            language: '',
-            tags: [],
-            dateAdded: new Date().toISOString(),
-            lastEdited: new Date().toISOString(),
-            favorite: false,
-            image: ''
-        };
-
-        lib.entries.push(newEntry);
-
-        // Link the bookmark via the core connections API
-        const connection = {
-            id: `conn-${Date.now()}-${Math.random().toString(36).slice(2,9)}`,
-            linkId: String(newLinkId),
-            libraryEntryId: newEntry.id,
-            categoryName: targetCategory,
-            workspace: config.activeWorkspace,
-            createdAt: new Date().toISOString()
-        };
-
-        if (window.EveLibrary.ConnectionsCore?.connections) {
-           window.EveLibrary.ConnectionsCore.connections.push(connection);
-           if (window.EveLibrary.ConnectionsCore.saveConnections) {
-               window.EveLibrary.ConnectionsCore.saveConnections();
-           }
-        } else if (window.EveLibrary.ConnectionsAPI?.core?.connections) {
-           window.EveLibrary.ConnectionsAPI.core.connections.push(connection);
-           if (window.EveLibrary.ConnectionsAPI.core.saveConnections) {
-               window.EveLibrary.ConnectionsAPI.core.saveConnections();
-           }
-        } else {
-           console.warn('Could not securely inject Library Connection. Bookmark was added standalone.');
-        }
+            summary: summaryText
+        });
+    } else {
+        console.warn('Library Connections API not found. Bookmark was added standalone.');
     }
-
-    links.push(newBookmark);
 }

@@ -18,6 +18,7 @@ window.EveLibrary = window.EveLibrary || {};
         getAll: Core.getAll,
         findConnectionByLinkId: Core.findConnectionByLinkId,
         promoteLink: Core.promoteLink,
+        promoteLinkWithData: Core.promoteLinkWithData,
         unlinkLink: Core.unlinkLink,
         removeByLinkId: Core.removeByLinkId,
         removeByLibraryEntry: Core.removeByLibraryEntry,
