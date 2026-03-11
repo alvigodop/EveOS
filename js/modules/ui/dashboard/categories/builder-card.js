@@ -166,8 +166,8 @@ window.DashboardCategories = window.DashboardCategories || {};
 
         function buildDropTargetAttributes(targetFolderId) {
             const safeFolderId = escapeCardJs(targetFolderId || '');
-            return 'ondragover="if(typeof allowDrop===\'function\')allowDrop(event)" '
-                + `ondrop="event.currentTarget.classList.remove('bookmark-folder-drop-target'); if(typeof window.EveFolderViewV2.handleFolderDrop==='function') window.EveFolderViewV2.handleFolderDrop(event, '${safeCategoryJs}', '${safeFolderId}', '${safeWorkspaceJs}')"`
+            return 'ondragover="allowDrop(event)" '
+                + `ondrop="event.currentTarget.classList.remove('bookmark-folder-drop-target'); moveBookmarksToFolderDrop(event, '${safeCategoryJs}', '${safeFolderId}', '${safeWorkspaceJs}')"`
                 + ' ondragenter="event.currentTarget.classList.add(\'bookmark-folder-drop-target\')"'
                 + ' ondragleave="event.currentTarget.classList.remove(\'bookmark-folder-drop-target\')"';
         }
@@ -185,10 +185,8 @@ window.DashboardCategories = window.DashboardCategories || {};
             const actionsExpandedAttr = actionsExpanded ? 'true' : 'false';
             const actionsHiddenAttr = actionsExpanded ? '' : ' hidden';
 
-            const draggableAttr = `draggable="true" ondragstart="if(typeof window.EveFolderViewV2.handleFolderDragStart==='function') window.EveFolderViewV2.handleFolderDragStart(event, '${escapeCardJs(node.id)}', '${safeCategoryJs}', '${safeWorkspaceJs}')"`;
-
             return ''
-                + `<details class="bookmark-folder-group" open data-bookmark-folder-target-id="${escapeCardHtml(folderTargetId)}" ${buildDropTargetAttributes(node.id)} ${draggableAttr}>`
+                + `<details class="bookmark-folder-group" open data-bookmark-folder-target-id="${escapeCardHtml(folderTargetId)}" ${buildDropTargetAttributes(node.id)}>`
                     + '<summary class="bookmark-folder-summary">'
                         + '<div class="bookmark-folder-summary-copy">'
                             + `<span class="bookmark-folder-title">${escapeCardHtml(node.name)}</span>`

@@ -71,14 +71,9 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
     };
 
     // Drag and Drop Helpers for Folder Movement
-    window.EveFolderViewV2.handleFolderDragStart = function(event, folderId, categoryName, workspaceId) {
+    window.EveFolderViewV2.handleFolderDragStart = function(event, folderId) {
         if (!event || !event.dataTransfer) return;
-        event.dataTransfer.setData('text/plain', JSON.stringify({ 
-            type: 'folder', 
-            id: folderId,
-            sourceCategory: categoryName,
-            sourceWorkspace: workspaceId
-        }));
+        event.dataTransfer.setData('text/plain', JSON.stringify({ type: 'folder', id: folderId }));
         event.dataTransfer.effectAllowed = 'move';
         // Add a class for styling while dragging if desired
         setTimeout(() => event.target.classList.add('is-dragging'), 0);
@@ -100,18 +95,15 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
             // Not a JSON payload, probably standard bookmark link ID
         }
 
-        // If it's a folder payload, move/transfer the folder
+        // If it's a folder payload, move the folder
         if (payload && payload.type === 'folder' && payload.id) {
             const folderIdToMove = payload.id;
-            const sourceCat = payload.sourceCategory;
-            const sourceWs = payload.sourceWorkspace;
-            
-            if (folderIdToMove === targetFolderId && sourceCat === categoryName && sourceWs === workspaceId) return; // Same location
+            if (folderIdToMove === targetFolderId) return; // Can't move into itself
             
             const folderApi = window.EveBookmarkFolders;
-            if (folderApi && folderApi.transferFolderToCategory) {
-                // Perform cross-category or cross-workspace transfer
-                folderApi.transferFolderToCategory(folderIdToMove, sourceWs, sourceCat, workspaceId, categoryName, targetFolderId || '');
+            if (folderApi && folderApi.moveFolder) {
+                // Actually move the folder using the backend API
+                folderApi.moveFolder(workspaceId, categoryName, folderIdToMove, targetFolderId || '');
                 if (typeof window.renderDashboard === 'function') window.renderDashboard();
             }
             return;
@@ -135,7 +127,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
             html += `
                 <div class="folder-wrap-grid">
                     ${topLevelFolders.map(f => {
-                        const dropTargetAttr = `ondragover="if(typeof allowDrop===\'function\')allowDrop(event)" ondrop="event.currentTarget.classList.remove('folder-tile-drag-hover'); if(typeof window.EveFolderViewV2.handleFolderDrop==='function') window.EveFolderViewV2.handleFolderDrop(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}')" ondragenter="event.currentTarget.classList.add('folder-tile-drag-hover')" ondragleave="event.currentTarget.classList.remove('folder-tile-drag-hover')"`;
+                        const dropTargetAttr = `ondragover="if(typeof allowDrop==='function')allowDrop(event)" ondrop="event.currentTarget.classList.remove('folder-tile-drag-hover'); if(typeof window.EveFolderViewV2.handleFolderDrop==='function') window.EveFolderViewV2.handleFolderDrop(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}')" ondragenter="event.currentTarget.classList.add('folder-tile-drag-hover')" ondragleave="event.currentTarget.classList.remove('folder-tile-drag-hover')"`;
                         const dragStartAttr = `draggable="true" ondragstart="if(typeof window.EveFolderViewV2.handleFolderDragStart==='function') window.EveFolderViewV2.handleFolderDragStart(event, '${escapeCardJs(f.id)}')" ondragend="this.classList.remove('is-dragging')"`;
                         
                         return `
@@ -228,7 +220,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                 ? `window.EveFolderViewV2.enterFolder(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(t.id)}', '${escapeCardJs(workspaceId)}')`
                 : `window.EveFolderViewV2.exitFolder(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(workspaceId)}')`;
             
-            const dropAction = `ondragover="if(typeof allowDrop===\'function\')allowDrop(event)" ondrop="event.currentTarget.classList.remove('active'); if(typeof window.EveFolderViewV2.handleFolderDrop==='function') window.EveFolderViewV2.handleFolderDrop(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(t.id || '')}', '${escapeCardJs(workspaceId)}')" ondragenter="event.currentTarget.classList.add('active')" ondragleave="event.currentTarget.classList.remove('active')"`;
+            const dropAction = `ondragover="if(typeof allowDrop==='function')allowDrop(event)" ondrop="event.currentTarget.classList.remove('active'); if(typeof window.EveFolderViewV2.handleFolderDrop==='function') window.EveFolderViewV2.handleFolderDrop(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(t.id || '')}', '${escapeCardJs(workspaceId)}')" ondragenter="event.currentTarget.classList.add('active')" ondragleave="event.currentTarget.classList.remove('active')"`;
 
             breadcrumbsHtml += `<span class="breadcrumb-item ${isLast ? 'active' : ''}" onclick="${isLast ? '' : clickAction}" ${dropAction}>${escapeCardHtml(t.label.toUpperCase())}</span>`;
             if (isLast) breadcrumbsHtml += `<span class="breadcrumb-cursor"></span>`;
@@ -253,7 +245,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                 <div class="manhwa-divider">FOLDERS</div>
                 <div class="folder-wrap-grid">
                     ${subFolders.map(f => {
-                        const dropTargetAttr = `ondragover="if(typeof allowDrop===\'function\')allowDrop(event)" ondrop="event.currentTarget.classList.remove('folder-tile-drag-hover'); if(typeof window.EveFolderViewV2.handleFolderDrop==='function') window.EveFolderViewV2.handleFolderDrop(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}')" ondragenter="event.currentTarget.classList.add('folder-tile-drag-hover')" ondragleave="event.currentTarget.classList.remove('folder-tile-drag-hover')"`;
+                        const dropTargetAttr = `ondragover="if(typeof allowDrop==='function')allowDrop(event)" ondrop="event.currentTarget.classList.remove('folder-tile-drag-hover'); if(typeof window.EveFolderViewV2.handleFolderDrop==='function') window.EveFolderViewV2.handleFolderDrop(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}')" ondragenter="event.currentTarget.classList.add('folder-tile-drag-hover')" ondragleave="event.currentTarget.classList.remove('folder-tile-drag-hover')"`;
                         const dragStartAttr = `draggable="true" ondragstart="if(typeof window.EveFolderViewV2.handleFolderDragStart==='function') window.EveFolderViewV2.handleFolderDragStart(event, '${escapeCardJs(f.id)}')"`;
                         
                         return `
