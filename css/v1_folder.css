@@ -107,19 +107,20 @@
 }
 
 .folder-tile:hover {
-    border-color: var(--accent, #0088ff)88;
-    background: linear-gradient(135deg, var(--accent, #0088ff)14 0%, var(--accent, #0088ff)06 100%);
-    box-shadow: 0 0 16px var(--accent, #0088ff)22, inset 0 0 10px var(--accent, #0088ff)06;
+    border-color: rgba(255, 255, 255, 0.05);
+    background: radial-gradient(ellipse at center, var(--accent, #0088ff)33 0%, var(--accent, #0088ff)05 60%, transparent 100%);
+    box-shadow: 0 0 24px var(--accent, #0088ff)15, inset 0 0 20px var(--accent, #0088ff)11;
 }
 
 .folder-tile-left-bar {
     position: absolute; left: 0; top: 0; bottom: 0; width: 2px;
-    background: linear-gradient(180deg, rgba(128,128,128,0.3), transparent);
+    background: linear-gradient(180deg, transparent 0%, rgba(128,128,128,0.3) 50%, transparent 100%);
     transition: all 0.18s;
 }
 
 .folder-tile:hover .folder-tile-left-bar {
-    background: linear-gradient(180deg, var(--accent, #0088ff), var(--accent, #0088ff)44);
+    background: linear-gradient(180deg, transparent 0%, var(--accent, #0088ff)ff 50%, transparent 100%);
+    box-shadow: 0 0 8px var(--accent, #0088ff);
 }
 
 .folder-icon-box {

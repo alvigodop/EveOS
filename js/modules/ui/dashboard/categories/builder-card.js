@@ -488,6 +488,10 @@ window.DashboardCategories = window.DashboardCategories || {};
         card.setAttribute('data-card-workspace', activeWorkspaceId);
 
         gridContainer.appendChild(card);
+        
+        if (window.EveFolderViewV2 && window.EveFolderViewV2.restoreActiveFolderState) {
+            window.EveFolderViewV2.restoreActiveFolderState(activeWorkspaceId, cat);
+        }
     };
 
     window.DashboardCategories.getCardHeaderButtonsForCategory = getCardHeaderButtonsForCategory;

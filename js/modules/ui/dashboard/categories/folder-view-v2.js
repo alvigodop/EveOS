@@ -33,8 +33,41 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         const key = `${workspaceId}::${categoryName}`;
         const current = !!window.eveState.config.cardFolderViewModes[key];
         window.eveState.config.cardFolderViewModes[key] = !current;
+        
+        // Clear active folder state when toggling
+        if (window.eveState.config.activeManhwaFolders) {
+            delete window.eveState.config.activeManhwaFolders[key];
+        }
+
         if (typeof window.saveConfig === 'function') window.saveConfig();
         if (typeof window.renderDashboard === 'function') window.renderDashboard();
+    };
+
+    window.EveFolderViewV2.saveActiveFolderState = function(workspaceId, categoryName, folderId) {
+        if (!window.eveState?.config) return;
+        if (!window.eveState.config.activeManhwaFolders) window.eveState.config.activeManhwaFolders = {};
+        const key = `${workspaceId}::${categoryName}`;
+        if (folderId) {
+            window.eveState.config.activeManhwaFolders[key] = folderId;
+        } else {
+            delete window.eveState.config.activeManhwaFolders[key];
+        }
+        if (typeof window.saveConfig === 'function') window.saveConfig();
+    };
+
+    window.EveFolderViewV2.restoreActiveFolderState = function(workspaceId, categoryName) {
+        if (!window.EveFolderViewV2.isManhwaModeEnabled(workspaceId, categoryName)) return;
+        if (!window.eveState?.config?.activeManhwaFolders) return;
+        
+        const key = `${workspaceId}::${categoryName}`;
+        const targetFolderId = window.eveState.config.activeManhwaFolders[key];
+        
+        if (targetFolderId) {
+            // Give the DOM a tiny beat to attach the card before jumping in
+            setTimeout(() => {
+                window.EveFolderViewV2.enterFolder(null, categoryName, targetFolderId, workspaceId);
+            }, 50);
+        }
     };
 
     // Render Root Grid (replaces Tree View for top level)
@@ -95,6 +128,8 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         
         const card = document.querySelector(`.category-card[data-card-category="${escapeCardHtml(categoryName)}"][data-card-workspace="${escapeCardHtml(workspaceId)}"]`);
         if (!card) return;
+
+        window.EveFolderViewV2.saveActiveFolderState(workspaceId, categoryName, folderId);
 
         const folderApi = window.EveBookmarkFolders;
         if (!folderApi || !folderApi.buildFolderView) return;
@@ -275,6 +310,8 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         
         const card = document.querySelector(`.category-card[data-card-category="${escapeCardHtml(categoryName)}"][data-card-workspace="${escapeCardHtml(workspaceId)}"]`);
         if (!card || !card.dataset.mode1Html) return;
+
+        window.EveFolderViewV2.saveActiveFolderState(workspaceId, categoryName, null);
 
         const v2Container = card.querySelector('.v2-folder-container');
         if (v2Container) {
