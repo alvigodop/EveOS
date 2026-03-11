@@ -371,6 +371,8 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
         // 6. Merge Library Connections
         let maxProgress = null;
         let maxProgressKey = null;
+        let maxSeason = null;
+        let maxSeasonPairedEpisode = null;
         let maxScore = null;
         let maxScoreKey = null;
         let mergedStatus = '';
@@ -432,9 +434,21 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
 
                 const parseNum = (val) => { const n = Number.parseInt(val, 10); return Number.isNaN(n) ? null : n; };
 
+                const sn = parseNum(entry.season);
                 const ep = parseNum(entry.episode);
                 const ch = parseNum(entry.chapter);
                 const pr = parseNum(entry.progress);
+                
+                // Track highest season and its paired episode
+                if (sn !== null) {
+                    if (maxSeason === null || sn > maxSeason) {
+                        maxSeason = sn;
+                        maxSeasonPairedEpisode = ep || 0; // Lock in this season's episode
+                    } else if (sn === maxSeason && ep !== null && (maxSeasonPairedEpisode === null || ep > maxSeasonPairedEpisode)) {
+                        maxSeasonPairedEpisode = ep; // Same season, upgrade to higher episode
+                    }
+                }
+
                 let localMaxP = null;
                 let localPKey = null;
                 if (ep !== null && ep > (localMaxP || -1)) { localMaxP = ep; localPKey = 'episode'; }
@@ -516,6 +530,14 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
                 if (maxProgress !== null && maxProgressKey) {
                     patchData[maxProgressKey] = maxProgress;
                 }
+                
+                if (maxSeason !== null) {
+                    patchData.season = maxSeason;
+                    if (maxSeasonPairedEpisode !== null) {
+                        patchData.episode = maxSeasonPairedEpisode;
+                    }
+                }
+                
                 if (maxScore !== null && maxScoreKey) {
                     patchData[maxScoreKey] = maxScore;
                 }
