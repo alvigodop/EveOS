@@ -61,7 +61,17 @@ window.EveLibrary = window.EveLibrary || {};
             sourceUrl: nextSourceUrl,
             image: metadata.imageUrl || currentEntry?.image || '',
             tags: nextTags,
-            summary: metadata.summary || currentEntry?.summary || '',
+            summary: (() => {
+                const existingParts = (currentEntry?.summary || '').split('\n').map(s => s.trim()).filter(Boolean);
+                const newParts = (metadata.summary || '').split('\n').map(s => s.trim()).filter(Boolean);
+                const merged = [...existingParts];
+                for (const part of newParts) {
+                    if (!existingParts.includes(part)) {
+                        merged.push(part);
+                    }
+                }
+                return merged.join('\n\n');
+            })(),
             apiRatings: nextApiRatings,
             sourceSignals: nextSourceSignals || undefined
         };

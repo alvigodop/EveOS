@@ -162,7 +162,8 @@ window.EveLinkForm = window.EveLinkForm || {};
         if (provider && normalizedScore !== null) {
             apiRatings[provider] = normalizedScore;
         }
-        return { authors, artists, genres, tags, language, sourceUrl, imageUrl, status, sourceStatus, apiRatings, sourceSignals };
+        const summary = String(source?.description || '').trim();
+        return { authors, artists, genres, tags, language, sourceUrl, imageUrl, status, sourceStatus, apiRatings, sourceSignals, summary };
     };
 
     ns.getAttachedSourceByIndex = function (index) {
