@@ -33,29 +33,47 @@ function drop(ev, newCategory) {
     let movedAny = false;
     let dragIds = [];
 
+    let payload = null;
     try {
-        const parsed = JSON.parse(rawJson);
-        if (Array.isArray(parsed?.ids)) {
-            dragIds = parsed.ids.map(item => String(item));
-        } else if (parsed !== null && parsed !== undefined) {
-            dragIds = [String(parsed)];
+        payload = JSON.parse(rawJson);
+        if (Array.isArray(payload?.ids)) {
+            dragIds = payload.ids.map(item => String(item));
+        } else if (payload !== null && typeof payload === 'object' && payload.type === 'folder' && payload.id) {
+            // Folder Drop Logic
+            const targetWorkspace = ev.currentTarget.getAttribute('data-card-workspace') || (window.eveState?.config?.activeWorkspace) || 'main';
+            const folderApi = window.EveBookmarkFolders;
+            if (folderApi && folderApi.transferFolderToCategory) {
+                folderApi.transferFolderToCategory(
+                    payload.id,
+                    payload.sourceWorkspace,
+                    payload.sourceCategory,
+                    targetWorkspace,
+                    newCategory,
+                    '' // Drop on root
+                );
+                if (typeof window.renderDashboard === 'function') window.renderDashboard();
+            }
+            return;
+        } else if (payload !== null && payload !== undefined) {
+            dragIds = [String(payload)];
         }
     } catch (error) {
         if (rawJson) dragIds = [String(rawJson)];
     }
 
     dragIds.forEach((id) => {
-        const idx = links.findIndex(l => String(l.id) === String(id));
+        const targetLinks = window.eveState?.links || (typeof links !== 'undefined' ? links : []);
+        const idx = targetLinks.findIndex(l => String(l.id) === String(id));
         if (idx < 0) return;
-        if (links[idx].category === newCategory) return;
-        links[idx].category = newCategory;
-        window.EveBookmarkFolders?.clearLinkFolderAssignment?.(links[idx]);
-        window.EveLibrary?.ConnectionsAPI?.syncFromLink?.(links[idx].id);
+        if (targetLinks[idx].category === newCategory) return;
+        targetLinks[idx].category = newCategory;
+        window.EveBookmarkFolders?.clearLinkFolderAssignment?.(targetLinks[idx]);
+        window.EveLibrary?.ConnectionsAPI?.syncFromLink?.(targetLinks[idx].id);
         movedAny = true;
     });
 
     if (movedAny) {
-        saveData();
+        if (typeof saveData === 'function') saveData();
     }
 }
 

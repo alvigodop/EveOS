@@ -71,9 +71,14 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
     };
 
     // Drag and Drop Helpers for Folder Movement
-    window.EveFolderViewV2.handleFolderDragStart = function(event, folderId) {
+    window.EveFolderViewV2.handleFolderDragStart = function(event, folderId, categoryName, workspaceId) {
         if (!event || !event.dataTransfer) return;
-        event.dataTransfer.setData('text/plain', JSON.stringify({ type: 'folder', id: folderId }));
+        event.dataTransfer.setData('text/plain', JSON.stringify({ 
+            type: 'folder', 
+            id: folderId,
+            sourceCategory: categoryName,
+            sourceWorkspace: workspaceId
+        }));
         event.dataTransfer.effectAllowed = 'move';
         // Add a class for styling while dragging if desired
         setTimeout(() => event.target.classList.add('is-dragging'), 0);
@@ -128,7 +133,8 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                 <div class="folder-wrap-grid">
                     ${topLevelFolders.map(f => {
                         const dropTargetAttr = `ondragover="if(typeof allowDrop==='function')allowDrop(event)" ondrop="event.currentTarget.classList.remove('folder-tile-drag-hover'); if(typeof window.EveFolderViewV2.handleFolderDrop==='function') window.EveFolderViewV2.handleFolderDrop(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}')" ondragenter="event.currentTarget.classList.add('folder-tile-drag-hover')" ondragleave="event.currentTarget.classList.remove('folder-tile-drag-hover')"`;
-                        const dragStartAttr = `draggable="true" ondragstart="if(typeof window.EveFolderViewV2.handleFolderDragStart==='function') window.EveFolderViewV2.handleFolderDragStart(event, '${escapeCardJs(f.id)}')" ondragend="this.classList.remove('is-dragging')"`;
+                        const dragStartAttr = `draggable="true" ondragstart="if(typeof window.EveFolderViewV2.handleFolderDragStart==='function') window.EveFolderViewV2.handleFolderDragStart(event, '${escapeCardJs(f.id)}', '${escapeCardJs(categoryName)}', '${escapeCardJs(workspaceId)}')" ondragend="this.classList.remove('is-dragging')"`;
+
                         
                         return `
                         <div class="folder-tile" ${dropTargetAttr} ${dragStartAttr} onclick="window.EveFolderViewV2.enterFolder(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}')" oncontextmenu="if(typeof window.showFolderContextMenu === 'function') window.showFolderContextMenu(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}');">
@@ -246,7 +252,8 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                 <div class="folder-wrap-grid">
                     ${subFolders.map(f => {
                         const dropTargetAttr = `ondragover="if(typeof allowDrop==='function')allowDrop(event)" ondrop="event.currentTarget.classList.remove('folder-tile-drag-hover'); if(typeof window.EveFolderViewV2.handleFolderDrop==='function') window.EveFolderViewV2.handleFolderDrop(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}')" ondragenter="event.currentTarget.classList.add('folder-tile-drag-hover')" ondragleave="event.currentTarget.classList.remove('folder-tile-drag-hover')"`;
-                        const dragStartAttr = `draggable="true" ondragstart="if(typeof window.EveFolderViewV2.handleFolderDragStart==='function') window.EveFolderViewV2.handleFolderDragStart(event, '${escapeCardJs(f.id)}')"`;
+                        const dragStartAttr = `draggable="true" ondragstart="if(typeof window.EveFolderViewV2.handleFolderDragStart==='function') window.EveFolderViewV2.handleFolderDragStart(event, '${escapeCardJs(f.id)}', '${escapeCardJs(categoryName)}', '${escapeCardJs(workspaceId)}')"`;
+
                         
                         return `
                         <div class="folder-tile" ${dropTargetAttr} ${dragStartAttr} onclick="window.EveFolderViewV2.enterFolder(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}')" oncontextmenu="if(typeof window.showFolderContextMenu === 'function') window.showFolderContextMenu(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}');">

@@ -185,8 +185,11 @@ window.DashboardCategories = window.DashboardCategories || {};
             const actionsExpandedAttr = actionsExpanded ? 'true' : 'false';
             const actionsHiddenAttr = actionsExpanded ? '' : ' hidden';
 
+            const dragStartAttr = `draggable="true" ondragstart="if(typeof window.EveFolderViewV2?.handleFolderDragStart==='function') window.EveFolderViewV2.handleFolderDragStart(event, '${escapeCardJs(node.id)}', '${safeCategoryJs}', '${safeWorkspaceJs}')" ondragend="this.classList.remove('is-dragging')"`;
+
             return ''
-                + `<details class="bookmark-folder-group" open data-bookmark-folder-target-id="${escapeCardHtml(folderTargetId)}" ${buildDropTargetAttributes(node.id)}>`
+                + `<details class="bookmark-folder-group" open data-bookmark-folder-target-id="${escapeCardHtml(folderTargetId)}" ${buildDropTargetAttributes(node.id)} ${dragStartAttr}>`
+
                     + '<summary class="bookmark-folder-summary">'
                         + '<div class="bookmark-folder-summary-copy">'
                             + `<span class="bookmark-folder-title">${escapeCardHtml(node.name)}</span>`
