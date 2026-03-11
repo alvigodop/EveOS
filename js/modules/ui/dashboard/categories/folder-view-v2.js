@@ -171,15 +171,18 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
             if (subFolders.length > 0) itemsHtml += `<div class="manhwa-divider">ITEMS</div>`;
             itemsHtml += `
                 <div style="display: flex; flex-direction: column; gap: 1px; padding: 4px 0;">
-                    ${folderItems.map(item => `
+                    ${folderItems.map(item => {
+                        const jsId = escapeCardJs(String(item.id));
+                        return `
                         <div class="item-row" style="display: flex; align-items: center; gap: 12px; padding: 10px 18px; cursor: pointer; border-left: 2px solid rgba(128,128,128,0.2); transition: all 0.14s;" 
                              onmouseenter="this.style.background='rgba(255,255,255,0.05)'; this.style.borderLeftColor='var(--accent-color, #0088ff)';" 
                              onmouseleave="this.style.background='transparent'; this.style.borderLeftColor='rgba(128,128,128,0.2)';"
-                             onclick="window.open('${escapeCardJs(item.url)}', '${item.id}')">
+                             oncontextmenu="if(typeof window.showLinkContextMenu === 'function') window.showLinkContextMenu(event, '${jsId}')"
+                             onclick="if(typeof window.handleLinkClick === 'function') { window.handleLinkClick(event, '${jsId}', this); } else { window.open('${escapeCardJs(item.url)}', '_blank'); }">
                             <span style="font-size: 14px;">${escapeCardHtml(item.icon || '🔗')}</span>
                             <span style="font-family: 'Share Tech Mono', monospace; font-size: 12px; letter-spacing: 0.4px; color: rgba(255,255,255,0.85);">${escapeCardHtml(item.title)}</span>
                         </div>
-                    `).join('')}
+                    `}).join('')}
                 </div>
             `;
         }
@@ -214,10 +217,10 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         `;
 
         // Swap the card's list HTML
-        let listContainer = card.querySelector('.category-scrollable') || card.querySelector('.bookmark-folder-sections');
+        let listContainer = card.querySelector('.category-scrollable') || card.querySelector('.bookmark-folder-sections') || card.querySelector('.v2-folder-root-container');
         if (!listContainer) return;
 
-        // If this is the first time entering, we need to stash the original Mode 1 HTML
+        // If this is the first time entering, we need to stash the original Mode 1 HTML (or the v2 Root HTML)
         if (!card.dataset.mode1Html) {
             // Find the immediate parent of the list HTML (often the card itself, or right after lib-panel)
             const libPanel = card.querySelector('.lib-panel');
