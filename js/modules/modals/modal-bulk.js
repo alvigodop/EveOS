@@ -191,6 +191,7 @@ function processStructuredFile(content, fileName, targetCategory) {
     let url = '';
     let episode = 0;
     let chapter = 0;
+    let season = 0;
     let type = '';
     let status = '';
     let notesArr = [];
@@ -200,6 +201,14 @@ function processStructuredFile(content, fileName, targetCategory) {
         title = title.substring(4).trim();
     }
     title = title.replace(/^[\{\(]\d+[\}\)]\s*/, '').trim();
+
+    // Extract Season from title (e.g., "Rick and Morty S5", "Rick and Morty S8 Spinoff")
+    const seasonMatch = title.match(/\b(?:S|Season\s*)(\d+)\b/i);
+    if (seasonMatch) {
+        season = parseInt(seasonMatch[1], 10);
+        notesArr.push(`Season: ${season}`);
+        title = title.replace(seasonMatch[0], '').replace(/\s+/g, ' ').trim();
+    }
 
     lines.forEach(line => {
         const trimmed = line.trim();
@@ -331,7 +340,7 @@ function processStructuredFile(content, fileName, targetCategory) {
             mediaTypes: [dataType],
             status: mappedStatus,
             chapter: dataType !== 'films' ? chapter : 0,
-            season: dataType === 'films' ? 1 : 0,
+            season: dataType === 'films' ? (season > 0 ? season : 1) : season,
             episode: dataType === 'films' ? episode : 0,
             sourceUrl: url,
             summary: summaryText
