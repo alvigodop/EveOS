@@ -100,7 +100,7 @@ window.EveLinkForm = window.EveLinkForm || {};
             const select = document.getElementById('libStatus');
             if (!select) return;
             const state = window.EveLibrary?.State;
-            const fallback = ['Reading', 'Completed', 'Plan to Read'];
+            const fallback = ['Reading', 'Completed', 'On Hold', 'Dropped', 'Plan to Read', 'Hiatus'];
             let statuses = fallback;
             if (state) {
                 const dataType = state.getCategoryDataType(categoryName || 'Unsorted');

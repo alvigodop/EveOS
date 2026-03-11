@@ -78,7 +78,7 @@ window.EveBookmarkFocus = window.EveBookmarkFocus || {};
 
     function getStatusOptions(categoryName) {
         const state = window.EveLibrary?.State;
-        const fallback = ['Reading', 'Completed', 'Plan to Read'];
+        const fallback = ['Reading', 'Completed', 'On Hold', 'Dropped', 'Plan to Read', 'Hiatus'];
         if (!state) return fallback;
         const dataTypeName = state.getCategoryDataType(categoryName || 'Unsorted');
         const dataType = state.getDataType(dataTypeName);

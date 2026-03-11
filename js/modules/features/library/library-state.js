@@ -19,19 +19,19 @@ window.EveLibrary = window.EveLibrary || {};
     const dataTypes = {
         graphicNovels: {
             label: 'Graphic Novels',
-            statuses: ['Reading', 'Completed', 'Plan to Read'],
+            statuses: ['Reading', 'Completed', 'On Hold', 'Dropped', 'Plan to Read', 'Hiatus'],
             sortOptions: ['title', 'author', 'genre', 'rating', 'selectedRating', 'apiAverageRating', 'apiWeightedRating', 'hybridRating', 'personal10Rating', 'confidenceRating', 'status', 'dateAdded', 'lastEdited', 'chapter'],
             fields: ['chapter']
         },
         films: {
             label: 'Films',
-            statuses: ['Watching', 'Completed', 'On Hold', 'Dropped', 'Plan to Watch'],
+            statuses: ['Watching', 'Completed', 'On Hold', 'Dropped', 'Plan to Watch', 'Hiatus'],
             sortOptions: ['title', 'author', 'genre', 'rating', 'selectedRating', 'apiAverageRating', 'apiWeightedRating', 'hybridRating', 'personal10Rating', 'confidenceRating', 'status', 'dateAdded', 'lastEdited', 'season', 'episode'],
             fields: ['season', 'episode']
         },
         novels: {
             label: 'Novels',
-            statuses: ['Reading', 'Completed', 'Plan to Read'],
+            statuses: ['Reading', 'Completed', 'On Hold', 'Dropped', 'Plan to Read', 'Hiatus'],
             sortOptions: ['title', 'author', 'genre', 'rating', 'selectedRating', 'apiAverageRating', 'apiWeightedRating', 'hybridRating', 'personal10Rating', 'confidenceRating', 'status', 'dateAdded', 'lastEdited', 'chapter'],
             fields: ['chapter']
         }

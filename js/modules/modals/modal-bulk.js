@@ -303,10 +303,28 @@ function processStructuredFile(content, fileName, targetCategory) {
             }
         }
 
+        let mappedStatus = dataType === 'films' ? 'Plan to Watch' : 'Plan to Read';
+        if (status) {
+            const norm = status.toLowerCase();
+            if (norm.includes('finish') || norm.includes('complete') || norm.includes('done')) {
+                mappedStatus = 'Completed';
+            } else if (norm.includes('drop') || norm.includes('cancel') || norm.includes('abandon')) {
+                mappedStatus = 'Dropped';
+            } else if (norm.includes('hiatus')) {
+                mappedStatus = 'Hiatus';
+            } else if (norm.includes('hold') || norm.includes('pause')) {
+                mappedStatus = 'On Hold';
+            } else if (norm.includes('read') || norm.includes('watch') || norm.includes('ongoing')) {
+                mappedStatus = dataType === 'films' ? 'Watching' : 'Reading';
+            } else if (norm.includes('plan') || norm.includes('want')) {
+                mappedStatus = dataType === 'films' ? 'Plan to Watch' : 'Plan to Read';
+            }
+        }
+
         window.EveLibrary.ConnectionsAPI.promoteLinkWithData(newLinkId, {
             title: title || 'Untitled',
             mediaTypes: [dataType],
-            status: dataType === 'films' ? 'Plan to Watch' : 'Plan to Read',
+            status: mappedStatus,
             chapter: dataType !== 'films' ? chapter : 0,
             season: dataType === 'films' ? 1 : 0,
             episode: dataType === 'films' ? episode : 0,
