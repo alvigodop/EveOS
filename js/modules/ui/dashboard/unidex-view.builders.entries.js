@@ -86,7 +86,6 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 if (libraryProgress) libraryChips.push(`<span class="unidex-entry-chip">${libraryProgress}</span>`);
                 if (libraryMediaType) libraryChips.push(`<span class="unidex-entry-chip">${libraryMediaType}</span>`);
                 if (libraryLanguage) libraryChips.push(`<span class="unidex-entry-chip">${libraryLanguage}</span>`);
-                if (confidenceLabelRaw) libraryChips.push(`<span class="unidex-entry-chip">Confidence ${confidenceLabel}</span>`);
                 const libraryDetailHtml = isLibraryLinked
                     ? `
                     <div class="unidex-entry-library-wrap">
