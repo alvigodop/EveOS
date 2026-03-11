@@ -61,6 +61,7 @@ window.EveModuleManifestParts.scripts = [
         'js/modules/ui/sidebar.js?v=0.2.36',
         'js/modules/ui/dashboard/dashboard-dock.js?v=0.2.3',
         // Dashboard Categories Modules
+        'js/modules/ui/dashboard/categories/folder-view-v2.js',
         'js/modules/ui/dashboard/categories/sorter.js?v=0.2.41',
         'js/modules/ui/dashboard/categories/builder-link.js?v=0.2.46',
         'js/modules/ui/dashboard/categories/focused-link.helpers.js?v=0.2.1',
