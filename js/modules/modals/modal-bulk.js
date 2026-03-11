@@ -215,10 +215,21 @@ function processStructuredFile(content, fileName, targetCategory) {
                 title = val; 
                 processedAsCoreKey = true;
             } else if (key === 'url' || key === 'link' || key === 'read site' || key === 'site' || key === 'to watch site') { 
-                const isPlaceholder = /^[\-\.]+$/.test(val) || val.toLowerCase() === 'n/a' || val.toLowerCase() === 'none';
-                if (!isPlaceholder) {
-                    url = val; 
+                const rawVal = val.trim();
+                const lowerVal = rawVal.toLowerCase();
+                const isPlaceholder = /^[\-\.]+$/.test(rawVal) || lowerVal === 'n/a' || lowerVal === 'none';
+                
+                // Heuristic: Does this actually look like a real URL?
+                // Real URLs usually have 'http', 'www', '://', or at least a '.' or '/' without generic spaces.
+                const hasUrlHallmarks = lowerVal.includes('http') || lowerVal.includes('www.') || lowerVal.includes('://') || (!lowerVal.includes(' ') && (lowerVal.includes('.') || lowerVal.includes('/')));
+
+                if (!isPlaceholder && hasUrlHallmarks) {
+                    url = rawVal; 
+                } else if (rawVal && !isPlaceholder) {
+                    // It's generic text like "-Put The Link-". Funnel it into notes so it isn't lost.
+                    notesArr.push(`${key}: ${rawVal}`);
                 }
+                
                 processedAsCoreKey = true;
             } else if (key === 'type' || key === 'category') { 
                 type = val.toLowerCase(); 
