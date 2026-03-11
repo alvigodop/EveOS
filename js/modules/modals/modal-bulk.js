@@ -111,7 +111,7 @@ async function processBulk() {
             try {
                 const content = await file.text();
                 // Check if the file contains structured library data fields, shorthands, or if the filename specifies a media entry
-                const isStructured = content.match(/^(Title|URL|Episode|Ep|Chapter|Ch|Type|Notes|Finished Ep|Going To Ep)\s*:/mi);
+                const isStructured = content.match(/^(Title|URL|Episode|Ep|Chapter|Ch|Type|Notes|Finished Ep|Going To Ep)[\s:-]+/mi);
                 const isMediaFile = file.name.match(/^(Was\s+|[\{\(]\d+[\}\)])/i);
                 
                 if (isStructured || isMediaFile) {
@@ -226,14 +226,14 @@ function processStructuredFile(content, fileName, targetCategory) {
             }
         }
         
-        // Match heuristic shorthands
-        const epMatch = trimmed.match(/^(?:Finished Ep|Going To Ep|Ep|Episode)\s*:\s*(\d+)/i);
+        // Match heuristic shorthands (now allowing spaces/hyphens instead of just colons)
+        const epMatch = trimmed.match(/^(?:Finished Ep|Going To Ep|Ep|Episode)[\s:-]*(\d+)/i);
         if (epMatch) {
             episode = Math.max(episode, parseInt(epMatch[1], 10));
             // Keep in notes as well to avoid losing context like "Finished Ep" vs "Going To Ep"
         }
         
-        const chMatch = trimmed.match(/^(?:Ch|Chapter)\s*:\s*(\d+)/i);
+        const chMatch = trimmed.match(/^(?:Ch|Chapter)[\s:-]*(\d+)/i);
         if (chMatch) {
             chapter = Math.max(chapter, parseInt(chMatch[1], 10));
         }
