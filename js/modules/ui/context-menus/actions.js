@@ -142,3 +142,44 @@ window.ctxWsDelete = async function () {
         renderSidebar();
     }
 };
+
+// --- Folder Actions ---
+window.ctxFolderAdd = function() {
+    closeAllMenus();
+    if (window.ctxCatName && window.ctxFolderId) {
+        if (typeof openAddModalForFolder === 'function') {
+            openAddModalForFolder(window.ctxCatName, window.ctxFolderId);
+        }
+    }
+};
+
+window.ctxFolderSubfolder = function() {
+    closeAllMenus();
+    if (window.ctxCatName && window.ctxFolderId) {
+        if (typeof promptCreateBookmarkFolder === 'function') {
+            promptCreateBookmarkFolder(window.ctxCatName, window.ctxFolderId);
+        } else if (typeof openFolderCreator === 'function') {
+            openFolderCreator(window.ctxCatName, window.ctxFolderId);
+        }
+    }
+};
+
+window.ctxFolderRename = function() {
+    closeAllMenus();
+    if (window.ctxCatName && window.ctxFolderId) {
+        if (typeof promptRenameBookmarkFolder === 'function') {
+            promptRenameBookmarkFolder(window.ctxCatName, window.ctxFolderId);
+        } else if (typeof openFolderRenamer === 'function') {
+            openFolderRenamer(window.ctxCatName, window.ctxFolderId);
+        }
+    }
+};
+
+window.ctxFolderDelete = function() {
+    closeAllMenus();
+    if (window.ctxCatName && window.ctxFolderId) {
+        if (typeof deleteBookmarkFolderPrompt === 'function') {
+            deleteBookmarkFolderPrompt(window.ctxCatName, window.ctxFolderId);
+        }
+    }
+};

@@ -1,4 +1,4 @@
-﻿window.ContextMenus = window.ContextMenus || {};
+window.ContextMenus = window.ContextMenus || {};
 
 window.ContextMenus.template = `
 <div id="cat-context-menu" class="context-menu"></div>
@@ -18,5 +18,12 @@ window.ContextMenus.template = `
     <div class="ctx-item" onclick="ctxLaunch()">&#128640; Launch</div>
     <div class="ctx-divider"></div>
     <div class="ctx-item" style="color:var(--danger)" onclick="ctxDelete()">&#128465; Delete</div>
+</div>
+<div id="folder-context-menu" class="context-menu">
+    <div class="ctx-item" onclick="ctxFolderAdd()">&#10133; Add Bookmark</div>
+    <div class="ctx-item" onclick="ctxFolderSubfolder()">&#128193; New Subfolder</div>
+    <div class="ctx-item" onclick="ctxFolderRename()">&#9998; Rename</div>
+    <div class="ctx-divider"></div>
+    <div class="ctx-item" style="color:var(--danger)" onclick="ctxFolderDelete()">&#128465; Delete</div>
 </div>
 `;

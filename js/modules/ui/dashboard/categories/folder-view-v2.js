@@ -49,7 +49,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
             html += `
                 <div class="folder-wrap-grid">
                     ${topLevelFolders.map(f => `
-                        <div class="folder-tile" onclick="window.EveFolderViewV2.enterFolder(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}')">
+                        <div class="folder-tile" onclick="window.EveFolderViewV2.enterFolder(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}')" oncontextmenu="if(typeof window.showFolderContextMenu === 'function') window.showFolderContextMenu(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}');">
                             <div class="folder-tile-left-bar"></div>
                             <div class="folder-icon-box">
                                 <svg width="14" height="14" viewBox="0 0 14 14" style="overflow: visible;">
@@ -147,7 +147,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                 <div class="manhwa-divider">FOLDERS</div>
                 <div class="folder-wrap-grid">
                     ${subFolders.map(f => `
-                        <div class="folder-tile" onclick="window.EveFolderViewV2.enterFolder(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}')">
+                        <div class="folder-tile" onclick="window.EveFolderViewV2.enterFolder(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}')" oncontextmenu="if(typeof window.showFolderContextMenu === 'function') window.showFolderContextMenu(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}');">
                             <div class="folder-tile-left-bar"></div>
                             <div class="folder-icon-box">
                                 <svg width="14" height="14" viewBox="0 0 14 14" style="overflow: visible;">

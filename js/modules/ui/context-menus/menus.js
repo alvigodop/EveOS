@@ -8,6 +8,7 @@ window.initContextMenus = function () {
 window.ctxLinkId = null;
 window.ctxCatName = null;
 window.ctxWsId = null;
+window.ctxFolderId = null;
 
 window.closeAllMenus = function () {
     document.querySelectorAll('.context-menu').forEach(m => m.style.display = 'none');
@@ -44,6 +45,20 @@ function placeContextMenu(menuElement, event) {
     menuElement.style.top = `${y}px`;
     menuElement.style.visibility = 'visible';
 }
+
+window.showFolderContextMenu = function (e, categoryName, folderId) {
+    e.preventDefault();
+    e.stopPropagation();
+    closeAllMenus();
+
+    window.ctxCatName = categoryName;
+    window.ctxFolderId = folderId;
+
+    const m = document.getElementById('folder-context-menu');
+    if (!m) return;
+
+    placeContextMenu(m, e);
+};
 
 window.showLinkContextMenu = function (e, id) {
     e.preventDefault();
