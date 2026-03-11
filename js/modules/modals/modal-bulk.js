@@ -215,7 +215,10 @@ function processStructuredFile(content, fileName, targetCategory) {
                 title = val; 
                 processedAsCoreKey = true;
             } else if (key === 'url' || key === 'link' || key === 'read site' || key === 'site' || key === 'to watch site') { 
-                url = val; 
+                const isPlaceholder = /^[\-\.]+$/.test(val) || val.toLowerCase() === 'n/a' || val.toLowerCase() === 'none';
+                if (!isPlaceholder) {
+                    url = val; 
+                }
                 processedAsCoreKey = true;
             } else if (key === 'type' || key === 'category') { 
                 type = val.toLowerCase(); 
