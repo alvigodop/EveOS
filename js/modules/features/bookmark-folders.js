@@ -410,6 +410,93 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         return true;
     }
 
+    function moveFolder(workspaceId, categoryName, folderId, targetParentId) {
+        workspaceId = normalizeWorkspaceId(workspaceId);
+        categoryName = normalizeCategoryName(categoryName);
+        folderId = normalizeFolderId(folderId);
+        targetParentId = normalizeParentId(targetParentId);
+        
+        if (!folderId) return false;
+        if (folderId === targetParentId) return false; // Cannot move into itself
+
+        const nodes = getScopedNodes(workspaceId, categoryName);
+        
+        // Cycle detection: ensure targetParentId is not a descendant of folderId
+        let currentParent = targetParentId;
+        while (currentParent) {
+            if (currentParent === folderId) return false; // Cycle detected
+            const pNode = nodes.find(n => n.id === currentParent);
+            if (!pNode) break;
+            currentParent = pNode.parentId;
+        }
+
+        const target = nodes.find((node) => node.id === folderId);
+        if (!target) return false;
+        
+        target.parentId = targetParentId;
+        target.updatedAt = Date.now();
+        setScopedNodes(workspaceId, categoryName, nodes);
+        return true;
+    }
+
+    function transferFolderToCategory(folderId, sourceWs, sourceCat, targetWs, targetCat, targetParentId) {
+        const sWs = normalizeWorkspaceId(sourceWs);
+        const sCat = normalizeCategoryName(sourceCat);
+        const tWs = normalizeWorkspaceId(targetWs);
+        const tCat = normalizeCategoryName(targetCat);
+        const fId = normalizeFolderId(folderId);
+        const tpId = normalizeParentId(targetParentId);
+
+        if (!fId) return false;
+        if (sWs === tWs && sCat === tCat) {
+            return moveFolder(sWs, sCat, fId, tpId);
+        }
+
+        const sourceNodes = getScopedNodes(sWs, sCat);
+        const targetNodes = getScopedNodes(tWs, tCat);
+
+        // Find the folder and all its descendants in the source
+        const nodeMap = buildNodeMap(sourceNodes);
+        const childrenMap = buildChildrenMap(sourceNodes);
+        
+        const toMoveIds = new Set();
+        function collect(id) {
+            toMoveIds.add(id);
+            (childrenMap.get(id) || []).forEach(child => collect(child.id));
+        }
+        
+        const rootNode = nodeMap.get(fId);
+        if (!rootNode) return false;
+        collect(fId);
+
+        // Update parent of the root moved node
+        rootNode.parentId = tpId;
+        rootNode.updatedAt = Date.now();
+
+        // 1. Remove nodes from source
+        const remainingSourceNodes = sourceNodes.filter(n => !toMoveIds.has(n.id));
+        setScopedNodes(sWs, sCat, remainingSourceNodes, { persist: false });
+
+        // 2. Add nodes to target
+        const movedNodes = sourceNodes.filter(n => toMoveIds.has(n.id));
+        const finalTargetNodes = [...targetNodes, ...movedNodes];
+        setScopedNodes(tWs, tCat, finalTargetNodes, { persist: false });
+
+        // 3. Update all bookmarks in these folders to the new category/workspace
+        if (Array.isArray(window.eveState?.links)) {
+            window.eveState.links.forEach(link => {
+                if (toMoveIds.has(normalizeFolderId(link.folderId))) {
+                    link.workspace = tWs;
+                    link.category = tCat;
+                    window.EveLibrary?.ConnectionsAPI?.syncFromLink?.(link.id);
+                }
+            });
+        }
+
+        if (typeof saveData === 'function') saveData();
+        return true;
+    }
+
     function getCardClickBehaviorMode(workspaceId, categoryName) {
         return normalizeTreeSettings(getScopedTree(workspaceId, categoryName)?.settings).clickBehaviorMode;
     }
@@ -798,6 +885,8 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
     ns.refreshEditorFolderSelect = refreshEditorFolderSelect;
     ns.createFolder = createFolder;
     ns.renameFolder = renameFolder;
+    ns.moveFolder = moveFolder;
+    ns.transferFolderToCategory = transferFolderToCategory;
     ns.deleteFolder = deleteFolder;
     ns.clearLinkFolderAssignment = clearLinkFolderAssignment;
     ns.renameCategoryEverywhere = renameCategoryEverywhere;

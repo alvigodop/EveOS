@@ -70,6 +70,59 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         }
     };
 
+    // Drag and Drop Helpers for Folder Movement
+    window.EveFolderViewV2.handleFolderDragStart = function(event, folderId, categoryName, workspaceId) {
+        if (!event || !event.dataTransfer) return;
+        event.dataTransfer.setData('text/plain', JSON.stringify({ 
+            type: 'folder', 
+            id: folderId,
+            sourceCategory: categoryName,
+            sourceWorkspace: workspaceId
+        }));
+        event.dataTransfer.effectAllowed = 'move';
+        // Add a class for styling while dragging if desired
+        setTimeout(() => event.target.classList.add('is-dragging'), 0);
+    };
+
+    window.EveFolderViewV2.handleFolderDrop = function(event, categoryName, targetFolderId, workspaceId) {
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+
+        const rawData = event.dataTransfer?.getData('text/plain') || event.dataTransfer?.getData('application/json');
+        if (!rawData) return;
+
+        let payload = null;
+        try {
+            payload = JSON.parse(rawData);
+        } catch (e) {
+            // Not a JSON payload, probably standard bookmark link ID
+        }
+
+        // If it's a folder payload, move/transfer the folder
+        if (payload && payload.type === 'folder' && payload.id) {
+            const folderIdToMove = payload.id;
+            const sourceCat = payload.sourceCategory;
+            const sourceWs = payload.sourceWorkspace;
+            
+            if (folderIdToMove === targetFolderId && sourceCat === categoryName && sourceWs === workspaceId) return; // Same location
+            
+            const folderApi = window.EveBookmarkFolders;
+            if (folderApi && folderApi.transferFolderToCategory) {
+                // Perform cross-category or cross-workspace transfer
+                folderApi.transferFolderToCategory(folderIdToMove, sourceWs, sourceCat, workspaceId, categoryName, targetFolderId || '');
+                if (typeof window.renderDashboard === 'function') window.renderDashboard();
+            }
+            return;
+        }
+
+        // Otherwise, it's bookmarks, fallback to standard drop
+        if (typeof window.moveBookmarksToFolderDrop === 'function') {
+            window.moveBookmarksToFolderDrop(event, categoryName, targetFolderId, workspaceId);
+        }
+    };
+
     // Render Root Grid (replaces Tree View for top level)
     window.EveFolderViewV2.renderRootGrid = function(workspaceId, categoryName, viewModel, defaultRenderer) {
         const topLevelFolders = viewModel.topLevelFolders || [];
@@ -81,8 +134,12 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         if (topLevelFolders.length > 0) {
             html += `
                 <div class="folder-wrap-grid">
-                    ${topLevelFolders.map(f => `
-                        <div class="folder-tile" onclick="window.EveFolderViewV2.enterFolder(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}')" oncontextmenu="if(typeof window.showFolderContextMenu === 'function') window.showFolderContextMenu(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}');">
+                    ${topLevelFolders.map(f => {
+                        const dropTargetAttr = `ondragover="if(typeof allowDrop===\'function\')allowDrop(event)" ondrop="event.currentTarget.classList.remove('folder-tile-drag-hover'); if(typeof window.EveFolderViewV2.handleFolderDrop==='function') window.EveFolderViewV2.handleFolderDrop(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}')" ondragenter="event.currentTarget.classList.add('folder-tile-drag-hover')" ondragleave="event.currentTarget.classList.remove('folder-tile-drag-hover')"`;
+                        const dragStartAttr = `draggable="true" ondragstart="if(typeof window.EveFolderViewV2.handleFolderDragStart==='function') window.EveFolderViewV2.handleFolderDragStart(event, '${escapeCardJs(f.id)}')" ondragend="this.classList.remove('is-dragging')"`;
+                        
+                        return `
+                        <div class="folder-tile" ${dropTargetAttr} ${dragStartAttr} onclick="window.EveFolderViewV2.enterFolder(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}')" oncontextmenu="if(typeof window.showFolderContextMenu === 'function') window.showFolderContextMenu(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}');">
                             <div class="folder-tile-left-bar"></div>
                             <div class="folder-icon-box">
                                 <svg width="14" height="14" viewBox="0 0 14 14" style="overflow: visible;">
@@ -96,7 +153,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                             </div>
                             <button type="button" class="folder-tile-edit-btn" title="Edit Folder" onclick="event.preventDefault(); event.stopPropagation(); if(typeof window.showFolderContextMenu === 'function') window.showFolderContextMenu(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}');">&#9998;</button>
                         </div>
-                    `).join('')}
+                    `}).join('')}
                 </div>
             `;
         }
@@ -171,7 +228,9 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                 ? `window.EveFolderViewV2.enterFolder(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(t.id)}', '${escapeCardJs(workspaceId)}')`
                 : `window.EveFolderViewV2.exitFolder(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(workspaceId)}')`;
             
-            breadcrumbsHtml += `<span class="breadcrumb-item ${isLast ? 'active' : ''}" onclick="${isLast ? '' : clickAction}">${escapeCardHtml(t.label.toUpperCase())}</span>`;
+            const dropAction = `ondragover="if(typeof allowDrop===\'function\')allowDrop(event)" ondrop="event.currentTarget.classList.remove('active'); if(typeof window.EveFolderViewV2.handleFolderDrop==='function') window.EveFolderViewV2.handleFolderDrop(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(t.id || '')}', '${escapeCardJs(workspaceId)}')" ondragenter="event.currentTarget.classList.add('active')" ondragleave="event.currentTarget.classList.remove('active')"`;
+
+            breadcrumbsHtml += `<span class="breadcrumb-item ${isLast ? 'active' : ''}" onclick="${isLast ? '' : clickAction}" ${dropAction}>${escapeCardHtml(t.label.toUpperCase())}</span>`;
             if (isLast) breadcrumbsHtml += `<span class="breadcrumb-cursor"></span>`;
         });
 
@@ -193,8 +252,12 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
             subFoldersHtml += `
                 <div class="manhwa-divider">FOLDERS</div>
                 <div class="folder-wrap-grid">
-                    ${subFolders.map(f => `
-                        <div class="folder-tile" onclick="window.EveFolderViewV2.enterFolder(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}')" oncontextmenu="if(typeof window.showFolderContextMenu === 'function') window.showFolderContextMenu(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}');">
+                    ${subFolders.map(f => {
+                        const dropTargetAttr = `ondragover="if(typeof allowDrop===\'function\')allowDrop(event)" ondrop="event.currentTarget.classList.remove('folder-tile-drag-hover'); if(typeof window.EveFolderViewV2.handleFolderDrop==='function') window.EveFolderViewV2.handleFolderDrop(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}')" ondragenter="event.currentTarget.classList.add('folder-tile-drag-hover')" ondragleave="event.currentTarget.classList.remove('folder-tile-drag-hover')"`;
+                        const dragStartAttr = `draggable="true" ondragstart="if(typeof window.EveFolderViewV2.handleFolderDragStart==='function') window.EveFolderViewV2.handleFolderDragStart(event, '${escapeCardJs(f.id)}')"`;
+                        
+                        return `
+                        <div class="folder-tile" ${dropTargetAttr} ${dragStartAttr} onclick="window.EveFolderViewV2.enterFolder(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}')" oncontextmenu="if(typeof window.showFolderContextMenu === 'function') window.showFolderContextMenu(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}');">
                             <div class="folder-tile-left-bar"></div>
                             <div class="folder-icon-box">
                                 <svg width="14" height="14" viewBox="0 0 14 14" style="overflow: visible;">
@@ -208,7 +271,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                             </div>
                             <button type="button" class="folder-tile-edit-btn" title="Edit Folder" onclick="event.preventDefault(); event.stopPropagation(); if(typeof window.showFolderContextMenu === 'function') window.showFolderContextMenu(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}');">&#9998;</button>
                         </div>
-                    `).join('')}
+                    `}).join('')}
                 </div>
             `;
         }

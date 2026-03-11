@@ -32,13 +32,26 @@ function drop(ev, newCategory) {
     const rawJson = ev.dataTransfer.getData("application/json") || ev.dataTransfer.getData("text/plain");
     let movedAny = false;
     let dragIds = [];
+    let payload = null;
 
     try {
-        const parsed = JSON.parse(rawJson);
-        if (Array.isArray(parsed?.ids)) {
-            dragIds = parsed.ids.map(item => String(item));
-        } else if (parsed !== null && parsed !== undefined) {
-            dragIds = [String(parsed)];
+        payload = JSON.parse(rawJson);
+        if (Array.isArray(payload?.ids)) {
+            dragIds = payload.ids.map(item => String(item));
+        } else if (payload?.type === 'folder') {
+            // Handle cross-card folder drop
+            const folderId = payload.id;
+            const sourceWs = payload.sourceWorkspace;
+            const sourceCat = payload.sourceCategory;
+            const targetWs = String(ev.currentTarget.getAttribute('data-card-workspace') || config.activeWorkspace || 'main').trim();
+            
+            if (window.EveBookmarkFolders?.transferFolderToCategory) {
+                window.EveBookmarkFolders.transferFolderToCategory(folderId, sourceWs, sourceCat, targetWs, newCategory, '');
+                if (typeof renderDashboard === 'function') renderDashboard();
+            }
+            return;
+        } else if (payload !== null && payload !== undefined) {
+            dragIds = [String(payload)];
         }
     } catch (error) {
         if (rawJson) dragIds = [String(rawJson)];
@@ -48,7 +61,11 @@ function drop(ev, newCategory) {
         const idx = links.findIndex(l => String(l.id) === String(id));
         if (idx < 0) return;
         if (links[idx].category === newCategory) return;
+        
+        const targetWs = String(ev.currentTarget.getAttribute('data-card-workspace') || config.activeWorkspace || 'main').trim();
         links[idx].category = newCategory;
+        links[idx].workspace = targetWs;
+        
         window.EveBookmarkFolders?.clearLinkFolderAssignment?.(links[idx]);
         window.EveLibrary?.ConnectionsAPI?.syncFromLink?.(links[idx].id);
         movedAny = true;
