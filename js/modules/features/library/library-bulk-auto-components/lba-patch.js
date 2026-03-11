@@ -34,7 +34,13 @@ window.EveLibrary = window.EveLibrary || {};
         const nextStatus = existingStatus || mappedStatus || '';
         const nextRating = String(currentEntry?.rating ?? '').trim() ? String(currentEntry.rating) : '0';
         const nextMediaTypes = Utils.inferMediaTypes(matchedSources, currentEntry?.mediaTypes);
-        const nextSourceUrl = metadata.sourceUrl || normalizeUrl(link.url || currentEntry?.sourceUrl || '');
+        
+        const existingUrl = String(link.url || currentEntry?.sourceUrl || '').trim();
+        const isGenericSearch = existingUrl.includes('google.com/search');
+        const nextSourceUrl = (!existingUrl || isGenericSearch) && metadata.sourceUrl
+            ? metadata.sourceUrl
+            : normalizeUrl(existingUrl);
+
         const nextTags = metadata.tags.length
             ? metadata.tags
             : (Array.isArray(currentEntry?.tags) ? currentEntry.tags : []);
