@@ -110,8 +110,11 @@ async function processBulk() {
             const file = fileInput.files[i];
             try {
                 const content = await file.text();
-                // Check if the file contains structured library data fields, or shorthands like "Ep:" or "Ch:"
-                if (content.match(/^(Title|URL|Episode|Ep|Chapter|Ch|Type|Notes|Finished Ep|Going To Ep)\s*:/mi)) {
+                // Check if the file contains structured library data fields, shorthands, or if the filename specifies a media entry
+                const isStructured = content.match(/^(Title|URL|Episode|Ep|Chapter|Ch|Type|Notes|Finished Ep|Going To Ep)\s*:/mi);
+                const isMediaFile = file.name.match(/^(Was\s+|[\{\(]\d+[\}\)])/i);
+                
+                if (isStructured || isMediaFile) {
                     processStructuredFile(content, file.name, targetCategory);
                     count++;
                 } else {
@@ -190,6 +193,23 @@ function processStructuredFile(content, fileName, targetCategory) {
     let chapter = 0;
     let type = '';
     let notesArr = [];
+
+    // Parse status or chapter from filename
+    if (title.toLowerCase().startsWith('was ')) {
+        title = title.substring(4).trim();
+    }
+    
+    const braceMatch = title.match(/^\{(\d+)\}\s*(.*)/);
+    if (braceMatch) {
+        chapter = Math.max(chapter, parseInt(braceMatch[1], 10)); // {} -> Chapter
+        title = braceMatch[2].trim();
+    }
+    
+    const parenMatch = title.match(/^\((\d+)\)\s*(.*)/);
+    if (parenMatch) {
+        episode = Math.max(episode, parseInt(parenMatch[1], 10)); // () -> Episode
+        title = parenMatch[2].trim();
+    }
 
     lines.forEach(line => {
         const trimmed = line.trim();
