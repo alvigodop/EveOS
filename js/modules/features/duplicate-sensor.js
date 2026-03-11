@@ -132,7 +132,14 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
     }
 
     function normalizeTitle(rawTitle) {
-        const cleaned = String(rawTitle || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
+        let title = String(rawTitle || '').trim();
+        // Strip out S# and everything after it to isolate the base title for duplicate comparison
+        const seasonMatch = title.match(/\b(?:S|Season\s*)(\d+)(.*)$/i);
+        if (seasonMatch) {
+            title = title.substring(0, seasonMatch.index).trim();
+        }
+        
+        const cleaned = title.replace(/[^a-z0-9]/gi, '').toLowerCase();
         // Ignore extremely short or generic titles to prevent catastrophic over-merging
         if (!cleaned || cleaned === 'untitled' || cleaned.length < 3) return null;
         return cleaned;

@@ -202,14 +202,6 @@ function processStructuredFile(content, fileName, targetCategory) {
     }
     title = title.replace(/^[\{\(]\d+[\}\)]\s*/, '').trim();
 
-    // Extract Season from title (e.g., "Rick and Morty S5", "Rick and Morty S8 Spinoff")
-    const seasonMatch = title.match(/\b(?:S|Season\s*)(\d+)\b/i);
-    if (seasonMatch) {
-        season = parseInt(seasonMatch[1], 10);
-        notesArr.push(`Season: ${season}`);
-        title = title.replace(seasonMatch[0], '').replace(/\s+/g, ' ').trim();
-    }
-
     lines.forEach(line => {
         const trimmed = line.trim();
         if (!trimmed) return;
@@ -270,6 +262,22 @@ function processStructuredFile(content, fileName, targetCategory) {
             notesArr.push(trimmed);
         }
     });
+
+    // Extract Season from title (e.g., "Rick and Morty S5", "Rick and Morty S8 Spinoff")
+    // This runs here so that if 'Title:' in the file text had 'S5', we catch it too.
+    // It captures 'S#' and ALL trailing text to strip from the base title.
+    const seasonMatch = title.match(/\b(?:S|Season\s*)(\d+)(.*)$/i);
+    if (seasonMatch) {
+        season = parseInt(seasonMatch[1], 10);
+        notesArr.push(`Season: ${season}`);
+        
+        const trailingText = seasonMatch[2].trim();
+        if (trailingText) {
+            notesArr.push(`Title Note: ${trailingText}`);
+        }
+        
+        title = title.substring(0, seasonMatch.index).trim();
+    }
 
     if (!url) {
         url = `https://www.google.com/search?q=${encodeURIComponent(title)}`;
