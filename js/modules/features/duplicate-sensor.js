@@ -378,6 +378,7 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
         let mergedStatus = '';
         let mergedLibImage = '';
         const notesLines = [];
+        const detectedSeasonPairs = new Set();
 
         const connectionsApi = window.EveLibrary?.ConnectionsAPI;
         let baseHasConnection = false;
@@ -441,9 +442,12 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
                 
                 // Track highest season and its paired episode
                 if (sn !== null) {
+                    const pairString = `Season ${sn}` + (ep !== null ? `, Episode ${ep}` : '');
+                    detectedSeasonPairs.add(pairString);
+                    
                     if (maxSeason === null || sn > maxSeason) {
                         maxSeason = sn;
-                        maxSeasonPairedEpisode = ep || 0; // Lock in this season's episode
+                        maxSeasonPairedEpisode = ep !== null ? ep : 0; // Lock in this season's episode
                     } else if (sn === maxSeason && ep !== null && (maxSeasonPairedEpisode === null || ep > maxSeasonPairedEpisode)) {
                         maxSeasonPairedEpisode = ep; // Same season, upgrade to higher episode
                     }
@@ -486,6 +490,14 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
         }
         if (discardedUrls.size > 0) {
             notesLines.push(`=== Alternate Links ===\n${Array.from(discardedUrls).join('\n')}`);
+        }
+        
+        if (detectedSeasonPairs.size > 0) {
+            const chosenPair = `Season ${maxSeason}` + (maxSeasonPairedEpisode !== null && maxSeasonPairedEpisode > 0 ? `, Episode ${maxSeasonPairedEpisode}` : '');
+            const discardedPairs = Array.from(detectedSeasonPairs).filter(p => p !== chosenPair);
+            if (discardedPairs.length > 0) {
+                notesLines.push(`=== Previous Seasons/Episodes ===\n${discardedPairs.join('\n')}`);
+            }
         }
 
         const finalSummary = notesLines.join('\n\n').trim();
