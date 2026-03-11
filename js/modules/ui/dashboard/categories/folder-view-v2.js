@@ -169,20 +169,36 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         let itemsHtml = '';
         if (folderItems.length > 0) {
             if (subFolders.length > 0) itemsHtml += `<div class="manhwa-divider">ITEMS</div>`;
+            
+            let flatHtml = folderItems.map(link => {
+                const isTaskEnabled = typeof folderApi?.isTaskEnabledForLink === 'function' ? !!folderApi.isTaskEnabledForLink(link) : true;
+                if (typeof window.DashboardCategories?.buildLinkHtml === 'function') {
+                    // Use standard site rendering for bookmarks
+                    return window.DashboardCategories.buildLinkHtml(link, '', workspaceId, window.eveState?.config?.workspaces || [], {
+                        folderLabel: '',
+                        isTaskEnabled: isTaskEnabled
+                    });
+                }
+                // Fallback if not available
+                const jsId = escapeCardJs(String(link.id));
+                return `
+                    <div class="item-row" style="display: flex; align-items: center; gap: 12px; padding: 10px 18px; cursor: pointer; border-left: 2px solid rgba(128,128,128,0.2); transition: all 0.14s;" 
+                         onmouseenter="this.style.background='rgba(255,255,255,0.05)'; this.style.borderLeftColor='var(--accent-color, #0088ff)';" 
+                         onmouseleave="this.style.background='transparent'; this.style.borderLeftColor='rgba(128,128,128,0.2)';"
+                         oncontextmenu="if(typeof window.showLinkContextMenu === 'function') window.showLinkContextMenu(event, '${jsId}')"
+                         onclick="if(typeof window.handleLinkClick === 'function') { window.handleLinkClick(event, '${jsId}', this); } else { window.open('${escapeCardJs(link.url)}', '_blank'); }">
+                        <span style="font-size: 14px;">${escapeCardHtml(link.icon || '🔗')}</span>
+                        <span style="font-family: 'Share Tech Mono', monospace; font-size: 12px; letter-spacing: 0.4px; color: rgba(255,255,255,0.85);">${escapeCardHtml(link.title)}</span>
+                    </div>
+                `;
+            }).join('');
+            
+            // Wrap in standard UL to inherit site link styling
             itemsHtml += `
-                <div style="display: flex; flex-direction: column; gap: 1px; padding: 4px 0;">
-                    ${folderItems.map(item => {
-                        const jsId = escapeCardJs(String(item.id));
-                        return `
-                        <div class="item-row" style="display: flex; align-items: center; gap: 12px; padding: 10px 18px; cursor: pointer; border-left: 2px solid rgba(128,128,128,0.2); transition: all 0.14s;" 
-                             onmouseenter="this.style.background='rgba(255,255,255,0.05)'; this.style.borderLeftColor='var(--accent-color, #0088ff)';" 
-                             onmouseleave="this.style.background='transparent'; this.style.borderLeftColor='rgba(128,128,128,0.2)';"
-                             oncontextmenu="if(typeof window.showLinkContextMenu === 'function') window.showLinkContextMenu(event, '${jsId}')"
-                             onclick="if(typeof window.handleLinkClick === 'function') { window.handleLinkClick(event, '${jsId}', this); } else { window.open('${escapeCardJs(item.url)}', '_blank'); }">
-                            <span style="font-size: 14px;">${escapeCardHtml(item.icon || '🔗')}</span>
-                            <span style="font-family: 'Share Tech Mono', monospace; font-size: 12px; letter-spacing: 0.4px; color: rgba(255,255,255,0.85);">${escapeCardHtml(item.title)}</span>
-                        </div>
-                    `}).join('')}
+                <div style="padding: 4px 0;">
+                    <ul class="category-scrollable" style="max-height: none; overflow: visible;">
+                        ${flatHtml}
+                    </ul>
                 </div>
             `;
         }
