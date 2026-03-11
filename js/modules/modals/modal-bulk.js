@@ -214,7 +214,7 @@ function processStructuredFile(content, fileName, targetCategory) {
             if (key === 'title' || key === 'name') { 
                 title = val; 
                 processedAsCoreKey = true;
-            } else if (key === 'url' || key === 'link' || key === 'read site' || key === 'site') { 
+            } else if (key === 'url' || key === 'link' || key === 'read site' || key === 'site' || key === 'to watch site') { 
                 url = val; 
                 processedAsCoreKey = true;
             } else if (key === 'type' || key === 'category') { 
