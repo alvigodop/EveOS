@@ -448,11 +448,15 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         const tpId = normalizeParentId(targetParentId);
 
         if (!fId) return false;
+        
+        // If it's the same card, just use the local moveFolder logic
         if (sWs === tWs && sCat === tCat) {
             return moveFolder(sWs, sCat, fId, tpId);
         }
 
         const sourceNodes = getScopedNodes(sWs, sCat);
+        if (!sourceNodes || sourceNodes.length === 0) return false;
+
         const targetNodes = getScopedNodes(tWs, tCat);
 
         // Find the folder and all its descendants in the source
@@ -469,16 +473,15 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         if (!rootNode) return false;
         collect(fId);
 
-        // Update parent of the root moved node
+        // Update parent of the root moved node BEFORE adding to target
         rootNode.parentId = tpId;
         rootNode.updatedAt = Date.now();
 
-        // 1. Remove nodes from source
-        const remainingSourceNodes = sourceNodes.filter(n => !toMoveIds.has(n.id));
-        setScopedNodes(sWs, sCat, remainingSourceNodes, { persist: false });
-
-        // 2. Add nodes to target
+        // 1. Prepare moved nodes
         const movedNodes = sourceNodes.filter(n => toMoveIds.has(n.id));
+        if (movedNodes.length === 0) return false;
+
+        // 2. Add nodes to target first (Hardening: Ensure target is updated before source removal)
         const finalTargetNodes = [...targetNodes, ...movedNodes];
         setScopedNodes(tWs, tCat, finalTargetNodes, { persist: false });
 
@@ -495,9 +498,14 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
             });
         }
 
+        // 4. Remove nodes from source (Now safe because target and links are updated)
+        const remainingSourceNodes = sourceNodes.filter(n => !toMoveIds.has(n.id));
+        setScopedNodes(sWs, sCat, remainingSourceNodes, { persist: false });
+
         if (typeof saveData === 'function') saveData();
         return true;
     }
+
 
     function getCardClickBehaviorMode(workspaceId, categoryName) {
 
