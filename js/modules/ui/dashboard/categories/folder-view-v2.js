@@ -61,6 +61,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                                 <div class="folder-tile-title">${escapeCardHtml(f.name)}</div>
                                 <div class="folder-tile-stats">${viewModel.folderLinks.get(f.id)?.length || 0} items</div>
                             </div>
+                            <button type="button" class="folder-tile-edit-btn" title="Edit Folder" onclick="event.preventDefault(); event.stopPropagation(); if(typeof window.showFolderContextMenu === 'function') window.showFolderContextMenu(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}');">&#9998;</button>
                         </div>
                     `).join('')}
                 </div>
@@ -127,7 +128,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         const folderItems = viewModel.folderLinks.get(targetNode.id) || [];
 
         // 1. Build Breadcrumbs HTML
-        let breadcrumbsHtml = `<div class="folder-breadcrumbs">`;
+        let breadcrumbsHtml = `<div class="folder-breadcrumbs" style="position: relative; padding-right: 30px;">`;
         trail.forEach((t, i) => {
             if (i > 0) breadcrumbsHtml += `<span class="breadcrumb-separator">›</span>`;
             const isLast = i === trail.length - 1;
@@ -138,6 +139,17 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
             breadcrumbsHtml += `<span class="breadcrumb-item ${isLast ? 'active' : ''}" onclick="${isLast ? '' : clickAction}">${escapeCardHtml(t.label.toUpperCase())}</span>`;
             if (isLast) breadcrumbsHtml += `<span class="breadcrumb-cursor"></span>`;
         });
+
+        // Add interior Edit Button if we are actually inside a folder
+        if (folderId) {
+            breadcrumbsHtml += `
+                <button type="button" class="folder-tile-edit-btn" style="position: absolute; right: 0; opacity: 0.7;" title="Edit Current Folder" 
+                    onclick="event.preventDefault(); event.stopPropagation(); if(typeof window.showFolderContextMenu === 'function') window.showFolderContextMenu(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(folderId)}', '${escapeCardJs(workspaceId)}');">
+                    &#9998;
+                </button>
+            `;
+        }
+        
         breadcrumbsHtml += `</div>`;
 
         // 2. Build Sub-Folders Grid HTML
@@ -159,6 +171,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                                 <div class="folder-tile-title">${escapeCardHtml(f.name)}</div>
                                 <div class="folder-tile-stats">${viewModel.folderLinks.get(f.id)?.length || 0} items</div>
                             </div>
+                            <button type="button" class="folder-tile-edit-btn" title="Edit Folder" onclick="event.preventDefault(); event.stopPropagation(); if(typeof window.showFolderContextMenu === 'function') window.showFolderContextMenu(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}');">&#9998;</button>
                         </div>
                     `).join('')}
                 </div>
@@ -215,11 +228,11 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                 <div class="manhwa-frame-left-glow"></div>
                 <div class="manhwa-scan-beam"></div>
                 
-                <!-- Corner Ticks -->
-                <svg width="8" height="8" style="position: absolute; top: -1px; left: -1px;"><polyline points="6,1 1,1 1,6" fill="none" stroke="var(--accent-color, #0088ff)" stroke-width="1.5"/></svg>
-                <svg width="8" height="8" style="position: absolute; top: -1px; right: -1px;"><polyline points="1,1 6,1 6,6" fill="none" stroke="var(--accent-color, #0088ff)" stroke-width="1.5"/></svg>
-                <svg width="8" height="8" style="position: absolute; bottom: -1px; left: -1px;"><polyline points="1,1 1,6 6,6" fill="none" stroke="var(--accent-color, #0088ff)" stroke-width="1.5"/></svg>
-                <svg width="8" height="8" style="position: absolute; bottom: -1px; right: -1px;"><polyline points="6,1 6,6 1,6" fill="none" stroke="var(--accent-color, #0088ff)" stroke-width="1.5"/></svg>
+                <!-- Corner Ticks (Inner Reticle) -->
+                <svg width="10" height="10" style="position: absolute; top: 6px; left: 6px;"><polyline points="8,1 1,1 1,8" fill="none" stroke="var(--accent, #0088ff)" stroke-width="1.5"/></svg>
+                <svg width="10" height="10" style="position: absolute; top: 6px; right: 6px;"><polyline points="1,1 8,1 8,8" fill="none" stroke="var(--accent, #0088ff)" stroke-width="1.5"/></svg>
+                <svg width="10" height="10" style="position: absolute; bottom: 6px; left: 6px;"><polyline points="1,1 1,8 8,8" fill="none" stroke="var(--accent, #0088ff)" stroke-width="1.5"/></svg>
+                <svg width="10" height="10" style="position: absolute; bottom: 6px; right: 6px;"><polyline points="8,1 8,8 1,8" fill="none" stroke="var(--accent, #0088ff)" stroke-width="1.5"/></svg>
                 
                 <div style="position: relative; z-index: 1;">
                     ${subFoldersHtml}
