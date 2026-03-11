@@ -192,6 +192,7 @@ function processStructuredFile(content, fileName, targetCategory) {
     let episode = 0;
     let chapter = 0;
     let type = '';
+    let status = '';
     let notesArr = [];
 
     // Clean legacy organizational prefixes from filename (e.g., "Was ", "{1}", "(24)")
@@ -234,6 +235,10 @@ function processStructuredFile(content, fileName, targetCategory) {
             } else if (key === 'type' || key === 'category') { 
                 type = val.toLowerCase(); 
                 processedAsCoreKey = true;
+            } else if (key === 'status' || key === 'state') {
+                status = val;
+                processedAsCoreKey = true;
+                notesArr.push(`${key}: ${val}`); // Keep in notes for raw context
             } else if (key === 'notes' || key === 'summary') { 
                 notesArr.push(val); 
                 processedAsCoreKey = true;
