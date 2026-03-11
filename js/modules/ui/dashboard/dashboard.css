@@ -298,6 +298,16 @@ li.done {
     text-decoration: line-through;
 }
 
+li.pinned-link {
+    border-color: rgba(0, 212, 255, 0.45);
+    background: rgba(0, 212, 255, 0.03);
+}
+
+html[data-native-scheme="light"] li.pinned-link {
+    border-color: rgba(0, 150, 200, 0.4);
+    background: rgba(0, 150, 200, 0.04);
+}
+
 li.p-high {
     border-left-color: var(--p-high);
 }
