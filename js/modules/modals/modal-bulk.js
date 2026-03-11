@@ -214,7 +214,7 @@ function processStructuredFile(content, fileName, targetCategory) {
             if (key === 'title' || key === 'name') { 
                 title = val; 
                 processedAsCoreKey = true;
-            } else if (key === 'url' || key === 'link') { 
+            } else if (key === 'url' || key === 'link' || key === 'read site' || key === 'site') { 
                 url = val; 
                 processedAsCoreKey = true;
             } else if (key === 'type' || key === 'category') { 
@@ -227,13 +227,13 @@ function processStructuredFile(content, fileName, targetCategory) {
         }
         
         // Match heuristic shorthands (now allowing spaces/hyphens instead of just colons)
-        const epMatch = trimmed.match(/^(?:Finished Ep|Going To Ep|Ep|Episode)[\s:-]*(\d+)/i);
+        const epMatch = trimmed.match(/^(?:Last\s+)?(?:Finished Ep|Going To Ep|Ep|Episode)[\s:-]*(\d+)/i);
         if (epMatch) {
             episode = Math.max(episode, parseInt(epMatch[1], 10));
             // Keep in notes as well to avoid losing context like "Finished Ep" vs "Going To Ep"
         }
         
-        const chMatch = trimmed.match(/^(?:Ch|Chapter)[\s:-]*(\d+)/i);
+        const chMatch = trimmed.match(/^(?:Last\s+)?(?:Ch|Chapter)[\s:-]*(\d+)/i);
         if (chMatch) {
             chapter = Math.max(chapter, parseInt(chMatch[1], 10));
         }
@@ -248,7 +248,7 @@ function processStructuredFile(content, fileName, targetCategory) {
     }
 
     const newLinkId = Date.now() + Math.random();
-    const summaryText = notesArr.join('\\n');
+    const summaryText = notesArr.join('\n');
 
     // Default bookmark creation
     const newBookmark = {
