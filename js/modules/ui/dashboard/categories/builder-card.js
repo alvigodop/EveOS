@@ -154,6 +154,12 @@ window.DashboardCategories = window.DashboardCategories || {};
 
         const workspaceId = String(options.activeWorkspace || window.eveState?.config?.activeWorkspace || 'main').trim() || 'main';
         const viewModel = folderApi.buildFolderView(workspaceId, categoryName, linksForCard);
+        
+        // If Manhwa Mode (Navigation View) is active for this card, use the V2 Root Grid instead of the tree.
+        if (window.EveFolderViewV2 && window.EveFolderViewV2.isManhwaModeEnabled(workspaceId, categoryName)) {
+            return window.EveFolderViewV2.renderRootGrid(workspaceId, categoryName, viewModel, renderer);
+        }
+
         const safeCategoryJs = escapeCardJs(categoryName);
         const safeWorkspaceJs = escapeCardJs(workspaceId);
         const toolbarExpanded = !!folderApi.isToolbarExpanded?.(workspaceId, categoryName);
@@ -189,7 +195,6 @@ window.DashboardCategories = window.DashboardCategories || {};
                         + '<div class="bookmark-folder-summary-actions">'
                             + `<button type="button" class="bookmark-folder-inline-btn bookmark-folder-summary-edit-toggle" aria-expanded="${actionsExpandedAttr}" onclick="event.preventDefault();event.stopPropagation();toggleCategoryCardFolderActions(this, '${safeCategoryJs}', '${escapeCardJs(node.id)}', '${safeWorkspaceJs}')">&#9998;</button>`
                             + `<div class="bookmark-folder-summary-action-list"${actionsHiddenAttr}>`
-                                + `<button type="button" class="bookmark-folder-inline-btn" style="color:var(--accent-color, #0088ff);" onclick="event.preventDefault();event.stopPropagation();window.EveFolderViewV2.enterFolder(event, '${safeCategoryJs}', '${escapeCardJs(node.id)}', '${safeWorkspaceJs}')">Enter Node</button>`
                                 + `<button type="button" class="bookmark-folder-inline-btn" onclick="${buildFolderAction(categoryName, node.id, 'openAddModalForFolder')}">Add</button>`
                                 + `<button type="button" class="bookmark-folder-inline-btn" onclick="${buildFolderAction(categoryName, node.id, 'promptCreateBookmarkFolder')}">Subfolder</button>`
                                 + `<button type="button" class="bookmark-folder-inline-btn" onclick="${buildFolderAction(categoryName, node.id, 'promptRenameBookmarkFolder')}">Rename</button>`

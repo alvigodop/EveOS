@@ -17,6 +17,74 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
             .replace(/'/g, "\\'");
     }
 
+    // State Management
+    window.EveFolderViewV2.isManhwaModeEnabled = function(workspaceId, categoryName) {
+        if (!window.eveState?.config) return false;
+        if (typeof window.eveState.config.cardFolderViewModes !== 'object') return false;
+        const key = `${workspaceId}::${categoryName}`;
+        return !!window.eveState.config.cardFolderViewModes[key];
+    };
+
+    window.EveFolderViewV2.toggleManhwaMode = function(workspaceId, categoryName) {
+        if (!window.eveState) return;
+        if (!window.eveState.config.cardFolderViewModes || typeof window.eveState.config.cardFolderViewModes !== 'object') {
+            window.eveState.config.cardFolderViewModes = {};
+        }
+        const key = `${workspaceId}::${categoryName}`;
+        const current = !!window.eveState.config.cardFolderViewModes[key];
+        window.eveState.config.cardFolderViewModes[key] = !current;
+        if (typeof window.saveConfig === 'function') window.saveConfig();
+        if (typeof window.renderDashboard === 'function') window.renderDashboard();
+    };
+
+    // Render Root Grid (replaces Tree View for top level)
+    window.EveFolderViewV2.renderRootGrid = function(workspaceId, categoryName, viewModel, defaultRenderer) {
+        const topLevelFolders = viewModel.topLevelFolders || [];
+        const rootLinks = viewModel.rootLinks || [];
+        
+        let html = '<div class="v2-folder-root-container" style="padding: 0 10px 10px;">';
+        
+        // Render Folders
+        if (topLevelFolders.length > 0) {
+            html += `
+                <div class="folder-wrap-grid">
+                    ${topLevelFolders.map(f => `
+                        <div class="folder-tile" onclick="window.EveFolderViewV2.enterFolder(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}')">
+                            <div class="folder-tile-left-bar"></div>
+                            <div class="folder-icon-box">
+                                <svg width="14" height="14" viewBox="0 0 14 14" style="overflow: visible;">
+                                    <rect x="0" y="3" width="14" height="10" rx="0" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.6" />
+                                    <path d="M0,3 L4,3 L5.5,1 L9,1 L9,3" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.6" />
+                                </svg>
+                            </div>
+                            <div class="folder-tile-content">
+                                <div class="folder-tile-title">${escapeCardHtml(f.name)}</div>
+                                <div class="folder-tile-stats">${viewModel.folderLinks.get(f.id)?.length || 0} items</div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        // Render Divider if both exist
+        if (topLevelFolders.length > 0 && rootLinks.length > 0) {
+            html += `<div class="manhwa-divider">ROOT ITEMS</div>`;
+        }
+
+        // Render Bookmarks
+        if (rootLinks.length > 0) {
+            html += `<div style="padding-top: 4px;">${defaultRenderer(rootLinks)}</div>`;
+        }
+
+        if (topLevelFolders.length === 0 && rootLinks.length === 0) {
+            html += `<div style="padding: 20px; text-align: center; color: rgba(128,128,128,0.5); font-family: 'Share Tech Mono', monospace; font-size: 11px;">EMPTY SECTOR</div>`;
+        }
+
+        html += '</div>';
+        return html;
+    };
+
     // Enter a folder and swap the view
     window.EveFolderViewV2.enterFolder = function (event, categoryName, folderId, workspaceId) {
         if (event) {

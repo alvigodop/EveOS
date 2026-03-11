@@ -346,8 +346,25 @@ window.categoryFolderActionExpansion = window.categoryFolderActionExpansion || {
             ? pinApi.filterPinsForCard(workspaceId, categoryName).filter((pin) => pin?.targetType === 'bookmark').length
             : 0;
 
+        const isManhwaMode = window.EveFolderViewV2 && window.EveFolderViewV2.isManhwaModeEnabled(workspaceId, categoryName);
+        const manhwaModeHtml = window.EveFolderViewV2 ? `
+            <div style="padding:10px 12px; border:1px solid rgba(255,255,255,0.08); border-radius:10px; background:rgba(255,255,255,0.02); margin-bottom:12px;">
+                <div style="display:flex; gap:10px; justify-content:space-between; align-items:center; flex-wrap:wrap;">
+                    <div style="display:flex; flex-direction:column; gap:4px; min-width:0;">
+                        <div style="font-weight:600;">Folder View Mode</div>
+                        <div style="font-size:0.84rem; opacity:0.76;">Switch between standard Tree View and Navigation View (Manhwa System Interface)</div>
+                    </div>
+                    <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                        <input type="checkbox" onchange="window.EveFolderViewV2.toggleManhwaMode('${escapeCategorySettingsJs(workspaceId)}', '${safeCategoryJs}'); window.renderCategoryFolderManager();" ${isManhwaMode ? 'checked' : ''}>
+                        <span style="font-size:0.85rem;">Enable Manhwa View</span>
+                    </label>
+                </div>
+            </div>
+        ` : '';
+
         container.innerHTML = ''
-            + '<div style="padding:10px 12px; border:1px solid rgba(255,255,255,0.08); border-radius:10px; background:rgba(255,255,255,0.02);">'
+            + manhwaModeHtml
+            + '<div style="padding:10px 12px; border:1px solid rgba(255,255,255,0.08); border-radius:10px; background:rgba(255,255,255,0.02); margin-bottom:12px;">'
                 + '<div style="display:flex; gap:10px; justify-content:space-between; align-items:flex-start; flex-wrap:wrap;">'
                     + '<div style="display:flex; flex-direction:column; gap:4px; min-width:0;">'
                         + '<div style="font-weight:600; margin-bottom:4px;">Root bookmarks</div>'
