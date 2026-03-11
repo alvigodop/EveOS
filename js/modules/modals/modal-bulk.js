@@ -194,22 +194,11 @@ function processStructuredFile(content, fileName, targetCategory) {
     let type = '';
     let notesArr = [];
 
-    // Parse status or chapter from filename
+    // Clean legacy organizational prefixes from filename (e.g., "Was ", "{1}", "(24)")
     if (title.toLowerCase().startsWith('was ')) {
         title = title.substring(4).trim();
     }
-    
-    const braceMatch = title.match(/^\{(\d+)\}\s*(.*)/);
-    if (braceMatch) {
-        chapter = Math.max(chapter, parseInt(braceMatch[1], 10)); // {} -> Chapter
-        title = braceMatch[2].trim();
-    }
-    
-    const parenMatch = title.match(/^\((\d+)\)\s*(.*)/);
-    if (parenMatch) {
-        episode = Math.max(episode, parseInt(parenMatch[1], 10)); // () -> Episode
-        title = parenMatch[2].trim();
-    }
+    title = title.replace(/^[\{\(]\d+[\}\)]\s*/, '').trim();
 
     lines.forEach(line => {
         const trimmed = line.trim();
