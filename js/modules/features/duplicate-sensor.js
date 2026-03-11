@@ -310,7 +310,13 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
         } else {
             bestTitleLink = targetLinks.reduce((best, curr) => (String(curr.title).length > String(best.title).length) ? curr : best);
         }
-        const bestTitle = String(bestTitleLink.title || 'Untitled');
+        let bestTitle = String(bestTitleLink.title || 'Untitled');
+        
+        // Strip out S# and everything after it to forcefully isolate the base title for the final merged bookmark
+        const seasonMatch = bestTitle.match(/\b(?:S|Season\s*)(\d+)(.*)$/i);
+        if (seasonMatch) {
+            bestTitle = bestTitle.substring(0, seasonMatch.index).trim();
+        }
 
         targetLinks.forEach(l => {
             const t = String(l.title || '').trim();
