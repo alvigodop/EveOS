@@ -226,14 +226,14 @@ function processStructuredFile(content, fileName, targetCategory) {
             }
         }
         
-        // Match heuristic shorthands (now allowing spaces/hyphens instead of just colons)
-        const epMatch = trimmed.match(/^(?:Last\s+)?(?:Finished Ep|Going To Ep|Ep|Episode)[\s:-]*(\d+)/i);
+        // Match heuristic shorthands (now allowing spaces/hyphens/hashtags instead of just colons)
+        const epMatch = trimmed.match(/^(?:Last\s+)?(?:Finished Ep|Going To Ep|Ep|Episode)[\s:\-#]*(\d+)/i);
         if (epMatch) {
             episode = Math.max(episode, parseInt(epMatch[1], 10));
             // Keep in notes as well to avoid losing context like "Finished Ep" vs "Going To Ep"
         }
         
-        const chMatch = trimmed.match(/^(?:Last\s+)?(?:Ch|Chapter)[\s:-]*(\d+)/i);
+        const chMatch = trimmed.match(/^(?:Last\s+)?(?:Ch|Chapter)[\s:\-#]*(\d+)/i);
         if (chMatch) {
             chapter = Math.max(chapter, parseInt(chMatch[1], 10));
         }
