@@ -2,6 +2,7 @@ window.DashboardCategories = window.DashboardCategories || {};
 
 (function () {
     var DEFAULT_CARD_HEADER_BUTTONS = ['add', 'folders', 'library', 'focus', 'launch'];
+    var ALL_CARD_HEADER_BUTTONS = ['add', 'folders', 'library', 'focus', 'launch', 'constellation'];
     window.categoryCardFolderActionExpansion = window.categoryCardFolderActionExpansion || {};
 
     function escapeCardHtml(value) {
@@ -115,7 +116,7 @@ window.DashboardCategories = window.DashboardCategories || {};
     }
 
     function normalizeHeaderButtons(buttonIds) {
-        var allowed = new Set(DEFAULT_CARD_HEADER_BUTTONS);
+        var allowed = new Set(ALL_CARD_HEADER_BUTTONS);
         return Array.from(new Set((Array.isArray(buttonIds) ? buttonIds : []).map(function (entry) {
             return String(entry || '').trim().toLowerCase();
         }).filter(function (entry) {
@@ -420,6 +421,9 @@ window.DashboardCategories = window.DashboardCategories || {};
         }
         if (visibleHeaderButtons.has('focus')) {
             nonFocusButtons.push('<button class="card-header-icon-btn" onclick="setFocus(\'' + safeCatJs + '\')" title="Focus">&#127919;</button>');
+        }
+        if (visibleHeaderButtons.has('constellation')) {
+            nonFocusButtons.push('<button class="card-header-icon-btn constellation-btn" onclick="if(window.EveConstellationMap) window.EveConstellationMap.openMap();" title="Constellation Map">&#127756;</button>');
         }
         nonFocusButtons.push('<button class="card-header-icon-btn" onclick="openCategorySettings(\'' + safeCatJs + '\')" title="Settings">&#9881;</button>');
         if (visibleHeaderButtons.has('launch')) {

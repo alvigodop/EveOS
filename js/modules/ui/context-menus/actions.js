@@ -292,7 +292,7 @@ window.ctxFolderSubScan = function() {
 
 window.ctxCatSubScan = function() {
     closeAllMenus();
-    const categoryName = getCtxCategoryName();
+    const categoryName = window.ctxCatName;
     if (categoryName) {
         const workspaceId = window.eveState?.config?.activeWorkspace || 'main';
         const catLinks = window.getModalLinks ? window.getModalLinks().filter(l => l.workspace === workspaceId && l.category === categoryName) : [];

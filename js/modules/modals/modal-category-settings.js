@@ -56,7 +56,8 @@ window.categoryFolderActionExpansion = window.categoryFolderActionExpansion || {
         { id: 'folders', label: '📁 Folders' },
         { id: 'library', label: '📚 Library' },
         { id: 'focus', label: '🎯 Focus' },
-        { id: 'launch', label: '🚀 Launch' }
+        { id: 'launch', label: '🚀 Launch' },
+        { id: 'constellation', label: '🌌 Constellation Map' }
     ];
 
     function getFolderDraft() {
