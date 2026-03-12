@@ -185,16 +185,21 @@ window.ctxFolderSubScan = function() {
                 const folderLinks = window.getModalLinks ? window.getModalLinks().filter(l => l.workspace === workspaceId && l.category === window.ctxCatName) : [];
                 const viewModel = folderApi.buildFolderView(workspaceId, window.ctxCatName, folderLinks);
                 const items = viewModel.folderLinks.get(window.ctxFolderId) || [];
-                // Actually, duplicate sensor doesn't have a scoped scan, but we can pass an array of items
-                // This is a complex feature so we will just alert for now or implement properly if the API exists.
                 if (typeof window.EveDuplicateSensor.scanSubset === 'function') {
                     window.EveDuplicateSensor.scanSubset(items);
                 } else {
-                    alert(`Sub-Scan feature triggered for ${items.length} items. Full implementation requires duplicate sensor update.`);
+                    const html = `<html><body style="background:#111; color:#fff; font-family:monospace; padding:20px;">
+                        <h2>Sub-Scan Results (Placeholder)</h2>
+                        <p>Found ${items.length} items to scan. Full scanSubset implementation required.</p>
+                        </body></html>`;
+                    const newTab = window.open();
+                    if (newTab) newTab.document.write(html);
                 }
             }
         } else {
-            alert('Duplicate Sensor module not found.');
+            const html = `<html><body style="background:#111; color:#fff; font-family:monospace; padding:20px;"><h2 style="color:red;">Error</h2><p>Duplicate Sensor module not found.</p></body></html>`;
+            const newTab = window.open();
+            if (newTab) newTab.document.write(html);
         }
     }
 };
@@ -209,15 +214,25 @@ window.ctxFolderExport = function() {
             const viewModel = folderApi.buildFolderView(workspaceId, window.ctxCatName, folderLinks);
             const items = viewModel.folderLinks.get(window.ctxFolderId) || [];
             if (items.length === 0) {
-                alert("Folder is empty, nothing to export.");
+                const html = `<html><body style="background:#111; color:#fff; font-family:monospace; padding:20px;"><h3>Export Empty</h3><p>Folder is empty, nothing to export.</p></body></html>`;
+                const newTab = window.open();
+                if (newTab) newTab.document.write(html);
                 return;
             }
             const textContent = items.map(l => `${l.title}\n${l.url}`).join('\n\n');
             navigator.clipboard.writeText(textContent).then(() => {
-                alert(`Exported ${items.length} links to clipboard!`);
+                const html = `<html><body style="background:#111; color:#fff; font-family:monospace; padding:20px;">
+                    <h3 style="color:#0f0;">Export Successful</h3>
+                    <p>Copied ${items.length} links to clipboard.</p>
+                    <textarea style="width:100%; height:300px; background:#222; color:#fff; border:1px solid #444;" readonly>${textContent}</textarea>
+                    </body></html>`;
+                const newTab = window.open();
+                if (newTab) newTab.document.write(html);
             }).catch(err => {
                 console.error('Failed to copy text: ', err);
-                alert('Failed to copy. See console.');
+                const html = `<html><body style="background:#111; color:#fff; font-family:monospace; padding:20px;"><h3 style="color:red;">Export Failed</h3><p>Could not write to clipboard.</p></body></html>`;
+                const newTab = window.open();
+                if (newTab) newTab.document.write(html);
             });
         }
     }
@@ -226,8 +241,13 @@ window.ctxFolderExport = function() {
 window.ctxFolderBulkPatch = function() {
     closeAllMenus();
     if (window.ctxCatName && window.ctxFolderId) {
-        // Here we could open a modal for bulk patch
-        alert('Bulk Patch feature triggered for this folder. Opening Bulk Patch UI... (Placeholder)');
+        const html = `<html><body style="background:#111; color:#fff; font-family:monospace; padding:20px;">
+            <h2>Bulk Patch UI (Placeholder)</h2>
+            <p>Target: Category [${window.ctxCatName}] -> Folder ID [${window.ctxFolderId}]</p>
+            <p>Ready for form integration.</p>
+            </body></html>`;
+        const newTab = window.open();
+        if (newTab) newTab.document.write(html);
     }
 };
 

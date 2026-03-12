@@ -213,12 +213,91 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         });
 
         const unlinkedLinks = activeLinks.filter(l => {
-            return typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function' &&
+            const isUnlinked = typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function' &&
                    !window.EveLibrary.ConnectionsAPI.findConnectionByLinkId(l.id);
+            if (!isUnlinked) return false;
+
+            // Exclude root/base domains that act as search engines or primary hubs
+            // e.g. "Google", "Bing" where title is just the site name and URL is just the root or generic search.
+            try {
+                const urlObj = new URL(l.url);
+                const isRootPath = urlObj.pathname === '/' || urlObj.pathname === '';
+
+                // If it's a known generic search engine root or generic hub, skip it
+                const domain = urlObj.hostname.toLowerCase().replace('www.', '');
+                const genericDomains = ['google.com', 'bing.com', 'yahoo.com', 'duckduckgo.com', 'youtube.com', 'reddit.com', 'wikipedia.org'];
+
+                if (genericDomains.includes(domain) && isRootPath) {
+                    return false;
+                }
+
+                // Also optionally exclude if title perfectly matches domain name (basic generic link)
+                if (l.title && l.title.toLowerCase() === domain) {
+                    return false;
+                }
+
+            } catch(e) {
+                // Invalid URL, keep it in unlinked to be safe
+            }
+
+            return true;
+        });
+
+        const missingCovers = activeLinks.filter(l => {
+            return !l.icon && !l.image && (!l.cover || l.cover === '');
+        });
+
+        const urlCounts = {};
+        activeLinks.forEach(l => {
+            try {
+                // Normalize URL for comparison
+                const urlObj = new URL(l.url);
+                urlObj.hash = ''; // ignore hashes
+                const normalized = urlObj.toString();
+                urlCounts[normalized] = (urlCounts[normalized] || 0) + 1;
+            } catch(e) {
+                // Ignore invalid URLs
+            }
+        });
+
+        const duplicateSuspects = activeLinks.filter(l => {
+            try {
+                const urlObj = new URL(l.url);
+                urlObj.hash = '';
+                return urlCounts[urlObj.toString()] > 1;
+            } catch(e) {
+                return false;
+            }
+        });
+
+        const untaggedLinks = activeLinks.filter(l => {
+            // Unsorted/no category or explicitly missing tags if the structure supports it.
+            // Using a simple logic: if it has no tags array or tags is empty
+            return !l.tags || !Array.isArray(l.tags) || l.tags.length === 0;
+        });
+
+        const needsReviewLinks = activeLinks.filter(l => {
+            const isLinked = typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function' &&
+                   window.EveLibrary.ConnectionsAPI.findConnectionByLinkId(l.id);
+            if (!isLinked) return false;
+
+            // If it's linked, check if the library entry has missing data like confidence < 5 or missing derivedRatings
+            const entry = typeof window.EveLibrary?.EntriesAPI?.getEntryById === 'function' &&
+                          window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, l.id);
+
+            if (entry) {
+                if (entry.confidence && entry.confidence < 5) return true;
+                if (!entry.derivedRatings || entry.derivedRatings.activeValue === undefined || entry.derivedRatings.activeValue === null) return true;
+            }
+            return false;
         });
 
         const ghostFolders = [];
-        if (recentLinks.length > 0) {
+        const isGhostEnabled = (type) => {
+            return !window.EveFolderViewV2 || window.EveFolderViewV2.isGhostFolderEnabled(workspaceId, categoryName, type);
+        };
+
+        if (recentLinks.length > 0 && isGhostEnabled('recent')) {
             ghostFolders.push({
                 id: '__ghost_recent__',
                 name: '[ Recently Updated ]',
@@ -227,13 +306,49 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
                 _ghostLinks: recentLinks
             });
         }
-        if (unlinkedLinks.length > 0) {
+        if (unlinkedLinks.length > 0 && isGhostEnabled('unlinked')) {
             ghostFolders.push({
                 id: '__ghost_unlinked__',
-                name: '[ Unlinked Nodes ]',
+                name: '[ Unlinked Bookmarks ]',
                 parentId: null,
                 isGhost: true,
                 _ghostLinks: unlinkedLinks
+            });
+        }
+        if (missingCovers.length > 0 && isGhostEnabled('missing_covers')) {
+            ghostFolders.push({
+                id: '__ghost_missing_covers__',
+                name: '[ Missing Covers ]',
+                parentId: null,
+                isGhost: true,
+                _ghostLinks: missingCovers
+            });
+        }
+        if (duplicateSuspects.length > 0 && isGhostEnabled('duplicate_suspects')) {
+            ghostFolders.push({
+                id: '__ghost_duplicate_suspects__',
+                name: '[ Duplicate Suspects ]',
+                parentId: null,
+                isGhost: true,
+                _ghostLinks: duplicateSuspects
+            });
+        }
+        if (untaggedLinks.length > 0 && isGhostEnabled('untagged')) {
+            ghostFolders.push({
+                id: '__ghost_untagged__',
+                name: '[ Untagged ]',
+                parentId: null,
+                isGhost: true,
+                _ghostLinks: untaggedLinks
+            });
+        }
+        if (needsReviewLinks.length > 0 && isGhostEnabled('needs_review')) {
+            ghostFolders.push({
+                id: '__ghost_needs_review__',
+                name: '[ Needs Review ]',
+                parentId: null,
+                isGhost: true,
+                _ghostLinks: needsReviewLinks
             });
         }
 

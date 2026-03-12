@@ -362,8 +362,44 @@ window.categoryFolderActionExpansion = window.categoryFolderActionExpansion || {
             </div>
         ` : '';
 
+        const ghostFoldersHtml = window.EveFolderViewV2 ? (() => {
+            const types = [
+                { id: 'recent', label: '[ Recently Updated ]' },
+                { id: 'unlinked', label: '[ Unlinked Bookmarks ]' },
+                { id: 'missing_covers', label: '[ Missing Covers ]' },
+                { id: 'duplicate_suspects', label: '[ Duplicate Suspects ]' },
+                { id: 'untagged', label: '[ Untagged ]' },
+                { id: 'needs_review', label: '[ Needs Review ]' }
+            ];
+
+            let toggles = types.map(t => {
+                const isEnabled = window.EveFolderViewV2.isGhostFolderEnabled(workspaceId, categoryName, t.id);
+                return `
+                    <label style="display:flex; align-items:center; gap:8px; cursor:pointer; min-width: 180px;">
+                        <input type="checkbox" onchange="window.EveFolderViewV2.toggleGhostFolder('${escapeCategorySettingsJs(workspaceId)}', '${safeCategoryJs}', '${t.id}'); window.renderCategoryFolderManager();" ${isEnabled ? 'checked' : ''}>
+                        <span style="font-size:0.85rem;">${t.label}</span>
+                    </label>
+                `;
+            }).join('');
+
+            return `
+            <div style="padding:10px 12px; border:1px solid rgba(255,255,255,0.08); border-radius:10px; background:rgba(255,255,255,0.02); margin-bottom:12px;">
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                    <div style="display:flex; flex-direction:column; gap:4px;">
+                        <div style="font-weight:600;">Smart Ghost Folders</div>
+                        <div style="font-size:0.84rem; opacity:0.76;">Toggle which auto-generated folders appear at the root of this card.</div>
+                    </div>
+                    <div style="display:flex; flex-wrap:wrap; gap:12px; margin-top: 4px;">
+                        ${toggles}
+                    </div>
+                </div>
+            </div>
+            `;
+        })() : '';
+
         container.innerHTML = ''
             + manhwaModeHtml
+            + ghostFoldersHtml
             + '<div style="padding:10px 12px; border:1px solid rgba(255,255,255,0.08); border-radius:10px; background:rgba(255,255,255,0.02); margin-bottom:12px;">'
                 + '<div style="display:flex; gap:10px; justify-content:space-between; align-items:flex-start; flex-wrap:wrap;">'
                     + '<div style="display:flex; flex-direction:column; gap:4px; min-width:0;">'

@@ -28,6 +28,29 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         return true;
     };
 
+    window.EveFolderViewV2.isGhostFolderEnabled = function(workspaceId, categoryName, ghostType) {
+        if (!window.eveState?.config) return true;
+        if (typeof window.eveState.config.cardGhostFolders !== 'object') return true;
+        const key = `${workspaceId}::${categoryName}::${ghostType}`;
+        if (window.eveState.config.cardGhostFolders.hasOwnProperty(key)) {
+            return !!window.eveState.config.cardGhostFolders[key];
+        }
+        return true; // Default to true
+    };
+
+    window.EveFolderViewV2.toggleGhostFolder = function(workspaceId, categoryName, ghostType) {
+        if (!window.eveState) return;
+        if (!window.eveState.config.cardGhostFolders || typeof window.eveState.config.cardGhostFolders !== 'object') {
+            window.eveState.config.cardGhostFolders = {};
+        }
+        const key = `${workspaceId}::${categoryName}::${ghostType}`;
+        const current = window.EveFolderViewV2.isGhostFolderEnabled(workspaceId, categoryName, ghostType);
+        window.eveState.config.cardGhostFolders[key] = !current;
+
+        if (typeof window.saveConfig === 'function') window.saveConfig();
+        if (typeof window.renderDashboard === 'function') window.renderDashboard();
+    };
+
     window.EveFolderViewV2.toggleManhwaMode = function(workspaceId, categoryName) {
         if (!window.eveState) return;
         if (!window.eveState.config.cardFolderViewModes || typeof window.eveState.config.cardFolderViewModes !== 'object') {
