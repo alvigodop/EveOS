@@ -153,6 +153,18 @@ window.ctxFolderAdd = function() {
     }
 };
 
+window.ctxNeuralEcho = function() {
+    closeAllMenus();
+    if (window.ctxLinkId) {
+        const link = window.links ? window.links.find(l => String(l.id) === String(window.ctxLinkId)) : null;
+        if (link && link.url) {
+            const waybackUrl = `https://web.archive.org/web/*/${encodeURI(link.url)}`;
+            window.open(waybackUrl, '_blank');
+            if (typeof showToast === 'function') showToast('Summoning historical echoes...', 'info');
+        }
+    }
+};
+
 window.ctxFolderSubfolder = function() {
     closeAllMenus();
     if (window.ctxCatName && window.ctxFolderId) {
@@ -194,17 +206,34 @@ window.ctxFolderSubScan = function() {
                 const viewModel = folderApi.buildFolderView(workspaceId, window.ctxCatName, folderLinks);
                 const items = viewModel.folderLinks.get(window.ctxFolderId) || [];
 
-                if (typeof window.EveDuplicateSensor === 'object' && typeof window.EveDuplicateSensor.scanSubset === 'function') {
-                    // Assuming scanSubset returns a report or renders it somewhere, but since it doesn't exist yet, we placeholder it.
-                    content.innerHTML = `<p>Found ${items.length} items to scan.</p><p style="color: #00d4ff;">Full scanSubset logic requires duplicate sensor update. Ready for integration.</p>`;
-                } else if (typeof window.EveDuplicateSensor === 'object' && typeof window.EveDuplicateSensor.scan === 'function') {
-                    // Try to hack it into the existing scan by faking the links array temporarily? Too risky.
-                    // Instead, let's just show the report here manually or link to the main settings.
-                    content.innerHTML = `
-                        <p>Found ${items.length} items to scan in this folder.</p>
-                        <p>The Duplicate Sensor currently supports Workspace, Card, and Folder scope via the main Settings Data Management panel.</p>
-                        <button class="btn-primary" onclick="document.getElementById('folderOperationsModal').style.display='none'; openSettings(); setTimeout(() => { const sel = document.getElementById('backupSettingsMode'); if(sel) { sel.value = 'folder'; sel.dispatchEvent(new Event('change')); } }, 100);" style="margin-top: 10px;">Open Full Scanner</button>
-                    `;
+                if (typeof window.EveDuplicateSensor === 'object' && typeof window.EveDuplicateSensor.scan === 'function') {
+                    // We can just use the existing duplicate sensor scan, passing only this folder's items
+                    const report = window.EveDuplicateSensor.scan(items);
+
+                    if (!report.groups || report.groups.length === 0) {
+                        content.innerHTML = `<p style="color:#0f0;">Scan complete. Found 0 duplicates among ${items.length} items.</p>`;
+                    } else {
+                        // We will render a mini-report inline
+                        window._ctxTempFolderSubScanReport = report; // pass to inline handler if needed
+
+                        let reportHtml = `<p>Found ${report.groups.length} duplicate groups among ${items.length} items.</p>`;
+                        reportHtml += `<div style="max-height: 300px; overflow-y: auto; background: rgba(0,0,0,0.4); border: 1px solid #444; border-radius: 4px; padding: 10px; margin-top: 10px;">`;
+
+                        report.groups.forEach((group, i) => {
+                            reportHtml += `<div style="margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #333;">`;
+                            reportHtml += `<div style="color: #00d4ff; font-weight: bold; margin-bottom: 4px;">Target URL:</div>`;
+                            reportHtml += `<div style="word-break: break-all; font-size: 0.85rem; opacity: 0.8; margin-bottom: 8px;">${group.url}</div>`;
+                            group.links.forEach(l => {
+                                reportHtml += `<div style="font-size: 0.85rem;">- ${l.title}</div>`;
+                            });
+                            reportHtml += `</div>`;
+                        });
+
+                        reportHtml += `</div>`;
+                        reportHtml += `<p style="opacity: 0.7; font-size: 0.8rem; margin-top: 10px;">To merge or delete these, please use the main Settings > Data Management > Folder Backup scanner.</p>`;
+
+                        content.innerHTML = reportHtml;
+                    }
                 } else {
                     content.innerHTML = '<p style="color:red;">Duplicate Sensor module not found.</p>';
                 }
@@ -326,11 +355,14 @@ window.ctxFolderBulkPatch = function() {
                     <div style="margin-top: 15px; display:flex; flex-direction:column; gap:8px;">
                         <label for="bulkPatchStatusSelect" style="font-weight: bold; font-size:0.9rem;">New Status:</label>
                         <select id="bulkPatchStatusSelect" style="padding: 8px; background: #222; color: #fff; border: 1px solid #444; border-radius: 4px; width: 100%;">
-                            <option value="plan_to_read">Plan to Read / Unread</option>
-                            <option value="reading">Actively Reading</option>
-                            <option value="completed">Completed</option>
-                            <option value="on_hold">On Hold</option>
-                            <option value="dropped">Dropped</option>
+                            ${window.EveLibrary && window.EveLibrary.Schema && window.EveLibrary.Schema.LIBRARY_STATUSES ?
+                                Object.entries(window.EveLibrary.Schema.LIBRARY_STATUSES).map(([k, v]) => `<option value="${v.id}">${v.label}</option>`).join('') :
+                                `<option value="plan_to_read">Plan to Read / Unread</option>
+                                <option value="reading">Actively Reading</option>
+                                <option value="completed">Completed</option>
+                                <option value="on_hold">On Hold</option>
+                                <option value="dropped">Dropped</option>`
+                            }
                         </select>
                         <button class="btn-primary" style="margin-top: 10px;" onclick="
                             const newStatus = document.getElementById('bulkPatchStatusSelect').value;
@@ -341,28 +373,25 @@ window.ctxFolderBulkPatch = function() {
                                 const folderItems = view.folderLinks.get(window._ctxTempFolderId) || [];
 
                                 let patched = 0;
+                                const ws = window._ctxTempWs;
+                                const cat = window._ctxTempCat;
+                                const entries = window.EveLibrary.EntriesAPI.getEntriesForWorkspace(ws, cat);
+
                                 folderItems.forEach(link => {
-                                    // Make sure it's linked
                                     let conn = window.EveLibrary.ConnectionsAPI.findConnectionByLinkId(link.id);
                                     if (!conn) {
-                                        const entry = window.EveLibrary.EntriesAPI.createEntry(window._ctxTempWs, window._ctxTempCat, link.title || 'Untitled', '', 'bookmark', link.url || '');
-                                        conn = window.EveLibrary.ConnectionsAPI.createConnection(entry.id, link.id, window._ctxTempWs, window._ctxTempCat);
-                                    }
-                                    // Get the entry and patch it
-                                    if (conn && conn.entryId) {
-                                        const entry = window.EveLibrary.EntriesAPI.getEntryById(window._ctxTempWs, window._ctxTempCat, link.id);
-                                        // Bulk patching needs to update the core entry object.
-                                        // The getEntryById actually searches by linkId in ConnectionsAPI sometimes, but really we need to update the status.
-                                        // We'll use the proper API method if it exists, or modify the raw state directly as fallback.
+                                        const entry = window.EveLibrary.EntriesAPI.createEntry(ws, cat, link.title || 'Untitled', '', 'bookmark', link.url || '');
+                                        conn = window.EveLibrary.ConnectionsAPI.createConnection(entry.id, link.id, ws, cat);
+                                        entries.push(entry);
                                     }
 
-                                    // Safer fallback: Update library status directly using EveLibrary.EntriesAPI
-                                    const allEntries = window.EveLibrary.EntriesAPI.getEntriesForWorkspace(window._ctxTempWs, window._ctxTempCat);
-                                    const targetEntry = allEntries.find(e => e.id === conn.entryId);
-                                    if (targetEntry) {
-                                        if(!targetEntry.libraryStatus) targetEntry.libraryStatus = {};
-                                        targetEntry.libraryStatus.id = newStatus;
-                                        patched++;
+                                    if (conn && conn.entryId) {
+                                        const targetEntry = entries.find(e => e.id === conn.entryId);
+                                        if (targetEntry) {
+                                            if (!targetEntry.libraryStatus) targetEntry.libraryStatus = {};
+                                            targetEntry.libraryStatus.id = newStatus;
+                                            patched++;
+                                        }
                                     }
                                 });
 
