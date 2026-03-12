@@ -187,60 +187,118 @@ window.ctxFolderRename = function() {
     }
 };
 
+function _performDuplicateScan(items, modalTitleStr) {
+    const modal = document.getElementById('folderOperationsModal');
+    const title = document.getElementById('folderOperationsTitle');
+    const content = document.getElementById('folderOperationsContent');
+
+    if (modal && title && content) {
+        title.textContent = modalTitleStr;
+        content.innerHTML = '<p>Scanning...</p>';
+        modal.style.display = 'flex';
+
+        if (typeof window.EveDuplicateSensor === 'object' && typeof window.EveDuplicateSensor.scan === 'function') {
+            // Fix duplicate scope: scan ENTIRE library, not just the local items
+            const allItems = window.links || [];
+            const fullReport = window.EveDuplicateSensor.scan(allItems);
+
+            // Filter the full report groups to only those containing at least one item from the target subset
+            const itemIds = new Set(items.map(i => i.id));
+            const filteredGroups = fullReport.groups.filter(group => {
+                return group.links.some(l => itemIds.has(l.id));
+            });
+
+            const report = { groups: filteredGroups };
+
+            if (!report.groups || report.groups.length === 0) {
+                content.innerHTML = `<p style="color:#0f0;">Scan complete. Found 0 library-wide duplicates involving these ${items.length} items.</p>`;
+            } else {
+                window._ctxTempFolderSubScanReport = report;
+
+                let reportHtml = `<p>Found ${report.groups.length} library-wide duplicate groups involving these ${items.length} items.</p>`;
+                reportHtml += `<div style="max-height: 300px; overflow-y: auto; background: rgba(0,0,0,0.4); border: 1px solid #444; border-radius: 4px; padding: 10px; margin-top: 10px;">`;
+
+                report.groups.forEach((group, i) => {
+                    reportHtml += `<div style="margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #333;">`;
+                    reportHtml += `<div style="color: #00d4ff; font-weight: bold; margin-bottom: 4px;">Target URL:</div>`;
+                    reportHtml += `<div style="word-break: break-all; font-size: 0.85rem; opacity: 0.8; margin-bottom: 8px;">${group.url}</div>`;
+                    group.links.forEach(l => {
+                        reportHtml += `<div style="font-size: 0.85rem;">- ${l.title || 'Untitled'} (Folder: ${l.folderId || 'Root'})</div>`;
+                    });
+                    reportHtml += `</div>`;
+                });
+
+                reportHtml += `</div>`;
+
+                // Add button to open the main duplicate manager and pass these results
+                reportHtml += `<div style="margin-top: 15px; display: flex; gap: 10px;">
+                    <button class="btn-primary" onclick="
+                        document.getElementById('folderOperationsModal').style.display='none';
+                        if (typeof openSettingsModal === 'function') {
+                            openSettingsModal('backup');
+                            setTimeout(() => {
+                                const modeSelect = document.getElementById('backupSettingsMode');
+                                if (modeSelect) {
+                                    modeSelect.value = 'duplicates';
+                                    modeSelect.dispatchEvent(new Event('change'));
+                                }
+                            }, 100);
+                        }
+                    ">Open Advanced Duplicate Manager</button>
+                </div>`;
+
+                content.innerHTML = reportHtml;
+            }
+        } else {
+            content.innerHTML = '<p style="color:red;">Duplicate Sensor module not found.</p>';
+        }
+    }
+}
+
 window.ctxFolderSubScan = function() {
     closeAllMenus();
     if (window.ctxCatName && window.ctxFolderId) {
-        const modal = document.getElementById('folderOperationsModal');
-        const title = document.getElementById('folderOperationsTitle');
-        const content = document.getElementById('folderOperationsContent');
+        const workspaceId = window.eveState?.config?.activeWorkspace || 'main';
+        const folderApi = window.EveBookmarkFolders;
+        if (folderApi) {
+            const folderLinks = window.getModalLinks ? window.getModalLinks().filter(l => l.workspace === workspaceId && l.category === window.ctxCatName) : [];
+            const viewModel = folderApi.buildFolderView(workspaceId, window.ctxCatName, folderLinks);
 
-        if (modal && title && content) {
-            title.textContent = 'Sub-Scan (Duplicates)';
-            content.innerHTML = '<p>Scanning...</p>';
-            modal.style.display = 'flex';
-
-            const workspaceId = window.eveState?.config?.activeWorkspace || 'main';
-            const folderApi = window.EveBookmarkFolders;
-            if (folderApi) {
-                const folderLinks = window.getModalLinks ? window.getModalLinks().filter(l => l.workspace === workspaceId && l.category === window.ctxCatName) : [];
-                const viewModel = folderApi.buildFolderView(workspaceId, window.ctxCatName, folderLinks);
-                const items = viewModel.folderLinks.get(window.ctxFolderId) || [];
-
-                if (typeof window.EveDuplicateSensor === 'object' && typeof window.EveDuplicateSensor.scan === 'function') {
-                    // We can just use the existing duplicate sensor scan, passing only this folder's items
-                    const report = window.EveDuplicateSensor.scan(items);
-
-                    if (!report.groups || report.groups.length === 0) {
-                        content.innerHTML = `<p style="color:#0f0;">Scan complete. Found 0 duplicates among ${items.length} items.</p>`;
-                    } else {
-                        // We will render a mini-report inline
-                        window._ctxTempFolderSubScanReport = report; // pass to inline handler if needed
-
-                        let reportHtml = `<p>Found ${report.groups.length} duplicate groups among ${items.length} items.</p>`;
-                        reportHtml += `<div style="max-height: 300px; overflow-y: auto; background: rgba(0,0,0,0.4); border: 1px solid #444; border-radius: 4px; padding: 10px; margin-top: 10px;">`;
-
-                        report.groups.forEach((group, i) => {
-                            reportHtml += `<div style="margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #333;">`;
-                            reportHtml += `<div style="color: #00d4ff; font-weight: bold; margin-bottom: 4px;">Target URL:</div>`;
-                            reportHtml += `<div style="word-break: break-all; font-size: 0.85rem; opacity: 0.8; margin-bottom: 8px;">${group.url}</div>`;
-                            group.links.forEach(l => {
-                                reportHtml += `<div style="font-size: 0.85rem;">- ${l.title}</div>`;
-                            });
-                            reportHtml += `</div>`;
-                        });
-
-                        reportHtml += `</div>`;
-                        reportHtml += `<p style="opacity: 0.7; font-size: 0.8rem; margin-top: 10px;">To merge or delete these, please use the main Settings > Data Management > Folder Backup scanner.</p>`;
-
-                        content.innerHTML = reportHtml;
+            // To be accurate, we need ALL items that are descendants of this folder.
+            // Using childrenMap helps, but a simple filter by folder ID and all its nested folder IDs is best.
+            // A recursive function gets all nested folder IDs.
+            const nestedIds = new Set([window.ctxFolderId]);
+            function collectNested(parentId) {
+                const children = viewModel.childrenMap.get(parentId) || [];
+                children.forEach(c => {
+                    if(!c.isGhost) {
+                        nestedIds.add(c.id);
+                        collectNested(c.id);
                     }
-                } else {
-                    content.innerHTML = '<p style="color:red;">Duplicate Sensor module not found.</p>';
-                }
-            } else {
-                content.innerHTML = '<p style="color:red;">Folder API not found.</p>';
+                });
             }
+            collectNested(window.ctxFolderId);
+
+            let itemsToScan = [];
+            nestedIds.forEach(id => {
+                const links = viewModel.folderLinks.get(id) || [];
+                itemsToScan = itemsToScan.concat(links);
+            });
+
+            _performDuplicateScan(itemsToScan, 'Folder Sub-Scan (Duplicates)');
         }
+    }
+};
+
+window.ctxCatSubScan = function() {
+    closeAllMenus();
+    const categoryName = getCtxCategoryName();
+    if (categoryName) {
+        const workspaceId = window.eveState?.config?.activeWorkspace || 'main';
+        const catLinks = window.getModalLinks ? window.getModalLinks().filter(l => l.workspace === workspaceId && l.category === categoryName) : [];
+        _performDuplicateScan(catLinks, `Category Sub-Scan (Duplicates) - ${categoryName}`);
+    } else {
+        showToast("No category selected", "error");
     }
 };
 

@@ -261,7 +261,7 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
             if (!hasCover && typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function') {
                 const conn = window.EveLibrary.ConnectionsAPI.findConnectionByLinkId(l.id);
                 if (conn && typeof window.EveLibrary?.EntriesAPI?.getEntryById === 'function') {
-                    const entry = window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, l.id);
+                    const entry = window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, conn.entryId);
                     if (entry && (entry.coverImage || entry.bannerImage)) {
                         hasCover = true;
                     }
@@ -300,13 +300,13 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         });
 
         const needsReviewLinks = activeLinks.filter(l => {
-            const isLinked = typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function' &&
+            const conn = typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function' &&
                    window.EveLibrary.ConnectionsAPI.findConnectionByLinkId(l.id);
-            if (!isLinked) return false;
+            if (!conn) return false;
 
             // If it's linked, check if the library entry has missing data like confidence < 5 or missing derivedRatings
             const entry = typeof window.EveLibrary?.EntriesAPI?.getEntryById === 'function' &&
-                          window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, l.id);
+                          window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, conn.entryId);
 
             if (entry) {
                 if (entry.confidence && entry.confidence < 5) return true;
@@ -317,12 +317,12 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
 
         const unreadLinks = activeLinks.filter(l => {
             // Checks for some indicator of unread state, like no read count, empty progress, or explicit "unread" flag
-            const isLinked = typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function' &&
+            const conn = typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function' &&
                    window.EveLibrary.ConnectionsAPI.findConnectionByLinkId(l.id);
 
-            if (isLinked) {
+            if (conn) {
                 const entry = typeof window.EveLibrary?.EntriesAPI?.getEntryById === 'function' &&
-                              window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, l.id);
+                              window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, conn.entryId);
                 if (entry && entry.progress !== undefined && entry.progress === 0) return true;
                 if (entry && entry.libraryStatus && entry.libraryStatus.id === 'plan_to_read') return true;
             }
@@ -331,12 +331,12 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
 
         const readingLinks = activeLinks.filter(l => {
             // Checks for items actively being read
-            const isLinked = typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function' &&
+            const conn = typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function' &&
                    window.EveLibrary.ConnectionsAPI.findConnectionByLinkId(l.id);
 
-            if (isLinked) {
+            if (conn) {
                 const entry = typeof window.EveLibrary?.EntriesAPI?.getEntryById === 'function' &&
-                              window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, l.id);
+                              window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, conn.entryId);
                 if (entry && entry.libraryStatus && entry.libraryStatus.id === 'reading') return true;
             }
             return false;
@@ -344,34 +344,34 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
 
         const completedLinks = activeLinks.filter(l => {
             // Checks for items completed
-            const isLinked = typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function' &&
+            const conn = typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function' &&
                    window.EveLibrary.ConnectionsAPI.findConnectionByLinkId(l.id);
 
-            if (isLinked) {
+            if (conn) {
                 const entry = typeof window.EveLibrary?.EntriesAPI?.getEntryById === 'function' &&
-                              window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, l.id);
+                              window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, conn.entryId);
                 if (entry && entry.libraryStatus && entry.libraryStatus.id === 'completed') return true;
             }
             return false;
         });
 
         const onHoldLinks = activeLinks.filter(l => {
-            const isLinked = typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function' &&
+            const conn = typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function' &&
                    window.EveLibrary.ConnectionsAPI.findConnectionByLinkId(l.id);
-            if (isLinked) {
+            if (conn) {
                 const entry = typeof window.EveLibrary?.EntriesAPI?.getEntryById === 'function' &&
-                              window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, l.id);
+                              window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, conn.entryId);
                 if (entry && entry.libraryStatus && entry.libraryStatus.id === 'on_hold') return true;
             }
             return false;
         });
 
         const droppedLinks = activeLinks.filter(l => {
-            const isLinked = typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function' &&
+            const conn = typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function' &&
                    window.EveLibrary.ConnectionsAPI.findConnectionByLinkId(l.id);
-            if (isLinked) {
+            if (conn) {
                 const entry = typeof window.EveLibrary?.EntriesAPI?.getEntryById === 'function' &&
-                              window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, l.id);
+                              window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, conn.entryId);
                 if (entry && entry.libraryStatus && entry.libraryStatus.id === 'dropped') return true;
             }
             return false;
@@ -384,17 +384,17 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         });
 
         const missingNotesLinks = activeLinks.filter(l => {
-            const isLinked = typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function' &&
+            const conn = typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function' &&
                    window.EveLibrary.ConnectionsAPI.findConnectionByLinkId(l.id);
 
             // Unlinked bookmarks do not need to be in the missing notes list
-            if (!isLinked) return false;
+            if (!conn) return false;
 
             const hasLinkNote = typeof l.notes === 'string' && l.notes.trim().length > 0;
             if (hasLinkNote) return false;
 
             const entry = typeof window.EveLibrary?.EntriesAPI?.getEntryById === 'function' &&
-                          window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, l.id);
+                          window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, conn.entryId);
 
             // If the linked entry has a summary, we don't consider notes missing
             if (entry && typeof entry.summary === 'string' && entry.summary.trim().length > 0) return false;
@@ -407,11 +407,11 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
             // High priority flag fallback
             if (l.priority === 'high') return true;
 
-            const isLinked = typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function' &&
+            const conn = typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function' &&
                    window.EveLibrary.ConnectionsAPI.findConnectionByLinkId(l.id);
-            if (isLinked) {
+            if (conn) {
                 const entry = typeof window.EveLibrary?.EntriesAPI?.getEntryById === 'function' &&
-                              window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, l.id);
+                              window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, conn.entryId);
                 if (entry) {
                     if (entry.rating === '5' || entry.rating === '10' || entry.rating === '9') return true;
                     if (entry.derivedRatings && entry.derivedRatings.activeValue >= 8) return true;

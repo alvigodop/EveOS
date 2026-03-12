@@ -135,6 +135,7 @@ window.showCategoryContextMenu = function (e, name) {
         <div class="ctx-item" onclick="openBulkTitleModal('${safeName}')">&#129668; Auto-Title Links</div>
         <div class="ctx-item" onclick="ctxCatFocus()">&#127919; Focus</div>
         <div class="ctx-item" onclick="ctxCatToggleTask()">&#128221; Task Mode</div>
+        <div class="ctx-item" onclick="ctxCatSubScan()">&#128269; Sub-Scan (Duplicates)</div>
         <div class="ctx-item" onclick="deleteCategory('${safeName}')" style="color:var(--danger)">&#128465; Delete</div>
     `;
 

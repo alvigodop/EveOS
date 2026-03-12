@@ -1,7 +1,9 @@
 window.ContextMenus = window.ContextMenus || {};
 
 window.ContextMenus.template = `
-<div id="cat-context-menu" class="context-menu"></div>
+<div id="cat-context-menu" class="context-menu">
+    <div class="ctx-item" onclick="ctxCatSubScan()">&#128269; Sub-Scan (Duplicates)</div>
+</div>
 <div id="workspace-context-menu" class="context-menu">
     <div class="ctx-item" onclick="if(window.EveConstellationMap) window.EveConstellationMap.openMap();">🌌 Constellation Map</div>
 </div>
