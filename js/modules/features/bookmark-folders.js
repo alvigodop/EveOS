@@ -895,6 +895,48 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
             event.preventDefault();
             event.stopPropagation();
         }
+
+        const rawData = event.dataTransfer?.getData('text/plain') || event.dataTransfer?.getData('application/json');
+        if (!rawData) return;
+
+        let payload = null;
+        try {
+            payload = JSON.parse(rawData);
+        } catch (e) {
+            // Not a JSON payload, probably standard bookmark link ID list
+        }
+
+        // 1. Check if it's a folder payload (Cross-Card or Intra-Card folder move)
+        if (payload && payload.type === 'folder' && payload.id) {
+            const folderIdToMove = payload.id;
+            const targetFolderId = normalizeFolderId(folderId);
+            if (folderIdToMove === targetFolderId) return;
+
+            const isCrossCard = (payload.sourceWorkspace && payload.sourceWorkspace !== workspaceId) || 
+                               (payload.sourceCategory && payload.sourceCategory !== categoryName);
+
+            if (isCrossCard) {
+                if (!payload.sourceWorkspace || !payload.sourceCategory) {
+                    console.warn('[moveBookmarksToFolderDrop] Cross-card transfer aborted: Missing source metadata.', payload);
+                    return;
+                }
+                transferFolderToCategory(
+                    folderIdToMove,
+                    payload.sourceWorkspace,
+                    payload.sourceCategory,
+                    workspaceId,
+                    categoryName,
+                    targetFolderId
+                );
+            } else {
+                moveFolder(workspaceId, categoryName, folderIdToMove, targetFolderId);
+            }
+            
+            if (typeof window.renderDashboard === 'function') window.renderDashboard();
+            return;
+        }
+
+        // 2. Fallback: Check for bookmark link IDs
         const linkIds = parseDragPayload(event?.dataTransfer);
         if (!linkIds.length) return;
         moveLinksToFolderTarget(linkIds, workspaceId, getActiveCategoryContext(categoryName), folderId);

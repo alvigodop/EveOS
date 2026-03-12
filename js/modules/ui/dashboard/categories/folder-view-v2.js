@@ -153,7 +153,8 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         const topLevelFolders = viewModel.topLevelFolders || [];
         const rootLinks = viewModel.rootLinks || [];
         
-        let html = '<div class="v2-folder-root-container" style="padding: 0 10px 10px;">';
+        const dropTargetAttr = `ondragover="if(typeof allowDrop==='function')allowDrop(event)" ondrop="event.currentTarget.classList.remove('active'); if(typeof window.EveFolderViewV2.handleFolderDrop==='function') window.EveFolderViewV2.handleFolderDrop(event, '${escapeCardJs(categoryName)}', '', '${escapeCardJs(workspaceId)}')" ondragenter="event.currentTarget.classList.add('active')" ondragleave="event.currentTarget.classList.remove('active')"`;
+        let html = `<div class="v2-folder-root-container" style="padding: 0 10px 10px;" ${dropTargetAttr}>`;
         
         // Render Folders
         if (topLevelFolders.length > 0) {
@@ -337,10 +338,12 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
             itemsHtml = `<div style="padding: 20px; text-align: center; color: rgba(128,128,128,0.5); font-family: 'Share Tech Mono', monospace; font-size: 11px;">DATA NODE EMPTY</div>`;
         }
 
+        const frameDropAction = `ondragover="if(typeof allowDrop==='function')allowDrop(event)" ondrop="event.currentTarget.classList.remove('active'); if(typeof window.EveFolderViewV2.handleFolderDrop==='function') window.EveFolderViewV2.handleFolderDrop(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(folderId)}', '${escapeCardJs(workspaceId)}')" ondragenter="event.currentTarget.classList.add('active')" ondragleave="event.currentTarget.classList.remove('active')"`;
+        
         // Inject the Frame
         const frameHtml = `
             ${breadcrumbsHtml}
-            <div class="manhwa-frame">
+            <div class="manhwa-frame" ${frameDropAction}>
                 <div class="manhwa-frame-top-beam"></div>
                 <div class="manhwa-frame-left-glow"></div>
                 <div class="manhwa-scan-beam"></div>
