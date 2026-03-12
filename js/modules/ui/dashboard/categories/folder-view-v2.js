@@ -10,7 +10,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
     }
-    
+
     function escapeCardJs(value) {
         return String(value || '')
             .replace(/\\/g, '\\\\')
@@ -36,7 +36,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         const key = `${workspaceId}::${categoryName}`;
         const current = window.EveFolderViewV2.isManhwaModeEnabled(workspaceId, categoryName);
         window.eveState.config.cardFolderViewModes[key] = !current;
-        
+
         // Clear active folder state when toggling
         if (window.eveState.config.activeManhwaFolders) {
             delete window.eveState.config.activeManhwaFolders[key];
@@ -61,10 +61,10 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
     window.EveFolderViewV2.restoreActiveFolderState = function(workspaceId, categoryName) {
         if (!window.EveFolderViewV2.isManhwaModeEnabled(workspaceId, categoryName)) return;
         if (!window.eveState?.config?.activeManhwaFolders) return;
-        
+
         const key = `${workspaceId}::${categoryName}`;
         const targetFolderId = window.eveState.config.activeManhwaFolders[key];
-        
+
         if (targetFolderId) {
             // Give the DOM a tiny beat to attach the card before jumping in
             setTimeout(() => {
@@ -76,12 +76,12 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
     // Drag and Drop Helpers for Folder Movement
     window.EveFolderViewV2.handleFolderDragStart = function(event, folderId, categoryName, workspaceId) {
         if (!event || !event.dataTransfer) return;
-        
+
         // Stop bubbling to prevent parent folders from overwriting the payload
         event.stopPropagation();
-        
-        event.dataTransfer.setData('text/plain', JSON.stringify({ 
-            type: 'folder', 
+
+        event.dataTransfer.setData('text/plain', JSON.stringify({
+            type: 'folder',
             id: folderId,
             sourceCategory: categoryName,
             sourceWorkspace: workspaceId
@@ -115,11 +115,11 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         if (payload && payload.type === 'folder' && payload.id) {
             const folderIdToMove = payload.id;
             if (folderIdToMove === targetFolderId) return; // Can't move into itself
-            
+
             const folderApi = window.EveBookmarkFolders;
             if (!folderApi) return;
 
-            const isCrossCard = (payload.sourceWorkspace && payload.sourceWorkspace !== workspaceId) || 
+            const isCrossCard = (payload.sourceWorkspace && payload.sourceWorkspace !== workspaceId) ||
                                (payload.sourceCategory && payload.sourceCategory !== categoryName);
 
             if (isCrossCard && folderApi.transferFolderToCategory) {
@@ -140,7 +140,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                 // Intra-Card Move
                 folderApi.moveFolder(workspaceId, categoryName, folderIdToMove, targetFolderId || '');
             }
-            
+
             if (typeof window.renderDashboard === 'function') window.renderDashboard();
             return;
         }
@@ -155,10 +155,10 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
     window.EveFolderViewV2.renderRootGrid = function(workspaceId, categoryName, viewModel, defaultRenderer) {
         const topLevelFolders = viewModel.topLevelFolders || [];
         const rootLinks = viewModel.rootLinks || [];
-        
+
         const dropTargetAttr = `ondragover="if(typeof allowDrop==='function')allowDrop(event)" ondrop="event.currentTarget.classList.remove('active'); if(typeof window.EveFolderViewV2.handleFolderDrop==='function') window.EveFolderViewV2.handleFolderDrop(event, '${escapeCardJs(categoryName)}', '', '${escapeCardJs(workspaceId)}')" ondragenter="event.currentTarget.classList.add('active')" ondragleave="event.currentTarget.classList.remove('active')"`;
         let html = `<div class="v2-folder-root-container" style="padding: 0 10px 10px;" ${dropTargetAttr}>`;
-        
+
         // Render Folders
         if (topLevelFolders.length > 0) {
             html += `
@@ -211,7 +211,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
             event.preventDefault();
             event.stopPropagation();
         }
-        
+
         const card = document.querySelector(`.category-card[data-card-category="${escapeCardHtml(categoryName)}"][data-card-workspace="${escapeCardHtml(workspaceId)}"]`);
         if (!card) return;
 
@@ -226,7 +226,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
 
         // Build breadcrumb trail dynamically
         let trail = [{ label: categoryName.toLowerCase(), id: null }];
-        
+
         let currentNodeId = folderId;
         let pathNodes = [];
         // Walk up to root
@@ -253,10 +253,10 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         trail.forEach((t, i) => {
             if (i > 0) breadcrumbsHtml += `<span class="breadcrumb-separator">›</span>`;
             const isLast = i === trail.length - 1;
-            const clickAction = t.id 
+            const clickAction = t.id
                 ? `window.EveFolderViewV2.enterFolder(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(t.id)}', '${escapeCardJs(workspaceId)}')`
                 : `window.EveFolderViewV2.exitFolder(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(workspaceId)}')`;
-            
+
             const dropAction = `ondragover="if(typeof allowDrop==='function')allowDrop(event)" ondrop="event.currentTarget.classList.remove('breadcrumb-drag-hover'); if(typeof window.EveFolderViewV2.handleFolderDrop==='function') window.EveFolderViewV2.handleFolderDrop(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(t.id || '')}', '${escapeCardJs(workspaceId)}')" ondragenter="event.currentTarget.classList.add('breadcrumb-drag-hover')" ondragleave="event.currentTarget.classList.remove('breadcrumb-drag-hover')"`;
 
             breadcrumbsHtml += `<span class="breadcrumb-item ${isLast ? 'active' : ''}" onclick="${isLast ? '' : clickAction}" ${dropAction}>${escapeCardHtml(t.label.toUpperCase())}</span>`;
@@ -266,13 +266,13 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         // Add interior Edit Button if we are actually inside a folder
         if (folderId) {
             breadcrumbsHtml += `
-                <button type="button" class="folder-tile-edit-btn" style="position: absolute; right: 0; opacity: 0.7;" title="Edit Current Folder" 
+                <button type="button" class="folder-tile-edit-btn" style="position: absolute; right: 0; opacity: 0.7;" title="Edit Current Folder"
                     onclick="event.preventDefault(); event.stopPropagation(); if(typeof window.showFolderContextMenu === 'function') window.showFolderContextMenu(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(folderId)}', '${escapeCardJs(workspaceId)}');">
                     &#9998;
                 </button>
             `;
         }
-        
+
         breadcrumbsHtml += `</div>`;
 
         // 2. Build Sub-Folders Grid HTML
@@ -309,7 +309,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         let itemsHtml = '';
         if (folderItems.length > 0) {
             if (subFolders.length > 0) itemsHtml += `<div class="manhwa-divider">ITEMS</div>`;
-            
+
             let flatHtml = folderItems.map(link => {
                 const isTaskEnabled = typeof folderApi?.isTaskEnabledForLink === 'function' ? !!folderApi.isTaskEnabledForLink(link) : true;
                 if (typeof window.DashboardCategories?.buildLinkHtml === 'function') {
@@ -320,14 +320,14 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                 }
                 const jsId = escapeCardJs(String(link.id));
                 return `
-                    <div class="item-row" style="display: flex; align-items: center; gap: 12px; padding: 10px 18px; cursor: pointer; border-left: 2px solid rgba(128,128,128,0.2);" 
+                    <div class="item-row" style="display: flex; align-items: center; gap: 12px; padding: 10px 18px; cursor: pointer; border-left: 2px solid rgba(128,128,128,0.2);"
                          onclick="if(typeof window.handleLinkClick === 'function') { window.handleLinkClick(event, '${jsId}', this); } else { window.open('${escapeCardJs(link.url)}', '_blank'); }">
                         <span>${escapeCardHtml(link.icon || '🔗')}</span>
                         <span>${escapeCardHtml(link.title)}</span>
                     </div>
                 `;
             }).join('');
-            
+
             itemsHtml += `
                 <div style="padding: 4px 0;">
                     <ul class="category-scrollable" style="max-height: none; overflow: visible;">
@@ -342,7 +342,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         }
 
         const frameDropAction = `ondragover="if(typeof allowDrop==='function')allowDrop(event)" ondrop="event.currentTarget.classList.remove('active'); if(typeof window.EveFolderViewV2.handleFolderDrop==='function') window.EveFolderViewV2.handleFolderDrop(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(folderId)}', '${escapeCardJs(workspaceId)}')" ondragenter="event.currentTarget.classList.add('active')" ondragleave="event.currentTarget.classList.remove('active')"`;
-        
+
         // Inject the Frame
         const frameHtml = `
             ${breadcrumbsHtml}
@@ -359,7 +359,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                     ${itemsHtml}
                 </div>
             </div>
-            <div style="margin-top: 10px; cursor: pointer; color: rgba(128,128,128,0.6); font-family: 'Share Tech Mono', monospace; font-size: 10px;" 
+            <div style="margin-top: 10px; cursor: pointer; color: rgba(128,128,128,0.6); font-family: 'Share Tech Mono', monospace; font-size: 10px;"
                  onclick="window.EveFolderViewV2.exitFolder(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(workspaceId)}')">
                 ‹ SYSTEM ROOT
             </div>
@@ -388,7 +388,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
             event.preventDefault();
             event.stopPropagation();
         }
-        
+
         const card = document.querySelector(`.category-card[data-card-category="${escapeCardHtml(categoryName)}"][data-card-workspace="${escapeCardHtml(workspaceId)}"]`);
         if (!card || !card.dataset.mode1Html) return;
 
