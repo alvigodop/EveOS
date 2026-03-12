@@ -215,15 +215,24 @@ function _performDuplicateScan(items, modalTitleStr) {
             } else {
                 window._ctxTempFolderSubScanReport = report;
 
+                const escapeHtml = (unsafe) => {
+                    return (unsafe || '').toString()
+                         .replace(/&/g, "&amp;")
+                         .replace(/</g, "&lt;")
+                         .replace(/>/g, "&gt;")
+                         .replace(/"/g, "&quot;")
+                         .replace(/'/g, "&#039;");
+                };
+
                 let reportHtml = `<p>Found ${report.groups.length} library-wide duplicate groups involving these ${items.length} items.</p>`;
                 reportHtml += `<div style="max-height: 300px; overflow-y: auto; background: rgba(0,0,0,0.4); border: 1px solid #444; border-radius: 4px; padding: 10px; margin-top: 10px;">`;
 
                 report.groups.forEach((group, i) => {
                     reportHtml += `<div style="margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #333;">`;
                     reportHtml += `<div style="color: #00d4ff; font-weight: bold; margin-bottom: 4px;">Target URL:</div>`;
-                    reportHtml += `<div style="word-break: break-all; font-size: 0.85rem; opacity: 0.8; margin-bottom: 8px;">${group.url}</div>`;
+                    reportHtml += `<div style="word-break: break-all; font-size: 0.85rem; opacity: 0.8; margin-bottom: 8px;">${escapeHtml(group.url)}</div>`;
                     group.links.forEach(l => {
-                        reportHtml += `<div style="font-size: 0.85rem;">- ${l.title || 'Untitled'} (Folder: ${l.folderId || 'Root'})</div>`;
+                        reportHtml += `<div style="font-size: 0.85rem;">- ${escapeHtml(l.title || 'Untitled')} (Folder: ${escapeHtml(l.folderId || 'Root')})</div>`;
                     });
                     reportHtml += `</div>`;
                 });

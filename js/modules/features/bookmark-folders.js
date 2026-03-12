@@ -256,8 +256,10 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
             return true;
         });
 
+        const missingIcons = activeLinks.filter(l => !l.icon);
+
         const missingCovers = activeLinks.filter(l => {
-            let hasCover = !!(l.icon || l.image || l.cover);
+            let hasCover = !!(l.image || l.cover || l.coverImage || (l.coverImages && l.coverImages.length > 0));
             if (!hasCover && typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function') {
                 const conn = window.EveLibrary.ConnectionsAPI.findConnectionByLinkId(l.id);
                 if (conn && typeof window.EveLibrary?.EntriesAPI?.getEntryById === 'function') {
@@ -526,6 +528,7 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         // Maintenance
         addGhost('maintenance', '__ghost_unlinked__', '[ Unlinked Bookmarks ]', unlinkedLinks, 'unlinked');
         addGhost('maintenance', '__ghost_missing_covers__', '[ Missing Covers ]', missingCovers, 'missing_covers');
+        addGhost('maintenance', '__ghost_missing_icons__', '[ Missing Icons ]', missingIcons, 'missing_icons');
         addGhost('maintenance', '__ghost_untagged__', '[ Untagged ]', untaggedLinks, 'untagged');
         addGhost('maintenance', '__ghost_no_title__', '[ No Title ]', noTitleLinks, 'no_title');
         addGhost('maintenance', '__ghost_needs_review__', '[ Needs Review ]', needsReviewLinks, 'needs_review');
