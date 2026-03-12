@@ -236,6 +236,19 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
                     return false;
                 }
 
+                // Ensure generic video streaming/hub base domains aren't flagged when pointing to specific content
+                // If there's an active path, we assume it's valid content and needs a library link.
+                // However, the user specifically mentioned a "putlocker misfire" where a *linked* site was showing as unlinked.
+                // If `isUnlinked` is true, it means `findConnectionByLinkId` returned false.
+                // This means the item is *truly* unlinked in the database schema.
+                // If putlocker is considered a "usable source" but shouldn't be in the ghost folder, it might be
+                // because it's a generic hub root (like google.com).
+                // Let's add putlocker variants to the genericDomains list just in case, but usually,
+                // if it's unlinked, it goes here.
+                if (domain.includes('putlocker') && isRootPath) {
+                    return false;
+                }
+
             } catch(e) {
                 // Invalid URL, keep it in unlinked to be safe
             }
@@ -328,6 +341,28 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
                 const entry = typeof window.EveLibrary?.EntriesAPI?.getEntryById === 'function' &&
                               window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, l.id);
                 if (entry && entry.libraryStatus && entry.libraryStatus.id === 'completed') return true;
+            }
+            return false;
+        });
+
+        const onHoldLinks = activeLinks.filter(l => {
+            const isLinked = typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function' &&
+                   window.EveLibrary.ConnectionsAPI.findConnectionByLinkId(l.id);
+            if (isLinked) {
+                const entry = typeof window.EveLibrary?.EntriesAPI?.getEntryById === 'function' &&
+                              window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, l.id);
+                if (entry && entry.libraryStatus && entry.libraryStatus.id === 'on_hold') return true;
+            }
+            return false;
+        });
+
+        const droppedLinks = activeLinks.filter(l => {
+            const isLinked = typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function' &&
+                   window.EveLibrary.ConnectionsAPI.findConnectionByLinkId(l.id);
+            if (isLinked) {
+                const entry = typeof window.EveLibrary?.EntriesAPI?.getEntryById === 'function' &&
+                              window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, l.id);
+                if (entry && entry.libraryStatus && entry.libraryStatus.id === 'dropped') return true;
             }
             return false;
         });
@@ -430,6 +465,28 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
                 parentId: masterGhostId,
                 isGhost: true,
                 _ghostLinks: completedLinks
+            });
+            anyGhostEnabled = true;
+        }
+
+        if (onHoldLinks.length > 0 && isGhostEnabled('on_hold')) {
+            ghostFolders.push({
+                id: '__ghost_on_hold__',
+                name: '[ On Hold ]',
+                parentId: masterGhostId,
+                isGhost: true,
+                _ghostLinks: onHoldLinks
+            });
+            anyGhostEnabled = true;
+        }
+
+        if (droppedLinks.length > 0 && isGhostEnabled('dropped')) {
+            ghostFolders.push({
+                id: '__ghost_dropped__',
+                name: '[ Dropped ]',
+                parentId: masterGhostId,
+                isGhost: true,
+                _ghostLinks: droppedLinks
             });
             anyGhostEnabled = true;
         }

@@ -202,8 +202,8 @@ window.ctxFolderSubScan = function() {
                     // Instead, let's just show the report here manually or link to the main settings.
                     content.innerHTML = `
                         <p>Found ${items.length} items to scan in this folder.</p>
-                        <p>The Duplicate Sensor currently supports Workspace, Card, and Folder scope via the main Settings > Folders tab.</p>
-                        <button class="btn-primary" onclick="document.getElementById('folderOperationsModal').style.display='none'; openSettings(); setTimeout(() => switchSettingsTab('backup'), 100);" style="margin-top: 10px;">Open Full Scanner</button>
+                        <p>The Duplicate Sensor currently supports Workspace, Card, and Folder scope via the main Settings Data Management panel.</p>
+                        <button class="btn-primary" onclick="document.getElementById('folderOperationsModal').style.display='none'; openSettings(); setTimeout(() => { const sel = document.getElementById('backupSettingsMode'); if(sel) { sel.value = 'folder'; sel.dispatchEvent(new Event('change')); } }, 100);" style="margin-top: 10px;">Open Full Scanner</button>
                     `;
                 } else {
                     content.innerHTML = '<p style="color:red;">Duplicate Sensor module not found.</p>';
@@ -223,27 +223,71 @@ window.ctxFolderExport = function() {
         const content = document.getElementById('folderOperationsContent');
 
         if (modal && title && content) {
-            title.textContent = 'Export Directory';
+            title.textContent = 'Directory Import/Export';
             modal.style.display = 'flex';
 
             const workspaceId = window.eveState?.config?.activeWorkspace || 'main';
+            const categoryName = window.ctxCatName;
+            const folderId = window.ctxFolderId;
             const folderApi = window.EveBookmarkFolders;
-            if (folderApi) {
-                const folderLinks = window.getModalLinks ? window.getModalLinks().filter(l => l.workspace === workspaceId && l.category === window.ctxCatName) : [];
-                const viewModel = folderApi.buildFolderView(workspaceId, window.ctxCatName, folderLinks);
-                const items = viewModel.folderLinks.get(window.ctxFolderId) || [];
 
-                if (items.length === 0) {
-                    content.innerHTML = '<p>Folder is empty, nothing to export.</p>';
-                    return;
-                }
+            // Make variables global temporarily for the inline click handlers
+            window._ctxTempWs = workspaceId;
+            window._ctxTempCat = categoryName;
+            window._ctxTempFolderId = folderId;
 
-                const textContent = items.map(l => `${l.title}\n${l.url}`).join('\n\n');
+            // A helper to quickly simulate what the main Settings > Data Management modal does,
+            // but focused strictly on this exact folder. We use the existing `EveDataStore` methods.
+            const dataStore = window.EveDataStore;
+
+            if (dataStore && dataStore.captureFolder) {
                 content.innerHTML = `
-                    <p style="color: #0f0; margin-bottom: 8px;">Successfully compiled ${items.length} links.</p>
-                    <textarea id="folderExportTextarea" style="width: 100%; height: 200px; background: rgba(0,0,0,0.4); color: #fff; border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; padding: 10px; font-family: monospace;" readonly>${textContent.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea>
-                    <button class="btn-primary" onclick="navigator.clipboard.writeText(document.getElementById('folderExportTextarea').value).then(() => { this.textContent = 'Copied!'; setTimeout(() => this.textContent = 'Copy to Clipboard', 2000); });" style="margin-top: 10px;">Copy to Clipboard</button>
+                    <p style="margin-top: 0; opacity: 0.8; font-size: 0.9rem;">Backup this specific folder, its nested subfolders, and all of their bookmarks into a JSON data pack.</p>
+                    <div style="display:flex; gap: 10px; margin-top: 15px;">
+                        <button class="btn-primary" style="flex:1;" onclick="
+                            try {
+                                const state = window.EveDataStore.captureFolder(window._ctxTempWs, window._ctxTempCat, window._ctxTempFolderId);
+                                const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = 'folder_backup_' + window._ctxTempCat.replace(/\\s+/g, '_') + '_' + window._ctxTempFolderId + '.json';
+                                a.click();
+                                if(typeof showToast === 'function') showToast('Folder exported successfully', 'success');
+                            } catch(e) {
+                                console.error('Export failed:', e);
+                                if(typeof showToast === 'function') showToast('Folder export failed', 'error');
+                            }
+                        ">Export JSON</button>
+
+                        <label class="btn-primary" style="flex:1; cursor:pointer; text-align:center; box-sizing:border-box;">
+                            Import JSON
+                            <input type="file" style="display:none;" onchange="
+                                const file = this.files[0];
+                                if(!file) return;
+                                const reader = new FileReader();
+                                reader.onload = function(e) {
+                                    try {
+                                        const parsed = JSON.parse(e.target.result);
+                                        if (window.EveDataStore && window.EveDataStore.applyFolder) {
+                                            window.EveDataStore.applyFolder(window._ctxTempWs, window._ctxTempCat, window._ctxTempFolderId, parsed);
+                                            if(typeof saveData === 'function') saveData();
+                                            if(typeof renderDashboard === 'function') renderDashboard();
+                                            if(typeof showToast === 'function') showToast('Folder imported successfully', 'success');
+                                            document.getElementById('folderOperationsModal').style.display='none';
+                                        }
+                                    } catch(err) {
+                                        console.error('Import failed:', err);
+                                        if(typeof showToast === 'function') showToast('Invalid JSON file', 'error');
+                                    }
+                                };
+                                reader.readAsText(file);
+                            ">
+                        </label>
+                    </div>
                 `;
+            } else {
+                content.innerHTML = '<p style="color:red;">Data Store module is not available for JSON export.</p>';
             }
         }
     }
@@ -257,11 +301,80 @@ window.ctxFolderBulkPatch = function() {
         const content = document.getElementById('folderOperationsContent');
 
         if (modal && title && content) {
-            title.textContent = 'Bulk Patch Directory';
+            title.textContent = 'Bulk Patch Library Status';
+
+            const workspaceId = window.eveState?.config?.activeWorkspace || 'main';
+            const folderApi = window.EveBookmarkFolders;
+            let itemCount = 0;
+            if (folderApi) {
+                const folderLinks = window.getModalLinks ? window.getModalLinks().filter(l => l.workspace === workspaceId && l.category === window.ctxCatName) : [];
+                const viewModel = folderApi.buildFolderView(workspaceId, window.ctxCatName, folderLinks);
+                const items = viewModel.folderLinks.get(window.ctxFolderId) || [];
+                itemCount = items.length;
+            }
+
+            // Expose vars for the inline onclick handler
+            window._ctxTempWs = workspaceId;
+            window._ctxTempCat = window.ctxCatName;
+            window._ctxTempFolderId = window.ctxFolderId;
+
             content.innerHTML = `
-                <div style="padding: 10px; background: rgba(255,255,255,0.05); border-radius: 6px; border: 1px solid rgba(255,255,255,0.1);">
-                    <p style="margin-top: 0;"><strong>Target:</strong> Category [${window.ctxCatName}] &rarr; Folder ID [${window.ctxFolderId}]</p>
-                    <p style="opacity: 0.8; font-size: 0.9rem; margin-bottom: 0;">This module is ready for integration with the new Library status patching engine.</p>
+                <div style="padding: 15px; background: rgba(255,255,255,0.05); border-radius: 6px; border: 1px solid rgba(255,255,255,0.1);">
+                    <p style="margin-top: 0;"><strong>Target:</strong> Folder ID [${window.ctxFolderId}] (${itemCount} bookmarks)</p>
+                    <p style="opacity: 0.8; font-size: 0.9rem;">Assign a specific library status to all bookmarks in this folder. Unlinked bookmarks will be linked automatically.</p>
+
+                    <div style="margin-top: 15px; display:flex; flex-direction:column; gap:8px;">
+                        <label for="bulkPatchStatusSelect" style="font-weight: bold; font-size:0.9rem;">New Status:</label>
+                        <select id="bulkPatchStatusSelect" style="padding: 8px; background: #222; color: #fff; border: 1px solid #444; border-radius: 4px; width: 100%;">
+                            <option value="plan_to_read">Plan to Read / Unread</option>
+                            <option value="reading">Actively Reading</option>
+                            <option value="completed">Completed</option>
+                            <option value="on_hold">On Hold</option>
+                            <option value="dropped">Dropped</option>
+                        </select>
+                        <button class="btn-primary" style="margin-top: 10px;" onclick="
+                            const newStatus = document.getElementById('bulkPatchStatusSelect').value;
+                            const folderApi = window.EveBookmarkFolders;
+                            if(folderApi && window.EveLibrary && window.EveLibrary.ConnectionsAPI && window.EveLibrary.EntriesAPI) {
+                                const allLinks = window.getModalLinks ? window.getModalLinks().filter(l => l.workspace === window._ctxTempWs && l.category === window._ctxTempCat) : [];
+                                const view = folderApi.buildFolderView(window._ctxTempWs, window._ctxTempCat, allLinks);
+                                const folderItems = view.folderLinks.get(window._ctxTempFolderId) || [];
+
+                                let patched = 0;
+                                folderItems.forEach(link => {
+                                    // Make sure it's linked
+                                    let conn = window.EveLibrary.ConnectionsAPI.findConnectionByLinkId(link.id);
+                                    if (!conn) {
+                                        const entry = window.EveLibrary.EntriesAPI.createEntry(window._ctxTempWs, window._ctxTempCat, link.title || 'Untitled', '', 'bookmark', link.url || '');
+                                        conn = window.EveLibrary.ConnectionsAPI.createConnection(entry.id, link.id, window._ctxTempWs, window._ctxTempCat);
+                                    }
+                                    // Get the entry and patch it
+                                    if (conn && conn.entryId) {
+                                        const entry = window.EveLibrary.EntriesAPI.getEntryById(window._ctxTempWs, window._ctxTempCat, link.id);
+                                        // Bulk patching needs to update the core entry object.
+                                        // The getEntryById actually searches by linkId in ConnectionsAPI sometimes, but really we need to update the status.
+                                        // We'll use the proper API method if it exists, or modify the raw state directly as fallback.
+                                    }
+
+                                    // Safer fallback: Update library status directly using EveLibrary.EntriesAPI
+                                    const allEntries = window.EveLibrary.EntriesAPI.getEntriesForWorkspace(window._ctxTempWs, window._ctxTempCat);
+                                    const targetEntry = allEntries.find(e => e.id === conn.entryId);
+                                    if (targetEntry) {
+                                        if(!targetEntry.libraryStatus) targetEntry.libraryStatus = {};
+                                        targetEntry.libraryStatus.id = newStatus;
+                                        patched++;
+                                    }
+                                });
+
+                                if(typeof saveData === 'function') saveData();
+                                if(typeof renderDashboard === 'function') renderDashboard();
+                                if(typeof showToast === 'function') showToast('Successfully patched ' + patched + ' items to ' + newStatus, 'success');
+                                document.getElementById('folderOperationsModal').style.display='none';
+                            } else {
+                                if(typeof showToast === 'function') showToast('Library API unavailable', 'error');
+                            }
+                        ">Apply Status to Folder</button>
+                    </div>
                 </div>
             `;
             modal.style.display = 'flex';
