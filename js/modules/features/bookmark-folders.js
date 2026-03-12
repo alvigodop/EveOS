@@ -292,63 +292,156 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
             return false;
         });
 
+        const unreadLinks = activeLinks.filter(l => {
+            // Checks for some indicator of unread state, like no read count, empty progress, or explicit "unread" flag
+            const isLinked = typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function' &&
+                   window.EveLibrary.ConnectionsAPI.findConnectionByLinkId(l.id);
+
+            if (isLinked) {
+                const entry = typeof window.EveLibrary?.EntriesAPI?.getEntryById === 'function' &&
+                              window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, l.id);
+                if (entry && entry.progress !== undefined && entry.progress === 0) return true;
+                if (entry && entry.libraryStatus && entry.libraryStatus.id === 'plan_to_read') return true;
+            }
+            return false;
+        });
+
+        const readingLinks = activeLinks.filter(l => {
+            // Checks for items actively being read
+            const isLinked = typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function' &&
+                   window.EveLibrary.ConnectionsAPI.findConnectionByLinkId(l.id);
+
+            if (isLinked) {
+                const entry = typeof window.EveLibrary?.EntriesAPI?.getEntryById === 'function' &&
+                              window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, l.id);
+                if (entry && entry.libraryStatus && entry.libraryStatus.id === 'reading') return true;
+            }
+            return false;
+        });
+
+        const completedLinks = activeLinks.filter(l => {
+            // Checks for items completed
+            const isLinked = typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function' &&
+                   window.EveLibrary.ConnectionsAPI.findConnectionByLinkId(l.id);
+
+            if (isLinked) {
+                const entry = typeof window.EveLibrary?.EntriesAPI?.getEntryById === 'function' &&
+                              window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, l.id);
+                if (entry && entry.libraryStatus && entry.libraryStatus.id === 'completed') return true;
+            }
+            return false;
+        });
+
         const ghostFolders = [];
         const isGhostEnabled = (type) => {
             return !window.EveFolderViewV2 || window.EveFolderViewV2.isGhostFolderEnabled(workspaceId, categoryName, type);
         };
 
+        const masterGhostId = '__ghost_master__';
+        let anyGhostEnabled = false;
+
         if (recentLinks.length > 0 && isGhostEnabled('recent')) {
             ghostFolders.push({
                 id: '__ghost_recent__',
                 name: '[ Recently Updated ]',
-                parentId: null,
+                parentId: masterGhostId,
                 isGhost: true,
                 _ghostLinks: recentLinks
             });
+            anyGhostEnabled = true;
         }
         if (unlinkedLinks.length > 0 && isGhostEnabled('unlinked')) {
             ghostFolders.push({
                 id: '__ghost_unlinked__',
                 name: '[ Unlinked Bookmarks ]',
-                parentId: null,
+                parentId: masterGhostId,
                 isGhost: true,
                 _ghostLinks: unlinkedLinks
             });
+            anyGhostEnabled = true;
         }
         if (missingCovers.length > 0 && isGhostEnabled('missing_covers')) {
             ghostFolders.push({
                 id: '__ghost_missing_covers__',
                 name: '[ Missing Covers ]',
-                parentId: null,
+                parentId: masterGhostId,
                 isGhost: true,
                 _ghostLinks: missingCovers
             });
+            anyGhostEnabled = true;
         }
         if (duplicateSuspects.length > 0 && isGhostEnabled('duplicate_suspects')) {
             ghostFolders.push({
                 id: '__ghost_duplicate_suspects__',
                 name: '[ Duplicate Suspects ]',
-                parentId: null,
+                parentId: masterGhostId,
                 isGhost: true,
                 _ghostLinks: duplicateSuspects
             });
+            anyGhostEnabled = true;
         }
         if (untaggedLinks.length > 0 && isGhostEnabled('untagged')) {
             ghostFolders.push({
                 id: '__ghost_untagged__',
                 name: '[ Untagged ]',
-                parentId: null,
+                parentId: masterGhostId,
                 isGhost: true,
                 _ghostLinks: untaggedLinks
             });
+            anyGhostEnabled = true;
         }
         if (needsReviewLinks.length > 0 && isGhostEnabled('needs_review')) {
             ghostFolders.push({
                 id: '__ghost_needs_review__',
                 name: '[ Needs Review ]',
-                parentId: null,
+                parentId: masterGhostId,
                 isGhost: true,
                 _ghostLinks: needsReviewLinks
+            });
+            anyGhostEnabled = true;
+        }
+
+        if (unreadLinks.length > 0 && isGhostEnabled('unread')) {
+            ghostFolders.push({
+                id: '__ghost_unread__',
+                name: '[ Plan to Read / Unread ]',
+                parentId: masterGhostId,
+                isGhost: true,
+                _ghostLinks: unreadLinks
+            });
+            anyGhostEnabled = true;
+        }
+
+        if (readingLinks.length > 0 && isGhostEnabled('reading')) {
+            ghostFolders.push({
+                id: '__ghost_reading__',
+                name: '[ Actively Reading ]',
+                parentId: masterGhostId,
+                isGhost: true,
+                _ghostLinks: readingLinks
+            });
+            anyGhostEnabled = true;
+        }
+
+        if (completedLinks.length > 0 && isGhostEnabled('completed')) {
+            ghostFolders.push({
+                id: '__ghost_completed__',
+                name: '[ Completed ]',
+                parentId: masterGhostId,
+                isGhost: true,
+                _ghostLinks: completedLinks
+            });
+            anyGhostEnabled = true;
+        }
+
+        if (anyGhostEnabled) {
+            ghostFolders.unshift({
+                id: masterGhostId,
+                name: '[ System Views ]',
+                parentId: null,
+                isGhost: true,
+                isMasterGhost: true,
+                _ghostLinks: []
             });
         }
 
