@@ -257,7 +257,17 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         });
 
         const missingCovers = activeLinks.filter(l => {
-            return !l.icon && !l.image && (!l.cover || l.cover === '');
+            let hasCover = !!(l.icon || l.image || l.cover);
+            if (!hasCover && typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function') {
+                const conn = window.EveLibrary.ConnectionsAPI.findConnectionByLinkId(l.id);
+                if (conn && typeof window.EveLibrary?.EntriesAPI?.getEntryById === 'function') {
+                    const entry = window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, l.id);
+                    if (entry && (entry.coverImage || entry.bannerImage)) {
+                        hasCover = true;
+                    }
+                }
+            }
+            return !hasCover;
         });
 
         const urlCounts = {};
@@ -374,16 +384,22 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         });
 
         const missingNotesLinks = activeLinks.filter(l => {
+            const isLinked = typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function' &&
+                   window.EveLibrary.ConnectionsAPI.findConnectionByLinkId(l.id);
+
+            // Unlinked bookmarks do not need to be in the missing notes list
+            if (!isLinked) return false;
+
             const hasLinkNote = typeof l.notes === 'string' && l.notes.trim().length > 0;
             if (hasLinkNote) return false;
 
-            const isLinked = typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function' &&
-                   window.EveLibrary.ConnectionsAPI.findConnectionByLinkId(l.id);
-            if (isLinked) {
-                const entry = typeof window.EveLibrary?.EntriesAPI?.getEntryById === 'function' &&
-                              window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, l.id);
-                if (entry && typeof entry.summary === 'string' && entry.summary.trim().length > 0) return false;
-            }
+            const entry = typeof window.EveLibrary?.EntriesAPI?.getEntryById === 'function' &&
+                          window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, l.id);
+
+            // If the linked entry has a summary, we don't consider notes missing
+            if (entry && typeof entry.summary === 'string' && entry.summary.trim().length > 0) return false;
+
+            // Connected, but no bookmark note and no library summary
             return true;
         });
 
