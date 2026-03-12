@@ -133,10 +133,15 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
     }
 
     function writeStore(nextStore, persist = true) {
+        // Ensure all global refs point to the same object
+        window.bookmarkFolders = nextStore;
         if (typeof bookmarkFolders !== 'undefined') {
             bookmarkFolders = nextStore;
         }
-        window.bookmarkFolders = nextStore;
+        if (window.eveState) {
+            window.eveState.bookmarkFolders = nextStore;
+        }
+
         if (persist && typeof saveData === 'function') {
             saveData();
         }
@@ -440,70 +445,97 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
     }
 
     function transferFolderToCategory(folderId, sourceWs, sourceCat, targetWs, targetCat, targetParentId) {
-        const sWs = normalizeWorkspaceId(sourceWs);
-        const sCat = normalizeCategoryName(sourceCat);
-        const tWs = normalizeWorkspaceId(targetWs);
-        const tCat = normalizeCategoryName(targetCat);
-        const fId = normalizeFolderId(folderId);
-        const tpId = normalizeParentId(targetParentId);
+        try {
+            const sWs = normalizeWorkspaceId(sourceWs);
+            const sCat = normalizeCategoryName(sourceCat);
+            const tWs = normalizeWorkspaceId(targetWs);
+            const tCat = normalizeCategoryName(targetCat);
+            const fId = normalizeFolderId(folderId);
+            const tpId = normalizeParentId(targetParentId);
 
-        if (!fId) return false;
-        
-        // If it's the same card, just use the local moveFolder logic
-        if (sWs === tWs && sCat === tCat) {
-            return moveFolder(sWs, sCat, fId, tpId);
-        }
+            if (!fId) {
+                console.warn('[EveBookmarkFolders] Transfer Aborted: Missing Folder ID');
+                return false;
+            }
+            
+            // If it's the same card, just use the local moveFolder logic
+            if (sWs === tWs && sCat === tCat) {
+                return moveFolder(sWs, sCat, fId, tpId);
+            }
 
-        const sourceNodes = getScopedNodes(sWs, sCat);
-        if (!sourceNodes || sourceNodes.length === 0) return false;
+            const nextStore = cloneStore();
+            const sKey = buildScopedKey(sWs, sCat);
+            const tKey = buildScopedKey(tWs, tCat);
 
-        const targetNodes = getScopedNodes(tWs, tCat);
+            const sourceTree = nextStore[sKey];
+            if (!sourceTree || !sourceTree.nodes || sourceTree.nodes.length === 0) {
+                console.warn('[EveBookmarkFolders] Transfer Aborted: Source tree empty or missing', sKey);
+                return false;
+            }
 
-        // Find the folder and all its descendants in the source
-        const nodeMap = buildNodeMap(sourceNodes);
-        const childrenMap = buildChildrenMap(sourceNodes);
+            const targetTree = nextStore[tKey] || { nodes: [], settings: normalizeTreeSettings({}) };
 
-        const toMoveIds = new Set();
-        function collect(id) {
-            toMoveIds.add(id);
-            (childrenMap.get(id) || []).forEach(child => collect(child.id));
-        }
+            // Find the folder and all its descendants in the source
+            const childrenMap = buildChildrenMap(sourceTree.nodes);
 
-        const rootNode = nodeMap.get(fId);
-        if (!rootNode) return false;
-        collect(fId);
+            const toMoveIds = new Set();
+            function collect(id) {
+                toMoveIds.add(id);
+                (childrenMap.get(id) || []).forEach(child => collect(child.id));
+            }
 
-        // Update parent of the root moved node BEFORE adding to target
-        rootNode.parentId = tpId;
-        rootNode.updatedAt = Date.now();
+            const rootNodeId = fId;
+            // Check if rootNode exists in source
+            if (!sourceTree.nodes.some(n => normalizeFolderId(n.id) === rootNodeId)) {
+                return false;
+            }
+            
+            collect(rootNodeId);
 
-        // 1. Prepare moved nodes
-        const movedNodes = sourceNodes.filter(n => toMoveIds.has(n.id));
-        if (movedNodes.length === 0) return false;
-
-        // 2. Add nodes to target first (Hardening: Ensure target is updated before source removal)
-        const finalTargetNodes = [...targetNodes, ...movedNodes];
-        setScopedNodes(tWs, tCat, finalTargetNodes, { persist: false });
-
-        // 3. Update all bookmarks in these folders to the new category/workspace
-        if (Array.isArray(window.eveState?.links)) {
-            window.eveState.links.forEach(link => {
-                if (toMoveIds.has(normalizeFolderId(link.folderId))) {
-                    link.workspace = tWs;
-                    link.category = tCat;
-                    if (typeof window.EveLibrary?.ConnectionsAPI?.syncFromLink === 'function') {
-                        window.EveLibrary.ConnectionsAPI.syncFromLink(link.id);
-                    }
+            // 1. Prepare moved nodes
+            const movedNodes = sourceTree.nodes.filter(n => toMoveIds.has(n.id)).map(n => {
+                const newNode = { ...n };
+                if (normalizeFolderId(n.id) === rootNodeId) {
+                    newNode.parentId = tpId;
+                    newNode.updatedAt = Date.now();
                 }
+                return newNode;
             });
+
+            console.log('[EveBookmarkFolders] Nodes captured:', movedNodes.length);
+            if (movedNodes.length === 0) return false;
+
+            // 2. Add to target
+            targetTree.nodes = [...targetTree.nodes, ...movedNodes];
+            nextStore[tKey] = targetTree;
+
+            // 3. Remove from source
+            sourceTree.nodes = sourceTree.nodes.filter(n => !toMoveIds.has(n.id));
+            if (sourceTree.nodes.length === 0 && sourceTree.settings.clickBehaviorMode === 'inherit') {
+                delete nextStore[sKey];
+            } else {
+                nextStore[sKey] = sourceTree;
+            }
+
+            // 4. Update all bookmarks in these folders to the new category/workspace
+            if (Array.isArray(window.eveState?.links)) {
+                window.eveState.links.forEach(link => {
+                    if (toMoveIds.has(normalizeFolderId(link.folderId))) {
+                        link.workspace = tWs;
+                        link.category = tCat;
+                        if (typeof window.EveLibrary?.ConnectionsAPI?.syncFromLink === 'function') {
+                            window.EveLibrary.ConnectionsAPI.syncFromLink(link.id);
+                        }
+                    }
+                });
+            }
+
+            // 5. Final Atomic Write
+            writeStore(nextStore, true);
+            return true;
+        } catch (err) {
+            return false;
         }
-
-        // 4. Remove nodes from source (Now safe because target and links are updated)
-        const remainingSourceNodes = sourceNodes.filter(n => !toMoveIds.has(n.id));
-        setScopedNodes(sWs, sCat, remainingSourceNodes, { persist: false });
-
-        if (typeof saveData === 'function') saveData();
-        return true;
     }
 
 
@@ -815,6 +847,24 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
     window.toggleBookmarkFolderToolbar = function (categoryName, workspaceId) {
         toggleToolbarExpanded(workspaceId, getActiveCategoryContext(categoryName));
     };
+    window.deleteBookmarkFolderPrompt = async function (categoryName, folderId) {
+        const resolvedCategory = getActiveCategoryContext(categoryName);
+        const target = getFolderById(normalizeWorkspaceId(), resolvedCategory, folderId);
+        if (!target) return;
+        const confirmed = typeof showConfirm === 'function'
+            ? await showConfirm(`Delete "${target.name}"? Bookmarks move to the parent/root and subfolders move up one level.`)
+            : window.confirm(`Delete "${target.name}"? Bookmarks move to the parent/root and subfolders move up one level.`);
+        if (!confirmed) return;
+        if (!deleteFolder({
+            workspaceId: normalizeWorkspaceId(),
+            categoryName: resolvedCategory,
+            folderId
+        })) return;
+        if (typeof showToast === 'function') showToast(`Folder "${target.name}" removed`, 'success');
+        if (typeof window.renderCategoryFolderManager === 'function') {
+            window.renderCategoryFolderManager();
+        }
+    };
 
     window.openAddModalForFolder = function (categoryName, folderId) {
         if (typeof openAddModal === 'function') {
@@ -839,24 +889,6 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         }
     };
 
-    window.deleteBookmarkFolderPrompt = async function (categoryName, folderId) {
-        const resolvedCategory = getActiveCategoryContext(categoryName);
-        const target = getFolderById(normalizeWorkspaceId(), resolvedCategory, folderId);
-        if (!target) return;
-        const confirmed = typeof showConfirm === 'function'
-            ? await showConfirm(`Delete "${target.name}"? Bookmarks move to the parent/root and subfolders move up one level.`)
-            : window.confirm(`Delete "${target.name}"? Bookmarks move to the parent/root and subfolders move up one level.`);
-        if (!confirmed) return;
-        if (!deleteFolder({
-            workspaceId: normalizeWorkspaceId(),
-            categoryName: resolvedCategory,
-            folderId
-        })) return;
-        if (typeof showToast === 'function') showToast(`Folder "${target.name}" removed`, 'success');
-        if (typeof window.renderCategoryFolderManager === 'function') {
-            window.renderCategoryFolderManager();
-        }
-    };
 
     window.moveBookmarksToFolderDrop = function (event, categoryName, folderId, workspaceId) {
         if (event) {

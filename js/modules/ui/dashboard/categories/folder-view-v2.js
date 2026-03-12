@@ -73,6 +73,10 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
     // Drag and Drop Helpers for Folder Movement
     window.EveFolderViewV2.handleFolderDragStart = function(event, folderId, categoryName, workspaceId) {
         if (!event || !event.dataTransfer) return;
+        
+        // Stop bubbling to prevent parent folders from overwriting the payload
+        event.stopPropagation();
+        
         event.dataTransfer.setData('text/plain', JSON.stringify({ 
             type: 'folder', 
             id: folderId,
@@ -116,6 +120,10 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                                (payload.sourceCategory && payload.sourceCategory !== categoryName);
 
             if (isCrossCard && folderApi.transferFolderToCategory) {
+                if (!payload.sourceWorkspace || !payload.sourceCategory) {
+                    console.warn('[EveFolderViewV2] Cross-card transfer aborted: Missing source metadata.', payload);
+                    return;
+                }
                 // Cross-Card Transfer
                 folderApi.transferFolderToCategory(
                     folderIdToMove,
