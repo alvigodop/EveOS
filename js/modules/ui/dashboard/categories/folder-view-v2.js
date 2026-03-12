@@ -19,10 +19,13 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
 
     // State Management
     window.EveFolderViewV2.isManhwaModeEnabled = function(workspaceId, categoryName) {
-        if (!window.eveState?.config) return false;
-        if (typeof window.eveState.config.cardFolderViewModes !== 'object') return false;
+        if (!window.eveState?.config) return true;
+        if (typeof window.eveState.config.cardFolderViewModes !== 'object') return true;
         const key = `${workspaceId}::${categoryName}`;
-        return !!window.eveState.config.cardFolderViewModes[key];
+        if (window.eveState.config.cardFolderViewModes.hasOwnProperty(key)) {
+            return !!window.eveState.config.cardFolderViewModes[key];
+        }
+        return true;
     };
 
     window.EveFolderViewV2.toggleManhwaMode = function(workspaceId, categoryName) {
@@ -31,7 +34,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
             window.eveState.config.cardFolderViewModes = {};
         }
         const key = `${workspaceId}::${categoryName}`;
-        const current = !!window.eveState.config.cardFolderViewModes[key];
+        const current = window.EveFolderViewV2.isManhwaModeEnabled(workspaceId, categoryName);
         window.eveState.config.cardFolderViewModes[key] = !current;
         
         // Clear active folder state when toggling
