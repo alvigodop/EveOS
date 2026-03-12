@@ -24,6 +24,10 @@ window.ContextMenus.template = `
     <div class="ctx-item" onclick="ctxFolderSubfolder()">&#128193; New Subfolder</div>
     <div class="ctx-item" onclick="ctxFolderRename()">&#9998; Rename</div>
     <div class="ctx-divider"></div>
+    <div class="ctx-item" onclick="ctxFolderSubScan()">&#128269; Sub-Scan (Duplicates)</div>
+    <div class="ctx-item" onclick="ctxFolderExport()">&#128190; Export Directory</div>
+    <div class="ctx-item" onclick="ctxFolderBulkPatch()">&#9881; Bulk Patch</div>
+    <div class="ctx-divider"></div>
     <div class="ctx-item" style="color:var(--danger)" onclick="ctxFolderDelete()">&#128465; Delete</div>
 </div>
 `;

@@ -257,7 +257,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                 ? `window.EveFolderViewV2.enterFolder(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(t.id)}', '${escapeCardJs(workspaceId)}')`
                 : `window.EveFolderViewV2.exitFolder(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(workspaceId)}')`;
             
-            const dropAction = `ondragover="if(typeof allowDrop==='function')allowDrop(event)" ondrop="event.currentTarget.classList.remove('active'); if(typeof window.EveFolderViewV2.handleFolderDrop==='function') window.EveFolderViewV2.handleFolderDrop(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(t.id || '')}', '${escapeCardJs(workspaceId)}')" ondragenter="event.currentTarget.classList.add('active')" ondragleave="event.currentTarget.classList.remove('active')"`;
+            const dropAction = `ondragover="if(typeof allowDrop==='function')allowDrop(event)" ondrop="event.currentTarget.classList.remove('breadcrumb-drag-hover'); if(typeof window.EveFolderViewV2.handleFolderDrop==='function') window.EveFolderViewV2.handleFolderDrop(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(t.id || '')}', '${escapeCardJs(workspaceId)}')" ondragenter="event.currentTarget.classList.add('breadcrumb-drag-hover')" ondragleave="event.currentTarget.classList.remove('breadcrumb-drag-hover')"`;
 
             breadcrumbsHtml += `<span class="breadcrumb-item ${isLast ? 'active' : ''}" onclick="${isLast ? '' : clickAction}" ${dropAction}>${escapeCardHtml(t.label.toUpperCase())}</span>`;
             if (isLast) breadcrumbsHtml += `<span class="breadcrumb-cursor"></span>`;

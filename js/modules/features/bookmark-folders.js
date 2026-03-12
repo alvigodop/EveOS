@@ -198,15 +198,61 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
     }
 
     function buildFolderView(workspaceId, categoryName, cardLinks) {
-        const scopedNodes = getScopedNodes(workspaceId, categoryName);
+        let scopedNodes = getScopedNodes(workspaceId, categoryName);
+
+        // --- Inject Ghost Folders ---
+        const activeLinks = Array.isArray(cardLinks) ? cardLinks : [];
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        const recentTime = sevenDaysAgo.getTime();
+
+        const recentLinks = activeLinks.filter(l => {
+            if (!l.updatedAt) return false;
+            const updatedTime = new Date(l.updatedAt).getTime();
+            return updatedTime >= recentTime;
+        });
+
+        const unlinkedLinks = activeLinks.filter(l => {
+            return typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function' &&
+                   !window.EveLibrary.ConnectionsAPI.findConnectionByLinkId(l.id);
+        });
+
+        const ghostFolders = [];
+        if (recentLinks.length > 0) {
+            ghostFolders.push({
+                id: '__ghost_recent__',
+                name: '[ Recently Updated ]',
+                parentId: null,
+                isGhost: true,
+                _ghostLinks: recentLinks
+            });
+        }
+        if (unlinkedLinks.length > 0) {
+            ghostFolders.push({
+                id: '__ghost_unlinked__',
+                name: '[ Unlinked Nodes ]',
+                parentId: null,
+                isGhost: true,
+                _ghostLinks: unlinkedLinks
+            });
+        }
+
+        scopedNodes = [...ghostFolders, ...scopedNodes];
+        // --- End Ghost Folders ---
+
         const nodeMap = buildNodeMap(scopedNodes);
         const childrenMap = buildChildrenMap(scopedNodes);
         const folderLinks = new Map();
         const rootLinks = [];
 
-        (Array.isArray(cardLinks) ? cardLinks : []).forEach((link) => {
+        // Pre-fill ghost folder links
+        ghostFolders.forEach(gf => {
+            folderLinks.set(gf.id, gf._ghostLinks);
+        });
+
+        activeLinks.forEach((link) => {
             const folderId = normalizeFolderId(link?.folderId);
-            if (folderId && nodeMap.has(folderId)) {
+            if (folderId && nodeMap.has(folderId) && !nodeMap.get(folderId).isGhost) {
                 if (!folderLinks.has(folderId)) folderLinks.set(folderId, []);
                 folderLinks.get(folderId).push(link);
                 return;
