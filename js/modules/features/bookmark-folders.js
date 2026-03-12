@@ -243,9 +243,9 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
                 // This means the item is *truly* unlinked in the database schema.
                 // If putlocker is considered a "usable source" but shouldn't be in the ghost folder, it might be
                 // because it's a generic hub root (like google.com).
-                // Let's add putlocker variants to the genericDomains list just in case, but usually,
-                // if it's unlinked, it goes here.
-                if (domain.includes('putlocker') && isRootPath) {
+                // Let's explicitly ignore putlocker variants entirely, as the user considers them fully fledged sources
+                // that don't need dedicated library entries to be considered "valid" in their workflow.
+                if (domain.includes('putlocker')) {
                     return false;
                 }
 
@@ -363,6 +363,43 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
                 const entry = typeof window.EveLibrary?.EntriesAPI?.getEntryById === 'function' &&
                               window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, l.id);
                 if (entry && entry.libraryStatus && entry.libraryStatus.id === 'dropped') return true;
+            }
+            return false;
+        });
+
+        const brokenLinks = activeLinks.filter(l => {
+            if (!l.url || typeof l.url !== 'string') return true;
+            const urlStr = l.url.trim().toLowerCase();
+            return urlStr === '' || urlStr === '#' || urlStr.startsWith('javascript:');
+        });
+
+        const missingNotesLinks = activeLinks.filter(l => {
+            const hasLinkNote = typeof l.notes === 'string' && l.notes.trim().length > 0;
+            if (hasLinkNote) return false;
+
+            const isLinked = typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function' &&
+                   window.EveLibrary.ConnectionsAPI.findConnectionByLinkId(l.id);
+            if (isLinked) {
+                const entry = typeof window.EveLibrary?.EntriesAPI?.getEntryById === 'function' &&
+                              window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, l.id);
+                if (entry && typeof entry.summary === 'string' && entry.summary.trim().length > 0) return false;
+            }
+            return true;
+        });
+
+        const topRatedLinks = activeLinks.filter(l => {
+            // High priority flag fallback
+            if (l.priority === 'high') return true;
+
+            const isLinked = typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function' &&
+                   window.EveLibrary.ConnectionsAPI.findConnectionByLinkId(l.id);
+            if (isLinked) {
+                const entry = typeof window.EveLibrary?.EntriesAPI?.getEntryById === 'function' &&
+                              window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, l.id);
+                if (entry) {
+                    if (entry.rating === '5' || entry.rating === '10' || entry.rating === '9') return true;
+                    if (entry.derivedRatings && entry.derivedRatings.activeValue >= 8) return true;
+                }
             }
             return false;
         });
@@ -487,6 +524,39 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
                 parentId: masterGhostId,
                 isGhost: true,
                 _ghostLinks: droppedLinks
+            });
+            anyGhostEnabled = true;
+        }
+
+        if (brokenLinks.length > 0 && isGhostEnabled('broken_links')) {
+            ghostFolders.push({
+                id: '__ghost_broken_links__',
+                name: '[ Broken / Invalid Links ]',
+                parentId: masterGhostId,
+                isGhost: true,
+                _ghostLinks: brokenLinks
+            });
+            anyGhostEnabled = true;
+        }
+
+        if (missingNotesLinks.length > 0 && isGhostEnabled('missing_notes')) {
+            ghostFolders.push({
+                id: '__ghost_missing_notes__',
+                name: '[ Missing Notes ]',
+                parentId: masterGhostId,
+                isGhost: true,
+                _ghostLinks: missingNotesLinks
+            });
+            anyGhostEnabled = true;
+        }
+
+        if (topRatedLinks.length > 0 && isGhostEnabled('top_rated')) {
+            ghostFolders.push({
+                id: '__ghost_top_rated__',
+                name: '[ Top Rated ]',
+                parentId: masterGhostId,
+                isGhost: true,
+                _ghostLinks: topRatedLinks
             });
             anyGhostEnabled = true;
         }

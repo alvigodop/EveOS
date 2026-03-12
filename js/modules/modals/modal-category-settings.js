@@ -374,7 +374,10 @@ window.categoryFolderActionExpansion = window.categoryFolderActionExpansion || {
                 { id: 'reading', label: '[ Actively Reading ]' },
                 { id: 'completed', label: '[ Completed ]' },
                 { id: 'on_hold', label: '[ On Hold ]' },
-                { id: 'dropped', label: '[ Dropped ]' }
+                { id: 'dropped', label: '[ Dropped ]' },
+                { id: 'broken_links', label: '[ Broken / Invalid Links ]' },
+                { id: 'missing_notes', label: '[ Missing Notes ]' },
+                { id: 'top_rated', label: '[ Top Rated ]' }
             ];
 
             let toggles = types.map(t => {
