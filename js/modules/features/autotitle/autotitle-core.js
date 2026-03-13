@@ -186,6 +186,8 @@ window.getTitleFromUrl = async function (url, options = {}) {
             if (/\/cover\/\d+\/_s\d+\.(jpg|jpeg|png|webp|avif)(?:[?#].*)?$/i.test(url)) return true;
             if (/\/g\/[a-z0-9_-]{1,12}\.(jpg|jpeg|png|webp|avif)(?:[?#].*)?$/i.test(url)) return true;
             if (/\/g\/ygm\.png(?:[?#].*)?$/i.test(url)) return true;
+            if (/\/cover\/avif\/[^/?#]+\.(?:jpe?g|png|webp)(?:[?#].*)?$/i.test(url)) return true;
+            if (/\/cover\/webp\/[^/?#]+\.(?:jpe?g|png|avif)(?:[?#].*)?$/i.test(url)) return true;
             if (/noimage|no-image|nocover|no-cover|placeholder|default-cover/i.test(url)) return true;
         }
         return false;
@@ -209,6 +211,8 @@ window.getTitleFromUrl = async function (url, options = {}) {
             if (/\/w\/\d+\/\d+\/[^/?#]+\.(webp|avif|jpg|jpeg|png)(?:[?#].*)?$/i.test(url)) score += 140;
             if (/\/cover\/(?:avif|webp|png|jpe?g)\//i.test(url)) score += 100;
             if (/\/cover\/(?:avif|webp|png|jpe?g)\/_s\d+\.(jpg|jpeg|png|webp|avif)(?:[?#].*)?$/i.test(url)) score += 45;
+            if (/\/cover\/avif\/[^/?#]+\.avif(?:[?#].*)?$/i.test(url)) score += 85;
+            if (/\/cover\/webp\/[^/?#]+\.webp(?:[?#].*)?$/i.test(url)) score += 75;
             if (/cover|poster|thumbnail|thumb|banner|hero|backdrop|manga|comic|chapter|title|og-image/.test(url)) score += 45;
             if (/\.(jpg|jpeg|png|webp|avif)(?:[?#].*)?$/i.test(url)) score += 35;
             if (/[a-z0-9][a-z0-9_-]{4,}\/\d+\//i.test(url)) score += 25;

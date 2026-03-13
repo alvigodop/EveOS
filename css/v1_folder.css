@@ -4,7 +4,7 @@
     background: linear-gradient(180deg, rgba(0, 0, 0, 0.45) 0%, rgba(0, 0, 0, 0.15) 100%);
     border: 1px solid var(--accent, #0088ff)44;
     box-shadow: 0 0 0 1px var(--accent, #0088ff)11, inset 0 0 30px rgba(0,0,0,0.5), inset 0 0 60px var(--accent, #0088ff)04;
-    animation: materialise 0.2s cubic-bezier(0.2,0,0,1) forwards;
+    transition: background 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
     border-radius: 4px;
     overflow: hidden;
     padding: 10px;
@@ -30,17 +30,19 @@
 }
 
 .manhwa-scan-beam {
-    position: absolute; top: 0; bottom: 0; width: 80%;
-    background: linear-gradient(90deg, transparent, var(--accent, #0088ff)18, transparent);
-    animation: scanBeam 0.7s ease forwards;
+    position: absolute; top: 0; bottom: 0; width: 56%;
+    background: linear-gradient(90deg, transparent, var(--accent, #0088ff)10, transparent);
+    animation: scanBeam 0.35s ease-out forwards;
     pointer-events: none;
     z-index: 10;
+    opacity: 0.45;
 }
 
 /* -- BREADCRUMBS -- */
 .folder-breadcrumbs {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 8px;
     margin-bottom: 12px;
     font-family: 'Share Tech Mono', monospace;
@@ -58,12 +60,13 @@
     gap: 0;
     flex: 1 1 auto;
     min-width: 0;
-    max-width: calc(100% - 84px);
+    max-width: calc(100% - 78px);
     flex-wrap: nowrap;
     overflow-x: auto;
     overflow-y: hidden;
     scrollbar-width: none;
     padding-bottom: 2px;
+    padding-right: 2px;
 }
 
 .folder-breadcrumb-trail::-webkit-scrollbar {
@@ -71,7 +74,7 @@
 }
 
 .folder-breadcrumb-actions {
-    margin-left: auto;
+    margin-left: 4px;
     display: inline-flex;
     align-items: center;
     gap: 4px;
@@ -79,7 +82,8 @@
     flex: 0 0 auto;
     position: relative;
     z-index: 2;
-    padding-left: 6px;
+    min-width: 72px;
+    padding-left: 4px;
     background: linear-gradient(90deg, rgba(8, 12, 20, 0), rgba(8, 12, 20, 0.85) 24%, rgba(8, 12, 20, 0.98) 100%);
 }
 
@@ -89,7 +93,10 @@
     border-radius: 8px;
     background: rgba(255,255,255,0.04);
     padding: 6px 8px;
+    width: 34px;
     min-width: 34px;
+    height: 34px;
+    flex: 0 0 34px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -204,19 +211,20 @@
     border: 1px solid rgba(128, 128, 128, 0.2);
     background: linear-gradient(135deg, rgba(255,255,255,0.02) 0%, transparent 100%);
     padding: 12px;
-    transition: all 0.18s;
+    transition: background 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
     position: relative;
     overflow: hidden;
     display: flex;
     align-items: center;
     gap: 10px;
     border-radius: 4px;
+    contain: layout paint;
 }
 
 .folder-tile:hover {
     border-color: rgba(255, 255, 255, 0.05);
-    background: radial-gradient(ellipse at center, var(--accent, #0088ff)33 0%, var(--accent, #0088ff)05 60%, transparent 100%);
-    box-shadow: 0 0 24px var(--accent, #0088ff)15, inset 0 0 20px var(--accent, #0088ff)11;
+    background: radial-gradient(ellipse at center, var(--accent, #0088ff)20 0%, var(--accent, #0088ff)04 56%, transparent 100%);
+    box-shadow: 0 0 14px var(--accent, #0088ff)10, inset 0 0 12px var(--accent, #0088ff)08;
 }
 
 .folder-tile-left-bar {

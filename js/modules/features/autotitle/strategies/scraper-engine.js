@@ -77,6 +77,8 @@
         if (/\/w\/\d+\/\d+\/[^/?#]+\.(webp|avif|jpg|jpeg|png)(?:[?#].*)?$/i.test(low)) score += 90;
         if (/\/cover\/(?:avif|webp|png|jpe?g)\//i.test(low)) score += 80;
         if (/\/cover\/(?:avif|webp|png|jpe?g)\/_s\d+\.(jpg|jpeg|png|webp|avif)(?:\?.*)?$/i.test(low)) score += 40;
+        if (/\/cover\/avif\/[^/?#]+\.avif(?:[?#].*)?$/i.test(low)) score += 70;
+        if (/\/cover\/webp\/[^/?#]+\.webp(?:[?#].*)?$/i.test(low)) score += 60;
         if (/uploads|static|cdn|images|image|media/.test(low)) score += 15;
         if (/\/cover\/\d+\/_s\d+/i.test(low)) score -= 85;
         if (/\/cover\/\d+\//i.test(low) && !/[a-z0-9][a-z0-9_-]{4,}\/\d+\//i.test(low)) score -= 25;
@@ -111,6 +113,8 @@
             if (/\/cover\/\d+\/_s\d+\.(jpg|jpeg|png|webp|avif)(?:[?#].*)?$/i.test(low)) return true;
             if (/\/g\/[a-z0-9_-]{1,12}\.(jpg|jpeg|png|webp|avif)(?:[?#].*)?$/i.test(low)) return true;
             if (/\/g\/ygm\.png(?:[?#].*)?$/i.test(low)) return true;
+            if (/\/cover\/avif\/[^/?#]+\.(?:jpe?g|png|webp)(?:[?#].*)?$/i.test(low)) return true;
+            if (/\/cover\/webp\/[^/?#]+\.(?:jpe?g|png|avif)(?:[?#].*)?$/i.test(low)) return true;
             if (/noimage|no-image|nocover|no-cover|placeholder|default-cover/i.test(low)) return true;
         }
         return false;

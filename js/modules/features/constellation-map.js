@@ -119,6 +119,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             const folderLabel = text(scope.folderLabel, scope.folderId || 'Folder');
             return getWorkspaceName(scope.workspaceId) + ' / ' + text(scope.categoryName, 'Card') + ' / ' + folderLabel;
         }
+        if (scope.scope === 'derived') {
+            return getWorkspaceName(scope.workspaceId) + ' / ' + text(scope.categoryName, 'Card') + ' / ' + text(scope.scopeLabel, 'Smart View');
+        }
         return getWorkspaceName(scope.workspaceId) + ' / Current Tab';
     }
 
@@ -127,11 +130,15 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         const scope = (scopeOption && typeof scopeOption === 'object') ? scopeOption : {};
         const normalized = String(scope.scope || 'workspace').trim();
         return {
-            scope: ['all', 'workspace', 'card', 'folder'].includes(normalized) ? normalized : 'workspace',
+            scope: ['all', 'workspace', 'card', 'folder', 'derived'].includes(normalized) ? normalized : 'workspace',
             workspaceId: text(scope.workspaceId, config.activeWorkspace || 'main'),
             categoryName: text(scope.categoryName, ''),
             folderId: text(scope.folderId, ''),
-            folderLabel: text(scope.folderLabel, '')
+            folderLabel: text(scope.folderLabel, ''),
+            scopeLabel: text(scope.scopeLabel, ''),
+            linkIds: Array.isArray(scope.linkIds)
+                ? scope.linkIds.map((value) => String(value || '').trim()).filter(Boolean)
+                : []
         };
     }
 
@@ -188,6 +195,10 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     function getScopedLinks(scope) {
         const allLinks = getAllLinks();
         if (scope.scope === 'all') return allLinks.slice();
+        if (scope.scope === 'derived') {
+            const linkIds = new Set(scope.linkIds || []);
+            return allLinks.filter((link) => linkIds.has(String(link?.id || '')));
+        }
 
         const workspaceLinks = allLinks.filter((link) => String(link?.workspace || 'main') === String(scope.workspaceId));
         if (scope.scope === 'card') {
@@ -677,6 +688,22 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 });
                 subtree.childFolders.forEach((childFolder, index) => {
                     addFolderBranch(scope.workspaceId, text(scope.categoryName, 'Unsorted'), childFolder, folderView, folderNode, index, subtree.childFolders.length, 92);
+                });
+            }
+        } else if (scope.scope === 'derived') {
+            const derivedCategoryName = text(scope.categoryName, '');
+            if (derivedCategoryName) {
+                addCategoryBranch(
+                    scope.workspaceId,
+                    derivedCategoryName,
+                    { x: centerX, y: centerY },
+                    null
+                );
+            } else {
+                const categories = getCategoryNames(scope.workspaceId, scopedLinks);
+                categories.forEach((categoryName, categoryIndex) => {
+                    const categoryCenter = placeOnRing(categoryIndex, categories.length, Math.min(width, height) * 0.24, centerX, centerY, 16);
+                    addCategoryBranch(scope.workspaceId, categoryName, categoryCenter, null);
                 });
             }
         } else {
@@ -1708,6 +1735,17 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
     ns.openFolderMap = function openFolderMap(workspaceId, categoryName, folderId, folderLabel) {
         ns.openMap({ scope: 'folder', workspaceId, categoryName, folderId, folderLabel });
+    };
+
+    ns.openDerivedMap = function openDerivedMap(options) {
+        const source = options && typeof options === 'object' ? options : {};
+        ns.openMap({
+            scope: 'derived',
+            workspaceId: source.workspaceId,
+            categoryName: source.categoryName,
+            scopeLabel: source.scopeLabel,
+            linkIds: Array.isArray(source.linkIds) ? source.linkIds : []
+        });
     };
 
     ns.openCurrentViewMap = function openCurrentViewMap() {

@@ -49,7 +49,11 @@
         let score = 0;
         if (/cover|poster|thumbnail|thumb|manga|comic|chapter|title/.test(low)) score += 35;
         if (/static\.mfcdn\.cc|uploads|cdn|images|image|media/.test(low)) score += 25;
-        if (/\/cover\/\d+\/_s\d+/i.test(low) || /[_-]s\d+\.(jpg|jpeg|png|webp|avif)(?:\?.*)?$/i.test(low)) score -= 85;
+        if (/\/cover\/(?:avif|webp|png|jpe?g)\//i.test(low)) score += 80;
+        if (/\/cover\/(?:avif|webp|png|jpe?g)\/_s\d+\.(jpg|jpeg|png|webp|avif)(?:\?.*)?$/i.test(low)) score += 40;
+        if (/\/cover\/avif\/[^/?#]+\.avif(?:[?#].*)?$/i.test(low)) score += 70;
+        if (/\/cover\/webp\/[^/?#]+\.webp(?:[?#].*)?$/i.test(low)) score += 60;
+        if (/\/cover\/\d+\/_s\d+/i.test(low)) score -= 85;
         if (/\/cover\/\d+\//i.test(low) && !/[a-z0-9][a-z0-9_-]{4,}\/\d+\//i.test(low)) score -= 25;
         if (/[a-z0-9][a-z0-9_-]{4,}\/\d+\//i.test(low)) score += 18;
         if (!/@\d+\.(jpg|jpeg|png|webp|avif)$/i.test(low)) score += 20;
@@ -79,7 +83,9 @@
         } catch (e) { }
         for (const low of variants) {
             if (/\/cover\/\d+\/_s\d+\.(jpg|jpeg|png|webp|avif)(?:[?#].*)?$/i.test(low)) return true;
-            if (/[_-]s\d+\.(jpg|jpeg|png|webp|avif)(?:[?#].*)?$/i.test(low) && /\/cover\//.test(low)) return true;
+            if (/\/cover\/avif\/[^/?#]+\.(?:jpe?g|png|webp)(?:[?#].*)?$/i.test(low)) return true;
+            if (/\/cover\/webp\/[^/?#]+\.(?:jpe?g|png|avif)(?:[?#].*)?$/i.test(low)) return true;
+            if (/noimage|no-image|nocover|no-cover|placeholder|default-cover/i.test(low)) return true;
         }
         return false;
     }

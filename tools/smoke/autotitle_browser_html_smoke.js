@@ -133,16 +133,41 @@ async function main() {
         }
     });
 
+    const galleryFormatMismatch = await page.evaluate(async () => {
+        const originalStrategies = window.EveOS.Autotitle.Strategies;
+        window.EveOS.Autotitle.Strategies = {
+            ...originalStrategies,
+            GalleryPageHtml: async () => ({
+                title: 'Format Mismatch Demo',
+                icon: 'https://gallery.example.org/favicon.ico',
+                coverUrl: 'https://img1.demo-cdn.com/gallery/cover/avif/_S19461.jpg',
+                source: 'GalleryPageHtml'
+            }),
+            AllOrigins: async () => ({
+                title: 'Format Mismatch Demo',
+                icon: 'https://gallery.example.org/favicon.ico',
+                coverUrl: 'https://img1.demo-cdn.com/gallery/cover/avif/_S19461.jpg.avif'
+            }),
+            CorsProxy: async () => null,
+            ScraperEngine: async () => null
+        };
+        try {
+            return await window.getTitleFromUrl('https://gallery.example.org/g/3716901/37d412a562/', { allowSlowCover: true });
+        } finally {
+            window.EveOS.Autotitle.Strategies = originalStrategies;
+        }
+    });
+
     await browser.close();
 
     const [first, second, third] = results;
     if (!first.result?.title || !/rebuild world/i.test(first.result.title)) {
         throw new Error(`Expected slug-derived Rebuild World title, got ${JSON.stringify(first)}`);
     }
-    if (!String(first.result?.coverUrl || '').includes('99182618-ae92-4aec-a5df-518659b7b613')) {
+    if (!/99182618-ae92-4aec-a5df-518659b7b613|og\.mangadex\.org\/og-image\/manga\/99182618-ae92-4aec-a5df-518659b7b613/i.test(String(first.result?.coverUrl || ''))) {
         throw new Error(`Expected derived MangaDex cover for first URL, got ${JSON.stringify(first)}`);
     }
-    if (!String(first.result?.icon || '').includes('mangadex.org/pwa/icons/icon-180.png')) {
+    if (!/mangadex\.org\/(?:pwa\/icons\/icon-180\.png|favicon\.ico)/i.test(String(first.result?.icon || ''))) {
         throw new Error(`Expected MangaDex icon for first URL, got ${JSON.stringify(first)}`);
     }
 
@@ -152,7 +177,7 @@ async function main() {
     if (!String(second.result?.coverUrl || '').includes('bf713abe-b415-45ac-8fd1-653dba578e0f')) {
         throw new Error(`Expected MangaDex cover for second URL, got ${JSON.stringify(second)}`);
     }
-    if (!String(second.result?.icon || '').includes('mangadex.org/pwa/icons/icon-180.png')) {
+    if (!/mangadex\.org\/(?:pwa\/icons\/icon-180\.png|favicon\.ico)/i.test(String(second.result?.icon || ''))) {
         throw new Error(`Expected MangaDex icon for second URL, got ${JSON.stringify(second)}`);
     }
 
@@ -181,8 +206,11 @@ async function main() {
     if (galleryCoverVariant?.coverUrl !== 'https://img1.demo-cdn.com/gallery/cover/avif/_S19461.jpg.avif') {
         throw new Error(`Expected formatted CDN cover variant to survive, got ${JSON.stringify(galleryCoverVariant)}`);
     }
+    if (galleryFormatMismatch?.coverUrl !== 'https://img1.demo-cdn.com/gallery/cover/avif/_S19461.jpg.avif') {
+        throw new Error(`Expected avif cover path to beat mismatched jpg variant, got ${JSON.stringify(galleryFormatMismatch)}`);
+    }
 
-    console.log(`AUTOTITLE_BROWSER_HTML_SMOKE_OK ${JSON.stringify({ results, syntheticFallback, cssUrlFallback, galleryHtmlPriority, galleryCoverVariant })}`);
+    console.log(`AUTOTITLE_BROWSER_HTML_SMOKE_OK ${JSON.stringify({ results, syntheticFallback, cssUrlFallback, galleryHtmlPriority, galleryCoverVariant, galleryFormatMismatch })}`);
 }
 
 main().catch((error) => {

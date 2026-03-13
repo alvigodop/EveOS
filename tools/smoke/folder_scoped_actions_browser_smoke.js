@@ -7,9 +7,9 @@ const FILE_URL = 'file:///' + path.join(REPO_ROOT, 'EveOS.html').replace(/\\/g, 
 function buildSeedPayload() {
   return {
     links: [
-      { id: 'root-1', title: 'Root Outside', url: 'https://example.com/root', workspace: 'main', category: 'Alpha' },
-      { id: 'parent-1', title: 'Parent Inside', url: 'https://example.com/parent', workspace: 'main', category: 'Alpha', folderId: 'f-parent' },
-      { id: 'child-1', title: 'Child Inside', url: 'https://example.com/child', workspace: 'main', category: 'Alpha', folderId: 'f-child' },
+      { id: 'root-1', title: 'Root Outside', url: 'https://example.com/root', workspace: 'main', category: 'Alpha', tags: ['Root'] },
+      { id: 'parent-1', title: 'Parent Inside', url: 'https://example.com/parent', workspace: 'main', category: 'Alpha', folderId: 'f-parent', tags: ['Action', 'Adventure'] },
+      { id: 'child-1', title: 'Child Inside', url: 'https://example.com/child', workspace: 'main', category: 'Alpha', folderId: 'f-child', tags: ['Action', 'Mystery'] },
       { id: 'other-1', title: 'Other Folder Outside', url: 'https://example.com/other', workspace: 'main', category: 'Alpha', folderId: 'f-other' }
     ],
     config: {
@@ -42,6 +42,7 @@ async function waitForApp(page) {
     && !!window.openBulkTitleModal
     && !!window.openBulkLibraryAutoModal
     && !!window.EveConstellationMap?.openFolderMap
+    && !!window.EveConstellationMap?.openDerivedMap
   ), undefined, { timeout: 120000 });
 }
 
@@ -198,6 +199,51 @@ async function runSmoke(page) {
   if (bulkLibraryRows.join('|') !== 'parent-1|child-1') {
     throw new Error(`Folder bulk library leaked scope: ${bulkLibraryRows.join(' | ')}`);
   }
+  await page.evaluate(() => window.closeModals && window.closeModals());
+
+  await page.evaluate(() => {
+    const viewModel = window.EveBookmarkFolders.buildFolderView('main', 'Alpha', window.links.filter((link) => link.workspace === 'main' && link.category === 'Alpha'));
+    const ghostNode = viewModel.nodes.find((node) => node.isGhost && node.name === '[ Unlinked Bookmarks ]' && node._ghostScopeRootId === 'f-parent');
+    if (!ghostNode) throw new Error('Missing scoped ghost node for folder subtree');
+    window.EveFolderViewV2.enterFolder(null, 'Alpha', ghostNode.id, 'main');
+  });
+
+  await page.waitForSelector('.folder-breadcrumb-actions', { timeout: 5000 });
+  const ghostIconCount = await page.locator('.folder-breadcrumb-actions .folder-breadcrumb-icon-btn').count();
+  if (ghostIconCount < 2) {
+    throw new Error(`Expected ghost breadcrumb pen and map buttons, got ${ghostIconCount}`);
+  }
+
+  await page.locator('.folder-breadcrumb-actions .folder-breadcrumb-icon-btn').first().click();
+  await page.waitForSelector('.folder-breadcrumb-action-tray', { timeout: 5000 });
+  const ghostTrayLabels = await page.evaluate(() => Array.from(document.querySelectorAll('.folder-breadcrumb-action-tray button')).map((node) => node.textContent.trim()));
+  if (ghostTrayLabels.some((value) => value.includes('Edit Folder'))) {
+    throw new Error(`Ghost breadcrumb tray should not expose edit: ${ghostTrayLabels.join(' | ')}`);
+  }
+  ['Auto-Title', 'Auto-Library'].forEach((label) => {
+    if (!ghostTrayLabels.some((value) => value.includes(label))) {
+      throw new Error(`Missing ghost tray action: ${label} :: ${ghostTrayLabels.join(' | ')}`);
+    }
+  });
+
+  await page.evaluate(() => {
+    const viewModel = window.EveBookmarkFolders.buildFolderView('main', 'Alpha', window.links.filter((link) => link.workspace === 'main' && link.category === 'Alpha'));
+    const ghostNode = viewModel.nodes.find((node) => node.isGhost && node.name === '[ Unlinked Bookmarks ]' && node._ghostScopeRootId === 'f-parent');
+    if (!ghostNode) throw new Error('Missing scoped ghost node for map test');
+    window.EveFolderViewV2.openFolderScopedMap('Alpha', ghostNode.id, 'main');
+  });
+  await page.waitForFunction(() => {
+    const overlay = document.getElementById('constellation-map-overlay');
+    return overlay && overlay.style.display !== 'none' && !!window.EveConstellationMap?.__debugGetGraphStats?.().visible;
+  }, undefined, { timeout: 10000 });
+  const ghostMapStats = await page.evaluate(() => window.EveConstellationMap.__debugGetGraphStats());
+  if (ghostMapStats.scope.scope !== 'derived') {
+    throw new Error(`Ghost breadcrumb map should open derived scope, got ${JSON.stringify(ghostMapStats.scope)}`);
+  }
+  if (ghostMapStats.scope.scopeLabel !== '[ Unlinked Bookmarks ]') {
+    throw new Error(`Ghost breadcrumb map scope label mismatch: ${JSON.stringify(ghostMapStats.scope)}`);
+  }
+  await page.locator('[data-map-toolbar="close"]').click();
 }
 
 (async () => {
