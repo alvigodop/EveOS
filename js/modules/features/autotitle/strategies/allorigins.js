@@ -116,12 +116,39 @@
         let score = 0;
         if (/cover|poster|thumbnail|thumb|manga|comic|chapter|title/.test(low)) score += 35;
         if (/uploads|static|cdn|images|image|media/.test(low)) score += 15;
+        if (/\/cover\/\d+\/_s\d+/i.test(low) || /[_-]s\d+\.(jpg|jpeg|png|webp|avif)(?:\?.*)?$/i.test(low)) score -= 85;
+        if (/\/cover\/\d+\//i.test(low) && !/[a-z]{3,}[_-][a-z]{3,}\/\d+\//i.test(low)) score -= 25;
+        if (/[a-z0-9][a-z0-9_-]{4,}\/\d+\//i.test(low)) score += 18;
         if (!/@\d+\.(jpg|jpeg|png|webp|avif)$/i.test(low)) score += 20;
         if (/\.(jpg|jpeg|png|webp|avif)(?:\?.*)?$/i.test(low)) score += 25;
         if (/\/assets\//.test(low)) score -= 35;
         if (/@100\./.test(low)) score -= 18;
         if (/placeholder|default|no-cover/.test(low)) score -= 40;
         return score;
+    };
+
+    const isRejectedCoverUrl = (url) => {
+        const raw = String(url || '').trim();
+        if (!raw) return false;
+        const variants = new Set([raw.toLowerCase()]);
+        try {
+            variants.add(decodeURIComponent(raw).toLowerCase());
+        } catch (e) { }
+        try {
+            const parsed = new URL(raw);
+            variants.add((parsed.href || '').toLowerCase());
+            variants.add((parsed.pathname || '').toLowerCase());
+            variants.add((parsed.search || '').toLowerCase());
+            try {
+                variants.add(decodeURIComponent(parsed.pathname || '').toLowerCase());
+                variants.add(decodeURIComponent(parsed.search || '').toLowerCase());
+            } catch (e) { }
+        } catch (e) { }
+        for (const low of variants) {
+            if (/\/cover\/\d+\/_s\d+\.(jpg|jpeg|png|webp|avif)(?:[?#].*)?$/i.test(low)) return true;
+            if (/[_-]s\d+\.(jpg|jpeg|png|webp|avif)(?:[?#].*)?$/i.test(low) && /\/cover\//.test(low)) return true;
+        }
+        return false;
     };
 
     const extractImageCandidates = (html, baseUrl) => {
@@ -137,6 +164,18 @@
             while ((match = pattern.exec(html)) !== null) {
                 const raw = String(match[1] || '').split(',').map((part) => part.trim().split(/\s+/)[0]).filter(Boolean);
                 raw.forEach((entry) => rawCandidates.push(entry));
+            }
+        });
+        const expandedHtml = String(html || '').replace(/\\\//g, '/');
+        const inlineUrlPatterns = [
+            /https?:\/\/[^"'`\s<>()\\]+?\.(?:avif|webp|png|jpe?g)(?:\?[^"'`\s<>()\\]*)?/gi,
+            /\/\/[^"'`\s<>()\\]+?\.(?:avif|webp|png|jpe?g)(?:\?[^"'`\s<>()\\]*)?/gi,
+            /(?:\/|\.\.?\/)[^"'`\s<>()\\]*\/cover\/[^"'`\s<>()\\]+\.(?:avif|webp|png|jpe?g)(?:\?[^"'`\s<>()\\]*)?/gi
+        ];
+        inlineUrlPatterns.forEach((pattern) => {
+            let match;
+            while ((match = pattern.exec(expandedHtml)) !== null) {
+                if (match[0]) rawCandidates.push(match[0]);
             }
         });
         return Array.from(new Set(rawCandidates))
@@ -196,7 +235,7 @@
             const match = html.match(pattern);
             if (match?.[1]) {
                 const resolved = resolveAssetUrl(match[1], baseUrl);
-                if (resolved) return resolved;
+                if (resolved && !isRejectedCoverUrl(resolved)) return resolved;
             }
         }
 
@@ -214,23 +253,23 @@
                     const imageValue = current.image;
                     if (typeof imageValue === 'string') {
                         const resolved = resolveAssetUrl(imageValue, baseUrl);
-                        if (resolved) return resolved;
+                        if (resolved && !isRejectedCoverUrl(resolved)) return resolved;
                     }
                     if (Array.isArray(imageValue)) {
                         for (const entry of imageValue) {
                             if (typeof entry === 'string') {
                                 const resolved = resolveAssetUrl(entry, baseUrl);
-                                if (resolved) return resolved;
+                                if (resolved && !isRejectedCoverUrl(resolved)) return resolved;
                             }
                             if (entry && typeof entry === 'object' && typeof entry.url === 'string') {
                                 const resolved = resolveAssetUrl(entry.url, baseUrl);
-                                if (resolved) return resolved;
+                                if (resolved && !isRejectedCoverUrl(resolved)) return resolved;
                             }
                         }
                     }
                     if (imageValue && typeof imageValue === 'object' && typeof imageValue.url === 'string') {
                         const resolved = resolveAssetUrl(imageValue.url, baseUrl);
-                        if (resolved) return resolved;
+                        if (resolved && !isRejectedCoverUrl(resolved)) return resolved;
                     }
                     Object.values(current).forEach((value) => {
                         if (value && typeof value === 'object') queue.push(value);
@@ -240,7 +279,8 @@
                 // Ignore malformed JSON-LD blocks.
             }
         }
-        return extractImageCandidates(html, baseUrl)[0]?.url || null;
+        return extractImageCandidates(html, baseUrl)
+            .find((candidate) => !isRejectedCoverUrl(candidate.url))?.url || null;
     };
 
     window.EveOS.Autotitle.Strategies.AllOrigins = async function (url, signal) {

@@ -49,12 +49,39 @@
         let score = 0;
         if (/cover|poster|thumbnail|thumb|manga|comic|chapter|title/.test(low)) score += 35;
         if (/static\.mfcdn\.cc|uploads|cdn|images|image|media/.test(low)) score += 25;
+        if (/\/cover\/\d+\/_s\d+/i.test(low) || /[_-]s\d+\.(jpg|jpeg|png|webp|avif)(?:\?.*)?$/i.test(low)) score -= 85;
+        if (/\/cover\/\d+\//i.test(low) && !/[a-z0-9][a-z0-9_-]{4,}\/\d+\//i.test(low)) score -= 25;
+        if (/[a-z0-9][a-z0-9_-]{4,}\/\d+\//i.test(low)) score += 18;
         if (!/@\d+\.(jpg|jpeg|png|webp|avif)$/i.test(low)) score += 20;
         if (/\.(jpg|jpeg|png|webp|avif)(?:\?.*)?$/i.test(low)) score += 25;
         if (/\/assets\//.test(low)) score -= 30;
         if (/@100\./.test(low)) score -= 18;
         if (/placeholder|default|no-cover/.test(low)) score -= 40;
         return score;
+    }
+
+    function isRejectedCoverUrl(url) {
+        const raw = String(url || '').trim();
+        if (!raw) return false;
+        const variants = new Set([raw.toLowerCase()]);
+        try {
+            variants.add(decodeURIComponent(raw).toLowerCase());
+        } catch (e) { }
+        try {
+            const parsed = new URL(raw);
+            variants.add((parsed.href || '').toLowerCase());
+            variants.add((parsed.pathname || '').toLowerCase());
+            variants.add((parsed.search || '').toLowerCase());
+            try {
+                variants.add(decodeURIComponent(parsed.pathname || '').toLowerCase());
+                variants.add(decodeURIComponent(parsed.search || '').toLowerCase());
+            } catch (e) { }
+        } catch (e) { }
+        for (const low of variants) {
+            if (/\/cover\/\d+\/_s\d+\.(jpg|jpeg|png|webp|avif)(?:[?#].*)?$/i.test(low)) return true;
+            if (/[_-]s\d+\.(jpg|jpeg|png|webp|avif)(?:[?#].*)?$/i.test(low) && /\/cover\//.test(low)) return true;
+        }
+        return false;
     }
 
     function extractImageCandidates(doc, baseUrl) {
@@ -92,7 +119,11 @@
             || doc.querySelector('meta[name="twitter:image"]')?.getAttribute('content')
             || doc.querySelector('meta[name="twitter:image:src"]')?.getAttribute('content')
         );
-        coverUrl = resolveAssetUrl(coverUrl, baseUrl) || extractImageCandidates(doc, baseUrl)[0]?.url || null;
+        coverUrl = resolveAssetUrl(coverUrl, baseUrl);
+        if (isRejectedCoverUrl(coverUrl)) {
+            coverUrl = null;
+        }
+        coverUrl = coverUrl || extractImageCandidates(doc, baseUrl).find((candidate) => !isRejectedCoverUrl(candidate.url))?.url || null;
 
         const description = cleanText(
             doc.querySelector('meta[name="description"]')?.getAttribute('content')
@@ -110,9 +141,18 @@
         };
     }
 
-    function fetchJsonViaXhr(url, timeoutMs, signal) {
+    function fetchJsonViaXhr(url, timeoutMs, signal, attemptsLeft = 3) {
         return new Promise((resolve, reject) => {
             const xhr = new XMLHttpRequest();
+            const finishRetry = (error) => {
+                if (attemptsLeft > 1 && !(signal && signal.aborted)) {
+                    setTimeout(() => {
+                        fetchJsonViaXhr(url, timeoutMs, signal, attemptsLeft - 1).then(resolve).catch(reject);
+                    }, 350);
+                    return;
+                }
+                reject(error);
+            };
             const onAbort = () => {
                 try { xhr.abort(); } catch (error) {}
                 reject(new DOMException('Aborted', 'AbortError'));
@@ -131,15 +171,15 @@
                     }
                     return;
                 }
-                reject(new Error(`XHR ${xhr.status}`));
+                finishRetry(new Error(`XHR ${xhr.status}`));
             };
             xhr.onerror = function () {
                 if (signal) signal.removeEventListener('abort', onAbort);
-                reject(new TypeError('Failed to fetch'));
+                finishRetry(new TypeError('Failed to fetch'));
             };
             xhr.ontimeout = function () {
                 if (signal) signal.removeEventListener('abort', onAbort);
-                reject(new DOMException('Timed out', 'AbortError'));
+                finishRetry(new DOMException('Timed out', 'AbortError'));
             };
 
             if (signal) {

@@ -70,8 +70,72 @@ window.getTitleFromUrl = async function (url, options = {}) {
         return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }
 
+    function decodeHtmlEntities(value) {
+        return String(value || '')
+            .replace(/&amp;/gi, '&')
+            .replace(/&lt;/gi, '<')
+            .replace(/&gt;/gi, '>')
+            .replace(/&quot;/gi, '"')
+            .replace(/&#0*39;/gi, "'")
+            .replace(/&#x27;/gi, "'");
+    }
+
+    function normalizeComparableUrl(value) {
+        if (!value) return null;
+        try {
+            const parsed = new URL(String(value).trim());
+            parsed.hash = '';
+            return parsed.href.replace(/[?#].*$/, '');
+        } catch (e) {
+            return String(value || '').trim().replace(/[?#].*$/, '') || null;
+        }
+    }
+
+    function isLikelyIconUrl(value) {
+        const url = String(value || '').trim().toLowerCase();
+        if (!url) return false;
+        if (/favicon|apple-touch-icon|mstile|mask-icon|site-icon|pwa\/icons\/icon-|\/icons?\//.test(url)) return true;
+        if (/\.ico(?:[?#].*)?$/i.test(url)) return true;
+        if (/icon[-_]?(\d+|small|tiny|square)?\.(png|jpg|jpeg|webp|svg)(?:[?#].*)?$/i.test(url)) return true;
+        if (/(^|[\/_-])(16|24|32|48|57|60|64|72|76|96|114|120|128|144|152|167|180|192|256|384|512)x?\1?(png|jpg|jpeg|webp|svg)$/i.test(url)) return true;
+        return false;
+    }
+
+    function isLikelyCoverUrl(value) {
+        const url = String(value || '').trim().toLowerCase();
+        if (!url) return false;
+        if (/cover|poster|thumbnail|thumb|banner|hero|backdrop|manga|comic|chapter|title|og-image/.test(url)) return true;
+        if (/uploads\.mangadex\.org\/covers\/|static\.mfcdn\.cc\//.test(url)) return true;
+        return false;
+    }
+
+    function isRejectedCoverUrl(value) {
+        const raw = String(value || '').trim();
+        if (!raw) return false;
+        const variants = new Set([raw.toLowerCase()]);
+        try {
+            variants.add(decodeURIComponent(raw).toLowerCase());
+        } catch (e) { }
+        try {
+            const parsed = new URL(raw);
+            variants.add((parsed.href || '').toLowerCase());
+            variants.add((parsed.pathname || '').toLowerCase());
+            variants.add((parsed.search || '').toLowerCase());
+            try {
+                variants.add(decodeURIComponent(parsed.pathname || '').toLowerCase());
+                variants.add(decodeURIComponent(parsed.search || '').toLowerCase());
+            } catch (e) { }
+        } catch (e) { }
+
+        for (const url of variants) {
+            if (/\/cover\/\d+\/_s\d+\.(jpg|jpeg|png|webp|avif)(?:[?#].*)?$/i.test(url)) return true;
+            if (/[_-]s\d+\.(jpg|jpeg|png|webp|avif)(?:[?#].*)?$/i.test(url) && /\/cover\//.test(url)) return true;
+        }
+        return false;
+    }
+
     function trimSiteSuffix(title, targetUrl) {
-        const raw = String(title || '').trim();
+        const raw = decodeHtmlEntities(title).trim();
         if (!raw) return raw;
         const hints = getUrlHints(targetUrl);
         const suffixTokens = [hints?.siteName, hints?.domainLabel]
@@ -113,6 +177,17 @@ window.getTitleFromUrl = async function (url, options = {}) {
 
         if (!normalized.icon && hints?.icon) {
             normalized.icon = hints.icon;
+        }
+        if (normalized.coverUrl) {
+            const normalizedCover = normalizeComparableUrl(normalized.coverUrl);
+            const normalizedIcon = normalizeComparableUrl(normalized.icon);
+            if (
+                isRejectedCoverUrl(normalized.coverUrl) ||
+                (normalizedIcon && normalizedCover === normalizedIcon) ||
+                (isLikelyIconUrl(normalized.coverUrl) && !isLikelyCoverUrl(normalized.coverUrl))
+            ) {
+                normalized.coverUrl = null;
+            }
         }
         if (!normalized.coverUrl && hints?.coverUrl) {
             normalized.coverUrl = hints.coverUrl;
@@ -296,7 +371,6 @@ window.getTitleFromUrl = async function (url, options = {}) {
                     primaryResult = mergeAutotitleMetadata(primaryResult, corsResult);
                 }
                 if (primaryResult?.coverUrl) {
-                    clearTimeout(timeoutId);
                     return primaryResult;
                 }
             }
