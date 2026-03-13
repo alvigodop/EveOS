@@ -197,6 +197,115 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         return map;
     }
 
+    function getLibraryEntryForLink(workspaceId, categoryName, linkId) {
+        const connectionsApi = window.EveLibrary?.ConnectionsAPI;
+        if (typeof connectionsApi?.getLinkedEntry === 'function') {
+            const linked = connectionsApi.getLinkedEntry(linkId);
+            if (linked?.entry) return linked.entry;
+        }
+
+        if (typeof connectionsApi?.findConnectionByLinkId !== 'function') return null;
+        const conn = connectionsApi.findConnectionByLinkId(linkId);
+        if (!conn || typeof window.EveLibrary?.EntriesAPI?.getEntryById !== 'function') return null;
+        return window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, conn.entryId) || null;
+    }
+
+    function isAutoSourceSummary(value) {
+        return /^Source:\s*https?:\/\//i.test(String(value || '').trim());
+    }
+
+    function getLibraryFallbackImage(entry) {
+        if (!entry || typeof entry !== 'object') return '';
+        return String(entry.image || entry.imageUrl || entry.coverImage || entry.bannerImage || '').trim();
+    }
+
+    function getNormalizedDuplicateUrl(link) {
+        const rawUrl = String(link?.url || '').trim();
+        if (!rawUrl) return '';
+        if (typeof window.EveDuplicateSensor?.normalizeUrl === 'function') {
+            return window.EveDuplicateSensor.normalizeUrl(rawUrl);
+        }
+
+        try {
+            const parsed = new URL(rawUrl, window.location.origin);
+            const protocol = String(parsed.protocol || '').toLowerCase();
+            if (!protocol || protocol === 'file:' || protocol === 'about:') {
+                return rawUrl.toLowerCase().replace(/\/+$/, '');
+            }
+
+            const host = String(parsed.hostname || '').replace(/^www\./i, '').toLowerCase();
+            const port = String(parsed.port || '').trim();
+            let pathname = String(parsed.pathname || '/').replace(/\/+/g, '/');
+            if (pathname.length > 1) pathname = pathname.replace(/\/+$/, '');
+
+            const sortedParams = Array.from(parsed.searchParams.entries())
+                .sort(([leftKey, leftValue], [rightKey, rightValue]) => {
+                    if (leftKey !== rightKey) return leftKey.localeCompare(rightKey);
+                    return leftValue.localeCompare(rightValue);
+                })
+                .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`);
+            const search = sortedParams.length > 0 ? `?${sortedParams.join('&')}` : '';
+            const hostWithPort = port ? `${host}:${port}` : host;
+            return `${hostWithPort}${pathname}${search}`;
+        } catch (error) {
+            return rawUrl.toLowerCase().replace(/\/+$/, '');
+        }
+    }
+
+    function hasMeaningfulIcon(link) {
+        const iconRaw = String(link?.icon || '').trim();
+        const iconNormalized = iconRaw.replace(/\uFE0F/g, '');
+        const isLegacyLinkIcon = iconNormalized === '\u{1F517}';
+        if (iconNormalized && !isLegacyLinkIcon) return true;
+
+        const sourceUrl = String(link?.url || '').trim();
+        if (!sourceUrl || sourceUrl === '#') return false;
+
+        try {
+            const parsed = new URL(sourceUrl, window.location.origin);
+            const protocol = String(parsed.protocol || '').toLowerCase();
+            if (protocol === 'file:' || protocol === 'about:' || protocol === 'blob:' || protocol === 'data:') {
+                return false;
+            }
+            const host = String(parsed.hostname || '').trim();
+            return !!host && host.includes('.');
+        } catch (error) {
+            return false;
+        }
+    }
+
+    function hasBookmarkTags(link) {
+        return Array.isArray(link?.tags) && link.tags.some((tag) => String(tag || '').trim().length > 0);
+    }
+
+    function hasLibraryTaxonomy(entry) {
+        if (!entry || typeof entry !== 'object') return false;
+        const hasTags = Array.isArray(entry.tags)
+            ? entry.tags.some((tag) => String(tag || '').trim().length > 0)
+            : String(entry.tags || '').trim().length > 0;
+        if (hasTags) return true;
+        return String(entry.genre || '').split(/[|,;]/).some((genre) => genre.trim().length > 0);
+    }
+
+    function hasMeaningfulCover(workspaceId, categoryName, link) {
+        const entry = getLibraryEntryForLink(workspaceId, categoryName, link?.id);
+        const fallbackImage = getLibraryFallbackImage(entry);
+
+        if (typeof window.EveBookmarkCovers?.getDisplayCover === 'function') {
+            const resolved = String(window.EveBookmarkCovers.getDisplayCover(link, fallbackImage) || '').trim();
+            return !!resolved;
+        }
+
+        return !!String(
+            link?.image
+            || link?.cover
+            || link?.coverImage
+            || link?.fixedCoverImage
+            || (Array.isArray(link?.coverImages) && link.coverImages.length ? link.coverImages[0] : '')
+            || fallbackImage
+        ).trim();
+    }
+
     function buildFolderView(workspaceId, categoryName, cardLinks) {
         let scopedNodes = getScopedNodes(workspaceId, categoryName);
 
@@ -256,49 +365,27 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
             return true;
         });
 
-        const missingIcons = activeLinks.filter(l => !l.icon);
+        const missingIcons = activeLinks.filter((link) => !hasMeaningfulIcon(link));
 
-        const missingCovers = activeLinks.filter(l => {
-            let hasCover = !!(l.image || l.cover || l.coverImage || (l.coverImages && l.coverImages.length > 0));
-            if (!hasCover && typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function') {
-                const conn = window.EveLibrary.ConnectionsAPI.findConnectionByLinkId(l.id);
-                if (conn && typeof window.EveLibrary?.EntriesAPI?.getEntryById === 'function') {
-                    const entry = window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, conn.entryId);
-                    if (entry && (entry.coverImage || entry.bannerImage)) {
-                        hasCover = true;
-                    }
-                }
-            }
-            return !hasCover;
-        });
+        const missingCovers = activeLinks.filter((link) => !hasMeaningfulCover(workspaceId, categoryName, link));
 
         const urlCounts = {};
-        activeLinks.forEach(l => {
-            try {
-                // Normalize URL for comparison
-                const urlObj = new URL(l.url);
-                urlObj.hash = ''; // ignore hashes
-                const normalized = urlObj.toString();
-                urlCounts[normalized] = (urlCounts[normalized] || 0) + 1;
-            } catch(e) {
-                // Ignore invalid URLs
-            }
+        activeLinks.forEach((link) => {
+            const normalized = getNormalizedDuplicateUrl(link);
+            if (!normalized) return;
+            urlCounts[normalized] = (urlCounts[normalized] || 0) + 1;
         });
 
-        const duplicateSuspects = activeLinks.filter(l => {
-            try {
-                const urlObj = new URL(l.url);
-                urlObj.hash = '';
-                return urlCounts[urlObj.toString()] > 1;
-            } catch(e) {
-                return false;
-            }
+        const duplicateSuspects = activeLinks.filter((link) => {
+            const normalized = getNormalizedDuplicateUrl(link);
+            return !!normalized && urlCounts[normalized] > 1;
         });
 
-        const untaggedLinks = activeLinks.filter(l => {
-            // Unsorted/no category or explicitly missing tags if the structure supports it.
-            // Using a simple logic: if it has no tags array or tags is empty
-            return !l.tags || !Array.isArray(l.tags) || l.tags.length === 0;
+        const untaggedLinks = activeLinks.filter((link) => {
+            if (hasBookmarkTags(link)) return false;
+            const entry = getLibraryEntryForLink(workspaceId, categoryName, link?.id);
+            if (entry && hasLibraryTaxonomy(entry)) return false;
+            return true;
         });
 
         const needsReviewLinks = activeLinks.filter(l => {
@@ -385,23 +472,23 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
             return urlStr === '' || urlStr === '#' || urlStr.startsWith('javascript:');
         });
 
-        const missingNotesLinks = activeLinks.filter(l => {
-            const conn = typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function' &&
-                   window.EveLibrary.ConnectionsAPI.findConnectionByLinkId(l.id);
+        const missingNotesLinks = activeLinks.filter((link) => {
+            const entry = getLibraryEntryForLink(workspaceId, categoryName, link?.id);
+            if (!entry) return false;
 
-            // Unlinked bookmarks do not need to be in the missing notes list
-            if (!conn) return false;
+            const hasBookmarkNote = typeof link?.notes === 'string' && link.notes.trim().length > 0;
+            if (hasBookmarkNote) return false;
 
-            const hasLinkNote = typeof l.notes === 'string' && l.notes.trim().length > 0;
-            if (hasLinkNote) return false;
+            const hasLibraryNotes = [entry.summary, entry.notes, entry.description]
+                .some((value) => {
+                    if (typeof value !== 'string') return false;
+                    const trimmed = value.trim();
+                    if (!trimmed) return false;
+                    if (isAutoSourceSummary(trimmed)) return false;
+                    return true;
+                });
+            if (hasLibraryNotes) return false;
 
-            const entry = typeof window.EveLibrary?.EntriesAPI?.getEntryById === 'function' &&
-                          window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, conn.entryId);
-
-            // If the linked entry has a summary, we don't consider notes missing
-            if (entry && typeof entry.summary === 'string' && entry.summary.trim().length > 0) return false;
-
-            // Connected, but no bookmark note and no library summary
             return true;
         });
 
