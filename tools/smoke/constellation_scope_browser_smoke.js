@@ -152,6 +152,59 @@ async function runSmoke(page) {
         throw new Error(`Expected card nodeCount=7, got ${cardStats.nodeCount}`);
     }
 
+    const categorySeed = await page.evaluate(() => {
+        const stats = window.EveConstellationMap.__debugGetGraphStats();
+        const categoryNode = stats.sampleNodes.find((node) => node.kind === 'category');
+        if (!categoryNode) throw new Error('No category node available for card map click test');
+        const canvas = document.querySelector('[data-map-canvas]');
+        const rect = canvas.getBoundingClientRect();
+        return {
+            id: categoryNode.id,
+            origX: categoryNode.x,
+            origY: categoryNode.y,
+            clickX: rect.left + stats.transform.tx + (categoryNode.x * stats.transform.scale),
+            clickY: rect.top + stats.transform.ty + (categoryNode.y * stats.transform.scale)
+        };
+    });
+
+    await page.mouse.click(categorySeed.clickX, categorySeed.clickY);
+    await page.waitForTimeout(180);
+
+    const collapsedInspector = await page.evaluate(() => {
+        const info = document.querySelector('[data-map-info]');
+        const toggle = info?.querySelector('[data-map-info-toggle="1"]');
+        return {
+            text: info ? info.textContent : '',
+            hasAction: !!info?.querySelector('[data-map-action="primary"]'),
+            toggleText: toggle ? toggle.textContent : ''
+        };
+    });
+    if (collapsedInspector.hasAction) {
+        throw new Error('Inspector should start collapsed with actions hidden');
+    }
+    if (!/Alpha/i.test(collapsedInspector.text)) {
+        throw new Error(`Expected inspector to target selected category, got ${collapsedInspector.text}`);
+    }
+    if (!/Expand/i.test(collapsedInspector.toggleText)) {
+        throw new Error(`Expected collapsed inspector toggle, got ${collapsedInspector.toggleText}`);
+    }
+
+    await page.locator('[data-map-info-toggle="1"]').click();
+    await page.waitForTimeout(120);
+    const expandedInspector = await page.evaluate(() => {
+        const info = document.querySelector('[data-map-info]');
+        return {
+            text: info ? info.textContent : '',
+            toggleText: info?.querySelector('[data-map-info-toggle="1"]')?.textContent || ''
+        };
+    });
+    if (!/Collapse/i.test(expandedInspector.toggleText)) {
+        throw new Error(`Expected expanded inspector toggle, got ${expandedInspector.toggleText}`);
+    }
+    if (!/Center/i.test(expandedInspector.text)) {
+        throw new Error('Expanded inspector should expose node actions');
+    }
+
     const canvas = page.locator('[data-map-canvas]');
     const canvasBox = await canvas.boundingBox();
     if (!canvasBox) {
@@ -193,6 +246,89 @@ async function runSmoke(page) {
     }
     if (Math.abs(draggedNode.x - dragSeed.origX) < 8 && Math.abs(draggedNode.y - dragSeed.origY) < 8) {
         throw new Error(`Expected dragged node to move meaningfully, got ${JSON.stringify({ before: dragSeed, after: draggedNode })}`);
+    }
+
+    const categoryDragSeed = await page.evaluate((categoryId) => {
+        const stats = window.EveConstellationMap.__debugGetGraphStats();
+        const categoryNode = stats.sampleNodes.find((node) => node.id === categoryId);
+        if (!categoryNode) throw new Error('No category node available for drag persistence test');
+        const canvas = document.querySelector('[data-map-canvas]');
+        const rect = canvas.getBoundingClientRect();
+        return {
+            id: categoryNode.id,
+            origX: categoryNode.x,
+            origY: categoryNode.y,
+            startX: rect.left + stats.transform.tx + (categoryNode.x * stats.transform.scale),
+            startY: rect.top + stats.transform.ty + (categoryNode.y * stats.transform.scale)
+        };
+    }, categorySeed.id);
+
+    await page.mouse.move(categoryDragSeed.startX, categoryDragSeed.startY);
+    await page.mouse.down();
+    await page.mouse.move(categoryDragSeed.startX + 240, categoryDragSeed.startY - 70, { steps: 14 });
+    await page.mouse.up();
+    await page.waitForTimeout(900);
+    const anchoredStats = await getStats(page);
+    const movedCategory = anchoredStats.sampleNodes.find((node) => node.id === categoryDragSeed.id);
+    if (!movedCategory) {
+        throw new Error('Moved category node missing from debug sample after drag');
+    }
+    const movedCategoryDistance = Math.hypot(
+        movedCategory.x - categoryDragSeed.origX,
+        movedCategory.y - categoryDragSeed.origY
+    );
+    if (movedCategoryDistance < 45) {
+        throw new Error(`Expected dragged category node to keep its relocated position, got ${JSON.stringify({ before: categoryDragSeed, after: movedCategory })}`);
+    }
+
+    const panSeed = await page.evaluate(() => {
+        const stats = window.EveConstellationMap.__debugGetGraphStats();
+        const canvas = document.querySelector('[data-map-canvas]');
+        const rect = canvas.getBoundingClientRect();
+        const minX = 150;
+        const maxX = Math.max(minX + 40, rect.width - 420);
+        const minY = 140;
+        const maxY = Math.max(minY + 40, rect.height - 140);
+        for (let x = minX; x < maxX; x += 26) {
+            for (let y = minY; y < maxY; y += 26) {
+                const crowded = stats.sampleNodes.some((node) => {
+                    const screenX = stats.transform.tx + (node.x * stats.transform.scale);
+                    const screenY = stats.transform.ty + (node.y * stats.transform.scale);
+                    return Math.hypot(screenX - x, screenY - y) < 42;
+                });
+                if (!crowded) {
+                    return { startX: rect.left + x, startY: rect.top + y };
+                }
+            }
+        }
+        return { startX: rect.left + minX, startY: rect.top + minY };
+    });
+
+    const prePanTx = anchoredStats.transform.tx;
+    await page.keyboard.down('Space');
+    await page.mouse.move(panSeed.startX, panSeed.startY);
+    await page.mouse.down();
+    await page.mouse.move(panSeed.startX - 280, panSeed.startY, { steps: 14 });
+    await page.mouse.up();
+    await page.keyboard.up('Space');
+    await page.waitForTimeout(900);
+    const panStats = await getStats(page);
+    if (Math.abs(panStats.transform.tx - prePanTx) < 100) {
+        throw new Error(`Expected map pan to shift transform.tx meaningfully (${prePanTx} -> ${panStats.transform.tx})`);
+    }
+    if (Math.abs(panStats.visibleWorldBounds.minX - zoomStats.visibleWorldBounds.minX) < 30) {
+        throw new Error(`Expected visible world bounds to shift with panning, got ${JSON.stringify({ before: zoomStats.visibleWorldBounds, after: panStats.visibleWorldBounds })}`);
+    }
+    if (JSON.stringify(panStats.worldBounds) !== JSON.stringify(zoomStats.worldBounds)) {
+        throw new Error(`World bounds should stay stable while panning, got ${JSON.stringify({ before: zoomStats.worldBounds, after: panStats.worldBounds })}`);
+    }
+
+    await page.mouse.move(canvasBox.x + (canvasBox.width * 0.5), canvasBox.y + (canvasBox.height * 0.5));
+    await page.mouse.wheel(0, -1600);
+    await page.waitForTimeout(220);
+    const deepZoomStats = await getStats(page);
+    if (!(deepZoomStats.transform.scale > 3.4)) {
+        throw new Error(`Expected deeper zoom-in headroom, got scale=${deepZoomStats.transform.scale}`);
     }
     await closeMap(page);
 
@@ -261,6 +397,8 @@ async function runSmoke(page) {
         cardStats,
         zoomStats,
         draggedNode,
+        panStats,
+        deepZoomStats,
         allStats,
         cardsStageStats,
         entriesStageStats,
