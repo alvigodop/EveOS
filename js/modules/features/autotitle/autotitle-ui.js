@@ -10,7 +10,7 @@ window.fetchTitle = async function (btn) {
     btn.disabled = true;
 
     try {
-        const data = await window.getTitleFromUrl(url);
+        const data = await window.getTitleFromUrl(url, { allowSlowCover: true });
         if (data && data.title) {
             if (data.title === "CLOUDFLARE_BLOCK") {
                 showToast("Protected by Cloudflare. Defaulting to URL.", "warning");

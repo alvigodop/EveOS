@@ -1,5 +1,5 @@
 // --- AUTO-TITLE CORE MODULE ---
-window.getTitleFromUrl = async function (url) {
+window.getTitleFromUrl = async function (url, options = {}) {
     // Orchestrates the strategies defined in external modules
 
     const strats = window.EveOS?.Autotitle?.Strategies;
@@ -9,6 +9,7 @@ window.getTitleFromUrl = async function (url) {
     }
 
     const isBrowserHtmlMode = window.location?.protocol === 'file:';
+    const allowSlowCover = !!options.allowSlowCover;
 
     function runStrategy(strategyFn, timeoutMs) {
         if (typeof strategyFn !== 'function') return Promise.resolve(null);
@@ -91,8 +92,18 @@ window.getTitleFromUrl = async function (url) {
         const hints = getUrlHints(targetUrl);
         const normalized = { ...result };
 
+        if (normalized.title === 'CLOUDFLARE_BLOCK' && !normalized.icon && !normalized.coverUrl && !normalized.description) {
+            return null;
+        }
+
         if (normalized.title) {
             normalized.title = trimSiteSuffix(normalized.title, targetUrl);
+            normalized.title = normalized.title
+                .replace(/\s*Manga\s*-\s*Read Manga Online Free\s*$/i, '')
+                .replace(/\s*-\s*Read Manga Online Free\s*$/i, '')
+                .replace(/\s*-\s*Read Online(?:\s+Free)?\s*$/i, '')
+                .replace(/\s*-\s*MangaDex\s*$/i, '')
+                .trim();
         }
 
         if ((!normalized.title || looksLikeGenericSiteName(normalized.title, targetUrl)) && hints?.titleFromSlug) {
@@ -207,16 +218,49 @@ window.getTitleFromUrl = async function (url) {
             }
         }
 
+        let primaryResult = null;
+
+        if (isBrowserHtmlMode && strats.MangaDexApi) {
+            const mangaDexApiResult = normalizeAutotitleResult(await runStrategy(strats.MangaDexApi, 5000), url);
+            if (mangaDexApiResult) {
+                primaryResult = mergeAutotitleMetadata(primaryResult, mangaDexApiResult);
+                if (mangaDexApiResult.title && mangaDexApiResult.coverUrl) {
+                    return mangaDexApiResult;
+                }
+            }
+        }
+
         // Browser HTML mode benefits more from direct metadata APIs than proxy scraping.
         if (isBrowserHtmlMode && strats.GoogleSearch && !isVideoOrContentSite(url)) {
             console.log("Autotitle: Browser HTML mode detected. Trying MicroLink early...");
             const earlyMicro = normalizeAutotitleResult(await runStrategy(strats.GoogleSearch, 7000), url);
-            if (earlyMicro?.title && !looksLikeGenericSiteName(earlyMicro.title, url) && earlyMicro.coverUrl) {
+            if (!primaryResult && earlyMicro) {
+                primaryResult = mergeAutotitleMetadata(primaryResult, earlyMicro);
+            } else if (earlyMicro) {
+                if (isClearlyBetterTitle(earlyMicro, primaryResult, url)) {
+                    primaryResult = adoptAutotitleTitle(primaryResult, earlyMicro);
+                } else {
+                    primaryResult = mergeAutotitleMetadata(primaryResult, earlyMicro);
+                }
+            }
+            if (earlyMicro?.title && !looksLikeGenericSiteName(earlyMicro.title, url) && earlyMicro.coverUrl && !primaryResult?.source?.includes?.('MangaDexAPI')) {
                 return earlyMicro;
             }
         }
 
-        let primaryResult = null;
+        if (isBrowserHtmlMode && allowSlowCover && strats.MangaFireHtml) {
+            const mangaFireResult = normalizeAutotitleResult(await runStrategy(strats.MangaFireHtml, 35000), url);
+            if (mangaFireResult) {
+                if (!primaryResult || isClearlyBetterTitle(mangaFireResult, primaryResult, url)) {
+                    primaryResult = adoptAutotitleTitle(primaryResult, mangaFireResult);
+                } else {
+                    primaryResult = mergeAutotitleMetadata(primaryResult, mangaFireResult);
+                }
+                if (primaryResult?.title && primaryResult?.coverUrl && primaryResult?.icon) {
+                    return primaryResult;
+                }
+            }
+        }
 
         if (isBrowserHtmlMode && strats.LinkMeta) {
             const earlyLinkMeta = normalizeAutotitleResult(await runStrategy(strats.LinkMeta, 5000), url);
@@ -231,7 +275,7 @@ window.getTitleFromUrl = async function (url) {
         // Strategy 1: AllOrigins (JSON) - For normal sites
         if (strats.AllOrigins) {
             console.log("Autotitle: Trying AllOrigins strategy...");
-            primaryResult = normalizeAutotitleResult(await runStrategy(strats.AllOrigins, 4500), url) || primaryResult;
+            primaryResult = normalizeAutotitleResult(await runStrategy(strats.AllOrigins, isBrowserHtmlMode ? 12000 : 4500), url) || primaryResult;
             if (primaryResult && !looksLikeGenericSiteName(primaryResult.title, url)) {
                 console.log("Autotitle: AllOrigins returned good title:", primaryResult.title);
                 if (primaryResult.coverUrl) {

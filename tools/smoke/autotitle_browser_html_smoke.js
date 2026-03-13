@@ -17,20 +17,21 @@ async function main() {
 
     const urls = [
         'https://mangadex.org/title/99182618-ae92-4aec-a5df-518659b7b613/rebuild-world?tab=chapters',
-        'https://mangadex.org/title/bf713abe-b415-45ac-8fd1-653dba578e0f'
+        'https://mangadex.org/title/bf713abe-b415-45ac-8fd1-653dba578e0f',
+        'https://mangafire.to/manga/souda-baikoku-shiyou-tensai-ouji-no-akaji-kokka-saisei-jutsuu.0229k'
     ];
 
     const results = [];
     for (const url of urls) {
         const result = await page.evaluate(async (targetUrl) => {
-            return await window.getTitleFromUrl(targetUrl);
+            return await window.getTitleFromUrl(targetUrl, { allowSlowCover: true });
         }, url);
         results.push({ url, result });
     }
 
     await browser.close();
 
-    const [first, second] = results;
+    const [first, second, third] = results;
     if (!first.result?.title || !/rebuild world/i.test(first.result.title)) {
         throw new Error(`Expected slug-derived Rebuild World title, got ${JSON.stringify(first)}`);
     }
@@ -41,14 +42,24 @@ async function main() {
         throw new Error(`Expected MangaDex icon for first URL, got ${JSON.stringify(first)}`);
     }
 
-    if (!second.result?.title || /mangadex/i.test(second.result.title)) {
-        throw new Error(`Expected cleaned second title without site suffix, got ${JSON.stringify(second)}`);
+    if (second.result?.title !== "I'm an Evil God") {
+        throw new Error(`Expected English MangaDex title for second URL, got ${JSON.stringify(second)}`);
     }
     if (!String(second.result?.coverUrl || '').includes('bf713abe-b415-45ac-8fd1-653dba578e0f')) {
         throw new Error(`Expected MangaDex cover for second URL, got ${JSON.stringify(second)}`);
     }
     if (!String(second.result?.icon || '').includes('mangadex.org/pwa/icons/icon-180.png')) {
         throw new Error(`Expected MangaDex icon for second URL, got ${JSON.stringify(second)}`);
+    }
+
+    if (!third.result?.title || !/The Genius Prince's Guide to Raising a Nation Out of Debt/i.test(third.result.title)) {
+        throw new Error(`Expected cleaned MangaFire title, got ${JSON.stringify(third)}`);
+    }
+    if (!String(third.result?.coverUrl || '').includes('static.mfcdn.cc/')) {
+        throw new Error(`Expected MangaFire cover image, got ${JSON.stringify(third)}`);
+    }
+    if (!String(third.result?.icon || '').includes('mangafire/favicon')) {
+        throw new Error(`Expected MangaFire icon, got ${JSON.stringify(third)}`);
     }
 
     console.log(`AUTOTITLE_BROWSER_HTML_SMOKE_OK ${JSON.stringify(results)}`);

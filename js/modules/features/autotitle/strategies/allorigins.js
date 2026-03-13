@@ -108,6 +108,45 @@
         }
     };
 
+    const scoreCoverCandidate = (url) => {
+        if (!url) return -999;
+        const low = String(url).toLowerCase();
+        if (/favicon|logo|sprite|avatar|flag|sharethis|emoji|icon|badge|banner|header|ad[sx]?|pixel/.test(low)) return -200;
+        if (/\.svg(?:\?.*)?$/i.test(low)) return -120;
+        let score = 0;
+        if (/cover|poster|thumbnail|thumb|manga|comic|chapter|title/.test(low)) score += 35;
+        if (/uploads|static|cdn|images|image|media/.test(low)) score += 15;
+        if (!/@\d+\.(jpg|jpeg|png|webp|avif)$/i.test(low)) score += 20;
+        if (/\.(jpg|jpeg|png|webp|avif)(?:\?.*)?$/i.test(low)) score += 25;
+        if (/\/assets\//.test(low)) score -= 35;
+        if (/@100\./.test(low)) score -= 18;
+        if (/placeholder|default|no-cover/.test(low)) score -= 40;
+        return score;
+    };
+
+    const extractImageCandidates = (html, baseUrl) => {
+        const patterns = [
+            /<(?:img|source)[^>]+(?:src|data-src)=["']([^"']+)["']/gi,
+            /<(?:img|source)[^>]+(?:srcset|data-srcset)=["']([^"']+)["']/gi,
+            /<meta[^>]+itemprop=["']image["'][^>]+content=["']([^"']+)["']/gi,
+            /<link[^>]+rel=["']image_src["'][^>]+href=["']([^"']+)["']/gi
+        ];
+        const rawCandidates = [];
+        patterns.forEach((pattern) => {
+            let match;
+            while ((match = pattern.exec(html)) !== null) {
+                const raw = String(match[1] || '').split(',').map((part) => part.trim().split(/\s+/)[0]).filter(Boolean);
+                raw.forEach((entry) => rawCandidates.push(entry));
+            }
+        });
+        return Array.from(new Set(rawCandidates))
+            .map((raw) => resolveAssetUrl(raw, baseUrl))
+            .filter(Boolean)
+            .map((url) => ({ url, score: scoreCoverCandidate(url) }))
+            .filter((candidate) => candidate.score > -20)
+            .sort((a, b) => b.score - a.score);
+    };
+
     const extractIcon = (html, baseUrl) => {
         const iconPattern = /<link[^>]+rel=["'](?:shortcut |apple-touch-)?icon["'][^>]+href=["']([^"']+)["']/gi;
         const altPattern = /<link[^>]+href=["']([^"']+)["'][^>]+rel=["'](?:shortcut |apple-touch-)?icon["']/gi;
@@ -201,7 +240,7 @@
                 // Ignore malformed JSON-LD blocks.
             }
         }
-        return null;
+        return extractImageCandidates(html, baseUrl)[0]?.url || null;
     };
 
     window.EveOS.Autotitle.Strategies.AllOrigins = async function (url, signal) {
@@ -217,6 +256,19 @@
             }
         } catch (e) {
             console.warn("AllOrigins failed", e);
+        }
+        try {
+            const rawRes = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`, { signal: signal });
+            const rawHtml = await rawRes.text();
+            if (rawHtml) {
+                const t = cleanTitle(extractTitle(rawHtml));
+                if (t === "CLOUDFLARE_BLOCK") throw new Error("AllOrigins Raw Cloudflare Block");
+                const i = extractIcon(rawHtml, url);
+                const coverUrl = extractCover(rawHtml, url);
+                if (t || i || coverUrl) return { title: t, icon: i, coverUrl };
+            }
+        } catch (e) {
+            console.warn("AllOrigins raw failed", e);
         }
         return null; // Continue to next strategy
     };

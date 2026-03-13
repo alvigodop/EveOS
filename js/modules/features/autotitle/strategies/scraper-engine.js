@@ -42,6 +42,55 @@
         return null;
     };
 
+    const parseSrcset = (srcset) => {
+        if (!srcset) return [];
+        return String(srcset)
+            .split(',')
+            .map((part) => part.trim().split(/\s+/)[0])
+            .filter(Boolean);
+    };
+
+    const scoreCoverCandidate = (url) => {
+        if (!url) return -999;
+        const low = String(url).toLowerCase();
+        if (/favicon|logo|sprite|avatar|flag|sharethis|emoji|icon|badge|banner|header|ad[sx]?|pixel/.test(low)) return -200;
+        if (/\.svg(?:\?.*)?$/i.test(low)) return -120;
+
+        let score = 0;
+        if (/cover|poster|thumbnail|thumb|manga|comic|chapter|title/.test(low)) score += 35;
+        if (/uploads|static|cdn|images|image|media/.test(low)) score += 15;
+        if (!/@\d+\.(jpg|jpeg|png|webp|avif)$/i.test(low)) score += 20;
+        if (/\.(jpg|jpeg|png|webp|avif)(?:\?.*)?$/i.test(low)) score += 25;
+        if (/\/assets\//.test(low)) score -= 35;
+        if (/@100\./.test(low)) score -= 18;
+        if (/placeholder|default|no-cover/.test(low)) score -= 40;
+        return score;
+    };
+
+    const extractImageCandidates = (doc, baseUrl) => {
+        const rawCandidates = [];
+        const pushResolved = (raw) => {
+            const resolved = resolveAssetUrl(raw, baseUrl);
+            if (resolved) rawCandidates.push(resolved);
+        };
+
+        doc.querySelectorAll('img').forEach((img) => {
+            pushResolved(img.getAttribute('src'));
+            pushResolved(img.getAttribute('data-src'));
+            parseSrcset(img.getAttribute('srcset')).forEach(pushResolved);
+            parseSrcset(img.getAttribute('data-srcset')).forEach(pushResolved);
+        });
+        doc.querySelectorAll('source').forEach((source) => {
+            parseSrcset(source.getAttribute('srcset')).forEach(pushResolved);
+        });
+
+        const unique = Array.from(new Set(rawCandidates));
+        return unique
+            .map((url) => ({ url, score: scoreCoverCandidate(url) }))
+            .filter((candidate) => candidate.score > -20)
+            .sort((a, b) => b.score - a.score);
+    };
+
     const extractJsonLdValue = (doc, keys) => {
         const blocks = Array.from(doc.querySelectorAll('script[type="application/ld+json"]'));
         for (const block of blocks) {
@@ -103,7 +152,7 @@
             baseUrl
         );
 
-        const coverUrl = resolveAssetUrl(
+        let coverUrl = resolveAssetUrl(
             getMetaContent(doc, [
                 'meta[property="og:image"]',
                 'meta[property="og:image:secure_url"]',
@@ -114,6 +163,9 @@
             ]) || extractJsonLdValue(doc, ['image']),
             baseUrl
         );
+        if (!coverUrl) {
+            coverUrl = extractImageCandidates(doc, baseUrl)[0]?.url || null;
+        }
 
         const description = getMetaContent(doc, [
             'meta[name="description"]',
