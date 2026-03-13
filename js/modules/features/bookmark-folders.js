@@ -487,10 +487,64 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         });
 
         // ----------------------------------------------------
+        // --- DOMAIN GROUPING LOGIC ---
+        // ----------------------------------------------------
+        const domainMap = new Map();
+        activeLinks.forEach(l => {
+            try {
+                const d = new URL(l.url).hostname.toLowerCase().replace(/^www\./, '');
+                if (d && d.includes('.')) {
+                    if (!domainMap.has(d)) domainMap.set(d, []);
+                    domainMap.get(d).push(l);
+                }
+            } catch(e) {}
+        });
+
+        const domainGhosts = [];
+        domainMap.forEach((links, domain) => {
+            if (links.length >= 3 && isGhostEnabled('domain_grouping')) {
+                domainGhosts.push({
+                    domain: domain,
+                    links: links
+                });
+            }
+        });
+        domainGhosts.sort((a, b) => b.links.length - a.links.length);
+
+        // ----------------------------------------------------
+        // --- LIBRARY STATS LOGIC ---
+        // ----------------------------------------------------
+        const genreMap = new Map();
+        activeLinks.forEach(l => {
+            const conn = typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function' &&
+                         window.EveLibrary.ConnectionsAPI.findConnectionByLinkId(l.id);
+            if (conn) {
+                const entry = typeof window.EveLibrary?.EntriesAPI?.getEntryById === 'function' &&
+                              window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, conn.entryId);
+                if (entry && entry.genre) {
+                    const genres = String(entry.genre).split(/[|,;]/).map(g => g.trim()).filter(Boolean);
+                    genres.forEach(g => {
+                        if (!genreMap.has(g)) genreMap.set(g, []);
+                        genreMap.get(g).push(l);
+                    });
+                }
+            }
+        });
+
+        const topGenres = [];
+        genreMap.forEach((links, genre) => {
+            if (links.length >= 2 && isGhostEnabled('library_stats')) {
+                topGenres.push({ genre, links });
+            }
+        });
+        topGenres.sort((a, b) => b.links.length - a.links.length);
+
+        // ----------------------------------------------------
         // --- GHOST HIERARCHY BUILDER ---
         // ----------------------------------------------------
         const ghostCategories = {
             linkHealth: { id: '__ghost_cat_linkHealth__', name: '[ Link Health ]', links: [] },
+            domains: { id: '__ghost_cat_domains__', name: '[ Domains ]', links: [] },
             readingStatus: { id: '__ghost_cat_readingStatus__', name: '[ Reading Status ]', links: [] },
             maintenance: { id: '__ghost_cat_maintenance__', name: '[ Maintenance ]', links: [] },
             activity: { id: '__ghost_cat_activity__', name: '[ Activity ]', links: [] },
@@ -518,6 +572,13 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         addGhost('linkHealth', '__ghost_title_drift__', '[ Title Drift ]', titleDriftLinks, 'title_drift');
         addGhost('linkHealth', '__ghost_orphaned_lib__', '[ Orphaned Library Entries ]', orphanedLibEntries, 'orphaned_lib');
 
+        // Domains
+        domainGhosts.forEach(dg => {
+            const id = `__ghost_domain_${dg.domain.replace(/[^a-zA-Z0-9]/g, '_')}__`;
+            const name = `[ ${dg.domain.toUpperCase()} ]`;
+            addGhost('domains', id, name, dg.links, 'domain_grouping');
+        });
+
         // Reading Status
         addGhost('readingStatus', '__ghost_unread__', '[ Plan to Read ]', unreadLinks, 'unread');
         addGhost('readingStatus', '__ghost_reading__', '[ Actively Reading ]', readingLinks, 'reading');
@@ -544,6 +605,13 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         addGhost('insights', '__ghost_top_rated__', '[ Top Rated ]', topRatedLinks, 'top_rated');
         addGhost('insights', '__ghost_duplicate_suspects__', '[ Duplicate Suspects ]', duplicateSuspects, 'duplicate_suspects');
         addGhost('insights', '__ghost_ancients__', '[ The Ancients ]', ancientsLinks, 'ancients');
+
+        // Library Stats
+        topGenres.forEach(tg => {
+            const id = `__ghost_genre_${tg.genre.replace(/[^a-zA-Z0-9]/g, '_')}__`;
+            const name = `[ Genre: ${tg.genre} ]`;
+            addGhost('insights', id, name, tg.links, 'library_stats');
+        });
 
         let anyMasterEnabled = false;
         Object.values(ghostCategories).forEach(cat => {
