@@ -207,7 +207,9 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         if (typeof connectionsApi?.findConnectionByLinkId !== 'function') return null;
         const conn = connectionsApi.findConnectionByLinkId(linkId);
         if (!conn || typeof window.EveLibrary?.EntriesAPI?.getEntryById !== 'function') return null;
-        return window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, conn.entryId) || null;
+        const entryId = String(conn.libraryEntryId || conn.entryId || '').trim();
+        if (!entryId) return null;
+        return window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, entryId) || null;
     }
 
     function isAutoSourceSummary(value) {
@@ -304,6 +306,261 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
             || (Array.isArray(link?.coverImages) && link.coverImages.length ? link.coverImages[0] : '')
             || fallbackImage
         ).trim();
+    }
+
+    function uniqueNonEmpty(values) {
+        const seen = new Set();
+        return (Array.isArray(values) ? values : [])
+            .map((value) => String(value || '').trim())
+            .filter((value) => {
+                if (!value) return false;
+                const key = value.toLowerCase();
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
+    }
+
+    function splitLibraryFieldValues(value) {
+        if (Array.isArray(value)) return uniqueNonEmpty(value);
+        return uniqueNonEmpty(String(value || '').split(/[|,;/]/g));
+    }
+
+    function normalizeLanguageLabel(value) {
+        const raw = String(value || '').trim();
+        if (!raw) return '';
+        const lower = raw.toLowerCase();
+        if (/^(english|en|eng)$/.test(lower)) return 'EN';
+        if (/^(japanese|ja|jp|jpn)$/.test(lower)) return 'JA';
+        if (/^(korean|ko|kr|kor)$/.test(lower)) return 'KO';
+        if (/^(chinese|zh|cn|zho)$/.test(lower)) return 'ZH';
+        if (/^[a-z]{2,3}$/.test(lower)) return lower.toUpperCase();
+        return raw
+            .split(/\s+/)
+            .map((part) => part ? `${part.charAt(0).toUpperCase()}${part.slice(1).toLowerCase()}` : '')
+            .join(' ')
+            .trim();
+    }
+
+    function normalizeStatusLabel(value) {
+        const raw = String(value || '').trim();
+        if (!raw) return '';
+        const lower = raw.toLowerCase();
+        const map = {
+            plan_to_read: 'Plan to Read',
+            unread: 'Plan to Read',
+            reading: 'Reading',
+            in_progress: 'Reading',
+            ongoing: 'Reading',
+            completed: 'Completed',
+            finished: 'Completed',
+            on_hold: 'On Hold',
+            paused: 'On Hold',
+            dropped: 'Dropped'
+        };
+        if (map[lower]) return map[lower];
+        return raw
+            .replace(/[_-]+/g, ' ')
+            .split(/\s+/)
+            .map((part) => part ? `${part.charAt(0).toUpperCase()}${part.slice(1).toLowerCase()}` : '')
+            .join(' ')
+            .trim();
+    }
+
+    function getDerivedTagValues(link, entry) {
+        return uniqueNonEmpty([
+            ...(Array.isArray(link?.tags) ? link.tags : []),
+            ...splitLibraryFieldValues(entry?.tags)
+        ]);
+    }
+
+    function getDerivedGenreValues(entry) {
+        return uniqueNonEmpty([
+            ...splitLibraryFieldValues(entry?.genre),
+            ...splitLibraryFieldValues(entry?.genres)
+        ]);
+    }
+
+    function getDerivedAuthorValues(entry) {
+        return uniqueNonEmpty([
+            ...splitLibraryFieldValues(entry?.author),
+            ...splitLibraryFieldValues(entry?.authors),
+            ...splitLibraryFieldValues(entry?.authorAltNames),
+            ...splitLibraryFieldValues(entry?.writer)
+        ]);
+    }
+
+    function getDerivedLanguageValues(link, entry) {
+        const values = uniqueNonEmpty([
+            ...splitLibraryFieldValues(link?.language),
+            ...splitLibraryFieldValues(entry?.language),
+            ...splitLibraryFieldValues(entry?.languages),
+            ...splitLibraryFieldValues(entry?.originalLanguage)
+        ]);
+        return uniqueNonEmpty(values.map((value) => normalizeLanguageLabel(value)));
+    }
+
+    function getDerivedStatusValue(link, entry) {
+        const libraryStatus = entry?.libraryStatus;
+        const raw = libraryStatus?.label || libraryStatus?.name || libraryStatus?.id || entry?.status || link?.status || '';
+        const normalized = normalizeStatusLabel(raw);
+        return normalized || null;
+    }
+
+    function getDerivedRatingValue(link, entry) {
+        const candidates = [
+            entry?.derivedRatings?.activeValue,
+            entry?.derivedRatings?.unified,
+            entry?.derivedRatings?.selectedRating10,
+            entry?.derivedRatings?.hybrid10,
+            entry?.apiRating,
+            entry?.personalRating,
+            entry?.rating,
+            link?.rating,
+            link?.priority === 'high' ? 8 : null
+        ];
+        for (let i = 0; i < candidates.length; i += 1) {
+            const numeric = Number(candidates[i]);
+            if (Number.isFinite(numeric) && numeric > 0) {
+                return numeric;
+            }
+        }
+        return null;
+    }
+
+    function getDerivedConfidenceValue(entry) {
+        const candidates = [
+            entry?.derivedRatings?.confidence,
+            entry?.confidence
+        ];
+        for (let i = 0; i < candidates.length; i += 1) {
+            const numeric = Number(candidates[i]);
+            if (Number.isFinite(numeric)) {
+                if (numeric <= 1) return numeric;
+                return Math.max(0, Math.min(1, numeric / 10));
+            }
+        }
+        return null;
+    }
+
+    function getRatingBucketLabel(value) {
+        if (!Number.isFinite(value)) return '';
+        if (value >= 9) return '9+';
+        if (value >= 8) return '8-8.9';
+        if (value >= 7) return '7-7.9';
+        if (value >= 5) return '5-6.9';
+        return 'Under 5';
+    }
+
+    function getConfidenceBucketLabel(value) {
+        if (!Number.isFinite(value)) return '';
+        if (value >= 0.9) return '0.90+';
+        if (value >= 0.75) return '0.75-0.89';
+        if (value >= 0.5) return '0.50-0.74';
+        if (value > 0) return 'Below 0.50';
+        return '';
+    }
+
+    function getDerivedProgressValue(entry) {
+        const candidates = [
+            entry?.chapter,
+            entry?.graphicChapter,
+            entry?.novelChapter,
+            entry?.episode,
+            entry?.chapterTotal,
+            entry?.chapters,
+            entry?.episodeTotal,
+            entry?.episodes
+        ];
+        for (let i = 0; i < candidates.length; i += 1) {
+            const numeric = Number(candidates[i]);
+            if (Number.isFinite(numeric) && numeric > 0) return numeric;
+        }
+        return null;
+    }
+
+    function getProgressBucketLabel(value) {
+        if (!Number.isFinite(value)) return '';
+        if (value >= 500) return '500+ Units';
+        if (value >= 200) return '200-499 Units';
+        if (value >= 100) return '100-199 Units';
+        if (value >= 50) return '50-99 Units';
+        if (value >= 10) return '10-49 Units';
+        return 'Under 10 Units';
+    }
+
+    function getDerivedDemographicValue(entry) {
+        const values = uniqueNonEmpty([
+            ...splitLibraryFieldValues(entry?.demographic),
+            ...splitLibraryFieldValues(entry?.demographics),
+            ...splitLibraryFieldValues(entry?.audience)
+        ]);
+        return values[0] || null;
+    }
+
+    function getDerivedPublicationValue(entry) {
+        const candidates = [
+            entry?.publicationYear,
+            entry?.year,
+            entry?.releaseYear,
+            entry?.publishedYear,
+            entry?.startYear
+        ];
+        for (let i = 0; i < candidates.length; i += 1) {
+            const numeric = Number(candidates[i]);
+            if (Number.isFinite(numeric) && numeric >= 1900 && numeric <= 2100) {
+                return Math.floor(numeric);
+            }
+        }
+        const textCandidates = [entry?.releaseDate, entry?.publishedAt, entry?.dateAdded];
+        for (let i = 0; i < textCandidates.length; i += 1) {
+            const date = new Date(textCandidates[i]);
+            const year = Number(date.getUTCFullYear());
+            if (Number.isFinite(year) && year >= 1900 && year <= 2100) {
+                return year;
+            }
+        }
+        return null;
+    }
+
+    function getPublicationBucketLabel(value) {
+        if (!Number.isFinite(value)) return '';
+        return `${Math.floor(value / 10) * 10}s`;
+    }
+
+    function getTitleInitial(title) {
+        const normalized = String(title || '').trim();
+        if (!normalized) return '#';
+        const first = normalized.charAt(0).toUpperCase();
+        if (/[A-Z]/.test(first)) return first;
+        if (/[0-9]/.test(first)) return '0-9';
+        return '#';
+    }
+
+    function getCoarseTitleBucket(initial) {
+        if (initial === '0-9' || initial === '#') return initial;
+        const code = initial.charCodeAt(0);
+        if (code <= 67) return 'A-C';
+        if (code <= 70) return 'D-F';
+        if (code <= 73) return 'G-I';
+        if (code <= 76) return 'J-L';
+        if (code <= 79) return 'M-O';
+        if (code <= 82) return 'P-R';
+        if (code <= 85) return 'S-U';
+        return 'V-Z';
+    }
+
+    function getDerivedTimelineBucket(link) {
+        const raw = link?.lastVisited || link?.updatedAt || link?.createdAt || 0;
+        const timestamp = Number(new Date(raw).getTime());
+        if (!Number.isFinite(timestamp) || timestamp <= 0) return null;
+        const age = Date.now() - timestamp;
+        const day = 24 * 60 * 60 * 1000;
+        if (age < day) return 'Today';
+        if (age < 7 * day) return 'This Week';
+        if (age < 30 * day) return 'This Month';
+        if (age < 365 * day) return 'This Year';
+        return 'Older';
     }
 
     function buildFolderView(workspaceId, categoryName, cardLinks) {
@@ -626,6 +883,341 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         });
         topGenres.sort((a, b) => b.links.length - a.links.length);
 
+        const libraryEntryCache = new Map();
+        activeLinks.forEach((link) => {
+            libraryEntryCache.set(String(link?.id || ''), getLibraryEntryForLink(workspaceId, categoryName, link?.id));
+        });
+
+        const derivedGhostNodeBudget = {
+            count: 0,
+            max: Math.min(900, Math.max(360, activeLinks.length * 18))
+        };
+        const derivedValueLimit = activeLinks.length > 120 ? 8 : 10;
+        const derivedDepthLimit = 4;
+
+        function getCachedEntry(link) {
+            return libraryEntryCache.get(String(link?.id || '')) || null;
+        }
+
+        function sortBuckets(buckets, preferredOrder) {
+            const orderMap = new Map();
+            (Array.isArray(preferredOrder) ? preferredOrder : []).forEach((value, index) => {
+                orderMap.set(String(value), index);
+            });
+            return buckets.sort((left, right) => {
+                const leftOrder = orderMap.has(left.label) ? orderMap.get(left.label) : Number.MAX_SAFE_INTEGER;
+                const rightOrder = orderMap.has(right.label) ? orderMap.get(right.label) : Number.MAX_SAFE_INTEGER;
+                if (leftOrder !== rightOrder) return leftOrder - rightOrder;
+                if (right.links.length !== left.links.length) return right.links.length - left.links.length;
+                return left.label.localeCompare(right.label, undefined, { sensitivity: 'base' });
+            });
+        }
+
+        function buildBucketsFromExtractor(links, extractor, options = {}) {
+            const map = new Map();
+            (Array.isArray(links) ? links : []).forEach((link) => {
+                const entry = getCachedEntry(link);
+                const values = extractor(link, entry) || [];
+                const normalizedValues = Array.isArray(values) ? values : [values];
+                uniqueNonEmpty(normalizedValues).forEach((label) => {
+                    const key = String(options.normalizeKey ? options.normalizeKey(label) : label).trim();
+                    if (!key) return;
+                    if (!map.has(key)) {
+                        map.set(key, { key, label: String(label).trim(), links: [] });
+                    }
+                    map.get(key).links.push(link);
+                });
+            });
+            return sortBuckets(Array.from(map.values()), options.order);
+        }
+
+        function buildTitleBucketsForLinks(links) {
+            const initials = Array.from(new Set((Array.isArray(links) ? links : []).map((link) => getTitleInitial(link?.title))));
+            const useCoarse = initials.filter((value) => value !== '0-9' && value !== '#').length > 10;
+            return buildBucketsFromExtractor(links, (link) => {
+                const initial = getTitleInitial(link?.title);
+                return useCoarse ? [getCoarseTitleBucket(initial)] : [initial];
+            }, {
+                order: useCoarse
+                    ? ['A-C', 'D-F', 'G-I', 'J-L', 'M-O', 'P-R', 'S-U', 'V-Z', '0-9', '#']
+                    : ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '0-9', '#']
+            });
+        }
+
+        const derivedDimensionDefinitions = [
+            {
+                key: 'tag_index',
+                label: '[ By Tags ]',
+                buildBuckets(links) {
+                    return buildBucketsFromExtractor(links, (link, entry) => getDerivedTagValues(link, entry), {
+                        normalizeKey: (value) => String(value || '').trim().toLowerCase()
+                    });
+                }
+            },
+            {
+                key: 'genre_index',
+                label: '[ By Genres ]',
+                buildBuckets(links) {
+                    return buildBucketsFromExtractor(links, (_, entry) => getDerivedGenreValues(entry), {
+                        normalizeKey: (value) => String(value || '').trim().toLowerCase()
+                    });
+                }
+            },
+            {
+                key: 'author_index',
+                label: '[ By Authors ]',
+                buildBuckets(links) {
+                    return buildBucketsFromExtractor(links, (_, entry) => getDerivedAuthorValues(entry), {
+                        normalizeKey: (value) => String(value || '').trim().toLowerCase()
+                    });
+                }
+            },
+            {
+                key: 'language_index',
+                label: '[ By Language ]',
+                buildBuckets(links) {
+                    return buildBucketsFromExtractor(links, (link, entry) => getDerivedLanguageValues(link, entry), {
+                        normalizeKey: (value) => String(value || '').trim().toLowerCase()
+                    });
+                }
+            },
+            {
+                key: 'status_index',
+                label: '[ By Status ]',
+                buildBuckets(links) {
+                    return buildBucketsFromExtractor(links, (link, entry) => {
+                        const value = getDerivedStatusValue(link, entry);
+                        return value ? [value] : [];
+                    }, {
+                        normalizeKey: (value) => String(value || '').trim().toLowerCase(),
+                        order: ['Reading', 'Plan to Read', 'Completed', 'On Hold', 'Dropped']
+                    });
+                }
+            },
+            {
+                key: 'rating_index',
+                label: '[ By Rating ]',
+                buildBuckets(links) {
+                    return buildBucketsFromExtractor(links, (link, entry) => {
+                        const rating = getDerivedRatingValue(link, entry);
+                        const bucket = getRatingBucketLabel(rating);
+                        return bucket ? [bucket] : [];
+                    }, {
+                        order: ['9+', '8-8.9', '7-7.9', '5-6.9', 'Under 5']
+                    });
+                }
+            },
+            {
+                key: 'confidence_index',
+                label: '[ By Confidence ]',
+                buildBuckets(links) {
+                    return buildBucketsFromExtractor(links, (_, entry) => {
+                        const confidence = getDerivedConfidenceValue(entry);
+                        const bucket = getConfidenceBucketLabel(confidence);
+                        return bucket ? [bucket] : [];
+                    }, {
+                        order: ['0.90+', '0.75-0.89', '0.50-0.74', 'Below 0.50']
+                    });
+                }
+            },
+            {
+                key: 'title_index',
+                label: '[ By Title ]',
+                buildBuckets(links) {
+                    return buildTitleBucketsForLinks(links);
+                }
+            },
+            {
+                key: 'last_read_index',
+                label: '[ By Last Read ]',
+                buildBuckets(links) {
+                    return buildBucketsFromExtractor(links, (link) => {
+                        const bucket = getDerivedTimelineBucket(link);
+                        return bucket ? [bucket] : [];
+                    }, {
+                        order: ['Today', 'This Week', 'This Month', 'This Year', 'Older']
+                    });
+                }
+            },
+            {
+                key: 'progress_index',
+                label: '[ By Progress Units ]',
+                buildBuckets(links) {
+                    return buildBucketsFromExtractor(links, (_, entry) => {
+                        const progress = getDerivedProgressValue(entry);
+                        const bucket = getProgressBucketLabel(progress);
+                        return bucket ? [bucket] : [];
+                    }, {
+                        order: ['500+ Units', '200-499 Units', '100-199 Units', '50-99 Units', '10-49 Units', 'Under 10 Units']
+                    });
+                }
+            },
+            {
+                key: 'demographic_index',
+                label: '[ By Demographic ]',
+                buildBuckets(links) {
+                    return buildBucketsFromExtractor(links, (_, entry) => {
+                        const value = getDerivedDemographicValue(entry);
+                        return value ? [value] : [];
+                    }, {
+                        normalizeKey: (value) => String(value || '').trim().toLowerCase()
+                    });
+                }
+            },
+            {
+                key: 'publication_index',
+                label: '[ By Publication Era ]',
+                buildBuckets(links) {
+                    return buildBucketsFromExtractor(links, (_, entry) => {
+                        const year = getDerivedPublicationValue(entry);
+                        const bucket = getPublicationBucketLabel(year);
+                        return bucket ? [bucket] : [];
+                    });
+                }
+            }
+        ];
+
+        function buildDomainBuckets(links) {
+            const domainMap = new Map();
+            (Array.isArray(links) ? links : []).forEach((link) => {
+                try {
+                    const domain = new URL(String(link?.url || ''), window.location.origin).hostname.toLowerCase().replace(/^www\./, '');
+                    if (!domain || !domain.includes('.')) return;
+                    if (!domainMap.has(domain)) domainMap.set(domain, []);
+                    domainMap.get(domain).push(link);
+                } catch (error) {}
+            });
+            return sortBuckets(Array.from(domainMap.entries()).map(([domain, bucketLinks]) => ({
+                key: domain,
+                label: domain.toUpperCase(),
+                links: bucketLinks
+            })));
+        }
+
+        function buildMaintenanceGhostBuckets(links) {
+            return [
+                { key: 'unlinked', label: '[ Unlinked Bookmarks ]', links: links.filter((link) => unlinkedLinks.includes(link)) },
+                { key: 'missing_covers', label: '[ Missing Covers ]', links: links.filter((link) => !hasMeaningfulCover(workspaceId, categoryName, link)) },
+                { key: 'missing_icons', label: '[ Missing Icons ]', links: links.filter((link) => !hasMeaningfulIcon(link)) },
+                { key: 'untagged', label: '[ Untagged ]', links: links.filter((link) => {
+                    if (hasBookmarkTags(link)) return false;
+                    const entry = getCachedEntry(link);
+                    return !(entry && hasLibraryTaxonomy(entry));
+                }) },
+                { key: 'no_title', label: '[ No Title ]', links: links.filter((link) => {
+                    const title = String(link?.title || '').trim().toLowerCase();
+                    return !title || title === 'untitled' || title === String(link?.url || '').trim().toLowerCase();
+                }) },
+                { key: 'needs_review', label: '[ Needs Review ]', links: links.filter((link) => {
+                    const entry = getCachedEntry(link);
+                    if (!entry) return false;
+                    const confidence = getDerivedConfidenceValue(entry);
+                    return (Number.isFinite(confidence) && confidence < 0.5)
+                        || !Number.isFinite(getDerivedRatingValue(link, entry));
+                }) },
+                { key: 'missing_notes', label: '[ Missing Notes ]', links: links.filter((link) => {
+                    const entry = getCachedEntry(link);
+                    if (!entry) return false;
+                    const hasBookmarkNote = typeof link?.notes === 'string' && link.notes.trim().length > 0;
+                    if (hasBookmarkNote) return false;
+                    return ![entry.summary, entry.notes, entry.description].some((value) => {
+                        if (typeof value !== 'string') return false;
+                        const trimmed = value.trim();
+                        if (!trimmed) return false;
+                        if (isAutoSourceSummary(trimmed)) return false;
+                        return true;
+                    });
+                }) },
+                { key: 'broken_links', label: '[ Broken / Invalid Links ]', links: links.filter((link) => {
+                    if (!link?.url || typeof link.url !== 'string') return true;
+                    const normalized = link.url.trim().toLowerCase();
+                    return normalized === '' || normalized === '#' || normalized.startsWith('javascript:');
+                }) }
+            ];
+        }
+
+        function buildReadingGhostBuckets(links) {
+            return [
+                { key: 'unread', label: '[ Plan to Read ]', links: links.filter((link) => {
+                    const entry = getCachedEntry(link);
+                    if (!entry) return false;
+                    return entry?.progress === 0 || entry?.libraryStatus?.id === 'plan_to_read';
+                }) },
+                { key: 'reading', label: '[ Actively Reading ]', links: links.filter((link) => getCachedEntry(link)?.libraryStatus?.id === 'reading') },
+                { key: 'completed', label: '[ Completed ]', links: links.filter((link) => getCachedEntry(link)?.libraryStatus?.id === 'completed') },
+                { key: 'on_hold', label: '[ On Hold ]', links: links.filter((link) => getCachedEntry(link)?.libraryStatus?.id === 'on_hold') },
+                { key: 'dropped', label: '[ Dropped ]', links: links.filter((link) => getCachedEntry(link)?.libraryStatus?.id === 'dropped') }
+            ];
+        }
+
+        function buildActivityGhostBuckets(links) {
+            return [
+                { key: 'recent', label: '[ Recently Updated ]', links: links.filter((link) => {
+                    if (!link?.updatedAt) return false;
+                    return Number(new Date(link.updatedAt).getTime()) >= recentTime;
+                }) },
+                { key: 'recently_visited', label: '[ Recently Visited ]', links: links.filter((link) => {
+                    const value = link?.lastVisited || link?.updatedAt || link?.createdAt || 0;
+                    const ts = Number(new Date(value).getTime());
+                    return Number.isFinite(ts) && ts > 0 && (nowMs - ts) < recentVisMs;
+                }) },
+                { key: 'stale', label: '[ Stale Bookmarks ]', links: links.filter((link) => {
+                    const value = link?.lastVisited || link?.updatedAt || link?.createdAt || 0;
+                    const ts = Number(new Date(value).getTime());
+                    return Number.isFinite(ts) && ts > 0 && (nowMs - ts) > staleMs;
+                }) }
+            ];
+        }
+
+        function buildInsightsGhostBuckets(links) {
+            const duplicateCounts = {};
+            links.forEach((link) => {
+                const normalized = getNormalizedDuplicateUrl(link);
+                if (!normalized) return;
+                duplicateCounts[normalized] = (duplicateCounts[normalized] || 0) + 1;
+            });
+
+            return [
+                { key: 'top_rated', label: '[ Top Rated ]', links: links.filter((link) => {
+                    const rating = getDerivedRatingValue(link, getCachedEntry(link));
+                    return Number.isFinite(rating) && rating >= 8;
+                }) },
+                { key: 'duplicate_suspects', label: '[ Duplicate Suspects ]', links: links.filter((link) => {
+                    const normalized = getNormalizedDuplicateUrl(link);
+                    return !!normalized && duplicateCounts[normalized] > 1;
+                }) },
+                { key: 'ancients', label: '[ The Ancients ]', links: links.filter((link) => {
+                    const createdAt = Number(new Date(link?.createdAt).getTime());
+                    return Number.isFinite(createdAt) && createdAt > 0 && (nowMs - createdAt) > ancientsMs;
+                }) }
+            ];
+        }
+
+        function buildLinkHealthGhostBuckets(links) {
+            if (!window.EveSemanticDrift) return [];
+            return [
+                { key: 'dead_links', label: '[ Dead Links ]', links: links.filter((link) => window.EveSemanticDrift.getHealthInfo(link.url)?.status === 'dead') },
+                { key: 'redirected_links', label: '[ Redirected Links ]', links: links.filter((link) => window.EveSemanticDrift.getHealthInfo(link.url)?.status === 'redirected') },
+                { key: 'title_drift', label: '[ Title Drift ]', links: links.filter((link) => !!window.EveSemanticDrift.getHealthInfo(link.url)?.hasTitleDrift) },
+                { key: 'orphaned_lib', label: '[ Orphaned Library Entries ]', links: links.filter((link) => {
+                    const entry = getCachedEntry(link);
+                    const health = window.EveSemanticDrift.getHealthInfo(link.url);
+                    return !!entry && health?.status === 'dead';
+                }) }
+            ];
+        }
+
+        const recursiveGhostGroupDefinitions = [
+            { key: 'linkHealth', label: '[ Link Health ]', enabledKey: null, buildBuckets: buildLinkHealthGhostBuckets },
+            { key: 'domains', label: '[ Domains ]', enabledKey: 'domain_grouping', buildBuckets(links) {
+                return buildDomainBuckets(links).map((bucket) => ({ key: bucket.key, label: `[ ${bucket.label} ]`, links: bucket.links }));
+            } },
+            { key: 'readingStatus', label: '[ Reading Status ]', enabledKey: null, buildBuckets: buildReadingGhostBuckets },
+            { key: 'maintenance', label: '[ Maintenance ]', enabledKey: null, buildBuckets: buildMaintenanceGhostBuckets },
+            { key: 'activity', label: '[ Activity ]', enabledKey: null, buildBuckets: buildActivityGhostBuckets },
+            { key: 'insights', label: '[ Insights ]', enabledKey: null, buildBuckets: buildInsightsGhostBuckets }
+        ];
+
         // ----------------------------------------------------
         // --- GHOST HIERARCHY BUILDER ---
         // ----------------------------------------------------
@@ -635,7 +1227,8 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
             readingStatus: { id: '__ghost_cat_readingStatus__', name: '[ Reading Status ]', links: [] },
             maintenance: { id: '__ghost_cat_maintenance__', name: '[ Maintenance ]', links: [] },
             activity: { id: '__ghost_cat_activity__', name: '[ Activity ]', links: [] },
-            insights: { id: '__ghost_cat_insights__', name: '[ Insights ]', links: [] }
+            insights: { id: '__ghost_cat_insights__', name: '[ Insights ]', links: [] },
+            indexes: { id: '__ghost_cat_indexes__', name: '[ Smart Indexes ]', links: [] }
         };
 
         const activeSubGhosts = [];
@@ -647,10 +1240,164 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
                     name: name,
                     parentId: ghostCategories[catKey].id,
                     isGhost: true,
+                    isGhostDerivedValue: false,
+                    isGhostDerivedGroup: false,
                     _ghostLinks: linksArray
                 });
                 ghostCategories[catKey]._hasActiveChildren = true;
             }
+        }
+
+        function buildDerivedGhostId(prefix, parts) {
+            return `__ghost_${prefix}_${parts.map((part) => String(part || '').replace(/[^a-zA-Z0-9]+/g, '_')).join('_')}__`;
+        }
+
+        function filterDerivedBuckets(definition, links, chain) {
+            const usedValues = new Set(
+                (Array.isArray(chain) ? chain : [])
+                    .filter((item) => item?.dimension === definition.key)
+                    .map((item) => String(item.valueKey || '').trim().toLowerCase())
+                    .filter(Boolean)
+            );
+
+            const buckets = definition.buildBuckets(links)
+                .filter((bucket) => {
+                    const bucketKey = String(bucket?.key || '').trim().toLowerCase();
+                    if (!bucketKey) return false;
+                    if (usedValues.has(bucketKey)) return false;
+                    return Array.isArray(bucket?.links) && bucket.links.length > 0;
+                });
+
+            return buckets.slice(0, derivedValueLimit);
+        }
+
+        function addRecursiveGhostGroups(parentId, links, chain, depth) {
+            if (!Array.isArray(links) || links.length < 2) return;
+            if (depth >= derivedDepthLimit) return;
+            if (derivedGhostNodeBudget.count >= derivedGhostNodeBudget.max) return;
+
+            recursiveGhostGroupDefinitions.forEach((definition) => {
+                if (definition.enabledKey && !isGhostEnabled(definition.enabledKey)) return;
+                if (derivedGhostNodeBudget.count >= derivedGhostNodeBudget.max) return;
+
+                const usedValueKeys = new Set(
+                    (Array.isArray(chain) ? chain : [])
+                        .filter((item) => item?.dimension === definition.key)
+                        .map((item) => String(item.valueKey || '').trim().toLowerCase())
+                        .filter(Boolean)
+                );
+
+                const buckets = (definition.buildBuckets(links) || [])
+                    .filter((bucket) => {
+                        const key = String(bucket?.key || '').trim().toLowerCase();
+                        if (!key) return false;
+                        if (usedValueKeys.has(key)) return false;
+                        return Array.isArray(bucket?.links) && bucket.links.length > 0;
+                    })
+                    .slice(0, derivedValueLimit);
+
+                if (!buckets.length) return;
+
+                const groupId = buildDerivedGhostId('group', [parentId, definition.key, depth]);
+                activeSubGhosts.push({
+                    id: groupId,
+                    name: definition.label,
+                    parentId,
+                    isGhost: true,
+                    isGhostDerivedGroup: true,
+                    isGhostDerivedValue: false,
+                    _ghostLinks: [],
+                    _ghostScopeCount: links.length
+                });
+                derivedGhostNodeBudget.count += 1;
+
+                buckets.forEach((bucket, bucketIndex) => {
+                    if (derivedGhostNodeBudget.count >= derivedGhostNodeBudget.max) return;
+                    const nextChain = [
+                        ...(Array.isArray(chain) ? chain : []),
+                        {
+                            dimension: definition.key,
+                            valueKey: String(bucket.key || '').trim().toLowerCase(),
+                            label: bucket.label
+                        }
+                    ];
+                    const valueId = buildDerivedGhostId('value', [parentId, definition.key, depth, bucketIndex, bucket.key]);
+                    activeSubGhosts.push({
+                        id: valueId,
+                        name: bucket.label,
+                        parentId: groupId,
+                        isGhost: true,
+                        isGhostDerivedGroup: false,
+                        isGhostDerivedValue: true,
+                        _ghostLinks: bucket.links,
+                        _ghostFilterChain: nextChain,
+                        _ghostScopeCount: bucket.links.length
+                    });
+                    derivedGhostNodeBudget.count += 1;
+                });
+            });
+        }
+
+        function addDerivedChildren(parentId, links, chain, depth) {
+            if (!Array.isArray(links) || links.length < 2) return;
+            if (depth >= derivedDepthLimit) return;
+            if (derivedGhostNodeBudget.count >= derivedGhostNodeBudget.max) return;
+
+            const pendingRecursions = [];
+
+            derivedDimensionDefinitions.forEach((definition) => {
+                if (!isGhostEnabled(definition.key)) return;
+                if (derivedGhostNodeBudget.count >= derivedGhostNodeBudget.max) return;
+
+                const buckets = filterDerivedBuckets(definition, links, chain);
+                if (!buckets.length) return;
+
+                const groupId = buildDerivedGhostId('index_group', [parentId, definition.key, depth]);
+                activeSubGhosts.push({
+                    id: groupId,
+                    name: definition.label,
+                    parentId,
+                    isGhost: true,
+                    isGhostDerivedGroup: true,
+                    isGhostDerivedValue: false,
+                    _ghostLinks: [],
+                    _ghostScopeCount: links.length
+                });
+                derivedGhostNodeBudget.count += 1;
+                ghostCategories.indexes._hasActiveChildren = true;
+
+                buckets.forEach((bucket, bucketIndex) => {
+                    if (derivedGhostNodeBudget.count >= derivedGhostNodeBudget.max) return;
+                    const nextChain = [
+                        ...(Array.isArray(chain) ? chain : []),
+                        {
+                            dimension: definition.key,
+                            valueKey: String(bucket.key || '').trim().toLowerCase(),
+                            label: bucket.label
+                        }
+                    ];
+                    const valueId = buildDerivedGhostId('index_value', [parentId, definition.key, depth, bucketIndex, bucket.key]);
+                    activeSubGhosts.push({
+                        id: valueId,
+                        name: `[ ${bucket.label} ]`,
+                        parentId: groupId,
+                        isGhost: true,
+                        isGhostDerivedGroup: false,
+                        isGhostDerivedValue: true,
+                        _ghostLinks: bucket.links,
+                        _ghostFilterChain: nextChain,
+                        _ghostScopeCount: bucket.links.length
+                    });
+                    derivedGhostNodeBudget.count += 1;
+                    pendingRecursions.push({ id: valueId, links: bucket.links, chain: nextChain });
+                });
+            });
+
+            pendingRecursions.forEach((task) => {
+                if (derivedGhostNodeBudget.count >= derivedGhostNodeBudget.max) return;
+                addRecursiveGhostGroups(task.id, task.links, task.chain, depth + 1);
+                addDerivedChildren(task.id, task.links, task.chain, depth + 1);
+            });
         }
 
         // Link Health
@@ -699,6 +1446,10 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
             const name = `[ Genre: ${tg.genre} ]`;
             addGhost('insights', id, name, tg.links, 'library_stats');
         });
+
+        if (derivedDimensionDefinitions.some((definition) => isGhostEnabled(definition.key))) {
+            addDerivedChildren(ghostCategories.indexes.id, activeLinks, [], 0);
+        }
 
         let anyMasterEnabled = false;
         Object.values(ghostCategories).forEach(cat => {

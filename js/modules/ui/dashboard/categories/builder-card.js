@@ -187,39 +187,53 @@ window.DashboardCategories = window.DashboardCategories || {};
             const folderLinks = viewModel.folderLinks.get(node.id) || [];
             const childFolders = viewModel.childrenMap.get(node.id) || [];
             const childHtml = childFolders.map(renderFolderNode).join('');
-            const folderCountLabel = `${folderLinks.length} bookmark${folderLinks.length === 1 ? '' : 's'}`;
-            const childCountLabel = `${childFolders.length} subfolder${childFolders.length === 1 ? '' : 's'}`;
+            const isGhostNode = !!node.isGhost;
+            const folderCountLabel = isGhostNode
+                ? `${folderLinks.length} match${folderLinks.length === 1 ? '' : 'es'}`
+                : `${folderLinks.length} bookmark${folderLinks.length === 1 ? '' : 's'}`;
+            const childCountLabel = isGhostNode
+                ? `${childFolders.length} view${childFolders.length === 1 ? '' : 's'}`
+                : `${childFolders.length} subfolder${childFolders.length === 1 ? '' : 's'}`;
             const folderTargetId = window.EveQuickPins?.buildFolderTargetId
                 ? window.EveQuickPins.buildFolderTargetId(workspaceId, categoryName, node.id)
                 : '';
             const actionsExpanded = isFolderActionExpanded(workspaceId, categoryName, node.id);
             const actionsExpandedAttr = actionsExpanded ? 'true' : 'false';
             const actionsHiddenAttr = actionsExpanded ? '' : ' hidden';
-
-            const dragStartAttr = `draggable="true" ondragstart="if(typeof window.EveFolderViewV2?.handleFolderDragStart==='function') window.EveFolderViewV2.handleFolderDragStart(event, '${escapeCardJs(node.id)}', '${safeCategoryJs}', '${safeWorkspaceJs}')" ondragend="this.classList.remove('is-dragging')"`;
+            const dragStartAttr = isGhostNode
+                ? ''
+                : `draggable="true" ondragstart="if(typeof window.EveFolderViewV2?.handleFolderDragStart==='function') window.EveFolderViewV2.handleFolderDragStart(event, '${escapeCardJs(node.id)}', '${safeCategoryJs}', '${safeWorkspaceJs}')" ondragend="this.classList.remove('is-dragging')"`;
+            const dropTargetAttributes = isGhostNode ? '' : buildDropTargetAttributes(node.id);
+            const summaryActionsHtml = isGhostNode
+                ? ''
+                : ''
+                    + '<div class="bookmark-folder-summary-actions">'
+                        + `<button type="button" class="bookmark-folder-inline-btn bookmark-folder-summary-edit-toggle" aria-expanded="${actionsExpandedAttr}" onclick="event.preventDefault();event.stopPropagation();toggleCategoryCardFolderActions(this, '${safeCategoryJs}', '${escapeCardJs(node.id)}', '${safeWorkspaceJs}')">&#9998;</button>`
+                        + `<div class="bookmark-folder-summary-action-list"${actionsHiddenAttr}>`
+                            + `<button type="button" class="bookmark-folder-inline-btn" onclick="${buildFolderAction(categoryName, node.id, 'openAddModalForFolder')}">Add</button>`
+                            + `<button type="button" class="bookmark-folder-inline-btn" onclick="${buildFolderAction(categoryName, node.id, 'promptCreateBookmarkFolder')}">Subfolder</button>`
+                            + `<button type="button" class="bookmark-folder-inline-btn" onclick="${buildFolderAction(categoryName, node.id, 'promptRenameBookmarkFolder')}">Rename</button>`
+                            + `<button type="button" class="bookmark-folder-inline-btn danger" onclick="${buildFolderAction(categoryName, node.id, 'deleteBookmarkFolderPrompt')}">Delete</button>`
+                        + '</div>'
+                    + '</div>';
+            const bodyContentHtml = folderLinks.length
+                ? renderer(folderLinks)
+                : (isGhostNode && childFolders.length
+                    ? ''
+                    : '<div class="bookmark-folder-empty">No bookmarks in this folder yet.</div>');
 
             return ''
-                + `<details class="bookmark-folder-group" open data-bookmark-folder-target-id="${escapeCardHtml(folderTargetId)}" ${buildDropTargetAttributes(node.id)} ${dragStartAttr}>`
+                + `<details class="bookmark-folder-group${isGhostNode ? ' is-ghost-folder-group' : ''}" open data-bookmark-folder-target-id="${escapeCardHtml(folderTargetId)}" ${dropTargetAttributes} ${dragStartAttr}>`
 
                     + '<summary class="bookmark-folder-summary">'
                         + '<div class="bookmark-folder-summary-copy">'
                             + `<span class="bookmark-folder-title">${escapeCardHtml(node.name)}</span>`
                             + `<span class="bookmark-folder-meta">${escapeCardHtml(folderCountLabel)} | ${escapeCardHtml(childCountLabel)}</span>`
                         + '</div>'
-                        + '<div class="bookmark-folder-summary-actions">'
-                            + `<button type="button" class="bookmark-folder-inline-btn bookmark-folder-summary-edit-toggle" aria-expanded="${actionsExpandedAttr}" onclick="event.preventDefault();event.stopPropagation();toggleCategoryCardFolderActions(this, '${safeCategoryJs}', '${escapeCardJs(node.id)}', '${safeWorkspaceJs}')">&#9998;</button>`
-                            + `<div class="bookmark-folder-summary-action-list"${actionsHiddenAttr}>`
-                                + `<button type="button" class="bookmark-folder-inline-btn" onclick="${buildFolderAction(categoryName, node.id, 'openAddModalForFolder')}">Add</button>`
-                                + `<button type="button" class="bookmark-folder-inline-btn" onclick="${buildFolderAction(categoryName, node.id, 'promptCreateBookmarkFolder')}">Subfolder</button>`
-                                + `<button type="button" class="bookmark-folder-inline-btn" onclick="${buildFolderAction(categoryName, node.id, 'promptRenameBookmarkFolder')}">Rename</button>`
-                                + `<button type="button" class="bookmark-folder-inline-btn danger" onclick="${buildFolderAction(categoryName, node.id, 'deleteBookmarkFolderPrompt')}">Delete</button>`
-                            + '</div>'
-                        + '</div>'
+                        + summaryActionsHtml
                     + '</summary>'
                     + '<div class="bookmark-folder-body">'
-                        + (folderLinks.length
-                            ? renderer(folderLinks)
-                            : '<div class="bookmark-folder-empty">No bookmarks in this folder yet.</div>')
+                        + bodyContentHtml
                         + childHtml
                     + '</div>'
                 + '</details>';

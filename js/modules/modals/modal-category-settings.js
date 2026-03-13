@@ -235,7 +235,7 @@ window.categoryFolderActionExpansion = window.categoryFolderActionExpansion || {
         const clickApi = getClickBehaviorApi();
         const folderApi = getFolderApi();
         const pinApi = getPinApi();
-        const folders = viewModel.childrenMap.get(folderId) || [];
+        const folders = (viewModel.childrenMap.get(folderId) || []).filter((folder) => !folder?.isGhost);
         return folders.map((folder) => {
             const safeCategoryJs = escapeCategorySettingsJs(categoryName);
             const safeFolderJs = escapeCategorySettingsJs(folder.id);
@@ -342,7 +342,7 @@ window.categoryFolderActionExpansion = window.categoryFolderActionExpansion || {
             : [];
         const viewModel = folderApi.buildFolderView(workspaceId, categoryName, scopedLinks);
         const rootBookmarks = viewModel.rootLinks.length;
-        const folderCount = viewModel.nodes.length;
+        const folderCount = viewModel.nodes.filter((node) => !node?.isGhost).length;
         const cardPinnedCount = Array.isArray(pinApi?.filterPinsForCard?.(workspaceId, categoryName))
             ? pinApi.filterPinsForCard(workspaceId, categoryName).filter((pin) => pin?.targetType === 'bookmark').length
             : 0;
@@ -375,6 +375,12 @@ window.categoryFolderActionExpansion = window.categoryFolderActionExpansion || {
                     ]
                 },
                 {
+                    title: "Domains",
+                    types: [
+                        { id: 'domain_grouping', label: '[ Domain Grouping ]' }
+                    ]
+                },
+                {
                     title: "Reading Status",
                     types: [
                         { id: 'unread', label: '[ Plan to Read / Unread ]' },
@@ -389,6 +395,7 @@ window.categoryFolderActionExpansion = window.categoryFolderActionExpansion || {
                     types: [
                         { id: 'unlinked', label: '[ Unlinked Bookmarks ]' },
                         { id: 'missing_covers', label: '[ Missing Covers ]' },
+                        { id: 'missing_icons', label: '[ Missing Icons ]' },
                         { id: 'untagged', label: '[ Untagged ]' },
                         { id: 'no_title', label: '[ No Title ]' },
                         { id: 'needs_review', label: '[ Needs Review ]' },
@@ -410,7 +417,25 @@ window.categoryFolderActionExpansion = window.categoryFolderActionExpansion || {
                         { id: 'top_rated', label: '[ Top Rated ]' },
                         { id: 'duplicate_suspects', label: '[ Duplicate Suspects ]' },
                         { id: 'large_folders', label: '[ Large Folders (>15) ]' },
-                        { id: 'ancients', label: '[ The Ancients ]' }
+                        { id: 'ancients', label: '[ The Ancients ]' },
+                        { id: 'library_stats', label: '[ Genre Clusters ]' }
+                    ]
+                },
+                {
+                    title: "Indexes",
+                    types: [
+                        { id: 'tag_index', label: '[ By Tags ]' },
+                        { id: 'genre_index', label: '[ By Genres ]' },
+                        { id: 'author_index', label: '[ By Authors ]' },
+                        { id: 'language_index', label: '[ By Language ]' },
+                        { id: 'rating_index', label: '[ By Rating ]' },
+                        { id: 'confidence_index', label: '[ By Confidence ]' },
+                        { id: 'title_index', label: '[ By Title ]' },
+                        { id: 'status_index', label: '[ By Status ]' },
+                        { id: 'last_read_index', label: '[ By Last Read ]' },
+                        { id: 'progress_index', label: '[ By Progress Units ]' },
+                        { id: 'demographic_index', label: '[ By Demographic ]' },
+                        { id: 'publication_index', label: '[ By Publication Era ]' }
                     ]
                 }
             ];

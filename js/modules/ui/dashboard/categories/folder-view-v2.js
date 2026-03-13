@@ -187,11 +187,23 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
             html += `
                 <div class="folder-wrap-grid">
                     ${topLevelFolders.map(f => {
-                        const dropTargetAttr = `ondragover="if(typeof allowDrop==='function')allowDrop(event)" ondrop="event.currentTarget.classList.remove('folder-tile-drag-hover'); if(typeof window.EveFolderViewV2.handleFolderDrop==='function') window.EveFolderViewV2.handleFolderDrop(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}')" ondragenter="event.currentTarget.classList.add('folder-tile-drag-hover')" ondragleave="event.currentTarget.classList.remove('folder-tile-drag-hover')"`;
-                        const dragStartAttr = `draggable="true" ondragstart="if(typeof window.EveFolderViewV2.handleFolderDragStart==='function') window.EveFolderViewV2.handleFolderDragStart(event, '${escapeCardJs(f.id)}', '${escapeCardJs(categoryName)}', '${escapeCardJs(workspaceId)}')" ondragend="this.classList.remove('is-dragging')"`;
+                        const isGhost = !!f.isGhost;
+                        const dropTargetAttr = isGhost ? '' : `ondragover="if(typeof allowDrop==='function')allowDrop(event)" ondrop="event.currentTarget.classList.remove('folder-tile-drag-hover'); if(typeof window.EveFolderViewV2.handleFolderDrop==='function') window.EveFolderViewV2.handleFolderDrop(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}')" ondragenter="event.currentTarget.classList.add('folder-tile-drag-hover')" ondragleave="event.currentTarget.classList.remove('folder-tile-drag-hover')"`;
+                        const dragStartAttr = isGhost ? '' : `draggable="true" ondragstart="if(typeof window.EveFolderViewV2.handleFolderDragStart==='function') window.EveFolderViewV2.handleFolderDragStart(event, '${escapeCardJs(f.id)}', '${escapeCardJs(categoryName)}', '${escapeCardJs(workspaceId)}')" ondragend="this.classList.remove('is-dragging')"`;
+                        const matchCount = viewModel.folderLinks.get(f.id)?.length || 0;
+                        const childCount = (viewModel.childrenMap.get(f.id) || []).length;
+                        const statsLabel = isGhost
+                            ? (childCount > 0 ? `${matchCount} matches | ${childCount} views` : `${matchCount} matches`)
+                            : `${matchCount} items`;
+                        const contextMenuAttr = isGhost
+                            ? ''
+                            : `oncontextmenu="if(typeof window.showFolderContextMenu === 'function') window.showFolderContextMenu(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}');"`;
+                        const editButtonHtml = isGhost
+                            ? ''
+                            : `<button type="button" class="folder-tile-edit-btn" title="Edit Folder" onclick="event.preventDefault(); event.stopPropagation(); if(typeof window.showFolderContextMenu === 'function') window.showFolderContextMenu(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}');">&#9998;</button>`;
 
                         return `
-                        <div class="folder-tile" ${dropTargetAttr} ${dragStartAttr} onclick="window.EveFolderViewV2.enterFolder(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}')" oncontextmenu="if(typeof window.showFolderContextMenu === 'function') window.showFolderContextMenu(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}');">
+                        <div class="folder-tile${isGhost ? ' folder-tile-ghost' : ''}" ${dropTargetAttr} ${dragStartAttr} onclick="window.EveFolderViewV2.enterFolder(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}')" ${contextMenuAttr}>
                             <div class="folder-tile-left-bar"></div>
                             <div class="folder-icon-box">
                                 <svg width="14" height="14" viewBox="0 0 14 14" style="overflow: visible;">
@@ -201,9 +213,9 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                             </div>
                             <div class="folder-tile-content">
                                 <div class="folder-tile-title">${escapeCardHtml(f.name)}</div>
-                                <div class="folder-tile-stats">${viewModel.folderLinks.get(f.id)?.length || 0} items</div>
+                                <div class="folder-tile-stats">${escapeCardHtml(statsLabel)}</div>
                             </div>
-                            <button type="button" class="folder-tile-edit-btn" title="Edit Folder" onclick="event.preventDefault(); event.stopPropagation(); if(typeof window.showFolderContextMenu === 'function') window.showFolderContextMenu(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}');">&#9998;</button>
+                            ${editButtonHtml}
                         </div>
                     `}).join('')}
                 </div>
@@ -287,7 +299,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         });
 
         // Add interior Edit Button if we are actually inside a folder
-        if (folderId) {
+        if (folderId && !targetNode.isGhost) {
             breadcrumbsHtml += `
                 <button type="button" class="folder-tile-edit-btn" style="position: absolute; right: 0; opacity: 0.7;" title="Edit Current Folder"
                     onclick="event.preventDefault(); event.stopPropagation(); if(typeof window.showFolderContextMenu === 'function') window.showFolderContextMenu(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(folderId)}', '${escapeCardJs(workspaceId)}');">
@@ -305,11 +317,23 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                 <div class="manhwa-divider">FOLDERS</div>
                 <div class="folder-wrap-grid">
                     ${subFolders.map(f => {
-                        const dropTargetAttr = `ondragover="if(typeof allowDrop==='function')allowDrop(event)" ondrop="event.currentTarget.classList.remove('folder-tile-drag-hover'); if(typeof window.EveFolderViewV2.handleFolderDrop==='function') window.EveFolderViewV2.handleFolderDrop(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}')" ondragenter="event.currentTarget.classList.add('folder-tile-drag-hover')" ondragleave="event.currentTarget.classList.remove('folder-tile-drag-hover')"`;
-                        const dragStartAttr = `draggable="true" ondragstart="if(typeof window.EveFolderViewV2.handleFolderDragStart==='function') window.EveFolderViewV2.handleFolderDragStart(event, '${escapeCardJs(f.id)}', '${escapeCardJs(categoryName)}', '${escapeCardJs(workspaceId)}')" ondragend="this.classList.remove('is-dragging')"`;
+                        const isGhost = !!f.isGhost;
+                        const dropTargetAttr = isGhost ? '' : `ondragover="if(typeof allowDrop==='function')allowDrop(event)" ondrop="event.currentTarget.classList.remove('folder-tile-drag-hover'); if(typeof window.EveFolderViewV2.handleFolderDrop==='function') window.EveFolderViewV2.handleFolderDrop(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}')" ondragenter="event.currentTarget.classList.add('folder-tile-drag-hover')" ondragleave="event.currentTarget.classList.remove('folder-tile-drag-hover')"`;
+                        const dragStartAttr = isGhost ? '' : `draggable="true" ondragstart="if(typeof window.EveFolderViewV2.handleFolderDragStart==='function') window.EveFolderViewV2.handleFolderDragStart(event, '${escapeCardJs(f.id)}', '${escapeCardJs(categoryName)}', '${escapeCardJs(workspaceId)}')" ondragend="this.classList.remove('is-dragging')"`;
+                        const matchCount = viewModel.folderLinks.get(f.id)?.length || 0;
+                        const childCount = (viewModel.childrenMap.get(f.id) || []).length;
+                        const statsLabel = isGhost
+                            ? (childCount > 0 ? `${matchCount} matches | ${childCount} views` : `${matchCount} matches`)
+                            : `${matchCount} items`;
+                        const contextMenuAttr = isGhost
+                            ? ''
+                            : `oncontextmenu="if(typeof window.showFolderContextMenu === 'function') window.showFolderContextMenu(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}');"`;
+                        const editButtonHtml = isGhost
+                            ? ''
+                            : `<button type="button" class="folder-tile-edit-btn" title="Edit Folder" onclick="event.preventDefault(); event.stopPropagation(); if(typeof window.showFolderContextMenu === 'function') window.showFolderContextMenu(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}');">&#9998;</button>`;
 
                         return `
-                        <div class="folder-tile" ${dropTargetAttr} ${dragStartAttr} onclick="window.EveFolderViewV2.enterFolder(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}')" oncontextmenu="if(typeof window.showFolderContextMenu === 'function') window.showFolderContextMenu(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}');">
+                        <div class="folder-tile${isGhost ? ' folder-tile-ghost' : ''}" ${dropTargetAttr} ${dragStartAttr} onclick="window.EveFolderViewV2.enterFolder(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}')" ${contextMenuAttr}>
                             <div class="folder-tile-left-bar"></div>
                             <div class="folder-icon-box">
                                 <svg width="14" height="14" viewBox="0 0 14 14" style="overflow: visible;">
@@ -319,9 +343,9 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                             </div>
                             <div class="folder-tile-content">
                                 <div class="folder-tile-title">${escapeCardHtml(f.name)}</div>
-                                <div class="folder-tile-stats">${viewModel.folderLinks.get(f.id)?.length || 0} items</div>
+                                <div class="folder-tile-stats">${escapeCardHtml(statsLabel)}</div>
                             </div>
-                            <button type="button" class="folder-tile-edit-btn" title="Edit Folder" onclick="event.preventDefault(); event.stopPropagation(); if(typeof window.showFolderContextMenu === 'function') window.showFolderContextMenu(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}');">&#9998;</button>
+                            ${editButtonHtml}
                         </div>
                     `}).join('')}
                 </div>

@@ -46,7 +46,10 @@ global.window.EveLibrary = {
       { linkId: 'stale-connection-bookmark', entryId: 'entry-does-not-exist', workspace: 'main', categoryName: 'OtherCategory' },
       { linkId: 'source-only-summary', entryId: 'entry-source-only', workspace: 'main', categoryName: 'OtherCategory' },
       { linkId: 'library-genre-bookmark', entryId: 'entry-with-genre', workspace: 'main', categoryName: 'OtherCategory' },
-      { linkId: 'library-tags-bookmark', entryId: 'entry-with-tags', workspace: 'main', categoryName: 'OtherCategory' }
+      { linkId: 'library-tags-bookmark', entryId: 'entry-with-tags', workspace: 'main', categoryName: 'OtherCategory' },
+      { linkId: 'action-a', entryId: 'entry-action-a', workspace: 'main', categoryName: 'OtherCategory' },
+      { linkId: 'action-b', entryId: 'entry-action-b', workspace: 'main', categoryName: 'OtherCategory' },
+      { linkId: 'action-c', entryId: 'entry-action-c', workspace: 'main', categoryName: 'OtherCategory' }
     ]
   },
   EntriesAPI: {
@@ -60,7 +63,41 @@ global.window.EveLibrary = {
       'entry-note-missing': { id: 'entry-note-missing' },
       'entry-source-only': { id: 'entry-source-only', summary: 'Source: https://source.example.com/item' },
       'entry-with-genre': { id: 'entry-with-genre', genre: 'Action, Drama' },
-      'entry-with-tags': { id: 'entry-with-tags', tags: ['fav', 'queue'] }
+      'entry-with-tags': { id: 'entry-with-tags', tags: ['fav', 'queue'] },
+      'entry-action-a': {
+        id: 'entry-action-a',
+        author: 'Writer One',
+        authorAltNames: ['W. One'],
+        genre: 'Action, Adventure',
+        language: 'English',
+        libraryStatus: { id: 'reading', label: 'Reading' },
+        derivedRatings: { activeValue: 8.7, confidence: 0.82 },
+        chapter: 48,
+        demographic: 'Seinen',
+        publicationYear: 2022
+      },
+      'entry-action-b': {
+        id: 'entry-action-b',
+        author: 'Writer Two',
+        genre: 'Action, Drama',
+        language: 'ja',
+        libraryStatus: { id: 'completed', label: 'Completed' },
+        derivedRatings: { activeValue: 7.4, confidence: 0.61 },
+        chapter: 128,
+        demographic: 'Shonen',
+        publicationYear: 2018
+      },
+      'entry-action-c': {
+        id: 'entry-action-c',
+        author: 'Writer One',
+        genre: 'Action',
+        language: 'Korean',
+        libraryStatus: { id: 'plan_to_read', label: 'Plan to Read' },
+        derivedRatings: { activeValue: 9.2, confidence: 0.94 },
+        chapter: 512,
+        demographic: 'Seinen',
+        publicationYear: 2009
+      }
     }
   }
 };
@@ -85,6 +122,9 @@ global.eveState.links = [
   { id: 'library-genre-bookmark', url: 'https://site.example.com/genre', title: 'Library Genre Bookmark' },
   { id: 'library-tags-bookmark', url: 'https://site.example.com/tags', title: 'Library Tags Bookmark' },
   { id: 'bookmark-tagged', url: 'https://site.example.com/bookmark-tagged', title: 'Bookmark Tagged', tags: ['manual-tag'] },
+  { id: 'action-a', url: 'https://site.example.com/action-a', title: 'Action Alpha', tags: ['Action', 'Adventure'], rating: 8.7, lastVisited: Date.now() - (2 * 24 * 60 * 60 * 1000) },
+  { id: 'action-b', url: 'https://site.example.com/action-b', title: 'Action Beta', tags: ['Action', 'Drama'], rating: 7.4, lastVisited: Date.now() - (20 * 24 * 60 * 60 * 1000) },
+  { id: 'action-c', url: 'https://site.example.com/action-c', title: 'Action Gamma', tags: ['Action'], rating: 9.2, lastVisited: Date.now() - (200 * 24 * 60 * 60 * 1000) },
   { id: 'dup-a', url: 'https://www.example.com/series/1?b=2&a=1#part', title: 'Duplicate A' },
   { id: 'dup-b', url: 'https://example.com/series/1?a=1&b=2', title: 'Duplicate B' }
 ];
@@ -100,6 +140,14 @@ const missingCovers = idsForGhost('__ghost_missing_covers__');
 const missingNotes = idsForGhost('__ghost_missing_notes__');
 const untagged = idsForGhost('__ghost_untagged__');
 const duplicateSuspects = idsForGhost('__ghost_duplicate_suspects__');
+
+function findNode(name, parentId = undefined) {
+  return view.nodes.find((node) => {
+    if (String(node.name || '') !== String(name)) return false;
+    if (typeof parentId === 'undefined') return true;
+    return String(node.parentId || '') === String(parentId || '');
+  }) || null;
+}
 
 function assert(condition, message) {
   if (!condition) {
@@ -124,10 +172,87 @@ assert(!untagged.includes('library-tags-bookmark'), 'linked library tags should 
 assert(!untagged.includes('bookmark-tagged'), 'bookmark-level tags should satisfy tagged state');
 assert(duplicateSuspects.includes('dup-a') && duplicateSuspects.includes('dup-b'), 'duplicate suspects should use normalized URL logic');
 
+const smartIndexes = findNode('[ Smart Indexes ]');
+assert(!!smartIndexes, 'smart indexes category should be present');
+
+const byTags = findNode('[ By Tags ]', smartIndexes.id);
+assert(!!byTags, 'tag index group should be present under smart indexes');
+
+const actionBucket = findNode('[ Action ]', byTags.id);
+assert(!!actionBucket, 'action tag bucket should be generated');
+assert((view.folderLinks.get(actionBucket.id) || []).length === 3, 'action tag bucket should contain the three tagged action bookmarks');
+
+const nestedTagGroup = findNode('[ By Tags ]', actionBucket.id);
+assert(!!nestedTagGroup, 'tag bucket should recursively expose further tag splits');
+
+const adventureBucket = findNode('[ Adventure ]', nestedTagGroup.id);
+assert(!!adventureBucket, 'nested adventure bucket should exist under action');
+
+const byRating = findNode('[ By Rating ]', actionBucket.id);
+assert(!!byRating, 'tag bucket should recursively expose rating splits');
+
+const byConfidence = findNode('[ By Confidence ]', smartIndexes.id);
+const byProgress = findNode('[ By Progress Units ]', smartIndexes.id);
+const byDemographic = findNode('[ By Demographic ]', smartIndexes.id);
+const byPublication = findNode('[ By Publication Era ]', smartIndexes.id);
+const byAuthors = findNode('[ By Authors ]', smartIndexes.id);
+const byLanguage = findNode('[ By Language ]', smartIndexes.id);
+const byStatus = findNode('[ By Status ]', smartIndexes.id);
+assert(!!byConfidence, 'confidence index group should be present');
+assert(!!byProgress, 'progress index group should be present');
+assert(!!byDemographic, 'demographic index group should be present');
+assert(!!byPublication, 'publication index group should be present');
+assert(!!byAuthors, 'author index group should be present');
+assert(!!byLanguage, 'language index group should be present');
+assert(!!byStatus, 'status index group should be present');
+
+const confidenceHigh = findNode('[ 0.90+ ]', byConfidence.id);
+const confidenceMid = findNode('[ 0.75-0.89 ]', byConfidence.id);
+const publication2020s = findNode('[ 2020s ]', byPublication.id);
+const publication2010s = findNode('[ 2010s ]', byPublication.id);
+const languageEn = findNode('[ EN ]', byLanguage.id);
+const languageJa = findNode('[ JA ]', byLanguage.id);
+const languageKo = findNode('[ KO ]', byLanguage.id);
+const demographicSeinen = findNode('[ Seinen ]', byDemographic.id);
+const statusReading = findNode('[ Reading ]', byStatus.id);
+assert(!!confidenceHigh && !!confidenceMid, 'confidence buckets should be generated');
+assert(!!publication2020s && !!publication2010s, 'publication buckets should be generated');
+assert(!!languageEn && !!languageJa && !!languageKo, 'normalized language buckets should be generated');
+assert(!!demographicSeinen, 'demographic bucket should be generated');
+assert(!!statusReading, 'status bucket should be generated');
+
+const maintenanceGroup = findNode('[ Maintenance ]', actionBucket.id);
+const domainsGroup = findNode('[ Domains ]', actionBucket.id);
+const activityGroup = findNode('[ Activity ]', actionBucket.id);
+assert(!!maintenanceGroup, 'tag bucket should recursively expose maintenance group');
+assert(!!domainsGroup, 'tag bucket should recursively expose domain grouping');
+assert(!!activityGroup, 'tag bucket should recursively expose activity group');
+
+const missingCoversInAction = findNode('[ Missing Covers ]', maintenanceGroup.id);
+assert(!!missingCoversInAction, 'maintenance group should expose missing covers inside narrowed scope');
+
 console.log('SMART_GHOST_CALIBRATION_OK', JSON.stringify({
   missingIcons,
   missingCovers,
   missingNotes,
   untagged,
-  duplicateSuspects
+  duplicateSuspects,
+  smartIndexes: {
+    id: smartIndexes.id,
+    byTags: byTags.id,
+    actionBucket: actionBucket.id,
+    nestedTagGroup: nestedTagGroup.id,
+    adventureBucket: adventureBucket.id,
+    byRating: byRating.id,
+    byConfidence: byConfidence.id,
+    byProgress: byProgress.id,
+    byDemographic: byDemographic.id,
+    byPublication: byPublication.id,
+    byAuthors: byAuthors.id,
+    byLanguage: byLanguage.id,
+    byStatus: byStatus.id,
+    maintenanceGroup: maintenanceGroup.id,
+    domainsGroup: domainsGroup.id,
+    activityGroup: activityGroup.id
+  }
 }));
