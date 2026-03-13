@@ -61,6 +61,7 @@ body {
     max-width: 1600px;
     margin: 0 auto 10px auto;
     width: 100%;
+    gap: 14px;
 }
 
 .logo {
@@ -71,7 +72,34 @@ body {
 
 .top-right {
     display: flex;
-    gap: 10px;
+    gap: 8px;
+    align-items: center;
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: min(100%, 820px);
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+}
+
+.top-right::-webkit-scrollbar {
+    display: none;
+}
+
+.top-right .topbar-map-btn {
+    white-space: nowrap;
+    border-color: rgba(0, 212, 255, 0.35);
+    box-shadow: inset 0 0 0 1px rgba(0, 212, 255, 0.08);
+}
+
+.top-right .topbar-map-btn:hover {
+    border-color: rgba(0, 212, 255, 0.55);
+    box-shadow: inset 0 0 0 1px rgba(0, 212, 255, 0.16);
+}
+
+#main-content.unidex-view-active .top-right .topbar-primary-btn,
+#main-content.unidex-view-active .top-right .topbar-map-btn {
+    display: none;
 }
 
 .header {
@@ -512,10 +540,18 @@ html[data-native-scheme="light"] option {
     background: var(--input-bg) !important;
     color: var(--text-main);
     border: 1px solid rgba(128, 128, 128, 0.3);
-    border-radius: 6px;
-    padding: 5px 10px;
+    border-radius: 8px;
+    padding: 6px 11px;
     cursor: pointer;
-    transition: background 0.2s, color 0.2s;
+    transition: background 0.2s, color 0.2s, border-color 0.2s, transform 0.2s;
+}
+
+.top-right button {
+    flex: 0 0 auto;
+    min-height: 34px;
+    font-size: 0.86rem;
+    line-height: 1.1;
+    white-space: nowrap;
 }
 
 .top-right button:hover,

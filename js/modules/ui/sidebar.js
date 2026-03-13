@@ -9,6 +9,9 @@ function renderSidebar() {
     unidexBtn.className = `ws-item ws-unidex ${config.viewMode === 'unidex' ? 'active' : ''}`;
     unidexBtn.innerHTML = `🧭 <span class="ws-label">Unidex Layer</span>`;
     unidexBtn.title = 'Open Unidex View';
+    unidexBtn.oncontextmenu = (e) => {
+        if (typeof showUnidexContextMenu === 'function') showUnidexContextMenu(e);
+    };
     unidexBtn.onclick = () => {
         if (typeof openUnidexView === 'function') {
             openUnidexView();

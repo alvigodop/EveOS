@@ -129,7 +129,7 @@ window.showCategoryContextMenu = function (e, name) {
 
     const safeName = String(name || '').replace(/'/g, "\\'");
     m.innerHTML = `
-        <div class="ctx-item" onclick="if(window.EveConstellationMap) window.EveConstellationMap.openMap();">&#127756; Constellation Map</div>
+        <div class="ctx-item" onclick="if(window.EveConstellationMap) window.EveConstellationMap.openCardMap(String((window.config && window.config.activeWorkspace) || 'main'), '${safeName}')">&#127756; Constellation Map</div>
         <div class="ctx-item" onclick="openCategorySettings('${safeName}', 'search')">&#128269; Search & Settings</div>
         <div class="ctx-item" onclick="openRenameModal('${safeName}')">&#9998; Rename</div>
         <div class="ctx-item" onclick="openBulkTitleModal('${safeName}')">&#129668; Auto-Title Links</div>
@@ -149,6 +149,17 @@ window.showWsContext = function (e, id) {
 
     ctxWsId = id;
     const m = document.getElementById('sidebar-context-menu');
+    if (!m) return;
+
+    placeContextMenu(m, e);
+};
+
+window.showUnidexContextMenu = function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+    closeAllMenus();
+
+    const m = document.getElementById('unidex-context-menu');
     if (!m) return;
 
     placeContextMenu(m, e);

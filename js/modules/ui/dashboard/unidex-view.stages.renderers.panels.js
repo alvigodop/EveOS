@@ -24,6 +24,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
         const getEntriesFilterMode = deps?.getEntriesFilterMode;
         const applyEntriesViewTransforms = deps?.applyEntriesViewTransforms;
         const buildEntriesControlsHtml = deps?.buildEntriesControlsHtml;
+        const mapButtonHtml = '<button type="button" class="unidex-layout-btn unidex-map-btn" onclick="window.UnidexView.openConstellationMap()" title="Open Constellation Map for this layer">Map</button>';
 
         function renderTabsStage(gridContainer, searchStr) {
             const tabsUnifiedMode = getTabsUnifiedMode();
@@ -44,6 +45,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                     </header>
                     <div class="unidex-panel-controls unidex-tabs-controls">
                         ${tabsUnifiedToggleHtml}
+                        ${mapButtonHtml}
                     </div>
                     <section class="unidex-tabs" aria-label="Workspace Tabs">
                         ${buildTabsHtml()}
@@ -137,6 +139,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                         <h3 class="unidex-panel-title unidex-echo-title" data-text="${escapeHtml(String(workspace.name || '').toUpperCase())}"><span>${escapeHtml(workspace.name)} Cards</span></h3>
                         <div class="unidex-panel-controls">
                             ${unifiedToggleHtml}
+                            ${mapButtonHtml}
                         </div>
                     </header>
                     <section class="unidex-cards" aria-label="Category Cards">

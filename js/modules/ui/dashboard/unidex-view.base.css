@@ -130,7 +130,8 @@
     background: rgba(255, 255, 255, 0.12);
 }
 
-.unidex-layout-btn {
+.unidex-layout-btn,
+.unidex-map-btn {
     border: 1px solid rgba(255, 255, 255, 0.24);
     border-radius: 10px;
     background: rgba(255, 255, 255, 0.04);
@@ -142,8 +143,14 @@
     font-family: inherit;
 }
 
-.unidex-layout-btn:hover {
+.unidex-layout-btn:hover,
+.unidex-map-btn:hover {
     background: rgba(255, 255, 255, 0.12);
+}
+
+.unidex-map-btn {
+    border-color: rgba(0, 212, 255, 0.28);
+    box-shadow: inset 0 0 0 1px rgba(0, 212, 255, 0.08);
 }
 
 .unidex-filter-select {

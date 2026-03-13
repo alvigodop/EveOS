@@ -11,24 +11,68 @@ function load(relPath) {
 }
 
 function createElement(tagName) {
-  return {
+  const node = {
     tagName,
     style: {},
     children: [],
     appendChild(child) { this.children.push(child); return child; },
     setAttribute() {},
     addEventListener() {},
+    remove() {},
     removeEventListener() {},
+    getBoundingClientRect() {
+      return { left: 0, top: 0, width: 1440, height: 900 };
+    },
     getContext() {
-      return {
+      const ctx = {
         clearRect() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {}, arc() {}, fill() {}, fillText() {},
+        save() {}, restore() {}, translate() {}, scale() {}, closePath() {}, fillRect() {}, strokeRect() {},
+        setLineDash() {}, quadraticCurveTo() {}, roundRect() {},
+        measureText(text) { return { width: String(text || '').length * 6 }; },
         shadowBlur: 0, shadowColor: '', fillStyle: '', font: '', strokeStyle: '', lineWidth: 0
       };
+      return new Proxy(ctx, {
+        get(target, prop) {
+          if (!(prop in target)) {
+            target[prop] = () => {};
+          }
+          return target[prop];
+        },
+        set(target, prop, value) {
+          target[prop] = value;
+          return true;
+        }
+      });
     }
   };
+  const selectorMap = new Map();
+  node.querySelector = (selector) => selectorMap.get(selector) || null;
+  node.querySelectorAll = (selector) => selectorMap.has(selector) ? [selectorMap.get(selector)] : [];
+  Object.defineProperty(node, 'innerHTML', {
+    get() { return this._innerHTML || ''; },
+    set(value) {
+      this._innerHTML = value;
+      this.children = [];
+      selectorMap.clear();
+      [
+        ['[data-map-canvas]', 'canvas'],
+        ['[data-map-title]', 'div'],
+        ['[data-map-scope]', 'div'],
+        ['[data-map-stats]', 'div'],
+        ['[data-map-info]', 'div'],
+        ['[data-map-find]', 'input']
+      ].forEach(([selector, childTag]) => {
+        if (!String(value || '').includes(selector.slice(1, -1))) return;
+        const child = createElement(childTag);
+        selectorMap.set(selector, child);
+        this.children.push(child);
+      });
+    }
+  });
+  return node;
 }
 
-const body = { children: [], appendChild(node) { this.children.push(node); return node; } };
+const body = { style: {}, children: [], appendChild(node) { this.children.push(node); return node; } };
 
 const elementsById = new Map();
 

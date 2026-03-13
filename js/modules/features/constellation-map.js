@@ -1,19 +1,82 @@
-// --- CONSTELLATION MAP (Neural Core Phase II) ---
 window.EveConstellationMap = window.EveConstellationMap || {};
 
 (function (ns) {
-    let canvas = null;
-    let ctx = null;
-    let container = null;
-    let resizeHandler = null;
-    let isRunning = false;
-    let nodes = [];
-    let edges = [];
-    let animationFrameId = 0;
+    const state = {
+        container: null,
+        canvas: null,
+        ctx: null,
+        titleEl: null,
+        scopeEl: null,
+        statsEl: null,
+        infoEl: null,
+        findInput: null,
+        nodes: [],
+        edges: [],
+        edgeKeys: new Set(),
+        scope: null,
+        running: false,
+        animationFrameId: 0,
+        bound: false,
+        resizeHandler: null,
+        keyHandler: null,
+        hovered: null,
+        selected: null,
+        labelsVisible: true,
+        transform: { scale: 1, tx: 0, ty: 0 },
+        fitTransform: { scale: 1, tx: 0, ty: 0 },
+        pointer: {
+            mode: 'idle',
+            startX: 0,
+            startY: 0,
+            baseTx: 0,
+            baseTy: 0,
+            node: null,
+            moved: false
+        },
+        lastClickAt: 0,
+        lastClickNodeId: '',
+        searchState: {
+            query: '',
+            index: -1,
+            matches: []
+        }
+    };
 
-    const MAP_PADDING = 36;
-    const MAX_TAG_EDGES_PER_CLUSTER = 10;
-    const MAX_LINK_LABELS = 80;
+    const MAP_PADDING = 48;
+    const MAX_TAG_EDGES_PER_CLUSTER = 12;
+    const LINK_LABEL_LIMIT = 90;
+    const DOUBLE_CLICK_MS = 320;
+
+    function getConfig() {
+        return (typeof window.config !== 'undefined' && window.config)
+            ? window.config
+            : (window.eveState?.config || {});
+    }
+
+    function getAllLinks() {
+        if (Array.isArray(window.links)) return window.links;
+        if (Array.isArray(window.eveState?.links)) return window.eveState.links;
+        return [];
+    }
+
+    function text(value, fallback) {
+        const normalized = String(value ?? '').trim();
+        if (normalized) return normalized;
+        return String(fallback ?? '').trim();
+    }
+
+    function escapeHtml(value) {
+        return String(value || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function clamp(value, min, max) {
+        return Math.min(max, Math.max(min, value));
+    }
 
     function getViewportSize() {
         return {
@@ -22,35 +85,618 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         };
     }
 
-    function clamp(value, min, max) {
-        return Math.min(max, Math.max(min, value));
+    function getWorkspaceName(workspaceId) {
+        const id = text(workspaceId, 'main');
+        const config = getConfig();
+        const workspaces = Array.isArray(config.workspaces) ? config.workspaces : [];
+        const match = workspaces.find((workspace) => String(workspace?.id || '') === id);
+        return text(match?.name, id);
     }
 
-    function createNode({ id, label, color, radius, kind, x, y }) {
+    function getScopeText(scope) {
+        if (!scope) return 'Unknown Scope';
+        if (scope.scope === 'all') return 'All Tabs / Whole Data Pack';
+        if (scope.scope === 'card') return getWorkspaceName(scope.workspaceId) + ' / ' + text(scope.categoryName, 'Card');
+        return getWorkspaceName(scope.workspaceId) + ' / Current Tab';
+    }
+
+    function normalizeScope(scopeOption) {
+        const config = getConfig();
+        const scope = (scopeOption && typeof scopeOption === 'object') ? scopeOption : {};
+        const normalized = String(scope.scope || 'workspace').trim();
         return {
-            id,
-            label,
-            color,
-            radius,
-            kind,
-            x,
-            y,
-            vx: 0,
-            vy: 0
+            scope: ['all', 'workspace', 'card'].includes(normalized) ? normalized : 'workspace',
+            workspaceId: text(scope.workspaceId, config.activeWorkspace || 'main'),
+            categoryName: text(scope.categoryName, '')
         };
     }
 
-    function placeOnRing(index, total, ringRadius, centerX, centerY, jitter = 0) {
+    function createNode(options) {
+        const source = options || {};
+        return {
+            id: text(source.id, ''),
+            label: text(source.label, 'Untitled'),
+            color: text(source.color, '#00d4ff'),
+            radius: Number.isFinite(source.radius) ? source.radius : 5,
+            kind: text(source.kind, 'link'),
+            meta: text(source.meta, ''),
+            data: source.data && typeof source.data === 'object' ? source.data : {},
+            x: Number.isFinite(source.x) ? source.x : 0,
+            y: Number.isFinite(source.y) ? source.y : 0,
+            vx: Number.isFinite(source.vx) ? source.vx : ((Math.random() - 0.5) * 0.8),
+            vy: Number.isFinite(source.vy) ? source.vy : ((Math.random() - 0.5) * 0.8)
+        };
+    }
+
+    function placeOnRing(index, total, radius, centerX, centerY, jitter) {
         const count = Math.max(1, total);
         const angle = ((index % count) / count) * Math.PI * 2;
-        const phase = ((index % 7) - 3) * jitter;
+        const jitterAmount = Number.isFinite(jitter) ? (((index % 7) - 3) * jitter) : 0;
         return {
-            x: centerX + Math.cos(angle) * (ringRadius + phase),
-            y: centerY + Math.sin(angle) * (ringRadius + phase)
+            x: centerX + Math.cos(angle) * (radius + jitterAmount),
+            y: centerY + Math.sin(angle) * (radius + jitterAmount)
         };
     }
 
-    function clampNodeToViewport(node, width, height) {
+    function getAllWorkspaceIds(links) {
+        const config = getConfig();
+        const ids = new Set();
+        const workspaces = Array.isArray(config.workspaces) ? config.workspaces : [];
+        workspaces.forEach((workspace) => ids.add(text(workspace?.id, 'main')));
+        links.forEach((link) => ids.add(text(link?.workspace, 'main')));
+        if (!ids.size) ids.add(text(config.activeWorkspace, 'main'));
+        return Array.from(ids);
+    }
+
+    function getScopedLinks(scope) {
+        const allLinks = getAllLinks();
+        if (scope.scope === 'all') return allLinks.slice();
+
+        const workspaceLinks = allLinks.filter((link) => String(link?.workspace || 'main') === String(scope.workspaceId));
+        if (scope.scope === 'card') {
+            return workspaceLinks.filter((link) => text(link?.category, 'Unsorted') === text(scope.categoryName, 'Unsorted'));
+        }
+        return workspaceLinks;
+    }
+
+    function getCategoryNames(workspaceId, links) {
+        const config = getConfig();
+        const names = new Set();
+        const order = Array.isArray(config.categoryOrder) ? config.categoryOrder : [];
+        links.forEach((link) => names.add(text(link?.category, 'Unsorted')));
+        if (!names.size) return ['Unsorted'];
+        const sortedNames = Array.from(names).filter(Boolean);
+        sortedNames.sort((left, right) => {
+            const idxLeft = order.indexOf(left);
+            const idxRight = order.indexOf(right);
+            if (idxLeft !== -1 || idxRight !== -1) {
+                if (idxLeft === -1) return 1;
+                if (idxRight === -1) return -1;
+                if (idxLeft !== idxRight) return idxLeft - idxRight;
+            }
+            return left.localeCompare(right, undefined, { sensitivity: 'base' });
+        });
+        return sortedNames;
+    }
+
+    function getFolderView(workspaceId, categoryName, scopedLinks) {
+        const folderApi = window.EveBookmarkFolders;
+        if (!folderApi?.buildFolderView) {
+            return {
+                nodes: [],
+                childrenMap: new Map(),
+                folderLinks: new Map(),
+                rootLinks: Array.isArray(scopedLinks) ? scopedLinks.slice() : []
+            };
+        }
+
+        const raw = folderApi.buildFolderView(workspaceId, categoryName, Array.isArray(scopedLinks) ? scopedLinks : []);
+        const rawNodes = Array.isArray(raw?.nodes) ? raw.nodes : [];
+        const realNodes = rawNodes.filter((node) => !node?.isGhost);
+        const realIds = new Set(realNodes.map((node) => String(node.id)));
+        const childrenMap = new Map();
+        const folderLinks = new Map();
+
+        realNodes.forEach((node) => {
+            childrenMap.set(String(node.id), []);
+            folderLinks.set(String(node.id), []);
+        });
+
+        realNodes.forEach((node) => {
+            const parentId = node?.parentId ? String(node.parentId) : '';
+            if (!parentId || !realIds.has(parentId)) return;
+            childrenMap.get(parentId).push(node);
+        });
+
+        const rawFolderLinks = raw?.folderLinks instanceof Map ? raw.folderLinks : new Map();
+        rawFolderLinks.forEach((links, folderId) => {
+            const id = String(folderId || '');
+            if (!realIds.has(id)) return;
+            folderLinks.set(id, Array.isArray(links) ? links.slice() : []);
+        });
+
+        const rootLinks = Array.isArray(raw?.rootLinks)
+            ? raw.rootLinks.slice()
+            : (Array.isArray(scopedLinks) ? scopedLinks.filter((link) => {
+                const folderId = link?.folderId ? String(link.folderId) : '';
+                return !folderId || !realIds.has(folderId);
+            }) : []);
+
+        const topLevelFolders = realNodes.filter((node) => {
+            const parentId = node?.parentId ? String(node.parentId) : '';
+            return !parentId || !realIds.has(parentId);
+        });
+
+        return {
+            nodes: realNodes,
+            childrenMap,
+            folderLinks,
+            rootLinks,
+            topLevelFolders
+        };
+    }
+
+    function addNode(node) {
+        if (!node?.id) return null;
+        const existing = state.nodes.find((candidate) => candidate.id === node.id);
+        if (existing) return existing;
+        state.nodes.push(node);
+        return node;
+    }
+
+    function addEdge(source, target, type) {
+        if (!source || !target || source.id === target.id) return;
+        const edgeType = text(type, 'hierarchy');
+        const edgeKey = source.id + '|' + target.id + '|' + edgeType;
+        if (state.edgeKeys.has(edgeKey)) return;
+        state.edgeKeys.add(edgeKey);
+        state.edges.push({ source, target, type: edgeType });
+    }
+
+    function hasResolvedCover(link) {
+        const coverApi = window.EveBookmarkCovers;
+        if (coverApi?.resolveLinkCover) return !!coverApi.resolveLinkCover(link);
+        return !!text(link?.coverImage, '');
+    }
+
+    function getLinkColor(link) {
+        if (link?.done) return '#6e7583';
+        if (hasResolvedCover(link)) return '#42c9ff';
+        if (Array.isArray(link?.tags) && link.tags.length) return '#7ee787';
+        return '#00d4ff';
+    }
+
+    function getLinkMeta(workspaceId, categoryName, link) {
+        const folderApi = window.EveBookmarkFolders;
+        const folderName = folderApi?.getFolderNameForLink ? folderApi.getFolderNameForLink(link) : '';
+        const segments = [getWorkspaceName(workspaceId), text(categoryName, 'Unsorted')];
+        if (folderName) segments.push(folderName);
+        const host = text((() => {
+            try {
+                return new URL(text(link?.url, '')).hostname.replace(/^www\./i, '');
+            } catch (error) {
+                return '';
+            }
+        })(), '');
+        if (host) segments.push(host);
+        return segments.join(' / ');
+    }
+
+    function buildGraphData(scopeOption) {
+        const scope = normalizeScope(scopeOption);
+        const scopedLinks = getScopedLinks(scope);
+        const { width, height } = getViewportSize();
+        const centerX = width / 2;
+        const centerY = height / 2;
+        const tagBuckets = new Map();
+
+        state.scope = scope;
+        state.nodes = [];
+        state.edges = [];
+        state.edgeKeys = new Set();
+        state.hovered = null;
+        state.selected = null;
+        state.searchState = { query: '', index: -1, matches: [] };
+
+        function addTagEdges(linkNode, link) {
+            if (!Array.isArray(link?.tags)) return;
+            link.tags
+                .map((tag) => text(tag, ''))
+                .filter(Boolean)
+                .forEach((tag) => {
+                    const key = tag.toLowerCase();
+                    if (!tagBuckets.has(key)) tagBuckets.set(key, []);
+                    tagBuckets.get(key).push(linkNode);
+                });
+        }
+
+        function addLinkNode(workspaceId, categoryName, parentNode, link, index, total, radius) {
+            const position = placeOnRing(index, Math.max(total, 1), radius, parentNode.x, parentNode.y, 6);
+            const linkNode = addNode(createNode({
+                id: 'link_' + String(link.id),
+                label: text(link?.title, 'Bookmark'),
+                color: getLinkColor(link),
+                radius: 4,
+                kind: 'link',
+                x: position.x,
+                y: position.y,
+                meta: getLinkMeta(workspaceId, categoryName, link),
+                data: {
+                    linkId: String(link.id),
+                    workspaceId,
+                    categoryName,
+                    url: text(link?.url, '')
+                }
+            }));
+            addEdge(linkNode, parentNode, 'hierarchy');
+            addTagEdges(linkNode, link);
+        }
+
+        function addFolderBranch(workspaceId, categoryName, folderNodeModel, viewModel, parentNode, index, total, radius) {
+            const position = placeOnRing(index, Math.max(total, 1), radius, parentNode.x, parentNode.y, 10);
+            const folderNode = addNode(createNode({
+                id: 'folder_' + workspaceId + '_' + categoryName + '_' + String(folderNodeModel.id),
+                label: text(folderNodeModel?.name, 'Folder'),
+                color: '#b45eff',
+                radius: 8,
+                kind: 'folder',
+                x: position.x,
+                y: position.y,
+                meta: getWorkspaceName(workspaceId) + ' / ' + text(categoryName, 'Unsorted') + ' / ' + text(folderNodeModel?.name, 'Folder'),
+                data: {
+                    workspaceId,
+                    categoryName,
+                    folderId: String(folderNodeModel.id)
+                }
+            }));
+            addEdge(folderNode, parentNode, 'hierarchy');
+
+            const directLinks = viewModel.folderLinks.get(String(folderNodeModel.id)) || [];
+            directLinks.forEach((link, linkIndex) => {
+                addLinkNode(workspaceId, categoryName, folderNode, link, linkIndex, directLinks.length, Math.max(40, radius - 20));
+            });
+
+            const childFolders = viewModel.childrenMap.get(String(folderNodeModel.id)) || [];
+            childFolders.forEach((childFolder, childIndex) => {
+                addFolderBranch(workspaceId, categoryName, childFolder, viewModel, folderNode, childIndex, childFolders.length, Math.max(54, radius - 6));
+            });
+        }
+
+        function addCategoryBranch(workspaceId, categoryName, categoryCenter, parentNode) {
+            const categoryLinks = scopedLinks.filter((link) => (
+                String(link?.workspace || 'main') === String(workspaceId)
+                && text(link?.category, 'Unsorted') === text(categoryName, 'Unsorted')
+            ));
+            const categoryNode = addNode(createNode({
+                id: 'category_' + workspaceId + '_' + categoryName,
+                label: text(categoryName, 'Unsorted'),
+                color: '#ff4df1',
+                radius: 12,
+                kind: 'category',
+                x: categoryCenter.x,
+                y: categoryCenter.y,
+                meta: getWorkspaceName(workspaceId) + ' / ' + categoryLinks.length + ' bookmark' + (categoryLinks.length === 1 ? '' : 's'),
+                data: {
+                    workspaceId,
+                    categoryName
+                }
+            }));
+            if (parentNode) addEdge(categoryNode, parentNode, 'hierarchy');
+
+            const viewModel = getFolderView(workspaceId, categoryName, categoryLinks);
+            (viewModel.topLevelFolders || []).forEach((folderNodeModel, index) => {
+                addFolderBranch(workspaceId, categoryName, folderNodeModel, viewModel, categoryNode, index, viewModel.topLevelFolders.length, 78);
+            });
+            (viewModel.rootLinks || []).forEach((link, index) => {
+                addLinkNode(workspaceId, categoryName, categoryNode, link, index, viewModel.rootLinks.length, 66);
+            });
+        }
+
+        if (scope.scope === 'all') {
+            const workspaceIds = getAllWorkspaceIds(scopedLinks);
+            workspaceIds.forEach((workspaceId, workspaceIndex) => {
+                const workspaceLinks = scopedLinks.filter((link) => String(link?.workspace || 'main') === String(workspaceId));
+                const workspacePosition = placeOnRing(workspaceIndex, workspaceIds.length, Math.min(width, height) * 0.22, centerX, centerY, 18);
+                const workspaceNode = addNode(createNode({
+                    id: 'workspace_' + workspaceId,
+                    label: getWorkspaceName(workspaceId),
+                    color: '#ffd166',
+                    radius: 15,
+                    kind: 'workspace',
+                    x: workspacePosition.x,
+                    y: workspacePosition.y,
+                    meta: workspaceLinks.length + ' bookmark' + (workspaceLinks.length === 1 ? '' : 's'),
+                    data: { workspaceId }
+                }));
+                const categories = getCategoryNames(workspaceId, workspaceLinks);
+                categories.forEach((categoryName, categoryIndex) => {
+                    const categoryCenter = placeOnRing(categoryIndex, categories.length, 128 + ((categoryIndex % 4) * 12), workspaceNode.x, workspaceNode.y, 10);
+                    addCategoryBranch(workspaceId, categoryName, categoryCenter, workspaceNode);
+                });
+            });
+        } else if (scope.scope === 'card') {
+            addCategoryBranch(
+                scope.workspaceId,
+                text(scope.categoryName, 'Unsorted'),
+                { x: centerX, y: centerY },
+                null
+            );
+        } else {
+            const categories = getCategoryNames(scope.workspaceId, scopedLinks);
+            categories.forEach((categoryName, categoryIndex) => {
+                const categoryCenter = placeOnRing(categoryIndex, categories.length, Math.min(width, height) * 0.24, centerX, centerY, 16);
+                addCategoryBranch(scope.workspaceId, categoryName, categoryCenter, null);
+            });
+        }
+
+        tagBuckets.forEach((bucketNodes) => {
+            const uniqueNodes = Array.from(new Set(bucketNodes));
+            if (uniqueNodes.length < 2) return;
+            const anchor = uniqueNodes[0];
+            const maxEdges = Math.min(uniqueNodes.length - 1, MAX_TAG_EDGES_PER_CLUSTER);
+            for (let index = 1; index <= maxEdges; index += 1) {
+                addEdge(anchor, uniqueNodes[index], 'tag');
+            }
+        });
+
+        renderHeader();
+        renderInspector();
+        fitToGraph();
+    }
+
+    function getGraphBounds() {
+        if (!state.nodes.length) {
+            const { width, height } = getViewportSize();
+            return {
+                minX: width / 2 - 40,
+                minY: height / 2 - 40,
+                maxX: width / 2 + 40,
+                maxY: height / 2 + 40,
+                width: 80,
+                height: 80
+            };
+        }
+
+        let minX = Infinity;
+        let minY = Infinity;
+        let maxX = -Infinity;
+        let maxY = -Infinity;
+        state.nodes.forEach((node) => {
+            minX = Math.min(minX, node.x - node.radius);
+            minY = Math.min(minY, node.y - node.radius);
+            maxX = Math.max(maxX, node.x + node.radius);
+            maxY = Math.max(maxY, node.y + node.radius);
+        });
+
+        return {
+            minX,
+            minY,
+            maxX,
+            maxY,
+            width: Math.max(1, maxX - minX),
+            height: Math.max(1, maxY - minY)
+        };
+    }
+
+    function fitToGraph() {
+        if (!state.canvas) return;
+        const bounds = getGraphBounds();
+        const availableWidth = Math.max(280, state.canvas.width - (MAP_PADDING * 2));
+        const availableHeight = Math.max(220, state.canvas.height - (MAP_PADDING * 2));
+        const scale = clamp(Math.min(availableWidth / bounds.width, availableHeight / bounds.height), 0.42, 2.4);
+        const tx = ((state.canvas.width - (bounds.width * scale)) / 2) - (bounds.minX * scale);
+        const ty = ((state.canvas.height - (bounds.height * scale)) / 2) - (bounds.minY * scale);
+        state.fitTransform = { scale, tx, ty };
+        state.transform = { scale, tx, ty };
+        requestDraw();
+    }
+
+    function setTransform(scale, tx, ty) {
+        state.transform.scale = clamp(scale, 0.42, 2.8);
+        state.transform.tx = tx;
+        state.transform.ty = ty;
+        requestDraw();
+    }
+
+    function resetView() {
+        state.transform = {
+            scale: state.fitTransform.scale,
+            tx: state.fitTransform.tx,
+            ty: state.fitTransform.ty
+        };
+        requestDraw();
+    }
+
+    function centerOnNode(node, targetScale) {
+        if (!node || !state.canvas) return;
+        const scale = clamp(targetScale || state.transform.scale, 0.42, 2.8);
+        const tx = (state.canvas.width / 2) - (node.x * scale);
+        const ty = (state.canvas.height / 2) - (node.y * scale);
+        setTransform(scale, tx, ty);
+    }
+
+    function worldPointFromClient(clientX, clientY) {
+        if (!state.canvas) return { x: 0, y: 0 };
+        const rect = state.canvas.getBoundingClientRect();
+        return {
+            x: (clientX - rect.left - state.transform.tx) / state.transform.scale,
+            y: (clientY - rect.top - state.transform.ty) / state.transform.scale
+        };
+    }
+
+    function zoomAt(factor, clientX, clientY) {
+        if (!state.canvas) return;
+        const rect = state.canvas.getBoundingClientRect();
+        const localX = clientX - rect.left;
+        const localY = clientY - rect.top;
+        const worldX = (localX - state.transform.tx) / state.transform.scale;
+        const worldY = (localY - state.transform.ty) / state.transform.scale;
+        const nextScale = clamp(state.transform.scale * factor, 0.42, 2.8);
+        const nextTx = localX - (worldX * nextScale);
+        const nextTy = localY - (worldY * nextScale);
+        setTransform(nextScale, nextTx, nextTy);
+    }
+
+    function getHitNode(clientX, clientY) {
+        const point = worldPointFromClient(clientX, clientY);
+        for (let index = state.nodes.length - 1; index >= 0; index -= 1) {
+            const node = state.nodes[index];
+            const dx = point.x - node.x;
+            const dy = point.y - node.y;
+            const radius = Math.max(node.radius + 4, 10 / state.transform.scale);
+            if ((dx * dx) + (dy * dy) <= (radius * radius)) {
+                return node;
+            }
+        }
+        return null;
+    }
+
+    function getPrimaryAction(node) {
+        if (!node) return null;
+        if (node.kind === 'link') {
+            return { label: 'Open Bookmark', action: 'open-link' };
+        }
+        if (node.kind === 'workspace') {
+            return { label: 'Open Tab', action: 'open-workspace' };
+        }
+        if (node.kind === 'category') {
+            return { label: 'Open Card', action: 'open-category' };
+        }
+        return { label: 'Center Node', action: 'center-node' };
+    }
+
+    function activateNode(node) {
+        if (!node) return;
+        const data = node.data || {};
+
+        if (node.kind === 'link' && data.linkId && typeof window.openBookmarkFromDashboard === 'function') {
+            window.openBookmarkFromDashboard({ preventDefault() {}, stopPropagation() {} }, data.linkId);
+            ns.closeMap();
+            return;
+        }
+
+        if (node.kind === 'workspace' && data.workspaceId && typeof window.switchWorkspace === 'function') {
+            window.switchWorkspace(data.workspaceId);
+            ns.closeMap();
+            return;
+        }
+
+        if (node.kind === 'category' && data.categoryName) {
+            if (data.workspaceId && typeof window.switchWorkspace === 'function' && String(getConfig().activeWorkspace || 'main') !== String(data.workspaceId)) {
+                window.switchWorkspace(data.workspaceId);
+            }
+            if (typeof window.setFocus === 'function') {
+                window.setFocus(data.categoryName);
+                ns.closeMap();
+                return;
+            }
+        }
+
+        centerOnNode(node, Math.max(state.transform.scale, 1.2));
+    }
+
+    function renderHeader() {
+        if (!state.titleEl || !state.scopeEl || !state.statsEl) return;
+        state.titleEl.textContent = 'NEURAL CORE :: CONSTELLATION MAP';
+        state.scopeEl.textContent = getScopeText(state.scope);
+        state.statsEl.textContent = state.nodes.length + ' nodes - ' + state.edges.length + ' edges';
+    }
+
+    function renderInspector() {
+        if (!state.infoEl) return;
+        const targetNode = state.selected || state.hovered;
+        if (!targetNode) {
+            state.infoEl.innerHTML = [
+                '<div style="font-size:0.96rem;font-weight:700;margin-bottom:6px;">Map Inspector</div>',
+                '<div style="font-size:0.82rem;opacity:0.78;line-height:1.45;">',
+                'Drag the background to pan. Use the mouse wheel to zoom. Drag nodes to reorganize the field. Double-click a bookmark to open it.',
+                '</div>'
+            ].join('');
+            return;
+        }
+
+        const primaryAction = getPrimaryAction(targetNode);
+        const actionRow = primaryAction
+            ? '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">'
+                + '<button type="button" data-map-action="primary" style="border:1px solid rgba(0,212,255,0.32);background:rgba(0,212,255,0.12);color:#eafcff;border-radius:10px;padding:8px 12px;cursor:pointer;">' + escapeHtml(primaryAction.label) + '</button>'
+                + '<button type="button" data-map-action="center" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.06);color:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;">Center</button>'
+                + '</div>'
+            : '';
+
+        state.infoEl.innerHTML = [
+            '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">',
+            '<div>',
+            '<div style="font-size:0.96rem;font-weight:700;line-height:1.3;">' + escapeHtml(targetNode.label) + '</div>',
+            '<div style="font-size:0.72rem;opacity:0.72;text-transform:uppercase;letter-spacing:0.06em;margin-top:4px;">' + escapeHtml(targetNode.kind) + '</div>',
+            '</div>',
+            '<div style="font-size:0.72rem;opacity:0.68;">' + escapeHtml(getScopeText(state.scope)) + '</div>',
+            '</div>',
+            '<div style="font-size:0.82rem;opacity:0.82;line-height:1.45;margin-top:10px;">' + escapeHtml(targetNode.meta || 'No details') + '</div>',
+            actionRow
+        ].join('');
+    }
+
+    function requestDraw() {
+        if (!state.running) draw();
+    }
+
+    function updateCursor() {
+        if (!state.canvas) return;
+        if (state.pointer.mode === 'pan' || state.pointer.mode === 'node') {
+            state.canvas.style.cursor = 'grabbing';
+            return;
+        }
+        state.canvas.style.cursor = state.hovered ? 'pointer' : 'grab';
+    }
+
+    function draw() {
+        if (!state.ctx || !state.canvas) return;
+        const ctx = state.ctx;
+        ctx.clearRect(0, 0, state.canvas.width, state.canvas.height);
+        ctx.save();
+        ctx.translate(state.transform.tx, state.transform.ty);
+        ctx.scale(state.transform.scale, state.transform.scale);
+
+        state.edges.forEach((edge) => {
+            ctx.beginPath();
+            ctx.moveTo(edge.source.x, edge.source.y);
+            ctx.lineTo(edge.target.x, edge.target.y);
+            ctx.strokeStyle = edge.type === 'tag' ? 'rgba(0, 212, 255, 0.12)' : 'rgba(0, 212, 255, 0.28)';
+            ctx.lineWidth = edge.type === 'tag' ? (0.9 / state.transform.scale) : (1.5 / state.transform.scale);
+            ctx.stroke();
+        });
+
+        const shouldShowLinkLabels = state.labelsVisible && (state.nodes.length <= LINK_LABEL_LIMIT || state.transform.scale >= 1.08);
+        state.nodes.forEach((node) => {
+            const isHovered = state.hovered && state.hovered.id === node.id;
+            const isSelected = state.selected && state.selected.id === node.id;
+            ctx.beginPath();
+            ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
+            ctx.fillStyle = node.color;
+            ctx.shadowBlur = (isHovered || isSelected ? 20 : 10) / state.transform.scale;
+            ctx.shadowColor = node.color;
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            if (isHovered || isSelected) {
+                ctx.lineWidth = 2 / state.transform.scale;
+                ctx.strokeStyle = 'rgba(255,255,255,0.92)';
+                ctx.stroke();
+            }
+
+            const showLabel = node.kind !== 'link' || shouldShowLinkLabels || isHovered || isSelected;
+            if (showLabel) {
+                ctx.fillStyle = 'rgba(255,255,255,0.84)';
+                ctx.font = Math.max(10, 11 / state.transform.scale) + 'px sans-serif';
+                ctx.fillText(node.label, node.x + node.radius + 4, node.y + 4);
+            }
+        });
+
+        ctx.restore();
+        updateCursor();
+    }
+
+    function clampNodeToWorld(node, width, height) {
         const minX = MAP_PADDING + node.radius;
         const maxX = width - MAP_PADDING - node.radius;
         const minY = MAP_PADDING + node.radius;
@@ -74,325 +720,387 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     }
 
     function tickPhysics() {
-        const { width, height } = getViewportSize();
-        const nodeCount = Math.max(1, nodes.length);
-        const centerX = width / 2;
-        const centerY = height / 2;
-        const pairStride = nodeCount > 220 ? 5 : nodeCount > 160 ? 4 : nodeCount > 120 ? 3 : nodeCount > 80 ? 2 : 1;
-        const repulsionStrength = nodeCount > 220 ? 800 : nodeCount > 140 ? 1100 : 1500;
-        const springStrength = nodeCount > 220 ? 0.022 : nodeCount > 140 ? 0.03 : 0.05;
-        const targetDist = nodeCount > 220 ? 52 : nodeCount > 140 ? 64 : 96;
-        const centerPull = nodeCount > 220 ? 0.0025 : nodeCount > 140 ? 0.004 : 0.006;
-        const maxVelocity = nodeCount > 220 ? 7 : nodeCount > 140 ? 9 : 12;
+        if (!state.nodes.length || !state.canvas) return;
+        const width = state.canvas.width;
+        const height = state.canvas.height;
+        const nodeCount = state.nodes.length;
+        const repulsion = nodeCount > 120 ? 1400 : nodeCount > 70 ? 2200 : 3200;
+        const centerPull = nodeCount > 120 ? 0.0008 : 0.0012;
+        const springStrength = nodeCount > 120 ? 0.0024 : 0.0032;
 
-        for (let i = 0; i < nodes.length; i += 1) {
-            for (let j = i + 1; j < nodes.length; j += 1) {
-                if (pairStride > 1 && ((i + j) % pairStride) !== 0) continue;
-                const n1 = nodes[i];
-                const n2 = nodes[j];
-                const dx = n2.x - n1.x;
-                const dy = n2.y - n1.y;
-                const distSq = Math.max((dx * dx) + (dy * dy), 16);
+        for (let index = 0; index < state.nodes.length; index += 1) {
+            const node = state.nodes[index];
+            if (state.pointer.mode === 'node' && state.pointer.node && state.pointer.node.id === node.id) {
+                node.vx = 0;
+                node.vy = 0;
+                continue;
+            }
+
+            for (let inner = index + 1; inner < state.nodes.length; inner += 1) {
+                const other = state.nodes[inner];
+                const dx = other.x - node.x;
+                const dy = other.y - node.y;
+                const distSq = Math.max(36, (dx * dx) + (dy * dy));
+                const force = repulsion / distSq;
                 const dist = Math.sqrt(distSq);
-                const force = repulsionStrength / distSq;
-                const fx = (dx / dist) * force;
-                const fy = (dy / dist) * force;
-                n1.vx -= fx;
-                n1.vy -= fy;
-                n2.vx += fx;
-                n2.vy += fy;
+                const nx = dx / dist;
+                const ny = dy / dist;
+                node.vx -= nx * force;
+                node.vy -= ny * force;
+                other.vx += nx * force;
+                other.vy += ny * force;
             }
         }
 
-        edges.forEach((edge) => {
-            const n1 = edge.source;
-            const n2 = edge.target;
-            const dx = n2.x - n1.x;
-            const dy = n2.y - n1.y;
-            const dist = Math.sqrt((dx * dx) + (dy * dy)) || 1;
-            const adjustedTarget = edge.type === 'tag' ? Math.max(40, targetDist - 16) : targetDist;
-            const force = (dist - adjustedTarget) * springStrength;
-            const fx = (dx / dist) * force;
-            const fy = (dy / dist) * force;
-            n1.vx += fx;
-            n1.vy += fy;
-            n2.vx -= fx;
-            n2.vy -= fy;
+        state.edges.forEach((edge) => {
+            const dx = edge.target.x - edge.source.x;
+            const dy = edge.target.y - edge.source.y;
+            const dist = Math.max(1, Math.sqrt((dx * dx) + (dy * dy)));
+            const desired = edge.type === 'tag' ? 120 : 78;
+            const stretch = dist - desired;
+            const nx = dx / dist;
+            const ny = dy / dist;
+            const force = stretch * springStrength;
+            if (!(state.pointer.mode === 'node' && state.pointer.node?.id === edge.source.id)) {
+                edge.source.vx += nx * force;
+                edge.source.vy += ny * force;
+            }
+            if (!(state.pointer.mode === 'node' && state.pointer.node?.id === edge.target.id)) {
+                edge.target.vx -= nx * force;
+                edge.target.vy -= ny * force;
+            }
         });
 
-        nodes.forEach((node) => {
-            node.vx += (centerX - node.x) * centerPull;
-            node.vy += (centerY - node.y) * centerPull;
-
-            const speed = Math.hypot(node.vx, node.vy);
-            if (speed > maxVelocity) {
-                const scale = maxVelocity / speed;
-                node.vx *= scale;
-                node.vy *= scale;
-            }
-
+        const worldCenterX = (width / 2 - state.transform.tx) / state.transform.scale;
+        const worldCenterY = (height / 2 - state.transform.ty) / state.transform.scale;
+        state.nodes.forEach((node) => {
+            if (state.pointer.mode === 'node' && state.pointer.node?.id === node.id) return;
+            node.vx += (worldCenterX - node.x) * centerPull;
+            node.vy += (worldCenterY - node.y) * centerPull;
+            node.vx *= 0.88;
+            node.vy *= 0.88;
             node.x += node.vx;
             node.y += node.vy;
-            node.vx *= 0.84;
-            node.vy *= 0.84;
-            clampNodeToViewport(node, width, height);
+            clampNodeToWorld(node, width, height);
         });
     }
 
-    function draw() {
-        if (!isRunning || !canvas || !ctx) return;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        edges.forEach((edge) => {
-            ctx.beginPath();
-            ctx.moveTo(edge.source.x, edge.source.y);
-            ctx.lineTo(edge.target.x, edge.target.y);
-            ctx.strokeStyle = edge.type === 'tag' ? 'rgba(0, 212, 255, 0.14)' : 'rgba(0, 212, 255, 0.42)';
-            ctx.lineWidth = edge.type === 'tag' ? 1 : 1.8;
-            ctx.stroke();
-        });
-
-        const showLinkLabels = nodes.length <= MAX_LINK_LABELS;
-        nodes.forEach((node) => {
-            ctx.beginPath();
-            ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
-            ctx.fillStyle = node.color;
-            ctx.shadowBlur = 12;
-            ctx.shadowColor = node.color;
-            ctx.fill();
-            ctx.shadowBlur = 0;
-
-            const showLabel = node.kind !== 'link' || showLinkLabels;
-            if (showLabel && node.radius > 3) {
-                ctx.fillStyle = 'rgba(255,255,255,0.74)';
-                ctx.font = '10px sans-serif';
-                ctx.fillText(node.label, node.x + node.radius + 4, node.y + 4);
-            }
-        });
-
+    function step() {
+        if (!state.running) return;
         tickPhysics();
-        animationFrameId = requestAnimationFrame(draw);
+        draw();
+        state.animationFrameId = window.requestAnimationFrame(step);
     }
 
-    function buildGraphData() {
-        nodes = [];
-        edges = [];
-        const nodeMap = new Map();
-        const { width, height } = getViewportSize();
-        const centerX = width / 2;
-        const centerY = height / 2;
+    function stopAnimation() {
+        state.running = false;
+        if (state.animationFrameId) {
+            window.cancelAnimationFrame(state.animationFrameId);
+            state.animationFrameId = 0;
+        }
+    }
 
-        const workspaceId = window.eveState?.config?.activeWorkspace || 'main';
-        const allLinks = Array.isArray(window.eveState?.links)
-            ? window.eveState.links.filter((link) => String(link?.workspace || 'main') === String(workspaceId))
-            : [];
-        const folderApi = window.EveBookmarkFolders;
-        const tagMap = new Map();
-        const categoryBuckets = new Map();
+    function startAnimation() {
+        stopAnimation();
+        state.running = true;
+        step();
+    }
 
-        allLinks.forEach((link) => {
-            const category = String(link?.category || 'Unsorted').trim() || 'Unsorted';
-            if (!categoryBuckets.has(category)) categoryBuckets.set(category, []);
-            categoryBuckets.get(category).push(link);
+    function setSelectedNode(node) {
+        state.selected = node || null;
+        renderInspector();
+        requestDraw();
+    }
+
+    function setHoveredNode(node) {
+        if ((state.hovered?.id || '') === (node?.id || '')) return;
+        state.hovered = node || null;
+        requestDraw();
+        if (!state.selected) renderInspector();
+    }
+
+    function runFind() {
+        const query = text(state.findInput?.value, '').toLowerCase();
+        state.searchState.query = query;
+        if (!query) {
+            state.searchState.matches = [];
+            state.searchState.index = -1;
+            if (!state.selected) renderInspector();
+            return;
+        }
+        const matches = state.nodes.filter((node) => {
+            return node.label.toLowerCase().includes(query)
+                || text(node.meta, '').toLowerCase().includes(query)
+                || text(node.data?.url, '').toLowerCase().includes(query);
+        });
+        state.searchState.matches = matches;
+        if (!matches.length) {
+            state.searchState.index = -1;
+            state.infoEl.innerHTML = '<div style="font-size:0.9rem;font-weight:700;">No matches</div><div style="font-size:0.8rem;opacity:0.78;margin-top:6px;">Nothing in this map matched "' + escapeHtml(query) + '".</div>';
+            return;
+        }
+        state.searchState.index = (state.searchState.index + 1) % matches.length;
+        const node = matches[state.searchState.index];
+        setSelectedNode(node);
+        centerOnNode(node, Math.max(state.transform.scale, 1.28));
+    }
+
+    function bindEvents() {
+        if (state.bound || !state.canvas || !state.container) return;
+
+        state.canvas.addEventListener('wheel', (event) => {
+            event.preventDefault();
+            const factor = event.deltaY < 0 ? 1.12 : 0.9;
+            zoomAt(factor, event.clientX, event.clientY);
+        }, { passive: false });
+
+        state.canvas.addEventListener('pointerdown', (event) => {
+            const hitNode = getHitNode(event.clientX, event.clientY);
+            state.pointer.mode = hitNode ? 'node' : 'pan';
+            state.pointer.node = hitNode;
+            state.pointer.startX = event.clientX;
+            state.pointer.startY = event.clientY;
+            state.pointer.baseTx = state.transform.tx;
+            state.pointer.baseTy = state.transform.ty;
+            state.pointer.moved = false;
+            if (hitNode) {
+                setSelectedNode(hitNode);
+                state.canvas.setPointerCapture?.(event.pointerId);
+            }
+            updateCursor();
         });
 
-        const categories = Array.from(categoryBuckets.keys()).sort((left, right) => left.localeCompare(right, undefined, { sensitivity: 'base' }));
-        const categoryNodes = new Map();
-        const realFolderIds = new Set();
-
-        categories.forEach((category, index) => {
-            const position = placeOnRing(index, categories.length, Math.min(width, height) * 0.2, centerX, centerY, 18);
-            const node = createNode({
-                id: `cat_${category}`,
-                label: category,
-                color: '#ff4df1',
-                radius: 12,
-                kind: 'category',
-                x: position.x,
-                y: position.y
-            });
-            nodes.push(node);
-            nodeMap.set(node.id, node);
-            categoryNodes.set(category, node);
+        state.canvas.addEventListener('pointermove', (event) => {
+            if (state.pointer.mode === 'pan') {
+                const dx = event.clientX - state.pointer.startX;
+                const dy = event.clientY - state.pointer.startY;
+                if (Math.abs(dx) > 2 || Math.abs(dy) > 2) state.pointer.moved = true;
+                setTransform(state.transform.scale, state.pointer.baseTx + dx, state.pointer.baseTy + dy);
+                return;
+            }
+            if (state.pointer.mode === 'node' && state.pointer.node) {
+                const point = worldPointFromClient(event.clientX, event.clientY);
+                if (Math.abs(event.clientX - state.pointer.startX) > 2 || Math.abs(event.clientY - state.pointer.startY) > 2) state.pointer.moved = true;
+                state.pointer.node.x = point.x;
+                state.pointer.node.y = point.y;
+                state.pointer.node.vx = 0;
+                state.pointer.node.vy = 0;
+                requestDraw();
+                return;
+            }
+            setHoveredNode(getHitNode(event.clientX, event.clientY));
         });
 
-        categories.forEach((category) => {
-            if (!folderApi?.buildFolderView) return;
-            const linksForCategory = categoryBuckets.get(category) || [];
-            const view = folderApi.buildFolderView(workspaceId, category, linksForCategory);
-            const realFolders = (Array.isArray(view?.nodes) ? view.nodes : []).filter((folder) => !folder?.isGhost);
-            const categoryNode = categoryNodes.get(category);
-            realFolders.forEach((folder, index) => {
-                const position = placeOnRing(index, Math.max(realFolders.length, 1), 72 + ((index % 4) * 10), categoryNode.x, categoryNode.y, 10);
-                const node = createNode({
-                    id: `folder_${folder.id}`,
-                    label: folder.name,
-                    color: '#aa00ff',
-                    radius: 8,
-                    kind: 'folder',
-                    x: position.x,
-                    y: position.y
-                });
-                nodes.push(node);
-                nodeMap.set(node.id, node);
-                realFolderIds.add(folder.id);
-            });
+        function clearPointer(event) {
+            if (state.pointer.mode === 'idle') return;
+            const hitNode = getHitNode(event.clientX, event.clientY);
+            const previousNode = state.pointer.node;
+            const moved = state.pointer.moved;
+            state.pointer.mode = 'idle';
+            state.pointer.node = null;
+            updateCursor();
 
-            realFolders.forEach((folder) => {
-                const folderNode = nodeMap.get(`folder_${folder.id}`);
-                if (!folderNode) return;
-                const parentId = folder.parentId && realFolderIds.has(folder.parentId)
-                    ? `folder_${folder.parentId}`
-                    : `cat_${category}`;
-                const parentNode = nodeMap.get(parentId) || categoryNode;
-                edges.push({ source: folderNode, target: parentNode, type: 'hierarchy' });
-            });
-        });
-
-        categories.forEach((category) => {
-            const linksForCategory = categoryBuckets.get(category) || [];
-            const categoryNode = categoryNodes.get(category);
-            linksForCategory.forEach((link, index) => {
-                const parentId = link?.folderId && realFolderIds.has(String(link.folderId))
-                    ? `folder_${String(link.folderId)}`
-                    : `cat_${category}`;
-                const parentNode = nodeMap.get(parentId) || categoryNode;
-                const position = placeOnRing(index, Math.max(linksForCategory.length, 1), 54 + ((index % 6) * 8), parentNode.x, parentNode.y, 6);
-                const node = createNode({
-                    id: `link_${link.id}`,
-                    label: String(link?.title || 'Link'),
-                    color: link?.done ? '#7c7c7c' : '#00d4ff',
-                    radius: 4,
-                    kind: 'link',
-                    x: position.x,
-                    y: position.y
-                });
-                nodes.push(node);
-                nodeMap.set(node.id, node);
-                if (parentNode) edges.push({ source: node, target: parentNode, type: 'hierarchy' });
-
-                if (Array.isArray(link?.tags)) {
-                    link.tags
-                        .map((tag) => String(tag || '').trim())
-                        .filter(Boolean)
-                        .forEach((tag) => {
-                            if (!tagMap.has(tag)) tagMap.set(tag, []);
-                            tagMap.get(tag).push(node);
-                        });
+            if (previousNode && !moved && hitNode && hitNode.id === previousNode.id) {
+                const now = Date.now();
+                if (state.lastClickNodeId === hitNode.id && now - state.lastClickAt < DOUBLE_CLICK_MS) {
+                    activateNode(hitNode);
+                    state.lastClickAt = 0;
+                    state.lastClickNodeId = '';
+                } else {
+                    setSelectedNode(hitNode);
+                    state.lastClickAt = now;
+                    state.lastClickNodeId = hitNode.id;
                 }
-            });
+            }
+        }
+
+        state.canvas.addEventListener('pointerup', clearPointer);
+        state.canvas.addEventListener('pointerleave', (event) => {
+            if (state.pointer.mode !== 'idle') {
+                clearPointer(event);
+                return;
+            }
+            setHoveredNode(null);
         });
 
-        tagMap.forEach((taggedNodes) => {
-            const uniqueNodes = Array.from(new Set(taggedNodes));
-            if (uniqueNodes.length < 2) return;
-            const anchor = uniqueNodes[0];
-            const maxEdges = Math.min(uniqueNodes.length - 1, MAX_TAG_EDGES_PER_CLUSTER);
-            for (let index = 1; index <= maxEdges; index += 1) {
-                edges.push({ source: anchor, target: uniqueNodes[index], type: 'tag' });
+        state.infoEl.addEventListener('click', (event) => {
+            const action = event.target?.dataset?.mapAction;
+            if (!action || !state.selected) return;
+            if (action === 'primary') {
+                activateNode(state.selected);
+            } else if (action === 'center') {
+                centerOnNode(state.selected, Math.max(state.transform.scale, 1.24));
             }
         });
+
+        state.findInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                runFind();
+            }
+        });
+
+        state.resizeHandler = function () {
+            if (!state.canvas) return;
+            const { width, height } = getViewportSize();
+            state.canvas.width = width;
+            state.canvas.height = height;
+            fitToGraph();
+        };
+        window.addEventListener('resize', state.resizeHandler);
+
+        state.keyHandler = function (event) {
+            if (!state.container || state.container.style.display === 'none') return;
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                ns.closeMap();
+            } else if (event.key === '+' || event.key === '=') {
+                event.preventDefault();
+                zoomAt(1.12, state.canvas.width / 2, state.canvas.height / 2);
+            } else if (event.key === '-') {
+                event.preventDefault();
+                zoomAt(0.9, state.canvas.width / 2, state.canvas.height / 2);
+            }
+        };
+        window.addEventListener('keydown', state.keyHandler);
+
+        state.bound = true;
     }
 
     function ensureContainer() {
-        if (container) return container;
-        container = document.getElementById('constellation-map-container');
-        if (container) return container;
-
-        container = document.createElement('div');
-        container.id = 'constellation-map-container';
+        if (state.container && state.canvas && state.ctx) return;
+        const container = document.createElement('div');
+        container.id = 'constellation-map-overlay';
         container.style.cssText = [
             'position:fixed',
-            'top:0',
-            'left:0',
-            'width:100vw',
-            'height:100vh',
-            'overflow:hidden',
-            'background:radial-gradient(circle at center, #1a1a2e 0%, #000 100%)',
-            'z-index:999999',
-            'display:flex',
-            'flex-direction:column'
+            'inset:0',
+            'z-index:99999',
+            'display:none',
+            'background:radial-gradient(circle at top, rgba(8,21,38,0.94), rgba(2,6,16,0.97))',
+            'backdrop-filter:blur(10px)'
         ].join(';');
-
-        const header = document.createElement('div');
-        header.style.cssText = [
-            'position:absolute',
-            'top:20px',
-            'left:20px',
-            'color:#fff',
-            'font-family:monospace',
-            'font-size:1.2rem',
-            'pointer-events:none',
-            'text-shadow:0 0 10px #00d4ff',
-            'z-index:2'
-        ].join(';');
-        header.innerHTML = 'NEURAL CORE :: CONSTELLATION MAP<br><span style="font-size:0.8rem; opacity:0.6;">Spatial Intelligence Mode</span>';
-        container.appendChild(header);
-
-        const closeBtn = document.createElement('button');
-        closeBtn.textContent = 'Exit Map';
-        closeBtn.style.cssText = [
-            'position:absolute',
-            'top:20px',
-            'right:20px',
-            'z-index:10',
-            'background:rgba(255,255,255,0.1)',
-            'border:1px solid rgba(255,255,255,0.2)',
-            'color:#fff',
-            'padding:8px 16px',
-            'border-radius:4px',
-            'cursor:pointer'
-        ].join(';');
-        closeBtn.onclick = ns.closeMap;
-        container.appendChild(closeBtn);
-
-        canvas = document.createElement('canvas');
-        canvas.style.display = 'block';
-        container.appendChild(canvas);
+        container.innerHTML = [
+            '<div style="position:absolute;z-index:3;top:16px;left:20px;display:flex;flex-direction:column;gap:4px;max-width:min(48vw,680px);pointer-events:auto;">',
+            '<div data-map-title style="font-size:1.05rem;font-weight:700;letter-spacing:0.06em;color:#f3f8ff;">NEURAL CORE :: CONSTELLATION MAP</div>',
+            '<div data-map-scope style="font-size:0.82rem;color:rgba(255,255,255,0.76);"></div>',
+            '<div data-map-stats style="font-size:0.78rem;color:rgba(255,255,255,0.58);"></div>',
+            '</div>',
+            '<div style="position:absolute;z-index:3;top:16px;right:20px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;max-width:min(52vw,900px);justify-content:flex-end;pointer-events:auto;">',
+            '<input data-map-find type="search" placeholder="Find bookmark, card, folder..." style="min-width:240px;border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:8px 12px;outline:none;">',
+            '<button type="button" data-map-toolbar="find" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;">Find</button>',
+            '<button type="button" data-map-toolbar="zoom-out" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;">-</button>',
+            '<button type="button" data-map-toolbar="zoom-in" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;">+</button>',
+            '<button type="button" data-map-toolbar="fit" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;">Fit</button>',
+            '<button type="button" data-map-toolbar="reset" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;">Reset</button>',
+            '<button type="button" data-map-toolbar="labels" style="border:1px solid rgba(0,212,255,0.28);background:rgba(0,212,255,0.12);color:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;">Labels On</button>',
+            '<button type="button" data-map-toolbar="close" style="border:1px solid rgba(255,80,120,0.3);background:rgba(255,80,120,0.14);color:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;">Close</button>',
+            '</div>',
+            '<canvas data-map-canvas style="position:absolute;z-index:1;inset:0;width:100%;height:100%;display:block;cursor:grab;"></canvas>',
+            '<div style="position:absolute;z-index:3;left:20px;bottom:20px;max-width:320px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.05);border-radius:14px;padding:12px 14px;color:rgba(255,255,255,0.8);font-size:0.78rem;line-height:1.45;pointer-events:auto;">Drag background to pan. Drag nodes to reorganize. Mouse wheel zooms. Double-click a bookmark node to open it.</div>',
+            '<div data-map-info style="position:absolute;z-index:3;right:20px;bottom:20px;max-width:360px;min-width:280px;border:1px solid rgba(255,255,255,0.14);background:rgba(3,10,20,0.86);border-radius:16px;padding:14px 16px;color:#fff;box-shadow:0 18px 40px rgba(0,0,0,0.35);pointer-events:auto;"></div>'
+        ].join('');
         document.body.appendChild(container);
-        ctx = canvas.getContext('2d');
 
-        resizeHandler = () => {
-            if (!canvas) return;
-            const { width, height } = getViewportSize();
-            canvas.width = width;
-            canvas.height = height;
-        };
-        window.addEventListener('resize', resizeHandler);
-        resizeHandler();
-        return container;
+        state.container = container;
+        state.canvas = container.querySelector('[data-map-canvas]');
+        state.ctx = state.canvas.getContext('2d');
+        state.titleEl = container.querySelector('[data-map-title]');
+        state.scopeEl = container.querySelector('[data-map-scope]');
+        state.statsEl = container.querySelector('[data-map-stats]');
+        state.infoEl = container.querySelector('[data-map-info]');
+        state.findInput = container.querySelector('[data-map-find]');
+
+        container.addEventListener('click', (event) => {
+            const toolbarAction = event.target?.dataset?.mapToolbar;
+            if (!toolbarAction) return;
+            if (toolbarAction === 'find') runFind();
+            else if (toolbarAction === 'zoom-in') zoomAt(1.12, state.canvas.width / 2, state.canvas.height / 2);
+            else if (toolbarAction === 'zoom-out') zoomAt(0.9, state.canvas.width / 2, state.canvas.height / 2);
+            else if (toolbarAction === 'fit') fitToGraph();
+            else if (toolbarAction === 'reset') resetView();
+            else if (toolbarAction === 'labels') {
+                state.labelsVisible = !state.labelsVisible;
+                event.target.textContent = state.labelsVisible ? 'Labels On' : 'Labels Off';
+                requestDraw();
+            } else if (toolbarAction === 'close') {
+                ns.closeMap();
+            }
+        });
+
+        bindEvents();
+        state.resizeHandler?.();
+        renderInspector();
     }
 
-    ns.__debugGetGraphStats = function () {
-        const { width, height } = getViewportSize();
-        const outOfBounds = nodes.filter((node) => (
-            node.x < -node.radius
-            || node.y < -node.radius
-            || node.x > width + node.radius
-            || node.y > height + node.radius
-        )).length;
-        return {
-            nodeCount: nodes.length,
-            edgeCount: edges.length,
-            outOfBounds,
-            isRunning
-        };
-    };
-
-    ns.openMap = function () {
-        if (isRunning) return;
+    ns.openMap = function openMap(scopeOption) {
         ensureContainer();
-        if (!canvas || !ctx) return;
-        container.style.display = 'block';
-        buildGraphData();
-        isRunning = true;
-        draw();
+        buildGraphData(scopeOption);
+        state.container.style.display = 'block';
+        document.body.style.overflow = 'hidden';
+        startAnimation();
     };
 
-    ns.closeMap = function () {
-        isRunning = false;
-        cancelAnimationFrame(animationFrameId);
-        const currentContainer = document.getElementById('constellation-map-container');
-        if (currentContainer) currentContainer.style.display = 'none';
+    ns.openAllMap = function openAllMap() {
+        ns.openMap({ scope: 'all' });
+    };
+
+    ns.openWorkspaceMap = function openWorkspaceMap(workspaceId) {
+        ns.openMap({ scope: 'workspace', workspaceId });
+    };
+
+    ns.openCardMap = function openCardMap(workspaceId, categoryName) {
+        ns.openMap({ scope: 'card', workspaceId, categoryName });
+    };
+
+    ns.openCurrentViewMap = function openCurrentViewMap() {
+        const mainContent = document.getElementById('main-content');
+        const isUnidexActive = !!mainContent?.classList?.contains('unidex-view-active');
+        const unidex = window.UnidexView;
+        if (isUnidexActive && unidex?.getConstellationScope) {
+            ns.openMap(unidex.getConstellationScope());
+            return;
+        }
+        ns.openWorkspaceMap(getConfig().activeWorkspace || 'main');
+    };
+
+    ns.closeMap = function closeMap() {
+        stopAnimation();
+        if (state.container) state.container.style.display = 'none';
+        document.body.style.overflow = '';
+    };
+
+    ns.__debugGetGraphStats = function __debugGetGraphStats() {
+        const viewport = state.canvas
+            ? { width: state.canvas.width, height: state.canvas.height }
+            : getViewportSize();
+        const outOfBounds = state.nodes.reduce((count, node) => {
+            if (!node) return count;
+            if (node.x < 0 || node.y < 0 || node.x > viewport.width || node.y > viewport.height) {
+                return count + 1;
+            }
+            return count;
+        }, 0);
+        return {
+            scope: state.scope,
+            visible: !!state.container && state.container.style.display !== 'none',
+            nodeCount: state.nodes.length,
+            edgeCount: state.edges.length,
+            outOfBounds,
+            transform: {
+                scale: Number(state.transform.scale.toFixed(4)),
+                tx: Number(state.transform.tx.toFixed(2)),
+                ty: Number(state.transform.ty.toFixed(2))
+            },
+            sampleNodes: state.nodes.slice(0, 12).map((node) => ({
+                id: node.id,
+                kind: node.kind,
+                x: Number(node.x.toFixed(2)),
+                y: Number(node.y.toFixed(2))
+            })),
+            kinds: state.nodes.reduce((acc, node) => {
+                acc[node.kind] = (acc[node.kind] || 0) + 1;
+                return acc;
+            }, {})
+        };
     };
 })(window.EveConstellationMap);

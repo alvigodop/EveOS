@@ -5,7 +5,10 @@ window.ContextMenus.template = `
     <div class="ctx-item" onclick="ctxCatSubScan()">&#128269; Sub-Scan (Duplicates)</div>
 </div>
 <div id="workspace-context-menu" class="context-menu">
-    <div class="ctx-item" onclick="if(window.EveConstellationMap) window.EveConstellationMap.openMap();">🌌 Constellation Map</div>
+    <div class="ctx-item" onclick="if(window.EveConstellationMap) window.EveConstellationMap.openWorkspaceMap((window.config && window.config.activeWorkspace) || 'main');">&#127756; Constellation Map</div>
+</div>
+<div id="unidex-context-menu" class="context-menu">
+    <div class="ctx-item" onclick="if(window.EveConstellationMap) window.EveConstellationMap.openAllMap();">&#127756; Constellation Map (All Tabs)</div>
 </div>
 <div id="sidebar-context-menu" class="context-menu">
     <div class="ctx-item" onclick="openWorkspaceModal(ctxWsId)">&#9998; Edit</div>

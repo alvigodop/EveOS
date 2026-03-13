@@ -61,6 +61,9 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             <button type="button" class="unidex-layout-btn" onclick="window.UnidexView.toggleEntriesLayout()" title="Toggle entries layout">
                 Layout: ${layoutLabel}
             </button>
+            <button type="button" class="unidex-layout-btn unidex-map-btn" onclick="window.UnidexView.openConstellationMap()" title="Open Constellation Map for this layer">
+                Map
+            </button>
         `;
         }
 

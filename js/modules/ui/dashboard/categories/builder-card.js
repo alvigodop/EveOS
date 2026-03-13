@@ -73,6 +73,16 @@ window.DashboardCategories = window.DashboardCategories || {};
         overlay.classList.remove('is-visible');
     }
 
+    function handleCardHeaderIconRowWheel(event) {
+        var row = event && event.currentTarget;
+        if (!row || row.scrollWidth <= row.clientWidth) return;
+        var delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+        if (!delta) return;
+        row.scrollLeft += delta;
+        event.preventDefault();
+        event.stopPropagation();
+    }
+
     function buildFolderAction(categoryName, folderId, action) {
         const safeCategory = escapeCardJs(categoryName);
         const safeFolderId = escapeCardJs(folderId);
@@ -423,7 +433,7 @@ window.DashboardCategories = window.DashboardCategories || {};
             nonFocusButtons.push('<button class="card-header-icon-btn" onclick="setFocus(\'' + safeCatJs + '\')" title="Focus">&#127919;</button>');
         }
         if (visibleHeaderButtons.has('constellation')) {
-            nonFocusButtons.push('<button class="card-header-icon-btn constellation-btn" onclick="if(window.EveConstellationMap) window.EveConstellationMap.openMap();" title="Constellation Map">&#127756;</button>');
+            nonFocusButtons.push('<button class="card-header-icon-btn constellation-btn" onclick="if(window.EveConstellationMap) window.EveConstellationMap.openCardMap(\'' + escapeCardJs(activeWorkspaceId) + '\', \'' + safeCatJs + '\')" title="Constellation Map">&#127756;</button>');
         }
         nonFocusButtons.push('<button class="card-header-icon-btn" onclick="openCategorySettings(\'' + safeCatJs + '\')" title="Settings">&#9881;</button>');
         if (visibleHeaderButtons.has('launch')) {
@@ -441,6 +451,9 @@ window.DashboardCategories = window.DashboardCategories || {};
                         : '')
                     + (visibleHeaderButtons.has('library')
                         ? '<button class="category-action-btn" onclick="toggleCategoryLibrary(\'' + safeCatJs + '\')" title="Library">&#128218; <span>Library</span></button>'
+                        : '')
+                    + (visibleHeaderButtons.has('constellation')
+                        ? '<button class=\"category-action-btn\" onclick=\"if(window.EveConstellationMap) window.EveConstellationMap.openCardMap(\'' + escapeCardJs(activeWorkspaceId) + '\', \'' + safeCatJs + '\')\" title=\"Constellation Map\">&#127756; <span>Map</span></button>'
                         : '')
                     + '<select class="unidex-filter-select focus-filter-select" aria-label="Focused bookmark filter" onchange="window.DashboardCategories.setFocusedEntriesFilterMode(this.value)">'
                         + '<option value="all"' + (focusedFilterMode === 'all' ? ' selected' : '') + '>All Bookmarks</option>'
@@ -467,7 +480,7 @@ window.DashboardCategories = window.DashboardCategories || {};
                         : '')
                 + '</div>'
             : ''
-                + '<div class="card-header-icon-row">'
+                + '<div class="card-header-icon-row" onwheel="handleCardHeaderIconRowWheel(event)">'
                     + nonFocusButtons.join('')
                 + '</div>';
 
@@ -507,4 +520,5 @@ window.DashboardCategories = window.DashboardCategories || {};
     window.showCardTitleHover = showCardTitleHover;
     window.moveCardTitleHover = moveCardTitleHover;
     window.hideCardTitleHover = hideCardTitleHover;
+    window.handleCardHeaderIconRowWheel = handleCardHeaderIconRowWheel;
 })();

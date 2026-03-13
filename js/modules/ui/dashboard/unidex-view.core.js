@@ -133,6 +133,23 @@ window.UnidexView = (function () {
         if (typeof renderDashboard === 'function') renderDashboard();
     }
 
+    function getConstellationScope() {
+        const activeWorkspace = typeof config !== 'undefined' ? String(config?.activeWorkspace || 'main') : 'main';
+        if (state.stage === 'entries' && state.selectedCategory) {
+            return { scope: 'card', workspaceId: state.selectedWorkspaceId || activeWorkspace, categoryName: state.selectedCategory };
+        }
+        if (state.stage === 'cards') {
+            return { scope: 'workspace', workspaceId: state.selectedWorkspaceId || activeWorkspace };
+        }
+        return { scope: 'all' };
+    }
+
+    function openConstellationMap() {
+        if (window.EveConstellationMap?.openMap) {
+            window.EveConstellationMap.openMap(getConstellationScope());
+        }
+    }
+
     return {
         render: stages.render,
         switchWorkspaceTab: navigation.switchWorkspaceTab,
@@ -149,6 +166,8 @@ window.UnidexView = (function () {
         toggleEntriesLayout: controls.toggleEntriesLayout,
         openEntryDirect: entryActions.openEntryDirect,
         openEntry: entryActions.openEntry,
-        resetSelection: stages.resetSelection
+        resetSelection: stages.resetSelection,
+        getConstellationScope,
+        openConstellationMap
     };
 })();

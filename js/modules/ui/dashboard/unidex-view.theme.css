@@ -29,6 +29,7 @@
 .light-theme .unidex-card-hit:hover,
 .light-theme .unidex-back-btn:hover,
 .light-theme .unidex-layout-btn:hover,
+.light-theme .unidex-map-btn:hover,
 .light-theme .unidex-entry-btn:hover {
     background: rgba(0, 0, 0, 0.06);
 }

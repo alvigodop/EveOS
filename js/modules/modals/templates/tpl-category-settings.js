@@ -32,6 +32,7 @@ window.modalTemplate += `
                         <button onclick="closeModals(); openAddModal(window.currentCategoryCtx)" style="flex:1 1 180px;">&#10133; Add Bookmark</button>
                         <button id="categoryPinCardBtn" onclick="toggleCategoryCardPin()" style="flex:1 1 180px;">&#128204; Pin Card</button>
                         <button onclick="closeModals(); toggleCategoryLibrary(window.currentCategoryCtx)" style="flex:1 1 180px;">&#128218; Open Library</button>
+                        <button onclick="closeModals(); if(window.EveConstellationMap) window.EveConstellationMap.openCardMap(String(window.eveState?.config?.activeWorkspace || 'main'), window.currentCategoryCtx)" style="flex:1 1 180px;">&#127756; Constellation Map</button>
                         <button onclick="switchCategoryTab('folders')" style="flex:1 1 180px;">&#128450; Manage Bookmark Folders</button>
                         <button onclick="closeModals(); ctxCatFocus()" style="flex:1 1 180px;">&#127919; Focus Mode</button>
                         <button onclick="closeModals(); launchCategory(window.currentCategoryCtx)" style="flex:1 1 180px;">&#128640; Launch</button>

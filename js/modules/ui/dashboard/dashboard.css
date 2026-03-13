@@ -153,20 +153,33 @@ html[data-native-scheme="light"] {
     display: flex;
     align-items: center;
     gap: 4px;
-    flex-shrink: 0;
+    flex-shrink: 1;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    max-width: min(100%, 320px);
+    padding-bottom: 2px;
+}
+
+.card-header-icon-row::-webkit-scrollbar {
+    display: none;
 }
 
 .card-header-icon-btn,
 .card-header-icon-row .lib-toggle-btn,
 .card-header-icon-row .launch-btn,
-.card-header-icon-row .card-folder-toggle-btn {
+.card-header-icon-row .card-folder-toggle-btn,
+.card-header-icon-row .constellation-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 32px;
-    height: 30px;
-    padding: 0 8px;
-    font-size: 0.95rem;
+    min-width: 28px;
+    height: 28px;
+    padding: 0 6px;
+    font-size: 0.82rem;
     line-height: 1;
     border: 1px solid rgba(255, 255, 255, 0.18);
     border-radius: 8px;
@@ -174,6 +187,7 @@ html[data-native-scheme="light"] {
     color: var(--text-main);
     cursor: pointer;
     transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+    flex: 0 0 auto;
 }
 
 .card-header-icon-btn:hover,
