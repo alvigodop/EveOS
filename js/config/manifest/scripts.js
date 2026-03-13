@@ -246,7 +246,7 @@ window.EveModuleManifestParts.scripts = [
         'js/modules/features/autotitle/strategies/linkmeta.js?v=0.2.1',
         'js/modules/features/autotitle/strategies/scraper-engine.js?v=0.2.6',
         'js/modules/features/autotitle/strategies/url-slug.js',
-        'js/modules/features/autotitle/autotitle-core.js?v=0.2.11',
+        'js/modules/features/autotitle/autotitle-core.js?v=0.2.13',
         'js/modules/features/autotitle/autotitle-ui.js?v=0.2.6',
 'js/modules/features/autotitle/autotitle-bulk.js?v=0.2.2',
 'js/modules/features/library/library-bulk-auto-components/lba-utils.text.js?v=0.2.1',

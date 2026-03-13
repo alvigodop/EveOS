@@ -11,19 +11,40 @@ window.getTitleFromUrl = async function (url, options = {}) {
     const isBrowserHtmlMode = window.location?.protocol === 'file:';
     const allowSlowCover = !!options.allowSlowCover;
 
-    function runStrategy(strategyFn, timeoutMs) {
+    function runStrategy(strategyFn, timeoutMs, options = {}) {
         if (typeof strategyFn !== 'function') return Promise.resolve(null);
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-        return Promise.resolve()
-            .then(() => strategyFn(url, controller.signal))
-            .catch((error) => {
-                if (error?.name !== 'AbortError') {
-                    console.warn('Autotitle strategy failed', error);
+        const attempts = Math.max(1, Number(options.attempts || 1));
+        const accept = typeof options.accept === 'function' ? options.accept : (() => true);
+        const retryDelayMs = Number(options.retryDelayMs || 450);
+
+        const runOnce = () => {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+            return Promise.resolve()
+                .then(() => strategyFn(url, controller.signal))
+                .catch((error) => {
+                    if (error?.name !== 'AbortError') {
+                        console.warn('Autotitle strategy failed', error);
+                    }
+                    return null;
+                })
+                .finally(() => clearTimeout(timeoutId));
+        };
+
+        return (async () => {
+            let bestResult = null;
+            for (let attempt = 0; attempt < attempts; attempt++) {
+                const result = await runOnce();
+                if (result) {
+                    bestResult = result;
+                    if (accept(result)) return result;
                 }
-                return null;
-            })
-            .finally(() => clearTimeout(timeoutId));
+                if (attempt < attempts - 1) {
+                    await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+                }
+            }
+            return bestResult;
+        })();
     }
 
     function toTitleCaseSlug(slug) {
@@ -134,6 +155,55 @@ window.getTitleFromUrl = async function (url, options = {}) {
         return false;
     }
 
+    function scoreCoverUrl(value, targetUrl) {
+        const raw = String(value || '').trim();
+        if (!raw) return -999;
+        if (isRejectedCoverUrl(raw)) return -999;
+        if (isLikelyIconUrl(raw) && !isLikelyCoverUrl(raw)) return -500;
+
+        const variants = new Set([raw.toLowerCase()]);
+        try {
+            variants.add(decodeURIComponent(raw).toLowerCase());
+        } catch (e) { }
+
+        let score = 0;
+        for (const url of variants) {
+            if (/uploads\.mangadex\.org\/covers\//.test(url)) score += 120;
+            if (/static\.mfcdn\.cc\//.test(url)) score += 120;
+            if (/cover|poster|thumbnail|thumb|banner|hero|backdrop|manga|comic|chapter|title|og-image/.test(url)) score += 45;
+            if (/\.(jpg|jpeg|png|webp|avif)(?:[?#].*)?$/i.test(url)) score += 35;
+            if (/[a-z0-9][a-z0-9_-]{4,}\/\d+\//i.test(url)) score += 25;
+            if (/\/cover\/\d+\//i.test(url) && !/[a-z0-9][a-z0-9_-]{4,}\/\d+\//i.test(url)) score -= 40;
+            if (/\/assets\//.test(url)) score -= 25;
+            if (/@\d+\.(jpg|jpeg|png|webp|avif)(?:[?#].*)?$/i.test(url)) score -= 20;
+            if (/placeholder|default|no-cover|noimage|blank/.test(url)) score -= 60;
+        }
+
+        try {
+            const parsed = new URL(raw);
+            if (parsed.hostname) {
+                score += 5;
+            }
+            const hints = getUrlHints(targetUrl);
+            if (hints?.coverUrl) {
+                const normalizedCandidate = normalizeComparableUrl(raw);
+                const normalizedHint = normalizeComparableUrl(hints.coverUrl);
+                if (normalizedCandidate && normalizedHint && normalizedCandidate === normalizedHint) {
+                    score += 140;
+                }
+            }
+        } catch (e) { }
+
+        return score;
+    }
+
+    function pickBetterCoverUrl(primaryCover, candidateCover, targetUrl) {
+        const primaryScore = scoreCoverUrl(primaryCover, targetUrl);
+        const candidateScore = scoreCoverUrl(candidateCover, targetUrl);
+        if (candidateScore > primaryScore) return candidateCover || null;
+        return primaryCover || null;
+    }
+
     function trimSiteSuffix(title, targetUrl) {
         const raw = decodeHtmlEntities(title).trim();
         if (!raw) return raw;
@@ -234,13 +304,13 @@ window.getTitleFromUrl = async function (url, options = {}) {
         return false;
     }
 
-    function mergeAutotitleResult(primaryResult, candidateResult) {
+    function mergeAutotitleResult(primaryResult, candidateResult, targetUrl) {
         if (!candidateResult) return primaryResult;
         if (!primaryResult) return { ...candidateResult };
         return {
             ...primaryResult,
             icon: candidateResult.icon || primaryResult.icon || null,
-            coverUrl: candidateResult.coverUrl || primaryResult.coverUrl || null,
+            coverUrl: pickBetterCoverUrl(primaryResult.coverUrl, candidateResult.coverUrl, targetUrl),
             description: candidateResult.description || primaryResult.description || null,
             source: candidateResult.source || primaryResult.source,
             isFallback: !!(primaryResult.isFallback || candidateResult.isFallback),
@@ -249,13 +319,13 @@ window.getTitleFromUrl = async function (url, options = {}) {
         };
     }
 
-    function mergeAutotitleMetadata(primaryResult, candidateResult) {
+    function mergeAutotitleMetadata(primaryResult, candidateResult, targetUrl) {
         if (!candidateResult) return primaryResult;
         if (!primaryResult) return { ...candidateResult };
         return {
             ...primaryResult,
             icon: primaryResult.icon || candidateResult.icon || null,
-            coverUrl: primaryResult.coverUrl || candidateResult.coverUrl || null,
+            coverUrl: pickBetterCoverUrl(primaryResult.coverUrl, candidateResult.coverUrl, targetUrl),
             description: primaryResult.description || candidateResult.description || null,
             isFallback: !!(primaryResult.isFallback || candidateResult.isFallback),
             isMicrolinkFallback: !!(primaryResult.isMicrolinkFallback || candidateResult.isMicrolinkFallback),
@@ -263,12 +333,12 @@ window.getTitleFromUrl = async function (url, options = {}) {
         };
     }
 
-    function adoptAutotitleTitle(primaryResult, candidateResult) {
+    function adoptAutotitleTitle(primaryResult, candidateResult, targetUrl) {
         if (!candidateResult?.title || candidateResult.title === "CLOUDFLARE_BLOCK") {
-            return mergeAutotitleMetadata(primaryResult, candidateResult);
+            return mergeAutotitleMetadata(primaryResult, candidateResult, targetUrl);
         }
         return {
-            ...mergeAutotitleResult(primaryResult, candidateResult),
+            ...mergeAutotitleResult(primaryResult, candidateResult, targetUrl),
             title: candidateResult.title
         };
     }
@@ -283,6 +353,12 @@ window.getTitleFromUrl = async function (url, options = {}) {
     }
 
     try {
+        let parsedUrl = null;
+        try {
+            parsedUrl = new URL(url);
+        } catch (e) { }
+        const isMangaFireHost = /(^|\.)mangafire\.to$/i.test(parsedUrl?.hostname || '');
+
         // For video/content sites, try MicroLink FIRST (OpenGraph has the real title)
         if (isVideoOrContentSite(url) && strats.GoogleSearch) {
             console.log("Autotitle: Video site detected. Trying MicroLink first...");
@@ -295,10 +371,26 @@ window.getTitleFromUrl = async function (url, options = {}) {
 
         let primaryResult = null;
 
+        if (isBrowserHtmlMode && allowSlowCover && isMangaFireHost && strats.MangaFireHtml) {
+            const earlyMangaFireResult = normalizeAutotitleResult(
+                await runStrategy(strats.MangaFireHtml, 22000, {
+                    attempts: 2,
+                    accept: (result) => !!result?.coverUrl
+                }),
+                url
+            );
+            if (earlyMangaFireResult) {
+                primaryResult = mergeAutotitleMetadata(primaryResult, earlyMangaFireResult, url);
+                if (earlyMangaFireResult.title && earlyMangaFireResult.coverUrl && earlyMangaFireResult.icon) {
+                    return earlyMangaFireResult;
+                }
+            }
+        }
+
         if (isBrowserHtmlMode && strats.MangaDexApi) {
             const mangaDexApiResult = normalizeAutotitleResult(await runStrategy(strats.MangaDexApi, 5000), url);
             if (mangaDexApiResult) {
-                primaryResult = mergeAutotitleMetadata(primaryResult, mangaDexApiResult);
+                primaryResult = mergeAutotitleMetadata(primaryResult, mangaDexApiResult, url);
                 if (mangaDexApiResult.title && mangaDexApiResult.coverUrl) {
                     return mangaDexApiResult;
                 }
@@ -310,28 +402,31 @@ window.getTitleFromUrl = async function (url, options = {}) {
             console.log("Autotitle: Browser HTML mode detected. Trying MicroLink early...");
             const earlyMicro = normalizeAutotitleResult(await runStrategy(strats.GoogleSearch, 7000), url);
             if (!primaryResult && earlyMicro) {
-                primaryResult = mergeAutotitleMetadata(primaryResult, earlyMicro);
+                primaryResult = mergeAutotitleMetadata(primaryResult, earlyMicro, url);
             } else if (earlyMicro) {
                 if (isClearlyBetterTitle(earlyMicro, primaryResult, url)) {
-                    primaryResult = adoptAutotitleTitle(primaryResult, earlyMicro);
+                    primaryResult = adoptAutotitleTitle(primaryResult, earlyMicro, url);
                 } else {
-                    primaryResult = mergeAutotitleMetadata(primaryResult, earlyMicro);
+                    primaryResult = mergeAutotitleMetadata(primaryResult, earlyMicro, url);
                 }
             }
-            if (earlyMicro?.title && !looksLikeGenericSiteName(earlyMicro.title, url) && earlyMicro.coverUrl && !primaryResult?.source?.includes?.('MangaDexAPI')) {
+            if (!allowSlowCover && earlyMicro?.title && !looksLikeGenericSiteName(earlyMicro.title, url) && earlyMicro.coverUrl && !primaryResult?.source?.includes?.('MangaDexAPI')) {
                 return earlyMicro;
             }
         }
 
         if (isBrowserHtmlMode && allowSlowCover && strats.MangaFireHtml) {
-            const mangaFireResult = normalizeAutotitleResult(await runStrategy(strats.MangaFireHtml, 35000), url);
+            const mangaFireResult = normalizeAutotitleResult(await runStrategy(strats.MangaFireHtml, 22000, {
+                attempts: isMangaFireHost ? 2 : 1,
+                accept: (result) => !!result?.coverUrl
+            }), url);
             if (mangaFireResult) {
                 if (!primaryResult || isClearlyBetterTitle(mangaFireResult, primaryResult, url)) {
-                    primaryResult = adoptAutotitleTitle(primaryResult, mangaFireResult);
+                    primaryResult = adoptAutotitleTitle(primaryResult, mangaFireResult, url);
                 } else {
-                    primaryResult = mergeAutotitleMetadata(primaryResult, mangaFireResult);
+                    primaryResult = mergeAutotitleMetadata(primaryResult, mangaFireResult, url);
                 }
-                if (primaryResult?.title && primaryResult?.coverUrl && primaryResult?.icon) {
+                if (!allowSlowCover && primaryResult?.title && primaryResult?.coverUrl && primaryResult?.icon) {
                     return primaryResult;
                 }
             }
@@ -340,8 +435,8 @@ window.getTitleFromUrl = async function (url, options = {}) {
         if (isBrowserHtmlMode && strats.LinkMeta) {
             const earlyLinkMeta = normalizeAutotitleResult(await runStrategy(strats.LinkMeta, 5000), url);
             if (earlyLinkMeta) {
-                primaryResult = mergeAutotitleMetadata(primaryResult, earlyLinkMeta);
-                if (earlyLinkMeta.title && !looksLikeGenericSiteName(earlyLinkMeta.title, url) && earlyLinkMeta.coverUrl) {
+                primaryResult = mergeAutotitleMetadata(primaryResult, earlyLinkMeta, url);
+                if (!allowSlowCover && earlyLinkMeta.title && !looksLikeGenericSiteName(earlyLinkMeta.title, url) && earlyLinkMeta.coverUrl) {
                     return earlyLinkMeta;
                 }
             }
@@ -353,7 +448,7 @@ window.getTitleFromUrl = async function (url, options = {}) {
             primaryResult = normalizeAutotitleResult(await runStrategy(strats.AllOrigins, isBrowserHtmlMode ? 12000 : 4500), url) || primaryResult;
             if (primaryResult && !looksLikeGenericSiteName(primaryResult.title, url)) {
                 console.log("Autotitle: AllOrigins returned good title:", primaryResult.title);
-                if (primaryResult.coverUrl) {
+                if (!allowSlowCover && primaryResult.coverUrl) {
                     return primaryResult;
                 }
             }
@@ -366,18 +461,18 @@ window.getTitleFromUrl = async function (url, options = {}) {
             if (corsResult && !looksLikeGenericSiteName(corsResult.title, url)) {
                 console.log("Autotitle: CorsProxy returned good title:", corsResult.title);
                 if (!primaryResult || isClearlyBetterTitle(corsResult, primaryResult, url)) {
-                    primaryResult = adoptAutotitleTitle(primaryResult, corsResult);
+                    primaryResult = adoptAutotitleTitle(primaryResult, corsResult, url);
                 } else {
-                    primaryResult = mergeAutotitleMetadata(primaryResult, corsResult);
+                    primaryResult = mergeAutotitleMetadata(primaryResult, corsResult, url);
                 }
-                if (primaryResult?.coverUrl) {
+                if (!allowSlowCover && primaryResult?.coverUrl) {
                     return primaryResult;
                 }
             }
             if (corsResult && (!primaryResult || isClearlyBetterTitle(corsResult, primaryResult, url))) {
-                primaryResult = adoptAutotitleTitle(primaryResult, corsResult);
+                primaryResult = adoptAutotitleTitle(primaryResult, corsResult, url);
             } else if (corsResult) {
-                primaryResult = mergeAutotitleMetadata(primaryResult, corsResult);
+                primaryResult = mergeAutotitleMetadata(primaryResult, corsResult, url);
             }
         }
 
@@ -387,9 +482,9 @@ window.getTitleFromUrl = async function (url, options = {}) {
             if (linkMetaResult) {
                 if (!primaryResult || isClearlyBetterTitle(linkMetaResult, primaryResult, url)) {
                     console.log("Autotitle: LinkMeta returned better title:", linkMetaResult.title);
-                    primaryResult = adoptAutotitleTitle(primaryResult, linkMetaResult);
+                    primaryResult = adoptAutotitleTitle(primaryResult, linkMetaResult, url);
                 } else {
-                    primaryResult = mergeAutotitleMetadata(primaryResult, linkMetaResult);
+                    primaryResult = mergeAutotitleMetadata(primaryResult, linkMetaResult, url);
                 }
             }
         }
@@ -401,27 +496,47 @@ window.getTitleFromUrl = async function (url, options = {}) {
             if (microResult && microResult.title) {
                 if (!primaryResult || isClearlyBetterTitle(microResult, primaryResult, url)) {
                     console.log("Autotitle: MicroLink returned better title:", microResult.title);
-                    primaryResult = adoptAutotitleTitle(primaryResult, microResult);
+                    primaryResult = adoptAutotitleTitle(primaryResult, microResult, url);
                 } else {
-                    primaryResult = mergeAutotitleMetadata(primaryResult, microResult);
+                    primaryResult = mergeAutotitleMetadata(primaryResult, microResult, url);
                 }
             }
         }
 
         // Strategy 5: Advanced Scraper Engine (proxy pool / browser emulator)
-        if (strats.ScraperEngine && (!primaryResult || primaryResult.isFallback || primaryResult.title === "CLOUDFLARE_BLOCK" || looksLikeGenericSiteName(primaryResult.title, url))) {
+        if (strats.ScraperEngine && (!primaryResult || primaryResult.isFallback || primaryResult.title === "CLOUDFLARE_BLOCK" || looksLikeGenericSiteName(primaryResult.title, url) || (allowSlowCover && !primaryResult.coverUrl))) {
             console.log("Autotitle: Trying Advanced Scraper Engine fallback...");
             try {
                 const scraperResult = normalizeAutotitleResult(await runStrategy(strats.ScraperEngine, 9000), url);
                 if (scraperResult) {
                     if (!primaryResult || isClearlyBetterTitle(scraperResult, primaryResult, url)) {
-                        primaryResult = adoptAutotitleTitle(primaryResult, scraperResult);
+                        primaryResult = adoptAutotitleTitle(primaryResult, scraperResult, url);
                     } else {
-                        primaryResult = mergeAutotitleMetadata(primaryResult, scraperResult);
+                        primaryResult = mergeAutotitleMetadata(primaryResult, scraperResult, url);
                     }
                 }
             } catch (e) {
                 console.warn("Autotitle: ScraperEngine strategy failed", e);
+            }
+        }
+
+        if (isBrowserHtmlMode && allowSlowCover && (!primaryResult?.coverUrl || scoreCoverUrl(primaryResult.coverUrl, url) < 60)) {
+            const coverRecoveryStrategies = [
+                { fn: isMangaFireHost ? strats.MangaFireHtml : null, timeout: 22000, attempts: 2 },
+                { fn: strats.AllOrigins, timeout: 12000, attempts: 2 },
+                { fn: strats.LinkMeta, timeout: 5000, attempts: 2 },
+                { fn: strats.CorsProxy, timeout: 5000, attempts: 2 },
+                { fn: strats.ScraperEngine, timeout: 10000, attempts: 2 }
+            ];
+            for (const strategy of coverRecoveryStrategies) {
+                if (typeof strategy.fn !== 'function') continue;
+                const recoveryResult = normalizeAutotitleResult(await runStrategy(strategy.fn, strategy.timeout, {
+                    attempts: strategy.attempts || 1,
+                    accept: (result) => !!result?.coverUrl
+                }), url);
+                if (!recoveryResult) continue;
+                primaryResult = mergeAutotitleMetadata(primaryResult, recoveryResult, url);
+                if (scoreCoverUrl(primaryResult?.coverUrl, url) >= 80) break;
             }
         }
 
