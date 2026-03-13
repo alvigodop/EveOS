@@ -122,6 +122,26 @@ window.getTitleFromUrl = async function (url, options = {}) {
         return false;
     }
 
+    function isRejectedIconUrl(value) {
+        const raw = String(value || '').trim();
+        if (!raw) return false;
+        const variants = new Set([raw.toLowerCase()]);
+        try {
+            variants.add(decodeURIComponent(raw).toLowerCase());
+        } catch (e) { }
+        try {
+            const parsed = new URL(raw);
+            variants.add((parsed.href || '').toLowerCase());
+            variants.add((parsed.pathname || '').toLowerCase());
+        } catch (e) { }
+        for (const url of variants) {
+            if (/^file:\/\//.test(url)) return true;
+            if (/^file:\/[a-z]:\//i.test(url)) return true;
+            if (/\/static\/favicon\.ico(?:[?#].*)?$/.test(url)) return true;
+        }
+        return false;
+    }
+
     function isLikelyCoverUrl(value) {
         const url = String(value || '').trim().toLowerCase();
         if (!url) return false;
@@ -247,6 +267,9 @@ window.getTitleFromUrl = async function (url, options = {}) {
 
         if (!normalized.icon && hints?.icon) {
             normalized.icon = hints.icon;
+        }
+        if (normalized.icon && isRejectedIconUrl(normalized.icon)) {
+            normalized.icon = null;
         }
         if (normalized.coverUrl) {
             const normalizedCover = normalizeComparableUrl(normalized.coverUrl);

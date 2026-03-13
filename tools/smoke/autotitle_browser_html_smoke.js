@@ -34,11 +34,12 @@ async function main() {
         window.EveOS.Autotitle.Strategies = {
             AllOrigins: async () => ({
                 title: 'Demo Bookmark',
-                icon: 'https://demo.example/favicon.ico',
+                icon: 'file:///C:/static/favicon.ico',
                 coverUrl: 'https://img1.demo-cdn.com/image?src=%2Fcover%2F42%2F_S19656.jpg'
             }),
             CorsProxy: async () => ({
                 title: 'Demo Bookmark',
+                icon: 'https://demo.example/favicon.ico',
                 coverUrl: 'https://img1.demo-cdn.com/nd_puppy_boy/1/cover/avif/_S51482.jpg.avif'
             }),
             UrlSlug: originalStrategies.UrlSlug
@@ -85,6 +86,9 @@ async function main() {
 
     if (syntheticFallback?.coverUrl !== 'https://img1.demo-cdn.com/nd_puppy_boy/1/cover/avif/_S51482.jpg.avif') {
         throw new Error(`Expected fallback strategy to replace rejected cover candidate, got ${JSON.stringify(syntheticFallback)}`);
+    }
+    if (syntheticFallback?.icon !== 'https://demo.example/favicon.ico') {
+        throw new Error(`Expected rejected local file icon to be dropped in favor of valid remote favicon, got ${JSON.stringify(syntheticFallback)}`);
     }
 
     console.log(`AUTOTITLE_BROWSER_HTML_SMOKE_OK ${JSON.stringify({ results, syntheticFallback })}`);
