@@ -172,7 +172,7 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
         : '';
 
     return `<li class="${doneClass} ${isLocal ? 'is-local' : ''} ${pClass} ${pinnedClass}" draggable="true" ondragstart="drag(event, ${jsLinkIdLiteral})" oncontextmenu="showLinkContextMenu(event, ${jsLinkIdLiteral})" onmouseenter="showBookmarkCoverHover(event, ${jsLinkIdLiteral})" onmousemove="moveBookmarkCoverHover(event)" onmouseleave="hideBookmarkCoverHover()">
-                <input type="checkbox" class="bulk-check" onclick="toggleSelect(${jsLinkIdLiteral}, event)" ${isChecked}>
+                <input type="checkbox" class="bulk-check" data-bulk-id="${linkId.replace(/&/g, '&amp;').replace(/\"/g, '&quot;')}" onclick="event.preventDefault();event.stopPropagation();toggleSelect(this, ${jsLinkIdLiteral}, event);return false;" ${isChecked}>
                 ${iconHtml} ${wsBadge} ${folderBadge} <a href="${l.url}" target="_blank" rel="noopener noreferrer" onclick='return (typeof openBookmarkFromDashboard==="function") ? openBookmarkFromDashboard(event, decodeURIComponent("${encodedLinkId}")) : true;'>${l.title}</a>
                 <div class="actions">
                     <span class="icon-btn ${isPinned ? 'pin-active' : ''}" onclick="togglePin(${jsLinkIdLiteral})">${PIN_ICON}</span>

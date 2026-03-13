@@ -2,7 +2,7 @@
 window.EveModuleManifestParts = window.EveModuleManifestParts || {};
 window.EveModuleManifestParts.styles = [
         // UI Modules
-        'css/v1_folder.css?v=0.2.6',
+        'css/v1_folder.css?v=0.2.8',
         'js/modules/ui/sidebar.css?v=0.2.36',
         'js/modules/ui/dashboard/dashboard.css?v=0.2.9',
         'js/modules/ui/dashboard/unidex-view.css?v=0.2.40',
@@ -12,7 +12,7 @@ window.EveModuleManifestParts.styles = [
         'js/modules/ui/dashboard/unidex-view.responsive.css?v=0.2.2',
         'js/modules/ui/dashboard/categories/focused-card.css?v=0.2.68',
         'js/modules/ui/dashboard/dock.css?v=0.2.3',
-        'js/modules/ui/bulk-toolbar.css',
+        'js/modules/ui/bulk-toolbar.css?v=0.2.1',
         'js/modules/ui/scratchpad.css',
         'js/modules/ui/context-menus/styles.css?v=0.2.40',
         'js/modules/features/scraper/ui/loading-indicator/loading-indicator.css',

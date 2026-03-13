@@ -9,8 +9,14 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
         const getSelectedIds = deps.getSelectedIds;
         const toBulkId = deps.toBulkId;
         const escapeBulkMoveHtml = deps.escapeBulkMoveHtml;
+        const getAllCategoryNames = deps.getAllCategoryNames;
+        const getSelectedCategoryName = deps.getSelectedCategoryName;
         const getWorkspaceList = deps.getWorkspaceList;
         const getSelectedWorkspaceId = deps.getSelectedWorkspaceId;
+
+        function getSelectedCardNameFallback() {
+            return String(getSelectedCategoryName() || 'Unsorted').trim() || 'Unsorted';
+        }
 
         function renderBulkTabOptions() {
             const select = document.getElementById('bulk-tab-existing-select');
@@ -24,6 +30,7 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
                 const safeLabel = escapeBulkMoveHtml(`${workspace.icon ? `${workspace.icon} ` : ''}${workspace.name}`);
                 return `<option value="${safeId}"${selected}>${safeLabel}</option>`;
             }).join('');
+            renderBulkTabCardOptions();
         }
 
         function setBulkTabMode(mode) {
@@ -40,6 +47,67 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
                 input.disabled = !isNewMode;
                 if (isNewMode) input.focus();
             }
+            if (isNewMode) {
+                setBulkTabCardMode('new');
+                const cardInput = document.getElementById('bulk-tab-card-new-input');
+                if (cardInput && !String(cardInput.value || '').trim()) {
+                    cardInput.value = getSelectedCardNameFallback();
+                }
+            } else {
+                renderBulkTabCardOptions();
+            }
+        }
+
+        function setBulkTabCardMode(mode) {
+            const isNewMode = mode === 'new';
+            const select = document.getElementById('bulk-tab-card-existing-select');
+            const input = document.getElementById('bulk-tab-card-new-input');
+            const existingRadio = document.querySelector('input[name="bulkTabCardMode"][value="existing"]');
+            const newRadio = document.querySelector('input[name="bulkTabCardMode"][value="new"]');
+
+            if (existingRadio) existingRadio.checked = !isNewMode;
+            if (newRadio) newRadio.checked = isNewMode;
+            if (select) select.disabled = isNewMode;
+            if (input) {
+                input.disabled = !isNewMode;
+                if (isNewMode) input.focus();
+            }
+        }
+
+        function getResolvedBulkTabWorkspaceId() {
+            const mode = document.querySelector('input[name="bulkTabMode"]:checked')?.value || 'existing';
+            if (mode === 'new') return '';
+            return String(document.getElementById('bulk-tab-existing-select')?.value || '').trim();
+        }
+
+        function renderBulkTabCardOptions() {
+            const select = document.getElementById('bulk-tab-card-existing-select');
+            if (!select) return;
+
+            const workspaceId = getResolvedBulkTabWorkspaceId();
+            const cardNames = workspaceId ? getAllCategoryNames(workspaceId) : [];
+            const preferredCard = getSelectedCardNameFallback();
+
+            if (!workspaceId || !cardNames.length) {
+                select.innerHTML = '<option value="">No cards in destination tab</option>';
+                setBulkTabCardMode('new');
+                const input = document.getElementById('bulk-tab-card-new-input');
+                if (input && !String(input.value || '').trim()) {
+                    input.value = preferredCard;
+                }
+                return;
+            }
+
+            select.innerHTML = cardNames.map((name) => {
+                const selected = name === preferredCard ? ' selected' : '';
+                const safeName = escapeBulkMoveHtml(name);
+                return `<option value="${safeName}"${selected}>${safeName}</option>`;
+            }).join('');
+
+            const input = document.getElementById('bulk-tab-card-new-input');
+            if (input && !String(input.value || '').trim()) {
+                input.value = preferredCard;
+            }
         }
 
         function openBulkTabModal() {
@@ -47,8 +115,11 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
             if (!overlay) return;
             renderBulkTabOptions();
             setBulkTabMode('existing');
+            setBulkTabCardMode('existing');
             const input = document.getElementById('bulk-tab-new-name-input');
             if (input) input.value = '';
+            const cardInput = document.getElementById('bulk-tab-card-new-input');
+            if (cardInput) cardInput.value = getSelectedCardNameFallback();
             overlay.style.display = 'flex';
         }
 
@@ -82,14 +153,29 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
             return { workspaceId, workspaceName: workspace.name };
         }
 
-        function applyBulkWorkspaceMove(workspaceId) {
+        function resolveBulkTabCategoryTarget(targetWorkspaceId) {
+            const mode = document.querySelector('input[name="bulkTabCardMode"]:checked')?.value || 'existing';
+            if (mode === 'new') {
+                return String(document.getElementById('bulk-tab-card-new-input')?.value || '').trim();
+            }
+
+            const existingValue = String(document.getElementById('bulk-tab-card-existing-select')?.value || '').trim();
+            if (existingValue) return existingValue;
+
+            const categoryOptions = getAllCategoryNames(targetWorkspaceId);
+            return categoryOptions[0] || '';
+        }
+
+        function applyBulkWorkspaceMove(workspaceId, categoryName) {
             const targetWorkspaceId = String(workspaceId || '').trim();
-            if (!targetWorkspaceId) return false;
+            const targetCategoryName = String(categoryName || '').trim();
+            if (!targetWorkspaceId || !targetCategoryName) return false;
 
             const syncLinked = window.EveLibrary?.ConnectionsAPI?.syncFromLink;
             getLinks().forEach(link => {
                 if (!getSelectedIds().has(toBulkId(link.id))) return;
                 link.workspace = targetWorkspaceId;
+                link.category = targetCategoryName;
                 window.EveBookmarkFolders?.clearLinkFolderAssignment?.(link);
                 if (typeof syncLinked === 'function') {
                     syncLinked(link.id);
@@ -105,20 +191,27 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
                 showToast('Select a tab or enter a new tab name.', 'warning');
                 return false;
             }
+            const nextCategory = resolveBulkTabCategoryTarget(target.workspaceId);
+            if (!nextCategory) {
+                showToast('Select a destination card or enter a new card name.', 'warning');
+                return false;
+            }
 
-            if (!applyBulkWorkspaceMove(target.workspaceId)) {
+            if (!applyBulkWorkspaceMove(target.workspaceId, nextCategory)) {
                 showToast('Unable to move bookmarks to tab.', 'error');
                 return false;
             }
 
             closeBulkTabModal();
-            showToast(`Moved ${movedCount} bookmark(s) to tab "${target.workspaceName}"`, 'success');
+            showToast(`Moved ${movedCount} bookmark(s) to "${nextCategory}" in tab "${target.workspaceName}"`, 'success');
             return true;
         }
 
         return {
             renderBulkTabOptions,
+            renderBulkTabCardOptions,
             setBulkTabMode,
+            setBulkTabCardMode,
             openBulkTabModal,
             closeBulkTabModal,
             confirmBulkTabMove

@@ -85,9 +85,12 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
     }
 
     function getCategoryLinks(workspaceId, categoryName) {
-        return window.getModalLinks
-            ? window.getModalLinks().filter((link) => link.workspace === workspaceId && link.category === categoryName)
-            : [];
+        const sourceLinks = typeof window.getModalLinks === 'function'
+            ? window.getModalLinks()
+            : (Array.isArray(window.eveState?.links)
+                ? window.eveState.links
+                : (Array.isArray(window.links) ? window.links : []));
+        return sourceLinks.filter((link) => link.workspace === workspaceId && link.category === categoryName);
     }
 
     function collectFolderSubtreeLinkIds(viewModel, folderId) {
@@ -112,7 +115,57 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         return Array.from(linkIds);
     }
 
+    function getRealFolderScope(workspaceId, categoryName, folderId) {
+        const normalizedFolderId = String(folderId || '').trim();
+        const folderApi = window.EveBookmarkFolders;
+        if (!normalizedFolderId || !folderApi?.getScopedNodes) {
+            return { targetNode: null, links: [] };
+        }
+
+        const nodes = folderApi.getScopedNodes(workspaceId, categoryName);
+        if (!Array.isArray(nodes) || !nodes.length) {
+            return { targetNode: null, links: [] };
+        }
+
+        const nodeMap = new Map();
+        const childrenMap = new Map();
+        nodes.forEach((node) => {
+            const nodeId = String(node?.id || '').trim();
+            if (!nodeId) return;
+            nodeMap.set(nodeId, node);
+            const parentId = String(node?.parentId || '').trim() || null;
+            if (!childrenMap.has(parentId)) childrenMap.set(parentId, []);
+            childrenMap.get(parentId).push(node);
+        });
+
+        const targetNode = nodeMap.get(normalizedFolderId) || null;
+        if (!targetNode) {
+            return { targetNode: null, links: [] };
+        }
+
+        const allowedFolderIds = new Set();
+        const stack = [normalizedFolderId];
+        while (stack.length > 0) {
+            const currentId = String(stack.pop() || '').trim();
+            if (!currentId || allowedFolderIds.has(currentId)) continue;
+            allowedFolderIds.add(currentId);
+            (childrenMap.get(currentId) || []).forEach((childNode) => {
+                const childId = String(childNode?.id || '').trim();
+                if (childId && !allowedFolderIds.has(childId)) stack.push(childId);
+            });
+        }
+
+        const scopedLinks = getCategoryLinks(workspaceId, categoryName).filter((link) => {
+            const currentFolderId = String(link?.folderId || '').trim();
+            return !!currentFolderId && allowedFolderIds.has(currentFolderId);
+        });
+        return { targetNode, links: scopedLinks };
+    }
+
     function getTargetFolderNode(workspaceId, categoryName, folderId) {
+        const realScope = getRealFolderScope(workspaceId, categoryName, folderId);
+        if (realScope.targetNode) return realScope.targetNode;
+
         const cachedViewModel = window.EveFolderViewV2.getCachedViewModel(workspaceId, categoryName);
         if (cachedViewModel?.nodes?.length) {
             const cachedNode = cachedViewModel.nodes.find((node) => String(node?.id || '') === String(folderId || ''));
@@ -128,6 +181,13 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
     }
 
     window.EveFolderViewV2.getFolderScopedLinkIds = function (workspaceId, categoryName, folderId) {
+        const realScope = getRealFolderScope(workspaceId, categoryName, folderId);
+        if (realScope.targetNode) {
+            return realScope.links
+                .map((link) => String(link?.id || '').trim())
+                .filter(Boolean);
+        }
+
         const folderApi = window.EveBookmarkFolders;
         if (!folderApi?.buildFolderView) return [];
         const categoryLinks = getCategoryLinks(workspaceId, categoryName);
@@ -400,8 +460,13 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                             ? ''
                             : `oncontextmenu="if(typeof window.showFolderContextMenu === 'function') window.showFolderContextMenu(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}');"`;
                         const editButtonHtml = isGhost
-                            ? ''
-                            : `<button type="button" class="folder-tile-edit-btn" title="Edit Folder" onclick="event.preventDefault(); event.stopPropagation(); if(typeof window.showFolderContextMenu === 'function') window.showFolderContextMenu(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}');">&#9998;</button>`;
+                            ? `<div class="folder-tile-action-buttons">`
+                                + `<button type="button" class="folder-tile-edit-btn bulk-scope-btn" title="Select Matching Bookmarks" onclick="event.preventDefault(); event.stopPropagation(); bulkToggleFolderScopeSelection('${escapeCardJs(categoryName)}', '${escapeCardJs(workspaceId)}', '${escapeCardJs(f.id)}');">&#9745;</button>`
+                            + `</div>`
+                            : `<div class="folder-tile-action-buttons">`
+                                + `<button type="button" class="folder-tile-edit-btn bulk-scope-btn" title="Select Folder Subtree" onclick="event.preventDefault(); event.stopPropagation(); bulkToggleFolderScopeSelection('${escapeCardJs(categoryName)}', '${escapeCardJs(workspaceId)}', '${escapeCardJs(f.id)}');">&#9745;</button>`
+                                + `<button type="button" class="folder-tile-edit-btn" title="Edit Folder" onclick="event.preventDefault(); event.stopPropagation(); if(typeof window.showFolderContextMenu === 'function') window.showFolderContextMenu(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}');">&#9998;</button>`
+                            + `</div>`;
 
                         return `
                         <div class="folder-tile${isGhost ? ' folder-tile-ghost' : ''}" ${dropTargetAttr} ${dragStartAttr} onclick="window.EveFolderViewV2.enterFolder(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}')" ${contextMenuAttr}>
@@ -528,6 +593,10 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
             ? `
                 <div class="folder-breadcrumb-action-tray">
                     ${editFolderButtonHtml}
+                    <button type="button" class="folder-breadcrumb-action-btn bulk-scope-btn" title="Select Folder Subtree"
+                        onclick="event.preventDefault(); event.stopPropagation(); bulkToggleFolderScopeSelection('${escapeCardJs(categoryName)}', '${escapeCardJs(workspaceId)}', '${escapeCardJs(folderId)}');">
+                        &#9745; Select Subtree
+                    </button>
                     <button type="button" class="folder-breadcrumb-action-btn" title="Auto-Title Links"
                         onclick="event.preventDefault(); event.stopPropagation(); window.EveFolderViewV2.openFolderBulkTitle('${escapeCardJs(categoryName)}', '${escapeCardJs(folderId)}', '${escapeCardJs(workspaceId)}');">
                         &#127991; Auto-Title
@@ -579,8 +648,13 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                             ? ''
                             : `oncontextmenu="if(typeof window.showFolderContextMenu === 'function') window.showFolderContextMenu(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}');"`;
                         const editButtonHtml = isGhost
-                            ? ''
-                            : `<button type="button" class="folder-tile-edit-btn" title="Edit Folder" onclick="event.preventDefault(); event.stopPropagation(); if(typeof window.showFolderContextMenu === 'function') window.showFolderContextMenu(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}');">&#9998;</button>`;
+                            ? `<div class="folder-tile-action-buttons">`
+                                + `<button type="button" class="folder-tile-edit-btn bulk-scope-btn" title="Select Matching Bookmarks" onclick="event.preventDefault(); event.stopPropagation(); bulkToggleFolderScopeSelection('${escapeCardJs(categoryName)}', '${escapeCardJs(workspaceId)}', '${escapeCardJs(f.id)}');">&#9745;</button>`
+                            + `</div>`
+                            : `<div class="folder-tile-action-buttons">`
+                                + `<button type="button" class="folder-tile-edit-btn bulk-scope-btn" title="Select Folder Subtree" onclick="event.preventDefault(); event.stopPropagation(); bulkToggleFolderScopeSelection('${escapeCardJs(categoryName)}', '${escapeCardJs(workspaceId)}', '${escapeCardJs(f.id)}');">&#9745;</button>`
+                                + `<button type="button" class="folder-tile-edit-btn" title="Edit Folder" onclick="event.preventDefault(); event.stopPropagation(); if(typeof window.showFolderContextMenu === 'function') window.showFolderContextMenu(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}');">&#9998;</button>`
+                            + `</div>`;
 
                         return `
                         <div class="folder-tile${isGhost ? ' folder-tile-ghost' : ''}" ${dropTargetAttr} ${dragStartAttr} onclick="window.EveFolderViewV2.enterFolder(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(f.id)}', '${escapeCardJs(workspaceId)}')" ${contextMenuAttr}>

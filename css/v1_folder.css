@@ -258,6 +258,13 @@
     overflow: hidden;
 }
 
+.folder-tile-action-buttons {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+}
+
 .folder-tile-title {
     font-family: 'Rajdhani', sans-serif;
     font-size: 13px;
@@ -295,6 +302,10 @@
 
 .folder-tile:hover .folder-tile-edit-btn {
     opacity: 0.8;
+}
+
+body.bulk-active .folder-tile-edit-btn.bulk-scope-btn {
+    opacity: 0.85;
 }
 
 .folder-tile-edit-btn:hover {

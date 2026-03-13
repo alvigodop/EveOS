@@ -10,6 +10,8 @@ window.EveBulkToolbar = window.EveBulkToolbar || {};
     <span id="bulk-count" style="color:white; font-weight:bold;">0 Selected</span>
     <button onclick="bulkPinSelected()">Pin</button>
     <button onclick="bulkUnpinSelected()">Unpin</button>
+    <button onclick="bulkMarkDone()">Done</button>
+    <button onclick="bulkMarkUndone()">Undone</button>
     <button onclick="bulkDelete()" class="btn-danger">Delete</button>
     <button onclick="bulkMove()">Move</button>
     <button onclick="bulkWorkspace()">Tab</button>
@@ -51,14 +53,14 @@ window.EveBulkToolbar = window.EveBulkToolbar || {};
 <div id="bulk-tab-modal-overlay" style="display:none;">
     <div id="bulk-tab-modal" role="dialog" aria-modal="true" aria-labelledby="bulk-tab-modal-title">
         <h3 id="bulk-tab-modal-title">Move Selected Bookmarks</h3>
-        <p class="bulk-move-subtitle">Choose an existing tab or create a new tab for selected bookmarks.</p>
+        <p class="bulk-move-subtitle">Choose a destination tab, then choose the destination card inside that tab.</p>
 
         <div class="bulk-move-section">
             <label class="bulk-move-radio">
                 <input type="radio" name="bulkTabMode" value="existing" checked onchange="setBulkTabMode('existing')">
                 <span>Move to existing tab</span>
             </label>
-            <select id="bulk-tab-existing-select"></select>
+            <select id="bulk-tab-existing-select" onchange="renderBulkTabCardOptions()"></select>
         </div>
 
         <div class="bulk-move-section">
@@ -67,6 +69,22 @@ window.EveBulkToolbar = window.EveBulkToolbar || {};
                 <span>Create new tab and move selected</span>
             </label>
             <input type="text" id="bulk-tab-new-name-input" placeholder="New tab name" disabled>
+        </div>
+
+        <div class="bulk-move-section">
+            <label class="bulk-move-radio">
+                <input type="radio" name="bulkTabCardMode" value="existing" checked onchange="setBulkTabCardMode('existing')">
+                <span>Move into existing card in destination tab</span>
+            </label>
+            <select id="bulk-tab-card-existing-select"></select>
+        </div>
+
+        <div class="bulk-move-section">
+            <label class="bulk-move-radio">
+                <input type="radio" name="bulkTabCardMode" value="new" onchange="setBulkTabCardMode('new')">
+                <span>Create new card in destination tab</span>
+            </label>
+            <input type="text" id="bulk-tab-card-new-input" placeholder="New card name" disabled>
         </div>
 
         <div class="bulk-move-actions">

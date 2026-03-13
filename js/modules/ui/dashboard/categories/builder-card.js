@@ -213,6 +213,7 @@ window.DashboardCategories = window.DashboardCategories || {};
                     + '<div class="bookmark-folder-summary-actions">'
                         + `<button type="button" class="bookmark-folder-inline-btn bookmark-folder-summary-edit-toggle" aria-expanded="${actionsExpandedAttr}" onclick="event.preventDefault();event.stopPropagation();toggleCategoryCardFolderActions(this, '${safeCategoryJs}', '${escapeCardJs(node.id)}', '${safeWorkspaceJs}')">&#9998;</button>`
                         + `<div class="bookmark-folder-summary-action-list"${actionsHiddenAttr}>`
+                            + `<button type="button" class="bookmark-folder-inline-btn bulk-scope-btn" title="Select this folder subtree" onclick="event.preventDefault();event.stopPropagation();bulkToggleFolderScopeSelection('${safeCategoryJs}', '${safeWorkspaceJs}', '${escapeCardJs(node.id)}')">Select</button>`
                             + `<button type="button" class="bookmark-folder-inline-btn" onclick="${buildFolderAction(categoryName, node.id, 'openAddModalForFolder')}">Add</button>`
                             + `<button type="button" class="bookmark-folder-inline-btn" onclick="${buildFolderAction(categoryName, node.id, 'promptCreateBookmarkFolder')}">Subfolder</button>`
                             + `<button type="button" class="bookmark-folder-inline-btn" onclick="${buildFolderAction(categoryName, node.id, 'promptRenameBookmarkFolder')}">Rename</button>`
@@ -270,6 +271,7 @@ window.DashboardCategories = window.DashboardCategories || {};
                         + '<div class="bookmark-folder-summary-actions">'
                             + `<button type="button" class="bookmark-folder-inline-btn bookmark-folder-summary-edit-toggle" aria-expanded="${rootActionsExpandedAttr}" onclick="event.preventDefault();event.stopPropagation();toggleCategoryCardFolderActions(this, '${safeCategoryJs}', '__root__', '${safeWorkspaceJs}')">&#9998;</button>`
                             + `<div class="bookmark-folder-summary-action-list"${rootActionsHiddenAttr}>`
+                                + `<button type="button" class="bookmark-folder-inline-btn bulk-scope-btn" title="Select root bookmarks in this card" onclick="event.preventDefault();event.stopPropagation();bulkToggleFolderScopeSelection('${safeCategoryJs}', '${safeWorkspaceJs}', '')">Select Root</button>`
                                 + `<button type="button" class="bookmark-folder-inline-btn" onclick="openAddModal('${safeCategoryJs}')">Add Root</button>`
                             + '</div>'
                         + '</div>'
@@ -460,6 +462,7 @@ window.DashboardCategories = window.DashboardCategories || {};
         var headerButtonsHtml = isFocusMode
             ? ''
                 + '<div class="focus-card-controls">'
+                    + '<button class="category-action-btn bulk-scope-btn" onclick="bulkToggleCardScopeSelection(\'' + safeCatJs + '\', \'' + escapeCardJs(activeWorkspaceId) + '\')" title="Select all bookmarks in this card">&#9745; <span>Select Card</span></button>'
                     + (visibleHeaderButtons.has('add')
                         ? '<button class="category-action-btn" onclick="openAddModal(\'' + safeCatJs + '\')" title="Add Bookmark">&#10133; <span>Add</span></button>'
                         : '')
@@ -498,6 +501,7 @@ window.DashboardCategories = window.DashboardCategories || {};
                 + '</div>'
             : ''
                 + '<div class="card-header-icon-row" onwheel="handleCardHeaderIconRowWheel(event)">'
+                    + '<button class="card-header-icon-btn bulk-scope-btn" onclick="bulkToggleCardScopeSelection(\'' + safeCatJs + '\', \'' + escapeCardJs(activeWorkspaceId) + '\')" title="Select Card">&#9745;</button>'
                     + nonFocusButtons.join('')
                 + '</div>';
 

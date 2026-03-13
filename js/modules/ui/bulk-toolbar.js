@@ -13,10 +13,16 @@ window.EveBulkToolbar = window.EveBulkToolbar || {};
     const getBulkMode = ns.getBulkMode;
     const setBulkMode = ns.setBulkMode;
     const getSelectedIds = ns.getSelectedIds;
+    const getSelectedLinks = ns.getSelectedLinks;
     const getLinks = ns.getLinks;
     const toBulkId = ns.toBulkId;
     const clearSelection = ns.clearSelection;
     const toggleSelectedId = ns.toggleSelectedId;
+    const addSelectedIds = ns.addSelectedIds;
+    const removeSelectedIds = ns.removeSelectedIds;
+    const toggleScopeSelection = ns.toggleScopeSelection;
+    const setLastToggledId = ns.setLastToggledId;
+    const getLastToggledId = ns.getLastToggledId;
     const updateBulkUI = ns.updateBulkUI;
     const openBulkMoveModal = ns.openBulkMoveModal;
     const openBulkTabModal = ns.openBulkTabModal;
@@ -41,17 +47,133 @@ window.EveBulkToolbar = window.EveBulkToolbar || {};
         updateBulkUI();
     }
 
-    function toggleSelectAction(id, event) {
+    function getVisibleBulkCheckboxes() {
+        return Array.from(document.querySelectorAll('.bulk-check[data-bulk-id]')).filter((checkbox) => {
+            if (!(checkbox instanceof HTMLInputElement)) return false;
+            return !!checkbox.offsetParent;
+        });
+    }
+
+    function applyRangeSelection(currentId, shouldSelect) {
+        const anchorId = getLastToggledId();
+        const bulkId = toBulkId(currentId);
+        if (!anchorId || !bulkId) return false;
+
+        const visibleIds = getVisibleBulkCheckboxes()
+            .map((checkbox) => toBulkId(checkbox.getAttribute('data-bulk-id')))
+            .filter(Boolean);
+        const anchorIndex = visibleIds.indexOf(anchorId);
+        const currentIndex = visibleIds.indexOf(bulkId);
+        if (anchorIndex < 0 || currentIndex < 0) return false;
+
+        const start = Math.min(anchorIndex, currentIndex);
+        const end = Math.max(anchorIndex, currentIndex);
+        const rangeIds = visibleIds.slice(start, end + 1);
+        if (!rangeIds.length) return false;
+
+        if (shouldSelect) addSelectedIds(rangeIds);
+        else removeSelectedIds(rangeIds);
+        return true;
+    }
+
+    function toggleSelectAction(checkboxOrId, idOrEvent, maybeEvent) {
+        const checkbox = checkboxOrId instanceof HTMLInputElement ? checkboxOrId : null;
+        const id = checkbox ? idOrEvent : checkboxOrId;
+        const event = checkbox ? maybeEvent : idOrEvent;
+        const selectedId = toBulkId(id);
         if (event?.stopPropagation) event.stopPropagation();
-        toggleSelectedId(id);
+        if (!selectedId) return;
+
+        const shouldSelect = checkbox ? !!checkbox.checked : !getSelectedIds().has(selectedId);
+        const rangeApplied = !!event?.shiftKey && applyRangeSelection(selectedId, shouldSelect);
+        if (!rangeApplied) {
+            if (shouldSelect) addSelectedIds([selectedId]);
+            else removeSelectedIds([selectedId]);
+        }
+        setLastToggledId(selectedId);
         updateBulkUI();
     }
 
     function getSelectedLinkIds() {
-        const selected = getSelectedIds();
-        return getLinks()
-            .filter((link) => selected.has(toBulkId(link?.id)))
+        return getSelectedLinks()
             .map((link) => String(link.id));
+    }
+
+    function getScopeLinkIdsForCard(categoryName, workspaceId) {
+        return getLinks()
+            .filter((link) => String(link?.workspace || '').trim() === String(workspaceId || '').trim())
+            .filter((link) => String(link?.category || 'Unsorted').trim() === String(categoryName || 'Unsorted').trim())
+            .map((link) => String(link.id));
+    }
+
+    function getScopeLinkIdsForFolder(categoryName, workspaceId, folderId) {
+        const folderApi = window.EveFolderViewV2;
+        if (folderApi?.getFolderScopedLinkIds) {
+            return folderApi.getFolderScopedLinkIds(workspaceId, categoryName, folderId);
+        }
+        return [];
+    }
+
+    function toggleCardScopeSelection(categoryName, workspaceId) {
+        const linkIds = getScopeLinkIdsForCard(categoryName, workspaceId);
+        if (!linkIds.length) {
+            showToast('No bookmarks found in this card.', 'info');
+            return;
+        }
+        toggleScopeSelection(linkIds);
+        updateBulkUI();
+    }
+
+    function toggleFolderScopeSelection(categoryName, workspaceId, folderId) {
+        const linkIds = folderId
+            ? getScopeLinkIdsForFolder(categoryName, workspaceId, folderId)
+            : getLinks()
+                .filter((link) => String(link?.workspace || '').trim() === String(workspaceId || '').trim())
+                .filter((link) => String(link?.category || 'Unsorted').trim() === String(categoryName || 'Unsorted').trim())
+                .filter((link) => !String(link?.folderId || '').trim())
+                .map((link) => String(link.id));
+        if (!linkIds.length) {
+            showToast(folderId ? 'No bookmarks found in this folder subtree.' : 'No root bookmarks found in this card.', 'info');
+            return;
+        }
+        toggleScopeSelection(linkIds);
+        updateBulkUI();
+    }
+
+    function applyBulkDoneState(nextDoneState) {
+        const selectedLinks = getSelectedLinks();
+        if (!selectedLinks.length) {
+            showToast('Select at least one bookmark first.', 'warning');
+            return;
+        }
+
+        const eligibleLinks = selectedLinks.filter((link) => {
+            if (typeof window.EveBookmarkFolders?.isTaskEnabledForLink === 'function') {
+                return !!window.EveBookmarkFolders.isTaskEnabledForLink(link);
+            }
+            return true;
+        });
+
+        if (!eligibleLinks.length) {
+            showToast('No selected task bookmarks found.', 'warning');
+            return;
+        }
+
+        let changedCount = 0;
+        eligibleLinks.forEach((link) => {
+            if (!!link.done === !!nextDoneState) return;
+            link.done = !!nextDoneState;
+            changedCount += 1;
+        });
+
+        if (!changedCount) {
+            showToast(nextDoneState ? 'Selected bookmarks are already done.' : 'Selected bookmarks are already undone.', 'info');
+            return;
+        }
+
+        if (typeof saveData === 'function') saveData();
+        updateBulkUI();
+        showToast(`${nextDoneState ? 'Marked' : 'Cleared'} ${changedCount} bookmark${changedCount === 1 ? '' : 's'}.`, 'success');
     }
 
     async function bulkDeleteAction() {
@@ -108,6 +230,14 @@ window.EveBulkToolbar = window.EveBulkToolbar || {};
         openBulkTabModal();
     }
 
+    function bulkMarkDoneAction() {
+        applyBulkDoneState(true);
+    }
+
+    function bulkMarkUndoneAction() {
+        applyBulkDoneState(false);
+    }
+
     function completeBulkAction(didApply) {
         if (!didApply) return;
         toggleBulkModeAction();
@@ -116,8 +246,12 @@ window.EveBulkToolbar = window.EveBulkToolbar || {};
 
     window.toggleBulkMode = toggleBulkModeAction;
     window.toggleSelect = toggleSelectAction;
+    window.bulkToggleCardScopeSelection = toggleCardScopeSelection;
+    window.bulkToggleFolderScopeSelection = toggleFolderScopeSelection;
     window.bulkPinSelected = bulkPinSelectedAction;
     window.bulkUnpinSelected = bulkUnpinSelectedAction;
+    window.bulkMarkDone = bulkMarkDoneAction;
+    window.bulkMarkUndone = bulkMarkUndoneAction;
     window.bulkDelete = bulkDeleteAction;
     window.bulkMove = bulkMoveAction;
     window.bulkWorkspace = bulkWorkspaceAction;
@@ -127,6 +261,8 @@ window.EveBulkToolbar = window.EveBulkToolbar || {};
         completeBulkAction(ns.confirmBulkMove());
     };
     window.setBulkTabMode = ns.setBulkTabMode;
+    window.setBulkTabCardMode = ns.setBulkTabCardMode;
+    window.renderBulkTabCardOptions = ns.renderBulkTabCardOptions;
     window.closeBulkTabModal = ns.closeBulkTabModal;
     window.confirmBulkTabMove = function () {
         completeBulkAction(ns.confirmBulkTabMove());

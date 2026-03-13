@@ -35,6 +35,14 @@ body.bulk-active .actions {
     display: none !important;
 }
 
+.bulk-scope-btn {
+    display: none !important;
+}
+
+body.bulk-active .bulk-scope-btn {
+    display: inline-flex !important;
+}
+
 #bulk-move-modal-overlay,
 #bulk-tab-modal-overlay {
     position: fixed;
