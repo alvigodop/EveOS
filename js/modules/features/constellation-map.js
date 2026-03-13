@@ -46,6 +46,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         labelMode: 'auto',
         labelHitBoxes: [],
         infoCollapsed: true,
+        infoHovered: false,
         worldAnchor: { x: 0, y: 0 },
         worldBounds: null,
         worldRadius: 0
@@ -309,6 +310,22 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         return segments.join(' / ');
     }
 
+    function getLinkById(linkId) {
+        if (!linkId) return null;
+        return getAllLinks().find((link) => String(link?.id || '') === String(linkId)) || null;
+    }
+
+    function getNodeCoverUrl(node) {
+        if (!node || node.kind !== 'link') return '';
+        const link = getLinkById(node?.data?.linkId);
+        if (!link) return '';
+        const coverApi = window.EveBookmarkCovers;
+        if (coverApi?.resolveLinkCover) {
+            return text(coverApi.resolveLinkCover(link), '');
+        }
+        return text(link?.coverImage, '');
+    }
+
     function buildGraphData(scopeOption) {
         const scope = normalizeScope(scopeOption);
         const scopedLinks = getScopedLinks(scope);
@@ -354,7 +371,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                     linkId: String(link.id),
                     workspaceId,
                     categoryName,
-                    url: text(link?.url, '')
+                    url: text(link?.url, ''),
+                    anchorNodeId: parentNode?.id || ''
                 }
             }));
             addEdge(linkNode, parentNode, 'hierarchy');
@@ -375,7 +393,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 data: {
                     workspaceId,
                     categoryName,
-                    folderId: String(folderNodeModel.id)
+                    folderId: String(folderNodeModel.id),
+                    anchorNodeId: parentNode?.id || ''
                 }
             }));
             addEdge(folderNode, parentNode, 'hierarchy');
@@ -407,7 +426,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 meta: getWorkspaceName(workspaceId) + ' / ' + categoryLinks.length + ' bookmark' + (categoryLinks.length === 1 ? '' : 's'),
                 data: {
                     workspaceId,
-                    categoryName
+                    categoryName,
+                    anchorNodeId: parentNode?.id || ''
                 }
             }));
             if (parentNode) addEdge(categoryNode, parentNode, 'hierarchy');
@@ -714,6 +734,16 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         if (node?.manualAnchor && Number.isFinite(node.manualAnchor.x) && Number.isFinite(node.manualAnchor.y)) {
             return node.manualAnchor;
         }
+        const anchorNodeId = text(node?.data?.anchorNodeId, '');
+        if (anchorNodeId) {
+            const anchorNode = state.nodes.find((candidate) => candidate.id === anchorNodeId);
+            if (anchorNode) {
+                if (anchorNode.manualAnchor && Number.isFinite(anchorNode.manualAnchor.x) && Number.isFinite(anchorNode.manualAnchor.y)) {
+                    return anchorNode.manualAnchor;
+                }
+                return { x: anchorNode.x, y: anchorNode.y };
+            }
+        }
         return state.worldAnchor || { x: 0, y: 0 };
     }
 
@@ -722,6 +752,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         const targetNode = state.selected || state.hovered;
         const headerLabel = targetNode ? targetNode.label : 'Map Inspector';
         const headerKind = targetNode ? targetNode.kind : 'overview';
+        const coverUrl = getNodeCoverUrl(targetNode);
         const toggleLabel = state.infoCollapsed ? 'Expand' : 'Collapse';
         const header = [
             '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">',
@@ -732,6 +763,11 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             '<button type="button" data-map-info-toggle="1" style="border:1px solid rgba(255,255,255,0.16);background:rgba(255,255,255,0.06);color:#fff;border-radius:9px;padding:6px 10px;cursor:pointer;white-space:nowrap;">' + escapeHtml(toggleLabel) + '</button>',
             '</div>'
         ].join('');
+        const coverPanel = coverUrl
+            ? '<div data-map-info-cover style="position:absolute;right:0;bottom:calc(100% + 14px);width:132px;height:182px;border:1px solid rgba(255,255,255,0.18);background:rgba(7,14,24,0.96);border-radius:18px;overflow:hidden;box-shadow:0 18px 38px rgba(0,0,0,0.34);opacity:0;transform:translateY(8px) scale(0.985);transition:opacity 140ms ease, transform 140ms ease;pointer-events:none;">'
+                + '<img src="' + escapeHtml(coverUrl) + '" alt="" style="display:block;width:100%;height:100%;object-fit:cover;">'
+                + '</div>'
+            : '';
 
         if (!targetNode) {
             state.infoEl.innerHTML = [
@@ -742,6 +778,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                         + 'Drag the background to pan. Use the mouse wheel to zoom. Drag nodes to reorganize the field. Double-click a bookmark to open it.'
                         + '</div>'
             ].join('');
+            updateInspectorCoverState();
             return;
         }
 
@@ -754,6 +791,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             : '';
 
         state.infoEl.innerHTML = [
+            coverPanel,
             header,
             state.infoCollapsed
                 ? '<div style="font-size:0.74rem;opacity:0.68;margin-top:8px;">' + escapeHtml(getScopeText(state.scope)) + '</div>'
@@ -763,10 +801,24 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                     actionRow
                 ].join('')
         ].join('');
+        updateInspectorCoverState();
     }
 
     function requestDraw() {
         if (!state.running) draw();
+    }
+
+    function updateInspectorCoverState() {
+        if (!state.infoEl) return;
+        const cover = state.infoEl.querySelector('[data-map-info-cover]');
+        if (!cover) return;
+        if (state.infoHovered) {
+            cover.style.opacity = '1';
+            cover.style.transform = 'translateY(0) scale(1)';
+        } else {
+            cover.style.opacity = '0';
+            cover.style.transform = 'translateY(8px) scale(0.985)';
+        }
     }
 
     function updateCursor() {
@@ -1287,6 +1339,14 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 centerOnNode(state.selected, Math.max(state.transform.scale, 1.24));
             }
         });
+        state.infoEl.addEventListener('mouseenter', () => {
+            state.infoHovered = true;
+            updateInspectorCoverState();
+        });
+        state.infoEl.addEventListener('mouseleave', () => {
+            state.infoHovered = false;
+            updateInspectorCoverState();
+        });
 
         state.findInput.addEventListener('keydown', (event) => {
             if (event.key === 'Enter') {
@@ -1395,6 +1455,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         const labelsButton = container.querySelector('[data-map-toolbar="labels"]');
         if (labelsButton) labelsButton.textContent = getLabelModeText();
         renderInspector();
+        updateInspectorCoverState();
     }
 
     ns.openMap = function openMap(scopeOption) {

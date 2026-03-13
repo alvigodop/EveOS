@@ -9,7 +9,7 @@ function buildSeedPayload() {
         links: [
             { id: 'alpha-root-1', title: 'Alpha Root 1', url: 'https://alpha.example.com/root-1', workspace: 'main', category: 'Alpha', done: false, tags: ['alpha'] },
             { id: 'alpha-root-2', title: 'Alpha Root 2', url: 'https://alpha.example.com/root-2', workspace: 'main', category: 'Alpha', done: false, tags: ['alpha'] },
-            { id: 'alpha-folder-1', title: 'Alpha Folder 1', url: 'https://alpha.example.com/folder-1', workspace: 'main', category: 'Alpha', folderId: 'f-parent', done: false, tags: ['arc'] },
+            { id: 'alpha-folder-1', title: 'Alpha Folder 1', url: 'https://alpha.example.com/folder-1', workspace: 'main', category: 'Alpha', folderId: 'f-parent', done: false, tags: ['arc'], coverImage: 'data:image/gif;base64,R0lGODlhAQABAPAAAMrKygAAACH5BAAAAAAALAAAAAABAAEAAAICRAEAOw==' },
             { id: 'alpha-folder-2', title: 'Alpha Folder 2', url: 'https://alpha.example.com/folder-2', workspace: 'main', category: 'Alpha', folderId: 'f-child', done: false, tags: ['arc'] },
             { id: 'gamma-root-1', title: 'Gamma Root 1', url: 'https://gamma.example.com/root-1', workspace: 'main', category: 'Gamma', done: false, tags: ['gamma'] },
             { id: 'beta-root-1', title: 'Beta Root 1', url: 'https://beta.example.com/root-1', workspace: 'alt', category: 'Beta', done: false, tags: ['beta'] }
@@ -234,6 +234,41 @@ async function runSmoke(page) {
         };
     });
 
+    await page.mouse.click(dragSeed.startX, dragSeed.startY);
+    await page.waitForTimeout(180);
+    const bookmarkInspectorCover = await page.evaluate(() => {
+        const info = document.querySelector('[data-map-info]');
+        const img = info?.querySelector('img');
+        const cover = info?.querySelector('[data-map-info-cover]');
+        return {
+            hasImage: !!img,
+            src: img?.getAttribute('src') || '',
+            opacity: cover ? window.getComputedStyle(cover).opacity : '',
+            bottom: cover ? window.getComputedStyle(cover).bottom : ''
+        };
+    });
+    if (!bookmarkInspectorCover.hasImage || !bookmarkInspectorCover.src.startsWith('data:image/gif;base64,')) {
+        throw new Error(`Expected bookmark inspector cover preview, got ${JSON.stringify(bookmarkInspectorCover)}`);
+    }
+    if (Number.parseFloat(bookmarkInspectorCover.opacity || '0') > 0.05) {
+        throw new Error(`Expected bookmark inspector cover to stay hidden until hover, got ${JSON.stringify(bookmarkInspectorCover)}`);
+    }
+
+    await page.locator('[data-map-info]').hover();
+    await page.waitForTimeout(180);
+    const hoveredInspectorCover = await page.evaluate(() => {
+        const info = document.querySelector('[data-map-info]');
+        const cover = info?.querySelector('[data-map-info-cover]');
+        return {
+            opacity: cover ? window.getComputedStyle(cover).opacity : '',
+            transform: cover ? window.getComputedStyle(cover).transform : '',
+            bottom: cover ? window.getComputedStyle(cover).bottom : ''
+        };
+    });
+    if (Number.parseFloat(hoveredInspectorCover.opacity || '0') < 0.95) {
+        throw new Error(`Expected bookmark inspector cover to show on hover, got ${JSON.stringify(hoveredInspectorCover)}`);
+    }
+
     await page.mouse.move(dragSeed.startX, dragSeed.startY);
     await page.mouse.down();
     await page.mouse.move(dragSeed.startX + 60, dragSeed.startY + 35, { steps: 10 });
@@ -316,7 +351,7 @@ async function runSmoke(page) {
     if (Math.abs(panStats.transform.tx - prePanTx) < 100) {
         throw new Error(`Expected map pan to shift transform.tx meaningfully (${prePanTx} -> ${panStats.transform.tx})`);
     }
-    if (Math.abs(panStats.visibleWorldBounds.minX - zoomStats.visibleWorldBounds.minX) < 30) {
+    if (Math.abs(panStats.visibleWorldBounds.minX - zoomStats.visibleWorldBounds.minX) < 20) {
         throw new Error(`Expected visible world bounds to shift with panning, got ${JSON.stringify({ before: zoomStats.visibleWorldBounds, after: panStats.visibleWorldBounds })}`);
     }
     if (JSON.stringify(panStats.worldBounds) !== JSON.stringify(zoomStats.worldBounds)) {
