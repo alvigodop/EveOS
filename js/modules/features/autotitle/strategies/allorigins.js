@@ -26,6 +26,41 @@
     };
 
     const extractTitle = (html) => {
+        const metaPatterns = [
+            /<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i,
+            /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:title["']/i,
+            /<meta[^>]+name=["']twitter:title["'][^>]+content=["']([^"']+)["']/i,
+            /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:title["']/i,
+            /<meta[^>]+name=["']title["'][^>]+content=["']([^"']+)["']/i,
+            /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']title["']/i
+        ];
+        for (const pattern of metaPatterns) {
+            const match = html.match(pattern);
+            if (match?.[1]) return match[1];
+        }
+
+        const jsonLdMatches = html.match(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi) || [];
+        for (const block of jsonLdMatches) {
+            const contentMatch = block.match(/<script[^>]*>([\s\S]*?)<\/script>/i);
+            const jsonText = contentMatch?.[1]?.trim();
+            if (!jsonText) continue;
+            try {
+                const parsed = JSON.parse(jsonText);
+                const queue = Array.isArray(parsed) ? parsed : [parsed];
+                while (queue.length) {
+                    const current = queue.shift();
+                    if (!current || typeof current !== 'object') continue;
+                    if (typeof current.name === 'string' && current.name.trim()) return current.name.trim();
+                    if (typeof current.headline === 'string' && current.headline.trim()) return current.headline.trim();
+                    Object.values(current).forEach((value) => {
+                        if (value && typeof value === 'object') queue.push(value);
+                    });
+                }
+            } catch (e) {
+                // Ignore malformed JSON-LD blocks.
+            }
+        }
+
         const match = html.match(/<title[^>]*>([^<]+)<\/title>/i);
         return match && match[1] ? match[1] : null;
     };
@@ -114,7 +149,9 @@
             /<meta[^>]+property=["']og:image(?::secure_url)?["'][^>]+content=["']([^"']+)["']/i,
             /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image(?::secure_url)?["']/i,
             /<meta[^>]+name=["']twitter:image(?::src)?["'][^>]+content=["']([^"']+)["']/i,
-            /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image(?::src)?["']/i
+            /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image(?::src)?["']/i,
+            /<meta[^>]+itemprop=["']image["'][^>]+content=["']([^"']+)["']/i,
+            /<link[^>]+rel=["']image_src["'][^>]+href=["']([^"']+)["']/i
         ];
         for (const pattern of metaPatterns) {
             const match = html.match(pattern);
@@ -176,7 +213,7 @@
                 if (t === "CLOUDFLARE_BLOCK") throw new Error("AllOrigins Cloudflare Block");
                 const i = extractIcon(data.contents, url);
                 const coverUrl = extractCover(data.contents, url);
-                if (t) return { title: t, icon: i, coverUrl };
+                if (t || i || coverUrl) return { title: t, icon: i, coverUrl };
             }
         } catch (e) {
             console.warn("AllOrigins failed", e);

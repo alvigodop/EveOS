@@ -32,6 +32,49 @@
         }
     };
 
+    const getMetaContent = (doc, selectors) => {
+        for (const selector of selectors) {
+            const value = doc.querySelector(selector)?.getAttribute('content')
+                || doc.querySelector(selector)?.getAttribute('href')
+                || null;
+            if (value) return value;
+        }
+        return null;
+    };
+
+    const extractJsonLdValue = (doc, keys) => {
+        const blocks = Array.from(doc.querySelectorAll('script[type="application/ld+json"]'));
+        for (const block of blocks) {
+            const jsonText = block.textContent?.trim();
+            if (!jsonText) continue;
+            try {
+                const parsed = JSON.parse(jsonText);
+                const queue = Array.isArray(parsed) ? parsed : [parsed];
+                while (queue.length) {
+                    const current = queue.shift();
+                    if (!current || typeof current !== 'object') continue;
+                    for (const key of keys) {
+                        const value = current[key];
+                        if (typeof value === 'string' && value.trim()) return value.trim();
+                        if (Array.isArray(value)) {
+                            const firstString = value.find((entry) => typeof entry === 'string' && entry.trim());
+                            if (firstString) return firstString.trim();
+                        }
+                        if (value && typeof value === 'object' && typeof value.url === 'string' && value.url.trim()) {
+                            return value.url.trim();
+                        }
+                    }
+                    Object.values(current).forEach((value) => {
+                        if (value && typeof value === 'object') queue.push(value);
+                    });
+                }
+            } catch (error) {
+                // Ignore malformed JSON-LD blocks.
+            }
+        }
+        return null;
+    };
+
     const extractMetadata = (content, baseUrl) => {
         let doc = null;
         if (typeof content === 'string') {
@@ -41,18 +84,49 @@
         }
         if (!doc) return null;
 
-        const title = cleanTitle(doc.title || doc.querySelector('title')?.innerText || '');
-        if (!title) return null;
+        const title = cleanTitle(
+            getMetaContent(doc, [
+                'meta[property="og:title"]',
+                'meta[name="twitter:title"]',
+                'meta[name="title"]'
+            ])
+            || extractJsonLdValue(doc, ['name', 'headline'])
+            || doc.title
+            || doc.querySelector('title')?.innerText
+            || ''
+        );
+
+        const icon = resolveAssetUrl(
+            doc.querySelector('link[rel*="icon"]')?.href
+            || doc.querySelector('link[rel="apple-touch-icon"]')?.href
+            || null,
+            baseUrl
+        );
+
+        const coverUrl = resolveAssetUrl(
+            getMetaContent(doc, [
+                'meta[property="og:image"]',
+                'meta[property="og:image:secure_url"]',
+                'meta[name="twitter:image"]',
+                'meta[name="twitter:image:src"]',
+                'meta[itemprop="image"]',
+                'link[rel="image_src"]'
+            ]) || extractJsonLdValue(doc, ['image']),
+            baseUrl
+        );
+
+        const description = getMetaContent(doc, [
+            'meta[name="description"]',
+            'meta[property="og:description"]'
+        ]) || null;
+
+        if (!title && !icon && !coverUrl && !description) return null;
 
         return {
-            title: title.trim(),
-            icon: resolveAssetUrl(doc.querySelector('link[rel*="icon"]')?.href || null, baseUrl),
-            coverUrl: resolveAssetUrl(doc.querySelector('meta[property="og:image"]')?.content
-                || doc.querySelector('meta[name="twitter:image"]')?.content
-                || null, baseUrl),
-            description: doc.querySelector('meta[name="description"]')?.content
-                || doc.querySelector('meta[property="og:description"]')?.content
-                || null,
+            title: title ? title.trim() : null,
+            icon,
+            coverUrl,
+            description,
             source: 'ScraperEngine',
             isAdvancedScrape: true
         };
