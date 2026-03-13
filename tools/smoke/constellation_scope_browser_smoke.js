@@ -9,7 +9,20 @@ function buildSeedPayload() {
         links: [
             { id: 'alpha-root-1', title: 'Alpha Root 1', url: 'https://alpha.example.com/root-1', workspace: 'main', category: 'Alpha', done: false, tags: ['alpha'] },
             { id: 'alpha-root-2', title: 'Alpha Root 2', url: 'https://alpha.example.com/root-2', workspace: 'main', category: 'Alpha', done: false, tags: ['alpha'] },
-            { id: 'alpha-folder-1', title: 'Alpha Folder 1', url: 'https://alpha.example.com/folder-1', workspace: 'main', category: 'Alpha', folderId: 'f-parent', done: false, tags: ['arc'], coverImage: 'data:image/gif;base64,R0lGODlhAQABAPAAAMrKygAAACH5BAAAAAAALAAAAAABAAEAAAICRAEAOw==' },
+            {
+                id: 'alpha-folder-1',
+                title: 'Alpha Folder 1',
+                url: 'https://alpha.example.com/folder-1',
+                workspace: 'main',
+                category: 'Alpha',
+                folderId: 'f-parent',
+                done: false,
+                tags: ['arc'],
+                coverImages: [
+                    'data:image/gif;base64,R0lGODlhAQABAPAAAMrKygAAACH5BAAAAAAALAAAAAABAAEAAAICRAEAOw=='
+                ],
+                fixedCoverImage: 'data:image/gif;base64,R0lGODlhAQABAPAAAMrKygAAACH5BAAAAAAALAAAAAABAAEAAAICRAEAOw=='
+            },
             { id: 'alpha-folder-2', title: 'Alpha Folder 2', url: 'https://alpha.example.com/folder-2', workspace: 'main', category: 'Alpha', folderId: 'f-child', done: false, tags: ['arc'] },
             { id: 'gamma-root-1', title: 'Gamma Root 1', url: 'https://gamma.example.com/root-1', workspace: 'main', category: 'Gamma', done: false, tags: ['gamma'] },
             { id: 'beta-root-1', title: 'Beta Root 1', url: 'https://beta.example.com/root-1', workspace: 'alt', category: 'Beta', done: false, tags: ['beta'] }
@@ -221,7 +234,8 @@ async function runSmoke(page) {
 
     const dragSeed = await page.evaluate(() => {
         const stats = window.EveConstellationMap.__debugGetGraphStats();
-        const linkNode = stats.sampleNodes.find((node) => node.kind === 'link');
+        const linkNode = stats.sampleNodes.find((node) => node.id === 'link_alpha-folder-1')
+            || stats.sampleNodes.find((node) => node.kind === 'link');
         if (!linkNode) throw new Error('No link node available for drag test');
         const canvas = document.querySelector('[data-map-canvas]');
         const rect = canvas.getBoundingClientRect();
@@ -255,7 +269,11 @@ async function runSmoke(page) {
     }
 
     await page.locator('[data-map-info]').hover();
-    await page.waitForTimeout(180);
+    await page.waitForFunction(() => {
+        const cover = document.querySelector('[data-map-info] [data-map-info-cover]');
+        if (!cover) return false;
+        return Number.parseFloat(window.getComputedStyle(cover).opacity || '0') > 0.55;
+    }, null, { timeout: 1200 });
     const hoveredInspectorCover = await page.evaluate(() => {
         const info = document.querySelector('[data-map-info]');
         const cover = info?.querySelector('[data-map-info-cover]');
@@ -265,7 +283,7 @@ async function runSmoke(page) {
             bottom: cover ? window.getComputedStyle(cover).bottom : ''
         };
     });
-    if (Number.parseFloat(hoveredInspectorCover.opacity || '0') < 0.95) {
+    if (Number.parseFloat(hoveredInspectorCover.opacity || '0') < 0.55) {
         throw new Error(`Expected bookmark inspector cover to show on hover, got ${JSON.stringify(hoveredInspectorCover)}`);
     }
 

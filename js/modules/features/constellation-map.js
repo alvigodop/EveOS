@@ -282,9 +282,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     }
 
     function hasResolvedCover(link) {
-        const coverApi = window.EveBookmarkCovers;
-        if (coverApi?.resolveLinkCover) return !!coverApi.resolveLinkCover(link);
-        return !!text(link?.coverImage, '');
+        return !!getResolvedLinkCover(link);
     }
 
     function getLinkColor(link) {
@@ -315,15 +313,27 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         return getAllLinks().find((link) => String(link?.id || '') === String(linkId)) || null;
     }
 
+    function getLinkedLibraryEntry(link) {
+        if (!link?.id) return null;
+        const linked = window.EveLibrary?.ConnectionsAPI?.getLinkedEntry?.(link.id);
+        return linked?.entry || null;
+    }
+
+    function getResolvedLinkCover(link) {
+        if (!link) return '';
+        const libraryEntry = getLinkedLibraryEntry(link);
+        const fallbackImage = text(libraryEntry?.image, '') || text(libraryEntry?.imageUrl, '');
+        const coverApi = window.EveBookmarkCovers;
+        if (coverApi?.getDisplayCover) {
+            return text(coverApi.getDisplayCover(link, fallbackImage), '');
+        }
+        return text(link?.coverImage, '') || fallbackImage;
+    }
+
     function getNodeCoverUrl(node) {
         if (!node || node.kind !== 'link') return '';
         const link = getLinkById(node?.data?.linkId);
-        if (!link) return '';
-        const coverApi = window.EveBookmarkCovers;
-        if (coverApi?.resolveLinkCover) {
-            return text(coverApi.resolveLinkCover(link), '');
-        }
-        return text(link?.coverImage, '');
+        return getResolvedLinkCover(link);
     }
 
     function buildGraphData(scopeOption) {

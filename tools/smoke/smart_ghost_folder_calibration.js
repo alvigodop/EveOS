@@ -22,7 +22,23 @@ global.config = { activeWorkspace: 'main', workspaces: [{ id: 'main', name: 'Mai
 
 global.eveState = {
   config: global.config,
-  bookmarkFolders: {},
+  bookmarkFolders: {
+    'main::Test': {
+      nodes: [
+        {
+          id: 'folder-h18',
+          parentId: null,
+          name: 'H18',
+          order: 0,
+          createdAt: Date.now() - 1000,
+          updatedAt: Date.now() - 1000,
+          clickBehaviorMode: 'inherit',
+          taskMode: 'inherit'
+        }
+      ],
+      settings: { clickBehaviorMode: 'inherit' }
+    }
+  },
   links: []
 };
 
@@ -60,7 +76,15 @@ global.window.EveLibrary = {
     _entries: {
       'entry-1': { id: 'entry-1', image: 'https://img.example.com/library-cover.jpg' },
       'entry-note-ok': { id: 'entry-note-ok', summary: 'Already has notes' },
-      'entry-note-missing': { id: 'entry-note-missing' },
+      'entry-note-missing': {
+        id: 'entry-note-missing',
+        tags: ['Male Protagonist', 'Fantasy'],
+        language: 'English',
+        libraryStatus: { id: 'reading', label: 'Reading' },
+        derivedRatings: { activeValue: 8.1, confidence: 0.77 },
+        chapter: 34,
+        publicationYear: 2021
+      },
       'entry-source-only': { id: 'entry-source-only', summary: 'Source: https://source.example.com/item' },
       'entry-with-genre': { id: 'entry-with-genre', genre: 'Action, Drama' },
       'entry-with-tags': { id: 'entry-with-tags', tags: ['fav', 'queue'] },
@@ -128,6 +152,19 @@ global.eveState.links = [
   { id: 'dup-a', url: 'https://www.example.com/series/1?b=2&a=1#part', title: 'Duplicate A' },
   { id: 'dup-b', url: 'https://example.com/series/1?a=1&b=2', title: 'Duplicate B' }
 ];
+
+for (let index = 0; index < 16; index += 1) {
+  global.eveState.links.push({
+    id: `h18-${index}`,
+    url: `https://dense.example.com/item/${index}`,
+    title: `Dense Item ${index}`,
+    folderId: 'folder-h18',
+    tags: ['Overflow', index % 2 === 0 ? 'Dense' : 'Clustered'],
+    rating: 6.5 + ((index % 5) * 0.4),
+    lastVisited: Date.now() - ((index + 1) * 24 * 60 * 60 * 1000),
+    createdAt: Date.now() - ((100 + index) * 24 * 60 * 60 * 1000)
+  });
+}
 
 const view = global.window.EveBookmarkFolders.buildFolderView('main', 'Test', global.eveState.links);
 
@@ -231,6 +268,97 @@ assert(!!activityGroup, 'tag bucket should recursively expose activity group');
 const missingCoversInAction = findNode('[ Missing Covers ]', maintenanceGroup.id);
 assert(!!missingCoversInAction, 'maintenance group should expose missing covers inside narrowed scope');
 
+const rootDomainsGroup = findNode('[ Domains ]', findNode('[ System Views ]')?.id);
+assert(!!rootDomainsGroup, 'root domains group should be present');
+const siteDomainBucket = findNode('[ SITE.EXAMPLE.COM ]', rootDomainsGroup.id);
+assert(!!siteDomainBucket, 'site.example.com bucket should exist at root');
+const maintenanceInsideDomain = findNode('[ Maintenance ]', siteDomainBucket.id);
+const activityInsideDomain = findNode('[ Activity ]', siteDomainBucket.id);
+const ratingInsideDomain = findNode('[ By Rating ]', siteDomainBucket.id);
+const nestedDomainsInsideDomain = findNode('[ Domains ]', siteDomainBucket.id);
+assert(!!maintenanceInsideDomain, 'domain bucket should loop back into maintenance');
+assert(!!activityInsideDomain, 'domain bucket should loop back into activity');
+assert(!!ratingInsideDomain, 'domain bucket should loop back into smart indexes');
+assert(!nestedDomainsInsideDomain, 'single-domain bucket should not recurse into domains again');
+
+const rootInsights = findNode('[ Insights ]', findNode('[ System Views ]')?.id);
+assert(!!rootInsights, 'root insights group should be present');
+const largeFoldersBucket = findNode('[ Large Folders (>15) ]', rootInsights.id);
+assert(!!largeFoldersBucket, 'large folders bucket should be present');
+
+const readingBucket = findNode('[ Reading ]', byStatus.id);
+assert(!!readingBucket, 'reading bucket should exist');
+const maintenanceInsideReading = findNode('[ Maintenance ]', readingBucket.id);
+const activityInsideReading = findNode('[ Activity ]', readingBucket.id);
+const insightsInsideReading = findNode('[ Insights ]', readingBucket.id);
+const nestedReadingStatusInsideReading = findNode('[ Reading Status ]', readingBucket.id);
+assert(!!maintenanceInsideReading, 'single-status bucket should loop back into maintenance');
+assert(!!activityInsideReading, 'single-status bucket should loop back into activity');
+assert(!!insightsInsideReading, 'single-status bucket should loop back into insights');
+assert(!nestedReadingStatusInsideReading, 'single-status bucket should not recurse into reading status again');
+
+const rootMaintenance = findNode('[ Maintenance ]', findNode('[ System Views ]')?.id);
+assert(!!rootMaintenance, 'root maintenance group should be present');
+const missingNotesBucket = findNode('[ Missing Notes ]', rootMaintenance.id);
+assert(!!missingNotesBucket, 'missing notes bucket should exist');
+const missingNotesByTags = findNode('[ By Tags ]', missingNotesBucket.id);
+assert(!!missingNotesByTags, 'missing notes bucket should loop back into smart indexes');
+const maleProtagonistBucket = findNode('[ Male Protagonist ]', missingNotesByTags.id);
+assert(!!maleProtagonistBucket, 'male protagonist bucket should exist under missing notes -> by tags');
+
+global.eveState.config.activeManhwaFolderChains = {
+  'main::Test': [
+    { dimension: 'maintenance', valueKey: 'missing_notes', label: '[ Missing Notes ]' },
+    { dimension: 'tag_index', valueKey: 'male protagonist', label: 'Male Protagonist' }
+  ]
+};
+
+const preferredView = global.window.EveBookmarkFolders.buildFolderView('main', 'Test', global.eveState.links);
+function findPreferredNode(name, parentId = undefined) {
+  return preferredView.nodes.find((node) => {
+    if (String(node.name || '') !== String(name)) return false;
+    if (typeof parentId === 'undefined') return true;
+    return String(node.parentId || '') === String(parentId || '');
+  }) || null;
+}
+
+const preferredRootMaintenance = findPreferredNode('[ Maintenance ]', findPreferredNode('[ System Views ]')?.id);
+const preferredMissingNotesBucket = findPreferredNode('[ Missing Notes ]', preferredRootMaintenance?.id);
+const preferredMissingNotesByTags = findPreferredNode('[ By Tags ]', preferredMissingNotesBucket?.id);
+const preferredMaleProtagonistBucket = findPreferredNode('[ Male Protagonist ]', preferredMissingNotesByTags?.id);
+const maleProtagonistMaintenance = findPreferredNode('[ Maintenance ]', preferredMaleProtagonistBucket?.id);
+const maleProtagonistByStatus = findPreferredNode('[ By Status ]', preferredMaleProtagonistBucket?.id);
+const maleProtagonistByRating = findPreferredNode('[ By Rating ]', preferredMaleProtagonistBucket?.id);
+assert(!!maleProtagonistMaintenance, 'preferred derived tag path should expose maintenance');
+assert(!!maleProtagonistByStatus, 'preferred derived tag path should expose status indexes');
+assert(!!maleProtagonistByRating, 'preferred derived tag path should expose rating indexes');
+
+global.eveState.config.activeManhwaFolderChains = {
+  'main::Test': [
+    { dimension: 'insights', valueKey: 'large_folders', label: '[ Large Folders (>15) ]' }
+  ]
+};
+
+const preferredLargeView = global.window.EveBookmarkFolders.buildFolderView('main', 'Test', global.eveState.links);
+function findLargePreferredNode(name, parentId = undefined) {
+  return preferredLargeView.nodes.find((node) => {
+    if (String(node.name || '') !== String(name)) return false;
+    if (typeof parentId === 'undefined') return true;
+    return String(node.parentId || '') === String(parentId || '');
+  }) || null;
+}
+
+const preferredInsights = findLargePreferredNode('[ Insights ]', findLargePreferredNode('[ System Views ]')?.id);
+const preferredLargeFoldersBucket = findLargePreferredNode('[ Large Folders (>15) ]', preferredInsights?.id);
+const largeFoldersByTags = findLargePreferredNode('[ By Tags ]', preferredLargeFoldersBucket?.id);
+const largeFoldersByRating = findLargePreferredNode('[ By Rating ]', preferredLargeFoldersBucket?.id);
+const largeFoldersMaintenance = findLargePreferredNode('[ Maintenance ]', preferredLargeFoldersBucket?.id);
+const largeFoldersActivity = findLargePreferredNode('[ Activity ]', preferredLargeFoldersBucket?.id);
+assert(!!largeFoldersByTags, 'preferred large folders path should expose tag indexes');
+assert(!!largeFoldersByRating, 'preferred large folders path should expose rating indexes');
+assert(!!largeFoldersMaintenance, 'preferred large folders path should expose maintenance');
+assert(!!largeFoldersActivity, 'preferred large folders path should expose activity');
+
 console.log('SMART_GHOST_CALIBRATION_OK', JSON.stringify({
   missingIcons,
   missingCovers,
@@ -253,6 +381,8 @@ console.log('SMART_GHOST_CALIBRATION_OK', JSON.stringify({
     byStatus: byStatus.id,
     maintenanceGroup: maintenanceGroup.id,
     domainsGroup: domainsGroup.id,
-    activityGroup: activityGroup.id
+    activityGroup: activityGroup.id,
+    rootDomainsGroup: rootDomainsGroup.id,
+    siteDomainBucket: siteDomainBucket.id
   }
 }));

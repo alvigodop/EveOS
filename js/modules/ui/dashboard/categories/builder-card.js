@@ -165,6 +165,9 @@ window.DashboardCategories = window.DashboardCategories || {};
 
         const workspaceId = String(options.activeWorkspace || window.eveState?.config?.activeWorkspace || 'main').trim() || 'main';
         const viewModel = folderApi.buildFolderView(workspaceId, categoryName, linksForCard);
+        if (window.EveFolderViewV2?.setCachedViewModel) {
+            window.EveFolderViewV2.setCachedViewModel(workspaceId, categoryName, viewModel);
+        }
 
         // If Manhwa Mode (Navigation View) is active for this card, use the V2 Root Grid instead of the tree.
         if (window.EveFolderViewV2 && window.EveFolderViewV2.isManhwaModeEnabled(workspaceId, categoryName)) {

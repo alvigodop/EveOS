@@ -565,9 +565,45 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
 
     function buildFolderView(workspaceId, categoryName, cardLinks) {
         let scopedNodes = getScopedNodes(workspaceId, categoryName);
+        const scopedCardKey = buildScopedKey(workspaceId, categoryName);
+        const realScopedNodes = scopedNodes.filter((node) => !node?.isGhost);
+        const realNodeMap = buildNodeMap(realScopedNodes);
+        const realChildrenMap = buildChildrenMap(realScopedNodes);
+        const configuredScopeRootId = normalizeFolderId(window.eveState?.config?.activeManhwaScopeRoots?.[scopedCardKey]);
+        const configuredActiveFolderId = normalizeFolderId(window.eveState?.config?.activeManhwaFolders?.[scopedCardKey]);
+        const activeRealFolderId = configuredScopeRootId && realNodeMap.has(configuredScopeRootId)
+            ? configuredScopeRootId
+            : (configuredActiveFolderId && realNodeMap.has(configuredActiveFolderId)
+                ? configuredActiveFolderId
+                : null);
+
+        function collectFolderScopeIds(rootFolderId) {
+            if (!rootFolderId || !realNodeMap.has(rootFolderId)) return null;
+            const ids = new Set();
+            const stack = [rootFolderId];
+            while (stack.length > 0) {
+                const currentId = stack.pop();
+                if (!currentId || ids.has(currentId)) continue;
+                ids.add(currentId);
+                (realChildrenMap.get(currentId) || []).forEach((childNode) => {
+                    if (childNode?.id) stack.push(childNode.id);
+                });
+            }
+            return ids;
+        }
+
+        function filterLinksToActiveFolderScope(links, rootFolderId) {
+            if (!rootFolderId) return Array.isArray(links) ? links.slice() : [];
+            const allowedFolderIds = collectFolderScopeIds(rootFolderId);
+            if (!allowedFolderIds || allowedFolderIds.size === 0) return [];
+            return (Array.isArray(links) ? links : []).filter((link) => {
+                const folderId = normalizeFolderId(link?.folderId);
+                return !!folderId && allowedFolderIds.has(folderId);
+            });
+        }
 
         // --- Inject Ghost Folders ---
-        const activeLinks = Array.isArray(cardLinks) ? cardLinks : [];
+        const activeLinks = filterLinksToActiveFolderScope(cardLinks, activeRealFolderId);
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
         const recentTime = sevenDaysAgo.getTime();
@@ -888,9 +924,38 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
             libraryEntryCache.set(String(link?.id || ''), getLibraryEntryForLink(workspaceId, categoryName, link?.id));
         });
 
+        const preferredGhostChain = Array.isArray(window.eveState?.config?.activeManhwaFolderChains?.[scopedCardKey])
+            ? window.eveState.config.activeManhwaFolderChains[scopedCardKey]
+                .map((item) => ({
+                    dimension: String(item?.dimension || '').trim(),
+                    valueKey: String(item?.valueKey || '').trim().toLowerCase(),
+                    label: String(item?.label || '').trim()
+                }))
+                .filter((item) => item.dimension && item.valueKey)
+            : [];
+
+        function getPreferredChainScore(chain) {
+            if (!preferredGhostChain.length || !Array.isArray(chain) || !chain.length) return 0;
+            let score = 0;
+            const limit = Math.min(preferredGhostChain.length, chain.length);
+            for (let index = 0; index < limit; index += 1) {
+                const left = preferredGhostChain[index];
+                const right = chain[index];
+                if (!left || !right) break;
+                if (String(left.dimension || '') !== String(right.dimension || '')) break;
+                if (String(left.valueKey || '') !== String(right.valueKey || '').toLowerCase()) break;
+                score += 1;
+            }
+            return score;
+        }
+
         const derivedGhostNodeBudget = {
             count: 0,
-            max: Math.min(900, Math.max(360, activeLinks.length * 18))
+            max: activeLinks.length <= 16
+                ? 12000
+                : activeLinks.length <= 48
+                    ? 10000
+                    : Math.min(12000, Math.max(5000, activeLinks.length * 70))
         };
         const derivedValueLimit = activeLinks.length > 120 ? 8 : 10;
         const derivedDepthLimit = 4;
@@ -1094,6 +1159,29 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
             })));
         }
 
+        function buildLargeFolderScopeLinks(links) {
+            const realNodeMap = buildNodeMap(scopedNodes.filter((node) => !node?.isGhost));
+            const counts = new Map();
+            const groupedLinks = new Map();
+
+            (Array.isArray(links) ? links : []).forEach((link) => {
+                const folderId = normalizeFolderId(link?.folderId);
+                if (!folderId || !realNodeMap.has(folderId)) return;
+                counts.set(folderId, (counts.get(folderId) || 0) + 1);
+                if (!groupedLinks.has(folderId)) groupedLinks.set(folderId, []);
+                groupedLinks.get(folderId).push(link);
+            });
+
+            const largeLinks = [];
+            groupedLinks.forEach((bucketLinks, folderId) => {
+                if ((counts.get(folderId) || 0) > 15) {
+                    largeLinks.push(...bucketLinks);
+                }
+            });
+
+            return largeLinks;
+        }
+
         function buildMaintenanceGhostBuckets(links) {
             return [
                 { key: 'unlinked', label: '[ Unlinked Bookmarks ]', links: links.filter((link) => unlinkedLinks.includes(link)) },
@@ -1177,6 +1265,8 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
                 duplicateCounts[normalized] = (duplicateCounts[normalized] || 0) + 1;
             });
 
+            const largeFolderLinks = buildLargeFolderScopeLinks(links);
+
             return [
                 { key: 'top_rated', label: '[ Top Rated ]', links: links.filter((link) => {
                     const rating = getDerivedRatingValue(link, getCachedEntry(link));
@@ -1189,7 +1279,8 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
                 { key: 'ancients', label: '[ The Ancients ]', links: links.filter((link) => {
                     const createdAt = Number(new Date(link?.createdAt).getTime());
                     return Number.isFinite(createdAt) && createdAt > 0 && (nowMs - createdAt) > ancientsMs;
-                }) }
+                }) },
+                { key: 'large_folders', label: '[ Large Folders (>15) ]', links: largeFolderLinks }
             ];
         }
 
@@ -1208,14 +1299,14 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         }
 
         const recursiveGhostGroupDefinitions = [
-            { key: 'linkHealth', label: '[ Link Health ]', enabledKey: null, buildBuckets: buildLinkHealthGhostBuckets },
+            { key: 'linkHealth', label: '[ Link Health ]', enabledKey: null, relatedDimensions: ['linkHealth'], buildBuckets: buildLinkHealthGhostBuckets },
             { key: 'domains', label: '[ Domains ]', enabledKey: 'domain_grouping', buildBuckets(links) {
                 return buildDomainBuckets(links).map((bucket) => ({ key: bucket.key, label: `[ ${bucket.label} ]`, links: bucket.links }));
-            } },
-            { key: 'readingStatus', label: '[ Reading Status ]', enabledKey: null, buildBuckets: buildReadingGhostBuckets },
-            { key: 'maintenance', label: '[ Maintenance ]', enabledKey: null, buildBuckets: buildMaintenanceGhostBuckets },
-            { key: 'activity', label: '[ Activity ]', enabledKey: null, buildBuckets: buildActivityGhostBuckets },
-            { key: 'insights', label: '[ Insights ]', enabledKey: null, buildBuckets: buildInsightsGhostBuckets }
+            }, relatedDimensions: ['domains'] },
+            { key: 'readingStatus', label: '[ Reading Status ]', enabledKey: null, relatedDimensions: ['readingStatus', 'status_index'], suppressIfRelatedDimensionPresent: true, buildBuckets: buildReadingGhostBuckets },
+            { key: 'maintenance', label: '[ Maintenance ]', enabledKey: null, relatedDimensions: ['maintenance'], buildBuckets: buildMaintenanceGhostBuckets },
+            { key: 'activity', label: '[ Activity ]', enabledKey: null, relatedDimensions: ['activity'], buildBuckets: buildActivityGhostBuckets },
+            { key: 'insights', label: '[ Insights ]', enabledKey: null, relatedDimensions: ['insights'], buildBuckets: buildInsightsGhostBuckets }
         ];
 
         // ----------------------------------------------------
@@ -1232,8 +1323,9 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         };
 
         const activeSubGhosts = [];
+        const rootRecursiveTasks = [];
 
-        function addGhost(catKey, id, name, linksArray, enabledKey) {
+        function addGhost(catKey, id, name, linksArray, enabledKey, bucketKey) {
             if (linksArray.length > 0 && isGhostEnabled(enabledKey)) {
                 activeSubGhosts.push({
                     id: id,
@@ -1242,9 +1334,19 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
                     isGhost: true,
                     isGhostDerivedValue: false,
                     isGhostDerivedGroup: false,
-                    _ghostLinks: linksArray
+                    _ghostLinks: linksArray,
+                    _ghostScopeRootId: activeRealFolderId || null
                 });
                 ghostCategories[catKey]._hasActiveChildren = true;
+                rootRecursiveTasks.push({
+                    id,
+                    links: linksArray,
+                    chain: [{
+                        dimension: catKey,
+                        valueKey: String(bucketKey || id || name || '').trim().toLowerCase(),
+                        label: name
+                    }]
+                });
             }
         }
 
@@ -1272,9 +1374,11 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         }
 
         function addRecursiveGhostGroups(parentId, links, chain, depth) {
-            if (!Array.isArray(links) || links.length < 2) return;
+            if (!Array.isArray(links) || links.length < 1) return;
             if (depth >= derivedDepthLimit) return;
             if (derivedGhostNodeBudget.count >= derivedGhostNodeBudget.max) return;
+
+            const pendingRecursions = [];
 
             recursiveGhostGroupDefinitions.forEach((definition) => {
                 if (definition.enabledKey && !isGhostEnabled(definition.enabledKey)) return;
@@ -1286,6 +1390,11 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
                         .map((item) => String(item.valueKey || '').trim().toLowerCase())
                         .filter(Boolean)
                 );
+                const relatedDimensions = Array.isArray(definition.relatedDimensions) && definition.relatedDimensions.length
+                    ? definition.relatedDimensions
+                    : [definition.key];
+                const hasMatchingDimension = (Array.isArray(chain) ? chain : []).some((item) => relatedDimensions.includes(item?.dimension));
+                if (definition.suppressIfRelatedDimensionPresent && hasMatchingDimension) return;
 
                 const buckets = (definition.buildBuckets(links) || [])
                     .filter((bucket) => {
@@ -1307,7 +1416,9 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
                     isGhostDerivedGroup: true,
                     isGhostDerivedValue: false,
                     _ghostLinks: [],
-                    _ghostScopeCount: links.length
+                    _ghostFilterChain: Array.isArray(chain) ? chain.slice() : [],
+                    _ghostScopeCount: links.length,
+                    _ghostScopeRootId: activeRealFolderId || null
                 });
                 derivedGhostNodeBudget.count += 1;
 
@@ -1331,15 +1442,19 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
                         isGhostDerivedValue: true,
                         _ghostLinks: bucket.links,
                         _ghostFilterChain: nextChain,
-                        _ghostScopeCount: bucket.links.length
+                        _ghostScopeCount: bucket.links.length,
+                        _ghostScopeRootId: activeRealFolderId || null
                     });
                     derivedGhostNodeBudget.count += 1;
+                    pendingRecursions.push({ id: valueId, links: bucket.links, chain: nextChain });
                 });
             });
+
+            return pendingRecursions;
         }
 
         function addDerivedChildren(parentId, links, chain, depth) {
-            if (!Array.isArray(links) || links.length < 2) return;
+            if (!Array.isArray(links) || links.length < 1) return;
             if (depth >= derivedDepthLimit) return;
             if (derivedGhostNodeBudget.count >= derivedGhostNodeBudget.max) return;
 
@@ -1361,7 +1476,9 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
                     isGhostDerivedGroup: true,
                     isGhostDerivedValue: false,
                     _ghostLinks: [],
-                    _ghostScopeCount: links.length
+                    _ghostFilterChain: Array.isArray(chain) ? chain.slice() : [],
+                    _ghostScopeCount: links.length,
+                    _ghostScopeRootId: activeRealFolderId || null
                 });
                 derivedGhostNodeBudget.count += 1;
                 ghostCategories.indexes._hasActiveChildren = true;
@@ -1386,70 +1503,168 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
                         isGhostDerivedValue: true,
                         _ghostLinks: bucket.links,
                         _ghostFilterChain: nextChain,
-                        _ghostScopeCount: bucket.links.length
+                        _ghostScopeCount: bucket.links.length,
+                        _ghostScopeRootId: activeRealFolderId || null
                     });
                     derivedGhostNodeBudget.count += 1;
                     pendingRecursions.push({ id: valueId, links: bucket.links, chain: nextChain });
                 });
             });
 
-            pendingRecursions.forEach((task) => {
-                if (derivedGhostNodeBudget.count >= derivedGhostNodeBudget.max) return;
-                addRecursiveGhostGroups(task.id, task.links, task.chain, depth + 1);
-                addDerivedChildren(task.id, task.links, task.chain, depth + 1);
-            });
+            return pendingRecursions;
+        }
+
+        function expandDerivedScopesBreadthFirst(initialTasks) {
+            const seedQueue = Array.isArray(initialTasks) ? initialTasks.slice() : [];
+            const deepQueue = [];
+
+            function pushTask(task) {
+                if (!task || !Array.isArray(task.links) || task.links.length < 1) return;
+                if ((Number(task.depth || 0)) <= 1) {
+                    seedQueue.push(task);
+                } else {
+                    deepQueue.push(task);
+                }
+            }
+
+            while ((seedQueue.length > 0 || deepQueue.length > 0) && derivedGhostNodeBudget.count < derivedGhostNodeBudget.max) {
+                let task = null;
+                if (seedQueue.length > 0) {
+                    seedQueue.sort((left, right) => {
+                        const leftScore = getPreferredChainScore(left?.chain);
+                        const rightScore = getPreferredChainScore(right?.chain);
+                        if (leftScore !== rightScore) return rightScore - leftScore;
+
+                        const leftDepth = Number(left?.depth || 0);
+                        const rightDepth = Number(right?.depth || 0);
+                        if (leftDepth !== rightDepth) return leftDepth - rightDepth;
+
+                        const leftCount = Array.isArray(left?.links) ? left.links.length : Number.MAX_SAFE_INTEGER;
+                        const rightCount = Array.isArray(right?.links) ? right.links.length : Number.MAX_SAFE_INTEGER;
+                        if (leftCount !== rightCount) return leftCount - rightCount;
+
+                        return String(left?.id || '').localeCompare(String(right?.id || ''));
+                    });
+                    task = seedQueue.shift();
+                } else {
+                    deepQueue.sort((left, right) => {
+                        const leftScore = getPreferredChainScore(left?.chain);
+                        const rightScore = getPreferredChainScore(right?.chain);
+                        if (leftScore !== rightScore) return rightScore - leftScore;
+
+                        const leftDepth = Number(left?.depth || 0);
+                        const rightDepth = Number(right?.depth || 0);
+                        if (leftDepth !== rightDepth) return rightDepth - leftDepth;
+
+                        const leftCount = Array.isArray(left?.links) ? left.links.length : Number.MAX_SAFE_INTEGER;
+                        const rightCount = Array.isArray(right?.links) ? right.links.length : Number.MAX_SAFE_INTEGER;
+                        if (leftCount !== rightCount) return leftCount - rightCount;
+
+                        return String(left?.id || '').localeCompare(String(right?.id || ''));
+                    });
+                    task = deepQueue.shift();
+                }
+
+                if (!task || !Array.isArray(task.links) || task.links.length < 1) continue;
+                if (task.depth >= derivedDepthLimit) continue;
+
+                const derivedTasks = addDerivedChildren(task.id, task.links, task.chain, task.depth) || [];
+                const shouldAddRecursiveGroups = !(
+                    task.depth === 0
+                    && String(task.id || '') === String(ghostCategories.indexes.id)
+                    && (!Array.isArray(task.chain) || task.chain.length === 0)
+                );
+                const recursiveTasks = shouldAddRecursiveGroups
+                    ? (addRecursiveGhostGroups(task.id, task.links, task.chain, task.depth) || [])
+                    : [];
+
+                derivedTasks.forEach((childTask) => {
+                    pushTask({
+                        id: childTask.id,
+                        links: childTask.links,
+                        chain: childTask.chain,
+                        depth: task.depth + 1
+                    });
+                });
+                recursiveTasks.forEach((childTask) => {
+                    pushTask({
+                        id: childTask.id,
+                        links: childTask.links,
+                        chain: childTask.chain,
+                        depth: task.depth + 1
+                    });
+                });
+            }
         }
 
         // Link Health
-        addGhost('linkHealth', '__ghost_dead_links__', '[ Dead Links ]', deadLinks, 'dead_links');
-        addGhost('linkHealth', '__ghost_redirected_links__', '[ Redirected Links ]', redirectedLinks, 'redirected_links');
-        addGhost('linkHealth', '__ghost_title_drift__', '[ Title Drift ]', titleDriftLinks, 'title_drift');
-        addGhost('linkHealth', '__ghost_orphaned_lib__', '[ Orphaned Library Entries ]', orphanedLibEntries, 'orphaned_lib');
+        addGhost('linkHealth', '__ghost_dead_links__', '[ Dead Links ]', deadLinks, 'dead_links', 'dead_links');
+        addGhost('linkHealth', '__ghost_redirected_links__', '[ Redirected Links ]', redirectedLinks, 'redirected_links', 'redirected_links');
+        addGhost('linkHealth', '__ghost_title_drift__', '[ Title Drift ]', titleDriftLinks, 'title_drift', 'title_drift');
+        addGhost('linkHealth', '__ghost_orphaned_lib__', '[ Orphaned Library Entries ]', orphanedLibEntries, 'orphaned_lib', 'orphaned_lib');
 
         // Domains
         domainGhosts.forEach(dg => {
             const id = `__ghost_domain_${dg.domain.replace(/[^a-zA-Z0-9]/g, '_')}__`;
             const name = `[ ${dg.domain.toUpperCase()} ]`;
-            addGhost('domains', id, name, dg.links, 'domain_grouping');
+            addGhost('domains', id, name, dg.links, 'domain_grouping', dg.domain);
         });
 
         // Reading Status
-        addGhost('readingStatus', '__ghost_unread__', '[ Plan to Read ]', unreadLinks, 'unread');
-        addGhost('readingStatus', '__ghost_reading__', '[ Actively Reading ]', readingLinks, 'reading');
-        addGhost('readingStatus', '__ghost_completed__', '[ Completed ]', completedLinks, 'completed');
-        addGhost('readingStatus', '__ghost_on_hold__', '[ On Hold ]', onHoldLinks, 'on_hold');
-        addGhost('readingStatus', '__ghost_dropped__', '[ Dropped ]', droppedLinks, 'dropped');
+        addGhost('readingStatus', '__ghost_unread__', '[ Plan to Read ]', unreadLinks, 'unread', 'unread');
+        addGhost('readingStatus', '__ghost_reading__', '[ Actively Reading ]', readingLinks, 'reading', 'reading');
+        addGhost('readingStatus', '__ghost_completed__', '[ Completed ]', completedLinks, 'completed', 'completed');
+        addGhost('readingStatus', '__ghost_on_hold__', '[ On Hold ]', onHoldLinks, 'on_hold', 'on_hold');
+        addGhost('readingStatus', '__ghost_dropped__', '[ Dropped ]', droppedLinks, 'dropped', 'dropped');
 
         // Maintenance
-        addGhost('maintenance', '__ghost_unlinked__', '[ Unlinked Bookmarks ]', unlinkedLinks, 'unlinked');
-        addGhost('maintenance', '__ghost_missing_covers__', '[ Missing Covers ]', missingCovers, 'missing_covers');
-        addGhost('maintenance', '__ghost_missing_icons__', '[ Missing Icons ]', missingIcons, 'missing_icons');
-        addGhost('maintenance', '__ghost_untagged__', '[ Untagged ]', untaggedLinks, 'untagged');
-        addGhost('maintenance', '__ghost_no_title__', '[ No Title ]', noTitleLinks, 'no_title');
-        addGhost('maintenance', '__ghost_needs_review__', '[ Needs Review ]', needsReviewLinks, 'needs_review');
-        addGhost('maintenance', '__ghost_missing_notes__', '[ Missing Notes ]', missingNotesLinks, 'missing_notes');
-        addGhost('maintenance', '__ghost_broken_links__', '[ Broken / Invalid Links ]', brokenLinks, 'broken_links');
+        addGhost('maintenance', '__ghost_unlinked__', '[ Unlinked Bookmarks ]', unlinkedLinks, 'unlinked', 'unlinked');
+        addGhost('maintenance', '__ghost_missing_covers__', '[ Missing Covers ]', missingCovers, 'missing_covers', 'missing_covers');
+        addGhost('maintenance', '__ghost_missing_icons__', '[ Missing Icons ]', missingIcons, 'missing_icons', 'missing_icons');
+        addGhost('maintenance', '__ghost_untagged__', '[ Untagged ]', untaggedLinks, 'untagged', 'untagged');
+        addGhost('maintenance', '__ghost_no_title__', '[ No Title ]', noTitleLinks, 'no_title', 'no_title');
+        addGhost('maintenance', '__ghost_needs_review__', '[ Needs Review ]', needsReviewLinks, 'needs_review', 'needs_review');
+        addGhost('maintenance', '__ghost_missing_notes__', '[ Missing Notes ]', missingNotesLinks, 'missing_notes', 'missing_notes');
+        addGhost('maintenance', '__ghost_broken_links__', '[ Broken / Invalid Links ]', brokenLinks, 'broken_links', 'broken_links');
 
         // Activity
-        addGhost('activity', '__ghost_recent__', '[ Recently Updated ]', recentLinks, 'recent');
-        addGhost('activity', '__ghost_recently_visited__', '[ Recently Visited ]', recentlyVisited, 'recently_visited');
-        addGhost('activity', '__ghost_stale__', '[ Stale Bookmarks ]', staleLinks, 'stale');
+        addGhost('activity', '__ghost_recent__', '[ Recently Updated ]', recentLinks, 'recent', 'recent');
+        addGhost('activity', '__ghost_recently_visited__', '[ Recently Visited ]', recentlyVisited, 'recently_visited', 'recently_visited');
+        addGhost('activity', '__ghost_stale__', '[ Stale Bookmarks ]', staleLinks, 'stale', 'stale');
 
         // Insights
-        addGhost('insights', '__ghost_top_rated__', '[ Top Rated ]', topRatedLinks, 'top_rated');
-        addGhost('insights', '__ghost_duplicate_suspects__', '[ Duplicate Suspects ]', duplicateSuspects, 'duplicate_suspects');
-        addGhost('insights', '__ghost_ancients__', '[ The Ancients ]', ancientsLinks, 'ancients');
+        addGhost('insights', '__ghost_top_rated__', '[ Top Rated ]', topRatedLinks, 'top_rated', 'top_rated');
+        addGhost('insights', '__ghost_duplicate_suspects__', '[ Duplicate Suspects ]', duplicateSuspects, 'duplicate_suspects', 'duplicate_suspects');
+        addGhost('insights', '__ghost_ancients__', '[ The Ancients ]', ancientsLinks, 'ancients', 'ancients');
+        addGhost('insights', '__ghost_large_folders__', '[ Large Folders (>15) ]', buildLargeFolderScopeLinks(activeLinks), 'large_folders', 'large_folders');
 
         // Library Stats
         topGenres.forEach(tg => {
             const id = `__ghost_genre_${tg.genre.replace(/[^a-zA-Z0-9]/g, '_')}__`;
             const name = `[ Genre: ${tg.genre} ]`;
-            addGhost('insights', id, name, tg.links, 'library_stats');
+            addGhost('insights', id, name, tg.links, 'library_stats', tg.genre);
         });
 
+        const derivedExpansionRoots = [];
         if (derivedDimensionDefinitions.some((definition) => isGhostEnabled(definition.key))) {
-            addDerivedChildren(ghostCategories.indexes.id, activeLinks, [], 0);
+            derivedExpansionRoots.push({
+                id: ghostCategories.indexes.id,
+                links: activeLinks,
+                chain: [],
+                depth: 0
+            });
         }
+
+        rootRecursiveTasks.forEach((task) => {
+            derivedExpansionRoots.push({
+                id: task.id,
+                links: task.links,
+                chain: task.chain,
+                depth: 1
+            });
+        });
+
+        expandDerivedScopesBreadthFirst(derivedExpansionRoots);
 
         let anyMasterEnabled = false;
         Object.values(ghostCategories).forEach(cat => {
@@ -1460,7 +1675,8 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
                     name: cat.name,
                     parentId: masterGhostId,
                     isGhost: true,
-                    _ghostLinks: []
+                    _ghostLinks: [],
+                    _ghostScopeRootId: activeRealFolderId || null
                 });
             }
         });
@@ -1469,10 +1685,11 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
             ghostFolders.unshift({
                 id: masterGhostId,
                 name: '[ System Views ]',
-                parentId: null,
+                parentId: activeRealFolderId || null,
                 isGhost: true,
                 isMasterGhost: true,
-                _ghostLinks: []
+                _ghostLinks: [],
+                _ghostScopeRootId: activeRealFolderId || null
             });
             ghostFolders.push(...activeSubGhosts);
         }
@@ -1499,56 +1716,6 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
             }
             rootLinks.push(link);
         });
-
-        // Compute Large Folders AFTER regular folder links are populated
-        if (isGhostEnabled('large_folders')) {
-            const largeFoldersLinks = [];
-            folderLinks.forEach((links, fid) => {
-                if (links.length > 15 && !nodeMap.get(fid)?.isGhost) {
-                    largeFoldersLinks.push(...links);
-                }
-            });
-            if (largeFoldersLinks.length > 0) {
-                const id = '__ghost_large_folders__';
-                const parentId = ghostCategories['insights'].id;
-
-                // If insights wasn't already added to the tree, we need to add it now
-                if (!ghostCategories['insights']._hasActiveChildren) {
-                    scopedNodes.push({
-                        id: parentId,
-                        name: ghostCategories['insights'].name,
-                        parentId: masterGhostId,
-                        isGhost: true,
-                        _ghostLinks: []
-                    });
-                    if (!anyMasterEnabled) {
-                        scopedNodes.unshift({
-                            id: masterGhostId,
-                            name: '[ System Views ]',
-                            parentId: null,
-                            isGhost: true,
-                            isMasterGhost: true,
-                            _ghostLinks: []
-                        });
-                    }
-                    nodeMap.set(parentId, scopedNodes[scopedNodes.length - 1]);
-                    childrenMap.set(masterGhostId, [...(childrenMap.get(masterGhostId) || []), scopedNodes[scopedNodes.length - 1]]);
-                }
-
-                const largeGhostNode = {
-                    id: id,
-                    name: '[ Large Folders (>15) ]',
-                    parentId: parentId,
-                    isGhost: true,
-                    _ghostLinks: largeFoldersLinks
-                };
-
-                scopedNodes.push(largeGhostNode);
-                nodeMap.set(id, largeGhostNode);
-                folderLinks.set(id, largeFoldersLinks);
-                childrenMap.set(parentId, [...(childrenMap.get(parentId) || []), largeGhostNode]);
-            }
-        }
 
         return {
             nodes: scopedNodes,

@@ -17,6 +17,32 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
             .replace(/'/g, "\\'");
     }
 
+    function buildScopedFolderViewKey(workspaceId, categoryName) {
+        return `${String(workspaceId || 'main').trim() || 'main'}::${String(categoryName || '').trim() || 'Unsorted'}`;
+    }
+
+    function cloneGhostFilterChain(chain) {
+        if (!Array.isArray(chain)) return null;
+        const normalized = chain
+            .map((item) => ({
+                dimension: String(item?.dimension || '').trim(),
+                valueKey: String(item?.valueKey || '').trim().toLowerCase(),
+                label: String(item?.label || '').trim()
+            }))
+            .filter((item) => item.dimension && item.valueKey);
+        return normalized.length ? normalized : null;
+    }
+
+    window.EveFolderViewV2._viewModelCache = window.EveFolderViewV2._viewModelCache || {};
+
+    window.EveFolderViewV2.setCachedViewModel = function(workspaceId, categoryName, viewModel) {
+        window.EveFolderViewV2._viewModelCache[buildScopedFolderViewKey(workspaceId, categoryName)] = viewModel || null;
+    };
+
+    window.EveFolderViewV2.getCachedViewModel = function(workspaceId, categoryName) {
+        return window.EveFolderViewV2._viewModelCache[buildScopedFolderViewKey(workspaceId, categoryName)] || null;
+    };
+
     // State Management
     window.EveFolderViewV2.isManhwaModeEnabled = function(workspaceId, categoryName) {
         if (!window.eveState?.config) return true;
@@ -64,19 +90,43 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         if (window.eveState.config.activeManhwaFolders) {
             delete window.eveState.config.activeManhwaFolders[key];
         }
+        if (window.eveState.config.activeManhwaFolderChains) {
+            delete window.eveState.config.activeManhwaFolderChains[key];
+        }
+        if (window.eveState.config.activeManhwaScopeRoots) {
+            delete window.eveState.config.activeManhwaScopeRoots[key];
+        }
 
         if (typeof window.saveConfig === 'function') window.saveConfig();
         if (typeof window.renderDashboard === 'function') window.renderDashboard();
     };
 
-    window.EveFolderViewV2.saveActiveFolderState = function(workspaceId, categoryName, folderId) {
+    window.EveFolderViewV2.saveActiveFolderState = function(workspaceId, categoryName, folderId, ghostChain, scopeRootId) {
         if (!window.eveState?.config) return;
         if (!window.eveState.config.activeManhwaFolders) window.eveState.config.activeManhwaFolders = {};
+        if (!window.eveState.config.activeManhwaFolderChains || typeof window.eveState.config.activeManhwaFolderChains !== 'object') {
+            window.eveState.config.activeManhwaFolderChains = {};
+        }
+        if (!window.eveState.config.activeManhwaScopeRoots || typeof window.eveState.config.activeManhwaScopeRoots !== 'object') {
+            window.eveState.config.activeManhwaScopeRoots = {};
+        }
         const key = `${workspaceId}::${categoryName}`;
         if (folderId) {
             window.eveState.config.activeManhwaFolders[key] = folderId;
         } else {
             delete window.eveState.config.activeManhwaFolders[key];
+        }
+        const normalizedChain = cloneGhostFilterChain(ghostChain);
+        if (normalizedChain) {
+            window.eveState.config.activeManhwaFolderChains[key] = normalizedChain;
+        } else {
+            delete window.eveState.config.activeManhwaFolderChains[key];
+        }
+        const normalizedScopeRootId = scopeRootId ? String(scopeRootId).trim() : '';
+        if (normalizedScopeRootId) {
+            window.eveState.config.activeManhwaScopeRoots[key] = normalizedScopeRootId;
+        } else {
+            delete window.eveState.config.activeManhwaScopeRoots[key];
         }
         if (typeof window.saveConfig === 'function') window.saveConfig();
     };
@@ -250,7 +300,18 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         const card = document.querySelector(`.category-card[data-card-category="${escapeCardHtml(categoryName)}"][data-card-workspace="${escapeCardHtml(workspaceId)}"]`);
         if (!card) return;
 
-        window.EveFolderViewV2.saveActiveFolderState(workspaceId, categoryName, folderId);
+        const cachedViewModel = window.EveFolderViewV2.getCachedViewModel(workspaceId, categoryName);
+        const cachedTargetNode = cachedViewModel?.nodes?.find((node) => String(node?.id || '') === String(folderId || ''));
+        const scopeRootId = cachedTargetNode?.isGhost
+            ? (cachedTargetNode?._ghostScopeRootId || window.eveState?.config?.activeManhwaScopeRoots?.[`${workspaceId}::${categoryName}`] || null)
+            : folderId;
+        window.EveFolderViewV2.saveActiveFolderState(
+            workspaceId,
+            categoryName,
+            folderId,
+            cloneGhostFilterChain(cachedTargetNode?._ghostFilterChain),
+            scopeRootId
+        );
 
         const folderApi = window.EveBookmarkFolders;
         if (!folderApi || !folderApi.buildFolderView) return;
@@ -258,6 +319,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         // Ensure we have access to the links for this category
         const catLinks = window.getModalLinks ? window.getModalLinks().filter(l => l.workspace === workspaceId && l.category === categoryName) : [];
         const viewModel = folderApi.buildFolderView(workspaceId, categoryName, catLinks);
+        window.EveFolderViewV2.setCachedViewModel(workspaceId, categoryName, viewModel);
 
         // Build breadcrumb trail dynamically
         let trail = [{ label: categoryName.toLowerCase(), id: null }];
@@ -436,15 +498,34 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
             event.stopPropagation();
         }
 
-        const card = document.querySelector(`.category-card[data-card-category="${escapeCardHtml(categoryName)}"][data-card-workspace="${escapeCardHtml(workspaceId)}"]`);
-        if (!card || !card.dataset.mode1Html) return;
+        window.EveFolderViewV2.saveActiveFolderState(workspaceId, categoryName, null, null, null);
 
-        window.EveFolderViewV2.saveActiveFolderState(workspaceId, categoryName, null);
+        const card = document.querySelector(`.category-card[data-card-category="${escapeCardHtml(categoryName)}"][data-card-workspace="${escapeCardHtml(workspaceId)}"]`);
+        if (!card) {
+            if (typeof window.renderDashboard === 'function') window.renderDashboard();
+            return;
+        }
+        if (!card.dataset.mode1Html) {
+            if (typeof window.renderDashboard === 'function') window.renderDashboard();
+            return;
+        }
 
         const v2Container = card.querySelector('.v2-folder-container');
         if (v2Container) {
             v2Container.outerHTML = card.dataset.mode1Html;
             delete card.dataset.mode1Html;
+        }
+
+        const folderApi = window.EveBookmarkFolders;
+        if (folderApi && typeof folderApi.buildFolderView === 'function') {
+            const catLinks = window.getModalLinks
+                ? window.getModalLinks().filter((link) => link.workspace === workspaceId && link.category === categoryName)
+                : [];
+            window.EveFolderViewV2.setCachedViewModel(
+                workspaceId,
+                categoryName,
+                folderApi.buildFolderView(workspaceId, categoryName, catLinks)
+            );
         }
     };
 })();
