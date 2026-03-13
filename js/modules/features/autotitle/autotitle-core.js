@@ -60,12 +60,29 @@ window.getTitleFromUrl = async function (url) {
             description: candidateResult.description || primaryResult.description || null,
             source: candidateResult.source || primaryResult.source,
             isFallback: !!(primaryResult.isFallback || candidateResult.isFallback),
-            isMicrolinkFallback: !!(primaryResult.isMicrolinkFallback || candidateResult.isMicrolinkFallback)
+            isMicrolinkFallback: !!(primaryResult.isMicrolinkFallback || candidateResult.isMicrolinkFallback),
+            isAdvancedScrape: !!(primaryResult.isAdvancedScrape || candidateResult.isAdvancedScrape)
+        };
+    }
+
+    function mergeAutotitleMetadata(primaryResult, candidateResult) {
+        if (!candidateResult) return primaryResult;
+        if (!primaryResult) return { ...candidateResult };
+        return {
+            ...primaryResult,
+            icon: primaryResult.icon || candidateResult.icon || null,
+            coverUrl: primaryResult.coverUrl || candidateResult.coverUrl || null,
+            description: primaryResult.description || candidateResult.description || null,
+            isFallback: !!(primaryResult.isFallback || candidateResult.isFallback),
+            isMicrolinkFallback: !!(primaryResult.isMicrolinkFallback || candidateResult.isMicrolinkFallback),
+            isAdvancedScrape: !!(primaryResult.isAdvancedScrape || candidateResult.isAdvancedScrape)
         };
     }
 
     function adoptAutotitleTitle(primaryResult, candidateResult) {
-        if (!candidateResult?.title) return mergeAutotitleResult(primaryResult, candidateResult);
+        if (!candidateResult?.title || candidateResult.title === "CLOUDFLARE_BLOCK") {
+            return mergeAutotitleMetadata(primaryResult, candidateResult);
+        }
         return {
             ...mergeAutotitleResult(primaryResult, candidateResult),
             title: candidateResult.title
@@ -73,8 +90,8 @@ window.getTitleFromUrl = async function (url) {
     }
 
     function isClearlyBetterTitle(candidateResult, primaryResult, url) {
-        if (!candidateResult?.title) return false;
-        if (!primaryResult?.title) return true;
+        if (!candidateResult?.title || candidateResult.title === "CLOUDFLARE_BLOCK") return false;
+        if (!primaryResult?.title || primaryResult.title === "CLOUDFLARE_BLOCK") return true;
         if (looksLikeGenericSiteName(primaryResult.title, url) && !looksLikeGenericSiteName(candidateResult.title, url)) {
             return true;
         }
@@ -115,8 +132,8 @@ window.getTitleFromUrl = async function (url) {
                 console.log("Autotitle: CorsProxy returned good title:", corsResult.title);
                 if (!primaryResult || isClearlyBetterTitle(corsResult, primaryResult, url)) {
                     primaryResult = adoptAutotitleTitle(primaryResult, corsResult);
-                } else if (!primaryResult.coverUrl && corsResult.coverUrl) {
-                    primaryResult = mergeAutotitleResult(primaryResult, corsResult);
+                } else {
+                    primaryResult = mergeAutotitleMetadata(primaryResult, corsResult);
                 }
                 if (primaryResult?.coverUrl) {
                     clearTimeout(timeoutId);
@@ -125,12 +142,25 @@ window.getTitleFromUrl = async function (url) {
             }
             if (corsResult && (!primaryResult || isClearlyBetterTitle(corsResult, primaryResult, url))) {
                 primaryResult = adoptAutotitleTitle(primaryResult, corsResult);
-            } else if (corsResult && primaryResult && !primaryResult.coverUrl && corsResult.coverUrl) {
-                primaryResult = mergeAutotitleResult(primaryResult, corsResult);
+            } else if (corsResult) {
+                primaryResult = mergeAutotitleMetadata(primaryResult, corsResult);
             }
         }
 
-        // Strategy 3: MicroLink.io (if not already tried for video sites)
+        // Strategy 3: LinkMeta (Keyless API)
+        if (strats.LinkMeta) {
+            const linkMetaResult = await strats.LinkMeta(url, controller.signal);
+            if (linkMetaResult) {
+                if (!primaryResult || isClearlyBetterTitle(linkMetaResult, primaryResult, url)) {
+                    console.log("Autotitle: LinkMeta returned better title:", linkMetaResult.title);
+                    primaryResult = adoptAutotitleTitle(primaryResult, linkMetaResult);
+                } else {
+                    primaryResult = mergeAutotitleMetadata(primaryResult, linkMetaResult);
+                }
+            }
+        }
+
+        // Strategy 4: MicroLink.io (if not already tried for video sites)
         if (strats.GoogleSearch && !isVideoOrContentSite(url)) {
             console.log("Autotitle: Trying MicroLink for OpenGraph...");
             const microResult = await strats.GoogleSearch(url, controller.signal);
@@ -138,9 +168,26 @@ window.getTitleFromUrl = async function (url) {
                 if (!primaryResult || isClearlyBetterTitle(microResult, primaryResult, url)) {
                     console.log("Autotitle: MicroLink returned better title:", microResult.title);
                     primaryResult = adoptAutotitleTitle(primaryResult, microResult);
-                } else if (!primaryResult.coverUrl && microResult.coverUrl) {
-                    primaryResult = mergeAutotitleResult(primaryResult, microResult);
+                } else {
+                    primaryResult = mergeAutotitleMetadata(primaryResult, microResult);
                 }
+            }
+        }
+
+        // Strategy 5: Advanced Scraper Engine (proxy pool / browser emulator)
+        if (strats.ScraperEngine && (!primaryResult || primaryResult.isFallback || primaryResult.title === "CLOUDFLARE_BLOCK" || looksLikeGenericSiteName(primaryResult.title, url))) {
+            console.log("Autotitle: Trying Advanced Scraper Engine fallback...");
+            try {
+                const scraperResult = await strats.ScraperEngine(url, controller.signal);
+                if (scraperResult) {
+                    if (!primaryResult || isClearlyBetterTitle(scraperResult, primaryResult, url)) {
+                        primaryResult = adoptAutotitleTitle(primaryResult, scraperResult);
+                    } else {
+                        primaryResult = mergeAutotitleMetadata(primaryResult, scraperResult);
+                    }
+                }
+            } catch (e) {
+                console.warn("Autotitle: ScraperEngine strategy failed", e);
             }
         }
 
@@ -151,7 +198,7 @@ window.getTitleFromUrl = async function (url) {
             return primaryResult;
         }
 
-        // Strategy 4: URL Slug Fallback
+        // Strategy 6: URL Slug Fallback
         if (strats.UrlSlug) {
             console.log("Autotitle: Trying UrlSlug fallback...");
             const result = strats.UrlSlug(url);

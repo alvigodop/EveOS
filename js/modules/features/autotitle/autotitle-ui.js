@@ -16,11 +16,20 @@ window.fetchTitle = async function (btn) {
                 showToast("Protected by Cloudflare. Defaulting to URL.", "warning");
             } else {
                 document.getElementById('newTitle').value = data.title;
-                if (data.isFallback) showToast("Proxies blocked. Derived title from URL.", "info");
+                if (data.isFallback) {
+                    showToast("Proxies blocked. Derived title from URL.", "info");
+                } else if (data.isAdvancedScrape) {
+                    showToast("Fetched via Advanced Scraper Hub.", "success");
+                }
 
                 if (data.icon) {
                     const iconInput = document.getElementById('newIcon');
-                    if (iconInput) iconInput.value = data.icon;
+                    if (iconInput) {
+                        const currentIcon = String(iconInput.value || '').trim();
+                        if (!currentIcon || data.icon) {
+                            iconInput.value = data.icon;
+                        }
+                    }
                 }
                 if (data.coverUrl) {
                     const coverInput = document.getElementById('newCoverImage');

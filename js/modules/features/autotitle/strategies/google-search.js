@@ -7,6 +7,34 @@
     window.EveOS.Autotitle = window.EveOS.Autotitle || {};
     window.EveOS.Autotitle.Strategies = window.EveOS.Autotitle.Strategies || {};
 
+    const isValidIconUrl = (iconUrl) => {
+        if (!iconUrl || typeof iconUrl !== 'string') return false;
+        const low = iconUrl.toLowerCase();
+        if (iconUrl.length > 512) return false;
+        if (/ads|track|pixel|metrics|analytics/i.test(iconUrl)) return false;
+        if (/\.(png|ico|jpg|jpeg|svg|webp|avif)(?:\?.*)?$/i.test(low)) return true;
+        if (/^https?:\/\//i.test(low) && !/\.(js|css|html|php|json)$/i.test(low)) return true;
+        return false;
+    };
+
+    const scoreIconUrl = (url) => {
+        if (!url) return 0;
+        const low = url.toLowerCase();
+        let score = 0;
+
+        if (low.includes('favicon')) score += 50;
+        if (low.includes('apple-touch-icon')) score += 40;
+        if (low.includes('logo')) score += 30;
+        if (low.endsWith('.ico') || low.includes('.ico?')) score += 20;
+        if (low.includes('icon')) score += 10;
+
+        if (low.includes('custom') || low.includes('placeholder') || low.includes('default')) score -= 50;
+        if (low.includes('banner') || low.includes('header')) score -= 30;
+        if (/(?:^|\/)(?:images?|assets|static|wp-content|media)\//i.test(low) && score < 10) score -= 10;
+
+        return score;
+    };
+
     /**
      * MicroLink.io API Fallback Strategy
      * 
@@ -47,14 +75,27 @@
 
                     // Note: logo = favicon/site icon, image = content image/thumbnail
                     // These should be kept separate for proper display
-                    return {
+                    const result = {
                         title: metadata.title,
-                        icon: metadata.logo?.url || null,  // Only use logo for favicon
+                        icon: null,
                         coverUrl: metadata.image?.url || null,  // Content image for thumbnails
                         description: metadata.description || null,
                         isMicrolinkFallback: true,
                         source: 'MicroLink'
                     };
+
+                    const logoUrl = metadata.logo?.url || null;
+                    if (logoUrl && isValidIconUrl(logoUrl)) {
+                        const score = scoreIconUrl(logoUrl);
+                        if (score >= -10) {
+                            console.info(`MicroLink strategy: Accepted icon ${logoUrl} (score ${score})`);
+                            result.icon = logoUrl;
+                        } else {
+                            console.info(`MicroLink strategy: Rejected icon ${logoUrl} (score ${score})`);
+                        }
+                    }
+
+                    return result;
                 }
             }
 
