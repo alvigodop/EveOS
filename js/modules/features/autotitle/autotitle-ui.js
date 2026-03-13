@@ -20,7 +20,13 @@ window.fetchTitle = async function (btn) {
 
                 if (data.icon) {
                     const iconInput = document.getElementById('newIcon');
-                    if (iconInput) iconInput.value = data.icon;
+                    if (iconInput) {
+                        const currentIcon = String(iconInput.value || '').trim();
+                        // Only overwrite if it's currently empty, OR if we actually got something new
+                        if (!currentIcon || data.icon) {
+                             iconInput.value = data.icon;
+                        }
+                    }
                 }
                 if (data.coverUrl) {
                     const coverInput = document.getElementById('newCoverImage');

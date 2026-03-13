@@ -30,18 +30,37 @@
         return match && match[1] ? match[1] : null;
     };
 
-    const extractIcon = (html, baseUrl) => {
-        const match = html.match(/<link[^>]+rel=["'](?:shortcut )?icon["'][^>]+href=["']([^"']+)["']/i);
-        if (match && match[1]) {
-            let iconUrl = match[1];
-            if (!iconUrl.startsWith('http')) {
-                try {
-                    iconUrl = new URL(iconUrl, baseUrl).href;
-                } catch (e) { return null; }
-            }
-            return iconUrl;
-        }
-        return null;
+    const isValidIconUrl = (iconUrl) => {
+        if (!iconUrl || typeof iconUrl !== 'string') return false;
+        const low = iconUrl.toLowerCase();
+        if (iconUrl.length > 512) return false;
+        if (/ads|track|pixel|metrics|analytics/i.test(iconUrl)) return false;
+        if (/\.(png|ico|jpg|jpeg|svg|webp|avif)(?:\?.*)?$/i.test(low)) return true;
+        if (/^https?:\/\//i.test(low) && !/\.(js|css|html|php|json)$/i.test(low)) return true;
+        if (iconUrl.startsWith('/') && !/\.(js|css|html|php|json)$/i.test(low)) return true;
+        return false;
+    };
+
+    const scoreIconUrl = (url) => {
+        if (!url) return 0;
+        const low = url.toLowerCase();
+        let score = 0;
+
+        // Positive signals
+        if (low.includes('favicon')) score += 50;
+        if (low.includes('apple-touch-icon')) score += 40;
+        if (low.includes('logo')) score += 30;
+        if (low.endsWith('.ico') || low.includes('.ico?')) score += 20;
+        if (low.includes('icon')) score += 10;
+
+        // Negative signals - Aggressive detection for junk/generic assets
+        if (low.includes('custom') || low.includes('placeholder') || low.includes('default')) score -= 50;
+        if (low.includes('banner') || low.includes('header') || low.includes('bg-')) score -= 30;
+        
+        // Generic path penalty (e.g., /images/something.png without any keywords)
+        if (/(?:^|\/)(?:images?|assets|static|wp-content|media)\//i.test(low) && score < 10) score -= 30;
+
+        return score;
     };
 
     const resolveAssetUrl = (assetUrl, baseUrl) => {
@@ -51,6 +70,41 @@
         } catch (e) {
             return null;
         }
+    };
+
+    const extractIcon = (html, baseUrl) => {
+        const iconPattern = /<link[^>]+rel=["'](?:shortcut |apple-touch-)?icon["'][^>]+href=["']([^"']+)["']/gi;
+        const altPattern = /<link[^>]+href=["']([^"']+)["'][^>]+rel=["'](?:shortcut |apple-touch-)?icon["']/gi;
+        
+        let match;
+        const candidates = [];
+
+        while ((match = iconPattern.exec(html)) !== null) if (match[1]) candidates.push(match[1]);
+        while ((match = altPattern.exec(html)) !== null) if (match[1]) candidates.push(match[1]);
+
+        if (candidates.length === 0) return null;
+
+        const scored = candidates
+            .map(raw => {
+                const resolved = resolveAssetUrl(raw, baseUrl);
+                return { url: resolved, score: scoreIconUrl(resolved) };
+            })
+            .filter(c => c.url && isValidIconUrl(c.url))
+            .sort((a, b) => b.score - a.score);
+
+        if (scored.length > 0) {
+            const best = scored[0];
+            // Confidence threshold: discard if the best score is too low
+            // This allows the high-quality Google Favicon fallback to take over
+            if (best.score >= 15) {
+                console.log(`Autotitle: Selected icon ${best.url} (Score: ${best.score})`);
+                return best.url;
+            } else {
+                console.log(`Autotitle: Best icon candidate score too low (${best.score}), favoring fallback.`);
+            }
+        }
+
+        return null;
     };
 
     const extractCover = (html, baseUrl) => {
@@ -78,7 +132,7 @@
                 const queue = Array.isArray(parsed) ? parsed : [parsed];
                 while (queue.length) {
                     const current = queue.shift();
-                    if (!current || typeof current !== 'object') continue;
+                    if (!current || typeof current !== 'object') current;
                     const imageValue = current.image;
                     if (typeof imageValue === 'string') {
                         const resolved = resolveAssetUrl(imageValue, baseUrl);
@@ -104,9 +158,7 @@
                         if (value && typeof value === 'object') queue.push(value);
                     });
                 }
-            } catch (e) {
-                // Ignore malformed JSON-LD blocks.
-            }
+            } catch (e) { }
         }
         return null;
     };
@@ -125,6 +177,6 @@
         } catch (e) {
             console.warn("AllOrigins failed", e);
         }
-        return null; // Continue to next strategy
+        return null;
     };
 })();
