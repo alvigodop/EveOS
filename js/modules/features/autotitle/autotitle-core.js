@@ -65,7 +65,7 @@ window.getTitleFromUrl = async function (url) {
     }
 
     function adoptAutotitleTitle(primaryResult, candidateResult) {
-        if (!candidateResult?.title) return mergeAutotitleResult(primaryResult, candidateResult);
+        if (!candidateResult?.title || candidateResult.title === "CLOUDFLARE_BLOCK") return mergeAutotitleResult(primaryResult, candidateResult);
         return {
             ...mergeAutotitleResult(primaryResult, candidateResult),
             title: candidateResult.title
@@ -73,8 +73,9 @@ window.getTitleFromUrl = async function (url) {
     }
 
     function isClearlyBetterTitle(candidateResult, primaryResult, url) {
-        if (!candidateResult?.title) return false;
-        if (!primaryResult?.title) return true;
+        if (!candidateResult?.title || candidateResult.title === "CLOUDFLARE_BLOCK") return false;
+        if (!primaryResult?.title || primaryResult.title === "CLOUDFLARE_BLOCK") return true;
+        
         if (looksLikeGenericSiteName(primaryResult.title, url) && !looksLikeGenericSiteName(candidateResult.title, url)) {
             return true;
         }
@@ -130,7 +131,20 @@ window.getTitleFromUrl = async function (url) {
             }
         }
 
-        // Strategy 3: MicroLink.io (if not already tried for video sites)
+        // Strategy 3: LinkMeta (Keyless API)
+        if (strats.LinkMeta) {
+            const linkMetaResult = await strats.LinkMeta(url, controller.signal);
+            if (linkMetaResult && linkMetaResult.title) {
+                if (!primaryResult || isClearlyBetterTitle(linkMetaResult, primaryResult, url)) {
+                    console.log("Autotitle: LinkMeta returned better title:", linkMetaResult.title);
+                    primaryResult = adoptAutotitleTitle(primaryResult, linkMetaResult);
+                } else if (!primaryResult.coverUrl && linkMetaResult.coverUrl) {
+                    primaryResult = mergeAutotitleResult(primaryResult, linkMetaResult);
+                }
+            }
+        }
+
+        // Strategy 4: MicroLink.io (if not already tried for video sites)
         if (strats.GoogleSearch && !isVideoOrContentSite(url)) {
             console.log("Autotitle: Trying MicroLink for OpenGraph...");
             const microResult = await strats.GoogleSearch(url, controller.signal);
@@ -141,6 +155,21 @@ window.getTitleFromUrl = async function (url) {
                 } else if (!primaryResult.coverUrl && microResult.coverUrl) {
                     primaryResult = mergeAutotitleResult(primaryResult, microResult);
                 }
+            }
+        }
+
+        // Strategy 5: Advanced Scraper Engine (CORS Proxy Pool & Browser Emulator)
+        if (strats.ScraperEngine && (!primaryResult || primaryResult.isFallback || primaryResult.title === "CLOUDFLARE_BLOCK" || looksLikeGenericSiteName(primaryResult.title, url))) {
+            console.log("Autotitle: Trying Advanced Scraper Engine fallback...");
+            try {
+                const scraperResult = await strats.ScraperEngine(url, controller.signal);
+                if (scraperResult && scraperResult.title) {
+                    if (!primaryResult || isClearlyBetterTitle(scraperResult, primaryResult, url)) {
+                        primaryResult = adoptAutotitleTitle(primaryResult, scraperResult);
+                    }
+                }
+            } catch (e) {
+                console.warn("Autotitle: ScraperEngine strategy failed", e);
             }
         }
 

@@ -16,7 +16,11 @@ window.fetchTitle = async function (btn) {
                 showToast("Protected by Cloudflare. Defaulting to URL.", "warning");
             } else {
                 document.getElementById('newTitle').value = data.title;
-                if (data.isFallback) showToast("Proxies blocked. Derived title from URL.", "info");
+                if (data.isFallback) {
+                    showToast("Proxies blocked. Derived title from URL.", "info");
+                } else if (data.isAdvancedScrape) {
+                    showToast("Fetched via Advanced Scraper Hub.", "success");
+                }
 
                 if (data.icon) {
                     const iconInput = document.getElementById('newIcon');
