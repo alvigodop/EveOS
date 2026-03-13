@@ -114,9 +114,17 @@ window.DashboardCategoriesModules = window.DashboardCategoriesModules || {};
         const visualHtml = safeCoverUrl
             ? '<div class="unidex-entry-cover-slot">'
                 + '<img class="unidex-entry-cover" src="' + safeCoverUrl + '" alt="' + safeTitle + ' cover" loading="lazy" decoding="async" referrerpolicy="no-referrer">'
+                + '<div class="unidex-entry-icon-overlay" style="position: absolute; bottom: 8px; right: 8px; z-index: 2; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.45); backdrop-filter: blur(4px); border-radius: 4px; border: 1px solid rgba(255, 255, 255, 0.2); pointer-events: none;">'
+                    + buildBookmarkIconHtml(link, safeTitle)
+                + '</div>'
             + '</div>'
             : (isLibraryLinked
-                ? '<div class="unidex-entry-cover-slot"><div class="unidex-entry-cover-fallback">&#128218;</div></div>'
+                ? '<div class="unidex-entry-cover-slot">'
+                    + '<div class="unidex-entry-cover-fallback">&#128218;</div>'
+                    + '<div class="unidex-entry-icon-overlay" style="position: absolute; bottom: 8px; right: 8px; z-index: 2; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.45); backdrop-filter: blur(4px); border-radius: 4px; border: 1px solid rgba(255, 255, 255, 0.2); pointer-events: none;">'
+                        + buildBookmarkIconHtml(link, safeTitle)
+                    + '</div>'
+                + '</div>'
                 : '<div class="unidex-entry-cover-slot is-bookmark-only"><div class="unidex-entry-bookmark-icon-wrap">'
                     + buildBookmarkIconHtml(link, safeTitle)
                 + '</div></div>');
