@@ -20,7 +20,7 @@ window.EveLibrary.BulkAutoModules = window.EveLibrary.BulkAutoModules || {};
         }
 
         function inferMediaTypes(sources, fallbackTypes) {
-            const set = new Set();
+            const set = new Set(Array.isArray(fallbackTypes) ? fallbackTypes : []);
             (Array.isArray(sources) ? sources : []).forEach(source => {
                 const mediaType = String(source?.mediaType || '').toLowerCase();
                 if (!mediaType) return;
@@ -43,8 +43,7 @@ window.EveLibrary.BulkAutoModules = window.EveLibrary.BulkAutoModules || {};
             });
 
             if (!set.size) {
-                (Array.isArray(fallbackTypes) && fallbackTypes.length ? fallbackTypes : ['graphicNovels'])
-                    .forEach(type => set.add(type));
+                set.add('graphicNovels');
             }
             return Array.from(set);
         }

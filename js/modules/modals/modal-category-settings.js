@@ -56,7 +56,8 @@ window.categoryFolderActionExpansion = window.categoryFolderActionExpansion || {
         { id: 'folders', label: '📁 Folders' },
         { id: 'library', label: '📚 Library' },
         { id: 'focus', label: '🎯 Focus' },
-        { id: 'launch', label: '🚀 Launch' }
+        { id: 'launch', label: '🚀 Launch' },
+        { id: 'constellation', label: '🌌 Constellation Map' }
     ];
 
     function getFolderDraft() {
@@ -346,8 +347,112 @@ window.categoryFolderActionExpansion = window.categoryFolderActionExpansion || {
             ? pinApi.filterPinsForCard(workspaceId, categoryName).filter((pin) => pin?.targetType === 'bookmark').length
             : 0;
 
+        const isManhwaMode = window.EveFolderViewV2 && window.EveFolderViewV2.isManhwaModeEnabled(workspaceId, categoryName);
+        const manhwaModeHtml = window.EveFolderViewV2 ? `
+            <div style="padding:10px 12px; border:1px solid rgba(255,255,255,0.08); border-radius:10px; background:rgba(255,255,255,0.02); margin-bottom:12px;">
+                <div style="display:flex; gap:10px; justify-content:space-between; align-items:center; flex-wrap:wrap;">
+                    <div style="display:flex; flex-direction:column; gap:4px; min-width:0;">
+                        <div style="font-weight:600;">Folder View Mode</div>
+                        <div style="font-size:0.84rem; opacity:0.76;">Switch between standard Tree View and Navigation View (Manhwa System Interface)</div>
+                    </div>
+                    <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                        <input type="checkbox" onchange="window.EveFolderViewV2.toggleManhwaMode('${escapeCategorySettingsJs(workspaceId)}', '${safeCategoryJs}'); window.renderCategoryFolderManager();" ${isManhwaMode ? 'checked' : ''}>
+                        <span style="font-size:0.85rem;">Enable Manhwa View</span>
+                    </label>
+                </div>
+            </div>
+        ` : '';
+
+        const ghostFoldersHtml = window.EveFolderViewV2 ? (() => {
+            const sections = [
+                {
+                    title: "Link Health (Semantic Drift)",
+                    types: [
+                        { id: 'dead_links', label: '[ Dead Links ]' },
+                        { id: 'redirected_links', label: '[ Redirected Links ]' },
+                        { id: 'title_drift', label: '[ Title Drift ]' },
+                        { id: 'orphaned_lib', label: '[ Orphaned Library Entries ]' }
+                    ]
+                },
+                {
+                    title: "Reading Status",
+                    types: [
+                        { id: 'unread', label: '[ Plan to Read / Unread ]' },
+                        { id: 'reading', label: '[ Actively Reading ]' },
+                        { id: 'completed', label: '[ Completed ]' },
+                        { id: 'on_hold', label: '[ On Hold ]' },
+                        { id: 'dropped', label: '[ Dropped ]' }
+                    ]
+                },
+                {
+                    title: "Maintenance",
+                    types: [
+                        { id: 'unlinked', label: '[ Unlinked Bookmarks ]' },
+                        { id: 'missing_covers', label: '[ Missing Covers ]' },
+                        { id: 'untagged', label: '[ Untagged ]' },
+                        { id: 'no_title', label: '[ No Title ]' },
+                        { id: 'needs_review', label: '[ Needs Review ]' },
+                        { id: 'missing_notes', label: '[ Missing Notes ]' },
+                        { id: 'broken_links', label: '[ Broken / Invalid Links ]' }
+                    ]
+                },
+                {
+                    title: "Activity",
+                    types: [
+                        { id: 'recent', label: '[ Recently Updated ]' },
+                        { id: 'recently_visited', label: '[ Recently Visited ]' },
+                        { id: 'stale', label: '[ Stale Bookmarks ]' }
+                    ]
+                },
+                {
+                    title: "Insights",
+                    types: [
+                        { id: 'top_rated', label: '[ Top Rated ]' },
+                        { id: 'duplicate_suspects', label: '[ Duplicate Suspects ]' },
+                        { id: 'large_folders', label: '[ Large Folders (>15) ]' },
+                        { id: 'ancients', label: '[ The Ancients ]' }
+                    ]
+                }
+            ];
+
+            let html = `
+            <div style="padding:10px 12px; border:1px solid rgba(255,255,255,0.08); border-radius:10px; background:rgba(255,255,255,0.02); margin-bottom:12px;">
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div style="display:flex; flex-direction:column; gap:4px;">
+                            <div style="font-weight:600;">Smart Ghost Folders</div>
+                            <div style="font-size:0.84rem; opacity:0.76;">Toggle which auto-generated views appear inside [ System Views ].</div>
+                        </div>
+                        <button class="btn-primary" onclick="if(window.EveSemanticDrift) { window.EveSemanticDrift.forceRefreshScan(); }" style="font-size: 0.7rem; padding: 4px 8px;">Refresh Drift Scan</button>
+                    </div>
+            `;
+
+            sections.forEach(section => {
+                html += `
+                    <div style="margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 8px;">
+                        <div style="font-size: 0.8rem; color: #aaa; margin-bottom: 6px; font-weight: bold;">${section.title}</div>
+                        <div style="display:flex; flex-wrap:wrap; gap:12px;">
+                `;
+                section.types.forEach(t => {
+                    const isEnabled = window.EveFolderViewV2.isGhostFolderEnabled(workspaceId, categoryName, t.id);
+                    html += `
+                        <label style="display:flex; align-items:center; gap:8px; cursor:pointer; min-width: 180px;">
+                            <input type="checkbox" onchange="window.EveFolderViewV2.toggleGhostFolder('${escapeCategorySettingsJs(workspaceId)}', '${safeCategoryJs}', '${t.id}'); window.renderCategoryFolderManager();" ${isEnabled ? 'checked' : ''}>
+                            <span style="font-size:0.85rem;">${t.label}</span>
+                        </label>
+                    `;
+                });
+                html += `</div></div>`;
+            });
+
+            html += `</div></div>`;
+            return html;
+        })() : '';
+
         container.innerHTML = ''
-            + '<div style="padding:10px 12px; border:1px solid rgba(255,255,255,0.08); border-radius:10px; background:rgba(255,255,255,0.02);">'
+            + manhwaModeHtml
+            + ghostFoldersHtml
+            + '<div style="padding:10px 12px; border:1px solid rgba(255,255,255,0.08); border-radius:10px; background:rgba(255,255,255,0.02); margin-bottom:12px;">'
                 + '<div style="display:flex; gap:10px; justify-content:space-between; align-items:flex-start; flex-wrap:wrap;">'
                     + '<div style="display:flex; flex-direction:column; gap:4px; min-width:0;">'
                         + '<div style="font-weight:600; margin-bottom:4px;">Root bookmarks</div>'

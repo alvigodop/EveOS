@@ -38,16 +38,16 @@ window.EveSettingsDuplicateSensor = window.EveSettingsDuplicateSensor || {};
 
     function getDefaultMessage(panelKey) {
         switch (String(panelKey || '').toLowerCase()) {
-        case 'full':
-            return 'Run a duplicate scan across all tabs.';
-        case 'workspace':
-            return 'Run a duplicate scan inside the selected tab.';
-        case 'card':
-            return 'Run a duplicate scan inside the selected card.';
-        case 'folder':
-            return 'Run a duplicate scan inside the selected folder subtree.';
-        default:
-            return 'Run a duplicate scan.';
+            case 'full':
+                return 'Run a duplicate scan across all tabs.';
+            case 'workspace':
+                return 'Run a duplicate scan inside the selected tab.';
+            case 'card':
+                return 'Run a duplicate scan inside the selected card.';
+            case 'folder':
+                return 'Run a duplicate scan inside the selected folder subtree.';
+            default:
+                return 'Run a duplicate scan.';
         }
     }
 
@@ -67,15 +67,15 @@ window.EveSettingsDuplicateSensor = window.EveSettingsDuplicateSensor || {};
 
     function scopeLabel(scope) {
         switch (String(scope || '').toLowerCase()) {
-        case 'folder':
-            return 'Same Folder';
-        case 'workspace':
-            return 'Same Tab';
-        case 'all_tabs':
-            return 'Across Tabs';
-        case 'card':
-        default:
-            return 'Same Card';
+            case 'folder':
+                return 'Same Folder';
+            case 'workspace':
+                return 'Same Tab';
+            case 'all_tabs':
+                return 'Across Tabs';
+            case 'card':
+            default:
+                return 'Same Card';
         }
     }
 
@@ -119,9 +119,41 @@ window.EveSettingsDuplicateSensor = window.EveSettingsDuplicateSensor || {};
                         </div>
                     `).join('')}
                 </div>
+                <div style="margin-top:10px; display:flex; justify-content:flex-end;">
+                    <button class="btn-primary btn-backup" style="padding:4px 12px; font-size:0.8rem;" onclick="mergeDuplicateSensorGroup('${escapeHtml(JSON.stringify(group.items.map(i => i.linkId)))}', '${panelKey}')">Merge Duplicates</button>
+                </div>
             </details>
         `).join('');
     }
+
+    window.mergeDuplicateSensorGroup = function (linkIdsStr, panelKey) {
+        try {
+            const linkIds = JSON.parse(linkIdsStr.replace(/&quot;/g, '"'));
+            if (!window.EveDuplicateSensor?.mergeDuplicateGroup) return;
+            const result = window.EveDuplicateSensor.mergeDuplicateGroup(linkIds);
+            if (result) {
+                if (typeof window.showToast === 'function') window.showToast(`Merged ${result.removedIds.length + 1} bookmarks into 1`, 'success');
+
+                // Re-run the active scan automatically
+                const btnMap = {
+                    full: runDuplicateSensorForFullBackup,
+                    workspace: runDuplicateSensorForWorkspace,
+                    card: runDuplicateSensorForCard,
+                    folder: runDuplicateSensorForFolder
+                };
+                if (btnMap[panelKey]) btnMap[panelKey]();
+
+                // Trigger any active UI updates
+                if (typeof window.renderSidebar === 'function') window.renderSidebar();
+                if (typeof window.renderDashboard === 'function') window.renderDashboard();
+            } else {
+                if (typeof window.showToast === 'function') window.showToast('Merge failed. Ensure bookmarks still exist.', 'error');
+            }
+        } catch (error) {
+            console.error('Merge failure:', error);
+            if (typeof window.showToast === 'function') window.showToast('Failed to merge duplicate group.', 'error');
+        }
+    };
 
     function scanAndRender(panelKey, options, unavailableMessage) {
         if (!window.EveDuplicateSensor?.scan) {

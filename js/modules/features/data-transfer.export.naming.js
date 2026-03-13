@@ -62,10 +62,9 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
         function buildWorkspaceFolderName(workspaceId, workspaceName) {
             const rawId = String(workspaceId || 'main').trim() || 'main';
             const rawName = String(workspaceName || workspaceId || 'main').trim() || 'main';
-            const stemSource = rawId || rawName;
-            const stem = compactSlug(stemSource, 'main', 4);
+            const stem = compactSlug(rawName, 'main', 12);
             const hash = shortHashHex(`${rawId}::${rawName}`, 3);
-            return sanitizePathSegment(`${stem}-${hash}`, `${stem}-${hash}`, 8);
+            return sanitizePathSegment(`${stem}-${hash}`, `${stem}-${hash}`, 16);
         }
 
         function buildCardFolderName(categoryName) {

@@ -2,6 +2,7 @@ window.DashboardCategories = window.DashboardCategories || {};
 
 (function () {
     var DEFAULT_CARD_HEADER_BUTTONS = ['add', 'folders', 'library', 'focus', 'launch'];
+    var ALL_CARD_HEADER_BUTTONS = ['add', 'folders', 'library', 'focus', 'launch', 'constellation'];
     window.categoryCardFolderActionExpansion = window.categoryCardFolderActionExpansion || {};
 
     function escapeCardHtml(value) {
@@ -115,7 +116,7 @@ window.DashboardCategories = window.DashboardCategories || {};
     }
 
     function normalizeHeaderButtons(buttonIds) {
-        var allowed = new Set(DEFAULT_CARD_HEADER_BUTTONS);
+        var allowed = new Set(ALL_CARD_HEADER_BUTTONS);
         return Array.from(new Set((Array.isArray(buttonIds) ? buttonIds : []).map(function (entry) {
             return String(entry || '').trim().toLowerCase();
         }).filter(function (entry) {
@@ -154,6 +155,12 @@ window.DashboardCategories = window.DashboardCategories || {};
 
         const workspaceId = String(options.activeWorkspace || window.eveState?.config?.activeWorkspace || 'main').trim() || 'main';
         const viewModel = folderApi.buildFolderView(workspaceId, categoryName, linksForCard);
+
+        // If Manhwa Mode (Navigation View) is active for this card, use the V2 Root Grid instead of the tree.
+        if (window.EveFolderViewV2 && window.EveFolderViewV2.isManhwaModeEnabled(workspaceId, categoryName)) {
+            return window.EveFolderViewV2.renderRootGrid(workspaceId, categoryName, viewModel, renderer);
+        }
+
         const safeCategoryJs = escapeCardJs(categoryName);
         const safeWorkspaceJs = escapeCardJs(workspaceId);
         const toolbarExpanded = !!folderApi.isToolbarExpanded?.(workspaceId, categoryName);
@@ -179,8 +186,11 @@ window.DashboardCategories = window.DashboardCategories || {};
             const actionsExpandedAttr = actionsExpanded ? 'true' : 'false';
             const actionsHiddenAttr = actionsExpanded ? '' : ' hidden';
 
+            const dragStartAttr = `draggable="true" ondragstart="if(typeof window.EveFolderViewV2?.handleFolderDragStart==='function') window.EveFolderViewV2.handleFolderDragStart(event, '${escapeCardJs(node.id)}', '${safeCategoryJs}', '${safeWorkspaceJs}')" ondragend="this.classList.remove('is-dragging')"`;
+
             return ''
-                + `<details class="bookmark-folder-group" open data-bookmark-folder-target-id="${escapeCardHtml(folderTargetId)}" ${buildDropTargetAttributes(node.id)}>`
+                + `<details class="bookmark-folder-group" open data-bookmark-folder-target-id="${escapeCardHtml(folderTargetId)}" ${buildDropTargetAttributes(node.id)} ${dragStartAttr}>`
+
                     + '<summary class="bookmark-folder-summary">'
                         + '<div class="bookmark-folder-summary-copy">'
                             + `<span class="bookmark-folder-title">${escapeCardHtml(node.name)}</span>`
@@ -412,6 +422,9 @@ window.DashboardCategories = window.DashboardCategories || {};
         if (visibleHeaderButtons.has('focus')) {
             nonFocusButtons.push('<button class="card-header-icon-btn" onclick="setFocus(\'' + safeCatJs + '\')" title="Focus">&#127919;</button>');
         }
+        if (visibleHeaderButtons.has('constellation')) {
+            nonFocusButtons.push('<button class="card-header-icon-btn constellation-btn" onclick="if(window.EveConstellationMap) window.EveConstellationMap.openMap();" title="Constellation Map">&#127756;</button>');
+        }
         nonFocusButtons.push('<button class="card-header-icon-btn" onclick="openCategorySettings(\'' + safeCatJs + '\')" title="Settings">&#9881;</button>');
         if (visibleHeaderButtons.has('launch')) {
             nonFocusButtons.push('<button class="card-header-icon-btn launch-btn" data-cat="' + safeCatHtml + '" onclick="launchCategory(this.dataset.cat)" title="Launch">&#128640;</button>');
@@ -482,6 +495,10 @@ window.DashboardCategories = window.DashboardCategories || {};
         card.setAttribute('data-card-workspace', activeWorkspaceId);
 
         gridContainer.appendChild(card);
+
+        if (window.EveFolderViewV2 && window.EveFolderViewV2.restoreActiveFolderState) {
+            window.EveFolderViewV2.restoreActiveFolderState(activeWorkspaceId, cat);
+        }
     };
 
     window.DashboardCategories.getCardHeaderButtonsForCategory = getCardHeaderButtonsForCategory;

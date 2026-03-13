@@ -12,13 +12,33 @@ window.modalTemplate += `
                 <input type="radio" name="bulkMode" id="bulkModeName" value="name">
                 <span>Names Only</span>
             </label>
+            <label style="display:flex; align-items:center; gap:6px; font-size:0.9rem;">
+                <input type="radio" name="bulkMode" id="bulkModeFile" value="file">
+                <span>Files (Smart Extract)</span>
+            </label>
         </div>
         <textarea id="bulkText" style="min-height:150px;" placeholder="One URL per line..."></textarea>
+
+        <div id="bulkFileDropZone" style="display:none; min-height:150px; background:#111; border:2px dashed #444; border-radius:6px; flex-direction:column; align-items:center; justify-content:center; color:#aaa; cursor:pointer; position:relative; text-align:center; padding: 20px; transition: border-color 0.2s, background-color 0.2s;">
+            <div style="font-size:2.5rem; margin-bottom:10px; pointer-events:none;">ÃƒÂ°Ã…Â¸Ã¢â‚¬Å“Ã¢â‚¬Å¾</div>
+            <div id="bulkFileDropText" style="pointer-events:none; font-size:0.95rem;">Click to select or drag & drop .txt files here</div>
+            <input type="file" id="bulkFileInput" multiple accept=".txt" style="position:absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer;">
+        </div>
+
         <div id="bulkModeHint" style="font-size:0.85rem; opacity:0.75; margin:6px 0 10px;">
             URL mode: each line should be a URL.
         </div>
-        <input type="text" id="bulkCategory" placeholder="Category" list="availableCategories">
-        <div style="display:flex; gap:10px; margin-top:10px;">
+
+        <div style="position:relative; margin-top:10px;">
+            <input type="text" id="bulkCategory" placeholder="Select or type a card name" autocomplete="off"
+                onfocus="showCategoryQuickPicker('bulkCategoryQuickPicker', 'bulkCategory')"
+                onclick="showCategoryQuickPicker('bulkCategoryQuickPicker', 'bulkCategory')"
+                oninput="filterCategoryQuickPicker(this.value, 'bulkCategoryQuickPicker', 'bulkCategory')"
+                onblur="handleCategoryQuickPickerBlur('bulkCategoryQuickPicker')">
+            <div id="bulkCategoryQuickPicker" style="display:none; position:absolute; left:0; right:0; bottom:100%; margin-bottom:4px; max-height:180px; overflow-y:auto; border:1px solid #444; border-radius:8px; background:var(--sidebar-bg, #141414); z-index:3205; box-shadow:0 -8px 24px rgba(0,0,0,0.35);"></div>
+        </div>
+
+        <div style="display:flex; gap:10px; margin-top:15px;">
             <button class="btn-primary" onclick="processBulk()">Import</button>
             <button onclick="clearBulkInput()">Clear</button>
             <button onclick="closeModals()">Cancel</button>

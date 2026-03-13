@@ -112,7 +112,7 @@ html[data-native-scheme="light"] {
 }
 
 .bookmark-cover-hover-overlay.is-visible {
-    opacity: 1;
+    opacity: 0.7;
     transform: translateY(0);
 }
 
@@ -298,6 +298,16 @@ li.done {
     text-decoration: line-through;
 }
 
+li.pinned-link {
+    border-color: rgba(0, 212, 255, 0.45);
+    background: rgba(0, 212, 255, 0.03);
+}
+
+html[data-native-scheme="light"] li.pinned-link {
+    border-color: rgba(0, 150, 200, 0.4);
+    background: rgba(0, 150, 200, 0.04);
+}
+
 li.p-high {
     border-left-color: var(--p-high);
 }
@@ -443,7 +453,7 @@ li:hover .actions {
     transition: border-color 0.18s ease, background 0.18s ease;
 }
 
-.bookmark-folder-group + .bookmark-folder-group {
+.bookmark-folder-group+.bookmark-folder-group {
     margin-top: 12px;
 }
 
@@ -536,6 +546,7 @@ li:hover .actions {
 }
 
 @media (max-width: 720px) {
+
     .bookmark-folder-root-header,
     .bookmark-folder-summary {
         flex-direction: column;

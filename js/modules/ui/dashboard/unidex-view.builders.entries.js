@@ -86,7 +86,6 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 if (libraryProgress) libraryChips.push(`<span class="unidex-entry-chip">${libraryProgress}</span>`);
                 if (libraryMediaType) libraryChips.push(`<span class="unidex-entry-chip">${libraryMediaType}</span>`);
                 if (libraryLanguage) libraryChips.push(`<span class="unidex-entry-chip">${libraryLanguage}</span>`);
-                if (confidenceLabelRaw) libraryChips.push(`<span class="unidex-entry-chip">Confidence ${confidenceLabel}</span>`);
                 const libraryDetailHtml = isLibraryLinked
                     ? `
                     <div class="unidex-entry-library-wrap">
@@ -110,6 +109,9 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                     ? `
                     <div class="unidex-entry-cover-slot"${coverSlotStyle}>
                         <img class="unidex-entry-cover" src="${safeCoverUrl}" alt="${safeTitle} cover" loading="lazy" decoding="async" referrerpolicy="no-referrer"${coverImageStyle}>
+                        <div class="unidex-entry-icon-overlay" style="position: absolute; bottom: 8px; right: 8px; z-index: 2; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.45); backdrop-filter: blur(4px); border-radius: 4px; border: 1px solid rgba(255, 255, 255, 0.2); pointer-events: none;">
+                             ${buildBookmarkIconHtml(link, safeTitle)}
+                        </div>
                     </div>
                 `
                     : (isLibraryLinked

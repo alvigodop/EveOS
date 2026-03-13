@@ -2,7 +2,7 @@
 
 EveOS is a modular browser-first workspace with a Python backend. The project combines bookmarks, library metadata, scraper tooling, and Gemini-oriented backend services while keeping features split into focused modules.
 
-Local workspace folder is currently `EveOS-0.3`.
+Local workspace folder is currently `EveOS-0.4`.
 
 ## Architecture Summary
 

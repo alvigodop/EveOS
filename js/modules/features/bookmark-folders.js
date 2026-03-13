@@ -133,10 +133,15 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
     }
 
     function writeStore(nextStore, persist = true) {
+        // Ensure all global refs point to the same object
+        window.bookmarkFolders = nextStore;
         if (typeof bookmarkFolders !== 'undefined') {
             bookmarkFolders = nextStore;
         }
-        window.bookmarkFolders = nextStore;
+        if (window.eveState) {
+            window.eveState.bookmarkFolders = nextStore;
+        }
+
         if (persist && typeof saveData === 'function') {
             saveData();
         }
@@ -193,21 +198,519 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
     }
 
     function buildFolderView(workspaceId, categoryName, cardLinks) {
-        const scopedNodes = getScopedNodes(workspaceId, categoryName);
+        let scopedNodes = getScopedNodes(workspaceId, categoryName);
+
+        // --- Inject Ghost Folders ---
+        const activeLinks = Array.isArray(cardLinks) ? cardLinks : [];
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        const recentTime = sevenDaysAgo.getTime();
+
+        const recentLinks = activeLinks.filter(l => {
+            if (!l.updatedAt) return false;
+            const updatedTime = new Date(l.updatedAt).getTime();
+            return updatedTime >= recentTime;
+        });
+
+        const unlinkedLinks = activeLinks.filter(l => {
+            const isUnlinked = typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function' &&
+                   !window.EveLibrary.ConnectionsAPI.findConnectionByLinkId(l.id);
+            if (!isUnlinked) return false;
+
+            // Exclude root/base domains that act as search engines or primary hubs
+            // e.g. "Google", "Bing" where title is just the site name and URL is just the root or generic search.
+            try {
+                const urlObj = new URL(l.url);
+                const isRootPath = urlObj.pathname === '/' || urlObj.pathname === '';
+
+                // If it's a known generic search engine root or generic hub, skip it
+                const domain = urlObj.hostname.toLowerCase().replace('www.', '');
+                const genericDomains = ['google.com', 'bing.com', 'yahoo.com', 'duckduckgo.com', 'youtube.com', 'reddit.com', 'wikipedia.org'];
+
+                if (genericDomains.includes(domain) && isRootPath) {
+                    return false;
+                }
+
+                // Also optionally exclude if title perfectly matches domain name (basic generic link)
+                if (l.title && l.title.toLowerCase() === domain) {
+                    return false;
+                }
+
+                // Ensure generic video streaming/hub base domains aren't flagged when pointing to specific content
+                // If there's an active path, we assume it's valid content and needs a library link.
+                // However, the user specifically mentioned a "putlocker misfire" where a *linked* site was showing as unlinked.
+                // If `isUnlinked` is true, it means `findConnectionByLinkId` returned false.
+                // This means the item is *truly* unlinked in the database schema.
+                // If putlocker is considered a "usable source" but shouldn't be in the ghost folder, it might be
+                // because it's a generic hub root (like google.com).
+                // Let's explicitly ignore putlocker variants entirely, as the user considers them fully fledged sources
+                // that don't need dedicated library entries to be considered "valid" in their workflow.
+                if (domain.includes('putlocker')) {
+                    return false;
+                }
+
+            } catch(e) {
+                // Invalid URL, keep it in unlinked to be safe
+            }
+
+            return true;
+        });
+
+        const missingIcons = activeLinks.filter(l => !l.icon);
+
+        const missingCovers = activeLinks.filter(l => {
+            let hasCover = !!(l.image || l.cover || l.coverImage || (l.coverImages && l.coverImages.length > 0));
+            if (!hasCover && typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function') {
+                const conn = window.EveLibrary.ConnectionsAPI.findConnectionByLinkId(l.id);
+                if (conn && typeof window.EveLibrary?.EntriesAPI?.getEntryById === 'function') {
+                    const entry = window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, conn.entryId);
+                    if (entry && (entry.coverImage || entry.bannerImage)) {
+                        hasCover = true;
+                    }
+                }
+            }
+            return !hasCover;
+        });
+
+        const urlCounts = {};
+        activeLinks.forEach(l => {
+            try {
+                // Normalize URL for comparison
+                const urlObj = new URL(l.url);
+                urlObj.hash = ''; // ignore hashes
+                const normalized = urlObj.toString();
+                urlCounts[normalized] = (urlCounts[normalized] || 0) + 1;
+            } catch(e) {
+                // Ignore invalid URLs
+            }
+        });
+
+        const duplicateSuspects = activeLinks.filter(l => {
+            try {
+                const urlObj = new URL(l.url);
+                urlObj.hash = '';
+                return urlCounts[urlObj.toString()] > 1;
+            } catch(e) {
+                return false;
+            }
+        });
+
+        const untaggedLinks = activeLinks.filter(l => {
+            // Unsorted/no category or explicitly missing tags if the structure supports it.
+            // Using a simple logic: if it has no tags array or tags is empty
+            return !l.tags || !Array.isArray(l.tags) || l.tags.length === 0;
+        });
+
+        const needsReviewLinks = activeLinks.filter(l => {
+            const conn = typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function' &&
+                   window.EveLibrary.ConnectionsAPI.findConnectionByLinkId(l.id);
+            if (!conn) return false;
+
+            // If it's linked, check if the library entry has missing data like confidence < 5 or missing derivedRatings
+            const entry = typeof window.EveLibrary?.EntriesAPI?.getEntryById === 'function' &&
+                          window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, conn.entryId);
+
+            if (entry) {
+                if (entry.confidence && entry.confidence < 5) return true;
+                if (!entry.derivedRatings || entry.derivedRatings.activeValue === undefined || entry.derivedRatings.activeValue === null) return true;
+            }
+            return false;
+        });
+
+        const unreadLinks = activeLinks.filter(l => {
+            // Checks for some indicator of unread state, like no read count, empty progress, or explicit "unread" flag
+            const conn = typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function' &&
+                   window.EveLibrary.ConnectionsAPI.findConnectionByLinkId(l.id);
+
+            if (conn) {
+                const entry = typeof window.EveLibrary?.EntriesAPI?.getEntryById === 'function' &&
+                              window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, conn.entryId);
+                if (entry && entry.progress !== undefined && entry.progress === 0) return true;
+                if (entry && entry.libraryStatus && entry.libraryStatus.id === 'plan_to_read') return true;
+            }
+            return false;
+        });
+
+        const readingLinks = activeLinks.filter(l => {
+            // Checks for items actively being read
+            const conn = typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function' &&
+                   window.EveLibrary.ConnectionsAPI.findConnectionByLinkId(l.id);
+
+            if (conn) {
+                const entry = typeof window.EveLibrary?.EntriesAPI?.getEntryById === 'function' &&
+                              window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, conn.entryId);
+                if (entry && entry.libraryStatus && entry.libraryStatus.id === 'reading') return true;
+            }
+            return false;
+        });
+
+        const completedLinks = activeLinks.filter(l => {
+            // Checks for items completed
+            const conn = typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function' &&
+                   window.EveLibrary.ConnectionsAPI.findConnectionByLinkId(l.id);
+
+            if (conn) {
+                const entry = typeof window.EveLibrary?.EntriesAPI?.getEntryById === 'function' &&
+                              window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, conn.entryId);
+                if (entry && entry.libraryStatus && entry.libraryStatus.id === 'completed') return true;
+            }
+            return false;
+        });
+
+        const onHoldLinks = activeLinks.filter(l => {
+            const conn = typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function' &&
+                   window.EveLibrary.ConnectionsAPI.findConnectionByLinkId(l.id);
+            if (conn) {
+                const entry = typeof window.EveLibrary?.EntriesAPI?.getEntryById === 'function' &&
+                              window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, conn.entryId);
+                if (entry && entry.libraryStatus && entry.libraryStatus.id === 'on_hold') return true;
+            }
+            return false;
+        });
+
+        const droppedLinks = activeLinks.filter(l => {
+            const conn = typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function' &&
+                   window.EveLibrary.ConnectionsAPI.findConnectionByLinkId(l.id);
+            if (conn) {
+                const entry = typeof window.EveLibrary?.EntriesAPI?.getEntryById === 'function' &&
+                              window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, conn.entryId);
+                if (entry && entry.libraryStatus && entry.libraryStatus.id === 'dropped') return true;
+            }
+            return false;
+        });
+
+        const brokenLinks = activeLinks.filter(l => {
+            if (!l.url || typeof l.url !== 'string') return true;
+            const urlStr = l.url.trim().toLowerCase();
+            return urlStr === '' || urlStr === '#' || urlStr.startsWith('javascript:');
+        });
+
+        const missingNotesLinks = activeLinks.filter(l => {
+            const conn = typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function' &&
+                   window.EveLibrary.ConnectionsAPI.findConnectionByLinkId(l.id);
+
+            // Unlinked bookmarks do not need to be in the missing notes list
+            if (!conn) return false;
+
+            const hasLinkNote = typeof l.notes === 'string' && l.notes.trim().length > 0;
+            if (hasLinkNote) return false;
+
+            const entry = typeof window.EveLibrary?.EntriesAPI?.getEntryById === 'function' &&
+                          window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, conn.entryId);
+
+            // If the linked entry has a summary, we don't consider notes missing
+            if (entry && typeof entry.summary === 'string' && entry.summary.trim().length > 0) return false;
+
+            // Connected, but no bookmark note and no library summary
+            return true;
+        });
+
+        const topRatedLinks = activeLinks.filter(l => {
+            // High priority flag fallback
+            if (l.priority === 'high') return true;
+
+            const conn = typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function' &&
+                   window.EveLibrary.ConnectionsAPI.findConnectionByLinkId(l.id);
+            if (conn) {
+                const entry = typeof window.EveLibrary?.EntriesAPI?.getEntryById === 'function' &&
+                              window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, conn.entryId);
+                if (entry) {
+                    if (entry.rating === '5' || entry.rating === '10' || entry.rating === '9') return true;
+                    if (entry.derivedRatings && entry.derivedRatings.activeValue >= 8) return true;
+                }
+            }
+            return false;
+        });
+
+        const ghostFolders = [];
+        const isGhostEnabled = (type) => {
+            return !window.EveFolderViewV2 || window.EveFolderViewV2.isGhostFolderEnabled(workspaceId, categoryName, type);
+        };
+
+        const masterGhostId = '__ghost_master__';
+
+        // ----------------------------------------------------
+        // --- NEW DRIFT GHOST FOLDER FILTERS ---
+        // ----------------------------------------------------
+        const deadLinks = [];
+        const redirectedLinks = [];
+        const titleDriftLinks = [];
+
+        const nowMs = Date.now();
+        const staleMs = 90 * 24 * 60 * 60 * 1000;
+        const recentVisMs = 7 * 24 * 60 * 60 * 1000;
+        const ancientsMs = 2 * 365 * 24 * 60 * 60 * 1000;
+
+        const recentlyVisited = [];
+        const staleLinks = [];
+        const ancientsLinks = [];
+        const noTitleLinks = [];
+        const orphanedLibEntries = [];
+
+        if (window.EveSemanticDrift) {
+            activeLinks.forEach(l => {
+                const health = window.EveSemanticDrift.getHealthInfo(l.url);
+                if (health) {
+                    if (health.status === 'dead') deadLinks.push(l);
+                    if (health.status === 'redirected') redirectedLinks.push(l);
+                    if (health.hasTitleDrift) titleDriftLinks.push(l);
+                }
+
+                // Check orphaned
+                const isLinked = typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function' &&
+                    window.EveLibrary.ConnectionsAPI.findConnectionByLinkId(l.id);
+                if (isLinked && health && health.status === 'dead') {
+                    orphanedLibEntries.push(l);
+                }
+            });
+        }
+
+        activeLinks.forEach(l => {
+            // Activity tracking (requires click instrumentation later, using mocked/inferred for now)
+            const lastVis = l.lastVisited || l.updatedAt || l.createdAt || 0;
+            const age = nowMs - lastVis;
+            if (lastVis && age < recentVisMs) {
+                recentlyVisited.push(l);
+            }
+            if (lastVis && age > staleMs) {
+                staleLinks.push(l);
+            }
+            if (l.createdAt && (nowMs - l.createdAt) > ancientsMs) {
+                ancientsLinks.push(l);
+            }
+
+            // No title
+            const t = String(l.title || '').trim().toLowerCase();
+            if (!t || t === 'untitled' || t === l.url.trim().toLowerCase()) {
+                noTitleLinks.push(l);
+            }
+        });
+
+        // ----------------------------------------------------
+        // --- DOMAIN GROUPING LOGIC ---
+        // ----------------------------------------------------
+        const domainMap = new Map();
+        activeLinks.forEach(l => {
+            try {
+                const d = new URL(l.url).hostname.toLowerCase().replace(/^www\./, '');
+                if (d && d.includes('.')) {
+                    if (!domainMap.has(d)) domainMap.set(d, []);
+                    domainMap.get(d).push(l);
+                }
+            } catch(e) {}
+        });
+
+        const domainGhosts = [];
+        domainMap.forEach((links, domain) => {
+            if (links.length >= 3 && isGhostEnabled('domain_grouping')) {
+                domainGhosts.push({
+                    domain: domain,
+                    links: links
+                });
+            }
+        });
+        domainGhosts.sort((a, b) => b.links.length - a.links.length);
+
+        // ----------------------------------------------------
+        // --- LIBRARY STATS LOGIC ---
+        // ----------------------------------------------------
+        const genreMap = new Map();
+        activeLinks.forEach(l => {
+            const conn = typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function' &&
+                         window.EveLibrary.ConnectionsAPI.findConnectionByLinkId(l.id);
+            if (conn) {
+                const entry = typeof window.EveLibrary?.EntriesAPI?.getEntryById === 'function' &&
+                              window.EveLibrary.EntriesAPI.getEntryById(workspaceId, categoryName, conn.entryId);
+                if (entry && entry.genre) {
+                    const genres = String(entry.genre).split(/[|,;]/).map(g => g.trim()).filter(Boolean);
+                    genres.forEach(g => {
+                        if (!genreMap.has(g)) genreMap.set(g, []);
+                        genreMap.get(g).push(l);
+                    });
+                }
+            }
+        });
+
+        const topGenres = [];
+        genreMap.forEach((links, genre) => {
+            if (links.length >= 2 && isGhostEnabled('library_stats')) {
+                topGenres.push({ genre, links });
+            }
+        });
+        topGenres.sort((a, b) => b.links.length - a.links.length);
+
+        // ----------------------------------------------------
+        // --- GHOST HIERARCHY BUILDER ---
+        // ----------------------------------------------------
+        const ghostCategories = {
+            linkHealth: { id: '__ghost_cat_linkHealth__', name: '[ Link Health ]', links: [] },
+            domains: { id: '__ghost_cat_domains__', name: '[ Domains ]', links: [] },
+            readingStatus: { id: '__ghost_cat_readingStatus__', name: '[ Reading Status ]', links: [] },
+            maintenance: { id: '__ghost_cat_maintenance__', name: '[ Maintenance ]', links: [] },
+            activity: { id: '__ghost_cat_activity__', name: '[ Activity ]', links: [] },
+            insights: { id: '__ghost_cat_insights__', name: '[ Insights ]', links: [] }
+        };
+
+        const activeSubGhosts = [];
+
+        function addGhost(catKey, id, name, linksArray, enabledKey) {
+            if (linksArray.length > 0 && isGhostEnabled(enabledKey)) {
+                activeSubGhosts.push({
+                    id: id,
+                    name: name,
+                    parentId: ghostCategories[catKey].id,
+                    isGhost: true,
+                    _ghostLinks: linksArray
+                });
+                ghostCategories[catKey]._hasActiveChildren = true;
+            }
+        }
+
+        // Link Health
+        addGhost('linkHealth', '__ghost_dead_links__', '[ Dead Links ]', deadLinks, 'dead_links');
+        addGhost('linkHealth', '__ghost_redirected_links__', '[ Redirected Links ]', redirectedLinks, 'redirected_links');
+        addGhost('linkHealth', '__ghost_title_drift__', '[ Title Drift ]', titleDriftLinks, 'title_drift');
+        addGhost('linkHealth', '__ghost_orphaned_lib__', '[ Orphaned Library Entries ]', orphanedLibEntries, 'orphaned_lib');
+
+        // Domains
+        domainGhosts.forEach(dg => {
+            const id = `__ghost_domain_${dg.domain.replace(/[^a-zA-Z0-9]/g, '_')}__`;
+            const name = `[ ${dg.domain.toUpperCase()} ]`;
+            addGhost('domains', id, name, dg.links, 'domain_grouping');
+        });
+
+        // Reading Status
+        addGhost('readingStatus', '__ghost_unread__', '[ Plan to Read ]', unreadLinks, 'unread');
+        addGhost('readingStatus', '__ghost_reading__', '[ Actively Reading ]', readingLinks, 'reading');
+        addGhost('readingStatus', '__ghost_completed__', '[ Completed ]', completedLinks, 'completed');
+        addGhost('readingStatus', '__ghost_on_hold__', '[ On Hold ]', onHoldLinks, 'on_hold');
+        addGhost('readingStatus', '__ghost_dropped__', '[ Dropped ]', droppedLinks, 'dropped');
+
+        // Maintenance
+        addGhost('maintenance', '__ghost_unlinked__', '[ Unlinked Bookmarks ]', unlinkedLinks, 'unlinked');
+        addGhost('maintenance', '__ghost_missing_covers__', '[ Missing Covers ]', missingCovers, 'missing_covers');
+        addGhost('maintenance', '__ghost_missing_icons__', '[ Missing Icons ]', missingIcons, 'missing_icons');
+        addGhost('maintenance', '__ghost_untagged__', '[ Untagged ]', untaggedLinks, 'untagged');
+        addGhost('maintenance', '__ghost_no_title__', '[ No Title ]', noTitleLinks, 'no_title');
+        addGhost('maintenance', '__ghost_needs_review__', '[ Needs Review ]', needsReviewLinks, 'needs_review');
+        addGhost('maintenance', '__ghost_missing_notes__', '[ Missing Notes ]', missingNotesLinks, 'missing_notes');
+        addGhost('maintenance', '__ghost_broken_links__', '[ Broken / Invalid Links ]', brokenLinks, 'broken_links');
+
+        // Activity
+        addGhost('activity', '__ghost_recent__', '[ Recently Updated ]', recentLinks, 'recent');
+        addGhost('activity', '__ghost_recently_visited__', '[ Recently Visited ]', recentlyVisited, 'recently_visited');
+        addGhost('activity', '__ghost_stale__', '[ Stale Bookmarks ]', staleLinks, 'stale');
+
+        // Insights
+        addGhost('insights', '__ghost_top_rated__', '[ Top Rated ]', topRatedLinks, 'top_rated');
+        addGhost('insights', '__ghost_duplicate_suspects__', '[ Duplicate Suspects ]', duplicateSuspects, 'duplicate_suspects');
+        addGhost('insights', '__ghost_ancients__', '[ The Ancients ]', ancientsLinks, 'ancients');
+
+        // Library Stats
+        topGenres.forEach(tg => {
+            const id = `__ghost_genre_${tg.genre.replace(/[^a-zA-Z0-9]/g, '_')}__`;
+            const name = `[ Genre: ${tg.genre} ]`;
+            addGhost('insights', id, name, tg.links, 'library_stats');
+        });
+
+        let anyMasterEnabled = false;
+        Object.values(ghostCategories).forEach(cat => {
+            if (cat._hasActiveChildren) {
+                anyMasterEnabled = true;
+                ghostFolders.push({
+                    id: cat.id,
+                    name: cat.name,
+                    parentId: masterGhostId,
+                    isGhost: true,
+                    _ghostLinks: []
+                });
+            }
+        });
+
+        if (anyMasterEnabled) {
+            ghostFolders.unshift({
+                id: masterGhostId,
+                name: '[ System Views ]',
+                parentId: null,
+                isGhost: true,
+                isMasterGhost: true,
+                _ghostLinks: []
+            });
+            ghostFolders.push(...activeSubGhosts);
+        }
+
+        scopedNodes = [...ghostFolders, ...scopedNodes];
+        // --- End Ghost Folders ---
+
         const nodeMap = buildNodeMap(scopedNodes);
         const childrenMap = buildChildrenMap(scopedNodes);
         const folderLinks = new Map();
         const rootLinks = [];
 
-        (Array.isArray(cardLinks) ? cardLinks : []).forEach((link) => {
+        // Pre-fill ghost folder links
+        ghostFolders.forEach(gf => {
+            folderLinks.set(gf.id, gf._ghostLinks);
+        });
+
+        activeLinks.forEach((link) => {
             const folderId = normalizeFolderId(link?.folderId);
-            if (folderId && nodeMap.has(folderId)) {
+            if (folderId && nodeMap.has(folderId) && !nodeMap.get(folderId).isGhost) {
                 if (!folderLinks.has(folderId)) folderLinks.set(folderId, []);
                 folderLinks.get(folderId).push(link);
                 return;
             }
             rootLinks.push(link);
         });
+
+        // Compute Large Folders AFTER regular folder links are populated
+        if (isGhostEnabled('large_folders')) {
+            const largeFoldersLinks = [];
+            folderLinks.forEach((links, fid) => {
+                if (links.length > 15 && !nodeMap.get(fid)?.isGhost) {
+                    largeFoldersLinks.push(...links);
+                }
+            });
+            if (largeFoldersLinks.length > 0) {
+                const id = '__ghost_large_folders__';
+                const parentId = ghostCategories['insights'].id;
+
+                // If insights wasn't already added to the tree, we need to add it now
+                if (!ghostCategories['insights']._hasActiveChildren) {
+                    scopedNodes.push({
+                        id: parentId,
+                        name: ghostCategories['insights'].name,
+                        parentId: masterGhostId,
+                        isGhost: true,
+                        _ghostLinks: []
+                    });
+                    if (!anyMasterEnabled) {
+                        scopedNodes.unshift({
+                            id: masterGhostId,
+                            name: '[ System Views ]',
+                            parentId: null,
+                            isGhost: true,
+                            isMasterGhost: true,
+                            _ghostLinks: []
+                        });
+                    }
+                    nodeMap.set(parentId, scopedNodes[scopedNodes.length - 1]);
+                    childrenMap.set(masterGhostId, [...(childrenMap.get(masterGhostId) || []), scopedNodes[scopedNodes.length - 1]]);
+                }
+
+                const largeGhostNode = {
+                    id: id,
+                    name: '[ Large Folders (>15) ]',
+                    parentId: parentId,
+                    isGhost: true,
+                    _ghostLinks: largeFoldersLinks
+                };
+
+                scopedNodes.push(largeGhostNode);
+                nodeMap.set(id, largeGhostNode);
+                folderLinks.set(id, largeFoldersLinks);
+                childrenMap.set(parentId, [...(childrenMap.get(parentId) || []), largeGhostNode]);
+            }
+        }
 
         return {
             nodes: scopedNodes,
@@ -410,7 +913,132 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         return true;
     }
 
+    function moveFolder(workspaceId, categoryName, folderId, targetParentId) {
+        workspaceId = normalizeWorkspaceId(workspaceId);
+        categoryName = normalizeCategoryName(categoryName);
+        folderId = normalizeFolderId(folderId);
+        targetParentId = normalizeParentId(targetParentId);
+
+        if (!folderId) return false;
+        if (folderId === targetParentId) return false; // Cannot move into itself
+
+        const nodes = getScopedNodes(workspaceId, categoryName);
+
+        // Cycle detection: ensure targetParentId is not a descendant of folderId
+        let currentParent = targetParentId;
+        while (currentParent) {
+            if (currentParent === folderId) return false; // Cycle detected
+            const pNode = nodes.find(n => n.id === currentParent);
+            if (!pNode) break;
+            currentParent = pNode.parentId;
+        }
+
+        const target = nodes.find((node) => node.id === folderId);
+        if (!target) return false;
+
+        target.parentId = targetParentId;
+        target.updatedAt = Date.now();
+        setScopedNodes(workspaceId, categoryName, nodes);
+        return true;
+    }
+
+    function transferFolderToCategory(folderId, sourceWs, sourceCat, targetWs, targetCat, targetParentId) {
+        try {
+            const sWs = normalizeWorkspaceId(sourceWs);
+            const sCat = normalizeCategoryName(sourceCat);
+            const tWs = normalizeWorkspaceId(targetWs);
+            const tCat = normalizeCategoryName(targetCat);
+            const fId = normalizeFolderId(folderId);
+            const tpId = normalizeParentId(targetParentId);
+
+            if (!fId) {
+                console.warn('[EveBookmarkFolders] Transfer Aborted: Missing Folder ID');
+                return false;
+            }
+
+            // If it's the same card, just use the local moveFolder logic
+            if (sWs === tWs && sCat === tCat) {
+                return moveFolder(sWs, sCat, fId, tpId);
+            }
+
+            const nextStore = cloneStore();
+            const sKey = buildScopedKey(sWs, sCat);
+            const tKey = buildScopedKey(tWs, tCat);
+
+            const sourceTree = nextStore[sKey];
+            if (!sourceTree || !sourceTree.nodes || sourceTree.nodes.length === 0) {
+                console.warn('[EveBookmarkFolders] Transfer Aborted: Source tree empty or missing', sKey);
+                return false;
+            }
+
+            const targetTree = nextStore[tKey] || { nodes: [], settings: normalizeTreeSettings({}) };
+
+            // Find the folder and all its descendants in the source
+            const childrenMap = buildChildrenMap(sourceTree.nodes);
+
+            const toMoveIds = new Set();
+            function collect(id) {
+                toMoveIds.add(id);
+                (childrenMap.get(id) || []).forEach(child => collect(child.id));
+            }
+
+            const rootNodeId = fId;
+            // Check if rootNode exists in source
+            if (!sourceTree.nodes.some(n => normalizeFolderId(n.id) === rootNodeId)) {
+                return false;
+            }
+
+            collect(rootNodeId);
+
+            // 1. Prepare moved nodes
+            const movedNodes = sourceTree.nodes.filter(n => toMoveIds.has(n.id)).map(n => {
+                const newNode = { ...n };
+                if (normalizeFolderId(n.id) === rootNodeId) {
+                    newNode.parentId = tpId;
+                    newNode.updatedAt = Date.now();
+                }
+                return newNode;
+            });
+
+            console.log('[EveBookmarkFolders] Nodes captured:', movedNodes.length);
+            if (movedNodes.length === 0) return false;
+
+            // 2. Add to target
+            targetTree.nodes = [...targetTree.nodes, ...movedNodes];
+            nextStore[tKey] = targetTree;
+
+            // 3. Remove from source
+            sourceTree.nodes = sourceTree.nodes.filter(n => !toMoveIds.has(n.id));
+            if (sourceTree.nodes.length === 0 && sourceTree.settings.clickBehaviorMode === 'inherit') {
+                delete nextStore[sKey];
+            } else {
+                nextStore[sKey] = sourceTree;
+            }
+
+            // 4. Update all bookmarks in these folders to the new category/workspace
+            if (Array.isArray(window.eveState?.links)) {
+                window.eveState.links.forEach(link => {
+                    if (toMoveIds.has(normalizeFolderId(link.folderId))) {
+                        link.workspace = tWs;
+                        link.category = tCat;
+                        if (typeof window.EveLibrary?.ConnectionsAPI?.syncFromLink === 'function') {
+                            window.EveLibrary.ConnectionsAPI.syncFromLink(link.id);
+                        }
+                    }
+                });
+            }
+
+            // 5. Final Atomic Write
+            writeStore(nextStore, true);
+            return true;
+        } catch (err) {
+            return false;
+        }
+    }
+
+
     function getCardClickBehaviorMode(workspaceId, categoryName) {
+
         return normalizeTreeSettings(getScopedTree(workspaceId, categoryName)?.settings).clickBehaviorMode;
     }
 
@@ -717,6 +1345,24 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
     window.toggleBookmarkFolderToolbar = function (categoryName, workspaceId) {
         toggleToolbarExpanded(workspaceId, getActiveCategoryContext(categoryName));
     };
+    window.deleteBookmarkFolderPrompt = async function (categoryName, folderId) {
+        const resolvedCategory = getActiveCategoryContext(categoryName);
+        const target = getFolderById(normalizeWorkspaceId(), resolvedCategory, folderId);
+        if (!target) return;
+        const confirmed = typeof showConfirm === 'function'
+            ? await showConfirm(`Delete "${target.name}"? Bookmarks move to the parent/root and subfolders move up one level.`)
+            : window.confirm(`Delete "${target.name}"? Bookmarks move to the parent/root and subfolders move up one level.`);
+        if (!confirmed) return;
+        if (!deleteFolder({
+            workspaceId: normalizeWorkspaceId(),
+            categoryName: resolvedCategory,
+            folderId
+        })) return;
+        if (typeof showToast === 'function') showToast(`Folder "${target.name}" removed`, 'success');
+        if (typeof window.renderCategoryFolderManager === 'function') {
+            window.renderCategoryFolderManager();
+        }
+    };
 
     window.openAddModalForFolder = function (categoryName, folderId) {
         if (typeof openAddModal === 'function') {
@@ -741,30 +1387,54 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         }
     };
 
-    window.deleteBookmarkFolderPrompt = async function (categoryName, folderId) {
-        const resolvedCategory = getActiveCategoryContext(categoryName);
-        const target = getFolderById(normalizeWorkspaceId(), resolvedCategory, folderId);
-        if (!target) return;
-        const confirmed = typeof showConfirm === 'function'
-            ? await showConfirm(`Delete "${target.name}"? Bookmarks move to the parent/root and subfolders move up one level.`)
-            : window.confirm(`Delete "${target.name}"? Bookmarks move to the parent/root and subfolders move up one level.`);
-        if (!confirmed) return;
-        if (!deleteFolder({
-            workspaceId: normalizeWorkspaceId(),
-            categoryName: resolvedCategory,
-            folderId
-        })) return;
-        if (typeof showToast === 'function') showToast(`Folder "${target.name}" removed`, 'success');
-        if (typeof window.renderCategoryFolderManager === 'function') {
-            window.renderCategoryFolderManager();
-        }
-    };
 
     window.moveBookmarksToFolderDrop = function (event, categoryName, folderId, workspaceId) {
         if (event) {
             event.preventDefault();
             event.stopPropagation();
         }
+
+        const rawData = event.dataTransfer?.getData('text/plain') || event.dataTransfer?.getData('application/json');
+        if (!rawData) return;
+
+        let payload = null;
+        try {
+            payload = JSON.parse(rawData);
+        } catch (e) {
+            // Not a JSON payload, probably standard bookmark link ID list
+        }
+
+        // 1. Check if it's a folder payload (Cross-Card or Intra-Card folder move)
+        if (payload && payload.type === 'folder' && payload.id) {
+            const folderIdToMove = payload.id;
+            const targetFolderId = normalizeFolderId(folderId);
+            if (folderIdToMove === targetFolderId) return;
+
+            const isCrossCard = (payload.sourceWorkspace && payload.sourceWorkspace !== workspaceId) ||
+                               (payload.sourceCategory && payload.sourceCategory !== categoryName);
+
+            if (isCrossCard) {
+                if (!payload.sourceWorkspace || !payload.sourceCategory) {
+                    console.warn('[moveBookmarksToFolderDrop] Cross-card transfer aborted: Missing source metadata.', payload);
+                    return;
+                }
+                transferFolderToCategory(
+                    folderIdToMove,
+                    payload.sourceWorkspace,
+                    payload.sourceCategory,
+                    workspaceId,
+                    categoryName,
+                    targetFolderId
+                );
+            } else {
+                moveFolder(workspaceId, categoryName, folderIdToMove, targetFolderId);
+            }
+
+            if (typeof window.renderDashboard === 'function') window.renderDashboard();
+            return;
+        }
+
+        // 2. Fallback: Check for bookmark link IDs
         const linkIds = parseDragPayload(event?.dataTransfer);
         if (!linkIds.length) return;
         moveLinksToFolderTarget(linkIds, workspaceId, getActiveCategoryContext(categoryName), folderId);
@@ -798,7 +1468,10 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
     ns.refreshEditorFolderSelect = refreshEditorFolderSelect;
     ns.createFolder = createFolder;
     ns.renameFolder = renameFolder;
+    ns.moveFolder = moveFolder;
+    ns.transferFolderToCategory = transferFolderToCategory;
     ns.deleteFolder = deleteFolder;
+
     ns.clearLinkFolderAssignment = clearLinkFolderAssignment;
     ns.renameCategoryEverywhere = renameCategoryEverywhere;
     ns.deleteCategoryEverywhere = deleteCategoryEverywhere;

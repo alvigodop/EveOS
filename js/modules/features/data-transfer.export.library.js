@@ -65,6 +65,8 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
             const addWorkspace = function (workspace) {
                 const id = String(workspace?.id || '').trim();
                 if (!id) return;
+
+                // If a workspace is configured, we MUST use its name/icon from the config
                 byId.set(id, {
                     id,
                     name: workspace?.name || id,
@@ -74,8 +76,10 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
 
             const configured = Array.isArray(config.workspaces) ? config.workspaces : [];
             configured.forEach(addWorkspace);
+
+            // Only add placeholders for workspaces found in links that AREN'T in the formal config
             links.forEach(link => {
-                const id = String(link?.workspace || activeWorkspace || 'main').trim() || 'main';
+                const id = String(link?.workspace || 'main').trim() || 'main';
                 if (!byId.has(id)) {
                     byId.set(id, { id, name: id, icon: 'folder' });
                 }
@@ -89,16 +93,18 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
             return Array.from(byId.values());
         }
 
-        function groupLinksByWorkspaceAndCategory(links, fallbackWorkspaceId = 'main') {
+        function groupLinksByWorkspaceAndCategory(links) {
             const byWorkspace = new Map();
             (Array.isArray(links) ? links : []).forEach(rawLink => {
-                const workspaceId = String(rawLink?.workspace || fallbackWorkspaceId || 'main').trim() || 'main';
+                // Determine workspace: use link property, or default strictly to 'main' for legacy/missing data
+                const workspaceId = String(rawLink?.workspace || 'main').trim() || 'main';
                 const categoryName = String(rawLink?.category || 'Unsorted').trim() || 'Unsorted';
                 const normalizedLink = { ...rawLink, workspace: workspaceId, category: categoryName };
+
                 if (!byWorkspace.has(workspaceId)) byWorkspace.set(workspaceId, new Map());
-                const categories = byWorkspace.get(workspaceId);
-                if (!categories.has(categoryName)) categories.set(categoryName, []);
-                categories.get(categoryName).push(normalizedLink);
+                const categoriesMap = byWorkspace.get(workspaceId);
+                if (!categoriesMap.has(categoryName)) categoriesMap.set(categoryName, []);
+                categoriesMap.get(categoryName).push(normalizedLink);
             });
             return byWorkspace;
         }
@@ -114,25 +120,39 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
         function parseScopedCategoryKey(key) {
             const raw = String(key || '').trim();
             if (!raw.includes('::')) {
-                return { workspaceId: '', categoryName: raw || 'Unsorted' };
+                return { workspaceId: 'main', categoryName: raw || 'Unsorted' };
             }
             const [workspaceId, categoryName] = raw.split('::', 2);
             return {
-                workspaceId: String(workspaceId || '').trim(),
-                categoryName: String(categoryName || '').trim() || 'Unsorted'
+                workspaceId: String(workspaceId || 'main').trim() || 'main',
+                categoryName: String(categoryName || 'Unsorted').trim() || 'Unsorted'
             };
         }
 
         function findScopedCategoryData(allCategories, workspaceId, categoryName) {
             const categories = allCategories && typeof allCategories === 'object' ? allCategories : {};
-            if (Object.prototype.hasOwnProperty.call(categories, categoryName)) {
-                return categories[categoryName] || null;
+            const targetWorkspaceId = String(workspaceId || 'main').trim() || 'main';
+            const targetCategoryName = String(categoryName || 'Unsorted').trim() || 'Unsorted';
+
+            // 1. Try exact match with target workspace scope
+            const scopedKey = `${targetWorkspaceId}::${targetCategoryName}`;
+            if (Object.prototype.hasOwnProperty.call(categories, scopedKey)) {
+                return categories[scopedKey] || null;
             }
+
+            // 2. If workspace is 'main', try unscoped match
+            if (targetWorkspaceId === 'main') {
+                if (Object.prototype.hasOwnProperty.call(categories, targetCategoryName)) {
+                    return categories[targetCategoryName] || null;
+                }
+            }
+
+            // 3. Heuristic fallback: search all keys
             for (const [key, value] of Object.entries(categories)) {
                 const parsed = parseScopedCategoryKey(key);
-                if (String(parsed.categoryName) !== String(categoryName)) continue;
-                if (parsed.workspaceId && String(parsed.workspaceId) !== String(workspaceId || '')) continue;
-                return value || null;
+                if (parsed.categoryName === targetCategoryName && parsed.workspaceId === targetWorkspaceId) {
+                    return value || null;
+                }
             }
             return null;
         }

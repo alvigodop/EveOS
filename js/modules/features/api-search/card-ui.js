@@ -127,9 +127,32 @@
 
         if (typeof onSelect === "function") {
             const selectBtn = document.createElement("button");
-            selectBtn.innerText = "Select";
-            selectBtn.className = "manga-select-btn";
-            selectBtn.onclick = () => onSelect(data);
+
+            // Check if this source is already attached
+            const alreadyAttached = (function () {
+                if (!Array.isArray(window.tempSources) || !window.tempSources.length) return false;
+                const pUrl = String(data.providerUrl || data.url || "").trim().toLowerCase();
+                const pSource = String(data.source || "").trim().toLowerCase();
+                return window.tempSources.some(function (s) {
+                    const sUrl = String(s.providerUrl || s.url || "").trim().toLowerCase();
+                    const sSource = String(s.source || "").trim().toLowerCase();
+                    if (pSource && sSource && pUrl && sUrl) return pSource === sSource && pUrl === sUrl;
+                    if (pUrl && sUrl) return pUrl === sUrl;
+                    return false;
+                });
+            })();
+
+            if (alreadyAttached) {
+                selectBtn.innerText = "Added";
+                selectBtn.className = "manga-select-btn";
+                selectBtn.style.opacity = "0.4";
+                selectBtn.style.cursor = "default";
+                selectBtn.disabled = true;
+            } else {
+                selectBtn.innerText = "Select";
+                selectBtn.className = "manga-select-btn";
+                selectBtn.onclick = () => onSelect(data);
+            }
             mangaDiv.appendChild(selectBtn);
         }
 

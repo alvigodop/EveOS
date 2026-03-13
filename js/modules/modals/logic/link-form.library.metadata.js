@@ -146,9 +146,29 @@ window.EveLinkForm = window.EveLinkForm || {};
         });
         if (derived) updates.derivedRatings = derived;
 
+        const summaryInput = document.getElementById('libSummary');
+        let addedNotes = 0;
+        if (meta.summary) {
+            const existingParts = (summaryInput?.value || '').split('\n').map(s => s.trim()).filter(Boolean);
+            const newParts = meta.summary.split('\n').map(s => s.trim()).filter(Boolean);
+            const merged = [...existingParts];
+            for (const part of newParts) {
+                if (!existingParts.includes(part)) {
+                    merged.push(part);
+                    addedNotes++;
+                }
+            }
+            if (addedNotes > 0) {
+                const finalSummary = merged.join('\n\n');
+                if (summaryInput) summaryInput.value = finalSummary;
+                updates.summary = finalSummary;
+            }
+        }
+
         ns.updateLinkedEntryFromMetadataPatch(updates);
 
         const summaryBits = [];
+        if (addedNotes > 0) summaryBits.push(`${addedNotes} new note segment${addedNotes !== 1 ? 's' : ''}`);
         if (meta.tags.length) summaryBits.push(`${meta.tags.length} tags`);
         if (meta.genres.length) summaryBits.push(`${meta.genres.length} genres`);
         if (meta.authors.length) summaryBits.push(`${meta.authors.length} authors`);
