@@ -1,6 +1,11 @@
 // --- BULK LIBRARY AUTO-ADD ---
 (function () {
-    let bulkLibraryCat = null;
+    let bulkLibraryContext = {
+        categoryName: null,
+        linkIds: null,
+        title: 'Auto-Add Library Entries',
+        hint: 'Strict mode: sources are accepted only when API title/synonym matches the bookmark title exactly (case-sensitive).'
+    };
 
     const Utils = window.EveLibrary?.BulkAutoUtils;
     const Api = window.EveLibrary?.BulkAutoApi;
@@ -11,14 +16,44 @@
         return;
     }
 
-    window.openBulkLibraryAutoModal = function (categoryName) {
-        bulkLibraryCat = categoryName || 'Unsorted';
+    function normalizeBulkLibraryContext(categoryOrOptions, maybeOptions) {
+        let options = {};
+        if (categoryOrOptions && typeof categoryOrOptions === 'object' && !Array.isArray(categoryOrOptions)) {
+            options = categoryOrOptions;
+        } else {
+            options = Object.assign({}, maybeOptions || {}, { categoryName: categoryOrOptions });
+        }
+        const categoryName = String(options.categoryName || 'Unsorted').trim() || 'Unsorted';
+        const linkIds = Array.isArray(options.linkIds)
+            ? Array.from(new Set(options.linkIds.map((value) => String(value || '').trim()).filter(Boolean)))
+            : null;
+        return {
+            categoryName,
+            linkIds,
+            title: String(options.title || 'Auto-Add Library Entries').trim() || 'Auto-Add Library Entries',
+            hint: String(
+                options.hint
+                || 'Strict mode: sources are accepted only when API title/synonym matches the bookmark title exactly (case-sensitive).'
+            ).trim()
+        };
+    }
+
+    window.openBulkLibraryAutoModal = function (categoryOrOptions, maybeOptions) {
+        bulkLibraryContext = normalizeBulkLibraryContext(categoryOrOptions, maybeOptions);
         const list = document.getElementById('bulkLibraryAutoList');
         const runButton = document.getElementById('btnRunBulkLibraryAuto');
+        const titleEl = document.getElementById('bulkLibraryAutoModalTitle');
+        const hintEl = document.getElementById('bulkLibraryAutoModalHint');
         if (!list || !runButton) return;
 
         list.innerHTML = '';
-        const categoryLinks = Patch.getCategoryLinks(bulkLibraryCat);
+        if (titleEl) titleEl.textContent = bulkLibraryContext.title;
+        if (hintEl) hintEl.textContent = bulkLibraryContext.hint;
+        const allowedIds = bulkLibraryContext.linkIds ? new Set(bulkLibraryContext.linkIds) : null;
+        const categoryLinks = Patch.getCategoryLinks(bulkLibraryContext.categoryName).filter((link) => {
+            if (!allowedIds) return true;
+            return allowedIds.has(String(link.id));
+        });
         if (!categoryLinks.length) {
             runButton.disabled = true;
             list.innerHTML = '<div style="padding:10px; color:#888;">No links in this category.</div>';
@@ -102,7 +137,7 @@
                     connections.promoteLink(link.id);
                     created++;
                 }
-                connections.moveLinkedEntryToCategory(link.id, bulkLibraryCat || link.category || 'Unsorted');
+                    connections.moveLinkedEntryToCategory(link.id, bulkLibraryContext.categoryName || link.category || 'Unsorted');
 
                 const linked = connections.getLinkedEntry(link.id);
                 if (!linked?.entry) throw new Error('Failed to load linked entry');

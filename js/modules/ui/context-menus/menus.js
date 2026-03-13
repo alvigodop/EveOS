@@ -46,13 +46,14 @@ function placeContextMenu(menuElement, event) {
     menuElement.style.visibility = 'visible';
 }
 
-window.showFolderContextMenu = function (e, categoryName, folderId) {
+window.showFolderContextMenu = function (e, categoryName, folderId, workspaceId) {
     e.preventDefault();
     e.stopPropagation();
     closeAllMenus();
 
     window.ctxCatName = categoryName;
     window.ctxFolderId = folderId;
+    window.ctxWsId = workspaceId || window.ctxWsId || ((window.config && window.config.activeWorkspace) || 'main');
 
     const m = document.getElementById('folder-context-menu');
     if (!m) return;

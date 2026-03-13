@@ -47,6 +47,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         labelHitBoxes: [],
         infoCollapsed: true,
         infoHovered: false,
+        infoHoverStartedAt: 0,
+        coverRotationTimer: 0,
+        coverPreviewSession: null,
         worldAnchor: { x: 0, y: 0 },
         worldBounds: null,
         worldRadius: 0
@@ -112,6 +115,10 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         if (!scope) return 'Unknown Scope';
         if (scope.scope === 'all') return 'All Tabs / Whole Data Pack';
         if (scope.scope === 'card') return getWorkspaceName(scope.workspaceId) + ' / ' + text(scope.categoryName, 'Card');
+        if (scope.scope === 'folder') {
+            const folderLabel = text(scope.folderLabel, scope.folderId || 'Folder');
+            return getWorkspaceName(scope.workspaceId) + ' / ' + text(scope.categoryName, 'Card') + ' / ' + folderLabel;
+        }
         return getWorkspaceName(scope.workspaceId) + ' / Current Tab';
     }
 
@@ -120,9 +127,11 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         const scope = (scopeOption && typeof scopeOption === 'object') ? scopeOption : {};
         const normalized = String(scope.scope || 'workspace').trim();
         return {
-            scope: ['all', 'workspace', 'card'].includes(normalized) ? normalized : 'workspace',
+            scope: ['all', 'workspace', 'card', 'folder'].includes(normalized) ? normalized : 'workspace',
             workspaceId: text(scope.workspaceId, config.activeWorkspace || 'main'),
-            categoryName: text(scope.categoryName, '')
+            categoryName: text(scope.categoryName, ''),
+            folderId: text(scope.folderId, ''),
+            folderLabel: text(scope.folderLabel, '')
         };
     }
 
@@ -182,6 +191,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         const workspaceLinks = allLinks.filter((link) => String(link?.workspace || 'main') === String(scope.workspaceId));
         if (scope.scope === 'card') {
+            return workspaceLinks.filter((link) => text(link?.category, 'Unsorted') === text(scope.categoryName, 'Unsorted'));
+        }
+        if (scope.scope === 'folder') {
             return workspaceLinks.filter((link) => text(link?.category, 'Unsorted') === text(scope.categoryName, 'Unsorted'));
         }
         return workspaceLinks;
@@ -264,6 +276,31 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         };
     }
 
+    function collectFolderSubtree(viewModel, folderId) {
+        const normalizedId = text(folderId, '');
+        if (!normalizedId || !viewModel?.nodes?.length) return null;
+        const targetNode = viewModel.nodes.find((node) => String(node?.id || '') === normalizedId);
+        if (!targetNode) return null;
+
+        const descendantIds = new Set();
+        const stack = [normalizedId];
+        while (stack.length) {
+            const currentId = stack.pop();
+            if (!currentId || descendantIds.has(currentId)) continue;
+            descendantIds.add(currentId);
+            (viewModel.childrenMap.get(String(currentId)) || []).forEach((childNode) => {
+                if (childNode?.id) stack.push(String(childNode.id));
+            });
+        }
+
+        return {
+            targetNode,
+            descendantIds,
+            childFolders: viewModel.childrenMap.get(normalizedId) || [],
+            directLinks: viewModel.folderLinks.get(normalizedId) || []
+        };
+    }
+
     function addNode(node) {
         if (!node?.id) return null;
         const existing = state.nodes.find((candidate) => candidate.id === node.id);
@@ -330,10 +367,142 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         return text(link?.coverImage, '') || fallbackImage;
     }
 
+    function getFolderScopeLinks(workspaceId, categoryName, folderId) {
+        const folderApi = window.EveBookmarkFolders;
+        if (!folderApi?.buildFolderView || !folderId) return [];
+        const categoryLinks = getAllLinks().filter((link) => (
+            String(link?.workspace || 'main') === String(workspaceId || 'main')
+            && text(link?.category, 'Unsorted') === text(categoryName, 'Unsorted')
+        ));
+        const viewModel = folderApi.buildFolderView(workspaceId, categoryName, categoryLinks);
+        const subtree = collectFolderSubtree(viewModel, folderId);
+        if (!subtree) return [];
+        const gathered = [];
+        const visit = (folderNode) => {
+            const currentId = String(folderNode?.id || '');
+            (viewModel.folderLinks.get(currentId) || []).forEach((link) => gathered.push(link));
+            (viewModel.childrenMap.get(currentId) || []).forEach((childNode) => visit(childNode));
+        };
+        (subtree.directLinks || []).forEach((link) => gathered.push(link));
+        (subtree.childFolders || []).forEach((childNode) => visit(childNode));
+        return gathered;
+    }
+
+    function getNodeCoverCandidates(node) {
+        if (!node) return [];
+        if (node.kind === 'link') {
+            return [getNodeCoverUrl({ ...node, kind: 'link' })].filter(Boolean);
+        }
+
+        let scopedLinks = [];
+        if (node.kind === 'category') {
+            scopedLinks = getAllLinks().filter((link) => (
+                String(link?.workspace || 'main') === String(node?.data?.workspaceId || 'main')
+                && text(link?.category, 'Unsorted') === text(node?.data?.categoryName, 'Unsorted')
+            ));
+        } else if (node.kind === 'workspace') {
+            scopedLinks = getAllLinks().filter((link) => String(link?.workspace || 'main') === String(node?.data?.workspaceId || 'main'));
+        } else if (node.kind === 'folder') {
+            scopedLinks = getFolderScopeLinks(node?.data?.workspaceId, node?.data?.categoryName, node?.data?.folderId);
+        }
+
+        const covers = [];
+        const seen = new Set();
+        scopedLinks.forEach((link) => {
+            const cover = getResolvedLinkCover(link);
+            if (!cover || seen.has(cover)) return;
+            seen.add(cover);
+            covers.push(cover);
+        });
+        return covers;
+    }
+
+    function shuffleCoverCandidates(values) {
+        const next = Array.isArray(values) ? values.slice() : [];
+        for (let index = next.length - 1; index > 0; index--) {
+            const swapIndex = Math.floor(Math.random() * (index + 1));
+            const temp = next[index];
+            next[index] = next[swapIndex];
+            next[swapIndex] = temp;
+        }
+        return next;
+    }
+
+    function getCoverSessionKey(node, covers) {
+        return `${String(node?.id || '')}::${(Array.isArray(covers) ? covers : []).join('\n')}`;
+    }
+
+    function ensureCoverPreviewSession(node, options = {}) {
+        const covers = getNodeCoverCandidates(node);
+        const interval = getNodeCoverRotationInterval(node);
+        if (!covers.length || !interval) {
+            state.coverPreviewSession = null;
+            return covers;
+        }
+
+        const sessionKey = getCoverSessionKey(node, covers);
+        const shouldReset = !!options.reset;
+        const existing = state.coverPreviewSession;
+        if (!shouldReset && existing?.key === sessionKey && Array.isArray(existing.covers) && existing.covers.length) {
+            return existing.covers;
+        }
+
+        const randomized = shuffleCoverCandidates(covers);
+        state.coverPreviewSession = {
+            key: sessionKey,
+            covers: randomized,
+            startedAt: state.infoHovered ? Date.now() : 0,
+            elapsedMs: 0
+        };
+        return randomized;
+    }
+
+    function getNodeCoverRotationInterval(node) {
+        if (!node) return 0;
+        if (node.kind === 'workspace') return 30000;
+        if (node.kind === 'category') return 60000;
+        return 0;
+    }
+
     function getNodeCoverUrl(node) {
-        if (!node || node.kind !== 'link') return '';
-        const link = getLinkById(node?.data?.linkId);
-        return getResolvedLinkCover(link);
+        if (!node) return '';
+        if (node.kind === 'link') {
+            const link = getLinkById(node?.data?.linkId);
+            return getResolvedLinkCover(link);
+        }
+        const interval = getNodeCoverRotationInterval(node);
+        const covers = interval ? ensureCoverPreviewSession(node) : getNodeCoverCandidates(node);
+        if (!covers.length) return '';
+        if (!interval) return covers[0];
+        const baseElapsed = Math.max(0, Number(state.coverPreviewSession?.elapsedMs || 0));
+        const hoverElapsed = state.infoHovered
+            ? Math.max(0, Date.now() - Number(state.coverPreviewSession?.startedAt || Date.now()))
+            : 0;
+        const elapsed = baseElapsed + hoverElapsed;
+        const index = Math.floor(elapsed / interval) % covers.length;
+        return covers[index] || covers[0];
+    }
+
+    function clearInspectorCoverRotation() {
+        if (state.coverRotationTimer) {
+            window.clearTimeout(state.coverRotationTimer);
+            state.coverRotationTimer = 0;
+        }
+    }
+
+    function scheduleInspectorCoverRotation() {
+        clearInspectorCoverRotation();
+        if (!state.infoHovered) return;
+        const node = state.selected || state.hovered;
+        const interval = getNodeCoverRotationInterval(node);
+        const covers = getNodeCoverCandidates(node);
+        if (!interval || covers.length < 2) return;
+        const elapsed = Math.max(0, Date.now() - (state.infoHoverStartedAt || Date.now()));
+        const nextDelay = interval - (elapsed % interval) + 20;
+        state.coverRotationTimer = window.setTimeout(() => {
+            renderInspector();
+            scheduleInspectorCoverRotation();
+        }, nextDelay);
     }
 
     function buildGraphData(scopeOption) {
@@ -352,6 +521,10 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         state.selected = null;
         state.searchState = { query: '', index: -1, matches: [] };
         state.infoCollapsed = true;
+        state.infoHovered = false;
+        state.infoHoverStartedAt = 0;
+        clearInspectorCoverRotation();
+        state.coverPreviewSession = null;
         state.pointer.forcePan = false;
 
         function addTagEdges(linkNode, link) {
@@ -480,6 +653,32 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 { x: centerX, y: centerY },
                 null
             );
+        } else if (scope.scope === 'folder') {
+            const folderView = getFolderView(scope.workspaceId, text(scope.categoryName, 'Unsorted'), scopedLinks);
+            const subtree = collectFolderSubtree(folderView, scope.folderId);
+            if (subtree) {
+                const folderNode = addNode(createNode({
+                    id: 'folder_' + scope.workspaceId + '_' + text(scope.categoryName, 'Unsorted') + '_' + String(subtree.targetNode.id),
+                    label: text(subtree.targetNode?.name, 'Folder'),
+                    color: '#b45eff',
+                    radius: 10,
+                    kind: 'folder',
+                    x: centerX,
+                    y: centerY,
+                    meta: getWorkspaceName(scope.workspaceId) + ' / ' + text(scope.categoryName, 'Unsorted') + ' / ' + text(subtree.targetNode?.name, 'Folder'),
+                    data: {
+                        workspaceId: scope.workspaceId,
+                        categoryName: text(scope.categoryName, 'Unsorted'),
+                        folderId: String(subtree.targetNode.id)
+                    }
+                }));
+                subtree.directLinks.forEach((link, index) => {
+                    addLinkNode(scope.workspaceId, text(scope.categoryName, 'Unsorted'), folderNode, link, index, subtree.directLinks.length, 68);
+                });
+                subtree.childFolders.forEach((childFolder, index) => {
+                    addFolderBranch(scope.workspaceId, text(scope.categoryName, 'Unsorted'), childFolder, folderView, folderNode, index, subtree.childFolders.length, 92);
+                });
+            }
         } else {
             const categories = getCategoryNames(scope.workspaceId, scopedLinks);
             categories.forEach((categoryName, categoryIndex) => {
@@ -789,6 +988,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                         + '</div>'
             ].join('');
             updateInspectorCoverState();
+            scheduleInspectorCoverRotation();
             return;
         }
 
@@ -812,6 +1012,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 ].join('')
         ].join('');
         updateInspectorCoverState();
+        scheduleInspectorCoverRotation();
     }
 
     function requestDraw() {
@@ -1351,10 +1552,27 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         });
         state.infoEl.addEventListener('mouseenter', () => {
             state.infoHovered = true;
+            state.infoHoverStartedAt = Date.now();
+            const sessionCovers = ensureCoverPreviewSession(state.selected || state.hovered, { reset: !state.coverPreviewSession });
+            if (state.coverPreviewSession && sessionCovers.length) {
+                state.coverPreviewSession.startedAt = Date.now();
+            }
+            renderInspector();
             updateInspectorCoverState();
+            scheduleInspectorCoverRotation();
         });
         state.infoEl.addEventListener('mouseleave', () => {
+            if (state.coverPreviewSession?.startedAt) {
+                state.coverPreviewSession.elapsedMs = Math.max(
+                    0,
+                    Number(state.coverPreviewSession.elapsedMs || 0) + (Date.now() - state.coverPreviewSession.startedAt)
+                );
+                state.coverPreviewSession.startedAt = 0;
+            }
             state.infoHovered = false;
+            state.infoHoverStartedAt = 0;
+            clearInspectorCoverRotation();
+            renderInspector();
             updateInspectorCoverState();
         });
 
@@ -1488,6 +1706,10 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         ns.openMap({ scope: 'card', workspaceId, categoryName });
     };
 
+    ns.openFolderMap = function openFolderMap(workspaceId, categoryName, folderId, folderLabel) {
+        ns.openMap({ scope: 'folder', workspaceId, categoryName, folderId, folderLabel });
+    };
+
     ns.openCurrentViewMap = function openCurrentViewMap() {
         const mainContent = document.getElementById('main-content');
         const isUnidexActive = !!mainContent?.classList?.contains('unidex-view-active');
@@ -1501,6 +1723,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
     ns.closeMap = function closeMap() {
         stopAnimation();
+        clearInspectorCoverRotation();
         if (state.container) state.container.style.display = 'none';
         document.body.style.overflow = '';
     };
@@ -1548,9 +1771,10 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 tx: Number(state.transform.tx.toFixed(2)),
                 ty: Number(state.transform.ty.toFixed(2))
             },
-            sampleNodes: state.nodes.slice(0, 12).map((node) => ({
+            sampleNodes: state.nodes.slice(0, 60).map((node) => ({
                 id: node.id,
                 kind: node.kind,
+                label: node.label,
                 x: Number(node.x.toFixed(2)),
                 y: Number(node.y.toFixed(2))
             })),
@@ -1559,5 +1783,43 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 return acc;
             }, {})
         };
+    };
+
+    ns.__debugGetInspectorCoverState = function __debugGetInspectorCoverState() {
+        const targetNode = state.selected || state.hovered || null;
+        return {
+            targetNode: targetNode ? {
+                id: targetNode.id,
+                kind: targetNode.kind,
+                label: targetNode.label
+            } : null,
+            now: Date.now(),
+            infoHovered: !!state.infoHovered,
+            infoHoverStartedAt: state.infoHoverStartedAt || 0,
+            interval: getNodeCoverRotationInterval(targetNode),
+            candidates: getNodeCoverCandidates(targetNode),
+            current: getNodeCoverUrl(targetNode),
+            session: state.coverPreviewSession ? {
+                key: state.coverPreviewSession.key,
+                startedAt: state.coverPreviewSession.startedAt,
+                elapsedMs: state.coverPreviewSession.elapsedMs,
+                covers: state.coverPreviewSession.covers.slice()
+            } : null
+        };
+    };
+
+    ns.__debugShiftInspectorHover = function __debugShiftInspectorHover(deltaMs) {
+        const amount = Number(deltaMs) || 0;
+        if (!state.infoHoverStartedAt) {
+            state.infoHoverStartedAt = Date.now();
+        }
+        state.infoHoverStartedAt -= amount;
+        if (state.coverPreviewSession?.startedAt) {
+            state.coverPreviewSession.startedAt -= amount;
+        } else if (state.coverPreviewSession) {
+            state.coverPreviewSession.elapsedMs = Math.max(0, Number(state.coverPreviewSession.elapsedMs || 0) + amount);
+        }
+        renderInspector();
+        return state.infoHoverStartedAt;
     };
 })(window.EveConstellationMap);

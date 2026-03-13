@@ -187,6 +187,27 @@ window.ctxFolderRename = function() {
     }
 };
 
+window.ctxFolderMap = function() {
+    closeAllMenus();
+    if (window.ctxCatName && window.ctxFolderId && window.EveFolderViewV2?.openFolderScopedMap) {
+        window.EveFolderViewV2.openFolderScopedMap(window.ctxCatName, window.ctxFolderId, window.ctxWsId || ((window.config && window.config.activeWorkspace) || 'main'));
+    }
+};
+
+window.ctxFolderAutoTitle = function() {
+    closeAllMenus();
+    if (window.ctxCatName && window.ctxFolderId && window.EveFolderViewV2?.openFolderBulkTitle) {
+        window.EveFolderViewV2.openFolderBulkTitle(window.ctxCatName, window.ctxFolderId, window.ctxWsId || ((window.config && window.config.activeWorkspace) || 'main'));
+    }
+};
+
+window.ctxFolderAutoLibrary = function() {
+    closeAllMenus();
+    if (window.ctxCatName && window.ctxFolderId && window.EveFolderViewV2?.openFolderBulkLibraryAuto) {
+        window.EveFolderViewV2.openFolderBulkLibraryAuto(window.ctxCatName, window.ctxFolderId, window.ctxWsId || ((window.config && window.config.activeWorkspace) || 'main'));
+    }
+};
+
 function _performDuplicateScan(items, modalTitleStr) {
     const modal = document.getElementById('folderOperationsModal');
     const title = document.getElementById('folderOperationsTitle');

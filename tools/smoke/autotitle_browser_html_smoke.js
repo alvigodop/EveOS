@@ -51,6 +51,88 @@ async function main() {
         }
     });
 
+    const cssUrlFallback = await page.evaluate(async () => {
+        const originalStrategies = window.EveOS.Autotitle.Strategies;
+        window.EveOS.Autotitle.Strategies = {
+            AllOrigins: async () => ({
+                title: 'Demo Gallery',
+                icon: 'https://gallery.example.org/favicon.ico',
+                coverUrl: 'https://gallery.example.org/g/ygm.png'
+            }),
+            CorsProxy: async () => ({
+                title: 'Demo Gallery',
+                icon: 'https://gallery.example.org/favicon.ico',
+                coverUrl: null
+            }),
+            ScraperEngine: async () => ({
+                title: 'Demo Gallery',
+                icon: 'https://gallery.example.org/favicon.ico',
+                coverUrl: 'url(&quot;https://gallery.example.org/w/02/182/58845-ox7vpc8u.webp&quot;)'
+            }),
+            UrlSlug: originalStrategies.UrlSlug
+        };
+        try {
+            return await window.getTitleFromUrl('https://gallery.example.org/g/3716901/37d412a562/', { allowSlowCover: true });
+        } finally {
+            window.EveOS.Autotitle.Strategies = originalStrategies;
+        }
+    });
+
+    const galleryHtmlPriority = await page.evaluate(async () => {
+        const originalStrategies = window.EveOS.Autotitle.Strategies;
+        let calls = 0;
+        window.EveOS.Autotitle.Strategies = {
+            ...originalStrategies,
+            GalleryPageHtml: async () => {
+                calls += 1;
+                return {
+                    title: 'Demo Gallery Title',
+                    icon: 'https://gallery.example.org/favicon.ico',
+                    coverUrl: 'https://gallery.example.org/w/02/182/58845-ox7vpc8u.webp',
+                    source: 'GalleryPageHtml'
+                };
+            },
+            AllOrigins: async () => ({
+                title: 'Demo Gallery',
+                icon: 'https://gallery.example.org/favicon.ico',
+                coverUrl: 'https://gallery.example.org/g/ygm.png'
+            }),
+            CorsProxy: async () => null,
+            ScraperEngine: async () => null
+        };
+        try {
+            const result = await window.getTitleFromUrl('https://gallery.example.org/g/3716901/37d412a562/', { allowSlowCover: true });
+            return { result, calls };
+        } finally {
+            window.EveOS.Autotitle.Strategies = originalStrategies;
+        }
+    });
+
+    const galleryCoverVariant = await page.evaluate(async () => {
+        const originalStrategies = window.EveOS.Autotitle.Strategies;
+        window.EveOS.Autotitle.Strategies = {
+            ...originalStrategies,
+            GalleryPageHtml: async () => ({
+                title: 'Variant Demo Gallery',
+                icon: 'https://gallery.example.org/favicon.ico',
+                coverUrl: 'https://img1.demo-cdn.com/gallery/cover/avif/_S19461.jpg.avif',
+                source: 'GalleryPageHtml'
+            }),
+            AllOrigins: async () => ({
+                title: 'Variant Demo Gallery',
+                icon: 'https://gallery.example.org/favicon.ico',
+                coverUrl: 'https://gallery.example.org/cdn/noImage.png'
+            }),
+            CorsProxy: async () => null,
+            ScraperEngine: async () => null
+        };
+        try {
+            return await window.getTitleFromUrl('https://gallery.example.org/g/3716901/37d412a562/', { allowSlowCover: true });
+        } finally {
+            window.EveOS.Autotitle.Strategies = originalStrategies;
+        }
+    });
+
     await browser.close();
 
     const [first, second, third] = results;
@@ -90,8 +172,17 @@ async function main() {
     if (syntheticFallback?.icon !== 'https://demo.example/favicon.ico') {
         throw new Error(`Expected rejected local file icon to be dropped in favor of valid remote favicon, got ${JSON.stringify(syntheticFallback)}`);
     }
+    if (cssUrlFallback?.coverUrl !== 'https://gallery.example.org/w/02/182/58845-ox7vpc8u.webp') {
+        throw new Error(`Expected CSS url cover recovery, got ${JSON.stringify(cssUrlFallback)}`);
+    }
+    if (galleryHtmlPriority?.calls < 1 || galleryHtmlPriority?.result?.coverUrl !== 'https://gallery.example.org/w/02/182/58845-ox7vpc8u.webp') {
+        throw new Error(`Expected gallery page strategy to win cover recovery, got ${JSON.stringify(galleryHtmlPriority)}`);
+    }
+    if (galleryCoverVariant?.coverUrl !== 'https://img1.demo-cdn.com/gallery/cover/avif/_S19461.jpg.avif') {
+        throw new Error(`Expected formatted CDN cover variant to survive, got ${JSON.stringify(galleryCoverVariant)}`);
+    }
 
-    console.log(`AUTOTITLE_BROWSER_HTML_SMOKE_OK ${JSON.stringify({ results, syntheticFallback })}`);
+    console.log(`AUTOTITLE_BROWSER_HTML_SMOKE_OK ${JSON.stringify({ results, syntheticFallback, cssUrlFallback, galleryHtmlPriority, galleryCoverVariant })}`);
 }
 
 main().catch((error) => {

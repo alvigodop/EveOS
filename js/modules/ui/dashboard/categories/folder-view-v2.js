@@ -34,6 +34,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
     }
 
     window.EveFolderViewV2._viewModelCache = window.EveFolderViewV2._viewModelCache || {};
+    window.EveFolderViewV2._headerActionState = window.EveFolderViewV2._headerActionState || {};
 
     window.EveFolderViewV2.setCachedViewModel = function(workspaceId, categoryName, viewModel) {
         window.EveFolderViewV2._viewModelCache[buildScopedFolderViewKey(workspaceId, categoryName)] = viewModel || null;
@@ -41,6 +42,113 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
 
     window.EveFolderViewV2.getCachedViewModel = function(workspaceId, categoryName) {
         return window.EveFolderViewV2._viewModelCache[buildScopedFolderViewKey(workspaceId, categoryName)] || null;
+    };
+
+    function buildHeaderActionKey(workspaceId, categoryName, folderId) {
+        return `${buildScopedFolderViewKey(workspaceId, categoryName)}::${String(folderId || '').trim() || '__root__'}`;
+    }
+
+    window.EveFolderViewV2.isHeaderActionsExpanded = function (workspaceId, categoryName, folderId) {
+        return !!window.EveFolderViewV2._headerActionState[buildHeaderActionKey(workspaceId, categoryName, folderId)];
+    };
+
+    window.EveFolderViewV2.toggleHeaderActions = function (workspaceId, categoryName, folderId) {
+        const key = buildHeaderActionKey(workspaceId, categoryName, folderId);
+        window.EveFolderViewV2._headerActionState[key] = !window.EveFolderViewV2._headerActionState[key];
+        if (typeof window.renderDashboard === 'function') window.renderDashboard();
+    };
+
+    function getCategoryLinks(workspaceId, categoryName) {
+        return window.getModalLinks
+            ? window.getModalLinks().filter((link) => link.workspace === workspaceId && link.category === categoryName)
+            : [];
+    }
+
+    function collectFolderSubtreeLinkIds(viewModel, folderId) {
+        const normalizedFolderId = String(folderId || '').trim();
+        if (!normalizedFolderId || !viewModel?.childrenMap || !viewModel?.folderLinks) return [];
+        const visited = new Set();
+        const linkIds = new Set();
+        const stack = [normalizedFolderId];
+        while (stack.length > 0) {
+            const currentId = String(stack.pop() || '').trim();
+            if (!currentId || visited.has(currentId)) continue;
+            visited.add(currentId);
+            (viewModel.folderLinks.get(currentId) || []).forEach((link) => {
+                const linkId = String(link?.id || '').trim();
+                if (linkId) linkIds.add(linkId);
+            });
+            (viewModel.childrenMap.get(currentId) || []).forEach((childNode) => {
+                const childId = String(childNode?.id || '').trim();
+                if (childId && !visited.has(childId)) stack.push(childId);
+            });
+        }
+        return Array.from(linkIds);
+    }
+
+    function getTargetFolderNode(workspaceId, categoryName, folderId) {
+        const cachedViewModel = window.EveFolderViewV2.getCachedViewModel(workspaceId, categoryName);
+        if (cachedViewModel?.nodes?.length) {
+            const cachedNode = cachedViewModel.nodes.find((node) => String(node?.id || '') === String(folderId || ''));
+            if (cachedNode) return cachedNode;
+        }
+        const folderApi = window.EveBookmarkFolders;
+        if (!folderApi?.buildFolderView) return null;
+        const viewModel = folderApi.buildFolderView(workspaceId, categoryName, getCategoryLinks(workspaceId, categoryName));
+        window.EveFolderViewV2.setCachedViewModel(workspaceId, categoryName, viewModel);
+        return viewModel.nodes.find((node) => String(node?.id || '') === String(folderId || '')) || null;
+    }
+
+    window.EveFolderViewV2.getFolderScopedLinkIds = function (workspaceId, categoryName, folderId) {
+        const folderApi = window.EveBookmarkFolders;
+        if (!folderApi?.buildFolderView) return [];
+        const viewModel = folderApi.buildFolderView(workspaceId, categoryName, getCategoryLinks(workspaceId, categoryName));
+        window.EveFolderViewV2.setCachedViewModel(workspaceId, categoryName, viewModel);
+        return collectFolderSubtreeLinkIds(viewModel, folderId);
+    };
+
+    window.EveFolderViewV2.openFolderScopedMap = function (categoryName, folderId, workspaceId) {
+        const targetNode = getTargetFolderNode(workspaceId, categoryName, folderId);
+        if (!targetNode || targetNode.isGhost) return;
+        if (window.EveConstellationMap?.openFolderMap) {
+            window.EveConstellationMap.openFolderMap(workspaceId, categoryName, folderId, targetNode.name);
+        }
+    };
+
+    window.EveFolderViewV2.openFolderBulkTitle = function (categoryName, folderId, workspaceId) {
+        const targetNode = getTargetFolderNode(workspaceId, categoryName, folderId);
+        if (!targetNode || targetNode.isGhost) return;
+        const linkIds = window.EveFolderViewV2.getFolderScopedLinkIds(workspaceId, categoryName, folderId);
+        if (!linkIds.length) {
+            if (typeof window.showToast === 'function') window.showToast('No bookmarks in this folder subtree.', 'warning');
+            return;
+        }
+        if (typeof window.openBulkTitleModal === 'function') {
+            window.openBulkTitleModal({
+                categoryName,
+                linkIds,
+                title: `Auto-Title Links :: ${targetNode.name}`,
+                hint: 'Only bookmarks inside this folder and its nested subfolders are included.'
+            });
+        }
+    };
+
+    window.EveFolderViewV2.openFolderBulkLibraryAuto = function (categoryName, folderId, workspaceId) {
+        const targetNode = getTargetFolderNode(workspaceId, categoryName, folderId);
+        if (!targetNode || targetNode.isGhost) return;
+        const linkIds = window.EveFolderViewV2.getFolderScopedLinkIds(workspaceId, categoryName, folderId);
+        if (!linkIds.length) {
+            if (typeof window.showToast === 'function') window.showToast('No bookmarks in this folder subtree.', 'warning');
+            return;
+        }
+        if (typeof window.openBulkLibraryAutoModal === 'function') {
+            window.openBulkLibraryAutoModal({
+                categoryName,
+                linkIds,
+                title: `Auto-Add Library Entries :: ${targetNode.name}`,
+                hint: 'Strict mode: sources are accepted only when API title/synonym matches the bookmark title exactly (case-sensitive). Only this folder subtree is included.'
+            });
+        }
     };
 
     // State Management
@@ -345,10 +453,48 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         const subFolders = viewModel.childrenMap.get(targetNode.id) || [];
         const folderItems = viewModel.folderLinks.get(targetNode.id) || [];
 
+        const headerActionsExpanded = folderId && !targetNode.isGhost
+            ? window.EveFolderViewV2.isHeaderActionsExpanded(workspaceId, categoryName, folderId)
+            : false;
+
+        const folderHeaderActionsHtml = (folderId && !targetNode.isGhost)
+            ? `
+                <div class="folder-breadcrumb-actions">
+                    <button type="button" class="folder-tile-edit-btn folder-breadcrumb-icon-btn ${headerActionsExpanded ? 'active' : ''}" title="Folder Actions"
+                        onclick="event.preventDefault(); event.stopPropagation(); window.EveFolderViewV2.toggleHeaderActions('${escapeCardJs(workspaceId)}', '${escapeCardJs(categoryName)}', '${escapeCardJs(folderId)}');">
+                        &#9998;
+                    </button>
+                    <button type="button" class="folder-breadcrumb-action-btn folder-breadcrumb-icon-btn" title="Constellation Map"
+                        onclick="event.preventDefault(); event.stopPropagation(); window.EveFolderViewV2.openFolderScopedMap('${escapeCardJs(categoryName)}', '${escapeCardJs(folderId)}', '${escapeCardJs(workspaceId)}');">
+                        &#127756;
+                    </button>
+                </div>
+            `
+            : '';
+
+        const folderHeaderActionTrayHtml = (folderId && !targetNode.isGhost && headerActionsExpanded)
+            ? `
+                <div class="folder-breadcrumb-action-tray">
+                    <button type="button" class="folder-breadcrumb-action-btn" title="Edit Current Folder"
+                        onclick="event.preventDefault(); event.stopPropagation(); if(typeof window.showFolderContextMenu === 'function') window.showFolderContextMenu(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(folderId)}', '${escapeCardJs(workspaceId)}');">
+                        &#9998; Edit Folder
+                    </button>
+                    <button type="button" class="folder-breadcrumb-action-btn" title="Auto-Title Links"
+                        onclick="event.preventDefault(); event.stopPropagation(); window.EveFolderViewV2.openFolderBulkTitle('${escapeCardJs(categoryName)}', '${escapeCardJs(folderId)}', '${escapeCardJs(workspaceId)}');">
+                        &#127991; Auto-Title
+                    </button>
+                    <button type="button" class="folder-breadcrumb-action-btn" title="Auto-Add Library Entries"
+                        onclick="event.preventDefault(); event.stopPropagation(); window.EveFolderViewV2.openFolderBulkLibraryAuto('${escapeCardJs(categoryName)}', '${escapeCardJs(folderId)}', '${escapeCardJs(workspaceId)}');">
+                        &#128214; Auto-Library
+                    </button>
+                </div>
+            `
+            : '';
+
         // 1. Build Breadcrumbs HTML
-        let breadcrumbsHtml = `<div class="folder-breadcrumbs" style="position: relative; padding-right: 30px;">`;
+        let breadcrumbsHtml = `<div class="folder-breadcrumbs"><div class="folder-breadcrumb-trail">`;
         trail.forEach((t, i) => {
-            if (i > 0) breadcrumbsHtml += `<span class="breadcrumb-separator">›</span>`;
+            if (i > 0) breadcrumbsHtml += `<span class="breadcrumb-separator">&#8250;</span>`;
             const isLast = i === trail.length - 1;
             const clickAction = t.id
                 ? `window.EveFolderViewV2.enterFolder(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(t.id)}', '${escapeCardJs(workspaceId)}')`
@@ -360,17 +506,10 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
             if (isLast) breadcrumbsHtml += `<span class="breadcrumb-cursor"></span>`;
         });
 
-        // Add interior Edit Button if we are actually inside a folder
-        if (folderId && !targetNode.isGhost) {
-            breadcrumbsHtml += `
-                <button type="button" class="folder-tile-edit-btn" style="position: absolute; right: 0; opacity: 0.7;" title="Edit Current Folder"
-                    onclick="event.preventDefault(); event.stopPropagation(); if(typeof window.showFolderContextMenu === 'function') window.showFolderContextMenu(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(folderId)}', '${escapeCardJs(workspaceId)}');">
-                    &#9998;
-                </button>
-            `;
-        }
-
         breadcrumbsHtml += `</div>`;
+        breadcrumbsHtml += folderHeaderActionsHtml;
+        breadcrumbsHtml += `</div>`;
+        breadcrumbsHtml += folderHeaderActionTrayHtml;
 
         // 2. Build Sub-Folders Grid HTML
         let subFoldersHtml = '';

@@ -41,19 +41,118 @@
 .folder-breadcrumbs {
     display: flex;
     align-items: center;
-    gap: 0;
+    gap: 8px;
     margin-bottom: 12px;
-    flex-wrap: wrap;
     font-family: 'Share Tech Mono', monospace;
     font-size: 11px;
     letter-spacing: 1.5px;
+    min-width: 0;
+    width: 100%;
+    overflow: hidden;
+}
+
+.folder-breadcrumb-trail {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0;
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: calc(100% - 84px);
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+}
+
+.folder-breadcrumb-trail::-webkit-scrollbar {
+    display: none;
+}
+
+.folder-breadcrumb-actions {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: nowrap;
+    flex: 0 0 auto;
+    position: relative;
+    z-index: 2;
+    padding-left: 6px;
+    background: linear-gradient(90deg, rgba(8, 12, 20, 0), rgba(8, 12, 20, 0.85) 24%, rgba(8, 12, 20, 0.98) 100%);
+}
+
+.folder-breadcrumb-icon-btn {
+    opacity: 0.9 !important;
+    border: 1px solid rgba(128,128,128,0.24);
+    border-radius: 8px;
+    background: rgba(255,255,255,0.04);
+    padding: 6px 8px;
+    min-width: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--accent, #0088ff);
+    line-height: 1;
+}
+
+.folder-breadcrumb-icon-btn.active {
+    opacity: 1 !important;
+    border-color: var(--accent, #0088ff)66;
+    background: var(--accent, #0088ff)18;
+    box-shadow: 0 0 12px var(--accent, #0088ff)18;
+}
+
+.folder-breadcrumb-icon-btn:hover {
+    opacity: 1 !important;
+    border-color: var(--accent, #0088ff)66;
+    background: var(--accent, #0088ff)14;
+}
+
+.folder-breadcrumb-action-btn {
+    border: 1px solid rgba(128,128,128,0.24);
+    background: rgba(255,255,255,0.04);
+    color: var(--text-main, rgba(255,255,255,0.9));
+    border-radius: 8px;
+    padding: 6px 10px;
+    cursor: pointer;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.6px;
+    transition: all 0.18s;
+}
+
+.folder-breadcrumb-action-btn:hover {
+    border-color: var(--accent, #0088ff)66;
+    background: var(--accent, #0088ff)14;
+    color: var(--text-main, #fff);
+    box-shadow: 0 0 12px var(--accent, #0088ff)18;
+}
+
+.folder-breadcrumb-action-tray {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: -2px 0 12px 0;
+    padding: 8px 10px;
+    border: 1px solid rgba(128, 128, 128, 0.18);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(10px);
 }
 
 .breadcrumb-item {
     color: rgba(128, 128, 128, 0.6);
     cursor: pointer;
-    padding: 2px 4px;
+    padding: 2px 2px;
     transition: all 0.2s;
+    white-space: nowrap;
+    display: inline-block;
+    max-width: min(32vw, 220px);
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .breadcrumb-item:hover {
@@ -79,7 +178,7 @@
 .breadcrumb-separator {
     color: var(--accent, #0088ff);
     opacity: 0.5;
-    margin: 0 6px;
+    margin: 0 4px;
 }
 
 .breadcrumb-cursor {

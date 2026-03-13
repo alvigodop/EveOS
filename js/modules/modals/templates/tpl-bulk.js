@@ -48,7 +48,8 @@ window.modalTemplate += `
 
 <div class="modal-overlay" id="bulkTitleModal">
     <div class="modal" style="max-width:600px; height:80vh; display:flex; flex-direction:column;">
-        <h2>Auto-Title Links</h2>
+        <h2 id="bulkTitleModalTitle">Auto-Title Links</h2>
+        <p id="bulkTitleModalHint" style="font-size:0.85rem; opacity:0.75; margin:0 0 10px; display:none;"></p>
         <div style="flex:1; overflow-y:auto; border:1px solid #444; background:#111; margin-bottom:15px;"
             id="bulkTitleList"></div>
         <div style="display:flex; gap:10px; margin-bottom:15px;">
@@ -66,8 +67,8 @@ window.modalTemplate += `
 
 <div class="modal-overlay" id="bulkLibraryAutoModal">
     <div class="modal" style="max-width:700px; height:84vh; display:flex; flex-direction:column;">
-        <h2>Auto-Add Library Entries</h2>
-        <p style="font-size:0.85rem; opacity:0.75; margin:0 0 10px;">
+        <h2 id="bulkLibraryAutoModalTitle">Auto-Add Library Entries</h2>
+        <p id="bulkLibraryAutoModalHint" style="font-size:0.85rem; opacity:0.75; margin:0 0 10px;">
             Strict mode: sources are accepted only when API title/synonym matches the bookmark title exactly (case-sensitive).
         </p>
         <div style="flex:1; overflow-y:auto; border:1px solid #444; background:#111; margin-bottom:15px;" id="bulkLibraryAutoList"></div>

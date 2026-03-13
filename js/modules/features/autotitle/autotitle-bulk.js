@@ -1,13 +1,52 @@
 // --- BULK TITLE LOGIC ---
 (function () {
-    let bulkTitleCat = null;
+    let bulkTitleContext = {
+        categoryName: null,
+        linkIds: null,
+        title: 'Auto-Title Links',
+        hint: ''
+    };
 
-    window.openBulkTitleModal = function (cat) {
-        bulkTitleCat = cat;
+    function normalizeBulkTitleContext(categoryOrOptions, maybeOptions) {
+        let options = {};
+        if (categoryOrOptions && typeof categoryOrOptions === 'object' && !Array.isArray(categoryOrOptions)) {
+            options = categoryOrOptions;
+        } else {
+            options = Object.assign({}, maybeOptions || {}, { categoryName: categoryOrOptions });
+        }
+
+        const categoryName = String(options.categoryName || 'Unsorted').trim() || 'Unsorted';
+        const linkIds = Array.isArray(options.linkIds)
+            ? Array.from(new Set(options.linkIds.map((value) => String(value || '').trim()).filter(Boolean)))
+            : null;
+        return {
+            categoryName,
+            linkIds,
+            title: String(options.title || 'Auto-Title Links').trim() || 'Auto-Title Links',
+            hint: String(options.hint || '').trim()
+        };
+    }
+
+    window.openBulkTitleModal = function (categoryOrOptions, maybeOptions) {
+        bulkTitleContext = normalizeBulkTitleContext(categoryOrOptions, maybeOptions);
         const container = document.getElementById('bulkTitleList');
+        const titleEl = document.getElementById('bulkTitleModalTitle');
+        const hintEl = document.getElementById('bulkTitleModalHint');
         container.innerHTML = '';
+        if (titleEl) titleEl.textContent = bulkTitleContext.title;
+        if (hintEl) {
+            hintEl.textContent = bulkTitleContext.hint;
+            hintEl.style.display = bulkTitleContext.hint ? 'block' : 'none';
+        }
 
-        const catLinks = links.filter(l => (l.category || "Unsorted") === cat && l.workspace === config.activeWorkspace);
+        const allowedIds = bulkTitleContext.linkIds ? new Set(bulkTitleContext.linkIds) : null;
+        const catLinks = links.filter((link) => {
+            const sameCategory = (link.category || 'Unsorted') === bulkTitleContext.categoryName;
+            const sameWorkspace = link.workspace === config.activeWorkspace;
+            if (!sameCategory || !sameWorkspace) return false;
+            if (!allowedIds) return true;
+            return allowedIds.has(String(link.id));
+        });
 
         if (catLinks.length === 0) {
             container.innerHTML = '<div style="padding:10px; color:#888;">No links in this category.</div>';

@@ -23,10 +23,26 @@
         return title;
     };
 
+    const decodeInlineHtmlEntities = (value) => String(value || '')
+        .replace(/&quot;|&#34;/gi, '"')
+        .replace(/&#x27;|&#39;/gi, "'")
+        .replace(/&amp;/gi, '&');
+
+    const sanitizeAssetUrlRaw = (assetUrl) => {
+        let value = decodeInlineHtmlEntities(assetUrl).trim();
+        if (!value) return null;
+        value = value.replace(/^url\((.*)\)$/i, '$1').trim();
+        value = value.replace(/^['"]+|['"]+$/g, '').trim();
+        value = value.replace(/(?:&quot;|&#34;|&#x27;|&#39;)+$/gi, '').trim();
+        value = value.replace(/[);,\s]+$/g, '').trim();
+        return value || null;
+    };
+
     const resolveAssetUrl = (assetUrl, baseUrl) => {
-        if (!assetUrl) return null;
+        const sanitized = sanitizeAssetUrlRaw(assetUrl);
+        if (!sanitized) return null;
         try {
-            return new URL(assetUrl, baseUrl).href;
+            return new URL(sanitized, baseUrl).href;
         } catch (error) {
             return null;
         }
@@ -58,14 +74,18 @@
 
         let score = 0;
         if (/cover|poster|thumbnail|thumb|manga|comic|chapter|title/.test(low)) score += 35;
+        if (/\/w\/\d+\/\d+\/[^/?#]+\.(webp|avif|jpg|jpeg|png)(?:[?#].*)?$/i.test(low)) score += 90;
+        if (/\/cover\/(?:avif|webp|png|jpe?g)\//i.test(low)) score += 80;
+        if (/\/cover\/(?:avif|webp|png|jpe?g)\/_s\d+\.(jpg|jpeg|png|webp|avif)(?:\?.*)?$/i.test(low)) score += 40;
         if (/uploads|static|cdn|images|image|media/.test(low)) score += 15;
-        if (/\/cover\/\d+\/_s\d+/i.test(low) || /[_-]s\d+\.(jpg|jpeg|png|webp|avif)(?:\?.*)?$/i.test(low)) score -= 85;
+        if (/\/cover\/\d+\/_s\d+/i.test(low)) score -= 85;
         if (/\/cover\/\d+\//i.test(low) && !/[a-z0-9][a-z0-9_-]{4,}\/\d+\//i.test(low)) score -= 25;
         if (/[a-z0-9][a-z0-9_-]{4,}\/\d+\//i.test(low)) score += 18;
         if (!/@\d+\.(jpg|jpeg|png|webp|avif)$/i.test(low)) score += 20;
         if (/\.(jpg|jpeg|png|webp|avif)(?:\?.*)?$/i.test(low)) score += 25;
         if (/\/assets\//.test(low)) score -= 35;
         if (/@100\./.test(low)) score -= 18;
+        if (/\/g\/[a-z0-9_-]{1,8}\.(jpg|jpeg|png|webp|avif)(?:[?#].*)?$/i.test(low)) score -= 90;
         if (/placeholder|default|no-cover/.test(low)) score -= 40;
         return score;
     };
@@ -89,7 +109,9 @@
         } catch (e) { }
         for (const low of variants) {
             if (/\/cover\/\d+\/_s\d+\.(jpg|jpeg|png|webp|avif)(?:[?#].*)?$/i.test(low)) return true;
-            if (/[_-]s\d+\.(jpg|jpeg|png|webp|avif)(?:[?#].*)?$/i.test(low) && /\/cover\//.test(low)) return true;
+            if (/\/g\/[a-z0-9_-]{1,12}\.(jpg|jpeg|png|webp|avif)(?:[?#].*)?$/i.test(low)) return true;
+            if (/\/g\/ygm\.png(?:[?#].*)?$/i.test(low)) return true;
+            if (/noimage|no-image|nocover|no-cover|placeholder|default-cover/i.test(low)) return true;
         }
         return false;
     };
@@ -122,6 +144,7 @@
         const expandedHtml = String(html || '').replace(/\\\//g, '/');
         const rawCandidates = [];
         const patterns = [
+            /url\((?:&quot;|&#34;|["'])?(https?:\/\/[^"')\s]+|\/\/[^"')\s]+|\/[^"')\s]+\.(?:avif|webp|png|jpe?g)[^"')\s]*)(?:&quot;|&#34;|["'])?\)/gi,
             /https?:\/\/[^"'`\s<>()\\]+?\.(?:avif|webp|png|jpe?g)(?:\?[^"'`\s<>()\\]*)?/gi,
             /\/\/[^"'`\s<>()\\]+?\.(?:avif|webp|png|jpe?g)(?:\?[^"'`\s<>()\\]*)?/gi,
             /(?:\/|\.\.?\/)[^"'`\s<>()\\]*\/cover\/[^"'`\s<>()\\]+\.(?:avif|webp|png|jpe?g)(?:\?[^"'`\s<>()\\]*)?/gi
@@ -129,7 +152,8 @@
         patterns.forEach((pattern) => {
             let match;
             while ((match = pattern.exec(expandedHtml)) !== null) {
-                if (match[0]) rawCandidates.push(match[0]);
+                const candidate = match[1] || match[0];
+                if (candidate) rawCandidates.push(candidate);
             }
         });
         return Array.from(new Set(rawCandidates))

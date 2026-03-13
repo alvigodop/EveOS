@@ -33,6 +33,10 @@ window.ContextMenus.template = `
     <div class="ctx-item" onclick="ctxFolderSubfolder()">&#128193; New Subfolder</div>
     <div class="ctx-item" onclick="ctxFolderRename()">&#9998; Rename</div>
     <div class="ctx-divider"></div>
+    <div class="ctx-item" onclick="ctxFolderMap()">&#127756; Constellation Map</div>
+    <div class="ctx-item" onclick="ctxFolderAutoTitle()">&#127991; Auto-Title Links</div>
+    <div class="ctx-item" onclick="ctxFolderAutoLibrary()">&#128214; Auto-Add Library Entries</div>
+    <div class="ctx-divider"></div>
     <div class="ctx-item" onclick="ctxFolderSubScan()">&#128269; Sub-Scan (Duplicates)</div>
     <div class="ctx-item" onclick="ctxFolderExport()">&#128190; Export Directory</div>
     <div class="ctx-item" onclick="ctxFolderBulkPatch()">&#9881; Bulk Patch</div>

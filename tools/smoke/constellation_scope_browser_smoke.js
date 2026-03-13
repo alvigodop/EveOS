@@ -7,8 +7,8 @@ const FILE_URL = 'file:///' + path.join(REPO_ROOT, 'EveOS.html').replace(/\\/g, 
 function buildSeedPayload() {
     return {
         links: [
-            { id: 'alpha-root-1', title: 'Alpha Root 1', url: 'https://alpha.example.com/root-1', workspace: 'main', category: 'Alpha', done: false, tags: ['alpha'] },
-            { id: 'alpha-root-2', title: 'Alpha Root 2', url: 'https://alpha.example.com/root-2', workspace: 'main', category: 'Alpha', done: false, tags: ['alpha'] },
+            { id: 'alpha-root-1', title: 'Alpha Root 1', url: 'https://alpha.example.com/root-1', workspace: 'main', category: 'Alpha', done: false, tags: ['alpha'], coverImage: 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2232%22 height=%2248%22%3E%3Crect width=%2232%22 height=%2248%22 fill=%22%23ff5f6d%22/%3E%3C/svg%3E' },
+            { id: 'alpha-root-2', title: 'Alpha Root 2', url: 'https://alpha.example.com/root-2', workspace: 'main', category: 'Alpha', done: false, tags: ['alpha'], coverImage: 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2232%22 height=%2248%22%3E%3Crect width=%2232%22 height=%2248%22 fill=%22%2342c9ff%22/%3E%3C/svg%3E' },
             {
                 id: 'alpha-folder-1',
                 title: 'Alpha Folder 1',
@@ -25,7 +25,7 @@ function buildSeedPayload() {
             },
             { id: 'alpha-folder-2', title: 'Alpha Folder 2', url: 'https://alpha.example.com/folder-2', workspace: 'main', category: 'Alpha', folderId: 'f-child', done: false, tags: ['arc'] },
             { id: 'gamma-root-1', title: 'Gamma Root 1', url: 'https://gamma.example.com/root-1', workspace: 'main', category: 'Gamma', done: false, tags: ['gamma'] },
-            { id: 'beta-root-1', title: 'Beta Root 1', url: 'https://beta.example.com/root-1', workspace: 'alt', category: 'Beta', done: false, tags: ['beta'] }
+            { id: 'beta-root-1', title: 'Beta Root 1', url: 'https://beta.example.com/root-1', workspace: 'alt', category: 'Beta', done: false, tags: ['beta'], coverImage: 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2232%22 height=%2248%22%3E%3Crect width=%2232%22 height=%2248%22 fill=%22%23ffd166%22/%3E%3C/svg%3E' }
         ],
         config: {
             activeWorkspace: 'main',
@@ -105,6 +105,14 @@ async function closeMap(page) {
         const overlay = document.getElementById('constellation-map-overlay');
         return !overlay || overlay.style.display === 'none';
     }, undefined, { timeout: 10000 });
+}
+
+async function captureInspectorCover(page) {
+    return page.evaluate(() => {
+        const info = document.querySelector('[data-map-info]');
+        const img = info?.querySelector('[data-map-info-cover] img');
+        return img?.getAttribute('src') || '';
+    });
 }
 
 async function getStats(page) {
@@ -202,8 +210,15 @@ async function runSmoke(page) {
         throw new Error(`Expected collapsed inspector toggle, got ${collapsedInspector.toggleText}`);
     }
 
-    await page.locator('[data-map-info-toggle="1"]').click();
-    await page.waitForTimeout(120);
+    await page.evaluate(() => {
+        const toggle = document.querySelector('[data-map-info-toggle="1"]');
+        if (!toggle) throw new Error('Missing map info toggle');
+        toggle.click();
+    });
+    await page.waitForFunction(() => {
+        const toggle = document.querySelector('[data-map-info-toggle="1"]');
+        return !!toggle && /Collapse/i.test(toggle.textContent || '');
+    }, null, { timeout: 1500 });
     const expandedInspector = await page.evaluate(() => {
         const info = document.querySelector('[data-map-info]');
         return {
@@ -216,6 +231,22 @@ async function runSmoke(page) {
     }
     if (!/Center/i.test(expandedInspector.text)) {
         throw new Error('Expanded inspector should expose node actions');
+    }
+
+    await page.locator('[data-map-info]').hover();
+    await page.waitForFunction(() => {
+        const cover = document.querySelector('[data-map-info] [data-map-info-cover]');
+        if (!cover) return false;
+        return Number.parseFloat(window.getComputedStyle(cover).opacity || '0') > 0.55;
+    }, null, { timeout: 1200 });
+    const categoryCoverOne = await captureInspectorCover(page);
+    const categoryCoverDebug = await page.evaluate(() => {
+        window.EveConstellationMap.__debugShiftInspectorHover(61000);
+        return window.EveConstellationMap.__debugGetInspectorCoverState();
+    });
+    const categoryCoverTwo = categoryCoverDebug.current;
+    if (!categoryCoverOne || !categoryCoverTwo || categoryCoverOne === categoryCoverTwo) {
+        throw new Error(`Expected rotating category cover previews, got ${categoryCoverOne} -> ${categoryCoverTwo} :: ${JSON.stringify(categoryCoverDebug)}`);
     }
 
     const canvas = page.locator('[data-map-canvas]');
@@ -408,6 +439,30 @@ async function runSmoke(page) {
     }
     if (allStats.kinds.workspace !== 2) {
         throw new Error(`Expected 2 workspace nodes in all-tabs map, got ${JSON.stringify(allStats.kinds)}`);
+    }
+    const workspaceSeed = await page.evaluate(() => {
+        const stats = window.EveConstellationMap.__debugGetGraphStats();
+        const workspaceNode = stats.sampleNodes.find((node) => node.kind === 'workspace' && node.label === 'Main');
+        if (!workspaceNode) throw new Error('No workspace node for workspace cover test');
+        const canvas = document.querySelector('[data-map-canvas]');
+        const rect = canvas.getBoundingClientRect();
+        return {
+            clickX: rect.left + stats.transform.tx + (workspaceNode.x * stats.transform.scale),
+            clickY: rect.top + stats.transform.ty + (workspaceNode.y * stats.transform.scale)
+        };
+    });
+    await page.mouse.click(workspaceSeed.clickX, workspaceSeed.clickY);
+    await page.waitForTimeout(180);
+    await page.locator('[data-map-info]').hover();
+    await page.waitForTimeout(160);
+    const workspaceCoverOne = await captureInspectorCover(page);
+    const workspaceCoverDebug = await page.evaluate(() => {
+        window.EveConstellationMap.__debugShiftInspectorHover(31000);
+        return window.EveConstellationMap.__debugGetInspectorCoverState();
+    });
+    const workspaceCoverTwo = workspaceCoverDebug.current;
+    if (!workspaceCoverOne || !workspaceCoverTwo || workspaceCoverOne === workspaceCoverTwo) {
+        throw new Error(`Expected rotating workspace cover previews, got ${workspaceCoverOne} -> ${workspaceCoverTwo} :: ${JSON.stringify(workspaceCoverDebug)}`);
     }
     await closeMap(page);
 

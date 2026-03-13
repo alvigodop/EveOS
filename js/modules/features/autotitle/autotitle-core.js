@@ -112,6 +112,20 @@ window.getTitleFromUrl = async function (url, options = {}) {
         }
     }
 
+    function sanitizeAssetUrlValue(value) {
+        let nextValue = decodeHtmlEntities(String(value || '')).trim();
+        if (!nextValue) return null;
+        nextValue = nextValue.replace(/^url\((.*)\)$/i, '$1').trim();
+        nextValue = nextValue.replace(/^['"]+|['"]+$/g, '').trim();
+        nextValue = nextValue.replace(/[);,\s]+$/g, '').trim();
+        if (!nextValue) return null;
+        try {
+            return new URL(nextValue).href;
+        } catch (e) {
+            return nextValue;
+        }
+    }
+
     function isLikelyIconUrl(value) {
         const url = String(value || '').trim().toLowerCase();
         if (!url) return false;
@@ -170,7 +184,9 @@ window.getTitleFromUrl = async function (url, options = {}) {
 
         for (const url of variants) {
             if (/\/cover\/\d+\/_s\d+\.(jpg|jpeg|png|webp|avif)(?:[?#].*)?$/i.test(url)) return true;
-            if (/[_-]s\d+\.(jpg|jpeg|png|webp|avif)(?:[?#].*)?$/i.test(url) && /\/cover\//.test(url)) return true;
+            if (/\/g\/[a-z0-9_-]{1,12}\.(jpg|jpeg|png|webp|avif)(?:[?#].*)?$/i.test(url)) return true;
+            if (/\/g\/ygm\.png(?:[?#].*)?$/i.test(url)) return true;
+            if (/noimage|no-image|nocover|no-cover|placeholder|default-cover/i.test(url)) return true;
         }
         return false;
     }
@@ -190,10 +206,14 @@ window.getTitleFromUrl = async function (url, options = {}) {
         for (const url of variants) {
             if (/uploads\.mangadex\.org\/covers\//.test(url)) score += 120;
             if (/static\.mfcdn\.cc\//.test(url)) score += 120;
+            if (/\/w\/\d+\/\d+\/[^/?#]+\.(webp|avif|jpg|jpeg|png)(?:[?#].*)?$/i.test(url)) score += 140;
+            if (/\/cover\/(?:avif|webp|png|jpe?g)\//i.test(url)) score += 100;
+            if (/\/cover\/(?:avif|webp|png|jpe?g)\/_s\d+\.(jpg|jpeg|png|webp|avif)(?:[?#].*)?$/i.test(url)) score += 45;
             if (/cover|poster|thumbnail|thumb|banner|hero|backdrop|manga|comic|chapter|title|og-image/.test(url)) score += 45;
             if (/\.(jpg|jpeg|png|webp|avif)(?:[?#].*)?$/i.test(url)) score += 35;
             if (/[a-z0-9][a-z0-9_-]{4,}\/\d+\//i.test(url)) score += 25;
             if (/\/cover\/\d+\//i.test(url) && !/[a-z0-9][a-z0-9_-]{4,}\/\d+\//i.test(url)) score -= 40;
+            if (/\/g\/[a-z0-9_-]{1,8}\.(jpg|jpeg|png|webp|avif)(?:[?#].*)?$/i.test(url)) score -= 100;
             if (/\/assets\//.test(url)) score -= 25;
             if (/@\d+\.(jpg|jpeg|png|webp|avif)(?:[?#].*)?$/i.test(url)) score -= 20;
             if (/placeholder|default|no-cover|noimage|blank/.test(url)) score -= 60;
@@ -272,6 +292,7 @@ window.getTitleFromUrl = async function (url, options = {}) {
             normalized.icon = null;
         }
         if (normalized.coverUrl) {
+            normalized.coverUrl = sanitizeAssetUrlValue(normalized.coverUrl);
             const normalizedCover = normalizeComparableUrl(normalized.coverUrl);
             const normalizedIcon = normalizeComparableUrl(normalized.icon);
             if (
@@ -294,7 +315,6 @@ window.getTitleFromUrl = async function (url, options = {}) {
      */
     function isVideoOrContentSite(url) {
         const videoHosts = [
-            'video-site-a.test', 'video-site-b.test', 'video-site-c.test', 'video-site-d.test',
             'youtube.com', 'youtu.be', 'vimeo.com', 'dailymotion.com',
             'twitch.tv', 'tiktok.com', 'instagram.com', 'twitter.com', 'x.com',
             'reddit.com', 'facebook.com', 'netflix.com', 'hulu.com'
@@ -381,6 +401,7 @@ window.getTitleFromUrl = async function (url, options = {}) {
             parsedUrl = new URL(url);
         } catch (e) { }
         const isMangaFireHost = /(^|\.)mangafire\.to$/i.test(parsedUrl?.hostname || '');
+        const isGalleryPage = /^\/g\/\d+\/[a-z0-9]+\/?$/i.test(parsedUrl?.pathname || '');
 
         // For video/content sites, try MicroLink FIRST (OpenGraph has the real title)
         if (isVideoOrContentSite(url) && strats.GoogleSearch) {
@@ -393,6 +414,22 @@ window.getTitleFromUrl = async function (url, options = {}) {
         }
 
         let primaryResult = null;
+
+        if (isBrowserHtmlMode && allowSlowCover && isGalleryPage && strats.GalleryPageHtml) {
+            const earlyGalleryPageResult = normalizeAutotitleResult(
+                await runStrategy(strats.GalleryPageHtml, 22000, {
+                    attempts: 2,
+                    accept: (result) => !!result?.title && !!result?.coverUrl
+                }),
+                url
+            );
+            if (earlyGalleryPageResult) {
+                primaryResult = mergeAutotitleMetadata(primaryResult, earlyGalleryPageResult, url);
+                if (earlyGalleryPageResult.title && earlyGalleryPageResult.coverUrl) {
+                    return earlyGalleryPageResult;
+                }
+            }
+        }
 
         if (isBrowserHtmlMode && allowSlowCover && isMangaFireHost && strats.MangaFireHtml) {
             const earlyMangaFireResult = normalizeAutotitleResult(
@@ -451,6 +488,20 @@ window.getTitleFromUrl = async function (url, options = {}) {
                 }
                 if (!allowSlowCover && primaryResult?.title && primaryResult?.coverUrl && primaryResult?.icon) {
                     return primaryResult;
+                }
+            }
+        }
+
+        if (isBrowserHtmlMode && allowSlowCover && strats.GalleryPageHtml) {
+            const galleryPageResult = normalizeAutotitleResult(await runStrategy(strats.GalleryPageHtml, 22000, {
+                attempts: isGalleryPage ? 2 : 1,
+                accept: (result) => !!result?.coverUrl
+            }), url);
+            if (galleryPageResult) {
+                if (!primaryResult || isClearlyBetterTitle(galleryPageResult, primaryResult, url)) {
+                    primaryResult = adoptAutotitleTitle(primaryResult, galleryPageResult, url);
+                } else {
+                    primaryResult = mergeAutotitleMetadata(primaryResult, galleryPageResult, url);
                 }
             }
         }
@@ -545,6 +596,7 @@ window.getTitleFromUrl = async function (url, options = {}) {
 
         if (isBrowserHtmlMode && allowSlowCover && (!primaryResult?.coverUrl || scoreCoverUrl(primaryResult.coverUrl, url) < 60)) {
             const coverRecoveryStrategies = [
+                { fn: isGalleryPage ? strats.GalleryPageHtml : null, timeout: 22000, attempts: 2 },
                 { fn: isMangaFireHost ? strats.MangaFireHtml : null, timeout: 22000, attempts: 2 },
                 { fn: strats.AllOrigins, timeout: 12000, attempts: 2 },
                 { fn: strats.LinkMeta, timeout: 5000, attempts: 2 },
