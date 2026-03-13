@@ -116,6 +116,9 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                         ? `
                     <div class="unidex-entry-cover-slot"${coverSlotStyle}>
                         <div class="unidex-entry-cover-fallback">&#128218;</div>
+                        <div class="unidex-entry-icon-overlay" style="position: absolute; bottom: 8px; right: 8px; z-index: 2; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.45); backdrop-filter: blur(4px); border-radius: 4px; border: 1px solid rgba(255, 255, 255, 0.2); pointer-events: none;">
+                             ${buildBookmarkIconHtml(link, safeTitle)}
+                        </div>
                     </div>
                 `
                         : `

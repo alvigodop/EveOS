@@ -75,9 +75,9 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             const hasCustomIcon = !!iconNormalized && !isLegacyLinkIcon;
 
             if (hasCustomIcon) {
-                if (/^https?:\/\//i.test(iconRaw)) {
+                if (/^https?:\/\//i.test(iconRaw) || iconRaw.startsWith('/')) {
                     const safeIconUrl = escapeHtml(iconRaw);
-                    return `<img class="unidex-entry-bookmark-icon-img" src="${safeIconUrl}" alt="${safeTitle} icon" loading="lazy" referrerpolicy="no-referrer">`;
+                    return `<img class="unidex-entry-bookmark-icon-img" src="${safeIconUrl}" alt="${safeTitle} icon" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='https://www.google.com/s2/favicons?domain=${encodeParam(getDomain(link.url))}&sz=64'">`;
                 }
                 return `<span class="unidex-entry-bookmark-icon-emoji">${escapeHtml(iconRaw)}</span>`;
             }

@@ -144,7 +144,7 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
     const useFavicon = !isLocal && domain && domain.includes('.');
 
     let iconHtml = (l.icon && l.icon !== LINK_ICON)
-        ? (String(l.icon).startsWith('http')
+        ? (/^https?:\/\//i.test(String(l.icon)) || String(l.icon).startsWith('/')
             ? `<img src="${l.icon}" width="16" height="16" style="margin-right:8px;" onerror="this.onerror=null;this.replaceWith('${GLOBE_ICON}');">`
             : `<span style="font-size:1.2rem; margin-right:8px;">${l.icon}</span>`)
         : (useFavicon
