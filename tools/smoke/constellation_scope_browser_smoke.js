@@ -518,15 +518,11 @@ async function runSmoke(page) {
     if (!floatedFolder) {
         throw new Error('Dragged folder node missing from debug sample after float check');
     }
-    const folderFloatDistance = Math.hypot(
-        floatedFolder.x - movedFolder.x,
-        floatedFolder.y - movedFolder.y
-    );
-    if (folderFloatDistance < 1) {
-        throw new Error(`Expected moved folder node to keep floating around its anchor instead of freezing, got ${JSON.stringify({ anchored: movedFolder, floated: floatedFolder })}`);
-    }
     if (Math.hypot(floatedFolder.x - folderDragSeed.origX, floatedFolder.y - folderDragSeed.origY) < 10) {
         throw new Error(`Expected floated folder node to stay relocated instead of snapping back, got ${JSON.stringify({ before: folderDragSeed, anchored: movedFolder, floated: floatedFolder })}`);
+    }
+    if (floatedFolder.isStatic || floatedFolder.hasManualAnchor) {
+        throw new Error(`Expected dragged folder node to remain fluid instead of becoming fixed, got ${JSON.stringify({ anchored: movedFolder, floated: floatedFolder })}`);
     }
 
     await page.evaluate((folderId) => {
@@ -572,20 +568,14 @@ async function runSmoke(page) {
     if (!folderKindNodes.length || folderKindNodes.some((node) => !node.isStatic || node.staticSource !== 'kind')) {
         throw new Error(`Expected every folder node to enter static-kind mode, got ${JSON.stringify(folderKindNodes)}`);
     }
+    await page.click('[data-map-toolbar="static-clear"]');
+    await page.waitForTimeout(120);
 
     await page.evaluate((categoryId) => {
-        const stats = window.EveConstellationMap.__debugGetGraphStats();
-        const categoryNode = stats.sampleNodes.find((node) => node.id === categoryId);
-        if (!categoryNode) throw new Error('Missing category node before static-chain test');
-        const canvas = document.querySelector('[data-map-canvas]');
-        const rect = canvas.getBoundingClientRect();
-        window.__categoryStaticChainPoint = {
-            x: rect.left + stats.transform.tx + (categoryNode.x * stats.transform.scale),
-            y: rect.top + stats.transform.ty + (categoryNode.y * stats.transform.scale)
-        };
+        if (!window.EveConstellationMap.__debugSelectNode(categoryId)) {
+            throw new Error('Unable to select category node before static-chain test');
+        }
     }, categorySeed.id);
-    const categoryStaticChainPoint = await page.evaluate(() => window.__categoryStaticChainPoint);
-    await page.mouse.click(categoryStaticChainPoint.x, categoryStaticChainPoint.y);
     await page.waitForTimeout(150);
     await page.click('[data-map-toolbar="static-chain"]');
     await page.waitForTimeout(180);

@@ -1,7 +1,5 @@
 window.EveConstellationMap = window.EveConstellationMap || {};
 
-
-
 (function (ns) {
 
     const state = {
@@ -148,8 +146,6 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
     };
 
-
-
     const MAP_PADDING = 48;
 
     const MAX_TAG_EDGES_PER_CLUSTER = 12;
@@ -179,8 +175,6 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         link: 'repel'
     });
 
-
-
     function getConfig() {
 
         return (typeof window.config !== 'undefined' && window.config)
@@ -190,8 +184,6 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             : (window.eveState?.config || {});
 
     }
-
-
 
     function getAllLinks() {
 
@@ -203,8 +195,6 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
     }
 
-
-
     function text(value, fallback) {
 
         const normalized = String(value ?? '').trim();
@@ -214,8 +204,6 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         return String(fallback ?? '').trim();
 
     }
-
-
 
     function escapeHtml(value) {
 
@@ -233,15 +221,11 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
     }
 
-
-
     function clamp(value, min, max) {
 
         return Math.min(max, Math.max(min, value));
 
     }
-
-
 
     function getViewportSize() {
 
@@ -254,8 +238,6 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         };
 
     }
-
-
 
     function getWorkspaceName(workspaceId) {
 
@@ -270,8 +252,6 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         return text(match?.name, id);
 
     }
-
-
 
     function getScopeText(scope) {
 
@@ -298,8 +278,6 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         return getWorkspaceName(scope.workspaceId) + ' / Current Tab';
 
     }
-
-
 
     function normalizeScope(scopeOption) {
 
@@ -332,8 +310,6 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         };
 
     }
-
-
 
     function createNode(options) {
 
@@ -391,8 +367,6 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
     }
 
-
-
     function getLabelModeText() {
 
         if (state.labelMode === 'all') return 'Labels: All';
@@ -405,8 +379,6 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
     }
 
-
-
     function getMotionModeText() {
 
         if (state.motionMode === 'slow') return 'Motion: Slow';
@@ -418,8 +390,6 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         return 'Motion: Smooth';
 
     }
-
-
 
     function getKindDisplayName(kind) {
 
@@ -434,246 +404,6 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         return text(kind, 'Node');
 
     }
-
-
-
-    function normalizePolarityStrength(value, fallback) {
-
-        const numeric = Number(value);
-
-        if (Number.isFinite(numeric)) {
-
-            return clamp(numeric, 0.2, 1.6);
-
-        }
-
-        return clamp(Number(fallback) || 1, 0.2, 1.6);
-
-    }
-
-
-
-    function getPolarityStrengthValue(mode) {
-
-        const key = mode === 'attract' ? 'attract' : 'repel';
-
-        return normalizePolarityStrength(state.polarityStrength?.[key], key === 'attract' ? 0.62 : 0.76);
-
-    }
-
-
-
-    function setPolarityStrengthValue(mode, value) {
-
-        const key = mode === 'attract' ? 'attract' : 'repel';
-
-        state.polarityStrength[key] = normalizePolarityStrength(value, getPolarityStrengthValue(key));
-
-        return state.polarityStrength[key];
-
-    }
-
-
-
-    function getPolarityStrengthText(mode) {
-
-        return getPolarityStrengthValue(mode).toFixed(2);
-
-    }
-
-
-
-    function normalizePolarityMode(value, fallback, allowInherit) {
-
-        const normalized = String(value || '').trim().toLowerCase();
-
-        if (normalized === 'attract' || normalized === 'repel') return normalized;
-
-        if (allowInherit && (normalized === 'inherit' || normalized === '')) return 'inherit';
-
-        return fallback === 'attract' ? 'attract' : 'repel';
-
-    }
-
-
-
-    function getKindPolarity(kind) {
-
-        const normalizedKind = String(kind || '').trim();
-
-        if (!normalizedKind) return 'repel';
-
-        const current = state.kindPolarities?.[normalizedKind];
-
-        if (current === 'attract' || current === 'repel') return current;
-
-        return DEFAULT_KIND_POLARITIES[normalizedKind] || 'repel';
-
-    }
-
-
-
-    function getNodePolarityState(node) {
-
-        if (!node?.id) {
-
-            return {
-
-                effective: 'repel',
-
-                nodeOverride: 'inherit',
-
-                kind: 'repel',
-
-                source: 'default'
-
-            };
-
-        }
-
-        const nodeId = String(node.id);
-
-        const nodeOverride = normalizePolarityMode(state.nodePolarities.get(nodeId), 'repel', true);
-
-        const kindPolarity = getKindPolarity(node.kind);
-
-        if (nodeOverride === 'attract' || nodeOverride === 'repel') {
-
-            return {
-
-                effective: nodeOverride,
-
-                nodeOverride,
-
-                kind: kindPolarity,
-
-                source: 'node'
-
-            };
-
-        }
-
-        return {
-
-            effective: kindPolarity,
-
-            nodeOverride: 'inherit',
-
-            kind: kindPolarity,
-
-            source: kindPolarity === (DEFAULT_KIND_POLARITIES[String(node.kind || '')] || 'repel') ? 'default' : 'kind'
-
-        };
-
-    }
-
-
-
-    function getEffectivePolarity(node) {
-
-        return getNodePolarityState(node).effective;
-
-    }
-
-
-
-    function cycleNodePolarity(node) {
-
-        if (!node?.id) return 'inherit';
-
-        const nodeId = String(node.id);
-
-        const current = normalizePolarityMode(state.nodePolarities.get(nodeId), 'repel', true);
-
-        if (current === 'inherit') {
-
-            state.nodePolarities.set(nodeId, 'attract');
-
-            return 'attract';
-
-        }
-
-        if (current === 'attract') {
-
-            state.nodePolarities.set(nodeId, 'repel');
-
-            return 'repel';
-
-        }
-
-        state.nodePolarities.delete(nodeId);
-
-        return 'inherit';
-
-    }
-
-
-
-    function toggleKindPolarity(kind) {
-
-        const normalizedKind = String(kind || '').trim();
-
-        if (!normalizedKind) return 'repel';
-
-        const next = getKindPolarity(normalizedKind) === 'attract' ? 'repel' : 'attract';
-
-        state.kindPolarities[normalizedKind] = next;
-
-        return next;
-
-    }
-
-
-
-    function clearPolarityOverrides() {
-
-        state.kindPolarities = {
-            workspace: 'repel',
-            category: 'repel',
-            folder: 'repel',
-            link: 'repel'
-        };
-
-        state.polarityStrength = {
-            attract: 0.62,
-            repel: 0.76
-        };
-
-        state.nodePolarities = new Map();
-
-    }
-
-
-
-    function getPolaritySummary() {
-
-        const attractKinds = Object.entries(state.kindPolarities || {})
-            .filter(([, value]) => value === 'attract')
-            .map(([kind]) => kind);
-
-        const visibleNodeIds = new Set((Array.isArray(state.nodes) ? state.nodes : []).map((node) => String(node?.id || '')).filter(Boolean));
-
-        let nodeOverrideCount = 0;
-
-        state.nodePolarities.forEach((value, nodeId) => {
-
-            if (!visibleNodeIds.has(String(nodeId || ''))) return;
-
-            if (normalizePolarityMode(value, 'repel', true) === 'inherit') return;
-
-            nodeOverrideCount += 1;
-
-        });
-
-        return {
-            attractKinds,
-            nodeOverrideCount,
-            total: attractKinds.length + nodeOverrideCount
-        };
-
-    }
-
-
 
     function placeOnRing(index, total, radius, centerX, centerY, jitter) {
 
@@ -693,8 +423,6 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
     }
 
-
-
     function getAllWorkspaceIds(links) {
 
         const config = getConfig();
@@ -713,8 +441,6 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
     }
 
-
-
     function getScopedLinks(scope) {
 
         const allLinks = getAllLinks();
@@ -728,8 +454,6 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             return allLinks.filter((link) => linkIds.has(String(link?.id || '')));
 
         }
-
-
 
         const workspaceLinks = allLinks.filter((link) => String(link?.workspace || 'main') === String(scope.workspaceId));
 
@@ -748,8 +472,6 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         return workspaceLinks;
 
     }
-
-
 
     function getCategoryNames(workspaceId, links) {
 
@@ -789,8 +511,6 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
     }
 
-
-
     function getFolderView(workspaceId, categoryName, scopedLinks) {
 
         const folderApi = window.EveBookmarkFolders;
@@ -811,8 +531,6 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         }
 
-
-
         const raw = folderApi.buildFolderView(workspaceId, categoryName, Array.isArray(scopedLinks) ? scopedLinks : []);
 
         const rawNodes = Array.isArray(raw?.nodes) ? raw.nodes : [];
@@ -825,8 +543,6 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         const folderLinks = new Map();
 
-
-
         realNodes.forEach((node) => {
 
             childrenMap.set(String(node.id), []);
@@ -834,8 +550,6 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             folderLinks.set(String(node.id), []);
 
         });
-
-
 
         realNodes.forEach((node) => {
 
@@ -846,8 +560,6 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             childrenMap.get(parentId).push(node);
 
         });
-
-
 
         const rawFolderLinks = raw?.folderLinks instanceof Map ? raw.folderLinks : new Map();
 
@@ -861,8 +573,6 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         });
 
-
-
         const rootLinks = Array.isArray(raw?.rootLinks)
 
             ? raw.rootLinks.slice()
@@ -875,8 +585,6 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             }) : []);
 
-
-
         const topLevelFolders = realNodes.filter((node) => {
 
             const parentId = node?.parentId ? String(node.parentId) : '';
@@ -884,8 +592,6 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             return !parentId || !realIds.has(parentId);
 
         });
-
-
 
         return {
 
@@ -903,8 +609,6 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
     }
 
-
-
     function collectFolderSubtree(viewModel, folderId) {
 
         const normalizedId = text(folderId, '');
@@ -914,8 +618,6 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         const targetNode = viewModel.nodes.find((node) => String(node?.id || '') === normalizedId);
 
         if (!targetNode) return null;
-
-
 
         const descendantIds = new Set();
 
@@ -937,8 +639,6 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         }
 
-
-
         return {
 
             targetNode,
@@ -952,8 +652,6 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         };
 
     }
-
-
 
     function addNode(node) {
 
@@ -971,8 +669,6 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
     }
 
-
-
     function addEdge(source, target, type) {
 
         if (!source || !target || source.id === target.id) return;
@@ -988,715 +684,6 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         state.edges.push({ source, target, type: edgeType });
 
     }
-
-
-
-    function hasResolvedCover(link) {
-
-        return !!getResolvedLinkCover(link);
-
-    }
-
-
-
-    function getLinkColor(link) {
-
-        if (link?.done) return '#6e7583';
-
-        if (hasResolvedCover(link)) return '#42c9ff';
-
-        if (Array.isArray(link?.tags) && link.tags.length) return '#7ee787';
-
-        return '#00d4ff';
-
-    }
-
-
-
-    function getLinkMeta(workspaceId, categoryName, link) {
-
-        const folderApi = window.EveBookmarkFolders;
-
-        const folderName = folderApi?.getFolderNameForLink ? folderApi.getFolderNameForLink(link) : '';
-
-        const segments = [getWorkspaceName(workspaceId), text(categoryName, 'Unsorted')];
-
-        if (folderName) segments.push(folderName);
-
-        const host = text((() => {
-
-            try {
-
-                return new URL(text(link?.url, '')).hostname.replace(/^www\./i, '');
-
-            } catch (error) {
-
-                return '';
-
-            }
-
-        })(), '');
-
-        if (host) segments.push(host);
-
-        return segments.join(' / ');
-
-    }
-
-
-
-    function getLinkById(linkId) {
-
-        if (!linkId) return null;
-
-        return getAllLinks().find((link) => String(link?.id || '') === String(linkId)) || null;
-
-    }
-
-
-
-    function getLinkedLibraryEntry(link) {
-
-        if (!link?.id) return null;
-
-        const linked = window.EveLibrary?.ConnectionsAPI?.getLinkedEntry?.(link.id);
-
-        return linked?.entry || null;
-
-    }
-
-
-
-    function getResolvedLinkCover(link) {
-
-        if (!link) return '';
-
-        const libraryEntry = getLinkedLibraryEntry(link);
-
-        const fallbackImage = text(libraryEntry?.image, '') || text(libraryEntry?.imageUrl, '');
-
-        const coverApi = window.EveBookmarkCovers;
-
-        if (coverApi?.getDisplayCover) {
-
-            return text(coverApi.getDisplayCover(link, fallbackImage), '');
-
-        }
-
-        return text(link?.coverImage, '') || fallbackImage;
-
-    }
-
-
-
-    function getFolderScopeLinks(workspaceId, categoryName, folderId) {
-
-        const folderApi = window.EveBookmarkFolders;
-
-        if (!folderApi?.buildFolderView || !folderId) return [];
-
-        const categoryLinks = getAllLinks().filter((link) => (
-
-            String(link?.workspace || 'main') === String(workspaceId || 'main')
-
-            && text(link?.category, 'Unsorted') === text(categoryName, 'Unsorted')
-
-        ));
-
-        const viewModel = folderApi.buildFolderView(workspaceId, categoryName, categoryLinks);
-
-        const subtree = collectFolderSubtree(viewModel, folderId);
-
-        if (!subtree) return [];
-
-        const gathered = [];
-
-        const visit = (folderNode) => {
-
-            const currentId = String(folderNode?.id || '');
-
-            (viewModel.folderLinks.get(currentId) || []).forEach((link) => gathered.push(link));
-
-            (viewModel.childrenMap.get(currentId) || []).forEach((childNode) => visit(childNode));
-
-        };
-
-        (subtree.directLinks || []).forEach((link) => gathered.push(link));
-
-        (subtree.childFolders || []).forEach((childNode) => visit(childNode));
-
-        return gathered;
-
-    }
-
-
-
-    function getNodeCoverCandidates(node) {
-
-        if (!node) return [];
-
-        const cachedCovers = Array.isArray(node?.data?.coverCandidates)
-            ? node.data.coverCandidates.map((value) => text(value, '')).filter(Boolean)
-            : [];
-        if (cachedCovers.length) return cachedCovers;
-
-        if (node.kind === 'link') {
-
-            return [getNodeCoverUrl({ ...node, kind: 'link' })].filter(Boolean);
-
-        }
-
-
-
-        let scopedLinks = [];
-
-        if (node.kind === 'category') {
-
-            scopedLinks = getAllLinks().filter((link) => (
-
-                String(link?.workspace || 'main') === String(node?.data?.workspaceId || 'main')
-
-                && text(link?.category, 'Unsorted') === text(node?.data?.categoryName, 'Unsorted')
-
-            ));
-
-        } else if (node.kind === 'workspace') {
-
-            scopedLinks = getAllLinks().filter((link) => String(link?.workspace || 'main') === String(node?.data?.workspaceId || 'main'));
-
-        } else if (node.kind === 'folder') {
-
-            scopedLinks = getFolderScopeLinks(node?.data?.workspaceId, node?.data?.categoryName, node?.data?.folderId);
-
-        }
-
-
-
-        const covers = [];
-
-        const seen = new Set();
-
-        scopedLinks.forEach((link) => {
-
-            const cover = getResolvedLinkCover(link);
-
-            if (!cover || seen.has(cover)) return;
-
-            seen.add(cover);
-
-            covers.push(cover);
-
-        });
-
-        return covers;
-
-    }
-
-
-
-    function shuffleCoverCandidates(values) {
-
-        const next = Array.isArray(values) ? values.slice() : [];
-
-        for (let index = next.length - 1; index > 0; index--) {
-
-            const swapIndex = Math.floor(Math.random() * (index + 1));
-
-            const temp = next[index];
-
-            next[index] = next[swapIndex];
-
-            next[swapIndex] = temp;
-
-        }
-
-        return next;
-
-    }
-
-
-
-    function getCoverSessionKey(node, covers) {
-
-        return `${String(node?.id || '')}::${(Array.isArray(covers) ? covers : []).join('\n')}`;
-
-    }
-
-
-
-    function ensureCoverPreviewSession(node, options = {}) {
-
-        const covers = getNodeCoverCandidates(node);
-
-        const interval = getNodeCoverRotationInterval(node);
-
-        if (!covers.length || !interval) {
-
-            state.coverPreviewSession = null;
-
-            return covers;
-
-        }
-
-
-
-        const sessionKey = getCoverSessionKey(node, covers);
-
-        const shouldReset = !!options.reset;
-
-        const existing = state.coverPreviewSession;
-
-        if (!shouldReset && existing?.key === sessionKey && Array.isArray(existing.covers) && existing.covers.length) {
-
-            return existing.covers;
-
-        }
-
-
-
-        const randomized = shuffleCoverCandidates(covers);
-
-        state.coverPreviewSession = {
-
-            key: sessionKey,
-
-            covers: randomized,
-
-            startedAt: state.infoHovered ? Date.now() : 0,
-
-            elapsedMs: 0
-
-        };
-
-        return randomized;
-
-    }
-
-
-
-    function getNodeCoverRotationInterval(node) {
-
-        if (!node) return 0;
-
-        if (node.kind === 'workspace') return 30000;
-
-        if (node.kind === 'category') return 60000;
-
-        return 0;
-
-    }
-
-
-
-    function getNodeCoverUrl(node) {
-
-        if (!node) return '';
-
-        if (node.kind === 'link') {
-
-            const link = getLinkById(node?.data?.linkId);
-
-            return getResolvedLinkCover(link);
-
-        }
-
-        const interval = getNodeCoverRotationInterval(node);
-
-        const covers = interval ? ensureCoverPreviewSession(node) : getNodeCoverCandidates(node);
-
-        if (!covers.length) return '';
-
-        if (!interval) return covers[0];
-
-        const baseElapsed = Math.max(0, Number(state.coverPreviewSession?.elapsedMs || 0));
-
-        const hoverElapsed = state.infoHovered
-
-            ? Math.max(0, Date.now() - Number(state.coverPreviewSession?.startedAt || Date.now()))
-
-            : 0;
-
-        const elapsed = baseElapsed + hoverElapsed;
-
-        const index = Math.floor(elapsed / interval) % covers.length;
-
-        return covers[index] || covers[0];
-
-    }
-
-
-
-    function clearInspectorCoverRotation() {
-
-        if (state.coverRotationTimer) {
-
-            window.clearTimeout(state.coverRotationTimer);
-
-            state.coverRotationTimer = 0;
-
-        }
-
-    }
-
-
-
-    function scheduleInspectorCoverRotation() {
-
-        clearInspectorCoverRotation();
-
-        if (!state.infoHovered) return;
-
-        const node = state.selected || state.hovered;
-
-        const interval = getNodeCoverRotationInterval(node);
-
-        const covers = getNodeCoverCandidates(node);
-
-        if (!interval || covers.length < 2) return;
-
-        const elapsed = Math.max(0, Date.now() - (state.infoHoverStartedAt || Date.now()));
-
-        const nextDelay = interval - (elapsed % interval) + 20;
-
-        state.coverRotationTimer = window.setTimeout(() => {
-
-            if (typeof state.renderInspector === 'function') state.renderInspector();
-
-            scheduleInspectorCoverRotation();
-
-        }, nextDelay);
-
-    }
-
-
-
-    function resetStaticLocks() {
-
-        state.staticNodeIds = new Set();
-
-        state.staticKinds = new Set();
-
-        state.staticBranchRoots = new Map();
-
-        state.staticBranchNodeIds = new Set();
-
-        state.nodes.forEach((node) => {
-
-            if (!node) return;
-
-            node.staticAnchor = null;
-
-        });
-
-    }
-
-
-
-    function getStaticStateForNode(node) {
-
-        if (!node?.id) {
-
-            return { isStatic: false, nodeLocked: false, kindLocked: false, branchLocked: false, source: '' };
-
-        }
-
-        const nodeLocked = state.staticNodeIds.has(String(node.id));
-
-        const kindLocked = state.staticKinds.has(String(node.kind || ''));
-
-        const branchLocked = state.staticBranchNodeIds.has(String(node.id));
-
-        return {
-
-            isStatic: nodeLocked || branchLocked || kindLocked,
-
-            nodeLocked,
-
-            kindLocked,
-
-            branchLocked,
-
-            source: nodeLocked ? 'node' : (branchLocked ? 'branch' : (kindLocked ? 'kind' : ''))
-
-        };
-
-    }
-
-
-
-    function isNodeStatic(node) {
-
-        return getStaticStateForNode(node).isStatic;
-
-    }
-
-
-
-    function setStaticAnchor(node, position) {
-
-        if (!node) return null;
-
-        const target = position && typeof position === 'object' ? position : node;
-
-        node.staticAnchor = {
-
-            x: Number.isFinite(target?.x) ? Number(target.x) : 0,
-
-            y: Number.isFinite(target?.y) ? Number(target.y) : 0
-
-        };
-
-        return node.staticAnchor;
-
-    }
-
-
-
-    function toggleStaticForNode(node) {
-
-        if (!node?.id) return false;
-
-        const key = String(node.id);
-
-        if (state.staticNodeIds.has(key)) {
-
-            state.staticNodeIds.delete(key);
-
-            if (!state.staticKinds.has(String(node.kind || '')) && !state.staticBranchNodeIds.has(key)) {
-
-                node.staticAnchor = null;
-
-            }
-
-            return false;
-
-        }
-
-        setStaticAnchor(node);
-
-        state.staticNodeIds.add(key);
-
-        return true;
-
-    }
-
-
-
-    function toggleStaticForKind(kind) {
-
-        const normalizedKind = String(kind || '').trim();
-
-        if (!normalizedKind) return false;
-
-        if (state.staticKinds.has(normalizedKind)) {
-
-            state.staticKinds.delete(normalizedKind);
-
-            state.nodes.forEach((node) => {
-
-                if (!node || String(node.kind || '') !== normalizedKind) return;
-
-                const nodeId = String(node.id || '');
-
-                if (!state.staticNodeIds.has(nodeId) && !state.staticBranchNodeIds.has(nodeId)) {
-
-                    node.staticAnchor = null;
-
-                }
-
-            });
-
-            return false;
-
-        }
-
-        state.staticKinds.add(normalizedKind);
-
-        state.nodes.forEach((node) => {
-
-            if (!node || String(node.kind || '') !== normalizedKind) return;
-
-            state.staticNodeIds.delete(String(node.id || ''));
-
-            setStaticAnchor(node);
-
-        });
-
-        return true;
-
-    }
-
-
-
-    function recomputeStaticBranchNodeIds() {
-
-        const next = new Set();
-
-        state.staticBranchRoots.forEach((ids) => {
-
-            (ids || []).forEach((id) => {
-
-                if (id) next.add(String(id));
-
-            });
-
-        });
-
-        state.staticBranchNodeIds = next;
-
-    }
-
-
-
-    function getStaticBranchIds(rootNode) {
-
-        if (!rootNode?.id) return [];
-
-        const rootId = String(rootNode.id);
-
-        const ids = new Set([rootId]);
-
-        let changed = true;
-
-        while (changed) {
-
-            changed = false;
-
-            state.nodes.forEach((node) => {
-
-                if (!node || node.kind === 'link') return;
-
-                const nodeId = String(node.id || '');
-
-                if (!nodeId || ids.has(nodeId)) return;
-
-                const parentId = text(node?.data?.anchorNodeId, '');
-
-                if (parentId && ids.has(parentId)) {
-
-                    ids.add(nodeId);
-
-                    changed = true;
-
-                }
-
-            });
-
-        }
-
-        return Array.from(ids.values());
-
-    }
-
-
-
-    function toggleStaticBranch(rootNode) {
-
-        if (!rootNode?.id) return false;
-
-        const rootId = String(rootNode.id);
-
-        if (state.staticBranchRoots.has(rootId)) {
-
-            const previousIds = state.staticBranchRoots.get(rootId) || [];
-
-            state.staticBranchRoots.delete(rootId);
-
-            recomputeStaticBranchNodeIds();
-
-            previousIds.forEach((nodeId) => {
-
-                const targetNode = state.nodeIndex.get(String(nodeId));
-
-                if (!targetNode) return;
-
-                const targetState = getStaticStateForNode(targetNode);
-
-                if (!targetState.nodeLocked && !targetState.kindLocked && !targetState.branchLocked) {
-
-                    targetNode.staticAnchor = null;
-
-                }
-
-            });
-
-            return false;
-
-        }
-
-        const branchIds = getStaticBranchIds(rootNode);
-
-        state.staticBranchRoots.set(rootId, branchIds);
-
-        recomputeStaticBranchNodeIds();
-
-        branchIds.forEach((nodeId) => {
-
-            const targetNode = state.nodeIndex.get(String(nodeId));
-
-            if (!targetNode) return;
-
-            setStaticAnchor(targetNode);
-
-        });
-
-        return true;
-
-    }
-
-
-
-    function isStaticBranchRoot(node) {
-
-        if (!node?.id) return false;
-
-        return state.staticBranchRoots.has(String(node.id));
-
-    }
-
-
-
-    function clearStaticLocks() {
-
-        state.staticNodeIds.clear();
-
-        state.staticKinds.clear();
-
-        state.staticBranchRoots.clear();
-
-        state.staticBranchNodeIds.clear();
-
-        state.nodes.forEach((node) => {
-
-            if (!node) return;
-
-            node.staticAnchor = null;
-
-        });
-
-    }
-
-
-
-    function getStaticSummary() {
-
-        return {
-
-            nodeCount: state.staticNodeIds.size,
-
-            kinds: Array.from(state.staticKinds.values()),
-
-            branchCount: state.staticBranchRoots.size,
-
-            total: state.staticNodeIds.size + state.staticKinds.size + state.staticBranchRoots.size
-
-        };
-
-    }
-
-
-
-
 
     const shared = ns._shared = ns._shared || {};
 
@@ -1752,26 +739,6 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         getKindDisplayName,
 
-        getKindPolarity,
-
-        getNodePolarityState,
-
-        getEffectivePolarity,
-
-        cycleNodePolarity,
-
-        toggleKindPolarity,
-
-        getPolarityStrengthValue,
-
-        setPolarityStrengthValue,
-
-        getPolarityStrengthText,
-
-        clearPolarityOverrides,
-
-        getPolaritySummary,
-
         placeOnRing,
 
         getAllWorkspaceIds,
@@ -1786,57 +753,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         addNode,
 
-        addEdge,
-
-        hasResolvedCover,
-
-        getLinkColor,
-
-        getLinkMeta,
-
-        getLinkById,
-
-        getLinkedLibraryEntry,
-
-        getResolvedLinkCover,
-
-        getFolderScopeLinks,
-
-        getNodeCoverCandidates,
-
-        shuffleCoverCandidates,
-
-        getCoverSessionKey,
-
-        ensureCoverPreviewSession,
-
-        getNodeCoverRotationInterval,
-
-        getNodeCoverUrl,
-
-        clearInspectorCoverRotation,
-
-        scheduleInspectorCoverRotation,
-
-        resetStaticLocks,
-
-        getStaticStateForNode,
-
-        isNodeStatic,
-
-        setStaticAnchor,
-
-        toggleStaticForNode,
-
-        toggleStaticForKind,
-
-        toggleStaticBranch,
-
-        isStaticBranchRoot,
-
-        clearStaticLocks,
-
-        getStaticSummary
+        addEdge
 
     });
 

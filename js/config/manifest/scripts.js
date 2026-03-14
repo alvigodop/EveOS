@@ -286,7 +286,9 @@ window.EveModuleManifestParts.scripts = [
 
 
 
-        'js/modules/features/bookmark-folders.ghosts.js?v=0.2.1',
+        'js/modules/features/bookmark-folders.ghost-sensors.js?v=0.1.0',
+        'js/modules/features/bookmark-folders.ghost-recursion.js?v=0.1.0',
+        'js/modules/features/bookmark-folders.ghosts.js?v=0.3.0',
 
         'js/modules/features/bookmark-folders.view.js?v=0.2.2',
         'js/modules/features/bookmark-folders.management.js?v=0.2.1',
@@ -389,13 +391,18 @@ window.EveModuleManifestParts.scripts = [
 
 
 
-        'js/modules/features/constellation-map.shared.js?v=0.2.1',
+        'js/modules/features/constellation-map.shared.js?v=0.3.0',
+        'js/modules/features/constellation-map.polarity.js?v=0.1.0',
+        'js/modules/features/constellation-map.covers.js?v=0.1.0',
+        'js/modules/features/constellation-map.static.js?v=0.1.0',
 
         'js/modules/features/constellation-map.graph.js?v=0.2.1',
 
         'js/modules/features/constellation-map.render.js?v=0.2.1',
 
-        'js/modules/features/constellation-map.js?v=0.4.1',
+        'js/modules/features/constellation-map.physics.js?v=0.1.0',
+
+        'js/modules/features/constellation-map.js?v=0.4.2',
 
 
 

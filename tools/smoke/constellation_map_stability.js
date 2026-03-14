@@ -129,8 +129,12 @@ global.window.EveBookmarkFolders = {
 };
 
 load('js/modules/features/constellation-map.shared.js');
+load('js/modules/features/constellation-map.polarity.js');
+load('js/modules/features/constellation-map.covers.js');
+load('js/modules/features/constellation-map.static.js');
 load('js/modules/features/constellation-map.graph.js');
 load('js/modules/features/constellation-map.render.js');
+load('js/modules/features/constellation-map.physics.js');
 load('js/modules/features/constellation-map.js');
 window.EveConstellationMap.openMap();
 const stats = window.EveConstellationMap.__debugGetGraphStats();
