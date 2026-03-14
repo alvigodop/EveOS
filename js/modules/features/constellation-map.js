@@ -816,6 +816,74 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
     }
 
+    function releaseTransientMapState() {
+
+        state.nodes = [];
+
+        state.nodeIndex = new Map();
+
+        state.edges = [];
+
+        state.edgeKeys = new Set();
+
+        state.scope = null;
+
+        state.hovered = null;
+
+        state.selected = null;
+
+        state.labelHitBoxes = [];
+
+        state.motionAnchors = new Map();
+
+        state.lastMotionMode = state.motionMode;
+
+        state.nodePolarities = new Map();
+
+        state.staticNodeIds = new Set();
+
+        state.staticKinds = new Set();
+
+        state.staticBranchRoots = new Map();
+
+        state.staticBranchNodeIds = new Set();
+
+        state.coverPreviewSession = null;
+
+        state.searchState = {
+
+            query: '',
+
+            index: -1,
+
+            matches: []
+
+        };
+
+        state.pointer.mode = 'idle';
+
+        state.pointer.node = null;
+
+        state.pointer.moved = false;
+
+        state.pointer.releaseVx = 0;
+
+        state.pointer.releaseVy = 0;
+
+        state.worldAnchor = { x: 0, y: 0 };
+
+        state.worldBounds = null;
+
+        state.worldRadius = 0;
+
+        if (state.ctx && state.canvas) {
+
+            state.ctx.clearRect(0, 0, state.canvas.width, state.canvas.height);
+
+        }
+
+    }
+
 
 
     function setSelectedNode(node) {
@@ -1825,6 +1893,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         if (state.container) state.container.style.display = 'none';
 
         document.body.style.overflow = '';
+
+        releaseTransientMapState();
 
     };
 

@@ -1,6 +1,9 @@
 // --- CORE ACTIONS ---
 
 function switchWorkspace(id) {
+    if (window.EveConstellationMap?.closeMap) {
+        window.EveConstellationMap.closeMap();
+    }
     config.activeWorkspace = id;
     saveConfig();
     if (typeof renderSidebar === 'function') renderSidebar();

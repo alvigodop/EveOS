@@ -400,9 +400,9 @@ window.EveModuleManifestParts.scripts = [
 
         'js/modules/features/constellation-map.render.js?v=0.2.1',
 
-        'js/modules/features/constellation-map.physics.js?v=0.1.0',
+        'js/modules/features/constellation-map.physics.js?v=0.1.1',
 
-        'js/modules/features/constellation-map.js?v=0.4.2',
+        'js/modules/features/constellation-map.js?v=0.4.3',
 
 
 
@@ -570,7 +570,7 @@ window.EveModuleManifestParts.scripts = [
 
 
 
-'js/modules/core/actions.js?v=0.2.3',
+'js/modules/core/actions.js?v=0.2.4',
 
 
 

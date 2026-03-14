@@ -144,18 +144,29 @@ async function runSmoke(page) {
     const topbarStyles = await page.evaluate(() => {
         const container = document.querySelector('.top-right');
         const button = document.querySelector('.topbar-map-btn');
+        const primary = document.querySelector('.topbar-primary-btn');
         const containerStyle = container ? window.getComputedStyle(container) : null;
         const buttonStyle = button ? window.getComputedStyle(button) : null;
+        const primaryStyle = primary ? window.getComputedStyle(primary) : null;
         return {
             overflowX: containerStyle ? containerStyle.overflowX : '',
             maxWidth: containerStyle ? containerStyle.maxWidth : '',
             minHeight: buttonStyle ? buttonStyle.minHeight : '',
-            fontSize: buttonStyle ? buttonStyle.fontSize : ''
+            fontSize: buttonStyle ? buttonStyle.fontSize : '',
+            paddingInline: buttonStyle ? [buttonStyle.paddingLeft, buttonStyle.paddingRight].join('/') : '',
+            primaryMinHeight: primaryStyle ? primaryStyle.minHeight : '',
+            primaryFontSize: primaryStyle ? primaryStyle.fontSize : ''
         };
     });
 
     if (topbarStyles.overflowX !== 'auto') {
         throw new Error(`Expected top-right overflow-x auto, got ${topbarStyles.overflowX}`);
+    }
+    if (!(parseFloat(topbarStyles.minHeight) < parseFloat(topbarStyles.primaryMinHeight))) {
+        throw new Error(`Expected smaller map button min-height, got ${JSON.stringify(topbarStyles)}`);
+    }
+    if (!(parseFloat(topbarStyles.fontSize) < parseFloat(topbarStyles.primaryFontSize))) {
+        throw new Error(`Expected smaller map button font-size, got ${JSON.stringify(topbarStyles)}`);
     }
 
     await clickAndWaitForMap(page, () => page.locator('.topbar-map-btn').click());
@@ -166,7 +177,24 @@ async function runSmoke(page) {
     if (workspaceStats.nodeCount !== 9) {
         throw new Error(`Expected workspace nodeCount=9, got ${workspaceStats.nodeCount}`);
     }
-    await closeMap(page);
+    const switchElapsed = await page.evaluate(() => {
+        const startedAt = performance.now();
+        window.switchWorkspace('alt');
+        return performance.now() - startedAt;
+    });
+    await page.waitForFunction(() => {
+        const overlay = document.getElementById('constellation-map-overlay');
+        return !overlay || overlay.style.display === 'none';
+    }, undefined, { timeout: 10000 });
+    const releasedStats = await getStats(page);
+    if (releasedStats.visible || releasedStats.nodeCount !== 0 || releasedStats.edgeCount !== 0) {
+        throw new Error(`Expected closed map state to release graph data on workspace switch, got ${JSON.stringify(releasedStats)}`);
+    }
+    if (!Number.isFinite(switchElapsed) || switchElapsed < 0 || switchElapsed > 250) {
+        throw new Error(`Unexpected workspace switch timing with map teardown: ${switchElapsed}`);
+    }
+    await page.evaluate(() => window.switchWorkspace('main'));
+    await page.waitForFunction(() => window.config?.activeWorkspace === 'main', undefined, { timeout: 10000 });
 
     await clickAndWaitForMap(page, () => page.evaluate(() => {
         if (typeof window.openCategorySettings !== 'function') {

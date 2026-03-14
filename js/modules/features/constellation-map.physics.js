@@ -72,27 +72,27 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
                 mode: normalizedMode,
 
-                repulsionScale: nodeCount > 220 ? 0.34 : 0.3,
+                repulsionScale: nodeCount > 220 ? 0.26 : 0.22,
 
-                centerPullScale: 2.55,
+                centerPullScale: 2.95,
 
-                springScale: 1.56,
+                springScale: 1.48,
 
-                hierarchyReactionScale: 0.22,
+                hierarchyReactionScale: 0.16,
 
-                folderRecoveryScale: 2.4,
+                folderRecoveryScale: 3.2,
 
-                dampingScale: 0.84,
+                dampingScale: 0.8,
 
-                speedScale: 0.24,
+                speedScale: 0.2,
 
-                worldTetherScale: 1.38,
+                worldTetherScale: 1.42,
 
-                anchorScaleByKind: { workspace: 7.4, category: 5.8, folder: 0.96, link: 0.98 },
+                anchorScaleByKind: { workspace: 8.8, category: 6.9, folder: 1.28, link: 1.02 },
 
-                dampingScaleByKind: { workspace: 0.72, category: 0.77, folder: 0.88, link: 0.95 },
+                dampingScaleByKind: { workspace: 0.68, category: 0.73, folder: 0.82, link: 0.94 },
 
-                speedScaleByKind: { workspace: 0.04, category: 0.08, folder: 0.36, link: 0.68 }
+                speedScaleByKind: { workspace: 0.03, category: 0.06, folder: 0.28, link: 0.64 }
 
             };
 
@@ -174,19 +174,61 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         if (targetKind === 'folder') {
 
-            baseFactor = sourceKind === 'link' ? 0.16 : 0.3;
+            baseFactor = sourceKind === 'link' ? 0.12 : 0.24;
 
         } else if (targetKind === 'category') {
 
-            baseFactor = sourceKind === 'folder' ? 0.42 : 0.24;
+            baseFactor = sourceKind === 'folder' ? 0.34 : 0.18;
 
         } else if (targetKind === 'workspace') {
 
-            baseFactor = 0.34;
+            baseFactor = 0.22;
 
         }
 
         return Math.max(0, baseFactor * (motionProfile?.hierarchyReactionScale || 1) * getMotionTuningValue('hierarchy'));
+
+    }
+
+    function getPairwiseInfluenceScale(targetNode, sourceNode, motionProfile) {
+
+        if (motionProfile?.mode !== 'web') return 1;
+
+        const targetKind = text(targetNode?.kind, '');
+
+        const sourceKind = text(sourceNode?.kind, '');
+
+        if (targetKind === 'workspace') {
+
+            if (sourceKind === 'link') return 0.03;
+
+            if (sourceKind === 'folder') return 0.06;
+
+            if (sourceKind === 'category') return 0.16;
+
+        }
+
+        if (targetKind === 'category') {
+
+            if (sourceKind === 'link') return 0.08;
+
+            if (sourceKind === 'folder') return 0.14;
+
+            if (sourceKind === 'workspace') return 0.24;
+
+        }
+
+        if (targetKind === 'folder') {
+
+            if (sourceKind === 'link') return 0.22;
+
+            if (sourceKind === 'folder') return 0.3;
+
+            if (sourceKind === 'category') return 0.48;
+
+        }
+
+        return 1;
 
     }
 
@@ -426,13 +468,27 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         if (node.kind === 'category') {
 
-            node.x += (anchor.x - node.x) * 0.18;
+            node.x += (anchor.x - node.x) * 0.22;
 
-            node.y += (anchor.y - node.y) * 0.18;
+            node.y += (anchor.y - node.y) * 0.22;
 
-            node.vx *= 0.26;
+            node.vx *= 0.22;
 
-            node.vy *= 0.26;
+            node.vy *= 0.22;
+
+            return;
+
+        }
+
+        if (node.kind === 'folder') {
+
+            node.x += (anchor.x - node.x) * 0.05;
+
+            node.y += (anchor.y - node.y) * 0.05;
+
+            node.vx *= 0.72;
+
+            node.vy *= 0.72;
 
             return;
 
@@ -644,19 +700,23 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
                 const ny = dy / dist;
 
+                const nodeInfluenceScale = getPairwiseInfluenceScale(node, other, motionProfile);
+
+                const otherInfluenceScale = getPairwiseInfluenceScale(other, node, motionProfile);
+
                 if (!nodeIsStatic) {
 
-                    node.vx += nx * force * otherPolarity.direction * otherPolarity.strength;
+                    node.vx += nx * force * otherPolarity.direction * otherPolarity.strength * nodeInfluenceScale;
 
-                    node.vy += ny * force * otherPolarity.direction * otherPolarity.strength;
+                    node.vy += ny * force * otherPolarity.direction * otherPolarity.strength * nodeInfluenceScale;
 
                 }
 
                 if (!otherIsStatic) {
 
-                    other.vx -= nx * force * nodePolarity.direction * nodePolarity.strength;
+                    other.vx -= nx * force * nodePolarity.direction * nodePolarity.strength * otherInfluenceScale;
 
-                    other.vy -= ny * force * nodePolarity.direction * nodePolarity.strength;
+                    other.vy -= ny * force * nodePolarity.direction * nodePolarity.strength * otherInfluenceScale;
 
                 }
 
