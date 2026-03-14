@@ -30,7 +30,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         const normalizedMode = MOTION_MODE_ORDER.includes(state.motionMode)
             ? state.motionMode
-            : 'smooth';
+            : 'web';
 
         if (normalizedMode === 'slow') {
 
@@ -470,7 +470,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         const normalizedMode = MOTION_MODE_ORDER.includes(state.motionMode)
             ? state.motionMode
-            : 'smooth';
+            : 'web';
 
         if (normalizedMode !== 'web') {
 

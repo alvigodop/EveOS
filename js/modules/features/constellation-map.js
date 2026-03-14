@@ -1212,7 +1212,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             '<button type="button" data-map-toolbar="labels" style="border:1px solid rgba(0,212,255,0.28);background:rgba(0,212,255,0.12);color:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;">Labels: Auto</button>',
 
-            '<button type="button" data-map-toolbar="motion" style="border:1px solid rgba(145,220,255,0.26);background:rgba(145,220,255,0.11);color:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;">Motion: Smooth</button>',
+            '<button type="button" data-map-toolbar="motion" style="border:1px solid rgba(145,220,255,0.26);background:rgba(145,220,255,0.11);color:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;">Motion: Web</button>',
 
             '<button type="button" data-map-toolbar="close" style="border:1px solid rgba(255,80,120,0.3);background:rgba(255,80,120,0.14);color:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;">Close</button>',
 

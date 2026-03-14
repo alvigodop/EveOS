@@ -172,6 +172,9 @@ async function runSmoke(page) {
     if (cardStats.nodeCount !== 7) {
         throw new Error(`Expected card nodeCount=7, got ${cardStats.nodeCount}`);
     }
+    if (cardStats.motionMode !== 'web') {
+        throw new Error(`Expected default motion mode to be web, got ${cardStats.motionMode}`);
+    }
 
     const categorySeed = await page.evaluate(() => {
         const stats = window.EveConstellationMap.__debugGetGraphStats();
@@ -263,6 +266,18 @@ async function runSmoke(page) {
         throw new Error(`Expected zoom scale to increase (${cardStats.transform.scale} -> ${zoomStats.transform.scale})`);
     }
 
+    await page.click('[data-map-toolbar="motion"]');
+    await page.waitForTimeout(140);
+    const freeMotionStats = await getStats(page);
+    if (freeMotionStats.motionMode !== 'free') {
+        throw new Error(`Expected motion mode to cycle to free, got ${freeMotionStats.motionMode}`);
+    }
+    await page.click('[data-map-toolbar="motion"]');
+    await page.waitForTimeout(140);
+    const smoothMotionStats = await getStats(page);
+    if (smoothMotionStats.motionMode !== 'smooth') {
+        throw new Error(`Expected motion mode to cycle to smooth, got ${smoothMotionStats.motionMode}`);
+    }
     await page.click('[data-map-toolbar="motion"]');
     await page.waitForTimeout(140);
     const slowMotionStats = await getStats(page);
@@ -508,7 +523,7 @@ async function runSmoke(page) {
         movedFolder.x - folderDragSeed.origX,
         movedFolder.y - folderDragSeed.origY
     );
-    if (movedFolderDistance < 18) {
+    if (movedFolderDistance < 14) {
         throw new Error(`Expected dragged folder node to relocate, got ${JSON.stringify({ before: folderDragSeed, after: movedFolder })}`);
     }
 

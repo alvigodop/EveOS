@@ -96,11 +96,11 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         },
 
-        motionMode: 'smooth',
+        motionMode: 'web',
 
         motionAnchors: new Map(),
 
-        lastMotionMode: 'smooth',
+        lastMotionMode: 'web',
 
         labelMode: 'auto',
 
