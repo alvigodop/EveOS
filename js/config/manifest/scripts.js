@@ -291,7 +291,7 @@ window.EveModuleManifestParts.scripts = [
         'js/modules/features/bookmark-folders.ghosts.js?v=0.3.0',
 
         'js/modules/features/bookmark-folders.view.js?v=0.2.2',
-        'js/modules/features/bookmark-folders.management.js?v=0.2.1',
+        'js/modules/features/bookmark-folders.management.js?v=0.2.2',
 
         'js/modules/features/bookmark-folders.behavior.js?v=0.2.1',
 

@@ -170,6 +170,23 @@ async function runSmoke(page) {
       && !!toolbar
       && toolbar.classList.contains('is-visible');
   }, undefined, { timeout: 5000 });
+
+  await page.locator('.category-card[data-card-category="Alpha"] .bookmark-folder-toolbar-btn').first().click();
+  await page.waitForFunction(() => {
+    const modal = document.getElementById('bookmarkFolderCreatorModal');
+    const input = document.getElementById('bookmarkFolderCreatorNameInput');
+    return !!modal && modal.style.display === 'flex' && !!input;
+  }, undefined, { timeout: 5000 });
+  await page.fill('#bookmarkFolderCreatorNameInput', 'Created In Smoke');
+  await page.evaluate(() => {
+    if (!window.submitCategoryFolderCreate()) {
+      throw new Error('submitCategoryFolderCreate returned false');
+    }
+  });
+  await page.waitForFunction(() => {
+    return Array.from(document.querySelectorAll('.category-card[data-card-category="Alpha"] .folder-tile-title'))
+      .some((node) => String(node.textContent || '').trim() === 'Created In Smoke');
+  }, undefined, { timeout: 5000 });
 }
 
 (async () => {

@@ -17,6 +17,10 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
 
         normalizeFolderId,
 
+        normalizeParentId,
+
+        dedupeNodes,
+
         normalizeTreeSettings,
 
         normalizeClickBehaviorMode,
