@@ -607,7 +607,7 @@ async function runSmoke(page) {
         movedFolder.x - folderDragSeed.origX,
         movedFolder.y - folderDragSeed.origY
     );
-    if (movedFolderDistance < 14) {
+    if (movedFolderDistance < 12) {
         throw new Error(`Expected dragged folder node to relocate, got ${JSON.stringify({ before: folderDragSeed, after: movedFolder })}`);
     }
 

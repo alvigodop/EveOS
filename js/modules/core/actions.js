@@ -1,14 +1,27 @@
 // --- CORE ACTIONS ---
 
 function switchWorkspace(id) {
+    const nextWorkspaceId = String(id || '').trim() || String(config.workspaces?.[0]?.id || 'main');
+    const currentWorkspaceId = String(config.activeWorkspace || '').trim() || String(config.workspaces?.[0]?.id || 'main');
+    const hadFocusCategory = typeof focusCategory !== 'undefined' && !!focusCategory;
+
     if (window.EveConstellationMap?.closeMap) {
         window.EveConstellationMap.closeMap();
     }
-    config.activeWorkspace = id;
+
+    if (currentWorkspaceId === nextWorkspaceId && !hadFocusCategory) {
+        return;
+    }
+
+    config.activeWorkspace = nextWorkspaceId;
+
+    if (typeof focusCategory !== 'undefined') {
+        focusCategory = null;
+    }
+
     saveConfig();
     if (typeof renderSidebar === 'function') renderSidebar();
     if (typeof renderDashboard === 'function') renderDashboard();
-    if (typeof clearFocus === 'function') clearFocus();
 }
 
 function togglePin(id) {

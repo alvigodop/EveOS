@@ -570,7 +570,7 @@ window.EveModuleManifestParts.scripts = [
 
 
 
-'js/modules/core/actions.js?v=0.2.4',
+'js/modules/core/actions.js?v=0.2.5',
 
 
 
