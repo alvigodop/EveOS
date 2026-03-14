@@ -14,6 +14,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         clearInspectorCoverRotation,
 
+        resetStaticLocks,
+
         normalizeScope,
 
         getScopedLinks,
@@ -44,9 +46,13 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         getLinkColor,
 
-        getLinkMeta
+        getLinkMeta,
+
+        getResolvedLinkCover
 
     } = shared;
+
+    const MAX_NODE_COVER_CANDIDATES = 96;
 
 
 
@@ -70,6 +76,10 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         state.nodes = [];
 
+        state.nodeIndex = new Map();
+
+        state.motionAnchors = new Map();
+
         state.edges = [];
 
         state.edgeKeys = new Set();
@@ -92,6 +102,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         state.pointer.forcePan = false;
 
+        resetStaticLocks();
+
 
 
         function addTagEdges(linkNode, link) {
@@ -113,6 +125,60 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                     tagBuckets.get(key).push(linkNode);
 
                 });
+
+        }
+
+        const folderSubtreeLinksCache = new Map();
+
+        function buildCoverCandidates(links) {
+
+            const covers = [];
+
+            const seen = new Set();
+
+            (Array.isArray(links) ? links : []).forEach((link) => {
+
+                if (covers.length >= MAX_NODE_COVER_CANDIDATES) return;
+
+                const cover = text(getResolvedLinkCover(link), '');
+
+                if (!cover || seen.has(cover)) return;
+
+                seen.add(cover);
+
+                covers.push(cover);
+
+            });
+
+            return covers;
+
+        }
+
+        function getFolderBranchLinks(viewModel, folderId) {
+
+            const normalizedId = text(folderId, '');
+
+            if (!normalizedId) return [];
+
+            if (folderSubtreeLinksCache.has(normalizedId)) {
+
+                return folderSubtreeLinksCache.get(normalizedId);
+
+            }
+
+            const gathered = [];
+
+            (viewModel.folderLinks.get(normalizedId) || []).forEach((link) => gathered.push(link));
+
+            (viewModel.childrenMap.get(normalizedId) || []).forEach((childFolder) => {
+
+                getFolderBranchLinks(viewModel, childFolder?.id).forEach((link) => gathered.push(link));
+
+            });
+
+            folderSubtreeLinksCache.set(normalizedId, gathered);
+
+            return gathered;
 
         }
 
@@ -168,6 +234,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             const position = placeOnRing(index, Math.max(total, 1), radius, parentNode.x, parentNode.y, 10);
 
+            const folderBranchLinks = getFolderBranchLinks(viewModel, folderNodeModel?.id);
+
             const folderNode = addNode(createNode({
 
                 id: 'folder_' + workspaceId + '_' + categoryName + '_' + String(folderNodeModel.id),
@@ -193,6 +261,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                     categoryName,
 
                     folderId: String(folderNodeModel.id),
+
+                    coverCandidates: buildCoverCandidates(folderBranchLinks),
 
                     anchorNodeId: parentNode?.id || ''
 
@@ -260,6 +330,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
                     categoryName,
 
+                    coverCandidates: buildCoverCandidates(categoryLinks),
+
                     anchorNodeId: parentNode?.id || ''
 
                 }
@@ -316,7 +388,13 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
                     meta: workspaceLinks.length + ' bookmark' + (workspaceLinks.length === 1 ? '' : 's'),
 
-                    data: { workspaceId }
+                    data: {
+
+                        workspaceId,
+
+                        coverCandidates: buildCoverCandidates(workspaceLinks)
+
+                    }
 
                 }));
 
@@ -354,6 +432,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             if (subtree) {
 
+                const folderBranchLinks = getFolderBranchLinks(folderView, subtree.targetNode?.id);
+
                 const folderNode = addNode(createNode({
 
                     id: 'folder_' + scope.workspaceId + '_' + text(scope.categoryName, 'Unsorted') + '_' + String(subtree.targetNode.id),
@@ -377,6 +457,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                         workspaceId: scope.workspaceId,
 
                         categoryName: text(scope.categoryName, 'Unsorted'),
+
+                        coverCandidates: buildCoverCandidates(folderBranchLinks),
 
                         folderId: String(subtree.targetNode.id)
 

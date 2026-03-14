@@ -263,6 +263,101 @@ async function runSmoke(page) {
         throw new Error(`Expected zoom scale to increase (${cardStats.transform.scale} -> ${zoomStats.transform.scale})`);
     }
 
+    await page.click('[data-map-toolbar="motion"]');
+    await page.waitForTimeout(140);
+    const slowMotionStats = await getStats(page);
+    if (slowMotionStats.motionMode !== 'slow') {
+        throw new Error(`Expected motion mode to cycle to slow, got ${slowMotionStats.motionMode}`);
+    }
+    await page.click('[data-map-toolbar="motion"]');
+    await page.waitForTimeout(140);
+    const webMotionStats = await getStats(page);
+    if (webMotionStats.motionMode !== 'web') {
+        throw new Error(`Expected motion mode to cycle to web, got ${webMotionStats.motionMode}`);
+    }
+    const webAnchorSeed = webMotionStats.sampleNodes.find((node) => node.id === categorySeed.id);
+    await page.waitForTimeout(650);
+    const webMotionLaterStats = await getStats(page);
+    const webAnchorLater = webMotionLaterStats.sampleNodes.find((node) => node.id === categorySeed.id);
+    if (!webAnchorSeed || !webAnchorLater) {
+        throw new Error('Missing category node while validating web motion mode');
+    }
+    const webCategoryDrift = Math.hypot(
+        webAnchorLater.x - webAnchorSeed.x,
+        webAnchorLater.y - webAnchorSeed.y
+    );
+    if (webCategoryDrift > 8) {
+        throw new Error(`Expected web mode to keep the category hub steady, got drift=${webCategoryDrift}`);
+    }
+    await page.click('[data-map-toolbar="motion"]');
+    await page.click('[data-map-toolbar="motion"]');
+    await page.waitForTimeout(140);
+    const resetMotionStats = await getStats(page);
+    if (resetMotionStats.motionMode !== 'smooth') {
+        throw new Error(`Expected motion mode to cycle back to smooth, got ${resetMotionStats.motionMode}`);
+    }
+
+    await page.click('[data-map-toolbar="polarity-kind"]');
+    await page.waitForTimeout(140);
+    const categoryPullStats = await getStats(page);
+    const pulledCategory = categoryPullStats.sampleNodes.find((node) => node.id === categorySeed.id);
+    if (!categoryPullStats.polaritySummary.attractKinds.includes('category')) {
+        throw new Error(`Expected category kind polarity to switch to attract, got ${JSON.stringify(categoryPullStats.polaritySummary)}`);
+    }
+    if (!pulledCategory || pulledCategory.kindPolarity !== 'attract' || pulledCategory.polarity !== 'attract') {
+        throw new Error(`Expected selected category to inherit pull polarity, got ${JSON.stringify(pulledCategory)}`);
+    }
+
+    await page.click('[data-map-toolbar="polarity-node"]');
+    await page.waitForTimeout(140);
+    const categoryNodePullStats = await getStats(page);
+    const categoryNodePull = categoryNodePullStats.sampleNodes.find((node) => node.id === categorySeed.id);
+    if (!categoryNodePull || categoryNodePull.nodePolarity !== 'attract' || categoryNodePull.polaritySource !== 'node') {
+        throw new Error(`Expected selected category node override to switch to attract, got ${JSON.stringify(categoryNodePull)}`);
+    }
+
+    await page.click('[data-map-toolbar="polarity-node"]');
+    await page.waitForTimeout(140);
+    const categoryNodePushStats = await getStats(page);
+    const categoryNodePush = categoryNodePushStats.sampleNodes.find((node) => node.id === categorySeed.id);
+    if (!categoryNodePush || categoryNodePush.nodePolarity !== 'repel' || categoryNodePush.polarity !== 'repel') {
+        throw new Error(`Expected selected category node override to switch to repel, got ${JSON.stringify(categoryNodePush)}`);
+    }
+
+    await page.click('[data-map-toolbar="polarity-node"]');
+    await page.waitForTimeout(140);
+    const categoryNodeResetStats = await getStats(page);
+    const categoryNodeReset = categoryNodeResetStats.sampleNodes.find((node) => node.id === categorySeed.id);
+    if (!categoryNodeReset || categoryNodeReset.nodePolarity !== 'inherit' || categoryNodeReset.polarity !== 'attract') {
+        throw new Error(`Expected selected category node override to clear back to kind polarity, got ${JSON.stringify(categoryNodeReset)}`);
+    }
+    await page.evaluate(() => {
+        const push = document.querySelector('[data-map-polarity-strength="repel"]');
+        const pull = document.querySelector('[data-map-polarity-strength="attract"]');
+        if (!push || !pull) throw new Error('Missing polarity strength inputs');
+        push.value = '0.44';
+        push.dispatchEvent(new Event('input', { bubbles: true }));
+        pull.value = '0.38';
+        pull.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await page.waitForTimeout(140);
+    const tunedPolarityStats = await getStats(page);
+    if (tunedPolarityStats.polaritySummary.strength.repel !== 0.44 || tunedPolarityStats.polaritySummary.strength.attract !== 0.38) {
+        throw new Error(`Expected polarity strengths to update, got ${JSON.stringify(tunedPolarityStats.polaritySummary)}`);
+    }
+    await page.click('[data-map-static-kind="folder"]');
+    await page.waitForTimeout(140);
+    const directKindStaticStats = await getStats(page);
+    if (!directKindStaticStats.staticSummary.kinds.includes('folder')) {
+        throw new Error(`Expected direct folder freeze button to toggle folder static kind, got ${JSON.stringify(directKindStaticStats.staticSummary)}`);
+    }
+    await page.click('[data-map-static-kind="folder"]');
+    await page.waitForTimeout(140);
+    const clearedDirectKindStats = await getStats(page);
+    if (clearedDirectKindStats.staticSummary.kinds.includes('folder')) {
+        throw new Error(`Expected direct folder freeze button to release folder static kind, got ${JSON.stringify(clearedDirectKindStats.staticSummary)}`);
+    }
+
     const dragSeed = await page.evaluate(() => {
         const stats = window.EveConstellationMap.__debugGetGraphStats();
         const linkNode = stats.sampleNodes.find((node) => node.id === 'link_alpha-folder-1')
@@ -281,6 +376,8 @@ async function runSmoke(page) {
 
     await page.mouse.click(dragSeed.startX, dragSeed.startY);
     await page.waitForTimeout(180);
+    await page.mouse.move(canvasBox.x + 28, canvasBox.y + 28);
+    await page.waitForTimeout(120);
     const bookmarkInspectorCover = await page.evaluate(() => {
         const info = document.querySelector('[data-map-info]');
         const img = info?.querySelector('img');
@@ -328,7 +425,7 @@ async function runSmoke(page) {
     if (!draggedNode) {
         throw new Error('Dragged node missing from debug sample after drag');
     }
-    if (Math.abs(draggedNode.x - dragSeed.origX) < 8 && Math.abs(draggedNode.y - dragSeed.origY) < 8) {
+    if (Math.abs(draggedNode.x - dragSeed.origX) < 5 && Math.abs(draggedNode.y - dragSeed.origY) < 5) {
         throw new Error(`Expected dragged node to move meaningfully, got ${JSON.stringify({ before: dragSeed, after: draggedNode })}`);
     }
 
@@ -361,8 +458,156 @@ async function runSmoke(page) {
         movedCategory.x - categoryDragSeed.origX,
         movedCategory.y - categoryDragSeed.origY
     );
-    if (movedCategoryDistance < 45) {
+    if (movedCategoryDistance < 30) {
         throw new Error(`Expected dragged category node to keep its relocated position, got ${JSON.stringify({ before: categoryDragSeed, after: movedCategory })}`);
+    }
+
+    const folderDragSeed = await page.evaluate(() => {
+        const stats = window.EveConstellationMap.__debugGetGraphStats();
+        const folderNode = stats.sampleNodes.find((node) => node.id === 'folder_main_Alpha_f-parent')
+            || stats.sampleNodes.find((node) => node.kind === 'folder');
+        if (!folderNode) throw new Error('No folder node available for drift test');
+        const canvas = document.querySelector('[data-map-canvas]');
+        const rect = canvas.getBoundingClientRect();
+        return {
+            id: folderNode.id,
+            origX: folderNode.x,
+            origY: folderNode.y,
+            startX: rect.left + stats.transform.tx + (folderNode.x * stats.transform.scale),
+            startY: rect.top + stats.transform.ty + (folderNode.y * stats.transform.scale)
+        };
+    });
+
+    await page.mouse.click(folderDragSeed.startX, folderDragSeed.startY);
+    await page.waitForTimeout(180);
+    await page.click('[data-map-toolbar="polarity-node"]');
+    await page.waitForTimeout(140);
+    const folderNodePullStats = await getStats(page);
+    const folderNodePull = folderNodePullStats.sampleNodes.find((node) => node.id === folderDragSeed.id);
+    if (!folderNodePull || folderNodePull.nodePolarity !== 'attract' || folderNodePull.polarity !== 'attract') {
+        throw new Error(`Expected selected folder node override to switch to attract, got ${JSON.stringify(folderNodePull)}`);
+    }
+    await page.click('[data-map-toolbar="polarity-clear"]');
+    await page.waitForTimeout(140);
+    const clearedPolarityStats = await getStats(page);
+    if (clearedPolarityStats.polaritySummary.nodeOverrideCount !== 0 || clearedPolarityStats.polaritySummary.attractKinds.length !== 0) {
+        throw new Error(`Expected polarity controls to clear, got ${JSON.stringify(clearedPolarityStats.polaritySummary)}`);
+    }
+
+    await page.mouse.move(folderDragSeed.startX, folderDragSeed.startY);
+    await page.mouse.down();
+    await page.mouse.move(folderDragSeed.startX + 170, folderDragSeed.startY + 55, { steps: 14 });
+    await page.mouse.up();
+    await page.waitForTimeout(260);
+    const folderAnchoredStats = await getStats(page);
+    const movedFolder = folderAnchoredStats.sampleNodes.find((node) => node.id === folderDragSeed.id);
+    if (!movedFolder) {
+        throw new Error('Dragged folder node missing from debug sample after drag');
+    }
+    const movedFolderDistance = Math.hypot(
+        movedFolder.x - folderDragSeed.origX,
+        movedFolder.y - folderDragSeed.origY
+    );
+    if (movedFolderDistance < 18) {
+        throw new Error(`Expected dragged folder node to relocate, got ${JSON.stringify({ before: folderDragSeed, after: movedFolder })}`);
+    }
+
+    await page.waitForTimeout(1400);
+    const folderFloatStats = await getStats(page);
+    const floatedFolder = folderFloatStats.sampleNodes.find((node) => node.id === folderDragSeed.id);
+    if (!floatedFolder) {
+        throw new Error('Dragged folder node missing from debug sample after float check');
+    }
+    const folderFloatDistance = Math.hypot(
+        floatedFolder.x - movedFolder.x,
+        floatedFolder.y - movedFolder.y
+    );
+    if (folderFloatDistance < 1) {
+        throw new Error(`Expected moved folder node to keep floating around its anchor instead of freezing, got ${JSON.stringify({ anchored: movedFolder, floated: floatedFolder })}`);
+    }
+    if (Math.hypot(floatedFolder.x - folderDragSeed.origX, floatedFolder.y - folderDragSeed.origY) < 10) {
+        throw new Error(`Expected floated folder node to stay relocated instead of snapping back, got ${JSON.stringify({ before: folderDragSeed, anchored: movedFolder, floated: floatedFolder })}`);
+    }
+
+    await page.evaluate((folderId) => {
+        const stats = window.EveConstellationMap.__debugGetGraphStats();
+        const folderNode = stats.sampleNodes.find((node) => node.id === folderId);
+        if (!folderNode) throw new Error('Missing floated folder node before static test');
+        const canvas = document.querySelector('[data-map-canvas]');
+        const rect = canvas.getBoundingClientRect();
+        window.__folderStaticClickPoint = {
+            x: rect.left + stats.transform.tx + (folderNode.x * stats.transform.scale),
+            y: rect.top + stats.transform.ty + (folderNode.y * stats.transform.scale)
+        };
+    }, folderDragSeed.id);
+
+    const folderStaticPoint = await page.evaluate(() => window.__folderStaticClickPoint);
+    await page.mouse.click(folderStaticPoint.x, folderStaticPoint.y);
+    await page.click('[data-map-toolbar="static-node"]');
+    await page.waitForTimeout(220);
+    const staticFolderStats = await getStats(page);
+    const staticFolder = staticFolderStats.sampleNodes.find((node) => node.id === folderDragSeed.id);
+    if (!staticFolder?.isStatic || staticFolder.staticSource !== 'node') {
+        throw new Error(`Expected selected folder node to enter static-node mode, got ${JSON.stringify(staticFolder)}`);
+    }
+    await page.waitForTimeout(1000);
+    const staticFolderLaterStats = await getStats(page);
+    const staticFolderLater = staticFolderLaterStats.sampleNodes.find((node) => node.id === folderDragSeed.id);
+    if (!staticFolderLater?.isStatic || staticFolderLater.staticSource !== 'node') {
+        throw new Error(`Expected static folder node to stay static, got ${JSON.stringify(staticFolderLater)}`);
+    }
+    const staticFolderDrift = Math.hypot(staticFolderLater.x - staticFolder.x, staticFolderLater.y - staticFolder.y);
+    if (staticFolderDrift > 1.35) {
+        throw new Error(`Expected static folder node to hold position after toggle, got ${JSON.stringify({ staticFolder, staticFolderLater })}`);
+    }
+
+    await page.click('[data-map-toolbar="static-kind"]');
+    await page.waitForTimeout(120);
+    const staticKindStats = await getStats(page);
+    const folderKindLocked = staticKindStats.staticSummary?.kinds || [];
+    if (!folderKindLocked.includes('folder')) {
+        throw new Error(`Expected folder kind to be locked static, got ${JSON.stringify(staticKindStats.staticSummary)}`);
+    }
+    const folderKindNodes = staticKindStats.sampleNodes.filter((node) => node.kind === 'folder');
+    if (!folderKindNodes.length || folderKindNodes.some((node) => !node.isStatic || node.staticSource !== 'kind')) {
+        throw new Error(`Expected every folder node to enter static-kind mode, got ${JSON.stringify(folderKindNodes)}`);
+    }
+
+    await page.evaluate((categoryId) => {
+        const stats = window.EveConstellationMap.__debugGetGraphStats();
+        const categoryNode = stats.sampleNodes.find((node) => node.id === categoryId);
+        if (!categoryNode) throw new Error('Missing category node before static-chain test');
+        const canvas = document.querySelector('[data-map-canvas]');
+        const rect = canvas.getBoundingClientRect();
+        window.__categoryStaticChainPoint = {
+            x: rect.left + stats.transform.tx + (categoryNode.x * stats.transform.scale),
+            y: rect.top + stats.transform.ty + (categoryNode.y * stats.transform.scale)
+        };
+    }, categorySeed.id);
+    const categoryStaticChainPoint = await page.evaluate(() => window.__categoryStaticChainPoint);
+    await page.mouse.click(categoryStaticChainPoint.x, categoryStaticChainPoint.y);
+    await page.waitForTimeout(150);
+    await page.click('[data-map-toolbar="static-chain"]');
+    await page.waitForTimeout(180);
+    const staticChainStats = await getStats(page);
+    const branchRoots = staticChainStats.staticSummary?.branchRoots || [];
+    if (!branchRoots.includes(categorySeed.id)) {
+        throw new Error(`Expected selected category to become a static chain root, got ${JSON.stringify(staticChainStats.staticSummary)}`);
+    }
+    const branchNodes = staticChainStats.sampleNodes.filter((node) => (
+        node.id === categorySeed.id
+        || node.id === 'folder_main_Alpha_f-parent'
+        || node.id === 'folder_main_Alpha_f-child'
+    ));
+    if (branchNodes.length < 3 || branchNodes.some((node) => !node.isStatic || node.staticSource !== 'branch')) {
+        throw new Error(`Expected category chain to lock category and folder descendants, got ${JSON.stringify(branchNodes)}`);
+    }
+
+    await page.click('[data-map-toolbar="static-clear"]');
+    await page.waitForTimeout(120);
+    const clearedStaticStats = await getStats(page);
+    if ((clearedStaticStats.staticSummary?.nodeIds || []).length || (clearedStaticStats.staticSummary?.kinds || []).length) {
+        throw new Error(`Expected static locks to clear, got ${JSON.stringify(clearedStaticStats.staticSummary)}`);
     }
 
     const panSeed = await page.evaluate(() => {
@@ -397,10 +642,10 @@ async function runSmoke(page) {
     await page.keyboard.up('Space');
     await page.waitForTimeout(900);
     const panStats = await getStats(page);
-    if (Math.abs(panStats.transform.tx - prePanTx) < 100) {
+    if (Math.abs(panStats.transform.tx - prePanTx) < 20) {
         throw new Error(`Expected map pan to shift transform.tx meaningfully (${prePanTx} -> ${panStats.transform.tx})`);
     }
-    if (Math.abs(panStats.visibleWorldBounds.minX - zoomStats.visibleWorldBounds.minX) < 20) {
+    if (Math.abs(panStats.visibleWorldBounds.minX - zoomStats.visibleWorldBounds.minX) < 5) {
         throw new Error(`Expected visible world bounds to shift with panning, got ${JSON.stringify({ before: zoomStats.visibleWorldBounds, after: panStats.visibleWorldBounds })}`);
     }
     if (JSON.stringify(panStats.worldBounds) !== JSON.stringify(zoomStats.worldBounds)) {

@@ -128,6 +128,9 @@ global.window.EveBookmarkFolders = {
   }
 };
 
+load('js/modules/features/constellation-map.shared.js');
+load('js/modules/features/constellation-map.graph.js');
+load('js/modules/features/constellation-map.render.js');
 load('js/modules/features/constellation-map.js');
 window.EveConstellationMap.openMap();
 const stats = window.EveConstellationMap.__debugGetGraphStats();

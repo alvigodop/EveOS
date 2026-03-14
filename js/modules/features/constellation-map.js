@@ -22,6 +22,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         LABEL_MODE_ORDER,
 
+        MOTION_MODE_ORDER,
+
         LABEL_CURSOR_RADIUS,
 
         LABEL_FOCUS_LIMIT,
@@ -40,6 +42,22 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         getLabelModeText,
 
+        getMotionModeText,
+
+        getNodePolarityState,
+
+        cycleNodePolarity,
+
+        toggleKindPolarity,
+
+        getPolarityStrengthValue,
+
+        setPolarityStrengthValue,
+
+        clearPolarityOverrides,
+
+        getPolaritySummary,
+
         getNodeCoverCandidates,
 
         getNodeCoverRotationInterval,
@@ -47,6 +65,20 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         ensureCoverPreviewSession,
 
         getNodeCoverUrl,
+
+        isNodeStatic,
+
+        setStaticAnchor,
+
+        toggleStaticForNode,
+
+        toggleStaticForKind,
+
+        toggleStaticBranch,
+
+        clearStaticLocks,
+
+        getStaticStateForNode,
 
         clearInspectorCoverRotation,
 
@@ -56,7 +88,637 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
     const { buildGraphData, initializeWorldField, getGraphBounds } = graph;
 
+    const render = ns._render || {};
+
+    const {
+
+        requestDraw,
+
+        renderHeader,
+
+        renderInspector,
+
+        renderToolbarState,
+
+        updateInspectorCoverState,
+
+        updateCursor,
+
+        getScreenPoint,
+
+        getNodeAnchor,
+
+        draw
+
+    } = render;
+
     if (ns.ready) return;
+
+    function getManualAnchorPreset(node) {
+
+        if (node?.kind === 'workspace') {
+
+            return { driftRadius: 22, pullStrength: 0.02, damping: 0.924, speed: 0.00028 };
+
+        }
+
+        if (node?.kind === 'category') {
+
+            return { driftRadius: 16, pullStrength: 0.024, damping: 0.916, speed: 0.00032 };
+
+        }
+
+        if (node?.kind === 'folder') {
+
+            return { driftRadius: 10, pullStrength: 0.03, damping: 0.91, speed: 0.00038 };
+
+        }
+
+        return { driftRadius: 8, pullStrength: 0.032, damping: 0.904, speed: 0.00042 };
+
+    }
+
+
+
+    function hashNodeId(node) {
+
+        const value = String(node?.id || '');
+
+        let hash = 0;
+
+        for (let index = 0; index < value.length; index += 1) {
+
+            hash = ((hash * 33) + value.charCodeAt(index)) % 100003;
+
+        }
+
+        return hash;
+
+    }
+
+
+
+    function createManualAnchor(node) {
+
+        const preset = getManualAnchorPreset(node);
+
+        const hash = hashNodeId(node);
+
+        return {
+
+            x: Number.isFinite(node?.x) ? node.x : 0,
+
+            y: Number.isFinite(node?.y) ? node.y : 0,
+
+            driftRadius: preset.driftRadius + (hash % 5),
+
+            pullStrength: preset.pullStrength,
+
+            damping: preset.damping,
+
+            speed: preset.speed + ((hash % 7) * 0.00001),
+
+            phase: (hash % 6283) / 1000
+
+        };
+
+    }
+
+
+
+    function getInteractionTargetNode() {
+
+        return state.selected || state.hovered || null;
+
+    }
+
+
+
+    function shouldPersistManualAnchor(node) {
+
+        if (!node) return false;
+
+        return node.kind === 'workspace' || node.kind === 'category';
+
+    }
+
+
+
+    function shouldPreferSelectedNodeForDrag(node) {
+
+        if (!node) return false;
+
+        if (isNodeStatic(node)) return true;
+
+        return node.kind === 'workspace' || node.kind === 'category';
+
+    }
+
+
+
+    function getMotionProfile(nodeCount) {
+
+        const normalizedMode = MOTION_MODE_ORDER.includes(state.motionMode)
+            ? state.motionMode
+            : 'smooth';
+
+        if (normalizedMode === 'slow') {
+
+            return {
+
+                mode: normalizedMode,
+
+                repulsionScale: 0.62,
+
+                centerPullScale: 1.34,
+
+                springScale: 1.12,
+
+                hierarchyReactionScale: 0.74,
+
+                folderRecoveryScale: 1.38,
+
+                dampingScale: 0.94,
+
+                speedScale: 0.58,
+
+                worldTetherScale: 1.14,
+
+                anchorScaleByKind: { workspace: 2.2, category: 1.72, folder: 1.46, link: 1 },
+
+                dampingScaleByKind: { workspace: 0.94, category: 0.95, folder: 0.95, link: 1 },
+
+                speedScaleByKind: { workspace: 0.44, category: 0.56, folder: 0.7, link: 0.9 }
+
+            };
+
+        }
+
+        if (normalizedMode === 'web') {
+
+            return {
+
+                mode: normalizedMode,
+
+                repulsionScale: nodeCount > 220 ? 0.54 : 0.48,
+
+                centerPullScale: 2.05,
+
+                springScale: 1.4,
+
+                hierarchyReactionScale: 0.4,
+
+                folderRecoveryScale: 1.96,
+
+                dampingScale: 0.9,
+
+                speedScale: 0.34,
+
+                worldTetherScale: 1.2,
+
+                anchorScaleByKind: { workspace: 5.4, category: 4.1, folder: 1.12, link: 1.08 },
+
+                dampingScaleByKind: { workspace: 0.76, category: 0.82, folder: 0.92, link: 0.98 },
+
+                speedScaleByKind: { workspace: 0.08, category: 0.14, folder: 0.54, link: 0.86 }
+
+            };
+
+        }
+
+        if (normalizedMode === 'free') {
+
+            return {
+
+                mode: normalizedMode,
+
+                repulsionScale: 1.08,
+
+                centerPullScale: 0.95,
+
+                springScale: 1,
+
+                hierarchyReactionScale: 1,
+
+                folderRecoveryScale: 0.92,
+
+                dampingScale: 1.02,
+
+                speedScale: 1.08,
+
+                worldTetherScale: 0.96,
+
+                anchorScaleByKind: { workspace: 1, category: 1, folder: 1, link: 1 },
+
+                dampingScaleByKind: { workspace: 1, category: 1, folder: 1, link: 1 },
+
+                speedScaleByKind: { workspace: 1, category: 1, folder: 1, link: 1 }
+
+            };
+
+        }
+
+        return {
+
+            mode: normalizedMode,
+
+            repulsionScale: 0.78,
+
+            centerPullScale: 1.22,
+
+            springScale: 1.08,
+
+            hierarchyReactionScale: 0.82,
+
+            folderRecoveryScale: 1.18,
+
+            dampingScale: 0.965,
+
+            speedScale: 0.82,
+
+            worldTetherScale: 1.08,
+
+            anchorScaleByKind: { workspace: 1.7, category: 1.38, folder: 1.24, link: 1 },
+
+            dampingScaleByKind: { workspace: 0.95, category: 0.96, folder: 0.95, link: 1 },
+
+            speedScaleByKind: { workspace: 0.64, category: 0.72, folder: 0.8, link: 0.92 }
+
+        };
+
+    }
+
+
+
+    function getHierarchyTargetReactionFactor(edge, motionProfile) {
+
+        if (edge?.type !== 'hierarchy') return 1;
+
+        const targetKind = text(edge?.target?.kind, '');
+
+        const sourceKind = text(edge?.source?.kind, '');
+
+        let baseFactor = 1;
+
+        if (targetKind === 'folder') {
+
+            baseFactor = sourceKind === 'link' ? 0.16 : 0.3;
+
+        } else if (targetKind === 'category') {
+
+            baseFactor = sourceKind === 'folder' ? 0.42 : 0.24;
+
+        } else if (targetKind === 'workspace') {
+
+            baseFactor = 0.34;
+
+        }
+
+        return Math.max(0.12, baseFactor * (motionProfile?.hierarchyReactionScale || 1));
+
+    }
+
+
+
+    function getDynamicAnchorPull(node, baseCenterPull, motionProfile) {
+
+        if (node?.manualAnchor) {
+
+            return Math.max(0.004, Number(node.manualAnchor.pullStrength) || 0.014);
+
+        }
+
+        const profile = motionProfile || getMotionProfile(state.nodes.length);
+
+        const modeScaledBase = baseCenterPull * (profile.centerPullScale || 1);
+
+        if (node?.kind === 'folder') {
+
+            const kindScale = Number(profile.anchorScaleByKind?.folder) || 1;
+
+            if (profile.mode === 'web') {
+
+                return modeScaledBase * kindScale;
+
+            }
+
+            return Math.max(0.0036, modeScaledBase * 5.5 * kindScale);
+
+        }
+
+        const kindScale = Number(profile.anchorScaleByKind?.[String(node?.kind || '')]) || 1;
+
+        return modeScaledBase * kindScale;
+
+    }
+
+
+
+    function getDynamicVelocityDamping(node, motionProfile) {
+
+        if (node?.manualAnchor) {
+
+            return Math.min(0.97, Math.max(0.82, Number(node.manualAnchor.damping) || 0.9));
+
+        }
+
+        const profile = motionProfile || getMotionProfile(state.nodes.length);
+
+        const base = node?.kind === 'folder' ? 0.84 : 0.88;
+
+        const modeScale = Number(profile.dampingScale) || 1;
+
+        const kindScale = Number(profile.dampingScaleByKind?.[String(node?.kind || '')]) || 1;
+
+        return Math.min(0.97, Math.max(0.72, base * modeScale * kindScale));
+
+    }
+
+
+
+    function applyFolderRecovery(node, anchor, motionProfile) {
+
+        if (!node || node.kind !== 'folder' || !anchor) return;
+
+        const dx = anchor.x - node.x;
+
+        const dy = anchor.y - node.y;
+
+        const dist = Math.sqrt((dx * dx) + (dy * dy));
+
+        if (!Number.isFinite(dist) || dist <= 110) return;
+
+        const recoveryScale = Number(motionProfile?.folderRecoveryScale) || 1;
+
+        const recovery = Math.min(0.03, (dist - 110) * 0.00012 * recoveryScale);
+
+        node.vx += dx * recovery;
+
+        node.vy += dy * recovery;
+
+    }
+
+
+
+    function getReleaseVelocityScale(node) {
+
+        if (!node) return 0.9;
+
+        if (node.kind === 'folder') return 0.42;
+
+        return 0.9;
+
+    }
+
+
+
+    function getMaxNodeSpeed(node, motionProfile) {
+
+        if (!node) return 18;
+
+        let base = 10;
+
+        if (node.kind === 'link') base = 16;
+
+        else if (node.kind === 'folder') base = 9.5;
+
+        else if (node.kind === 'category') base = 8;
+
+        else if (node.kind === 'workspace') base = 7;
+
+        const profile = motionProfile || getMotionProfile(state.nodes.length);
+
+        const modeScale = Number(profile.speedScale) || 1;
+
+        const kindScale = Number(profile.speedScaleByKind?.[String(node.kind || '')]) || 1;
+
+        return Math.max(1.8, base * modeScale * kindScale);
+
+    }
+
+
+
+    function getPolarityDirection(node) {
+
+        return getNodePolarityState(node).effective === 'attract' ? 1 : -1;
+
+    }
+
+
+
+    function getPolarityStrength(node, motionProfile) {
+
+        const polarity = getNodePolarityState(node).effective;
+
+        if (polarity !== 'attract') {
+
+            return getPolarityStrengthValue('repel');
+
+        }
+
+        if (motionProfile?.mode === 'web') {
+
+            return getPolarityStrengthValue('attract') * (node?.kind === 'link' ? 0.82 : 0.74);
+
+        }
+
+        return getPolarityStrengthValue('attract') * (node?.kind === 'link' ? 0.88 : 0.8);
+
+    }
+
+
+
+    function stabilizeNodeMotion(node, anchor, motionProfile) {
+
+        if (!node) return;
+
+        const safeAnchor = anchor && Number.isFinite(anchor.x) && Number.isFinite(anchor.y)
+            ? anchor
+            : (state.worldAnchor || { x: 0, y: 0 });
+
+        if (!Number.isFinite(node.x) || !Number.isFinite(node.y)) {
+
+            node.x = safeAnchor.x;
+
+            node.y = safeAnchor.y;
+
+            node.vx = 0;
+
+            node.vy = 0;
+
+            return;
+
+        }
+
+        if (!Number.isFinite(node.vx)) node.vx = 0;
+
+        if (!Number.isFinite(node.vy)) node.vy = 0;
+
+        const maxSpeed = getMaxNodeSpeed(node, motionProfile);
+
+        const speed = Math.sqrt((node.vx * node.vx) + (node.vy * node.vy));
+
+        if (speed > maxSpeed && speed > 0.001) {
+
+            const scale = maxSpeed / speed;
+
+            node.vx *= scale;
+
+            node.vy *= scale;
+
+        }
+
+        const anchorDx = node.x - safeAnchor.x;
+
+        const anchorDy = node.y - safeAnchor.y;
+
+        const anchorDist = Math.sqrt((anchorDx * anchorDx) + (anchorDy * anchorDy));
+
+        const maxDist = Math.max(240, Number(state.worldRadius || 0) * 1.12);
+
+        if (anchorDist > maxDist && anchorDist > 0.001) {
+
+            const scale = maxDist / anchorDist;
+
+            node.x = safeAnchor.x + (anchorDx * scale);
+
+            node.y = safeAnchor.y + (anchorDy * scale);
+
+            node.vx *= 0.38;
+
+            node.vy *= 0.38;
+
+        }
+
+    }
+
+
+
+    function applyMotionModePositioning(node, anchor, motionProfile) {
+
+        if (!node || !anchor || motionProfile?.mode !== 'web' || node?.manualAnchor || isNodeStatic(node)) return;
+
+        if (node.kind === 'workspace') {
+
+            node.x += (anchor.x - node.x) * 0.26;
+
+            node.y += (anchor.y - node.y) * 0.26;
+
+            node.vx *= 0.18;
+
+            node.vy *= 0.18;
+
+            return;
+
+        }
+
+        if (node.kind === 'category') {
+
+            node.x += (anchor.x - node.x) * 0.18;
+
+            node.y += (anchor.y - node.y) * 0.18;
+
+            node.vx *= 0.26;
+
+            node.vy *= 0.26;
+
+            return;
+
+        }
+
+    }
+
+
+
+    function setWebMotionAnchor(node, position) {
+
+        if (!node) return;
+
+        const nodeId = String(node.id || '');
+
+        if (!nodeId) return;
+
+        const point = position && typeof position === 'object' ? position : node;
+
+        if (node.kind === 'folder') return;
+
+        state.motionAnchors.set(nodeId, {
+
+            type: 'absolute',
+
+            x: Number(point?.x) || 0,
+
+            y: Number(point?.y) || 0
+
+        });
+
+    }
+
+
+
+    function syncMotionAnchors(forceCapture) {
+
+        const normalizedMode = MOTION_MODE_ORDER.includes(state.motionMode)
+            ? state.motionMode
+            : 'smooth';
+
+        if (normalizedMode !== 'web') {
+
+            state.motionAnchors = new Map();
+
+            state.lastMotionMode = normalizedMode;
+
+            return;
+
+        }
+
+        if (!forceCapture && state.lastMotionMode === 'web' && state.motionAnchors.size) {
+
+            return;
+
+        }
+
+        state.motionAnchors = new Map();
+
+        state.nodes.forEach((node) => {
+
+            if (!node) return;
+
+            if (node.kind !== 'workspace' && node.kind !== 'category') return;
+
+            setWebMotionAnchor(node);
+
+        });
+
+        state.lastMotionMode = 'web';
+
+    }
+
+
+
+    function getMotionTargetAnchor(node, baseAnchor, motionProfile) {
+
+        if (!node || !baseAnchor || motionProfile?.mode !== 'web') return baseAnchor;
+
+        const lockedAnchor = state.motionAnchors.get(String(node.id || ''));
+
+        if (node.kind === 'workspace' || node.kind === 'category') {
+
+            if (!Number.isFinite(lockedAnchor?.x) || !Number.isFinite(lockedAnchor?.y)) return baseAnchor;
+
+            return {
+
+                x: lockedAnchor.x,
+
+                y: lockedAnchor.y
+
+            };
+
+        }
+
+        return baseAnchor;
+
+    }
 
 
 
@@ -402,725 +1064,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
 
 
-    function renderHeader() {
+    function applySoftWorldTether(node, motionProfile) {
 
-        if (!state.titleEl || !state.scopeEl || !state.statsEl) return;
-
-        state.titleEl.textContent = 'NEURAL CORE :: CONSTELLATION MAP';
-
-        state.scopeEl.textContent = getScopeText(state.scope);
-
-        state.statsEl.textContent = state.nodes.length + ' nodes - ' + state.edges.length + ' edges';
-
-    }
-
-
-
-    function getNodeAnchor(node) {
-
-        if (node?.manualAnchor && Number.isFinite(node.manualAnchor.x) && Number.isFinite(node.manualAnchor.y)) {
-
-            return node.manualAnchor;
-
-        }
-
-        const anchorNodeId = text(node?.data?.anchorNodeId, '');
-
-        if (anchorNodeId) {
-
-            const anchorNode = state.nodes.find((candidate) => candidate.id === anchorNodeId);
-
-            if (anchorNode) {
-
-                if (anchorNode.manualAnchor && Number.isFinite(anchorNode.manualAnchor.x) && Number.isFinite(anchorNode.manualAnchor.y)) {
-
-                    return anchorNode.manualAnchor;
-
-                }
-
-                return { x: anchorNode.x, y: anchorNode.y };
-
-            }
-
-        }
-
-        return state.worldAnchor || { x: 0, y: 0 };
-
-    }
-
-
-
-    state.renderInspector = renderInspector;
-
-    function renderInspector() {
-
-        if (!state.infoEl) return;
-
-        const targetNode = state.selected || state.hovered;
-
-        const headerLabel = targetNode ? targetNode.label : 'Map Inspector';
-
-        const headerKind = targetNode ? targetNode.kind : 'overview';
-
-        const coverUrl = getNodeCoverUrl(targetNode);
-
-        const toggleLabel = state.infoCollapsed ? 'Expand' : 'Collapse';
-
-        const header = [
-
-            '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">',
-
-            '<div style="min-width:0;flex:1;">',
-
-            '<div style="font-size:0.96rem;font-weight:700;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(headerLabel) + '</div>',
-
-            '<div style="font-size:0.72rem;opacity:0.72;text-transform:uppercase;letter-spacing:0.06em;margin-top:4px;">' + escapeHtml(headerKind) + '</div>',
-
-            '</div>',
-
-            '<button type="button" data-map-info-toggle="1" style="border:1px solid rgba(255,255,255,0.16);background:rgba(255,255,255,0.06);color:#fff;border-radius:9px;padding:6px 10px;cursor:pointer;white-space:nowrap;">' + escapeHtml(toggleLabel) + '</button>',
-
-            '</div>'
-
-        ].join('');
-
-        const coverPanel = coverUrl
-
-            ? '<div data-map-info-cover style="position:absolute;right:0;bottom:calc(100% + 14px);width:132px;height:182px;border:1px solid rgba(255,255,255,0.18);background:rgba(7,14,24,0.96);border-radius:18px;overflow:hidden;box-shadow:0 18px 38px rgba(0,0,0,0.34);opacity:0;transform:translateY(8px) scale(0.985);transition:opacity 140ms ease, transform 140ms ease;pointer-events:none;">'
-
-                + '<img src="' + escapeHtml(coverUrl) + '" alt="" style="display:block;width:100%;height:100%;object-fit:cover;">'
-
-                + '</div>'
-
-            : '';
-
-
-
-        if (!targetNode) {
-
-            state.infoEl.innerHTML = [
-
-                header,
-
-                state.infoCollapsed
-
-                    ? ''
-
-                    : '<div style="font-size:0.82rem;opacity:0.78;line-height:1.45;margin-top:10px;">'
-
-                        + 'Drag the background to pan. Use the mouse wheel to zoom. Drag nodes to reorganize the field. Double-click a bookmark to open it.'
-
-                        + '</div>'
-
-            ].join('');
-
-            updateInspectorCoverState();
-
-            scheduleInspectorCoverRotation();
-
-            return;
-
-        }
-
-
-
-        const primaryAction = getPrimaryAction(targetNode);
-
-        const actionRow = primaryAction
-
-            ? '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">'
-
-                + '<button type="button" data-map-action="primary" style="border:1px solid rgba(0,212,255,0.32);background:rgba(0,212,255,0.12);color:#eafcff;border-radius:10px;padding:8px 12px;cursor:pointer;">' + escapeHtml(primaryAction.label) + '</button>'
-
-                + '<button type="button" data-map-action="center" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.06);color:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;">Center</button>'
-
-                + '</div>'
-
-            : '';
-
-
-
-        state.infoEl.innerHTML = [
-
-            coverPanel,
-
-            header,
-
-            state.infoCollapsed
-
-                ? '<div style="font-size:0.74rem;opacity:0.68;margin-top:8px;">' + escapeHtml(getScopeText(state.scope)) + '</div>'
-
-                : [
-
-                    '<div style="font-size:0.74rem;opacity:0.68;margin-top:8px;">' + escapeHtml(getScopeText(state.scope)) + '</div>',
-
-                    '<div style="font-size:0.82rem;opacity:0.82;line-height:1.45;margin-top:10px;">' + escapeHtml(targetNode.meta || 'No details') + '</div>',
-
-                    actionRow
-
-                ].join('')
-
-        ].join('');
-
-        updateInspectorCoverState();
-
-        scheduleInspectorCoverRotation();
-
-    }
-
-
-
-    function requestDraw() {
-
-        if (!state.running) draw();
-
-    }
-
-
-
-    function updateInspectorCoverState() {
-
-        if (!state.infoEl) return;
-
-        const cover = state.infoEl.querySelector('[data-map-info-cover]');
-
-        if (!cover) return;
-
-        if (state.infoHovered) {
-
-            cover.style.opacity = '1';
-
-            cover.style.transform = 'translateY(0) scale(1)';
-
-        } else {
-
-            cover.style.opacity = '0';
-
-            cover.style.transform = 'translateY(8px) scale(0.985)';
-
-        }
-
-    }
-
-
-
-    function updateCursor() {
-
-        if (!state.canvas) return;
-
-        if (state.pointer.mode === 'pan' || state.pointer.mode === 'node') {
-
-            state.canvas.style.cursor = 'grabbing';
-
-            return;
-
-        }
-
-        state.canvas.style.cursor = state.hovered ? 'pointer' : 'grab';
-
-    }
-
-
-
-    function getScreenPoint(node) {
-
-        return {
-
-            x: (node.x * state.transform.scale) + state.transform.tx,
-
-            y: (node.y * state.transform.scale) + state.transform.ty
-
-        };
-
-    }
-
-
-
-    function shouldRenderLabel(node, isHovered, isSelected) {
-
-        if (state.labelMode === 'off') return false;
-
-        if (isHovered || isSelected) return true;
-
-        if (node.kind !== 'link') return state.labelMode !== 'off';
-
-        if (state.labelMode === 'focus') return false;
-
-        if (state.labelMode === 'all') return true;
-
-        return true;
-
-    }
-
-
-
-    function getAutoLinkLabelBudget() {
-
-        const nodeCount = state.nodes.length;
-
-        const scale = state.transform.scale;
-
-        if (state.labelMode === 'all') return Infinity;
-
-        if (state.labelMode === 'focus') return 0;
-
-        if (nodeCount > 5000) return scale >= 2.8 ? 480 : scale >= 1.85 ? 200 : 90;
-
-        if (nodeCount > 2500) return scale >= 2.6 ? 420 : scale >= 1.7 ? 180 : 80;
-
-        if (nodeCount > 1200) return scale >= 2.4 ? 320 : scale >= 1.55 ? 140 : 60;
-
-        if (nodeCount > 500) return scale >= 2.1 ? 240 : scale >= 1.4 ? 110 : 40;
-
-        if (nodeCount > 220) return scale >= 1.8 ? 170 : scale >= 1.25 ? 90 : 34;
-
-        if (nodeCount > 120) return scale >= 1.45 ? 120 : 56;
-
-        return Infinity;
-
-    }
-
-
-
-    function getCursorFocusIds() {
-
-        const focusIds = new Set();
-
-        const pointerX = Number(state.pointer.canvasX);
-
-        const pointerY = Number(state.pointer.canvasY);
-
-        if (!Number.isFinite(pointerX) || !Number.isFinite(pointerY)) return focusIds;
-
-
-
-        const ranked = [];
-
-        state.nodes.forEach((node) => {
-
-            const point = getScreenPoint(node);
-
-            const dx = point.x - pointerX;
-
-            const dy = point.y - pointerY;
-
-            const distSq = (dx * dx) + (dy * dy);
-
-            if (distSq > (LABEL_CURSOR_RADIUS * LABEL_CURSOR_RADIUS)) return;
-
-            ranked.push({ node, distSq });
-
-        });
-
-
-
-        ranked.sort((left, right) => left.distSq - right.distSq);
-
-        ranked.slice(0, LABEL_FOCUS_LIMIT).forEach((entry) => {
-
-            focusIds.add(entry.node.id);
-
-        });
-
-        return focusIds;
-
-    }
-
-
-
-    function getLabelBackdropColor(box) {
-
-        if (box.isSelected) return 'rgba(12, 20, 32, 0.82)';
-
-        if (box.isHovered) return 'rgba(8, 18, 30, 0.76)';
-
-        if (box.node.kind === 'link') return 'rgba(6, 12, 22, 0.52)';
-
-        return 'rgba(6, 12, 22, 0.66)';
-
-    }
-
-
-
-    function drawRoundedBackdrop(ctx, box) {
-
-        const width = Math.max(12, box.right - box.left);
-
-        const height = Math.max(12, box.bottom - box.top);
-
-        const radius = Math.min(8, Math.max(5, height * 0.38));
-
-        ctx.beginPath();
-
-        if (typeof ctx.roundRect === 'function') {
-
-            ctx.roundRect(box.left, box.top, width, height, radius);
-
-        } else {
-
-            ctx.moveTo(box.left + radius, box.top);
-
-            ctx.lineTo(box.right - radius, box.top);
-
-            ctx.quadraticCurveTo(box.right, box.top, box.right, box.top + radius);
-
-            ctx.lineTo(box.right, box.bottom - radius);
-
-            ctx.quadraticCurveTo(box.right, box.bottom, box.right - radius, box.bottom);
-
-            ctx.lineTo(box.left + radius, box.bottom);
-
-            ctx.quadraticCurveTo(box.left, box.bottom, box.left, box.bottom - radius);
-
-            ctx.lineTo(box.left, box.top + radius);
-
-            ctx.quadraticCurveTo(box.left, box.top, box.left + radius, box.top);
-
-        }
-
-        ctx.closePath();
-
-        ctx.fillStyle = getLabelBackdropColor(box);
-
-        ctx.fill();
-
-    }
-
-
-
-    function renderLabels(ctx) {
-
-        state.labelHitBoxes = [];
-
-        if (state.labelMode === 'off') return;
-
-        const focusIds = getCursorFocusIds();
-
-        const searchMatchIds = new Set((state.searchState.matches || []).map((match) => match.id));
-
-        const autoLinkBudget = getAutoLinkLabelBudget();
-
-
-
-        const candidates = state.nodes.map((node) => {
-
-            const isHovered = state.hovered && state.hovered.id === node.id;
-
-            const isSelected = state.selected && state.selected.id === node.id;
-
-            const isPointerFocused = focusIds.has(node.id);
-
-            const isSearchMatch = searchMatchIds.has(node.id);
-
-            if (!shouldRenderLabel(node, isHovered, isSelected)) return null;
-
-            if (
-
-                state.labelMode === 'focus'
-
-                && node.kind === 'link'
-
-                && !isHovered
-
-                && !isSelected
-
-                && !isPointerFocused
-
-                && !isSearchMatch
-
-            ) {
-
-                return null;
-
-            }
-
-
-
-            const point = getScreenPoint(node);
-
-            const fontSize = isSelected || isHovered
-
-                ? 13
-
-                : node.kind === 'workspace'
-
-                    ? 12.5
-
-                    : node.kind === 'category' || node.kind === 'folder'
-
-                        ? 12
-
-                        : (state.labelMode === 'all' ? 10.5 : 10);
-
-            const textX = point.x + (node.radius * state.transform.scale) + 8;
-
-            const textY = point.y + (isHovered || isSelected ? 5 : 4);
-
-            ctx.font = `${fontSize}px sans-serif`;
-
-            const textWidth = ctx.measureText(node.label).width;
-
-            const box = {
-
-                node,
-
-                left: textX - 6,
-
-                right: textX + textWidth + 8,
-
-                top: textY - fontSize - 5,
-
-                bottom: textY + 8,
-
-                fontSize,
-
-                textX,
-
-                textY,
-
-                isHovered,
-
-                isSelected,
-
-                isPointerFocused,
-
-                isSearchMatch,
-
-                priority: (isSelected ? 100 : 0)
-
-                    + (isHovered ? 60 : 0)
-
-                    + (isPointerFocused ? 40 : 0)
-
-                    + (isSearchMatch ? 32 : 0)
-
-                    + (node.kind === 'workspace' ? 40 : 0)
-
-                    + (node.kind === 'category' ? 32 : 0)
-
-                    + (node.kind === 'folder' ? 24 : 0)
-
-                    + Math.min(node.radius, 12)
-
-            };
-
-            return box;
-
-        }).filter(Boolean);
-
-
-
-        candidates.sort((left, right) => {
-
-            if (right.priority !== left.priority) return right.priority - left.priority;
-
-            if (left.node.kind === 'link' && right.node.kind !== 'link') return 1;
-
-            if (left.node.kind !== 'link' && right.node.kind === 'link') return -1;
-
-            return left.node.label.localeCompare(right.node.label, undefined, { sensitivity: 'base' });
-
-        });
-
-
-
-        const occupied = [];
-
-        let renderedLinkLabels = 0;
-
-        candidates.forEach((box) => {
-
-            if (
-
-                state.labelMode === 'auto'
-
-                && box.node.kind === 'link'
-
-                && !box.isHovered
-
-                && !box.isSelected
-
-                && !box.isPointerFocused
-
-                && !box.isSearchMatch
-
-                && autoLinkBudget !== Infinity
-
-                && renderedLinkLabels >= autoLinkBudget
-
-            ) {
-
-                return;
-
-            }
-
-            const allowOverlap = state.labelMode === 'all'
-
-                ? (box.isHovered || box.isSelected)
-
-                : false;
-
-            if (!allowOverlap && state.labelMode === 'auto') {
-
-                const overlaps = occupied.some((taken) => !(
-
-                    box.right < taken.left
-
-                    || box.left > taken.right
-
-                    || box.bottom < taken.top
-
-                    || box.top > taken.bottom
-
-                ));
-
-                if (overlaps && box.node.kind === 'link' && !box.isHovered && !box.isSelected) {
-
-                    return;
-
-                }
-
-            }
-
-
-
-            state.labelHitBoxes.push(box);
-
-            occupied.push(box);
-
-            if (box.node.kind === 'link') renderedLinkLabels += 1;
-
-
-
-            const labelOpacity = box.isSelected
-
-                ? 0.98
-
-                : box.isHovered
-
-                    ? 0.94
-
-                    : box.isPointerFocused || box.isSearchMatch
-
-                        ? 0.9
-
-                    : box.node.kind === 'link'
-
-                        ? (state.labelMode === 'all' ? 0.62 : 0.78)
-
-                        : 0.88;
-
-            ctx.font = `${box.fontSize}px sans-serif`;
-
-            ctx.lineJoin = 'round';
-
-            drawRoundedBackdrop(ctx, box);
-
-            ctx.strokeStyle = 'rgba(4, 10, 18, 0.82)';
-
-            ctx.lineWidth = box.isSelected || box.isHovered ? 4.4 : 3.2;
-
-            ctx.shadowBlur = box.isHovered || box.isSelected ? 12 : 6;
-
-            ctx.shadowColor = 'rgba(0,0,0,0.5)';
-
-            ctx.strokeText(box.node.label, box.textX, box.textY);
-
-            ctx.shadowBlur = 0;
-
-            ctx.fillStyle = `rgba(255,255,255,${labelOpacity})`;
-
-            ctx.fillText(box.node.label, box.textX, box.textY);
-
-        });
-
-    }
-
-
-
-    function draw() {
-
-        if (!state.ctx || !state.canvas) return;
-
-        const ctx = state.ctx;
-
-        ctx.clearRect(0, 0, state.canvas.width, state.canvas.height);
-
-        ctx.save();
-
-        ctx.translate(state.transform.tx, state.transform.ty);
-
-        ctx.scale(state.transform.scale, state.transform.scale);
-
-
-
-        state.edges.forEach((edge) => {
-
-            ctx.beginPath();
-
-            ctx.moveTo(edge.source.x, edge.source.y);
-
-            ctx.lineTo(edge.target.x, edge.target.y);
-
-            ctx.strokeStyle = edge.type === 'tag' ? 'rgba(0, 212, 255, 0.12)' : 'rgba(0, 212, 255, 0.28)';
-
-            ctx.lineWidth = edge.type === 'tag' ? (0.9 / state.transform.scale) : (1.5 / state.transform.scale);
-
-            ctx.stroke();
-
-        });
-
-
-
-        state.nodes.forEach((node) => {
-
-            const isHovered = state.hovered && state.hovered.id === node.id;
-
-            const isSelected = state.selected && state.selected.id === node.id;
-
-            ctx.beginPath();
-
-            ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
-
-            ctx.fillStyle = node.color;
-
-            ctx.shadowBlur = (isHovered || isSelected ? 20 : 10) / state.transform.scale;
-
-            ctx.shadowColor = node.color;
-
-            ctx.fill();
-
-            ctx.shadowBlur = 0;
-
-
-
-            if (isHovered || isSelected) {
-
-                ctx.lineWidth = 2 / state.transform.scale;
-
-                ctx.strokeStyle = 'rgba(255,255,255,0.92)';
-
-                ctx.stroke();
-
-            }
-
-        });
-
-
-
-        ctx.restore();
-
-        renderLabels(ctx);
-
-        updateCursor();
-
-    }
-
-
-
-    function applySoftWorldTether(node) {
-
-        if (node?.manualAnchor) return;
+        if (isNodeStatic(node) || node?.manualAnchor) return;
 
         const anchor = state.worldAnchor || { x: 0, y: 0 };
 
@@ -1144,7 +1090,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         const ny = dy / dist;
 
-        const pull = overflow * (overflow > radius * 0.6 ? 0.00042 : 0.00018);
+        const tetherScale = Number(motionProfile?.worldTetherScale) || 1;
+
+        const pull = overflow * (overflow > radius * 0.6 ? 0.00042 : 0.00018) * tetherScale;
 
         node.vx -= nx * pull;
 
@@ -1160,17 +1108,32 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         const nodeCount = state.nodes.length;
 
-        const repulsion = nodeCount > 400 ? 900 : nodeCount > 220 ? 1200 : nodeCount > 120 ? 1600 : nodeCount > 70 ? 2200 : 3200;
+        const motionProfile = getMotionProfile(nodeCount);
+
+        syncMotionAnchors(false);
+
+        const repulsion = (nodeCount > 400 ? 900 : nodeCount > 220 ? 1200 : nodeCount > 120 ? 1600 : nodeCount > 70 ? 2200 : 3200)
+            * (motionProfile.repulsionScale || 1);
 
         const centerPull = nodeCount > 400 ? 0.00038 : nodeCount > 220 ? 0.0005 : nodeCount > 120 ? 0.0007 : 0.0011;
 
-        const springStrength = nodeCount > 120 ? 0.0024 : 0.0032;
+        const springStrength = (nodeCount > 120 ? 0.0024 : 0.0032)
+            * (motionProfile.springScale || 1);
+
+        const polarityCache = state.nodes.map((node) => ({
+            direction: getPolarityDirection(node),
+            strength: getPolarityStrength(node, motionProfile)
+        }));
 
 
 
         for (let index = 0; index < state.nodes.length; index += 1) {
 
             const node = state.nodes[index];
+
+            const nodePolarity = polarityCache[index];
+
+            const nodeIsStatic = isNodeStatic(node);
 
             if (state.pointer.mode === 'node' && state.pointer.node && state.pointer.node.id === node.id) {
 
@@ -1188,6 +1151,10 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
                 const other = state.nodes[inner];
 
+                const otherPolarity = polarityCache[inner];
+
+                const otherIsStatic = isNodeStatic(other);
+
                 const dx = other.x - node.x;
 
                 const dy = other.y - node.y;
@@ -1202,13 +1169,21 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
                 const ny = dy / dist;
 
-                node.vx -= nx * force;
+                if (!nodeIsStatic) {
 
-                node.vy -= ny * force;
+                    node.vx += nx * force * otherPolarity.direction * otherPolarity.strength;
 
-                other.vx += nx * force;
+                    node.vy += ny * force * otherPolarity.direction * otherPolarity.strength;
 
-                other.vy += ny * force;
+                }
+
+                if (!otherIsStatic) {
+
+                    other.vx -= nx * force * nodePolarity.direction * nodePolarity.strength;
+
+                    other.vy -= ny * force * nodePolarity.direction * nodePolarity.strength;
+
+                }
 
             }
 
@@ -1234,7 +1209,13 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             const force = stretch * springStrength;
 
-            if (!(state.pointer.mode === 'node' && state.pointer.node?.id === edge.source.id)) {
+            const targetReactionFactor = getHierarchyTargetReactionFactor(edge, motionProfile);
+
+            const sourceStatic = isNodeStatic(edge.source);
+
+            const targetStatic = isNodeStatic(edge.target);
+
+            if (!(state.pointer.mode === 'node' && state.pointer.node?.id === edge.source.id) && !sourceStatic) {
 
                 edge.source.vx += nx * force;
 
@@ -1242,11 +1223,11 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             }
 
-            if (!(state.pointer.mode === 'node' && state.pointer.node?.id === edge.target.id)) {
+            if (!(state.pointer.mode === 'node' && state.pointer.node?.id === edge.target.id) && !targetStatic) {
 
-                edge.target.vx -= nx * force;
+                edge.target.vx -= nx * force * targetReactionFactor;
 
-                edge.target.vy -= ny * force;
+                edge.target.vy -= ny * force * targetReactionFactor;
 
             }
 
@@ -1258,25 +1239,53 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             if (state.pointer.mode === 'node' && state.pointer.node?.id === node.id) return;
 
-            const anchor = getNodeAnchor(node);
+            if (isNodeStatic(node)) {
 
-            const anchorPull = node.manualAnchor ? 0.08 : centerPull;
+                if (!node.staticAnchor) {
+
+                    setStaticAnchor(node);
+
+                }
+
+                node.x = Number(node.staticAnchor?.x) || node.x;
+
+                node.y = Number(node.staticAnchor?.y) || node.y;
+
+                node.vx = 0;
+
+                node.vy = 0;
+
+                return;
+
+            }
+
+            const anchor = getMotionTargetAnchor(node, getNodeAnchor(node), motionProfile);
+
+            const anchorPull = getDynamicAnchorPull(node, centerPull, motionProfile);
 
             node.vx += (anchor.x - node.x) * anchorPull;
 
             node.vy += (anchor.y - node.y) * anchorPull;
 
-            const velocityDamping = node.manualAnchor ? 0.72 : 0.88;
+            applyFolderRecovery(node, anchor, motionProfile);
+
+            const velocityDamping = getDynamicVelocityDamping(node, motionProfile);
 
             node.vx *= velocityDamping;
 
             node.vy *= velocityDamping;
 
+            stabilizeNodeMotion(node, anchor, motionProfile);
+
             node.x += node.vx;
 
             node.y += node.vy;
 
-            applySoftWorldTether(node);
+            applyMotionModePositioning(node, anchor, motionProfile);
+
+            applySoftWorldTether(node, motionProfile);
+
+            stabilizeNodeMotion(node, anchor, motionProfile);
 
         });
 
@@ -1424,11 +1433,23 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         state.canvas.addEventListener('pointerdown', (event) => {
 
+            if (state.infoHovered) {
+
+                state.infoHovered = false;
+
+                state.infoHoverStartedAt = 0;
+
+                clearInspectorCoverRotation();
+
+                updateInspectorCoverState();
+
+            }
+
             const canvasPoint = canvasPointFromClient(event.clientX, event.clientY);
 
             let hitNode = null;
 
-            if (!state.pointer.forcePan && state.selected && state.selected.kind !== 'link') {
+            if (!state.pointer.forcePan && state.selected && state.selected.kind !== 'link' && shouldPreferSelectedNodeForDrag(state.selected)) {
 
                 const selectedPoint = getScreenPoint(state.selected);
 
@@ -1470,9 +1491,21 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             state.pointer.canvasY = canvasPoint.y;
 
+            state.pointer.lastWorldX = 0;
+
+            state.pointer.lastWorldY = 0;
+
+            state.pointer.releaseVx = 0;
+
+            state.pointer.releaseVy = 0;
+
             if (hitNode) {
 
                 setSelectedNode(hitNode);
+
+                state.pointer.lastWorldX = Number(hitNode.x) || 0;
+
+                state.pointer.lastWorldY = Number(hitNode.y) || 0;
 
                 state.canvas.setPointerCapture?.(event.pointerId);
 
@@ -1520,6 +1553,26 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
                 state.pointer.node.vy = 0;
 
+                state.pointer.releaseVx = point.x - (Number(state.pointer.lastWorldX) || point.x);
+
+                state.pointer.releaseVy = point.y - (Number(state.pointer.lastWorldY) || point.y);
+
+                state.pointer.lastWorldX = point.x;
+
+                state.pointer.lastWorldY = point.y;
+
+                if (state.motionMode === 'web' && (state.pointer.node.kind === 'workspace' || state.pointer.node.kind === 'category')) {
+
+                    setWebMotionAnchor(state.pointer.node, point);
+
+                }
+
+                if (isNodeStatic(state.pointer.node)) {
+
+                    setStaticAnchor(state.pointer.node, point);
+
+                }
+
                 requestDraw();
 
                 return;
@@ -1552,23 +1605,51 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             if (previousNode && moved && previousNode.kind !== 'link') {
 
-                previousNode.manualAnchor = { x: previousNode.x, y: previousNode.y };
+                if (isNodeStatic(previousNode)) {
 
-                previousNode.vx = 0;
+                    setStaticAnchor(previousNode);
 
-                previousNode.vy = 0;
+                } else if (shouldPersistManualAnchor(previousNode)) {
+
+                    previousNode.manualAnchor = createManualAnchor(previousNode);
+
+                } else {
+
+                    previousNode.manualAnchor = null;
+
+                    const releaseScale = getReleaseVelocityScale(previousNode);
+
+                    previousNode.vx = (Number(state.pointer.releaseVx) || 0) * releaseScale;
+
+                    previousNode.vy = (Number(state.pointer.releaseVy) || 0) * releaseScale;
+
+                }
+
+                if (isNodeStatic(previousNode) || shouldPersistManualAnchor(previousNode)) {
+
+                    previousNode.vx = 0;
+
+                    previousNode.vy = 0;
+
+                }
 
             }
 
 
 
-            if (previousNode && !moved && hitNode && hitNode.id === previousNode.id) {
+            if (previousNode && !moved) {
+
+                const clickNode = hitNode && hitNode.id === previousNode.id
+
+                    ? hitNode
+
+                    : previousNode;
 
                 const now = Date.now();
 
-                if (state.lastClickNodeId === hitNode.id && now - state.lastClickAt < DOUBLE_CLICK_MS) {
+                if (state.lastClickNodeId === clickNode.id && now - state.lastClickAt < DOUBLE_CLICK_MS) {
 
-                    activateNode(hitNode);
+                    activateNode(clickNode);
 
                     state.lastClickAt = 0;
 
@@ -1576,11 +1657,11 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
                 } else {
 
-                    setSelectedNode(hitNode);
+                    setSelectedNode(clickNode);
 
                     state.lastClickAt = now;
 
-                    state.lastClickNodeId = hitNode.id;
+                    state.lastClickNodeId = clickNode.id;
 
                 }
 
@@ -1810,7 +1891,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             '</div>',
 
-            '<div style="position:absolute;z-index:3;top:16px;right:20px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;max-width:min(52vw,900px);justify-content:flex-end;pointer-events:auto;">',
+            '<div style="position:absolute;z-index:3;top:16px;right:20px;display:flex;flex-direction:column;gap:8px;align-items:flex-end;max-width:min(52vw,900px);pointer-events:auto;">',
+
+            '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">',
 
             '<input data-map-find type="search" placeholder="Find bookmark, card, folder..." style="min-width:240px;border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:8px 12px;outline:none;">',
 
@@ -1826,7 +1909,73 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             '<button type="button" data-map-toolbar="labels" style="border:1px solid rgba(0,212,255,0.28);background:rgba(0,212,255,0.12);color:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;">Labels: Auto</button>',
 
+            '<button type="button" data-map-toolbar="motion" style="border:1px solid rgba(145,220,255,0.26);background:rgba(145,220,255,0.11);color:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;">Motion: Smooth</button>',
+
             '<button type="button" data-map-toolbar="close" style="border:1px solid rgba(255,80,120,0.3);background:rgba(255,80,120,0.14);color:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;">Close</button>',
+
+            '</div>',
+
+            '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">',
+
+            '<button type="button" data-map-toolbar="static-node" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:7px 11px;cursor:pointer;">Static Node</button>',
+
+            '<button type="button" data-map-toolbar="static-chain" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:7px 11px;cursor:pointer;">Static Chain</button>',
+
+            '<button type="button" data-map-toolbar="static-kind" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:7px 11px;cursor:pointer;">Static Type</button>',
+
+            '<button type="button" data-map-toolbar="static-clear" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:7px 11px;cursor:pointer;">Clear Static</button>',
+
+            '<div data-map-static-summary style="font-size:0.74rem;color:rgba(255,255,255,0.72);padding-left:4px;">Static: none</div>',
+
+            '</div>',
+
+            '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">',
+
+            '<button type="button" data-map-static-kind="workspace" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:7px 11px;cursor:pointer;">Freeze Tab</button>',
+
+            '<button type="button" data-map-static-kind="category" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:7px 11px;cursor:pointer;">Freeze Card</button>',
+
+            '<button type="button" data-map-static-kind="folder" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:7px 11px;cursor:pointer;">Freeze Folder</button>',
+
+            '<button type="button" data-map-static-kind="link" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:7px 11px;cursor:pointer;">Freeze Bookmark</button>',
+
+            '</div>',
+
+            '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">',
+
+            '<button type="button" data-map-toolbar="polarity-node" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:7px 11px;cursor:pointer;">Node: Inherit</button>',
+
+            '<button type="button" data-map-toolbar="polarity-kind" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:7px 11px;cursor:pointer;">Type: Push</button>',
+
+            '<button type="button" data-map-toolbar="polarity-clear" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:7px 11px;cursor:pointer;">Clear Flow</button>',
+
+            '<div data-map-polarity-summary style="font-size:0.74rem;color:rgba(255,255,255,0.72);padding-left:4px;">Flow: push default</div>',
+
+            '</div>',
+
+            '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">',
+
+            '<label style="display:flex;align-items:center;gap:8px;font-size:0.74rem;color:rgba(255,255,255,0.82);">',
+
+            '<span>Push</span>',
+
+            '<input data-map-polarity-strength="repel" type="range" min="0.2" max="1.6" step="0.02" value="0.76" style="width:120px;">',
+
+            '<span data-map-polarity-strength-value="repel" style="min-width:32px;text-align:right;">0.76</span>',
+
+            '</label>',
+
+            '<label style="display:flex;align-items:center;gap:8px;font-size:0.74rem;color:rgba(255,255,255,0.82);">',
+
+            '<span>Pull</span>',
+
+            '<input data-map-polarity-strength="attract" type="range" min="0.2" max="1.6" step="0.02" value="0.62" style="width:120px;">',
+
+            '<span data-map-polarity-strength-value="attract" style="min-width:32px;text-align:right;">0.62</span>',
+
+            '</label>',
+
+            '</div>',
 
             '</div>',
 
@@ -1864,6 +2013,20 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             const toolbarAction = event.target?.dataset?.mapToolbar;
 
+            const directStaticKind = event.target?.dataset?.mapStaticKind;
+
+            if (directStaticKind) {
+
+                toggleStaticForKind(directStaticKind);
+
+                renderInspector();
+
+                requestDraw();
+
+                return;
+
+            }
+
             if (!toolbarAction) return;
 
             if (toolbarAction === 'find') runFind();
@@ -1886,11 +2049,119 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
                 requestDraw();
 
+                renderToolbarState();
+
+            } else if (toolbarAction === 'motion') {
+
+                const currentIndex = MOTION_MODE_ORDER.indexOf(state.motionMode);
+
+                state.motionMode = MOTION_MODE_ORDER[(currentIndex + 1) % MOTION_MODE_ORDER.length];
+
+                syncMotionAnchors(true);
+
+                event.target.textContent = getMotionModeText();
+
+                requestDraw();
+
+                renderToolbarState();
+
+            } else if (toolbarAction === 'static-node') {
+
+                const targetNode = getInteractionTargetNode();
+
+                if (!targetNode) return;
+
+                toggleStaticForNode(targetNode);
+
+                renderInspector();
+
+                requestDraw();
+
+            } else if (toolbarAction === 'static-chain') {
+
+                const targetNode = getInteractionTargetNode();
+
+                if (!targetNode) return;
+
+                toggleStaticBranch(targetNode);
+
+                renderInspector();
+
+                requestDraw();
+
+            } else if (toolbarAction === 'static-kind') {
+
+                const targetNode = getInteractionTargetNode();
+
+                if (!targetNode) return;
+
+                toggleStaticForKind(targetNode.kind);
+
+                renderInspector();
+
+                requestDraw();
+
+            } else if (toolbarAction === 'static-clear') {
+
+                clearStaticLocks();
+
+                renderInspector();
+
+                requestDraw();
+
+            } else if (toolbarAction === 'polarity-node') {
+
+                const targetNode = getInteractionTargetNode();
+
+                if (!targetNode) return;
+
+                cycleNodePolarity(targetNode);
+
+                renderInspector();
+
+                requestDraw();
+
+            } else if (toolbarAction === 'polarity-kind') {
+
+                const targetNode = getInteractionTargetNode();
+
+                if (!targetNode) return;
+
+                toggleKindPolarity(targetNode.kind);
+
+                renderInspector();
+
+                requestDraw();
+
+            } else if (toolbarAction === 'polarity-clear') {
+
+                clearPolarityOverrides();
+
+                renderInspector();
+
+                requestDraw();
+
             } else if (toolbarAction === 'close') {
 
                 ns.closeMap();
 
             }
+
+        });
+
+        container.addEventListener('input', (event) => {
+
+            const polarityMode = event.target?.dataset?.mapPolarityStrength;
+
+            if (!polarityMode) return;
+
+            setPolarityStrengthValue(polarityMode, event.target.value);
+
+            renderToolbarState();
+
+            renderInspector();
+
+            requestDraw();
 
         });
 
@@ -1904,9 +2175,15 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         if (labelsButton) labelsButton.textContent = getLabelModeText();
 
+        const motionButton = container.querySelector('[data-map-toolbar="motion"]');
+
+        if (motionButton) motionButton.textContent = getMotionModeText();
+
         renderInspector();
 
         updateInspectorCoverState();
+
+        renderToolbarState();
 
     }
 
@@ -1917,6 +2194,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         ensureContainer();
 
         buildGraphData(scopeOption);
+
+        syncMotionAnchors(true);
 
         renderHeader();
 
@@ -2074,6 +2353,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             scope: state.scope,
 
+            motionMode: state.motionMode,
+
             visible: !!state.container && state.container.style.display !== 'none',
 
             nodeCount: state.nodes.length,
@@ -2120,9 +2401,49 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
                 x: Number(node.x.toFixed(2)),
 
-                y: Number(node.y.toFixed(2))
+                y: Number(node.y.toFixed(2)),
+
+                isStatic: isNodeStatic(node),
+
+                staticSource: getStaticStateForNode(node).source || '',
+
+                polarity: getNodePolarityState(node).effective,
+
+                polaritySource: getNodePolarityState(node).source || '',
+
+                nodePolarity: getNodePolarityState(node).nodeOverride,
+
+                kindPolarity: getNodePolarityState(node).kind
 
             })),
+
+            staticSummary: {
+
+                nodeIds: Array.from(state.staticNodeIds.values()),
+
+                kinds: Array.from(state.staticKinds.values()),
+
+                branchRoots: Array.from(state.staticBranchRoots.keys()),
+
+                branchNodeIds: Array.from(state.staticBranchNodeIds.values())
+
+            },
+
+            polaritySummary: {
+
+                nodeOverrideCount: getPolaritySummary().nodeOverrideCount,
+
+                attractKinds: getPolaritySummary().attractKinds.slice(),
+
+                strength: {
+
+                    repel: Number(getPolarityStrengthValue('repel').toFixed(2)),
+
+                    attract: Number(getPolarityStrengthValue('attract').toFixed(2))
+
+                }
+
+            },
 
             kinds: state.nodes.reduce((acc, node) => {
 

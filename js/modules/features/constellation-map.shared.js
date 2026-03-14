@@ -24,6 +24,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         nodes: [],
 
+        nodeIndex: new Map(),
+
         edges: [],
 
         edgeKeys: new Set(),
@@ -70,7 +72,15 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             canvasX: 0,
 
-            canvasY: 0
+            canvasY: 0,
+
+            lastWorldX: 0,
+
+            lastWorldY: 0,
+
+            releaseVx: 0,
+
+            releaseVy: 0
 
         },
 
@@ -88,6 +98,12 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         },
 
+        motionMode: 'smooth',
+
+        motionAnchors: new Map(),
+
+        lastMotionMode: 'smooth',
+
         labelMode: 'auto',
 
         labelHitBoxes: [],
@@ -101,6 +117,28 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         coverRotationTimer: 0,
 
         coverPreviewSession: null,
+
+        kindPolarities: {
+            workspace: 'repel',
+            category: 'repel',
+            folder: 'repel',
+            link: 'repel'
+        },
+
+        polarityStrength: {
+            attract: 0.62,
+            repel: 0.76
+        },
+
+        nodePolarities: new Map(),
+
+        staticNodeIds: new Set(),
+
+        staticKinds: new Set(),
+
+        staticBranchRoots: new Map(),
+
+        staticBranchNodeIds: new Set(),
 
         worldAnchor: { x: 0, y: 0 },
 
@@ -126,9 +164,20 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
     const LABEL_MODE_ORDER = ['auto', 'all', 'focus', 'off'];
 
+    const MOTION_MODE_ORDER = ['smooth', 'slow', 'web', 'free'];
+
     const LABEL_CURSOR_RADIUS = 170;
 
     const LABEL_FOCUS_LIMIT = 12;
+
+    const KIND_ORDER = Object.freeze(['workspace', 'category', 'folder', 'link']);
+
+    const DEFAULT_KIND_POLARITIES = Object.freeze({
+        workspace: 'repel',
+        category: 'repel',
+        folder: 'repel',
+        link: 'repel'
+    });
 
 
 
@@ -324,6 +373,18 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
                 }
 
+                : null,
+
+            staticAnchor: source.staticAnchor && typeof source.staticAnchor === 'object'
+
+                ? {
+
+                    x: Number.isFinite(source.staticAnchor.x) ? source.staticAnchor.x : 0,
+
+                    y: Number.isFinite(source.staticAnchor.y) ? source.staticAnchor.y : 0
+
+                }
+
                 : null
 
         };
@@ -341,6 +402,274 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         if (state.labelMode === 'off') return 'Labels: Off';
 
         return 'Labels: Auto';
+
+    }
+
+
+
+    function getMotionModeText() {
+
+        if (state.motionMode === 'slow') return 'Motion: Slow';
+
+        if (state.motionMode === 'web') return 'Motion: Web';
+
+        if (state.motionMode === 'free') return 'Motion: Free';
+
+        return 'Motion: Smooth';
+
+    }
+
+
+
+    function getKindDisplayName(kind) {
+
+        if (kind === 'workspace') return 'Tab';
+
+        if (kind === 'category') return 'Card';
+
+        if (kind === 'link') return 'Bookmark';
+
+        if (kind === 'folder') return 'Folder';
+
+        return text(kind, 'Node');
+
+    }
+
+
+
+    function normalizePolarityStrength(value, fallback) {
+
+        const numeric = Number(value);
+
+        if (Number.isFinite(numeric)) {
+
+            return clamp(numeric, 0.2, 1.6);
+
+        }
+
+        return clamp(Number(fallback) || 1, 0.2, 1.6);
+
+    }
+
+
+
+    function getPolarityStrengthValue(mode) {
+
+        const key = mode === 'attract' ? 'attract' : 'repel';
+
+        return normalizePolarityStrength(state.polarityStrength?.[key], key === 'attract' ? 0.62 : 0.76);
+
+    }
+
+
+
+    function setPolarityStrengthValue(mode, value) {
+
+        const key = mode === 'attract' ? 'attract' : 'repel';
+
+        state.polarityStrength[key] = normalizePolarityStrength(value, getPolarityStrengthValue(key));
+
+        return state.polarityStrength[key];
+
+    }
+
+
+
+    function getPolarityStrengthText(mode) {
+
+        return getPolarityStrengthValue(mode).toFixed(2);
+
+    }
+
+
+
+    function normalizePolarityMode(value, fallback, allowInherit) {
+
+        const normalized = String(value || '').trim().toLowerCase();
+
+        if (normalized === 'attract' || normalized === 'repel') return normalized;
+
+        if (allowInherit && (normalized === 'inherit' || normalized === '')) return 'inherit';
+
+        return fallback === 'attract' ? 'attract' : 'repel';
+
+    }
+
+
+
+    function getKindPolarity(kind) {
+
+        const normalizedKind = String(kind || '').trim();
+
+        if (!normalizedKind) return 'repel';
+
+        const current = state.kindPolarities?.[normalizedKind];
+
+        if (current === 'attract' || current === 'repel') return current;
+
+        return DEFAULT_KIND_POLARITIES[normalizedKind] || 'repel';
+
+    }
+
+
+
+    function getNodePolarityState(node) {
+
+        if (!node?.id) {
+
+            return {
+
+                effective: 'repel',
+
+                nodeOverride: 'inherit',
+
+                kind: 'repel',
+
+                source: 'default'
+
+            };
+
+        }
+
+        const nodeId = String(node.id);
+
+        const nodeOverride = normalizePolarityMode(state.nodePolarities.get(nodeId), 'repel', true);
+
+        const kindPolarity = getKindPolarity(node.kind);
+
+        if (nodeOverride === 'attract' || nodeOverride === 'repel') {
+
+            return {
+
+                effective: nodeOverride,
+
+                nodeOverride,
+
+                kind: kindPolarity,
+
+                source: 'node'
+
+            };
+
+        }
+
+        return {
+
+            effective: kindPolarity,
+
+            nodeOverride: 'inherit',
+
+            kind: kindPolarity,
+
+            source: kindPolarity === (DEFAULT_KIND_POLARITIES[String(node.kind || '')] || 'repel') ? 'default' : 'kind'
+
+        };
+
+    }
+
+
+
+    function getEffectivePolarity(node) {
+
+        return getNodePolarityState(node).effective;
+
+    }
+
+
+
+    function cycleNodePolarity(node) {
+
+        if (!node?.id) return 'inherit';
+
+        const nodeId = String(node.id);
+
+        const current = normalizePolarityMode(state.nodePolarities.get(nodeId), 'repel', true);
+
+        if (current === 'inherit') {
+
+            state.nodePolarities.set(nodeId, 'attract');
+
+            return 'attract';
+
+        }
+
+        if (current === 'attract') {
+
+            state.nodePolarities.set(nodeId, 'repel');
+
+            return 'repel';
+
+        }
+
+        state.nodePolarities.delete(nodeId);
+
+        return 'inherit';
+
+    }
+
+
+
+    function toggleKindPolarity(kind) {
+
+        const normalizedKind = String(kind || '').trim();
+
+        if (!normalizedKind) return 'repel';
+
+        const next = getKindPolarity(normalizedKind) === 'attract' ? 'repel' : 'attract';
+
+        state.kindPolarities[normalizedKind] = next;
+
+        return next;
+
+    }
+
+
+
+    function clearPolarityOverrides() {
+
+        state.kindPolarities = {
+            workspace: 'repel',
+            category: 'repel',
+            folder: 'repel',
+            link: 'repel'
+        };
+
+        state.polarityStrength = {
+            attract: 0.62,
+            repel: 0.76
+        };
+
+        state.nodePolarities = new Map();
+
+    }
+
+
+
+    function getPolaritySummary() {
+
+        const attractKinds = Object.entries(state.kindPolarities || {})
+            .filter(([, value]) => value === 'attract')
+            .map(([kind]) => kind);
+
+        const visibleNodeIds = new Set((Array.isArray(state.nodes) ? state.nodes : []).map((node) => String(node?.id || '')).filter(Boolean));
+
+        let nodeOverrideCount = 0;
+
+        state.nodePolarities.forEach((value, nodeId) => {
+
+            if (!visibleNodeIds.has(String(nodeId || ''))) return;
+
+            if (normalizePolarityMode(value, 'repel', true) === 'inherit') return;
+
+            nodeOverrideCount += 1;
+
+        });
+
+        return {
+            attractKinds,
+            nodeOverrideCount,
+            total: attractKinds.length + nodeOverrideCount
+        };
 
     }
 
@@ -630,11 +959,13 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         if (!node?.id) return null;
 
-        const existing = state.nodes.find((candidate) => candidate.id === node.id);
+        const existing = state.nodeIndex.get(String(node.id));
 
         if (existing) return existing;
 
         state.nodes.push(node);
+
+        state.nodeIndex.set(String(node.id), node);
 
         return node;
 
@@ -803,6 +1134,11 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     function getNodeCoverCandidates(node) {
 
         if (!node) return [];
+
+        const cachedCovers = Array.isArray(node?.data?.coverCandidates)
+            ? node.data.coverCandidates.map((value) => text(value, '')).filter(Boolean)
+            : [];
+        if (cachedCovers.length) return cachedCovers;
 
         if (node.kind === 'link') {
 
@@ -1034,6 +1370,332 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
 
 
+    function resetStaticLocks() {
+
+        state.staticNodeIds = new Set();
+
+        state.staticKinds = new Set();
+
+        state.staticBranchRoots = new Map();
+
+        state.staticBranchNodeIds = new Set();
+
+        state.nodes.forEach((node) => {
+
+            if (!node) return;
+
+            node.staticAnchor = null;
+
+        });
+
+    }
+
+
+
+    function getStaticStateForNode(node) {
+
+        if (!node?.id) {
+
+            return { isStatic: false, nodeLocked: false, kindLocked: false, branchLocked: false, source: '' };
+
+        }
+
+        const nodeLocked = state.staticNodeIds.has(String(node.id));
+
+        const kindLocked = state.staticKinds.has(String(node.kind || ''));
+
+        const branchLocked = state.staticBranchNodeIds.has(String(node.id));
+
+        return {
+
+            isStatic: nodeLocked || branchLocked || kindLocked,
+
+            nodeLocked,
+
+            kindLocked,
+
+            branchLocked,
+
+            source: nodeLocked ? 'node' : (branchLocked ? 'branch' : (kindLocked ? 'kind' : ''))
+
+        };
+
+    }
+
+
+
+    function isNodeStatic(node) {
+
+        return getStaticStateForNode(node).isStatic;
+
+    }
+
+
+
+    function setStaticAnchor(node, position) {
+
+        if (!node) return null;
+
+        const target = position && typeof position === 'object' ? position : node;
+
+        node.staticAnchor = {
+
+            x: Number.isFinite(target?.x) ? Number(target.x) : 0,
+
+            y: Number.isFinite(target?.y) ? Number(target.y) : 0
+
+        };
+
+        return node.staticAnchor;
+
+    }
+
+
+
+    function toggleStaticForNode(node) {
+
+        if (!node?.id) return false;
+
+        const key = String(node.id);
+
+        if (state.staticNodeIds.has(key)) {
+
+            state.staticNodeIds.delete(key);
+
+            if (!state.staticKinds.has(String(node.kind || '')) && !state.staticBranchNodeIds.has(key)) {
+
+                node.staticAnchor = null;
+
+            }
+
+            return false;
+
+        }
+
+        setStaticAnchor(node);
+
+        state.staticNodeIds.add(key);
+
+        return true;
+
+    }
+
+
+
+    function toggleStaticForKind(kind) {
+
+        const normalizedKind = String(kind || '').trim();
+
+        if (!normalizedKind) return false;
+
+        if (state.staticKinds.has(normalizedKind)) {
+
+            state.staticKinds.delete(normalizedKind);
+
+            state.nodes.forEach((node) => {
+
+                if (!node || String(node.kind || '') !== normalizedKind) return;
+
+                const nodeId = String(node.id || '');
+
+                if (!state.staticNodeIds.has(nodeId) && !state.staticBranchNodeIds.has(nodeId)) {
+
+                    node.staticAnchor = null;
+
+                }
+
+            });
+
+            return false;
+
+        }
+
+        state.staticKinds.add(normalizedKind);
+
+        state.nodes.forEach((node) => {
+
+            if (!node || String(node.kind || '') !== normalizedKind) return;
+
+            state.staticNodeIds.delete(String(node.id || ''));
+
+            setStaticAnchor(node);
+
+        });
+
+        return true;
+
+    }
+
+
+
+    function recomputeStaticBranchNodeIds() {
+
+        const next = new Set();
+
+        state.staticBranchRoots.forEach((ids) => {
+
+            (ids || []).forEach((id) => {
+
+                if (id) next.add(String(id));
+
+            });
+
+        });
+
+        state.staticBranchNodeIds = next;
+
+    }
+
+
+
+    function getStaticBranchIds(rootNode) {
+
+        if (!rootNode?.id) return [];
+
+        const rootId = String(rootNode.id);
+
+        const ids = new Set([rootId]);
+
+        let changed = true;
+
+        while (changed) {
+
+            changed = false;
+
+            state.nodes.forEach((node) => {
+
+                if (!node || node.kind === 'link') return;
+
+                const nodeId = String(node.id || '');
+
+                if (!nodeId || ids.has(nodeId)) return;
+
+                const parentId = text(node?.data?.anchorNodeId, '');
+
+                if (parentId && ids.has(parentId)) {
+
+                    ids.add(nodeId);
+
+                    changed = true;
+
+                }
+
+            });
+
+        }
+
+        return Array.from(ids.values());
+
+    }
+
+
+
+    function toggleStaticBranch(rootNode) {
+
+        if (!rootNode?.id) return false;
+
+        const rootId = String(rootNode.id);
+
+        if (state.staticBranchRoots.has(rootId)) {
+
+            const previousIds = state.staticBranchRoots.get(rootId) || [];
+
+            state.staticBranchRoots.delete(rootId);
+
+            recomputeStaticBranchNodeIds();
+
+            previousIds.forEach((nodeId) => {
+
+                const targetNode = state.nodeIndex.get(String(nodeId));
+
+                if (!targetNode) return;
+
+                const targetState = getStaticStateForNode(targetNode);
+
+                if (!targetState.nodeLocked && !targetState.kindLocked && !targetState.branchLocked) {
+
+                    targetNode.staticAnchor = null;
+
+                }
+
+            });
+
+            return false;
+
+        }
+
+        const branchIds = getStaticBranchIds(rootNode);
+
+        state.staticBranchRoots.set(rootId, branchIds);
+
+        recomputeStaticBranchNodeIds();
+
+        branchIds.forEach((nodeId) => {
+
+            const targetNode = state.nodeIndex.get(String(nodeId));
+
+            if (!targetNode) return;
+
+            setStaticAnchor(targetNode);
+
+        });
+
+        return true;
+
+    }
+
+
+
+    function isStaticBranchRoot(node) {
+
+        if (!node?.id) return false;
+
+        return state.staticBranchRoots.has(String(node.id));
+
+    }
+
+
+
+    function clearStaticLocks() {
+
+        state.staticNodeIds.clear();
+
+        state.staticKinds.clear();
+
+        state.staticBranchRoots.clear();
+
+        state.staticBranchNodeIds.clear();
+
+        state.nodes.forEach((node) => {
+
+            if (!node) return;
+
+            node.staticAnchor = null;
+
+        });
+
+    }
+
+
+
+    function getStaticSummary() {
+
+        return {
+
+            nodeCount: state.staticNodeIds.size,
+
+            kinds: Array.from(state.staticKinds.values()),
+
+            branchCount: state.staticBranchRoots.size,
+
+            total: state.staticNodeIds.size + state.staticKinds.size + state.staticBranchRoots.size
+
+        };
+
+    }
+
+
+
 
 
     const shared = ns._shared = ns._shared || {};
@@ -1041,6 +1703,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     Object.assign(shared, {
 
         state,
+
+        KIND_ORDER,
 
         MAP_PADDING,
 
@@ -1055,6 +1719,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         FIT_MAX_SCALE,
 
         LABEL_MODE_ORDER,
+
+        MOTION_MODE_ORDER,
 
         LABEL_CURSOR_RADIUS,
 
@@ -1081,6 +1747,30 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         createNode,
 
         getLabelModeText,
+
+        getMotionModeText,
+
+        getKindDisplayName,
+
+        getKindPolarity,
+
+        getNodePolarityState,
+
+        getEffectivePolarity,
+
+        cycleNodePolarity,
+
+        toggleKindPolarity,
+
+        getPolarityStrengthValue,
+
+        setPolarityStrengthValue,
+
+        getPolarityStrengthText,
+
+        clearPolarityOverrides,
+
+        getPolaritySummary,
 
         placeOnRing,
 
@@ -1126,7 +1816,27 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         clearInspectorCoverRotation,
 
-        scheduleInspectorCoverRotation
+        scheduleInspectorCoverRotation,
+
+        resetStaticLocks,
+
+        getStaticStateForNode,
+
+        isNodeStatic,
+
+        setStaticAnchor,
+
+        toggleStaticForNode,
+
+        toggleStaticForKind,
+
+        toggleStaticBranch,
+
+        isStaticBranchRoot,
+
+        clearStaticLocks,
+
+        getStaticSummary
 
     });
 
