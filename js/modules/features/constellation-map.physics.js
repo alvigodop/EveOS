@@ -40,27 +40,27 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
                 mode: normalizedMode,
 
-                repulsionScale: 0.62,
+                repulsionScale: 0.44,
 
-                centerPullScale: 1.34,
+                centerPullScale: 1.18,
 
-                springScale: 1.12,
+                springScale: 0.94,
 
-                hierarchyReactionScale: 0.74,
+                hierarchyReactionScale: 0.56,
 
-                folderRecoveryScale: 1.38,
+                folderRecoveryScale: 1.08,
 
-                dampingScale: 0.94,
+                dampingScale: 0.89,
 
-                speedScale: 0.58,
+                speedScale: 0.34,
 
-                worldTetherScale: 1.14,
+                worldTetherScale: 1.28,
 
-                anchorScaleByKind: { workspace: 2.2, category: 1.72, folder: 1.46, link: 1 },
+                anchorScaleByKind: { workspace: 1.42, category: 1.16, folder: 1.02, link: 0.92 },
 
-                dampingScaleByKind: { workspace: 0.94, category: 0.95, folder: 0.95, link: 1 },
+                dampingScaleByKind: { workspace: 0.9, category: 0.91, folder: 0.93, link: 0.95 },
 
-                speedScaleByKind: { workspace: 0.44, category: 0.56, folder: 0.7, link: 0.9 }
+                speedScaleByKind: { workspace: 0.28, category: 0.36, folder: 0.46, link: 0.6 }
 
             };
 
@@ -72,27 +72,27 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
                 mode: normalizedMode,
 
-                repulsionScale: nodeCount > 220 ? 0.54 : 0.48,
+                repulsionScale: nodeCount > 220 ? 0.34 : 0.3,
 
-                centerPullScale: 2.05,
+                centerPullScale: 2.55,
 
-                springScale: 1.4,
+                springScale: 1.56,
 
-                hierarchyReactionScale: 0.4,
+                hierarchyReactionScale: 0.22,
 
-                folderRecoveryScale: 1.96,
+                folderRecoveryScale: 2.4,
 
-                dampingScale: 0.9,
+                dampingScale: 0.84,
 
-                speedScale: 0.34,
+                speedScale: 0.24,
 
-                worldTetherScale: 1.2,
+                worldTetherScale: 1.38,
 
-                anchorScaleByKind: { workspace: 5.4, category: 4.1, folder: 1.12, link: 1.08 },
+                anchorScaleByKind: { workspace: 7.4, category: 5.8, folder: 0.96, link: 0.98 },
 
-                dampingScaleByKind: { workspace: 0.76, category: 0.82, folder: 0.92, link: 0.98 },
+                dampingScaleByKind: { workspace: 0.72, category: 0.77, folder: 0.88, link: 0.95 },
 
-                speedScaleByKind: { workspace: 0.08, category: 0.14, folder: 0.54, link: 0.86 }
+                speedScaleByKind: { workspace: 0.04, category: 0.08, folder: 0.36, link: 0.68 }
 
             };
 
@@ -104,27 +104,27 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
                 mode: normalizedMode,
 
-                repulsionScale: 1.08,
+                repulsionScale: 1.42,
 
-                centerPullScale: 0.95,
+                centerPullScale: 0.68,
 
-                springScale: 1,
+                springScale: 0.82,
 
-                hierarchyReactionScale: 1,
+                hierarchyReactionScale: 1.24,
 
-                folderRecoveryScale: 0.92,
+                folderRecoveryScale: 0.62,
 
-                dampingScale: 1.02,
+                dampingScale: 1.12,
 
-                speedScale: 1.08,
+                speedScale: 1.34,
 
-                worldTetherScale: 0.96,
+                worldTetherScale: 0.82,
 
-                anchorScaleByKind: { workspace: 1, category: 1, folder: 1, link: 1 },
+                anchorScaleByKind: { workspace: 0.72, category: 0.78, folder: 0.72, link: 0.7 },
 
-                dampingScaleByKind: { workspace: 1, category: 1, folder: 1, link: 1 },
+                dampingScaleByKind: { workspace: 1.06, category: 1.05, folder: 1.03, link: 1.02 },
 
-                speedScaleByKind: { workspace: 1, category: 1, folder: 1, link: 1 }
+                speedScaleByKind: { workspace: 1.2, category: 1.18, folder: 1.12, link: 1.24 }
 
             };
 
@@ -134,27 +134,27 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             mode: normalizedMode,
 
-            repulsionScale: 0.78,
+            repulsionScale: 0.88,
 
-            centerPullScale: 1.22,
+            centerPullScale: 1.08,
 
-            springScale: 1.08,
+            springScale: 1.02,
 
-            hierarchyReactionScale: 0.82,
+            hierarchyReactionScale: 0.74,
 
-            folderRecoveryScale: 1.18,
+            folderRecoveryScale: 1.12,
 
-            dampingScale: 0.965,
+            dampingScale: 0.95,
 
-            speedScale: 0.82,
+            speedScale: 0.74,
 
-            worldTetherScale: 1.08,
+            worldTetherScale: 1.12,
 
-            anchorScaleByKind: { workspace: 1.7, category: 1.38, folder: 1.24, link: 1 },
+            anchorScaleByKind: { workspace: 1.52, category: 1.22, folder: 1.08, link: 0.96 },
 
-            dampingScaleByKind: { workspace: 0.95, category: 0.96, folder: 0.95, link: 1 },
+            dampingScaleByKind: { workspace: 0.93, category: 0.95, folder: 0.94, link: 0.98 },
 
-            speedScaleByKind: { workspace: 0.64, category: 0.72, folder: 0.8, link: 0.92 }
+            speedScaleByKind: { workspace: 0.5, category: 0.6, folder: 0.7, link: 0.88 }
 
         };
 
@@ -772,6 +772,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     const physics = ns._physics = ns._physics || {};
 
     Object.assign(physics, {
+
+        getMotionProfile,
 
         syncMotionAnchors,
 

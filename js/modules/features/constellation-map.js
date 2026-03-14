@@ -126,6 +126,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
     const {
 
+        getMotionProfile,
+
         syncMotionAnchors,
 
         setWebMotionAnchor,
@@ -1874,7 +1876,21 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         }, 0);
 
+        const motionProfile = getMotionProfile(state.nodes.length);
+
         return {
+
+            motionProfile: {
+                mode: motionProfile.mode,
+                repulsionScale: Number((motionProfile.repulsionScale || 0).toFixed(3)),
+                centerPullScale: Number((motionProfile.centerPullScale || 0).toFixed(3)),
+                springScale: Number((motionProfile.springScale || 0).toFixed(3)),
+                hierarchyReactionScale: Number((motionProfile.hierarchyReactionScale || 0).toFixed(3)),
+                folderRecoveryScale: Number((motionProfile.folderRecoveryScale || 0).toFixed(3)),
+                dampingScale: Number((motionProfile.dampingScale || 0).toFixed(3)),
+                speedScale: Number((motionProfile.speedScale || 0).toFixed(3)),
+                worldTetherScale: Number((motionProfile.worldTetherScale || 0).toFixed(3))
+            },
 
             scope: state.scope,
 

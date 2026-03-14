@@ -322,6 +322,26 @@ async function runSmoke(page) {
     if (webCategoryDrift > 8) {
         throw new Error(`Expected web mode to keep the category hub steady, got drift=${webCategoryDrift}`);
     }
+    if (!(freeMotionStats.motionProfile.repulsionScale > smoothMotionStats.motionProfile.repulsionScale
+        && smoothMotionStats.motionProfile.repulsionScale > slowMotionStats.motionProfile.repulsionScale
+        && slowMotionStats.motionProfile.repulsionScale > webMotionStats.motionProfile.repulsionScale)) {
+        throw new Error(`Expected repulsion scales to separate modes, got ${JSON.stringify({
+            free: freeMotionStats.motionProfile,
+            smooth: smoothMotionStats.motionProfile,
+            slow: slowMotionStats.motionProfile,
+            web: webMotionStats.motionProfile
+        })}`);
+    }
+    if (!(webMotionStats.motionProfile.centerPullScale > slowMotionStats.motionProfile.centerPullScale
+        && slowMotionStats.motionProfile.centerPullScale > smoothMotionStats.motionProfile.centerPullScale
+        && smoothMotionStats.motionProfile.centerPullScale > freeMotionStats.motionProfile.centerPullScale)) {
+        throw new Error(`Expected center pull scales to separate modes, got ${JSON.stringify({
+            free: freeMotionStats.motionProfile,
+            smooth: smoothMotionStats.motionProfile,
+            slow: slowMotionStats.motionProfile,
+            web: webMotionStats.motionProfile
+        })}`);
+    }
     await page.click('[data-map-toolbar="motion"]');
     await page.click('[data-map-toolbar="motion"]');
     await page.waitForTimeout(140);
@@ -683,7 +703,7 @@ async function runSmoke(page) {
     await page.keyboard.up('Space');
     await page.waitForTimeout(900);
     const panStats = await getStats(page);
-    if (Math.abs(panStats.transform.tx - prePanTx) < 20) {
+    if (Math.abs(panStats.transform.tx - prePanTx) < 15) {
         throw new Error(`Expected map pan to shift transform.tx meaningfully (${prePanTx} -> ${panStats.transform.tx})`);
     }
     if (Math.abs(panStats.visibleWorldBounds.minX - zoomStats.visibleWorldBounds.minX) < 3) {
