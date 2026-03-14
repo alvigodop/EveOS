@@ -136,16 +136,22 @@ async function runSmoke(page) {
   await folderToggle.click();
   await page.waitForFunction(() => {
     const button = document.querySelector('.category-card[data-card-category="Alpha"] [data-folder-toolbar-toggle="1"]');
+    const toolbar = document.querySelector('.category-card[data-card-category="Alpha"] .bookmark-folder-toolbar');
     return !!button
       && button.classList.contains('is-active')
+      && !!toolbar
+      && toolbar.classList.contains('is-visible')
       && !!window.EveBookmarkFolders?.isToolbarExpanded?.('main', 'Alpha');
   }, undefined, { timeout: 5000 });
 
   await folderToggle.click();
   await page.waitForFunction(() => {
     const button = document.querySelector('.category-card[data-card-category="Alpha"] [data-folder-toolbar-toggle="1"]');
+    const toolbar = document.querySelector('.category-card[data-card-category="Alpha"] .bookmark-folder-toolbar');
     return !!button
       && !button.classList.contains('is-active')
+      && !!toolbar
+      && !toolbar.classList.contains('is-visible')
       && !window.EveBookmarkFolders?.isToolbarExpanded?.('main', 'Alpha');
   }, undefined, { timeout: 5000 });
 
@@ -158,8 +164,11 @@ async function runSmoke(page) {
   await folderToggleAfterSwitch.click();
   await page.waitForFunction(() => {
     const button = document.querySelector('.category-card[data-card-category="Alpha"] [data-folder-toolbar-toggle="1"]');
+    const toolbar = document.querySelector('.category-card[data-card-category="Alpha"] .bookmark-folder-toolbar');
     return !!button
-      && button.classList.contains('is-active');
+      && button.classList.contains('is-active')
+      && !!toolbar
+      && toolbar.classList.contains('is-visible');
   }, undefined, { timeout: 5000 });
 }
 

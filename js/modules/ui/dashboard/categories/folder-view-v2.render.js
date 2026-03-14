@@ -198,10 +198,17 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
     // Render Root Grid (replaces Tree View for top level)
     window.EveFolderViewV2.renderRootGrid = function(workspaceId, categoryName, viewModel, defaultRenderer) {
         const topLevelFolders = viewModel.topLevelFolders || [];
-        const rootLinks = viewModel.rootLinks || [];
+        const rootLinks = viewModel.rootLinks || [];
+        const folderApi = window.EveBookmarkFolders;
+        const toolbarExpanded = !!folderApi?.isToolbarExpanded?.(workspaceId, categoryName);
+        const toolbarHtml = ''
+            + `<div class="bookmark-folder-toolbar${toolbarExpanded ? ' is-visible' : ''}">`
+                + `<button type="button" class="bookmark-folder-toolbar-btn" onclick="promptCreateBookmarkFolder('${escapeCardJs(categoryName)}', '')">New Folder</button>`
+                + `<button type="button" class="bookmark-folder-toolbar-btn" onclick="openBookmarkFolders('${escapeCardJs(categoryName)}')">Manage Folders</button>`
+            + '</div>';
 
         const dropTargetAttr = `ondragover="if(typeof allowDrop==='function')allowDrop(event)" ondrop="event.currentTarget.classList.remove('active'); if(typeof window.EveFolderViewV2.handleFolderDrop==='function') window.EveFolderViewV2.handleFolderDrop(event, '${escapeCardJs(categoryName)}', '', '${escapeCardJs(workspaceId)}')" ondragenter="event.currentTarget.classList.add('active')" ondragleave="event.currentTarget.classList.remove('active')"`;
-        let html = `<div class="v2-folder-root-container" style="padding: 0 10px 10px;" ${dropTargetAttr}>`;
+        let html = toolbarHtml + `<div class="v2-folder-root-container" style="padding: 0 10px 10px;" ${dropTargetAttr}>`;
 
         // Render Folders
         if (topLevelFolders.length > 0) {

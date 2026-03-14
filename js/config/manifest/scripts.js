@@ -2250,7 +2250,7 @@ window.EveModuleManifestParts.scripts = [
 
 
 
-        'js/modules/ui/dashboard/categories/folder-view-v2.render.js?v=0.2.1',
+        'js/modules/ui/dashboard/categories/folder-view-v2.render.js?v=0.2.2',
 
 
 
