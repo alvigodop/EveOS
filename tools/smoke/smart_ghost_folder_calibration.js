@@ -128,6 +128,9 @@ global.window.EveLibrary = {
 
 load('js/modules/features/duplicate-sensor.js');
 load('js/modules/features/bookmark-covers.js');
+load('js/modules/features/bookmark-folders.shared.js');
+load('js/modules/features/bookmark-folders.view.js');
+load('js/modules/features/bookmark-folders.actions.js');
 load('js/modules/features/bookmark-folders.js');
 
 global.eveState.links = [
