@@ -12,6 +12,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         text,
 
+        getMotionTuningValue,
+
         getPolarityStrengthValue,
 
         getNodePolarityState,
@@ -184,7 +186,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         }
 
-        return Math.max(0.12, baseFactor * (motionProfile?.hierarchyReactionScale || 1));
+        return Math.max(0, baseFactor * (motionProfile?.hierarchyReactionScale || 1) * getMotionTuningValue('hierarchy'));
 
     }
 
@@ -240,7 +242,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         const kindScale = Number(profile.dampingScaleByKind?.[String(node?.kind || '')]) || 1;
 
-        return Math.min(0.97, Math.max(0.72, base * modeScale * kindScale));
+        return Math.min(0.985, Math.max(0, base * modeScale * kindScale * getMotionTuningValue('damping')));
 
     }
 
@@ -258,7 +260,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         if (!Number.isFinite(dist) || dist <= 110) return;
 
-        const recoveryScale = Number(motionProfile?.folderRecoveryScale) || 1;
+        const recoveryScale = (Number(motionProfile?.folderRecoveryScale) || 1) * getMotionTuningValue('folderRecovery');
 
         const recovery = Math.min(0.03, (dist - 110) * 0.00012 * recoveryScale);
 
@@ -302,7 +304,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         const kindScale = Number(profile.speedScaleByKind?.[String(node.kind || '')]) || 1;
 
-        return Math.max(1.8, base * modeScale * kindScale);
+        return Math.max(0.05, base * modeScale * kindScale * getMotionTuningValue('speed'));
 
     }
 
@@ -560,7 +562,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         const ny = dy / dist;
 
-        const tetherScale = Number(motionProfile?.worldTetherScale) || 1;
+        const tetherScale = (Number(motionProfile?.worldTetherScale) || 1) * getMotionTuningValue('tether');
 
         const pull = overflow * (overflow > radius * 0.6 ? 0.00042 : 0.00018) * tetherScale;
 
@@ -583,12 +585,15 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         syncMotionAnchors(false);
 
         const repulsion = (nodeCount > 400 ? 900 : nodeCount > 220 ? 1200 : nodeCount > 120 ? 1600 : nodeCount > 70 ? 2200 : 3200)
-            * (motionProfile.repulsionScale || 1);
+            * (motionProfile.repulsionScale || 1)
+            * getMotionTuningValue('repulsion');
 
-        const centerPull = nodeCount > 400 ? 0.00038 : nodeCount > 220 ? 0.0005 : nodeCount > 120 ? 0.0007 : 0.0011;
+        const centerPull = (nodeCount > 400 ? 0.00038 : nodeCount > 220 ? 0.0005 : nodeCount > 120 ? 0.0007 : 0.0011)
+            * getMotionTuningValue('centerPull');
 
         const springStrength = (nodeCount > 120 ? 0.0024 : 0.0032)
-            * (motionProfile.springScale || 1);
+            * (motionProfile.springScale || 1)
+            * getMotionTuningValue('spring');
 
         const polarityCache = state.nodes.map((node) => ({
             direction: getPolarityDirection(node),

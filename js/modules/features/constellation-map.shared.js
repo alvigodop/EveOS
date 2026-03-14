@@ -102,6 +102,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         lastMotionMode: 'web',
 
+        controlsExpanded: false,
+
         labelMode: 'auto',
 
         labelHitBoxes: [],
@@ -126,6 +128,17 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         polarityStrength: {
             attract: 0.62,
             repel: 0.76
+        },
+
+        motionTuning: {
+            repulsion: 1,
+            centerPull: 1,
+            spring: 1,
+            hierarchy: 1,
+            folderRecovery: 1,
+            damping: 1,
+            speed: 1,
+            tether: 1
         },
 
         nodePolarities: new Map(),
@@ -174,6 +187,89 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         folder: 'repel',
         link: 'repel'
     });
+
+    const MOTION_TUNING_FIELDS = Object.freeze([
+        { key: 'repulsion', label: 'Repel Field', min: 0, max: 3, step: 0.01, defaultValue: 1 },
+        { key: 'centerPull', label: 'Center Pull', min: 0, max: 3, step: 0.01, defaultValue: 1 },
+        { key: 'spring', label: 'Spring', min: 0, max: 3, step: 0.01, defaultValue: 1 },
+        { key: 'hierarchy', label: 'Hierarchy', min: 0, max: 3, step: 0.01, defaultValue: 1 },
+        { key: 'folderRecovery', label: 'Folder Settle', min: 0, max: 3, step: 0.01, defaultValue: 1 },
+        { key: 'damping', label: 'Damping', min: 0, max: 2, step: 0.01, defaultValue: 1 },
+        { key: 'speed', label: 'Speed', min: 0, max: 2, step: 0.01, defaultValue: 1 },
+        { key: 'tether', label: 'World Tether', min: 0, max: 3, step: 0.01, defaultValue: 1 }
+    ]);
+
+    function getMotionTuningField(key) {
+
+        const normalizedKey = String(key || '').trim();
+
+        return MOTION_TUNING_FIELDS.find((field) => field.key === normalizedKey) || null;
+
+    }
+
+    function normalizeMotionTuningValue(key, value) {
+
+        const field = getMotionTuningField(key);
+
+        if (!field) return 1;
+
+        const numeric = Number(value);
+
+        if (Number.isFinite(numeric)) {
+
+            return clamp(numeric, field.min, field.max);
+
+        }
+
+        return field.defaultValue;
+
+    }
+
+    function getMotionTuningValue(key) {
+
+        const field = getMotionTuningField(key);
+
+        if (!field) return 1;
+
+        return normalizeMotionTuningValue(field.key, state.motionTuning?.[field.key]);
+
+    }
+
+    function setMotionTuningValue(key, value) {
+
+        const field = getMotionTuningField(key);
+
+        if (!field) return 1;
+
+        if (!state.motionTuning || typeof state.motionTuning !== 'object') {
+
+            state.motionTuning = {};
+
+        }
+
+        state.motionTuning[field.key] = normalizeMotionTuningValue(field.key, value);
+
+        return state.motionTuning[field.key];
+
+    }
+
+    function getMotionTuningText(key) {
+
+        return getMotionTuningValue(key).toFixed(2);
+
+    }
+
+    function resetMotionTuning() {
+
+        state.motionTuning = {};
+
+        MOTION_TUNING_FIELDS.forEach((field) => {
+
+            state.motionTuning[field.key] = field.defaultValue;
+
+        });
+
+    }
 
     function getConfig() {
 
@@ -709,6 +805,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         MOTION_MODE_ORDER,
 
+        MOTION_TUNING_FIELDS,
+
         LABEL_CURSOR_RADIUS,
 
         LABEL_FOCUS_LIMIT,
@@ -736,6 +834,16 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         getLabelModeText,
 
         getMotionModeText,
+
+        getMotionTuningField,
+
+        getMotionTuningValue,
+
+        setMotionTuningValue,
+
+        getMotionTuningText,
+
+        resetMotionTuning,
 
         getKindDisplayName,
 

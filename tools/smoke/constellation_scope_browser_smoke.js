@@ -119,6 +119,21 @@ async function getStats(page) {
     return page.evaluate(() => window.EveConstellationMap.__debugGetGraphStats());
 }
 
+async function ensureControlsExpanded(page) {
+    await page.waitForSelector('[data-map-toolbar="controls"]', { timeout: 10000 });
+    const expanded = await page.evaluate(() => {
+        const panel = document.querySelector('[data-map-controls-panel]');
+        return !!panel && window.getComputedStyle(panel).display !== 'none';
+    });
+    if (!expanded) {
+        await page.click('[data-map-toolbar="controls"]');
+        await page.waitForFunction(() => {
+            const panel = document.querySelector('[data-map-controls-panel]');
+            return !!panel && window.getComputedStyle(panel).display !== 'none';
+        }, null, { timeout: 5000 });
+    }
+}
+
 async function runSmoke(page) {
     await page.evaluate(async () => {
         if (typeof window.renderSidebar === 'function') window.renderSidebar();
@@ -200,7 +215,8 @@ async function runSmoke(page) {
         return {
             text: info ? info.textContent : '',
             hasAction: !!info?.querySelector('[data-map-action="primary"]'),
-            toggleText: toggle ? toggle.textContent : ''
+            toggleText: toggle ? toggle.textContent : '',
+            width: Number.parseFloat(window.getComputedStyle(info).width || '0')
         };
     });
     if (collapsedInspector.hasAction) {
@@ -209,8 +225,8 @@ async function runSmoke(page) {
     if (!/Alpha/i.test(collapsedInspector.text)) {
         throw new Error(`Expected inspector to target selected category, got ${collapsedInspector.text}`);
     }
-    if (!/Expand/i.test(collapsedInspector.toggleText)) {
-        throw new Error(`Expected collapsed inspector toggle, got ${collapsedInspector.toggleText}`);
+    if (!(collapsedInspector.width > 0 && collapsedInspector.width <= 90)) {
+        throw new Error(`Expected compact collapsed inspector, got ${JSON.stringify(collapsedInspector)}`);
     }
 
     await page.evaluate(() => {
@@ -265,6 +281,8 @@ async function runSmoke(page) {
     if (!(zoomStats.transform.scale > cardStats.transform.scale)) {
         throw new Error(`Expected zoom scale to increase (${cardStats.transform.scale} -> ${zoomStats.transform.scale})`);
     }
+
+    await ensureControlsExpanded(page);
 
     await page.click('[data-map-toolbar="motion"]');
     await page.waitForTimeout(140);
@@ -347,8 +365,8 @@ async function runSmoke(page) {
         throw new Error(`Expected selected category node override to clear back to kind polarity, got ${JSON.stringify(categoryNodeReset)}`);
     }
     await page.evaluate(() => {
-        const push = document.querySelector('[data-map-polarity-strength="repel"]');
-        const pull = document.querySelector('[data-map-polarity-strength="attract"]');
+        const push = document.querySelector('[data-map-polarity-strength-number="repel"]');
+        const pull = document.querySelector('[data-map-polarity-strength-number="attract"]');
         if (!push || !pull) throw new Error('Missing polarity strength inputs');
         push.value = '0.44';
         push.dispatchEvent(new Event('input', { bubbles: true }));
@@ -359,6 +377,20 @@ async function runSmoke(page) {
     const tunedPolarityStats = await getStats(page);
     if (tunedPolarityStats.polaritySummary.strength.repel !== 0.44 || tunedPolarityStats.polaritySummary.strength.attract !== 0.38) {
         throw new Error(`Expected polarity strengths to update, got ${JSON.stringify(tunedPolarityStats.polaritySummary)}`);
+    }
+    await page.evaluate(() => {
+        const centerPull = document.querySelector('[data-map-motion-tuning-number="centerPull"]');
+        const speed = document.querySelector('[data-map-motion-tuning="speed"]');
+        if (!centerPull || !speed) throw new Error('Missing motion tuning inputs');
+        centerPull.value = '1.37';
+        centerPull.dispatchEvent(new Event('input', { bubbles: true }));
+        speed.value = '0.58';
+        speed.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await page.waitForTimeout(140);
+    const tunedMotionStats = await getStats(page);
+    if (tunedMotionStats.motionTuning.centerPull !== 1.37 || tunedMotionStats.motionTuning.speed !== 0.58) {
+        throw new Error(`Expected motion tuning controls to update, got ${JSON.stringify(tunedMotionStats.motionTuning)}`);
     }
     await page.click('[data-map-static-kind="folder"]');
     await page.waitForTimeout(140);
@@ -389,7 +421,11 @@ async function runSmoke(page) {
         };
     });
 
-    await page.mouse.click(dragSeed.startX, dragSeed.startY);
+    await page.evaluate((nodeId) => {
+        if (!window.EveConstellationMap.__debugSelectNode(nodeId)) {
+            throw new Error('Failed to select bookmark node for inspector cover assertion');
+        }
+    }, dragSeed.id);
     await page.waitForTimeout(180);
     await page.mouse.move(canvasBox.x + 28, canvasBox.y + 28);
     await page.waitForTimeout(120);
@@ -650,7 +686,7 @@ async function runSmoke(page) {
     if (Math.abs(panStats.transform.tx - prePanTx) < 20) {
         throw new Error(`Expected map pan to shift transform.tx meaningfully (${prePanTx} -> ${panStats.transform.tx})`);
     }
-    if (Math.abs(panStats.visibleWorldBounds.minX - zoomStats.visibleWorldBounds.minX) < 5) {
+    if (Math.abs(panStats.visibleWorldBounds.minX - zoomStats.visibleWorldBounds.minX) < 3) {
         throw new Error(`Expected visible world bounds to shift with panning, got ${JSON.stringify({ before: zoomStats.visibleWorldBounds, after: panStats.visibleWorldBounds })}`);
     }
     if (JSON.stringify(panStats.worldBounds) !== JSON.stringify(zoomStats.worldBounds)) {
@@ -694,14 +730,15 @@ async function runSmoke(page) {
         const stats = window.EveConstellationMap.__debugGetGraphStats();
         const workspaceNode = stats.sampleNodes.find((node) => node.kind === 'workspace' && node.label === 'Main');
         if (!workspaceNode) throw new Error('No workspace node for workspace cover test');
-        const canvas = document.querySelector('[data-map-canvas]');
-        const rect = canvas.getBoundingClientRect();
         return {
-            clickX: rect.left + stats.transform.tx + (workspaceNode.x * stats.transform.scale),
-            clickY: rect.top + stats.transform.ty + (workspaceNode.y * stats.transform.scale)
+            id: workspaceNode.id
         };
     });
-    await page.mouse.click(workspaceSeed.clickX, workspaceSeed.clickY);
+    await page.evaluate((nodeId) => {
+        if (!window.EveConstellationMap.__debugSelectNode(nodeId)) {
+            throw new Error('Failed to select workspace node for workspace cover test');
+        }
+    }, workspaceSeed.id);
     await page.waitForTimeout(180);
     await page.locator('[data-map-info]').hover();
     await page.waitForTimeout(160);

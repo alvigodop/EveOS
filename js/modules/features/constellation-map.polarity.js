@@ -15,11 +15,11 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         if (Number.isFinite(numeric)) {
 
-            return clamp(numeric, 0.2, 1.6);
+            return clamp(numeric, 0, 2.5);
 
         }
 
-        return clamp(Number(fallback) || 1, 0.2, 1.6);
+        return clamp(Number(fallback) || 1, 0, 2.5);
 
     }
 

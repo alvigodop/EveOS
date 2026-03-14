@@ -44,6 +44,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         getMotionModeText,
 
+        MOTION_TUNING_FIELDS,
+
         getNodePolarityState,
 
         cycleNodePolarity,
@@ -53,6 +55,14 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         getPolarityStrengthValue,
 
         setPolarityStrengthValue,
+
+        getMotionTuningText,
+
+        getMotionTuningValue,
+
+        setMotionTuningValue,
+
+        resetMotionTuning,
 
         clearPolarityOverrides,
 
@@ -195,6 +205,26 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             phase: (hash % 6283) / 1000
 
         };
+
+    }
+
+    function buildMotionTuningMarkup() {
+
+        return MOTION_TUNING_FIELDS.map((field) => [
+
+            '<label style="display:grid;grid-template-columns:92px minmax(112px,1fr) 50px 64px;align-items:center;gap:8px;font-size:0.74rem;color:rgba(255,255,255,0.82);">',
+
+            '<span>' + escapeHtml(field.label) + '</span>',
+
+            '<input data-map-motion-tuning="' + escapeHtml(field.key) + '" type="range" min="' + escapeHtml(String(field.min)) + '" max="' + escapeHtml(String(field.max)) + '" step="' + escapeHtml(String(field.step)) + '" value="' + escapeHtml(getMotionTuningText(field.key)) + '" style="width:100%;">',
+
+            '<span data-map-motion-tuning-value="' + escapeHtml(field.key) + '" style="min-width:42px;text-align:right;">' + escapeHtml(getMotionTuningText(field.key)) + '</span>',
+
+            '<input data-map-motion-tuning-number="' + escapeHtml(field.key) + '" type="number" min="' + escapeHtml(String(field.min)) + '" max="' + escapeHtml(String(field.max)) + '" step="' + escapeHtml(String(field.step)) + '" value="' + escapeHtml(getMotionTuningText(field.key)) + '" style="width:64px;border:1px solid rgba(255,255,255,0.16);background:rgba(255,255,255,0.07);color:#fff;border-radius:8px;padding:6px 8px;outline:none;">',
+
+            '</label>'
+
+        ].join('')).join('');
 
     }
 
@@ -528,6 +558,12 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         }
 
+        if (node.kind === 'folder') {
+
+            return { label: 'Open Folder', action: 'open-folder' };
+
+        }
+
         return { label: 'Center Node', action: 'center-node' };
 
     }
@@ -586,9 +622,153 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         }
 
+        if (node.kind === 'folder' && data.folderId && data.categoryName && openFolderFromMap(node)) {
+
+            return;
+
+        }
+
 
 
         centerOnNode(node, Math.max(state.transform.scale, 1.2));
+
+    }
+
+    function openFolderFromMap(node) {
+
+        const data = node?.data || {};
+
+        const workspaceId = text(data.workspaceId, getConfig().activeWorkspace || 'main');
+        const categoryName = text(data.categoryName, '');
+        const folderId = text(data.folderId, '');
+
+        if (!categoryName || !folderId || !window.EveFolderViewV2?.enterFolder) return false;
+
+        if (workspaceId && typeof window.switchWorkspace === 'function' && String(getConfig().activeWorkspace || 'main') !== String(workspaceId)) {
+
+            window.switchWorkspace(workspaceId);
+
+        }
+
+        if (categoryName && typeof window.setFocus === 'function') {
+
+            window.setFocus(categoryName);
+
+        }
+
+        window.setTimeout(() => {
+
+            try {
+
+                window.EveFolderViewV2.enterFolder(null, categoryName, folderId, workspaceId);
+
+            } catch (error) {
+
+                console.warn('[ConstellationMap] Failed to open folder from map', error);
+
+            }
+
+        }, 70);
+
+        ns.closeMap();
+
+        return true;
+
+    }
+
+    function openCategorySettingsFromMap(node) {
+
+        const data = node?.data || {};
+
+        const workspaceId = text(data.workspaceId, getConfig().activeWorkspace || 'main');
+        const categoryName = text(data.categoryName, '');
+
+        if (!categoryName || typeof window.openCategorySettings !== 'function') return false;
+
+        if (workspaceId && typeof window.switchWorkspace === 'function' && String(getConfig().activeWorkspace || 'main') !== String(workspaceId)) {
+
+            window.switchWorkspace(workspaceId);
+
+        }
+
+        if (typeof window.setFocus === 'function') {
+
+            window.setFocus(categoryName);
+
+        }
+
+        window.setTimeout(() => {
+
+            try {
+
+                window.openCategorySettings(categoryName);
+
+            } catch (error) {
+
+                console.warn('[ConstellationMap] Failed to open card settings from map', error);
+
+            }
+
+        }, 60);
+
+        return true;
+
+    }
+
+    function runNodeAction(node, action) {
+
+        if (!node || !action) return;
+
+        if (action === 'primary') {
+
+            activateNode(node);
+            return;
+
+        }
+
+        if (action === 'center') {
+
+            centerOnNode(node, Math.max(state.transform.scale, 1.24));
+            return;
+
+        }
+
+        if (action === 'open-category') {
+
+            const data = node.data || {};
+
+            if (data.categoryName) {
+
+                if (data.workspaceId && typeof window.switchWorkspace === 'function' && String(getConfig().activeWorkspace || 'main') !== String(data.workspaceId)) {
+
+                    window.switchWorkspace(data.workspaceId);
+
+                }
+
+                if (typeof window.setFocus === 'function') {
+
+                    window.setFocus(data.categoryName);
+                    ns.closeMap();
+                }
+
+            }
+
+            return;
+
+        }
+
+        if (action === 'open-folder') {
+
+            openFolderFromMap(node);
+            return;
+
+        }
+
+        if (action === 'open-category-settings') {
+
+            openCategorySettingsFromMap(node);
+
+        }
 
     }
 
@@ -1012,15 +1192,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             if (!action || !state.selected) return;
 
-            if (action === 'primary') {
-
-                activateNode(state.selected);
-
-            } else if (action === 'center') {
-
-                centerOnNode(state.selected, Math.max(state.transform.scale, 1.24));
-
-            }
+            runNodeAction(state.selected, action);
 
         });
 
@@ -1214,9 +1386,13 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             '<button type="button" data-map-toolbar="motion" style="border:1px solid rgba(145,220,255,0.26);background:rgba(145,220,255,0.11);color:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;">Motion: Web</button>',
 
+            '<button type="button" data-map-toolbar="controls" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;">Controls</button>',
+
             '<button type="button" data-map-toolbar="close" style="border:1px solid rgba(255,80,120,0.3);background:rgba(255,80,120,0.14);color:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;">Close</button>',
 
             '</div>',
+
+            '<div data-map-controls-panel style="display:none;flex-direction:column;gap:12px;align-items:stretch;align-self:stretch;min-width:min(440px,calc(100vw - 40px));max-width:min(52vw,900px);padding:14px 16px;border:1px solid rgba(255,255,255,0.14);background:rgba(4,10,20,0.88);border-radius:16px;box-shadow:0 18px 34px rgba(0,0,0,0.28);">',
 
             '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">',
 
@@ -1252,39 +1428,53 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             '<button type="button" data-map-toolbar="polarity-clear" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:7px 11px;cursor:pointer;">Clear Flow</button>',
 
+            '<button type="button" data-map-toolbar="motion-reset" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:7px 11px;cursor:pointer;">Reset Forces</button>',
+
             '<div data-map-polarity-summary style="font-size:0.74rem;color:rgba(255,255,255,0.72);padding-left:4px;">Flow: push default</div>',
 
             '</div>',
 
-            '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">',
+            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px 16px;align-items:start;">',
 
-            '<label style="display:flex;align-items:center;gap:8px;font-size:0.74rem;color:rgba(255,255,255,0.82);">',
+            '<label style="display:grid;grid-template-columns:42px minmax(112px,1fr) 50px 64px;align-items:center;gap:8px;font-size:0.74rem;color:rgba(255,255,255,0.82);">',
 
             '<span>Push</span>',
 
-            '<input data-map-polarity-strength="repel" type="range" min="0.2" max="1.6" step="0.02" value="0.76" style="width:120px;">',
+            '<input data-map-polarity-strength="repel" type="range" min="0" max="2.5" step="0.01" value="0.76" style="width:100%;">',
 
-            '<span data-map-polarity-strength-value="repel" style="min-width:32px;text-align:right;">0.76</span>',
+            '<span data-map-polarity-strength-value="repel" style="min-width:42px;text-align:right;">0.76</span>',
+
+            '<input data-map-polarity-strength-number="repel" type="number" min="0" max="2.5" step="0.01" value="0.76" style="width:64px;border:1px solid rgba(255,255,255,0.16);background:rgba(255,255,255,0.07);color:#fff;border-radius:8px;padding:6px 8px;outline:none;">',
 
             '</label>',
 
-            '<label style="display:flex;align-items:center;gap:8px;font-size:0.74rem;color:rgba(255,255,255,0.82);">',
+            '<label style="display:grid;grid-template-columns:42px minmax(112px,1fr) 50px 64px;align-items:center;gap:8px;font-size:0.74rem;color:rgba(255,255,255,0.82);">',
 
             '<span>Pull</span>',
 
-            '<input data-map-polarity-strength="attract" type="range" min="0.2" max="1.6" step="0.02" value="0.62" style="width:120px;">',
+            '<input data-map-polarity-strength="attract" type="range" min="0" max="2.5" step="0.01" value="0.62" style="width:100%;">',
 
-            '<span data-map-polarity-strength-value="attract" style="min-width:32px;text-align:right;">0.62</span>',
+            '<span data-map-polarity-strength-value="attract" style="min-width:42px;text-align:right;">0.62</span>',
+
+            '<input data-map-polarity-strength-number="attract" type="number" min="0" max="2.5" step="0.01" value="0.62" style="width:64px;border:1px solid rgba(255,255,255,0.16);background:rgba(255,255,255,0.07);color:#fff;border-radius:8px;padding:6px 8px;outline:none;">',
 
             '</label>',
+
+            '</div>',
+
+            '<div style="display:flex;flex-direction:column;gap:8px;">',
+
+            buildMotionTuningMarkup(),
+
+            '</div>',
+
+            '<div style="font-size:0.78rem;line-height:1.5;color:rgba(255,255,255,0.74);padding-top:4px;border-top:1px solid rgba(255,255,255,0.08);">Drag background to pan. Hold Space to force-pan through dense clusters. Drag nodes to reorganize. Mouse wheel zooms. Double-click a bookmark node to open it.</div>',
 
             '</div>',
 
             '</div>',
 
             '<canvas data-map-canvas style="position:absolute;z-index:1;inset:0;width:100%;height:100%;display:block;cursor:grab;"></canvas>',
-
-            '<div style="position:absolute;z-index:3;left:20px;bottom:20px;max-width:320px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.05);border-radius:14px;padding:12px 14px;color:rgba(255,255,255,0.8);font-size:0.78rem;line-height:1.45;pointer-events:auto;">Drag background to pan. Hold Space to force-pan through dense clusters. Drag nodes to reorganize. Mouse wheel zooms. Double-click a bookmark node to open it.</div>',
 
             '<div data-map-info style="position:absolute;z-index:3;right:108px;bottom:20px;max-width:min(360px,calc(100vw - 200px));min-width:260px;border:1px solid rgba(255,255,255,0.14);background:rgba(3,10,20,0.86);border-radius:16px;padding:14px 16px;color:#fff;box-shadow:0 18px 40px rgba(0,0,0,0.35);pointer-events:auto;"></div>'
 
@@ -1368,6 +1558,12 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
                 renderToolbarState();
 
+            } else if (toolbarAction === 'controls') {
+
+                state.controlsExpanded = !state.controlsExpanded;
+
+                renderToolbarState();
+
             } else if (toolbarAction === 'static-node') {
 
                 const targetNode = getInteractionTargetNode();
@@ -1444,6 +1640,14 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
                 requestDraw();
 
+            } else if (toolbarAction === 'motion-reset') {
+
+                resetMotionTuning();
+
+                renderToolbarState();
+
+                requestDraw();
+
             } else if (toolbarAction === 'close') {
 
                 ns.closeMap();
@@ -1456,13 +1660,31 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             const polarityMode = event.target?.dataset?.mapPolarityStrength;
 
-            if (!polarityMode) return;
+            const polarityNumberMode = event.target?.dataset?.mapPolarityStrengthNumber;
 
-            setPolarityStrengthValue(polarityMode, event.target.value);
+            const motionTuningMode = event.target?.dataset?.mapMotionTuning;
+
+            const motionTuningNumberMode = event.target?.dataset?.mapMotionTuningNumber;
+
+            if (polarityMode || polarityNumberMode) {
+
+                setPolarityStrengthValue(polarityMode || polarityNumberMode, event.target.value);
+
+                renderToolbarState();
+
+                renderInspector();
+
+                requestDraw();
+
+                return;
+
+            }
+
+            if (!motionTuningMode && !motionTuningNumberMode) return;
+
+            setMotionTuningValue(motionTuningMode || motionTuningNumberMode, event.target.value);
 
             renderToolbarState();
-
-            renderInspector();
 
             requestDraw();
 
@@ -1753,6 +1975,11 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 }
 
             },
+
+            motionTuning: Object.fromEntries(MOTION_TUNING_FIELDS.map((field) => [
+                field.key,
+                Number(getMotionTuningValue(field.key).toFixed(2))
+            ])),
 
             kinds: state.nodes.reduce((acc, node) => {
 

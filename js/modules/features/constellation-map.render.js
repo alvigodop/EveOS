@@ -18,6 +18,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         getMotionModeText,
 
+        MOTION_TUNING_FIELDS,
+
         getKindDisplayName,
 
         getNodePolarityState,
@@ -25,6 +27,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         getPolaritySummary,
 
         getPolarityStrengthText,
+
+        getMotionTuningText,
 
         getNodeCoverUrl,
 
@@ -96,6 +100,12 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         }
 
+        if (node.kind === 'folder') {
+
+            return { label: 'Open Folder', action: 'open-folder' };
+
+        }
+
         return { label: 'Center Node', action: 'center-node' };
 
     }
@@ -105,6 +115,44 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         const label = getKindDisplayName(kind);
 
         return (locked ? 'Release ' : 'Freeze ') + label;
+
+    }
+
+    function getControlsToggleText() {
+
+        return state.controlsExpanded ? 'Hide Controls' : 'Controls';
+
+    }
+
+    function applyInspectorShellStyle(isCollapsed) {
+
+        if (!state.infoEl) return;
+
+        if (isCollapsed) {
+
+            state.infoEl.style.maxWidth = 'none';
+            state.infoEl.style.minWidth = '0';
+            state.infoEl.style.width = '78px';
+            state.infoEl.style.height = '78px';
+            state.infoEl.style.padding = '0';
+            state.infoEl.style.borderRadius = '999px';
+            state.infoEl.style.display = 'flex';
+            state.infoEl.style.alignItems = 'center';
+            state.infoEl.style.justifyContent = 'center';
+
+            return;
+
+        }
+
+        state.infoEl.style.maxWidth = 'min(360px,calc(100vw - 200px))';
+        state.infoEl.style.minWidth = '260px';
+        state.infoEl.style.width = 'auto';
+        state.infoEl.style.height = 'auto';
+        state.infoEl.style.padding = '14px 16px';
+        state.infoEl.style.borderRadius = '16px';
+        state.infoEl.style.display = 'block';
+        state.infoEl.style.alignItems = '';
+        state.infoEl.style.justifyContent = '';
 
     }
 
@@ -121,6 +169,10 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         const motionButton = state.container.querySelector('[data-map-toolbar="motion"]');
 
         const clearButton = state.container.querySelector('[data-map-toolbar="static-clear"]');
+
+        const controlsButton = state.container.querySelector('[data-map-toolbar="controls"]');
+
+        const controlsPanel = state.container.querySelector('[data-map-controls-panel]');
 
         const summaryEl = state.container.querySelector('[data-map-static-summary]');
 
@@ -144,11 +196,27 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         const attractStrengthInput = state.container.querySelector('[data-map-polarity-strength="attract"]');
 
+        const repelStrengthNumber = state.container.querySelector('[data-map-polarity-strength-number="repel"]');
+
+        const attractStrengthNumber = state.container.querySelector('[data-map-polarity-strength-number="attract"]');
+
         const repelStrengthValue = state.container.querySelector('[data-map-polarity-strength-value="repel"]');
 
         const attractStrengthValue = state.container.querySelector('[data-map-polarity-strength-value="attract"]');
 
-        if (!nodeButton || !chainButton || !kindButton || !motionButton || !clearButton || !summaryEl || !polarityNodeButton || !polarityKindButton || !polarityClearButton || !polaritySummaryEl || !repelStrengthInput || !attractStrengthInput || !repelStrengthValue || !attractStrengthValue || directKindButtons.some((entry) => !entry.button)) return;
+        const motionTuningEntries = MOTION_TUNING_FIELDS.map((field) => ({
+
+            field,
+
+            range: state.container.querySelector('[data-map-motion-tuning="' + field.key + '"]'),
+
+            number: state.container.querySelector('[data-map-motion-tuning-number="' + field.key + '"]'),
+
+            value: state.container.querySelector('[data-map-motion-tuning-value="' + field.key + '"]')
+
+        }));
+
+        if (!nodeButton || !chainButton || !kindButton || !motionButton || !clearButton || !controlsButton || !controlsPanel || !summaryEl || !polarityNodeButton || !polarityKindButton || !polarityClearButton || !polaritySummaryEl || !repelStrengthInput || !attractStrengthInput || !repelStrengthNumber || !attractStrengthNumber || !repelStrengthValue || !attractStrengthValue || motionTuningEntries.some((entry) => !entry.range || !entry.number || !entry.value) || directKindButtons.some((entry) => !entry.button)) return;
 
         const targetNode = state.selected || state.hovered || null;
 
@@ -173,6 +241,12 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             : 'Static Type';
 
         motionButton.textContent = getMotionModeText();
+
+        controlsButton.textContent = getControlsToggleText();
+
+        controlsPanel.style.display = state.controlsExpanded ? 'flex' : 'none';
+        controlsButton.style.borderColor = state.controlsExpanded ? 'rgba(145,220,255,0.32)' : 'rgba(255,255,255,0.18)';
+        controlsButton.style.background = state.controlsExpanded ? 'rgba(145,220,255,0.12)' : 'rgba(255,255,255,0.07)';
 
         [nodeButton, chainButton, kindButton].forEach((button) => {
 
@@ -286,9 +360,23 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         attractStrengthInput.value = getPolarityStrengthText('attract');
 
+        repelStrengthNumber.value = getPolarityStrengthText('repel');
+
+        attractStrengthNumber.value = getPolarityStrengthText('attract');
+
         repelStrengthValue.textContent = getPolarityStrengthText('repel');
 
         attractStrengthValue.textContent = getPolarityStrengthText('attract');
+
+        motionTuningEntries.forEach(({ field, range, number, value }) => {
+
+            const textValue = getMotionTuningText(field.key);
+
+            range.value = textValue;
+            number.value = textValue;
+            value.textContent = textValue;
+
+        });
 
     }
 
@@ -338,6 +426,62 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
     state.renderInspector = renderInspector;
 
+    function getSecondaryActions(node) {
+
+        if (!node) return [];
+
+        const actions = [];
+
+        if (node.kind === 'link') {
+
+            if (text(node?.data?.folderId, '')) actions.push({ label: 'Open Folder', action: 'open-folder' });
+
+            if (text(node?.data?.categoryName, '')) actions.push({ label: 'Open Card', action: 'open-category' });
+
+            return actions;
+
+        }
+
+        if (node.kind === 'folder') {
+
+            actions.push({ label: 'Open Folder', action: 'open-folder' });
+
+            if (text(node?.data?.categoryName, '')) actions.push({ label: 'Open Card', action: 'open-category' });
+
+            return actions;
+
+        }
+
+        if (node.kind === 'category') {
+
+            actions.push({ label: 'Card Settings', action: 'open-category-settings' });
+
+            return actions;
+
+        }
+
+        return actions;
+
+    }
+
+    function getCompactInspectorMarkup(headerLabel, headerKindLabel) {
+
+        const shortLabel = text(headerLabel, 'Info').slice(0, 14);
+
+        return [
+
+            '<button type="button" data-map-info-toggle="1" title="Expand inspector" style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:78px;height:78px;border:1px solid rgba(255,255,255,0.14);background:radial-gradient(circle at 30% 25%, rgba(16,32,54,0.94), rgba(3,10,20,0.94));color:#fff;border-radius:999px;cursor:pointer;box-shadow:0 16px 32px rgba(0,0,0,0.28);padding:10px;gap:4px;">',
+
+            '<span style="font-size:0.6rem;opacity:0.72;letter-spacing:0.08em;text-transform:uppercase;line-height:1;">' + escapeHtml(headerKindLabel) + '</span>',
+
+            '<span style="font-size:0.7rem;font-weight:700;line-height:1.15;max-width:100%;white-space:normal;word-break:break-word;">' + escapeHtml(shortLabel) + '</span>',
+
+            '</button>'
+
+        ].join('');
+
+    }
+
     function renderInspector() {
 
         if (!state.infoEl) return;
@@ -345,8 +489,6 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         const targetNode = state.selected || state.hovered;
 
         const headerLabel = targetNode ? targetNode.label : 'Map Inspector';
-
-        const headerKind = targetNode ? targetNode.kind : 'overview';
 
         const headerKindLabel = targetNode ? getKindDisplayName(targetNode.kind) : 'Overview';
 
@@ -357,6 +499,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         const coverUrl = getNodeCoverUrl(targetNode);
 
         const toggleLabel = state.infoCollapsed ? 'Expand' : 'Collapse';
+
+        applyInspectorShellStyle(state.infoCollapsed);
 
         const header = [
 
@@ -386,23 +530,15 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             : '';
 
-
-
         if (!targetNode) {
 
             state.infoEl.innerHTML = [
 
-                header,
+                coverPanel,
 
-                state.infoCollapsed
+                state.infoCollapsed ? getCompactInspectorMarkup('Map', 'Overview') : header,
 
-                    ? ''
-
-                    : '<div style="font-size:0.82rem;opacity:0.78;line-height:1.45;margin-top:10px;">'
-
-                        + 'Drag the background to pan. Use the mouse wheel to zoom. Drag nodes to reorganize the field. Double-click a bookmark to open it.'
-
-                        + '</div>'
+                state.infoCollapsed ? '' : '<div style="font-size:0.82rem;opacity:0.78;line-height:1.45;margin-top:10px;">Select a node to inspect it and use map actions.</div>'
 
             ].join('');
 
@@ -416,9 +552,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         }
 
-
-
         const primaryAction = getPrimaryAction(targetNode);
+
+        const secondaryActions = getSecondaryActions(targetNode);
 
         const actionRow = primaryAction
 
@@ -432,21 +568,25 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             : '';
 
+        const secondaryRow = secondaryActions.length
 
+            ? '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">'
+
+                + secondaryActions.map((entry) => '<button type="button" data-map-action="' + escapeHtml(entry.action) + '" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.06);color:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;">' + escapeHtml(entry.label) + '</button>').join('')
+
+                + '</div>'
+
+            : '';
 
         state.infoEl.innerHTML = [
 
             coverPanel,
 
-            header,
+            state.infoCollapsed ? getCompactInspectorMarkup(headerLabel, headerKindLabel) : header,
 
             state.infoCollapsed
 
-                ? '<div style="font-size:0.74rem;opacity:0.68;margin-top:8px;">' + escapeHtml(getScopeText(state.scope)) + '</div>'
-                    + (staticState.isStatic
-                        ? '<div style="font-size:0.72rem;color:#ffd65a;opacity:0.92;margin-top:7px;">Static ' + escapeHtml(staticState.source === 'kind' ? ('Type Lock | ' + headerKindLabel) : (staticState.source === 'branch' ? 'Chain Lock' : 'Node Lock')) + '</div>'
-                        : '')
-                    + '<div style="font-size:0.72rem;color:' + escapeHtml(polarityState.effective === 'attract' ? '#7affc4' : '#ffc37d') + ';opacity:0.92;margin-top:7px;">Flow ' + escapeHtml(polarityState.effective === 'attract' ? 'Pull' : 'Push') + ' | ' + escapeHtml(polarityState.source === 'node' ? 'Node Override' : (polarityState.source === 'kind' ? 'Type Rule' : 'Default')) + '</div>'
+                ? ''
 
                 : [
 
@@ -460,7 +600,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
                     '<div style="font-size:0.82rem;opacity:0.82;line-height:1.45;margin-top:10px;">' + escapeHtml(targetNode.meta || 'No details') + '</div>',
 
-                    actionRow
+                    actionRow,
+
+                    secondaryRow
 
                 ].join('')
 
