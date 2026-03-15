@@ -194,6 +194,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
                 id: 'link_' + String(link.id),
 
+                chainId: 'chain_' + workspaceId + '_' + categoryName,
+
                 label: text(link?.title, 'Bookmark'),
 
                 color: getLinkColor(link),
@@ -241,6 +243,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             const folderNode = addNode(createNode({
 
                 id: 'folder_' + workspaceId + '_' + categoryName + '_' + String(folderNodeModel.id),
+
+                chainId: 'chain_' + workspaceId + '_' + categoryName,
 
                 label: text(folderNodeModel?.name, 'Folder'),
 
@@ -311,6 +315,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             const categoryNode = addNode(createNode({
 
                 id: 'category_' + workspaceId + '_' + categoryName,
+
+                chainId: 'chain_' + workspaceId + '_' + categoryName,
 
                 label: text(categoryName, 'Unsorted'),
 
@@ -445,6 +451,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 const folderNode = addNode(createNode({
 
                     id: 'folder_' + scope.workspaceId + '_' + text(scope.categoryName, 'Unsorted') + '_' + String(subtree.targetNode.id),
+
+                    chainId: 'chain_' + scope.workspaceId + '_' + text(scope.categoryName, 'Unsorted'),
 
                     label: text(subtree.targetNode?.name, 'Folder'),
 

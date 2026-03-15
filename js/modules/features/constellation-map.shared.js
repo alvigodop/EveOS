@@ -417,6 +417,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             id: text(source.id, ''),
 
+            chainId: text(source.chainId, ''),
+
             label: text(source.label, 'Untitled'),
 
             color: text(source.color, '#00d4ff'),

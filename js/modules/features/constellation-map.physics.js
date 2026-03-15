@@ -718,9 +718,11 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
                 const ny = dy / dist;
 
-                const nodeInfluenceScale = getPairwiseInfluenceScale(node, other, motionProfile);
+                const chainFactor = (node.chainId && node.chainId === other.chainId) ? 0.15 : 1;
 
-                const otherInfluenceScale = getPairwiseInfluenceScale(other, node, motionProfile);
+                const nodeInfluenceScale = getPairwiseInfluenceScale(node, other, motionProfile) * chainFactor;
+
+                const otherInfluenceScale = getPairwiseInfluenceScale(other, node, motionProfile) * chainFactor;
 
                 if (!nodeIsStatic) {
 
