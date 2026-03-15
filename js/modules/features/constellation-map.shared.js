@@ -98,6 +98,12 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         motionMode: 'smooth',
 
+        fxExpanded: false,
+
+        fxGridEnabled: false,
+
+        fxScanlineEnabled: false,
+
         motionAnchors: new Map(),
 
         lastMotionMode: 'smooth',
@@ -176,6 +182,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     const LABEL_MODE_ORDER = ['auto', 'all', 'focus', 'off'];
 
     const MOTION_MODE_ORDER = ['smooth', 'slow', 'web', 'free'];
+
+    const FX_MODE_ORDER = ['none', 'grid', 'scanline', 'both'];
 
     const LABEL_CURSOR_RADIUS = 170;
 
@@ -490,6 +498,20 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         return 'Motion: Smooth';
 
     }
+
+    function getFxModeText() {
+
+        if (state.fxMode === 'grid') return 'FX: Grid';
+
+        if (state.fxMode === 'scanline') return 'FX: Scanline';
+
+        if (state.fxMode === 'both') return 'FX: Max';
+
+        return 'FX: None';
+
+    }
+
+
 
     function getKindDisplayName(kind) {
 
@@ -808,6 +830,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         MOTION_MODE_ORDER,
 
+        FX_MODE_ORDER,
+
         MOTION_TUNING_FIELDS,
 
         LABEL_CURSOR_RADIUS,
@@ -837,6 +861,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         getLabelModeText,
 
         getMotionModeText,
+
+        getFxModeText,
 
         getMotionTuningField,
 

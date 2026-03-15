@@ -166,6 +166,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         const kindButton = state.container.querySelector('[data-map-toolbar="static-kind"]');
 
+        const fxButton = state.container.querySelector('[data-map-toolbar="fx"]');
+
         const motionButton = state.container.querySelector('[data-map-toolbar="motion"]');
 
         const clearButton = state.container.querySelector('[data-map-toolbar="static-clear"]');
@@ -173,6 +175,12 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         const controlsButton = state.container.querySelector('[data-map-toolbar="controls"]');
 
         const controlsPanel = state.container.querySelector('[data-map-controls-panel]');
+
+        const fxPanel = state.container.querySelector('[data-map-fx-panel]');
+
+        const fxGridButton = state.container.querySelector('[data-map-toolbar="fx-grid"]');
+
+        const fxScanlineButton = state.container.querySelector('[data-map-toolbar="fx-scanline"]');
 
         const stabilityButton = state.container.querySelector('[data-map-toolbar="stability"]');
 
@@ -247,8 +255,50 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         controlsButton.textContent = getControlsToggleText();
 
         controlsPanel.style.display = state.controlsExpanded ? 'flex' : 'none';
+
         controlsButton.style.borderColor = state.controlsExpanded ? 'rgba(145,220,255,0.32)' : 'rgba(255,255,255,0.18)';
+
         controlsButton.style.background = state.controlsExpanded ? 'rgba(145,220,255,0.12)' : 'rgba(255,255,255,0.07)';
+
+
+
+        if (fxPanel && fxButton) {
+
+            fxButton.textContent = state.fxExpanded ? 'Hide FX' : 'FX Settings';
+
+            fxPanel.style.display = state.fxExpanded ? 'flex' : 'none';
+
+            fxButton.style.borderColor = state.fxExpanded ? 'rgba(0,255,255,0.32)' : 'rgba(0,255,255,0.26)';
+
+            fxButton.style.background = state.fxExpanded ? 'rgba(0,255,255,0.22)' : 'rgba(0,255,255,0.11)';
+
+        }
+
+
+
+        if (fxGridButton) {
+
+            fxGridButton.textContent = state.fxGridEnabled ? 'Grid: ON' : 'Grid: OFF';
+
+            fxGridButton.style.borderColor = state.fxGridEnabled ? 'rgba(0,255,255,0.42)' : 'rgba(255,255,255,0.18)';
+
+            fxGridButton.style.background = state.fxGridEnabled ? 'rgba(0,255,255,0.18)' : 'rgba(255,255,255,0.07)';
+
+        }
+
+
+
+        if (fxScanlineButton) {
+
+            fxScanlineButton.textContent = state.fxScanlineEnabled ? 'Scanline: ON' : 'Scanline: OFF';
+
+            fxScanlineButton.style.borderColor = state.fxScanlineEnabled ? 'rgba(0,255,255,0.42)' : 'rgba(255,255,255,0.18)';
+
+            fxScanlineButton.style.background = state.fxScanlineEnabled ? 'rgba(0,255,255,0.18)' : 'rgba(255,255,255,0.07)';
+
+        }
+
+
 
         if (stabilityButton) {
             stabilityButton.textContent = state.stableMainNodes ? 'Stability: ON' : 'Stability: OFF';

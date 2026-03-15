@@ -1340,9 +1340,71 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
 
 
+    function updateFxMode() {
+
+        if (!state.container) return;
+
+        const gridEl = state.container.querySelector('.eve-map-fx-grid');
+
+        const scanEl = state.container.querySelector('.eve-map-fx-scan');
+
+        if (gridEl) gridEl.style.display = state.fxGridEnabled ? 'block' : 'none';
+
+        if (scanEl) scanEl.style.display = state.fxScanlineEnabled ? 'block' : 'none';
+
+    }
+
+
+
     function ensureContainer() {
 
         if (state.container && state.canvas && state.ctx) return;
+
+
+
+        if (!document.getElementById('eve-map-fx-styles')) {
+
+            const style = document.createElement('style');
+
+            style.id = 'eve-map-fx-styles';
+
+            style.innerHTML = `
+
+                .eve-map-fx-grid {
+
+                    position: absolute; inset: 0; z-index: 1; pointer-events: none; opacity: 0.2; display: none;
+
+                    background-image: linear-gradient(rgba(0, 255, 255, 0.2) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 255, 255, 0.2) 1px, transparent 1px);
+
+                    background-size: 60px 60px;
+
+                    animation: eveMapGridShift 15s linear infinite;
+
+                }
+
+                @keyframes eveMapGridShift { 0% { transform: translate(0, 0); } 100% { transform: translate(60px, 60px); } }
+
+                .eve-map-fx-scan {
+
+                    position: absolute; top: 0; left: 0; width: 100%; height: 8px; z-index: 1; pointer-events: none; display: none;
+
+                    background: linear-gradient(90deg, transparent 0%, #00ffff 40%, #88ffff 50%, #00ffff 60%, transparent 100%);
+
+                    box-shadow: 0 0 40px #00ffff, 0 0 80px rgba(0, 255, 255, 0.6), 0 0 120px rgba(0, 255, 255, 0.3);
+
+                    animation: eveMapScanMove 2.5s ease-in-out infinite;
+
+                }
+
+                @keyframes eveMapScanMove { 0%, 100% { top: 0%; opacity: 0; } 10%, 90% { opacity: 1; } 50% { top: 100%; } }
+
+            `;
+
+            document.head.appendChild(style);
+
+        }
+
+
 
         const container = document.createElement('div');
 
@@ -1365,6 +1427,10 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         ].join(';');
 
         container.innerHTML = [
+
+            '<div class="eve-map-fx-grid"></div>',
+
+            '<div class="eve-map-fx-scan"></div>',
 
             '<div style="position:absolute;z-index:3;top:16px;left:20px;display:flex;flex-direction:column;gap:4px;max-width:min(48vw,680px);pointer-events:auto;">',
 
@@ -1394,11 +1460,21 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             '<button type="button" data-map-toolbar="labels" style="border:1px solid rgba(0,212,255,0.28);background:rgba(0,212,255,0.12);color:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;">Labels: Auto</button>',
 
+            '<button type="button" data-map-toolbar="fx" style="border:1px solid rgba(0,255,255,0.26);background:rgba(0,255,255,0.11);color:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;">FX Settings</button>',
+
             '<button type="button" data-map-toolbar="motion" style="border:1px solid rgba(145,220,255,0.26);background:rgba(145,220,255,0.11);color:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;">Motion: Web</button>',
 
             '<button type="button" data-map-toolbar="controls" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;">Controls</button>',
 
             '<button type="button" data-map-toolbar="close" style="border:1px solid rgba(255,80,120,0.3);background:rgba(255,80,120,0.14);color:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;">Close</button>',
+
+            '</div>',
+
+            '<div data-map-fx-panel style="display:none;flex-direction:row;gap:12px;align-items:center;align-self:flex-end;min-width:min(200px,calc(100vw - 40px));max-width:min(40vw,500px);padding:10px 14px;border:1px solid rgba(0,255,255,0.14);background:rgba(4,10,20,0.88);border-radius:12px;box-shadow:0 18px 34px rgba(0,0,0,0.28);">',
+
+            '<button type="button" data-map-toolbar="fx-grid" style="border:1px solid rgba(0,255,255,0.18);background:rgba(0,255,255,0.07);color:#fff;border-radius:10px;padding:7px 11px;cursor:pointer;">Grid: OFF</button>',
+
+            '<button type="button" data-map-toolbar="fx-scanline" style="border:1px solid rgba(0,255,255,0.18);background:rgba(0,255,255,0.07);color:#fff;border-radius:10px;padding:7px 11px;cursor:pointer;">Scanline: OFF</button>',
 
             '</div>',
 
@@ -1550,6 +1626,28 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 event.target.textContent = getLabelModeText();
 
                 requestDraw();
+
+                renderToolbarState();
+
+            } else if (toolbarAction === 'fx') {
+
+                state.fxExpanded = !state.fxExpanded;
+
+                renderToolbarState();
+
+            } else if (toolbarAction === 'fx-grid') {
+
+                state.fxGridEnabled = !state.fxGridEnabled;
+
+                updateFxMode();
+
+                renderToolbarState();
+
+            } else if (toolbarAction === 'fx-scanline') {
+
+                state.fxScanlineEnabled = !state.fxScanlineEnabled;
+
+                updateFxMode();
 
                 renderToolbarState();
 
