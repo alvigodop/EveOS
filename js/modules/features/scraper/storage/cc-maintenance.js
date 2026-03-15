@@ -21,32 +21,47 @@
          * Prune old cache items to free up space
          */
         pruneCache: function () {
-            try {
-                // Determine prefix to look for
-                let prefix = 'cache_';
-                if (window.StorageManager && StorageManager.categoryContext) {
-                    const contextPrefix = StorageManager.categoryContext.toLowerCase().replace(/\s+/g, '_');
-                    prefix = `${contextPrefix}_${prefix}`;
-                }
+            this.emergencyPrune(0.2); // Default to 20%
+        },
 
-                // Simple strategy: Remove oldest 20% of cache_ prefixed items
-                const cacheItems = [];
+        /**
+         * Emergency prune of the cache
+         * @param {number} percentage - Percentage of items to remove (0.0 to 1.0)
+         */
+        emergencyPrune: function (percentage = 0.5) {
+            console.warn(`CCMaintenance: Emergency prune triggered (target: ${Math.round(percentage * 100)}%)...`);
+            try {
+                // 1. Identify all cache-related keys
+                const allKeys = [];
                 for (let i = 0; i < localStorage.length; i++) {
                     const key = localStorage.key(i);
-                    if (key && key.startsWith(prefix)) {
-                        cacheItems.push(key);
+                    if (key && (key.includes('cache_') || key.includes('browserEmulator_'))) {
+                        allKeys.push({
+                            key: key,
+                            size: localStorage.getItem(key).length,
+                            isHighValue: key.includes('browserEmulator_')
+                        });
                     }
                 }
 
-                if (cacheItems.length === 0) return;
+                if (allKeys.length === 0) return;
 
-                const itemsToRemove = Math.max(1, Math.floor(cacheItems.length * 0.2));
+                // 2. Sort by size (descending) so we free up the most space first
+                allKeys.sort((a, b) => b.size - a.size);
+
+                // 3. Remove the top percentage of items
+                const itemsToRemove = Math.max(1, Math.floor(allKeys.length * percentage));
+                let spaceFreed = 0;
+
                 for (let i = 0; i < itemsToRemove; i++) {
-                    localStorage.removeItem(cacheItems[i]);
+                    const item = allKeys[i];
+                    spaceFreed += item.size;
+                    localStorage.removeItem(item.key);
                 }
-                console.log(`CCMaintenance: Pruned ${itemsToRemove} cache items (prefix: ${prefix}).`);
+
+                console.log(`CCMaintenance: Emergency prune complete. Removed ${itemsToRemove} items, freed approximately ${(spaceFreed / 1024).toFixed(2)} KB.`);
             } catch (e) {
-                console.error('CCMaintenance: Error pruning cache:', e);
+                console.error('CCMaintenance: Error during emergency prune:', e);
             }
         },
 

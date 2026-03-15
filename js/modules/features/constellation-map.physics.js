@@ -72,13 +72,13 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
                 mode: normalizedMode,
 
-                repulsionScale: nodeCount > 220 ? 0.26 : 0.22,
+                repulsionScale: 0.04,
 
                 centerPullScale: 2.95,
 
-                springScale: 1.48,
+                springScale: 0.38,
 
-                hierarchyReactionScale: 0.16,
+                hierarchyReactionScale: 0.02,
 
                 folderRecoveryScale: 3.2,
 
@@ -90,9 +90,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
                 anchorScaleByKind: { workspace: 8.8, category: 6.9, folder: 1.28, link: 1.02 },
 
-                dampingScaleByKind: { workspace: 0.68, category: 0.73, folder: 0.82, link: 0.94 },
+                dampingScaleByKind: { workspace: 0.62, category: 0.68, folder: 0.58, link: 0.52 },
 
-                speedScaleByKind: { workspace: 0.03, category: 0.06, folder: 0.28, link: 0.64 }
+                speedScaleByKind: { workspace: 0.03, category: 0.06, folder: 0.22, link: 0.32 }
 
             };
 
@@ -154,7 +154,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             dampingScaleByKind: { workspace: 0.93, category: 0.95, folder: 0.94, link: 0.98 },
 
-            speedScaleByKind: { workspace: 0.5, category: 0.6, folder: 0.7, link: 0.88 }
+            speedScaleByKind: { workspace: 0.5, category: 0.6, folder: 0.42, link: 0.88 }
 
         };
 
@@ -174,7 +174,11 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         if (targetKind === 'folder') {
 
-            baseFactor = sourceKind === 'link' ? 0.12 : 0.24;
+            baseFactor = sourceKind === 'link' ? 0.32 : (sourceKind === 'folder' ? 0.18 : 0.48);
+
+        } else if (targetKind === 'link') {
+
+            baseFactor = 0.28;
 
         } else if (targetKind === 'category') {
 
@@ -192,11 +196,22 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
     function getPairwiseInfluenceScale(targetNode, sourceNode, motionProfile) {
 
-        if (motionProfile?.mode !== 'web') return 1;
-
         const targetKind = text(targetNode?.kind, '');
 
         const sourceKind = text(sourceNode?.kind, '');
+
+        if (targetKind === 'folder' && sourceKind === 'folder') return 0.4;
+
+        if (targetKind === 'link' || sourceKind === 'link') return 0.5;
+
+        const isMainTarget = targetKind === 'workspace' || targetKind === 'category';
+        const isMainSource = sourceKind === 'workspace' || sourceKind === 'category';
+
+        if ((isMainTarget && sourceKind === 'folder') || (targetKind === 'folder' && isMainSource)) {
+            return 0.5;
+        }
+
+        if (motionProfile?.mode !== 'web') return 1;
 
         if (targetKind === 'workspace') {
 
@@ -221,8 +236,6 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         if (targetKind === 'folder') {
 
             if (sourceKind === 'link') return 0.22;
-
-            if (sourceKind === 'folder') return 0.3;
 
             if (sourceKind === 'category') return 0.48;
 
@@ -278,13 +291,13 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         const profile = motionProfile || getMotionProfile(state.nodes.length);
 
-        const base = node?.kind === 'folder' ? 0.84 : 0.88;
+        const base = node?.kind === 'folder' ? 0.76 : (node?.kind === 'link' ? 0.88 : 0.86);
 
-        const modeScale = Number(profile.dampingScale) || 1;
+        const profileScale = Number(profile.dampingScale) || 1;
 
-        const kindScale = Number(profile.dampingScaleByKind?.[String(node?.kind || '')]) || 1;
+        const kindScale = Number(profile.dampingScaleByKind?.[String(node.kind || '')]) || 1;
 
-        return Math.min(0.985, Math.max(0, base * modeScale * kindScale * getMotionTuningValue('damping')));
+        return Math.min(0.99, Math.max(0.1, base * profileScale * kindScale * getMotionTuningValue('damping')));
 
     }
 
@@ -332,9 +345,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         let base = 10;
 
-        if (node.kind === 'link') base = 16;
+        if (node.kind === 'link') base = 6;
 
-        else if (node.kind === 'folder') base = 9.5;
+        else if (node.kind === 'folder') base = 3.5;
 
         else if (node.kind === 'category') base = 8;
 
@@ -482,13 +495,18 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         if (node.kind === 'folder') {
 
-            node.x += (anchor.x - node.x) * 0.05;
+            const dx = anchor.x - node.x;
+            const dy = anchor.y - node.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
 
-            node.y += (anchor.y - node.y) * 0.05;
+            if (dist > 140) {
+                node.x += dx * 0.022;
+                node.y += dy * 0.022;
+            }
 
-            node.vx *= 0.72;
+            node.vx *= 0.88;
 
-            node.vy *= 0.72;
+            node.vy *= 0.88;
 
             return;
 
@@ -734,7 +752,11 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             const dist = Math.max(1, Math.sqrt((dx * dx) + (dy * dy)));
 
-            const desired = edge.type === 'tag' ? 120 : 78;
+            let desired = edge.type === 'tag' ? 120 : 100;
+
+            if (edge.type === 'hierarchy' && edge.source?.kind === 'folder') {
+                desired = 140;
+            }
 
             const stretch = dist - desired;
 
@@ -742,7 +764,19 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             const ny = dy / dist;
 
-            const force = stretch * springStrength;
+            let force = stretch * springStrength;
+
+            if (edge.type === 'hierarchy' && edge.source?.kind === 'folder' && edge.target?.kind === 'folder') {
+                force *= 0.68;
+            }
+
+            if (edge.type === 'hierarchy' && edge.target?.kind === 'link') {
+                force *= 0.6;
+            }
+
+            if (edge.type === 'hierarchy' && (edge.target?.kind === 'workspace' || edge.target?.kind === 'category')) {
+                force *= 0.5;
+            }
 
             const targetReactionFactor = getHierarchyTargetReactionFactor(edge, motionProfile);
 

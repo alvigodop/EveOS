@@ -139,7 +139,12 @@
                 // Cache successful result
                 if (renderOptions.useCache && finalContent && window.CacheManager) {
                     try {
-                        await CacheManager.set(`browserEmulator_${renderOptions.cacheKey}`, finalContent, this._config.cacheTimeToLive);
+                        // SIZE LIMIT: Don't cache if content is massive (>100KB) to prevent QuotaExceededError
+                        if (finalContent.length > 102400) {
+                            console.warn(`BrowserEmulator: Content size (${Math.round(finalContent.length / 1024)}KB) exceeds cache limit. Skipping persistent cache.`);
+                        } else {
+                            await CacheManager.set(`browserEmulator_${renderOptions.cacheKey}`, finalContent, this._config.cacheTimeToLive);
+                        }
                     } catch (err) {
                         console.warn('BrowserEmulator: Cache storage error:', err);
                     }

@@ -13,24 +13,58 @@ function saveData() {
             return nextLink;
         })
         : [];
-    localStorage.setItem(EVE_LINKS_KEY, JSON.stringify(sanitizedLinks));
-    localStorage.setItem(EVE_BOOKMARK_FOLDERS_KEY, JSON.stringify(
-        (typeof bookmarkFolders !== 'undefined' && bookmarkFolders && typeof bookmarkFolders === 'object')
-            ? bookmarkFolders
-            : {}
-    ));
-    localStorage.setItem(EVE_QUICK_PINS_KEY, JSON.stringify(
-        (typeof quickPins !== 'undefined' && Array.isArray(quickPins))
-            ? quickPins
-            : []
-    ));
+    
+    const doSave = () => {
+        localStorage.setItem(EVE_LINKS_KEY, JSON.stringify(sanitizedLinks));
+        localStorage.setItem(EVE_BOOKMARK_FOLDERS_KEY, JSON.stringify(
+            (typeof bookmarkFolders !== 'undefined' && bookmarkFolders && typeof bookmarkFolders === 'object')
+                ? bookmarkFolders
+                : {}
+        ));
+        localStorage.setItem(EVE_QUICK_PINS_KEY, JSON.stringify(
+            (typeof quickPins !== 'undefined' && Array.isArray(quickPins))
+                ? quickPins
+                : []
+        ));
+    };
+
+    try {
+        doSave();
+    } catch (e) {
+        if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED' || e.code === 22) {
+            console.warn("Core Storage: Quota exceeded during saveData. Attempting emergency prune...");
+            if (window.CCMaintenance && typeof CCMaintenance.emergencyPrune === 'function') {
+                CCMaintenance.emergencyPrune(0.5);
+                try {
+                    doSave();
+                    console.log("Core Storage: Save successful after prune.");
+                } catch (retryError) {
+                    console.error("Core Storage: Final save failure after prune:", retryError);
+                }
+            }
+        } else {
+            console.error("Core Storage: Unexpected error during saveData:", e);
+        }
+    }
+
     window.dispatchEvent(new CustomEvent('eve:state-mutated', { detail: { source: 'saveData' } }));
     if (typeof renderDashboard === 'function') renderDashboard();
     if (typeof updateSuggestions === 'function') updateSuggestions();
 }
 
 function saveConfig() {
-    localStorage.setItem(EVE_CONFIG_KEY, JSON.stringify(config));
+    try {
+        localStorage.setItem(EVE_CONFIG_KEY, JSON.stringify(config));
+    } catch (e) {
+        if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED' || e.code === 22) {
+            if (window.CCMaintenance && typeof CCMaintenance.emergencyPrune === 'function') {
+                CCMaintenance.emergencyPrune(0.3);
+                try {
+                    localStorage.setItem(EVE_CONFIG_KEY, JSON.stringify(config));
+                } catch (retryError) { }
+            }
+        }
+    }
     window.dispatchEvent(new CustomEvent('eve:state-mutated', { detail: { source: 'saveConfig' } }));
 }
 

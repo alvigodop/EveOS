@@ -44,6 +44,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         addEdge,
 
+        createManualAnchor,
+
         getLinkColor,
 
         getLinkMeta,
@@ -340,6 +342,12 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             if (parentNode) addEdge(categoryNode, parentNode, 'hierarchy');
 
+            if (state.stableMainNodes && !parentNode) {
+
+                categoryNode.manualAnchor = createManualAnchor(categoryNode);
+
+            }
+
 
 
             const viewModel = getFolderView(workspaceId, categoryName, categoryLinks);
@@ -465,6 +473,12 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                     }
 
                 }));
+
+                if (state.stableMainNodes) {
+
+                    folderNode.manualAnchor = createManualAnchor(folderNode);
+
+                }
 
                 subtree.directLinks.forEach((link, index) => {
 

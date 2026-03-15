@@ -78,10 +78,29 @@ StorageManager.remove = function (key) {
 
 StorageManager.saveData = function (key, data) {
     const prefixedKey = this._getPrefixedKey(key);
+    const stringifiedData = JSON.stringify(data);
+    
     try {
-        localStorage.setItem(prefixedKey, JSON.stringify(data));
+        localStorage.setItem(prefixedKey, stringifiedData);
         return true;
     } catch (error) {
+        if (error.name === 'QuotaExceededError' || error.name === 'NS_ERROR_DOM_QUOTA_REACHED' || error.code === 22) {
+            console.warn(`StorageManager: Quota exceeded for ${prefixedKey}. Attempting emergency prune and retry...`);
+            
+            if (window.CCMaintenance && typeof CCMaintenance.emergencyPrune === 'function') {
+                window.CCMaintenance.emergencyPrune(0.5); // Clear 50%
+                
+                // Retry once
+                try {
+                    localStorage.setItem(prefixedKey, stringifiedData);
+                    console.log(`StorageManager: Successfully saved ${prefixedKey} after emergency prune.`);
+                    return true;
+                } catch (retryError) {
+                    console.error(`StorageManager: Final save failure after prune for ${prefixedKey}:`, retryError);
+                }
+            }
+        }
+        
         console.error(`Error saving data to localStorage (${prefixedKey}):`, error);
         return false;
     }

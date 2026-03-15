@@ -92,7 +92,13 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         clearInspectorCoverRotation,
 
-        scheduleInspectorCoverRotation
+        scheduleInspectorCoverRotation,
+
+        hashNodeId,
+
+        getManualAnchorPreset,
+
+        createManualAnchor
 
     } = shared;
 
@@ -139,76 +145,6 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     } = physics;
 
     if (ns.ready) return;
-
-    function getManualAnchorPreset(node) {
-
-        if (node?.kind === 'workspace') {
-
-            return { driftRadius: 22, pullStrength: 0.02, damping: 0.924, speed: 0.00028 };
-
-        }
-
-        if (node?.kind === 'category') {
-
-            return { driftRadius: 16, pullStrength: 0.024, damping: 0.916, speed: 0.00032 };
-
-        }
-
-        if (node?.kind === 'folder') {
-
-            return { driftRadius: 10, pullStrength: 0.03, damping: 0.91, speed: 0.00038 };
-
-        }
-
-        return { driftRadius: 8, pullStrength: 0.032, damping: 0.904, speed: 0.00042 };
-
-    }
-
-
-
-    function hashNodeId(node) {
-
-        const value = String(node?.id || '');
-
-        let hash = 0;
-
-        for (let index = 0; index < value.length; index += 1) {
-
-            hash = ((hash * 33) + value.charCodeAt(index)) % 100003;
-
-        }
-
-        return hash;
-
-    }
-
-
-
-    function createManualAnchor(node) {
-
-        const preset = getManualAnchorPreset(node);
-
-        const hash = hashNodeId(node);
-
-        return {
-
-            x: Number.isFinite(node?.x) ? node.x : 0,
-
-            y: Number.isFinite(node?.y) ? node.y : 0,
-
-            driftRadius: preset.driftRadius + (hash % 5),
-
-            pullStrength: preset.pullStrength,
-
-            damping: preset.damping,
-
-            speed: preset.speed + ((hash % 7) * 0.00001),
-
-            phase: (hash % 6283) / 1000
-
-        };
-
-    }
 
     function buildMotionTuningMarkup() {
 
@@ -1248,7 +1184,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         state.infoEl.addEventListener('click', (event) => {
 
-            if (event.target?.dataset?.mapInfoToggle) {
+            const toggleEl = event.target.closest('[data-map-info-toggle]');
+
+            if (toggleEl) {
 
                 state.infoCollapsed = !state.infoCollapsed;
 
@@ -1258,7 +1196,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             }
 
-            const action = event.target?.dataset?.mapAction;
+            const actionEl = event.target.closest('[data-map-action]');
+
+            const action = actionEl?.dataset?.mapAction;
 
             if (!action || !state.selected) return;
 
@@ -1471,17 +1411,12 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             '<button type="button" data-map-toolbar="static-chain" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:7px 11px;cursor:pointer;">Static Chain</button>',
 
             '<button type="button" data-map-toolbar="static-kind" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:7px 11px;cursor:pointer;">Static Type</button>',
-
             '<button type="button" data-map-toolbar="static-clear" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:7px 11px;cursor:pointer;">Clear Static</button>',
-
             '<div data-map-static-summary style="font-size:0.74rem;color:rgba(255,255,255,0.72);padding-left:4px;">Static: none</div>',
-
+            '<button type="button" data-map-toolbar="stability" style="border:1px solid rgba(0,212,255,0.28);background:rgba(0,212,255,0.12);color:#fff;border-radius:10px;padding:7px 11px;cursor:pointer;">Stability: ON</button>',
             '</div>',
-
             '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">',
-
             '<button type="button" data-map-static-kind="workspace" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:7px 11px;cursor:pointer;">Freeze Tab</button>',
-
             '<button type="button" data-map-static-kind="category" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:7px 11px;cursor:pointer;">Freeze Card</button>',
 
             '<button type="button" data-map-static-kind="folder" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:7px 11px;cursor:pointer;">Freeze Folder</button>',
@@ -1574,9 +1509,13 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         container.addEventListener('click', (event) => {
 
-            const toolbarAction = event.target?.dataset?.mapToolbar;
+            const toolbarEl = event.target.closest('[data-map-toolbar]');
 
-            const directStaticKind = event.target?.dataset?.mapStaticKind;
+            const toolbarAction = toolbarEl?.dataset?.mapToolbar;
+
+            const staticKindEl = event.target.closest('[data-map-static-kind]');
+
+            const directStaticKind = staticKindEl?.dataset?.mapStaticKind;
 
             if (directStaticKind) {
 
@@ -1707,23 +1646,20 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 clearPolarityOverrides();
 
                 renderInspector();
-
                 requestDraw();
-
             } else if (toolbarAction === 'motion-reset') {
-
                 resetMotionTuning();
-
                 renderToolbarState();
-
                 requestDraw();
-
+            } else if (toolbarAction === 'stability') {
+                state.stableMainNodes = !state.stableMainNodes;
+                buildGraphData(state.scope);
+                renderHeader();
+                requestDraw();
+                return;
             } else if (toolbarAction === 'close') {
-
                 ns.closeMap();
-
             }
-
         });
 
         container.addEventListener('input', (event) => {

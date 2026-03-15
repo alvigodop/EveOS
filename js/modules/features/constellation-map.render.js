@@ -174,6 +174,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         const controlsPanel = state.container.querySelector('[data-map-controls-panel]');
 
+        const stabilityButton = state.container.querySelector('[data-map-toolbar="stability"]');
+
         const summaryEl = state.container.querySelector('[data-map-static-summary]');
 
         const polarityNodeButton = state.container.querySelector('[data-map-toolbar="polarity-node"]');
@@ -216,7 +218,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         }));
 
-        if (!nodeButton || !chainButton || !kindButton || !motionButton || !clearButton || !controlsButton || !controlsPanel || !summaryEl || !polarityNodeButton || !polarityKindButton || !polarityClearButton || !polaritySummaryEl || !repelStrengthInput || !attractStrengthInput || !repelStrengthNumber || !attractStrengthNumber || !repelStrengthValue || !attractStrengthValue || motionTuningEntries.some((entry) => !entry.range || !entry.number || !entry.value) || directKindButtons.some((entry) => !entry.button)) return;
+        if (!nodeButton || !chainButton || !kindButton || !motionButton || !clearButton || !controlsButton || !controlsPanel || !stabilityButton || !summaryEl || !polarityNodeButton || !polarityKindButton || !polarityClearButton || !polaritySummaryEl || !repelStrengthInput || !attractStrengthInput || !repelStrengthNumber || !attractStrengthNumber || !repelStrengthValue || !attractStrengthValue || motionTuningEntries.some((entry) => !entry.range || !entry.number || !entry.value) || directKindButtons.some((entry) => !entry.button)) return;
 
         const targetNode = state.selected || state.hovered || null;
 
@@ -247,6 +249,12 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         controlsPanel.style.display = state.controlsExpanded ? 'flex' : 'none';
         controlsButton.style.borderColor = state.controlsExpanded ? 'rgba(145,220,255,0.32)' : 'rgba(255,255,255,0.18)';
         controlsButton.style.background = state.controlsExpanded ? 'rgba(145,220,255,0.12)' : 'rgba(255,255,255,0.07)';
+
+        if (stabilityButton) {
+            stabilityButton.textContent = state.stableMainNodes ? 'Stability: ON' : 'Stability: OFF';
+            stabilityButton.style.borderColor = state.stableMainNodes ? 'rgba(0,212,255,0.32)' : 'rgba(255,255,255,0.18)';
+            stabilityButton.style.background = state.stableMainNodes ? 'rgba(0,212,255,0.12)' : 'rgba(255,255,255,0.07)';
+        }
 
         [nodeButton, chainButton, kindButton].forEach((button) => {
 

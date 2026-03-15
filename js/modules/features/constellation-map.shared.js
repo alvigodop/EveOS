@@ -96,11 +96,11 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         },
 
-        motionMode: 'web',
+        motionMode: 'smooth',
 
         motionAnchors: new Map(),
 
-        lastMotionMode: 'web',
+        lastMotionMode: 'smooth',
 
         controlsExpanded: false,
 
@@ -155,7 +155,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         worldBounds: null,
 
-        worldRadius: 0
+        worldRadius: 0,
+
+        stableMainNodes: true
 
     };
 
@@ -686,7 +688,6 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             const parentId = node?.parentId ? String(node.parentId) : '';
 
             return !parentId || !realIds.has(parentId);
-
         });
 
         return {
@@ -861,8 +862,40 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         addNode,
 
-        addEdge
-
+        addEdge,
+        hashNodeId(node) {
+            const value = String(node?.id || '');
+            let hash = 0;
+            for (let index = 0; index < value.length; index += 1) {
+                hash = ((hash * 33) + value.charCodeAt(index)) % 100003;
+            }
+            return hash;
+        },
+        getManualAnchorPreset(node) {
+            if (node?.kind === 'workspace') {
+                return { driftRadius: 22, pullStrength: 0.02, damping: 0.924, speed: 0.00028 };
+            }
+            if (node?.kind === 'category') {
+                return { driftRadius: 16, pullStrength: 0.024, damping: 0.916, speed: 0.00032 };
+            }
+            if (node?.kind === 'folder') {
+                return { driftRadius: 10, pullStrength: 0.03, damping: 0.91, speed: 0.00038 };
+            }
+            return { driftRadius: 8, pullStrength: 0.032, damping: 0.904, speed: 0.00042 };
+        },
+        createManualAnchor(node) {
+            const preset = shared.getManualAnchorPreset(node);
+            const hash = shared.hashNodeId(node);
+            return {
+                x: Number.isFinite(node?.x) ? node.x : 0,
+                y: Number.isFinite(node?.y) ? node.y : 0,
+                driftRadius: preset.driftRadius + (hash % 5),
+                pullStrength: preset.pullStrength,
+                damping: preset.damping,
+                speed: preset.speed + ((hash % 7) * 0.00001),
+                phase: (hash % 6283) / 1000
+            };
+        }
     });
 
 })(window.EveConstellationMap);
