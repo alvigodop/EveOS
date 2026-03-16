@@ -211,3 +211,133 @@
     border-color: rgba(0, 212, 255, 0.4);
     color: #00d4ff;
 }
+
+/* New High-Fidelity FX Styles */
+.fx-blurred-loader {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #000;
+    --hue: 200;
+}
+
+.fx-blurred-loader .glass-bg {
+    position: absolute;
+    inset: 40px;
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(100px);
+    border-radius: 40px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 50px 100px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+}
+
+.fx-blurred-loader .orbit-container {
+    position: relative;
+    width: 300px;
+    height: 300px;
+    filter: blur(20px) contrast(30);
+    animation: huerotate 10s linear infinite;
+}
+
+.fx-blurred-loader .blob {
+    position: absolute;
+    width: 100px;
+    height: 100px;
+    background: oklch(0.7 0.2 var(--hue));
+    border-radius: 50%;
+    filter: blur(20px);
+}
+
+.fx-blurred-loader .blob-1 { top: 20%; left: 20%; animation: blob1 8s infinite alternate; }
+.fx-blurred-loader .blob-2 { top: 60%; left: 50%; animation: blob2 10s infinite alternate; }
+.fx-blurred-loader .blob-3 { top: 40%; left: 70%; animation: blob3 7s infinite alternate; }
+
+@keyframes blob1 { 0% { transform: scale(1) translate(0, 0); } 100% { transform: scale(1.5) translate(100px, 50px); } }
+@keyframes blob2 { 0% { transform: scale(1.2) translate(0, 0); } 100% { transform: scale(0.8) translate(-80px, -120px); } }
+@keyframes blob3 { 0% { transform: scale(0.9) translate(0, 0); } 100% { transform: scale(1.8) translate(50px, 80px); } }
+@keyframes huerotate { from { filter: hue-rotate(0deg) blur(20px) contrast(30); } to { filter: hue-rotate(360deg) blur(20px) contrast(30); } }
+
+/* Dramatic SVG Styles */
+.fx-svg-dramatic {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #050510;
+}
+
+.fx-svg-dramatic .glass-wall {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    padding: 40px;
+    justify-content: center;
+    filter: url(#🌀🎨);
+}
+
+.fx-svg-dramatic .glass-card {
+    width: 280px;
+    height: 380px;
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(40px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 30px;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.fx-svg-dramatic .glass-card:hover { transform: translateY(-10px) rotate(2deg); }
+
+.fx-svg-dramatic .card-glow {
+    position: absolute;
+    inset: -50%;
+    background: conic-gradient(from 0deg, transparent, rgba(0, 212, 255, 0.1), transparent 50%);
+    animation: rotateGlow 4s linear infinite;
+}
+
+@keyframes rotateGlow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+/* Neural Nexus HUD */
+.fx-hud-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 10;
+}
+
+.hud-frame {
+    position: absolute;
+    inset: 40px;
+    border: 2px solid rgba(0, 212, 255, 0.1);
+    box-shadow: inset 0 0 100px rgba(0, 212, 255, 0.05);
+    border-radius: 40px;
+    overflow: hidden;
+}
+
+.hud-corner {
+    position: absolute;
+    width: 40px;
+    height: 40px;
+    border: 3px solid #00d4ff;
+}
+
+.hud-corner.tl { top: -2px; left: -2px; border-right: 0; border-bottom: 0; border-top-left-radius: 38px; }
+.hud-corner.tr { top: -2px; right: -2px; border-left: 0; border-bottom: 0; border-top-right-radius: 38px; }
+.hud-corner.bl { bottom: -2px; left: -2px; border-right: 0; border-top: 0; border-bottom-left-radius: 38px; }
+.hud-corner.br { bottom: -2px; right: -2px; border-left: 0; border-top: 0; border-bottom-right-radius: 38px; }
+
+.hud-scanline {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 4px;
+    background: rgba(0, 212, 255, 0.2);
+    box-shadow: 0 0 20px rgba(0, 212, 255, 0.5);
+    animation: scanMove 4s linear infinite;
+}
+
+@keyframes scanMove { from { top: 0%; } to { top: 100%; } }

@@ -1387,6 +1387,13 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             '<button class="fx-item-btn" data-fx-engine="raymarching">Raymarch</button>',
             '<button class="fx-item-btn" data-fx-engine="attraction">Attract</button>',
             '<button class="fx-item-btn" data-fx-engine="ascii">ASCII</button>',
+            '<button class="fx-item-btn" data-fx-engine="blurred">Blurred</button>',
+            '<button class="fx-item-btn" data-fx-engine="svgfilters">SVG Filter</button>',
+            '<button class="fx-item-btn" data-fx-engine="particles">Particles</button>',
+            '<button class="fx-item-btn" data-fx-engine="shaderedit">Shader Edit</button>',
+            '<button class="fx-item-btn" data-fx-engine="dotwave">Dot Wave</button>',
+            '<button class="fx-item-btn" data-fx-engine="cosmicsun">Cosmic Sun</button>',
+            '<button class="fx-item-btn" data-fx-engine="auracursor">Aura Cursor</button>',
             '</div>',
             '</div>',
             '<div class="fx-row">',
@@ -1396,6 +1403,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             '<div class="fx-toggle-chip" data-fx-toggle="scanline">Scanline</div>',
             '<div class="fx-toggle-chip" data-fx-toggle="tech">Tech</div>',
             '<div class="fx-toggle-chip" data-fx-toggle="circuit">Circuit</div>',
+            '<div class="fx-toggle-chip" data-fx-toggle="neuralhud">Neural HUD</div>',
             '</div>',
             '</div>',
             '</div>',
@@ -1485,6 +1493,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 const type = fxToggleEl.dataset.fxToggle;
                 if (type === 'grid') state.fxGridEnabled = !state.fxGridEnabled;
                 if (type === 'scanline') state.fxScanlineEnabled = !state.fxScanlineEnabled;
+                if (type === 'tech') state.fxTechEnabled = !state.fxTechEnabled;
+                if (type === 'circuit') state.fxCircuitEnabled = !state.fxCircuitEnabled;
+                if (type === 'neuralhud') state.fxNeuralHudEnabled = !state.fxNeuralHudEnabled;
                 if (type === 'tech') state.fxTechEnabled = !state.fxTechEnabled;
                 if (type === 'circuit') state.fxCircuitEnabled = !state.fxCircuitEnabled;
                 if (ns.FX && ns.FX.manager) ns.FX.manager.update();

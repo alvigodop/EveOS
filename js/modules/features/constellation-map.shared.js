@@ -109,6 +109,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         fxTechEnabled: false,
 
         fxCircuitEnabled: false,
+        fxNeuralHudEnabled: false,
 
         motionAnchors: new Map(),
 

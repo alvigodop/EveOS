@@ -178,7 +178,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         // Update FX Engine buttons
         const engineBtns = state.container.querySelectorAll('[data-fx-engine]');
         engineBtns.forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.fxEngine === (state.activeWebGlFx || 'none'));
+            const engineId = btn.dataset.fxEngine;
+            btn.classList.toggle('active', engineId === (state.activeWebGlFx || 'none'));
         });
 
         // Update FX Toggles
@@ -191,6 +192,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             if (type === 'scanline') { active = state.fxScanlineEnabled; label = 'Scanline'; }
             if (type === 'tech') { active = state.fxTechEnabled; label = 'Tech'; }
             if (type === 'circuit') { active = state.fxCircuitEnabled; label = 'Circuit'; }
+            if (type === 'neuralhud') { active = state.fxNeuralHudEnabled; label = 'Neural HUD'; }
             chip.classList.toggle('active', !!active);
             chip.textContent = `${label}: ${active ? 'ON' : 'OFF'}`;
         });
