@@ -195,12 +195,25 @@ window.getTitleFromUrl = async function (url, options = {}) {
         // Strategy 1: AllOrigins (JSON) - For normal sites
         if (strats.AllOrigins) {
             console.log("Autotitle: Trying AllOrigins strategy...");
-            primaryResult = normalizeAutotitleResult(await runStrategy(strats.AllOrigins, isBrowserHtmlMode ? 12000 : 4500), url) || primaryResult;
-            if (primaryResult && !looksLikeGenericSiteName(primaryResult.title, url)) {
-                console.log("Autotitle: AllOrigins returned good title:", primaryResult.title);
-                if (!allowSlowCover && primaryResult.coverUrl) {
-                    return primaryResult;
+            try {
+                const allOriginsResult = normalizeAutotitleResult(await runStrategy(strats.AllOrigins, isBrowserHtmlMode ? 12000 : 4500), url);
+                if (allOriginsResult) {
+                    if (allOriginsResult.title && !looksLikeGenericSiteName(allOriginsResult.title, url)) {
+                        console.log("Autotitle: AllOrigins returned good title:", allOriginsResult.title);
+                        if (!primaryResult || isClearlyBetterTitle(allOriginsResult, primaryResult, url)) {
+                            primaryResult = adoptAutotitleTitle(primaryResult, allOriginsResult, url);
+                        } else {
+                            primaryResult = mergeAutotitleMetadata(primaryResult, allOriginsResult, url);
+                        }
+                        if (!allowSlowCover && primaryResult.coverUrl) {
+                            return primaryResult;
+                        }
+                    } else {
+                        primaryResult = mergeAutotitleMetadata(primaryResult, allOriginsResult, url);
+                    }
                 }
+            } catch (e) {
+                console.warn("Autotitle: AllOrigins strategy failed", e);
             }
         }
 
@@ -270,10 +283,28 @@ window.getTitleFromUrl = async function (url, options = {}) {
             }
         }
 
+        // Strategy 5.5: Lightpanda (WSL-based Browsing) - High Reliability Fallback
+        if (strats.Lightpanda && (!primaryResult || primaryResult.isFallback || primaryResult.title === "CLOUDFLARE_BLOCK" || looksLikeGenericSiteName(primaryResult.title, url) || (allowSlowCover && !primaryResult.coverUrl))) {
+            console.log("Autotitle: Trying Lightpanda high-reliability fallback...");
+            try {
+                const lpResult = normalizeAutotitleResult(await runStrategy(strats.Lightpanda, 15000), url);
+                if (lpResult) {
+                    if (!primaryResult || isClearlyBetterTitle(lpResult, primaryResult, url)) {
+                        primaryResult = adoptAutotitleTitle(primaryResult, lpResult, url);
+                    } else {
+                        primaryResult = mergeAutotitleMetadata(primaryResult, lpResult, url);
+                    }
+                }
+            } catch (e) {
+                console.warn("Autotitle: Lightpanda strategy failed", e);
+            }
+        }
+
         if (isBrowserHtmlMode && allowSlowCover && (!primaryResult?.coverUrl || scoreCoverUrl(primaryResult.coverUrl, url) < 60)) {
             const coverRecoveryStrategies = [
                 { fn: isGalleryPage ? strats.GalleryPageHtml : null, timeout: 22000, attempts: 2 },
                 { fn: isMangaFireHost ? strats.MangaFireHtml : null, timeout: 22000, attempts: 2 },
+                { fn: strats.Lightpanda, timeout: 20000, attempts: 1 },
                 { fn: strats.AllOrigins, timeout: 12000, attempts: 2 },
                 { fn: strats.LinkMeta, timeout: 5000, attempts: 2 },
                 { fn: strats.CorsProxy, timeout: 5000, attempts: 2 },

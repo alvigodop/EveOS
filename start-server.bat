@@ -12,6 +12,8 @@ set "LAST_USED_PACK_FILE=%PROJECT_ROOT%\data\launcher-last-pack.txt"
 set "LAST_USED_PACK_PATH="
 set "ACTIVE_INSTANCE_PORTS="
 call :LoadLastUsedPackPath
+call :CheckLightpanda
+set "LP_ENABLED_STATE=1"
 
 :MainMenu
 cls
@@ -20,6 +22,16 @@ echo   EveOS Startup Launcher
 echo ========================================
 echo.
 call :ShowTrackedInstances
+echo.
+if defined LP_READY (
+    if "%LP_ENABLED_STATE%"=="1" (
+        echo   [STATUS] Lightpanda High-Reliability Bridge: READY ^(ENABLED^)
+    ) else (
+        echo   [STATUS] Lightpanda High-Reliability Bridge: READY ^(DISABLED^)
+    )
+) else (
+    echo   [STATUS] Lightpanda Bridge: NOT FOUND ^(Standard proxies only^)
+)
 echo.
 echo [1] Start EveOS instance ^(choose port + data-pack^)
 echo     - Port 3000 uses active modular path; other ports default to per-instance packs.
@@ -30,8 +42,11 @@ echo     - Compatibility launcher: starts monitor flow via server-menu option 10
 echo [4] Browse and launch any .bat in this EveOS project
 echo     - Shows every local project batch script with purpose notes.
 echo [5] Exit
+if defined LP_READY (
+    echo [6] Toggle Lightpanda Bridge ^(currently %LP_ENABLED_STATE%^)
+)
 echo.
-set /p "choice=Enter your choice (1-5): "
+set /p "choice=Enter your choice: "
 
 if "%choice%"=="1" (
     call :StartEveServer
@@ -50,6 +65,14 @@ if "%choice%"=="4" (
     goto :MainMenu
 )
 if "%choice%"=="5" exit /b 0
+if "%choice%"=="6" (
+    if "%LP_ENABLED_STATE%"=="1" (
+        set "LP_ENABLED_STATE=0"
+    ) else (
+        set "LP_ENABLED_STATE=1"
+    )
+    goto :MainMenu
+)
 
 echo.
 echo [ERROR] Invalid option.
@@ -221,7 +244,14 @@ if %ERRORLEVEL% EQU 0 (
 echo [OK] Launching %INSTANCE_KIND% EveOS instance in a new window:
 echo      Port: %INSTANCE_PORT%
 echo      Data: %INSTANCE_PACK_PATH%
-start "EveOS Instance %INSTANCE_PORT%" cmd /k "set ""EVEOS_MODULAR_ROOT=%INSTANCE_PACK_PATH%"" && cd /d ""%PROJECT_ROOT%"" && python python-server.py %INSTANCE_PORT%"
+set "LP_FLAG="
+if "%LP_ENABLED_STATE%"=="0" (
+    set "LP_FLAG=set ""EVEOS_LIGHTPANDA_DISABLED=1"" && "
+) else (
+    if not exist "bin\lightpanda_activity.log" type nul > "bin\lightpanda_activity.log"
+    start "Lightpanda Bridge Monitor" cmd /k "echo ======================================== && echo   Lightpanda Bridge Activity Monitor && echo ======================================== && echo. && powershell -NoProfile -Command ""Get-Content -Path bin\lightpanda_activity.log -Wait -Tail 10"""
+)
+start "EveOS Instance %INSTANCE_PORT%" cmd /k "%LP_FLAG%set ""EVEOS_MODULAR_ROOT=%INSTANCE_PACK_PATH%"" && cd /d ""%PROJECT_ROOT%"" && python python-server.py %INSTANCE_PORT%"
 call :TrackInstance "%INSTANCE_PORT%" "%INSTANCE_PACK_PATH%" "%INSTANCE_KIND%"
 exit /b 0
 
@@ -401,5 +431,12 @@ for %%P in (%ACTIVE_INSTANCE_PORTS%) do (
     if defined entryPath (
         echo   - Port %%P ^| !entryKind! ^| !entryPath!
     )
+)
+exit /b 0
+
+:CheckLightpanda
+set "LP_READY="
+if exist "%PROJECT_ROOT%\bin\lightpanda" (
+    set "LP_READY=1"
 )
 exit /b 0

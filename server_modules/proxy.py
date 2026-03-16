@@ -63,6 +63,8 @@ def handle_proxy_request(handler, query):
         elif is_brave:
             headers['Referer'] = 'https://search.brave.com/'
             headers['Host'] = 'search.brave.com'
+        elif '.video-cdn.test' in target_url.lower() or '.video-site-a.test' in target_url.lower():
+            headers['Referer'] = 'https://www.video-site-a.test/'
         else:
             headers['Sec-Fetch-Dest'] = 'document'
             headers['Sec-Fetch-Mode'] = 'navigate'

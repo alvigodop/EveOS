@@ -14,13 +14,19 @@
          * Collection of available CORS proxies with metadata
          */
         _proxies: [
-            { url: 'https://corsproxy.io/?', working: true, priority: 1, failures: 0 },
-            { url: 'https://corsproxy.org/?', working: true, priority: 2, failures: 0 },
-            { url: 'https://api.allorigins.win/raw?url=', working: true, priority: 3, failures: 0 },
-            { url: 'https://api.codetabs.com/v1/proxy?quest=', working: true, priority: 4, failures: 0 },
-            { url: 'https://thingproxy.freeboard.io/fetch/', working: true, priority: 5, failures: 0 },
-            { url: 'https://cors-anywhere-mjml.onrender.com/', working: true, priority: 6, failures: 0 },
-            { url: 'https://api.allorigins.win/get?url=', working: true, priority: 7, failures: 0 }
+            { url: 'http://127.0.0.1:3000/api/proxy?url=', working: true, priority: 0, failures: 0 },
+            { url: 'http://127.0.0.1:3001/api/proxy?url=', working: true, priority: 1, failures: 0 },
+            { url: 'http://127.0.0.1:3002/api/proxy?url=', working: true, priority: 2, failures: 0 },
+            { url: 'http://127.0.0.1:3003/api/proxy?url=', working: true, priority: 3, failures: 0 },
+            { url: 'http://127.0.0.1:3004/api/proxy?url=', working: true, priority: 4, failures: 0 },
+            { url: 'http://127.0.0.1:3005/api/proxy?url=', working: true, priority: 5, failures: 0 },
+            { url: 'https://corsproxy.io/?', working: true, priority: 6, failures: 0 },
+            { url: 'https://corsproxy.org/?', working: true, priority: 7, failures: 0 },
+            { url: 'https://api.allorigins.win/raw?url=', working: true, priority: 8, failures: 0 },
+            { url: 'https://api.codetabs.com/v1/proxy?quest=', working: true, priority: 9, failures: 0 },
+            { url: 'https://thingproxy.freeboard.io/fetch/', working: true, priority: 10, failures: 0 },
+            { url: 'https://cors-anywhere-mjml.onrender.com/', working: true, priority: 11, failures: 0 },
+            { url: 'https://api.allorigins.win/get?url=', working: true, priority: 12, failures: 0 }
         ],
 
         _localProxies: [

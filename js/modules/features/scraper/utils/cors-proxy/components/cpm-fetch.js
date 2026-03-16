@@ -24,25 +24,6 @@
                 throw new Error('CPMFetch: Dependencies (CPMUtils, CPMState) not loaded');
             }
 
-            // CRITICAL: When running from file:// protocol, CORS proxies DO NOT WORK
-            if (CPMUtils.isFileProtocol()) {
-                // Check if the URL has origin=* parameter (Fandom/Wikipedia APIs support this)
-                const hasOriginParam = url.includes('origin=*');
-
-                if (hasOriginParam) {
-                    // Direct fetch for APIs with origin=* support
-                    try {
-                        const response = await fetch(url, options);
-                        if (response.ok) return response;
-                        console.warn('CORSProxyManager: Direct fetch returned status:', response.status);
-                    } catch (e) {
-                        console.warn('CORSProxyManager: Direct fetch failed:', e.message);
-                    }
-                }
-
-                throw new Error('CORSProxyManager: Cannot make cross-origin requests from file:// protocol. Please use a local server (e.g., npm run dev) or cache-only mode.');
-            }
-
             // If local dev mode and target is local, try direct fetch first
             if (CPMUtils.isLocalDevMode() && (url.includes('localhost') || url.includes('127.0.0.1'))) {
                 try {

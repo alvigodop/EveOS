@@ -28,6 +28,16 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
     const { getNodeAnchor } = render;
 
+    function isNodeMain(node) {
+        if (!node) return false;
+        if (node.kind === 'workspace') return true;
+        if (node.kind === 'category' || node.kind === 'folder') {
+            const hasParent = state.edges.some((edge) => edge.source.id === node.id && edge.type === 'hierarchy');
+            return !hasParent;
+        }
+        return false;
+    }
+
     function getMotionProfile(nodeCount) {
 
         const normalizedMode = MOTION_MODE_ORDER.includes(state.motionMode)
@@ -570,7 +580,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             if (!node) return;
 
-            if (node.kind !== 'workspace' && node.kind !== 'category') return;
+            if (!isNodeMain(node)) return;
 
             setWebMotionAnchor(node);
 
@@ -588,7 +598,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         const lockedAnchor = state.motionAnchors.get(String(node.id || ''));
 
-        if (node.kind === 'workspace' || node.kind === 'category') {
+        if (isNodeMain(node)) {
 
             if (!Number.isFinite(lockedAnchor?.x) || !Number.isFinite(lockedAnchor?.y)) return baseAnchor;
 

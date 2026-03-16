@@ -184,7 +184,7 @@ async function main() {
     if (!third.result?.title || !/The Genius Prince's Guide to Raising a Nation Out of Debt/i.test(third.result.title)) {
         throw new Error(`Expected cleaned MangaFire title, got ${JSON.stringify(third)}`);
     }
-    if (!String(third.result?.coverUrl || '').includes('static.mfcdn.cc/')) {
+    if (!/static\.mfcdn\.[a-z]{2,3}\//.test(String(third.result?.coverUrl || ''))) {
         throw new Error(`Expected MangaFire cover image, got ${JSON.stringify(third)}`);
     }
     if (!String(third.result?.icon || '').includes('mangafire/favicon')) {

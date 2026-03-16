@@ -111,11 +111,37 @@ window.EveOS.Autotitle = window.EveOS.Autotitle || {};
         return false;
     }
 
+    function scoreIconUrl(url) {
+        if (!url || isRejectedIconUrl(url)) return -999;
+        const low = String(url).toLowerCase();
+        let score = 0;
+
+        if (low.includes('favicon')) score += 50;
+        if (low.includes('apple-touch-icon')) score += 40;
+        if (low.includes('logo')) score += 30;
+        if (low.endsWith('.ico') || low.includes('.ico?')) score += 20;
+        if (low.includes('icon')) score += 10;
+
+        if (low.includes('custom') || low.includes('placeholder') || low.includes('default')) score -= 50;
+        if (low.includes('banner') || low.includes('header') || low.includes('bg-')) score -= 30;
+        if (/(?:^|\/)(?:images?|assets|static|wp-content|media)\//i.test(low) && score < 10) score -= 10;
+
+        return score;
+    }
+
+    function pickBetterIconUrl(primaryIcon, candidateIcon) {
+        const primaryScore = scoreIconUrl(primaryIcon);
+        const candidateScore = scoreIconUrl(candidateIcon);
+        if (candidateScore > primaryScore && candidateScore > -10) return candidateIcon || null;
+        if (primaryScore > -10) return primaryIcon || null;
+        return candidateIcon || primaryIcon || null;
+    }
+
     function isLikelyCoverUrl(value) {
         const url = String(value || '').trim().toLowerCase();
         if (!url) return false;
         if (/cover|poster|thumbnail|thumb|banner|hero|backdrop|manga|comic|chapter|title|og-image/.test(url)) return true;
-        if (/uploads\.mangadex\.org\/covers\/|static\.mfcdn\.cc\//.test(url)) return true;
+        if (/uploads\.mangadex\.org\/covers\/|static\.mfcdn\.[a-z]{2,3}\//.test(url)) return true;
         return false;
     }
 
@@ -294,13 +320,22 @@ window.EveOS.Autotitle = window.EveOS.Autotitle || {};
         if (cleanTitle.length < 4) return true;
 
         // Common generic patterns
-        const genericPatterns = ['view video', 'watch video', 'home', 'welcome', 'index', 'untitled'];
+        const genericPatterns = ['view video', 'watch video', 'home', 'welcome', 'index', 'untitled', 'loading...', 'please wait'];
         if (genericPatterns.some(p => cleanTitle.includes(p))) return true;
 
-        // Title is just the domain name
+        // Title is just the domain name (reject "ExampleSite" for "video-site-a.test" if it's a detail page)
         try {
-            const domain = new URL(url).hostname.replace('www.', '').split('.')[0].toLowerCase();
-            if (cleanTitle === domain || cleanTitle.replace(/[^a-z]/g, '') === domain) return true;
+            const parsed = new URL(url);
+            const domain = parsed.hostname.replace('www.', '').split('.')[0].toLowerCase();
+            const normalizedTitle = cleanTitle.replace(/[^a-z0-9]/g, '');
+            
+            // If the title is just the domain name (e.g. "ExampleSite")
+            if (normalizedTitle === domain || normalizedTitle === domain + 'com' || normalizedTitle === domain + 'org' || normalizedTitle === domain + 'net') {
+                // Reject it if it's a detail page (has a path longer than just /)
+                if (parsed.pathname.length > 1) {
+                    return true;
+                }
+            }
         } catch (e) { }
 
         return false;
@@ -311,7 +346,7 @@ window.EveOS.Autotitle = window.EveOS.Autotitle || {};
         if (!primaryResult) return { ...candidateResult };
         return {
             ...primaryResult,
-            icon: candidateResult.icon || primaryResult.icon || null,
+            icon: pickBetterIconUrl(primaryResult.icon, candidateResult.icon),
             coverUrl: pickBetterCoverUrl(primaryResult.coverUrl, candidateResult.coverUrl, targetUrl),
             description: candidateResult.description || primaryResult.description || null,
             source: candidateResult.source || primaryResult.source,
@@ -326,7 +361,7 @@ window.EveOS.Autotitle = window.EveOS.Autotitle || {};
         if (!primaryResult) return { ...candidateResult };
         return {
             ...primaryResult,
-            icon: primaryResult.icon || candidateResult.icon || null,
+            icon: pickBetterIconUrl(primaryResult.icon, candidateResult.icon),
             coverUrl: pickBetterCoverUrl(primaryResult.coverUrl, candidateResult.coverUrl, targetUrl),
             description: primaryResult.description || candidateResult.description || null,
             isFallback: !!(primaryResult.isFallback || candidateResult.isFallback),

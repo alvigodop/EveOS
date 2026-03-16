@@ -198,11 +198,21 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
 
 
+    function isNodeMain(node) {
+        if (!node) return false;
+        if (node.kind === 'workspace') return true;
+        if (node.kind === 'category' || node.kind === 'folder') {
+            const hasParent = state.edges.some((edge) => edge.source.id === node.id && edge.type === 'hierarchy');
+            return !hasParent;
+        }
+        return false;
+    }
+
     function shouldPersistManualAnchor(node) {
 
         if (!node) return false;
 
-        return node.kind === 'workspace' || node.kind === 'category';
+        return isNodeMain(node);
 
     }
 
@@ -214,7 +224,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         if (isNodeStatic(node)) return true;
 
-        return node.kind === 'workspace' || node.kind === 'category';
+        return isNodeMain(node);
 
     }
 
@@ -1048,7 +1058,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
                 state.pointer.lastWorldY = point.y;
 
-                if (state.motionMode === 'web' && (state.pointer.node.kind === 'workspace' || state.pointer.node.kind === 'category')) {
+                if (state.motionMode === 'web' && isNodeMain(state.pointer.node)) {
 
                     setWebMotionAnchor(state.pointer.node, point);
 

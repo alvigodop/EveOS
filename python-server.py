@@ -22,6 +22,7 @@ from http import HTTPStatus
 try:
     from server_modules import wikipedia
     from server_modules import proxy
+    from server_modules import lightpanda
     from server_modules import eve_state_store
 except ImportError as e:
     print(f"Error importing modules: {e}")
@@ -143,6 +144,10 @@ class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             # Handle proxy request
             proxy.handle_proxy_request(self, query)
 
+        elif path == '/api/lightpanda':
+            # Handle Lightpanda fetch request
+            lightpanda.handle_lightpanda_fetch(self, query)
+
         elif path.startswith('/api/eve-state/modular/'):
             if not eve_state_store.handle_get_request(self, path, query):
                 self.send_response(HTTPStatus.NOT_FOUND)
@@ -212,6 +217,7 @@ def run_server(port=DEFAULT_PORT, open_browser=True):
                 print(f"  Data:    {active_store}")
             print("  ------------------------------")
             print("  Proxy:   Enabled at /api/proxy?url=...")
+            print("  Bridge:  Lightpanda/WSL enabled at /api/lightpanda")
             print("  ------------------------------")
             print("  Press Ctrl+C to stop the server")
             
