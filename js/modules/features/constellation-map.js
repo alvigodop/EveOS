@@ -1339,410 +1339,228 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     }
 
 
-
-    function updateFxMode() {
-
-        if (!state.container) return;
-
-        const gridEl = state.container.querySelector('.eve-map-fx-grid');
-
-        const scanEl = state.container.querySelector('.eve-map-fx-scan');
-
-        if (gridEl) gridEl.style.display = state.fxGridEnabled ? 'block' : 'none';
-
-        if (scanEl) scanEl.style.display = state.fxScanlineEnabled ? 'block' : 'none';
-
-    }
-
-
-
     function ensureContainer() {
-
-        if (state.container && state.canvas && state.ctx) return;
-
-
-
-        if (!document.getElementById('eve-map-fx-styles')) {
-
-            const style = document.createElement('style');
-
-            style.id = 'eve-map-fx-styles';
-
-            style.innerHTML = `
-
-                .eve-map-fx-grid {
-
-                    position: absolute; inset: 0; z-index: 1; pointer-events: none; opacity: 0.2; display: none;
-
-                    background-image: linear-gradient(rgba(0, 255, 255, 0.2) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 255, 255, 0.2) 1px, transparent 1px);
-
-                    background-size: 60px 60px;
-
-                    animation: eveMapGridShift 15s linear infinite;
-
-                }
-
-                @keyframes eveMapGridShift { 0% { transform: translate(0, 0); } 100% { transform: translate(60px, 60px); } }
-
-                .eve-map-fx-scan {
-
-                    position: absolute; top: 0; left: 0; width: 100%; height: 8px; z-index: 1; pointer-events: none; display: none;
-
-                    background: linear-gradient(90deg, transparent 0%, #00ffff 40%, #88ffff 50%, #00ffff 60%, transparent 100%);
-
-                    box-shadow: 0 0 40px #00ffff, 0 0 80px rgba(0, 255, 255, 0.6), 0 0 120px rgba(0, 255, 255, 0.3);
-
-                    animation: eveMapScanMove 2.5s ease-in-out infinite;
-
-                }
-
-                @keyframes eveMapScanMove { 0%, 100% { top: 0%; opacity: 0; } 10%, 90% { opacity: 1; } 50% { top: 100%; } }
-
-            `;
-
-            document.head.appendChild(style);
-
+        console.log('[ConstellationMap] ensureContainer called');
+        if (state.container && state.canvas && state.ctx) {
+            console.log('[ConstellationMap] Container already exists');
+            return;
         }
 
-
-
+        console.log('[ConstellationMap] Creating container...');
         const container = document.createElement('div');
-
         container.id = 'constellation-map-overlay';
-
-        container.style.cssText = [
-
-            'position:fixed',
-
-            'inset:0',
-
-            'z-index:99999',
-
-            'display:none',
-
-            'background:radial-gradient(circle at top, rgba(8,21,38,0.94), rgba(2,6,16,0.97))',
-
-            'backdrop-filter:blur(10px)'
-
-        ].join(';');
-
+        container.classList.add('map-container');
+        container.style.display = 'none';
+        
         container.innerHTML = [
-
-            '<div class="eve-map-fx-grid"></div>',
-
-            '<div class="eve-map-fx-scan"></div>',
-
+            '<div class="map-fx-layer"></div>',
             '<div style="position:absolute;z-index:3;top:16px;left:20px;display:flex;flex-direction:column;gap:4px;max-width:min(48vw,680px);pointer-events:auto;">',
-
             '<div data-map-title style="font-size:1.05rem;font-weight:700;letter-spacing:0.06em;color:#f3f8ff;">NEURAL CORE :: CONSTELLATION MAP</div>',
-
             '<div data-map-scope style="font-size:0.82rem;color:rgba(255,255,255,0.76);"></div>',
-
             '<div data-map-stats style="font-size:0.78rem;color:rgba(255,255,255,0.58);"></div>',
-
             '</div>',
-
             '<div style="position:absolute;z-index:3;top:16px;right:20px;display:flex;flex-direction:column;gap:8px;align-items:flex-end;max-width:min(52vw,900px);pointer-events:auto;">',
-
             '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">',
-
             '<input data-map-find type="search" placeholder="Find bookmark, card, folder..." style="min-width:240px;border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:8px 12px;outline:none;">',
-
-            '<button type="button" data-map-toolbar="find" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;">Find</button>',
-
-            '<button type="button" data-map-toolbar="zoom-out" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;">-</button>',
-
-            '<button type="button" data-map-toolbar="zoom-in" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;">+</button>',
-
-            '<button type="button" data-map-toolbar="fit" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;">Fit</button>',
-
-            '<button type="button" data-map-toolbar="reset" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;">Reset</button>',
-
-            '<button type="button" data-map-toolbar="labels" style="border:1px solid rgba(0,212,255,0.28);background:rgba(0,212,255,0.12);color:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;">Labels: Auto</button>',
-
-            '<button type="button" data-map-toolbar="fx" style="border:1px solid rgba(0,255,255,0.26);background:rgba(0,255,255,0.11);color:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;">FX Settings</button>',
-
-            '<button type="button" data-map-toolbar="motion" style="border:1px solid rgba(145,220,255,0.26);background:rgba(145,220,255,0.11);color:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;">Motion: Web</button>',
-
-            '<button type="button" data-map-toolbar="controls" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;">Controls</button>',
-
-            '<button type="button" data-map-toolbar="close" style="border:1px solid rgba(255,80,120,0.3);background:rgba(255,80,120,0.14);color:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;">Close</button>',
-
+            '<button type="button" data-map-toolbar="find" class="map-btn">Find</button>',
+            '<button type="button" data-map-toolbar="zoom-out" class="map-btn">-</button>',
+            '<button type="button" data-map-toolbar="zoom-in" class="map-btn">+</button>',
+            '<button type="button" data-map-toolbar="fit" class="map-btn">Fit</button>',
+            '<button type="button" data-map-toolbar="reset" class="map-btn">Reset</button>',
+            '<button type="button" data-map-toolbar="labels" class="map-btn">Labels: Auto</button>',
+            '<button type="button" data-map-toolbar="fx" class="map-btn">Background FX</button>',
+            '<button type="button" data-map-toolbar="motion" class="map-btn">Motion: Web</button>',
+            '<button type="button" data-map-toolbar="controls" class="map-btn">Settings</button>',
+            '<button type="button" data-map-toolbar="close" class="map-btn" style="border-color:rgba(255,80,120,0.3);background:rgba(255,80,120,0.14);">Close</button>',
             '</div>',
-
-            '<div data-map-fx-panel style="display:none;flex-direction:row;gap:12px;align-items:center;align-self:flex-end;min-width:min(200px,calc(100vw - 40px));max-width:min(40vw,500px);padding:10px 14px;border:1px solid rgba(0,255,255,0.14);background:rgba(4,10,20,0.88);border-radius:12px;box-shadow:0 18px 34px rgba(0,0,0,0.28);">',
-
-            '<button type="button" data-map-toolbar="fx-grid" style="border:1px solid rgba(0,255,255,0.18);background:rgba(0,255,255,0.07);color:#fff;border-radius:10px;padding:7px 11px;cursor:pointer;">Grid: OFF</button>',
-
-            '<button type="button" data-map-toolbar="fx-scanline" style="border:1px solid rgba(0,255,255,0.18);background:rgba(0,255,255,0.07);color:#fff;border-radius:10px;padding:7px 11px;cursor:pointer;">Scanline: OFF</button>',
-
+            '<div data-map-fx-panel class="fx-panel-popup">',
+            '<div class="fx-row">',
+            '<div class="fx-label">Background Engine</div>',
+            '<div class="fx-grid">',
+            '<button class="fx-item-btn" data-fx-engine="none">None</button>',
+            '<button class="fx-item-btn" data-fx-engine="solaris">Solaris</button>',
+            '<button class="fx-item-btn" data-fx-engine="neural">Neural</button>',
+            '<button class="fx-item-btn" data-fx-engine="waves">Waves</button>',
+            '<button class="fx-item-btn" data-fx-engine="tokamak">Tokamak</button>',
+            '<button class="fx-item-btn" data-fx-engine="memento">Memento</button>',
+            '<button class="fx-item-btn" data-fx-engine="art">Art</button>',
+            '<button class="fx-item-btn" data-fx-engine="raymarching">Raymarch</button>',
+            '<button class="fx-item-btn" data-fx-engine="attraction">Attract</button>',
+            '<button class="fx-item-btn" data-fx-engine="ascii">ASCII</button>',
             '</div>',
-
+            '</div>',
+            '<div class="fx-row">',
+            '<div class="fx-label">Visual Layers</div>',
+            '<div class="fx-toggle-group">',
+            '<div class="fx-toggle-chip" data-fx-toggle="grid">Grid</div>',
+            '<div class="fx-toggle-chip" data-fx-toggle="scanline">Scanline</div>',
+            '<div class="fx-toggle-chip" data-fx-toggle="tech">Tech</div>',
+            '<div class="fx-toggle-chip" data-fx-toggle="circuit">Circuit</div>',
+            '</div>',
+            '</div>',
+            '</div>',
             '<div data-map-controls-panel style="display:none;flex-direction:column;gap:12px;align-items:stretch;align-self:stretch;min-width:min(440px,calc(100vw - 40px));max-width:min(52vw,900px);padding:14px 16px;border:1px solid rgba(255,255,255,0.14);background:rgba(4,10,20,0.88);border-radius:16px;box-shadow:0 18px 34px rgba(0,0,0,0.28);">',
-
             '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">',
-
-            '<button type="button" data-map-toolbar="static-node" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:7px 11px;cursor:pointer;">Static Node</button>',
-
-            '<button type="button" data-map-toolbar="static-chain" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:7px 11px;cursor:pointer;">Static Chain</button>',
-
-            '<button type="button" data-map-toolbar="static-kind" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:7px 11px;cursor:pointer;">Static Type</button>',
-            '<button type="button" data-map-toolbar="static-clear" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:7px 11px;cursor:pointer;">Clear Static</button>',
+            '<button type="button" data-map-toolbar="static-node" class="map-btn">Static Node</button>',
+            '<button type="button" data-map-toolbar="static-chain" class="map-btn">Static Chain</button>',
+            '<button type="button" data-map-toolbar="static-kind" class="map-btn">Static Type</button>',
+            '<button type="button" data-map-toolbar="static-clear" class="map-btn">Clear Static</button>',
             '<div data-map-static-summary style="font-size:0.74rem;color:rgba(255,255,255,0.72);padding-left:4px;">Static: none</div>',
-            '<button type="button" data-map-toolbar="stability" style="border:1px solid rgba(0,212,255,0.28);background:rgba(0,212,255,0.12);color:#fff;border-radius:10px;padding:7px 11px;cursor:pointer;">Stability: ON</button>',
+            '<button type="button" data-map-toolbar="stability" class="map-btn">Stability: ON</button>',
             '</div>',
             '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">',
-            '<button type="button" data-map-static-kind="workspace" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:7px 11px;cursor:pointer;">Freeze Tab</button>',
-            '<button type="button" data-map-static-kind="category" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:7px 11px;cursor:pointer;">Freeze Card</button>',
-
-            '<button type="button" data-map-static-kind="folder" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:7px 11px;cursor:pointer;">Freeze Folder</button>',
-
-            '<button type="button" data-map-static-kind="link" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:7px 11px;cursor:pointer;">Freeze Bookmark</button>',
-
+            '<button type="button" data-map-static-kind="workspace" class="map-btn">Freeze Tab</button>',
+            '<button type="button" data-map-static-kind="category" class="map-btn">Freeze Card</button>',
+            '<button type="button" data-map-static-kind="folder" class="map-btn">Freeze Folder</button>',
+            '<button type="button" data-map-static-kind="link" class="map-btn">Freeze Bookmark</button>',
             '</div>',
-
             '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">',
-
-            '<button type="button" data-map-toolbar="polarity-node" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:7px 11px;cursor:pointer;">Node: Inherit</button>',
-
-            '<button type="button" data-map-toolbar="polarity-kind" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:7px 11px;cursor:pointer;">Type: Push</button>',
-
-            '<button type="button" data-map-toolbar="polarity-clear" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:7px 11px;cursor:pointer;">Clear Flow</button>',
-
-            '<button type="button" data-map-toolbar="motion-reset" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;border-radius:10px;padding:7px 11px;cursor:pointer;">Reset Forces</button>',
-
+            '<button type="button" data-map-toolbar="polarity-node" class="map-btn">Node: Inherit</button>',
+            '<button type="button" data-map-toolbar="polarity-kind" class="map-btn">Type: Push</button>',
+            '<button type="button" data-map-toolbar="polarity-clear" class="map-btn">Clear Flow</button>',
+            '<button type="button" data-map-toolbar="motion-reset" class="map-btn">Reset Forces</button>',
             '<div data-map-polarity-summary style="font-size:0.74rem;color:rgba(255,255,255,0.72);padding-left:4px;">Flow: push default</div>',
-
             '</div>',
-
             '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px 16px;align-items:start;">',
-
             '<label style="display:grid;grid-template-columns:42px minmax(112px,1fr) 50px 64px;align-items:center;gap:8px;font-size:0.74rem;color:rgba(255,255,255,0.82);">',
-
             '<span>Push</span>',
-
             '<input data-map-polarity-strength="repel" type="range" min="0" max="2.5" step="0.01" value="0.76" style="width:100%;">',
-
             '<span data-map-polarity-strength-value="repel" style="min-width:42px;text-align:right;">0.76</span>',
-
             '<input data-map-polarity-strength-number="repel" type="number" min="0" max="2.5" step="0.01" value="0.76" style="width:64px;border:1px solid rgba(255,255,255,0.16);background:rgba(255,255,255,0.07);color:#fff;border-radius:8px;padding:6px 8px;outline:none;">',
-
             '</label>',
-
             '<label style="display:grid;grid-template-columns:42px minmax(112px,1fr) 50px 64px;align-items:center;gap:8px;font-size:0.74rem;color:rgba(255,255,255,0.82);">',
-
             '<span>Pull</span>',
-
             '<input data-map-polarity-strength="attract" type="range" min="0" max="2.5" step="0.01" value="0.62" style="width:100%;">',
-
             '<span data-map-polarity-strength-value="attract" style="min-width:42px;text-align:right;">0.62</span>',
-
             '<input data-map-polarity-strength-number="attract" type="number" min="0" max="2.5" step="0.01" value="0.62" style="width:64px;border:1px solid rgba(255,255,255,0.16);background:rgba(255,255,255,0.07);color:#fff;border-radius:8px;padding:6px 8px;outline:none;">',
 
             '</label>',
-
             '</div>',
-
             '<div style="display:flex;flex-direction:column;gap:8px;">',
-
             buildMotionTuningMarkup(),
-
             '</div>',
-
             '<div style="font-size:0.78rem;line-height:1.5;color:rgba(255,255,255,0.74);padding-top:4px;border-top:1px solid rgba(255,255,255,0.08);">Drag background to pan. Hold Space to force-pan through dense clusters. Drag nodes to reorganize. Mouse wheel zooms. Double-click a bookmark node to open it.</div>',
-
             '</div>',
-
             '</div>',
-
             '<canvas data-map-canvas style="position:absolute;z-index:1;inset:0;width:100%;height:100%;display:block;cursor:grab;"></canvas>',
-
             '<div data-map-info style="position:absolute;z-index:3;right:108px;bottom:20px;max-width:min(360px,calc(100vw - 200px));min-width:260px;border:1px solid rgba(255,255,255,0.14);background:rgba(3,10,20,0.86);border-radius:16px;padding:14px 16px;color:#fff;box-shadow:0 18px 40px rgba(0,0,0,0.35);pointer-events:auto;"></div>'
-
         ].join('');
 
         document.body.appendChild(container);
 
-
-
         state.container = container;
-
         state.canvas = container.querySelector('[data-map-canvas]');
-
         state.ctx = state.canvas.getContext('2d');
-
         state.titleEl = container.querySelector('[data-map-title]');
-
         state.scopeEl = container.querySelector('[data-map-scope]');
-
         state.statsEl = container.querySelector('[data-map-stats]');
-
         state.infoEl = container.querySelector('[data-map-info]');
-
         state.findInput = container.querySelector('[data-map-find]');
 
+        console.log('[ConstellationMap] state assignments:', {
+            container: !!state.container,
+            canvas: !!state.canvas,
+            ctx: !!state.ctx
+        });
 
+        if (ns.FX && ns.FX.manager) {
+            console.log('[ConstellationMap] Initializing FX manager');
+            ns.FX.manager.init(container);
+        }
 
         container.addEventListener('click', (event) => {
-
             const toolbarEl = event.target.closest('[data-map-toolbar]');
-
             const toolbarAction = toolbarEl?.dataset?.mapToolbar;
-
-            const staticKindEl = event.target.closest('[data-map-static-kind]');
-
-            const directStaticKind = staticKindEl?.dataset?.mapStaticKind;
-
-            if (directStaticKind) {
-
-                toggleStaticForKind(directStaticKind);
-
-                renderInspector();
-
-                requestDraw();
-
+            
+            const fxEngineEl = event.target.closest('[data-fx-engine]');
+            if (fxEngineEl) {
+                state.activeWebGlFx = fxEngineEl.dataset.fxEngine;
+                if (ns.FX && ns.FX.manager) ns.FX.manager.update();
+                renderToolbarState();
                 return;
+            }
 
+            const fxToggleEl = event.target.closest('[data-fx-toggle]');
+            if (fxToggleEl) {
+                const type = fxToggleEl.dataset.fxToggle;
+                if (type === 'grid') state.fxGridEnabled = !state.fxGridEnabled;
+                if (type === 'scanline') state.fxScanlineEnabled = !state.fxScanlineEnabled;
+                if (type === 'tech') state.fxTechEnabled = !state.fxTechEnabled;
+                if (type === 'circuit') state.fxCircuitEnabled = !state.fxCircuitEnabled;
+                if (ns.FX && ns.FX.manager) ns.FX.manager.update();
+                renderToolbarState();
+                return;
+            }
+            
+            const staticKindEl = event.target.closest('[data-map-static-kind]');
+            const directStaticKind = staticKindEl?.dataset?.mapStaticKind;
+            if (directStaticKind) {
+                toggleStaticForKind(directStaticKind);
+                renderInspector();
+                requestDraw();
+                return;
             }
 
             if (!toolbarAction) return;
 
             if (toolbarAction === 'find') runFind();
-
             else if (toolbarAction === 'zoom-in') zoomAt(1.12, state.canvas.width / 2, state.canvas.height / 2);
-
             else if (toolbarAction === 'zoom-out') zoomAt(0.9, state.canvas.width / 2, state.canvas.height / 2);
-
             else if (toolbarAction === 'fit') fitToGraph();
-
             else if (toolbarAction === 'reset') resetView();
-
             else if (toolbarAction === 'labels') {
-
                 const currentIndex = LABEL_MODE_ORDER.indexOf(state.labelMode);
-
                 state.labelMode = LABEL_MODE_ORDER[(currentIndex + 1) % LABEL_MODE_ORDER.length];
-
-                event.target.textContent = getLabelModeText();
-
                 requestDraw();
-
                 renderToolbarState();
-
             } else if (toolbarAction === 'fx') {
-
                 state.fxExpanded = !state.fxExpanded;
-
                 renderToolbarState();
-
-            } else if (toolbarAction === 'fx-grid') {
-
-                state.fxGridEnabled = !state.fxGridEnabled;
-
-                updateFxMode();
-
-                renderToolbarState();
-
-            } else if (toolbarAction === 'fx-scanline') {
-
-                state.fxScanlineEnabled = !state.fxScanlineEnabled;
-
-                updateFxMode();
-
-                renderToolbarState();
-
             } else if (toolbarAction === 'motion') {
-
                 const currentIndex = MOTION_MODE_ORDER.indexOf(state.motionMode);
-
                 state.motionMode = MOTION_MODE_ORDER[(currentIndex + 1) % MOTION_MODE_ORDER.length];
-
                 syncMotionAnchors(true);
-
-                event.target.textContent = getMotionModeText();
-
                 requestDraw();
-
                 renderToolbarState();
-
             } else if (toolbarAction === 'controls') {
-
                 state.controlsExpanded = !state.controlsExpanded;
-
                 renderToolbarState();
-
             } else if (toolbarAction === 'static-node') {
-
                 const targetNode = getInteractionTargetNode();
-
                 if (!targetNode) return;
-
                 toggleStaticForNode(targetNode);
-
                 renderInspector();
-
                 requestDraw();
-
             } else if (toolbarAction === 'static-chain') {
-
                 const targetNode = getInteractionTargetNode();
-
                 if (!targetNode) return;
-
                 toggleStaticBranch(targetNode);
-
                 renderInspector();
-
                 requestDraw();
-
             } else if (toolbarAction === 'static-kind') {
-
                 const targetNode = getInteractionTargetNode();
-
                 if (!targetNode) return;
-
                 toggleStaticForKind(targetNode.kind);
-
                 renderInspector();
-
                 requestDraw();
-
             } else if (toolbarAction === 'static-clear') {
-
                 clearStaticLocks();
-
                 renderInspector();
-
                 requestDraw();
-
             } else if (toolbarAction === 'polarity-node') {
-
                 const targetNode = getInteractionTargetNode();
-
                 if (!targetNode) return;
-
                 cycleNodePolarity(targetNode);
-
                 renderInspector();
-
                 requestDraw();
-
             } else if (toolbarAction === 'polarity-kind') {
-
                 const targetNode = getInteractionTargetNode();
-
                 if (!targetNode) return;
-
                 toggleKindPolarity(targetNode.kind);
-
                 renderInspector();
-
                 requestDraw();
-
             } else if (toolbarAction === 'polarity-clear') {
-
                 clearPolarityOverrides();
-
                 renderInspector();
                 requestDraw();
             } else if (toolbarAction === 'motion-reset') {
@@ -1754,75 +1572,49 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 buildGraphData(state.scope);
                 renderHeader();
                 requestDraw();
-                return;
             } else if (toolbarAction === 'close') {
                 ns.closeMap();
             }
         });
 
         container.addEventListener('input', (event) => {
-
             const polarityMode = event.target?.dataset?.mapPolarityStrength;
-
             const polarityNumberMode = event.target?.dataset?.mapPolarityStrengthNumber;
-
             const motionTuningMode = event.target?.dataset?.mapMotionTuning;
-
             const motionTuningNumberMode = event.target?.dataset?.mapMotionTuningNumber;
 
             if (polarityMode || polarityNumberMode) {
-
                 setPolarityStrengthValue(polarityMode || polarityNumberMode, event.target.value);
-
                 renderToolbarState();
-
                 renderInspector();
-
                 requestDraw();
-
                 return;
-
             }
 
             if (!motionTuningMode && !motionTuningNumberMode) return;
-
             setMotionTuningValue(motionTuningMode || motionTuningNumberMode, event.target.value);
-
             renderToolbarState();
-
             requestDraw();
-
         });
 
-
-
         bindEvents();
-
         state.resizeHandler?.();
-
-        const labelsButton = container.querySelector('[data-map-toolbar="labels"]');
-
-        if (labelsButton) labelsButton.textContent = getLabelModeText();
-
-        const motionButton = container.querySelector('[data-map-toolbar="motion"]');
-
-        if (motionButton) motionButton.textContent = getMotionModeText();
-
         renderInspector();
-
         updateInspectorCoverState();
-
         renderToolbarState();
-
+        console.log('[ConstellationMap] ensureContainer completed');
     }
 
 
-
     ns.openMap = function openMap(scopeOption) {
+        console.log('[ConstellationMap] openMap called', scopeOption);
+        const startTime = Date.now();
 
         ensureContainer();
+        console.log('[ConstellationMap] after ensureContainer', Date.now() - startTime, 'ms');
 
         buildGraphData(scopeOption);
+        console.log('[ConstellationMap] after buildGraphData', Date.now() - startTime, 'ms');
 
         syncMotionAnchors(true);
 
@@ -1830,14 +1622,15 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         renderInspector();
 
-        fitToGraph();
-
         state.container.style.display = 'block';
+        state.resizeHandler?.();
+
+        fitToGraph();
 
         document.body.style.overflow = 'hidden';
 
         startAnimation();
-
+        console.log('[ConstellationMap] openMap completed in', Date.now() - startTime, 'ms');
     };
 
 

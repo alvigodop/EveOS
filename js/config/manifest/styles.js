@@ -25,9 +25,9 @@ window.EveModuleManifestParts.styles = [
         'js/modules/features/api-search/search-results.css',
         'js/modules/features/sources/sources.css',
 'js/modules/features/library/library.css?v=0.2.18',
+'css/modules/constellation-map.css?v=0.1.0',
 
-        // --- Scraper Feature Styles (Ported) ---
-        'js/modules/features/scraper/core/styles/variables.css?v=1.0.1',
+// --- Scraper Feature Styles (Ported) ---        'js/modules/features/scraper/core/styles/variables.css?v=1.0.1',
         'js/modules/features/scraper/core/styles/base.css?v=1.0.2',
         'js/modules/features/scraper/core/styles/dark-mode.css?v=1.0.1',
         'js/modules/features/scraper/ui/styles/shared-highlight.css?v=1.0.1',

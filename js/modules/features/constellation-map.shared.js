@@ -98,11 +98,17 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         motionMode: 'smooth',
 
+        activeWebGlFx: 'none',
+
         fxExpanded: false,
 
         fxGridEnabled: false,
 
         fxScanlineEnabled: false,
+
+        fxTechEnabled: false,
+
+        fxCircuitEnabled: false,
 
         motionAnchors: new Map(),
 

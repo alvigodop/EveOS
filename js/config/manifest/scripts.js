@@ -392,6 +392,7 @@ window.EveModuleManifestParts.scripts = [
 
 
         'js/modules/features/constellation-map.shared.js?v=0.3.0',
+        'js/modules/features/constellation-map.fx.js?v=0.1.0',
         'js/modules/features/constellation-map.polarity.js?v=0.1.0',
         'js/modules/features/constellation-map.covers.js?v=0.1.0',
         'js/modules/features/constellation-map.static.js?v=0.1.0',

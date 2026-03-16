@@ -16,6 +16,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         getScopeText,
 
+        getLabelModeText,
+
         getMotionModeText,
 
         MOTION_TUNING_FIELDS,
@@ -25,6 +27,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         getNodePolarityState,
 
         getPolaritySummary,
+
+        getPolarityStrengthValue,
 
         getPolarityStrengthText,
 
@@ -156,75 +160,79 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
     }
 
-    function renderToolbarState() {
 
+    function renderToolbarState() {
         if (!state.container) return;
 
-        const nodeButton = state.container.querySelector('[data-map-toolbar="static-node"]');
-
-        const chainButton = state.container.querySelector('[data-map-toolbar="static-chain"]');
-
-        const kindButton = state.container.querySelector('[data-map-toolbar="static-kind"]');
-
         const fxButton = state.container.querySelector('[data-map-toolbar="fx"]');
-
-        const motionButton = state.container.querySelector('[data-map-toolbar="motion"]');
-
-        const clearButton = state.container.querySelector('[data-map-toolbar="static-clear"]');
-
         const controlsButton = state.container.querySelector('[data-map-toolbar="controls"]');
-
         const controlsPanel = state.container.querySelector('[data-map-controls-panel]');
-
         const fxPanel = state.container.querySelector('[data-map-fx-panel]');
 
-        const fxGridButton = state.container.querySelector('[data-map-toolbar="fx-grid"]');
+        if (fxButton) fxButton.classList.toggle('active', !!state.fxExpanded);
+        if (fxPanel) fxPanel.classList.toggle('visible', !!state.fxExpanded);
+        
+        if (controlsButton) controlsButton.classList.toggle('active', !!state.controlsExpanded);
+        if (controlsPanel) controlsPanel.style.display = state.controlsExpanded ? 'flex' : 'none';
 
-        const fxScanlineButton = state.container.querySelector('[data-map-toolbar="fx-scanline"]');
+        // Update FX Engine buttons
+        const engineBtns = state.container.querySelectorAll('[data-fx-engine]');
+        engineBtns.forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.fxEngine === (state.activeWebGlFx || 'none'));
+        });
 
+        // Update FX Toggles
+        const toggleChips = state.container.querySelectorAll('[data-fx-toggle]');
+        toggleChips.forEach(chip => {
+            const type = chip.dataset.fxToggle;
+            let active = false;
+            let label = '';
+            if (type === 'grid') { active = state.fxGridEnabled; label = 'Grid'; }
+            if (type === 'scanline') { active = state.fxScanlineEnabled; label = 'Scanline'; }
+            if (type === 'tech') { active = state.fxTechEnabled; label = 'Tech'; }
+            if (type === 'circuit') { active = state.fxCircuitEnabled; label = 'Circuit'; }
+            chip.classList.toggle('active', !!active);
+            chip.textContent = `${label}: ${active ? 'ON' : 'OFF'}`;
+        });
+
+        const nodeButton = state.container.querySelector('[data-map-toolbar="static-node"]');
+        const chainButton = state.container.querySelector('[data-map-toolbar="static-chain"]');
+        const kindButton = state.container.querySelector('[data-map-toolbar="static-kind"]');
+        const labelsButton = state.container.querySelector('[data-map-toolbar="labels"]');
+        if (labelsButton) labelsButton.textContent = getLabelModeText();
+
+        const motionButton = state.container.querySelector('[data-map-toolbar="motion"]');
+        if (motionButton) motionButton.textContent = getMotionModeText();
+
+        const clearButton = state.container.querySelector('[data-map-toolbar="static-clear"]');
         const stabilityButton = state.container.querySelector('[data-map-toolbar="stability"]');
-
         const summaryEl = state.container.querySelector('[data-map-static-summary]');
-
         const polarityNodeButton = state.container.querySelector('[data-map-toolbar="polarity-node"]');
-
         const polarityKindButton = state.container.querySelector('[data-map-toolbar="polarity-kind"]');
-
         const polarityClearButton = state.container.querySelector('[data-map-toolbar="polarity-clear"]');
-
         const polaritySummaryEl = state.container.querySelector('[data-map-polarity-summary]');
 
-        const directKindButtons = KIND_ORDER.map((kind) => ({
-
-            kind,
-
-            button: state.container.querySelector('[data-map-static-kind="' + kind + '"]')
-
-        }));
-
         const repelStrengthInput = state.container.querySelector('[data-map-polarity-strength="repel"]');
-
         const attractStrengthInput = state.container.querySelector('[data-map-polarity-strength="attract"]');
-
         const repelStrengthNumber = state.container.querySelector('[data-map-polarity-strength-number="repel"]');
-
         const attractStrengthNumber = state.container.querySelector('[data-map-polarity-strength-number="attract"]');
-
         const repelStrengthValue = state.container.querySelector('[data-map-polarity-strength-value="repel"]');
-
         const attractStrengthValue = state.container.querySelector('[data-map-polarity-strength-value="attract"]');
 
         const motionTuningEntries = MOTION_TUNING_FIELDS.map((field) => ({
-
             field,
-
             range: state.container.querySelector('[data-map-motion-tuning="' + field.key + '"]'),
-
             number: state.container.querySelector('[data-map-motion-tuning-number="' + field.key + '"]'),
-
             value: state.container.querySelector('[data-map-motion-tuning-value="' + field.key + '"]')
-
         }));
+
+        const directKindButtons = KIND_ORDER.map((kind) => ({
+            kind,
+            button: state.container.querySelector('[data-map-static-kind="' + kind + '"]')
+        }));
+
+        const fxGridButton = state.container.querySelector('[data-fx-toggle="grid"]');
+        const fxScanlineButton = state.container.querySelector('[data-fx-toggle="scanline"]');
 
         if (!nodeButton || !chainButton || !kindButton || !motionButton || !clearButton || !controlsButton || !controlsPanel || !stabilityButton || !summaryEl || !polarityNodeButton || !polarityKindButton || !polarityClearButton || !polaritySummaryEl || !repelStrengthInput || !attractStrengthInput || !repelStrengthNumber || !attractStrengthNumber || !repelStrengthValue || !attractStrengthValue || motionTuningEntries.some((entry) => !entry.range || !entry.number || !entry.value) || directKindButtons.some((entry) => !entry.button)) return;
 
