@@ -137,7 +137,7 @@
 
             return `
                 <div class="source-item">
-                    <img src="${coverUrl}" onerror="this.src='https://via.placeholder.com/40'" class="source-thumb">
+                    <img src="${coverUrl}" onerror="if(window.setupProxiedImage){window.setupProxiedImage(this,'${coverUrl.replace(/'/g, "\\'")}','https://via.placeholder.com/40')}else{this.src='https://via.placeholder.com/40'}" class="source-thumb">
                     <div class="source-details">
                         <div class="source-title">${title}</div>
                         <div class="source-meta"><a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="source-provider-link">${sourceName}</a>${mediaTypePart} • Score: ${score}${statusPart}</div>

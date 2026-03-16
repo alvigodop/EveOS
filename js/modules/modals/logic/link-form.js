@@ -117,7 +117,7 @@ window.EveLinkForm = window.EveLinkForm || {};
             return ''
                 + '<div style="display:flex; gap:10px; align-items:center; border:1px solid rgba(255,255,255,0.12); border-radius:10px; padding:8px 10px;">'
                 +   '<div style="width:56px; height:56px; flex:0 0 56px; border-radius:8px; overflow:hidden; background:rgba(0,0,0,0.08); border:1px solid rgba(255,255,255,0.08); display:flex; align-items:center; justify-content:center;">'
-                +     '<img src="' + safeValue + '" alt="' + safeIndexLabel + '" title="' + safeValue + '" style="width:100%; height:100%; object-fit:cover; display:block;" onerror="this.style.display=\'none\'; this.parentElement.innerHTML=\'<div style=&quot;font-size:0.68rem; opacity:0.7; text-align:center; padding:6px;&quot;>No Preview</div>\';">'
+                +     '<img src="' + safeValue + '" alt="' + safeIndexLabel + '" title="' + safeValue + '" style="width:100%; height:100%; object-fit:cover; display:block;" onerror="if(window.setupProxiedImage){window.setupProxiedImage(this,\'' + safeValue.replace(/'/g, "\\'") + '\')}else{this.style.display=\'none\'; this.parentElement.innerHTML=\'<div style=&quot;font-size:0.68rem; opacity:0.7; text-align:center; padding:6px;&quot;>No Preview</div>\';}">'
                 +   '</div>'
                 +   '<div style="flex:1; min-width:0;">'
                 +     '<div style="font-size:0.82rem; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="' + safeValue + '">' + safeIndexLabel + '</div>'

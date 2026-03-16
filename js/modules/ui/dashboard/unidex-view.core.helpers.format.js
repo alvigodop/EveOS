@@ -77,7 +77,8 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             if (hasCustomIcon) {
                 if (/^https?:\/\//i.test(iconRaw) || iconRaw.startsWith('/')) {
                     const safeIconUrl = escapeHtml(iconRaw);
-                    return `<img class="unidex-entry-bookmark-icon-img" src="${safeIconUrl}" alt="${safeTitle} icon" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='https://www.google.com/s2/favicons?domain=${encodeParam(getDomain(link.url))}&sz=64'">`;
+                    const faviconFallback = `https://www.google.com/s2/favicons?domain=${encodeParam(getDomain(link.url))}&sz=64`;
+                    return `<img class="unidex-entry-bookmark-icon-img" src="${safeIconUrl}" alt="${safeTitle} icon" loading="lazy" referrerpolicy="no-referrer" onerror="if(window.setupProxiedImage){window.setupProxiedImage(this,'${safeIconUrl.replace(/'/g, "\\'")}','${faviconFallback}')}else{this.onerror=null;this.src='${faviconFallback}'}">`;
                 }
                 return `<span class="unidex-entry-bookmark-icon-emoji">${escapeHtml(iconRaw)}</span>`;
             }

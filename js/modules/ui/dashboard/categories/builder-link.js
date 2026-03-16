@@ -97,11 +97,16 @@ window.DashboardCategories = window.DashboardCategories || {};
 
         title.textContent = preview.title;
         subtitle.textContent = preview.subtitle;
-        image.src = preview.coverUrl;
         image.alt = preview.title + ' cover';
-        image.onerror = function () {
-            overlay.classList.remove('is-visible');
-        };
+
+        if (typeof window.setupProxiedImage === 'function') {
+            window.setupProxiedImage(image, preview.coverUrl);
+        } else {
+            image.src = preview.coverUrl;
+            image.onerror = function () {
+                overlay.classList.remove('is-visible');
+            };
+        }
 
         overlay.classList.add('is-visible');
         positionBookmarkCoverHoverOverlay(target, overlay);

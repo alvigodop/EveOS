@@ -62,11 +62,12 @@ const URDGrid = {
         const description = result.description || 'No description available';
         const url = result.url || '#';
         const thumbnail = result.thumbnail || 'https://via.placeholder.com/200x120';
+        const fallbackThumb = 'https://via.placeholder.com/200x120';
 
         return `
             <div class="result-card">
                 <div class="result-thumbnail">
-                    <img src="${thumbnail}" alt="${title}" onerror="this.src='https://via.placeholder.com/200x120'">
+                    <img src="${thumbnail}" alt="${title}" onerror="if(window.setupProxiedImage){window.setupProxiedImage(this,'${thumbnail.replace(/'/g, "\\'")}','${fallbackThumb}')}else{this.src='${fallbackThumb}'}">
                 </div>
                 <div class="result-content">
                     <h3 class="result-title">${title}</h3>

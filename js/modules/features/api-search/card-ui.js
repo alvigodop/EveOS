@@ -105,9 +105,8 @@
 
         mangaDiv.innerHTML = `
             <img
-                src="${escapeHtml(coverUrl)}"
+                src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
                 alt="Cover"
-                onerror="this.src='https://via.placeholder.com/120x180?text=No+Cover';"
                 class="manga-cover"
             >
             <div class="manga-info">
@@ -124,6 +123,17 @@
                 ${description ? `<p class="manga-description">${escapeHtml(description)}</p>` : ""}
             </div>
         `;
+
+        // Apply robust image loading
+        const img = mangaDiv.querySelector('.manga-cover');
+        if (typeof window.setupProxiedImage === 'function') {
+            window.setupProxiedImage(img, coverUrl, "https://via.placeholder.com/120x180?text=No+Cover");
+        } else {
+            img.src = coverUrl;
+            img.onerror = function() {
+                this.src = 'https://via.placeholder.com/120x180?text=No+Cover';
+            };
+        }
 
         if (typeof onSelect === "function") {
             const selectBtn = document.createElement("button");
