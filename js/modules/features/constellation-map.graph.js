@@ -234,70 +234,39 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
 
 
-        function addFolderBranch(workspaceId, categoryName, folderNodeModel, viewModel, parentNode, index, total, radius) {
-
+        function addFolderBranch(workspaceId, categoryName, folderNodeModel, viewModel, parentNode, index, total, radius, depth = 0) {
             const position = placeOnRing(index, Math.max(total, 1), radius, parentNode.x, parentNode.y, 10);
-
             const folderBranchLinks = getFolderBranchLinks(viewModel, folderNodeModel?.id);
-
             const folderNode = addNode(createNode({
-
                 id: 'folder_' + workspaceId + '_' + categoryName + '_' + String(folderNodeModel.id),
-
                 chainId: 'chain_' + workspaceId + '_' + categoryName,
-
                 label: text(folderNodeModel?.name, 'Folder'),
-
                 color: '#b45eff',
-
                 radius: 8,
-
                 kind: 'folder',
-
                 x: position.x,
-
                 y: position.y,
-
                 meta: getWorkspaceName(workspaceId) + ' / ' + text(categoryName, 'Unsorted') + ' / ' + text(folderNodeModel?.name, 'Folder'),
-
                 data: {
-
                     workspaceId,
-
                     categoryName,
-
                     folderId: String(folderNodeModel.id),
-
                     coverCandidates: buildCoverCandidates(folderBranchLinks),
-
-                    anchorNodeId: parentNode?.id || ''
-
+                    anchorNodeId: parentNode?.id || '',
+                    depth: depth
                 }
-
             }));
-
             addEdge(folderNode, parentNode, 'hierarchy');
 
-
-
             const directLinks = viewModel.folderLinks.get(String(folderNodeModel.id)) || [];
-
             directLinks.forEach((link, linkIndex) => {
-
                 addLinkNode(workspaceId, categoryName, folderNode, link, linkIndex, directLinks.length, Math.max(40, radius - 20));
-
             });
-
-
 
             const childFolders = viewModel.childrenMap.get(String(folderNodeModel.id)) || [];
-
             childFolders.forEach((childFolder, childIndex) => {
-
-                addFolderBranch(workspaceId, categoryName, childFolder, viewModel, folderNode, childIndex, childFolders.length, Math.max(54, radius - 6));
-
+                addFolderBranch(workspaceId, categoryName, childFolder, viewModel, folderNode, childIndex, childFolders.length, Math.max(54, radius - 6), depth + 1);
             });
-
         }
 
 

@@ -1189,41 +1189,38 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
 
         state.nodes.forEach((node) => {
-
             const isHovered = state.hovered && state.hovered.id === node.id;
-
             const isSelected = state.selected && state.selected.id === node.id;
-
             ctx.beginPath();
-
             ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
-
             ctx.fillStyle = node.color;
-
             ctx.shadowBlur = (isHovered || isSelected ? 20 : 10) / state.transform.scale;
-
             ctx.shadowColor = node.color;
-
             ctx.fill();
-
             ctx.shadowBlur = 0;
 
-
+            if (node.kind === 'folder' && node.data && typeof node.data.depth === 'number' && node.data.depth > 0) {
+                const maxRings = Math.min(node.data.depth, 4);
+                const gap = Math.max(1.5, node.radius / (maxRings + 1.5));
+                for (let i = 1; i <= maxRings; i++) {
+                    const ringRadius = node.radius - (gap * i);
+                    if (ringRadius > 0.5) {
+                        ctx.beginPath();
+                        ctx.arc(node.x, node.y, ringRadius, 0, Math.PI * 2);
+                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+                        ctx.lineWidth = 1 / state.transform.scale;
+                        ctx.stroke();
+                    }
+                }
+            }
 
             if (isHovered || isSelected) {
-
                 ctx.lineWidth = 2 / state.transform.scale;
-
                 ctx.strokeStyle = 'rgba(255,255,255,0.92)';
-
                 if (getStaticStateForNode(node).isStatic) {
-
                     ctx.strokeStyle = 'rgba(255,214,90,0.98)';
-
                 }
-
                 ctx.stroke();
-
             }
 
             if (getStaticStateForNode(node).isStatic) {
