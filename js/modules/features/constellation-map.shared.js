@@ -184,6 +184,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
     const MAX_VIEW_SCALE = 6;
 
+    const MIN_VIEW_SCALE = 0.02;
+
     const FIT_MAX_SCALE = 3.2;
 
     const LABEL_MODE_ORDER = ['auto', 'all', 'focus', 'off'];
@@ -830,6 +832,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         DOUBLE_CLICK_MS,
 
         MAX_VIEW_SCALE,
+
+        MIN_VIEW_SCALE,
 
         FIT_MAX_SCALE,
 

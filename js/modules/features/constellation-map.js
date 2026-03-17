@@ -18,6 +18,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         MAX_VIEW_SCALE,
 
+        MIN_VIEW_SCALE,
+
         FIT_MAX_SCALE,
 
         LABEL_MODE_ORDER,
@@ -240,7 +242,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         const availableHeight = Math.max(220, state.canvas.height - (MAP_PADDING * 2));
 
-        const scale = clamp(Math.min(availableWidth / bounds.width, availableHeight / bounds.height), 0.42, FIT_MAX_SCALE);
+        const scale = clamp(Math.min(availableWidth / bounds.width, availableHeight / bounds.height), MIN_VIEW_SCALE, FIT_MAX_SCALE);
 
         const tx = ((state.canvas.width - (bounds.width * scale)) / 2) - (bounds.minX * scale);
 
@@ -258,7 +260,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
     function setTransform(scale, tx, ty) {
 
-        state.transform.scale = clamp(scale, 0.42, MAX_VIEW_SCALE);
+        state.transform.scale = clamp(scale, MIN_VIEW_SCALE, MAX_VIEW_SCALE);
 
         state.transform.tx = tx;
 
@@ -292,7 +294,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         if (!node || !state.canvas) return;
 
-        const scale = clamp(targetScale || state.transform.scale, 0.42, MAX_VIEW_SCALE);
+        const scale = clamp(targetScale || state.transform.scale, MIN_VIEW_SCALE, MAX_VIEW_SCALE);
 
         const tx = (state.canvas.width / 2) - (node.x * scale);
 
@@ -354,7 +356,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         const worldY = (localY - state.transform.ty) / state.transform.scale;
 
-        const nextScale = clamp(state.transform.scale * factor, 0.42, MAX_VIEW_SCALE);
+        const nextScale = clamp(state.transform.scale * factor, MIN_VIEW_SCALE, MAX_VIEW_SCALE);
 
         const nextTx = localX - (worldX * nextScale);
 
