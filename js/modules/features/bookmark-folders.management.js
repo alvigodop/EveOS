@@ -4,41 +4,25 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
 
 
     const shared = ns._shared || {};
-
     const {
-
         buildScopedKey,
-
         getToolbarConfigStore,
-
         normalizeWorkspaceId,
-
         normalizeCategoryName,
-
         normalizeFolderId,
-
         normalizeParentId,
-
         dedupeNodes,
-
         normalizeTreeSettings,
-
         normalizeClickBehaviorMode,
-
         normalizeTaskMode,
-
         getScopedNodes,
-
         getScopedTree,
-
         setScopedTree,
-
         setScopedNodes,
-
         buildChildrenMap,
-
-        buildNodeMap
-
+        buildNodeMap,
+        cloneStore,
+        writeStore
     } = shared;
 
     const buildFolderView = ns.buildFolderView;

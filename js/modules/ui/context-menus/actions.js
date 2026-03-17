@@ -23,14 +23,44 @@ function getCtxLink() {
 
 // Context Menu Global Actions
 window.deleteCategory = async function (name) {
-    if (await showConfirm('Delete Category?')) {
+    try {
+        if (!(await showConfirm('Delete Category?'))) return;
+
+        // Use the global let variable directly
         const removedIds = links.filter(l => l.category === name).map(l => l.id);
+        
+        // Update the global links variable
         links = links.filter(l => l.category !== name);
-        window.EveBookmarkFolders?.deleteCategoryEverywhere?.(name);
-        if (window.EveLibrary?.ConnectionsAPI?.removeByLinkId) {
+        if (window.eveState) window.eveState.links = links;
+        window.links = links; // synchronize window just in case
+
+        if (window.EveBookmarkFolders && typeof window.EveBookmarkFolders.deleteCategoryEverywhere === 'function') {
+            window.EveBookmarkFolders.deleteCategoryEverywhere(name);
+        }
+        
+        if (window.EveLibrary && window.EveLibrary.ConnectionsAPI && typeof window.EveLibrary.ConnectionsAPI.removeByLinkId === 'function') {
             removedIds.forEach(id => window.EveLibrary.ConnectionsAPI.removeByLinkId(id));
         }
-        saveData();
+        
+        if (window.config && window.config.categoryOrder) {
+            window.config.categoryOrder = window.config.categoryOrder.filter(c => c !== name);
+            if (typeof saveConfig === 'function') saveConfig();
+        }
+
+        if (typeof saveData === 'function') saveData();
+
+        if (typeof closeAllMenus === 'function') closeAllMenus();
+        if (typeof closeModals === 'function') closeModals();
+        if (typeof renderDashboard === 'function') renderDashboard();
+        if (typeof renderSidebar === 'function') renderSidebar();
+
+    } catch (error) {
+        console.error("Error in deleteCategory:", error);
+        if (typeof showToast === 'function') {
+            showToast("Failed to delete category: " + error.message, "error");
+        } else {
+            alert("Failed to delete category: " + error.message);
+        }
     }
 };
 
