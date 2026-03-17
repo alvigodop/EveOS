@@ -58,6 +58,34 @@ window.showFolderContextMenu = function (e, categoryName, folderId, workspaceId)
     const m = document.getElementById('folder-context-menu');
     if (!m) return;
 
+    const statsFoldersEl = document.getElementById('ctx-folder-stats-folders');
+    const statsItemsEl = document.getElementById('ctx-folder-stats-items');
+    
+    if (statsFoldersEl && statsItemsEl && window.EveBookmarkFolders) {
+        const folderLinks = window.getModalLinks ? window.getModalLinks().filter(l => l.workspace === window.ctxWsId && l.category === window.ctxCatName) : [];
+        const viewModel = window.EveBookmarkFolders.buildFolderView(window.ctxWsId, window.ctxCatName, folderLinks);
+        
+        let totalItems = 0;
+        let totalFolders = 0;
+        
+        function recurseCount(fId) {
+            const items = viewModel.folderLinks.get(fId) || [];
+            totalItems += items.length;
+            
+            const children = viewModel.childrenMap.get(fId) || [];
+            totalFolders += children.length;
+            
+            children.forEach(child => {
+                recurseCount(child.id);
+            });
+        }
+        
+        recurseCount(folderId);
+        
+        statsFoldersEl.textContent = `Overall Folders: ${totalFolders}`;
+        statsItemsEl.textContent = `Overall Items: ${totalItems}`;
+    }
+
     placeContextMenu(m, e);
 };
 

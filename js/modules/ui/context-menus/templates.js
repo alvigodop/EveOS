@@ -41,6 +41,9 @@ window.ContextMenus.template = `
     <div class="ctx-item" onclick="ctxFolderExport()">&#128190; Export Directory</div>
     <div class="ctx-item" onclick="ctxFolderBulkPatch()">&#9881; Bulk Patch</div>
     <div class="ctx-divider"></div>
+    <div style="padding: 6px 12px; font-size: 0.8rem; color: #888; cursor: default;" id="ctx-folder-stats-folders">Folders: 0</div>
+    <div style="padding: 6px 12px; font-size: 0.8rem; color: #888; cursor: default;" id="ctx-folder-stats-items">Items: 0</div>
+    <div class="ctx-divider"></div>
     <div class="ctx-item" style="color:var(--danger)" onclick="ctxFolderDelete()">&#128465; Delete</div>
 </div>
 `;
