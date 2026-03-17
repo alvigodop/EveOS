@@ -728,11 +728,34 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
                 const ny = dy / dist;
 
-                const chainFactor = (node.chainId && node.chainId === other.chainId) ? 0.15 : 1;
+                const isSameChain = node.chainId && node.chainId === other.chainId;
 
-                const nodeInfluenceScale = getPairwiseInfluenceScale(node, other, motionProfile) * chainFactor;
+                let chainFactor = 1;
+                if (isSameChain) {
+                    chainFactor = state.chainInternalForcesEnabled ? 0.15 : 0;
+                } else {
+                    chainFactor = state.chainExternalForcesEnabled ? 1 : 0;
+                }
 
-                const otherInfluenceScale = getPairwiseInfluenceScale(other, node, motionProfile) * chainFactor;
+                let nodeDepthFactor = 1;
+                let otherDepthFactor = 1;
+
+                if (state.chainHierarchyEnabled && node.kind === 'folder' && other.kind === 'folder' && isSameChain) {
+                    const nodeDepth = (node.data && typeof node.data.depth === 'number') ? node.data.depth : 0;
+                    const otherDepth = (other.data && typeof other.data.depth === 'number') ? other.data.depth : 0;
+
+                    if (nodeDepth < otherDepth) {
+                        nodeDepthFactor = 0.1;
+                        otherDepthFactor = 2.0;
+                    } else if (otherDepth < nodeDepth) {
+                        otherDepthFactor = 0.1;
+                        nodeDepthFactor = 2.0;
+                    }
+                }
+
+                const nodeInfluenceScale = getPairwiseInfluenceScale(node, other, motionProfile) * chainFactor * nodeDepthFactor;
+
+                const otherInfluenceScale = getPairwiseInfluenceScale(other, node, motionProfile) * chainFactor * otherDepthFactor;
 
                 if (!nodeIsStatic) {
 

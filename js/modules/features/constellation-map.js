@@ -1427,6 +1427,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             '<button type="button" data-map-toolbar="static-clear" class="map-btn">Clear Static</button>',
             '<div data-map-static-summary style="font-size:0.74rem;color:rgba(255,255,255,0.72);padding-left:4px;">Static: none</div>',
             '<button type="button" data-map-toolbar="stability" class="map-btn">Stability: ON</button>',
+            '<button type="button" data-map-toolbar="chain-internal" class="map-btn">Internal Chain: ON</button>',
+            '<button type="button" data-map-toolbar="chain-external" class="map-btn">External Chain: ON</button>',
+            '<button type="button" data-map-toolbar="chain-hierarchy" class="map-btn">Hierarchy Order: ON</button>',
             '</div>',
             '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">',
             '<button type="button" data-map-static-kind="workspace" class="map-btn">Freeze Tab</button>',
@@ -1594,6 +1597,18 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 state.stableMainNodes = !state.stableMainNodes;
                 buildGraphData(state.scope);
                 renderHeader();
+                requestDraw();
+            } else if (toolbarAction === 'chain-internal') {
+                state.chainInternalForcesEnabled = !state.chainInternalForcesEnabled;
+                renderToolbarState();
+                requestDraw();
+            } else if (toolbarAction === 'chain-external') {
+                state.chainExternalForcesEnabled = !state.chainExternalForcesEnabled;
+                renderToolbarState();
+                requestDraw();
+            } else if (toolbarAction === 'chain-hierarchy') {
+                state.chainHierarchyEnabled = !state.chainHierarchyEnabled;
+                renderToolbarState();
                 requestDraw();
             } else if (toolbarAction === 'close') {
                 ns.closeMap();

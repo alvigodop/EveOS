@@ -316,6 +316,27 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             stabilityButton.style.background = state.stableMainNodes ? 'rgba(0,212,255,0.12)' : 'rgba(255,255,255,0.07)';
         }
 
+        const chainInternalButton = state.container.querySelector('[data-map-toolbar="chain-internal"]');
+        if (chainInternalButton) {
+            chainInternalButton.textContent = state.chainInternalForcesEnabled ? 'Internal Chain: ON' : 'Internal Chain: OFF';
+            chainInternalButton.style.borderColor = state.chainInternalForcesEnabled ? 'rgba(0,212,255,0.32)' : 'rgba(255,255,255,0.18)';
+            chainInternalButton.style.background = state.chainInternalForcesEnabled ? 'rgba(0,212,255,0.12)' : 'rgba(255,255,255,0.07)';
+        }
+
+        const chainExternalButton = state.container.querySelector('[data-map-toolbar="chain-external"]');
+        if (chainExternalButton) {
+            chainExternalButton.textContent = state.chainExternalForcesEnabled ? 'External Chain: ON' : 'External Chain: OFF';
+            chainExternalButton.style.borderColor = state.chainExternalForcesEnabled ? 'rgba(0,212,255,0.32)' : 'rgba(255,255,255,0.18)';
+            chainExternalButton.style.background = state.chainExternalForcesEnabled ? 'rgba(0,212,255,0.12)' : 'rgba(255,255,255,0.07)';
+        }
+
+        const chainHierarchyButton = state.container.querySelector('[data-map-toolbar="chain-hierarchy"]');
+        if (chainHierarchyButton) {
+            chainHierarchyButton.textContent = state.chainHierarchyEnabled ? 'Hierarchy Order: ON' : 'Hierarchy Order: OFF';
+            chainHierarchyButton.style.borderColor = state.chainHierarchyEnabled ? 'rgba(0,212,255,0.32)' : 'rgba(255,255,255,0.18)';
+            chainHierarchyButton.style.background = state.chainHierarchyEnabled ? 'rgba(0,212,255,0.12)' : 'rgba(255,255,255,0.07)';
+        }
+
         [nodeButton, chainButton, kindButton].forEach((button) => {
 
             button.disabled = !hasTarget;

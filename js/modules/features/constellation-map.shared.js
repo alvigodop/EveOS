@@ -170,7 +170,13 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         worldRadius: 0,
 
-        stableMainNodes: true
+        stableMainNodes: true,
+
+        chainInternalForcesEnabled: true,
+
+        chainExternalForcesEnabled: true,
+
+        chainHierarchyEnabled: true
 
     };
 
