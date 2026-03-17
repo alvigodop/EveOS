@@ -1,6 +1,7 @@
 // --- BULK IMPORT ---
 
 function getBulkMode() {
+    if (document.getElementById('bulkModeFolder')?.checked) return 'folder';
     if (document.getElementById('bulkModeFile')?.checked) return 'file';
     return document.getElementById('bulkModeName')?.checked ? 'name' : 'url';
 }
@@ -9,10 +10,31 @@ function updateBulkModeUi() {
     const mode = getBulkMode();
     const text = document.getElementById('bulkText');
     const fileDropZone = document.getElementById('bulkFileDropZone');
+    const folderDropZone = document.getElementById('bulkFolderDropZone');
     const hint = document.getElementById('bulkModeHint');
     if (!text || !hint) return;
 
-    if (mode === 'file') {
+    if (fileDropZone) fileDropZone.style.display = 'none';
+    if (folderDropZone) folderDropZone.style.display = 'none';
+
+    if (mode === 'folder') {
+        text.style.display = 'none';
+        if (folderDropZone) {
+            folderDropZone.style.display = 'flex';
+            const folderInput = document.getElementById('bulkFolderInput');
+            const dropText = document.getElementById('bulkFolderDropText');
+            if (folderInput && folderInput.files && folderInput.files.length > 0) {
+                dropText.textContent = `${folderInput.files.length} file(s) selected from folder`;
+                folderDropZone.style.borderColor = '#00a8ff';
+                folderDropZone.style.color = '#fff';
+            } else {
+                dropText.textContent = 'Click to select a folder';
+                folderDropZone.style.borderColor = '#444';
+                folderDropZone.style.color = '#aaa';
+            }
+        }
+        hint.textContent = "Folder mode: Upload a folder. Structure will be maintained via bookmark folders.";
+    } else if (mode === 'file') {
         text.style.display = 'none';
         if (fileDropZone) {
             fileDropZone.style.display = 'flex';
@@ -30,7 +52,6 @@ function updateBulkModeUi() {
         }
         hint.textContent = "Smart Extract mode: Upload .txt files. It auto-detects URLs, Names, or Library data.";
     } else {
-        if (fileDropZone) fileDropZone.style.display = 'none';
         text.style.display = 'block';
         if (mode === 'name') {
             text.placeholder = "One name per line...";
@@ -46,9 +67,11 @@ function initBulkModeUi() {
     const url = document.getElementById('bulkModeUrl');
     const name = document.getElementById('bulkModeName');
     const file = document.getElementById('bulkModeFile');
+    const folder = document.getElementById('bulkModeFolder');
     if (url) url.onchange = updateBulkModeUi;
     if (name) name.onchange = updateBulkModeUi;
     if (file) file.onchange = updateBulkModeUi;
+    if (folder) folder.onchange = updateBulkModeUi;
 
     const fileInput = document.getElementById('bulkFileInput');
     const dropZone = document.getElementById('bulkFileDropZone');
@@ -75,6 +98,30 @@ function initBulkModeUi() {
         });
     }
 
+    const folderInput = document.getElementById('bulkFolderInput');
+    const folderDropZone = document.getElementById('bulkFolderDropZone');
+
+    if (folderInput && folderDropZone) {
+        folderInput.addEventListener('change', updateBulkModeUi);
+
+        folderInput.addEventListener('dragenter', () => {
+            folderDropZone.style.borderColor = '#00a8ff';
+            folderDropZone.style.backgroundColor = '#1a1a1a';
+        });
+
+        folderInput.addEventListener('dragleave', () => {
+            if (!folderInput.files || folderInput.files.length === 0) {
+                folderDropZone.style.borderColor = '#444';
+                folderDropZone.style.backgroundColor = '#111';
+            }
+        });
+
+        folderInput.addEventListener('drop', () => {
+            folderDropZone.style.backgroundColor = '#111';
+            setTimeout(updateBulkModeUi, 50);
+        });
+    }
+
     updateBulkModeUi();
 }
 
@@ -89,6 +136,8 @@ function clearBulkInput() {
     document.getElementById('bulkText').value = '';
     const fileInput = document.getElementById('bulkFileInput');
     if (fileInput) fileInput.value = '';
+    const folderInput = document.getElementById('bulkFolderInput');
+    if (folderInput) folderInput.value = '';
     document.getElementById('bulkText').focus();
 }
 
@@ -100,7 +149,142 @@ async function processBulk() {
     let textToProcess = "";
     let count = 0;
 
-    if (mode === 'file') {
+    if (mode === 'folder') {
+        const folderInput = document.getElementById('bulkFolderInput');
+        if (!folderInput || !folderInput.files || folderInput.files.length === 0) {
+            return showToast("No folder selected", "warning");
+        }
+
+        const workspaceId = config.activeWorkspace;
+        const folderManager = window.EveBookmarkFolders;
+        if (!folderManager) {
+            return showToast("Folder management system not available.", "error");
+        }
+
+        // Cache folder paths to folder IDs
+        const createdFolders = new Map();
+
+        // 1) First pass: identify unique directory paths and create them
+        const dirPaths = new Set();
+        const filesToProcess = [];
+        
+        for (let i = 0; i < folderInput.files.length; i++) {
+            const file = folderInput.files[i];
+            const relativePath = file.webkitRelativePath || file.name;
+            const parts = relativePath.split('/');
+            
+            if (parts.length > 1) {
+                let currentPath = '';
+                for (let j = 0; j < parts.length - 1; j++) {
+                    currentPath = currentPath ? currentPath + '/' + parts[j] : parts[j];
+                    dirPaths.add(currentPath);
+                }
+            }
+            filesToProcess.push({ file, path: relativePath, parts });
+        }
+
+        // Sort paths by length so we create parents before children
+        const sortedPaths = Array.from(dirPaths).sort((a, b) => a.split('/').length - b.split('/').length);
+
+        for (const dirPath of sortedPaths) {
+            const parts = dirPath.split('/');
+            const folderName = parts[parts.length - 1];
+            let parentId = '';
+            
+            if (parts.length > 1) {
+                const parentPath = parts.slice(0, parts.length - 1).join('/');
+                parentId = createdFolders.get(parentPath) || '';
+            }
+
+            const newFolder = folderManager.createFolder({
+                workspaceId,
+                categoryName: targetCategory,
+                name: folderName,
+                parentId
+            });
+
+            if (newFolder) {
+                createdFolders.set(dirPath, newFolder.id);
+            }
+        }
+
+        // 2) Process files and place them in the correct folder
+        for (const { file, path, parts } of filesToProcess) {
+            try {
+                let parentFolderId = '';
+                if (parts.length > 1) {
+                    const parentPath = parts.slice(0, parts.length - 1).join('/');
+                    parentFolderId = createdFolders.get(parentPath) || '';
+                }
+
+                const content = await file.text();
+                const isStructured = content.match(/^(Title|URL|Episode|Ep|Chapter|Ch|Type|Notes|Finished Ep|Going To Ep)[\s:-]+/mi);
+                const isMediaFile = file.name.match(/^(Was\s+|[\{\(]\d+[\}\)])/i);
+
+                if (isStructured || isMediaFile) {
+                    processStructuredFile(content, file.name, targetCategory, parentFolderId);
+                    count++;
+                } else {
+                    // Fallback to basic link reading per line
+                    const lines = content.split('\n');
+                    lines.forEach(line => {
+                        const raw = line.trim();
+                        if (!raw) return;
+                        
+                        let parsedUrl = '';
+                        let parsedTitle = '';
+
+                        // Look for a URL within the line
+                        const urlMatch = raw.match(/(https?:\/\/[^\s]+)/i);
+                        if (urlMatch) {
+                            parsedUrl = urlMatch[1];
+                            parsedTitle = raw.replace(parsedUrl, '').trim();
+                            // Clean up trailing/leading separators if any
+                            parsedTitle = parsedTitle.replace(/^[\-\|:;\s]+|[\-\|:;\s]+$/g, '').trim();
+                        }
+
+                        if (!parsedTitle) {
+                            parsedTitle = file.name.replace(/\.txt$/i, '').trim();
+                        }
+                        
+                        if (!parsedUrl) {
+                            parsedUrl = `https://www.google.com/search?q=${encodeURIComponent(raw)}`;
+                            // If no URL was found, the whole line is likely the name, so we override the file name title
+                            if (parsedTitle === file.name.replace(/\.txt$/i, '').trim()) {
+                                parsedTitle = raw;
+                            }
+                        }
+
+                        links.push({
+                            id: Date.now() + Math.random(),
+                            title: parsedTitle,
+                            url: normalizeUrl(parsedUrl),
+                            category: targetCategory,
+                            workspace: workspaceId,
+                            folderId: parentFolderId,
+                            icon: '',
+                            done: false
+                        });
+                        count++;
+                    });
+                }
+            } catch (e) {
+                console.error("Failed to read file in folder", file.name, e);
+            }
+        }
+
+        if (folderInput) folderInput.value = '';
+        saveData();
+        if (window.EveLibrary?.Storage?.saveLibrary) {
+            window.EveLibrary.Storage.saveLibrary();
+        }
+        closeModals();
+        if (window.EveBookmarkFolders?.refreshEditorFolderSelect) {
+            window.EveBookmarkFolders.refreshEditorFolderSelect();
+        }
+        return showToast(`Imported ${count} items and created folder structure in "${targetCategory}"`, "success");
+
+    } else if (mode === 'file') {
         const fileInput = document.getElementById('bulkFileInput');
         if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
             return showToast("No files selected", "warning");
@@ -138,9 +322,7 @@ async function processBulk() {
         // Auto-detect mode if file content is loaded without structured key-value pairs
         let effectiveMode = mode;
         if (mode === 'file') {
-            const validLines = lines.filter(l => l.trim().length > 0);
-            const looksLikeUrls = validLines.length > 0 && validLines.every(l => l.trim().startsWith('http'));
-            effectiveMode = looksLikeUrls ? 'url' : 'name';
+            effectiveMode = 'smart';
         }
 
         lines.forEach(line => {
@@ -159,12 +341,39 @@ async function processBulk() {
                     icon: '',
                     done: false
                 });
-            } else {
+            } else if (effectiveMode === 'url') {
                 const url = raw;
                 links.push({
                     id: Date.now() + Math.random(),
                     title: url,
                     url: normalizeUrl(url),
+                    category: targetCategory,
+                    workspace: config.activeWorkspace,
+                    icon: '',
+                    done: false
+                });
+            } else { // smart mode
+                let parsedUrl = '';
+                let parsedTitle = '';
+
+                const urlMatch = raw.match(/(https?:\/\/[^\s]+)/i);
+                if (urlMatch) {
+                    parsedUrl = urlMatch[1];
+                    parsedTitle = raw.replace(parsedUrl, '').trim();
+                    parsedTitle = parsedTitle.replace(/^[\-\|:;\s]+|[\-\|:;\s]+$/g, '').trim();
+                }
+
+                if (!parsedUrl) {
+                    parsedUrl = `https://www.google.com/search?q=${encodeURIComponent(raw)}`;
+                    parsedTitle = raw;
+                } else if (!parsedTitle) {
+                    parsedTitle = parsedUrl;
+                }
+
+                links.push({
+                    id: Date.now() + Math.random(),
+                    title: parsedTitle,
+                    url: normalizeUrl(parsedUrl),
                     category: targetCategory,
                     workspace: config.activeWorkspace,
                     icon: '',
@@ -183,7 +392,7 @@ async function processBulk() {
     showToast(`Imported ${count} items to "${targetCategory}"`, "success");
 }
 
-function processStructuredFile(content, fileName, targetCategory) {
+function processStructuredFile(content, fileName, targetCategory, folderId = '') {
     const lines = content.split('\n');
 
     // Clean filename: remove things like "_260228_000943.txt" and ".txt"
@@ -293,6 +502,7 @@ function processStructuredFile(content, fileName, targetCategory) {
         url: normalizeUrl(url),
         category: targetCategory,
         workspace: config.activeWorkspace,
+        folderId: folderId,
         icon: '',
         done: false,
         notes: summaryText

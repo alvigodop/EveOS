@@ -16,6 +16,10 @@ window.modalTemplate += `
                 <input type="radio" name="bulkMode" id="bulkModeFile" value="file">
                 <span>Files (Smart Extract)</span>
             </label>
+            <label style="display:flex; align-items:center; gap:6px; font-size:0.9rem;">
+                <input type="radio" name="bulkMode" id="bulkModeFolder" value="folder">
+                <span>Folders</span>
+            </label>
         </div>
         <textarea id="bulkText" style="min-height:150px;" placeholder="One URL per line..."></textarea>
 
@@ -23,6 +27,12 @@ window.modalTemplate += `
             <div style="font-size:2.5rem; margin-bottom:10px; pointer-events:none;">📄</div>
             <div id="bulkFileDropText" style="pointer-events:none; font-size:0.95rem;">Click to select or drag & drop .txt files here</div>
             <input type="file" id="bulkFileInput" multiple accept=".txt" style="position:absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer;">
+        </div>
+
+        <div id="bulkFolderDropZone" style="display:none; min-height:150px; background:#111; border:2px dashed #444; border-radius:6px; flex-direction:column; align-items:center; justify-content:center; color:#aaa; cursor:pointer; position:relative; text-align:center; padding: 20px; transition: border-color 0.2s, background-color 0.2s;">
+            <div style="font-size:2.5rem; margin-bottom:10px; pointer-events:none;">📁</div>
+            <div id="bulkFolderDropText" style="pointer-events:none; font-size:0.95rem;">Click to select a folder</div>
+            <input type="file" id="bulkFolderInput" webkitdirectory directory multiple style="position:absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer;">
         </div>
 
         <div id="bulkModeHint" style="font-size:0.85rem; opacity:0.75; margin:6px 0 10px;">
