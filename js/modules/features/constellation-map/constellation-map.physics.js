@@ -869,18 +869,22 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         syncMotionAnchors(false);
 
+        const frontierReach = getMotionTuningValue('frontierReach');
+        // NANO-GALACTIC SCALING: Sync repulsion and tension with Frontier Reach
+        const scaleFactor = Math.max(0.1, frontierReach / 220);
+
         const repulsion = (nodeCount > 400 ? 900 : nodeCount > 220 ? 1200 : nodeCount > 120 ? 1600 : nodeCount > 70 ? 2200 : 3200)
             * (motionProfile.repulsionScale || 1)
-            * getMotionTuningValue('repulsion');
+            * getMotionTuningValue('repulsion')
+            * scaleFactor;
 
         const centerPull = (nodeCount > 400 ? 0.00038 : nodeCount > 220 ? 0.0005 : nodeCount > 120 ? 0.0007 : 0.0011)
             * getMotionTuningValue('centerPull');
 
         const springStrength = (nodeCount > 120 ? 0.0024 : 0.0032)
             * (motionProfile.springScale || 1)
-            * getMotionTuningValue('spring');
-
-        const frontierReach = getMotionTuningValue('frontierReach');
+            * getMotionTuningValue('spring')
+            * (1 / scaleFactor); // Higher tension at smaller scales
 
         const polarityCache = state.nodes.map((node) => ({
             direction: getPolarityDirection(node),
@@ -1143,30 +1147,54 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 }
             });
 
-            // 3. PASS B: Finalize Card Core Front Vectors (ABSOLUTE SPINAL INERTIA)
+            // 3. PASS B: Finalize Card Core Front Vectors (DYNAMIC INERTIA & DIRECTIONAL WAKE)
             chainRoots.forEach(data => {
+                const node = data.node;
+                const isBeingDragged = state.pointer.mode === 'node' && state.pointer.node?.id === node.id;
+                
                 if (data.count > 0) {
                     const avgX = data.sumX / data.count;
                     const avgY = data.sumY / data.count;
-                    const dx = data.node.x - avgX;
-                    const dy = data.node.y - avgY;
-                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    const dx = node.x - avgX;
+                    const dy = node.y - avgY;
+                    const centroidDist = Math.sqrt(dx * dx + dy * dy);
 
-                    // ABSOLUTE CENTROID GUARD: Increased deadzone (30px) to prevent sensitivity.
-                    // Only update orientation if the galaxy is actually being "dragged" or has shifted.
-                    if (dist > 30) {
-                        const targetAngle = Math.atan2(dy, dx);
+                    let targetAngle = data.frontAngle;
+                    let lerpFactor = 0.005; // Absolute Zero Inertia (Default/Static)
+
+                    if (isBeingDragged) {
+                        // Calculate movement vector (Directional Wake)
+                        const moveX = node.x - (node.lastX !== undefined ? node.lastX : node.x);
+                        const moveY = node.y - (node.lastY !== undefined ? node.lastY : node.y);
+                        const moveDistSq = moveX * moveX + moveY * moveY;
+
+                        if (moveDistSq > 1) {
+                            // DIRECTIONAL WAKE: Face movement direction during drag (trailing effect)
+                            targetAngle = Math.atan2(-moveY, -moveX);
+                            lerpFactor = 0.15; // Snappy Inertia during drag
+                        }
+                    } else if (centroidDist > 30) {
+                        // Natural orientation based on children centroid when static
+                        targetAngle = Math.atan2(dy, dx);
+                        lerpFactor = 0.005; // Return to Absolute Zero stability
+                    }
+
+                    if (targetAngle !== undefined) {
                         const lerpAngle = (current, target) => {
                             let diff = target - current;
                             while (diff < -Math.PI) diff += Math.PI * 2;
                             while (diff > Math.PI) diff -= Math.PI * 2;
-                            return current + diff * 0.35; // Directional Wake (0.35 Snappy)
+                            return current + diff * lerpFactor;
                         };
                         data.frontAngle = lerpAngle(data.frontAngle === undefined ? targetAngle : data.frontAngle, targetAngle);
                     }
                     data.frontX = Math.cos(data.frontAngle || 0);
                     data.frontY = Math.sin(data.frontAngle || 0);
                 }
+                
+                // Track last position for Directional Wake calculation
+                node.lastX = node.x;
+                node.lastY = node.y;
             });
 
             // 4. PASS C: Folder Orientations (SPINAL INHERITANCE)
