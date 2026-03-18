@@ -467,9 +467,15 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         const dy = node.y - parentNode.y;
         const distSq = dx * dx + dy * dy;
 
-        // Hybrid-Scale Authority: 280px for roots (tight), 400px for sub-folders (spacious)
+        // Hybrid-Scale Authority: Adaptive for roots (tightening with count), 400px for folders
         const isRootParent = (parentNode.kind === 'category' || parentNode.kind === 'workspace');
-        const minReach = isRootParent ? 280 : 400;
+        let minReach = 400;
+        if (isRootParent) {
+            // Auto-scale authority down to support ultra-close "Nebula" orbits
+            const count = (parentNode.data && parentNode.data.childrenCount) || 20; 
+            const rootShrink = Math.min(160, count * 1.5);
+            minReach = 280 - rootShrink * 0.5;
+        }
 
         // 1. STABILIZED Reach Guard: Quadratic "Soft-Contact" Repulsion
         if (distSq < minReach * minReach) {
@@ -501,7 +507,14 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             
             // Smoothly dampen the bias force as we reach the anchor to avoid orbit/jitter
             const proximityDamping = Math.min(1, adist / 50);
-            const biasForce = (isRootParent ? 0.35 : 0.22) * proximityDamping;
+            
+            // NEBULA FOCUS: Boost bias for high-count root clusters to maintain focus lock
+            let biasMultiplier = 1.0;
+            if (isRootParent) {
+                const count = (parentNode.data && parentNode.data.childrenCount) || 20;
+                biasMultiplier = 1.0 + Math.min(0.5, count * 0.005);
+            }
+            const biasForce = (isRootParent ? 0.35 : 0.22) * proximityDamping * biasMultiplier;
             
             node.vx += (adx / adist) * biasForce;
             node.vy += (ady / adist) * biasForce;
@@ -1205,21 +1218,27 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                     const offset = count > 1 ? (spread * (index / (count - 1) - 0.5)) : 0;
                     
                     // 3. Spinal Jitter (Optimized for hybrid scales)
-                    const jitterMag = isRootChild ? 45 : 60; 
+                    // Shrinks for massive root chains to keep the nebula tight
+                    const rootShrinkFactor = isRootChild ? Math.min(160, count * 1.5) : 0;
+                    const jitterMag = isRootChild ? (45 - rootShrinkFactor * 0.1) : 60; 
                     const jitterVal = (node.id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) % (jitterMag * 2 + 1)) - jitterMag;
                     
-                    // 4. Hybrid-Scale Tail Distance (Tight Roots, Spacious Subs)
+                    // 4. Hybrid-Scale Tail Distance (Adaptive Roots, Spacious Subs)
                     let finalRadius = radius;
                     if (node.kind === 'link') {
-                        // Tight root buffer (350px) vs Spacious folder buffer (580px)
-                        const baseR = isRootChild ? (parent.radius || 60) + 350 : (parent.radius || 60) + 580;
-                        const rowDepth = isRootChild ? 60 : 100;
+                        // ADAPTIVE NEBULA PROXIMITY: Pull massive root chains closer to the core
+                        const baseR = isRootChild 
+                            ? (parent.radius || 60) + (350 - rootShrinkFactor) 
+                            : (parent.radius || 60) + 580;
+                        const rowDepth = isRootChild ? (60 - rootShrinkFactor * 0.1) : 100;
                         
                         finalRadius = baseR + (row * rowDepth) + Math.min(60, count * 3) + jitterVal;
                     } else if (node.kind === 'folder') {
-                        // Folders also follow the hybrid-scale frontier
+                        // Folders also follow the nebula proximity adaptive logic
                         const fRow = index % 2;
-                        const fBaseR = isRootChild ? (parent.radius || 15) + 320 : (parent.radius || 15) + 520;
+                        const fBaseR = isRootChild 
+                            ? (parent.radius || 15) + (320 - rootShrinkFactor) 
+                            : (parent.radius || 15) + 520;
                         finalRadius = fBaseR + (fRow * 50) + Math.min(30, count * 4);
                     }
                     
