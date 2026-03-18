@@ -1173,7 +1173,31 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             // Finalize card front vectors (ABSOLUTE SPINAL INERTIA: Extreme Damping)
             chainRoots.forEach(data => {
-                if (data.count > 0) {
+                const node = data.node;
+                const isBeingDragged = (state.pointer.mode === 'node' && state.pointer.node?.id === node.id);
+
+                // Initialize position tracking if missing
+                if (node.lastX === undefined) node.lastX = node.x;
+                if (node.lastY === undefined) node.lastY = node.y;
+
+                if (isBeingDragged) {
+                    // Calculate movement vector (Directional Wake)
+                    const moveX = node.x - node.lastX;
+                    const moveY = node.y - node.lastY;
+                    const moveDistSq = moveX * moveX + moveY * moveY;
+
+                    if (moveDistSq > 0.1) {
+                        // DIRECTIONAL WAKE: Face movement direction during drag (trailing effect)
+                        const moveAngle = Math.atan2(moveY, moveX);
+                        const lerpAngle = (current, target) => {
+                            let diff = target - current;
+                            while (diff < -Math.PI) diff += Math.PI * 2;
+                            while (diff > Math.PI) diff -= Math.PI * 2;
+                            return current + diff * 0.15; // Snappy Drag Inertia (0.15)
+                        };
+                        data.frontAngle = lerpAngle(data.frontAngle === undefined ? moveAngle : data.frontAngle, moveAngle);
+                    }
+                } else if (data.count > 0) {
                     const avgX = data.sumX / data.count;
                     const avgY = data.sumY / data.count;
                     const dx = data.node.x - avgX;
@@ -1191,10 +1215,17 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                             return current + diff * 0.005; // Absolute Inertia (0.005) - Supermassive pivot
                         };
                         data.frontAngle = lerpAngle(data.frontAngle === undefined ? targetAngle : data.frontAngle, targetAngle);
-                        data.frontX = Math.cos(data.frontAngle);
-                        data.frontY = Math.sin(data.frontAngle);
                     }
                 }
+                
+                if (data.frontAngle !== undefined) {
+                    data.frontX = Math.cos(data.frontAngle);
+                    data.frontY = Math.sin(data.frontAngle);
+                }
+
+                // Update position tracking
+                node.lastX = node.x;
+                node.lastY = node.y;
             });
 
             // 4. Optimal Hierarchy Anchors (Link placement)

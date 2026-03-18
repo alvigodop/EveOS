@@ -1196,37 +1196,16 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     function drawPhysicsAuras(ctx) {
         if (!state.showPhysicsAuras) return;
 
-        const chainRoots = new Map();
-        state.nodes.forEach(n => {
-            if (n && (n.kind === 'category' || n.kind === 'workspace') && n.chainId) {
-                chainRoots.set(n.chainId, n);
-            }
-        });
+        const chainRoots = state.chainRoots;
+        if (!chainRoots) return;
 
         // 1. Draw Root Authority Glows (Asymmetric Teardrop)
-        chainRoots.forEach((root) => {
-            // Calculate front direction (facing away from folders)
-            const folders = state.nodes.filter(n => {
-                const pId = (n.data && n.data.anchorNodeId) ? n.data.anchorNodeId : '';
-                return n.kind === 'folder' && pId === root.id;
-            });
-            
-            let fx = 0, fy = -1;
-            if (folders.length > 0) {
-                let sumX = 0, sumY = 0;
-                folders.forEach(f => { sumX += f.x; sumY += f.y; });
-                const avgX = sumX / folders.length;
-                const avgY = sumY / folders.length;
-                const dx = root.x - avgX;
-                const dy = root.y - avgY;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist > 5) { // Threshold for stability
-                    fx = dx / dist; 
-                    fy = dy / dist; 
-                }
-            }
-            
-            const angle = Math.atan2(fy, fx);
+        chainRoots.forEach((rootData) => {
+            const root = rootData.node;
+            if (!root) return;
+
+            // Use physics-calculated orientation for perfect alignment
+            const angle = rootData.frontAngle || 0;
             const baseRad = root.radius || 120; // Default to larger base if undefined
             const radiusFront = baseRad * 18.0; 
             const radiusBack = baseRad * 5.0; 
@@ -1352,35 +1331,20 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             // Card Aura Repulsion & Fallback Visualization
             const cardData = chainRoots.get(node.chainId); 
-            if (cardData && cardData !== node) {
-                // We need the front vector for the card
-                // (This is a bit redundant but stays modular for render.js)
-                const folders = state.nodes.filter(n => {
-                    const pId = (n.data && n.data.anchorNodeId) ? n.data.anchorNodeId : '';
-                    return n.kind === 'folder' && pId === cardData.id;
-                });
-                
-                let cfx = 0, cfy = -1;
-                if (folders.length > 0) {
-                    let sumX = 0, sumY = 0;
-                    folders.forEach(f => { sumX += f.x; sumY += f.y; });
-                    const avgX = sumX / folders.length;
-                    const avgY = sumY / folders.length;
-                    const dx = cardData.x - avgX;
-                    const dy = cardData.y - avgY;
-                    const dist = Math.sqrt(dx * dx + dy * dy);
-                    if (dist > 5) { cfx = dx / dist; cfy = dy / dist; }
-                }
+            if (cardData && cardData.node !== node) {
+                const cfx = cardData.frontX || 0;
+                const cfy = cardData.frontY || -1;
+                const cardNode = cardData.node;
 
-                const dx = node.x - cardData.x;
-                const dy = node.y - cardData.y;
+                const dx = node.x - cardNode.x;
+                const dy = node.y - cardNode.y;
                 const dist = Math.sqrt(dx * dx + dy * dy) || 1;
                 const projLong = dx * cfx + dy * cfy;
                 const latX = -cfy;
                 const latY = cfx;
                 const distLat = Math.abs(dx * latX + dy * latY);
 
-                const baseRad = cardData.radius || 120;
+                const baseRad = cardNode.radius || 120;
                 const rFront = baseRad * 18.0;
                 const rBack = baseRad * 5.0;
                 const rLat = baseRad * 10.0;
