@@ -467,8 +467,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         const dy = node.y - parentNode.y;
         const distSq = dx * dx + dy * dy;
 
-        // Universal Authority Scaling: 400px+ massive guard
-        const minReach = Math.max(400, (parentNode.radius || 60) * 4.5);
+        // Hybrid-Scale Authority: 280px for roots (tight), 400px for sub-folders (spacious)
+        const isRootParent = (parentNode.kind === 'category' || parentNode.kind === 'workspace');
+        const minReach = isRootParent ? 280 : 400;
 
         // 1. STABILIZED Reach Guard: Quadratic "Soft-Contact" Repulsion
         if (distSq < minReach * minReach) {
@@ -494,16 +495,25 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         const adx = anchor.x - node.x;
         const ady = anchor.y - node.y;
         const adistSq = adx * adx + ady * ady;
-        if (adistSq > 4) {
+        if (adistSq > 1) {
             const adist = Math.sqrt(adistSq);
             const isRootParent = (parentNode.kind === 'category' || parentNode.kind === 'workspace');
             
             // Smoothly dampen the bias force as we reach the anchor to avoid orbit/jitter
-            const proximityDamping = Math.min(1, adist / 60);
-            const biasForce = (isRootParent ? 0.25 : 0.15) * proximityDamping;
+            const proximityDamping = Math.min(1, adist / 50);
+            const biasForce = (isRootParent ? 0.35 : 0.22) * proximityDamping;
             
             node.vx += (adx / adist) * biasForce;
             node.vy += (ady / adist) * biasForce;
+
+            // TANGENTIAL FRICTION: High-Intensity spin suppression to "lock" the close-orbit
+            const dist = Math.sqrt(distSq) || 1;
+            const tx = -dy / dist; // Perpendicular vector (tangent)
+            const ty = dx / dist;
+            const tangentialVel = node.vx * tx + node.vy * ty;
+            // Drain tangential energy aggressively (0.35) to stop all "spinning"
+            node.vx -= tx * tangentialVel * 0.35;
+            node.vy -= ty * tangentialVel * 0.35;
         }
     }
 
@@ -1168,8 +1178,17 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                     
                     const isRootChild = parent.kind === 'category' || parent.kind === 'workspace';
                     
-                    // 1. Epic Needle-Focus Spread: Extremely narrow for root Cards (35-45 deg)
-                    // Folds clusters into an epic "Plume" directly opposite the core
+                    // 1. UNIVERSAL ANGULAR LOCKING: Smoothed spinal orientation for all depths
+                    // Lerp factor 0.08 ensures an elegant follow with localized "lock-in"
+                    const lerpAngle = (current, target) => {
+                        let diff = target - current;
+                        while (diff < -Math.PI) diff += Math.PI * 2;
+                        while (diff > Math.PI) diff -= Math.PI * 2;
+                        return current + diff * 0.08; 
+                    };
+                    node.spinalAngle = lerpAngle(node.spinalAngle || baseAngle, baseAngle);
+
+                    // 2. Hyper-Tight Needle-Focus Spread: 40-50 deg for roots
                     let baseSpread = isRootChild ? Math.PI * 0.22 : Math.PI * 0.35;
                     if (!isRootChild && node.kind === 'link') baseSpread = Math.PI * 0.45;
 
@@ -1178,7 +1197,6 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
                     let spread = baseSpread;
                     if (node.kind === 'link') {
-                        // Narrow widening for outer rows to preserve the spinal needle
                         const growthFactor = isRootChild ? 0.10 : 0.15;
                         const spreadExpansion = (row / (rowCount - 1)) * growthFactor;
                         spread = baseSpread + spreadExpansion * Math.PI;
@@ -1186,28 +1204,28 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
                     const offset = count > 1 ? (spread * (index / (count - 1) - 0.5)) : 0;
                     
-                    // 2. Epic Spinal Jitter (Massive depth/longitudinal variance)
-                    const jitterMag = isRootChild ? 80 : 50; 
+                    // 3. Spinal Jitter (Optimized for hybrid scales)
+                    const jitterMag = isRootChild ? 45 : 60; 
                     const jitterVal = (node.id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) % (jitterMag * 2 + 1)) - jitterMag;
                     
-                    // 3. Colossal Tail Distance (1000px+ Epic Root Buffer)
+                    // 4. Hybrid-Scale Tail Distance (Tight Roots, Spacious Subs)
                     let finalRadius = radius;
                     if (node.kind === 'link') {
-                        // Massive root buffer vs middle-scale folder buffer
-                        const baseR = isRootChild ? (parent.radius || 60) + 1050 : (parent.radius || 60) + 600;
-                        const rowDepth = isRootChild ? 160 : 120;
+                        // Tight root buffer (350px) vs Spacious folder buffer (580px)
+                        const baseR = isRootChild ? (parent.radius || 60) + 350 : (parent.radius || 60) + 580;
+                        const rowDepth = isRootChild ? 60 : 100;
                         
-                        finalRadius = baseR + (row * rowDepth) + Math.min(100, count * 3) + jitterVal;
+                        finalRadius = baseR + (row * rowDepth) + Math.min(60, count * 3) + jitterVal;
                     } else if (node.kind === 'folder') {
-                        // Folders also align to the colossal spinal frontier
+                        // Folders also follow the hybrid-scale frontier
                         const fRow = index % 2;
-                        const fBaseR = isRootChild ? (parent.radius || 15) + 1000 : (parent.radius || 15) + 550;
-                        finalRadius = fBaseR + (fRow * 80) + Math.min(40, count * 4);
+                        const fBaseR = isRootChild ? (parent.radius || 15) + 320 : (parent.radius || 15) + 520;
+                        finalRadius = fBaseR + (fRow * 50) + Math.min(30, count * 4);
                     }
                     
                     state.hierarchyAnchors.set(node.id, {
-                        x: parent.x + Math.cos(baseAngle + offset) * finalRadius,
-                        y: parent.y + Math.sin(baseAngle + offset) * finalRadius
+                        x: parent.x + Math.cos(node.spinalAngle + offset) * finalRadius,
+                        y: parent.y + Math.sin(node.spinalAngle + offset) * finalRadius
                     });
                 }
             });
