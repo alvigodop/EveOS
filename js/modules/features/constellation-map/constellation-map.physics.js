@@ -1156,46 +1156,46 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 if (node.lastX === undefined) node.lastX = node.x;
                 if (node.lastY === undefined) node.lastY = node.y;
 
-                if (data.count > 0) {
+                let targetAngle = data.frontAngle;
+                let lerpFactor = 0.005; // Absolute Zero Inertia (Default/Static)
+
+                if (isBeingDragged) {
+                    // Calculate movement vector (Directional Wake)
+                    const moveX = node.x - node.lastX;
+                    const moveY = node.y - node.lastY;
+                    const moveDistSq = moveX * moveX + moveY * moveY;
+
+                    if (moveDistSq > 0.1) {
+                        // DIRECTIONAL WAKE: Face movement direction during drag (trailing effect)
+                        // Use the actual movement vector to set the "front"
+                        targetAngle = Math.atan2(moveY, moveX);
+                        lerpFactor = 0.15; // Snappy Inertia during drag
+                    }
+                } else if (data.count > 0) {
                     const avgX = data.sumX / data.count;
                     const avgY = data.sumY / data.count;
                     const dx = node.x - avgX;
                     const dy = node.y - avgY;
                     const centroidDist = Math.sqrt(dx * dx + dy * dy);
 
-                    let targetAngle = data.frontAngle;
-                    let lerpFactor = 0.005; // Absolute Zero Inertia (Default/Static)
-
-                    if (isBeingDragged) {
-                        // Calculate movement vector (Directional Wake)
-                        const moveX = node.x - node.lastX;
-                        const moveY = node.y - node.lastY;
-                        const moveDistSq = moveX * moveX + moveY * moveY;
-
-                        if (moveDistSq > 0.1) {
-                            // DIRECTIONAL WAKE: Face movement direction during drag (trailing effect)
-                            // Use the actual movement vector to set the "front"
-                            targetAngle = Math.atan2(moveY, moveX);
-                            lerpFactor = 0.15; // Snappy Inertia during drag
-                        }
-                    } else if (centroidDist > 30) {
+                    if (centroidDist > 30) {
                         // Natural orientation based on children centroid when static
                         targetAngle = Math.atan2(dy, dx);
                         lerpFactor = 0.005; // Return to Absolute Zero stability
                     }
-
-                    if (targetAngle !== undefined) {
-                        const lerpAngle = (current, target) => {
-                            let diff = target - current;
-                            while (diff < -Math.PI) diff += Math.PI * 2;
-                            while (diff > Math.PI) diff -= Math.PI * 2;
-                            return current + diff * lerpFactor;
-                        };
-                        data.frontAngle = lerpAngle(data.frontAngle === undefined ? targetAngle : data.frontAngle, targetAngle);
-                    }
-                    data.frontX = Math.cos(data.frontAngle || 0);
-                    data.frontY = Math.sin(data.frontAngle || 0);
                 }
+
+                if (targetAngle !== undefined) {
+                    const lerpAngle = (current, target) => {
+                        let diff = target - current;
+                        while (diff < -Math.PI) diff += Math.PI * 2;
+                        while (diff > Math.PI) diff -= Math.PI * 2;
+                        return current + diff * lerpFactor;
+                    };
+                    data.frontAngle = lerpAngle(data.frontAngle === undefined ? targetAngle : data.frontAngle, targetAngle);
+                }
+                data.frontX = Math.cos(data.frontAngle || 0);
+                data.frontY = Math.sin(data.frontAngle || 0);
                 
                 // Track last position for Directional Wake calculation
                 node.lastX = node.x;
