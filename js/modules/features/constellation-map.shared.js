@@ -151,7 +151,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             folderRecovery: 1,
             damping: 1,
             speed: 1,
-            tether: 1
+            tether: 1,
+            frontierReach: 180
         },
 
         nodePolarities: new Map(),
@@ -224,7 +225,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         { key: 'folderRecovery', label: 'Folder Settle', min: 0, max: 3, step: 0.01, defaultValue: 1 },
         { key: 'damping', label: 'Damping', min: 0, max: 2, step: 0.01, defaultValue: 1 },
         { key: 'speed', label: 'Speed', min: 0, max: 2, step: 0.01, defaultValue: 1 },
-        { key: 'tether', label: 'World Tether', min: 0, max: 3, step: 0.01, defaultValue: 1 }
+        { key: 'tether', label: 'World Tether', min: 0, max: 3, step: 0.01, defaultValue: 1 },
+        { key: 'frontierReach', label: 'Frontier Reach', min: 80, max: 800, step: 1, defaultValue: 180 }
     ]);
 
     function getMotionTuningField(key) {
