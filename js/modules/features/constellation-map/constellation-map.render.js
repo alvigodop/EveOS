@@ -1196,37 +1196,16 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     function drawPhysicsAuras(ctx) {
         if (!state.showPhysicsAuras) return;
 
-        const chainRoots = new Map();
-        state.nodes.forEach(n => {
-            if (n && (n.kind === 'category' || n.kind === 'workspace') && n.chainId) {
-                chainRoots.set(n.chainId, n);
-            }
-        });
+        const chainRoots = state.chainRoots;
+        if (!chainRoots) return;
 
         // 1. Draw Root Authority Glows (Asymmetric Teardrop)
-        chainRoots.forEach((root) => {
-            // Calculate front direction (facing away from folders)
-            const folders = state.nodes.filter(n => {
-                const pId = (n.data && n.data.anchorNodeId) ? n.data.anchorNodeId : '';
-                return n.kind === 'folder' && pId === root.id;
-            });
+        chainRoots.forEach((rootData) => {
+            const root = rootData.node;
+            if (!root) return;
             
-            let fx = 0, fy = -1;
-            if (folders.length > 0) {
-                let sumX = 0, sumY = 0;
-                folders.forEach(f => { sumX += f.x; sumY += f.y; });
-                const avgX = sumX / folders.length;
-                const avgY = sumY / folders.length;
-                const dx = root.x - avgX;
-                const dy = root.y - avgY;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist > 5) { // Threshold for stability
-                    fx = dx / dist; 
-                    fy = dy / dist; 
-                }
-            }
-            
-            const angle = Math.atan2(fy, fx);
+            // Use physics-calculated orientation for perfect alignment
+            const angle = rootData.frontAngle || 0;
             const baseRad = root.radius || 120; // Default to larger base if undefined
             const radiusFront = baseRad * 18.0; 
             const radiusBack = baseRad * 5.0; 
@@ -1258,6 +1237,11 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             ctx.setLineDash([15, 45]); // More spacing
             ctx.lineWidth = 1.0 / state.transform.scale;
             ctx.ellipse(0, 0, radiusFront * 0.92, radiusLat * 0.9, 0, -Math.PI/2, Math.PI/2);
+            ctx.ellipse(0, 0, radiusBack * 0.92, radiusLat * 0.9, 0, Math.PI/2, 3*Math.PI/2);
+            ctx.stroke();
+            
+            ctx.restore();
+        });
             ctx.ellipse(0, 0, radiusBack * 0.92, radiusLat * 0.9, 0, Math.PI/2, 3*Math.PI/2);
             ctx.closePath();
             ctx.stroke();
