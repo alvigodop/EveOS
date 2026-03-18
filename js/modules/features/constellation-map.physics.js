@@ -53,10 +53,10 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         const nodeDepth = (node.data && typeof node.data.depth === 'number') ? node.data.depth : 0;
 
-        // Strict Boundary Enforcement: Immediate children (folders/links) are now always repelled 
-        // to ensure they sit strictly at the periphery of the parent's massive aura.
-        const isImmediateChild = (node.data && node.data.anchorNodeId === folder.id);
-        if (isImmediateChild && node.id === folder.id) return;
+        // SINGULARITY FUSION: Immediate children are now EXEMPT from repulsion 
+        // to allow them to dock deep into the parent's core.
+        const isImmediateChild = (node.parentId === folder.id || (node.data && node.data.anchorNodeId === folder.id));
+        if (isImmediateChild) return;
         if (node.id === folder.id) return;
 
         // PERFORMANCE: Coarse distance check
@@ -139,6 +139,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         const distSq = dx * dx + dy * dy;
         // PERFORMANCE: Coarse distance check for Colossal Card Reach (2160px+)
         if (distSq > 2500 * 2500) return;
+        // SINGULARITY FUSION: Direct children of the Card are exempt from its massive aura.
+        if (node.parentId === card.id || (node.data && node.data.anchorNodeId === card.id)) return;
         const dist = Math.sqrt(distSq) || 1;
 
         // Project onto card's local axes
@@ -449,9 +451,13 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         const dx = anchor.x - node.x;
         const dy = anchor.y - node.y;
         const dist = Math.sqrt((dx * dx) + (dy * dy));
-        if (!Number.isFinite(dist) || dist <= 110) return;
+        
+        // SINGULARITY RECOVERY: No 110px deadzone. Pull folders to their heart instantly.
+        if (!Number.isFinite(dist) || dist <= 1) return;
+        
         const recoveryScale = (Number(motionProfile?.folderRecoveryScale) || 1) * getMotionTuningValue('folderRecovery');
-        const recovery = Math.min(0.03, (dist - 110) * 0.00012 * recoveryScale);
+        // High-stiffness recovery: Using full distance instead of (dist - 110)
+        const recovery = Math.min(0.08, dist * 0.00015 * recoveryScale);
         node.vx += dx * recovery;
         node.vy += dy * recovery;
     }
@@ -467,15 +473,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         const dy = node.y - parentNode.y;
         const distSq = dx * dx + dy * dy;
 
-        // Hybrid-Scale Authority: Adaptive for roots (tightening with count), 400px for folders
+        // Black Hole Authority: 5px for roots (Core-Fusion), 400px for sub-folders (Spacious)
         const isRootParent = (parentNode.kind === 'category' || parentNode.kind === 'workspace');
-        let minReach = 400;
-        if (isRootParent) {
-            // Auto-scale authority down to support ultra-close "Nebula" orbits
-            const count = (parentNode.data && parentNode.data.childrenCount) || 20; 
-            const rootShrink = Math.min(160, count * 1.5);
-            minReach = 280 - rootShrink * 0.5;
-        }
+        const minReach = isRootParent ? 5 : 400;
 
         // 1. STABILIZED Reach Guard: Quadratic "Soft-Contact" Repulsion
         if (distSq < minReach * minReach) {
@@ -505,19 +505,24 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             const adist = Math.sqrt(adistSq);
             const isRootParent = (parentNode.kind === 'category' || parentNode.kind === 'workspace');
             
-            // Smoothly dampen the bias force as we reach the anchor to avoid orbit/jitter
+            // BLACK HOLE GLUE: High-Stiffness anchoring for zero-latency tracking
             const proximityDamping = Math.min(1, adist / 50);
+            const biasForce = (isRootParent ? 2.5 : 0.22) * proximityDamping;
             
-            // NEBULA FOCUS: Boost bias for high-count root clusters to maintain focus lock
-            let biasMultiplier = 1.0;
-            if (isRootParent) {
-                const count = (parentNode.data && parentNode.data.childrenCount) || 20;
-                biasMultiplier = 1.0 + Math.min(0.5, count * 0.005);
-            }
-            const biasForce = (isRootParent ? 0.35 : 0.22) * proximityDamping * biasMultiplier;
-            
+            // 1. Proportional Acceleration (Spring)
             node.vx += (adx / adist) * biasForce;
             node.vy += (ady / adist) * biasForce;
+            
+            // 2. High-Tension "Glue" (Stiffness coefficient)
+            if (isRootParent) {
+                node.vx += adx * 0.15;
+                node.vy += ady * 0.15;
+                // Velocity Inheritance: Move with the parent card to eliminate drag
+                if (parentNode) {
+                    node.vx += (parentNode.vx || 0) * 0.95;
+                    node.vy += (parentNode.vy || 0) * 0.95;
+                }
+            }
 
             // TANGENTIAL FRICTION: High-Intensity spin suppression to "lock" the close-orbit
             const dist = Math.sqrt(distSq) || 1;
@@ -704,10 +709,10 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             const dy = anchor.y - node.y;
             const dist = Math.sqrt(dx * dx + dy * dy);
 
-            if (dist > 140) {
-                node.x += dx * 0.022;
-                node.y += dy * 0.022;
-            }
+            // SINGULARITY POSITIONING: No 140px deadzone. 
+            // Aggressive 0.25 pull for instant core-docking.
+            node.x += dx * 0.25;
+            node.y += dy * 0.25;
 
             node.vx *= 0.88;
 
@@ -1191,13 +1196,15 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                     
                     const isRootChild = parent.kind === 'category' || parent.kind === 'workspace';
                     
-                    // 1. UNIVERSAL ANGULAR LOCKING: Smoothed spinal orientation for all depths
-                    // Lerp factor 0.08 ensures an elegant follow with localized "lock-in"
+                    // 1. BLACK HOLE ANGULAR LOCKING: Absolute rigidity for Core-Fused clusters
+                    // Root-level tails are deeply fused to the Card heartbeat (0.01 infinite lag)
+                    // Sub-folder tails are ultra-responsive (0.20) for localized energy
                     const lerpAngle = (current, target) => {
                         let diff = target - current;
                         while (diff < -Math.PI) diff += Math.PI * 2;
                         while (diff > Math.PI) diff -= Math.PI * 2;
-                        return current + diff * 0.08; 
+                        const factor = isRootChild ? 0.01 : 0.20;
+                        return current + diff * factor; 
                     };
                     node.spinalAngle = lerpAngle(node.spinalAngle || baseAngle, baseAngle);
 
@@ -1217,29 +1224,28 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
                     const offset = count > 1 ? (spread * (index / (count - 1) - 0.5)) : 0;
                     
-                    // 3. Spinal Jitter (Optimized for hybrid scales)
-                    // Shrinks for massive root chains to keep the nebula tight
-                    const rootShrinkFactor = isRootChild ? Math.min(160, count * 1.5) : 0;
-                    const jitterMag = isRootChild ? (45 - rootShrinkFactor * 0.1) : 60; 
+                    // 3. Spinal Jitter (Optimized for Black Hole density)
+                    const jitterMag = isRootChild ? 10 : 60; 
                     const jitterVal = (node.id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) % (jitterMag * 2 + 1)) - jitterMag;
                     
-                    // 4. Hybrid-Scale Tail Distance (Adaptive Roots, Spacious Subs)
+                    // 4. Black Hole Tail Distance (Inverse-Mass Core Fusion)
                     let finalRadius = radius;
                     if (node.kind === 'link') {
-                        // ADAPTIVE NEBULA PROXIMITY: Pull massive root chains closer to the core
-                        const baseR = isRootChild 
-                            ? (parent.radius || 60) + (350 - rootShrinkFactor) 
-                            : (parent.radius || 60) + 580;
-                        const rowDepth = isRootChild ? (60 - rootShrinkFactor * 0.1) : 100;
+                        // Inverse scaling: Larger clusters are sucked deeper into the core
+                        const popPull = isRootChild ? Math.min(60, count * 0.12) : 0;
+                        const baseR = isRootChild ? (parent.radius || 60) + 30 - popPull : (parent.radius || 60) + 580;
+                        const rowDepth = isRootChild ? 10 : 100;
+                        const popPush = isRootChild ? 0 : Math.min(60, count * 3);
                         
-                        finalRadius = baseR + (row * rowDepth) + Math.min(60, count * 3) + jitterVal;
+                        finalRadius = baseR + (row * rowDepth) + popPush + jitterVal;
                     } else if (node.kind === 'folder') {
-                        // Folders also follow the nebula proximity adaptive logic
+                        // Folders also follow the mass-inversion rule
                         const fRow = index % 2;
-                        const fBaseR = isRootChild 
-                            ? (parent.radius || 15) + (320 - rootShrinkFactor) 
-                            : (parent.radius || 15) + 520;
-                        finalRadius = fBaseR + (fRow * 50) + Math.min(30, count * 4);
+                        const fPopPull = isRootChild ? Math.min(45, count * 0.10) : 0;
+                        const fBaseR = isRootChild ? (parent.radius || 15) + 15 - fPopPull : (parent.radius || 15) + 520;
+                        const fRowDepth = isRootChild ? 10 : 50;
+                        const fPopPush = isRootChild ? 0 : Math.min(30, count * 4);
+                        finalRadius = fBaseR + (fRow * fRowDepth) + fPopPush;
                     }
                     
                     state.hierarchyAnchors.set(node.id, {
