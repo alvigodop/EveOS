@@ -21,6 +21,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             ns.ensureContainer();
         }
         
+        ns.ready = true;
         console.log('[ConstellationMap] Module ready.');
     };
 
