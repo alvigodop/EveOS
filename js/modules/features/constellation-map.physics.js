@@ -473,9 +473,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         const dy = node.y - parentNode.y;
         const distSq = dx * dx + dy * dy;
 
-        // Black Hole Authority: 5px for roots (Core-Fusion), 400px for sub-folders (Spacious)
+        // UNIVERSAL SINGULARITY: 5px for roots (Core-Fusion), 35px for sub-folders (Fractal Singularity)
         const isRootParent = (parentNode.kind === 'category' || parentNode.kind === 'workspace');
-        const minReach = isRootParent ? 5 : 400;
+        const minReach = isRootParent ? 5 : 35;
 
         // 1. STABILIZED Reach Guard: Quadratic "Soft-Contact" Repulsion
         if (distSq < minReach * minReach) {
@@ -1233,18 +1233,18 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                     if (node.kind === 'link') {
                         // Inverse scaling: Larger clusters are sucked deeper into the core
                         const popPull = isRootChild ? Math.min(60, count * 0.12) : 0;
-                        const baseR = isRootChild ? (parent.radius || 60) + 30 - popPull : (parent.radius || 60) + 580;
-                        const rowDepth = isRootChild ? 10 : 100;
-                        const popPush = isRootChild ? 0 : Math.min(60, count * 3);
+                        const baseR = isRootChild ? (parent.radius || 60) + 30 - popPull : (parent.radius || 15) + 20;
+                        const rowDepth = isRootChild ? 10 : 12;
+                        const popPush = 0; // SINGULARITY: No population fanning at close range
                         
                         finalRadius = baseR + (row * rowDepth) + popPush + jitterVal;
                     } else if (node.kind === 'folder') {
-                        // Folders also follow the mass-inversion rule
+                        // Folders also follow the fractal singularity rule
                         const fRow = index % 2;
                         const fPopPull = isRootChild ? Math.min(45, count * 0.10) : 0;
-                        const fBaseR = isRootChild ? (parent.radius || 15) + 15 - fPopPull : (parent.radius || 15) + 520;
-                        const fRowDepth = isRootChild ? 10 : 50;
-                        const fPopPush = isRootChild ? 0 : Math.min(30, count * 4);
+                        const fBaseR = isRootChild ? (parent.radius || 15) + 15 - fPopPull : (parent.radius || 15) + 15;
+                        const fRowDepth = isRootChild ? 10 : 10;
+                        const fPopPush = 0; // SINGULARITY: No population fanning
                         finalRadius = fBaseR + (fRow * fRowDepth) + fPopPush;
                     }
                     
