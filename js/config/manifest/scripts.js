@@ -403,7 +403,11 @@ window.EveModuleManifestParts.scripts = [
 
         'js/modules/features/constellation-map.physics.js?v=0.1.1',
 
-        'js/modules/features/constellation-map.js?v=0.4.3',
+        'js/modules/features/constellation-map.view.js?v=0.1.0',
+        'js/modules/features/constellation-map.events.js?v=0.1.0',
+        'js/modules/features/constellation-map.toolbar.js?v=0.1.0',
+
+        'js/modules/features/constellation-map.js?v=0.5.0',
 
 
 
