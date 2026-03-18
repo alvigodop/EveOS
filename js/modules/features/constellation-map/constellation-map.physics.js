@@ -869,22 +869,18 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         syncMotionAnchors(false);
 
-        const frontierReach = getMotionTuningValue('frontierReach');
-        // NANO-GALACTIC SCALING: Sync repulsion and tension with Frontier Reach
-        const scaleFactor = Math.max(0.1, frontierReach / 220);
-
         const repulsion = (nodeCount > 400 ? 900 : nodeCount > 220 ? 1200 : nodeCount > 120 ? 1600 : nodeCount > 70 ? 2200 : 3200)
             * (motionProfile.repulsionScale || 1)
-            * getMotionTuningValue('repulsion')
-            * scaleFactor;
+            * getMotionTuningValue('repulsion');
 
         const centerPull = (nodeCount > 400 ? 0.00038 : nodeCount > 220 ? 0.0005 : nodeCount > 120 ? 0.0007 : 0.0011)
             * getMotionTuningValue('centerPull');
 
         const springStrength = (nodeCount > 120 ? 0.0024 : 0.0032)
             * (motionProfile.springScale || 1)
-            * getMotionTuningValue('spring')
-            * (1 / scaleFactor); // Higher tension at smaller scales
+            * getMotionTuningValue('spring');
+
+        const frontierReach = getMotionTuningValue('frontierReach');
 
         const polarityCache = state.nodes.map((node) => ({
             direction: getPolarityDirection(node),
@@ -1111,115 +1107,73 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             const folderOrientations = state.folderOrientations; // PERSISTED: For global angular smoothing
 
             // PRE-PASS: Maintain/Prune state.chainRoots and folderOrientations for active nodes
-            // 1. PRE-PASS: Core Identity & Root Initialization
             const activeNodeIds = new Set(state.nodes.map(n => n.id));
             const activeChains = new Set(state.nodes.map(n => n.chainId).filter(Boolean));
             [...chainRoots.keys()].forEach(cid => { if (!activeChains.has(cid)) chainRoots.delete(cid); });
             [...folderOrientations.keys()].forEach(id => { if (!activeNodeIds.has(id)) folderOrientations.delete(id); });
 
-            // 2. PASS A: Initialize Chain Roots & Gather Orientation Data
-            state.nodes.forEach(n => {
-                if (n && (n.kind === 'category' || n.kind === 'workspace') && n.chainId) {
-                    if (!chainRoots.has(n.chainId)) {
-                        chainRoots.set(n.chainId, {
-                            node: n, sumX: 0, sumY: 0, count: 0, frontX: 0, frontY: -1, frontAngle: -Math.PI / 2
-                        });
-                    } else {
-                        const data = chainRoots.get(n.chainId);
-                        data.node = n;
-                        data.sumX = 0; data.sumY = 0; data.count = 0;
-                    }
-                }
-
-                const pId = (n.data && n.data.anchorNodeId) ? n.data.anchorNodeId : '';
-                const pNode = pId ? state.nodeIndex.get(pId) : null;
-
-                if (n.kind === 'folder' && pNode) {
-                    const isRoot = (pNode.kind === 'category' || pNode.kind === 'workspace');
-                    if (isRoot) {
-                        const rootData = chainRoots.get(pNode.chainId);
-                        if (rootData) {
-                            rootData.sumX += n.x;
-                            rootData.sumY += n.y;
-                            rootData.count++;
-                        }
-                    }
-                }
-            });
-
-            // 3. PASS B: Finalize Card Core Front Vectors (DYNAMIC INERTIA & DIRECTIONAL WAKE)
+            // 1. Finalize card front vectors (ABSOLUTE SPINAL INERTIA: Extreme Damping)
             chainRoots.forEach(data => {
                 const node = data.node;
-                const isBeingDragged = state.pointer.mode === 'node' && state.pointer.node?.id === node.id;
-                
-                // Initialize position tracking if missing
-                if (node.lastX === undefined) node.lastX = node.x;
-                if (node.lastY === undefined) node.lastY = node.y;
+                const isBeingDragged = (state.pointer.mode === 'node' && state.pointer.node?.id === node.id);
+                const speed = Math.sqrt(node.vx * node.vx + node.vy * node.vy);
 
-                let targetAngle = data.frontAngle;
-                let lerpFactor = 0.005; // Absolute Zero Inertia (Default/Static)
-
-                if (isBeingDragged) {
-                    // Calculate movement vector (Directional Wake)
-                    const moveX = node.x - node.lastX;
-                    const moveY = node.y - node.lastY;
-                    const moveDistSq = moveX * moveX + moveY * moveY;
-
-                    if (moveDistSq > 0.1) {
-                        // DIRECTIONAL WAKE: Face movement direction during drag (trailing effect)
-                        targetAngle = Math.atan2(moveY, moveX);
-                        lerpFactor = 0.15; // Snappy Inertia during drag
-                    }
-                } else if (data.count > 0) {
-                    // Only calculate centroid-based orientation if we have children
-                    const avgX = data.sumX / data.count;
-                    const avgY = data.sumY / data.count;
-                    const dx = node.x - avgX;
-                    const dy = node.y - avgY;
-                    const centroidDist = Math.sqrt(dx * dx + dy * dy);
-
-                    if (centroidDist > 30) {
-                        // Natural orientation based on children centroid when static
-                        targetAngle = Math.atan2(dy, dx);
-                        lerpFactor = 0.005; // Return to Absolute Zero stability
-                    }
-                }
-
-                if (targetAngle !== undefined) {
+                // DIRECTIONAL WAKE: If dragged and moving fast enough, face movement direction
+                if (isBeingDragged && speed > 0.5) {
+                    const moveAngle = Math.atan2(node.vy, node.vx);
                     const lerpAngle = (current, target) => {
                         let diff = target - current;
                         while (diff < -Math.PI) diff += Math.PI * 2;
                         while (diff > Math.PI) diff -= Math.PI * 2;
-                        return current + diff * lerpFactor;
+                        return current + diff * 0.15; // Snappy Drag Inertia (0.15)
                     };
-                    data.frontAngle = lerpAngle(data.frontAngle === undefined ? targetAngle : data.frontAngle, targetAngle);
+                    data.frontAngle = lerpAngle(data.frontAngle === undefined ? moveAngle : data.frontAngle, moveAngle);
+                } else if (data.count > 0) {
+                    const avgX = data.sumX / data.count;
+                    const avgY = data.sumY / data.count;
+                    const dx = node.x - avgX;
+                    const dy = node.y - avgY;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+
+                    // ABSOLUTE CENTROID GUARD: Stable orientation when stationary
+                    if (dist > 30) {
+                        const targetAngle = Math.atan2(dy, dx);
+                        const lerpAngle = (current, target) => {
+                            let diff = target - current;
+                            while (diff < -Math.PI) diff += Math.PI * 2;
+                            while (diff > Math.PI) diff -= Math.PI * 2;
+                            return current + diff * 0.005; // Absolute Static Inertia (0.005)
+                        };
+                        data.frontAngle = lerpAngle(data.frontAngle === undefined ? targetAngle : data.frontAngle, targetAngle);
+                    }
                 }
                 
-                // Update front vectors (Used by Folder Placement and Card Aura)
-                data.frontX = Math.cos(data.frontAngle || 0);
-                data.frontY = Math.sin(data.frontAngle || 0);
-                
-                // Track last position for Directional Wake calculation
-                node.lastX = node.x;
-                node.lastY = node.y;
+                if (data.frontAngle !== undefined) {
+                    data.frontX = Math.cos(data.frontAngle);
+                    data.frontY = Math.sin(data.frontAngle);
+                }
             });
 
-            // 4. PASS C: Folder Orientations (SPINAL INHERITANCE)
+            // 2. Folder pass: Implement Spinal Inheritance for Root Folders
             state.nodes.forEach(n => {
                 const pId = (n.data && n.data.anchorNodeId) ? n.data.anchorNodeId : '';
                 const pNode = pId ? state.nodeIndex.get(pId) : null;
 
                 if (n.kind === 'folder' && pNode) {
                     const isRoot = (pNode.kind === 'category' || pNode.kind === 'workspace');
-                    let targetAngle;
+                    const fdx = pNode.x - n.x;
+                    const fdy = pNode.y - n.y;
+                    const fdist = Math.max(1, Math.sqrt(fdx * fdx + fdy * fdy));
 
+                    let targetAngle = Math.atan2(fdy, fdx);
+                    
+                    // SPINAL INHERITANCE: Root folders explicitly adopt the parent Card's orientation (The Laser Beam)
                     if (isRoot) {
-                        // SPINAL INHERITANCE: Root folders adopt the parent card's laser-aligned front vector.
                         const rootData = chainRoots.get(pNode.chainId);
-                        targetAngle = (rootData && rootData.frontAngle !== undefined) ? rootData.frontAngle : Math.atan2(pNode.y - n.y, pNode.x - n.x);
-                    } else {
-                        // Regular inheritance: Normal physics-driven smoothing
-                        targetAngle = Math.atan2(pNode.y - n.y, pNode.x - n.x);
+                        if (rootData && rootData.frontAngle !== undefined) {
+                            // Points exactly AWAY from the front vector to align with the core axis
+                            targetAngle = rootData.frontAngle + Math.PI; 
+                        }
                     }
 
                     const existing = folderOrientations.get(n.id);
@@ -1229,7 +1183,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                         let diff = target - current;
                         while (diff < -Math.PI) diff += Math.PI * 2;
                         while (diff > Math.PI) diff -= Math.PI * 2;
-                        return current + diff * 0.08; // The Universal Neural Lock (Inertia)
+                        return current + diff * 0.08; // Neural Lock
                     };
 
                     const smoothedAngle = lerpAngle(currentAngle, targetAngle);
@@ -1238,7 +1192,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                         parent: pNode,
                         nx: Math.cos(smoothedAngle),
                         ny: Math.sin(smoothedAngle),
-                        dist: Math.sqrt((pNode.x - n.x) ** 2 + (pNode.y - n.y) ** 2),
+                        dist: fdist,
                         isRoot: isRoot,
                         orientAngle: smoothedAngle
                     });
