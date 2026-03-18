@@ -53,10 +53,10 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         const nodeDepth = (node.data && typeof node.data.depth === 'number') ? node.data.depth : 0;
 
-        // Don't repel immediate connected children (unless root authority applies or deep hierarchy)
+        // Strict Boundary Enforcement: Immediate children (folders/links) are now always repelled 
+        // to ensure they sit strictly at the periphery of the parent's massive aura.
         const isImmediateChild = (node.data && node.data.anchorNodeId === folder.id);
-        // Allow bookmarks to be repelled even if immediate children, but skip for other low-depth children
-        if (isImmediateChild && !isRootFolder && nodeDepth < 2 && node.kind !== 'link') return;
+        if (isImmediateChild && node.id === folder.id) return;
         if (node.id === folder.id) return;
 
         // PERFORMANCE: Coarse distance check
@@ -95,9 +95,16 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         
         if (normDistSq < 1.0) {
             const normDist = Math.sqrt(normDistSq);
-            // HARDENED: Linear force (1-d) instead of quadratic (1-d)^2 ensures strong push at the ring edge
-            let force = 1.5 * (1 - normDist); 
-            if (nodeDepth >= 2) force *= 1.4; // Stronger push for sub-sub hierarchy
+            // STABILIZED: Quadratic force (1-d)^2 ensures a "Soft-Contact" at the boundary
+            // This prevents the "spring kick" that causes high-frequency jitter.
+            let force = 2.0 * Math.pow(1 - normDist, 2); 
+            if (nodeDepth >= 2) force *= 1.4;
+
+            // MICRO-DAMPING ZONE: Freeze nodes that are settling into the boundary
+            if (normDist > 0.85) {
+                node.vx *= 0.85;
+                node.vy *= 0.85;
+            }
             
             const rdx = node.x - centerX;
             const rdy = node.y - centerY;
@@ -460,29 +467,41 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         const dy = node.y - parentNode.y;
         const distSq = dx * dx + dy * dy;
 
-        const isRootParent = (parentNode.kind === 'category' || parentNode.kind === 'workspace');
-        // Dynamic Reach Guard: Synchronized with baseR in tickPhysics to ensure Row 0 clears the wall
-        const minReach = isRootParent 
-            ? Math.max(320, (parentNode.radius || 60) * 3.8) 
-            : (parentNode.radius || 15) + 125;
+        // Universal Authority Scaling: 400px+ massive guard
+        const minReach = Math.max(400, (parentNode.radius || 60) * 4.5);
 
-        // 1. Reach Guard: Aggressive push away if too close to the parent core
+        // 1. STABILIZED Reach Guard: Quadratic "Soft-Contact" Repulsion
         if (distSq < minReach * minReach) {
             const dist = Math.sqrt(distSq) || 1;
-            const pushFactor = isRootParent ? 0.18 : 0.14;
-            const pushForce = (minReach - dist) * pushFactor;
+            const normDist = dist / minReach;
+            
+            // Quadratic scaling: Starts at 0 at the boundary, ramps up smoothly
+            const isRootParent = (parentNode.kind === 'category' || parentNode.kind === 'workspace');
+            const forceBase = isRootParent ? 1.5 : 1.0;
+            const pushForce = Math.pow(1 - normDist, 2) * minReach * forceBase;
+            
             node.vx += (dx / dist) * pushForce;
             node.vy += (dy / dist) * pushForce;
+
+            // MICRO-DAMPING ZONE: Drain velocity near the boundary to prevent jitter
+            if (normDist > 0.90) {
+                node.vx *= 0.88;
+                node.vy *= 0.88;
+            }
         }
 
-        // 2. Proactive Away Bias: Constant peripheral pressure toward hierarchy anchor
+        // 2. Proactive Spinal Bias: Damped as it approaches the anchor
         const adx = anchor.x - node.x;
         const ady = anchor.y - node.y;
         const adistSq = adx * adx + ady * ady;
         if (adistSq > 4) {
             const adist = Math.sqrt(adistSq);
-            // Stronger bias to overcome root attraction and navigate the larger cloud volume
-            const biasForce = isRootParent ? 0.08 : 0.06;
+            const isRootParent = (parentNode.kind === 'category' || parentNode.kind === 'workspace');
+            
+            // Smoothly dampen the bias force as we reach the anchor to avoid orbit/jitter
+            const proximityDamping = Math.min(1, adist / 60);
+            const biasForce = (isRootParent ? 0.25 : 0.15) * proximityDamping;
+            
             node.vx += (adx / adist) * biasForce;
             node.vy += (ady / adist) * biasForce;
         }
@@ -1149,34 +1168,41 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                     
                     const isRootChild = parent.kind === 'category' || parent.kind === 'workspace';
                     
-                    // 1. Dynamic Spread: Widen the arc significantly for bookmarks (up to 170 deg wrap)
-                    let spread = Math.PI * 0.5; // Default ~90 deg
-                    if (isRootChild) spread = Math.PI * 0.8; // Folders attached to root cards spread more
-                    else if (node.kind === 'link') {
-                        // Bookmarks wrap almost entirely behind the parent if dense
-                        spread = Math.PI * 0.95; 
+                    // 1. Epic Needle-Focus Spread: Extremely narrow for root Cards (35-45 deg)
+                    // Folds clusters into an epic "Plume" directly opposite the core
+                    let baseSpread = isRootChild ? Math.PI * 0.22 : Math.PI * 0.35;
+                    if (!isRootChild && node.kind === 'link') baseSpread = Math.PI * 0.45;
+
+                    const rowCount = 5; 
+                    const row = index % rowCount;
+
+                    let spread = baseSpread;
+                    if (node.kind === 'link') {
+                        // Narrow widening for outer rows to preserve the spinal needle
+                        const growthFactor = isRootChild ? 0.10 : 0.15;
+                        const spreadExpansion = (row / (rowCount - 1)) * growthFactor;
+                        spread = baseSpread + spreadExpansion * Math.PI;
                     }
-                    
+
                     const offset = count > 1 ? (spread * (index / (count - 1) - 0.5)) : 0;
                     
-                    // 2. Deterministic Jitter: Breaks up rigid lines for a more organic "cloud" look
-                    const jitterVal = (node.id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) % 31) - 15;
+                    // 2. Epic Spinal Jitter (Massive depth/longitudinal variance)
+                    const jitterMag = isRootChild ? 80 : 50; 
+                    const jitterVal = (node.id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) % (jitterMag * 2 + 1)) - jitterMag;
                     
-                    // 3. Multi-Row Staggering & Extended Radius
+                    // 3. Colossal Tail Distance (1000px+ Epic Root Buffer)
                     let finalRadius = radius;
                     if (node.kind === 'link') {
-                        // Base radius for bookmarks (Synced with minReach guards + 60px buffer)
-                        const baseR = isRootChild ? (parent.radius || 60) + 320 : (parent.radius || 15) + 145;
+                        // Massive root buffer vs middle-scale folder buffer
+                        const baseR = isRootChild ? (parent.radius || 60) + 1050 : (parent.radius || 60) + 600;
+                        const rowDepth = isRootChild ? 160 : 120;
                         
-                        // Row logic (0, 1, 2) creates volumetric "depth" with spacious gaps
-                        const row = index % 3;
-                        const rowDepth = isRootChild ? 100 : 60;
-                        
-                        finalRadius = baseR + (row * rowDepth) + Math.min(60, count * 4) + jitterVal;
+                        finalRadius = baseR + (row * rowDepth) + Math.min(100, count * 3) + jitterVal;
                     } else if (node.kind === 'folder') {
-                        // Nested folders sit at a spacious distance
-                        const row = index % 2;
-                        finalRadius = (parent.radius || 15) + 45 + (row * 60) + Math.min(40, count * 4);
+                        // Folders also align to the colossal spinal frontier
+                        const fRow = index % 2;
+                        const fBaseR = isRootChild ? (parent.radius || 15) + 1000 : (parent.radius || 15) + 550;
+                        finalRadius = fBaseR + (fRow * 80) + Math.min(40, count * 4);
                     }
                     
                     state.hierarchyAnchors.set(node.id, {
