@@ -65,7 +65,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         if (coarseDX * coarseDX + coarseDY * coarseDY > 1300 * 1300) return;
 
         // Repulsive center is offset from folder toward parent
-        const offsetDist = 140; 
+        const offsetDist = 140;
         const fnx = orientX;
         const fny = orientY;
 
@@ -84,7 +84,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         const radiusLat = 1100;
         const distFromCenterToParent = distToParent - offsetDist;
-        
+
         // Stretch Front rad to encompass parent if it's a Card/Workspace
         const extraBuffer = isRootFolder ? 110 : 250;
         const radiusFront = Math.max(300, distFromCenterToParent + extraBuffer);
@@ -92,12 +92,12 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         const radiusLong = projLong > 0 ? radiusFront : radiusBack;
 
         const normDistSq = Math.pow(distLat / radiusLat, 2) + Math.pow(projLong / radiusLong, 2);
-        
+
         if (normDistSq < 1.0) {
             const normDist = Math.sqrt(normDistSq);
             // STABILIZED: Quadratic force (1-d)^2 ensures a "Soft-Contact" at the boundary
             // This prevents the "spring kick" that causes high-frequency jitter.
-            let force = 2.0 * Math.pow(1 - normDist, 2); 
+            let force = 2.0 * Math.pow(1 - normDist, 2);
             if (nodeDepth >= 2) force *= 1.4;
 
             // MICRO-DAMPING ZONE: Freeze nodes that are settling into the boundary
@@ -105,11 +105,11 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 node.vx *= 0.85;
                 node.vy *= 0.85;
             }
-            
+
             const rdx = node.x - centerX;
             const rdy = node.y - centerY;
             const rdist = Math.max(1, Math.sqrt(rdx * rdx + rdy * rdy));
-            
+
             node.vx += (rdx / rdist) * force;
             node.vy += (rdy / rdist) * force;
 
@@ -151,9 +151,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         // Teardrop radii relative to card radius
         const baseRadius = card.radius || 120; // Match renderer baseline
-        const radiusBack = baseRadius * 5.0; 
-        const radiusFront = baseRadius * 18.0; 
-        const radiusLat = baseRadius * 10.0; 
+        const radiusBack = baseRadius * 5.0;
+        const radiusFront = baseRadius * 18.0;
+        const radiusLat = baseRadius * 10.0;
 
         const radiusLong = projLong > 0 ? radiusFront : radiusBack;
         const normDistSq = Math.pow(distLat / radiusLat, 2) + Math.pow(projLong / radiusLong, 2);
@@ -164,10 +164,10 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             const nodeDepth = (node.data && typeof node.data.depth === 'number') ? node.data.depth : 0;
             let force = 1.3 * (1 - normDist);
             if (nodeDepth >= 2) force *= 1.3; // Sub-sub folders are pushed harder by cards
-            
+
             node.vx += (dx / dist) * force;
             node.vy += (dy / dist) * force;
-            
+
             // Lateral shunt
             const sideDot = (dx * latX + dy * latY) > 0 ? 1 : -1;
             node.vx += latX * sideDot * (force * 0.9);
@@ -451,10 +451,10 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         const dx = anchor.x - node.x;
         const dy = anchor.y - node.y;
         const dist = Math.sqrt((dx * dx) + (dy * dy));
-        
+
         // SINGULARITY RECOVERY: No 110px deadzone. Pull folders to their heart instantly.
         if (!Number.isFinite(dist) || dist <= 1) return;
-        
+
         const recoveryScale = (Number(motionProfile?.folderRecoveryScale) || 1) * getMotionTuningValue('folderRecovery');
         // High-stiffness recovery: Using full distance instead of (dist - 110)
         const recovery = Math.min(0.08, dist * 0.00015 * recoveryScale);
@@ -476,18 +476,18 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         // Dynamic Scaling: Core-Fusion for roots, Dynamic Reach for sub-folders
         const isRootParent = (parentNode.kind === 'category' || parentNode.kind === 'workspace');
         const frontierReach = getMotionTuningValue('frontierReach');
-        const minReach = isRootParent ? 5 : (frontierReach * 0.7); 
+        const minReach = isRootParent ? 5 : (frontierReach * 0.7);
 
         // 1. STABILIZED Reach Guard: Quadratic "Soft-Contact" Repulsion
         if (distSq < minReach * minReach) {
             const dist = Math.sqrt(distSq) || 1;
             const normDist = dist / minReach;
-            
+
             // Quadratic scaling: Starts at 0 at the boundary, ramps up smoothly
             const isRootParent = (parentNode.kind === 'category' || parentNode.kind === 'workspace');
             const forceBase = isRootParent ? 1.5 : 1.0;
             const pushForce = Math.pow(1 - normDist, 2) * minReach * forceBase;
-            
+
             node.vx += (dx / dist) * pushForce;
             node.vy += (dy / dist) * pushForce;
 
@@ -505,15 +505,15 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         if (adistSq > 1) {
             const adist = Math.sqrt(adistSq);
             const isRootParent = (parentNode.kind === 'category' || parentNode.kind === 'workspace');
-            
+
             // BLACK HOLE GLUE: High-Stiffness anchoring for zero-latency tracking
             const proximityDamping = Math.min(1, adist / 50);
             const biasForce = (isRootParent ? 2.5 : 0.22) * proximityDamping;
-            
+
             // 1. Proportional Acceleration (Spring)
             node.vx += (adx / adist) * biasForce;
             node.vy += (ady / adist) * biasForce;
-            
+
             // 2. High-Tension "Glue" (Stiffness coefficient)
             if (isRootParent) {
                 node.vx += adx * 0.15;
@@ -1101,9 +1101,11 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 parent.vy += ny * drift;
             });
 
+            state.chainRoots = state.chainRoots || new Map();
+            state.folderOrientations = state.folderOrientations || new Map();
             const chainRoots = state.chainRoots;
             const folderOrientations = state.folderOrientations; // PERSISTED: For global angular smoothing
-            
+
             // PRE-PASS: Maintain/Prune state.chainRoots and folderOrientations for active nodes
             const activeNodeIds = new Set(state.nodes.map(n => n.id));
             const activeChains = new Set(state.nodes.map(n => n.chainId).filter(Boolean));
@@ -1113,8 +1115,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             state.nodes.forEach(n => {
                 if (n && (n.kind === 'category' || n.kind === 'workspace') && n.chainId) {
                     if (!chainRoots.has(n.chainId)) {
-                        chainRoots.set(n.chainId, { 
-                            node: n, sumX: 0, sumY: 0, count: 0, frontX: 0, frontY: -1 
+                        chainRoots.set(n.chainId, {
+                            node: n, sumX: 0, sumY: 0, count: 0, frontX: 0, frontY: -1
                         });
                     } else {
                         const data = chainRoots.get(n.chainId);
@@ -1122,37 +1124,37 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                         data.sumX = 0; data.sumY = 0; data.count = 0;
                     }
                 }
-                
+
                 const pId = (n.data && n.data.anchorNodeId) ? n.data.anchorNodeId : '';
                 const pNode = pId ? state.nodeIndex.get(pId) : null;
-                
+
                 if (n.kind === 'folder' && pNode) {
                     const fdx = pNode.x - n.x;
                     const fdy = pNode.y - n.y;
                     const fdist = Math.max(1, Math.sqrt(fdx * fdx + fdy * fdy));
                     const isRoot = (pNode.kind === 'category' || pNode.kind === 'workspace');
-                    
+
                     // GLOBAL SPINAL INERTIA: Folder-to-Parent orientation vector is now smoothed (Inertia)
                     const targetAngle = Math.atan2(fdy, fdx);
                     const existing = folderOrientations.get(n.id);
                     const currentAngle = (existing && existing.orientAngle !== undefined) ? existing.orientAngle : targetAngle;
-                    
+
                     const lerpAngle = (current, target) => {
                         let diff = target - current;
                         while (diff < -Math.PI) diff += Math.PI * 2;
                         while (diff > Math.PI) diff -= Math.PI * 2;
                         return current + diff * 0.08; // The Universal Neural Lock (Inertia)
                     };
-                    
+
                     const smoothedAngle = lerpAngle(currentAngle, targetAngle);
                     const nx = Math.cos(smoothedAngle);
                     const ny = Math.sin(smoothedAngle);
-                    
-                    folderOrientations.set(n.id, { 
-                        node: n, 
-                        parent: pNode, 
-                        nx: nx, 
-                        ny: ny, 
+
+                    folderOrientations.set(n.id, {
+                        node: n,
+                        parent: pNode,
+                        nx: nx,
+                        ny: ny,
                         dist: fdist,
                         isRoot: isRoot,
                         orientAngle: smoothedAngle // Persistent memory
@@ -1177,7 +1179,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                     const dx = data.node.x - avgX;
                     const dy = data.node.y - avgY;
                     const dist = Math.sqrt(dx * dx + dy * dy);
-                    
+
                     // ABSOLUTE CENTROID GUARD: Increased deadzone (30px) to prevent sensitivity in multi-chains.
                     // This creates a "Supermassive Core" that resists accidental spinning.
                     if (dist > 30) {
@@ -1231,9 +1233,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                     });
                     const index = siblings.indexOf(node);
                     const count = siblings.length;
-                    
+
                     const isRootChild = parent.kind === 'category' || parent.kind === 'workspace';
-                    
+
                     // UNIVERSAL RADIAL LOCK (Neural Orbiting)
                     // Every hierarchy node tracks its parent with a synchronized 0.08 elegant lag.
                     // This creates a smooth, rigid spine that doesn't oscillate or spin.
@@ -1241,8 +1243,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                         let diff = target - current;
                         while (diff < -Math.PI) diff += Math.PI * 2;
                         while (diff > Math.PI) diff -= Math.PI * 2;
-                        const factor = 0.08; 
-                        return current + diff * factor; 
+                        const factor = 0.08;
+                        return current + diff * factor;
                     };
                     node.spinalAngle = lerpAngle(node.spinalAngle || baseAngle, baseAngle);
 
@@ -1250,7 +1252,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                     let baseSpread = isRootChild ? Math.PI * 0.22 : Math.PI * 0.35;
                     if (!isRootChild && node.kind === 'link') baseSpread = Math.PI * 0.45;
 
-                    const rowCount = 5; 
+                    const rowCount = 5;
                     const row = index % rowCount;
 
                     let spread = baseSpread;
@@ -1261,11 +1263,11 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                     }
 
                     const offset = count > 1 ? (spread * (index / (count - 1) - 0.5)) : 0;
-                    
+
                     // 3. Spinal Jitter (Optimized for Black Hole density)
-                    const jitterMag = isRootChild ? 10 : 60; 
+                    const jitterMag = isRootChild ? 10 : 60;
                     const jitterVal = (node.id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) % (jitterMag * 2 + 1)) - jitterMag;
-                    
+
                     // 4. Black Hole Tail Distance (Inverse-Mass Core Fusion)
                     let finalRadius = radius;
                     if (node.kind === 'link') {
@@ -1276,20 +1278,20 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                         const baseR = isRootChild ? 60 + rootBase - popPull : (parent.radius || 15) + frontierReach;
                         const rowDepth = isRootChild ? 10 : 100;
                         const popPush = isRootChild ? 0 : Math.min(60, count * 3);
-                        
+
                         finalRadius = baseR + (row * rowDepth) + popPush + jitterVal;
                     } else if (node.kind === 'folder') {
                         // Folders also follow the mass-inversion rule
                         const fRow = index % 2;
                         const fPopPull = isRootChild ? Math.min(45, count * 0.10) : 0;
                         // Folders sit in the far outer aura (0.80 reach) to avoid overcrowding the Card
-                        const frootBase = frontierReach * 0.80; 
+                        const frootBase = frontierReach * 0.80;
                         const fBaseR = isRootChild ? 60 + frootBase - fPopPull : (parent.radius || 15) + (frontierReach - 60);
                         const fRowDepth = isRootChild ? 10 : 50;
                         const fPopPush = isRootChild ? 0 : Math.min(30, count * 4);
                         finalRadius = fBaseR + (fRow * fRowDepth) + fPopPush;
                     }
-                    
+
                     state.hierarchyAnchors.set(node.id, {
                         x: parent.x + Math.cos(node.spinalAngle + offset) * finalRadius,
                         y: parent.y + Math.sin(node.spinalAngle + offset) * finalRadius
@@ -1301,10 +1303,10 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 if (!node || !node.chainId || isNodeStatic(node)) return;
                 const rootData = chainRoots.get(node.chainId);
                 if (!rootData) return;
-                
+
                 const root = rootData.node;
                 if (root === node) return;
-                
+
                 if (state.pointer.mode === 'node' && state.pointer.node?.id === node.id) return;
 
                 const nodeDepth = (node.data && typeof node.data.depth === 'number') ? node.data.depth : 0;
