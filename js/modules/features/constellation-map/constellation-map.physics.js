@@ -1107,16 +1107,18 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             const folderOrientations = state.folderOrientations; // PERSISTED: For global angular smoothing
 
             // PRE-PASS: Maintain/Prune state.chainRoots and folderOrientations for active nodes
+            // 1. PRE-PASS: Core Identity & Root Initialization
             const activeNodeIds = new Set(state.nodes.map(n => n.id));
             const activeChains = new Set(state.nodes.map(n => n.chainId).filter(Boolean));
             [...chainRoots.keys()].forEach(cid => { if (!activeChains.has(cid)) chainRoots.delete(cid); });
             [...folderOrientations.keys()].forEach(id => { if (!activeNodeIds.has(id)) folderOrientations.delete(id); });
 
+            // 2. PASS A: Initialize Chain Roots & Gather Orientation Data
             state.nodes.forEach(n => {
                 if (n && (n.kind === 'category' || n.kind === 'workspace') && n.chainId) {
                     if (!chainRoots.has(n.chainId)) {
                         chainRoots.set(n.chainId, {
-                            node: n, sumX: 0, sumY: 0, count: 0, frontX: 0, frontY: -1
+                            node: n, sumX: 0, sumY: 0, count: 0, frontX: 0, frontY: -1, frontAngle: -Math.PI / 2
                         });
                     } else {
                         const data = chainRoots.get(n.chainId);
@@ -1129,37 +1131,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 const pNode = pId ? state.nodeIndex.get(pId) : null;
 
                 if (n.kind === 'folder' && pNode) {
-                    const fdx = pNode.x - n.x;
-                    const fdy = pNode.y - n.y;
-                    const fdist = Math.max(1, Math.sqrt(fdx * fdx + fdy * fdy));
                     const isRoot = (pNode.kind === 'category' || pNode.kind === 'workspace');
-
-                    // GLOBAL SPINAL INERTIA: Folder-to-Parent orientation vector is now smoothed (Inertia)
-                    const targetAngle = Math.atan2(fdy, fdx);
-                    const existing = folderOrientations.get(n.id);
-                    const currentAngle = (existing && existing.orientAngle !== undefined) ? existing.orientAngle : targetAngle;
-
-                    const lerpAngle = (current, target) => {
-                        let diff = target - current;
-                        while (diff < -Math.PI) diff += Math.PI * 2;
-                        while (diff > Math.PI) diff -= Math.PI * 2;
-                        return current + diff * 0.08; // The Universal Neural Lock (Inertia)
-                    };
-
-                    const smoothedAngle = lerpAngle(currentAngle, targetAngle);
-                    const nx = Math.cos(smoothedAngle);
-                    const ny = Math.sin(smoothedAngle);
-
-                    folderOrientations.set(n.id, {
-                        node: n,
-                        parent: pNode,
-                        nx: nx,
-                        ny: ny,
-                        dist: fdist,
-                        isRoot: isRoot,
-                        orientAngle: smoothedAngle // Persistent memory
-                    });
-
                     if (isRoot) {
                         const rootData = chainRoots.get(pNode.chainId);
                         if (rootData) {
@@ -1171,7 +1143,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 }
             });
 
-            // Finalize card front vectors (ABSOLUTE SPINAL INERTIA: Extreme Damping)
+            // 3. PASS B: Finalize Card Core Front Vectors (ABSOLUTE SPINAL INERTIA)
             chainRoots.forEach(data => {
                 if (data.count > 0) {
                     const avgX = data.sumX / data.count;
@@ -1180,20 +1152,61 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                     const dy = data.node.y - avgY;
                     const dist = Math.sqrt(dx * dx + dy * dy);
 
-                    // ABSOLUTE CENTROID GUARD: Increased deadzone (30px) to prevent sensitivity in multi-chains.
-                    // This creates a "Supermassive Core" that resists accidental spinning.
+                    // ABSOLUTE CENTROID GUARD: Increased deadzone (30px) to prevent sensitivity.
+                    // Only update orientation if the galaxy is actually being "dragged" or has shifted.
                     if (dist > 30) {
                         const targetAngle = Math.atan2(dy, dx);
                         const lerpAngle = (current, target) => {
                             let diff = target - current;
                             while (diff < -Math.PI) diff += Math.PI * 2;
                             while (diff > Math.PI) diff -= Math.PI * 2;
-                            return current + diff * 0.005; // Absolute Inertia (0.005) - Supermassive pivot
+                            return current + diff * 0.35; // Directional Wake (0.35 Snappy)
                         };
                         data.frontAngle = lerpAngle(data.frontAngle === undefined ? targetAngle : data.frontAngle, targetAngle);
-                        data.frontX = Math.cos(data.frontAngle);
-                        data.frontY = Math.sin(data.frontAngle);
                     }
+                    data.frontX = Math.cos(data.frontAngle || 0);
+                    data.frontY = Math.sin(data.frontAngle || 0);
+                }
+            });
+
+            // 4. PASS C: Folder Orientations (SPINAL INHERITANCE)
+            state.nodes.forEach(n => {
+                const pId = (n.data && n.data.anchorNodeId) ? n.data.anchorNodeId : '';
+                const pNode = pId ? state.nodeIndex.get(pId) : null;
+
+                if (n.kind === 'folder' && pNode) {
+                    const isRoot = (pNode.kind === 'category' || pNode.kind === 'workspace');
+                    let targetAngle;
+
+                    if (isRoot) {
+                        // SPINAL INHERITANCE: Root folders adopt the parent card's laser-aligned front vector.
+                        const rootData = chainRoots.get(pNode.chainId);
+                        targetAngle = (rootData && rootData.frontAngle !== undefined) ? rootData.frontAngle : Math.atan2(pNode.y - n.y, pNode.x - n.x);
+                    } else {
+                        // Regular inheritance: Normal physics-driven smoothing
+                        targetAngle = Math.atan2(pNode.y - n.y, pNode.x - n.x);
+                    }
+
+                    const existing = folderOrientations.get(n.id);
+                    const currentAngle = (existing && existing.orientAngle !== undefined) ? existing.orientAngle : targetAngle;
+
+                    const lerpAngle = (current, target) => {
+                        let diff = target - current;
+                        while (diff < -Math.PI) diff += Math.PI * 2;
+                        while (diff > Math.PI) diff -= Math.PI * 2;
+                        return current + diff * 0.08; // The Universal Neural Lock (Inertia)
+                    };
+
+                    const smoothedAngle = lerpAngle(currentAngle, targetAngle);
+                    folderOrientations.set(n.id, {
+                        node: n,
+                        parent: pNode,
+                        nx: Math.cos(smoothedAngle),
+                        ny: Math.sin(smoothedAngle),
+                        dist: Math.sqrt((pNode.x - n.x) ** 2 + (pNode.y - n.y) ** 2),
+                        isRoot: isRoot,
+                        orientAngle: smoothedAngle
+                    });
                 }
             });
 
