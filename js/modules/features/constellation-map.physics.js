@@ -51,9 +51,12 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     function applyFolderAura(node, folder, orientX, orientY, distToParent, isRootFolder) {
         if (!node || !folder) return;
 
-        // Don't repel immediate connected children (unless root authority applies)
+        const nodeDepth = (node.data && typeof node.data.depth === 'number') ? node.data.depth : 0;
+
+        // Don't repel immediate connected children (unless root authority applies or deep hierarchy)
         const isImmediateChild = (node.data && node.data.anchorNodeId === folder.id);
-        if (isImmediateChild && !isRootFolder) return;
+        // Allow bookmarks to be repelled even if immediate children, but skip for other low-depth children
+        if (isImmediateChild && !isRootFolder && nodeDepth < 2 && node.kind !== 'link') return;
         if (node.id === folder.id) return;
 
         // PERFORMANCE: Coarse distance check
@@ -93,7 +96,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         if (normDistSq < 1.0) {
             const normDist = Math.sqrt(normDistSq);
             // HARDENED: Linear force (1-d) instead of quadratic (1-d)^2 ensures strong push at the ring edge
-            const force = 1.5 * (1 - normDist); 
+            let force = 1.5 * (1 - normDist); 
+            if (nodeDepth >= 2) force *= 1.4; // Stronger push for sub-sub hierarchy
             
             const rdx = node.x - centerX;
             const rdy = node.y - centerY;
@@ -148,7 +152,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         if (normDistSq < 1.0) {
             const normDist = Math.sqrt(normDistSq);
             // HARDENED: Linear force and significantly higher coefficient
-            const force = 1.3 * (1 - normDist);
+            const nodeDepth = (node.data && typeof node.data.depth === 'number') ? node.data.depth : 0;
+            let force = 1.3 * (1 - normDist);
+            if (nodeDepth >= 2) force *= 1.3; // Sub-sub folders are pushed harder by cards
             
             node.vx += (dx / dist) * force;
             node.vy += (dy / dist) * force;
@@ -312,21 +318,13 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         let baseFactor = 1;
 
         if (targetKind === 'folder') {
-
-            baseFactor = sourceKind === 'link' ? 0.32 : (sourceKind === 'folder' ? 0.18 : 0.48);
-
+            baseFactor = sourceKind === 'link' ? 0.08 : (sourceKind === 'folder' ? 0.12 : 0.48);
         } else if (targetKind === 'link') {
-
             baseFactor = 0.28;
-
         } else if (targetKind === 'category') {
-
-            baseFactor = sourceKind === 'folder' ? 0.34 : 0.18;
-
+            baseFactor = sourceKind === 'folder' ? 0.06 : 0.04;
         } else if (targetKind === 'workspace') {
-
-            baseFactor = 0.22;
-
+            baseFactor = 0.02;
         }
 
         return Math.max(0, baseFactor * (motionProfile?.hierarchyReactionScale || 1) * getMotionTuningValue('hierarchy'));
@@ -336,15 +334,24 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     function getPairwiseInfluenceScale(targetNode, sourceNode, motionProfile) {
 
         const targetKind = text(targetNode?.kind, '');
-
         const sourceKind = text(sourceNode?.kind, '');
 
-        if (targetKind === 'folder' && sourceKind === 'folder') return 0.4;
-
-        if (targetKind === 'link' || sourceKind === 'link') return 0.5;
+        const targetDepth = (targetNode?.data && typeof targetNode.data.depth === 'number') ? targetNode.data.depth : (targetKind === 'link' ? 3 : 0);
+        const sourceDepth = (sourceNode?.data && typeof sourceNode.data.depth === 'number') ? sourceNode.data.depth : (sourceKind === 'link' ? 3 : 0);
 
         const isMainTarget = targetKind === 'workspace' || targetKind === 'category';
         const isMainSource = sourceKind === 'workspace' || sourceKind === 'category';
+
+        // ASYMMETRIC AUTHORITY: Higher levels are harder to push
+        if (isMainTarget && !isMainSource) return 0.04; // Main nodes (Cards) are nearly immovable by folders/links
+        if (targetDepth < sourceDepth) {
+            const gap = sourceDepth - targetDepth;
+            return Math.max(0.02, 0.12 / gap); // Hierarchy authority
+        }
+
+        // Default pairwise scales
+        if (targetKind === 'folder' && sourceKind === 'folder') return 0.4;
+        if (targetKind === 'link' || sourceKind === 'link') return 0.5;
 
         if ((isMainTarget && sourceKind === 'folder') || (targetKind === 'folder' && isMainSource)) {
             return 0.5;
@@ -353,35 +360,23 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         if (motionProfile?.mode !== 'web') return 1;
 
         if (targetKind === 'workspace') {
-
-            if (sourceKind === 'link') return 0.03;
-
-            if (sourceKind === 'folder') return 0.06;
-
+            if (sourceKind === 'link') return 0.02;
+            if (sourceKind === 'folder') return 0.05;
             if (sourceKind === 'category') return 0.16;
-
         }
 
         if (targetKind === 'category') {
-
-            if (sourceKind === 'link') return 0.08;
-
-            if (sourceKind === 'folder') return 0.14;
-
+            if (sourceKind === 'link') return 0.04;
+            if (sourceKind === 'folder') return 0.12;
             if (sourceKind === 'workspace') return 0.24;
-
         }
 
         if (targetKind === 'folder') {
-
             if (sourceKind === 'link') return 0.22;
-
             if (sourceKind === 'category') return 0.48;
-
         }
 
         return 1;
-
     }
 
 
@@ -443,25 +438,54 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
 
     function applyFolderRecovery(node, anchor, motionProfile) {
-
         if (!node || node.kind !== 'folder' || !anchor) return;
-
         const dx = anchor.x - node.x;
-
         const dy = anchor.y - node.y;
-
         const dist = Math.sqrt((dx * dx) + (dy * dy));
-
         if (!Number.isFinite(dist) || dist <= 110) return;
-
         const recoveryScale = (Number(motionProfile?.folderRecoveryScale) || 1) * getMotionTuningValue('folderRecovery');
-
         const recovery = Math.min(0.03, (dist - 110) * 0.00012 * recoveryScale);
-
         node.vx += dx * recovery;
-
         node.vy += dy * recovery;
+    }
 
+    /**
+     * Proactive bias for bookmarks to stay away from their parent's protected zones.
+     * Applies a longitudinal push and a "Reach Guard" to maintain peripheral positioning.
+     */
+    function applyBookmarkAwayBias(node, parentNode, anchor, motionProfile) {
+        if (!node || node.kind !== 'link' || !parentNode || !anchor) return;
+
+        const dx = node.x - parentNode.x;
+        const dy = node.y - parentNode.y;
+        const distSq = dx * dx + dy * dy;
+
+        const isRootParent = (parentNode.kind === 'category' || parentNode.kind === 'workspace');
+        // Dynamic Reach Guard: Synchronized with baseR in tickPhysics to ensure Row 0 clears the wall
+        const minReach = isRootParent 
+            ? Math.max(320, (parentNode.radius || 60) * 3.8) 
+            : (parentNode.radius || 15) + 125;
+
+        // 1. Reach Guard: Aggressive push away if too close to the parent core
+        if (distSq < minReach * minReach) {
+            const dist = Math.sqrt(distSq) || 1;
+            const pushFactor = isRootParent ? 0.18 : 0.14;
+            const pushForce = (minReach - dist) * pushFactor;
+            node.vx += (dx / dist) * pushForce;
+            node.vy += (dy / dist) * pushForce;
+        }
+
+        // 2. Proactive Away Bias: Constant peripheral pressure toward hierarchy anchor
+        const adx = anchor.x - node.x;
+        const ady = anchor.y - node.y;
+        const adistSq = adx * adx + ady * ady;
+        if (adistSq > 4) {
+            const adist = Math.sqrt(adistSq);
+            // Stronger bias to overcome root attraction and navigate the larger cloud volume
+            const biasForce = isRootParent ? 0.08 : 0.06;
+            node.vx += (adx / adist) * biasForce;
+            node.vy += (ady / adist) * biasForce;
+        }
     }
 
 
@@ -1028,8 +1052,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             });
 
             const chainRoots = new Map();
-            const rootFolders = new Map();
-            const folderToRoot = new Map();
+            const folderOrientations = new Map(); // Every folder: { nx, ny, distToParent, isRoot }
 
             state.nodes.forEach(n => {
                 if (n && (n.kind === 'category' || n.kind === 'workspace') && n.chainId) {
@@ -1046,29 +1069,22 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 const pId = (n.data && n.data.anchorNodeId) ? n.data.anchorNodeId : '';
                 const pNode = pId ? state.nodeIndex.get(pId) : null;
                 
-                if (n.kind === 'folder') {
-                    // Pre-calc root ancestor for this folder tree
-                    let curr = n;
-                    let safety = 0;
-                    while (safety < 15) {
-                        const cpId = (curr.data && curr.data.anchorNodeId) ? curr.data.anchorNodeId : '';
-                        const cpNode = cpId ? state.nodeIndex.get(cpId) : null;
-                        if (!cpNode) break;
-                        if (cpNode.kind === 'category' || cpNode.kind === 'workspace') {
-                            folderToRoot.set(n.id, curr.id);
-                            break;
-                        }
-                        if (cpNode.kind !== 'folder') break;
-                        curr = cpNode;
-                        safety++;
-                    }
+                if (n.kind === 'folder' && pNode) {
+                    const fdx = pNode.x - n.x;
+                    const fdy = pNode.y - n.y;
+                    const fdist = Math.max(1, Math.sqrt(fdx * fdx + fdy * fdy));
+                    const isRoot = (pNode.kind === 'category' || pNode.kind === 'workspace');
+                    
+                    folderOrientations.set(n.id, { 
+                        node: n, 
+                        parent: pNode, 
+                        nx: fdx / fdist, 
+                        ny: fdy / fdist, 
+                        dist: fdist,
+                        isRoot: isRoot
+                    });
 
-                    if (pNode && (pNode.kind === 'category' || pNode.kind === 'workspace')) {
-                        const fdx = pNode.x - n.x;
-                        const fdy = pNode.y - n.y;
-                        const fdist = Math.max(1, Math.sqrt(fdx * fdx + fdy * fdy));
-                        rootFolders.set(n.id, { node: n, root: pNode, nxToRoot: fdx / fdist, nyToRoot: fdy / fdist, distToRoot: fdist });
-                        
+                    if (isRoot) {
                         const rootData = chainRoots.get(pNode.chainId);
                         if (rootData) {
                             rootData.sumX += n.x;
@@ -1091,6 +1107,82 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                         data.frontX = dx / dist;
                         data.frontY = dy / dist;
                     }
+                }
+            });
+
+            // 4. Optimal Hierarchy Anchors (Link placement)
+            // Position child nodes on the "back" of parent folders relative to their parent
+            state.hierarchyAnchors = new Map();
+            state.nodes.forEach((node) => {
+                if (!node || !node.data) return;
+                const parentId = text(node.data.anchorNodeId, '');
+                if (!parentId) return;
+                const parent = state.nodeIndex.get(parentId);
+                if (!parent) return;
+
+                let baseAngle = 0;
+                let radius = 0;
+                let foundBase = false;
+
+                const parentOrient = folderOrientations.get(parent.id);
+                if (parentOrient) {
+                    baseAngle = Math.atan2(-parentOrient.ny, -parentOrient.nx);
+                    radius = (parent.radius || 15) + 12;
+                    foundBase = true;
+                } else if (parent.kind === 'category' || parent.kind === 'workspace') {
+                    const rootData = chainRoots.get(parent.chainId);
+                    if (rootData && (rootData.frontX !== 0 || rootData.frontY !== 0)) {
+                        baseAngle = Math.atan2(-rootData.frontY, -rootData.frontX);
+                        radius = (parent.radius || 60) + 40; // Larger gap for cards
+                        foundBase = true;
+                    }
+                }
+
+                if (foundBase) {
+                    const siblings = (parentChildren.get(parentId) || []).slice().sort((a, b) => {
+                        const labelA = a.label || '';
+                        const labelB = b.label || '';
+                        return labelA.localeCompare(labelB) || a.id.localeCompare(b.id);
+                    });
+                    const index = siblings.indexOf(node);
+                    const count = siblings.length;
+                    
+                    const isRootChild = parent.kind === 'category' || parent.kind === 'workspace';
+                    
+                    // 1. Dynamic Spread: Widen the arc significantly for bookmarks (up to 170 deg wrap)
+                    let spread = Math.PI * 0.5; // Default ~90 deg
+                    if (isRootChild) spread = Math.PI * 0.8; // Folders attached to root cards spread more
+                    else if (node.kind === 'link') {
+                        // Bookmarks wrap almost entirely behind the parent if dense
+                        spread = Math.PI * 0.95; 
+                    }
+                    
+                    const offset = count > 1 ? (spread * (index / (count - 1) - 0.5)) : 0;
+                    
+                    // 2. Deterministic Jitter: Breaks up rigid lines for a more organic "cloud" look
+                    const jitterVal = (node.id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) % 31) - 15;
+                    
+                    // 3. Multi-Row Staggering & Extended Radius
+                    let finalRadius = radius;
+                    if (node.kind === 'link') {
+                        // Base radius for bookmarks (Synced with minReach guards + 60px buffer)
+                        const baseR = isRootChild ? (parent.radius || 60) + 320 : (parent.radius || 15) + 145;
+                        
+                        // Row logic (0, 1, 2) creates volumetric "depth" with spacious gaps
+                        const row = index % 3;
+                        const rowDepth = isRootChild ? 100 : 60;
+                        
+                        finalRadius = baseR + (row * rowDepth) + Math.min(60, count * 4) + jitterVal;
+                    } else if (node.kind === 'folder') {
+                        // Nested folders sit at a spacious distance
+                        const row = index % 2;
+                        finalRadius = (parent.radius || 15) + 45 + (row * 60) + Math.min(40, count * 4);
+                    }
+                    
+                    state.hierarchyAnchors.set(node.id, {
+                        x: parent.x + Math.cos(baseAngle + offset) * finalRadius,
+                        y: parent.y + Math.sin(baseAngle + offset) * finalRadius
+                    });
                 }
             });
 
@@ -1117,46 +1209,26 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 const parentNode = parentId ? state.nodeIndex.get(parentId) : null;
                 let directionalBoost = 1.0;
 
-                if (parentNode) {
-                    const pdx = parentNode.x - root.x;
-                    const pdy = parentNode.y - root.y;
-                    const pdist = Math.sqrt(pdx * pdx + pdy * pdy);
-                    if (dist < pdist) {
-                        directionalBoost = 3.0;
-                    }
-
                 // 1. Universal Folder Aura Repulsion
-                // Every folder aligns its teardrop with its top-level root folder
-                if (parentNode && parentNode.kind === 'folder') {
-                    const rId = folderToRoot.get(parentNode.id);
-                    const rData = rId ? rootFolders.get(rId) : null;
-                    if (rData) {
-                        applyFolderAura(node, parentNode, rData.nxToRoot, rData.nyToRoot, rData.distToRoot, false);
-                    } else {
-                        // Fallback to local orientation if root not found (unlikely)
-                        const fdx = parentNode.x - node.x; // Very rough
-                        applyFolderAura(node, parentNode, 0, -1, 300, false);
+                // Every folder exerts its teardrop aura on its descendants
+                if (parentNode) {
+                    let currentParent = parentNode;
+                    let safety = 0;
+                    while (currentParent && safety < 10) {
+                        if (currentParent.kind === 'folder') {
+                            const orient = folderOrientations.get(currentParent.id);
+                            if (orient) {
+                                applyFolderAura(node, currentParent, orient.nx, orient.ny, orient.dist, orient.isRoot);
+                            }
+                        }
+                        const nextId = (currentParent.data && currentParent.data.anchorNodeId) ? currentParent.data.anchorNodeId : '';
+                        currentParent = nextId ? state.nodeIndex.get(nextId) : null;
+                        safety++;
                     }
                 }
 
-                // 2. Root Folder Authority
-                // Root folders (children of Category/Workspace) get absolute space priority
-                const rootFolderData = rootFolders.get(parentId) || rootFolders.get(node.id);
-                if (rootFolderData && rootFolderData.node !== node) {
-                    applyFolderAura(node, rootFolderData.node, rootFolderData.nxToRoot, rootFolderData.nyToRoot, rootFolderData.distToRoot, true);
-                }
-
-                // 3. Asymmetric Card Aura Repulsion
+                // 2. Asymmetric Card Aura Repulsion (Main root level)
                 applyCardAuraRepulsion(node, root, rootData);
-            }
-
-            const isLink = node.kind === 'link';
-                const basePush = isLink ? 0.02 : 0.05;
-                const gap = nodeDepth - (root.data?.depth || -2);
-                const push = basePush * gap * directionalBoost;
-
-                node.vx += nx * push;
-                node.vy += ny * push;
             });
         }
 
@@ -1185,14 +1257,18 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             }
 
             const anchor = getMotionTargetAnchor(node, getNodeAnchor(node), motionProfile);
-
             const anchorPull = getDynamicAnchorPull(node, centerPull, motionProfile);
 
             node.vx += (anchor.x - node.x) * anchorPull;
-
             node.vy += (anchor.y - node.y) * anchorPull;
 
-            applyFolderRecovery(node, anchor, motionProfile);
+            if (node.kind === 'folder') {
+                applyFolderRecovery(node, anchor, motionProfile);
+            } else if (node.kind === 'link') {
+                const pId = (node.data && node.data.anchorNodeId) ? node.data.anchorNodeId : '';
+                const pNode = pId ? state.nodeIndex.get(pId) : null;
+                applyBookmarkAwayBias(node, pNode, anchor, motionProfile);
+            }
 
             const velocityDamping = getDynamicVelocityDamping(node, motionProfile);
 

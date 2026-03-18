@@ -179,8 +179,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         chainHierarchyEnabled: true,
 
         bookmarkHierarchyEnabled: true,
-        showPhysicsAuras: false
-
+        showPhysicsAuras: false,
+        hierarchyAnchors: new Map()
     };
 
     const MAP_PADDING = 48;
