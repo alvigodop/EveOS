@@ -1152,6 +1152,10 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 const node = data.node;
                 const isBeingDragged = state.pointer.mode === 'node' && state.pointer.node?.id === node.id;
                 
+                // Initialize position tracking if missing
+                if (node.lastX === undefined) node.lastX = node.x;
+                if (node.lastY === undefined) node.lastY = node.y;
+
                 if (data.count > 0) {
                     const avgX = data.sumX / data.count;
                     const avgY = data.sumY / data.count;
@@ -1164,13 +1168,14 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
                     if (isBeingDragged) {
                         // Calculate movement vector (Directional Wake)
-                        const moveX = node.x - (node.lastX !== undefined ? node.lastX : node.x);
-                        const moveY = node.y - (node.lastY !== undefined ? node.lastY : node.y);
+                        const moveX = node.x - node.lastX;
+                        const moveY = node.y - node.lastY;
                         const moveDistSq = moveX * moveX + moveY * moveY;
 
-                        if (moveDistSq > 1) {
+                        if (moveDistSq > 0.1) {
                             // DIRECTIONAL WAKE: Face movement direction during drag (trailing effect)
-                            targetAngle = Math.atan2(-moveY, -moveX);
+                            // Use the actual movement vector to set the "front"
+                            targetAngle = Math.atan2(moveY, moveX);
                             lerpFactor = 0.15; // Snappy Inertia during drag
                         }
                     } else if (centroidDist > 30) {
