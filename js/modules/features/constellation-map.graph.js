@@ -186,7 +186,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
 
 
-        function addLinkNode(workspaceId, categoryName, parentNode, link, index, total, radius) {
+        function addLinkNode(workspaceId, categoryName, parentNode, link, index, total, radius, depth) {
 
             const position = placeOnRing(index, Math.max(total, 1), radius, parentNode.x, parentNode.y, 6);
 
@@ -220,7 +220,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
                     url: text(link?.url, ''),
 
-                    anchorNodeId: parentNode?.id || ''
+                    anchorNodeId: parentNode?.id || '',
+
+                    depth: typeof depth === 'number' ? depth : 0
 
                 }
 
@@ -260,7 +262,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             const directLinks = viewModel.folderLinks.get(String(folderNodeModel.id)) || [];
             directLinks.forEach((link, linkIndex) => {
-                addLinkNode(workspaceId, categoryName, folderNode, link, linkIndex, directLinks.length, Math.max(40, radius - 20));
+                addLinkNode(workspaceId, categoryName, folderNode, link, linkIndex, directLinks.length, Math.max(40, radius - 20), depth + 1);
             });
 
             const childFolders = viewModel.childrenMap.get(String(folderNodeModel.id)) || [];
@@ -309,7 +311,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
                     coverCandidates: buildCoverCandidates(categoryLinks),
 
-                    anchorNodeId: parentNode?.id || ''
+                    anchorNodeId: parentNode?.id || '',
+
+                    depth: -1
 
                 }
 
@@ -375,7 +379,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
                         workspaceId,
 
-                        coverCandidates: buildCoverCandidates(workspaceLinks)
+                        coverCandidates: buildCoverCandidates(workspaceLinks),
+
+                        depth: -2
 
                     }
 

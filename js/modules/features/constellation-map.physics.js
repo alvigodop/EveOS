@@ -38,6 +38,135 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         return false;
     }
 
+    /**
+     * Applies a territorial "Teardrop" repulsion for folder nodes.
+     * All folders exert a wide 1100px corridor.
+     * @param {Object} node - The node being repelled (victim)
+     * @param {Object} folder - The folder anchor (source)
+     * @param {Object} orientX - Longitudinal X component (Folder -> Parent)
+     * @param {Object} orientY - Longitudinal Y component (Folder -> Parent)
+     * @param {Object} distToParent - Reference distance to parent for reach
+     * @param {Boolean} isRootFolder - Whether this folder is a top-level root
+     */
+    function applyFolderAura(node, folder, orientX, orientY, distToParent, isRootFolder) {
+        if (!node || !folder) return;
+
+        // Don't repel immediate connected children (unless root authority applies)
+        const isImmediateChild = (node.data && node.data.anchorNodeId === folder.id);
+        if (isImmediateChild && !isRootFolder) return;
+        if (node.id === folder.id) return;
+
+        // PERFORMANCE: Coarse distance check
+        const coarseDX = node.x - folder.x;
+        const coarseDY = node.y - folder.y;
+        if (coarseDX * coarseDX + coarseDY * coarseDY > 1300 * 1300) return;
+
+        // Repulsive center is offset from folder toward parent
+        const offsetDist = 140; 
+        const fnx = orientX;
+        const fny = orientY;
+
+        const centerX = folder.x + fnx * offsetDist;
+        const centerY = folder.y + fny * offsetDist;
+
+        // Lateral axis
+        const lnx = -fny;
+        const lny = fnx;
+
+        const dx = node.x - centerX;
+        const dy = node.y - centerY;
+
+        const projLong = dx * fnx + dy * fny; // Positive if toward parent from center
+        const distLat = Math.abs(dx * lnx + dy * lny);
+
+        const radiusLat = 1100;
+        const distFromCenterToParent = distToParent - offsetDist;
+        
+        // Stretch Front rad to encompass parent if it's a Card/Workspace
+        const extraBuffer = isRootFolder ? 110 : 250;
+        const radiusFront = Math.max(300, distFromCenterToParent + extraBuffer);
+        const radiusBack = 250;
+        const radiusLong = projLong > 0 ? radiusFront : radiusBack;
+
+        const normDistSq = Math.pow(distLat / radiusLat, 2) + Math.pow(projLong / radiusLong, 2);
+        
+        if (normDistSq < 1.0) {
+            const normDist = Math.sqrt(normDistSq);
+            // HARDENED: Linear force (1-d) instead of quadratic (1-d)^2 ensures strong push at the ring edge
+            const force = 1.5 * (1 - normDist); 
+            
+            const rdx = node.x - centerX;
+            const rdy = node.y - centerY;
+            const rdist = Math.max(1, Math.sqrt(rdx * rdx + rdy * rdy));
+            
+            node.vx += (rdx / rdist) * force;
+            node.vy += (rdy / rdist) * force;
+
+            // Lateral Shunt
+            const sideDot = (dx * lnx + dy * lny) > 0 ? 1 : -1;
+            node.vx += lnx * sideDot * (force * 0.8);
+            node.vy += lny * sideDot * (force * 0.8);
+
+            // FALLBACK BIAS: If in front half, push behind much harder
+            if (projLong > 0) {
+                const fallbackForce = 1.2 * (1 - normDist);
+                node.vx -= fnx * fallbackForce;
+                node.vy -= fny * fallbackForce;
+            }
+        }
+    }
+
+    /**
+     * Applies an asymmetric "Teardrop" aura to the main card/workspace node.
+     * Wider in front (away from folders), compact in back (toward folders).
+     */
+    function applyCardAuraRepulsion(node, card, cardData) {
+        if (!node || !card || !cardData) return;
+
+        const dx = node.x - card.x;
+        const dy = node.y - card.y;
+        const distSq = dx * dx + dy * dy;
+        // PERFORMANCE: Coarse distance check for Colossal Card Reach (2160px+)
+        if (distSq > 2500 * 2500) return;
+        const dist = Math.sqrt(distSq) || 1;
+
+        // Project onto card's local axes
+        const projLong = dx * cardData.frontX + dy * cardData.frontY;
+        const latX = -cardData.frontY;
+        const latY = cardData.frontX;
+        const distLat = Math.abs(dx * latX + dy * latY);
+
+        // Teardrop radii relative to card radius
+        const baseRadius = card.radius || 120; // Match renderer baseline
+        const radiusBack = baseRadius * 5.0; 
+        const radiusFront = baseRadius * 18.0; 
+        const radiusLat = baseRadius * 10.0; 
+
+        const radiusLong = projLong > 0 ? radiusFront : radiusBack;
+        const normDistSq = Math.pow(distLat / radiusLat, 2) + Math.pow(projLong / radiusLong, 2);
+
+        if (normDistSq < 1.0) {
+            const normDist = Math.sqrt(normDistSq);
+            // HARDENED: Linear force and significantly higher coefficient
+            const force = 1.3 * (1 - normDist);
+            
+            node.vx += (dx / dist) * force;
+            node.vy += (dy / dist) * force;
+            
+            // Lateral shunt
+            const sideDot = (dx * latX + dy * latY) > 0 ? 1 : -1;
+            node.vx += latX * sideDot * (force * 0.9);
+            node.vy += latY * sideDot * (force * 0.9);
+
+            // Fallback (push toward back of card)
+            if (projLong > 0) {
+                const fallback = 1.0 * (1 - normDist);
+                node.vx -= cardData.frontX * fallback;
+                node.vy -= cardData.frontY * fallback;
+            }
+        }
+    }
+
     function getMotionProfile(nodeCount) {
 
         const normalizedMode = MOTION_MODE_ORDER.includes(state.motionMode)
@@ -739,23 +868,35 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
                 let nodeDepthFactor = 1;
                 let otherDepthFactor = 1;
+                let nodeChainFactor = chainFactor;
+                let otherChainFactor = chainFactor;
 
-                if (state.chainHierarchyEnabled && node.kind === 'folder' && other.kind === 'folder' && isSameChain) {
-                    const nodeDepth = (node.data && typeof node.data.depth === 'number') ? node.data.depth : 0;
-                    const otherDepth = (other.data && typeof other.data.depth === 'number') ? other.data.depth : 0;
+                if (state.chainHierarchyEnabled && isSameChain) {
+                    const bothFolders = node.kind === 'folder' && other.kind === 'folder';
+                    const includeBookmarks = state.bookmarkHierarchyEnabled;
+                    if (bothFolders || includeBookmarks) {
+                        const nodeDepth = (node.data && typeof node.data.depth === 'number') ? node.data.depth : 0;
+                        const otherDepth = (other.data && typeof other.data.depth === 'number') ? other.data.depth : 0;
 
-                    if (nodeDepth < otherDepth) {
-                        nodeDepthFactor = 0.1;
-                        otherDepthFactor = 2.0;
-                    } else if (otherDepth < nodeDepth) {
-                        otherDepthFactor = 0.1;
-                        nodeDepthFactor = 2.0;
+                        if (nodeDepth < otherDepth) {
+                            const gap = otherDepth - nodeDepth;
+                            nodeDepthFactor = Math.max(0.04, 0.15 / gap);
+                            const isOtherLink = other.kind === 'link';
+                            otherDepthFactor = isOtherLink ? (1.0 + gap * 0.2) : (1.0 + gap * 0.5);
+                            otherChainFactor = isOtherLink ? 0.15 : 0.35;
+                        } else if (otherDepth < nodeDepth) {
+                            const gap = nodeDepth - otherDepth;
+                            otherDepthFactor = Math.max(0.04, 0.15 / gap);
+                            const isNodeLink = node.kind === 'link';
+                            nodeDepthFactor = isNodeLink ? (1.0 + gap * 0.2) : (1.0 + gap * 0.5);
+                            nodeChainFactor = isNodeLink ? 0.15 : 0.35;
+                        }
                     }
                 }
 
-                const nodeInfluenceScale = getPairwiseInfluenceScale(node, other, motionProfile) * chainFactor * nodeDepthFactor;
+                const nodeInfluenceScale = getPairwiseInfluenceScale(node, other, motionProfile) * nodeChainFactor * nodeDepthFactor;
 
-                const otherInfluenceScale = getPairwiseInfluenceScale(other, node, motionProfile) * chainFactor * otherDepthFactor;
+                const otherInfluenceScale = getPairwiseInfluenceScale(other, node, motionProfile) * otherChainFactor * otherDepthFactor;
 
                 if (!nodeIsStatic) {
 
@@ -835,9 +976,189 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             }
 
+            if (edge.type === 'hierarchy' && state.chainHierarchyEnabled) {
+                const sourceDepth = (edge.source.data && typeof edge.source.data.depth === 'number') ? edge.source.data.depth : 0;
+                const targetDepth = (edge.target.data && typeof edge.target.data.depth === 'number') ? edge.target.data.depth : 0;
+                if (sourceDepth > targetDepth) {
+                    const gap = sourceDepth - targetDepth;
+                    const isLink = edge.source.kind === 'link';
+                    const hierPush = (isLink ? 0.015 : 0.03) * (1 + gap * 0.5);
+                    if (!sourceStatic && !(state.pointer.mode === 'node' && state.pointer.node?.id === edge.source.id)) {
+                        edge.source.vx -= nx * hierPush;
+                        edge.source.vy -= ny * hierPush;
+                    }
+                }
+            }
+
         });
 
 
+
+        if (state.chainHierarchyEnabled) {
+            const parentChildren = new Map();
+            state.nodes.forEach((n) => {
+                if (!n || !n.data) return;
+                const parentId = text(n.data.anchorNodeId, '');
+                if (!parentId) return;
+                if (!parentChildren.has(parentId)) parentChildren.set(parentId, []);
+                parentChildren.get(parentId).push(n);
+            });
+
+            parentChildren.forEach((children, parentId) => {
+                const parent = state.nodeIndex.get(parentId);
+                if (!parent) return;
+                if (children.length < 2) return;
+                if (isNodeStatic(parent) || parent.manualAnchor) return;
+                if (state.pointer.mode === 'node' && state.pointer.node?.id === parent.id) return;
+
+                let sumX = 0, sumY = 0;
+                children.forEach((c) => { sumX += c.x; sumY += c.y; });
+                const cx = sumX / children.length;
+                const cy = sumY / children.length;
+
+                const dx = parent.x - cx;
+                const dy = parent.y - cy;
+                const dist = Math.max(1, Math.sqrt(dx * dx + dy * dy));
+                const nx = dx / dist;
+                const ny = dy / dist;
+
+                const drift = 0.12;
+                parent.vx += nx * drift;
+                parent.vy += ny * drift;
+            });
+
+            const chainRoots = new Map();
+            const rootFolders = new Map();
+            const folderToRoot = new Map();
+
+            state.nodes.forEach(n => {
+                if (n && (n.kind === 'category' || n.kind === 'workspace') && n.chainId) {
+                    chainRoots.set(n.chainId, { 
+                        node: n, 
+                        sumX: 0, 
+                        sumY: 0, 
+                        count: 0,
+                        frontX: 0, 
+                        frontY: -1
+                    });
+                }
+                
+                const pId = (n.data && n.data.anchorNodeId) ? n.data.anchorNodeId : '';
+                const pNode = pId ? state.nodeIndex.get(pId) : null;
+                
+                if (n.kind === 'folder') {
+                    // Pre-calc root ancestor for this folder tree
+                    let curr = n;
+                    let safety = 0;
+                    while (safety < 15) {
+                        const cpId = (curr.data && curr.data.anchorNodeId) ? curr.data.anchorNodeId : '';
+                        const cpNode = cpId ? state.nodeIndex.get(cpId) : null;
+                        if (!cpNode) break;
+                        if (cpNode.kind === 'category' || cpNode.kind === 'workspace') {
+                            folderToRoot.set(n.id, curr.id);
+                            break;
+                        }
+                        if (cpNode.kind !== 'folder') break;
+                        curr = cpNode;
+                        safety++;
+                    }
+
+                    if (pNode && (pNode.kind === 'category' || pNode.kind === 'workspace')) {
+                        const fdx = pNode.x - n.x;
+                        const fdy = pNode.y - n.y;
+                        const fdist = Math.max(1, Math.sqrt(fdx * fdx + fdy * fdy));
+                        rootFolders.set(n.id, { node: n, root: pNode, nxToRoot: fdx / fdist, nyToRoot: fdy / fdist, distToRoot: fdist });
+                        
+                        const rootData = chainRoots.get(pNode.chainId);
+                        if (rootData) {
+                            rootData.sumX += n.x;
+                            rootData.sumY += n.y;
+                            rootData.count++;
+                        }
+                    }
+                }
+            });
+
+            // Finalize card front vectors (facing away from folders)
+            chainRoots.forEach(data => {
+                if (data.count > 0) {
+                    const avgX = data.sumX / data.count;
+                    const avgY = data.sumY / data.count;
+                    const dx = data.node.x - avgX;
+                    const dy = data.node.y - avgY;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist > 1) {
+                        data.frontX = dx / dist;
+                        data.frontY = dy / dist;
+                    }
+                }
+            });
+
+            state.nodes.forEach((node) => {
+                if (!node || !node.chainId || isNodeStatic(node)) return;
+                const rootData = chainRoots.get(node.chainId);
+                if (!rootData) return;
+                
+                const root = rootData.node;
+                if (root === node) return;
+                
+                if (state.pointer.mode === 'node' && state.pointer.node?.id === node.id) return;
+
+                const nodeDepth = (node.data && typeof node.data.depth === 'number') ? node.data.depth : 0;
+                if (nodeDepth <= -1) return;
+
+                const dx = node.x - root.x;
+                const dy = node.y - root.y;
+                const dist = Math.max(1, Math.sqrt(dx * dx + dy * dy));
+                const nx = dx / dist;
+                const ny = dy / dist;
+
+                const parentId = (node.data && node.data.anchorNodeId) ? node.data.anchorNodeId : '';
+                const parentNode = parentId ? state.nodeIndex.get(parentId) : null;
+                let directionalBoost = 1.0;
+
+                if (parentNode) {
+                    const pdx = parentNode.x - root.x;
+                    const pdy = parentNode.y - root.y;
+                    const pdist = Math.sqrt(pdx * pdx + pdy * pdy);
+                    if (dist < pdist) {
+                        directionalBoost = 3.0;
+                    }
+
+                // 1. Universal Folder Aura Repulsion
+                // Every folder aligns its teardrop with its top-level root folder
+                if (parentNode && parentNode.kind === 'folder') {
+                    const rId = folderToRoot.get(parentNode.id);
+                    const rData = rId ? rootFolders.get(rId) : null;
+                    if (rData) {
+                        applyFolderAura(node, parentNode, rData.nxToRoot, rData.nyToRoot, rData.distToRoot, false);
+                    } else {
+                        // Fallback to local orientation if root not found (unlikely)
+                        const fdx = parentNode.x - node.x; // Very rough
+                        applyFolderAura(node, parentNode, 0, -1, 300, false);
+                    }
+                }
+
+                // 2. Root Folder Authority
+                // Root folders (children of Category/Workspace) get absolute space priority
+                const rootFolderData = rootFolders.get(parentId) || rootFolders.get(node.id);
+                if (rootFolderData && rootFolderData.node !== node) {
+                    applyFolderAura(node, rootFolderData.node, rootFolderData.nxToRoot, rootFolderData.nyToRoot, rootFolderData.distToRoot, true);
+                }
+
+                // 3. Asymmetric Card Aura Repulsion
+                applyCardAuraRepulsion(node, root, rootData);
+            }
+
+            const isLink = node.kind === 'link';
+                const basePush = isLink ? 0.02 : 0.05;
+                const gap = nodeDepth - (root.data?.depth || -2);
+                const push = basePush * gap * directionalBoost;
+
+                node.vx += nx * push;
+                node.vy += ny * push;
+            });
+        }
 
         state.nodes.forEach((node) => {
 

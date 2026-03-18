@@ -176,7 +176,10 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         chainExternalForcesEnabled: true,
 
-        chainHierarchyEnabled: true
+        chainHierarchyEnabled: true,
+
+        bookmarkHierarchyEnabled: true,
+        showPhysicsAuras: false
 
     };
 

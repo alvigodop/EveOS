@@ -337,6 +337,20 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             chainHierarchyButton.style.background = state.chainHierarchyEnabled ? 'rgba(0,212,255,0.12)' : 'rgba(255,255,255,0.07)';
         }
 
+        const bookmarkHierarchyButton = state.container.querySelector('[data-map-toolbar="bookmark-hierarchy"]');
+        if (bookmarkHierarchyButton) {
+            bookmarkHierarchyButton.textContent = state.bookmarkHierarchyEnabled ? 'Bookmark Hierarchy: ON' : 'Bookmark Hierarchy: OFF';
+            bookmarkHierarchyButton.style.borderColor = state.bookmarkHierarchyEnabled ? 'rgba(0,212,255,0.32)' : 'rgba(255,255,255,0.18)';
+            bookmarkHierarchyButton.style.background = state.bookmarkHierarchyEnabled ? 'rgba(0,212,255,0.12)' : 'rgba(255,255,255,0.07)';
+        }
+
+        const physicsAurasButton = state.container.querySelector('[data-map-toolbar="physics-auras"]');
+        if (physicsAurasButton) {
+            physicsAurasButton.textContent = state.showPhysicsAuras ? 'Physics Auras: ON' : 'Physics Auras: OFF';
+            physicsAurasButton.style.borderColor = state.showPhysicsAuras ? 'rgba(122,255,196,0.32)' : 'rgba(255,255,255,0.18)';
+            physicsAurasButton.style.background = state.showPhysicsAuras ? 'rgba(122,255,196,0.12)' : 'rgba(255,255,255,0.07)';
+        }
+
         [nodeButton, chainButton, kindButton].forEach((button) => {
 
             button.disabled = !hasTarget;
@@ -1175,6 +1189,385 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
 
 
+    function drawPhysicsAuras(ctx) {
+        if (!state.showPhysicsAuras) return;
+
+        const chainRoots = new Map();
+        state.nodes.forEach(n => {
+            if (n && (n.kind === 'category' || n.kind === 'workspace') && n.chainId) {
+                chainRoots.set(n.chainId, n);
+            }
+        });
+
+        // 1. Draw Root Authority Glows (Asymmetric Teardrop)
+        chainRoots.forEach((root) => {
+            // Calculate front direction (facing away from folders)
+            const folders = state.nodes.filter(n => {
+                const pId = (n.data && n.data.anchorNodeId) ? n.data.anchorNodeId : '';
+                return n.kind === 'folder' && pId === root.id;
+            });
+            
+            let fx = 0, fy = -1;
+            if (folders.length > 0) {
+                let sumX = 0, sumY = 0;
+                folders.forEach(f => { sumX += f.x; sumY += f.y; });
+                const avgX = sumX / folders.length;
+                const avgY = sumY / folders.length;
+                const dx = root.x - avgX;
+                const dy = root.y - avgY;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist > 5) { // Threshold for stability
+                    fx = dx / dist; 
+                    fy = dy / dist; 
+                }
+            }
+            
+            const angle = Math.atan2(fy, fx);
+            const baseRad = root.radius || 120; // Default to larger base if undefined
+            const radiusFront = baseRad * 18.0; 
+            const radiusBack = baseRad * 5.0; 
+            const radiusLat = baseRad * 10.0; 
+
+            ctx.save();
+            ctx.translate(root.x, root.y);
+            ctx.rotate(angle);
+            
+            // Unified Teardrop Path for Glow
+            ctx.beginPath();
+            ctx.ellipse(0, 0, radiusFront, radiusLat, 0, -Math.PI/2, Math.PI/2);
+            ctx.ellipse(0, 0, radiusBack, radiusLat, 0, Math.PI/2, 3*Math.PI/2);
+            ctx.closePath();
+            
+            const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, Math.max(radiusFront, radiusLat));
+            gradient.addColorStop(0, 'rgba(122, 255, 196, 0.03)');
+            gradient.addColorStop(0.6, 'rgba(122, 255, 196, 0.01)');
+            gradient.addColorStop(1, 'rgba(122, 255, 196, 0)');
+            ctx.fillStyle = gradient;
+            ctx.fill();
+
+            // Unified Teardrop Ring
+            ctx.beginPath();
+            ctx.strokeStyle = 'rgba(122, 255, 196, 0.12)';
+            ctx.setLineDash([15, 45]); // More spacing
+            ctx.lineWidth = 1.0 / state.transform.scale;
+            ctx.ellipse(0, 0, radiusFront * 0.92, radiusLat * 0.9, 0, -Math.PI/2, Math.PI/2);
+            ctx.ellipse(0, 0, radiusBack * 0.92, radiusLat * 0.9, 0, Math.PI/2, 3*Math.PI/2);
+            ctx.closePath();
+            ctx.stroke();
+            
+            ctx.restore();
+        });
+
+        // 1.5 Draw Root Folder Auras (Asymmetric Blobs)
+        state.nodes.forEach(node => {
+            if (!node || node.kind !== 'folder') return;
+            const parentId = (node.data && node.data.anchorNodeId) ? node.data.anchorNodeId : '';
+            const parentNode = parentId ? state.nodeIndex.get(parentId) : null;
+            if (parentNode && (parentNode.kind === 'category' || parentNode.kind === 'workspace')) {
+                const fdx = parentNode.x - node.x;
+                const fdy = parentNode.y - node.y;
+                const fdist = Math.max(1, Math.sqrt(fdx * fdx + fdy * fdy));
+                const fnx = fdx / fdist;
+                const fny = fdy / fdist;
+
+                const offsetX = fnx * 140;
+                const offsetY = fny * 140;
+                const centerX = node.x + offsetX;
+                const centerY = node.y + offsetY;
+
+                const radiusLat = 1100;
+                const radiusFront = (Math.max(300, (fdist - 140)) + parentNode.radius + 50);
+                const radiusBack = 200;
+
+                // Main volume blob (Teardrop: asymmetric longitudinal)
+                const angle = Math.atan2(fny, fnx);
+                
+                ctx.save();
+                ctx.translate(centerX, centerY);
+                ctx.rotate(angle);
+                
+                // Front half (facing card)
+                ctx.beginPath();
+                ctx.ellipse(0, 0, radiusFront, radiusLat, 0, -Math.PI/2, Math.PI/2);
+                const gradFront = ctx.createRadialGradient(0, 0, 0, 0, 0, radiusLat);
+                gradFront.addColorStop(0, 'rgba(0, 212, 255, 0.2)');
+                gradFront.addColorStop(1, 'rgba(0, 212, 255, 0)');
+                ctx.fillStyle = gradFront;
+                ctx.fill();
+
+                // Back half (compact)
+                ctx.beginPath();
+                ctx.ellipse(0, 0, radiusBack, radiusLat, 0, Math.PI/2, 3*Math.PI/2);
+                const gradBack = ctx.createRadialGradient(0, 0, 0, 0, 0, radiusLat);
+                gradBack.addColorStop(0, 'rgba(0, 212, 255, 0.2)');
+                gradBack.addColorStop(1, 'rgba(0, 212, 255, 0)');
+                ctx.fillStyle = gradBack;
+                ctx.fill();
+                
+                ctx.restore();
+
+                // Directional autority teardrop ring
+                ctx.save();
+                ctx.translate(centerX, centerY);
+                ctx.rotate(angle);
+                ctx.beginPath();
+                ctx.strokeStyle = 'rgba(0, 212, 255, 0.5)';
+                ctx.setLineDash([20, 40]);
+                // Front arc
+                ctx.ellipse(0, 0, radiusFront, radiusLat * 0.9, 0, -Math.PI/2, Math.PI/2);
+                // Back arc
+                ctx.ellipse(0, 0, radiusBack, radiusLat * 0.9, 0, Math.PI/2, 3*Math.PI/2);
+                ctx.stroke();
+                ctx.restore();
+            }
+        });
+
+        // 2. Draw Node-specific forces
+        // 2. Local Folder Aura Data Collection (with Culling)
+        const folderAuras = new Map();
+        
+        // Culling bounds in world space
+        const pad = 1200; // Aura radius padding
+        const left = -state.transform.x / state.transform.scale - pad;
+        const top = -state.transform.y / state.transform.scale - pad;
+        const right = (ctx.canvas.width - state.transform.x) / state.transform.scale + pad;
+        const bottom = (ctx.canvas.height - state.transform.y) / state.transform.scale + pad;
+
+        state.nodes.forEach(n => {
+            if (n && n.kind === 'folder') {
+                // Viewport Culling Check
+                if (n.x < left || n.x > right || n.y < top || n.y > bottom) return;
+
+                const pId = (n.data && n.data.anchorNodeId) ? n.data.anchorNodeId : '';
+                const pNode = pId ? state.nodeIndex.get(pId) : null;
+                if (pNode) {
+                    // Pre-calc root ancestor for this folder tree
+                    let curr = n;
+                    let safety = 0;
+                    let rootId = '';
+                    while (safety < 15) {
+                        const cpId = (curr.data && curr.data.anchorNodeId) ? curr.data.anchorNodeId : '';
+                        const cpNode = cpId ? state.nodeIndex.get(cpId) : null;
+                        if (!cpNode) break;
+                        if (cpNode.kind === 'category' || cpNode.kind === 'workspace') {
+                            rootId = curr.id;
+                            break;
+                        }
+                        if (cpNode.kind !== 'folder') break;
+                        curr = cpNode;
+                        safety++;
+                    }
+
+                    const isRoot = (pNode.kind === 'category' || pNode.kind === 'workspace');
+                    
+                    // Unified Orientation: Use root-folder vector if available
+                    let fnx, fny, fdist;
+                    const rNode = rootId ? state.nodeIndex.get(rootId) : null;
+                    const rpId = (rNode && rNode.data && rNode.data.anchorNodeId) ? rNode.data.anchorNodeId : '';
+                    const rpNode = rpId ? state.nodeIndex.get(rpId) : null;
+                    
+                    if (rpNode) {
+                        const fdx = rpNode.x - rNode.x;
+                        const fdy = rpNode.y - rNode.y;
+                        fdist = Math.max(1, Math.sqrt(fdx * fdx + fdy * fdy));
+                        fnx = fdx / fdist;
+                        fny = fdy / fdist;
+                    } else {
+                        // Fallback to local
+                        const fdx = pNode.x - n.x;
+                        const fdy = pNode.y - n.y;
+                        fdist = Math.max(1, Math.sqrt(fdx * fdx + fdy * fdy));
+                        fnx = fdx / fdist;
+                        fny = fdy / fdist;
+                    }
+
+                    const extraBuffer = isRoot ? (pNode.radius || 60) + 50 : 250;
+                    
+                    folderAuras.set(n.id, { 
+                        nx: fnx, 
+                        ny: fny, 
+                        centerX: n.x + fnx * 140, 
+                        centerY: n.y + fny * 140,
+                        rFront: Math.max(300, (fdist - 140) + extraBuffer),
+                        rBack: 250,
+                        rLat: 1100,
+                        isRoot: isRoot
+                    });
+                }
+            }
+        });
+
+        // 3. Draw Shared Folder Auras (with Zoom LOD)
+        const showDetails = state.transform.scale > 0.15;
+        folderAuras.forEach((data, id) => {
+            const angle = Math.atan2(data.ny, data.nx);
+            
+            ctx.save();
+            ctx.translate(data.centerX, data.centerY);
+            ctx.rotate(angle);
+            
+            // Glow (Only when zoomed in)
+            if (showDetails) {
+                ctx.beginPath();
+                ctx.ellipse(0, 0, data.rFront, data.rLat, 0, -Math.PI/2, Math.PI/2);
+                ctx.ellipse(0, 0, data.rBack, data.rLat, 0, Math.PI/2, 3*Math.PI/2);
+                const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, data.rLat);
+                grad.addColorStop(0, data.isRoot ? 'rgba(0, 212, 255, 0.03)' : 'rgba(0, 212, 255, 0.01)');
+                grad.addColorStop(1, 'rgba(0, 212, 255, 0)');
+                ctx.fillStyle = grad;
+                ctx.fill();
+            }
+
+            // Ring (Thinner/Fewer when zoomed out)
+            ctx.beginPath();
+            ctx.strokeStyle = data.isRoot ? 'rgba(0, 212, 255, 0.1)' : 'rgba(0, 212, 255, 0.05)';
+            ctx.setLineDash(showDetails ? [10, 50] : [5, 100]);
+            ctx.lineWidth = 1.0 / state.transform.scale;
+            ctx.ellipse(0, 0, data.rFront, data.rLat * 0.9, 0, -Math.PI/2, Math.PI/2);
+            ctx.ellipse(0, 0, data.rBack, data.rLat * 0.9, 0, Math.PI/2, 3*Math.PI/2);
+            ctx.stroke();
+            
+            ctx.restore();
+        });
+
+        state.nodes.forEach(node => {
+            if (!node || !node.chainId) return;
+            const root = chainRoots.get(node.chainId);
+            if (!root || root === node) return;
+
+            const rdx = node.x - root.x;
+            const rdy = node.y - root.y;
+            const rdist = Math.sqrt(rdx * rdx + rdy * rdy);
+
+            const parentId = (node.data && node.data.anchorNodeId) ? node.data.anchorNodeId : '';
+            const parentNode = parentId ? state.nodeIndex.get(parentId) : null;
+
+            // Visualization of "In Front" boost
+            if (parentNode) {
+                const pdx = parentNode.x - root.x;
+                const pdy = parentNode.y - root.y;
+                const pdist = Math.sqrt(pdx * pdx + pdy * pdy);
+
+                if (rdist < pdist) {
+                    ctx.beginPath();
+                    ctx.arc(node.x, node.y, node.radius * 2.5, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(255, 100, 100, 0.15)';
+                    ctx.fill();
+                    ctx.strokeStyle = 'rgba(255, 100, 100, 0.4)';
+                    ctx.setLineDash([4 / state.transform.scale, 4 / state.transform.scale]);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+
+                // Shunting visualization (Asymmetric Teardrop)
+                // Now works for ALL parent folders
+                const folderData = folderAuras.get(parentId);
+                if (folderData) {
+                    const dx = node.x - folderData.centerX;
+                    const dy = node.y - folderData.centerY;
+                    
+                    const projLong = dx * folderData.nx + dy * folderData.ny;
+                    const lnx = -folderData.ny;
+                    const lny = folderData.nx;
+                    const distLat = Math.abs(dx * lnx + dy * lny);
+                    
+                    const rLong = projLong > 0 ? folderData.rFront : folderData.rBack;
+                    const normDistSq = Math.pow(distLat / folderData.rLat, 2) + Math.pow(projLong / rLong, 2);
+                    
+                    if (normDistSq < 1.0) {
+                        const rdx = node.x - folderData.centerX;
+                        const rdy = node.y - folderData.centerY;
+                        const rdist = Math.max(1, Math.sqrt(rdx * rdx + rdy * rdy));
+
+                        // Purple Shunt Vector
+                        ctx.beginPath();
+                        ctx.moveTo(node.x, node.y);
+                        ctx.lineTo(node.x + (rdx / rdist) * 35 / state.transform.scale, node.y + (rdy / rdist) * 35 / state.transform.scale);
+                        ctx.strokeStyle = 'rgba(200, 160, 255, 0.25)';
+                        ctx.lineWidth = 1.0 / state.transform.scale;
+                        ctx.stroke();
+
+                        // Orange Fallback Vector (if in front)
+                        if (projLong > 0) {
+                            ctx.beginPath();
+                            ctx.moveTo(node.x, node.y);
+                            ctx.lineTo(node.x - folderData.nx * 50 / state.transform.scale, node.y - folderData.ny * 50 / state.transform.scale);
+                            ctx.strokeStyle = 'rgba(255, 180, 100, 0.2)';
+                            ctx.lineWidth = 1.5 / state.transform.scale;
+                            ctx.stroke();
+                        }
+                    }
+                }
+            }
+
+            // Card Aura Repulsion & Fallback Visualization
+            const cardData = chainRoots.get(node.chainId); 
+            if (cardData && cardData !== node) {
+                // We need the front vector for the card
+                // (This is a bit redundant but stays modular for render.js)
+                const folders = state.nodes.filter(n => {
+                    const pId = (n.data && n.data.anchorNodeId) ? n.data.anchorNodeId : '';
+                    return n.kind === 'folder' && pId === cardData.id;
+                });
+                
+                let cfx = 0, cfy = -1;
+                if (folders.length > 0) {
+                    let sumX = 0, sumY = 0;
+                    folders.forEach(f => { sumX += f.x; sumY += f.y; });
+                    const avgX = sumX / folders.length;
+                    const avgY = sumY / folders.length;
+                    const dx = cardData.x - avgX;
+                    const dy = cardData.y - avgY;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist > 5) { cfx = dx / dist; cfy = dy / dist; }
+                }
+
+                const dx = node.x - cardData.x;
+                const dy = node.y - cardData.y;
+                const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                const projLong = dx * cfx + dy * cfy;
+                const latX = -cfy;
+                const latY = cfx;
+                const distLat = Math.abs(dx * latX + dy * latY);
+
+                const baseRad = cardData.radius || 120;
+                const rFront = baseRad * 18.0;
+                const rBack = baseRad * 5.0;
+                const rLat = baseRad * 10.0;
+                const rLong = projLong > 0 ? rFront : rBack;
+
+                const normDistSq = Math.pow(distLat / rLat, 2) + Math.pow(projLong / rLong, 2);
+                if (normDistSq < 1.0) {
+                    // Purple Shunt Vector
+                    ctx.beginPath();
+                    ctx.moveTo(node.x, node.y);
+                    ctx.lineTo(node.x + (dx / dist) * 35 / state.transform.scale, node.y + (dy / dist) * 35 / state.transform.scale);
+                    ctx.strokeStyle = 'rgba(200, 160, 255, 0.2)';
+                    ctx.lineWidth = 1.0 / state.transform.scale;
+                    ctx.stroke();
+
+                    // Orange Fallback Vector (if in front)
+                    if (projLong > 0) {
+                        ctx.beginPath();
+                        ctx.moveTo(node.x, node.y);
+                        ctx.lineTo(node.x - cfx * 60 / state.transform.scale, node.y - cfy * 60 / state.transform.scale);
+                        ctx.strokeStyle = 'rgba(255, 180, 100, 0.25)';
+                        ctx.lineWidth = 1.5 / state.transform.scale;
+                        ctx.stroke();
+                    }
+                }
+            }
+
+            // Radial push vector from root
+            ctx.beginPath();
+            ctx.moveTo(node.x, node.y);
+            ctx.lineTo(node.x + (rdx / rdist) * 30 / state.transform.scale, node.y + (rdy / rdist) * 30 / state.transform.scale);
+            ctx.strokeStyle = 'rgba(122, 255, 196, 0.4)';
+            ctx.lineWidth = 1 / state.transform.scale;
+            ctx.stroke();
+        });
+    }
+
     function draw() {
 
         if (!state.ctx || !state.canvas) return;
@@ -1188,6 +1581,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         ctx.translate(state.transform.tx, state.transform.ty);
 
         ctx.scale(state.transform.scale, state.transform.scale);
+
+        drawPhysicsAuras(ctx);
 
 
 

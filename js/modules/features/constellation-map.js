@@ -1430,6 +1430,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             '<button type="button" data-map-toolbar="chain-internal" class="map-btn">Internal Chain: ON</button>',
             '<button type="button" data-map-toolbar="chain-external" class="map-btn">External Chain: ON</button>',
             '<button type="button" data-map-toolbar="chain-hierarchy" class="map-btn">Hierarchy Order: ON</button>',
+            '<button type="button" data-map-toolbar="bookmark-hierarchy" class="map-btn">Bookmark Hierarchy: ON</button>',
+            '<button type="button" data-map-toolbar="physics-auras" class="map-btn">Physics Auras: OFF</button>',
             '</div>',
             '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">',
             '<button type="button" data-map-static-kind="workspace" class="map-btn">Freeze Tab</button>',
@@ -1608,6 +1610,14 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 requestDraw();
             } else if (toolbarAction === 'chain-hierarchy') {
                 state.chainHierarchyEnabled = !state.chainHierarchyEnabled;
+                renderToolbarState();
+                requestDraw();
+            } else if (toolbarAction === 'bookmark-hierarchy') {
+                state.bookmarkHierarchyEnabled = !state.bookmarkHierarchyEnabled;
+                renderToolbarState();
+                requestDraw();
+            } else if (toolbarAction === 'physics-auras') {
+                state.showPhysicsAuras = !state.showPhysicsAuras;
                 renderToolbarState();
                 requestDraw();
             } else if (toolbarAction === 'close') {
