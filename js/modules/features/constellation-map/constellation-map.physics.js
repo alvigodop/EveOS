@@ -1167,11 +1167,11 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
                     if (moveDistSq > 0.1) {
                         // DIRECTIONAL WAKE: Face movement direction during drag (trailing effect)
-                        // Use the actual movement vector to set the "front"
                         targetAngle = Math.atan2(moveY, moveX);
                         lerpFactor = 0.15; // Snappy Inertia during drag
                     }
                 } else if (data.count > 0) {
+                    // Only calculate centroid-based orientation if we have children
                     const avgX = data.sumX / data.count;
                     const avgY = data.sumY / data.count;
                     const dx = node.x - avgX;
@@ -1194,6 +1194,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                     };
                     data.frontAngle = lerpAngle(data.frontAngle === undefined ? targetAngle : data.frontAngle, targetAngle);
                 }
+                
+                // Update front vectors (Used by Folder Placement and Card Aura)
                 data.frontX = Math.cos(data.frontAngle || 0);
                 data.frontY = Math.sin(data.frontAngle || 0);
                 
