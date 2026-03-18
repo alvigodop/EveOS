@@ -286,7 +286,7 @@ window.EveModuleManifestParts.scripts = [
         'js/modules/features/constellation-map/constellation-map.view.js?v=0.1.0',
         'js/modules/features/constellation-map/constellation-map.events.js?v=0.1.0',
         'js/modules/features/constellation-map/constellation-map.toolbar.js?v=0.1.0',
-
+        'js/modules/features/constellation-map/index.js?v=0.1.0',
         'js/modules/features/constellation-map/constellation-map.core.js?v=0.5.0',
         'js/modules/features/constellation-map/constellation-map-init.js?v=0.1.0',
 
