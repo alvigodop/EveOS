@@ -266,8 +266,12 @@ function stabilizeDirectCardBookmarkClearance(node, anchor) {
             return;
         }
 
-        const minRadius = Math.max((Number(parentNode.radius) || 12) + 24, (Number.isFinite(anchorDist) ? anchorDist * 0.55 : 0), 32);
-        if (dist >= minRadius) return;
+        const minRadius = Math.max(
+            (Number(parentNode.radius) || 12) + 24,
+            (Number.isFinite(anchorDist) ? (anchorDist > 60 ? anchorDist * 0.82 : anchorDist * 0.55) : 0),
+            32
+        );
+        if (dist >= minRadius) return;
 
         node.x = parentNode.x + (axisX * minRadius);
         node.y = parentNode.y + (axisY * minRadius);

@@ -15,6 +15,12 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         return current + diff * factor;
     }
 
+    function compareNodeOrder(a, b) {
+        const labelA = a?.label || '';
+        const labelB = b?.label || '';
+        return labelA.localeCompare(labelB) || String(a?.id || '').localeCompare(String(b?.id || ''));
+    }
+
     function buildParentChildren() {
         const parentChildren = new Map();
         state.nodes.forEach((n) => {
@@ -25,6 +31,63 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             parentChildren.get(parentId).push(n);
         });
         return parentChildren;
+    }
+
+    function buildRootChildGuides(parentChildren) {
+        const guides = new Map();
+        if (state.scope?.scope !== 'card') return guides;
+
+        parentChildren.forEach((children, parentId) => {
+            const parent = state.nodeIndex.get(parentId);
+            if (!parent || (parent.kind !== 'category' && parent.kind !== 'workspace')) return;
+
+            const rootFolders = children
+                .filter((node) => node?.kind === 'folder')
+                .slice()
+                .sort(compareNodeOrder);
+            const rootLinks = children
+                .filter((node) => node?.kind === 'link')
+                .slice()
+                .sort(compareNodeOrder);
+
+            if (!rootFolders.length || rootLinks.length < 18) return;
+
+            const branchNodes = [];
+            rootFolders.forEach((node) => {
+                branchNodes.push(node);
+                (parentChildren.get(node.id) || []).forEach((child) => branchNodes.push(child));
+            });
+
+            let sumX = 0;
+            let sumY = 0;
+            branchNodes.forEach((node) => {
+                sumX += node.x;
+                sumY += node.y;
+            });
+
+            const avgX = sumX / branchNodes.length;
+            const avgY = sumY / branchNodes.length;
+            let folderAngle = Math.atan2(avgY - parent.y, avgX - parent.x);
+
+            if (!Number.isFinite(folderAngle)) {
+                let rootSumX = 0;
+                let rootSumY = 0;
+                rootFolders.forEach((node) => {
+                    rootSumX += node.x;
+                    rootSumY += node.y;
+                });
+                folderAngle = Math.atan2((rootSumY / rootFolders.length) - parent.y, (rootSumX / rootFolders.length) - parent.x);
+            }
+
+            guides.set(parent.id, {
+                folderAngle,
+                backAngle: folderAngle + Math.PI,
+                rootFolders,
+                rootLinks
+            });
+        });
+
+        return guides;
     }
 
     function applyParentDrift(parentChildren) {
@@ -139,7 +202,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         });
     }
 
-    function buildHierarchyAnchors(parentChildren, frontierReach) {
+    function buildHierarchyAnchors(parentChildren, frontierReach, rootChildGuides) {
         const chainRoots = state.chainRoots;
         const folderOrientations = state.folderOrientations;
 
@@ -151,6 +214,37 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             if (!parentId) return;
             const parent = state.nodeIndex.get(parentId);
             if (!parent) return;
+
+            const isRootChild = parent.kind === 'category' || parent.kind === 'workspace';
+            const rootGuide = isRootChild ? rootChildGuides.get(parentId) : null;
+
+            if (node.kind === 'link' && isRootChild && rootGuide?.rootLinks?.length) {
+                const rootLinks = rootGuide.rootLinks;
+                const rootIndex = rootLinks.findIndex((entry) => entry.id === node.id);
+                if (rootIndex >= 0) {
+                    const itemsPerRow = rootLinks.length >= 96 ? 12 : rootLinks.length >= 56 ? 10 : rootLinks.length >= 24 ? 8 : 6;
+                    const row = Math.floor(rootIndex / itemsPerRow);
+                    const rowStart = row * itemsPerRow;
+                    const rowSize = Math.min(itemsPerRow, rootLinks.length - rowStart);
+                    const col = rootIndex - rowStart;
+                    const baseAngle = rootGuide.backAngle;
+                    const spread = Math.min(Math.PI * 1.08, (Math.PI * 0.34) + (Math.min(rowSize, itemsPerRow) * 0.055));
+                    const offset = rowSize > 1 ? (spread * (col / (rowSize - 1) - 0.5)) : 0;
+                    const jitterSeed = node.id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+                    const radialJitter = ((jitterSeed % 7) - 3) * 1.2;
+                    const tangentialJitter = (((jitterSeed >> 1) % 5) - 2) * 0.012;
+                    const baseRadius = Math.max((parent.radius || 12) + 64, (frontierReach * 0.42) + 8);
+                    const rowDepth = 14;
+                    const finalRadius = baseRadius + (row * rowDepth) + radialJitter;
+                    const angle = baseAngle + offset + tangentialJitter;
+
+                    state.hierarchyAnchors.set(node.id, {
+                        x: parent.x + Math.cos(angle) * finalRadius,
+                        y: parent.y + Math.sin(angle) * finalRadius
+                    });
+                    return;
+                }
+            }
 
             let baseAngle = 0;
             let radius = 0;
@@ -172,14 +266,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             if (!foundBase) return;
 
-            const siblings = (parentChildren.get(parentId) || []).slice().sort((a, b) => {
-                const labelA = a.label || '';
-                const labelB = b.label || '';
-                return labelA.localeCompare(labelB) || a.id.localeCompare(b.id);
-            });
+            const siblings = (parentChildren.get(parentId) || []).slice().sort(compareNodeOrder);
             const index = siblings.indexOf(node);
             const count = siblings.length;
-            const isRootChild = parent.kind === 'category' || parent.kind === 'workspace';
 
             node.spinalAngle = lerpAngle(node.spinalAngle || baseAngle, baseAngle, 0.08);
 
@@ -273,11 +362,12 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     function runHierarchyPass(ctx) {
         const { frontierReach } = ctx;
         const parentChildren = buildParentChildren();
+        const rootChildGuides = buildRootChildGuides(parentChildren);
         applyParentDrift(parentChildren);
         maintainHierarchyState();
         finalizeCardFrontVectors();
         updateFolderOrientations();
-        buildHierarchyAnchors(parentChildren, frontierReach);
+        buildHierarchyAnchors(parentChildren, frontierReach, rootChildGuides);
         applyHierarchyAuras();
     }
 
