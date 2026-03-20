@@ -164,7 +164,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             super.init(container);
             this.createCanvasLayer(container);
             this.bindPointer(window);
-            this.chars = ' .,:;irsXA253hMHGS#9B&@';
+            this.chars = '.,:;irsXA253hMHGS#9B&@';
             this.textMetrics = { fontSize: 10, charWidth: 8, lineHeight: 10, cols: 80, rows: 40 };
             this.syncSettings();
             this.recalculateGrid();
@@ -205,9 +205,13 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 fontSize: baseSize,
                 charWidth,
                 lineHeight,
-                cols: Math.max(24, Math.floor(this.width / charWidth)),
-                rows: Math.max(12, Math.floor(this.height / lineHeight))
+                cols: Math.max(24, Math.ceil(this.width / charWidth) + 2),
+                rows: Math.max(12, Math.ceil(this.height / lineHeight) + 2),
+                offsetX: 0,
+                offsetY: 0
             };
+            this.textMetrics.offsetX = ((this.width - (this.textMetrics.cols * charWidth)) * 0.5);
+            this.textMetrics.offsetY = ((this.height - (this.textMetrics.rows * lineHeight)) * 0.5);
         }
 
         drawFrame(time) {
@@ -228,7 +232,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             const pointerCol = (this.pointer.px || (this.width * 0.5)) / metrics.charWidth;
             const pointerRow = (this.pointer.py || (this.height * 0.5)) / metrics.lineHeight;
             for (let row = 0; row < metrics.rows; row += 1) {
-                let line = '';
+                const y = metrics.offsetY + (row * metrics.lineHeight);
                 for (let col = 0; col < metrics.cols; col += 1) {
                     const nx = col / Math.max(1, metrics.cols - 1);
                     const ny = row / Math.max(1, metrics.rows - 1);
@@ -237,9 +241,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                     const ripple = Math.max(0, 1 - (dist / (8 + this.interaction * 7))) * (1.4 * this.interaction);
                     const value = clamp(((field + 2) / 4) + ripple * 0.5 + (Math.sin(time * 0.7 + (col * 0.2)) * 0.08), 0, 1);
                     const idx = Math.min(this.chars.length - 1, Math.max(0, Math.floor(value * (this.chars.length - 1))));
-                    line += this.chars[idx];
+                    ctx.fillText(this.chars[idx], metrics.offsetX + (col * metrics.charWidth), y);
                 }
-                ctx.fillText(line, 0, row * metrics.lineHeight);
             }
             ctx.fillStyle = 'rgba(118, 255, 233, 0.06)';
             ctx.fillRect(0, 0, this.width, this.height);
