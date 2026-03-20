@@ -303,8 +303,8 @@ window.EveModuleManifestParts.scripts = [
         'js/modules/features/constellation-map/constellation-map.physics.helpers.js?v=0.2.0',
         'js/modules/features/constellation-map/constellation-map.physics.pass.pairwise.js?v=0.1.0',
         'js/modules/features/constellation-map/constellation-map.physics.pass.edges.js?v=0.1.1',
-        'js/modules/features/constellation-map/constellation-map.physics.pass.hierarchy.js?v=0.1.7',
-        'js/modules/features/constellation-map/constellation-map.physics.pass.integrate.js?v=0.1.0',
+        'js/modules/features/constellation-map/constellation-map.physics.pass.hierarchy.js?v=0.1.9',
+        'js/modules/features/constellation-map/constellation-map.physics.pass.integrate.js?v=0.1.1',
         'js/modules/features/constellation-map/constellation-map.physics.tick.js?v=0.1.0',
         'js/modules/features/constellation-map/constellation-map.physics.js?v=0.2.0',
 
@@ -20202,6 +20202,9 @@ window.EveModuleManifestParts.scripts = [
 
 
 ];
+
+
+
 
 
 

@@ -115,6 +115,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 && state.pointer.node?.kind === 'category'
                 && text(state.pointer.node?.data?.anchorNodeId, '') === parent.id;
             const previous = storedRoots.get(parent.id);
+            let lockedAngle = Number.isFinite(previous?.lockedAngle) ? previous.lockedAngle : null;
             let frontAngle = -Math.PI / 2;
             let targetAngle = null;
 
@@ -124,6 +125,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 const dragDistSq = (dragDx * dragDx) + (dragDy * dragDy);
                 if (dragDistSq > 0.1) {
                     targetAngle = Math.atan2(dragDy, dragDx);
+                    lockedAngle = targetAngle;
                 }
             }
 
@@ -162,34 +164,38 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             }
 
             if (!Number.isFinite(targetAngle)) {
-                targetAngle = Number.isFinite(previous?.frontAngle) ? previous.frontAngle : frontAngle;
+                targetAngle = Number.isFinite(lockedAngle)
+                    ? lockedAngle
+                    : (Number.isFinite(previous?.frontAngle) ? previous.frontAngle : frontAngle);
+            }
+
+            if (!isDraggingRoot && Number.isFinite(lockedAngle)) {
+                const childInfluence = isDraggingChildCategory ? 0.006 : 0.03;
+                targetAngle = normalizeAngle(lockedAngle + (getAngleDelta(lockedAngle, targetAngle) * childInfluence));
             }
 
             if (isDraggingRoot) {
                 frontAngle = targetAngle;
             } else {
-                const currentAngle = Number.isFinite(previous?.frontAngle) ? previous.frontAngle : targetAngle;
+                const currentAngle = Number.isFinite(previous?.frontAngle)
+                    ? previous.frontAngle
+                    : (Number.isFinite(lockedAngle) ? lockedAngle : targetAngle);
                 const childCount = Math.max(1, categories.length);
                 const isSingleChild = childCount === 1;
                 const delta = Math.abs(getAngleDelta(currentAngle, targetAngle));
-                const deadzone = isSingleChild ? 0.22 : childCount <= 3 ? 0.18 : 0.12;
+                const hasLockedDirection = Number.isFinite(lockedAngle);
+                const deadzone = hasLockedDirection
+                    ? (isSingleChild ? 0.55 : childCount <= 3 ? 0.44 : 0.32)
+                    : (isSingleChild ? 0.22 : childCount <= 3 ? 0.18 : 0.12);
                 if (delta <= deadzone) {
                     frontAngle = currentAngle;
                 } else {
-                    const responsiveness = isDraggingChildCategory
-                        ? 0.0014
-                        : isSingleChild
-                            ? 0.0035
-                            : childCount <= 3
-                                ? 0.0055
-                                : 0.008;
-                    const maxStep = isDraggingChildCategory
-                        ? 0.002
-                        : isSingleChild
-                            ? 0.004
-                            : childCount <= 3
-                                ? 0.006
-                                : 0.009;
+                    const responsiveness = hasLockedDirection
+                        ? (isDraggingChildCategory ? 0.00035 : isSingleChild ? 0.0008 : childCount <= 3 ? 0.0011 : 0.0016)
+                        : (isDraggingChildCategory ? 0.0014 : isSingleChild ? 0.0035 : childCount <= 3 ? 0.0055 : 0.008);
+                    const maxStep = hasLockedDirection
+                        ? (isDraggingChildCategory ? 0.0006 : isSingleChild ? 0.0012 : childCount <= 3 ? 0.0018 : 0.0024)
+                        : (isDraggingChildCategory ? 0.002 : isSingleChild ? 0.004 : childCount <= 3 ? 0.006 : 0.009);
                     const adjustedTarget = normalizeAngle(currentAngle + Math.sign(getAngleDelta(currentAngle, targetAngle)) * Math.max(0, delta - deadzone));
                     frontAngle = lerpAngle(currentAngle, adjustedTarget, responsiveness);
                     const steppedDelta = getAngleDelta(currentAngle, frontAngle);
@@ -210,7 +216,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 backY: -frontY,
                 latX: -frontY,
                 latY: frontX,
-                targetAngle
+                targetAngle,
+                lockedAngle
             };
 
             guides.set(parent.id, guide);
@@ -527,14 +534,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             const nodeDepth = (node.data && typeof node.data.depth === 'number') ? node.data.depth : 0;
             if (nodeDepth <= -1) return;
 
-            const dx = node.x - root.x;
-            const dy = node.y - root.y;
-            const dist = Math.max(1, Math.sqrt(dx * dx + dy * dy));
-            const nx = dx / dist;
-            const ny = dy / dist;
-
             const parentId = (node.data && node.data.anchorNodeId) ? node.data.anchorNodeId : '';
             const parentNode = parentId ? state.nodeIndex.get(parentId) : null;
+            let workspaceAncestor = null;
 
             if (parentNode) {
                 let currentParent = parentNode;
@@ -546,6 +548,10 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                             applyFolderAura(node, currentParent, orient.nx, orient.ny, orient.dist, orient.isRoot);
                         }
                     }
+                    if (currentParent.kind === 'workspace') {
+                        workspaceAncestor = currentParent;
+                        break;
+                    }
                     const nextId = (currentParent.data && currentParent.data.anchorNodeId) ? currentParent.data.anchorNodeId : '';
                     currentParent = nextId ? state.nodeIndex.get(nextId) : null;
                     safety += 1;
@@ -553,6 +559,13 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             }
 
             applyCardAuraRepulsion(node, root, rootData);
+
+            if (workspaceAncestor) {
+                const workspaceData = workspaceAuraRoots.get(workspaceAncestor.id);
+                if (workspaceData) {
+                    applyWorkspaceAuraRepulsion(node, workspaceAncestor, workspaceData);
+                }
+            }
         });
 
         state.nodes.forEach((node) => {
