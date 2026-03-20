@@ -273,7 +273,7 @@ window.EveModuleManifestParts.scripts = [
 
         'js/modules/features/constellation-map/constellation-map.shared.state.js?v=0.1.2',
         'js/modules/features/constellation-map/constellation-map.shared.helpers.js?v=0.1.0',
-        'js/modules/features/constellation-map/constellation-map.shared.js?v=0.3.5',
+        'js/modules/features/constellation-map/constellation-map.shared.js?v=0.3.6',
         'js/modules/features/constellation-map/constellation-map.fx.base.js?v=0.1.0',
         'js/modules/features/constellation-map/constellation-map.fx.effects.webgl.three.js?v=0.1.0',
         'js/modules/features/constellation-map/constellation-map.fx.effects.webgl.quantum.js?v=0.1.0',
@@ -20202,6 +20202,7 @@ window.EveModuleManifestParts.scripts = [
 
 
 ];
+
 
 
 
