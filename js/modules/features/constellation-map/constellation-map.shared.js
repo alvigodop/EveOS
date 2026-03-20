@@ -96,7 +96,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         },
 
-        motionMode: 'smooth',
+        motionMode: 'web',
 
         activeWebGlFx: 'none',
 
@@ -113,7 +113,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         motionAnchors: new Map(),
 
-        lastMotionMode: 'smooth',
+        lastMotionMode: 'web',
 
         controlsExpanded: false,
 

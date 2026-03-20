@@ -1242,12 +1242,6 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             
             ctx.restore();
         });
-            ctx.ellipse(0, 0, radiusBack * 0.92, radiusLat * 0.9, 0, Math.PI/2, 3*Math.PI/2);
-            ctx.closePath();
-            ctx.stroke();
-            
-            ctx.restore();
-        });
 
         // 1.5 Draw Physics Auras for all Folders (Teardrops)
         state.nodes.forEach(node => {
