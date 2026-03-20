@@ -110,14 +110,19 @@ html[data-native-scheme="light"] {
     position: absolute;
     top: 6px;
     right: 6px;
-    display: none;
+    display: flex;
     align-items: center;
     gap: 4px;
+    opacity: 0.88;
+    visibility: visible;
+    pointer-events: auto;
+    z-index: 3;
+    transition: opacity 0.14s ease;
 }
 
 .dock-item:hover .dock-controls,
 .dock-item:focus-within .dock-controls {
-    display: flex;
+    opacity: 1;
 }
 
 .dock-control {

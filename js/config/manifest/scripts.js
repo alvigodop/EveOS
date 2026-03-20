@@ -222,7 +222,7 @@ window.EveModuleManifestParts.scripts = [
 
 
 
-        'js/modules/features/semantic-drift.js',
+        'js/modules/features/semantic-drift.js?v=0.1.1',
 
 
 
@@ -324,7 +324,7 @@ window.EveModuleManifestParts.scripts = [
         'js/modules/features/constellation-map/constellation-map.core.js?v=0.6.0',
         'js/modules/features/constellation-map/constellation-map-init.js?v=0.1.0',
 
-        'js/modules/features/chronos-engine.js',
+        'js/modules/features/chronos-engine.js?v=0.1.1',
 
         'js/modules/features/bookmark-click-behavior.js?v=0.2.1',
 
@@ -332,9 +332,9 @@ window.EveModuleManifestParts.scripts = [
 
         'js/modules/features/quick-pins/quick-pins.core.js?v=0.2.1',
 
-        'js/modules/features/quick-pins/quick-pins.main.js?v=0.3.0',
+        'js/modules/features/quick-pins/quick-pins.main.js?v=0.3.1',
 
-        'js/modules/core/actions.js?v=0.2.5',
+        'js/modules/core/actions.js?v=0.2.6',
 
         'js/modules/core/categories.js',
 
@@ -610,7 +610,7 @@ window.EveModuleManifestParts.scripts = [
 
 
 
-        'js/modules/ui/sidebar.js?v=0.2.37',
+        'js/modules/ui/sidebar.js?v=0.2.38',
 
 
 
@@ -642,7 +642,7 @@ window.EveModuleManifestParts.scripts = [
 
 
 
-        'js/modules/ui/dashboard/dashboard-dock.js?v=0.2.3',
+        'js/modules/ui/dashboard/dashboard-dock.js?v=0.2.4',
 
 
 
@@ -20143,7 +20143,7 @@ window.EveModuleManifestParts.scripts = [
 
 
 
-        'js/modules/gemini/gemini-init.js',
+        'js/modules/gemini/gemini-init.js?v=0.1.1',
 
 
 
@@ -20175,7 +20175,7 @@ window.EveModuleManifestParts.scripts = [
 
 
 
-        'js/modules/gemini/Script_Loader/Script_Loader.js',
+        'js/modules/gemini/Script_Loader/Script_Loader.js?v=0.1.1',
 
 
 

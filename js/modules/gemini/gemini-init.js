@@ -1,6 +1,21 @@
 /* js/modules/gemini/gemini-init.js */
 (function () {
-    console.log('Initializing Gemini Interface Integration...');
+    function shouldDebugBootLogs() {
+        try {
+            const qs = new URLSearchParams(window.location.search || '');
+            if (qs.get('debugGeminiBoot') === '1') return true;
+            return window.localStorage && window.localStorage.getItem('eve.debugGeminiBoot') === '1';
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function debugBootLog() {
+        if (!shouldDebugBootLogs()) return;
+        console.log.apply(console, arguments);
+    }
+
+    debugBootLog('Initializing Gemini Interface Integration...');
 
     function shouldEagerBoot() {
         try {
@@ -25,7 +40,7 @@
             if (typeof window.__loadGeminiScriptsNow === 'function') {
                 window.__loadGeminiScriptsNow();
             } else {
-                console.log(`Gemini Init: Boot requested (${reason || 'manual'}), waiting for Script_Loader.`);
+                debugBootLog(`Gemini Init: Boot requested (${reason || 'manual'}), waiting for Script_Loader.`);
             }
         }, 250);
     }
@@ -77,11 +92,11 @@
         let target = document.getElementById('gemini-placeholder');
         if (target) {
             target.appendChild(geminiContainer);
-            console.log('Gemini Init: UI injected into placeholder.');
+            debugBootLog('Gemini Init: UI injected into placeholder.');
         } else {
             const indicatorContent = document.querySelector('#loadingIndicator .indicator-content');
             if (!indicatorContent || !indicatorContent.querySelector('.indicator-title')) {
-                console.log('Gemini Init: Search Monitor structure not ready, waiting...');
+                debugBootLog('Gemini Init: Search Monitor structure not ready, waiting...');
                 setTimeout(injectGeminiUI, 500);
                 return;
             }
@@ -91,7 +106,7 @@
             } else {
                 indicatorContent.prepend(geminiContainer);
             }
-            console.log('Gemini Init: UI injected using fallback order logic.');
+            debugBootLog('Gemini Init: UI injected using fallback order logic.');
         }
 
         bindOnDemandBoot(geminiContainer);

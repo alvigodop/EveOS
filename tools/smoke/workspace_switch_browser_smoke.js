@@ -97,6 +97,40 @@ async function runSmoke(page) {
 
   await page.waitForSelector('.category-card[data-card-category="Alpha"]', { timeout: 10000 });
 
+  await page.evaluate(() => {
+    if (!window.EveQuickPins?.toggleBookmarkPin) throw new Error('Quick pins API unavailable');
+    window.EveQuickPins.toggleBookmarkPin('main-root', { scopeType: 'tab' });
+  });
+  await page.waitForFunction(() => {
+    return (window.EveQuickPins?.getPins?.().length || 0) === 1
+      && (document.querySelectorAll('#dock-container .dock-item').length || 0) === 1;
+  }, undefined, { timeout: 5000 });
+  await page.locator('#dock-container .dock-item').hover();
+  await page.locator('#dock-container .dock-control--remove').click();
+  await page.waitForFunction(() => {
+    return (window.EveQuickPins?.getPins?.().length || 0) === 0
+      && (document.querySelectorAll('#dock-container .dock-item').length || 0) === 0;
+  }, undefined, { timeout: 5000 });
+
+  await page.locator('.ws-unidex').click();
+  await page.waitForFunction(() => window.eveState?.config?.viewMode === 'unidex', undefined, { timeout: 5000 });
+
+  await resetRenderCounter(page);
+  await page.locator('#sidebar .ws-item').nth(1).click();
+  await page.waitForFunction(() => {
+    const mainContent = document.getElementById('main-content');
+    const grid = document.getElementById('dashboard-grid');
+    return window.eveState?.config?.viewMode === 'grid'
+      && !!mainContent
+      && !mainContent.classList.contains('unidex-view-active')
+      && !!grid
+      && !grid.classList.contains('unidex-mode');
+  }, undefined, { timeout: 5000 });
+  const unidexExitRenderCount = await getRenderCounter(page);
+  if (unidexExitRenderCount !== 1) {
+    throw new Error(`Expected one dashboard render when exiting Unidex into the active workspace, got ${unidexExitRenderCount}`);
+  }
+
   await page.evaluate(() => window.setFocus('Alpha'));
   await page.waitForFunction(() => (
     typeof focusCategory !== 'undefined' && String(focusCategory || '').trim() === 'Alpha'

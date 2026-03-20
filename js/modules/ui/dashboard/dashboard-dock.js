@@ -111,7 +111,10 @@ window.renderDock = function (_visibleLinks, dockContainer, focusCategory) {
                 window.hideBookmarkCoverHover();
             });
         }
-        item.addEventListener('click', function () {
+        item.addEventListener('click', function (event) {
+            if (event?.target?.closest?.('.dock-controls')) {
+                return;
+            }
             pinApi.activatePin?.(pin.id);
         });
 

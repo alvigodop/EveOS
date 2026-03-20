@@ -16,6 +16,8 @@ window.EveQuickPins = window.EveQuickPins || {};
 
         getPins,
 
+        removePins,
+
         writeStore,
 
         toId,

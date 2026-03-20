@@ -4,7 +4,51 @@ window.EveSemanticDrift = window.EveSemanticDrift || {};
 (function(ns) {
     const CACHE_KEY = 'eveos_drift_cache';
     const TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+    const START_DELAY_MS = 15000;
+    const QUIET_WINDOW_MS = 2500;
+    const INTER_BATCH_DELAY_MS = 120;
+    const BATCH_SIZE = 2;
+    const SAVE_EVERY_BATCHES = 4;
     let driftCache = null;
+    let engineScheduled = false;
+    let engineRunning = false;
+    let lastUserInteractionAt = Date.now();
+
+    function isVerbose() {
+        try {
+            const qs = new URLSearchParams(window.location.search || '');
+            if (qs.get('debugBackground') === '1') return true;
+            return window.localStorage && window.localStorage.getItem('eve.debugBackground') === '1';
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function debugLog() {
+        if (!isVerbose()) return;
+        console.log.apply(console, arguments);
+    }
+
+    function noteUserInteraction() {
+        lastUserInteractionAt = Date.now();
+    }
+
+    ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach((eventName) => {
+        window.addEventListener(eventName, noteUserInteraction, { passive: true });
+    });
+
+    function sleep(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    async function waitForQuietWindow() {
+        while (true) {
+            const isVisible = document.visibilityState !== 'hidden';
+            const quietForMs = Date.now() - lastUserInteractionAt;
+            if (isVisible && quietForMs >= QUIET_WINDOW_MS) return;
+            await sleep(Math.max(250, QUIET_WINDOW_MS - quietForMs));
+        }
+    }
 
     function getCache() {
         if (driftCache) return driftCache;
@@ -170,34 +214,74 @@ window.EveSemanticDrift = window.EveSemanticDrift || {};
         cache[link.url] = result;
     }
 
-    async function runBackgroundScan(links) {
-        if (!Array.isArray(links)) return;
-        console.log(`[SemanticDrift] Starting background scan for ${links.length} links...`);
+    function getPendingLinks(links, forceRefresh) {
+        if (!Array.isArray(links)) return [];
+        const cache = getCache();
+        return links.filter((link) => {
+            if (!link || !link.url || link.url.startsWith('javascript:') || link.url === '#') return false;
+            if (forceRefresh) return true;
+            return !(cache[link.url] && isFresh(cache[link.url]));
+        });
+    }
 
-        // Process in small batches so we don't nuke the network stack
-        const BATCH_SIZE = 5;
-        for (let i = 0; i < links.length; i += BATCH_SIZE) {
-            const batch = links.slice(i, i + BATCH_SIZE);
-            await Promise.allSettled(batch.map(checkLink));
-            saveCache(); // Save incrementally
-            // tiny sleep to let UI breathe
-            await new Promise(r => setTimeout(r, 500));
+    async function runBackgroundScan(links, options) {
+        const forceRefresh = !!(options && options.forceRefresh);
+        const pendingLinks = getPendingLinks(links, forceRefresh);
+        if (!pendingLinks.length || engineRunning) return;
+
+        engineRunning = true;
+        debugLog(`[SemanticDrift] Starting background scan for ${pendingLinks.length}/${links.length} links...`);
+
+        try {
+            await waitForQuietWindow();
+
+            let batchesSinceSave = 0;
+            for (let i = 0; i < pendingLinks.length; i += BATCH_SIZE) {
+                await waitForQuietWindow();
+
+                const batch = pendingLinks.slice(i, i + BATCH_SIZE);
+                await Promise.allSettled(batch.map(checkLink));
+                batchesSinceSave += 1;
+
+                const isLastBatch = i + BATCH_SIZE >= pendingLinks.length;
+                if (batchesSinceSave >= SAVE_EVERY_BATCHES || isLastBatch) {
+                    saveCache();
+                    batchesSinceSave = 0;
+                }
+
+                if (!isLastBatch) {
+                    await sleep(INTER_BATCH_DELAY_MS);
+                }
+            }
+        } finally {
+            engineRunning = false;
         }
-        console.log(`[SemanticDrift] Scan complete.`);
+
+        debugLog('[SemanticDrift] Scan complete.');
     }
 
     ns.startEngine = function() {
-        // Wait for dashboard to finish initial render
+        if (engineScheduled || engineRunning) return;
+        engineScheduled = true;
+
         setTimeout(() => {
             const allLinks = Array.isArray(window.eveState?.links) ? window.eveState.links : [];
-            runBackgroundScan(allLinks);
-        }, 5000);
+            runBackgroundScan(allLinks).finally(() => {
+                engineScheduled = false;
+            });
+        }, START_DELAY_MS);
     };
 
     ns.forceRefreshScan = function() {
         driftCache = {};
-        localStorage.removeItem(CACHE_KEY);
-        ns.startEngine();
+        engineScheduled = false;
+        try {
+            localStorage.removeItem(CACHE_KEY);
+        } catch (e) {
+            // ignore storage restrictions here; scan can still proceed in-memory
+        }
+        const allLinks = Array.isArray(window.eveState?.links) ? window.eveState.links : [];
+        runBackgroundScan(allLinks, { forceRefresh: true });
         if (typeof showToast === 'function') showToast('Semantic Drift Scan restarting...', 'info');
     };
 

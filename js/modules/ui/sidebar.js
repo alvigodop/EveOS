@@ -36,14 +36,15 @@ function renderSidebar() {
         item.className = `ws-item ${isWorkspaceActive ? 'active' : ''}`;
         item.innerHTML = `${ws.icon} <span class="ws-label">${ws.name}</span>`;
         item.onclick = () => {
-            if (config.viewMode === 'unidex') {
+            const exitingUnidex = config.viewMode === 'unidex';
+            if (exitingUnidex) {
                 if (window.UnidexView && typeof window.UnidexView.resetSelection === 'function') {
                     window.UnidexView.resetSelection();
                 }
                 config.viewMode = 'grid';
                 saveConfig();
             }
-            switchWorkspace(ws.id);
+            switchWorkspace(ws.id, { forceRender: exitingUnidex });
         };
         item.oncontextmenu = (e) => showWsContext(e, ws.id);
         sb.appendChild(item);

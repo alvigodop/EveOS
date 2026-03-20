@@ -2,7 +2,22 @@
 // Centralized Script Loader for Gemini Chat Interface.
 // Loads Gemini child modules lazily to avoid blocking initial app startup.
 
-console.log('js/modules/gemini/Script_Loader/Script_Loader.js started loading');
+function shouldDebugBootLogs() {
+    try {
+        const qs = new URLSearchParams(window.location.search || '');
+        if (qs.get('debugGeminiBoot') === '1') return true;
+        return window.localStorage && window.localStorage.getItem('eve.debugGeminiBoot') === '1';
+    } catch (e) {
+        return false;
+    }
+}
+
+function debugBootLog() {
+    if (!shouldDebugBootLogs()) return;
+    console.log.apply(console, arguments);
+}
+
+debugBootLog('js/modules/gemini/Script_Loader/Script_Loader.js started loading');
 
 const APP_ROOT = window.GEMINI_APP_ROOT || '';
 const BASE_PATHS = {
@@ -11,9 +26,6 @@ const BASE_PATHS = {
     LOG_INTERFACE: APP_ROOT + 'js/modules/gemini/logs',
     COMM_PANEL: APP_ROOT + 'js/modules/gemini/comm'
 };
-
-const AUTO_BOOT_IDLE_TIMEOUT_MS = 4000;
-const AUTO_BOOT_FALLBACK_DELAY_MS = 1500;
 
 // Order matters: Core -> Components -> Features -> UI
 const masterScriptList = [
@@ -95,7 +107,7 @@ function shouldEagerBoot() {
 }
 
 function loadAllScripts() {
-    console.log('Script_Loader: Starting to load all application scripts...');
+    debugBootLog('Script_Loader: Starting to load all application scripts...');
 
     const deduped = [];
     const seen = new Set();
@@ -122,7 +134,7 @@ function loadAllScripts() {
         script.onload = () => {
             loadedCount++;
             if (loadedCount % 5 === 0 || loadedCount === totalScripts) {
-                console.log(`Script_Loader: Progress ${loadedCount}/${totalScripts}`);
+                debugBootLog(`Script_Loader: Progress ${loadedCount}/${totalScripts}`);
             }
         };
 
@@ -133,37 +145,15 @@ function loadAllScripts() {
         document.head.appendChild(script);
     });
 
-    console.log(`Script_Loader: All ${totalScripts} script tags appended to head.`);
+    debugBootLog(`Script_Loader: All ${totalScripts} script tags appended to head.`);
 }
 
 function startGeminiBoot(reason) {
     if (bootStarted) return;
     bootStarted = true;
     window.__GEMINI_BOOT_STARTED = true;
-    console.log(`Script_Loader: Starting Gemini module load (${reason || 'auto'})`);
+    debugBootLog(`Script_Loader: Starting Gemini module load (${reason || 'auto'})`);
     loadAllScripts();
-}
-
-function scheduleDeferredBoot() {
-    const run = () => {
-        if (window.__GEMINI_BOOT_REQUESTED) {
-            startGeminiBoot('requested');
-            return;
-        }
-
-        if (typeof window.requestIdleCallback === 'function') {
-            window.requestIdleCallback(() => startGeminiBoot('idle'), { timeout: AUTO_BOOT_IDLE_TIMEOUT_MS });
-            return;
-        }
-
-        window.setTimeout(() => startGeminiBoot('timeout-fallback'), AUTO_BOOT_FALLBACK_DELAY_MS);
-    };
-
-    if (document.readyState === 'complete') {
-        run();
-    } else {
-        window.addEventListener('load', run, { once: true });
-    }
 }
 
 // Expose manual trigger for on-demand startup from gemini-init.js.
@@ -174,6 +164,4 @@ window.__loadGeminiScriptsNow = function () {
 
 if (window.__GEMINI_BOOT_REQUESTED || shouldEagerBoot()) {
     startGeminiBoot(window.__GEMINI_BOOT_REQUESTED ? 'pre-requested' : 'eager');
-} else {
-    scheduleDeferredBoot();
 }

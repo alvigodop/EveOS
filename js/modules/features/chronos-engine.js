@@ -11,6 +11,22 @@
 
     const SNAPSHOT_KEY_PREFIX = 'eveos_pulse_snapshot_';
     const MAX_SNAPSHOTS = 5;
+    let snapshotQueued = false;
+
+    function isVerbose() {
+        try {
+            const qs = new URLSearchParams(window.location.search || '');
+            if (qs.get('debugBackground') === '1') return true;
+            return window.localStorage && window.localStorage.getItem('eve.debugBackground') === '1';
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function debugLog() {
+        if (!isVerbose()) return;
+        console.log.apply(console, arguments);
+    }
 
     function captureSnapshot() {
         const timestamp = Date.now();
@@ -25,10 +41,25 @@
             const stateStr = JSON.stringify(state);
             localStorage.setItem(SNAPSHOT_KEY_PREFIX + timestamp, stateStr);
             pruneSnapshots();
-            console.log(`[Chronos] Pulse snapshot saved: ${timestamp}`);
+            debugLog(`[Chronos] Pulse snapshot saved: ${timestamp}`);
         } catch (e) {
             console.warn('[Chronos] Failed to save pulse snapshot (quota exceeded?):', e);
+        } finally {
+            snapshotQueued = false;
         }
+    }
+
+    function scheduleSnapshotCapture() {
+        if (snapshotQueued) return;
+        snapshotQueued = true;
+
+        const run = () => captureSnapshot();
+        if (typeof window.requestIdleCallback === 'function') {
+            window.requestIdleCallback(run, { timeout: 5000 });
+            return;
+        }
+
+        window.setTimeout(run, 250);
     }
 
     function pruneSnapshots() {
@@ -46,7 +77,7 @@
             if (keys.length > MAX_SNAPSHOTS) {
                 for (let i = MAX_SNAPSHOTS; i < keys.length; i++) {
                     localStorage.removeItem(keys[i].key);
-                    console.log(`[Chronos] Pruned old snapshot: ${keys[i].key}`);
+                    debugLog(`[Chronos] Pruned old snapshot: ${keys[i].key}`);
                 }
             }
         } catch (e) {
@@ -74,7 +105,7 @@
                 if (state.links) window.links = state.links;
                 if (state.config) window.config = state.config;
                 if (state.eveState) window.eveState = state.eveState;
-                console.log(`[Chronos] Pulse snapshot restored: ${timestamp}`);
+                debugLog(`[Chronos] Pulse snapshot restored: ${timestamp}`);
 
                 // Trigger full UI re-render
                 if (typeof window.saveData === 'function') window.saveData();
@@ -105,8 +136,8 @@
             const ret = originalSaveData.apply(this, arguments);
             const now = Date.now();
             if (now - lastSnapshotTime > SNAPSHOT_INTERVAL_MS) {
-                captureSnapshot();
                 lastSnapshotTime = now;
+                scheduleSnapshotCapture();
             }
             return ret;
         };
