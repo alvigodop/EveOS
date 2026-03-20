@@ -281,7 +281,7 @@ window.EveModuleManifestParts.scripts = [
 
         'js/modules/features/constellation-map/constellation-map.render.js?v=0.2.3',
 
-        'js/modules/features/constellation-map/constellation-map.physics.js?v=0.1.1',
+        'js/modules/features/constellation-map/constellation-map.physics.js?v=0.1.3',
 
         'js/modules/features/constellation-map/constellation-map.view.js?v=0.1.0',
         'js/modules/features/constellation-map/constellation-map.events.js?v=0.1.0',

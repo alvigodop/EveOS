@@ -536,6 +536,42 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         }
     }
 
+    function stabilizeDirectCardBookmarkClearance(node, anchor) {
+        if (!node || node.kind !== 'link' || !anchor) return;
+
+        const parentId = (node.data && node.data.anchorNodeId) ? node.data.anchorNodeId : '';
+        const parentNode = parentId ? state.nodeIndex.get(parentId) : null;
+        if (!parentNode || (parentNode.kind !== 'category' && parentNode.kind !== 'workspace')) return;
+
+        const dx = node.x - parentNode.x;
+        const dy = node.y - parentNode.y;
+        const dist = Math.sqrt((dx * dx) + (dy * dy)) || 1;
+
+        const anchorDx = anchor.x - parentNode.x;
+        const anchorDy = anchor.y - parentNode.y;
+        const anchorDist = Math.sqrt((anchorDx * anchorDx) + (anchorDy * anchorDy));
+
+        let axisX = 0;
+        let axisY = 0;
+        if (Number.isFinite(anchorDist) && anchorDist > 8) {
+            axisX = anchorDx / anchorDist;
+            axisY = anchorDy / anchorDist;
+        } else if (dist > 1) {
+            axisX = dx / dist;
+            axisY = dy / dist;
+        } else {
+            return;
+        }
+
+        const minRadius = Math.max((Number(parentNode.radius) || 12) + 24, (Number.isFinite(anchorDist) ? anchorDist * 0.55 : 0), 32);
+        if (dist >= minRadius) return;
+
+        node.x = parentNode.x + (axisX * minRadius);
+        node.y = parentNode.y + (axisY * minRadius);
+        node.vx *= 0.72;
+        node.vy *= 0.72;
+    }
+
 
 
     function getReleaseVelocityScale(node) {
@@ -1008,6 +1044,10 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 desired = 140;
             }
 
+            if (edge.type === 'hierarchy' && edge.source?.kind === 'link' && (edge.target?.kind === 'workspace' || edge.target?.kind === 'category')) {
+                desired = 126;
+            }
+
             const stretch = dist - desired;
 
             const nx = dx / dist;
@@ -1402,6 +1442,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             applySoftWorldTether(node, motionProfile);
 
             stabilizeNodeMotion(node, anchor, motionProfile);
+
+            stabilizeDirectCardBookmarkClearance(node, anchor);
 
         });
 
