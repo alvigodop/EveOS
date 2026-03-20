@@ -4,11 +4,24 @@
     const EXTERNAL_SCRIPT_LOAD_TIMEOUT_MS = 45000;
     const MAX_BOOTSTRAP_RELOADS = 1;
     const RELOAD_ATTEMPT_KEY = 'eveos.scriptLoader.reloadAttempts';
-    const DEFERRED_LOAD_DELAY_MS = 60;
+    const DEFERRED_LOAD_DELAY_MS = 6000;
+    const DEFERRED_IDLE_TIMEOUT_MS = 2500;
+    const DEFERRED_BATCH_SIZE = 4;
+    const DEFERRED_BATCH_PAUSE_MS = 300;
+    const DEFERRED_QUIET_WINDOW_MS = 2000;
+    let lastUserInteractionAt = Date.now();
 
     if (!window.EveModuleManifest) {
         console.error("EveOS Manifest not found! Scripts will not load.");
     }
+
+    function noteUserInteraction() {
+        lastUserInteractionAt = Date.now();
+    }
+
+    ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach((eventName) => {
+        window.addEventListener(eventName, noteUserInteraction, { passive: true });
+    });
 
     function getReloadAttempts() {
         try {
@@ -104,6 +117,66 @@
         });
     }
 
+    function sleep(ms) {
+        return new Promise((resolve) => window.setTimeout(resolve, ms));
+    }
+
+    function waitForIdleTask() {
+        return new Promise((resolve) => {
+            if (typeof window.requestIdleCallback === 'function') {
+                window.requestIdleCallback(() => resolve(), { timeout: DEFERRED_IDLE_TIMEOUT_MS });
+                return;
+            }
+            window.setTimeout(resolve, DEFERRED_BATCH_PAUSE_MS);
+        });
+    }
+
+    async function waitForQuietWindow() {
+        while (true) {
+            const quietForMs = Date.now() - lastUserInteractionAt;
+            const isVisible = document.visibilityState !== 'hidden';
+            if (isVisible && quietForMs >= DEFERRED_QUIET_WINDOW_MS) {
+                return;
+            }
+            await sleep(Math.max(200, DEFERRED_QUIET_WINDOW_MS - quietForMs));
+        }
+    }
+
+    async function loadDeferredScriptsInBatches(deferredScripts) {
+        if (!Array.isArray(deferredScripts) || !deferredScripts.length) return;
+
+        window.__EVE_DEFERRED_SCRIPT_STATE = {
+            total: deferredScripts.length,
+            loaded: 0,
+            failed: 0,
+            startedAt: Date.now()
+        };
+
+        console.log(`Loading deferred scripts in background (${deferredScripts.length})...`);
+
+        for (let i = 0; i < deferredScripts.length; i += DEFERRED_BATCH_SIZE) {
+            await waitForQuietWindow();
+            await waitForIdleTask();
+
+            const batch = deferredScripts.slice(i, i + DEFERRED_BATCH_SIZE);
+            const results = await Promise.allSettled(batch.map((src) => loadScript(src)));
+
+            results.forEach((result) => {
+                if (result.status === 'fulfilled') {
+                    window.__EVE_DEFERRED_SCRIPT_STATE.loaded += 1;
+                } else {
+                    window.__EVE_DEFERRED_SCRIPT_STATE.failed += 1;
+                }
+            });
+
+            if (i + DEFERRED_BATCH_SIZE < deferredScripts.length) {
+                await sleep(DEFERRED_BATCH_PAUSE_MS);
+            }
+        }
+
+        window.__EVE_DEFERRED_SCRIPT_STATE.completedAt = Date.now();
+    }
+
     async function init() {
         // Optimize: Create head alias
         document.h = document.head || document.getElementsByTagName('head')[0];
@@ -153,8 +226,7 @@
                     return;
                 }
                 try {
-                    console.log(`Loading deferred scripts in background (${deferredScripts.length})...`);
-                    await Promise.all(deferredScripts.map(src => loadScript(src)));
+                    await loadDeferredScriptsInBatches(deferredScripts);
                     if (window.ScraperInit && typeof ScraperInit.init === 'function') ScraperInit.init();
                     console.log('All scripts loaded.');
                 } catch (deferredError) {
@@ -163,7 +235,7 @@
             };
 
             if (typeof window.requestIdleCallback === 'function' && hasDeferredScripts) {
-                window.requestIdleCallback(() => { runDeferredLoad(); }, { timeout: 1500 });
+                window.requestIdleCallback(() => { runDeferredLoad(); }, { timeout: DEFERRED_LOAD_DELAY_MS });
             } else {
                 window.setTimeout(() => { runDeferredLoad(); }, hasDeferredScripts ? DEFERRED_LOAD_DELAY_MS : 0);
             }
