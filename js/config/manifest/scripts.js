@@ -289,7 +289,7 @@ window.EveModuleManifestParts.scripts = [
 
         'js/modules/features/constellation-map/constellation-map.render.anchors.js?v=0.1.0',
         'js/modules/features/constellation-map/constellation-map.render.labels.js?v=0.1.0',
-        'js/modules/features/constellation-map/constellation-map.render.auras.js?v=0.1.1',
+        'js/modules/features/constellation-map/constellation-map.render.auras.js?v=0.1.3',
         'js/modules/features/constellation-map/constellation-map.render.canvas.js?v=0.2.0',
         'js/modules/features/constellation-map/constellation-map.render.toolbar.js?v=0.1.0',
         'js/modules/features/constellation-map/constellation-map.render.inspector.js?v=0.1.0',

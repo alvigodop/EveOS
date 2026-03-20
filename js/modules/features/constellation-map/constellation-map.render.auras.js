@@ -11,12 +11,29 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         const auraRoots = new Map();
         const storedAuraRoots = state.auraRoots instanceof Map ? state.auraRoots : new Map();
+        const storedWorkspaceAuraRoots = state.workspaceAuraRoots instanceof Map ? state.workspaceAuraRoots : new Map();
         const activeChainIds = new Set();
         state.nodes.forEach((node) => {
             if (!node || !node.chainId) return;
             if (node.kind !== 'category' && node.kind !== 'workspace') return;
 
             activeChainIds.add(node.chainId);
+
+            const parentId = text(node?.data?.anchorNodeId, '');
+            const parentNode = parentId ? state.nodeIndex.get(parentId) : null;
+            const workspaceAuraData = (node.kind === 'category' && parentNode?.kind === 'workspace')
+                ? storedWorkspaceAuraRoots.get(parentNode.id)
+                : null;
+            const hasWorkspaceParentAura = !!workspaceAuraData && Number.isFinite(workspaceAuraData.frontAngle);
+            let workspaceParentAngle = null;
+            if (parentNode?.kind === 'workspace') {
+                const pdx = parentNode.x - node.x;
+                const pdy = parentNode.y - node.y;
+                const pdist = Math.sqrt((pdx * pdx) + (pdy * pdy));
+                if (pdist > 0.001) {
+                    workspaceParentAngle = Math.atan2(pdy, pdx);
+                }
+            }
 
             const directFolders = state.nodes.filter((candidate) => {
                 const parentId = text(candidate?.data?.anchorNodeId, '');
@@ -37,6 +54,12 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 frontX = dragDx / dragDist;
                 frontY = dragDy / dragDist;
                 frontAngle = Math.atan2(frontY, frontX);
+            } else if (hasWorkspaceParentAura) {
+                frontAngle = Number.isFinite(workspaceParentAngle)
+                    ? workspaceParentAngle
+                    : workspaceAuraData.frontAngle;
+                frontX = Math.cos(frontAngle);
+                frontY = Math.sin(frontAngle);
             } else if (directFolders.length > 0) {
                 let sumX = 0;
                 let sumY = 0;
@@ -57,7 +80,17 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             }
 
             const previousRoot = storedAuraRoots.get(node.chainId);
-            if (!isDraggingRoot && previousRoot && directFolders.length < 1) {
+            if (!isDraggingRoot && hasWorkspaceParentAura && previousRoot) {
+                const targetAngle = Number.isFinite(workspaceParentAngle)
+                    ? workspaceParentAngle
+                    : workspaceAuraData.frontAngle;
+                const currentAngle = Number.isFinite(previousRoot.frontAngle)
+                    ? previousRoot.frontAngle
+                    : targetAngle;
+                frontAngle = stepAngleToward(currentAngle, targetAngle, 0.26, 0.16);
+                frontX = Math.cos(frontAngle);
+                frontY = Math.sin(frontAngle);
+            } else if (!isDraggingRoot && previousRoot && directFolders.length < 1) {
                 frontAngle = Number.isFinite(previousRoot.frontAngle)
                     ? previousRoot.frontAngle
                     : frontAngle;
