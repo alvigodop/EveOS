@@ -1196,11 +1196,61 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     function drawPhysicsAuras(ctx) {
         if (!state.showPhysicsAuras) return;
 
-        const chainRoots = state.chainRoots;
-        if (!chainRoots) return;
+        const auraRoots = new Map();
+        state.nodes.forEach((node) => {
+            if (!node || !node.chainId) return;
+            if (node.kind !== 'category' && node.kind !== 'workspace') return;
+
+            const directFolders = state.nodes.filter((candidate) => {
+                const parentId = text(candidate?.data?.anchorNodeId, '');
+                return candidate.kind === 'folder' && parentId === node.id;
+            });
+
+            let frontX = 0;
+            let frontY = -1;
+            let frontAngle = -Math.PI / 2;
+
+            const isDraggingRoot = state.pointer.mode === 'node' && state.pointer.node?.id === node.id;
+            const dragDx = Number(state.pointer.releaseVx) || 0;
+            const dragDy = Number(state.pointer.releaseVy) || 0;
+            const dragDistSq = (dragDx * dragDx) + (dragDy * dragDy);
+
+            if (isDraggingRoot && dragDistSq > 0.1) {
+                const dragDist = Math.sqrt(dragDistSq);
+                frontX = dragDx / dragDist;
+                frontY = dragDy / dragDist;
+                frontAngle = Math.atan2(frontY, frontX);
+            } else if (directFolders.length > 0) {
+                let sumX = 0;
+                let sumY = 0;
+                directFolders.forEach((folder) => {
+                    sumX += folder.x;
+                    sumY += folder.y;
+                });
+                const avgX = sumX / directFolders.length;
+                const avgY = sumY / directFolders.length;
+                const dx = node.x - avgX;
+                const dy = node.y - avgY;
+                const dist = Math.sqrt((dx * dx) + (dy * dy));
+                if (dist > 0.001) {
+                    frontX = dx / dist;
+                    frontY = dy / dist;
+                    frontAngle = Math.atan2(frontY, frontX);
+                }
+            }
+
+            auraRoots.set(node.chainId, {
+                node,
+                frontX,
+                frontY,
+                frontAngle
+            });
+        });
+
+        if (!auraRoots.size) return;
 
         // 1. Draw Root Authority Glows (Asymmetric Teardrop)
-        chainRoots.forEach((rootData) => {
+        auraRoots.forEach((rootData) => {
             const root = rootData.node;
             if (!root) return;
             
@@ -1317,8 +1367,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         const zoomAlpha = Math.min(1.0, state.transform.scale * 3.0);
         state.nodes.forEach(node => {
             if (!node || !node.chainId) return;
-            const root = chainRoots.get(node.chainId);
-            if (!root || root === node) return;
+            const rootData = auraRoots.get(node.chainId);
+            const root = rootData?.node;
+            if (!rootData || !root || root === node) return;
 
             const rdx = node.x - root.x;
             const rdy = node.y - root.y;
@@ -1329,36 +1380,20 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
 
             // Card Aura Repulsion & Fallback Visualization
-            const cardData = chainRoots.get(node.chainId); 
-            if (cardData && cardData !== node) {
-                // We need the front vector for the card
-                // (This is a bit redundant but stays modular for render.js)
-                const folders = state.nodes.filter(n => {
-                    const pId = (n.data && n.data.anchorNodeId) ? n.data.anchorNodeId : '';
-                    return n.kind === 'folder' && pId === cardData.id;
-                });
-                
-                let cfx = 0, cfy = -1;
-                if (folders.length > 0) {
-                    let sumX = 0, sumY = 0;
-                    folders.forEach(f => { sumX += f.x; sumY += f.y; });
-                    const avgX = sumX / folders.length;
-                    const avgY = sumY / folders.length;
-                    const dx = cardData.x - avgX;
-                    const dy = cardData.y - avgY;
-                    const dist = Math.sqrt(dx * dx + dy * dy);
-                    if (dist > 5) { cfx = dx / dist; cfy = dy / dist; }
-                }
+            const cardData = rootData;
+            if (cardData && cardData.node !== node) {
+                const cfx = cardData.frontX;
+                const cfy = cardData.frontY;
 
-                const dx = node.x - cardData.x;
-                const dy = node.y - cardData.y;
+                const dx = node.x - cardData.node.x;
+                const dy = node.y - cardData.node.y;
                 const dist = Math.sqrt(dx * dx + dy * dy) || 1;
                 const projLong = dx * cfx + dy * cfy;
                 const latX = -cfy;
                 const latY = cfx;
                 const distLat = Math.abs(dx * latX + dy * latY);
 
-                const baseRad = cardData.radius || 120;
+                const baseRad = cardData.node.radius || 120;
                 const rFront = baseRad * 18.0;
                 const rBack = baseRad * 5.0;
                 const rLat = baseRad * 10.0;

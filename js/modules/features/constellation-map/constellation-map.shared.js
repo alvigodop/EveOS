@@ -180,7 +180,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         chainHierarchyEnabled: true,
 
         bookmarkHierarchyEnabled: true,
-        showPhysicsAuras: false,
+        showPhysicsAuras: true,
         hierarchyAnchors: new Map()
     };
 
