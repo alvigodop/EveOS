@@ -180,6 +180,10 @@ load('js/modules/features/constellation-map/constellation-map.physics.motion.anc
 load('js/modules/features/constellation-map/constellation-map.physics.motion.js');
 load('js/modules/features/constellation-map/constellation-map.physics.polarity.js');
 load('js/modules/features/constellation-map/constellation-map.physics.helpers.js');
+load('js/modules/features/constellation-map/constellation-map.physics.pass.pairwise.js');
+load('js/modules/features/constellation-map/constellation-map.physics.pass.edges.js');
+load('js/modules/features/constellation-map/constellation-map.physics.pass.hierarchy.js');
+load('js/modules/features/constellation-map/constellation-map.physics.pass.integrate.js');
 load('js/modules/features/constellation-map/constellation-map.physics.tick.js');
 load('js/modules/features/constellation-map/constellation-map.physics.js');
 load('js/modules/features/constellation-map/constellation-map.view.js');
