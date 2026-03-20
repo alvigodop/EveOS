@@ -175,9 +175,12 @@ load('js/modules/features/constellation-map/constellation-map.render.toolbar.js'
 load('js/modules/features/constellation-map/constellation-map.render.inspector.js');
 load('js/modules/features/constellation-map/constellation-map.render.js');
 load('js/modules/features/constellation-map/constellation-map.physics.aura.js');
+load('js/modules/features/constellation-map/constellation-map.physics.motion.profiles.js');
+load('js/modules/features/constellation-map/constellation-map.physics.motion.anchors.js');
 load('js/modules/features/constellation-map/constellation-map.physics.motion.js');
 load('js/modules/features/constellation-map/constellation-map.physics.polarity.js');
 load('js/modules/features/constellation-map/constellation-map.physics.helpers.js');
+load('js/modules/features/constellation-map/constellation-map.physics.tick.js');
 load('js/modules/features/constellation-map/constellation-map.physics.js');
 load('js/modules/features/constellation-map/constellation-map.view.js');
 load('js/modules/features/constellation-map/constellation-map.events.js');
