@@ -82,6 +82,38 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
     }
 
+    function normalizeAngle(angle) {
+
+        let value = Number.isFinite(angle) ? angle : 0;
+
+        while (value <= -Math.PI) value += Math.PI * 2;
+
+        while (value > Math.PI) value -= Math.PI * 2;
+
+        return value;
+
+    }
+
+    function stepAngleToward(current, target, factor, maxStep) {
+
+        const currentAngle = normalizeAngle(current);
+
+        const targetAngle = normalizeAngle(target);
+
+        let delta = normalizeAngle(targetAngle - currentAngle);
+
+        delta *= Math.max(0, Math.min(1, Number(factor) || 0));
+
+        const stepLimit = Math.max(0.0001, Number(maxStep) || 0.0001);
+
+        if (delta > stepLimit) delta = stepLimit;
+
+        if (delta < -stepLimit) delta = -stepLimit;
+
+        return normalizeAngle(currentAngle + delta);
+
+    }
+
     function getPrimaryAction(node) {
 
         if (!node) return null;
@@ -1197,9 +1229,13 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         if (!state.showPhysicsAuras) return;
 
         const auraRoots = new Map();
+        const storedAuraRoots = state.auraRoots instanceof Map ? state.auraRoots : new Map();
+        const activeChainIds = new Set();
         state.nodes.forEach((node) => {
             if (!node || !node.chainId) return;
             if (node.kind !== 'category' && node.kind !== 'workspace') return;
+
+            activeChainIds.add(node.chainId);
 
             const directFolders = state.nodes.filter((candidate) => {
                 const parentId = text(candidate?.data?.anchorNodeId, '');
@@ -1239,13 +1275,43 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 }
             }
 
-            auraRoots.set(node.chainId, {
+            const previousRoot = storedAuraRoots.get(node.chainId);
+            if (!isDraggingRoot && previousRoot && directFolders.length < 1) {
+                frontAngle = Number.isFinite(previousRoot.frontAngle)
+                    ? previousRoot.frontAngle
+                    : frontAngle;
+                frontX = Math.cos(frontAngle);
+                frontY = Math.sin(frontAngle);
+            } else if (previousRoot && !isDraggingRoot) {
+                const targetAngle = frontAngle;
+                const currentAngle = Number.isFinite(previousRoot.frontAngle)
+                    ? previousRoot.frontAngle
+                    : targetAngle;
+                const smoothing = directFolders.length > 0 ? 0.028 : 0.05;
+                const maxStep = directFolders.length > 0 ? 0.04 : 0.07;
+                frontAngle = stepAngleToward(currentAngle, targetAngle, smoothing, maxStep);
+                frontX = Math.cos(frontAngle);
+                frontY = Math.sin(frontAngle);
+            }
+
+            const nextRoot = {
                 node,
                 frontX,
                 frontY,
                 frontAngle
-            });
+            };
+
+            auraRoots.set(node.chainId, nextRoot);
+            storedAuraRoots.set(node.chainId, nextRoot);
         });
+
+        Array.from(storedAuraRoots.keys()).forEach((chainId) => {
+            if (!activeChainIds.has(chainId)) {
+                storedAuraRoots.delete(chainId);
+            }
+        });
+
+        state.auraRoots = storedAuraRoots;
 
         if (!auraRoots.size) return;
 
