@@ -335,7 +335,7 @@ function applyWorkspaceAuraRepulsion(node, workspace, workspaceData) {
         const shape = getWorkspaceAuraShape(workspace, categoryCount);
         const capsuleHalfWidth = shape.capsuleHalfWidth;
         const capsuleRadius = shape.capsuleRadius;
-        const backOffset = shape.backOffset;
+        const centerOffset = Number.isFinite(shape.centerOffset) ? shape.centerOffset : shape.backOffset;
 
         const dx = node.x - workspace.x;
 
@@ -345,7 +345,7 @@ function applyWorkspaceAuraRepulsion(node, workspace, workspaceData) {
 
         const localBack = (dx * backX) + (dy * backY);
 
-        const shiftedBack = localBack - backOffset;
+        const shiftedBack = localBack - centerOffset;
 
         const clampedLat = Math.max(-capsuleHalfWidth, Math.min(capsuleHalfWidth, localLat));
 
@@ -375,9 +375,9 @@ function applyWorkspaceAuraRepulsion(node, workspace, workspaceData) {
 
         node.vy += worldY * push;
 
-        if (localBack < backOffset) {
+        if (localBack < centerOffset) {
 
-            const fallBack = (backOffset - localBack) / Math.max(1, capsuleRadius);
+            const fallBack = (centerOffset - localBack) / Math.max(1, capsuleRadius);
 
             node.vx += backX * fallBack * 0.7;
 

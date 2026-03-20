@@ -83,15 +83,15 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         const fxPanel = state.container.querySelector('[data-map-fx-panel]');
 
         if (fxButton) {
-            fxButton.textContent = state.fxExpanded ? 'Hide FX' : 'Background FX';
+            fxButton.textContent = 'Background FX';
             setButtonActive(fxButton, !!state.fxExpanded, {
                 activeBorder: 'rgba(0,255,255,0.32)',
                 activeBackground: 'rgba(0,255,255,0.18)'
             });
         }
         if (fxPanel) {
-            fxPanel.style.display = state.fxExpanded ? 'flex' : 'none';
-            fxPanel.classList.toggle('visible', !!state.fxExpanded);
+            fxPanel.style.display = 'flex';
+            fxPanel.classList.add('visible');
         }
 
         if (controlsButton) {

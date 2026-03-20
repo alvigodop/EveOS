@@ -176,7 +176,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             const shape = getWorkspaceAuraShape(root, categoryCount);
             const capsuleHalfWidth = shape.capsuleHalfWidth;
             const capsuleRadius = shape.capsuleRadius;
-            const backOffset = shape.backOffset;
+            const centerOffset = Number.isFinite(shape.centerOffset) ? shape.centerOffset : shape.backOffset;
             const backAngle = Math.atan2(Number(workspaceData.backY) || 0, Number(workspaceData.backX) || -1);
             const zoomAlpha = Math.min(1.0, state.transform.scale * 2.8);
 
@@ -184,7 +184,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             ctx.translate(root.x, root.y);
             ctx.rotate(backAngle - (Math.PI / 2));
 
-            const fillGradient = ctx.createLinearGradient(0, backOffset - capsuleRadius, 0, backOffset + capsuleRadius);
+            const fillGradient = ctx.createLinearGradient(0, centerOffset - capsuleRadius, 0, centerOffset + capsuleRadius);
             fillGradient.addColorStop(0, `rgba(255, 209, 102, ${0.018 * zoomAlpha})`);
             fillGradient.addColorStop(0.5, `rgba(255, 209, 102, ${0.036 * zoomAlpha})`);
             fillGradient.addColorStop(1, 'rgba(255, 209, 102, 0)');
@@ -192,16 +192,16 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             ctx.lineCap = 'round';
             ctx.strokeStyle = fillGradient;
             ctx.lineWidth = capsuleRadius * 2;
-            ctx.moveTo(-capsuleHalfWidth, backOffset);
-            ctx.lineTo(capsuleHalfWidth, backOffset);
+            ctx.moveTo(-capsuleHalfWidth, centerOffset);
+            ctx.lineTo(capsuleHalfWidth, centerOffset);
             ctx.stroke();
 
             ctx.beginPath();
             ctx.setLineDash([18, 40]);
             ctx.strokeStyle = `rgba(255, 209, 102, ${0.14 * zoomAlpha})`;
             ctx.lineWidth = 2.5 / Math.max(0.35, state.transform.scale);
-            ctx.moveTo(-capsuleHalfWidth, backOffset);
-            ctx.lineTo(capsuleHalfWidth, backOffset);
+            ctx.moveTo(-capsuleHalfWidth, centerOffset);
+            ctx.lineTo(capsuleHalfWidth, centerOffset);
             ctx.stroke();
             ctx.restore();
         });

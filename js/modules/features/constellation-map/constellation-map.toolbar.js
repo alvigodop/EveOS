@@ -160,7 +160,12 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 requestDraw();
                 renderToolbarState();
             } else if (toolbarAction === 'fx') {
-                state.fxExpanded = !state.fxExpanded;
+                if (!state.controlsExpanded) {
+                    state.controlsExpanded = true;
+                    state.fxExpanded = true;
+                } else {
+                    state.fxExpanded = !state.fxExpanded;
+                }
                 renderToolbarState();
             } else if (toolbarAction === 'motion') {
                 const currentIndex = MOTION_MODE_ORDER.indexOf(state.motionMode);

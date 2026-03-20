@@ -442,11 +442,14 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         const baseRadius = workspace?.radius || 15;
         const count = Math.max(1, Number(categoryCount) || 1);
+        const backOffset = Math.max(80, ((baseRadius * 5) + (count * 4)) * getAuraTuningValue('workspaceOffsetScale'));
+        const centerOffset = Math.max(58, backOffset * 0.84);
 
         return {
             capsuleHalfWidth: Math.max(150, (((baseRadius * 7) + (count * 18)) * 1.45) * getAuraTuningValue('workspaceLengthScale')),
             capsuleRadius: Math.max(90, ((baseRadius * 5.5) + (count * 7)) * getAuraTuningValue('workspaceWidthScale')),
-            backOffset: Math.max(80, ((baseRadius * 5) + (count * 4)) * getAuraTuningValue('workspaceOffsetScale'))
+            backOffset,
+            centerOffset
         };
 
     }
