@@ -15,6 +15,17 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         return current + diff * factor;
     }
 
+    function normalizeAngle(angle) {
+        let value = Number.isFinite(angle) ? angle : 0;
+        while (value <= -Math.PI) value += Math.PI * 2;
+        while (value > Math.PI) value -= Math.PI * 2;
+        return value;
+    }
+
+    function getAngleDelta(current, target) {
+        return normalizeAngle(target - current);
+    }
+
     function compareNodeOrder(a, b) {
         const labelA = a?.label || '';
         const labelB = b?.label || '';
@@ -84,6 +95,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         const guides = new Map();
         const storedRoots = state.workspaceAuraRoots instanceof Map ? state.workspaceAuraRoots : new Map();
         const activeIds = new Set();
+        const storedCardAuras = state.auraRoots instanceof Map ? state.auraRoots : new Map();
 
         parentChildren.forEach((children, parentId) => {
             const parent = state.nodeIndex.get(parentId);
@@ -99,18 +111,40 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             activeIds.add(parent.id);
 
             const isDraggingRoot = state.pointer.mode === 'node' && state.pointer.node?.id === parent.id;
+            const isDraggingChildCategory = state.pointer.mode === 'node'
+                && state.pointer.node?.kind === 'category'
+                && text(state.pointer.node?.data?.anchorNodeId, '') === parent.id;
+            const previous = storedRoots.get(parent.id);
             let frontAngle = -Math.PI / 2;
+            let targetAngle = null;
 
             if (isDraggingRoot) {
                 const dragDx = Number(state.pointer.releaseVx) || 0;
                 const dragDy = Number(state.pointer.releaseVy) || 0;
                 const dragDistSq = (dragDx * dragDx) + (dragDy * dragDy);
                 if (dragDistSq > 0.1) {
-                    frontAngle = Math.atan2(dragDy, dragDx);
+                    targetAngle = Math.atan2(dragDy, dragDx);
                 }
             }
 
-            if (!Number.isFinite(frontAngle) || !isDraggingRoot) {
+            if (!Number.isFinite(targetAngle)) {
+                let auraVecX = 0;
+                let auraVecY = 0;
+                let auraCount = 0;
+                categories.forEach((node) => {
+                    const auraRoot = storedCardAuras.get(node.chainId);
+                    if (!auraRoot || !Number.isFinite(auraRoot.frontAngle)) return;
+                    auraVecX += -Math.cos(auraRoot.frontAngle);
+                    auraVecY += -Math.sin(auraRoot.frontAngle);
+                    auraCount += 1;
+                });
+                const auraLen = Math.sqrt((auraVecX * auraVecX) + (auraVecY * auraVecY));
+                if (auraCount > 0 && auraLen > 0.001) {
+                    targetAngle = Math.atan2(auraVecY, auraVecX);
+                }
+            }
+
+            if (!Number.isFinite(targetAngle)) {
                 let sumX = 0;
                 let sumY = 0;
                 categories.forEach((node) => {
@@ -123,14 +157,44 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 const dy = parent.y - avgY;
                 const dist = Math.sqrt((dx * dx) + (dy * dy));
                 if (dist > 0.001) {
-                    const targetAngle = Math.atan2(dy, dx);
-                    if (isDraggingRoot) {
-                        frontAngle = targetAngle;
-                    } else {
-                        const previous = storedRoots.get(parent.id);
-                        const currentAngle = Number.isFinite(previous?.frontAngle) ? previous.frontAngle : targetAngle;
-                        frontAngle = lerpAngle(currentAngle, targetAngle, 0.04);
-                    }
+                    targetAngle = Math.atan2(dy, dx);
+                }
+            }
+
+            if (!Number.isFinite(targetAngle)) {
+                targetAngle = Number.isFinite(previous?.frontAngle) ? previous.frontAngle : frontAngle;
+            }
+
+            if (isDraggingRoot) {
+                frontAngle = targetAngle;
+            } else {
+                const currentAngle = Number.isFinite(previous?.frontAngle) ? previous.frontAngle : targetAngle;
+                const childCount = Math.max(1, categories.length);
+                const isSingleChild = childCount === 1;
+                const delta = Math.abs(getAngleDelta(currentAngle, targetAngle));
+                const deadzone = isSingleChild ? 0.22 : childCount <= 3 ? 0.18 : 0.12;
+                if (delta <= deadzone) {
+                    frontAngle = currentAngle;
+                } else {
+                    const responsiveness = isDraggingChildCategory
+                        ? 0.0014
+                        : isSingleChild
+                            ? 0.0035
+                            : childCount <= 3
+                                ? 0.0055
+                                : 0.008;
+                    const maxStep = isDraggingChildCategory
+                        ? 0.002
+                        : isSingleChild
+                            ? 0.004
+                            : childCount <= 3
+                                ? 0.006
+                                : 0.009;
+                    const adjustedTarget = normalizeAngle(currentAngle + Math.sign(getAngleDelta(currentAngle, targetAngle)) * Math.max(0, delta - deadzone));
+                    frontAngle = lerpAngle(currentAngle, adjustedTarget, responsiveness);
+                    const steppedDelta = getAngleDelta(currentAngle, frontAngle);
+                    if (steppedDelta > maxStep) frontAngle = normalizeAngle(currentAngle + maxStep);
+                    if (steppedDelta < -maxStep) frontAngle = normalizeAngle(currentAngle - maxStep);
                 }
             }
 
@@ -145,7 +209,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 backX: -frontX,
                 backY: -frontY,
                 latX: -frontY,
-                latY: frontX
+                latY: frontX,
+                targetAngle
             };
 
             guides.set(parent.id, guide);
