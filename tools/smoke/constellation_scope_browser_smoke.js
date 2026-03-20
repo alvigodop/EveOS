@@ -579,6 +579,15 @@ async function runSmoke(page) {
 
     await page.mouse.click(folderDragSeed.startX, folderDragSeed.startY);
     await page.waitForTimeout(180);
+    await page.evaluate((nodeId) => {
+        const select = window.EveConstellationMap?._events?.setSelectedNode;
+        const state = window.EveConstellationMap?._shared?.state;
+        if (typeof select !== 'function' || !state) return;
+        const node = state.nodeIndex?.get?.(nodeId)
+            || state.nodes?.find?.((entry) => entry?.id === nodeId);
+        if (node) select(node);
+    }, folderDragSeed.id);
+    await page.waitForTimeout(80);
     await page.click('[data-map-toolbar="polarity-node"]');
     await page.waitForTimeout(140);
     const folderNodePullStats = await getStats(page);

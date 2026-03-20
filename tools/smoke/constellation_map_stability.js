@@ -156,6 +156,12 @@ global.window.EveBookmarkFolders = {
 load('js/modules/features/constellation-map/constellation-map.shared.state.js');
 load('js/modules/features/constellation-map/constellation-map.shared.helpers.js');
 load('js/modules/features/constellation-map/constellation-map.shared.js');
+load('js/modules/features/constellation-map/constellation-map.fx.base.js');
+load('js/modules/features/constellation-map/constellation-map.fx.effects.webgl.three.js');
+load('js/modules/features/constellation-map/constellation-map.fx.effects.webgl.quantum.js');
+load('js/modules/features/constellation-map/constellation-map.fx.effects.webgl.shaders.js');
+load('js/modules/features/constellation-map/constellation-map.fx.effects.canvas.js');
+load('js/modules/features/constellation-map/constellation-map.fx.effects.dom.js');
 load('js/modules/features/constellation-map/constellation-map.fx.js');
 load('js/modules/features/constellation-map/constellation-map.polarity.js');
 load('js/modules/features/constellation-map/constellation-map.covers.js');
