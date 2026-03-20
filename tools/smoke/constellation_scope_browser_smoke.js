@@ -134,6 +134,12 @@ async function ensureControlsExpanded(page) {
     }
 }
 
+async function clickToolbarControl(page, selector) {
+    const locator = page.locator(selector);
+    await locator.scrollIntoViewIfNeeded();
+    await locator.click();
+}
+
 async function runSmoke(page) {
     await page.evaluate(async () => {
         if (typeof window.renderSidebar === 'function') window.renderSidebar();
@@ -647,7 +653,7 @@ async function runSmoke(page) {
 
     const folderStaticPoint = await page.evaluate(() => window.__folderStaticClickPoint);
     await page.mouse.click(folderStaticPoint.x, folderStaticPoint.y);
-    await page.click('[data-map-toolbar="static-node"]');
+    await clickToolbarControl(page, '[data-map-toolbar="static-node"]');
     await page.waitForTimeout(220);
     const staticFolderStats = await getStats(page);
     const staticFolder = staticFolderStats.sampleNodes.find((node) => node.id === folderDragSeed.id);
@@ -665,7 +671,7 @@ async function runSmoke(page) {
         throw new Error(`Expected static folder node to hold position after toggle, got ${JSON.stringify({ staticFolder, staticFolderLater })}`);
     }
 
-    await page.click('[data-map-toolbar="static-kind"]');
+    await clickToolbarControl(page, '[data-map-toolbar="static-kind"]');
     await page.waitForTimeout(120);
     const staticKindStats = await getStats(page);
     const folderKindLocked = staticKindStats.staticSummary?.kinds || [];
@@ -676,7 +682,7 @@ async function runSmoke(page) {
     if (!folderKindNodes.length || folderKindNodes.some((node) => !node.isStatic || node.staticSource !== 'kind')) {
         throw new Error(`Expected every folder node to enter static-kind mode, got ${JSON.stringify(folderKindNodes)}`);
     }
-    await page.click('[data-map-toolbar="static-clear"]');
+    await clickToolbarControl(page, '[data-map-toolbar="static-clear"]');
     await page.waitForTimeout(120);
 
     await page.evaluate((categoryId) => {

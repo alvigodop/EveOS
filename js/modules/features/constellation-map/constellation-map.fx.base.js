@@ -86,6 +86,10 @@ class FXManager {
 
             }
 
+            if (this.activeEngine?.instance?.syncSettings) {
+                this.activeEngine.instance.syncSettings();
+            }
+
 
 
             // Overlays (Toggles)
@@ -116,6 +120,11 @@ class FXManager {
 
                 }
 
+                const next = this.activeOverlays.get(id);
+                if (next?.syncSettings) {
+                    next.syncSettings();
+                }
+
             };
 
 
@@ -141,6 +150,24 @@ class FXManager {
             this.container.classList.toggle('fx-tech-enabled', !!state.fxTechEnabled);
 
             this.container.classList.toggle('fx-circuit-enabled', !!state.fxCircuitEnabled);
+
+            const contrast = shared.getFxTuningValue ? shared.getFxTuningValue('contrast') : 1;
+            const layerOpacity = shared.getFxTuningValue ? shared.getFxTuningValue('layerOpacity') : 1;
+            const gridScale = shared.getFxTuningValue ? shared.getFxTuningValue('gridScale') : 1;
+            const glow = shared.getFxTuningValue ? shared.getFxTuningValue('glow') : 1;
+            const speed = shared.getFxTuningValue ? shared.getFxTuningValue('speed') : 1;
+
+            if (this.container.style && typeof this.container.style.setProperty === 'function') {
+                this.container.style.setProperty('--map-fx-contrast', String(contrast.toFixed(3)));
+                this.container.style.setProperty('--map-fx-layer-opacity', String(layerOpacity.toFixed(3)));
+                this.container.style.setProperty('--map-fx-grid-size', `${Math.max(24, Math.round(60 * gridScale))}px`);
+                this.container.style.setProperty('--map-fx-grid-opacity', String((0.028 * layerOpacity * contrast).toFixed(4)));
+                this.container.style.setProperty('--map-fx-scanline-opacity', String((0.18 * layerOpacity * contrast).toFixed(4)));
+                this.container.style.setProperty('--map-fx-tech-opacity', String((0.12 * layerOpacity * contrast).toFixed(4)));
+                this.container.style.setProperty('--map-fx-circuit-opacity', String((0.11 * layerOpacity * contrast).toFixed(4)));
+                this.container.style.setProperty('--map-fx-glow-strength', String(glow.toFixed(3)));
+                this.container.style.setProperty('--map-fx-motion-speed', String(speed.toFixed(3)));
+            }
 
         }
 
@@ -176,9 +203,31 @@ class FXManager {
 
             this.canvas = null;
 
+            this.div = null;
+
+            this.el = null;
+
             this.running = false;
 
             this.animationFrame = null;
+
+            this.cleanups = [];
+
+            this.pointer = {
+                x: 0.5,
+                y: 0.5,
+                px: 0.5,
+                py: 0.5,
+                dx: 0,
+                dy: 0,
+                active: false
+            };
+
+            this.width = 0;
+
+            this.height = 0;
+
+            this.dpr = 1;
 
         }
 
@@ -190,11 +239,105 @@ class FXManager {
 
         }
 
+        addCleanup(fn) {
+            if (typeof fn === 'function') {
+                this.cleanups.push(fn);
+            }
+        }
+
+        getFxValue(key, fallback) {
+            if (shared.getFxTuningValue) {
+                return shared.getFxTuningValue(key);
+            }
+            return Number.isFinite(fallback) ? fallback : 1;
+        }
+
+        getFxFlag(key) {
+            const controls = shared.ensureFxControls ? shared.ensureFxControls() : {};
+            return controls?.[key] !== false;
+        }
+
+        createCanvasLayer(container) {
+            this.canvas = document.createElement('canvas');
+            this.canvas.className = 'map-fx-layer map-engine-layer';
+            container.prepend(this.canvas);
+            this.ctx = this.canvas.getContext('2d', { alpha: true });
+            this.resizeCanvas();
+            const onResize = () => this.resizeCanvas();
+            window.addEventListener('resize', onResize);
+            this.addCleanup(() => window.removeEventListener('resize', onResize));
+            return this.canvas;
+        }
+
+        createDivLayer(container, className) {
+            this.div = document.createElement('div');
+            this.div.className = className || 'map-fx-layer';
+            container.prepend(this.div);
+            return this.div;
+        }
+
+        resizeCanvas() {
+            if (!this.canvas) return;
+            this.width = Math.max(1, Math.floor(window.innerWidth || 0));
+            this.height = Math.max(1, Math.floor(window.innerHeight || 0));
+            this.dpr = Math.min(window.devicePixelRatio || 1, 2);
+            this.canvas.width = Math.max(1, Math.floor(this.width * this.dpr));
+            this.canvas.height = Math.max(1, Math.floor(this.height * this.dpr));
+            this.canvas.style.width = this.width + 'px';
+            this.canvas.style.height = this.height + 'px';
+            if (this.ctx) {
+                this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+            }
+        }
+
+        bindPointer(target) {
+            const surface = target || window;
+            const onMove = (event) => {
+                const width = Math.max(1, this.width || window.innerWidth || 1);
+                const height = Math.max(1, this.height || window.innerHeight || 1);
+                const nextX = (event.clientX || 0) / width;
+                const nextY = (event.clientY || 0) / height;
+                this.pointer.dx = nextX - this.pointer.x;
+                this.pointer.dy = nextY - this.pointer.y;
+                this.pointer.x = nextX;
+                this.pointer.y = nextY;
+                this.pointer.px = (event.clientX || 0);
+                this.pointer.py = (event.clientY || 0);
+                this.pointer.active = true;
+            };
+            const onLeave = () => {
+                this.pointer.active = false;
+            };
+            surface.addEventListener('pointermove', onMove, { passive: true });
+            surface.addEventListener('pointerleave', onLeave, { passive: true });
+            this.addCleanup(() => surface.removeEventListener('pointermove', onMove));
+            this.addCleanup(() => surface.removeEventListener('pointerleave', onLeave));
+        }
+
+        updatePointerIdle(timeSeconds) {
+            if (this.pointer.active || !this.width || !this.height) return;
+            this.pointer.x = 0.5 + Math.cos(timeSeconds * 0.16) * 0.08;
+            this.pointer.y = 0.5 + Math.sin(timeSeconds * 0.21) * 0.08;
+            this.pointer.px = this.pointer.x * this.width;
+            this.pointer.py = this.pointer.y * this.height;
+            this.pointer.dx *= 0.92;
+            this.pointer.dy *= 0.92;
+        }
+
         dispose() {
 
             this.running = false;
 
             if (this.animationFrame) cancelAnimationFrame(this.animationFrame);
+
+            while (this.cleanups.length) {
+                const cleanup = this.cleanups.pop();
+                try {
+                    cleanup();
+                } catch (error) {
+                    console.warn('FX cleanup failed', error);
+                }
+            }
 
             if (this.canvas && this.canvas.parentElement) {
 

@@ -4,12 +4,14 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     const shared = ns._shared || {};
     const {
         state,
+        FX_TUNING_FIELDS,
         MOTION_TUNING_FIELDS,
         AURA_TUNING_FIELDS,
         AURA_PRESETS,
         AURA_DEPTH_ORDER,
         escapeHtml,
         getMotionTuningText,
+        getFxTuningText,
         getAuraTuningText,
         getAuraPresetText,
         getKindDisplayName
@@ -33,6 +35,18 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     function buildAuraTuningMarkup(section) {
         const fields = AURA_TUNING_FIELDS.filter((field) => field.section === section);
         return buildRangeNumberRows(fields, 'data-map-aura-tuning', 'data-map-aura-tuning-number', 'data-map-aura-tuning-value');
+    }
+
+    function buildFxTuningMarkup(section) {
+        const fields = FX_TUNING_FIELDS.filter((field) => field.section === section);
+        return fields.map((field) => [
+            '<label style="display:grid;grid-template-columns:128px minmax(112px,1fr) 54px 68px;align-items:center;gap:8px;font-size:0.74rem;color:rgba(255,255,255,0.82);">',
+            '<span>' + escapeHtml(field.label) + '</span>',
+            '<input data-map-fx-tuning="' + escapeHtml(field.key) + '" type="range" min="' + escapeHtml(String(field.min)) + '" max="' + escapeHtml(String(field.max)) + '" step="' + escapeHtml(String(field.step)) + '" value="' + escapeHtml(getFxTuningText(field.key)) + '" style="width:100%;">',
+            '<span data-map-fx-tuning-value="' + escapeHtml(field.key) + '" style="min-width:42px;text-align:right;">' + escapeHtml(getFxTuningText(field.key)) + '</span>',
+            '<input data-map-fx-tuning-number="' + escapeHtml(field.key) + '" type="number" min="' + escapeHtml(String(field.min)) + '" max="' + escapeHtml(String(field.max)) + '" step="' + escapeHtml(String(field.step)) + '" value="' + escapeHtml(getFxTuningText(field.key)) + '" style="width:68px;border:1px solid rgba(255,255,255,0.16);background:rgba(255,255,255,0.07);color:#fff;border-radius:8px;padding:6px 8px;outline:none;">',
+            '</label>'
+        ].join('')).join('');
     }
 
     function buildMotionTuningMarkup() {
@@ -71,7 +85,10 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             '.map-controls-section summary::-webkit-details-marker{display:none;}',
             '.map-controls-section[open] summary{margin-bottom:2px;}',
             '</style>',
-            '<div class="map-fx-layer"></div>',
+            '<div class="map-css-layer map-css-grid-layer"></div>',
+            '<div class="map-css-layer map-css-tech-layer"></div>',
+            '<div class="map-css-layer map-css-circuit-layer"></div>',
+            '<div class="map-css-layer map-css-scanline-layer"></div>',
             '<div style="position:absolute;z-index:3;top:16px;left:20px;display:flex;flex-direction:column;gap:4px;max-width:min(48vw,680px);pointer-events:auto;">',
             '<div data-map-title style="font-size:1.05rem;font-weight:700;letter-spacing:0.06em;color:#f3f8ff;">NEURAL CORE :: CONSTELLATION MAP</div>',
             '<div data-map-scope style="font-size:0.82rem;color:rgba(255,255,255,0.76);"></div>',
@@ -103,6 +120,10 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             '<details open class="map-controls-section">',
             '<summary style="cursor:pointer;font-size:0.82rem;font-weight:700;color:#f7fbff;">Background FX</summary>',
             '<div data-map-fx-panel style="display:flex;flex-direction:column;gap:10px;padding-top:10px;">',
+            '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:space-between;">',
+            '<div style="font-size:0.74rem;color:rgba(255,255,255,0.72);">Interactive background engine, visual stack, and responsive tuning.</div>',
+            '<button type="button" data-map-toolbar="fx-reset" class="map-btn">Reset FX</button>',
+            '</div>',
             '<div class="fx-row">',
             '<div class="fx-label">Background Engine</div>',
             '<div class="fx-grid">',
@@ -133,6 +154,25 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             '<div class="fx-toggle-chip" data-fx-toggle="tech">Tech</div>',
             '<div class="fx-toggle-chip" data-fx-toggle="circuit">Circuit</div>',
             '<div class="fx-toggle-chip" data-fx-toggle="neuralhud">Neural HUD</div>',
+            '</div>',
+            '</div>',
+            '<div class="fx-row">',
+            '<div class="fx-label">Interactive Controls</div>',
+            '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">',
+            '<button type="button" data-map-fx-flag="pointerReactive" class="map-btn">Pointer Reactive</button>',
+            '<button type="button" data-map-fx-flag="parallaxEnabled" class="map-btn">Camera Parallax</button>',
+            '</div>',
+            '</div>',
+            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px 18px;align-items:start;">',
+            '<div style="display:flex;flex-direction:column;gap:8px;">',
+            '<div style="font-size:0.76rem;font-weight:700;color:rgba(255,255,255,0.82);">Engine Dynamics</div>',
+            buildFxTuningMarkup('engine'),
+            '</div>',
+            '<div style="display:flex;flex-direction:column;gap:8px;">',
+            '<div style="font-size:0.76rem;font-weight:700;color:rgba(255,255,255,0.82);">Layer Stack</div>',
+            buildFxTuningMarkup('layers'),
+            '<div style="font-size:0.76rem;font-weight:700;color:rgba(255,255,255,0.82);padding-top:4px;">ASCII Layout</div>',
+            buildFxTuningMarkup('ascii'),
             '</div>',
             '</div>',
             '</div>',

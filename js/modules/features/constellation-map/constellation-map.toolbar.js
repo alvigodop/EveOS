@@ -18,8 +18,10 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         cycleNodePolarity,
         toggleKindPolarity,
         setPolarityStrengthValue,
+        setFxTuningValue,
         setMotionTuningValue,
         resetMotionTuning,
+        resetFxControls,
         clearPolarityOverrides,
         toggleStaticForNode,
         toggleStaticForKind,
@@ -33,7 +35,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         toggleAuraEmitterKind,
         toggleAuraDepth,
         resetConstellationControls,
-        ensureAuraControls
+        ensureAuraControls,
+        ensureFxControls,
+        toggleFxControl
     } = shared;
 
     const { buildGraphData } = graph;
@@ -55,6 +59,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         }
 
         ensureAuraControls();
+        ensureFxControls();
 
         const container = document.createElement('div');
         container.id = 'constellation-map-overlay';
@@ -93,6 +98,14 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 if (type === 'tech') state.fxTechEnabled = !state.fxTechEnabled;
                 if (type === 'circuit') state.fxCircuitEnabled = !state.fxCircuitEnabled;
                 if (type === 'neuralhud') state.fxNeuralHudEnabled = !state.fxNeuralHudEnabled;
+                if (ns.FX && ns.FX.manager) ns.FX.manager.update();
+                renderToolbarState();
+                return;
+            }
+
+            const fxFlagEl = event.target.closest('[data-map-fx-flag]');
+            if (fxFlagEl) {
+                toggleFxControl(fxFlagEl.dataset.mapFxFlag);
                 if (ns.FX && ns.FX.manager) ns.FX.manager.update();
                 renderToolbarState();
                 return;
@@ -219,6 +232,11 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 syncMotionAnchors(true);
                 renderToolbarState();
                 requestDraw();
+            } else if (toolbarAction === 'fx-reset') {
+                resetFxControls();
+                if (ns.FX && ns.FX.manager) ns.FX.manager.update();
+                renderToolbarState();
+                requestDraw();
             } else if (toolbarAction === 'aura-reset') {
                 resetAuraControls();
                 renderToolbarState();
@@ -267,6 +285,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             const polarityNumberMode = event.target?.dataset?.mapPolarityStrengthNumber;
             const motionTuningMode = event.target?.dataset?.mapMotionTuning;
             const motionTuningNumberMode = event.target?.dataset?.mapMotionTuningNumber;
+            const fxTuningMode = event.target?.dataset?.mapFxTuning;
+            const fxTuningNumberMode = event.target?.dataset?.mapFxTuningNumber;
             const auraTuningMode = event.target?.dataset?.mapAuraTuning;
             const auraTuningNumberMode = event.target?.dataset?.mapAuraTuningNumber;
 
@@ -282,6 +302,13 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 setMotionTuningValue(motionTuningMode || motionTuningNumberMode, event.target.value);
                 renderToolbarState();
                 requestDraw();
+                return;
+            }
+
+            if (fxTuningMode || fxTuningNumberMode) {
+                setFxTuningValue(fxTuningMode || fxTuningNumberMode, event.target.value);
+                if (ns.FX && ns.FX.manager) ns.FX.manager.update();
+                renderToolbarState();
                 return;
             }
 

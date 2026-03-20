@@ -110,6 +110,22 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         fxCircuitEnabled: false,
         fxNeuralHudEnabled: false,
+        fxControls: {
+            pointerReactive: true,
+            parallaxEnabled: true
+        },
+        fxTuning: {
+            density: 1,
+            speed: 1,
+            glow: 1,
+            interaction: 1,
+            parallax: 1,
+            contrast: 1,
+            layerOpacity: 1,
+            gridScale: 1,
+            asciiScale: 1,
+            asciiDensity: 1
+        },
 
         motionAnchors: new Map(),
 
@@ -250,6 +266,19 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
     const AURA_DEPTH_ORDER = Object.freeze(['root', 'layer1', 'layer2', 'layer3plus']);
 
+    const FX_TUNING_FIELDS = Object.freeze([
+        { key: 'density', label: 'Effect Density', min: 0.25, max: 3, step: 0.01, defaultValue: 1, section: 'engine' },
+        { key: 'speed', label: 'Animation Speed', min: 0.2, max: 3, step: 0.01, defaultValue: 1, section: 'engine' },
+        { key: 'glow', label: 'Glow Strength', min: 0, max: 3, step: 0.01, defaultValue: 1, section: 'engine' },
+        { key: 'interaction', label: 'Pointer Force', min: 0, max: 3, step: 0.01, defaultValue: 1, section: 'engine' },
+        { key: 'parallax', label: 'Camera Drift', min: 0, max: 3, step: 0.01, defaultValue: 1, section: 'engine' },
+        { key: 'contrast', label: 'Contrast Lift', min: 0.4, max: 3, step: 0.01, defaultValue: 1, section: 'layers' },
+        { key: 'layerOpacity', label: 'Layer Strength', min: 0, max: 3, step: 0.01, defaultValue: 1, section: 'layers' },
+        { key: 'gridScale', label: 'Grid Scale', min: 0.5, max: 2.5, step: 0.01, defaultValue: 1, section: 'layers' },
+        { key: 'asciiScale', label: 'ASCII Size', min: 0.65, max: 1.7, step: 0.01, defaultValue: 1, section: 'ascii' },
+        { key: 'asciiDensity', label: 'ASCII Density', min: 0.45, max: 2.4, step: 0.01, defaultValue: 1, section: 'ascii' }
+    ]);
+
     const MOTION_TUNING_FIELDS = Object.freeze([
         { key: 'repulsion', label: 'Node Repulsion', min: 0, max: 3, step: 0.01, defaultValue: 1 },
         { key: 'centerPull', label: 'World Center Pull', min: 0, max: 3, step: 0.01, defaultValue: 1 },
@@ -344,6 +373,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         FX_MODE_ORDER,
         DEFAULT_KIND_POLARITIES,
         AURA_DEPTH_ORDER,
+        FX_TUNING_FIELDS,
         MOTION_TUNING_FIELDS,
         AURA_TUNING_FIELDS,
         AURA_PRESETS,

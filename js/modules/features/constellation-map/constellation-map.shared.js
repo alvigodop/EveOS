@@ -18,6 +18,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         MOTION_MODE_ORDER,
         FX_MODE_ORDER,
         DEFAULT_KIND_POLARITIES,
+        FX_TUNING_FIELDS,
         MOTION_TUNING_FIELDS,
         AURA_DEPTH_ORDER,
         AURA_TUNING_FIELDS,
@@ -82,6 +83,121 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         return 'FX: None';
 
+    }
+
+    function getFxTuningField(key) {
+
+        const normalizedKey = String(key || '').trim();
+
+        return FX_TUNING_FIELDS.find((field) => field.key === normalizedKey) || null;
+
+    }
+
+    function normalizeFxTuningValue(key, value) {
+
+        const field = getFxTuningField(key);
+
+        if (!field) return 1;
+
+        const numeric = Number(value);
+
+        if (Number.isFinite(numeric)) {
+
+            return clamp(numeric, field.min, field.max);
+
+        }
+
+        return field.defaultValue;
+
+    }
+
+    function getFxTuningValue(key) {
+
+        const field = getFxTuningField(key);
+
+        if (!field) return 1;
+
+        return normalizeFxTuningValue(field.key, state.fxTuning?.[field.key]);
+
+    }
+
+    function setFxTuningValue(key, value) {
+
+        const field = getFxTuningField(key);
+
+        if (!field) return 1;
+
+        if (!state.fxTuning || typeof state.fxTuning !== 'object') {
+
+            state.fxTuning = {};
+
+        }
+
+        state.fxTuning[field.key] = normalizeFxTuningValue(field.key, value);
+
+        return state.fxTuning[field.key];
+
+    }
+
+    function getFxTuningText(key) {
+
+        return getFxTuningValue(key).toFixed(2);
+
+    }
+
+    function resetFxTuning() {
+
+        state.fxTuning = {};
+
+        FX_TUNING_FIELDS.forEach((field) => {
+
+            state.fxTuning[field.key] = field.defaultValue;
+
+        });
+
+    }
+
+    function ensureFxControls() {
+
+        if (!state.fxControls || typeof state.fxControls !== 'object') {
+
+            state.fxControls = {};
+
+        }
+
+        state.fxControls.pointerReactive = state.fxControls.pointerReactive !== false;
+        state.fxControls.parallaxEnabled = state.fxControls.parallaxEnabled !== false;
+
+        if (!state.fxTuning || typeof state.fxTuning !== 'object') {
+            state.fxTuning = {};
+        }
+
+        FX_TUNING_FIELDS.forEach((field) => {
+            state.fxTuning[field.key] = normalizeFxTuningValue(field.key, state.fxTuning[field.key]);
+        });
+
+        return state.fxControls;
+
+    }
+
+    function toggleFxControl(key) {
+        const controls = ensureFxControls();
+        const normalizedKey = String(key || '').trim();
+        if (normalizedKey !== 'pointerReactive' && normalizedKey !== 'parallaxEnabled') return false;
+        controls[normalizedKey] = controls[normalizedKey] === false;
+        return controls[normalizedKey];
+    }
+
+    function resetFxControls() {
+        state.fxControls = null;
+        ensureFxControls();
+        resetFxTuning();
+        state.activeWebGlFx = 'none';
+        state.fxGridEnabled = false;
+        state.fxScanlineEnabled = false;
+        state.fxTechEnabled = false;
+        state.fxCircuitEnabled = false;
+        state.fxNeuralHudEnabled = false;
     }
 
     function getMotionTuningField(key) {
@@ -394,6 +510,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
     function resetConstellationControls() {
 
+        resetFxControls();
         resetAuraControls();
         resetMotionTuning();
 
@@ -515,6 +632,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         FX_MODE_ORDER,
 
+        FX_TUNING_FIELDS,
+
         MOTION_TUNING_FIELDS,
 
         AURA_TUNING_FIELDS,
@@ -552,6 +671,22 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         getMotionModeText,
 
         getFxModeText,
+
+        getFxTuningField,
+
+        getFxTuningValue,
+
+        setFxTuningValue,
+
+        getFxTuningText,
+
+        resetFxTuning,
+
+        ensureFxControls,
+
+        toggleFxControl,
+
+        resetFxControls,
 
         getMotionTuningField,
 

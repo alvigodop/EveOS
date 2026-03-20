@@ -10,6 +10,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         getScopeText,
         getLabelModeText,
         getMotionModeText,
+        FX_TUNING_FIELDS,
         MOTION_TUNING_FIELDS,
         AURA_TUNING_FIELDS,
         AURA_PRESETS,
@@ -20,6 +21,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         getPolaritySummary,
         getPolarityStrengthText,
         getMotionTuningText,
+        ensureFxControls,
+        getFxTuningText,
         getAuraTuningText,
         getAuraPresetText,
         getStaticStateForNode,
@@ -77,6 +80,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         if (!state.container) return;
 
         const controls = ensureAuraControls();
+        const fxControls = ensureFxControls();
         const fxButton = state.container.querySelector('[data-map-toolbar="fx"]');
         const controlsButton = state.container.querySelector('[data-map-toolbar="controls"]');
         const controlsPanel = state.container.querySelector('[data-map-controls-panel]');
@@ -135,6 +139,16 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             setButtonActive(chip, active, {
                 activeBorder: 'rgba(0,255,255,0.4)',
                 activeBackground: 'rgba(0,255,255,0.16)'
+            });
+        });
+
+        queryAll('[data-map-fx-flag]').forEach((button) => {
+            const key = button.dataset.mapFxFlag;
+            const active = fxControls?.[key] !== false;
+            button.textContent = (key === 'parallaxEnabled' ? 'Camera Parallax' : 'Pointer Reactive') + ': ' + (active ? 'ON' : 'OFF');
+            setButtonActive(button, active, {
+                activeBorder: 'rgba(124,212,255,0.42)',
+                activeBackground: 'rgba(124,212,255,0.14)'
             });
         });
 
@@ -214,6 +228,13 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             queryAll('[data-map-motion-tuning="' + field.key + '"]').forEach((input) => { input.value = textValue; });
             queryAll('[data-map-motion-tuning-number="' + field.key + '"]').forEach((input) => { input.value = textValue; });
             queryAll('[data-map-motion-tuning-value="' + field.key + '"]').forEach((el) => { el.textContent = textValue; });
+        });
+
+        FX_TUNING_FIELDS.forEach((field) => {
+            const textValue = getFxTuningText(field.key);
+            queryAll('[data-map-fx-tuning="' + field.key + '"]').forEach((input) => { input.value = textValue; });
+            queryAll('[data-map-fx-tuning-number="' + field.key + '"]').forEach((input) => { input.value = textValue; });
+            queryAll('[data-map-fx-tuning-value="' + field.key + '"]').forEach((el) => { el.textContent = textValue; });
         });
 
         AURA_TUNING_FIELDS.forEach((field) => {
