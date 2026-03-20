@@ -11,10 +11,33 @@ function load(relPath) {
 }
 
 function createElement(tagName) {
+  const classSet = new Set();
   const node = {
     tagName,
     style: {},
     children: [],
+    classList: {
+      add(...values) { values.forEach((value) => classSet.add(String(value || ''))); },
+      remove(...values) { values.forEach((value) => classSet.delete(String(value || ''))); },
+      toggle(value, force) {
+        const key = String(value || '');
+        if (force === true) {
+          classSet.add(key);
+          return true;
+        }
+        if (force === false) {
+          classSet.delete(key);
+          return false;
+        }
+        if (classSet.has(key)) {
+          classSet.delete(key);
+          return false;
+        }
+        classSet.add(key);
+        return true;
+      },
+      contains(value) { return classSet.has(String(value || '')); }
+    },
     appendChild(child) { this.children.push(child); return child; },
     setAttribute() {},
     addEventListener() {},
@@ -28,6 +51,8 @@ function createElement(tagName) {
         clearRect() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {}, arc() {}, fill() {}, fillText() {},
         save() {}, restore() {}, translate() {}, scale() {}, closePath() {}, fillRect() {}, strokeRect() {},
         setLineDash() {}, quadraticCurveTo() {}, roundRect() {},
+        createLinearGradient() { return { addColorStop() {} }; },
+        createRadialGradient() { return { addColorStop() {} }; },
         measureText(text) { return { width: String(text || '').length * 6 }; },
         shadowBlur: 0, shadowColor: '', fillStyle: '', font: '', strokeStyle: '', lineWidth: 0
       };
@@ -128,14 +153,23 @@ global.window.EveBookmarkFolders = {
   }
 };
 
-load('js/modules/features/constellation-map.shared.js');
-load('js/modules/features/constellation-map.polarity.js');
-load('js/modules/features/constellation-map.covers.js');
-load('js/modules/features/constellation-map.static.js');
-load('js/modules/features/constellation-map.graph.js');
-load('js/modules/features/constellation-map.render.js');
-load('js/modules/features/constellation-map.physics.js');
-load('js/modules/features/constellation-map.js');
+load('js/modules/features/constellation-map/constellation-map.shared.state.js');
+load('js/modules/features/constellation-map/constellation-map.shared.helpers.js');
+load('js/modules/features/constellation-map/constellation-map.shared.js');
+load('js/modules/features/constellation-map/constellation-map.fx.js');
+load('js/modules/features/constellation-map/constellation-map.polarity.js');
+load('js/modules/features/constellation-map/constellation-map.covers.js');
+load('js/modules/features/constellation-map/constellation-map.static.js');
+load('js/modules/features/constellation-map/constellation-map.graph.js');
+load('js/modules/features/constellation-map/constellation-map.render.canvas.js');
+load('js/modules/features/constellation-map/constellation-map.render.js');
+load('js/modules/features/constellation-map/constellation-map.physics.helpers.js');
+load('js/modules/features/constellation-map/constellation-map.physics.js');
+load('js/modules/features/constellation-map/constellation-map.view.js');
+load('js/modules/features/constellation-map/constellation-map.events.js');
+load('js/modules/features/constellation-map/constellation-map.toolbar.js');
+load('js/modules/features/constellation-map/index.js');
+load('js/modules/features/constellation-map/constellation-map.core.js');
 window.EveConstellationMap.openMap();
 const stats = window.EveConstellationMap.__debugGetGraphStats();
 

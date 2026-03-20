@@ -271,7 +271,9 @@ window.EveModuleManifestParts.scripts = [
 
         'js/modules/ui/phantom-peek.js',
 
-        'js/modules/features/constellation-map/constellation-map.shared.js?v=0.3.3',
+        'js/modules/features/constellation-map/constellation-map.shared.state.js?v=0.1.0',
+        'js/modules/features/constellation-map/constellation-map.shared.helpers.js?v=0.1.0',
+        'js/modules/features/constellation-map/constellation-map.shared.js?v=0.3.4',
         'js/modules/features/constellation-map/constellation-map.fx.js?v=0.1.0',
         'js/modules/features/constellation-map/constellation-map.polarity.js?v=0.1.0',
         'js/modules/features/constellation-map/constellation-map.covers.js?v=0.1.0',
@@ -279,8 +281,10 @@ window.EveModuleManifestParts.scripts = [
 
         'js/modules/features/constellation-map/constellation-map.graph.js?v=0.2.1',
 
+        'js/modules/features/constellation-map/constellation-map.render.canvas.js?v=0.1.0',
         'js/modules/features/constellation-map/constellation-map.render.js?v=0.2.4',
 
+        'js/modules/features/constellation-map/constellation-map.physics.helpers.js?v=0.1.0',
         'js/modules/features/constellation-map/constellation-map.physics.js?v=0.1.3',
 
         'js/modules/features/constellation-map/constellation-map.view.js?v=0.1.0',
