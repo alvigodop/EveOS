@@ -87,7 +87,10 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         });
 
         state.auraRoots = storedAuraRoots;
-        if (!auraRoots.size) return;
+        const workspaceAuraRoots = state.workspaceAuraRoots instanceof Map
+            ? new Map(Array.from(state.workspaceAuraRoots.entries()).filter(([, data]) => data?.node))
+            : new Map();
+        if (!auraRoots.size && !workspaceAuraRoots.size) return;
 
         auraRoots.forEach((rootData) => {
             const root = rootData.node;
@@ -118,6 +121,44 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             ctx.lineWidth = 1.0 / state.transform.scale;
             ctx.ellipse(0, 0, radiusFront * 0.92, radiusLat * 0.9, 0, -Math.PI / 2, Math.PI / 2);
             ctx.ellipse(0, 0, radiusBack * 0.92, radiusLat * 0.9, 0, Math.PI / 2, 3 * Math.PI / 2);
+            ctx.stroke();
+            ctx.restore();
+        });
+
+        workspaceAuraRoots.forEach((workspaceData) => {
+            const root = workspaceData?.node;
+            if (!root) return;
+
+            const categoryCount = Math.max(1, Number(workspaceData.categories?.length) || 1);
+            const baseRadius = root.radius || 15;
+            const capsuleHalfWidth = Math.max(150, (baseRadius * 7) + (categoryCount * 18));
+            const capsuleRadius = Math.max(90, (baseRadius * 5.5) + (categoryCount * 7));
+            const backOffset = Math.max(80, (baseRadius * 5) + (categoryCount * 4));
+            const backAngle = Math.atan2(Number(workspaceData.backY) || 0, Number(workspaceData.backX) || -1);
+            const zoomAlpha = Math.min(1.0, state.transform.scale * 2.8);
+
+            ctx.save();
+            ctx.translate(root.x, root.y);
+            ctx.rotate(backAngle - (Math.PI / 2));
+
+            const fillGradient = ctx.createLinearGradient(0, backOffset - capsuleRadius, 0, backOffset + capsuleRadius);
+            fillGradient.addColorStop(0, `rgba(255, 209, 102, ${0.018 * zoomAlpha})`);
+            fillGradient.addColorStop(0.5, `rgba(255, 209, 102, ${0.036 * zoomAlpha})`);
+            fillGradient.addColorStop(1, 'rgba(255, 209, 102, 0)');
+            ctx.beginPath();
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = fillGradient;
+            ctx.lineWidth = capsuleRadius * 2;
+            ctx.moveTo(-capsuleHalfWidth, backOffset);
+            ctx.lineTo(capsuleHalfWidth, backOffset);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.setLineDash([18, 40]);
+            ctx.strokeStyle = `rgba(255, 209, 102, ${0.14 * zoomAlpha})`;
+            ctx.lineWidth = 2.5 / Math.max(0.35, state.transform.scale);
+            ctx.moveTo(-capsuleHalfWidth, backOffset);
+            ctx.lineTo(capsuleHalfWidth, backOffset);
             ctx.stroke();
             ctx.restore();
         });

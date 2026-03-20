@@ -308,6 +308,86 @@ function applyCardAuraRepulsion(node, card, cardData) {
 
 
 
+function applyWorkspaceAuraRepulsion(node, workspace, workspaceData) {
+
+        if (!node || !workspace || !workspaceData) return;
+
+        const frontX = Number(workspaceData.frontX);
+
+        const frontY = Number(workspaceData.frontY);
+
+        if (!Number.isFinite(frontX) || !Number.isFinite(frontY)) return;
+
+        const backX = Number(workspaceData.backX);
+
+        const backY = Number(workspaceData.backY);
+
+        const latX = Number(workspaceData.latX);
+
+        const latY = Number(workspaceData.latY);
+
+        const categoryCount = Math.max(1, Number(workspaceData.categories?.length) || 1);
+
+        const baseRadius = workspace.radius || 15;
+
+        const capsuleHalfWidth = Math.max(150, (baseRadius * 7) + (categoryCount * 18));
+
+        const capsuleRadius = Math.max(90, (baseRadius * 5.5) + (categoryCount * 7));
+
+        const backOffset = Math.max(80, (baseRadius * 5) + (categoryCount * 4));
+
+        const dx = node.x - workspace.x;
+
+        const dy = node.y - workspace.y;
+
+        const localLat = (dx * latX) + (dy * latY);
+
+        const localBack = (dx * backX) + (dy * backY);
+
+        const shiftedBack = localBack - backOffset;
+
+        const clampedLat = Math.max(-capsuleHalfWidth, Math.min(capsuleHalfWidth, localLat));
+
+        const capsuleDx = localLat - clampedLat;
+
+        const capsuleDy = shiftedBack;
+
+        const capsuleDistSq = (capsuleDx * capsuleDx) + (capsuleDy * capsuleDy);
+
+        if (capsuleDistSq >= (capsuleRadius * capsuleRadius)) return;
+
+        const capsuleDist = Math.max(1, Math.sqrt(capsuleDistSq));
+
+        const penetration = 1 - (capsuleDist / capsuleRadius);
+
+        const push = 0.95 * penetration;
+
+        const outLat = capsuleDx / capsuleDist;
+
+        const outBack = capsuleDy / capsuleDist;
+
+        const worldX = (latX * outLat) + (backX * outBack);
+
+        const worldY = (latY * outLat) + (backY * outBack);
+
+        node.vx += worldX * push;
+
+        node.vy += worldY * push;
+
+        if (localBack < backOffset) {
+
+            const fallBack = (backOffset - localBack) / Math.max(1, capsuleRadius);
+
+            node.vx += backX * fallBack * 0.7;
+
+            node.vy += backY * fallBack * 0.7;
+
+        }
+
+    }
+
+
+
 function applyFolderRecovery(node, anchor, motionProfile) {
 
         if (!node || node.kind !== 'folder' || !anchor) return;
@@ -555,6 +635,8 @@ function stabilizeDirectCardBookmarkClearance(node, anchor) {
         applyFolderAura,
 
         applyCardAuraRepulsion,
+
+        applyWorkspaceAuraRepulsion,
 
         applyFolderRecovery,
 

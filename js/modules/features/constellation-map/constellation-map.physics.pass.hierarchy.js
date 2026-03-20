@@ -6,7 +6,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     const { state, text, isNodeStatic } = shared;
 
     const physicsHelpers = ns._physicsHelpers || {};
-    const { applyFolderAura, applyCardAuraRepulsion } = physicsHelpers;
+    const { applyFolderAura, applyCardAuraRepulsion, applyWorkspaceAuraRepulsion } = physicsHelpers;
 
     function lerpAngle(current, target, factor) {
         let diff = target - current;
@@ -80,6 +80,86 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         return guides;
     }
 
+    function buildWorkspaceChildGuides(parentChildren) {
+        const guides = new Map();
+        const storedRoots = state.workspaceAuraRoots instanceof Map ? state.workspaceAuraRoots : new Map();
+        const activeIds = new Set();
+
+        parentChildren.forEach((children, parentId) => {
+            const parent = state.nodeIndex.get(parentId);
+            if (!parent || parent.kind !== 'workspace') return;
+
+            const categories = children
+                .filter((node) => node?.kind === 'category')
+                .slice()
+                .sort(compareNodeOrder);
+
+            if (!categories.length) return;
+
+            activeIds.add(parent.id);
+
+            const isDraggingRoot = state.pointer.mode === 'node' && state.pointer.node?.id === parent.id;
+            let frontAngle = -Math.PI / 2;
+
+            if (isDraggingRoot) {
+                const dragDx = Number(state.pointer.releaseVx) || 0;
+                const dragDy = Number(state.pointer.releaseVy) || 0;
+                const dragDistSq = (dragDx * dragDx) + (dragDy * dragDy);
+                if (dragDistSq > 0.1) {
+                    frontAngle = Math.atan2(dragDy, dragDx);
+                }
+            }
+
+            if (!Number.isFinite(frontAngle) || !isDraggingRoot) {
+                let sumX = 0;
+                let sumY = 0;
+                categories.forEach((node) => {
+                    sumX += node.x;
+                    sumY += node.y;
+                });
+                const avgX = sumX / categories.length;
+                const avgY = sumY / categories.length;
+                const dx = parent.x - avgX;
+                const dy = parent.y - avgY;
+                const dist = Math.sqrt((dx * dx) + (dy * dy));
+                if (dist > 0.001) {
+                    const targetAngle = Math.atan2(dy, dx);
+                    if (isDraggingRoot) {
+                        frontAngle = targetAngle;
+                    } else {
+                        const previous = storedRoots.get(parent.id);
+                        const currentAngle = Number.isFinite(previous?.frontAngle) ? previous.frontAngle : targetAngle;
+                        frontAngle = lerpAngle(currentAngle, targetAngle, 0.04);
+                    }
+                }
+            }
+
+            const frontX = Math.cos(frontAngle);
+            const frontY = Math.sin(frontAngle);
+            const guide = {
+                node: parent,
+                categories,
+                frontAngle,
+                frontX,
+                frontY,
+                backX: -frontX,
+                backY: -frontY,
+                latX: -frontY,
+                latY: frontX
+            };
+
+            guides.set(parent.id, guide);
+            storedRoots.set(parent.id, guide);
+        });
+
+        Array.from(storedRoots.keys()).forEach((id) => {
+            if (!activeIds.has(id)) storedRoots.delete(id);
+        });
+
+        state.workspaceAuraRoots = storedRoots;
+        return guides;
+    }
+
     function applyParentDrift(parentChildren) {
         parentChildren.forEach((children, parentId) => {
             const parent = state.nodeIndex.get(parentId);
@@ -112,6 +192,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     function maintainHierarchyState() {
         state.chainRoots = state.chainRoots || new Map();
         state.folderOrientations = state.folderOrientations || new Map();
+        state.workspaceAuraRoots = state.workspaceAuraRoots || new Map();
 
         const activeNodeIds = new Set(state.nodes.map((n) => n.id));
         const activeChains = new Set(state.nodes.map((n) => n.chainId).filter(Boolean));
@@ -121,6 +202,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         });
         [...state.folderOrientations.keys()].forEach((id) => {
             if (!activeNodeIds.has(id)) state.folderOrientations.delete(id);
+        });
+        [...state.workspaceAuraRoots.keys()].forEach((id) => {
+            if (!activeNodeIds.has(id)) state.workspaceAuraRoots.delete(id);
         });
     }
 
@@ -192,7 +276,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         });
     }
 
-    function buildHierarchyAnchors(parentChildren, frontierReach, rootChildGuides) {
+    function buildHierarchyAnchors(parentChildren, frontierReach, rootChildGuides, workspaceChildGuides) {
         const chainRoots = state.chainRoots;
         const folderOrientations = state.folderOrientations;
 
@@ -207,6 +291,38 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             const isRootChild = parent.kind === 'category' || parent.kind === 'workspace';
             const rootGuide = isRootChild ? rootChildGuides.get(parentId) : null;
+            const workspaceGuide = parent.kind === 'workspace' ? workspaceChildGuides.get(parentId) : null;
+
+            if (node.kind === 'category' && parent.kind === 'workspace' && workspaceGuide?.categories?.length) {
+                const workspaceCategories = workspaceGuide.categories;
+                const workspaceIndex = workspaceCategories.findIndex((entry) => entry.id === node.id);
+                if (workspaceIndex >= 0) {
+                    const maxPerBand = workspaceCategories.length >= 18
+                        ? 6
+                        : workspaceCategories.length >= 10
+                            ? 5
+                            : 4;
+                    const band = Math.floor(workspaceIndex / maxPerBand);
+                    const bandStart = band * maxPerBand;
+                    const bandSize = Math.min(maxPerBand, workspaceCategories.length - bandStart);
+                    const slot = workspaceIndex - bandStart;
+                    const halfSpan = Math.max(150, 110 + ((bandSize - 1) * 48 * 0.5));
+                    const backOffset = 150 + (band * 84);
+                    const localX = bandSize > 1
+                        ? ((slot / (bandSize - 1)) - 0.5) * halfSpan * 2
+                        : 0;
+                    const localY = backOffset;
+                    const jitterSeed = node.id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+                    const lateralJitter = (((jitterSeed >> 1) % 5) - 2) * 2.5;
+                    const depthJitter = ((jitterSeed % 5) - 2) * 1.8;
+
+                    state.hierarchyAnchors.set(node.id, {
+                        x: parent.x + (workspaceGuide.latX * (localX + lateralJitter)) + (workspaceGuide.backX * (localY + depthJitter)),
+                        y: parent.y + (workspaceGuide.latY * (localX + lateralJitter)) + (workspaceGuide.backY * (localY + depthJitter))
+                    });
+                    return;
+                }
+            }
 
             if (node.kind === 'link' && isRootChild && rootGuide?.rootLinks?.length) {
                 const rootLinks = rootGuide.rootLinks;
@@ -332,6 +448,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     function applyHierarchyAuras() {
         const chainRoots = state.chainRoots;
         const folderOrientations = state.folderOrientations;
+        const workspaceAuraRoots = state.workspaceAuraRoots instanceof Map ? state.workspaceAuraRoots : new Map();
 
         state.nodes.forEach((node) => {
             if (!node || !node.chainId || isNodeStatic(node)) return;
@@ -372,17 +489,28 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             applyCardAuraRepulsion(node, root, rootData);
         });
+
+        state.nodes.forEach((node) => {
+            if (!node || node.kind !== 'category' || isNodeStatic(node)) return;
+            const parentId = (node.data && node.data.anchorNodeId) ? node.data.anchorNodeId : '';
+            const parentNode = parentId ? state.nodeIndex.get(parentId) : null;
+            if (!parentNode || parentNode.kind !== 'workspace') return;
+            const workspaceData = workspaceAuraRoots.get(parentNode.id);
+            if (!workspaceData) return;
+            applyWorkspaceAuraRepulsion(node, parentNode, workspaceData);
+        });
     }
 
     function runHierarchyPass(ctx) {
         const { frontierReach } = ctx;
         const parentChildren = buildParentChildren();
         const rootChildGuides = buildRootChildGuides(parentChildren);
+        const workspaceChildGuides = buildWorkspaceChildGuides(parentChildren);
         applyParentDrift(parentChildren);
         maintainHierarchyState();
         finalizeCardFrontVectors();
         updateFolderOrientations();
-        buildHierarchyAnchors(parentChildren, frontierReach, rootChildGuides);
+        buildHierarchyAnchors(parentChildren, frontierReach, rootChildGuides, workspaceChildGuides);
         applyHierarchyAuras();
     }
 

@@ -132,6 +132,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         coverPreviewSession: null,
 
         auraRoots: new Map(),
+        workspaceAuraRoots: new Map(),
 
         kindPolarities: {
             workspace: 'repel',
