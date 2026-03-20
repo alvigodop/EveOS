@@ -22,8 +22,12 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 desired = 140;
             }
 
-            if (edge.type === 'hierarchy' && edge.source?.kind === 'link' && (edge.target?.kind === 'workspace' || edge.target?.kind === 'category')) {
-                desired = 126;
+            const isDirectCardBookmarkEdge = edge.type === 'hierarchy'
+                && edge.source?.kind === 'link'
+                && (edge.target?.kind === 'workspace' || edge.target?.kind === 'category');
+
+            if (isDirectCardBookmarkEdge) {
+                desired = 240;
             }
 
             const stretch = dist - desired;
@@ -31,6 +35,10 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             const ny = dy / dist;
 
             let force = stretch * springStrength;
+
+            if (isDirectCardBookmarkEdge) {
+                force = 0;
+            }
 
             if (edge.type === 'hierarchy' && edge.source?.kind === 'folder' && edge.target?.kind === 'folder') {
                 force *= 0.68;

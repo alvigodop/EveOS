@@ -67,17 +67,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             const avgX = sumX / branchNodes.length;
             const avgY = sumY / branchNodes.length;
-            let folderAngle = Math.atan2(avgY - parent.y, avgX - parent.x);
-
-            if (!Number.isFinite(folderAngle)) {
-                let rootSumX = 0;
-                let rootSumY = 0;
-                rootFolders.forEach((node) => {
-                    rootSumX += node.x;
-                    rootSumY += node.y;
-                });
-                folderAngle = Math.atan2((rootSumY / rootFolders.length) - parent.y, (rootSumX / rootFolders.length) - parent.x);
-            }
+            const folderAngle = Math.atan2(avgY - parent.y, avgX - parent.x);
 
             guides.set(parent.id, {
                 folderAngle,
@@ -222,21 +212,46 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 const rootLinks = rootGuide.rootLinks;
                 const rootIndex = rootLinks.findIndex((entry) => entry.id === node.id);
                 if (rootIndex >= 0) {
-                    const itemsPerRow = rootLinks.length >= 96 ? 12 : rootLinks.length >= 56 ? 10 : rootLinks.length >= 24 ? 8 : 6;
-                    const row = Math.floor(rootIndex / itemsPerRow);
-                    const rowStart = row * itemsPerRow;
-                    const rowSize = Math.min(itemsPerRow, rootLinks.length - rowStart);
-                    const col = rootIndex - rowStart;
-                    const baseAngle = rootGuide.backAngle;
-                    const spread = Math.min(Math.PI * 1.08, (Math.PI * 0.34) + (Math.min(rowSize, itemsPerRow) * 0.055));
-                    const offset = rowSize > 1 ? (spread * (col / (rowSize - 1) - 0.5)) : 0;
+                    const gapArc = Math.PI * 1.1;
+                    const availableArc = (Math.PI * 2) - gapArc;
+                    const startAngle = rootGuide.folderAngle + (gapArc * 0.5);
+                    const baseRadius = Math.max((parent.radius || 12) + 140, (frontierReach * 0.8) + 40);
+                    const bandSpacing = 32;
+                    const targetChord = 42;
+                    let remaining = rootLinks.length;
+                    let remainingIndex = rootIndex;
+                    let bandIndex = 0;
+                    let band = 0;
+                    let slot = 0;
+                    let bandSize = rootLinks.length;
+
+                    while (remaining > 0) {
+                        const radius = baseRadius + (bandIndex * bandSpacing);
+                        const capacity = Math.max(6, Math.floor((availableArc * radius) / targetChord));
+                        const currentBandSize = Math.min(remaining, capacity);
+                        if (remainingIndex < currentBandSize) {
+                            band = bandIndex;
+                            slot = remainingIndex;
+                            bandSize = currentBandSize;
+                            break;
+                        }
+                        remaining -= currentBandSize;
+                        bandIndex += 1;
+                        remainingIndex -= currentBandSize;
+                    }
+
+                    const bandRadius = baseRadius + (band * bandSpacing);
+                    const slotsInBand = Math.max(1, bandSize);
+                    const bandPhase = (band % 2) * 0.5;
+                    const laneAngle = slotsInBand > 1
+                        ? startAngle + (availableArc * ((slot + 0.5 + bandPhase) / (slotsInBand + (bandPhase * 2))))
+                        : rootGuide.backAngle;
                     const jitterSeed = node.id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
-                    const radialJitter = ((jitterSeed % 7) - 3) * 1.2;
-                    const tangentialJitter = (((jitterSeed >> 1) % 5) - 2) * 0.012;
-                    const baseRadius = Math.max((parent.radius || 12) + 64, (frontierReach * 0.42) + 8);
-                    const rowDepth = 14;
-                    const finalRadius = baseRadius + (row * rowDepth) + radialJitter;
-                    const angle = baseAngle + offset + tangentialJitter;
+                    const radialJitter = ((jitterSeed % 7) - 3) * 0.45;
+                    const tangentialJitter = (((jitterSeed >> 1) % 5) - 2) * 0.004;
+                    node.spinalAngle = lerpAngle(node.spinalAngle || laneAngle, laneAngle, 0.08);
+                    const finalRadius = bandRadius + radialJitter;
+                    const angle = node.spinalAngle + tangentialJitter;
 
                     state.hierarchyAnchors.set(node.id, {
                         x: parent.x + Math.cos(angle) * finalRadius,
