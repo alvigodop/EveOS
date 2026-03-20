@@ -133,6 +133,34 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         auraRoots: new Map(),
         workspaceAuraRoots: new Map(),
+        auraControls: {
+            visualsEnabled: true,
+            effectsEnabled: true,
+            emitters: {
+                workspace: true,
+                category: true,
+                folder: true
+            },
+            depths: {
+                root: true,
+                layer1: true,
+                layer2: true,
+                layer3plus: true
+            }
+        },
+        auraTuning: {
+            cardFrontScale: 1,
+            cardBackScale: 1,
+            cardWidthScale: 1,
+            folderFrontScale: 1,
+            folderBackScale: 1,
+            folderWidthScale: 1,
+            folderOffsetScale: 1,
+            workspaceLengthScale: 1,
+            workspaceWidthScale: 1,
+            workspaceOffsetScale: 1
+        },
+        auraPreset: 'source',
 
         kindPolarities: {
             workspace: 'repel',
@@ -220,17 +248,84 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         link: 'repel'
     });
 
+    const AURA_DEPTH_ORDER = Object.freeze(['root', 'layer1', 'layer2', 'layer3plus']);
+
     const MOTION_TUNING_FIELDS = Object.freeze([
-        { key: 'repulsion', label: 'Repel Field', min: 0, max: 3, step: 0.01, defaultValue: 1 },
-        { key: 'centerPull', label: 'Center Pull', min: 0, max: 3, step: 0.01, defaultValue: 1 },
-        { key: 'spring', label: 'Spring', min: 0, max: 3, step: 0.01, defaultValue: 1 },
-        { key: 'hierarchy', label: 'Hierarchy', min: 0, max: 3, step: 0.01, defaultValue: 1 },
-        { key: 'folderRecovery', label: 'Folder Settle', min: 0, max: 3, step: 0.01, defaultValue: 1 },
-        { key: 'damping', label: 'Damping', min: 0, max: 2, step: 0.01, defaultValue: 1 },
-        { key: 'speed', label: 'Speed', min: 0, max: 2, step: 0.01, defaultValue: 1 },
-        { key: 'tether', label: 'World Tether', min: 0, max: 3, step: 0.01, defaultValue: 1 },
-        { key: 'frontierReach', label: 'Frontier Reach', min: 80, max: 800, step: 1, defaultValue: 180 }
+        { key: 'repulsion', label: 'Node Repulsion', min: 0, max: 3, step: 0.01, defaultValue: 1 },
+        { key: 'centerPull', label: 'World Center Pull', min: 0, max: 3, step: 0.01, defaultValue: 1 },
+        { key: 'spring', label: 'Edge Spring', min: 0, max: 3, step: 0.01, defaultValue: 1 },
+        { key: 'hierarchy', label: 'Hierarchy Reaction', min: 0, max: 3, step: 0.01, defaultValue: 1 },
+        { key: 'folderRecovery', label: 'Folder Recovery', min: 0, max: 3, step: 0.01, defaultValue: 1 },
+        { key: 'damping', label: 'Velocity Damping', min: 0, max: 2, step: 0.01, defaultValue: 1 },
+        { key: 'speed', label: 'Velocity Limit', min: 0, max: 2, step: 0.01, defaultValue: 1 },
+        { key: 'tether', label: 'World Boundary Pull', min: 0, max: 3, step: 0.01, defaultValue: 1 },
+        { key: 'frontierReach', label: 'Root Ring Radius', min: 80, max: 800, step: 1, defaultValue: 180 }
     ]);
+
+    const AURA_TUNING_FIELDS = Object.freeze([
+        { key: 'cardFrontScale', label: 'Card Front Reach', min: 0.4, max: 3, step: 0.01, defaultValue: 1, section: 'card' },
+        { key: 'cardBackScale', label: 'Card Rear Reach', min: 0.3, max: 3, step: 0.01, defaultValue: 1, section: 'card' },
+        { key: 'cardWidthScale', label: 'Card Width', min: 0.4, max: 3, step: 0.01, defaultValue: 1, section: 'card' },
+        { key: 'folderFrontScale', label: 'Folder Front Reach', min: 0.4, max: 3, step: 0.01, defaultValue: 1, section: 'folder' },
+        { key: 'folderBackScale', label: 'Folder Rear Reach', min: 0.3, max: 3, step: 0.01, defaultValue: 1, section: 'folder' },
+        { key: 'folderWidthScale', label: 'Folder Width', min: 0.4, max: 3, step: 0.01, defaultValue: 1, section: 'folder' },
+        { key: 'folderOffsetScale', label: 'Folder Core Offset', min: 0.5, max: 2.5, step: 0.01, defaultValue: 1, section: 'folder' },
+        { key: 'workspaceLengthScale', label: 'Tab Length', min: 0.4, max: 3, step: 0.01, defaultValue: 1, section: 'workspace' },
+        { key: 'workspaceWidthScale', label: 'Tab Width', min: 0.4, max: 3, step: 0.01, defaultValue: 1, section: 'workspace' },
+        { key: 'workspaceOffsetScale', label: 'Tab Offset', min: 0.5, max: 2.5, step: 0.01, defaultValue: 1, section: 'workspace' }
+    ]);
+
+    const AURA_PRESETS = Object.freeze({
+        source: {
+            label: 'Source Default',
+            values: {}
+        },
+        tight: {
+            label: 'Tight Spine',
+            values: {
+                cardFrontScale: 0.82,
+                cardBackScale: 0.78,
+                cardWidthScale: 0.72,
+                folderFrontScale: 0.86,
+                folderBackScale: 0.84,
+                folderWidthScale: 0.72,
+                folderOffsetScale: 0.9,
+                workspaceLengthScale: 0.88,
+                workspaceWidthScale: 0.76,
+                workspaceOffsetScale: 0.9
+            }
+        },
+        wide: {
+            label: 'Wide Canopy',
+            values: {
+                cardFrontScale: 1.25,
+                cardBackScale: 1.12,
+                cardWidthScale: 1.35,
+                folderFrontScale: 1.2,
+                folderBackScale: 1.08,
+                folderWidthScale: 1.28,
+                folderOffsetScale: 1.08,
+                workspaceLengthScale: 1.22,
+                workspaceWidthScale: 1.32,
+                workspaceOffsetScale: 1.08
+            }
+        },
+        orbital: {
+            label: 'Orbital Spread',
+            values: {
+                cardFrontScale: 1.08,
+                cardBackScale: 1.22,
+                cardWidthScale: 1.48,
+                folderFrontScale: 1.05,
+                folderBackScale: 1.18,
+                folderWidthScale: 1.42,
+                folderOffsetScale: 1.18,
+                workspaceLengthScale: 1.05,
+                workspaceWidthScale: 1.5,
+                workspaceOffsetScale: 1.2
+            }
+        }
+    });
 
     const sharedState = ns._sharedState = ns._sharedState || {};
 
@@ -248,7 +343,10 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         MOTION_MODE_ORDER,
         FX_MODE_ORDER,
         DEFAULT_KIND_POLARITIES,
+        AURA_DEPTH_ORDER,
         MOTION_TUNING_FIELDS,
+        AURA_TUNING_FIELDS,
+        AURA_PRESETS,
         LABEL_CURSOR_RADIUS,
         LABEL_FOCUS_LIMIT
     });

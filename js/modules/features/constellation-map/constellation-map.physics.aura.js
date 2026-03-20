@@ -20,6 +20,16 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         getNodePolarityState,
 
+        getCardAuraShape,
+
+        getFolderAuraShape,
+
+        getWorkspaceAuraShape,
+
+        isAuraEffectsEnabled,
+
+        isAuraEmitterEnabled,
+
         isNodeStatic,
 
         setStaticAnchor
@@ -51,6 +61,9 @@ function isNodeMain(node) {
 function applyFolderAura(node, folder, orientX, orientY, distToParent, isRootFolder) {
 
         if (!node || !folder) return;
+        if (!isAuraEffectsEnabled()) return;
+        const folderDepth = (folder.data && typeof folder.data.depth === 'number') ? folder.data.depth : 0;
+        if (!isAuraEmitterEnabled('folder', folderDepth)) return;
 
 
 
@@ -82,7 +95,8 @@ function applyFolderAura(node, folder, orientX, orientY, distToParent, isRootFol
 
         // Repulsive center is offset from folder toward parent
 
-        const offsetDist = 140;
+        const shape = getFolderAuraShape(folder, distToParent, isRootFolder);
+        const offsetDist = shape.offsetDist;
 
         const fnx = orientX;
 
@@ -116,19 +130,9 @@ function applyFolderAura(node, folder, orientX, orientY, distToParent, isRootFol
 
 
 
-        const radiusLat = 1100;
-
-        const distFromCenterToParent = distToParent - offsetDist;
-
-
-
-        // Stretch Front rad to encompass parent if it's a Card/Workspace
-
-        const extraBuffer = isRootFolder ? 110 : 250;
-
-        const radiusFront = Math.max(300, distFromCenterToParent + extraBuffer);
-
-        const radiusBack = 250;
+        const radiusLat = shape.radiusLat;
+        const radiusFront = shape.radiusFront;
+        const radiusBack = shape.radiusBack;
 
         const radiusLong = projLong > 0 ? radiusFront : radiusBack;
 
@@ -209,6 +213,8 @@ function applyFolderAura(node, folder, orientX, orientY, distToParent, isRootFol
 function applyCardAuraRepulsion(node, card, cardData) {
 
         if (!node || !card || !cardData) return;
+        if (!isAuraEffectsEnabled()) return;
+        if (!isAuraEmitterEnabled(card.kind, -1)) return;
 
 
 
@@ -244,13 +250,10 @@ function applyCardAuraRepulsion(node, card, cardData) {
 
         // Teardrop radii relative to card radius
 
-        const baseRadius = card.radius || 120; // Match renderer baseline
-
-        const radiusBack = baseRadius * 5.0;
-
-        const radiusFront = baseRadius * 18.0;
-
-        const radiusLat = baseRadius * 10.0;
+        const shape = getCardAuraShape(card);
+        const radiusBack = shape.radiusBack;
+        const radiusFront = shape.radiusFront;
+        const radiusLat = shape.radiusLat;
 
 
 
@@ -311,6 +314,8 @@ function applyCardAuraRepulsion(node, card, cardData) {
 function applyWorkspaceAuraRepulsion(node, workspace, workspaceData) {
 
         if (!node || !workspace || !workspaceData) return;
+        if (!isAuraEffectsEnabled()) return;
+        if (!isAuraEmitterEnabled('workspace', -1)) return;
 
         const frontX = Number(workspaceData.frontX);
 
@@ -327,14 +332,10 @@ function applyWorkspaceAuraRepulsion(node, workspace, workspaceData) {
         const latY = Number(workspaceData.latY);
 
         const categoryCount = Math.max(1, Number(workspaceData.categories?.length) || 1);
-
-        const baseRadius = workspace.radius || 15;
-
-        const capsuleHalfWidth = Math.max(150, (baseRadius * 7) + (categoryCount * 18));
-
-        const capsuleRadius = Math.max(90, (baseRadius * 5.5) + (categoryCount * 7));
-
-        const backOffset = Math.max(80, (baseRadius * 5) + (categoryCount * 4));
+        const shape = getWorkspaceAuraShape(workspace, categoryCount);
+        const capsuleHalfWidth = shape.capsuleHalfWidth;
+        const capsuleRadius = shape.capsuleRadius;
+        const backOffset = shape.backOffset;
 
         const dx = node.x - workspace.x;
 

@@ -19,6 +19,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         FX_MODE_ORDER,
         DEFAULT_KIND_POLARITIES,
         MOTION_TUNING_FIELDS,
+        AURA_DEPTH_ORDER,
+        AURA_TUNING_FIELDS,
+        AURA_PRESETS,
         LABEL_CURSOR_RADIUS,
         LABEL_FOCUS_LIMIT
     } = sharedState;
@@ -153,6 +156,301 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
     }
 
+    function getAuraTuningField(key) {
+
+        const normalizedKey = String(key || '').trim();
+
+        return AURA_TUNING_FIELDS.find((field) => field.key === normalizedKey) || null;
+
+    }
+
+    function normalizeAuraTuningValue(key, value) {
+
+        const field = getAuraTuningField(key);
+
+        if (!field) return 1;
+
+        const numeric = Number(value);
+
+        if (Number.isFinite(numeric)) {
+
+            return clamp(numeric, field.min, field.max);
+
+        }
+
+        return field.defaultValue;
+
+    }
+
+    function getAuraTuningValue(key) {
+
+        const field = getAuraTuningField(key);
+
+        if (!field) return 1;
+
+        return normalizeAuraTuningValue(field.key, state.auraTuning?.[field.key]);
+
+    }
+
+    function setAuraTuningValue(key, value) {
+
+        const field = getAuraTuningField(key);
+
+        if (!field) return 1;
+
+        if (!state.auraTuning || typeof state.auraTuning !== 'object') {
+
+            state.auraTuning = {};
+
+        }
+
+        state.auraTuning[field.key] = normalizeAuraTuningValue(field.key, value);
+
+        state.auraPreset = 'custom';
+
+        return state.auraTuning[field.key];
+
+    }
+
+    function getAuraTuningText(key) {
+
+        return getAuraTuningValue(key).toFixed(2);
+
+    }
+
+    function resetAuraTuning() {
+
+        state.auraTuning = {};
+
+        AURA_TUNING_FIELDS.forEach((field) => {
+
+            state.auraTuning[field.key] = field.defaultValue;
+
+        });
+
+        state.auraPreset = 'source';
+
+    }
+
+    function applyAuraPreset(key) {
+
+        const presetKey = text(key, 'source');
+
+        const preset = AURA_PRESETS[presetKey] || AURA_PRESETS.source;
+
+        resetAuraTuning();
+
+        Object.entries(preset.values || {}).forEach(([fieldKey, value]) => {
+
+            state.auraTuning[fieldKey] = normalizeAuraTuningValue(fieldKey, value);
+
+        });
+
+        state.auraPreset = presetKey;
+
+        return state.auraPreset;
+
+    }
+
+    function getAuraPresetText() {
+
+        const preset = AURA_PRESETS[state.auraPreset] || null;
+
+        if (preset) return 'Aura Preset: ' + preset.label;
+
+        return 'Aura Preset: Custom';
+
+    }
+
+    function ensureAuraControls() {
+
+        if (!state.auraControls || typeof state.auraControls !== 'object') {
+
+            state.auraControls = {};
+
+        }
+
+        const controls = state.auraControls;
+
+        controls.visualsEnabled = controls.visualsEnabled !== false;
+
+        controls.effectsEnabled = controls.effectsEnabled !== false;
+
+        controls.emitters = controls.emitters && typeof controls.emitters === 'object'
+            ? controls.emitters
+            : {};
+
+        controls.emitters.workspace = controls.emitters.workspace !== false;
+        controls.emitters.category = controls.emitters.category !== false;
+        controls.emitters.folder = controls.emitters.folder !== false;
+
+        controls.depths = controls.depths && typeof controls.depths === 'object'
+            ? controls.depths
+            : {};
+
+        AURA_DEPTH_ORDER.forEach((depthKey) => {
+            controls.depths[depthKey] = controls.depths[depthKey] !== false;
+        });
+
+        state.showPhysicsAuras = controls.visualsEnabled;
+
+        return controls;
+
+    }
+
+    function getAuraDepthBucket(depth) {
+
+        const numeric = Number(depth);
+
+        if (!Number.isFinite(numeric) || numeric <= 0) return 'root';
+        if (numeric === 1) return 'layer1';
+        if (numeric === 2) return 'layer2';
+        return 'layer3plus';
+
+    }
+
+    function isAuraVisualsEnabled() {
+
+        return ensureAuraControls().visualsEnabled !== false;
+
+    }
+
+    function isAuraEffectsEnabled() {
+
+        return ensureAuraControls().effectsEnabled !== false;
+
+    }
+
+    function isAuraEmitterEnabled(kind, depth) {
+
+        const controls = ensureAuraControls();
+        const normalizedKind = String(kind || '').trim();
+
+        if (normalizedKind === 'link') return false;
+        if (controls.emitters[normalizedKind] === false) return false;
+
+        return controls.depths[getAuraDepthBucket(depth)] !== false;
+
+    }
+
+    function toggleAuraVisuals() {
+
+        const controls = ensureAuraControls();
+        controls.visualsEnabled = !controls.visualsEnabled;
+        state.showPhysicsAuras = controls.visualsEnabled;
+        return controls.visualsEnabled;
+
+    }
+
+    function toggleAuraEffects() {
+
+        const controls = ensureAuraControls();
+        controls.effectsEnabled = !controls.effectsEnabled;
+        return controls.effectsEnabled;
+
+    }
+
+    function toggleAuraEmitterKind(kind) {
+
+        const controls = ensureAuraControls();
+        const normalizedKind = String(kind || '').trim();
+
+        if (!['workspace', 'category', 'folder'].includes(normalizedKind)) return false;
+
+        controls.emitters[normalizedKind] = controls.emitters[normalizedKind] === false;
+        return controls.emitters[normalizedKind];
+
+    }
+
+    function toggleAuraDepth(depthKey) {
+
+        const controls = ensureAuraControls();
+        const normalizedKey = text(depthKey, 'root');
+
+        if (!AURA_DEPTH_ORDER.includes(normalizedKey)) return false;
+
+        controls.depths[normalizedKey] = controls.depths[normalizedKey] === false;
+        return controls.depths[normalizedKey];
+
+    }
+
+    function resetAuraControls() {
+
+        state.auraControls = null;
+        const controls = ensureAuraControls();
+
+        controls.visualsEnabled = true;
+        controls.effectsEnabled = true;
+        controls.emitters.workspace = true;
+        controls.emitters.category = true;
+        controls.emitters.folder = true;
+        AURA_DEPTH_ORDER.forEach((depthKey) => {
+            controls.depths[depthKey] = true;
+        });
+        state.showPhysicsAuras = true;
+        resetAuraTuning();
+
+    }
+
+    function resetConstellationControls() {
+
+        resetAuraControls();
+        resetMotionTuning();
+
+        state.stableMainNodes = true;
+        state.chainInternalForcesEnabled = true;
+        state.chainExternalForcesEnabled = true;
+        state.chainHierarchyEnabled = true;
+        state.bookmarkHierarchyEnabled = true;
+        state.polarityStrength = { attract: 0.62, repel: 0.76 };
+        state.kindPolarities = {
+            workspace: DEFAULT_KIND_POLARITIES.workspace,
+            category: DEFAULT_KIND_POLARITIES.category,
+            folder: DEFAULT_KIND_POLARITIES.folder,
+            link: DEFAULT_KIND_POLARITIES.link
+        };
+
+    }
+
+    function getCardAuraShape(card) {
+
+        const baseRadius = card?.radius || 120;
+        return {
+            radiusFront: baseRadius * 18.0 * getAuraTuningValue('cardFrontScale'),
+            radiusBack: baseRadius * 5.0 * getAuraTuningValue('cardBackScale'),
+            radiusLat: baseRadius * 10.0 * getAuraTuningValue('cardWidthScale')
+        };
+
+    }
+
+    function getFolderAuraShape(folder, distToParent, isRootFolder) {
+
+        const offsetDist = 140 * getAuraTuningValue('folderOffsetScale');
+        const distFromCenterToParent = distToParent - offsetDist;
+        const extraBuffer = isRootFolder ? 110 : 250;
+
+        return {
+            offsetDist,
+            radiusFront: Math.max(300 * getAuraTuningValue('folderFrontScale'), (distFromCenterToParent + extraBuffer) * getAuraTuningValue('folderFrontScale')),
+            radiusBack: 250 * getAuraTuningValue('folderBackScale'),
+            radiusLat: 1100 * getAuraTuningValue('folderWidthScale')
+        };
+
+    }
+
+    function getWorkspaceAuraShape(workspace, categoryCount) {
+
+        const baseRadius = workspace?.radius || 15;
+        const count = Math.max(1, Number(categoryCount) || 1);
+
+        return {
+            capsuleHalfWidth: Math.max(150, ((baseRadius * 7) + (count * 18)) * getAuraTuningValue('workspaceLengthScale')),
+            capsuleRadius: Math.max(90, ((baseRadius * 5.5) + (count * 7)) * getAuraTuningValue('workspaceWidthScale')),
+            backOffset: Math.max(80, ((baseRadius * 5) + (count * 4)) * getAuraTuningValue('workspaceOffsetScale'))
+        };
+
+    }
+
 
     function addNode(node) {
 
@@ -216,6 +514,12 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         MOTION_TUNING_FIELDS,
 
+        AURA_TUNING_FIELDS,
+
+        AURA_PRESETS,
+
+        AURA_DEPTH_ORDER,
+
         LABEL_CURSOR_RADIUS,
 
         LABEL_FOCUS_LIMIT,
@@ -255,6 +559,48 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         getMotionTuningText,
 
         resetMotionTuning,
+
+        getAuraTuningField,
+
+        getAuraTuningValue,
+
+        setAuraTuningValue,
+
+        getAuraTuningText,
+
+        resetAuraTuning,
+
+        applyAuraPreset,
+
+        getAuraPresetText,
+
+        ensureAuraControls,
+
+        getAuraDepthBucket,
+
+        isAuraVisualsEnabled,
+
+        isAuraEffectsEnabled,
+
+        isAuraEmitterEnabled,
+
+        toggleAuraVisuals,
+
+        toggleAuraEffects,
+
+        toggleAuraEmitterKind,
+
+        toggleAuraDepth,
+
+        resetAuraControls,
+
+        resetConstellationControls,
+
+        getCardAuraShape,
+
+        getFolderAuraShape,
+
+        getWorkspaceAuraShape,
 
         getKindDisplayName,
 
@@ -309,4 +655,5 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     });
 
 })(window.EveConstellationMap);
+
 

@@ -2,12 +2,20 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
 (function (ns) {
     const shared = ns._shared || {};
-    const { state, text } = shared;
+    const {
+        state,
+        text,
+        isAuraVisualsEnabled,
+        isAuraEmitterEnabled,
+        getCardAuraShape,
+        getFolderAuraShape,
+        getWorkspaceAuraShape
+    } = shared;
     const renderAnchors = ns._renderAnchors || {};
     const { stepAngleToward } = renderAnchors;
 
     function drawPhysicsAuras(ctx) {
-        if (!state.showPhysicsAuras) return;
+        if (!isAuraVisualsEnabled()) return;
 
         const auraRoots = new Map();
         const storedAuraRoots = state.auraRoots instanceof Map ? state.auraRoots : new Map();
@@ -16,6 +24,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         state.nodes.forEach((node) => {
             if (!node || !node.chainId) return;
             if (node.kind !== 'category' && node.kind !== 'workspace') return;
+            if (!isAuraEmitterEnabled(node.kind, -1)) return;
 
             activeChainIds.add(node.chainId);
 
@@ -129,10 +138,10 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             const root = rootData.node;
             if (!root) return;
             const angle = rootData.frontAngle || 0;
-            const baseRad = root.radius || 120;
-            const radiusFront = baseRad * 18.0;
-            const radiusBack = baseRad * 5.0;
-            const radiusLat = baseRad * 10.0;
+            const shape = getCardAuraShape(root);
+            const radiusFront = shape.radiusFront;
+            const radiusBack = shape.radiusBack;
+            const radiusLat = shape.radiusLat;
             const zoomAlpha = Math.min(1.0, state.transform.scale * 2.5);
 
             ctx.save();
@@ -161,12 +170,13 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         workspaceAuraRoots.forEach((workspaceData) => {
             const root = workspaceData?.node;
             if (!root) return;
+            if (!isAuraEmitterEnabled('workspace', -1)) return;
 
             const categoryCount = Math.max(1, Number(workspaceData.categories?.length) || 1);
-            const baseRadius = root.radius || 15;
-            const capsuleHalfWidth = Math.max(150, (baseRadius * 7) + (categoryCount * 18));
-            const capsuleRadius = Math.max(90, (baseRadius * 5.5) + (categoryCount * 7));
-            const backOffset = Math.max(80, (baseRadius * 5) + (categoryCount * 4));
+            const shape = getWorkspaceAuraShape(root, categoryCount);
+            const capsuleHalfWidth = shape.capsuleHalfWidth;
+            const capsuleRadius = shape.capsuleRadius;
+            const backOffset = shape.backOffset;
             const backAngle = Math.atan2(Number(workspaceData.backY) || 0, Number(workspaceData.backX) || -1);
             const zoomAlpha = Math.min(1.0, state.transform.scale * 2.8);
 
@@ -198,6 +208,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         state.nodes.forEach((node) => {
             if (!node || node.kind !== 'folder') return;
+            const nodeDepth = (node.data && typeof node.data.depth === 'number') ? node.data.depth : 0;
+            if (!isAuraEmitterEnabled('folder', nodeDepth)) return;
             const pId = (node.data && node.data.anchorNodeId) ? node.data.anchorNodeId : '';
             const pNode = pId ? state.nodeIndex.get(pId) : null;
             if (!pNode) return;
@@ -215,14 +227,13 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             const fdist = Math.max(1, Math.sqrt(fdx * fdx + fdy * fdy));
             const fnx = fdx / fdist;
             const fny = fdy / fdist;
-
-            const extraBuffer = isRoot ? (pNode.radius || 60) + 50 : 250;
-            const radiusFront = Math.max(300, (fdist - 140) + extraBuffer);
-            const radiusBack = 250;
-            const radiusLat = 1100;
+            const shape = getFolderAuraShape(node, fdist, isRoot);
+            const radiusFront = shape.radiusFront;
+            const radiusBack = shape.radiusBack;
+            const radiusLat = shape.radiusLat;
             const angle = Math.atan2(fny, fnx);
-            const centerX = node.x + fnx * 140;
-            const centerY = node.y + fny * 140;
+            const centerX = node.x + fnx * shape.offsetDist;
+            const centerY = node.y + fny * shape.offsetDist;
 
             ctx.save();
             ctx.translate(centerX, centerY);
@@ -275,10 +286,10 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 const latX = -cfy;
                 const latY = cfx;
                 const distLat = Math.abs(dx * latX + dy * latY);
-                const baseRad = rootData.node.radius || 120;
-                const rFront = baseRad * 18.0;
-                const rBack = baseRad * 5.0;
-                const rLat = baseRad * 10.0;
+                const rootShape = getCardAuraShape(rootData.node);
+                const rFront = rootShape.radiusFront;
+                const rBack = rootShape.radiusBack;
+                const rLat = rootShape.radiusLat;
                 const rLong = projLong > 0 ? rFront : rBack;
                 const normDistSq = Math.pow(distLat / rLat, 2) + Math.pow(projLong / rLong, 2);
                 if (normDistSq < 1.0) {

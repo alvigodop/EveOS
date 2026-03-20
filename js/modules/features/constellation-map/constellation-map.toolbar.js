@@ -3,95 +3,64 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 (function (ns) {
 
     const shared = ns._shared || {};
-
     const graph = ns._graph || {};
-
     const render = ns._render || {};
-
     const physics = ns._physics || {};
-
     const view = ns._view || {};
-
     const events = ns._events || {};
-
     const toolbarMarkup = ns._toolbarMarkup || {};
 
     const {
-
         state,
-
         LABEL_MODE_ORDER,
-
         MOTION_MODE_ORDER,
-
-        MOTION_TUNING_FIELDS,
-
         escapeHtml,
-
-        getMotionTuningText,
-
         cycleNodePolarity,
-
         toggleKindPolarity,
-
         setPolarityStrengthValue,
-
         setMotionTuningValue,
-
         resetMotionTuning,
-
         clearPolarityOverrides,
-
         toggleStaticForNode,
-
         toggleStaticForKind,
-
         toggleStaticBranch,
-
-        clearStaticLocks
-
+        clearStaticLocks,
+        setAuraTuningValue,
+        resetAuraControls,
+        applyAuraPreset,
+        toggleAuraVisuals,
+        toggleAuraEffects,
+        toggleAuraEmitterKind,
+        toggleAuraDepth,
+        resetConstellationControls,
+        ensureAuraControls
     } = shared;
 
     const { buildGraphData } = graph;
-
     const {
-
         requestDraw,
-
         renderHeader,
-
         renderInspector,
-
         renderToolbarState,
-
         updateInspectorCoverState
-
     } = render;
-
     const { syncMotionAnchors } = physics;
-
     const { fitToGraph, resetView, zoomAt } = view;
-
     const { bindEvents, runFind } = events;
     const { getInteractionTargetNode, buildOverlayMarkup } = toolbarMarkup;
 
-
-
     function ensureContainer() {
-        console.log('[ConstellationMap] ensureContainer called');
         if (state.container && state.canvas && state.ctx) {
-            console.log('[ConstellationMap] Container already exists');
             return;
         }
 
-        console.log('[ConstellationMap] Creating container...');
+        ensureAuraControls();
+
         const container = document.createElement('div');
         container.id = 'constellation-map-overlay';
         container.classList.add('map-container');
         container.style.display = 'none';
-        
         container.innerHTML = buildOverlayMarkup();
-
         document.body.appendChild(container);
 
         state.container = container;
@@ -103,21 +72,11 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         state.infoEl = container.querySelector('[data-map-info]');
         state.findInput = container.querySelector('[data-map-find]');
 
-        console.log('[ConstellationMap] state assignments:', {
-            container: !!state.container,
-            canvas: !!state.canvas,
-            ctx: !!state.ctx
-        });
-
         if (ns.FX && ns.FX.manager) {
-            console.log('[ConstellationMap] Initializing FX manager');
             ns.FX.manager.init(container);
         }
 
         container.addEventListener('click', (event) => {
-            const toolbarEl = event.target.closest('[data-map-toolbar]');
-            const toolbarAction = toolbarEl?.dataset?.mapToolbar;
-            
             const fxEngineEl = event.target.closest('[data-fx-engine]');
             if (fxEngineEl) {
                 state.activeWebGlFx = fxEngineEl.dataset.fxEngine;
@@ -134,13 +93,44 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 if (type === 'tech') state.fxTechEnabled = !state.fxTechEnabled;
                 if (type === 'circuit') state.fxCircuitEnabled = !state.fxCircuitEnabled;
                 if (type === 'neuralhud') state.fxNeuralHudEnabled = !state.fxNeuralHudEnabled;
-                if (type === 'tech') state.fxTechEnabled = !state.fxTechEnabled;
-                if (type === 'circuit') state.fxCircuitEnabled = !state.fxCircuitEnabled;
                 if (ns.FX && ns.FX.manager) ns.FX.manager.update();
                 renderToolbarState();
                 return;
             }
-            
+
+            const auraToggleEl = event.target.closest('[data-map-aura-toggle]');
+            if (auraToggleEl) {
+                if (auraToggleEl.dataset.mapAuraToggle === 'effects') toggleAuraEffects();
+                else toggleAuraVisuals();
+                renderToolbarState();
+                requestDraw();
+                return;
+            }
+
+            const auraEmitterEl = event.target.closest('[data-map-aura-emitter]');
+            if (auraEmitterEl) {
+                toggleAuraEmitterKind(auraEmitterEl.dataset.mapAuraEmitter);
+                renderToolbarState();
+                requestDraw();
+                return;
+            }
+
+            const auraDepthEl = event.target.closest('[data-map-aura-depth]');
+            if (auraDepthEl) {
+                toggleAuraDepth(auraDepthEl.dataset.mapAuraDepth);
+                renderToolbarState();
+                requestDraw();
+                return;
+            }
+
+            const auraPresetEl = event.target.closest('[data-map-aura-preset]');
+            if (auraPresetEl) {
+                applyAuraPreset(auraPresetEl.dataset.mapAuraPreset);
+                renderToolbarState();
+                requestDraw();
+                return;
+            }
+
             const staticKindEl = event.target.closest('[data-map-static-kind]');
             const directStaticKind = staticKindEl?.dataset?.mapStaticKind;
             if (directStaticKind) {
@@ -150,14 +140,21 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 return;
             }
 
+            const toolbarEl = event.target.closest('[data-map-toolbar]');
+            const toolbarAction = toolbarEl?.dataset?.mapToolbar;
             if (!toolbarAction) return;
 
-            if (toolbarAction === 'find') runFind();
-            else if (toolbarAction === 'zoom-in') zoomAt(1.12, state.canvas.width / 2, state.canvas.height / 2);
-            else if (toolbarAction === 'zoom-out') zoomAt(0.9, state.canvas.width / 2, state.canvas.height / 2);
-            else if (toolbarAction === 'fit') fitToGraph();
-            else if (toolbarAction === 'reset') resetView();
-            else if (toolbarAction === 'labels') {
+            if (toolbarAction === 'find') {
+                runFind();
+            } else if (toolbarAction === 'zoom-in') {
+                zoomAt(1.12, state.canvas.width / 2, state.canvas.height / 2);
+            } else if (toolbarAction === 'zoom-out') {
+                zoomAt(0.9, state.canvas.width / 2, state.canvas.height / 2);
+            } else if (toolbarAction === 'fit') {
+                fitToGraph();
+            } else if (toolbarAction === 'reset') {
+                resetView();
+            } else if (toolbarAction === 'labels') {
                 const currentIndex = LABEL_MODE_ORDER.indexOf(state.labelMode);
                 state.labelMode = LABEL_MODE_ORDER[(currentIndex + 1) % LABEL_MODE_ORDER.length];
                 requestDraw();
@@ -214,7 +211,21 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 requestDraw();
             } else if (toolbarAction === 'motion-reset') {
                 resetMotionTuning();
+                syncMotionAnchors(true);
                 renderToolbarState();
+                requestDraw();
+            } else if (toolbarAction === 'aura-reset') {
+                resetAuraControls();
+                renderToolbarState();
+                requestDraw();
+            } else if (toolbarAction === 'controls-reset') {
+                resetConstellationControls();
+                clearStaticLocks();
+                clearPolarityOverrides();
+                syncMotionAnchors(true);
+                buildGraphData(state.scope);
+                renderHeader();
+                renderInspector();
                 requestDraw();
             } else if (toolbarAction === 'stability') {
                 state.stableMainNodes = !state.stableMainNodes;
@@ -238,7 +249,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 renderToolbarState();
                 requestDraw();
             } else if (toolbarAction === 'physics-auras') {
-                state.showPhysicsAuras = !state.showPhysicsAuras;
+                toggleAuraVisuals();
                 renderToolbarState();
                 requestDraw();
             } else if (toolbarAction === 'close') {
@@ -251,6 +262,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             const polarityNumberMode = event.target?.dataset?.mapPolarityStrengthNumber;
             const motionTuningMode = event.target?.dataset?.mapMotionTuning;
             const motionTuningNumberMode = event.target?.dataset?.mapMotionTuningNumber;
+            const auraTuningMode = event.target?.dataset?.mapAuraTuning;
+            const auraTuningNumberMode = event.target?.dataset?.mapAuraTuningNumber;
 
             if (polarityMode || polarityNumberMode) {
                 setPolarityStrengthValue(polarityMode || polarityNumberMode, event.target.value);
@@ -260,10 +273,18 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 return;
             }
 
-            if (!motionTuningMode && !motionTuningNumberMode) return;
-            setMotionTuningValue(motionTuningMode || motionTuningNumberMode, event.target.value);
-            renderToolbarState();
-            requestDraw();
+            if (motionTuningMode || motionTuningNumberMode) {
+                setMotionTuningValue(motionTuningMode || motionTuningNumberMode, event.target.value);
+                renderToolbarState();
+                requestDraw();
+                return;
+            }
+
+            if (auraTuningMode || auraTuningNumberMode) {
+                setAuraTuningValue(auraTuningMode || auraTuningNumberMode, event.target.value);
+                renderToolbarState();
+                requestDraw();
+            }
         });
 
         bindEvents();
@@ -271,10 +292,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         renderInspector();
         updateInspectorCoverState();
         renderToolbarState();
-        console.log('[ConstellationMap] ensureContainer completed');
     }
-
-
 
     ns._toolbar = {
         ensureContainer

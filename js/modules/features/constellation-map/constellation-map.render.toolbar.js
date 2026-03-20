@@ -1,387 +1,348 @@
-window.EveConstellationMap = window.EveConstellationMap || {};
-
-(function (ns) {
-    const shared = ns._shared || {};
-    const {
-        state,
-        KIND_ORDER,
-        LABEL_CURSOR_RADIUS,
-        LABEL_FOCUS_LIMIT,
-        getScopeText,
-        getLabelModeText,
-        getMotionModeText,
-        MOTION_TUNING_FIELDS,
-        getKindDisplayName,
-        getNodePolarityState,
-        getPolaritySummary,
-        getPolarityStrengthValue,
-        getPolarityStrengthText,
-        getMotionTuningText,
-        getNodeCoverUrl,
-        scheduleInspectorCoverRotation,
-        getStaticStateForNode,
-        isStaticBranchRoot,
-        getStaticSummary,
-        escapeHtml,
-        text
-    } = shared;
-
-function getKindLockButtonLabel(kind, locked) {
-
-        const label = getKindDisplayName(kind);
-
-        return (locked ? 'Release ' : 'Freeze ') + label;
-
-    }
-
-function getControlsToggleText() {
-
-        return state.controlsExpanded ? 'Hide Controls' : 'Controls';
-
-    }
-
-function renderToolbarState() {
-        if (!state.container) return;
-
-        const fxButton = state.container.querySelector('[data-map-toolbar="fx"]');
-        const controlsButton = state.container.querySelector('[data-map-toolbar="controls"]');
-        const controlsPanel = state.container.querySelector('[data-map-controls-panel]');
-        const fxPanel = state.container.querySelector('[data-map-fx-panel]');
-
-        if (fxButton) fxButton.classList.toggle('active', !!state.fxExpanded);
-        if (fxPanel) fxPanel.classList.toggle('visible', !!state.fxExpanded);
-        
-        if (controlsButton) controlsButton.classList.toggle('active', !!state.controlsExpanded);
-        if (controlsPanel) controlsPanel.style.display = state.controlsExpanded ? 'flex' : 'none';
-
-        // Update FX Engine buttons
-        const engineBtns = state.container.querySelectorAll('[data-fx-engine]');
-        engineBtns.forEach(btn => {
-            const engineId = btn.dataset.fxEngine;
-            btn.classList.toggle('active', engineId === (state.activeWebGlFx || 'none'));
-        });
-
-        // Update FX Toggles
-        const toggleChips = state.container.querySelectorAll('[data-fx-toggle]');
-        toggleChips.forEach(chip => {
-            const type = chip.dataset.fxToggle;
-            let active = false;
-            let label = '';
-            if (type === 'grid') { active = state.fxGridEnabled; label = 'Grid'; }
-            if (type === 'scanline') { active = state.fxScanlineEnabled; label = 'Scanline'; }
-            if (type === 'tech') { active = state.fxTechEnabled; label = 'Tech'; }
-            if (type === 'circuit') { active = state.fxCircuitEnabled; label = 'Circuit'; }
-            if (type === 'neuralhud') { active = state.fxNeuralHudEnabled; label = 'Neural HUD'; }
-            chip.classList.toggle('active', !!active);
-            chip.textContent = `${label}: ${active ? 'ON' : 'OFF'}`;
-        });
-
-        const nodeButton = state.container.querySelector('[data-map-toolbar="static-node"]');
-        const chainButton = state.container.querySelector('[data-map-toolbar="static-chain"]');
-        const kindButton = state.container.querySelector('[data-map-toolbar="static-kind"]');
-        const labelsButton = state.container.querySelector('[data-map-toolbar="labels"]');
-        if (labelsButton) labelsButton.textContent = getLabelModeText();
-
-        const motionButton = state.container.querySelector('[data-map-toolbar="motion"]');
-        if (motionButton) motionButton.textContent = getMotionModeText();
-
-        const clearButton = state.container.querySelector('[data-map-toolbar="static-clear"]');
-        const stabilityButton = state.container.querySelector('[data-map-toolbar="stability"]');
-        const summaryEl = state.container.querySelector('[data-map-static-summary]');
-        const polarityNodeButton = state.container.querySelector('[data-map-toolbar="polarity-node"]');
-        const polarityKindButton = state.container.querySelector('[data-map-toolbar="polarity-kind"]');
-        const polarityClearButton = state.container.querySelector('[data-map-toolbar="polarity-clear"]');
-        const polaritySummaryEl = state.container.querySelector('[data-map-polarity-summary]');
-
-        const repelStrengthInput = state.container.querySelector('[data-map-polarity-strength="repel"]');
-        const attractStrengthInput = state.container.querySelector('[data-map-polarity-strength="attract"]');
-        const repelStrengthNumber = state.container.querySelector('[data-map-polarity-strength-number="repel"]');
-        const attractStrengthNumber = state.container.querySelector('[data-map-polarity-strength-number="attract"]');
-        const repelStrengthValue = state.container.querySelector('[data-map-polarity-strength-value="repel"]');
-        const attractStrengthValue = state.container.querySelector('[data-map-polarity-strength-value="attract"]');
-
-        const motionTuningEntries = MOTION_TUNING_FIELDS.map((field) => ({
-            field,
-            range: state.container.querySelector('[data-map-motion-tuning="' + field.key + '"]'),
-            number: state.container.querySelector('[data-map-motion-tuning-number="' + field.key + '"]'),
-            value: state.container.querySelector('[data-map-motion-tuning-value="' + field.key + '"]')
-        }));
-
-        const directKindButtons = KIND_ORDER.map((kind) => ({
-            kind,
-            button: state.container.querySelector('[data-map-static-kind="' + kind + '"]')
-        }));
-
-        const fxGridButton = state.container.querySelector('[data-fx-toggle="grid"]');
-        const fxScanlineButton = state.container.querySelector('[data-fx-toggle="scanline"]');
-
-        if (!nodeButton || !chainButton || !kindButton || !motionButton || !clearButton || !controlsButton || !controlsPanel || !stabilityButton || !summaryEl || !polarityNodeButton || !polarityKindButton || !polarityClearButton || !polaritySummaryEl || !repelStrengthInput || !attractStrengthInput || !repelStrengthNumber || !attractStrengthNumber || !repelStrengthValue || !attractStrengthValue || motionTuningEntries.some((entry) => !entry.range || !entry.number || !entry.value) || directKindButtons.some((entry) => !entry.button)) return;
-
-        const targetNode = state.selected || state.hovered || null;
-
-        const staticState = getStaticStateForNode(targetNode);
-
-        const polarityState = getNodePolarityState(targetNode);
-
-        const branchLocked = isStaticBranchRoot(targetNode);
-
-        const kindLabel = targetNode ? getKindDisplayName(targetNode.kind) : 'Type';
-
-        const hasTarget = !!targetNode;
-
-        nodeButton.textContent = staticState.nodeLocked ? 'Release Node' : 'Static Node';
-
-        chainButton.textContent = branchLocked ? 'Release Chain' : 'Static Chain';
-
-        kindButton.textContent = hasTarget
-
-            ? (staticState.kindLocked ? ('Release ' + kindLabel) : ('Static ' + kindLabel))
-
-            : 'Static Type';
-
-        motionButton.textContent = getMotionModeText();
-
-        controlsButton.textContent = getControlsToggleText();
-
-        controlsPanel.style.display = state.controlsExpanded ? 'flex' : 'none';
-
-        controlsButton.style.borderColor = state.controlsExpanded ? 'rgba(145,220,255,0.32)' : 'rgba(255,255,255,0.18)';
-
-        controlsButton.style.background = state.controlsExpanded ? 'rgba(145,220,255,0.12)' : 'rgba(255,255,255,0.07)';
-
-
-
-        if (fxPanel && fxButton) {
-
-            fxButton.textContent = state.fxExpanded ? 'Hide FX' : 'FX Settings';
-
-            fxPanel.style.display = state.fxExpanded ? 'flex' : 'none';
-
-            fxButton.style.borderColor = state.fxExpanded ? 'rgba(0,255,255,0.32)' : 'rgba(0,255,255,0.26)';
-
-            fxButton.style.background = state.fxExpanded ? 'rgba(0,255,255,0.22)' : 'rgba(0,255,255,0.11)';
-
-        }
-
-
-
-        if (fxGridButton) {
-
-            fxGridButton.textContent = state.fxGridEnabled ? 'Grid: ON' : 'Grid: OFF';
-
-            fxGridButton.style.borderColor = state.fxGridEnabled ? 'rgba(0,255,255,0.42)' : 'rgba(255,255,255,0.18)';
-
-            fxGridButton.style.background = state.fxGridEnabled ? 'rgba(0,255,255,0.18)' : 'rgba(255,255,255,0.07)';
-
-        }
-
-
-
-        if (fxScanlineButton) {
-
-            fxScanlineButton.textContent = state.fxScanlineEnabled ? 'Scanline: ON' : 'Scanline: OFF';
-
-            fxScanlineButton.style.borderColor = state.fxScanlineEnabled ? 'rgba(0,255,255,0.42)' : 'rgba(255,255,255,0.18)';
-
-            fxScanlineButton.style.background = state.fxScanlineEnabled ? 'rgba(0,255,255,0.18)' : 'rgba(255,255,255,0.07)';
-
-        }
-
-
-
-        if (stabilityButton) {
-            stabilityButton.textContent = state.stableMainNodes ? 'Stability: ON' : 'Stability: OFF';
-            stabilityButton.style.borderColor = state.stableMainNodes ? 'rgba(0,212,255,0.32)' : 'rgba(255,255,255,0.18)';
-            stabilityButton.style.background = state.stableMainNodes ? 'rgba(0,212,255,0.12)' : 'rgba(255,255,255,0.07)';
-        }
-
-        const chainInternalButton = state.container.querySelector('[data-map-toolbar="chain-internal"]');
-        if (chainInternalButton) {
-            chainInternalButton.textContent = state.chainInternalForcesEnabled ? 'Internal Chain: ON' : 'Internal Chain: OFF';
-            chainInternalButton.style.borderColor = state.chainInternalForcesEnabled ? 'rgba(0,212,255,0.32)' : 'rgba(255,255,255,0.18)';
-            chainInternalButton.style.background = state.chainInternalForcesEnabled ? 'rgba(0,212,255,0.12)' : 'rgba(255,255,255,0.07)';
-        }
-
-        const chainExternalButton = state.container.querySelector('[data-map-toolbar="chain-external"]');
-        if (chainExternalButton) {
-            chainExternalButton.textContent = state.chainExternalForcesEnabled ? 'External Chain: ON' : 'External Chain: OFF';
-            chainExternalButton.style.borderColor = state.chainExternalForcesEnabled ? 'rgba(0,212,255,0.32)' : 'rgba(255,255,255,0.18)';
-            chainExternalButton.style.background = state.chainExternalForcesEnabled ? 'rgba(0,212,255,0.12)' : 'rgba(255,255,255,0.07)';
-        }
-
-        const chainHierarchyButton = state.container.querySelector('[data-map-toolbar="chain-hierarchy"]');
-        if (chainHierarchyButton) {
-            chainHierarchyButton.textContent = state.chainHierarchyEnabled ? 'Hierarchy Order: ON' : 'Hierarchy Order: OFF';
-            chainHierarchyButton.style.borderColor = state.chainHierarchyEnabled ? 'rgba(0,212,255,0.32)' : 'rgba(255,255,255,0.18)';
-            chainHierarchyButton.style.background = state.chainHierarchyEnabled ? 'rgba(0,212,255,0.12)' : 'rgba(255,255,255,0.07)';
-        }
-
-        const bookmarkHierarchyButton = state.container.querySelector('[data-map-toolbar="bookmark-hierarchy"]');
-        if (bookmarkHierarchyButton) {
-            bookmarkHierarchyButton.textContent = state.bookmarkHierarchyEnabled ? 'Bookmark Hierarchy: ON' : 'Bookmark Hierarchy: OFF';
-            bookmarkHierarchyButton.style.borderColor = state.bookmarkHierarchyEnabled ? 'rgba(0,212,255,0.32)' : 'rgba(255,255,255,0.18)';
-            bookmarkHierarchyButton.style.background = state.bookmarkHierarchyEnabled ? 'rgba(0,212,255,0.12)' : 'rgba(255,255,255,0.07)';
-        }
-
-        const physicsAurasButton = state.container.querySelector('[data-map-toolbar="physics-auras"]');
-        if (physicsAurasButton) {
-            physicsAurasButton.textContent = state.showPhysicsAuras ? 'Physics Auras: ON' : 'Physics Auras: OFF';
-            physicsAurasButton.style.borderColor = state.showPhysicsAuras ? 'rgba(122,255,196,0.32)' : 'rgba(255,255,255,0.18)';
-            physicsAurasButton.style.background = state.showPhysicsAuras ? 'rgba(122,255,196,0.12)' : 'rgba(255,255,255,0.07)';
-        }
-
-        [nodeButton, chainButton, kindButton].forEach((button) => {
-
-            button.disabled = !hasTarget;
-
-            button.style.opacity = hasTarget ? '1' : '0.56';
-
-            button.style.cursor = hasTarget ? 'pointer' : 'default';
-
-        });
-
-        nodeButton.style.borderColor = staticState.nodeLocked ? 'rgba(255,214,90,0.42)' : 'rgba(255,255,255,0.18)';
-
-        nodeButton.style.background = staticState.nodeLocked ? 'rgba(255,214,90,0.18)' : 'rgba(255,255,255,0.07)';
-
-        chainButton.style.borderColor = branchLocked ? 'rgba(255,214,90,0.42)' : 'rgba(255,255,255,0.18)';
-
-        chainButton.style.background = branchLocked ? 'rgba(255,214,90,0.18)' : 'rgba(255,255,255,0.07)';
-
-        kindButton.style.borderColor = staticState.kindLocked ? 'rgba(255,214,90,0.42)' : 'rgba(255,255,255,0.18)';
-
-        kindButton.style.background = staticState.kindLocked ? 'rgba(255,214,90,0.18)' : 'rgba(255,255,255,0.07)';
-
-        const summary = getStaticSummary();
-
-        const parts = [];
-
-        if (summary.nodeCount) parts.push(summary.nodeCount + ' node' + (summary.nodeCount === 1 ? '' : 's'));
-
-        if (summary.branchCount) parts.push(summary.branchCount + ' chain' + (summary.branchCount === 1 ? '' : 's'));
-
-        if (summary.kinds.length) parts.push(summary.kinds.length + ' type' + (summary.kinds.length === 1 ? '' : 's'));
-
-        summaryEl.textContent = parts.length ? ('Static: ' + parts.join(' | ')) : 'Static: none';
-
-        clearButton.style.opacity = summary.total ? '1' : '0.6';
-
-        directKindButtons.forEach(({ kind, button }) => {
-
-            const locked = state.staticKinds.has(kind);
-
-            button.textContent = getKindLockButtonLabel(kind, locked);
-
-            button.style.borderColor = locked ? 'rgba(255,214,90,0.42)' : 'rgba(255,255,255,0.18)';
-
-            button.style.background = locked ? 'rgba(255,214,90,0.18)' : 'rgba(255,255,255,0.07)';
-
-        });
-
-        const polarityKindLabel = hasTarget ? getKindDisplayName(targetNode.kind) : 'Type';
-
-        polarityNodeButton.textContent = 'Node: ' + (polarityState.nodeOverride === 'inherit'
-
-            ? 'Inherit'
-
-            : (polarityState.nodeOverride === 'attract' ? 'Pull' : 'Push'));
-
-        polarityKindButton.textContent = hasTarget
-
-            ? (polarityKindLabel + ': ' + (polarityState.kind === 'attract' ? 'Pull' : 'Push'))
-
-            : 'Type: Push';
-
-        [polarityNodeButton, polarityKindButton].forEach((button) => {
-
-            button.disabled = !hasTarget;
-
-            button.style.opacity = hasTarget ? '1' : '0.56';
-
-            button.style.cursor = hasTarget ? 'pointer' : 'default';
-
-        });
-
-        polarityNodeButton.style.borderColor = polarityState.nodeOverride === 'attract'
-
-            ? 'rgba(122,255,196,0.42)'
-
-            : (polarityState.nodeOverride === 'repel' ? 'rgba(255,180,120,0.42)' : 'rgba(255,255,255,0.18)');
-
-        polarityNodeButton.style.background = polarityState.nodeOverride === 'attract'
-
-            ? 'rgba(122,255,196,0.14)'
-
-            : (polarityState.nodeOverride === 'repel' ? 'rgba(255,180,120,0.14)' : 'rgba(255,255,255,0.07)');
-
-        polarityKindButton.style.borderColor = polarityState.kind === 'attract'
-
-            ? 'rgba(122,255,196,0.42)'
-
-            : 'rgba(255,255,255,0.18)';
-
-        polarityKindButton.style.background = polarityState.kind === 'attract'
-
-            ? 'rgba(122,255,196,0.14)'
-
-            : 'rgba(255,255,255,0.07)';
-
-        const polaritySummary = getPolaritySummary();
-
-        const polarityParts = [];
-
-        if (polaritySummary.nodeOverrideCount) polarityParts.push(polaritySummary.nodeOverrideCount + ' node' + (polaritySummary.nodeOverrideCount === 1 ? '' : 's'));
-
-        if (polaritySummary.attractKinds.length) polarityParts.push(polaritySummary.attractKinds.length + ' pull type' + (polaritySummary.attractKinds.length === 1 ? '' : 's'));
-
-        polaritySummaryEl.textContent = polarityParts.length ? ('Flow: ' + polarityParts.join(' | ')) : 'Flow: push default';
-
-        polarityClearButton.style.opacity = polaritySummary.total ? '1' : '0.6';
-
-        repelStrengthInput.value = getPolarityStrengthText('repel');
-
-        attractStrengthInput.value = getPolarityStrengthText('attract');
-
-        repelStrengthNumber.value = getPolarityStrengthText('repel');
-
-        attractStrengthNumber.value = getPolarityStrengthText('attract');
-
-        repelStrengthValue.textContent = getPolarityStrengthText('repel');
-
-        attractStrengthValue.textContent = getPolarityStrengthText('attract');
-
-        motionTuningEntries.forEach(({ field, range, number, value }) => {
-
-            const textValue = getMotionTuningText(field.key);
-
-            range.value = textValue;
-            number.value = textValue;
-            value.textContent = textValue;
-
-        });
-
-    }
-
-function renderHeader() {
-
-        if (!state.titleEl || !state.scopeEl || !state.statsEl) return;
-
-        state.titleEl.textContent = 'NEURAL CORE :: CONSTELLATION MAP';
-
-        state.scopeEl.textContent = getScopeText(state.scope);
-
-        state.statsEl.textContent = state.nodes.length + ' nodes - ' + state.edges.length + ' edges';
-
-        renderToolbarState();
-
-    }
-
-    const renderToolbarHelpers = ns._renderToolbarHelpers = ns._renderToolbarHelpers || {};
-    Object.assign(renderToolbarHelpers, {
-        getKindLockButtonLabel,
-        getControlsToggleText,
-        renderToolbarState,
-        renderHeader
-    });
-
-})(window.EveConstellationMap);
+window.EveConstellationMap = window.EveConstellationMap || {};
+
+(function (ns) {
+    const shared = ns._shared || {};
+    const {
+        state,
+        KIND_ORDER,
+        LABEL_CURSOR_RADIUS,
+        LABEL_FOCUS_LIMIT,
+        getScopeText,
+        getLabelModeText,
+        getMotionModeText,
+        MOTION_TUNING_FIELDS,
+        AURA_TUNING_FIELDS,
+        AURA_PRESETS,
+        AURA_DEPTH_ORDER,
+        getKindDisplayName,
+        ensureAuraControls,
+        getNodePolarityState,
+        getPolaritySummary,
+        getPolarityStrengthText,
+        getMotionTuningText,
+        getAuraTuningText,
+        getAuraPresetText,
+        getStaticStateForNode,
+        isStaticBranchRoot,
+        getStaticSummary
+    } = shared;
+
+    const AURA_EMITTER_LABELS = {
+        workspace: 'Tab Auras',
+        category: 'Card Auras',
+        folder: 'Folder Auras'
+    };
+
+    const AURA_DEPTH_LABELS = {
+        root: 'Root Layer',
+        layer1: 'Layer 1',
+        layer2: 'Layer 2',
+        layer3plus: 'Layer 3+'
+    };
+
+    function getKindLockButtonLabel(kind, locked) {
+        const label = getKindDisplayName(kind);
+        return (locked ? 'Release ' : 'Freeze ') + label;
+    }
+
+    function getControlsToggleText() {
+        return state.controlsExpanded ? 'Hide Control Center' : 'Control Center';
+    }
+
+    function setButtonActive(button, active, options) {
+        if (!button) return;
+        const opts = options || {};
+        button.classList.toggle('active', !!active);
+        button.setAttribute('aria-pressed', active ? 'true' : 'false');
+        button.style.borderColor = active
+            ? (opts.activeBorder || 'rgba(0,212,255,0.34)')
+            : (opts.inactiveBorder || 'rgba(255,255,255,0.18)');
+        button.style.background = active
+            ? (opts.activeBackground || 'rgba(0,212,255,0.14)')
+            : (opts.inactiveBackground || 'rgba(255,255,255,0.07)');
+    }
+
+    function setButtonEnabled(button, enabled) {
+        if (!button) return;
+        button.disabled = !enabled;
+        button.style.opacity = enabled ? '1' : '0.56';
+        button.style.cursor = enabled ? 'pointer' : 'default';
+    }
+
+    function queryAll(selector) {
+        return Array.from(state.container?.querySelectorAll(selector) || []);
+    }
+
+    function renderToolbarState() {
+        if (!state.container) return;
+
+        const controls = ensureAuraControls();
+        const fxButton = state.container.querySelector('[data-map-toolbar="fx"]');
+        const controlsButton = state.container.querySelector('[data-map-toolbar="controls"]');
+        const controlsPanel = state.container.querySelector('[data-map-controls-panel]');
+        const fxPanel = state.container.querySelector('[data-map-fx-panel]');
+
+        if (fxButton) {
+            fxButton.textContent = state.fxExpanded ? 'Hide FX' : 'Background FX';
+            setButtonActive(fxButton, !!state.fxExpanded, {
+                activeBorder: 'rgba(0,255,255,0.32)',
+                activeBackground: 'rgba(0,255,255,0.18)'
+            });
+        }
+        if (fxPanel) {
+            fxPanel.style.display = state.fxExpanded ? 'flex' : 'none';
+            fxPanel.classList.toggle('visible', !!state.fxExpanded);
+        }
+
+        if (controlsButton) {
+            controlsButton.textContent = getControlsToggleText();
+            controlsButton.setAttribute('aria-expanded', state.controlsExpanded ? 'true' : 'false');
+            setButtonActive(controlsButton, !!state.controlsExpanded, {
+                activeBorder: 'rgba(145,220,255,0.32)',
+                activeBackground: 'rgba(145,220,255,0.12)'
+            });
+        }
+        if (controlsPanel) {
+            controlsPanel.style.display = state.controlsExpanded ? 'flex' : 'none';
+        }
+
+        queryAll('[data-map-toolbar="labels"]').forEach((button) => {
+            button.textContent = getLabelModeText();
+        });
+
+        queryAll('[data-map-toolbar="motion"]').forEach((button) => {
+            button.textContent = getMotionModeText();
+        });
+
+        queryAll('[data-fx-engine]').forEach((button) => {
+            const active = button.dataset.fxEngine === (state.activeWebGlFx || 'none');
+            setButtonActive(button, active, {
+                activeBorder: 'rgba(0,255,255,0.4)',
+                activeBackground: 'rgba(0,255,255,0.18)'
+            });
+        });
+
+        queryAll('[data-fx-toggle]').forEach((chip) => {
+            const type = chip.dataset.fxToggle;
+            let active = false;
+            let label = '';
+            if (type === 'grid') { active = !!state.fxGridEnabled; label = 'Grid'; }
+            if (type === 'scanline') { active = !!state.fxScanlineEnabled; label = 'Scanline'; }
+            if (type === 'tech') { active = !!state.fxTechEnabled; label = 'Tech'; }
+            if (type === 'circuit') { active = !!state.fxCircuitEnabled; label = 'Circuit'; }
+            if (type === 'neuralhud') { active = !!state.fxNeuralHudEnabled; label = 'Neural HUD'; }
+            chip.textContent = label + ': ' + (active ? 'ON' : 'OFF');
+            setButtonActive(chip, active, {
+                activeBorder: 'rgba(0,255,255,0.4)',
+                activeBackground: 'rgba(0,255,255,0.16)'
+            });
+        });
+
+        queryAll('[data-map-toolbar="stability"]').forEach((button) => {
+            button.textContent = state.stableMainNodes ? 'Hold Main Nodes: ON' : 'Hold Main Nodes: OFF';
+            setButtonActive(button, !!state.stableMainNodes);
+        });
+
+        queryAll('[data-map-toolbar="chain-internal"]').forEach((button) => {
+            button.textContent = state.chainInternalForcesEnabled ? 'Same-Chain Forces: ON' : 'Same-Chain Forces: OFF';
+            setButtonActive(button, !!state.chainInternalForcesEnabled);
+        });
+
+        queryAll('[data-map-toolbar="chain-external"]').forEach((button) => {
+            button.textContent = state.chainExternalForcesEnabled ? 'Cross-Chain Forces: ON' : 'Cross-Chain Forces: OFF';
+            setButtonActive(button, !!state.chainExternalForcesEnabled);
+        });
+
+        queryAll('[data-map-toolbar="chain-hierarchy"]').forEach((button) => {
+            button.textContent = state.chainHierarchyEnabled ? 'Enforce Folder Layers: ON' : 'Enforce Folder Layers: OFF';
+            setButtonActive(button, !!state.chainHierarchyEnabled);
+        });
+
+        queryAll('[data-map-toolbar="bookmark-hierarchy"]').forEach((button) => {
+            button.textContent = state.bookmarkHierarchyEnabled ? 'Keep Bookmark Lanes: ON' : 'Keep Bookmark Lanes: OFF';
+            setButtonActive(button, !!state.bookmarkHierarchyEnabled);
+        });
+
+        queryAll('[data-map-aura-toggle]').forEach((button) => {
+            const mode = button.dataset.mapAuraToggle;
+            const active = mode === 'effects' ? controls.effectsEnabled !== false : controls.visualsEnabled !== false;
+            const label = mode === 'effects' ? 'Aura Forces' : 'Aura Volumes';
+            button.textContent = label + ': ' + (active ? 'ON' : 'OFF');
+            setButtonActive(button, active, {
+                activeBorder: 'rgba(122,255,196,0.34)',
+                activeBackground: 'rgba(122,255,196,0.14)'
+            });
+        });
+
+        queryAll('[data-map-aura-emitter]').forEach((button) => {
+            const kind = button.dataset.mapAuraEmitter;
+            const active = controls.emitters?.[kind] !== false;
+            const label = AURA_EMITTER_LABELS[kind] || kind;
+            button.textContent = label + ': ' + (active ? 'ON' : 'OFF');
+            setButtonActive(button, active, {
+                activeBorder: 'rgba(126,196,255,0.34)',
+                activeBackground: 'rgba(126,196,255,0.14)'
+            });
+        });
+
+        queryAll('[data-map-aura-depth]').forEach((button) => {
+            const depthKey = button.dataset.mapAuraDepth;
+            const active = controls.depths?.[depthKey] !== false;
+            const label = AURA_DEPTH_LABELS[depthKey] || depthKey;
+            button.textContent = label + ': ' + (active ? 'ON' : 'OFF');
+            setButtonActive(button, active, {
+                activeBorder: 'rgba(255,209,102,0.34)',
+                activeBackground: 'rgba(255,209,102,0.14)'
+            });
+        });
+
+        queryAll('[data-map-aura-preset]').forEach((button) => {
+            const active = button.dataset.mapAuraPreset === state.auraPreset;
+            setButtonActive(button, active, {
+                activeBorder: 'rgba(194,151,255,0.36)',
+                activeBackground: 'rgba(194,151,255,0.14)'
+            });
+        });
+
+        const auraPresetSummary = state.container.querySelector('[data-map-aura-preset-summary]');
+        if (auraPresetSummary) {
+            auraPresetSummary.textContent = getAuraPresetText();
+        }
+
+        MOTION_TUNING_FIELDS.forEach((field) => {
+            const textValue = getMotionTuningText(field.key);
+            queryAll('[data-map-motion-tuning="' + field.key + '"]').forEach((input) => { input.value = textValue; });
+            queryAll('[data-map-motion-tuning-number="' + field.key + '"]').forEach((input) => { input.value = textValue; });
+            queryAll('[data-map-motion-tuning-value="' + field.key + '"]').forEach((el) => { el.textContent = textValue; });
+        });
+
+        AURA_TUNING_FIELDS.forEach((field) => {
+            const textValue = getAuraTuningText(field.key);
+            queryAll('[data-map-aura-tuning="' + field.key + '"]').forEach((input) => { input.value = textValue; });
+            queryAll('[data-map-aura-tuning-number="' + field.key + '"]').forEach((input) => { input.value = textValue; });
+            queryAll('[data-map-aura-tuning-value="' + field.key + '"]').forEach((el) => { el.textContent = textValue; });
+        });
+
+        const targetNode = state.selected || state.hovered || null;
+        const staticState = getStaticStateForNode(targetNode);
+        const branchLocked = isStaticBranchRoot(targetNode);
+        const hasTarget = !!targetNode;
+        const kindLabel = hasTarget ? getKindDisplayName(targetNode.kind) : 'Type';
+
+        queryAll('[data-map-toolbar="static-node"]').forEach((button) => {
+            button.textContent = staticState.nodeLocked ? 'Release Node' : 'Static Node';
+            setButtonEnabled(button, hasTarget);
+            setButtonActive(button, staticState.nodeLocked, {
+                activeBorder: 'rgba(255,214,90,0.42)',
+                activeBackground: 'rgba(255,214,90,0.18)'
+            });
+        });
+
+        queryAll('[data-map-toolbar="static-chain"]').forEach((button) => {
+            button.textContent = branchLocked ? 'Release Chain' : 'Static Chain';
+            setButtonEnabled(button, hasTarget);
+            setButtonActive(button, branchLocked, {
+                activeBorder: 'rgba(255,214,90,0.42)',
+                activeBackground: 'rgba(255,214,90,0.18)'
+            });
+        });
+
+        queryAll('[data-map-toolbar="static-kind"]').forEach((button) => {
+            button.textContent = hasTarget
+                ? (staticState.kindLocked ? ('Release ' + kindLabel) : ('Static ' + kindLabel))
+                : 'Static Type';
+            setButtonEnabled(button, hasTarget);
+            setButtonActive(button, staticState.kindLocked, {
+                activeBorder: 'rgba(255,214,90,0.42)',
+                activeBackground: 'rgba(255,214,90,0.18)'
+            });
+        });
+
+        const staticSummary = getStaticSummary();
+        const staticParts = [];
+        if (staticSummary.nodeCount) staticParts.push(staticSummary.nodeCount + ' node' + (staticSummary.nodeCount === 1 ? '' : 's'));
+        if (staticSummary.branchCount) staticParts.push(staticSummary.branchCount + ' chain' + (staticSummary.branchCount === 1 ? '' : 's'));
+        if (staticSummary.kinds.length) staticParts.push(staticSummary.kinds.length + ' type' + (staticSummary.kinds.length === 1 ? '' : 's'));
+        queryAll('[data-map-static-summary]').forEach((el) => {
+            el.textContent = staticParts.length ? ('Static: ' + staticParts.join(' | ')) : 'Static: none';
+        });
+
+        queryAll('[data-map-toolbar="static-clear"]').forEach((button) => {
+            setButtonEnabled(button, staticSummary.total > 0);
+        });
+
+        KIND_ORDER.forEach((kind) => {
+            queryAll('[data-map-static-kind="' + kind + '"]').forEach((button) => {
+                const locked = state.staticKinds.has(kind);
+                button.textContent = getKindLockButtonLabel(kind, locked);
+                setButtonActive(button, locked, {
+                    activeBorder: 'rgba(255,214,90,0.42)',
+                    activeBackground: 'rgba(255,214,90,0.18)'
+                });
+            });
+        });
+
+        const polarityState = getNodePolarityState(targetNode);
+        const polarityKindLabel = hasTarget ? getKindDisplayName(targetNode.kind) : 'Type';
+
+        queryAll('[data-map-toolbar="polarity-node"]').forEach((button) => {
+            const textValue = polarityState.nodeOverride === 'inherit'
+                ? 'Inherit'
+                : (polarityState.nodeOverride === 'attract' ? 'Pull' : 'Push');
+            button.textContent = 'Node: ' + textValue;
+            setButtonEnabled(button, hasTarget);
+            const active = polarityState.nodeOverride !== 'inherit';
+            const accent = polarityState.nodeOverride === 'attract'
+                ? { activeBorder: 'rgba(122,255,196,0.42)', activeBackground: 'rgba(122,255,196,0.14)' }
+                : { activeBorder: 'rgba(255,180,120,0.42)', activeBackground: 'rgba(255,180,120,0.14)' };
+            setButtonActive(button, active, accent);
+        });
+
+        queryAll('[data-map-toolbar="polarity-kind"]').forEach((button) => {
+            button.textContent = hasTarget
+                ? (polarityKindLabel + ': ' + (polarityState.kind === 'attract' ? 'Pull' : 'Push'))
+                : 'Type: Push';
+            setButtonEnabled(button, hasTarget);
+            setButtonActive(button, polarityState.kind === 'attract', {
+                activeBorder: 'rgba(122,255,196,0.42)',
+                activeBackground: 'rgba(122,255,196,0.14)'
+            });
+        });
+
+        const polaritySummary = getPolaritySummary();
+        const polarityParts = [];
+        if (polaritySummary.nodeOverrideCount) polarityParts.push(polaritySummary.nodeOverrideCount + ' node' + (polaritySummary.nodeOverrideCount === 1 ? '' : 's'));
+        if (polaritySummary.attractKinds.length) polarityParts.push(polaritySummary.attractKinds.length + ' pull type' + (polaritySummary.attractKinds.length === 1 ? '' : 's'));
+        queryAll('[data-map-polarity-summary]').forEach((el) => {
+            el.textContent = polarityParts.length ? ('Flow: ' + polarityParts.join(' | ')) : 'Flow: push default';
+        });
+        queryAll('[data-map-toolbar="polarity-clear"]').forEach((button) => {
+            setButtonEnabled(button, polaritySummary.total > 0);
+        });
+
+        queryAll('[data-map-polarity-strength="repel"]').forEach((input) => { input.value = getPolarityStrengthText('repel'); });
+        queryAll('[data-map-polarity-strength-number="repel"]').forEach((input) => { input.value = getPolarityStrengthText('repel'); });
+        queryAll('[data-map-polarity-strength-value="repel"]').forEach((el) => { el.textContent = getPolarityStrengthText('repel'); });
+        queryAll('[data-map-polarity-strength="attract"]').forEach((input) => { input.value = getPolarityStrengthText('attract'); });
+        queryAll('[data-map-polarity-strength-number="attract"]').forEach((input) => { input.value = getPolarityStrengthText('attract'); });
+        queryAll('[data-map-polarity-strength-value="attract"]').forEach((el) => { el.textContent = getPolarityStrengthText('attract'); });
+    }
+
+    function renderHeader() {
+        if (!state.titleEl || !state.scopeEl || !state.statsEl) return;
+
+        state.titleEl.textContent = 'NEURAL CORE :: CONSTELLATION MAP';
+        state.scopeEl.textContent = getScopeText(state.scope);
+        state.statsEl.textContent = state.nodes.length + ' nodes - ' + state.edges.length + ' edges';
+        renderToolbarState();
+    }
+
+    const renderToolbarHelpers = ns._renderToolbarHelpers = ns._renderToolbarHelpers || {};
+    Object.assign(renderToolbarHelpers, {
+        getKindLockButtonLabel,
+        getControlsToggleText,
+        renderToolbarState,
+        renderHeader
+    });
+
+})(window.EveConstellationMap);
