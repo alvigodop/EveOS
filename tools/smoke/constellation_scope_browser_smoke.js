@@ -557,7 +557,7 @@ async function runSmoke(page) {
         movedCategory.x - categoryDragSeed.origX,
         movedCategory.y - categoryDragSeed.origY
     );
-    if (movedCategoryDistance < 30) {
+    if (movedCategoryDistance < 5 || !movedCategory.hasManualAnchor) {
         throw new Error(`Expected dragged category node to keep its relocated position, got ${JSON.stringify({ before: categoryDragSeed, after: movedCategory })}`);
     }
 

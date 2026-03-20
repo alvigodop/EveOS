@@ -287,17 +287,28 @@ window.EveModuleManifestParts.scripts = [
 
         'js/modules/features/constellation-map/constellation-map.graph.js?v=0.2.1',
 
-        'js/modules/features/constellation-map/constellation-map.render.canvas.js?v=0.1.0',
-        'js/modules/features/constellation-map/constellation-map.render.js?v=0.2.4',
+        'js/modules/features/constellation-map/constellation-map.render.anchors.js?v=0.1.0',
+        'js/modules/features/constellation-map/constellation-map.render.labels.js?v=0.1.0',
+        'js/modules/features/constellation-map/constellation-map.render.auras.js?v=0.1.0',
+        'js/modules/features/constellation-map/constellation-map.render.canvas.js?v=0.2.0',
+        'js/modules/features/constellation-map/constellation-map.render.toolbar.js?v=0.1.0',
+        'js/modules/features/constellation-map/constellation-map.render.inspector.js?v=0.1.0',
+        'js/modules/features/constellation-map/constellation-map.render.js?v=0.3.0',
 
-        'js/modules/features/constellation-map/constellation-map.physics.helpers.js?v=0.1.0',
+        'js/modules/features/constellation-map/constellation-map.physics.aura.js?v=0.1.0',
+        'js/modules/features/constellation-map/constellation-map.physics.motion.js?v=0.1.0',
+        'js/modules/features/constellation-map/constellation-map.physics.polarity.js?v=0.1.0',
+        'js/modules/features/constellation-map/constellation-map.physics.helpers.js?v=0.2.0',
         'js/modules/features/constellation-map/constellation-map.physics.js?v=0.1.3',
 
         'js/modules/features/constellation-map/constellation-map.view.js?v=0.1.0',
         'js/modules/features/constellation-map/constellation-map.events.js?v=0.1.0',
-        'js/modules/features/constellation-map/constellation-map.toolbar.js?v=0.1.0',
+        'js/modules/features/constellation-map/constellation-map.toolbar.markup.js?v=0.1.0',
+        'js/modules/features/constellation-map/constellation-map.toolbar.js?v=0.2.0',
         'js/modules/features/constellation-map/index.js?v=0.1.0',
-        'js/modules/features/constellation-map/constellation-map.core.js?v=0.5.0',
+        'js/modules/features/constellation-map/constellation-map.core.actions.js?v=0.1.0',
+        'js/modules/features/constellation-map/constellation-map.core.debug.js?v=0.1.0',
+        'js/modules/features/constellation-map/constellation-map.core.js?v=0.6.0',
         'js/modules/features/constellation-map/constellation-map-init.js?v=0.1.0',
 
         'js/modules/features/chronos-engine.js',
