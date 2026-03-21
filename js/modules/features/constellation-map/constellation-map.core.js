@@ -242,6 +242,23 @@ function releaseTransientMapState() {
 
         state.worldRadius = 0;
 
+        if (state.rewire) {
+            const rewireEnabled = !!state.rewire.enabled;
+            state.rewire = {
+                enabled: rewireEnabled,
+                dragging: false,
+                sourceNodeId: '',
+                targetNodeId: '',
+                validTargetIds: new Set(),
+                previewWorldX: 0,
+                previewWorldY: 0,
+                sourceStartX: 0,
+                sourceStartY: 0,
+                canDetachToRoot: false,
+                hint: ''
+            };
+        }
+
 
 
         if (state.ctx && state.canvas) {

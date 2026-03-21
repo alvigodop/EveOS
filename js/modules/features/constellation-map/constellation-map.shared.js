@@ -526,6 +526,19 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             folder: DEFAULT_KIND_POLARITIES.folder,
             link: DEFAULT_KIND_POLARITIES.link
         };
+        if (state.rewire) {
+            state.rewire.enabled = false;
+            state.rewire.dragging = false;
+            state.rewire.sourceNodeId = '';
+            state.rewire.targetNodeId = '';
+            state.rewire.validTargetIds = new Set();
+            state.rewire.previewWorldX = 0;
+            state.rewire.previewWorldY = 0;
+            state.rewire.sourceStartX = 0;
+            state.rewire.sourceStartY = 0;
+            state.rewire.canDetachToRoot = false;
+            state.rewire.hint = '';
+        }
 
     }
 

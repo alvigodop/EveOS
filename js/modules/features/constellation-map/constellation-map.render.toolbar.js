@@ -25,6 +25,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         getFxTuningText,
         getAuraTuningText,
         getAuraPresetText,
+        text,
         getStaticStateForNode,
         isStaticBranchRoot,
         getStaticSummary
@@ -175,6 +176,26 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         queryAll('[data-map-toolbar="bookmark-hierarchy"]').forEach((button) => {
             button.textContent = state.bookmarkHierarchyEnabled ? 'Keep Bookmark Lanes: ON' : 'Keep Bookmark Lanes: OFF';
             setButtonActive(button, !!state.bookmarkHierarchyEnabled);
+        });
+
+        queryAll('[data-map-toolbar="rewire-mode"]').forEach((button) => {
+            button.textContent = state.rewire?.enabled ? 'Chain Surgery: ON' : 'Chain Surgery: OFF';
+            setButtonActive(button, !!state.rewire?.enabled, {
+                activeBorder: 'rgba(143,219,255,0.42)',
+                activeBackground: 'rgba(143,219,255,0.16)'
+            });
+        });
+
+        queryAll('[data-map-toolbar="rewire-cancel"]').forEach((button) => {
+            const canCancel = !!text(state.rewire?.sourceNodeId, '') || !!state.rewire?.dragging;
+            setButtonEnabled(button, canCancel);
+        });
+
+        queryAll('[data-map-rewire-summary]').forEach((el) => {
+            const summary = typeof ns._getConstellationRewireSummary === 'function'
+                ? ns._getConstellationRewireSummary()
+                : 'Drag or click a bookmark or folder to arm it, then drop or click a card or folder target. In Unidex or workspace scope, target another card to transfer chains across cards.';
+            el.textContent = summary;
         });
 
         queryAll('[data-map-aura-toggle]').forEach((button) => {

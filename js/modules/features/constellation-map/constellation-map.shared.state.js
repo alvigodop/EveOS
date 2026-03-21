@@ -228,7 +228,20 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         bookmarkHierarchyEnabled: true,
         showPhysicsAuras: true,
-        hierarchyAnchors: new Map()
+        hierarchyAnchors: new Map(),
+        rewire: {
+            enabled: false,
+            dragging: false,
+            sourceNodeId: '',
+            targetNodeId: '',
+            validTargetIds: new Set(),
+            previewWorldX: 0,
+            previewWorldY: 0,
+            sourceStartX: 0,
+            sourceStartY: 0,
+            canDetachToRoot: false,
+            hint: ''
+        }
     };
 
     const MAP_PADDING = 48;

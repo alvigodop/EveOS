@@ -93,31 +93,42 @@ function applyInspectorShellStyle(isCollapsed) {
 
     }
 
-function getSecondaryActions(node) {
-
-        if (!node) return [];
-
-        const actions = [];
-
-        if (node.kind === 'link') {
-
-            if (text(node?.data?.folderId, '')) actions.push({ label: 'Open Folder', action: 'open-folder' });
-
-            if (text(node?.data?.categoryName, '')) actions.push({ label: 'Open Card', action: 'open-category' });
-
-            return actions;
-
-        }
-
-        if (node.kind === 'folder') {
-
-            actions.push({ label: 'Open Folder', action: 'open-folder' });
-
-            if (text(node?.data?.categoryName, '')) actions.push({ label: 'Open Card', action: 'open-category' });
-
-            return actions;
-
-        }
+    function getSecondaryActions(node) {
+
+        if (!node) return [];
+
+        const actions = [];
+        const isRewireSource = text(state.rewire?.sourceNodeId, '') === text(node?.id, '');
+        const canRewire = typeof ns._canConstellationRewireNode === 'function' && ns._canConstellationRewireNode(node);
+        const canDetach = !!ns._coreRewire?.canDetachNodeToRoot?.(node);
+
+        if (node.kind === 'link') {
+
+            if (text(node?.data?.folderId, '')) actions.push({ label: 'Open Folder', action: 'open-folder' });
+
+            if (text(node?.data?.categoryName, '')) actions.push({ label: 'Open Card', action: 'open-category' });
+
+            if (canRewire) actions.push({ label: isRewireSource ? 'Cancel Move' : 'Chain Move', action: isRewireSource ? 'cancel-rewire' : 'arm-rewire' });
+
+            if (canDetach) actions.push({ label: 'Detach to Card Root', action: 'detach-to-root' });
+
+            return actions;
+
+        }
+
+        if (node.kind === 'folder') {
+
+            actions.push({ label: 'Open Folder', action: 'open-folder' });
+
+            if (text(node?.data?.categoryName, '')) actions.push({ label: 'Open Card', action: 'open-category' });
+
+            if (canRewire) actions.push({ label: isRewireSource ? 'Cancel Move' : 'Chain Move', action: isRewireSource ? 'cancel-rewire' : 'arm-rewire' });
+
+            if (canDetach) actions.push({ label: 'Detach to Card Root', action: 'detach-to-root' });
+
+            return actions;
+
+        }
 
         if (node.kind === 'category') {
 
@@ -219,9 +230,12 @@ function renderInspector() {
 
         }
 
-        const primaryAction = getPrimaryAction(targetNode);
-
-        const secondaryActions = getSecondaryActions(targetNode);
+        const primaryAction = getPrimaryAction(targetNode);
+
+        const secondaryActions = getSecondaryActions(targetNode);
+        const rewireSummary = typeof ns._getConstellationRewireSummary === 'function'
+            ? text(ns._getConstellationRewireSummary(), '')
+            : '';
 
         const actionRow = primaryAction
 
@@ -263,9 +277,13 @@ function renderInspector() {
                         ? '<div style="font-size:0.72rem;color:#ffd65a;opacity:0.92;margin-top:7px;">Static ' + escapeHtml(staticState.source === 'kind' ? ('Type Lock | ' + headerKindLabel) : (staticState.source === 'branch' ? 'Chain Lock' : 'Node Lock')) + '</div>'
                         : '',
 
-                    '<div style="font-size:0.72rem;color:' + escapeHtml(polarityState.effective === 'attract' ? '#7affc4' : '#ffc37d') + ';opacity:0.92;margin-top:7px;">Flow ' + escapeHtml(polarityState.effective === 'attract' ? 'Pull' : 'Push') + ' | ' + escapeHtml(polarityState.source === 'node' ? 'Node Override' : (polarityState.source === 'kind' ? 'Type Rule' : 'Default')) + '</div>',
-
-                    '<div style="font-size:0.82rem;opacity:0.82;line-height:1.45;margin-top:10px;">' + escapeHtml(targetNode.meta || 'No details') + '</div>',
+                    '<div style="font-size:0.72rem;color:' + escapeHtml(polarityState.effective === 'attract' ? '#7affc4' : '#ffc37d') + ';opacity:0.92;margin-top:7px;">Flow ' + escapeHtml(polarityState.effective === 'attract' ? 'Pull' : 'Push') + ' | ' + escapeHtml(polarityState.source === 'node' ? 'Node Override' : (polarityState.source === 'kind' ? 'Type Rule' : 'Default')) + '</div>',
+
+                    rewireSummary
+                        ? '<div style="font-size:0.72rem;color:#9edbff;opacity:0.94;margin-top:7px;">Chain Surgery | ' + escapeHtml(rewireSummary) + '</div>'
+                        : '',
+
+                    '<div style="font-size:0.82rem;opacity:0.82;line-height:1.45;margin-top:10px;">' + escapeHtml(targetNode.meta || 'No details') + '</div>',
 
                     actionRow,
 
@@ -307,21 +325,35 @@ function updateInspectorCoverState() {
 
     }
 
-function updateCursor() {
-
-        if (!state.canvas) return;
-
-        if (state.pointer.mode === 'pan' || state.pointer.mode === 'node') {
-
-            state.canvas.style.cursor = 'grabbing';
-
-            return;
-
-        }
-
-        state.canvas.style.cursor = state.hovered ? 'pointer' : 'grab';
-
-    }
+    function updateCursor() {
+
+        if (!state.canvas) return;
+
+        if (state.pointer.mode === 'pan' || state.pointer.mode === 'node' || state.pointer.mode === 'rewire') {
+
+            state.canvas.style.cursor = 'grabbing';
+
+            return;
+
+        }
+
+        if (state.rewire?.enabled) {
+            const hoveredIsRewirable = typeof ns._canConstellationRewireNode === 'function' && ns._canConstellationRewireNode(state.hovered);
+            if (hoveredIsRewirable) {
+                state.canvas.style.cursor = 'alias';
+                return;
+            }
+            if (text(state.rewire?.targetNodeId, '')) {
+                state.canvas.style.cursor = 'copy';
+                return;
+            }
+            state.canvas.style.cursor = state.hovered ? 'pointer' : 'crosshair';
+            return;
+        }
+
+        state.canvas.style.cursor = state.hovered ? 'pointer' : 'grab';
+
+    }
 
     const renderInspectorHelpers = ns._renderInspectorHelpers = ns._renderInspectorHelpers || {};
     Object.assign(renderInspectorHelpers, {

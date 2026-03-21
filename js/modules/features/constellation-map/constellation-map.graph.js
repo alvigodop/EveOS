@@ -58,9 +58,10 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
 
 
-    function buildGraphData(scopeOption) {
+    function buildGraphData(scopeOption, options = {}) {
 
         const scope = normalizeScope(scopeOption);
+        const preserveLocks = options?.preserveLocks === true;
 
         const scopedLinks = getScopedLinks(scope);
 
@@ -104,7 +105,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         state.pointer.forcePan = false;
 
-        resetStaticLocks();
+        if (!preserveLocks) {
+            resetStaticLocks();
+        }
 
 
 

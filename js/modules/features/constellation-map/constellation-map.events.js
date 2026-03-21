@@ -192,7 +192,20 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             let hitNode = null;
 
-            if (!state.pointer.forcePan && state.selected && state.selected.kind !== 'link' && shouldPreferSelectedNodeForDrag(state.selected)) {
+            const shouldPreferSelectedRewireNode = !state.pointer.forcePan
+                && state.rewire?.enabled
+                && state.selected
+                && typeof ns._canConstellationRewireNode === 'function'
+                && ns._canConstellationRewireNode(state.selected);
+
+            if (
+                !state.pointer.forcePan
+                && state.selected
+                && (
+                    (state.selected.kind !== 'link' && shouldPreferSelectedNodeForDrag(state.selected))
+                    || shouldPreferSelectedRewireNode
+                )
+            ) {
 
                 const selectedPoint = getScreenPoint(state.selected);
 
@@ -216,9 +229,32 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             }
 
-            state.pointer.mode = hitNode ? 'node' : 'pan';
+            const armedRewireSource = text(state.rewire?.sourceNodeId, '')
+                ? state.nodes.find((node) => node.id === state.rewire.sourceNodeId) || null
+                : null;
+            const isRewireTargetClick = !!(
+                armedRewireSource
+                && hitNode
+                && armedRewireSource.id !== hitNode.id
+                && state.rewire?.enabled
+                && state.rewire.validTargetIds instanceof Set
+                && state.rewire.validTargetIds.has(String(hitNode.id || ''))
+            );
 
-            state.pointer.node = hitNode;
+            let pointerMode = hitNode ? 'node' : 'pan';
+            if (
+                hitNode
+                && state.rewire?.enabled
+                && typeof ns._canConstellationRewireNode === 'function'
+                && ns._canConstellationRewireNode(hitNode)
+            ) {
+                pointerMode = 'rewire';
+            } else if (isRewireTargetClick) {
+                pointerMode = 'rewire';
+            }
+            state.pointer.mode = pointerMode;
+
+            state.pointer.node = isRewireTargetClick ? armedRewireSource : hitNode;
 
             state.pointer.startX = event.clientX;
 
@@ -242,15 +278,20 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             state.pointer.releaseVy = 0;
 
-            if (hitNode) {
+            if (state.pointer.node) {
 
-                setSelectedNode(hitNode);
+                setSelectedNode(state.pointer.node);
 
-                state.pointer.lastWorldX = Number(hitNode.x) || 0;
+                state.pointer.lastWorldX = Number(state.pointer.node.x) || 0;
 
-                state.pointer.lastWorldY = Number(hitNode.y) || 0;
+                state.pointer.lastWorldY = Number(state.pointer.node.y) || 0;
 
                 state.canvas.setPointerCapture?.(event.pointerId);
+                if (isRewireTargetClick) {
+                    state.rewire.targetNodeId = String(hitNode.id || '');
+                } else if (pointerMode === 'rewire' && typeof ns._beginConstellationRewireDrag === 'function') {
+                    ns._beginConstellationRewireDrag(hitNode, worldPointFromClient(event.clientX, event.clientY));
+                }
 
             }
 
@@ -277,6 +318,19 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 if (Math.abs(dx) > 2 || Math.abs(dy) > 2) state.pointer.moved = true;
 
                 setTransform(state.transform.scale, state.pointer.baseTx + dx, state.pointer.baseTy + dy);
+
+                return;
+
+            }
+
+            if (state.pointer.mode === 'rewire' && state.pointer.node) {
+                const point = worldPointFromClient(event.clientX, event.clientY);
+
+                if (Math.abs(event.clientX - state.pointer.startX) > 2 || Math.abs(event.clientY - state.pointer.startY) > 2) state.pointer.moved = true;
+
+                if (typeof ns._updateConstellationRewireDrag === 'function') {
+                    ns._updateConstellationRewireDrag(event.clientX, event.clientY, point);
+                }
 
                 return;
 
@@ -337,6 +391,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             const previousNode = state.pointer.node;
 
             const moved = state.pointer.moved;
+            const previousMode = state.pointer.mode;
 
             state.pointer.mode = 'idle';
 
@@ -345,6 +400,24 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             updateCursor();
 
 
+
+            if (previousNode && previousMode === 'rewire') {
+                const hasTargetSelection = !!text(state.rewire?.targetNodeId, '');
+                if (!moved && hasTargetSelection && typeof ns._finishConstellationRewireDrag === 'function') {
+                    ns._finishConstellationRewireDrag(event.clientX, event.clientY);
+                    return;
+                }
+                if (!moved) {
+                    if (typeof ns._armConstellationRewireNode === 'function') {
+                        ns._armConstellationRewireNode(previousNode, { keepEnabled: true });
+                    }
+                    return;
+                }
+                if (typeof ns._finishConstellationRewireDrag === 'function') {
+                    ns._finishConstellationRewireDrag(event.clientX, event.clientY);
+                }
+                return;
+            }
 
             if (previousNode && moved && previousNode.kind !== 'link') {
 

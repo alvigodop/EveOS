@@ -189,6 +189,14 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             } else if (toolbarAction === 'controls') {
                 state.controlsExpanded = !state.controlsExpanded;
                 renderToolbarState();
+            } else if (toolbarAction === 'rewire-mode') {
+                if (typeof ns._setConstellationRewireEnabled === 'function') {
+                    ns._setConstellationRewireEnabled();
+                }
+            } else if (toolbarAction === 'rewire-cancel') {
+                if (typeof ns._cancelConstellationRewire === 'function') {
+                    ns._cancelConstellationRewire();
+                }
             } else if (toolbarAction === 'static-node') {
                 const targetNode = getInteractionTargetNode();
                 if (!targetNode) return;
