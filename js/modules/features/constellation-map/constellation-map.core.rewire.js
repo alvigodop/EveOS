@@ -19,6 +19,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     } = render;
     const { syncMotionAnchors } = physics;
     const { canvasPointFromClient, getHitNode } = view;
+    let dashboardSyncTimer = 0;
+    let dashboardSyncIdleHandle = 0;
 
     function getFolderApi() {
         return window.EveBookmarkFolders || null;
@@ -119,9 +121,46 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
     function getDropLabel(targetNode, targetSpec) {
         if (!targetNode || !targetSpec) return '';
+        if (targetSpec.detachedEntryId && targetSpec.folderId) return 'Attach to detached folder: ' + text(targetNode.label, 'Folder');
         if (targetSpec.folderId) return 'Attach to folder: ' + text(targetNode.label, 'Folder');
         if (targetNode.kind === 'category') return 'Attach to card: ' + text(targetNode.label, 'Card');
         return 'Attach to ' + text(targetNode.label, 'target');
+    }
+
+    function flushDashboardSync() {
+        if (dashboardSyncTimer) {
+            clearTimeout(dashboardSyncTimer);
+            dashboardSyncTimer = 0;
+        }
+        if (dashboardSyncIdleHandle && typeof window.cancelIdleCallback === 'function') {
+            window.cancelIdleCallback(dashboardSyncIdleHandle);
+            dashboardSyncIdleHandle = 0;
+        }
+        if (typeof window.renderDashboard === 'function') {
+            window.renderDashboard();
+        }
+    }
+
+    function scheduleDashboardSync() {
+        if (dashboardSyncTimer) {
+            clearTimeout(dashboardSyncTimer);
+            dashboardSyncTimer = 0;
+        }
+        if (dashboardSyncIdleHandle && typeof window.cancelIdleCallback === 'function') {
+            window.cancelIdleCallback(dashboardSyncIdleHandle);
+            dashboardSyncIdleHandle = 0;
+        }
+        if (typeof window.requestIdleCallback === 'function') {
+            dashboardSyncIdleHandle = window.requestIdleCallback(() => {
+                dashboardSyncIdleHandle = 0;
+                flushDashboardSync();
+            }, { timeout: 120 });
+            return;
+        }
+        dashboardSyncTimer = window.setTimeout(() => {
+            dashboardSyncTimer = 0;
+            flushDashboardSync();
+        }, 48);
     }
 
     function getDetachHint(node) {
@@ -135,9 +174,12 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     function getTargetSpec(sourceNode, targetNode) {
         if (!sourceNode || !targetNode || sourceNode.id === targetNode.id) return null;
         if (!canRewireNode(sourceNode)) return null;
+        if (sourceNode.data?.detached && targetNode.data?.detached) return null;
 
         const targetWorkspaceId = text(targetNode.data?.workspaceId, '');
         const targetCategoryName = text(targetNode.data?.categoryName, '');
+        const targetDetachedEntryId = text(targetNode.data?.detachedEntryId, '');
+        const targetFolderId = text(targetNode.data?.folderId, '');
 
         if (sourceNode.kind === 'link') {
             if (targetNode.kind === 'category') {
@@ -153,9 +195,13 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 return {
                     workspaceId: targetWorkspaceId,
                     categoryName: targetCategoryName,
-                    folderId: text(targetNode.data?.folderId, ''),
+                    folderId: targetFolderId,
+                    detachedEntryId: targetNode.data?.detached ? targetDetachedEntryId : '',
                     targetNodeId: targetNode.id,
-                    label: getDropLabel(targetNode, { folderId: text(targetNode.data?.folderId, '') })
+                    label: getDropLabel(targetNode, {
+                        folderId: targetFolderId,
+                        detachedEntryId: targetNode.data?.detached ? targetDetachedEntryId : ''
+                    })
                 };
             }
             return null;
@@ -175,9 +221,13 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 return {
                     workspaceId: targetWorkspaceId,
                     categoryName: targetCategoryName,
-                    targetParentId: text(targetNode.data?.folderId, ''),
+                    targetParentId: targetFolderId,
+                    detachedEntryId: targetNode.data?.detached ? targetDetachedEntryId : '',
                     targetNodeId: targetNode.id,
-                    label: getDropLabel(targetNode, { folderId: text(targetNode.data?.folderId, '') })
+                    label: getDropLabel(targetNode, {
+                        folderId: targetFolderId,
+                        detachedEntryId: targetNode.data?.detached ? targetDetachedEntryId : ''
+                    })
                 };
             }
         }
@@ -188,6 +238,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     function isNoopTarget(sourceNode, targetSpec) {
         if (!sourceNode || !targetSpec) return true;
         if (sourceNode.data?.detached) return false;
+        if (targetSpec.detachedEntryId) return false;
 
         if (sourceNode.kind === 'link') {
             const link = getLiveLinkByNode(sourceNode);
@@ -309,9 +360,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         renderInspector();
         renderToolbarState();
         requestDraw();
-        if (typeof window.renderDashboard === 'function') {
-            window.renderDashboard();
-        }
+        scheduleDashboardSync();
     }
 
     function resetTransientRewireState() {
@@ -587,6 +636,17 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         if (sourceNode?.data?.detached) {
             return detached.restoreDetachedEntry?.(text(sourceNode.data?.detachedEntryId, ''), targetSpec) || null;
         }
+        if (text(targetSpec?.detachedEntryId, '')) {
+            const sourceNodes = getSourceNodes().filter((node) => node.kind === 'link' && !node.data?.detached);
+            const linkIds = sourceNodes.length > 1
+                ? sourceNodes.map((node) => text(node.data?.linkId, '')).filter(Boolean)
+                : [text(sourceNode.data?.linkId, '')].filter(Boolean);
+            return detached.attachLiveLinksToEntry?.(
+                text(targetSpec.detachedEntryId, ''),
+                linkIds,
+                text(targetSpec.folderId, '')
+            ) || null;
+        }
         const folderApi = getFolderApi();
         if (!folderApi?.moveLinksToFolderTarget) return null;
         const sourceNodes = getSourceNodes().filter((node) => node.kind === 'link' && !node.data?.detached);
@@ -613,6 +673,15 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     function moveFolderToTarget(sourceNode, targetSpec) {
         if (sourceNode?.data?.detached) {
             return detached.restoreDetachedEntry?.(text(sourceNode.data?.detachedEntryId, ''), targetSpec) || null;
+        }
+        if (text(targetSpec?.detachedEntryId, '')) {
+            return detached.attachLiveFolderToEntry?.(
+                text(targetSpec.detachedEntryId, ''),
+                text(sourceNode.data?.workspaceId, 'main'),
+                text(sourceNode.data?.categoryName, 'Unsorted'),
+                text(sourceNode.data?.folderId, ''),
+                text(targetSpec.targetParentId || targetSpec.folderId, '')
+            ) || null;
         }
         const folderApi = getFolderApi();
         if (!folderApi) return null;

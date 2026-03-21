@@ -11,6 +11,90 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         return JSON.parse(JSON.stringify(value));
     }
 
+    function getFolderHelpers() {
+        const folderShared = window.EveBookmarkFolders?._shared || {};
+        return {
+            normalizeWorkspaceId: folderShared.normalizeWorkspaceId || ((value) => text(value, 'main')),
+            normalizeCategoryName: folderShared.normalizeCategoryName || ((value) => text(value, 'Unsorted')),
+            normalizeFolderId: folderShared.normalizeFolderId || ((value) => text(value, '')),
+            normalizeParentId: folderShared.normalizeParentId || ((value) => {
+                const normalized = text(value, '');
+                return normalized || null;
+            }),
+            normalizeTreeSettings: folderShared.normalizeTreeSettings || (() => ({ clickBehaviorMode: 'inherit' })),
+            buildScopedKey: folderShared.buildScopedKey || ((ws, cat) => `${text(ws, 'main')}::${text(cat, 'Unsorted')}`),
+            buildChildrenMap: folderShared.buildChildrenMap || function (nodes) {
+                const map = new Map();
+                (Array.isArray(nodes) ? nodes : []).forEach((node) => {
+                    const parentId = text(node?.parentId, '') || null;
+                    if (!map.has(parentId)) map.set(parentId, []);
+                    map.get(parentId).push(node);
+                });
+                return map;
+            },
+            cloneStore: folderShared.cloneStore || function () {
+                return cloneValue(window.bookmarkFolders || {});
+            },
+            writeStore: folderShared.writeStore || function (nextStore) {
+                window.bookmarkFolders = nextStore;
+                if (window.eveState) window.eveState.bookmarkFolders = nextStore;
+            }
+        };
+    }
+
+    function buildUniqueFolderId(baseId, existingIds) {
+        const normalizedBase = text(baseId, 'folder');
+        let candidate = normalizedBase;
+        let index = 1;
+        while (existingIds.has(candidate)) {
+            candidate = normalizedBase + '__' + index.toString(36);
+            index += 1;
+        }
+        existingIds.add(candidate);
+        return candidate;
+    }
+
+    function remapDetachedFolderPayload(folderHelpers, folderData, existingIds, nextParentId) {
+        const normalizeFolderId = folderHelpers.normalizeFolderId;
+        const normalizeParentId = folderHelpers.normalizeParentId;
+        const nodes = Array.isArray(folderData?.nodes) ? folderData.nodes : [];
+        const links = Array.isArray(folderData?.links) ? folderData.links : [];
+        const originalRootId = normalizeFolderId(folderData?.rootId);
+        const idMap = new Map();
+
+        nodes.forEach((node) => {
+            const oldId = normalizeFolderId(node?.id);
+            if (!oldId) return;
+            idMap.set(oldId, buildUniqueFolderId(oldId, existingIds));
+        });
+
+        const remappedNodes = nodes.map((node) => {
+            const oldId = normalizeFolderId(node?.id);
+            const oldParentId = normalizeFolderId(node?.parentId);
+            const clonedNode = cloneValue(node);
+            clonedNode.id = idMap.get(oldId) || oldId;
+            if (oldId === originalRootId) {
+                clonedNode.parentId = normalizeParentId(nextParentId);
+            } else {
+                clonedNode.parentId = idMap.get(oldParentId) || normalizeParentId(oldParentId);
+            }
+            return clonedNode;
+        });
+
+        const remappedLinks = links.map((link) => {
+            const clonedLink = cloneValue(link);
+            const oldFolderId = normalizeFolderId(link?.folderId);
+            clonedLink.folderId = idMap.get(oldFolderId) || oldFolderId;
+            return clonedLink;
+        });
+
+        return {
+            rootId: idMap.get(originalRootId) || originalRootId,
+            nodes: remappedNodes,
+            links: remappedLinks
+        };
+    }
+
     function getAllLinksRef() {
         if (Array.isArray(window.eveState?.links)) return window.eveState.links;
         if (Array.isArray(window.links)) return window.links;
@@ -146,28 +230,17 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     }
 
     function parkFolderSubtree(workspaceId, categoryName, folderId) {
-        const folderShared = window.EveBookmarkFolders?._shared || {};
-        const normalizeWorkspaceId = folderShared.normalizeWorkspaceId || ((value) => text(value, 'main'));
-        const normalizeCategoryName = folderShared.normalizeCategoryName || ((value) => text(value, 'Unsorted'));
-        const normalizeFolderId = folderShared.normalizeFolderId || ((value) => text(value, ''));
-        const normalizeTreeSettings = folderShared.normalizeTreeSettings || (() => ({ clickBehaviorMode: 'inherit' }));
-        const buildScopedKey = folderShared.buildScopedKey || ((ws, cat) => `${normalizeWorkspaceId(ws)}::${normalizeCategoryName(cat)}`);
-        const buildChildrenMap = folderShared.buildChildrenMap || function (nodes) {
-            const map = new Map();
-            (Array.isArray(nodes) ? nodes : []).forEach((node) => {
-                const parentId = text(node?.parentId, '') || null;
-                if (!map.has(parentId)) map.set(parentId, []);
-                map.get(parentId).push(node);
-            });
-            return map;
-        };
-        const cloneStore = folderShared.cloneStore || function () {
-            return cloneValue(window.bookmarkFolders || {});
-        };
-        const writeStore = folderShared.writeStore || function (nextStore) {
-            window.bookmarkFolders = nextStore;
-            if (window.eveState) window.eveState.bookmarkFolders = nextStore;
-        };
+        const folderHelpers = getFolderHelpers();
+        const {
+            normalizeWorkspaceId,
+            normalizeCategoryName,
+            normalizeFolderId,
+            normalizeTreeSettings,
+            buildScopedKey,
+            buildChildrenMap,
+            cloneStore,
+            writeStore
+        } = folderHelpers;
 
         const resolvedWorkspaceId = normalizeWorkspaceId(workspaceId);
         const resolvedCategoryName = normalizeCategoryName(categoryName);
@@ -243,6 +316,130 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         return entry;
     }
 
+    function attachLiveLinksToEntry(entryId, linkIds, targetFolderId) {
+        const entry = getDetachedEntry(entryId);
+        if (!entry || entry.kind !== 'folder') return null;
+
+        const normalizedTargetFolderId = text(targetFolderId, '');
+        const liveLinks = getAllLinksRef();
+        const linkIdSet = new Set((Array.isArray(linkIds) ? linkIds : []).map((id) => text(id, '')).filter(Boolean));
+        if (!linkIdSet.size) return null;
+
+        if (normalizedTargetFolderId) {
+            const targetExists = (Array.isArray(entry.folder?.nodes) ? entry.folder.nodes : [])
+                .some((node) => text(node?.id, '') === normalizedTargetFolderId);
+            if (!targetExists) return null;
+        }
+
+        const movedLinks = [];
+        for (let index = liveLinks.length - 1; index >= 0; index -= 1) {
+            const link = liveLinks[index];
+            if (!linkIdSet.has(text(link?.id, ''))) continue;
+            const clonedLink = cloneValue(link);
+            clonedLink.folderId = normalizedTargetFolderId;
+            movedLinks.unshift(clonedLink);
+            liveLinks.splice(index, 1);
+        }
+
+        if (!movedLinks.length) return null;
+
+        entry.folder = entry.folder || { rootId: '', nodes: [], links: [] };
+        entry.folder.links = [...(Array.isArray(entry.folder.links) ? entry.folder.links : []), ...movedLinks];
+        persistDetachedStore();
+
+        return {
+            selectionId: 'detached_link_' + text(entry.id, '') + '_' + text(movedLinks[0]?.id, ''),
+            message: movedLinks.length > 1
+                ? ('Moved ' + movedLinks.length + ' bookmarks into a detached chain.')
+                : 'Bookmark moved into a detached chain.'
+        };
+    }
+
+    function attachLiveFolderToEntry(entryId, workspaceId, categoryName, folderId, targetFolderId) {
+        const entry = getDetachedEntry(entryId);
+        if (!entry || entry.kind !== 'folder') return null;
+
+        const folderHelpers = getFolderHelpers();
+        const {
+            normalizeWorkspaceId,
+            normalizeCategoryName,
+            normalizeFolderId,
+            normalizeTreeSettings,
+            buildScopedKey,
+            buildChildrenMap,
+            cloneStore,
+            writeStore
+        } = folderHelpers;
+
+        const resolvedWorkspaceId = normalizeWorkspaceId(workspaceId);
+        const resolvedCategoryName = normalizeCategoryName(categoryName);
+        const resolvedFolderId = normalizeFolderId(folderId);
+        const resolvedTargetFolderId = normalizeFolderId(targetFolderId);
+        if (!resolvedFolderId) return null;
+
+        if (resolvedTargetFolderId) {
+            const targetExists = (Array.isArray(entry.folder?.nodes) ? entry.folder.nodes : [])
+                .some((node) => normalizeFolderId(node?.id) === resolvedTargetFolderId);
+            if (!targetExists) return null;
+        }
+
+        const nextStore = cloneStore();
+        const scopedKey = buildScopedKey(resolvedWorkspaceId, resolvedCategoryName);
+        const sourceTree = nextStore[scopedKey];
+        if (!sourceTree || !Array.isArray(sourceTree.nodes)) return null;
+
+        const rootNode = sourceTree.nodes.find((node) => normalizeFolderId(node?.id) === resolvedFolderId);
+        if (!rootNode) return null;
+
+        const childrenMap = buildChildrenMap(sourceTree.nodes);
+        const subtreeIds = new Set();
+        function collectSubtree(nodeId) {
+            subtreeIds.add(nodeId);
+            (childrenMap.get(nodeId) || []).forEach((childNode) => collectSubtree(normalizeFolderId(childNode?.id)));
+        }
+        collectSubtree(resolvedFolderId);
+
+        const movedFolderData = {
+            rootId: resolvedFolderId,
+            nodes: sourceTree.nodes.filter((node) => subtreeIds.has(normalizeFolderId(node?.id))).map((node) => cloneValue(node)),
+            links: []
+        };
+        if (!movedFolderData.nodes.length) return null;
+
+        const liveLinks = getAllLinksRef();
+        for (let index = liveLinks.length - 1; index >= 0; index -= 1) {
+            const link = liveLinks[index];
+            if (!subtreeIds.has(normalizeFolderId(link?.folderId))) continue;
+            movedFolderData.links.unshift(cloneValue(link));
+            liveLinks.splice(index, 1);
+        }
+
+        sourceTree.nodes = sourceTree.nodes.filter((node) => !subtreeIds.has(normalizeFolderId(node?.id)));
+        if (!sourceTree.nodes.length && normalizeTreeSettings(sourceTree.settings).clickBehaviorMode === 'inherit') {
+            delete nextStore[scopedKey];
+        } else {
+            nextStore[scopedKey] = {
+                nodes: sourceTree.nodes,
+                settings: normalizeTreeSettings(sourceTree.settings)
+            };
+        }
+        writeStore(nextStore, false);
+
+        entry.folder = entry.folder || { rootId: '', nodes: [], links: [] };
+        const existingIds = new Set((Array.isArray(entry.folder.nodes) ? entry.folder.nodes : []).map((node) => normalizeFolderId(node?.id)));
+        const remapped = remapDetachedFolderPayload(folderHelpers, movedFolderData, existingIds, resolvedTargetFolderId || null);
+        entry.folder.nodes = [...(Array.isArray(entry.folder.nodes) ? entry.folder.nodes : []), ...remapped.nodes];
+        entry.folder.links = [...(Array.isArray(entry.folder.links) ? entry.folder.links : []), ...remapped.links];
+        persistDetachedStore();
+
+        return {
+            selectionId: 'detached_folder_' + text(entry.id, '') + '_' + text(remapped.rootId, ''),
+            message: resolvedTargetFolderId
+                ? 'Folder branch moved into a detached folder chain.'
+                : 'Folder branch moved into a detached chain.'
+        };
+    }
+
     function restoreDetachedLink(entry, targetSpec) {
         const liveLinks = getAllLinksRef();
         const link = cloneValue(entry?.link || {});
@@ -264,23 +461,17 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     }
 
     function restoreDetachedFolder(entry, targetSpec) {
-        const folderShared = window.EveBookmarkFolders?._shared || {};
-        const normalizeWorkspaceId = folderShared.normalizeWorkspaceId || ((value) => text(value, 'main'));
-        const normalizeCategoryName = folderShared.normalizeCategoryName || ((value) => text(value, 'Unsorted'));
-        const normalizeFolderId = folderShared.normalizeFolderId || ((value) => text(value, ''));
-        const normalizeParentId = folderShared.normalizeParentId || ((value) => {
-            const normalized = text(value, '');
-            return normalized || null;
-        });
-        const normalizeTreeSettings = folderShared.normalizeTreeSettings || (() => ({ clickBehaviorMode: 'inherit' }));
-        const buildScopedKey = folderShared.buildScopedKey || ((ws, cat) => `${normalizeWorkspaceId(ws)}::${normalizeCategoryName(cat)}`);
-        const cloneStore = folderShared.cloneStore || function () {
-            return cloneValue(window.bookmarkFolders || {});
-        };
-        const writeStore = folderShared.writeStore || function (nextStore) {
-            window.bookmarkFolders = nextStore;
-            if (window.eveState) window.eveState.bookmarkFolders = nextStore;
-        };
+        const folderHelpers = getFolderHelpers();
+        const {
+            normalizeWorkspaceId,
+            normalizeCategoryName,
+            normalizeFolderId,
+            normalizeParentId,
+            normalizeTreeSettings,
+            buildScopedKey,
+            cloneStore,
+            writeStore
+        } = folderHelpers;
 
         const folderData = entry?.folder;
         if (!folderData?.rootId || !Array.isArray(folderData.nodes)) return null;
@@ -294,20 +485,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         const scopedKey = buildScopedKey(targetWorkspaceId, targetCategoryName);
         const targetTree = nextStore[scopedKey] || { nodes: [], settings: normalizeTreeSettings({}) };
         const existingIds = new Set((targetTree.nodes || []).map((node) => normalizeFolderId(node?.id)));
-        const incomingIds = folderData.nodes.map((node) => normalizeFolderId(node?.id));
-        if (incomingIds.some((nodeId) => existingIds.has(nodeId))) {
-            return null;
-        }
+        const remapped = remapDetachedFolderPayload(folderHelpers, folderData, existingIds, targetParentId);
 
-        const movedNodes = folderData.nodes.map((node) => {
-            const clonedNode = cloneValue(node);
-            if (normalizeFolderId(clonedNode?.id) === rootId) {
-                clonedNode.parentId = targetParentId;
-            }
-            return clonedNode;
-        });
-
-        targetTree.nodes = [...(targetTree.nodes || []), ...movedNodes];
+        targetTree.nodes = [...(targetTree.nodes || []), ...remapped.nodes];
         nextStore[scopedKey] = {
             nodes: targetTree.nodes,
             settings: normalizeTreeSettings(targetTree.settings)
@@ -315,7 +495,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         writeStore(nextStore, false);
 
         const liveLinks = getAllLinksRef();
-        (Array.isArray(folderData.links) ? folderData.links : []).forEach((link) => {
+        remapped.links.forEach((link) => {
             const clonedLink = cloneValue(link);
             clonedLink.workspace = targetWorkspaceId;
             clonedLink.category = targetCategoryName;
@@ -324,7 +504,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         });
 
         return {
-            selectionId: 'folder_' + targetWorkspaceId + '_' + targetCategoryName + '_' + rootId,
+            selectionId: 'folder_' + targetWorkspaceId + '_' + targetCategoryName + '_' + remapped.rootId,
             message: targetParentId
                 ? 'Detached folder chain attached to a folder.'
                 : 'Detached folder chain attached to a card.'
@@ -354,6 +534,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         getDetachedEntry,
         parkLink,
         parkFolderSubtree,
+        attachLiveLinksToEntry,
+        attachLiveFolderToEntry,
         restoreDetachedEntry,
         persistDetachedStore
     });
