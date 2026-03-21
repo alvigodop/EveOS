@@ -256,7 +256,10 @@ window.EveModuleManifestParts.scripts = [
 
 
 
-        'js/modules/features/bookmark-folders/bookmark-folders.shared.js?v=0.2.1',
+        'js/modules/features/bookmark-folders/bookmark-folders.shared.store.js?v=0.1.0',
+        'js/modules/features/bookmark-folders/bookmark-folders.shared.library.js?v=0.1.0',
+        'js/modules/features/bookmark-folders/bookmark-folders.shared.derived.js?v=0.1.0',
+        'js/modules/features/bookmark-folders/bookmark-folders.shared.js?v=0.3.0',
         'js/modules/features/bookmark-folders/bookmark-folders.ghost-sensors.js?v=0.1.0',
         'js/modules/features/bookmark-folders/bookmark-folders.ghost-recursion.js?v=0.1.0',
         'js/modules/features/bookmark-folders/bookmark-folders.ghosts.js?v=0.3.0',
@@ -1018,7 +1021,10 @@ window.EveModuleManifestParts.scripts = [
 
 
 
-'js/modules/ui/dashboard/categories/builder-card.js?v=0.2.62',
+'js/modules/ui/dashboard/categories/builder-card.header.js?v=0.1.0',
+'js/modules/ui/dashboard/categories/builder-card.folders.js?v=0.1.0',
+'js/modules/ui/dashboard/categories/builder-card.render.js?v=0.1.0',
+'js/modules/ui/dashboard/categories/builder-card.js?v=0.3.0',
 
         'js/modules/ui/dashboard/categories/detached-card.js?v=0.1.0',
 
@@ -5180,7 +5186,10 @@ window.EveModuleManifestParts.scripts = [
 
 
 
-        'js/modules/modals/modal-bulk.js?v=0.2.1',
+        'js/modules/modals/modal-bulk.runtime.js?v=0.1.0',
+        'js/modules/modals/modal-bulk.structured.js?v=0.1.0',
+        'js/modules/modals/modal-bulk.process.js?v=0.1.0',
+        'js/modules/modals/modal-bulk.js?v=0.3.0',
         'js/modules/modals/modal-category-settings.core.js?v=0.2.2',
 
         'js/modules/modals/modal-category-settings.folders.js?v=0.2.2',

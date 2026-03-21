@@ -128,6 +128,9 @@ global.window.EveLibrary = {
 
 load('js/modules/features/duplicate-sensor.js');
 load('js/modules/features/bookmark-covers.js');
+load('js/modules/features/bookmark-folders/bookmark-folders.shared.store.js');
+load('js/modules/features/bookmark-folders/bookmark-folders.shared.library.js');
+load('js/modules/features/bookmark-folders/bookmark-folders.shared.derived.js');
 load('js/modules/features/bookmark-folders/bookmark-folders.shared.js');
 load('js/modules/features/bookmark-folders/bookmark-folders.ghost-sensors.js');
 load('js/modules/features/bookmark-folders/bookmark-folders.ghost-recursion.js');
