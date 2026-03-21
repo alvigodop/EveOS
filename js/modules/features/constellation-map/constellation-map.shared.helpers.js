@@ -287,6 +287,22 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         links.forEach((link) => names.add(text(link?.category, 'Unsorted')));
 
+        const folderStore = window.bookmarkFolders && typeof window.bookmarkFolders === 'object'
+            ? window.bookmarkFolders
+            : (window.eveState?.bookmarkFolders && typeof window.eveState.bookmarkFolders === 'object'
+                ? window.eveState.bookmarkFolders
+                : {});
+        Object.keys(folderStore).forEach((scopedKey) => {
+            const parts = String(scopedKey || '').split('::');
+            const scopedWorkspaceId = text(parts[0], 'main');
+            const scopedCategoryName = text(parts[1], '');
+            const tree = folderStore[scopedKey];
+            if (scopedWorkspaceId !== text(workspaceId, 'main')) return;
+            if (!scopedCategoryName) return;
+            if (!Array.isArray(tree?.nodes) || !tree.nodes.length) return;
+            names.add(scopedCategoryName);
+        });
+
         if (!names.size) return ['Unsorted'];
 
         const sortedNames = Array.from(names).filter(Boolean);

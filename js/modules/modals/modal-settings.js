@@ -49,6 +49,10 @@ function refreshModalThemedControls(root = document) {
 function openSettings() {
     ensureSettingsOutsideClickCloseBinding();
     document.getElementById('settingsModal').style.display = 'flex';
+    const mapOverlay = document.getElementById('constellation-map-overlay');
+    if (mapOverlay && mapOverlay.style.display !== 'none') {
+        document.getElementById('settingsModal').style.zIndex = '10020';
+    }
     document.getElementById('bgUrl').value = '';
     document.getElementById('timerToggle').checked = config.timerEnabled;
     document.getElementById('weatherToggle').checked = config.weatherEnabled;

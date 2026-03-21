@@ -530,6 +530,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             state.rewire.enabled = false;
             state.rewire.dragging = false;
             state.rewire.sourceNodeId = '';
+            state.rewire.sourceNodeIds = [];
             state.rewire.targetNodeId = '';
             state.rewire.validTargetIds = new Set();
             state.rewire.previewWorldX = 0;
@@ -539,6 +540,14 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             state.rewire.canDetachToRoot = false;
             state.rewire.hint = '';
         }
+        state.selectionIds = new Set();
+        state.actionWheel = {
+            visible: false,
+            nodeId: '',
+            clientX: 0,
+            clientY: 0,
+            items: []
+        };
 
     }
 

@@ -156,6 +156,10 @@ function releaseTransientMapState() {
 
 
 
+        state.selectionIds = new Set();
+
+
+
         state.labelHitBoxes = [];
 
 
@@ -242,12 +246,23 @@ function releaseTransientMapState() {
 
         state.worldRadius = 0;
 
+
+
+        state.actionWheel = {
+            visible: false,
+            nodeId: '',
+            clientX: 0,
+            clientY: 0,
+            items: []
+        };
+
         if (state.rewire) {
             const rewireEnabled = !!state.rewire.enabled;
             state.rewire = {
                 enabled: rewireEnabled,
                 dragging: false,
                 sourceNodeId: '',
+                sourceNodeIds: [],
                 targetNodeId: '',
                 validTargetIds: new Set(),
                 previewWorldX: 0,

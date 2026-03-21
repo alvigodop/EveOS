@@ -44,6 +44,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         selected: null,
 
+        selectionIds: new Set(),
+
         labelsVisible: true,
 
         transform: { scale: 1, tx: 0, ty: 0 },
@@ -229,10 +231,18 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         bookmarkHierarchyEnabled: true,
         showPhysicsAuras: true,
         hierarchyAnchors: new Map(),
+        actionWheel: {
+            visible: false,
+            nodeId: '',
+            clientX: 0,
+            clientY: 0,
+            items: []
+        },
         rewire: {
             enabled: false,
             dragging: false,
             sourceNodeId: '',
+            sourceNodeIds: [],
             targetNodeId: '',
             validTargetIds: new Set(),
             previewWorldX: 0,

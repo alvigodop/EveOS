@@ -403,15 +403,20 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
 
         target.updatedAt = Date.now();
 
-        setScopedNodes(workspaceId, categoryName, nodes);
-
+        setScopedNodes(workspaceId, categoryName, nodes, { persist: false });
+        if (options.persist !== false && typeof saveData === 'function') {
+            saveData({
+                skipRender: !!options.skipRender,
+                skipSuggestions: !!options.skipSuggestions
+            });
+        }
         return true;
 
     }
 
 
 
-    function moveFolder(workspaceId, categoryName, folderId, targetParentId) {
+    function moveFolder(workspaceId, categoryName, folderId, targetParentId, options = {}) {
 
         workspaceId = normalizeWorkspaceId(workspaceId);
 
@@ -461,15 +466,20 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
 
         target.updatedAt = Date.now();
 
-        setScopedNodes(workspaceId, categoryName, nodes);
-
+        setScopedNodes(workspaceId, categoryName, nodes, { persist: false });
+        if (options.persist !== false && typeof saveData === 'function') {
+            saveData({
+                skipRender: !!options.skipRender,
+                skipSuggestions: !!options.skipSuggestions
+            });
+        }
         return true;
 
     }
 
 
 
-    function transferFolderToCategory(folderId, sourceWs, sourceCat, targetWs, targetCat, targetParentId) {
+    function transferFolderToCategory(folderId, sourceWs, sourceCat, targetWs, targetCat, targetParentId, options = {}) {
 
         try {
 
@@ -501,7 +511,7 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
 
             if (sWs === tWs && sCat === tCat) {
 
-                return moveFolder(sWs, sCat, fId, tpId);
+                return moveFolder(sWs, sCat, fId, tpId, options);
 
             }
 
@@ -933,7 +943,7 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
 
 
 
-    function moveLinksToFolderTarget(linkIds, workspaceId, categoryName, folderId) {
+    function moveLinksToFolderTarget(linkIds, workspaceId, categoryName, folderId, options = {}) {
 
         const targetWorkspaceId = normalizeWorkspaceId(workspaceId);
 
@@ -993,7 +1003,12 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
 
 
 
-        if (movedAny && typeof saveData === 'function') saveData();
+        if (movedAny && options.persist !== false && typeof saveData === 'function') {
+            saveData({
+                skipRender: !!options.skipRender,
+                skipSuggestions: !!options.skipSuggestions
+            });
+        }
 
         return movedAny;
 

@@ -204,10 +204,12 @@ async function main() {
             throw new Error('Expected alpha-folder-2 to follow f-child into Gamma, got ' + JSON.stringify(movedChildLink));
         }
 
-        const detachLink = await getNodeScreenPoint(page, { kind: 'link', linkId: 'alpha-folder-3' });
-        const emptyDrop = await getEmptyDropPoint(page);
-        if (!detachLink || !emptyDrop) throw new Error('Missing detach source or empty drop point');
-        await dragNode(page, detachLink, emptyDrop);
+        await page.evaluate(() => {
+            const map = window.EveConstellationMap;
+            const state = map?._shared?.state;
+            const linkNode = state?.nodes?.find((node) => node.kind === 'link' && String(node.data?.linkId || '') === 'alpha-folder-3');
+            map?._detachConstellationNodeToRoot?.(linkNode);
+        });
 
         state = await readState(page);
         const detachedLink = state.links.find((link) => link.id === 'alpha-folder-3');

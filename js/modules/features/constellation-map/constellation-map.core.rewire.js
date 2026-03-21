@@ -6,6 +6,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     const render = ns._render || {};
     const physics = ns._physics || {};
     const view = ns._view || {};
+    const detached = ns._detached || {};
 
     const { state, text } = shared;
     const { buildGraphData } = graph;
@@ -47,14 +48,39 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         ) || null;
     }
 
+    function isDetachedRootNode(node) {
+        return !!node && !!node.data?.detached && !!node.data?.detachedRoot && !!text(node.data?.detachedEntryId, '');
+    }
+
     function canRewireNode(node) {
-        return !!node && (node.kind === 'link' || node.kind === 'folder');
+        if (!node) return false;
+        if (isDetachedRootNode(node)) return true;
+        return node.kind === 'link' || node.kind === 'folder';
     }
 
     function getSourceNode() {
         const sourceNodeId = text(state.rewire?.sourceNodeId, '');
         if (!sourceNodeId) return null;
         return state.nodes.find((node) => node.id === sourceNodeId) || null;
+    }
+
+    function getSourceNodes() {
+        const sourceNodeIds = Array.isArray(state.rewire?.sourceNodeIds) ? state.rewire.sourceNodeIds : [];
+        if (!sourceNodeIds.length) {
+            const singleNode = getSourceNode();
+            return singleNode ? [singleNode] : [];
+        }
+        return sourceNodeIds
+            .map((nodeId) => state.nodes.find((node) => node.id === nodeId) || null)
+            .filter(Boolean);
+    }
+
+    function hasArmedSource() {
+        return !!getSourceNode();
+    }
+
+    function getArmedSourceCount() {
+        return getSourceNodes().length;
     }
 
     function getLinkLocation(link) {
@@ -76,6 +102,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
     function canDetachNodeToRoot(node) {
         if (!node) return false;
+        if (node.data?.detached) return false;
         if (node.kind === 'link') {
             return !!text(getLiveLinkByNode(node)?.folderId, '');
         }
@@ -83,6 +110,11 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             return !!text(getFolderRecord(node)?.parentId, '');
         }
         return false;
+    }
+
+    function canDetachNodeToParking(node) {
+        if (!node || node.data?.detached) return false;
+        return node.kind === 'link' || node.kind === 'folder';
     }
 
     function getDropLabel(targetNode, targetSpec) {
@@ -95,7 +127,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     function getDetachHint(node) {
         if (!node) return 'Drag or click a bookmark or folder to rewire this chain.';
         if (canDetachNodeToRoot(node)) {
-            return 'Drag or click onto a card or folder to rewire. Drop on empty space to detach to the card root.';
+            return 'Drag or click onto a card or folder to rewire. Use an explicit detach action when you want to break ownership.';
         }
         return 'Drag or click onto a card or folder to rewire this chain.';
     }
@@ -155,6 +187,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
     function isNoopTarget(sourceNode, targetSpec) {
         if (!sourceNode || !targetSpec) return true;
+        if (sourceNode.data?.detached) return false;
 
         if (sourceNode.kind === 'link') {
             const link = getLiveLinkByNode(sourceNode);
@@ -199,15 +232,48 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         return '';
     }
 
-    function refreshGraphAfterMove(selectionId) {
+    function refreshGraphAfterMove(selectionId, options = {}) {
         if (!state.scope) return;
+        const previousInfoCollapsed = !!state.infoCollapsed;
+        const previousSelectionIds = new Set(state.selectionIds instanceof Set ? state.selectionIds : []);
+        const previousNodePositions = new Map(
+            state.nodes.map((node) => [String(node.id || ''), {
+                x: Number(node.x) || 0,
+                y: Number(node.y) || 0,
+                vx: Number(node.vx) || 0,
+                vy: Number(node.vy) || 0
+            }])
+        );
         buildGraphData(state.scope, { preserveLocks: true });
+        state.infoCollapsed = previousInfoCollapsed;
+        state.selectionIds = new Set(
+            Array.from(previousSelectionIds).filter((nodeId) => state.nodes.some((node) => node.id === nodeId))
+        );
+        state.nodes.forEach((node) => {
+            const prior = previousNodePositions.get(String(node.id || ''));
+            if (!prior) return;
+            if (selectionId && String(node.id || '') === String(selectionId || '')) return;
+            node.x = prior.x;
+            node.y = prior.y;
+            node.vx = prior.vx;
+            node.vy = prior.vy;
+        });
         syncMotionAnchors(true);
         renderHeader();
         if (selectionId) {
             state.selected = state.nodes.find((node) => node.id === selectionId) || null;
+            if (state.selected && options.snapToTargetNodeId) {
+                const targetNode = state.nodes.find((node) => node.id === options.snapToTargetNodeId) || null;
+                if (targetNode) {
+                    state.selected.x = targetNode.x + Math.max(targetNode.radius + 24, 42);
+                    state.selected.y = targetNode.y + 6;
+                    state.selected.vx = 0;
+                    state.selected.vy = 0;
+                }
+            }
         }
         renderInspector();
+        renderToolbarState();
         requestDraw();
     }
 
@@ -215,6 +281,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         if (!state.rewire) return;
         state.rewire.dragging = false;
         state.rewire.sourceNodeId = '';
+        state.rewire.sourceNodeIds = [];
         state.rewire.targetNodeId = '';
         state.rewire.validTargetIds = new Set();
         state.rewire.previewWorldX = 0;
@@ -230,6 +297,21 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         if (typeof window.showToast === 'function') {
             window.showToast(message, level || 'success');
         }
+    }
+
+    function getGroupedSourceNodes(node) {
+        const selectionIds = state.selectionIds instanceof Set ? state.selectionIds : new Set();
+        if (!node || !selectionIds.has(String(node.id || ''))) {
+            return [node].filter(Boolean);
+        }
+        const selectedNodes = Array.from(selectionIds)
+            .map((nodeId) => state.nodes.find((entry) => entry.id === nodeId) || null)
+            .filter(Boolean);
+        const liveLinkNodes = selectedNodes.filter((entry) => entry.kind === 'link' && !entry.data?.detached);
+        if (liveLinkNodes.length >= 2 && liveLinkNodes.some((entry) => entry.id === node.id)) {
+            return liveLinkNodes;
+        }
+        return [node];
     }
 
     function setRewireEnabled(force) {
@@ -260,9 +342,11 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         if (!options.keepEnabled) {
             state.rewire.enabled = true;
         }
+        const sourceNodes = getGroupedSourceNodes(node);
         state.selected = node;
         state.rewire.dragging = false;
         state.rewire.sourceNodeId = text(node.id, '');
+        state.rewire.sourceNodeIds = sourceNodes.map((entry) => text(entry.id, ''));
         state.rewire.targetNodeId = '';
         state.rewire.validTargetIds = computeValidTargetIds(node);
         state.rewire.canDetachToRoot = canDetachNodeToRoot(node);
@@ -270,7 +354,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         state.rewire.previewWorldY = Number(node.y) || 0;
         state.rewire.sourceStartX = Number(node.x) || 0;
         state.rewire.sourceStartY = Number(node.y) || 0;
-        state.rewire.hint = getDetachHint(node);
+        state.rewire.hint = sourceNodes.length > 1
+            ? ('Move ' + sourceNodes.length + ' selected bookmarks onto a card or folder.')
+            : getDetachHint(node);
         renderToolbarState();
         renderInspector();
         requestDraw();
@@ -296,6 +382,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
     function detachNodeToRoot(node, options = {}) {
         if (!canRewireNode(node)) return false;
+        if (node.data?.detached) return false;
         const folderApi = getFolderApi();
         if (!folderApi) return false;
 
@@ -304,16 +391,25 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         let message = '';
 
         if (node.kind === 'link') {
-            const link = getLiveLinkByNode(node);
-            if (!link || !text(link.folderId, '')) return false;
+            const linkNodes = getGroupedSourceNodes(node)
+                .filter((entry) => entry?.kind === 'link' && !entry.data?.detached);
+            const links = linkNodes
+                .map((entry) => getLiveLinkByNode(entry))
+                .filter(Boolean);
+            const primaryLink = links[0] || null;
+            const detachableLinks = links.filter((entry) => !!text(entry?.folderId, ''));
+            if (!primaryLink || !detachableLinks.length) return false;
             changed = !!folderApi.moveLinksToFolderTarget?.(
-                [text(node.data?.linkId, '')],
-                text(link.workspace, 'main'),
-                text(link.category, 'Unsorted'),
-                ''
+                detachableLinks.map((entry) => text(entry?.id, '')).filter(Boolean),
+                text(primaryLink.workspace, 'main'),
+                text(primaryLink.category, 'Unsorted'),
+                '',
+                { skipRender: true, skipSuggestions: true }
             );
-            selectionId = 'link_' + text(node.data?.linkId, '');
-            message = 'Bookmark detached to the card root.';
+            selectionId = 'link_' + text(detachableLinks[0]?.id, '');
+            message = detachableLinks.length > 1
+                ? ('Detached ' + detachableLinks.length + ' bookmarks to the card root.')
+                : 'Bookmark detached to the card root.';
         } else if (node.kind === 'folder') {
             const folderRecord = getFolderRecord(node);
             if (!folderRecord || !text(folderRecord.parentId, '')) return false;
@@ -321,7 +417,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 text(node.data?.workspaceId, 'main'),
                 text(node.data?.categoryName, 'Unsorted'),
                 text(node.data?.folderId, ''),
-                ''
+                '',
+                { skipRender: true, skipSuggestions: true }
             );
             selectionId = 'folder_' + text(node.data?.workspaceId, 'main') + '_' + text(node.data?.categoryName, 'Unsorted') + '_' + text(node.data?.folderId, '');
             message = 'Folder branch detached to the card root.';
@@ -333,6 +430,51 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         refreshGraphAfterMove(selectionId);
         if (!options.silent) {
             showRewireToast(message);
+        }
+        return true;
+    }
+
+    function commitArmedSourceToTarget(targetSpec, options = {}) {
+        const sourceNode = getSourceNode();
+        if (!sourceNode || !targetSpec) return false;
+        const result = sourceNode.kind === 'link'
+            ? moveLinkToTarget(sourceNode, targetSpec)
+            : moveFolderToTarget(sourceNode, targetSpec);
+        if (!result) return false;
+
+        resetTransientRewireState();
+        refreshGraphAfterMove(result.selectionId, {
+            snapToTargetNodeId: text(options.snapToTargetNodeId || targetSpec.targetNodeId, '')
+        });
+        if (!options.silent) {
+            showRewireToast(result.message);
+        }
+        return true;
+    }
+
+    function detachNodeToParking(node, options = {}) {
+        if (!canDetachNodeToParking(node)) return false;
+
+        let entry = null;
+        if (node.kind === 'folder') {
+            entry = detached.parkFolderSubtree?.(
+                text(node.data?.workspaceId, 'main'),
+                text(node.data?.categoryName, 'Unsorted'),
+                text(node.data?.folderId, '')
+            ) || null;
+        } else if (node.kind === 'link') {
+            const link = getLiveLinkByNode(node);
+            entry = detached.parkLink?.(link) || null;
+        }
+
+        if (!entry) return false;
+
+        resetTransientRewireState();
+        refreshGraphAfterMove(entry.kind === 'folder'
+            ? 'detached_folder_' + text(entry.id, '') + '_' + text(entry.folder?.rootId, '')
+            : 'detached_link_' + text(entry.id, ''));
+        if (!options.silent) {
+            showRewireToast('Chain detached into parking.');
         }
         return true;
     }
@@ -405,26 +547,36 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     }
 
     function moveLinkToTarget(sourceNode, targetSpec) {
+        if (sourceNode?.data?.detached) {
+            return detached.restoreDetachedEntry?.(text(sourceNode.data?.detachedEntryId, ''), targetSpec) || null;
+        }
         const folderApi = getFolderApi();
         if (!folderApi?.moveLinksToFolderTarget) return null;
-        const linkId = text(sourceNode.data?.linkId, '');
-        if (!linkId || isNoopTarget(sourceNode, targetSpec)) return null;
+        const sourceNodes = getSourceNodes().filter((node) => node.kind === 'link' && !node.data?.detached);
+        const linkIds = sourceNodes.length > 1
+            ? sourceNodes.map((node) => text(node.data?.linkId, '')).filter(Boolean)
+            : [text(sourceNode.data?.linkId, '')].filter(Boolean);
+        if (!linkIds.length || isNoopTarget(sourceNode, targetSpec)) return null;
         const changed = !!folderApi.moveLinksToFolderTarget(
-            [linkId],
+            linkIds,
             text(targetSpec.workspaceId, 'main'),
             text(targetSpec.categoryName, 'Unsorted'),
-            text(targetSpec.folderId, '')
+            text(targetSpec.folderId, ''),
+            { skipRender: true, skipSuggestions: true }
         );
         if (!changed) return null;
         return {
-            selectionId: 'link_' + linkId,
-            message: targetSpec.folderId
-                ? 'Bookmark moved to a new folder chain.'
-                : 'Bookmark moved to a new card root.'
+            selectionId: 'link_' + linkIds[0],
+            message: linkIds.length > 1
+                ? ('Moved ' + linkIds.length + ' bookmarks to a new chain.')
+                : (targetSpec.folderId ? 'Bookmark moved to a new folder chain.' : 'Bookmark moved to a new card root.')
         };
     }
 
     function moveFolderToTarget(sourceNode, targetSpec) {
+        if (sourceNode?.data?.detached) {
+            return detached.restoreDetachedEntry?.(text(sourceNode.data?.detachedEntryId, ''), targetSpec) || null;
+        }
         const folderApi = getFolderApi();
         if (!folderApi) return null;
         const workspaceId = text(sourceNode.data?.workspaceId, 'main');
@@ -438,7 +590,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 workspaceId,
                 categoryName,
                 folderId,
-                text(targetSpec.targetParentId, '')
+                text(targetSpec.targetParentId, ''),
+                { skipRender: true, skipSuggestions: true }
             );
         } else {
             changed = !!folderApi.transferFolderToCategory?.(
@@ -447,7 +600,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 categoryName,
                 text(targetSpec.workspaceId, workspaceId),
                 text(targetSpec.categoryName, categoryName),
-                text(targetSpec.targetParentId, '')
+                text(targetSpec.targetParentId, ''),
+                { skipRender: true, skipSuggestions: true }
             );
         }
 
@@ -477,15 +631,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         const targetSpec = releaseTarget?.spec || getTargetSpec(sourceNode, targetNode);
 
         if (targetSpec && !isNoopTarget(sourceNode, targetSpec)) {
-            const result = sourceNode.kind === 'link'
-                ? moveLinkToTarget(sourceNode, targetSpec)
-                : moveFolderToTarget(sourceNode, targetSpec);
-
-            resetTransientRewireState();
-
-            if (result) {
-                refreshGraphAfterMove(result.selectionId);
-                showRewireToast(result.message);
+            if (commitArmedSourceToTarget(targetSpec, {
+                snapToTargetNodeId: text(targetNode?.id, '')
+            })) {
                 return true;
             }
         }
@@ -494,14 +642,6 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         sourceNode.y = sourceStartY;
         sourceNode.vx = 0;
         sourceNode.vy = 0;
-
-        if (!targetNode && canDetachNodeToRoot(sourceNode)) {
-            const detached = detachNodeToRoot(sourceNode, { silent: true });
-            if (detached) {
-                showRewireToast('Chain detached to the card root.');
-                return true;
-            }
-        }
 
         cancelRewire({ restoreSource: false });
         return false;
@@ -516,13 +656,16 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         if (sourceNode) {
             return text(state.rewire.hint, getDetachHint(sourceNode));
         }
-        return 'Drag or click a bookmark or folder to arm it, then drop or click a card or folder target. In Unidex or workspace scope, target another card to transfer chains across cards.';
+        return 'Drag or click a bookmark or folder to arm it, then drop or click a card or folder target. Use Detach to Parking when you want a floating orphan chain. In workspace or Unidex scope, target another card to transfer chains across cards.';
     }
 
     ns._coreRewire = ns._coreRewire || {};
     Object.assign(ns._coreRewire, {
         canRewireNode,
         canDetachNodeToRoot,
+        canDetachNodeToParking,
+        hasArmedSource,
+        getArmedSourceCount,
         getRewireSummary,
         setRewireEnabled,
         armNodeForRewire,
@@ -530,7 +673,10 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         beginRewireDrag,
         updateRewireDrag,
         finishRewireDrag,
-        detachNodeToRoot
+        detachNodeToRoot,
+        detachNodeToParking,
+        refreshGraphAfterMove,
+        commitArmedSourceToTarget
     });
 
     ns._canConstellationRewireNode = canRewireNode;
@@ -541,5 +687,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     ns._updateConstellationRewireDrag = updateRewireDrag;
     ns._finishConstellationRewireDrag = finishRewireDrag;
     ns._detachConstellationNodeToRoot = detachNodeToRoot;
+    ns._detachConstellationNodeToParking = detachNodeToParking;
+    ns._refreshConstellationGraphAfterMove = refreshGraphAfterMove;
+    ns._commitConstellationRewireTarget = commitArmedSourceToTarget;
     ns._getConstellationRewireSummary = getRewireSummary;
 })(window.EveConstellationMap);

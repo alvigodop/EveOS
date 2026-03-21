@@ -203,6 +203,8 @@ function draw() {
 
             const isSelected = state.selected && state.selected.id === node.id;
 
+            const isMultiSelected = state.selectionIds instanceof Set && state.selectionIds.has(String(node.id || ''));
+
             ctx.beginPath();
 
             ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
@@ -249,7 +251,7 @@ function draw() {
 
 
 
-            if (isHovered || isSelected) {
+            if (isHovered || isSelected || isMultiSelected) {
 
                 ctx.lineWidth = 2 / state.transform.scale;
 
@@ -262,6 +264,24 @@ function draw() {
                 }
 
                 ctx.stroke();
+
+            }
+
+            if (isMultiSelected && !isSelected) {
+
+                ctx.beginPath();
+
+                ctx.arc(node.x, node.y, node.radius + (4.6 / state.transform.scale), 0, Math.PI * 2);
+
+                ctx.lineWidth = 1.2 / state.transform.scale;
+
+                ctx.setLineDash([4 / state.transform.scale, 4 / state.transform.scale]);
+
+                ctx.strokeStyle = 'rgba(145,220,255,0.78)';
+
+                ctx.stroke();
+
+                ctx.setLineDash([]);
 
             }
 

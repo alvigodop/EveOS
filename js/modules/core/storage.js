@@ -3,6 +3,7 @@ const EVE_LINKS_KEY = 'eveV22Data';
 const EVE_CONFIG_KEY = 'eveV22Config';
 const EVE_BOOKMARK_FOLDERS_KEY = 'eveV22BookmarkFolders';
 const EVE_QUICK_PINS_KEY = 'eveV22QuickPins';
+const EVE_CONSTELLATION_DETACHED_KEY = 'eveV22ConstellationDetached';
 
 function saveData(options = {}) {
     const skipRender = !!options.skipRender;
@@ -27,6 +28,11 @@ function saveData(options = {}) {
             (typeof quickPins !== 'undefined' && Array.isArray(quickPins))
                 ? quickPins
                 : []
+        ));
+        localStorage.setItem(EVE_CONSTELLATION_DETACHED_KEY, JSON.stringify(
+            (window.constellationDetachedChains && typeof window.constellationDetachedChains === 'object')
+                ? window.constellationDetachedChains
+                : {}
         ));
     };
 
@@ -100,6 +106,20 @@ function loadData() {
         }
     } else {
         quickPins = [];
+    }
+    const storedDetached = localStorage.getItem(EVE_CONSTELLATION_DETACHED_KEY);
+    if (storedDetached) {
+        try {
+            const parsedDetached = JSON.parse(storedDetached);
+            window.constellationDetachedChains = parsedDetached && typeof parsedDetached === 'object' ? parsedDetached : {};
+        } catch (e) {
+            window.constellationDetachedChains = {};
+        }
+    } else {
+        window.constellationDetachedChains = {};
+    }
+    if (window.eveState) {
+        window.eveState.constellationDetachedChains = window.constellationDetachedChains;
     }
     const storedConfig = localStorage.getItem(EVE_CONFIG_KEY);
     if (storedConfig) { try { config = { ...config, ...JSON.parse(storedConfig) }; } catch (e) { } }

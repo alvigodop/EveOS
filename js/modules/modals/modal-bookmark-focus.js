@@ -78,6 +78,10 @@
         refreshClickBehaviorControls(link);
         loadLinkedRecord(link.id);
         modal.style.display = 'flex';
+        const mapOverlay = document.getElementById('constellation-map-overlay');
+        if (mapOverlay && mapOverlay.style.display !== 'none') {
+            modal.style.zIndex = '10020';
+        }
         return true;
     };
 

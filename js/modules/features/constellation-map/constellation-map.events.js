@@ -81,6 +81,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     function setSelectedNode(node) {
 
         state.selected = node || null;
+        state.selectionIds = node ? new Set([text(node.id, '')].filter(Boolean)) : new Set();
 
         renderInspector();
 
@@ -176,6 +177,12 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         state.canvas.addEventListener('pointerdown', (event) => {
 
+            if (typeof ns._closeConstellationActionWheel === 'function') {
+
+                ns._closeConstellationActionWheel();
+
+            }
+
             if (state.infoHovered) {
 
                 state.infoHovered = false;
@@ -195,6 +202,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             const shouldPreferSelectedRewireNode = !state.pointer.forcePan
                 && state.rewire?.enabled
                 && state.selected
+                && text(state.rewire?.sourceNodeId, '') === text(state.selected?.id, '')
                 && typeof ns._canConstellationRewireNode === 'function'
                 && ns._canConstellationRewireNode(state.selected);
 
@@ -280,7 +288,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             if (state.pointer.node) {
 
-                setSelectedNode(state.pointer.node);
+                if (!(event.ctrlKey || event.metaKey)) {
+                    setSelectedNode(state.pointer.node);
+                }
 
                 state.pointer.lastWorldX = Number(state.pointer.node.x) || 0;
 
@@ -296,6 +306,32 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             }
 
             updateCursor();
+
+        });
+
+        state.canvas.addEventListener('contextmenu', (event) => {
+
+            event.preventDefault();
+
+            const hitNode = getHitNode(event.clientX, event.clientY);
+
+            if (!hitNode) {
+
+                if (typeof ns._closeConstellationActionWheel === 'function') {
+
+                    ns._closeConstellationActionWheel();
+
+                }
+
+                return;
+
+            }
+
+            if (typeof ns._openConstellationActionWheel === 'function') {
+
+                ns._openConstellationActionWheel(hitNode, event.clientX, event.clientY);
+
+            }
 
         });
 
@@ -403,7 +439,18 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             if (previousNode && previousMode === 'rewire') {
                 const hasTargetSelection = !!text(state.rewire?.targetNodeId, '');
-                if (!moved && hasTargetSelection && typeof ns._finishConstellationRewireDrag === 'function') {
+                const clickedValidTarget = !!(
+                    !moved
+                    && hitNode
+                    && hitNode.id !== previousNode.id
+                    && state.rewire?.enabled
+                    && state.rewire.validTargetIds instanceof Set
+                    && state.rewire.validTargetIds.has(String(hitNode.id || ''))
+                );
+                if (clickedValidTarget) {
+                    state.rewire.targetNodeId = text(hitNode.id, '');
+                }
+                if (!moved && (hasTargetSelection || clickedValidTarget) && typeof ns._finishConstellationRewireDrag === 'function') {
                     ns._finishConstellationRewireDrag(event.clientX, event.clientY);
                     return;
                 }
@@ -459,6 +506,19 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
 
             if (previousNode && !moved) {
+                if (event.ctrlKey || event.metaKey) {
+                    const nextSelection = new Set(state.selectionIds instanceof Set ? state.selectionIds : []);
+                    const nodeId = text(previousNode?.id, '');
+                    if (nodeId) {
+                        if (nextSelection.has(nodeId)) nextSelection.delete(nodeId);
+                        else nextSelection.add(nodeId);
+                    }
+                    state.selectionIds = nextSelection;
+                    state.selected = previousNode;
+                    renderInspector();
+                    requestDraw();
+                    return;
+                }
 
                 const clickNode = hitNode && hitNode.id === previousNode.id
 
@@ -635,6 +695,14 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             if (event.key === 'Escape') {
 
                 event.preventDefault();
+
+                if (state.actionWheel?.visible && typeof ns._closeConstellationActionWheel === 'function') {
+
+                    ns._closeConstellationActionWheel();
+
+                    return;
+
+                }
 
                 ns.closeMap();
 

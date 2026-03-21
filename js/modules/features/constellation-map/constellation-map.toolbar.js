@@ -82,6 +82,19 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         }
 
         container.addEventListener('click', (event) => {
+            const wheelActionEl = event.target.closest('[data-map-wheel-action]');
+            const wheelAction = wheelActionEl?.dataset?.mapWheelAction;
+            if (wheelAction) {
+                const wheelNodeId = String(state.actionWheel?.nodeId || '').trim();
+                const wheelNode = wheelNodeId
+                    ? (state.nodes.find((node) => node.id === wheelNodeId) || null)
+                    : null;
+                if (wheelNode && typeof ns._runNodeAction === 'function') {
+                    ns._runNodeAction(wheelNode, wheelAction);
+                }
+                return;
+            }
+
             const fxEngineEl = event.target.closest('[data-fx-engine]');
             if (fxEngineEl) {
                 state.activeWebGlFx = fxEngineEl.dataset.fxEngine;

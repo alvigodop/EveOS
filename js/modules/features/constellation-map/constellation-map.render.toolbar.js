@@ -77,6 +77,45 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         return Array.from(state.container?.querySelectorAll(selector) || []);
     }
 
+    function clampNumber(value, min, max) {
+        return Math.min(Math.max(Number(value) || 0, min), max);
+    }
+
+    function renderActionWheel(wheelEl) {
+        if (!wheelEl) return;
+
+        const wheelState = state.actionWheel || {};
+        const nodeId = text(wheelState.nodeId, '');
+        const items = Array.isArray(wheelState.items) ? wheelState.items : [];
+        const node = nodeId ? (state.nodes.find((entry) => entry.id === nodeId) || null) : null;
+        if (!wheelState.visible || !node || !items.length) {
+            wheelEl.classList.remove('is-visible');
+            wheelEl.innerHTML = '';
+            return;
+        }
+
+        const bounds = state.container?.getBoundingClientRect?.();
+        const width = Number(bounds?.width) || Number(state.canvas?.width) || window.innerWidth || 1280;
+        const height = Number(bounds?.height) || Number(state.canvas?.height) || window.innerHeight || 720;
+        const radius = 104 + (Math.max(items.length - 5, 0) * 10);
+        const padding = Math.max(138, radius + 24);
+        const centerX = clampNumber(Number(wheelState.clientX) - Number(bounds?.left || 0), padding, Math.max(padding, width - padding));
+        const centerY = clampNumber(Number(wheelState.clientY) - Number(bounds?.top || 0), padding, Math.max(padding, height - padding));
+        const startAngle = -Math.PI / 2;
+
+        wheelEl.classList.add('is-visible');
+        wheelEl.innerHTML = [
+            '<div class="map-action-wheel-center" style="left:' + centerX + 'px;top:' + centerY + 'px;">' + escapeHtml(text(node.label, 'Node').slice(0, 32)) + '</div>',
+            items.map((item, index) => {
+                const angle = startAngle + ((Math.PI * 2 * index) / Math.max(items.length, 1));
+                const itemX = centerX + (Math.cos(angle) * radius);
+                const itemY = centerY + (Math.sin(angle) * radius);
+                const accentClass = item?.accent ? ' is-accent' : '';
+                return '<button type="button" data-map-wheel-action="' + escapeHtml(text(item?.action, '')) + '" class="map-action-wheel-item' + accentClass + '" style="left:' + itemX.toFixed(1) + 'px;top:' + itemY.toFixed(1) + 'px;">' + escapeHtml(text(item?.label, 'Action')) + '</button>';
+            }).join('')
+        ].join('');
+    }
+
     function renderToolbarState() {
         if (!state.container) return;
 
@@ -86,6 +125,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         const controlsButton = state.container.querySelector('[data-map-toolbar="controls"]');
         const controlsPanel = state.container.querySelector('[data-map-controls-panel]');
         const fxPanel = state.container.querySelector('[data-map-fx-panel]');
+        const actionWheel = state.container.querySelector('[data-map-action-wheel]');
 
         if (fxButton) {
             fxButton.textContent = 'Background FX';
@@ -368,6 +408,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         queryAll('[data-map-polarity-strength="attract"]').forEach((input) => { input.value = getPolarityStrengthText('attract'); });
         queryAll('[data-map-polarity-strength-number="attract"]').forEach((input) => { input.value = getPolarityStrengthText('attract'); });
         queryAll('[data-map-polarity-strength-value="attract"]').forEach((el) => { el.textContent = getPolarityStrengthText('attract'); });
+
+        renderActionWheel(actionWheel);
     }
 
     function renderHeader() {
