@@ -88,6 +88,18 @@ function getPrimaryAction(node) {
 
 
 
+        if (node.data?.detached && node.data?.detachedRoot) {
+
+
+
+            return { label: 'Reattach Chain', action: 'arm-rewire' };
+
+
+
+        }
+
+
+
         if (node.kind === 'link') {
 
 
@@ -603,13 +615,27 @@ function getActionWheelItems(node) {
 
 
 
+        if (node.data?.detached && node.data?.detachedRoot) {
+
+
+
+            if (canRewire) items.push({ label: isRewireSource ? 'Cancel Reattach' : 'Reattach Chain', action: isRewireSource ? 'cancel-rewire' : 'arm-rewire', accent: true });
+
+            items.push({ label: 'Center', action: 'center' });
+
+            return items;
+
+
+
+        }
+
+
+
         if (node.kind === 'folder') {
 
 
 
             items.push({ label: 'Open Folder', action: 'open-folder', accent: true });
-
-            items.push({ label: 'Open Card', action: 'open-category' });
 
             if (hasArmedSource() && !isRewireSource) items.push({ label: armedSourceLabel, action: 'attach-here' });
 
@@ -668,23 +694,6 @@ function getActionWheelItems(node) {
 
 
         }
-
-
-
-        if (node.data?.detached && node.data?.detachedRoot) {
-
-
-
-            if (canRewire) items.push({ label: isRewireSource ? 'Cancel Reattach' : 'Reattach Chain', action: isRewireSource ? 'cancel-rewire' : 'arm-rewire', accent: true });
-
-            items.push({ label: 'Center', action: 'center' });
-
-            return items;
-
-
-
-        }
-
 
 
         items.push({ label: 'Center', action: 'center' });

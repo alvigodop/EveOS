@@ -167,6 +167,12 @@ async function main() {
         const linkToGamma = await getNodeScreenPoint(page, { kind: 'link', linkId: 'alpha-folder-1' });
         const gammaCard = await getNodeScreenPoint(page, { kind: 'category', categoryName: 'Gamma' });
         if (!linkToGamma || !gammaCard) throw new Error('Missing source link or Gamma card node');
+        await page.evaluate(() => {
+            const map = window.EveConstellationMap;
+            const state = map?._shared?.state;
+            const linkNode = state?.nodes?.find((node) => node.kind === 'link' && String(node.data?.linkId || '') === 'alpha-folder-1');
+            map?._armConstellationRewireNode?.(linkNode, { keepEnabled: true });
+        });
         await dragNode(page, linkToGamma, gammaCard);
 
         let state = await readState(page);
@@ -204,23 +210,35 @@ async function main() {
             throw new Error('Expected alpha-folder-2 to follow f-child into Gamma, got ' + JSON.stringify(movedChildLink));
         }
 
-        await page.evaluate(() => {
+        const parkingState = await page.evaluate(() => {
             const map = window.EveConstellationMap;
             const state = map?._shared?.state;
             const linkNode = state?.nodes?.find((node) => node.kind === 'link' && String(node.data?.linkId || '') === 'alpha-folder-3');
-            map?._detachConstellationNodeToRoot?.(linkNode);
+            map?._detachConstellationNodeToParking?.(linkNode);
+            return {
+                detachedStore: JSON.parse(JSON.stringify(map?._detached?.getDetachedStore?.() || {})),
+                visibleDetachedIds: (state?.nodes || [])
+                    .filter((node) => node.data?.detachedRoot)
+                    .map((node) => String(node.id || ''))
+            };
         });
 
         state = await readState(page);
         const detachedLink = state.links.find((link) => link.id === 'alpha-folder-3');
-        if (!detachedLink || detachedLink.category !== 'Alpha' || String(detachedLink.folderId || '') !== '') {
-            throw new Error('Expected alpha-folder-3 to detach to Alpha root, got ' + JSON.stringify(detachedLink));
+        const parkedEntries = Array.isArray(parkingState?.detachedStore?.main) ? parkingState.detachedStore.main : [];
+        const parkedLink = parkedEntries.find((entry) => entry.kind === 'link' && String(entry?.link?.id || '') === 'alpha-folder-3');
+        if (detachedLink || !parkedLink || !parkingState.visibleDetachedIds.length) {
+            throw new Error('Expected alpha-folder-3 to detach into parking, got ' + JSON.stringify({
+                detachedLink,
+                parkedLink,
+                visibleDetachedIds: parkingState.visibleDetachedIds
+            }));
         }
 
         console.log('CONSTELLATION_REWIRE_BROWSER_SMOKE_OK ' + JSON.stringify({
             movedLinkCategory: movedLink.category,
             movedFolderCategory: movedChildLink.category,
-            detachedLinkFolderId: String(detachedLink.folderId || ''),
+            detachedLinkParked: true,
             gammaFolderCount: Array.isArray(gammaTree?.nodes) ? gammaTree.nodes.length : 0
         }));
     } finally {

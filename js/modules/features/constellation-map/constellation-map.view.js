@@ -34,6 +34,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
     function isNodeMain(node) {
         if (!node) return false;
+        if (node.data?.detached && node.data?.detachedRoot) return true;
         if (node.kind === 'workspace') return true;
         if (node.kind === 'category' || node.kind === 'folder') {
             const hasParent = state.edges.some((edge) => edge.source.id === node.id && edge.type === 'hierarchy');

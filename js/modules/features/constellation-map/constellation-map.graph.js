@@ -361,6 +361,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         function addDetachedLinkNode(entry, position) {
             const link = entry?.link || {};
+            const parkingCategoryName = text(entry?.parkingCategoryName, 'Detached Nodes');
             return addNode(createNode({
                 id: 'detached_link_' + String(entry.id),
                 chainId: 'detached_' + String(entry.id),
@@ -370,13 +371,14 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 kind: 'link',
                 x: position.x,
                 y: position.y,
-                meta: 'Detached from ' + text(entry?.originCategoryName, 'Card'),
+                meta: parkingCategoryName + ' parking · from ' + text(entry?.originCategoryName, 'Card'),
                 data: {
                     detached: true,
                     detachedEntryId: String(entry.id),
                     detachedRoot: true,
                     workspaceId: text(entry?.workspaceId, 'main'),
-                    categoryName: text(entry?.originCategoryName, ''),
+                    categoryName: parkingCategoryName,
+                    originCategoryName: text(entry?.originCategoryName, ''),
                     url: text(link?.url, ''),
                     depth: 0
                 }
@@ -388,6 +390,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             const detachedNodes = Array.isArray(folderData.nodes) ? folderData.nodes : [];
             const detachedLinks = Array.isArray(folderData.links) ? folderData.links : [];
             const rootId = String(folderData.rootId || '');
+            const parkingCategoryName = text(entry?.parkingCategoryName, 'Detached Nodes');
             if (!rootId || !detachedNodes.length) return;
 
             const childrenMap = new Map();
@@ -416,13 +419,14 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                     kind: 'folder',
                     x: position.x,
                     y: position.y,
-                    meta: 'Detached from ' + text(entry?.originCategoryName, 'Card'),
+                    meta: parkingCategoryName + ' parking · from ' + text(entry?.originCategoryName, 'Card'),
                     data: {
                         detached: true,
                         detachedEntryId: String(entry.id),
                         detachedRoot: depth === 0,
                         workspaceId: text(entry?.workspaceId, 'main'),
-                        categoryName: text(entry?.originCategoryName, ''),
+                        categoryName: parkingCategoryName,
+                        originCategoryName: text(entry?.originCategoryName, ''),
                         folderId: String(folderNodeModel.id),
                         coverCandidates: buildCoverCandidates(descendantLinks),
                         depth
@@ -448,7 +452,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                             detachedEntryId: String(entry.id),
                             detachedRoot: false,
                             workspaceId: text(entry?.workspaceId, 'main'),
-                            categoryName: text(entry?.originCategoryName, 'Unsorted'),
+                            categoryName: parkingCategoryName,
+                            originCategoryName: text(entry?.originCategoryName, 'Unsorted'),
                             url: text(link?.url, ''),
                             depth: depth + 1
                         }

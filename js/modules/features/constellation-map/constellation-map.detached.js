@@ -5,6 +5,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     const { text } = shared;
 
     const STORAGE_KEY = 'eveV22ConstellationDetached';
+    const PARKING_CATEGORY_NAME = 'Detached Nodes';
 
     function cloneValue(value) {
         return JSON.parse(JSON.stringify(value));
@@ -132,6 +133,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             kind: 'link',
             workspaceId,
             originCategoryName: categoryName,
+            parkingCategoryName: PARKING_CATEGORY_NAME,
             parkedAt: Date.now(),
             label: text(clonedLink.title, 'Bookmark'),
             link: clonedLink
@@ -226,6 +228,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             kind: 'folder',
             workspaceId: resolvedWorkspaceId,
             originCategoryName: resolvedCategoryName,
+            parkingCategoryName: PARKING_CATEGORY_NAME,
             parkedAt: Date.now(),
             label: text(rootNode?.name, 'Detached Folder'),
             folder: {
@@ -345,6 +348,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     ns._detached = ns._detached || {};
     Object.assign(ns._detached, {
         STORAGE_KEY,
+        PARKING_CATEGORY_NAME,
         getDetachedStore,
         getDetachedEntriesForScope,
         getDetachedEntry,

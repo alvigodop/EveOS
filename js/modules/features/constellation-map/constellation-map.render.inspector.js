@@ -68,6 +68,18 @@ function getPrimaryAction(node) {
 
 
 
+        if (node.data?.detached && node.data?.detachedRoot) {
+
+
+
+            return { label: 'Reattach Chain', action: 'arm-rewire' };
+
+
+
+        }
+
+
+
         if (node.kind === 'link') {
 
 
@@ -199,6 +211,14 @@ function applyInspectorShellStyle(isCollapsed) {
         const canDetachToParking = !!ns._coreRewire?.canDetachNodeToParking?.(node);
         const hasArmedSource = !!ns._coreRewire?.hasArmedSource?.();
 
+        if (node.data?.detached && node.data?.detachedRoot) {
+
+            if (canRewire) actions.push({ label: isRewireSource ? 'Cancel Reattach' : 'Reattach Chain', action: isRewireSource ? 'cancel-rewire' : 'arm-rewire' });
+
+            return actions;
+
+        }
+
         if (node.kind === 'link') {
 
             if (text(node?.data?.folderId, '')) actions.push({ label: 'Open Folder', action: 'open-folder' });
@@ -216,10 +236,6 @@ function applyInspectorShellStyle(isCollapsed) {
         }
 
         if (node.kind === 'folder') {
-
-            actions.push({ label: 'Open Folder', action: 'open-folder' });
-
-            if (text(node?.data?.categoryName, '')) actions.push({ label: 'Open Card', action: 'open-category' });
 
             if (hasArmedSource && !isRewireSource) actions.push({ label: 'Attach Here', action: 'attach-here' });
 

@@ -253,6 +253,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             if (
                 hitNode
                 && state.rewire?.enabled
+                && armedRewireSource
+                && armedRewireSource.id === hitNode.id
                 && typeof ns._canConstellationRewireNode === 'function'
                 && ns._canConstellationRewireNode(hitNode)
             ) {
@@ -466,13 +468,13 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 return;
             }
 
-            if (previousNode && moved && previousNode.kind !== 'link') {
+            if (previousNode && moved && (previousNode.kind !== 'link' || previousNode.data?.detachedRoot)) {
 
                 if (isNodeStatic(previousNode)) {
 
                     setStaticAnchor(previousNode);
 
-                } else if (shouldPersistManualAnchor(previousNode)) {
+                } else if (previousNode.data?.detachedRoot || shouldPersistManualAnchor(previousNode)) {
 
                     previousNode.manualAnchor = createManualAnchor(previousNode);
 
@@ -493,7 +495,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
                 }
 
-                if (isNodeStatic(previousNode) || shouldPersistManualAnchor(previousNode)) {
+                if (isNodeStatic(previousNode) || previousNode.data?.detachedRoot || shouldPersistManualAnchor(previousNode)) {
 
                     previousNode.vx = 0;
 
