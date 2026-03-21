@@ -85,10 +85,41 @@ async function main() {
                 throw new Error('Failed to create detached parking entry');
             }
 
+            const malformedEntryId = 'det_broken_folder';
+            const detachedStore = detachedApi.getDetachedStore();
+            detachedStore.main = Array.isArray(detachedStore.main) ? detachedStore.main : [];
+            detachedStore.main.push({
+                id: malformedEntryId,
+                kind: 'folder',
+                workspaceId: 'main',
+                originCategoryName: 'Alpha',
+                parkingCategoryName: detachedApi.PARKING_CATEGORY_NAME,
+                parkedAt: Date.now(),
+                label: 'Broken Detached Chain',
+                folder: {
+                    rootId: 'missing-root',
+                    nodes: [],
+                    links: [
+                        {
+                            id: 'broken-link',
+                            title: 'Broken Link',
+                            url: 'https://broken.example.com',
+                            workspace: 'main',
+                            category: 'Alpha',
+                            folderId: 'missing-folder',
+                            done: false
+                        }
+                    ]
+                }
+            });
+            detachedApi.persistDetachedStore();
+
             window.renderDashboard();
 
-            const detachedCard = document.querySelector('.category-card[data-detached-parking-card="1"]');
-            const detachedFolderEl = detachedCard?.querySelector('.bookmark-folder-group');
+            let detachedCard = document.querySelector('.category-card[data-detached-parking-card="1"]');
+            const detachedFolderEl = Array.from(detachedCard?.querySelectorAll('.bookmark-folder-group') || [])
+                .find((element) => String(element.getAttribute('data-detached-entry-id') || '') === parkedEntry.id)
+                || null;
             const detachedFolderEntryId = String(detachedFolderEl?.getAttribute('data-detached-entry-id') || parkedEntry.id);
             const detachedFolderId = String(parkedEntry.folder?.rootId || '');
 
@@ -96,6 +127,22 @@ async function main() {
             if (!detachedFolderEl) throw new Error('Detached parking folder not rendered');
             if (!detachedFolderEl.getAttribute('ondrop')) throw new Error('Detached folder drop handler missing');
             if (detachedFolderEl.getAttribute('draggable') !== 'true') throw new Error('Detached root folder not draggable');
+
+            const repairedMalformedEntry = detachedApi.getDetachedEntry(malformedEntryId);
+            const repairedMalformedRootId = String(repairedMalformedEntry?.folder?.rootId || '');
+            const repairedMalformedRootNode = (repairedMalformedEntry?.folder?.nodes || []).find((node) => String(node?.id || '') === repairedMalformedRootId);
+            const repairedMalformedLink = (repairedMalformedEntry?.folder?.links || []).find((link) => String(link?.id || '') === 'broken-link');
+            if (!repairedMalformedRootId || !repairedMalformedRootNode) {
+                throw new Error('Malformed detached entry did not receive a synthetic root');
+            }
+            if (!repairedMalformedLink || String(repairedMalformedLink.folderId || '') !== repairedMalformedRootId) {
+                throw new Error('Malformed detached link did not reattach to the repaired root');
+            }
+            detachedCard = document.querySelector('.category-card[data-detached-parking-card="1"]');
+            const detachedCardHtml = String(detachedCard?.textContent || '');
+            if (!detachedCardHtml.includes('Broken Detached Chain') || !detachedCardHtml.includes('Broken Link')) {
+                throw new Error('Repaired detached content did not render into the parking card');
+            }
 
             detachedApi.handleDashboardParkingDrop(makeEvent({ ids: ['beta-root'] }), 'main');
             if ((window.links || []).some((link) => link.id === 'beta-root')) {
@@ -131,7 +178,8 @@ async function main() {
                 detachedCard: true,
                 parkedLinkEntryId: parkedLinkEntry.id,
                 restoredBookmarkFolderId: restoredLink.folderId,
-                gammaFolderCount: Array.isArray(gammaTree?.nodes) ? gammaTree.nodes.length : 0
+                gammaFolderCount: Array.isArray(gammaTree?.nodes) ? gammaTree.nodes.length : 0,
+                repairedMalformedRootId
             };
         }, makeFakeEvent.toString());
 

@@ -110,20 +110,128 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         return nextStore;
     }
 
+    function buildSyntheticDetachedRootId(entry, nodeIds) {
+        const usedIds = nodeIds instanceof Set ? nodeIds : new Set();
+        const baseId = 'detached_root';
+        let candidate = baseId;
+        let index = 1;
+        while (usedIds.has(candidate)) {
+            candidate = baseId + '__' + index.toString(36);
+            index += 1;
+        }
+        return candidate;
+    }
+
+    function normalizeDetachedFolderEntry(entry) {
+        if (!entry || entry.kind !== 'folder' || !entry.folder || typeof entry.folder !== 'object') return false;
+
+        const folder = entry.folder;
+        const nodes = Array.isArray(folder.nodes) ? folder.nodes : [];
+        const links = Array.isArray(folder.links) ? folder.links : [];
+        if (!Array.isArray(folder.nodes)) folder.nodes = nodes;
+        if (!Array.isArray(folder.links)) folder.links = links;
+        const nodeIds = new Set(nodes.map((node) => text(node?.id, '')).filter(Boolean));
+        let rootId = text(folder.rootId, '');
+        let changed = false;
+
+        if (!nodeIds.size && links.length) {
+            const syntheticRootId = buildSyntheticDetachedRootId(entry, nodeIds);
+            const syntheticRoot = {
+                id: syntheticRootId,
+                parentId: null,
+                name: text(entry?.label, 'Detached Chain'),
+                order: 1,
+                createdAt: Number(entry?.parkedAt) || Date.now(),
+                updatedAt: Number(entry?.parkedAt) || Date.now(),
+                clickBehaviorMode: 'inherit',
+                taskMode: 'inherit'
+            };
+            nodes.push(syntheticRoot);
+            folder.nodes = nodes;
+            folder.rootId = syntheticRootId;
+            nodeIds.add(syntheticRootId);
+            rootId = syntheticRootId;
+            changed = true;
+        }
+
+        if ((!rootId || !nodeIds.has(rootId)) && nodes.length) {
+            const fallbackRoot = nodes.find((node) => !text(node?.parentId, '')) || nodes[0];
+            const fallbackRootId = text(fallbackRoot?.id, '');
+            if (fallbackRootId && fallbackRootId !== rootId) {
+                folder.rootId = fallbackRootId;
+                rootId = fallbackRootId;
+                changed = true;
+            }
+        }
+
+        if (!rootId) return changed;
+
+        nodes.forEach((node) => {
+            const nodeId = text(node?.id, '');
+            const parentId = text(node?.parentId, '');
+            if (!nodeId) return;
+            if (nodeId === rootId) {
+                if (parentId) {
+                    node.parentId = null;
+                    changed = true;
+                }
+                return;
+            }
+            if (parentId && !nodeIds.has(parentId)) {
+                node.parentId = rootId;
+                changed = true;
+            }
+        });
+
+        links.forEach((link) => {
+            const folderId = text(link?.folderId, '');
+            if (folderId && nodeIds.has(folderId)) return;
+            if (link?.folderId !== rootId) {
+                link.folderId = rootId;
+                changed = true;
+            }
+        });
+
+        return changed;
+    }
+
+    function normalizeDetachedStore(store) {
+        let changed = false;
+        Object.keys(store || {}).forEach((workspaceId) => {
+            const bucket = Array.isArray(store[workspaceId]) ? store[workspaceId] : [];
+            bucket.forEach((entry) => {
+                if (normalizeDetachedFolderEntry(entry)) changed = true;
+            });
+        });
+        return changed;
+    }
+
+    function syncDetachedStore(store) {
+        const nextStore = setDetachedStore(store);
+        if (normalizeDetachedStore(nextStore)) {
+            try {
+                window.localStorage?.setItem(STORAGE_KEY, JSON.stringify(nextStore));
+            } catch (error) {
+                // ignore direct storage failures in restricted contexts
+            }
+        }
+        return nextStore;
+    }
+
     function getDetachedStore() {
         if (window.eveState?.constellationDetachedChains && typeof window.eveState.constellationDetachedChains === 'object') {
-            return setDetachedStore(window.eveState.constellationDetachedChains);
+            return syncDetachedStore(window.eveState.constellationDetachedChains);
         }
         if (window.constellationDetachedChains && typeof window.constellationDetachedChains === 'object') {
-            return setDetachedStore(window.constellationDetachedChains);
+            return syncDetachedStore(window.constellationDetachedChains);
         }
         try {
             const raw = window.localStorage?.getItem(STORAGE_KEY);
-            if (raw) return setDetachedStore(JSON.parse(raw) || {});
+            if (raw) return syncDetachedStore(JSON.parse(raw) || {});
         } catch (error) {
             // ignore storage failures in file:// or private contexts
         }
-        return setDetachedStore({});
+        return syncDetachedStore({});
     }
 
     function persistDetachedStore() {
