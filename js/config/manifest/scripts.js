@@ -260,7 +260,7 @@ window.EveModuleManifestParts.scripts = [
         'js/modules/features/bookmark-folders/bookmark-folders.ghosts.js?v=0.3.0',
 
         'js/modules/features/bookmark-folders/bookmark-folders.view.js?v=0.2.2',
-        'js/modules/features/bookmark-folders/bookmark-folders.management.js?v=0.2.2',
+        'js/modules/features/bookmark-folders/bookmark-folders.management.js?v=0.2.3',
 
         'js/modules/features/bookmark-folders/bookmark-folders.behavior.js?v=0.2.1',
 
@@ -2882,7 +2882,7 @@ window.EveModuleManifestParts.scripts = [
 
 
 
-'js/modules/features/library/library-connections-components/lc-actions.promote.js?v=0.2.1',
+'js/modules/features/library/library-connections-components/lc-actions.promote.js?v=0.2.2',
 
 
 
@@ -5154,7 +5154,7 @@ window.EveModuleManifestParts.scripts = [
 
 
 
-        'js/modules/modals/modal-bulk.js',
+        'js/modules/modals/modal-bulk.js?v=0.2.1',
         'js/modules/modals/modal-category-settings.core.js?v=0.2.2',
 
         'js/modules/modals/modal-category-settings.folders.js?v=0.2.2',

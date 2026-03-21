@@ -371,7 +371,7 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
 
         nodes.push(folder);
 
-        setScopedNodes(workspaceId, categoryName, nodes);
+        setScopedNodes(workspaceId, categoryName, nodes, { persist: options.persist !== false });
 
         return folder;
 

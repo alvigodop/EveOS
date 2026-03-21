@@ -7,11 +7,11 @@ window.EveLibrary.ConnectionsCoreModules = window.EveLibrary.ConnectionsCoreModu
             return window.EveLibrary?.Ratings;
         }
 
-        function promoteLink(linkId) {
-            return promoteLinkWithData(linkId, {});
+        function promoteLink(linkId, options = {}) {
+            return promoteLinkWithData(linkId, {}, options);
         }
 
-        function promoteLinkWithData(linkId, entryData) {
+        function promoteLinkWithData(linkId, entryData, options = {}) {
             const link = Core.findLinkById(linkId);
             if (!link) {
                 showToast?.('Link not found', 'error');
@@ -31,6 +31,8 @@ window.EveLibrary.ConnectionsCoreModules = window.EveLibrary.ConnectionsCoreModu
             const state = window.EveLibrary.State;
             const storage = window.EveLibrary.Storage;
             if (!state || !storage) return null;
+            const deferSave = !!options.deferSave;
+            const silent = !!options.silent;
 
             const lib = state.getCategoryLibrary(categoryName, workspaceId);
             const Ratings = getRatings();
@@ -73,7 +75,9 @@ window.EveLibrary.ConnectionsCoreModules = window.EveLibrary.ConnectionsCoreModu
             }
 
             lib.entries.push(newEntry);
-            storage.saveLibrary();
+            if (!deferSave) {
+                storage.saveLibrary();
+            }
 
             const connection = {
                 id: Core.generateId(),
@@ -85,9 +89,11 @@ window.EveLibrary.ConnectionsCoreModules = window.EveLibrary.ConnectionsCoreModu
             };
 
             Core.connections.push(connection);
-            Core.saveConnections();
+            if (!deferSave) {
+                Core.saveConnections();
+            }
 
-            if (Object.keys(safeData).length === 0) {
+            if (!silent && Object.keys(safeData).length === 0) {
                 showToast?.('Bookmark added to library', 'success');
             }
             return connection;

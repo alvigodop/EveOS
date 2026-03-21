@@ -1,4 +1,13 @@
 // --- BULK IMPORT ---
+const BULK_IMPORT_BATCH_SIZE = 12;
+
+async function runBatched(items, worker, batchSize = BULK_IMPORT_BATCH_SIZE) {
+    const list = Array.isArray(items) ? items : [];
+    for (let i = 0; i < list.length; i += batchSize) {
+        const batch = list.slice(i, i + batchSize);
+        await Promise.all(batch.map((item, index) => worker(item, i + index)));
+    }
+}
 
 function getBulkMode() {
     if (document.getElementById('bulkModeFolder')?.checked) return 'folder';
@@ -200,7 +209,8 @@ async function processBulk() {
                 workspaceId,
                 categoryName: targetCategory,
                 name: folderName,
-                parentId
+                parentId,
+                persist: false
             });
 
             if (newFolder) {
@@ -209,7 +219,9 @@ async function processBulk() {
         }
 
         // 2) Process files and place them in the correct folder
-        for (const { file, path, parts } of filesToProcess) {
+        let deferredLibraryPromotions = 0;
+
+        await runBatched(filesToProcess, async ({ file, path, parts }) => {
             try {
                 let parentFolderId = '';
                 if (parts.length > 1) {
@@ -222,7 +234,11 @@ async function processBulk() {
                 const isMediaFile = file.name.match(/^(Was\s+|[\{\(]\d+[\}\)])/i);
 
                 if (isStructured || isMediaFile) {
-                    processStructuredFile(content, file.name, targetCategory, parentFolderId);
+                    const promoted = processStructuredFile(content, file.name, targetCategory, parentFolderId, {
+                        deferLibrarySave: true,
+                        silent: true
+                    });
+                    if (promoted) deferredLibraryPromotions++;
                     count++;
                 } else {
                     // Fallback to basic link reading per line
@@ -271,12 +287,15 @@ async function processBulk() {
             } catch (e) {
                 console.error("Failed to read file in folder", file.name, e);
             }
-        }
+        });
 
         if (folderInput) folderInput.value = '';
         saveData();
-        if (window.EveLibrary?.Storage?.saveLibrary) {
+        if (deferredLibraryPromotions > 0 && window.EveLibrary?.Storage?.saveLibrary) {
             window.EveLibrary.Storage.saveLibrary();
+        }
+        if (deferredLibraryPromotions > 0 && window.EveLibrary?.ConnectionsCore?.saveConnections) {
+            window.EveLibrary.ConnectionsCore.saveConnections();
         }
         closeModals();
         if (window.EveBookmarkFolders?.refreshEditorFolderSelect) {
@@ -290,8 +309,11 @@ async function processBulk() {
             return showToast("No files selected", "warning");
         }
 
-        for (let i = 0; i < fileInput.files.length; i++) {
-            const file = fileInput.files[i];
+        let deferredLibraryPromotions = 0;
+        const selectedFiles = Array.from(fileInput.files || []);
+        const fallbackTexts = new Array(selectedFiles.length);
+
+        await runBatched(selectedFiles, async (file, index) => {
             try {
                 const content = await file.text();
                 // Check if the file contains structured library data fields, shorthands, or if the filename specifies a media entry
@@ -299,17 +321,28 @@ async function processBulk() {
                 const isMediaFile = file.name.match(/^(Was\s+|[\{\(]\d+[\}\)])/i);
 
                 if (isStructured || isMediaFile) {
-                    processStructuredFile(content, file.name, targetCategory);
+                    const promoted = processStructuredFile(content, file.name, targetCategory, '', {
+                        deferLibrarySave: true,
+                        silent: true
+                    });
+                    if (promoted) deferredLibraryPromotions++;
                     count++;
                 } else {
                     // Not structured, append to generic text processor
-                    textToProcess += content + "\n";
+                    fallbackTexts[index] = content;
                 }
             } catch (e) {
                 console.error("Failed to read file", file.name, e);
             }
-        }
+        });
+        textToProcess += fallbackTexts.filter(Boolean).join("\n");
         if (fileInput) fileInput.value = '';
+        if (deferredLibraryPromotions > 0 && window.EveLibrary?.Storage?.saveLibrary) {
+            window.EveLibrary.Storage.saveLibrary();
+        }
+        if (deferredLibraryPromotions > 0 && window.EveLibrary?.ConnectionsCore?.saveConnections) {
+            window.EveLibrary.ConnectionsCore.saveConnections();
+        }
     } else {
         textToProcess = document.getElementById('bulkText').value;
     }
@@ -392,7 +425,7 @@ async function processBulk() {
     showToast(`Imported ${count} items to "${targetCategory}"`, "success");
 }
 
-function processStructuredFile(content, fileName, targetCategory, folderId = '') {
+function processStructuredFile(content, fileName, targetCategory, folderId = '', options = {}) {
     const lines = content.split('\n');
 
     // Clean filename: remove things like "_260228_000943.txt" and ".txt"
@@ -562,8 +595,13 @@ function processStructuredFile(content, fileName, targetCategory, folderId = '')
             episode: dataType === 'films' ? episode : 0,
             sourceUrl: url,
             summary: summaryText
+        }, {
+            deferSave: !!options.deferLibrarySave,
+            silent: !!options.silent
         });
     } else {
         console.warn('Library Connections API not found. Bookmark was added standalone.');
     }
+
+    return newBookmark;
 }
