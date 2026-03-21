@@ -128,15 +128,19 @@ global.window.EveLibrary = {
 
 load('js/modules/features/duplicate-sensor.js');
 load('js/modules/features/bookmark-covers.js');
-load('js/modules/features/bookmark-folders.shared.js');
-load('js/modules/features/bookmark-folders.ghost-sensors.js');
-load('js/modules/features/bookmark-folders.ghost-recursion.js');
-load('js/modules/features/bookmark-folders.ghosts.js');
-load('js/modules/features/bookmark-folders.view.js');
-load('js/modules/features/bookmark-folders.management.js');
-load('js/modules/features/bookmark-folders.behavior.js');
-load('js/modules/features/bookmark-folders.actions.js');
-load('js/modules/features/bookmark-folders.js');
+load('js/modules/features/bookmark-folders/bookmark-folders.shared.js');
+load('js/modules/features/bookmark-folders/bookmark-folders.ghost-sensors.js');
+load('js/modules/features/bookmark-folders/bookmark-folders.ghost-recursion.js');
+load('js/modules/features/bookmark-folders/bookmark-folders.ghosts.js');
+load('js/modules/features/bookmark-folders/bookmark-folders.view.js');
+load('js/modules/features/bookmark-folders/bookmark-folders.management.toolbar.js');
+load('js/modules/features/bookmark-folders/bookmark-folders.management.editor.js');
+load('js/modules/features/bookmark-folders/bookmark-folders.management.mutations.js');
+load('js/modules/features/bookmark-folders/bookmark-folders.management.drop.js');
+load('js/modules/features/bookmark-folders/bookmark-folders.management.js');
+load('js/modules/features/bookmark-folders/bookmark-folders.behavior.js');
+load('js/modules/features/bookmark-folders/bookmark-folders.actions.js');
+load('js/modules/features/bookmark-folders/bookmark-folders.core.js');
 
 global.eveState.links = [
   { id: 'domain-favicon', url: 'https://mangadex.org/title/123', title: 'Domain Favicon Only' },

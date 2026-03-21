@@ -262,7 +262,11 @@ window.EveModuleManifestParts.scripts = [
         'js/modules/features/bookmark-folders/bookmark-folders.ghosts.js?v=0.3.0',
 
         'js/modules/features/bookmark-folders/bookmark-folders.view.js?v=0.2.2',
-        'js/modules/features/bookmark-folders/bookmark-folders.management.js?v=0.2.5',
+        'js/modules/features/bookmark-folders/bookmark-folders.management.toolbar.js?v=0.1.0',
+        'js/modules/features/bookmark-folders/bookmark-folders.management.editor.js?v=0.1.0',
+        'js/modules/features/bookmark-folders/bookmark-folders.management.mutations.js?v=0.1.0',
+        'js/modules/features/bookmark-folders/bookmark-folders.management.drop.js?v=0.1.0',
+        'js/modules/features/bookmark-folders/bookmark-folders.management.js?v=0.3.0',
 
         'js/modules/features/bookmark-folders/bookmark-folders.behavior.js?v=0.2.1',
 
@@ -316,7 +320,11 @@ window.EveModuleManifestParts.scripts = [
         'js/modules/features/constellation-map/constellation-map.physics.helpers.js?v=0.2.0',
         'js/modules/features/constellation-map/constellation-map.physics.pass.pairwise.js?v=0.1.0',
         'js/modules/features/constellation-map/constellation-map.physics.pass.edges.js?v=0.1.1',
-        'js/modules/features/constellation-map/constellation-map.physics.pass.hierarchy.js?v=0.1.10',
+        'js/modules/features/constellation-map/constellation-map.physics.pass.hierarchy.math.js?v=0.1.0',
+        'js/modules/features/constellation-map/constellation-map.physics.pass.hierarchy.guides.js?v=0.1.0',
+        'js/modules/features/constellation-map/constellation-map.physics.pass.hierarchy.orient.js?v=0.1.0',
+        'js/modules/features/constellation-map/constellation-map.physics.pass.hierarchy.anchors.js?v=0.1.0',
+        'js/modules/features/constellation-map/constellation-map.physics.pass.hierarchy.js?v=0.2.0',
         'js/modules/features/constellation-map/constellation-map.physics.pass.integrate.js?v=0.1.1',
         'js/modules/features/constellation-map/constellation-map.physics.tick.js?v=0.1.0',
         'js/modules/features/constellation-map/constellation-map.physics.js?v=0.2.0',
@@ -342,7 +350,11 @@ window.EveModuleManifestParts.scripts = [
 
         'js/modules/features/bookmark-covers.js?v=0.2.4',
 
-        'js/modules/features/quick-pins/quick-pins.core.js?v=0.2.2',
+        'js/modules/features/quick-pins/quick-pins.core.base.js?v=0.1.0',
+        'js/modules/features/quick-pins/quick-pins.core.store.js?v=0.1.0',
+        'js/modules/features/quick-pins/quick-pins.core.context.js?v=0.1.0',
+        'js/modules/features/quick-pins/quick-pins.core.actions.js?v=0.1.0',
+        'js/modules/features/quick-pins/quick-pins.core.js?v=0.3.0',
 
         'js/modules/features/quick-pins/quick-pins.main.js?v=0.3.1',
 
