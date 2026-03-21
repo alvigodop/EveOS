@@ -190,7 +190,7 @@ window.EveModuleManifestParts.scripts = [
 
 
 
-        'js/modules/core/storage.js?v=0.2.1',
+        'js/modules/core/storage.js?v=0.2.2',
 
 
 
@@ -330,7 +330,7 @@ window.EveModuleManifestParts.scripts = [
 
         'js/modules/features/bookmark-covers.js?v=0.2.4',
 
-        'js/modules/features/quick-pins/quick-pins.core.js?v=0.2.1',
+        'js/modules/features/quick-pins/quick-pins.core.js?v=0.2.2',
 
         'js/modules/features/quick-pins/quick-pins.main.js?v=0.3.1',
 

@@ -39,6 +39,10 @@ window.EveQuickPins = window.EveQuickPins || {};
         { value: 'card', label: 'Focused Card Only' }
 
     ];
+    const PERSIST_IDLE_TIMEOUT_MS = 1200;
+    const PERSIST_FALLBACK_DELAY_MS = 180;
+    let persistFlushHandle = null;
+    let persistFlushScheduled = false;
 
 
 
@@ -374,6 +378,78 @@ window.EveQuickPins = window.EveQuickPins || {};
 
 
 
+    function clearPersistFlushHandle() {
+
+        if (persistFlushHandle === null) return;
+
+        if (typeof persistFlushHandle === 'number') {
+
+            window.clearTimeout(persistFlushHandle);
+
+        } else if (typeof window.cancelIdleCallback === 'function') {
+
+            window.cancelIdleCallback(persistFlushHandle);
+
+        }
+
+        persistFlushHandle = null;
+
+    }
+
+
+
+    function flushPinPersistence() {
+
+        clearPersistFlushHandle();
+
+        if (!persistFlushScheduled) return;
+
+        persistFlushScheduled = false;
+
+
+
+        if (typeof saveData === 'function') {
+
+            saveData({ skipRender: true, skipSuggestions: true });
+
+        }
+
+    }
+
+
+
+    function schedulePinPersistence() {
+
+        persistFlushScheduled = true;
+
+        clearPersistFlushHandle();
+
+
+
+        if (typeof window.requestIdleCallback === 'function') {
+
+            persistFlushHandle = window.requestIdleCallback(() => {
+
+                flushPinPersistence();
+
+            }, { timeout: PERSIST_IDLE_TIMEOUT_MS });
+
+            return;
+
+        }
+
+
+
+        persistFlushHandle = window.setTimeout(() => {
+
+            flushPinPersistence();
+
+        }, PERSIST_FALLBACK_DELAY_MS);
+
+    }
+
+
+
     function writeStore(nextPins, options = {}) {
 
         setRawStore(normalizePins(nextPins));
@@ -388,7 +464,7 @@ window.EveQuickPins = window.EveQuickPins || {};
 
         if (options.persist !== false && typeof saveData === 'function') {
 
-            saveData();
+            schedulePinPersistence();
 
         }
 
@@ -1115,6 +1191,8 @@ window.EveQuickPins = window.EveQuickPins || {};
 
         clearLegacyBookmarkPinnedFlags,
 
+        flushPinPersistence,
+
         writeStore,
 
         migrateLegacyPins,
@@ -1207,6 +1285,8 @@ window.EveQuickPins = window.EveQuickPins || {};
 
         getPins,
 
+        flushPinPersistence,
+
         writeStore,
 
         isBookmarkPinned,
@@ -1262,6 +1342,10 @@ window.EveQuickPins = window.EveQuickPins || {};
 
 
     core.loaded = true;
+
+    window.addEventListener('pagehide', flushPinPersistence);
+
+    window.addEventListener('beforeunload', flushPinPersistence);
 
 })();
 

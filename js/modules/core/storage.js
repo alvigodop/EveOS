@@ -4,7 +4,9 @@ const EVE_CONFIG_KEY = 'eveV22Config';
 const EVE_BOOKMARK_FOLDERS_KEY = 'eveV22BookmarkFolders';
 const EVE_QUICK_PINS_KEY = 'eveV22QuickPins';
 
-function saveData() {
+function saveData(options = {}) {
+    const skipRender = !!options.skipRender;
+    const skipSuggestions = !!options.skipSuggestions;
     const sanitizedLinks = Array.isArray(links)
         ? links.map((link) => {
             if (!link || typeof link !== 'object') return link;
@@ -48,8 +50,8 @@ function saveData() {
     }
 
     window.dispatchEvent(new CustomEvent('eve:state-mutated', { detail: { source: 'saveData' } }));
-    if (typeof renderDashboard === 'function') renderDashboard();
-    if (typeof updateSuggestions === 'function') updateSuggestions();
+    if (!skipRender && typeof renderDashboard === 'function') renderDashboard();
+    if (!skipSuggestions && typeof updateSuggestions === 'function') updateSuggestions();
 }
 
 function saveConfig() {
