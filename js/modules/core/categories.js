@@ -1,6 +1,14 @@
 // --- CATEGORIES ---
 
 function moveCategory(cat, direction) {
+    const workspaceId = String(config.activeWorkspace || 'main').trim() || 'main';
+    if (window.EveCategoryOrder?.moveCategory) {
+        if (window.EveCategoryOrder.moveCategory(workspaceId, cat, direction)) {
+            saveConfig();
+            if (typeof renderDashboard === 'function') renderDashboard();
+        }
+        return;
+    }
     const visibleLinks = links.filter(l => l.workspace === config.activeWorkspace);
     let categories = [...new Set(visibleLinks.map(l => l.category || "Unsorted"))];
     if (!config.categoryOrder || config.categoryOrder.length === 0) config.categoryOrder = categories.sort();

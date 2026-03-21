@@ -127,6 +127,28 @@ async function main() {
             if (!detachedFolderEl) throw new Error('Detached parking folder not rendered');
             if (!detachedFolderEl.getAttribute('ondrop')) throw new Error('Detached folder drop handler missing');
             if (detachedFolderEl.getAttribute('draggable') !== 'true') throw new Error('Detached root folder not draggable');
+            const detachedHeaderTitles = Array.from(detachedCard.querySelectorAll('.card-header-icon-btn[title]')).map((button) => String(button.getAttribute('title') || ''));
+            if (!detachedHeaderTitles.includes('Detached Map')) {
+                throw new Error('Detached parking card is missing the detached map button');
+            }
+            if (detachedHeaderTitles.includes('Settings') || detachedHeaderTitles.includes('Library') || detachedHeaderTitles.includes('Launch')) {
+                throw new Error('Detached parking card exposed unsupported normal-card actions: ' + JSON.stringify(detachedHeaderTitles));
+            }
+
+            window.showCategoryContextMenu({
+                preventDefault() {},
+                stopPropagation() {},
+                clientX: 100,
+                clientY: 100
+            }, detachedApi.PARKING_CATEGORY_NAME);
+            const catMenu = document.getElementById('cat-context-menu');
+            const catMenuText = String(catMenu?.textContent || '');
+            if (!catMenuText.includes('Open Detached Map') || !catMenuText.includes('Focus') || !catMenuText.includes('Select Card')) {
+                throw new Error('Detached parking card context menu is missing detached actions: ' + catMenuText);
+            }
+            if (catMenuText.includes('Delete') || catMenuText.includes('Rename')) {
+                throw new Error('Detached parking card context menu exposed unsupported destructive actions: ' + catMenuText);
+            }
 
             const repairedMalformedEntry = detachedApi.getDetachedEntry(malformedEntryId);
             const repairedMalformedRootId = String(repairedMalformedEntry?.folder?.rootId || '');

@@ -96,6 +96,18 @@ async function runSmoke(page) {
   await installRenderCounter(page);
 
   await page.waitForSelector('.category-card[data-card-category="Alpha"]', { timeout: 10000 });
+  await page.waitForFunction(() => {
+    return !document.querySelector('.category-card[data-card-category="Beta"]');
+  }, undefined, { timeout: 5000 });
+
+  await page.fill('#search', 'Alt Root');
+  await page.evaluate(() => window.renderDashboard());
+  await page.waitForFunction(() => {
+    return !document.querySelector('.category-card[data-card-category="Beta"]');
+  }, undefined, { timeout: 5000 });
+  await page.fill('#search', '');
+  await page.evaluate(() => window.renderDashboard());
+  await page.waitForSelector('.category-card[data-card-category="Alpha"]', { timeout: 10000 });
 
   await page.evaluate(() => {
     if (!window.EveQuickPins?.toggleBookmarkPin) throw new Error('Quick pins API unavailable');
@@ -139,6 +151,9 @@ async function runSmoke(page) {
   await resetRenderCounter(page);
   await page.evaluate(() => window.switchWorkspace('alt'));
   await page.waitForSelector('.category-card[data-card-category="Beta"]', { timeout: 10000 });
+  await page.waitForFunction(() => {
+    return !document.querySelector('.category-card[data-card-category="Alpha"]');
+  }, undefined, { timeout: 5000 });
   const altSwitchRenderCount = await getRenderCounter(page);
   if (altSwitchRenderCount !== 1) {
     throw new Error(`Expected one dashboard render when switching workspaces with focus active, got ${altSwitchRenderCount}`);

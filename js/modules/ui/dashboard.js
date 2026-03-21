@@ -170,15 +170,14 @@ function _renderDashboardCore() {
     grid.classList.toggle('focus-mode', !!focusCategory && !isUnidexMode);
     if (mainContent) mainContent.classList.toggle('unidex-view-active', isUnidexMode);
 
-    const visibleLinks = searchStr
-        ? links.filter(function (link) {
-            return link.title.toLowerCase().includes(searchStr)
-                || link.url.toLowerCase().includes(searchStr)
-                || link.category.toLowerCase().includes(searchStr);
-        })
-        : links.filter(function (link) {
-            return link.workspace === config.activeWorkspace;
-        });
+    const activeWorkspaceId = String(config.activeWorkspace || 'main').trim() || 'main';
+    const visibleLinks = links.filter(function (link) {
+        if (String(link?.workspace || 'main').trim() !== activeWorkspaceId) return false;
+        if (!searchStr) return true;
+        return String(link?.title || '').toLowerCase().includes(searchStr)
+            || String(link?.url || '').toLowerCase().includes(searchStr)
+            || String(link?.category || 'Unsorted').toLowerCase().includes(searchStr);
+    });
 
     if (isUnidexMode) {
         if (focusBanner) focusBanner.style.display = 'none';

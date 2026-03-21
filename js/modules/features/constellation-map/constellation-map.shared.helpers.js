@@ -283,7 +283,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         const names = new Set();
 
-        const order = Array.isArray(config.categoryOrder) ? config.categoryOrder : [];
+        const order = window.EveCategoryOrder?.getOrder
+            ? window.EveCategoryOrder.getOrder(workspaceId)
+            : (Array.isArray(config.categoryOrder) ? config.categoryOrder : []);
 
         links.forEach((link) => names.add(text(link?.category, 'Unsorted')));
 

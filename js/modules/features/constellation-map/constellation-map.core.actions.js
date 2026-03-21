@@ -276,7 +276,7 @@ function getArmedSourceCount() {
 
 
 
-function ensureCategoryInOrder(categoryName) {
+function ensureCategoryInOrder(categoryName, workspaceId) {
 
 
 
@@ -289,6 +289,14 @@ function ensureCategoryInOrder(categoryName) {
 
 
         const config = getConfig();
+
+        const nextWorkspaceId = text(workspaceId, config.activeWorkspace || 'main');
+
+        if (window.EveCategoryOrder?.ensureCategory) {
+
+            return !!window.EveCategoryOrder.ensureCategory(nextWorkspaceId, nextCategoryName);
+
+        }
 
 
 
@@ -531,7 +539,7 @@ function createCardAndAttachFromWorkspace(node) {
 
 
 
-        ensureCategoryInOrder(categoryName);
+        ensureCategoryInOrder(categoryName, workspaceId);
 
 
 

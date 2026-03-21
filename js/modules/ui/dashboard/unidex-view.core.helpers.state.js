@@ -50,8 +50,12 @@ window.UnidexViewModules = window.UnidexViewModules || {};
         }
 
         function getSortedCategories(workspaceLinks) {
+            const workspaceId = String(workspaceLinks[0]?.workspace || config.activeWorkspace || 'main').trim() || 'main';
+            const workspaceCategoryOrder = window.EveCategoryOrder?.getOrder
+                ? window.EveCategoryOrder.getOrder(workspaceId)
+                : (config.categoryOrder || []);
             if (window.DashboardCategories && typeof window.DashboardCategories.sort === 'function') {
-                return window.DashboardCategories.sort(workspaceLinks, config.categoryOrder || []);
+                return window.DashboardCategories.sort(workspaceLinks, workspaceCategoryOrder);
             }
             const unique = new Set(workspaceLinks.map(function (link) {
                 return link.category || 'Unsorted';

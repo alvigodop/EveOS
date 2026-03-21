@@ -24,6 +24,16 @@ function getCtxLink() {
 // Context Menu Global Actions
 window.deleteCategory = async function (name) {
     try {
+        const workspaceId = String(window.config?.activeWorkspace || window.ctxWsId || 'main').trim() || 'main';
+        if (window.EveDetachedDashboardCard?.isDetachedParkingCategory?.(name, workspaceId)) {
+            if (typeof showToast === 'function') {
+                showToast('Detached parking is managed from the map and cannot be deleted as a normal card.', 'info');
+            }
+            if (typeof closeAllMenus === 'function') closeAllMenus();
+            if (typeof closeModals === 'function') closeModals();
+            return;
+        }
+
         if (!(await showConfirm('Delete Category?'))) return;
 
         // Use the global let variable directly
@@ -42,10 +52,12 @@ window.deleteCategory = async function (name) {
             removedIds.forEach(id => window.EveLibrary.ConnectionsAPI.removeByLinkId(id));
         }
         
-        if (window.config && window.config.categoryOrder) {
+        if (window.EveCategoryOrder?.removeCategoryEverywhere) {
+            window.EveCategoryOrder.removeCategoryEverywhere(name);
+        } else if (window.config && window.config.categoryOrder) {
             window.config.categoryOrder = window.config.categoryOrder.filter(c => c !== name);
-            if (typeof saveConfig === 'function') saveConfig();
         }
+        if (typeof saveConfig === 'function') saveConfig();
 
         if (typeof saveData === 'function') saveData();
 

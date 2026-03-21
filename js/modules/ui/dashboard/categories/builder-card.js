@@ -470,6 +470,12 @@ window.DashboardCategories = window.DashboardCategories || {};
         var cardTargetId = window.EveQuickPins?.buildCardTargetId
             ? window.EveQuickPins.buildCardTargetId(activeWorkspaceId, cat)
             : buildScopedCategoryKey(activeWorkspaceId, cat);
+        var detachedMapButtonHtml = isDetachedParkingCard
+            ? '<button class="card-header-icon-btn constellation-btn" onclick="if(window.EveDetachedDashboardCard) window.EveDetachedDashboardCard.openDetachedParkingMap(\'' + escapeCardJs(activeWorkspaceId) + '\')" title="Detached Map">&#127756;</button>'
+            : '';
+        var detachedFocusMapButtonHtml = isDetachedParkingCard
+            ? '<button class=\"category-action-btn\" onclick=\"if(window.EveDetachedDashboardCard) window.EveDetachedDashboardCard.openDetachedParkingMap(\'' + escapeCardJs(activeWorkspaceId) + '\')\" title=\"Detached Map\">&#127756; <span>Map</span></button>'
+            : '';
         var visibleHeaderButtons = new Set(getCardHeaderButtonsForCategory(activeWorkspaceId, cat));
         var nonFocusButtons = [];
         if (!isDetachedParkingCard && visibleHeaderButtons.has('add')) {
@@ -483,6 +489,9 @@ window.DashboardCategories = window.DashboardCategories || {};
         }
         if (visibleHeaderButtons.has('focus')) {
             nonFocusButtons.push('<button class="card-header-icon-btn" onclick="setFocus(\'' + safeCatJs + '\')" title="Focus">&#127919;</button>');
+        }
+        if (isDetachedParkingCard) {
+            nonFocusButtons.push(detachedMapButtonHtml);
         }
         if (!isDetachedParkingCard && visibleHeaderButtons.has('constellation')) {
             nonFocusButtons.push('<button class="card-header-icon-btn constellation-btn" onclick="if(window.EveConstellationMap) window.EveConstellationMap.openCardMap(\'' + escapeCardJs(activeWorkspaceId) + '\', \'' + safeCatJs + '\')" title="Constellation Map">&#127756;</button>');
@@ -510,6 +519,7 @@ window.DashboardCategories = window.DashboardCategories || {};
                     + (!isDetachedParkingCard && visibleHeaderButtons.has('constellation')
                         ? '<button class=\"category-action-btn\" onclick=\"if(window.EveConstellationMap) window.EveConstellationMap.openCardMap(\'' + escapeCardJs(activeWorkspaceId) + '\', \'' + safeCatJs + '\')\" title=\"Constellation Map\">&#127756; <span>Map</span></button>'
                         : '')
+                    + detachedFocusMapButtonHtml
                     + '<select class="unidex-filter-select focus-filter-select" aria-label="Focused bookmark filter" onchange="window.DashboardCategories.setFocusedEntriesFilterMode(this.value)">'
                         + '<option value="all"' + (focusedFilterMode === 'all' ? ' selected' : '') + '>All Bookmarks</option>'
                         + '<option value="linked"' + (focusedFilterMode === 'linked' ? ' selected' : '') + '>Library Linked</option>'

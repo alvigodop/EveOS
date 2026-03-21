@@ -126,7 +126,9 @@ window.EveModuleManifestParts.scripts = [
 
 
 
-        'js/modules/core/state.js?v=0.2.3',
+        'js/modules/core/state.js?v=0.2.4',
+
+        'js/modules/core/category-order.js?v=0.1.0',
 
 
 
@@ -272,7 +274,7 @@ window.EveModuleManifestParts.scripts = [
         'js/modules/ui/phantom-peek.js',
 
         'js/modules/features/constellation-map/constellation-map.shared.state.js?v=0.1.5',
-        'js/modules/features/constellation-map/constellation-map.shared.helpers.js?v=0.1.1',
+        'js/modules/features/constellation-map/constellation-map.shared.helpers.js?v=0.1.2',
         'js/modules/features/constellation-map/constellation-map.shared.js?v=0.4.0',
         'js/modules/features/constellation-map/constellation-map.detached.js?v=0.1.3',
         'js/modules/features/constellation-map/constellation-map.fx.base.js?v=0.1.2',
@@ -320,7 +322,7 @@ window.EveModuleManifestParts.scripts = [
         'js/modules/features/constellation-map/constellation-map.toolbar.markup.js?v=0.1.10',
         'js/modules/features/constellation-map/constellation-map.toolbar.js?v=0.2.5',
         'js/modules/features/constellation-map/index.js?v=0.1.0',
-        'js/modules/features/constellation-map/constellation-map.core.actions.js?v=0.1.3',
+        'js/modules/features/constellation-map/constellation-map.core.actions.js?v=0.1.4',
         'js/modules/features/constellation-map/constellation-map.core.rewire.js?v=0.1.5',
         'js/modules/features/constellation-map/constellation-map.core.debug.js?v=0.1.0',
         'js/modules/features/constellation-map/constellation-map.core.js?v=0.6.2',
@@ -338,7 +340,7 @@ window.EveModuleManifestParts.scripts = [
 
         'js/modules/core/actions.js?v=0.2.6',
 
-        'js/modules/core/categories.js',
+        'js/modules/core/categories.js?v=0.1.0',
 
         // UI Modules
 
@@ -346,7 +348,7 @@ window.EveModuleManifestParts.scripts = [
 
         'js/modules/ui/notifications/toast.js',
 
-        'js/modules/ui/notifications/dialogs.js',
+        'js/modules/ui/notifications/dialogs.js?v=0.1.1',
 
         'js/modules/features/data-state/data-state.capture.clone.js?v=0.2.2',
 
@@ -996,7 +998,9 @@ window.EveModuleManifestParts.scripts = [
 
 
 
-'js/modules/ui/dashboard/categories/builder-card.js?v=0.2.61',
+'js/modules/ui/dashboard/categories/builder-card.js?v=0.2.62',
+
+        'js/modules/ui/dashboard/categories/detached-card.js?v=0.1.0',
 
 
 
@@ -1028,7 +1032,7 @@ window.EveModuleManifestParts.scripts = [
 
 
 
-        'js/modules/ui/dashboard/categories/render.js?v=0.2.43',
+        'js/modules/ui/dashboard/categories/render.js?v=0.2.45',
 
 
 
@@ -1476,7 +1480,7 @@ window.EveModuleManifestParts.scripts = [
 
 
 
-'js/modules/ui/dashboard/unidex-view.core.helpers.state.js?v=0.2.1',
+'js/modules/ui/dashboard/unidex-view.core.helpers.state.js?v=0.2.2',
 
 
 
@@ -1700,7 +1704,7 @@ window.EveModuleManifestParts.scripts = [
 
 
 
-        'js/modules/ui/dashboard.js?v=0.2.43', // Core dashboard (orchestrator)
+        'js/modules/ui/dashboard.js?v=0.2.44', // Core dashboard (orchestrator)
 
 
 
@@ -1764,7 +1768,7 @@ window.EveModuleManifestParts.scripts = [
 
 
 
-        'js/modules/ui/context-menus/actions.js?v=0.2.44',
+        'js/modules/ui/context-menus/actions.js?v=0.2.46',
 
 
 
@@ -1796,7 +1800,7 @@ window.EveModuleManifestParts.scripts = [
 
 
 
-        'js/modules/ui/context-menus/menus.js?v=0.2.44',
+        'js/modules/ui/context-menus/menus.js?v=0.2.45',
 
 
 
@@ -5677,7 +5681,7 @@ window.EveModuleManifestParts.scripts = [
 
 
 
-        'js/modules/modals/logic/category-rename.js',
+        'js/modules/modals/logic/category-rename.js?v=0.1.0',
 
 
 

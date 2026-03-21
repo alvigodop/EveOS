@@ -153,8 +153,16 @@ window.showCategoryContextMenu = function (e, name) {
     closeAllMenus();
 
     ctxCatName = name;
+    ctxWsId = String((window.config && window.config.activeWorkspace) || window.ctxWsId || 'main');
     const m = document.getElementById('cat-context-menu');
     if (!m) return;
+
+    const detachedMenuHtml = window.EveDetachedDashboardCard?.buildDetachedContextMenuHtml?.(name, ctxWsId) || '';
+    if (detachedMenuHtml) {
+        m.innerHTML = detachedMenuHtml;
+        placeContextMenu(m, e);
+        return;
+    }
 
     const safeName = String(name || '').replace(/'/g, "\\'");
     m.innerHTML = `

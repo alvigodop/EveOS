@@ -16,8 +16,12 @@ window.confirmRename = function () {
             window.EveLibrary?.ConnectionsAPI?.syncFromLink?.(l.id);
         });
         window.EveBookmarkFolders?.renameCategoryEverywhere?.(o, name);
-        const idx = config.categoryOrder.indexOf(o);
-        if (idx > -1) config.categoryOrder[idx] = name;
+        if (window.EveCategoryOrder?.renameCategoryEverywhere) {
+            window.EveCategoryOrder.renameCategoryEverywhere(o, name);
+        } else {
+            const idx = config.categoryOrder.indexOf(o);
+            if (idx > -1) config.categoryOrder[idx] = name;
+        }
         if (config.hideStats.includes(o)) {
             config.hideStats = config.hideStats.filter(c => c !== o);
             config.hideStats.push(name);

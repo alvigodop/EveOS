@@ -25,102 +25,6 @@ function hasFolderBackedCategory(workspaceId, categoryName) {
     return !!(tree && Array.isArray(tree.nodes) && tree.nodes.length);
 }
 
-function buildDetachedDashboardModel(workspaceId) {
-    const detachedApi = window.EveConstellationMap?._detached;
-    const parkingCategoryName = String(detachedApi?.PARKING_CATEGORY_NAME || 'Detached Nodes');
-    const entries = typeof detachedApi?.getDetachedEntriesForScope === 'function'
-        ? detachedApi.getDetachedEntriesForScope({ scope: 'workspace', workspaceId: workspaceId })
-        : [];
-    if (!Array.isArray(entries) || !entries.length) return null;
-
-    const nodes = [];
-    const rootLinks = [];
-    const folderLinks = new Map();
-    const childrenMap = new Map();
-    const topLevelFolders = [];
-
-    function pushChild(parentId, node) {
-        const key = parentId || null;
-        if (!childrenMap.has(key)) childrenMap.set(key, []);
-        childrenMap.get(key).push(node);
-    }
-
-    entries.forEach(function (entry) {
-        if (!entry || entry.workspaceId !== workspaceId) return;
-        if (entry.kind === 'link') {
-            const liveishLink = Object.assign({}, entry.link || {}, {
-                workspace: workspaceId,
-                category: parkingCategoryName,
-                detached: true,
-                detachedEntryId: String(entry.id || '')
-            });
-            rootLinks.push(liveishLink);
-            return;
-        }
-
-        const folderData = entry.folder || {};
-        const folderNodes = Array.isArray(folderData.nodes) ? folderData.nodes : [];
-        const folderLinksRaw = Array.isArray(folderData.links) ? folderData.links : [];
-        const idMap = new Map();
-
-        folderNodes.forEach(function (node) {
-            const originalId = String(node?.id || '');
-            if (!originalId) return;
-            idMap.set(originalId, 'detached::' + String(entry.id || '') + '::' + originalId);
-        });
-
-        folderNodes.forEach(function (node) {
-            const originalId = String(node?.id || '');
-            const syntheticId = idMap.get(originalId);
-            if (!syntheticId) return;
-            const syntheticNode = Object.assign({}, node, {
-                id: syntheticId,
-                parentId: idMap.get(String(node?.parentId || '')) || null,
-                detachedEntryId: String(entry.id || ''),
-                detachedOriginalId: originalId,
-                detachedEntryRoot: originalId === String(folderData?.rootId || '')
-            });
-            nodes.push(syntheticNode);
-            if (!syntheticNode.parentId) topLevelFolders.push(syntheticNode);
-            pushChild(syntheticNode.parentId, syntheticNode);
-        });
-
-        folderLinksRaw.forEach(function (link) {
-            const syntheticFolderId = idMap.get(String(link?.folderId || '')) || '';
-            const liveishLink = Object.assign({}, link || {}, {
-                workspace: workspaceId,
-                category: parkingCategoryName,
-                folderId: syntheticFolderId,
-                detached: true,
-                detachedEntryId: String(entry.id || '')
-            });
-            if (!folderLinks.has(syntheticFolderId)) folderLinks.set(syntheticFolderId, []);
-            folderLinks.get(syntheticFolderId).push(liveishLink);
-        });
-    });
-
-    topLevelFolders.sort(function (left, right) {
-        return String(left?.name || '').localeCompare(String(right?.name || ''));
-    });
-    childrenMap.forEach(function (items) {
-        items.sort(function (left, right) {
-            return String(left?.name || '').localeCompare(String(right?.name || ''));
-        });
-    });
-
-    return {
-        categoryName: parkingCategoryName,
-        links: rootLinks.concat(Array.from(folderLinks.values()).flat()),
-        viewModel: {
-            nodes: nodes,
-            rootLinks: rootLinks,
-            topLevelFolders: topLevelFolders,
-            childrenMap: childrenMap,
-            folderLinks: folderLinks
-        }
-    };
-}
-
 function collectDashboardCategories(visibleLinks, workspaceId, categoryOrder, detachedModel) {
     const linkedCategories = window.DashboardCategories.sort(visibleLinks, categoryOrder);
     const folderCategories = getFolderBackedCategories(workspaceId);
@@ -147,8 +51,13 @@ function collectDashboardCategories(visibleLinks, workspaceId, categoryOrder, de
 window.renderCategories = function (visibleLinks, gridContainer, focusCategory, searchStr) {
     if (!gridContainer) return;
     const activeWorkspace = getDashboardActiveWorkspace();
-    const detachedModel = buildDetachedDashboardModel(activeWorkspace);
-    const categories = collectDashboardCategories(visibleLinks, activeWorkspace, config.categoryOrder, detachedModel);
+    const workspaceCategoryOrder = window.EveCategoryOrder?.getOrder
+        ? window.EveCategoryOrder.getOrder(activeWorkspace)
+        : (Array.isArray(config.categoryOrder) ? config.categoryOrder : []);
+    const detachedModel = window.EveDetachedDashboardCard?.buildDetachedDashboardModel
+        ? window.EveDetachedDashboardCard.buildDetachedDashboardModel(activeWorkspace)
+        : null;
+    const categories = collectDashboardCategories(visibleLinks, activeWorkspace, workspaceCategoryOrder, detachedModel);
 
     categories.forEach(cat => {
         if (focusCategory && cat !== focusCategory) return;
@@ -160,7 +69,11 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
         const hasFolderContent = isDetachedParkingCard
             ? !!(detachedModel?.viewModel?.nodes?.length)
             : hasFolderBackedCategory(activeWorkspace, cat);
-        const shouldRenderEmptyCard = !searchStr && Array.isArray(config.categoryOrder) && config.categoryOrder.includes(cat);
+        const shouldRenderEmptyCard = !searchStr && (
+            window.EveCategoryOrder?.hasCategory
+                ? window.EveCategoryOrder.hasCategory(activeWorkspace, cat)
+                : workspaceCategoryOrder.includes(cat)
+        );
 
         if (catLinks.length > 0 || hasFolderContent || shouldRenderEmptyCard) {
             const buildConfig = {

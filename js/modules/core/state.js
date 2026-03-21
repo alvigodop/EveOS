@@ -11,6 +11,7 @@ let config = {
     popupColor: "#1e1e1e",
     collapsed: [],
     categoryOrder: [],
+    categoryOrderByWorkspace: {},
     userName: "",
     searchEngine: "https://www.google.com/search?q=",
     searchMode: "basic",
