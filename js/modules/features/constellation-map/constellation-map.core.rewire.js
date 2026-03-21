@@ -241,7 +241,24 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 x: Number(node.x) || 0,
                 y: Number(node.y) || 0,
                 vx: Number(node.vx) || 0,
-                vy: Number(node.vy) || 0
+                vy: Number(node.vy) || 0,
+                manualAnchor: node?.manualAnchor && typeof node.manualAnchor === 'object'
+                    ? {
+                        x: Number(node.manualAnchor.x) || 0,
+                        y: Number(node.manualAnchor.y) || 0,
+                        driftRadius: Number(node.manualAnchor.driftRadius) || 0,
+                        pullStrength: Number(node.manualAnchor.pullStrength) || 0,
+                        damping: Number(node.manualAnchor.damping) || 0,
+                        speed: Number(node.manualAnchor.speed) || 0,
+                        phase: Number(node.manualAnchor.phase) || 0
+                    }
+                    : null,
+                staticAnchor: node?.staticAnchor && typeof node.staticAnchor === 'object'
+                    ? {
+                        x: Number(node.staticAnchor.x) || 0,
+                        y: Number(node.staticAnchor.y) || 0
+                    }
+                    : null
             }])
         );
         buildGraphData(state.scope, { preserveLocks: true });
@@ -257,6 +274,23 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             node.y = prior.y;
             node.vx = prior.vx;
             node.vy = prior.vy;
+            node.manualAnchor = prior.manualAnchor
+                ? {
+                    x: prior.manualAnchor.x,
+                    y: prior.manualAnchor.y,
+                    driftRadius: prior.manualAnchor.driftRadius,
+                    pullStrength: prior.manualAnchor.pullStrength,
+                    damping: prior.manualAnchor.damping,
+                    speed: prior.manualAnchor.speed,
+                    phase: prior.manualAnchor.phase
+                }
+                : null;
+            node.staticAnchor = prior.staticAnchor
+                ? {
+                    x: prior.staticAnchor.x,
+                    y: prior.staticAnchor.y
+                }
+                : null;
         });
         syncMotionAnchors(true);
         renderHeader();
@@ -275,6 +309,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         renderInspector();
         renderToolbarState();
         requestDraw();
+        if (typeof window.renderDashboard === 'function') {
+            window.renderDashboard();
+        }
     }
 
     function resetTransientRewireState() {

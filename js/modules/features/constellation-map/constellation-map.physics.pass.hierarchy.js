@@ -317,7 +317,48 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             const pId = (n.data && n.data.anchorNodeId) ? n.data.anchorNodeId : '';
             const pNode = pId ? state.nodeIndex.get(pId) : null;
 
-            if (n.kind !== 'folder' || !pNode) return;
+            if (n.kind !== 'folder') return;
+
+            if (!pNode && n.data?.detachedRoot) {
+                const children = state.nodes.filter((entry) => text(entry?.data?.anchorNodeId, '') === n.id);
+                const existing = folderOrientations.get(n.id);
+                const currentAngle = (existing && existing.orientAngle !== undefined) ? existing.orientAngle : (-Math.PI / 2);
+                let targetAngle = currentAngle;
+                const isBeingDragged = state.pointer.mode === 'node' && state.pointer.node?.id === n.id;
+                const speed = Math.sqrt((Number(n.vx) || 0) * (Number(n.vx) || 0) + (Number(n.vy) || 0) * (Number(n.vy) || 0));
+
+                if (isBeingDragged && speed > 0.5) {
+                    targetAngle = Math.atan2(Number(n.vy) || 0, Number(n.vx) || 0);
+                } else if (children.length) {
+                    let sumX = 0;
+                    let sumY = 0;
+                    children.forEach((child) => {
+                        sumX += child.x;
+                        sumY += child.y;
+                    });
+                    const avgX = sumX / children.length;
+                    const avgY = sumY / children.length;
+                    const dx = n.x - avgX;
+                    const dy = n.y - avgY;
+                    if (Math.sqrt((dx * dx) + (dy * dy)) > 0.001) {
+                        targetAngle = Math.atan2(dy, dx);
+                    }
+                }
+
+                const smoothedAngle = lerpAngle(currentAngle, targetAngle, isBeingDragged ? 0.2 : 0.08);
+                folderOrientations.set(n.id, {
+                    node: n,
+                    parent: null,
+                    nx: Math.cos(smoothedAngle),
+                    ny: Math.sin(smoothedAngle),
+                    dist: 0,
+                    isRoot: true,
+                    orientAngle: smoothedAngle
+                });
+                return;
+            }
+
+            if (!pNode) return;
 
             const isRoot = (pNode.kind === 'category' || pNode.kind === 'workspace');
             const fdx = pNode.x - n.x;

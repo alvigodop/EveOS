@@ -379,7 +379,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                     workspaceId: text(entry?.workspaceId, 'main'),
                     categoryName: parkingCategoryName,
                     originCategoryName: text(entry?.originCategoryName, ''),
+                    linkId: String(link.id || ''),
                     url: text(link?.url, ''),
+                    anchorNodeId: '',
                     depth: 0
                 }
             }));
@@ -429,6 +431,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                         originCategoryName: text(entry?.originCategoryName, ''),
                         folderId: String(folderNodeModel.id),
                         coverCandidates: buildCoverCandidates(descendantLinks),
+                        anchorNodeId: parentNode?.id || '',
                         depth
                     }
                 }));
@@ -454,7 +457,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                             workspaceId: text(entry?.workspaceId, 'main'),
                             categoryName: parkingCategoryName,
                             originCategoryName: text(entry?.originCategoryName, 'Unsorted'),
+                            linkId: String(link.id || ''),
                             url: text(link?.url, ''),
+                            anchorNodeId: folderNode.id,
                             depth: depth + 1
                         }
                     }));
