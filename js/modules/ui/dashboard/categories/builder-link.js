@@ -163,6 +163,11 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
     const pinnedClass = isPinned ? 'pinned-link' : '';
     const encodedLinkId = encodeURIComponent(linkId);
     const jsLinkIdLiteral = `'${linkId.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+    const detachedEntryId = String(l?.detachedEntryId || '').trim();
+    const jsDetachedEntryIdLiteral = `'${detachedEntryId.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+    const dragStartHandler = (l?.detached && detachedEntryId)
+        ? `if(window.EveConstellationMap&&window.EveConstellationMap._detached&&typeof window.EveConstellationMap._detached.handleDetachedLinkDragStart==='function') window.EveConstellationMap._detached.handleDetachedLinkDragStart(event, ${jsDetachedEntryIdLiteral}, ${jsLinkIdLiteral});`
+        : `drag(event, ${jsLinkIdLiteral})`;
 
     let wsBadge = (searchStr && l.workspace !== activeWorkspace)
         ? `<span class="search-badge">${workspaces.find(w => w.id === l.workspace)?.name || "?"}</span>`
@@ -170,15 +175,18 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
     const folderBadge = extraOptions.folderLabel
         ? `<span class="bookmark-folder-link-badge">${extraOptions.folderLabel}</span>`
         : '';
+    const detachedBadge = (l?.detached && !folderBadge)
+        ? '<span class="bookmark-folder-link-badge">Detached</span>'
+        : '';
     const isTaskEnabled = extraOptions.isTaskEnabled !== false;
     const doneClass = isTaskEnabled && l.done ? 'done' : '';
     const doneActionHtml = isTaskEnabled
         ? `<span class="icon-btn" onclick="toggleDone(${jsLinkIdLiteral})">${CHECK_ICON}</span>`
         : '';
 
-    return `<li class="${doneClass} ${isLocal ? 'is-local' : ''} ${pClass} ${pinnedClass}" draggable="true" ondragstart="drag(event, ${jsLinkIdLiteral})" oncontextmenu="showLinkContextMenu(event, ${jsLinkIdLiteral})" onmouseenter="showBookmarkCoverHover(event, ${jsLinkIdLiteral})" onmousemove="moveBookmarkCoverHover(event)" onmouseleave="hideBookmarkCoverHover()">
+    return `<li class="${doneClass} ${isLocal ? 'is-local' : ''} ${pClass} ${pinnedClass}" draggable="true" ondragstart="${dragStartHandler}" oncontextmenu="showLinkContextMenu(event, ${jsLinkIdLiteral})" onmouseenter="showBookmarkCoverHover(event, ${jsLinkIdLiteral})" onmousemove="moveBookmarkCoverHover(event)" onmouseleave="hideBookmarkCoverHover()">
                 <input type="checkbox" class="bulk-check" data-bulk-id="${linkId.replace(/&/g, '&amp;').replace(/\"/g, '&quot;')}" onclick="event.preventDefault();event.stopPropagation();toggleSelect(this, ${jsLinkIdLiteral}, event);return false;" ${isChecked}>
-                ${iconHtml} ${wsBadge} ${folderBadge} <a href="${l.url}" target="_blank" rel="noopener noreferrer" onclick='return (typeof openBookmarkFromDashboard==="function") ? openBookmarkFromDashboard(event, decodeURIComponent("${encodedLinkId}")) : true;'>${l.title}</a>
+                ${iconHtml} ${wsBadge} ${folderBadge} ${detachedBadge} <a href="${l.url}" target="_blank" rel="noopener noreferrer" onclick='return (typeof openBookmarkFromDashboard==="function") ? openBookmarkFromDashboard(event, decodeURIComponent("${encodedLinkId}")) : true;'>${l.title}</a>
                 <div class="actions">
                     <span class="icon-btn ${isPinned ? 'pin-active' : ''}" onclick="togglePin(${jsLinkIdLiteral})">${PIN_ICON}</span>
                     ${doneActionHtml}

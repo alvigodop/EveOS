@@ -14,6 +14,17 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     const renderAnchors = ns._renderAnchors || {};
     const { stepAngleToward } = renderAnchors;
 
+    function normalizeAngle(angle) {
+        let value = Number.isFinite(angle) ? angle : 0;
+        while (value <= -Math.PI) value += Math.PI * 2;
+        while (value > Math.PI) value -= Math.PI * 2;
+        return value;
+    }
+
+    function getAngleDelta(current, target) {
+        return normalizeAngle(target - current);
+    }
+
     function drawPhysicsAuras(ctx) {
         if (!isAuraVisualsEnabled()) return;
 
@@ -57,12 +68,15 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             const dragDx = Number(state.pointer.releaseVx) || 0;
             const dragDy = Number(state.pointer.releaseVy) || 0;
             const dragDistSq = (dragDx * dragDx) + (dragDy * dragDy);
+            const previousRoot = storedAuraRoots.get(node.chainId);
+            let lockedAngle = Number.isFinite(previousRoot?.lockedAngle) ? previousRoot.lockedAngle : null;
 
             if (isDraggingRoot && dragDistSq > 0.1) {
                 const dragDist = Math.sqrt(dragDistSq);
                 frontX = dragDx / dragDist;
                 frontY = dragDy / dragDist;
                 frontAngle = Math.atan2(frontY, frontX);
+                lockedAngle = frontAngle;
             } else if (hasWorkspaceParentAura) {
                 frontAngle = Number.isFinite(workspaceParentAngle)
                     ? workspaceParentAngle
@@ -88,7 +102,6 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 }
             }
 
-            const previousRoot = storedAuraRoots.get(node.chainId);
             if (!isDraggingRoot && hasWorkspaceParentAura && previousRoot) {
                 const targetAngle = Number.isFinite(workspaceParentAngle)
                     ? workspaceParentAngle
@@ -106,18 +119,49 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 frontX = Math.cos(frontAngle);
                 frontY = Math.sin(frontAngle);
             } else if (previousRoot && !isDraggingRoot) {
-                const targetAngle = frontAngle;
+                let targetAngle = frontAngle;
                 const currentAngle = Number.isFinite(previousRoot.frontAngle)
                     ? previousRoot.frontAngle
                     : targetAngle;
-                const smoothing = directFolders.length > 0 ? 0.028 : 0.05;
-                const maxStep = directFolders.length > 0 ? 0.04 : 0.07;
-                frontAngle = stepAngleToward(currentAngle, targetAngle, smoothing, maxStep);
+                const childCount = Math.max(1, directFolders.length);
+                const isSingleChild = childCount === 1;
+                const hasLockedDirection = Number.isFinite(lockedAngle) && !hasWorkspaceParentAura;
+                if (hasLockedDirection && directFolders.length > 0) {
+                    frontAngle = stepAngleToward(currentAngle, lockedAngle, 0.2, 0.03);
+                    frontX = Math.cos(frontAngle);
+                    frontY = Math.sin(frontAngle);
+                    const nextRoot = { node, frontX, frontY, frontAngle, lockedAngle };
+                    auraRoots.set(node.chainId, nextRoot);
+                    storedAuraRoots.set(node.chainId, nextRoot);
+                    return;
+                }
+                if (hasLockedDirection && directFolders.length > 0) {
+                    const childInfluence = isSingleChild ? 0.018 : childCount <= 3 ? 0.032 : 0.055;
+                    targetAngle = normalizeAngle(lockedAngle + (getAngleDelta(lockedAngle, targetAngle) * childInfluence));
+                }
+                const delta = Math.abs(getAngleDelta(currentAngle, targetAngle));
+                const deadzone = hasLockedDirection
+                    ? (isSingleChild ? 0.82 : childCount <= 3 ? 0.66 : 0.5)
+                    : (directFolders.length > 0 ? (isSingleChild ? 0.3 : childCount <= 3 ? 0.22 : 0.16) : 0);
+                if (delta <= deadzone) {
+                    frontAngle = currentAngle;
+                } else {
+                    const smoothing = hasLockedDirection
+                        ? (isSingleChild ? 0.0012 : childCount <= 3 ? 0.0018 : 0.0026)
+                        : (directFolders.length > 0 ? (isSingleChild ? 0.006 : childCount <= 3 ? 0.01 : 0.015) : 0.05);
+                    const maxStep = hasLockedDirection
+                        ? (isSingleChild ? 0.002 : childCount <= 3 ? 0.003 : 0.0045)
+                        : (directFolders.length > 0 ? (isSingleChild ? 0.008 : childCount <= 3 ? 0.012 : 0.018) : 0.07);
+                    const adjustedTarget = deadzone > 0
+                        ? normalizeAngle(currentAngle + (Math.sign(getAngleDelta(currentAngle, targetAngle)) * Math.max(0, delta - deadzone)))
+                        : targetAngle;
+                    frontAngle = stepAngleToward(currentAngle, adjustedTarget, smoothing, maxStep);
+                }
                 frontX = Math.cos(frontAngle);
                 frontY = Math.sin(frontAngle);
             }
 
-            const nextRoot = { node, frontX, frontY, frontAngle };
+            const nextRoot = { node, frontX, frontY, frontAngle, lockedAngle };
             auraRoots.set(node.chainId, nextRoot);
             storedAuraRoots.set(node.chainId, nextRoot);
         });

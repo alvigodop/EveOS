@@ -260,7 +260,7 @@ window.EveModuleManifestParts.scripts = [
         'js/modules/features/bookmark-folders/bookmark-folders.ghosts.js?v=0.3.0',
 
         'js/modules/features/bookmark-folders/bookmark-folders.view.js?v=0.2.2',
-        'js/modules/features/bookmark-folders/bookmark-folders.management.js?v=0.2.4',
+        'js/modules/features/bookmark-folders/bookmark-folders.management.js?v=0.2.5',
 
         'js/modules/features/bookmark-folders/bookmark-folders.behavior.js?v=0.2.1',
 
@@ -274,7 +274,7 @@ window.EveModuleManifestParts.scripts = [
         'js/modules/features/constellation-map/constellation-map.shared.state.js?v=0.1.5',
         'js/modules/features/constellation-map/constellation-map.shared.helpers.js?v=0.1.1',
         'js/modules/features/constellation-map/constellation-map.shared.js?v=0.4.0',
-        'js/modules/features/constellation-map/constellation-map.detached.js?v=0.1.2',
+        'js/modules/features/constellation-map/constellation-map.detached.js?v=0.1.3',
         'js/modules/features/constellation-map/constellation-map.fx.base.js?v=0.1.2',
         'js/modules/features/constellation-map/constellation-map.fx.effects.webgl.three.js?v=0.2.0',
         'js/modules/features/constellation-map/constellation-map.fx.effects.webgl.quantum.shaders.js?v=0.1.0',
@@ -296,10 +296,10 @@ window.EveModuleManifestParts.scripts = [
 
         'js/modules/features/constellation-map/constellation-map.render.anchors.js?v=0.1.0',
         'js/modules/features/constellation-map/constellation-map.render.labels.js?v=0.1.0',
-        'js/modules/features/constellation-map/constellation-map.render.auras.js?v=0.1.5',
+        'js/modules/features/constellation-map/constellation-map.render.auras.js?v=0.1.6',
         'js/modules/features/constellation-map/constellation-map.render.canvas.js?v=0.2.0',
         'js/modules/features/constellation-map/constellation-map.render.toolbar.js?v=0.1.6',
-        'js/modules/features/constellation-map/constellation-map.render.inspector.js?v=0.1.3',
+        'js/modules/features/constellation-map/constellation-map.render.inspector.js?v=0.1.4',
         'js/modules/features/constellation-map/constellation-map.render.js?v=0.3.2',
 
         'js/modules/features/constellation-map/constellation-map.physics.aura.js?v=0.1.5',
@@ -804,7 +804,7 @@ window.EveModuleManifestParts.scripts = [
 
 
 
-        'js/modules/ui/dashboard/categories/builder-link.js?v=0.2.47',
+        'js/modules/ui/dashboard/categories/builder-link.js?v=0.2.48',
 
 
 
@@ -996,7 +996,7 @@ window.EveModuleManifestParts.scripts = [
 
 
 
-'js/modules/ui/dashboard/categories/builder-card.js?v=0.2.60',
+'js/modules/ui/dashboard/categories/builder-card.js?v=0.2.61',
 
 
 
@@ -1028,7 +1028,7 @@ window.EveModuleManifestParts.scripts = [
 
 
 
-        'js/modules/ui/dashboard/categories/render.js?v=0.2.42',
+        'js/modules/ui/dashboard/categories/render.js?v=0.2.43',
 
 
 

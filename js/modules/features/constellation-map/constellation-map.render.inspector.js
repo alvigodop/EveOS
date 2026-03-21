@@ -212,9 +212,6 @@ function applyInspectorShellStyle(isCollapsed) {
         const hasArmedSource = !!ns._coreRewire?.hasArmedSource?.();
 
         if (node.data?.detached && node.data?.detachedRoot) {
-
-            if (canRewire) actions.push({ label: isRewireSource ? 'Cancel Reattach' : 'Reattach Chain', action: isRewireSource ? 'cancel-rewire' : 'arm-rewire' });
-
             return actions;
 
         }
@@ -266,14 +263,6 @@ function applyInspectorShellStyle(isCollapsed) {
         if (node.kind === 'workspace') {
 
             actions.push({ label: 'New Card + Attach', action: 'create-card-attach' });
-
-            return actions;
-
-        }
-
-        if (node.data?.detached && node.data?.detachedRoot) {
-
-            if (canRewire) actions.push({ label: isRewireSource ? 'Cancel Reattach' : 'Reattach Chain', action: isRewireSource ? 'cancel-rewire' : 'arm-rewire' });
 
             return actions;
 

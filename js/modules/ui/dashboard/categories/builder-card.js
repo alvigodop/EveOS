@@ -159,7 +159,8 @@ window.DashboardCategories = window.DashboardCategories || {};
 
     function buildFolderSectionsHtml(categoryName, linksForCard, options, renderer) {
         const folderApi = window.EveBookmarkFolders;
-        const readOnlyFolders = !!options?.readOnlyFolders;
+        const isDetachedParkingCard = !!options?.detachedParkingCard;
+        const readOnlyFolders = !!options?.readOnlyFolders && !isDetachedParkingCard;
         const virtualFolderViewModel = options?.virtualFolderViewModel || null;
         if (!virtualFolderViewModel && !folderApi?.buildFolderView) {
             return renderer(linksForCard);
@@ -172,7 +173,7 @@ window.DashboardCategories = window.DashboardCategories || {};
         }
 
         // If Manhwa Mode (Navigation View) is active for this card, use the V2 Root Grid instead of the tree.
-        if (!readOnlyFolders && window.EveFolderViewV2 && window.EveFolderViewV2.isManhwaModeEnabled(workspaceId, categoryName)) {
+        if (!isDetachedParkingCard && !readOnlyFolders && window.EveFolderViewV2 && window.EveFolderViewV2.isManhwaModeEnabled(workspaceId, categoryName)) {
             return window.EveFolderViewV2.renderRootGrid(workspaceId, categoryName, viewModel, renderer);
         }
 
@@ -180,9 +181,22 @@ window.DashboardCategories = window.DashboardCategories || {};
         const safeWorkspaceJs = escapeCardJs(workspaceId);
         const toolbarExpanded = !!folderApi.isToolbarExpanded?.(workspaceId, categoryName);
 
-        function buildDropTargetAttributes(targetFolderId) {
+        function buildDropTargetAttributes(targetFolderId, detachedEntryId) {
             if (readOnlyFolders) return '';
             const safeFolderId = escapeCardJs(targetFolderId || '');
+            const safeDetachedEntryId = escapeCardJs(detachedEntryId || '');
+            if (isDetachedParkingCard) {
+                if (!safeDetachedEntryId) {
+                    return 'ondragover="allowDrop(event)" '
+                        + 'ondrop="event.currentTarget.classList.remove(\'bookmark-folder-drop-target\'); if(window.EveConstellationMap&&window.EveConstellationMap._detached&&typeof window.EveConstellationMap._detached.handleDashboardParkingDrop===\'function\') window.EveConstellationMap._detached.handleDashboardParkingDrop(event, \'' + safeWorkspaceJs + '\')"'
+                        + ' ondragenter="event.currentTarget.classList.add(\'bookmark-folder-drop-target\')"'
+                        + ' ondragleave="event.currentTarget.classList.remove(\'bookmark-folder-drop-target\')"';
+                }
+                return 'ondragover="allowDrop(event)" '
+                    + `ondrop="event.currentTarget.classList.remove('bookmark-folder-drop-target'); if(window.EveConstellationMap&&window.EveConstellationMap._detached&&typeof window.EveConstellationMap._detached.handleDashboardDetachedFolderDrop==='function') window.EveConstellationMap._detached.handleDashboardDetachedFolderDrop(event, '${safeDetachedEntryId}', '${safeFolderId}')"`
+                    + ' ondragenter="event.currentTarget.classList.add(\'bookmark-folder-drop-target\')"'
+                    + ' ondragleave="event.currentTarget.classList.remove(\'bookmark-folder-drop-target\')"';
+            }
             return 'ondragover="allowDrop(event)" '
                 + `ondrop="event.currentTarget.classList.remove('bookmark-folder-drop-target'); moveBookmarksToFolderDrop(event, '${safeCategoryJs}', '${safeFolderId}', '${safeWorkspaceJs}')"`
                 + ' ondragenter="event.currentTarget.classList.add(\'bookmark-folder-drop-target\')"'
@@ -206,11 +220,16 @@ window.DashboardCategories = window.DashboardCategories || {};
             const actionsExpanded = isFolderActionExpanded(workspaceId, categoryName, node.id);
             const actionsExpandedAttr = actionsExpanded ? 'true' : 'false';
             const actionsHiddenAttr = actionsExpanded ? '' : ' hidden';
-            const dragStartAttr = (isGhostNode || readOnlyFolders)
-                ? ''
-                : `draggable="true" ondragstart="if(typeof window.EveFolderViewV2?.handleFolderDragStart==='function') window.EveFolderViewV2.handleFolderDragStart(event, '${escapeCardJs(node.id)}', '${safeCategoryJs}', '${safeWorkspaceJs}')" ondragend="this.classList.remove('is-dragging')"`;
-            const dropTargetAttributes = isGhostNode ? '' : buildDropTargetAttributes(node.id);
-            const summaryActionsHtml = (isGhostNode || readOnlyFolders)
+            const dragStartAttr = (function () {
+                if (isGhostNode || readOnlyFolders) return '';
+                if (isDetachedParkingCard) {
+                    if (!node.detachedEntryRoot || !node.detachedEntryId) return '';
+                    return `draggable="true" ondragstart="if(window.EveConstellationMap&&window.EveConstellationMap._detached&&typeof window.EveConstellationMap._detached.handleDetachedFolderDragStart==='function') window.EveConstellationMap._detached.handleDetachedFolderDragStart(event, '${escapeCardJs(node.detachedEntryId)}', '${escapeCardJs(node.detachedOriginalId || '')}')" ondragend="this.classList.remove('is-dragging')"`;
+                }
+                return `draggable="true" ondragstart="if(typeof window.EveFolderViewV2?.handleFolderDragStart==='function') window.EveFolderViewV2.handleFolderDragStart(event, '${escapeCardJs(node.id)}', '${safeCategoryJs}', '${safeWorkspaceJs}')" ondragend="this.classList.remove('is-dragging')"`;
+            })();
+            const dropTargetAttributes = isGhostNode ? '' : buildDropTargetAttributes(node.id, node.detachedEntryId || '');
+            const summaryActionsHtml = (isGhostNode || readOnlyFolders || isDetachedParkingCard)
                 ? ''
                 : ''
                     + '<div class="bookmark-folder-summary-actions">'
@@ -230,7 +249,7 @@ window.DashboardCategories = window.DashboardCategories || {};
                     : '<div class="bookmark-folder-empty">No bookmarks in this folder yet.</div>');
 
             return ''
-                + `<details class="bookmark-folder-group${isGhostNode ? ' is-ghost-folder-group' : ''}" open data-bookmark-folder-target-id="${escapeCardHtml(folderTargetId)}" ${dropTargetAttributes} ${dragStartAttr}>`
+                + `<details class="bookmark-folder-group${isGhostNode ? ' is-ghost-folder-group' : ''}" open data-bookmark-folder-target-id="${escapeCardHtml(folderTargetId)}" data-detached-entry-id="${escapeCardHtml(node.detachedEntryId || '')}" ${dropTargetAttributes} ${dragStartAttr}>`
 
                     + '<summary class="bookmark-folder-summary">'
                         + '<div class="bookmark-folder-summary-copy">'
@@ -252,7 +271,7 @@ window.DashboardCategories = window.DashboardCategories || {};
         const rootActionsExpanded = isFolderActionExpanded(workspaceId, categoryName, '__root__');
         const rootActionsExpandedAttr = rootActionsExpanded ? 'true' : 'false';
         const rootActionsHiddenAttr = rootActionsExpanded ? '' : ' hidden';
-        const toolbarHtml = readOnlyFolders
+        const toolbarHtml = (readOnlyFolders || isDetachedParkingCard)
             ? ''
             : ''
             + `<div class="bookmark-folder-toolbar${toolbarExpanded ? ' is-visible' : ''}">`
@@ -267,13 +286,13 @@ window.DashboardCategories = window.DashboardCategories || {};
         return ''
             + toolbarHtml
             + '<div class="bookmark-folder-sections">'
-                + `<div class="bookmark-folder-root-group" ${buildDropTargetAttributes('')}>`
+                + `<div class="bookmark-folder-root-group" ${buildDropTargetAttributes('', '')}>`
                     + '<div class="bookmark-folder-root-header">'
                         + '<div class="bookmark-folder-root-copy">'
                             + '<span class="bookmark-folder-root-title">Root Bookmarks</span>'
                             + `<span class="bookmark-folder-meta">${viewModel.rootLinks.length} bookmark${viewModel.rootLinks.length === 1 ? '' : 's'}</span>`
                         + '</div>'
-                        + (readOnlyFolders
+                        + (readOnlyFolders || isDetachedParkingCard
                             ? ''
                             : '<div class="bookmark-folder-summary-actions">'
                                 + `<button type="button" class="bookmark-folder-inline-btn bookmark-folder-summary-edit-toggle" aria-expanded="${rootActionsExpandedAttr}" onclick="event.preventDefault();event.stopPropagation();toggleCategoryCardFolderActions(this, '${safeCategoryJs}', '__root__', '${safeWorkspaceJs}')">&#9998;</button>`
@@ -382,22 +401,16 @@ window.DashboardCategories = window.DashboardCategories || {};
             if (typeof allowDrop === 'function') allowDrop(event);
         };
         card.ondrop = function (event) {
+            if (isDetachedParkingCard) {
+                if (window.EveConstellationMap && window.EveConstellationMap._detached && typeof window.EveConstellationMap._detached.handleDashboardParkingDrop === 'function') {
+                    window.EveConstellationMap._detached.handleDashboardParkingDrop(event, activeWorkspaceId);
+                }
+                return;
+            }
             if (typeof drop === 'function') drop(event, cat);
         };
 
         function renderLinkCollection(linksForRender) {
-            if (isDetachedParkingCard) {
-                var detachedHtml = linksForRender.map(function (link) {
-                    var title = escapeCardHtml(String(link?.title || 'Untitled').trim() || 'Untitled');
-                    var href = escapeCardHtml(String(link?.url || '').trim());
-                    return ''
-                        + '<li class="detached-bookmark-item">'
-                            + '<span class="bookmark-folder-link-badge">Detached</span> '
-                            + '<a href="' + href + '" target="_blank" rel="noopener noreferrer">' + title + '</a>'
-                        + '</li>';
-                }).join('');
-                return '<ul class="' + (options.scrollableCategories ? 'category-scrollable' : '') + '">' + (detachedHtml || '<li class="bookmark-folder-empty">No parked bookmarks.</li>') + '</ul>';
-            }
             if (isFocusMode && typeof window.DashboardCategories.buildFocusedLinkHtml === 'function') {
                 var focusedHtml = linksForRender.map(function (link) {
                     return window.DashboardCategories.buildFocusedLinkHtml(link, {
@@ -551,6 +564,9 @@ window.DashboardCategories = window.DashboardCategories || {};
         card.setAttribute('data-card-target-id', cardTargetId);
         card.setAttribute('data-card-category', String(cat || 'Unsorted'));
         card.setAttribute('data-card-workspace', activeWorkspaceId);
+        if (isDetachedParkingCard) {
+            card.setAttribute('data-detached-parking-card', '1');
+        }
 
         gridContainer.appendChild(card);
 

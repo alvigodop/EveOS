@@ -38,6 +38,31 @@ function drop(ev, newCategory) {
         payload = JSON.parse(rawJson);
         if (Array.isArray(payload?.ids)) {
             dragIds = payload.ids.map(item => String(item));
+        } else if (payload !== null && typeof payload === 'object' && payload.type === 'detached-link' && payload.entryId && payload.linkId) {
+            const targetWorkspace = ev.currentTarget.getAttribute('data-card-workspace') || (window.eveState?.config?.activeWorkspace) || 'main';
+            const restored = window.EveConstellationMap?._detached?.restoreDetachedLinks?.(
+                payload.entryId,
+                [payload.linkId],
+                {
+                    workspaceId: targetWorkspace,
+                    categoryName: newCategory,
+                    folderId: ''
+                }
+            );
+            if (restored && typeof window.renderDashboard === 'function') window.renderDashboard();
+            return;
+        } else if (payload !== null && typeof payload === 'object' && payload.type === 'detached-folder' && payload.entryId) {
+            const targetWorkspace = ev.currentTarget.getAttribute('data-card-workspace') || (window.eveState?.config?.activeWorkspace) || 'main';
+            const restored = window.EveConstellationMap?._detached?.restoreDetachedEntry?.(
+                payload.entryId,
+                {
+                    workspaceId: targetWorkspace,
+                    categoryName: newCategory,
+                    targetParentId: ''
+                }
+            );
+            if (restored && typeof window.renderDashboard === 'function') window.renderDashboard();
+            return;
         } else if (payload !== null && typeof payload === 'object' && payload.type === 'folder' && payload.id) {
             // Folder Drop Logic
             const targetWorkspace = ev.currentTarget.getAttribute('data-card-workspace') || (window.eveState?.config?.activeWorkspace) || 'main';

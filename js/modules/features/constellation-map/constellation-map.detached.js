@@ -139,6 +139,24 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         return store;
     }
 
+    function getDragPayload(dataTransfer) {
+        const raw = dataTransfer?.getData('application/json')
+            || dataTransfer?.getData('text/plain')
+            || '';
+        if (!raw) return null;
+        try {
+            return JSON.parse(raw);
+        } catch (error) {
+            return { ids: [String(raw)] };
+        }
+    }
+
+    function stopDropEvent(event) {
+        if (!event) return;
+        if (typeof event.preventDefault === 'function') event.preventDefault();
+        if (typeof event.stopPropagation === 'function') event.stopPropagation();
+    }
+
     function buildDetachedId(prefix) {
         const safePrefix = String(prefix || 'entry').trim() || 'entry';
         return 'det_' + safePrefix + '_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
@@ -316,6 +334,73 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         return entry;
     }
 
+    function parkLinksByIds(linkIds) {
+        const liveLinks = getAllLinksRef();
+        const linkIdSet = new Set((Array.isArray(linkIds) ? linkIds : []).map((id) => text(id, '')).filter(Boolean));
+        if (!linkIdSet.size || !Array.isArray(liveLinks)) return [];
+
+        const movedLinks = [];
+        for (let index = liveLinks.length - 1; index >= 0; index -= 1) {
+            const liveLink = liveLinks[index];
+            if (!linkIdSet.has(text(liveLink?.id, ''))) continue;
+            movedLinks.unshift(cloneValue(liveLink));
+            liveLinks.splice(index, 1);
+        }
+
+        if (!movedLinks.length) return [];
+
+        movedLinks.forEach((clonedLink) => {
+            const workspaceId = text(clonedLink?.workspace, 'main');
+            const categoryName = text(clonedLink?.category, 'Unsorted');
+            const bucket = ensureWorkspaceBucket(workspaceId);
+            bucket.push({
+                id: buildDetachedId('link'),
+                kind: 'link',
+                workspaceId,
+                originCategoryName: categoryName,
+                parkingCategoryName: PARKING_CATEGORY_NAME,
+                parkedAt: Date.now(),
+                label: text(clonedLink?.title, 'Bookmark'),
+                link: clonedLink
+            });
+        });
+
+        persistDetachedStore();
+        return movedLinks;
+    }
+
+    function extractDetachedLinks(entry, linkIds) {
+        const linkIdSet = new Set((Array.isArray(linkIds) ? linkIds : []).map((id) => text(id, '')).filter(Boolean));
+        if (!entry || !linkIdSet.size) return [];
+
+        if (entry.kind === 'link') {
+            const detachedLink = cloneValue(entry.link || {});
+            const detachedLinkId = text(detachedLink?.id, '');
+            if (!detachedLinkId || !linkIdSet.has(detachedLinkId)) return [];
+            removeDetachedEntry(text(entry.id, ''));
+            return [detachedLink];
+        }
+
+        if (entry.kind !== 'folder') return [];
+
+        const nextLinks = [];
+        const movedLinks = [];
+        (Array.isArray(entry.folder?.links) ? entry.folder.links : []).forEach((link) => {
+            const linkId = text(link?.id, '');
+            if (linkIdSet.has(linkId)) {
+                movedLinks.push(cloneValue(link));
+                return;
+            }
+            nextLinks.push(link);
+        });
+
+        if (!movedLinks.length) return [];
+
+        entry.folder = entry.folder || { rootId: '', nodes: [], links: [] };
+        entry.folder.links = nextLinks;
+        return movedLinks;
+    }
+
     function attachLiveLinksToEntry(entryId, linkIds, targetFolderId) {
         const entry = getDetachedEntry(entryId);
         if (!entry || entry.kind !== 'folder') return null;
@@ -352,6 +437,72 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             message: movedLinks.length > 1
                 ? ('Moved ' + movedLinks.length + ' bookmarks into a detached chain.')
                 : 'Bookmark moved into a detached chain.'
+        };
+    }
+
+    function moveDetachedLinksToEntry(sourceEntryId, linkIds, targetEntryId, targetFolderId) {
+        const sourceEntry = getDetachedEntry(sourceEntryId);
+        const targetEntry = getDetachedEntry(targetEntryId);
+        if (!sourceEntry || !targetEntry || targetEntry.kind !== 'folder') return null;
+
+        const normalizedTargetFolderId = text(targetFolderId, '');
+        if (normalizedTargetFolderId) {
+            const targetExists = (Array.isArray(targetEntry.folder?.nodes) ? targetEntry.folder.nodes : [])
+                .some((node) => text(node?.id, '') === normalizedTargetFolderId);
+            if (!targetExists) return null;
+        }
+
+        const movedLinks = extractDetachedLinks(sourceEntry, linkIds);
+        if (!movedLinks.length) return null;
+
+        targetEntry.folder = targetEntry.folder || { rootId: '', nodes: [], links: [] };
+        const targetLinks = Array.isArray(targetEntry.folder.links) ? targetEntry.folder.links : [];
+        movedLinks.forEach((link) => {
+            link.folderId = normalizedTargetFolderId;
+            targetLinks.push(link);
+        });
+        targetEntry.folder.links = targetLinks;
+
+        persistDetachedStore();
+        return {
+            selectionId: 'detached_link_' + text(targetEntry.id, '') + '_' + text(movedLinks[0]?.id, ''),
+            message: movedLinks.length > 1
+                ? ('Moved ' + movedLinks.length + ' detached bookmarks.')
+                : 'Detached bookmark moved.'
+        };
+    }
+
+    function moveDetachedLinksToParking(sourceEntryId, linkIds) {
+        const sourceEntry = getDetachedEntry(sourceEntryId);
+        if (!sourceEntry) return null;
+
+        const movedLinks = extractDetachedLinks(sourceEntry, linkIds);
+        if (!movedLinks.length) return null;
+
+        const workspaceId = text(sourceEntry.workspaceId, 'main');
+        const bucket = ensureWorkspaceBucket(workspaceId);
+        let firstEntryId = '';
+        movedLinks.forEach((link) => {
+            const entryId = buildDetachedId('link');
+            if (!firstEntryId) firstEntryId = entryId;
+            bucket.push({
+                id: entryId,
+                kind: 'link',
+                workspaceId,
+                originCategoryName: text(link?.category, sourceEntry.originCategoryName || 'Unsorted'),
+                parkingCategoryName: PARKING_CATEGORY_NAME,
+                parkedAt: Date.now(),
+                label: text(link?.title, 'Bookmark'),
+                link
+            });
+        });
+
+        persistDetachedStore();
+        return {
+            selectionId: 'detached_link_' + firstEntryId + '_' + text(movedLinks[0]?.id, ''),
+            message: movedLinks.length > 1
+                ? ('Moved ' + movedLinks.length + ' bookmarks to detached root.')
+                : 'Bookmark moved to detached root.'
         };
     }
 
@@ -525,6 +676,116 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         return result;
     }
 
+    function restoreDetachedLinks(entryId, linkIds, targetSpec) {
+        const entry = getDetachedEntry(entryId);
+        if (!entry || !targetSpec) return null;
+
+        const targetWorkspaceId = text(targetSpec?.workspaceId, 'main');
+        const targetCategoryName = text(targetSpec?.categoryName, 'Unsorted');
+        const targetFolderId = text(targetSpec?.folderId || targetSpec?.targetParentId, '');
+        const movedLinks = extractDetachedLinks(entry, linkIds);
+        if (!movedLinks.length) return null;
+
+        const liveLinks = getAllLinksRef();
+        movedLinks.forEach((link) => {
+            link.workspace = targetWorkspaceId;
+            link.category = targetCategoryName;
+            if (targetFolderId) link.folderId = targetFolderId;
+            else delete link.folderId;
+            liveLinks.push(link);
+            syncLinkToLibrary(link.id);
+        });
+
+        persistDetachedStore();
+        return {
+            selectionId: 'link_' + text(movedLinks[0]?.id, ''),
+            message: movedLinks.length > 1
+                ? ('Restored ' + movedLinks.length + ' detached bookmarks.')
+                : (targetFolderId ? 'Detached bookmark attached to a folder.' : 'Detached bookmark attached to a card.')
+        };
+    }
+
+    function handleDetachedLinkDragStart(event, entryId, linkId) {
+        if (!event?.dataTransfer) return;
+        event.stopPropagation();
+        const payload = JSON.stringify({
+            type: 'detached-link',
+            entryId: text(entryId, ''),
+            linkId: text(linkId, '')
+        });
+        event.dataTransfer.setData('application/json', payload);
+        event.dataTransfer.setData('text/plain', payload);
+        event.dataTransfer.effectAllowed = 'move';
+        setTimeout(() => {
+            if (event.target?.classList) event.target.classList.add('is-dragging');
+        }, 0);
+    }
+
+    function handleDetachedFolderDragStart(event, entryId, folderId) {
+        if (!event?.dataTransfer) return;
+        event.stopPropagation();
+        const payload = JSON.stringify({
+            type: 'detached-folder',
+            entryId: text(entryId, ''),
+            folderId: text(folderId, ''),
+            detachedRoot: true
+        });
+        event.dataTransfer.setData('application/json', payload);
+        event.dataTransfer.setData('text/plain', payload);
+        event.dataTransfer.effectAllowed = 'move';
+        setTimeout(() => {
+            if (event.target?.classList) event.target.classList.add('is-dragging');
+        }, 0);
+    }
+
+    function handleDashboardParkingDrop(event, workspaceId) {
+        stopDropEvent(event);
+        const payload = getDragPayload(event?.dataTransfer);
+        if (!payload) return false;
+
+        let result = null;
+        if (Array.isArray(payload?.ids) && payload.ids.length) {
+            const parked = parkLinksByIds(payload.ids);
+            result = parked.length ? { message: parked.length > 1 ? ('Moved ' + parked.length + ' bookmarks into detached parking.') : 'Bookmark moved into detached parking.' } : null;
+        } else if (payload?.type === 'folder' && payload.id) {
+            const entry = parkFolderSubtree(payload.sourceWorkspace, payload.sourceCategory, payload.id);
+            result = entry ? { message: 'Folder chain moved into detached parking.' } : null;
+        } else if (payload?.type === 'detached-link' && payload.entryId && payload.linkId) {
+            result = moveDetachedLinksToParking(payload.entryId, [payload.linkId]);
+        }
+
+        if (!result) return false;
+        if (typeof window.renderDashboard === 'function') window.renderDashboard();
+        if (typeof window.showToast === 'function' && result.message) window.showToast(result.message, 'success');
+        return true;
+    }
+
+    function handleDashboardDetachedFolderDrop(event, targetEntryId, targetFolderId) {
+        stopDropEvent(event);
+        const payload = getDragPayload(event?.dataTransfer);
+        if (!payload) return false;
+
+        let result = null;
+        if (Array.isArray(payload?.ids) && payload.ids.length) {
+            result = attachLiveLinksToEntry(targetEntryId, payload.ids, targetFolderId);
+        } else if (payload?.type === 'folder' && payload.id) {
+            result = attachLiveFolderToEntry(
+                targetEntryId,
+                payload.sourceWorkspace,
+                payload.sourceCategory,
+                payload.id,
+                targetFolderId
+            );
+        } else if (payload?.type === 'detached-link' && payload.entryId && payload.linkId) {
+            result = moveDetachedLinksToEntry(payload.entryId, [payload.linkId], targetEntryId, targetFolderId);
+        }
+
+        if (!result) return false;
+        if (typeof window.renderDashboard === 'function') window.renderDashboard();
+        if (typeof window.showToast === 'function' && result.message) window.showToast(result.message, 'success');
+        return true;
+    }
+
     ns._detached = ns._detached || {};
     Object.assign(ns._detached, {
         STORAGE_KEY,
@@ -533,10 +794,18 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         getDetachedEntriesForScope,
         getDetachedEntry,
         parkLink,
+        parkLinksByIds,
         parkFolderSubtree,
         attachLiveLinksToEntry,
         attachLiveFolderToEntry,
+        moveDetachedLinksToEntry,
+        moveDetachedLinksToParking,
         restoreDetachedEntry,
+        restoreDetachedLinks,
+        handleDetachedLinkDragStart,
+        handleDetachedFolderDragStart,
+        handleDashboardParkingDrop,
+        handleDashboardDetachedFolderDrop,
         persistDetachedStore
     });
 })(window.EveConstellationMap);

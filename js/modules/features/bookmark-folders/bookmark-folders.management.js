@@ -1150,6 +1150,60 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
 
         }
 
+        const detachedApi = window.EveConstellationMap?._detached;
+
+        if (payload && payload.type === 'detached-link' && payload.entryId && payload.linkId) {
+
+            const restored = detachedApi?.restoreDetachedLinks?.(
+
+                payload.entryId,
+
+                [payload.linkId],
+
+                {
+
+                    workspaceId,
+
+                    categoryName: getActiveCategoryContext(categoryName),
+
+                    folderId
+
+                }
+
+            );
+
+            if (restored && typeof window.renderDashboard === 'function') window.renderDashboard();
+
+            return;
+
+        }
+
+        if (payload && payload.type === 'detached-folder' && payload.entryId) {
+
+            const restored = detachedApi?.restoreDetachedEntry?.(
+
+                payload.entryId,
+
+                {
+
+                    workspaceId,
+
+                    categoryName: getActiveCategoryContext(categoryName),
+
+                    folderId,
+
+                    targetParentId: folderId
+
+                }
+
+            );
+
+            if (restored && typeof window.renderDashboard === 'function') window.renderDashboard();
+
+            return;
+
+        }
+
 
 
         // 1. Check if it's a folder payload (Cross-Card or Intra-Card folder move)

@@ -75,7 +75,10 @@ function buildDetachedDashboardModel(workspaceId) {
             if (!syntheticId) return;
             const syntheticNode = Object.assign({}, node, {
                 id: syntheticId,
-                parentId: idMap.get(String(node?.parentId || '')) || null
+                parentId: idMap.get(String(node?.parentId || '')) || null,
+                detachedEntryId: String(entry.id || ''),
+                detachedOriginalId: originalId,
+                detachedEntryRoot: originalId === String(folderData?.rootId || '')
             });
             nodes.push(syntheticNode);
             if (!syntheticNode.parentId) topLevelFolders.push(syntheticNode);
@@ -169,7 +172,6 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
             if (isDetachedParkingCard) {
                 buildConfig.virtualFolderViewModel = detachedModel.viewModel;
                 buildConfig.detachedParkingCard = true;
-                buildConfig.readOnlyFolders = true;
             }
             window.DashboardCategories.renderCard(cat, catLinks, gridContainer, buildConfig);
         }
