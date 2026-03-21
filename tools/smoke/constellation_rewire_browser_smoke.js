@@ -235,10 +235,49 @@ async function main() {
             }));
         }
 
+        const detachedLinkPoint = await getNodeScreenPoint(page, { kind: 'link', linkId: 'alpha-folder-3' });
+        const gammaCardForDetachedRestore = await getNodeScreenPoint(page, { kind: 'category', categoryName: 'Gamma' });
+        if (!detachedLinkPoint || !gammaCardForDetachedRestore) {
+            throw new Error('Missing detached link node or Gamma card node for detached restore');
+        }
+
+        const reattachState = await page.evaluate(() => {
+            const map = window.EveConstellationMap;
+            const state = map?._shared?.state;
+            const detachedNode = state?.nodes?.find((node) => node.kind === 'link' && node.data?.detachedRoot && String(node.data?.linkId || '') === 'alpha-folder-3');
+            if (!detachedNode || !state?.infoEl) {
+                return { ok: false, reason: 'missing-detached-node' };
+            }
+            state.selected = null;
+            state.hovered = detachedNode;
+            state.infoEl.innerHTML = '';
+            const clickProbe = document.createElement('button');
+            clickProbe.setAttribute('data-map-action', 'primary');
+            state.infoEl.appendChild(clickProbe);
+            clickProbe.click();
+            return {
+                ok: true,
+                primaryLabel: String(map?._coreActions?.getPrimaryAction?.(detachedNode)?.label || ''),
+                rewireEnabled: !!state.rewire?.enabled,
+                sourceNodeId: String(state.rewire?.sourceNodeId || '')
+            };
+        });
+        if (!reattachState.ok || reattachState.primaryLabel !== 'Reattach Chain' || !reattachState.rewireEnabled || !reattachState.sourceNodeId) {
+            throw new Error('Detached inspector primary action did not arm rewire: ' + JSON.stringify(reattachState));
+        }
+
+        await clickNode(page, gammaCardForDetachedRestore);
+        state = await readState(page);
+        const restoredDetachedLink = state.links.find((link) => link.id === 'alpha-folder-3');
+        if (!restoredDetachedLink || restoredDetachedLink.category !== 'Gamma' || String(restoredDetachedLink.folderId || '') !== '') {
+            throw new Error('Detached bookmark did not restore into Gamma root from inspector action: ' + JSON.stringify(restoredDetachedLink));
+        }
+
         console.log('CONSTELLATION_REWIRE_BROWSER_SMOKE_OK ' + JSON.stringify({
             movedLinkCategory: movedLink.category,
             movedFolderCategory: movedChildLink.category,
             detachedLinkParked: true,
+            detachedLinkRestored: restoredDetachedLink.category,
             gammaFolderCount: Array.isArray(gammaTree?.nodes) ? gammaTree.nodes.length : 0
         }));
     } finally {

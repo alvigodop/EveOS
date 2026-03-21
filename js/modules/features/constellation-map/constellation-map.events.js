@@ -597,11 +597,13 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             const action = actionEl?.dataset?.mapAction;
 
-            if (!action || !state.selected) return;
+            const actionNode = state.selected || state.hovered;
+
+            if (!action || !actionNode) return;
 
             // Late-bind runNodeAction from the orchestrator
             if (typeof ns._runNodeAction === 'function') {
-                ns._runNodeAction(state.selected, action);
+                ns._runNodeAction(actionNode, action);
             }
 
         });

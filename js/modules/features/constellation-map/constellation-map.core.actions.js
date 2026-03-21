@@ -1068,6 +1068,16 @@ function runNodeAction(node, action) {
 
 
 
+            const primaryAction = getPrimaryAction(node);
+
+            if (primaryAction?.action && primaryAction.action !== 'primary') {
+
+                runNodeAction(node, primaryAction.action);
+
+                return;
+
+            }
+
             activateNode(node);
 
             return;
