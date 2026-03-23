@@ -1,82 +1,10 @@
-window.EveConstellationMap = window.EveConstellationMap || {};
+const fs = require('fs');
+const file = 'js/modules/features/constellation-map/constellation-map.render.js';
+let content = fs.readFileSync(file, 'utf-8');
 
+const regex = /function draw\(\) \{[\s\S]*?updateCursor\(\);\s*\n\s*\}/;
 
-
-(function (ns) {
-
-
-
-    const shared = ns._shared || {};
-
-    const {
-
-        state,
-
-        getStaticStateForNode,
-
-        text
-
-    } = shared;
-
-
-
-    const renderCanvas = ns._renderCanvas || {};
-
-    const {
-
-        getNodeAnchor,
-
-        getScreenPoint,
-
-        renderLabels,
-
-        drawPhysicsAuras
-
-    } = renderCanvas;
-
-
-
-    const renderToolbarHelpers = ns._renderToolbarHelpers || {};
-
-    const {
-
-        renderToolbarState,
-
-        renderHeader
-
-    } = renderToolbarHelpers;
-
-
-
-    const renderInspectorHelpers = ns._renderInspectorHelpers || {};
-
-    const {
-
-        renderInspector,
-
-        updateInspectorCoverState,
-
-        updateCursor
-
-    } = renderInspectorHelpers;
-
-
-
-function requestDraw() {
-
-
-
-        if (!state.running) draw();
-
-
-
-    }
-
-
-
-
-
-function draw() {
+const replacement = `function draw() {
         if (!state.ctx || !state.canvas) return;
 
         const ctx = state.ctx;
@@ -218,42 +146,7 @@ function draw() {
         ctx.restore();
         renderLabels(ctx);
         updateCursor();
-    }
+    }`;
 
-
-
-
-
-    state.renderInspector = renderInspector;
-
-
-
-    ns._render = ns._render || {};
-
-
-
-    Object.assign(ns._render, {
-
-        requestDraw,
-
-        renderHeader,
-
-        renderInspector,
-
-        renderToolbarState,
-
-        updateInspectorCoverState,
-
-        updateCursor,
-
-        getScreenPoint,
-
-        getNodeAnchor,
-
-        draw
-
-    });
-
-
-
-})(window.EveConstellationMap);
+fs.writeFileSync(file, content.replace(regex, replacement));
+console.log('REPLACED');

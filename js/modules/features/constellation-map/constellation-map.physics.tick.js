@@ -36,16 +36,37 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         };
     }
 
+    let wakeTicks = 120;
+
     function tickPhysics() {
         if (!state.nodes.length || !state.canvas) return;
 
+        let kineticEnergy = 0;
+        for (let i = 0; i < state.nodes.length; i++) {
+            const n = state.nodes[i];
+            kineticEnergy += (n.vx * n.vx) + (n.vy * n.vy);
+        }
+        
+        const isDragging = state.pointer.mode === 'node' && !!state.pointer.node;
+        const avgEnergy = kineticEnergy / state.nodes.length;
+
+        if (isDragging || avgEnergy > 0.0002) {
+            wakeTicks = 90;
+        } else if (wakeTicks > 0) {
+            wakeTicks -= 1;
+        }
+
+        const shouldSleep = wakeTicks === 0;
+
         const ctx = buildTickContext();
 
-        runPairwisePass(ctx);
-        runEdgePass(ctx);
+        if (!shouldSleep) {
+            runPairwisePass(ctx);
+            runEdgePass(ctx);
 
-        if (state.chainHierarchyEnabled) {
-            runHierarchyPass(ctx);
+            if (state.chainHierarchyEnabled) {
+                runHierarchyPass(ctx);
+            }
         }
 
         runIntegrationPass(ctx);
