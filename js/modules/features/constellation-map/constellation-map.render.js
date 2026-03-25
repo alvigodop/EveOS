@@ -95,17 +95,30 @@ function draw() {
         const hideEdges = state.transform.scale < 0.25 && isMassive;
 
         if (!hideEdges) {
-            state.edges.forEach((edge) => {
-                if (edge.source.x < boundsLeft || edge.source.x > boundsRight || edge.source.y < boundsTop || edge.source.y > boundsBottom) {
-                    if (edge.target.x < boundsLeft || edge.target.x > boundsRight || edge.target.y < boundsTop || edge.target.y > boundsBottom) return;
+            const tagPath = new Path2D();
+            const defaultPath = new Path2D();
+
+            for (let i = 0; i < state.edges.length; i++) {
+                const edge = state.edges[i];
+                const sx = edge.source.x, sy = edge.source.y;
+                const tx = edge.target.x, ty = edge.target.y;
+
+                if (sx < boundsLeft || sx > boundsRight || sy < boundsTop || sy > boundsBottom) {
+                    if (tx < boundsLeft || tx > boundsRight || ty < boundsTop || ty > boundsBottom) continue;
                 }
-                ctx.beginPath();
-                ctx.moveTo(edge.source.x, edge.source.y);
-                ctx.lineTo(edge.target.x, edge.target.y);
-                ctx.strokeStyle = edge.type === 'tag' ? 'rgba(0, 212, 255, 0.12)' : 'rgba(0, 212, 255, 0.28)';
-                ctx.lineWidth = edge.type === 'tag' ? (0.9 / state.transform.scale) : (1.5 / state.transform.scale);
-                ctx.stroke();
-            });
+
+                const path = edge.type === 'tag' ? tagPath : defaultPath;
+                path.moveTo(sx, sy);
+                path.lineTo(tx, ty);
+            }
+
+            ctx.strokeStyle = 'rgba(0, 212, 255, 0.12)';
+            ctx.lineWidth = 0.9 / state.transform.scale;
+            ctx.stroke(tagPath);
+
+            ctx.strokeStyle = 'rgba(0, 212, 255, 0.28)';
+            ctx.lineWidth = 1.5 / state.transform.scale;
+            ctx.stroke(defaultPath);
         }
 
         const rewireSourceNode = text(state.rewire?.sourceNodeId, '')
@@ -118,17 +131,135 @@ function draw() {
 
         if (state.rewire?.enabled && rewireSourceNode) {
             ctx.save();
-            state.nodes.forEach((node) => {
-                if (!validRewireTargets.has(String(node.id || ''))) return;
-                const isActiveTarget = !!rewireTargetNode && rewireTargetNode.id === node.id;
+            
+        const pathsByColor = {};
+        const staticPathsByColor = {};
+        const multiSelectedPath = new Path2D();
+        const hoveredSelectedPaths = [];
+
+        for (let i = 0; i < state.nodes.length; i++) {
+            const node = state.nodes[i];
+            if (node.x < boundsLeft || node.x > boundsRight || node.y < boundsTop || node.y > boundsBottom) continue;
+
+            const isHovered = state.hovered && state.hovered.id === node.id;
+            const isSelected = state.selected && state.selected.id === node.id;
+            const isMultiSelected = state.selectionIds instanceof Set && state.selectionIds.has(String(node.id || ''));
+            const isStatic = getStaticStateForNode(node).isStatic;
+            const color = node.color || '#444';
+
+            if (isHovered || isSelected) {
+                hoveredSelectedPaths.push({ node, isHovered, isSelected, isMultiSelected, isStatic });
+                continue;
+            }
+
+            if (isMassive && state.transform.scale < 0.15 && node.kind === 'link') {
+                if (!pathsByColor[color]) pathsByColor[color] = new Path2D();
+                pathsByColor[color].rect(node.x - 2, node.y - 2, 4, 4);
+                continue;
+            }
+
+            // Batch standard nodes
+            if (!pathsByColor[color]) pathsByColor[color] = new Path2D();
+            pathsByColor[color].moveTo(node.x + node.radius, node.y);
+            pathsByColor[color].arc(node.x, node.y, node.radius, 0, Math.PI * 2);
+
+            if (node.kind === 'folder' && node.data && typeof node.data.depth === 'number' && node.data.depth > 0) {
+                const maxRings = Math.min(node.data.depth, 4);
+                const gap = Math.max(1.5, node.radius / (maxRings + 1.5));
+                if (!pathsByColor['rgba(255, 255, 255, 0.4)']) pathsByColor['rgba(255, 255, 255, 0.4)'] = new Path2D();
+                for (let r = 1; r <= maxRings; r++) {
+                    const ringRadius = node.radius - (gap * r);
+                    if (ringRadius > 0.5) {
+                        pathsByColor['rgba(255, 255, 255, 0.4)'].moveTo(node.x + ringRadius, node.y);
+                        pathsByColor['rgba(255, 255, 255, 0.4)'].arc(node.x, node.y, ringRadius, 0, Math.PI * 2);
+                    }
+                }
+            }
+
+            if (isMultiSelected) {
+                multiSelectedPath.moveTo(node.x + node.radius + (4.6 / state.transform.scale), node.y);
+                multiSelectedPath.arc(node.x, node.y, node.radius + (4.6 / state.transform.scale), 0, Math.PI * 2);
+            }
+
+            if (isStatic) {
+                if (!staticPathsByColor['rgba(255,214,90,0.74)']) staticPathsByColor['rgba(255,214,90,0.74)'] = new Path2D();
+                staticPathsByColor['rgba(255,214,90,0.74)'].moveTo(node.x + node.radius + (2.8 / state.transform.scale), node.y);
+                staticPathsByColor['rgba(255,214,90,0.74)'].arc(node.x, node.y, node.radius + (2.8 / state.transform.scale), 0, Math.PI * 2);
+            }
+        }
+
+        // Draw Batches!
+        for (const color in pathsByColor) {
+            if (color === 'rgba(255, 255, 255, 0.4)') {
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 1 / state.transform.scale;
+                ctx.stroke(pathsByColor[color]);
+            } else {
+                ctx.fillStyle = color;
+                ctx.fill(pathsByColor[color]);
+            }
+        }
+
+        ctx.strokeStyle = 'rgba(145,220,255,0.78)';
+        ctx.lineWidth = 1.2 / state.transform.scale;
+        ctx.setLineDash([4 / state.transform.scale, 4 / state.transform.scale]);
+        ctx.stroke(multiSelectedPath);
+        ctx.setLineDash([]);
+
+        for (const color in staticPathsByColor) {
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1.6 / state.transform.scale;
+            ctx.stroke(staticPathsByColor[color]);
+        }
+
+        // Draw hovered/selected individually so they get drop shadows correctly and render ON TOP
+        for (let i = 0; i < hoveredSelectedPaths.length; i++) {
+            const { node, isHovered, isSelected, isMultiSelected, isStatic } = hoveredSelectedPaths[i];
+            
+            ctx.beginPath();
+            ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
+            ctx.fillStyle = node.color;
+            ctx.shadowBlur = 20 / state.transform.scale;
+            ctx.shadowColor = node.color;
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            if (node.kind === 'folder' && node.data && typeof node.data.depth === 'number' && node.data.depth > 0) {
+                const maxRings = Math.min(node.data.depth, 4);
+                const gap = Math.max(1.5, node.radius / (maxRings + 1.5));
+                for (let r = 1; r <= maxRings; r++) {
+                    const ringRadius = node.radius - (gap * r);
+                    if (ringRadius > 0.5) {
+                        ctx.beginPath();
+                        ctx.arc(node.x, node.y, ringRadius, 0, Math.PI * 2);
+                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+                        ctx.lineWidth = 1 / state.transform.scale;
+                        ctx.stroke();
+                    }
+                }
+            }
+
+            ctx.lineWidth = 2 / state.transform.scale;
+            ctx.strokeStyle = isStatic ? 'rgba(255,214,90,0.98)' : 'rgba(255,255,255,0.92)';
+            ctx.stroke();
+
+            if (isMultiSelected && !isSelected) {
                 ctx.beginPath();
-                ctx.arc(node.x, node.y, node.radius + (isActiveTarget ? 7.6 : 5.4), 0, Math.PI * 2);
-                ctx.strokeStyle = isActiveTarget ? 'rgba(122,255,196,0.92)' : 'rgba(158,219,255,0.34)';
-                ctx.lineWidth = (isActiveTarget ? 2.2 : 1.15) / state.transform.scale;
-                if (!isActiveTarget) ctx.setLineDash([4 / state.transform.scale, 4 / state.transform.scale]);
+                ctx.arc(node.x, node.y, node.radius + (4.6 / state.transform.scale), 0, Math.PI * 2);
+                ctx.lineWidth = 1.2 / state.transform.scale;
+                ctx.setLineDash([4 / state.transform.scale, 4 / state.transform.scale]);
+                ctx.strokeStyle = 'rgba(145,220,255,0.78)';
                 ctx.stroke();
                 ctx.setLineDash([]);
-            });
+            }
+            if (isStatic) {
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, node.radius + (2.8 / state.transform.scale), 0, Math.PI * 2);
+                ctx.lineWidth = 1.6 / state.transform.scale;
+                ctx.strokeStyle = 'rgba(255,214,90,0.74)';
+                ctx.stroke();
+            }
+        }
             ctx.beginPath();
             ctx.arc(rewireSourceNode.x, rewireSourceNode.y, rewireSourceNode.radius + 6.8, 0, Math.PI * 2);
             ctx.strokeStyle = 'rgba(145,220,255,0.94)';

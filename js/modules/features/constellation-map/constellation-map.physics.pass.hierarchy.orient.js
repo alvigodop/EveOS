@@ -34,18 +34,9 @@ function maintainHierarchyState() {
             if (isBeingDragged && speed > 0.5) {
                 const moveAngle = Math.atan2(node.vy, node.vx);
                 data.frontAngle = lerpAngle(data.frontAngle === undefined ? moveAngle : data.frontAngle, moveAngle, 0.15);
-            } else if (data.count > 0) {
-                const avgX = data.sumX / data.count;
-                const avgY = data.sumY / data.count;
-                const dx = node.x - avgX;
-                const dy = node.y - avgY;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-
-                if (dist > 30) {
-                    const targetAngle = Math.atan2(dy, dx);
-                    data.frontAngle = lerpAngle(data.frontAngle === undefined ? targetAngle : data.frontAngle, targetAngle, 0.005);
-                }
             }
+            // CENTROID DRIFT DELETED: The Main Card Node is now completely immune to the mass/pull of its child chains.
+            // It will strictly retain the direction the user set it at via dragging.
 
             if (data.frontAngle !== undefined) {
                 data.frontX = Math.cos(data.frontAngle);
@@ -120,7 +111,8 @@ function maintainHierarchyState() {
 
             const existing = folderOrientations.get(n.id);
             const currentAngle = (existing && existing.orientAngle !== undefined) ? existing.orientAngle : targetAngle;
-            const smoothedAngle = lerpAngle(currentAngle, targetAngle, 0.08);
+            // Root folders track the card heading tightly; deeper folders lerp slower
+            const smoothedAngle = lerpAngle(currentAngle, targetAngle, isRoot ? 0.18 : 0.08);
 
             folderOrientations.set(n.id, {
                 node: n,

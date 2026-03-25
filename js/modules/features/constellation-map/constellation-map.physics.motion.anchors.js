@@ -78,26 +78,36 @@ function stabilizeNodeMotion(node, anchor, motionProfile) {
 
 
 
-        const speed = Math.sqrt((node.vx * node.vx) + (node.vy * node.vy));
+        const speedSq = (node.vx * node.vx) + (node.vy * node.vy);
+
+        const speed = Math.sqrt(speedSq);
 
 
 
+        // 1. DYNAMIC SPEED LIMITING: Smoother clamping
         if (speed > maxSpeed && speed > 0.001) {
-
-
 
             const scale = maxSpeed / speed;
 
-
-
             node.vx *= scale;
-
-
 
             node.vy *= scale;
 
+        }
 
-
+        // 2. LOW-ENERGY SETTLE: Aggressive damping for near-stationary nodes
+        // Prevents endless micro-oscillations (jitter)
+        const settleThreshold = 0.02;
+        if (speed < settleThreshold && speed > 0) {
+            const settleFactor = Math.max(0, (speed / settleThreshold));
+            node.vx *= settleFactor;
+            node.vy *= settleFactor;
+            
+            // Absolute Zeroing (Noise floor)
+            if (speed < 0.001) {
+                node.vx = 0;
+                node.vy = 0;
+            }
         }
 
 

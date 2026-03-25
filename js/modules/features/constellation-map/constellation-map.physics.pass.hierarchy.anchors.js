@@ -4,7 +4,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     const physicsHierarchy = ns._physicsHierarchy = ns._physicsHierarchy || {};
     const { lerpAngle, compareNodeOrder } = physicsHierarchy;
     const shared = ns._shared || {};
-    const { state, text, isNodeStatic } = shared;
+    const { state, text, isNodeStatic, getCardAuraShape } = shared;
     const physicsHelpers = ns._physicsHelpers || {};
     const { applyFolderAura, applyCardAuraRepulsion, applyWorkspaceAuraRepulsion } = physicsHelpers;
 
@@ -63,7 +63,12 @@ function buildHierarchyAnchors(parentChildren, frontierReach, rootChildGuides, w
                     const gapArc = Math.PI * 1.1;
                     const availableArc = (Math.PI * 2) - gapArc;
                     const startAngle = rootGuide.folderAngle + (gapArc * 0.5);
-                    const baseRadius = Math.max((parent.radius || 12) + 140, (frontierReach * 0.8) + 40);
+                    
+                    // CARD AURA AWARENESS: Anchors must be placed OUTSIDE the physics repulsion aura.
+                    const cardAura = getCardAuraShape(parent);
+                    const maxAuraRadius = Math.max(cardAura.radiusFront, cardAura.radiusBack, cardAura.radiusLat);
+                    const baseRadius = Math.max((parent.radius || 12) + 220, (frontierReach * 0.9) + 80, maxAuraRadius + 140);
+
                     const bandSpacing = 32;
                     const targetChord = 42;
                     let remaining = rootLinks.length;
@@ -155,16 +160,32 @@ function buildHierarchyAnchors(parentChildren, frontierReach, rootChildGuides, w
             let finalRadius = radius;
             if (node.kind === 'link') {
                 const popPull = isRootChild ? Math.min(60, count * 0.12) : 0;
-                const rootBase = frontierReach * 0.85;
-                const baseR = isRootChild ? 60 + rootBase - popPull : (parent.radius || 15) + frontierReach;
+                const rootBase = frontierReach * 0.95;
+                
+                // CARD AURA AWARENESS (Secondary Link Path)
+                const cardAura = isRootChild ? getCardAuraShape(parent) : null;
+                const auraR = cardAura ? Math.max(cardAura.radiusFront, cardAura.radiusBack, cardAura.radiusLat) : 0;
+
+                const baseR = isRootChild 
+                    ? Math.max(80 + rootBase - popPull, auraR + 150) 
+                    : (parent.radius || 15) + frontierReach;
+
                 const rowDepth = isRootChild ? 10 : 100;
                 const popPush = isRootChild ? 0 : Math.min(60, count * 3);
                 finalRadius = baseR + (row * rowDepth) + popPush + jitterVal;
             } else if (node.kind === 'folder') {
                 const fRow = index % 2;
                 const fPopPull = isRootChild ? Math.min(45, count * 0.10) : 0;
-                const frootBase = frontierReach * 0.80;
-                const fBaseR = isRootChild ? 60 + frootBase - fPopPull : (parent.radius || 15) + (frontierReach - 60);
+                const frootBase = frontierReach * 0.90;
+                
+                // CARD AURA AWARENESS (Folder Path)
+                const cardAura = isRootChild ? getCardAuraShape(parent) : null;
+                const auraR = cardAura ? Math.max(cardAura.radiusFront, cardAura.radiusBack, cardAura.radiusLat) : 0;
+
+                const fBaseR = isRootChild 
+                    ? Math.max(80 + frootBase - fPopPull, auraR + 160) 
+                    : (parent.radius || 15) + (frontierReach - 60);
+
                 const fRowDepth = isRootChild ? 10 : 50;
                 const fPopPush = isRootChild ? 0 : Math.min(30, count * 4);
                 finalRadius = fBaseR + (fRow * fRowDepth) + fPopPush;
@@ -218,7 +239,13 @@ function buildHierarchyAnchors(parentChildren, frontierReach, rootChildGuides, w
                 }
             }
 
-            applyCardAuraRepulsion(node, root, rootData);
+            // UNIVERSAL AURA ENFORCEMENT: Check this node against EVERY card in the system,
+            // not just its own chain root. This prevents cross-chain aura breaches.
+            chainRoots.forEach((otherRootData) => {
+                const otherRoot = otherRootData.node;
+                if (otherRoot === node) return;
+                applyCardAuraRepulsion(node, otherRoot, otherRootData);
+            });
 
             if (workspaceAncestor) {
                 const workspaceData = workspaceAuraRoots.get(workspaceAncestor.id);

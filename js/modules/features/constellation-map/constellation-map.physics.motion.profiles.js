@@ -157,65 +157,20 @@ function getMotionProfile(nodeCount) {
 
 
         if (normalizedMode === 'free') {
-
-
-
             return {
-
-
-
                 mode: normalizedMode,
-
-
-
-                repulsionScale: 1.42,
-
-
-
-                centerPullScale: 0.68,
-
-
-
-                springScale: 0.82,
-
-
-
-                hierarchyReactionScale: 1.24,
-
-
-
-                folderRecoveryScale: 0.62,
-
-
-
-                dampingScale: 1.12,
-
-
-
-                speedScale: 1.34,
-
-
-
-                worldTetherScale: 0.82,
-
-
-
-                anchorScaleByKind: { workspace: 0.72, category: 0.78, folder: 0.72, link: 0.7 },
-
-
-
-                dampingScaleByKind: { workspace: 1.06, category: 1.05, folder: 1.03, link: 1.02 },
-
-
-
-                speedScaleByKind: { workspace: 1.2, category: 1.18, folder: 1.12, link: 1.24 }
-
-
-
+                repulsionScale: 1.15,
+                centerPullScale: 0.82,
+                springScale: 0.88,
+                hierarchyReactionScale: 1.12,
+                folderRecoveryScale: 0.82,
+                dampingScale: 0.98,
+                speedScale: 0.95,
+                worldTetherScale: 1.05,
+                anchorScaleByKind: { workspace: 0.85, category: 0.88, folder: 0.82, link: 0.75 },
+                dampingScaleByKind: { workspace: 1.02, category: 1.02, folder: 1.01, link: 1.01 },
+                speedScaleByKind: { workspace: 0.95, category: 0.98, folder: 0.92, link: 1.12 }
             };
-
-
-
         }
 
 
@@ -309,7 +264,7 @@ function getHierarchyTargetReactionFactor(edge, motionProfile) {
 
         } else if (targetKind === 'category') {
 
-            baseFactor = sourceKind === 'folder' ? 0.06 : 0.04;
+            baseFactor = sourceKind === 'folder' ? 0.06 : 0.01;
 
         } else if (targetKind === 'workspace') {
 
@@ -350,13 +305,17 @@ function getPairwiseInfluenceScale(targetNode, sourceNode, motionProfile) {
 
         // ASYMMETRIC AUTHORITY: Higher levels are harder to push
 
-        if (isMainTarget && !isMainSource) return 0.04; // Main nodes (Cards) are nearly immovable by folders/links
+        if (isMainTarget && !isMainSource) {
+            // Bookmarks get an even heavier discount — they massively outnumber folders
+            if (sourceKind === 'link') return 0.005;
+            return 0.02; // Folders still get a small influence
+        }
 
         if (targetDepth < sourceDepth) {
 
             const gap = sourceDepth - targetDepth;
-
-            return Math.max(0.02, 0.12 / gap); // Hierarchy authority
+            const isSourceLink = sourceKind === 'link';
+            return Math.max(isSourceLink ? 0.005 : 0.02, (isSourceLink ? 0.04 : 0.12) / gap); // Hierarchy authority
 
         }
 
@@ -384,9 +343,9 @@ function getPairwiseInfluenceScale(targetNode, sourceNode, motionProfile) {
 
         if (targetKind === 'workspace') {
 
-            if (sourceKind === 'link') return 0.02;
+            if (sourceKind === 'link') return 0.005;
 
-            if (sourceKind === 'folder') return 0.05;
+            if (sourceKind === 'folder') return 0.03;
 
             if (sourceKind === 'category') return 0.16;
 
@@ -396,9 +355,9 @@ function getPairwiseInfluenceScale(targetNode, sourceNode, motionProfile) {
 
         if (targetKind === 'category') {
 
-            if (sourceKind === 'link') return 0.04;
+            if (sourceKind === 'link') return 0.008;
 
-            if (sourceKind === 'folder') return 0.12;
+            if (sourceKind === 'folder') return 0.06;
 
             if (sourceKind === 'workspace') return 0.24;
 
