@@ -181,7 +181,7 @@ function buildHierarchyAnchors(parentChildren, frontierReach, rootChildGuides, w
                 // CARD-DIRECT BOOKMARKS: Bring them closer to the card.
                 // Squeezed even closer to the card's boundary
                 const baseR = isRootChild 
-                    ? Math.max(30 + (rootBase * 0.45) - popPull, (auraR * 0.45) + 5) 
+                    ? Math.max(20 + (rootBase * 0.35) - popPull, auraR * 0.38) 
                     : Math.max((parent.radius || 15) + frontierReach, folderAuraR + 40);
 
                 const rowDepth = isRootChild ? 10 : 100;
@@ -202,7 +202,7 @@ function buildHierarchyAnchors(parentChildren, frontierReach, rootChildGuides, w
                 const folderAuraR2 = parentFolderAura2 ? Math.max(parentFolderAura2.radiusBack, parentFolderAura2.radiusFront) : 0;
 
                 const fBaseR = isRootChild 
-                    ? Math.max(60 + (frootBase * 0.8) - fPopPull, (auraR * 0.8) + 80) 
+                    ? Math.max(45 + (frootBase * 0.6) - fPopPull, (auraR * 0.6) + 40) 
                     : Math.max((parent.radius || 15) + (frontierReach - 60), folderAuraR2 + 50);
 
                 const fRowDepth = isRootChild ? 10 : 50;
