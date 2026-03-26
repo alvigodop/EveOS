@@ -140,22 +140,33 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                     targetAngle = normalizeAngle(lockedAngle + (getAngleDelta(lockedAngle, targetAngle) * childInfluence));
                 }
                 const delta = Math.abs(getAngleDelta(currentAngle, targetAngle));
+
+                // DEADZONE: Drastically reduced for high-precision control (approx 3-5 degrees)
                 const deadzone = hasLockedDirection
-                    ? (isSingleChild ? 0.82 : childCount <= 3 ? 0.66 : 0.5)
-                    : (directFolders.length > 0 ? (isSingleChild ? 0.3 : childCount <= 3 ? 0.22 : 0.16) : 0);
+                    ? (isSingleChild ? 0.12 : childCount <= 3 ? 0.1 : 0.08)
+                    : (directFolders.length > 0 ? (isSingleChild ? 0.08 : childCount <= 3 ? 0.06 : 0.04) : 0);
+
                 if (delta <= deadzone) {
+
                     frontAngle = currentAngle;
+
                 } else {
+
+                    // RESPONSIVENESS: Increased for snappier tracking
                     const smoothing = hasLockedDirection
-                        ? (isSingleChild ? 0.0012 : childCount <= 3 ? 0.0018 : 0.0026)
-                        : (directFolders.length > 0 ? (isSingleChild ? 0.006 : childCount <= 3 ? 0.01 : 0.015) : 0.05);
+                        ? (isSingleChild ? 0.0025 : childCount <= 3 ? 0.0035 : 0.0045)
+                        : (directFolders.length > 0 ? (isSingleChild ? 0.012 : childCount <= 3 ? 0.018 : 0.025) : 0.1);
+
                     const maxStep = hasLockedDirection
-                        ? (isSingleChild ? 0.002 : childCount <= 3 ? 0.003 : 0.0045)
-                        : (directFolders.length > 0 ? (isSingleChild ? 0.008 : childCount <= 3 ? 0.012 : 0.018) : 0.07);
+                        ? (isSingleChild ? 0.004 : childCount <= 3 ? 0.006 : 0.009)
+                        : (directFolders.length > 0 ? (isSingleChild ? 0.016 : childCount <= 3 ? 0.024 : 0.036) : 0.14);
+
                     const adjustedTarget = deadzone > 0
                         ? normalizeAngle(currentAngle + (Math.sign(getAngleDelta(currentAngle, targetAngle)) * Math.max(0, delta - deadzone)))
                         : targetAngle;
+
                     frontAngle = stepAngleToward(currentAngle, adjustedTarget, smoothing, maxStep);
+
                 }
                 frontX = Math.cos(frontAngle);
                 frontY = Math.sin(frontAngle);
