@@ -71,13 +71,12 @@ function applyFolderAura(node, folder, orientX, orientY, distToParent, isRootFol
 
 
 
-        // SINGULARITY FUSION: Immediate children are now EXEMPT from repulsion 
-
+        // SINGULARITY FUSION: Immediate children of NON-ROOT folders are EXEMPT from repulsion 
         // to allow them to dock deep into the parent's core.
-
+        // ROOT folders (direct children of card/workspace) must repel their children
+        // to maintain aura boundary integrity — same pattern as the card itself.
         const isImmediateChild = (node.parentId === folder.id || (node.data && node.data.anchorNodeId === folder.id));
-
-        if (isImmediateChild) return;
+        if (isImmediateChild && !isRootFolder) return;
 
         if (node.id === folder.id) return;
 
@@ -145,25 +144,26 @@ function applyFolderAura(node, folder, orientX, orientY, distToParent, isRootFol
         if (normDistSq < 1.0) {
 
             const normDist = Math.sqrt(normDistSq);
+            const penetration = 1 - normDist;
 
-            // STABILIZED: Quadratic force (1-d)^2 ensures a "Soft-Contact" at the boundary
-
-            // This prevents the "spring kick" that causes high-frequency jitter.
-
-            let force = 2.0 * Math.pow(1 - normDist, 2);
+            // ROOT FOLDERS need much stronger repulsion to enforce their boundary
+            // against card-direct bookmarks that have strong anchor pulls.
+            let force;
+            if (isRootFolder) {
+                force = 8.0 * penetration + 20.0 * Math.pow(penetration, 2);
+            } else {
+                // Non-root: soft quadratic contact
+                force = 2.0 * Math.pow(penetration, 2);
+            }
 
             if (nodeDepth >= 2) force *= 1.4;
 
 
 
             // MICRO-DAMPING ZONE: Freeze nodes that are settling into the boundary
-
-            if (normDist > 0.85) {
-
-                node.vx *= 0.85;
-
-                node.vy *= 0.85;
-
+            if (normDist > (isRootFolder ? 0.7 : 0.85)) {
+                node.vx *= (isRootFolder ? 0.75 : 0.85);
+                node.vy *= (isRootFolder ? 0.75 : 0.85);
             }
 
 
@@ -180,7 +180,13 @@ function applyFolderAura(node, folder, orientX, orientY, distToParent, isRootFol
 
             node.vy += (rdy / rdist) * force;
 
-
+            // ROOT FOLDER HARD BOUNDARY: Position push to prevent tunneling
+            if (isRootFolder && penetration > 0.05) {
+                const radiusLong2 = projLong > 0 ? radiusFront : radiusBack;
+                const pushMagnitude = penetration * radiusLong2 * 0.3;
+                node.x += (rdx / rdist) * pushMagnitude;
+                node.y += (rdy / rdist) * pushMagnitude;
+            }
 
             // Lateral Shunt
 
@@ -196,7 +202,7 @@ function applyFolderAura(node, folder, orientX, orientY, distToParent, isRootFol
 
             if (projLong > 0) {
 
-                const fallbackForce = 1.2 * (1 - normDist);
+                const fallbackForce = (isRootFolder ? 4.0 : 1.2) * penetration;
 
                 node.vx -= fnx * fallbackForce;
 
@@ -412,10 +418,10 @@ function applyFolderRecovery(node, parentNode, anchor, motionProfile) {
                         return; // AURA BREACHED! KILL ALL PULL FORCES IMMEDIATELY!
                     }
 
-                    // Extract the exact teardrop dimensions to calculate the Spinal Socket
-                    const dockDist = shape.radiusBack + (Number(node.radius) || 16) + 12; // Extra padding
-                    targetX -= rootData.frontX * dockDist;
-                    targetY -= rootData.frontY * dockDist;
+                    // SPINAL DOCKING: Target is directly behind the card, just outside the aura
+                    const dockDist = shape.radiusBack + (Number(node.radius) || 16) + 20;
+                    targetX = parentNode.x - rootData.frontX * dockDist;
+                    targetY = parentNode.y - rootData.frontY * dockDist;
                 }
             }
         }
@@ -442,9 +448,12 @@ function applyFolderRecovery(node, parentNode, anchor, motionProfile) {
 
         const recoveryScale = (Number(motionProfile?.folderRecoveryScale) || 1) * getMotionTuningValue('folderRecovery');
 
-        // High-stiffness recovery: Using full distance instead of (dist - 110)
+        const isRootFolder = parentNode && (parentNode.kind === 'category' || parentNode.kind === 'workspace');
 
-        const recovery = Math.min(0.08, dist * 0.00015 * recoveryScale);
+        // Root folders get a MUCH stiffer spring to lock behind the card's aura direction
+        const stiffness = isRootFolder ? 0.004 : 0.00015;
+        const maxRecovery = isRootFolder ? 0.25 : 0.08;
+        const recovery = Math.min(maxRecovery, dist * stiffness * recoveryScale);
 
         node.vx += dx * recovery;
 

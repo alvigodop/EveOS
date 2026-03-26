@@ -85,6 +85,14 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             if (!isDirectCardChild) {
                 node.vx += (anchor.x - node.x) * anchorPull;
                 node.vy += (anchor.y - node.y) * anchorPull;
+            } else if (node.kind === 'folder') {
+                // ROOT FOLDER AURA LOCK: Root folders get a strong anchor pull
+                // so they track the card's aura direction instead of drifting freely
+                const hierAnchor = state.hierarchyAnchors?.get(node.id);
+                if (hierAnchor) {
+                    node.vx += (hierAnchor.x - node.x) * anchorPull * 0.6;
+                    node.vy += (hierAnchor.y - node.y) * anchorPull * 0.6;
+                }
             }
 
             if (node.kind === 'category') {
