@@ -56,11 +56,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             if (isHierarchy) {
                 if (sourceKind === 'folder' && targetKind === 'folder') {
-                    desired = 60; // Pull subfolders tighter to their parent folder
-                    forceX *= 1.5; // Stronger attraction
-                    forceY *= 1.5;
-                }
-                if (targetKind === 'link') {
+                    forceX *= 0.68;
+                    forceY *= 0.68;
+                }                if (targetKind === 'link') {
                     forceX *= 0.6;
                     forceY *= 0.6;
                 }
