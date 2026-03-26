@@ -34,15 +34,26 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         const pointerX = Number(state.pointer.canvasX);
         const pointerY = Number(state.pointer.canvasY);
         if (!Number.isFinite(pointerX) || !Number.isFinite(pointerY)) return focusIds;
+
+        const margin = 100 / state.transform.scale;
+        const boundsLeft = -state.transform.tx / state.transform.scale - margin;
+        const boundsTop = -state.transform.ty / state.transform.scale - margin;
+        const boundsRight = (state.canvas.width - state.transform.tx) / state.transform.scale + margin;
+        const boundsBottom = (state.canvas.height - state.transform.ty) / state.transform.scale + margin;
+
         const ranked = [];
-        state.nodes.forEach((node) => {
+        for (let i = 0; i < state.nodes.length; i++) {
+            const node = state.nodes[i];
+            // Viewport culling for cursor check
+            if (node.x < boundsLeft || node.x > boundsRight || node.y < boundsTop || node.y > boundsBottom) continue;
+
             const point = getScreenPoint(node);
             const dx = point.x - pointerX;
             const dy = point.y - pointerY;
             const distSq = (dx * dx) + (dy * dy);
-            if (distSq > (LABEL_CURSOR_RADIUS * LABEL_CURSOR_RADIUS)) return;
+            if (distSq > (LABEL_CURSOR_RADIUS * LABEL_CURSOR_RADIUS)) continue;
             ranked.push({ node, distSq });
-        });
+        }
         ranked.sort((left, right) => left.distSq - right.distSq);
         ranked.slice(0, LABEL_FOCUS_LIMIT).forEach((entry) => {
             focusIds.add(entry.node.id);
@@ -83,15 +94,32 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     function renderLabels(ctx) {
         state.labelHitBoxes = [];
         if (state.labelMode === 'off') return;
+
+        const margin = 100 / state.transform.scale;
+        const boundsLeft = -state.transform.tx / state.transform.scale - margin;
+        const boundsTop = -state.transform.ty / state.transform.scale - margin;
+        const boundsRight = (state.canvas.width - state.transform.tx) / state.transform.scale + margin;
+        const boundsBottom = (state.canvas.height - state.transform.ty) / state.transform.scale + margin;
+
         const focusIds = getCursorFocusIds();
         const searchMatchIds = new Set((state.searchState.matches || []).map((match) => match.id));
         const autoLinkBudget = getAutoLinkLabelBudget();
-        const candidates = state.nodes.map((node) => {
+
+        const candidates = [];
+        for (let i = 0; i < state.nodes.length; i++) {
+            const node = state.nodes[i];
+            
             const isHovered = state.hovered && state.hovered.id === node.id;
             const isSelected = state.selected && state.selected.id === node.id;
+            
+            // Viewport culling for labels
+            if (!isHovered && !isSelected) {
+                if (node.x < boundsLeft || node.x > boundsRight || node.y < boundsTop || node.y > boundsBottom) continue;
+            }
+
             const isPointerFocused = focusIds.has(node.id);
             const isSearchMatch = searchMatchIds.has(node.id);
-            if (!shouldRenderLabel(node, isHovered, isSelected)) return null;
+            if (!shouldRenderLabel(node, isHovered, isSelected)) continue;
             if (
                 state.labelMode === 'focus'
                 && node.kind === 'link'
@@ -100,7 +128,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 && !isPointerFocused
                 && !isSearchMatch
             ) {
-                return null;
+                continue;
             }
             const point = getScreenPoint(node);
             const fontSize = isSelected || isHovered
@@ -136,8 +164,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                     + (node.kind === 'folder' ? 24 : 0)
                     + Math.min(node.radius, 12)
             };
-            return box;
-        }).filter(Boolean);
+            candidates.push(box);
+        }
+
         candidates.sort((left, right) => {
             if (right.priority !== left.priority) return right.priority - left.priority;
             if (left.node.kind === 'link' && right.node.kind !== 'link') return 1;

@@ -91,8 +91,19 @@ function draw() {
         const boundsTop = -state.transform.ty / state.transform.scale - 500;
         const boundsRight = (ctx.canvas.width - state.transform.tx) / state.transform.scale + 500;
         const boundsBottom = (ctx.canvas.height - state.transform.ty) / state.transform.scale + 500;
-        const isMassive = state.nodes.length > 500;
-        const hideEdges = state.transform.scale < 0.25 && isMassive;
+        const nodeCount = state.nodes.length;
+        const isMassive = nodeCount > 500;
+        const isHyperMassive = nodeCount > 5000;
+        const isUltraMassive = nodeCount > 10000;
+        
+        // Hide almost all edges unless zoomed in for large maps
+        let hideEdges = false;
+        if (isUltraMassive) hideEdges = state.transform.scale < 0.8;
+        else if (isHyperMassive) hideEdges = state.transform.scale < 0.6;
+        else if (isMassive) hideEdges = state.transform.scale < 0.25;
+
+        // Skip massive node drawing completely if zoomed REALLY far out
+        const renderClustersOnly = isUltraMassive && state.transform.scale < 0.2;
 
         if (!hideEdges) {
             const tagPath = new Path2D();
@@ -129,9 +140,6 @@ function draw() {
             : null;
         const validRewireTargets = state.rewire?.validTargetIds instanceof Set ? state.rewire.validTargetIds : new Set();
 
-        if (state.rewire?.enabled && rewireSourceNode) {
-            ctx.save();
-            
         const pathsByColor = {};
         const staticPathsByColor = {};
         const multiSelectedPath = new Path2D();
@@ -152,7 +160,12 @@ function draw() {
                 continue;
             }
 
-            if (isMassive && state.transform.scale < 0.15 && node.kind === 'link') {
+            if (renderClustersOnly && node.kind !== 'category' && node.kind !== 'workspace') {
+                if (i % 8 !== 0) continue; // Aggressive dot skipping at macro zoom
+            }
+
+            const simplifyLinks = isUltraMassive ? state.transform.scale < 0.5 : (isHyperMassive ? state.transform.scale < 0.35 : (isMassive && state.transform.scale < 0.15));
+            if (simplifyLinks && node.kind === 'link') {
                 if (!pathsByColor[color]) pathsByColor[color] = new Path2D();
                 pathsByColor[color].rect(node.x - 2, node.y - 2, 4, 4);
                 continue;
@@ -166,12 +179,13 @@ function draw() {
             if (node.kind === 'folder' && node.data && typeof node.data.depth === 'number' && node.data.depth > 0) {
                 const maxRings = Math.min(node.data.depth, 4);
                 const gap = Math.max(1.5, node.radius / (maxRings + 1.5));
-                if (!pathsByColor['rgba(255, 255, 255, 0.4)']) pathsByColor['rgba(255, 255, 255, 0.4)'] = new Path2D();
+                const ringColor = 'rgba(255, 255, 255, 0.4)';
+                if (!pathsByColor[ringColor]) pathsByColor[ringColor] = new Path2D();
                 for (let r = 1; r <= maxRings; r++) {
                     const ringRadius = node.radius - (gap * r);
                     if (ringRadius > 0.5) {
-                        pathsByColor['rgba(255, 255, 255, 0.4)'].moveTo(node.x + ringRadius, node.y);
-                        pathsByColor['rgba(255, 255, 255, 0.4)'].arc(node.x, node.y, ringRadius, 0, Math.PI * 2);
+                        pathsByColor[ringColor].moveTo(node.x + ringRadius, node.y);
+                        pathsByColor[ringColor].arc(node.x, node.y, ringRadius, 0, Math.PI * 2);
                     }
                 }
             }
@@ -182,15 +196,16 @@ function draw() {
             }
 
             if (isStatic) {
-                if (!staticPathsByColor['rgba(255,214,90,0.74)']) staticPathsByColor['rgba(255,214,90,0.74)'] = new Path2D();
-                staticPathsByColor['rgba(255,214,90,0.74)'].moveTo(node.x + node.radius + (2.8 / state.transform.scale), node.y);
-                staticPathsByColor['rgba(255,214,90,0.74)'].arc(node.x, node.y, node.radius + (2.8 / state.transform.scale), 0, Math.PI * 2);
+                const staticColor = 'rgba(255,214,90,0.74)';
+                if (!staticPathsByColor[staticColor]) staticPathsByColor[staticColor] = new Path2D();
+                staticPathsByColor[staticColor].moveTo(node.x + node.radius + (2.8 / state.transform.scale), node.y);
+                staticPathsByColor[staticColor].arc(node.x, node.y, node.radius + (2.8 / state.transform.scale), 0, Math.PI * 2);
             }
         }
 
         // Draw Batches!
         for (const color in pathsByColor) {
-            if (color === 'rgba(255, 255, 255, 0.4)') {
+            if (color.startsWith('rgba(255, 255, 255')) {
                 ctx.strokeStyle = color;
                 ctx.lineWidth = 1 / state.transform.scale;
                 ctx.stroke(pathsByColor[color]);
@@ -260,6 +275,9 @@ function draw() {
                 ctx.stroke();
             }
         }
+
+        // Rewire Overlay
+        if (state.rewire?.enabled && rewireSourceNode) {
             ctx.beginPath();
             ctx.arc(rewireSourceNode.x, rewireSourceNode.y, rewireSourceNode.radius + 6.8, 0, Math.PI * 2);
             ctx.strokeStyle = 'rgba(145,220,255,0.94)';
@@ -277,82 +295,12 @@ function draw() {
                 ctx.stroke();
                 ctx.setLineDash([]);
             }
-            ctx.restore();
         }
-
-        state.nodes.forEach((node) => {
-            if (node.x < boundsLeft || node.x > boundsRight || node.y < boundsTop || node.y > boundsBottom) return;
-
-            const isHovered = state.hovered && state.hovered.id === node.id;
-            const isSelected = state.selected && state.selected.id === node.id;
-            const isMultiSelected = state.selectionIds instanceof Set && state.selectionIds.has(String(node.id || ''));
-
-            if (isMassive && state.transform.scale < 0.15 && !isHovered && !isSelected && node.kind === 'link') {
-                ctx.fillStyle = node.color || '#444';
-                ctx.fillRect(node.x - 2, node.y - 2, 4, 4);
-                return;
-            }
-
-            ctx.beginPath();
-            ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
-            ctx.fillStyle = node.color;
-            if (isHovered || isSelected) {
-                ctx.shadowBlur = 20 / state.transform.scale;
-                ctx.shadowColor = node.color;
-            } else if (!isMassive) {
-                ctx.shadowBlur = 10 / state.transform.scale;
-                ctx.shadowColor = node.color;
-            } else {
-                ctx.shadowBlur = 0;
-            }
-            ctx.fill();
-            ctx.shadowBlur = 0;
-
-            if (node.kind === 'folder' && node.data && typeof node.data.depth === 'number' && node.data.depth > 0) {
-                const maxRings = Math.min(node.data.depth, 4);
-                const gap = Math.max(1.5, node.radius / (maxRings + 1.5));
-                for (let i = 1; i <= maxRings; i++) {
-                    const ringRadius = node.radius - (gap * i);
-                    if (ringRadius > 0.5) {
-                        ctx.beginPath();
-                        ctx.arc(node.x, node.y, ringRadius, 0, Math.PI * 2);
-                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-                        ctx.lineWidth = 1 / state.transform.scale;
-                        ctx.stroke();
-                    }
-                }
-            }
-
-            if (isHovered || isSelected || isMultiSelected) {
-                ctx.lineWidth = 2 / state.transform.scale;
-                ctx.strokeStyle = getStaticStateForNode(node).isStatic ? 'rgba(255,214,90,0.98)' : 'rgba(255,255,255,0.92)';
-                ctx.stroke();
-            }
-            if (isMultiSelected && !isSelected) {
-                ctx.beginPath();
-                ctx.arc(node.x, node.y, node.radius + (4.6 / state.transform.scale), 0, Math.PI * 2);
-                ctx.lineWidth = 1.2 / state.transform.scale;
-                ctx.setLineDash([4 / state.transform.scale, 4 / state.transform.scale]);
-                ctx.strokeStyle = 'rgba(145,220,255,0.78)';
-                ctx.stroke();
-                ctx.setLineDash([]);
-            }
-            if (getStaticStateForNode(node).isStatic) {
-                ctx.beginPath();
-                ctx.arc(node.x, node.y, node.radius + (2.8 / state.transform.scale), 0, Math.PI * 2);
-                ctx.lineWidth = 1.6 / state.transform.scale;
-                ctx.strokeStyle = 'rgba(255,214,90,0.74)';
-                ctx.stroke();
-            }
-        });
 
         ctx.restore();
         renderLabels(ctx);
         updateCursor();
     }
-
-
-
 
 
     state.renderInspector = renderInspector;

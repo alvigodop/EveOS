@@ -56,9 +56,20 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
     function runIntegrationPass(ctx) {
         const { centerPull, motionProfile } = ctx;
+        const nodeCount = state.nodes.length;
 
-        state.nodes.forEach((node) => {
-            if (state.pointer.mode === 'node' && state.pointer.node?.id === node.id) return;
+        // Pre-gather hubs (categories and workspaces) for the exclusion zone check
+        const hubs = [];
+        for (let i = 0; i < nodeCount; i++) {
+            const n = state.nodes[i];
+            if (n.kind === 'category' || n.kind === 'workspace') {
+                hubs.push(n);
+            }
+        }
+
+        for (let i = 0; i < nodeCount; i++) {
+            const node = state.nodes[i];
+            if (state.pointer.mode === 'node' && state.pointer.node?.id === node.id) continue;
 
             if (isNodeStatic(node)) {
                 if (!node.staticAnchor) {
@@ -69,7 +80,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 node.y = Number(node.staticAnchor?.y) || node.y;
                 node.vx = 0;
                 node.vy = 0;
-                return;
+                continue;
             }
 
             const anchor = getMotionTargetAnchor(node, getNodeAnchor(node), motionProfile);
@@ -77,17 +88,12 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             const pId = (node.data && node.data.anchorNodeId) ? node.data.anchorNodeId : '';
             const pNode = pId ? state.nodeIndex.get(pId) : null;
 
-            // AURA SOVEREIGNTY: Direct children of Card/Workspace nodes must NOT be pulled
-            // toward the card center by ANY force. Their position is governed exclusively
-            // by the Aura Repulsion wall and the Spinal Socket Navigation.
             const isDirectCardChild = pNode && (pNode.kind === 'category' || pNode.kind === 'workspace');
 
             if (!isDirectCardChild) {
                 node.vx += (anchor.x - node.x) * anchorPull;
                 node.vy += (anchor.y - node.y) * anchorPull;
             } else if (node.kind === 'folder') {
-                // ROOT FOLDER AURA LOCK: Root folders get a strong anchor pull
-                // so they track the card's aura direction instead of drifting freely
                 const hierAnchor = state.hierarchyAnchors?.get(node.id);
                 if (hierAnchor) {
                     node.vx += (hierAnchor.x - node.x) * anchorPull * 0.6;
@@ -117,34 +123,24 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             stabilizeNodeMotion(node, anchor, motionProfile);
             stabilizeDirectCardBookmarkClearance(node, anchor);
 
-            // ═══════════════════════════════════════════════════════════════
-            // BRUTE FORCE EXCLUSION ZONE — ABSOLUTE LAST LINE OF DEFENSE
-            // This runs AFTER every other physics system. It has ZERO
-            // dependencies on aura settings, chainRoots, teardrop math,
-            // or hierarchy state. Pure Euclidean distance enforcement.
-            // ═══════════════════════════════════════════════════════════════
             if (node.kind !== 'category' && node.kind !== 'workspace') {
-                for (let ci = 0; ci < state.nodes.length; ci++) {
-                    const card = state.nodes[ci];
-                    if (!card || card.id === node.id) continue;
-                    if (card.kind !== 'category' && card.kind !== 'workspace') continue;
+                for (let j = 0; j < hubs.length; j++) {
+                    const hub = hubs[j];
+                    if (hub.id === node.id) continue;
 
-                    const edx = node.x - card.x;
-                    const edy = node.y - card.y;
+                    const edx = node.x - hub.x;
+                    const edy = node.y - hub.y;
                     const edistSq = edx * edx + edy * edy;
-                    // Minimum exclusion radius: card visual boundary (radius * 2.2)
-                    const minDist = (Number(card.radius) || 60) * 2.2;
+                    const minDist = (Number(hub.radius) || 60) * 2.2;
                     const minDistSq = minDist * minDist;
 
                     if (edistSq < minDistSq) {
                         const edist = Math.sqrt(edistSq) || 1;
-                        // Ease 80% toward the boundary each frame
                         const deficit = minDist - edist;
                         const nx = edx / edist;
                         const ny = edy / edist;
                         node.x += nx * deficit * 0.8;
                         node.y += ny * deficit * 0.8;
-                        // Kill inward velocity
                         const radialV = node.vx * nx + node.vy * ny;
                         if (radialV < 0) {
                             node.vx -= nx * radialV;
@@ -155,7 +151,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                     }
                 }
             }
-        });
+        }
     }
 
     const passes = ns._physicsTickPasses = ns._physicsTickPasses || {};

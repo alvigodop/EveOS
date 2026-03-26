@@ -11,11 +11,25 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     const passes = ns._physicsTickPasses || {};
     const { runPairwisePass, runEdgePass, runHierarchyPass, runIntegrationPass } = passes;
 
+    let polarityDirections = new Float32Array(0);
+    let polarityStrengths = new Float32Array(0);
+
     function buildTickContext() {
         const nodeCount = state.nodes.length;
         const motionProfile = getMotionProfile(nodeCount);
 
+        if (polarityDirections.length !== nodeCount) {
+            polarityDirections = new Float32Array(nodeCount);
+            polarityStrengths = new Float32Array(nodeCount);
+        }
+
         syncMotionAnchors(false);
+
+        for (let i = 0; i < nodeCount; i++) {
+            const node = state.nodes[i];
+            polarityDirections[i] = getPolarityDirection(node);
+            polarityStrengths[i] = getPolarityStrength(node, motionProfile);
+        }
 
         return {
             nodeCount,
@@ -29,17 +43,17 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 * (motionProfile.springScale || 1)
                 * getMotionTuningValue('spring'),
             frontierReach: getMotionTuningValue('frontierReach'),
-            polarityCache: state.nodes.map((node) => ({
-                direction: getPolarityDirection(node),
-                strength: getPolarityStrength(node, motionProfile)
-            }))
+            polarityDirections,
+            polarityStrengths
         };
     }
 
     let wakeTicks = 120;
+    let tickCounter = 0;
 
     function tickPhysics() {
         if (!state.nodes.length || !state.canvas) return;
+        tickCounter++;
 
         let kineticEnergy = 0;
         for (let i = 0; i < state.nodes.length; i++) {
@@ -59,6 +73,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         const shouldSleep = wakeTicks === 0;
 
         const ctx = buildTickContext();
+        ctx.tickCounter = tickCounter;
 
         if (!shouldSleep) {
             runPairwisePass(ctx);

@@ -52,26 +52,23 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
 
 
-function step() {
+    let lastPhysicsTick = 0;
 
-
-
+    function step(timestamp) {
         if (!state.running) return;
 
+        const nodeCount = state.nodes.length;
+        const isMassive = nodeCount > 5000;
+        const physicsRate = isMassive ? 33.33 : 16.66; // 30Hz vs 60Hz
 
-
-        tickPhysics();
-
-
+        if (timestamp - lastPhysicsTick >= physicsRate) {
+            tickPhysics();
+            lastPhysicsTick = timestamp;
+        }
 
         draw();
 
-
-
         state.animationFrameId = window.requestAnimationFrame(step);
-
-
-
     }
 
 
@@ -105,21 +102,10 @@ function stopAnimation() {
 
 
 function startAnimation() {
-
-
-
         stopAnimation();
-
-
-
         state.running = true;
-
-
-
-        step();
-
-
-
+        lastPhysicsTick = performance.now();
+        step(lastPhysicsTick);
     }
 
 

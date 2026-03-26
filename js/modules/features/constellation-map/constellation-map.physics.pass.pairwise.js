@@ -37,7 +37,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             this.x = x;
             this.y = y;
             this.size = size;
-            this.items = null;
+            this.items = null; // Store indices here
             this.children = null;
             this.cx = 0;
             this.cy = 0;
@@ -45,16 +45,17 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             this.polarity = 0;
         }
 
-        insert(item) {
+        insert(nodeIndex, nodeX, nodeY) {
             if (this.children) {
-                const right = item.node.x >= this.x + this.size / 2;
-                const bottom = item.node.y >= this.y + this.size / 2;
+                const right = nodeX >= this.x + this.size / 2;
+                const bottom = nodeY >= this.y + this.size / 2;
                 const index = (bottom ? 2 : 0) + (right ? 1 : 0);
-                this.children[index].insert(item);
+                this.children[index].insert(nodeIndex, nodeX, nodeY);
                 return;
             }
             if (!this.items) this.items = [];
-            this.items.push(item);
+            this.items.push(nodeIndex);
+
             if (this.items.length > 4 && this.size > 20) {
                 this.children = [
                     getQuadNode(this.x, this.y, this.size / 2),
@@ -62,21 +63,23 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                     getQuadNode(this.x, this.y + this.size / 2, this.size / 2),
                     getQuadNode(this.x + this.size / 2, this.y + this.size / 2, this.size / 2)
                 ];
-                for (const it of this.items) {
-                    const right = it.node.x >= this.x + this.size / 2;
-                    const bottom = it.node.y >= this.y + this.size / 2;
-                    const index = (bottom ? 2 : 0) + (right ? 1 : 0);
-                    this.children[index].insert(it);
+                for (let i = 0; i < this.items.length; i++) {
+                    const idx = this.items[i];
+                    const itNode = state.nodes[idx];
+                    const right = itNode.x >= this.x + this.size / 2;
+                    const bottom = itNode.y >= this.y + this.size / 2;
+                    const cIdx = (bottom ? 2 : 0) + (right ? 1 : 0);
+                    this.children[cIdx].insert(idx, itNode.x, itNode.y);
                 }
                 this.items = null;
             }
         }
-        computeMass() {
+        computeMass(polarityDirections, polarityStrengths) {
             this.cx = 0; this.cy = 0; this.mass = 0; this.polarity = 0;
             if (this.children) {
                 for (let i = 0; i < 4; i++) {
                     const c = this.children[i];
-                    c.computeMass();
+                    c.computeMass(polarityDirections, polarityStrengths);
                     if (c.mass > 0) {
                         this.cx += c.cx * c.mass;
                         this.cy += c.cy * c.mass;
@@ -86,12 +89,15 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 }
             } else if (this.items) {
                 for (let i = 0; i < this.items.length; i++) {
-                    const it = this.items[i];
-                    const m = Math.abs(it.polarity.strength * it.polarity.direction) || 1;
-                    this.cx += it.node.x * m;
-                    this.cy += it.node.y * m;
+                    const idx = this.items[i];
+                    const itNode = state.nodes[idx];
+                    const dir = polarityDirections[idx];
+                    const str = polarityStrengths[idx];
+                    const m = Math.abs(str * dir) || 1;
+                    this.cx += itNode.x * m;
+                    this.cy += itNode.y * m;
                     this.mass += m;
-                    this.polarity += it.polarity.strength * it.polarity.direction;
+                    this.polarity += str * dir;
                 }
             }
             if (this.mass > 0) {
@@ -101,10 +107,14 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         }
     }
 
+    const traversalStack = new Array(512);
+
     function runPairwisePass(ctx) {
         poolIndex = 0;
-        const { repulsion, polarityCache, motionProfile } = ctx;
-        const THETA = 0.9;
+        const { repulsion, polarityDirections, polarityStrengths, motionProfile, nodeCount, tickCounter } = ctx;
+        let THETA = 0.9;
+        if (nodeCount > 10000) THETA = 1.5; // More aggressive for ultra massive
+        else if (nodeCount > 5000) THETA = 1.1;
 
         if (state.nodes.length === 0) return;
 
@@ -123,13 +133,16 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         const root = getQuadNode(minX, minY, size + 1);
 
         for (let i = 0; i < state.nodes.length; i++) {
-            root.insert({ node: state.nodes[i], polarity: polarityCache[i], isStatic: isNodeStatic(state.nodes[i]) });
+            root.insert(i, state.nodes[i].x, state.nodes[i].y);
         }
-        root.computeMass();
+        root.computeMass(polarityDirections, polarityStrengths);
+
+        const chunkDivisor = nodeCount > 10000 ? 3 : (nodeCount > 5000 ? 2 : 1);
 
         for (let index = 0; index < state.nodes.length; index += 1) {
             const node = state.nodes[index];
             if (isNodeStatic(node)) continue;
+            if (chunkDivisor > 1 && (index % chunkDivisor !== tickCounter % chunkDivisor)) continue;
 
             if (state.pointer.mode === 'node' && state.pointer.node && state.pointer.node.id === node.id) {
                 node.vx = 0;
@@ -137,22 +150,27 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 continue;
             }
 
-            const queue = [root];
-            while (queue.length > 0) {
-                const quad = queue.shift();
+            let stackPtr = 0;
+            traversalStack[stackPtr++] = root;
+            
+            while (stackPtr > 0) {
+                const quad = traversalStack[--stackPtr];
                 if (!quad || quad.mass === 0) continue;
 
                 const dx = quad.cx - node.x;
                 const dy = quad.cy - node.y;
-                const distSq = Math.max(36, (dx * dx) + (dy * dy));
+                const distSq = (dx * dx) + (dy * dy);
 
-                if (quad.children && (quad.size / Math.sqrt(distSq)) > THETA) {
-                    queue.push(quad.children[0], quad.children[1], quad.children[2], quad.children[3]);
+                if (quad.children && (quad.size * quad.size / Math.max(36, distSq)) > (THETA * THETA)) {
+                    traversalStack[stackPtr++] = quad.children[0];
+                    traversalStack[stackPtr++] = quad.children[1];
+                    traversalStack[stackPtr++] = quad.children[2];
+                    traversalStack[stackPtr++] = quad.children[3];
                 } else {
                     if (quad.items) {
                         for (let i = 0; i < quad.items.length; i++) {
-                            const otherItem = quad.items[i];
-                            const other = otherItem.node;
+                            const otherIdx = quad.items[i];
+                            const other = state.nodes[otherIdx];
                             if (other.id === node.id) continue;
 
                             const odx = other.x - node.x;
@@ -190,17 +208,20 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                                 }
                             }
 
-                            const nodeInfluenceScale = getPairwiseInfluenceScale(node, other, motionProfile) * nodeChainFactor * nodeDepthFactor;
-                            node.vx += onx * oforce * otherItem.polarity.direction * otherItem.polarity.strength * nodeInfluenceScale;
-                            node.vy += ony * oforce * otherItem.polarity.direction * otherItem.polarity.strength * nodeInfluenceScale;
+                            const otherDir = polarityDirections[otherIdx];
+                            const otherStr = polarityStrengths[otherIdx];
+                            const nodeInfluenceScale = getPairwiseInfluenceScale(node, other, motionProfile) * nodeChainFactor * nodeDepthFactor * chunkDivisor;
+                            node.vx += onx * oforce * otherDir * otherStr * nodeInfluenceScale;
+                            node.vy += ony * oforce * otherDir * otherStr * nodeInfluenceScale;
                         }
-                    } else if (quad.children) {
-                        const force = repulsion * (quad.mass) / distSq;
-                        const dist = Math.sqrt(distSq);
+                    } else {
+                        const distSqEff = Math.max(36, distSq);
+                        const force = repulsion * (quad.mass) / distSqEff;
+                        const dist = Math.sqrt(distSqEff);
                         const nx = dx / dist;
                         const ny = dy / dist;
                         const externalChainFactor = state.chainExternalForcesEnabled ? 1 : 0;
-                        const nodeInfluenceScale = getPairwiseInfluenceScale(node, node, motionProfile) * externalChainFactor;
+                        const nodeInfluenceScale = getPairwiseInfluenceScale(node, node, motionProfile) * externalChainFactor * chunkDivisor;
                         
                         const avgPolarity = quad.polarity / quad.mass;
                         node.vx += nx * force * avgPolarity * nodeInfluenceScale;
