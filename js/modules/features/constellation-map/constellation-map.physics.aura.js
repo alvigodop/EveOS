@@ -148,9 +148,13 @@ function applyFolderAura(node, folder, orientX, orientY, distToParent, isRootFol
 
             // ROOT FOLDERS need much stronger repulsion to enforce their boundary
             // against card-direct bookmarks that have strong anchor pulls.
+            // HOWEVER, their own immediate children should be allowed to cluster closer.
             let force;
-            if (isRootFolder) {
+            if (isRootFolder && !isImmediateChild) {
                 force = 8.0 * penetration + 20.0 * Math.pow(penetration, 2);
+            } else if (isRootFolder && isImmediateChild) {
+                // Own children: soft quadratic contact to allow tighter clustering
+                force = 3.0 * Math.pow(penetration, 2);
             } else {
                 // Non-root: soft quadratic contact
                 force = 2.0 * Math.pow(penetration, 2);
@@ -180,8 +184,9 @@ function applyFolderAura(node, folder, orientX, orientY, distToParent, isRootFol
 
             node.vy += (rdy / rdist) * force;
 
-            // ROOT FOLDER HARD BOUNDARY: Position push to prevent tunneling
-            if (isRootFolder && penetration > 0.05) {
+            // ROOT FOLDER HARD BOUNDARY: Position push to prevent tunneling.
+            // EXEMPT immediate children to allow them to be "attracted" deep into the aura.
+            if (isRootFolder && !isImmediateChild && penetration > 0.05) {
                 const radiusLong2 = projLong > 0 ? radiusFront : radiusBack;
                 const pushMagnitude = penetration * radiusLong2 * 0.3;
                 node.x += (rdx / rdist) * pushMagnitude;
@@ -450,9 +455,11 @@ function applyFolderRecovery(node, parentNode, anchor, motionProfile) {
 
         const isRootFolder = parentNode && (parentNode.kind === 'category' || parentNode.kind === 'workspace');
 
-        // Root folders get a MUCH stiffer spring to lock behind the card's aura direction
-        const stiffness = isRootFolder ? 0.004 : 0.00015;
-        const maxRecovery = isRootFolder ? 0.25 : 0.08;
+        // Root folders get a MUCH stiffer spring to lock behind the card's aura direction.
+        // Sub-folders now also get a significantly stronger spring (0.0008 vs old 0.00015) 
+        // to ensure they cluster tightly to the root folder.
+        const stiffness = isRootFolder ? 0.004 : 0.0008;
+        const maxRecovery = isRootFolder ? 0.25 : 0.15;
         const recovery = Math.min(maxRecovery, dist * stiffness * recoveryScale);
 
         node.vx += dx * recovery;

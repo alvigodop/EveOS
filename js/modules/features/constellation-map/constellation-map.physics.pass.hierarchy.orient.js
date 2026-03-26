@@ -143,7 +143,9 @@ function maintainHierarchyState() {
             if (isRoot) {
                 const rootData = chainRoots.get(pNode.chainId);
                 if (rootData && rootData.frontAngle !== undefined) {
-                    targetAngle = rootData.frontAngle + Math.PI;
+                    // ROOT FOLDERS: Orientation should point TOWARD the card front direction,
+                    // which is where the parent is. Consistent with non-root folders.
+                    targetAngle = rootData.frontAngle;
                 }
             }
 

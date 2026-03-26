@@ -182,7 +182,7 @@ function buildHierarchyAnchors(parentChildren, frontierReach, rootChildGuides, w
                 // Squeezed even closer to the card's boundary
                 const baseR = isRootChild 
                     ? Math.max(5 + (rootBase * 0.25) - popPull, auraR * 0.30) 
-                    : Math.max((parent.radius || 15) + frontierReach, folderAuraR + 40);
+                    : Math.max((parent.radius || 15) + 40, folderAuraR + 15);
 
                 const rowDepth = isRootChild ? 10 : 100;
                 const popPush = isRootChild ? 0 : Math.min(60, count * 3);
@@ -203,7 +203,7 @@ function buildHierarchyAnchors(parentChildren, frontierReach, rootChildGuides, w
 
                 const fBaseR = isRootChild 
                     ? Math.max(20 + (frootBase * 0.45) - fPopPull, (auraR * 0.5) + 20) 
-                    : Math.max((parent.radius || 15) + (frontierReach - 60), folderAuraR2 + 50);
+                    : Math.max((parent.radius || 15) + 20, folderAuraR2 + 10);
 
                 const fRowDepth = isRootChild ? 10 : 50;
                 const fPopPush = isRootChild ? 0 : Math.min(30, count * 4);
