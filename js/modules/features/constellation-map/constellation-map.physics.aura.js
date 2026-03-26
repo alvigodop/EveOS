@@ -92,19 +92,15 @@ function applyFolderAura(node, folder, orientX, orientY, distToParent, isRootFol
 
 
 
-        // Repulsive center is offset from folder toward parent
-
+        // Repulsive center is offset from folder toward parent.
+        // ROOT FOLDERS: Offset center AWAY from the card to push the aura bulk downward.
         const shape = getFolderAuraShape(folder, distToParent, isRootFolder);
-        const offsetDist = shape.offsetDist;
+        const offsetDist = isRootFolder ? -shape.offsetDist : shape.offsetDist;
 
         const fnx = orientX;
-
         const fny = orientY;
 
-
-
         const centerX = folder.x + fnx * offsetDist;
-
         const centerY = folder.y + fny * offsetDist;
 
 
