@@ -564,14 +564,21 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
     function getFolderAuraShape(folder, distToParent, isRootFolder) {
 
-        const offsetDist = 140 * getAuraTuningValue('folderOffsetScale');
+        let offsetDist = 140 * getAuraTuningValue('folderOffsetScale');
+        if (isRootFolder) {
+            // ROOT FOLDER: Move center significantly AWAY from the card (380px)
+            offsetDist = -380 * getAuraTuningValue('folderOffsetScale');
+        }
+
         const distFromCenterToParent = distToParent - offsetDist;
         const extraBuffer = isRootFolder ? 110 : 250;
 
         return {
             offsetDist,
-            radiusFront: Math.max(300 * getAuraTuningValue('folderFrontScale'), (distFromCenterToParent + extraBuffer) * getAuraTuningValue('folderFrontScale')),
-            radiusBack: 250 * getAuraTuningValue('folderBackScale'),
+            radiusFront: isRootFolder 
+                ? 120 * getAuraTuningValue('folderFrontScale') // Small front for root folders
+                : Math.max(300 * getAuraTuningValue('folderFrontScale'), (distFromCenterToParent + extraBuffer) * getAuraTuningValue('folderFrontScale')),
+            radiusBack: (isRootFolder ? 550 : 250) * getAuraTuningValue('folderBackScale'), // Huge back for root folders
             radiusLat: 1100 * getAuraTuningValue('folderWidthScale')
         };
 
