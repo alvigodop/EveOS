@@ -112,9 +112,11 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     function runPairwisePass(ctx) {
         poolIndex = 0;
         const { repulsion, polarityDirections, polarityStrengths, motionProfile, nodeCount, tickCounter } = ctx;
+        
+        // Dynamic Theta based on scale and state
         let THETA = 0.9;
-        if (nodeCount > 10000) THETA = 1.5; // More aggressive for ultra massive
-        else if (nodeCount > 5000) THETA = 1.1;
+        if (nodeCount > 10000) THETA = 1.5;
+        else if (nodeCount > 5000) THETA = 1.15;
 
         if (state.nodes.length === 0) return;
 
@@ -138,6 +140,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         root.computeMass(polarityDirections, polarityStrengths);
 
         const chunkDivisor = nodeCount > 10000 ? 3 : (nodeCount > 5000 ? 2 : 1);
+        const softChunkScale = chunkDivisor === 3 ? 1.85 : (chunkDivisor === 2 ? 1.45 : 1);
 
         for (let index = 0; index < state.nodes.length; index += 1) {
             const node = state.nodes[index];
@@ -161,6 +164,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 const dy = quad.cy - node.y;
                 const distSq = (dx * dx) + (dy * dy);
 
+                // Use Squared THETA to avoid Math.sqrt() in traversal
                 if (quad.children && (quad.size * quad.size / Math.max(36, distSq)) > (THETA * THETA)) {
                     traversalStack[stackPtr++] = quad.children[0];
                     traversalStack[stackPtr++] = quad.children[1];
@@ -210,8 +214,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
                             const otherDir = polarityDirections[otherIdx];
                             const otherStr = polarityStrengths[otherIdx];
-                            const chunkForce = chunkDivisor === 3 ? 1.8 : (chunkDivisor === 2 ? 1.4 : 1);
-                            const nodeInfluenceScale = getPairwiseInfluenceScale(node, other, motionProfile) * nodeChainFactor * nodeDepthFactor * chunkForce;
+                            const nodeInfluenceScale = getPairwiseInfluenceScale(node, other, motionProfile) * nodeChainFactor * nodeDepthFactor * softChunkScale;
                             node.vx += onx * oforce * otherDir * otherStr * nodeInfluenceScale;
                             node.vy += ony * oforce * otherDir * otherStr * nodeInfluenceScale;
                         }
@@ -222,8 +225,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                         const nx = dx / dist;
                         const ny = dy / dist;
                         const externalChainFactor = state.chainExternalForcesEnabled ? 1 : 0;
-                        const chunkForce = chunkDivisor === 3 ? 1.8 : (chunkDivisor === 2 ? 1.4 : 1);
-                        const nodeInfluenceScale = getPairwiseInfluenceScale(node, node, motionProfile) * externalChainFactor * chunkForce;
+                        const nodeInfluenceScale = getPairwiseInfluenceScale(node, node, motionProfile) * externalChainFactor * softChunkScale;
                         
                         const avgPolarity = quad.polarity / quad.mass;
                         node.vx += nx * force * avgPolarity * nodeInfluenceScale;

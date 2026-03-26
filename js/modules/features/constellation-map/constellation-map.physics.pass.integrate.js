@@ -34,7 +34,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         const dx = node.x - parentNode.x;
         const dy = node.y - parentNode.y;
-        const dist = Math.max(1, Math.sqrt((dx * dx) + (dy * dy)));
+        const distSq = (dx * dx) + (dy * dy);
+        const dist = Math.max(1, Math.sqrt(distSq));
         const tx = -dy / dist;
         const ty = dx / dist;
         const tangentialVelocity = (node.vx * tx) + (node.vy * ty);
@@ -54,29 +55,54 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         }
     }
 
-    function runIntegrationPass(ctx) {
-        const { centerPull, motionProfile } = ctx;
-        const nodeCount = state.nodes.length;
-        const maxSpeed = 30; // Absolute safety cap for massive maps
+    const HUB_GRID_SIZE = 250;
+    const hubGrid = new Map();
 
-        // Pre-gather hubs (categories and workspaces) for the exclusion zone check
-        const hubs = [];
-        for (let i = 0; i < nodeCount; i++) {
-            const n = state.nodes[i];
-            if (n.kind === 'category' || n.kind === 'workspace') {
-                hubs.push(n);
-            }
+    function updateHubGrid(hubs) {
+        hubGrid.clear();
+        for (let i = 0; i < hubs.length; i++) {
+            const hub = hubs[i];
+            const gx = Math.floor(hub.x / HUB_GRID_SIZE);
+            const gy = Math.floor(hub.y / HUB_GRID_SIZE);
+            const key = `${gx},${gy}`;
+            if (!hubGrid.has(key)) hubGrid.set(key, []);
+            hubGrid.get(key).push(hub);
         }
+    }
+
+    function runIntegrationPass(ctx) {
+        const { centerPull, motionProfile, hubs } = ctx;
+        const nodeCount = state.nodes.length;
+        const maxSpeed = 25; 
+        let totalKineticEnergy = 0;
+
+        // Viewport center for interaction radius
+        const vpcX = -state.transform.tx / state.transform.scale + (state.canvas.width / 2) / state.transform.scale;
+        const vpcY = -state.transform.ty / state.transform.scale + (state.canvas.height / 2) / state.transform.scale;
+        const interactionRadiusSq = Math.pow(2000 / state.transform.scale, 2);
+
+        if (hubs) updateHubGrid(hubs);
 
         for (let i = 0; i < nodeCount; i++) {
             const node = state.nodes[i];
-            if (state.pointer.mode === 'node' && state.pointer.node?.id === node.id) continue;
+            
+            // Interaction Radius Gate (Active/Cold Tiers)
+            const distToCenterSq = Math.pow(node.x - vpcX, 2) + Math.pow(node.y - vpcY, 2);
+            const isNearViewport = distToCenterSq < interactionRadiusSq;
+            const isMoving = (node.vx * node.vx + node.vy * node.vy) > 0.001;
+            
+            // If massive, skip physics for distant static-ish nodes
+            if (nodeCount > 10000 && !isNearViewport && !isMoving && node.kind !== 'category' && node.kind !== 'workspace') {
+                continue; 
+            }
+
+            if (state.pointer.mode === 'node' && state.pointer.node?.id === node.id) {
+                totalKineticEnergy += (node.vx * node.vx) + (node.vy * node.vy);
+                continue;
+            }
 
             if (isNodeStatic(node)) {
-                if (!node.staticAnchor) {
-                    setStaticAnchor(node);
-                }
-
+                if (!node.staticAnchor) setStaticAnchor(node);
                 node.x = Number(node.staticAnchor?.x) || node.x;
                 node.y = Number(node.staticAnchor?.y) || node.y;
                 node.vx = 0;
@@ -114,7 +140,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             node.vx *= velocityDamping;
             node.vy *= velocityDamping;
 
-            // VELOCITY CLAMPING
+            // Velocity Clamping
             const speedSq = (node.vx * node.vx) + (node.vy * node.vy);
             if (speedSq > (maxSpeed * maxSpeed)) {
                 const speed = Math.sqrt(speedSq);
@@ -132,42 +158,51 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             stabilizeNodeMotion(node, anchor, motionProfile);
             stabilizeDirectCardBookmarkClearance(node, anchor);
 
-            if (node.kind !== 'category' && node.kind !== 'workspace') {
-                for (let j = 0; j < hubs.length; j++) {
-                    const hub = hubs[j];
-                    if (hub.id === node.id) continue;
+            // Hub Exclusion using Spatial Grid
+            if (node.kind !== 'category' && node.kind !== 'workspace' && hubs) {
+                const gx = Math.floor(node.x / HUB_GRID_SIZE);
+                const gy = Math.floor(node.y / HUB_GRID_SIZE);
 
-                    const hubRadius = (Number(hub.radius) || 60);
-                    const range = hubRadius * 3.5; // Only check if reasonably close
+                for (let ox = -1; ox <= 1; ox++) {
+                    for (let oy = -1; oy <= 1; oy++) {
+                        const key = `${gx + ox},${gy + oy}`;
+                        const cellHubs = hubGrid.get(key);
+                        if (!cellHubs) continue;
 
-                    const edx = node.x - hub.x;
-                    const edy = node.y - hub.y;
-                    
-                    // Spatial Gate (Square)
-                    if (Math.abs(edx) > range || Math.abs(edy) > range) continue;
+                        for (let j = 0; j < cellHubs.length; j++) {
+                            const hub = cellHubs[j];
+                            if (hub.id === node.id) continue;
 
-                    const edistSq = edx * edx + edy * edy;
-                    const minDist = hubRadius * 2.2;
-                    const minDistSq = minDist * minDist;
+                            const edx = node.x - hub.x;
+                            const edy = node.y - hub.y;
+                            const edistSq = edx * edx + edy * edy;
+                            const hubRadius = (Number(hub.radius) || 60);
+                            const minDist = hubRadius * 2.2;
+                            const minDistSq = minDist * minDist;
 
-                    if (edistSq < minDistSq) {
-                        const edist = Math.sqrt(edistSq) || 1;
-                        const deficit = minDist - edist;
-                        const nx = edx / edist;
-                        const ny = edy / edist;
-                        node.x += nx * deficit * 0.8;
-                        node.y += ny * deficit * 0.8;
-                        const radialV = node.vx * nx + node.vy * ny;
-                        if (radialV < 0) {
-                            node.vx -= nx * radialV;
-                            node.vy -= ny * radialV;
+                            if (edistSq < minDistSq) {
+                                const edist = Math.sqrt(edistSq) || 1;
+                                const deficit = minDist - edist;
+                                const nx = edx / edist;
+                                const ny = edy / edist;
+                                node.x += nx * deficit * 0.8;
+                                node.y += ny * deficit * 0.8;
+                                const radialV = node.vx * nx + node.vy * ny;
+                                if (radialV < 0) {
+                                    node.vx -= nx * radialV;
+                                    node.vy -= ny * radialV;
+                                }
+                                node.vx *= 0.5;
+                                node.vy *= 0.5;
+                            }
                         }
-                        node.vx *= 0.5;
-                        node.vy *= 0.5;
                     }
                 }
             }
+
+            totalKineticEnergy += (node.vx * node.vx) + (node.vy * node.vy);
         }
+        return totalKineticEnergy;
     }
 
     const passes = ns._physicsTickPasses = ns._physicsTickPasses || {};
