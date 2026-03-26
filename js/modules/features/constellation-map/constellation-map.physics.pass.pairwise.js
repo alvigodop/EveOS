@@ -210,7 +210,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
                             const otherDir = polarityDirections[otherIdx];
                             const otherStr = polarityStrengths[otherIdx];
-                            const nodeInfluenceScale = getPairwiseInfluenceScale(node, other, motionProfile) * nodeChainFactor * nodeDepthFactor * chunkDivisor;
+                            const chunkForce = chunkDivisor === 3 ? 1.8 : (chunkDivisor === 2 ? 1.4 : 1);
+                            const nodeInfluenceScale = getPairwiseInfluenceScale(node, other, motionProfile) * nodeChainFactor * nodeDepthFactor * chunkForce;
                             node.vx += onx * oforce * otherDir * otherStr * nodeInfluenceScale;
                             node.vy += ony * oforce * otherDir * otherStr * nodeInfluenceScale;
                         }
@@ -221,7 +222,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                         const nx = dx / dist;
                         const ny = dy / dist;
                         const externalChainFactor = state.chainExternalForcesEnabled ? 1 : 0;
-                        const nodeInfluenceScale = getPairwiseInfluenceScale(node, node, motionProfile) * externalChainFactor * chunkDivisor;
+                        const chunkForce = chunkDivisor === 3 ? 1.8 : (chunkDivisor === 2 ? 1.4 : 1);
+                        const nodeInfluenceScale = getPairwiseInfluenceScale(node, node, motionProfile) * externalChainFactor * chunkForce;
                         
                         const avgPolarity = quad.polarity / quad.mass;
                         node.vx += nx * force * avgPolarity * nodeInfluenceScale;

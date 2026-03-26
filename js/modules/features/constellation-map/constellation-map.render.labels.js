@@ -91,6 +91,12 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         ctx.fill();
     }
 
+    // OCCUPANCY GRID FOR LABELS (O(L) instead of O(L^2))
+    const GRID_SIZE = 48;
+    let occupancyGrid = new Uint8Array(0);
+    let gridCols = 0;
+    let gridRows = 0;
+
     function renderLabels(ctx) {
         state.labelHitBoxes = [];
         if (state.labelMode === 'off') return;
@@ -173,7 +179,18 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             if (left.node.kind !== 'link' && right.node.kind === 'link') return -1;
             return left.node.label.localeCompare(right.node.label, undefined, { sensitivity: 'base' });
         });
-        const occupied = [];
+
+        // Initialize/Clear occupancy grid
+        const cols = Math.ceil(state.canvas.width / GRID_SIZE);
+        const rows = Math.ceil(state.canvas.height / GRID_SIZE);
+        if (occupancyGrid.length !== cols * rows) {
+            occupancyGrid = new Uint8Array(cols * rows);
+            gridCols = cols;
+            gridRows = rows;
+        } else {
+            occupancyGrid.fill(0);
+        }
+
         let renderedLinkLabels = 0;
         candidates.forEach((box) => {
             if (
@@ -188,23 +205,42 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             ) {
                 return;
             }
-            const allowOverlap = state.labelMode === 'all'
-                ? (box.isHovered || box.isSelected)
-                : false;
-            if (!allowOverlap && state.labelMode === 'auto') {
-                const overlaps = occupied.some((taken) => !(
-                    box.right < taken.left
-                    || box.left > taken.right
-                    || box.bottom < taken.top
-                    || box.top > taken.bottom
-                ));
-                if (overlaps && box.node.kind === 'link' && !box.isHovered && !box.isSelected) {
-                    return;
+
+            const allowOverlap = state.labelMode === 'all' || box.isHovered || box.isSelected;
+            
+            if (!allowOverlap) {
+                // Check Grid Occupancy
+                const xStart = Math.max(0, Math.floor(box.left / GRID_SIZE));
+                const xEnd = Math.min(gridCols - 1, Math.floor(box.right / GRID_SIZE));
+                const yStart = Math.max(0, Math.floor(box.top / GRID_SIZE));
+                const yEnd = Math.min(gridRows - 1, Math.floor(box.bottom / GRID_SIZE));
+
+                let isOccupied = false;
+                for (let y = yStart; y <= yEnd; y++) {
+                    for (let x = xStart; x <= xEnd; x++) {
+                        if (occupancyGrid[y * gridCols + x]) {
+                            isOccupied = true;
+                            break;
+                        }
+                    }
+                    if (isOccupied) break;
+                }
+
+                if (isOccupied) {
+                    if (box.node.kind === 'link' && !box.isHovered && !box.isSelected) return;
+                } else {
+                    // Mark Grid as Occupied
+                    for (let y = yStart; y <= yEnd; y++) {
+                        for (let x = xStart; x <= xEnd; x++) {
+                            occupancyGrid[y * gridCols + x] = 1;
+                        }
+                    }
                 }
             }
+
             state.labelHitBoxes.push(box);
-            occupied.push(box);
             if (box.node.kind === 'link') renderedLinkLabels += 1;
+            
             const labelOpacity = box.isSelected
                 ? 0.98
                 : box.isHovered

@@ -57,6 +57,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     function runIntegrationPass(ctx) {
         const { centerPull, motionProfile } = ctx;
         const nodeCount = state.nodes.length;
+        const maxSpeed = 30; // Absolute safety cap for massive maps
 
         // Pre-gather hubs (categories and workspaces) for the exclusion zone check
         const hubs = [];
@@ -113,6 +114,14 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             node.vx *= velocityDamping;
             node.vy *= velocityDamping;
 
+            // VELOCITY CLAMPING
+            const speedSq = (node.vx * node.vx) + (node.vy * node.vy);
+            if (speedSq > (maxSpeed * maxSpeed)) {
+                const speed = Math.sqrt(speedSq);
+                node.vx = (node.vx / speed) * maxSpeed;
+                node.vy = (node.vy / speed) * maxSpeed;
+            }
+
             stabilizeNodeMotion(node, anchor, motionProfile);
 
             node.x += node.vx;
@@ -128,10 +137,17 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                     const hub = hubs[j];
                     if (hub.id === node.id) continue;
 
+                    const hubRadius = (Number(hub.radius) || 60);
+                    const range = hubRadius * 3.5; // Only check if reasonably close
+
                     const edx = node.x - hub.x;
                     const edy = node.y - hub.y;
+                    
+                    // Spatial Gate (Square)
+                    if (Math.abs(edx) > range || Math.abs(edy) > range) continue;
+
                     const edistSq = edx * edx + edy * edy;
-                    const minDist = (Number(hub.radius) || 60) * 2.2;
+                    const minDist = hubRadius * 2.2;
                     const minDistSq = minDist * minDist;
 
                     if (edistSq < minDistSq) {
@@ -158,4 +174,3 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     Object.assign(passes, { runIntegrationPass });
 
 })(window.EveConstellationMap);
-
