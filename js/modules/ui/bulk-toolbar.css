@@ -4,19 +4,27 @@
     bottom: 20px;
     left: 50%;
     transform: translateX(-50%);
-    background: #222;
+    background: var(--card-bg);
     padding: 15px 30px;
     border-radius: 50px;
-    border: 1px solid var(--accent);
+    border: 1px solid color-mix(in srgb, var(--accent) 48%, var(--modal-border) 52%);
     display: none;
     align-items: center;
     gap: 15px;
-    box-shadow: 0 10px 40px black;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.22);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
     z-index: 2000;
+    color: var(--text-main);
 }
 
 body.bulk-active #bulk-toolbar {
     display: flex;
+}
+
+#bulk-count {
+    color: var(--text-main);
+    font-weight: 700;
 }
 
 .bulk-check {

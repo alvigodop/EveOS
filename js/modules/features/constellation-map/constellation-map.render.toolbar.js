@@ -15,6 +15,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         AURA_TUNING_FIELDS,
         AURA_PRESETS,
         AURA_DEPTH_ORDER,
+        MAP_THEME_COLOR_FIELDS,
+        MAP_THEME_TUNING_FIELDS,
         getKindDisplayName,
         ensureAuraControls,
         getNodePolarityState,
@@ -25,6 +27,11 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         getFxTuningText,
         getAuraTuningText,
         getAuraPresetText,
+        ensureMapThemeControls,
+        getMapThemeTuningText,
+        getMapThemeColorValue,
+        getMapThemeSummaryText,
+        applyMapTheme,
         text,
         getStaticStateForNode,
         isStaticBranchRoot,
@@ -59,11 +66,18 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         button.classList.toggle('active', !!active);
         button.setAttribute('aria-pressed', active ? 'true' : 'false');
         button.style.borderColor = active
-            ? (opts.activeBorder || 'rgba(0,212,255,0.34)')
-            : (opts.inactiveBorder || 'rgba(255,255,255,0.18)');
+            ? (opts.activeBorder || 'color-mix(in srgb, var(--map-theme-accent) 48%, transparent)')
+            : (opts.inactiveBorder || 'color-mix(in srgb, var(--map-theme-border-base) 76%, transparent)');
         button.style.background = active
-            ? (opts.activeBackground || 'rgba(0,212,255,0.14)')
-            : (opts.inactiveBackground || 'rgba(255,255,255,0.07)');
+            ? (opts.activeBackground || 'color-mix(in srgb, var(--map-theme-accent) 16%, transparent)')
+            : (opts.inactiveBackground || 'color-mix(in srgb, var(--map-theme-button-base) var(--map-theme-button-fill), transparent)');
+        button.style.color = opts.color || 'var(--map-theme-text)';
+        button.style.boxShadow = active
+            ? (opts.activeShadow || '')
+            : (opts.inactiveShadow || '');
+        button.style.textShadow = active
+            ? (opts.activeTextShadow || '')
+            : (opts.inactiveTextShadow || '');
     }
 
     function setButtonEnabled(button, enabled) {
@@ -119,8 +133,11 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     function renderToolbarState() {
         if (!state.container) return;
 
+        applyMapTheme(state.container);
+
         const controls = ensureAuraControls();
         const fxControls = ensureFxControls();
+        const themeControls = ensureMapThemeControls();
         const fxButton = state.container.querySelector('[data-map-toolbar="fx"]');
         const controlsButton = state.container.querySelector('[data-map-toolbar="controls"]');
         const controlsPanel = state.container.querySelector('[data-map-controls-panel]');
@@ -130,8 +147,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         if (fxButton) {
             fxButton.textContent = 'Background FX';
             setButtonActive(fxButton, !!state.fxExpanded, {
-                activeBorder: 'rgba(0,255,255,0.32)',
-                activeBackground: 'rgba(0,255,255,0.18)'
+                activeBorder: 'color-mix(in srgb, var(--map-theme-fx) 54%, transparent)',
+                activeBackground: 'color-mix(in srgb, var(--map-theme-fx) 18%, transparent)'
             });
         }
         if (fxPanel) {
@@ -143,8 +160,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             controlsButton.textContent = getControlsToggleText();
             controlsButton.setAttribute('aria-expanded', state.controlsExpanded ? 'true' : 'false');
             setButtonActive(controlsButton, !!state.controlsExpanded, {
-                activeBorder: 'rgba(145,220,255,0.32)',
-                activeBackground: 'rgba(145,220,255,0.12)'
+                activeBorder: 'color-mix(in srgb, var(--map-theme-accent) 48%, transparent)',
+                activeBackground: 'color-mix(in srgb, var(--map-theme-accent) 14%, transparent)'
             });
         }
         if (controlsPanel) {
@@ -162,8 +179,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         queryAll('[data-fx-engine]').forEach((button) => {
             const active = button.dataset.fxEngine === (state.activeWebGlFx || 'none');
             setButtonActive(button, active, {
-                activeBorder: 'rgba(0,255,255,0.4)',
-                activeBackground: 'rgba(0,255,255,0.18)'
+                activeBorder: 'color-mix(in srgb, var(--map-theme-fx) 58%, transparent)',
+                activeBackground: 'color-mix(in srgb, var(--map-theme-fx) 18%, transparent)'
             });
         });
 
@@ -178,8 +195,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             if (type === 'neuralhud') { active = !!state.fxNeuralHudEnabled; label = 'Neural HUD'; }
             chip.textContent = label + ': ' + (active ? 'ON' : 'OFF');
             setButtonActive(chip, active, {
-                activeBorder: 'rgba(0,255,255,0.4)',
-                activeBackground: 'rgba(0,255,255,0.16)'
+                activeBorder: 'color-mix(in srgb, var(--map-theme-fx) 58%, transparent)',
+                activeBackground: 'color-mix(in srgb, var(--map-theme-fx) 16%, transparent)'
             });
         });
 
@@ -188,9 +205,37 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             const active = fxControls?.[key] !== false;
             button.textContent = (key === 'parallaxEnabled' ? 'Camera Parallax' : 'Pointer Reactive') + ': ' + (active ? 'ON' : 'OFF');
             setButtonActive(button, active, {
-                activeBorder: 'rgba(124,212,255,0.42)',
-                activeBackground: 'rgba(124,212,255,0.14)'
+                activeBorder: 'color-mix(in srgb, var(--map-theme-fx) 54%, transparent)',
+                activeBackground: 'color-mix(in srgb, var(--map-theme-fx) 14%, transparent)'
             });
+        });
+
+        queryAll('[data-map-toolbar="theme-follow-site"]').forEach((button) => {
+            const active = themeControls.followSiteTheme !== false;
+            button.textContent = 'Follow Site Theme: ' + (active ? 'ON' : 'OFF');
+            setButtonActive(button, active, {
+                activeBorder: 'color-mix(in srgb, var(--map-theme-accent) 52%, transparent)',
+                activeBackground: 'color-mix(in srgb, var(--map-theme-accent) 16%, transparent)',
+                activeShadow: '0 0 0 1px color-mix(in srgb, var(--map-theme-accent) 18%, transparent), 0 0 26px color-mix(in srgb, var(--map-theme-accent) 18%, transparent)'
+            });
+        });
+
+        queryAll('[data-map-toolbar="open-site-theme"]').forEach((button) => {
+            setButtonActive(button, false, {
+                inactiveBorder: 'color-mix(in srgb, var(--map-theme-border-base) 76%, transparent)',
+                inactiveBackground: 'color-mix(in srgb, var(--map-theme-button-base) var(--map-theme-button-fill), transparent)'
+            });
+        });
+
+        queryAll('[data-map-toolbar="theme-reset"]').forEach((button) => {
+            setButtonActive(button, false, {
+                inactiveBorder: 'color-mix(in srgb, var(--map-theme-border-base) 76%, transparent)',
+                inactiveBackground: 'color-mix(in srgb, var(--map-theme-button-base) var(--map-theme-button-fill), transparent)'
+            });
+        });
+
+        queryAll('[data-map-theme-summary]').forEach((el) => {
+            el.textContent = getMapThemeSummaryText();
         });
 
         queryAll('[data-map-toolbar="stability"]').forEach((button) => {
@@ -221,8 +266,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         queryAll('[data-map-toolbar="rewire-mode"]').forEach((button) => {
             button.textContent = state.rewire?.enabled ? 'Chain Surgery: ON' : 'Chain Surgery: OFF';
             setButtonActive(button, !!state.rewire?.enabled, {
-                activeBorder: 'rgba(143,219,255,0.42)',
-                activeBackground: 'rgba(143,219,255,0.16)'
+                activeBorder: 'color-mix(in srgb, var(--map-theme-accent) 54%, transparent)',
+                activeBackground: 'color-mix(in srgb, var(--map-theme-accent) 16%, transparent)'
             });
         });
 
@@ -244,8 +289,10 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             const label = mode === 'effects' ? 'Aura Forces' : 'Aura Volumes';
             button.textContent = label + ': ' + (active ? 'ON' : 'OFF');
             setButtonActive(button, active, {
-                activeBorder: 'rgba(122,255,196,0.34)',
-                activeBackground: 'rgba(122,255,196,0.14)'
+                activeBorder: 'color-mix(in srgb, var(--map-theme-aura) 54%, transparent)',
+                activeBackground: 'color-mix(in srgb, var(--map-theme-aura) 16%, transparent)',
+                activeShadow: '0 0 0 1px color-mix(in srgb, var(--map-theme-aura) 18%, transparent), 0 0 30px color-mix(in srgb, var(--map-theme-aura) 20%, transparent)',
+                activeTextShadow: '0 0 14px color-mix(in srgb, var(--map-theme-aura) 28%, transparent)'
             });
         });
 
@@ -255,8 +302,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             const label = AURA_EMITTER_LABELS[kind] || kind;
             button.textContent = label + ': ' + (active ? 'ON' : 'OFF');
             setButtonActive(button, active, {
-                activeBorder: 'rgba(126,196,255,0.34)',
-                activeBackground: 'rgba(126,196,255,0.14)'
+                activeBorder: 'color-mix(in srgb, var(--map-theme-aura) 48%, transparent)',
+                activeBackground: 'color-mix(in srgb, var(--map-theme-aura) 15%, transparent)',
+                activeShadow: '0 0 0 1px color-mix(in srgb, var(--map-theme-aura) 16%, transparent), 0 0 24px color-mix(in srgb, var(--map-theme-aura) 16%, transparent)'
             });
         });
 
@@ -266,16 +314,18 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             const label = AURA_DEPTH_LABELS[depthKey] || depthKey;
             button.textContent = label + ': ' + (active ? 'ON' : 'OFF');
             setButtonActive(button, active, {
-                activeBorder: 'rgba(255,209,102,0.34)',
-                activeBackground: 'rgba(255,209,102,0.14)'
+                activeBorder: 'color-mix(in srgb, var(--map-theme-fx) 42%, var(--map-theme-accent) 18%)',
+                activeBackground: 'color-mix(in srgb, var(--map-theme-fx) 12%, transparent)',
+                activeShadow: '0 0 0 1px color-mix(in srgb, var(--map-theme-fx) 14%, transparent), 0 0 24px color-mix(in srgb, var(--map-theme-aura) 10%, transparent)'
             });
         });
 
         queryAll('[data-map-aura-preset]').forEach((button) => {
             const active = button.dataset.mapAuraPreset === state.auraPreset;
             setButtonActive(button, active, {
-                activeBorder: 'rgba(194,151,255,0.36)',
-                activeBackground: 'rgba(194,151,255,0.14)'
+                activeBorder: 'color-mix(in srgb, var(--map-theme-aura) 56%, var(--map-theme-fx) 20%)',
+                activeBackground: 'color-mix(in srgb, var(--map-theme-aura) 14%, transparent)',
+                activeShadow: '0 0 0 1px color-mix(in srgb, var(--map-theme-aura) 16%, transparent), 0 0 26px color-mix(in srgb, var(--map-theme-fx) 14%, transparent)'
             });
         });
 
@@ -305,6 +355,19 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             queryAll('[data-map-aura-tuning-value="' + field.key + '"]').forEach((el) => { el.textContent = textValue; });
         });
 
+        MAP_THEME_TUNING_FIELDS.forEach((field) => {
+            const textValue = getMapThemeTuningText(field.key);
+            queryAll('[data-map-theme-tuning="' + field.key + '"]').forEach((input) => { input.value = textValue; });
+            queryAll('[data-map-theme-tuning-number="' + field.key + '"]').forEach((input) => { input.value = textValue; });
+            queryAll('[data-map-theme-tuning-value="' + field.key + '"]').forEach((el) => { el.textContent = textValue; });
+        });
+
+        MAP_THEME_COLOR_FIELDS.forEach((field) => {
+            const value = getMapThemeColorValue(field.key);
+            queryAll('[data-map-theme-color="' + field.key + '"]').forEach((input) => { input.value = value; });
+            queryAll('[data-map-theme-color-value="' + field.key + '"]').forEach((el) => { el.textContent = value.toUpperCase(); });
+        });
+
         const targetNode = state.selected || state.hovered || null;
         const staticState = getStaticStateForNode(targetNode);
         const branchLocked = isStaticBranchRoot(targetNode);
@@ -315,8 +378,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             button.textContent = staticState.nodeLocked ? 'Release Node' : 'Static Node';
             setButtonEnabled(button, hasTarget);
             setButtonActive(button, staticState.nodeLocked, {
-                activeBorder: 'rgba(255,214,90,0.42)',
-                activeBackground: 'rgba(255,214,90,0.18)'
+                activeBorder: 'color-mix(in srgb, var(--map-theme-fx) 46%, transparent)',
+                activeBackground: 'color-mix(in srgb, var(--map-theme-fx) 16%, transparent)'
             });
         });
 
@@ -324,8 +387,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             button.textContent = branchLocked ? 'Release Chain' : 'Static Chain';
             setButtonEnabled(button, hasTarget);
             setButtonActive(button, branchLocked, {
-                activeBorder: 'rgba(255,214,90,0.42)',
-                activeBackground: 'rgba(255,214,90,0.18)'
+                activeBorder: 'color-mix(in srgb, var(--map-theme-fx) 46%, transparent)',
+                activeBackground: 'color-mix(in srgb, var(--map-theme-fx) 16%, transparent)'
             });
         });
 
@@ -335,8 +398,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 : 'Static Type';
             setButtonEnabled(button, hasTarget);
             setButtonActive(button, staticState.kindLocked, {
-                activeBorder: 'rgba(255,214,90,0.42)',
-                activeBackground: 'rgba(255,214,90,0.18)'
+                activeBorder: 'color-mix(in srgb, var(--map-theme-fx) 46%, transparent)',
+                activeBackground: 'color-mix(in srgb, var(--map-theme-fx) 16%, transparent)'
             });
         });
 
@@ -358,8 +421,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 const locked = state.staticKinds.has(kind);
                 button.textContent = getKindLockButtonLabel(kind, locked);
                 setButtonActive(button, locked, {
-                    activeBorder: 'rgba(255,214,90,0.42)',
-                    activeBackground: 'rgba(255,214,90,0.18)'
+                    activeBorder: 'color-mix(in srgb, var(--map-theme-fx) 46%, transparent)',
+                    activeBackground: 'color-mix(in srgb, var(--map-theme-fx) 16%, transparent)'
                 });
             });
         });
@@ -375,8 +438,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             setButtonEnabled(button, hasTarget);
             const active = polarityState.nodeOverride !== 'inherit';
             const accent = polarityState.nodeOverride === 'attract'
-                ? { activeBorder: 'rgba(122,255,196,0.42)', activeBackground: 'rgba(122,255,196,0.14)' }
-                : { activeBorder: 'rgba(255,180,120,0.42)', activeBackground: 'rgba(255,180,120,0.14)' };
+                ? { activeBorder: 'color-mix(in srgb, var(--map-theme-aura) 52%, transparent)', activeBackground: 'color-mix(in srgb, var(--map-theme-aura) 14%, transparent)' }
+                : { activeBorder: 'color-mix(in srgb, var(--map-theme-danger) 44%, transparent)', activeBackground: 'color-mix(in srgb, var(--map-theme-danger) 12%, transparent)' };
             setButtonActive(button, active, accent);
         });
 
@@ -386,8 +449,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 : 'Type: Push';
             setButtonEnabled(button, hasTarget);
             setButtonActive(button, polarityState.kind === 'attract', {
-                activeBorder: 'rgba(122,255,196,0.42)',
-                activeBackground: 'rgba(122,255,196,0.14)'
+                activeBorder: 'color-mix(in srgb, var(--map-theme-aura) 52%, transparent)',
+                activeBackground: 'color-mix(in srgb, var(--map-theme-aura) 14%, transparent)'
             });
         });
 

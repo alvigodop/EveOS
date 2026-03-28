@@ -12,6 +12,16 @@ window.EveBookmarkCovers = window.EveBookmarkCovers || {};
         return String(value || '').trim();
     }
 
+    function isRenderableCoverUrl(value) {
+        const normalized = trimUrl(value);
+        if (!normalized) return false;
+        if (/^(?:null|undefined|none|n\/a)$/i.test(normalized)) return false;
+        if (typeof window.isRenderableImageUrl === 'function') {
+            return !!window.isRenderableImageUrl(normalized);
+        }
+        return /^(?:https?:\/\/|file:\/\/|blob:|data:image\/|\/|\.{1,2}\/)/i.test(normalized);
+    }
+
     function uniqueUrls(values) {
         const seen = new Set();
         return (Array.isArray(values) ? values : [])
@@ -26,7 +36,7 @@ window.EveBookmarkCovers = window.EveBookmarkCovers || {};
     }
 
     function getAdditionalCoverImages(link) {
-        return uniqueUrls(link?.coverImages);
+        return uniqueUrls(link?.coverImages).filter(isRenderableCoverUrl);
     }
 
     function getFixedCoverImage(link) {
@@ -41,7 +51,11 @@ window.EveBookmarkCovers = window.EveBookmarkCovers || {};
     }
 
     function getDisplayCover(link, fallbackImage) {
-        const primary = trimUrl(link?.coverImage) || trimUrl(fallbackImage);
+        const primaryLink = trimUrl(link?.coverImage);
+        const primaryFallback = trimUrl(fallbackImage);
+        const primary = isRenderableCoverUrl(primaryLink)
+            ? primaryLink
+            : (isRenderableCoverUrl(primaryFallback) ? primaryFallback : '');
         const candidates = getCoverCandidates(link);
         const fixed = getFixedCoverImage(link);
         if (fixed) return fixed;
@@ -108,6 +122,7 @@ window.EveBookmarkCovers = window.EveBookmarkCovers || {};
         getFixedCoverImage,
         getCoverCandidates,
         getDisplayCover,
+        isRenderableCoverUrl,
         clearSelection,
         getLinkedBookmarkForLibraryEntry,
         getDisplayCoverForLibraryEntry

@@ -14,6 +14,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         getStaticStateForNode,
 
+        getMapThemeRgba,
+
         text
 
     } = shared;
@@ -123,11 +125,11 @@ function draw() {
                 path.lineTo(tx, ty);
             }
 
-            ctx.strokeStyle = 'rgba(0, 212, 255, 0.12)';
+            ctx.strokeStyle = getMapThemeRgba('mapAccent', 0.12);
             ctx.lineWidth = 0.9 / state.transform.scale;
             ctx.stroke(tagPath);
 
-            ctx.strokeStyle = 'rgba(0, 212, 255, 0.28)';
+            ctx.strokeStyle = getMapThemeRgba('mapAccent', 0.28);
             ctx.lineWidth = 1.5 / state.transform.scale;
             ctx.stroke(defaultPath);
         }
@@ -179,7 +181,7 @@ function draw() {
             if (node.kind === 'folder' && node.data && typeof node.data.depth === 'number' && node.data.depth > 0) {
                 const maxRings = Math.min(node.data.depth, 4);
                 const gap = Math.max(1.5, node.radius / (maxRings + 1.5));
-                const ringColor = 'rgba(255, 255, 255, 0.4)';
+                const ringColor = getMapThemeRgba('titleColor', 0.4);
                 if (!pathsByColor[ringColor]) pathsByColor[ringColor] = new Path2D();
                 for (let r = 1; r <= maxRings; r++) {
                     const ringRadius = node.radius - (gap * r);
@@ -196,7 +198,7 @@ function draw() {
             }
 
             if (isStatic) {
-                const staticColor = 'rgba(255,214,90,0.74)';
+                const staticColor = getMapThemeRgba('fxAccent', 0.74);
                 if (!staticPathsByColor[staticColor]) staticPathsByColor[staticColor] = new Path2D();
                 staticPathsByColor[staticColor].moveTo(node.x + node.radius + (2.8 / state.transform.scale), node.y);
                 staticPathsByColor[staticColor].arc(node.x, node.y, node.radius + (2.8 / state.transform.scale), 0, Math.PI * 2);
@@ -215,7 +217,7 @@ function draw() {
             }
         }
 
-        ctx.strokeStyle = 'rgba(145,220,255,0.78)';
+        ctx.strokeStyle = getMapThemeRgba('mapAccent', 0.78);
         ctx.lineWidth = 1.2 / state.transform.scale;
         ctx.setLineDash([4 / state.transform.scale, 4 / state.transform.scale]);
         ctx.stroke(multiSelectedPath);
@@ -247,7 +249,7 @@ function draw() {
                     if (ringRadius > 0.5) {
                         ctx.beginPath();
                         ctx.arc(node.x, node.y, ringRadius, 0, Math.PI * 2);
-                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+                        ctx.strokeStyle = getMapThemeRgba('titleColor', 0.4);
                         ctx.lineWidth = 1 / state.transform.scale;
                         ctx.stroke();
                     }
@@ -255,7 +257,9 @@ function draw() {
             }
 
             ctx.lineWidth = 2 / state.transform.scale;
-            ctx.strokeStyle = isStatic ? 'rgba(255,214,90,0.98)' : 'rgba(255,255,255,0.92)';
+            ctx.strokeStyle = isStatic
+                ? getMapThemeRgba('fxAccent', 0.98)
+                : getMapThemeRgba('titleColor', 0.92);
             ctx.stroke();
 
             if (isMultiSelected && !isSelected) {
@@ -263,7 +267,7 @@ function draw() {
                 ctx.arc(node.x, node.y, node.radius + (4.6 / state.transform.scale), 0, Math.PI * 2);
                 ctx.lineWidth = 1.2 / state.transform.scale;
                 ctx.setLineDash([4 / state.transform.scale, 4 / state.transform.scale]);
-                ctx.strokeStyle = 'rgba(145,220,255,0.78)';
+                ctx.strokeStyle = getMapThemeRgba('mapAccent', 0.78);
                 ctx.stroke();
                 ctx.setLineDash([]);
             }
@@ -271,7 +275,7 @@ function draw() {
                 ctx.beginPath();
                 ctx.arc(node.x, node.y, node.radius + (2.8 / state.transform.scale), 0, Math.PI * 2);
                 ctx.lineWidth = 1.6 / state.transform.scale;
-                ctx.strokeStyle = 'rgba(255,214,90,0.74)';
+                ctx.strokeStyle = getMapThemeRgba('fxAccent', 0.74);
                 ctx.stroke();
             }
         }
@@ -280,7 +284,7 @@ function draw() {
         if (state.rewire?.enabled && rewireSourceNode) {
             ctx.beginPath();
             ctx.arc(rewireSourceNode.x, rewireSourceNode.y, rewireSourceNode.radius + 6.8, 0, Math.PI * 2);
-            ctx.strokeStyle = 'rgba(145,220,255,0.94)';
+            ctx.strokeStyle = getMapThemeRgba('mapAccent', 0.94);
             ctx.lineWidth = 2.1 / state.transform.scale;
             ctx.stroke();
             if (state.rewire.dragging) {
@@ -290,7 +294,9 @@ function draw() {
                 ctx.moveTo(Number(state.rewire.sourceStartX) || rewireSourceNode.x, Number(state.rewire.sourceStartY) || rewireSourceNode.y);
                 ctx.lineTo(endX, endY);
                 ctx.setLineDash([8 / state.transform.scale, 6 / state.transform.scale]);
-                ctx.strokeStyle = rewireTargetNode ? 'rgba(122,255,196,0.88)' : 'rgba(145,220,255,0.72)';
+                ctx.strokeStyle = rewireTargetNode
+                    ? getMapThemeRgba('auraAccent', 0.88)
+                    : getMapThemeRgba('mapAccent', 0.72);
                 ctx.lineWidth = 1.8 / state.transform.scale;
                 ctx.stroke();
                 ctx.setLineDash([]);

@@ -82,6 +82,11 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         state.selected = node || null;
         state.selectionIds = node ? new Set([text(node.id, '')].filter(Boolean)) : new Set();
+        state.infoHovered = false;
+        state.infoHoverStartedAt = 0;
+        if (state.coverPreviewSession) {
+            state.coverPreviewSession.startedAt = 0;
+        }
 
         renderInspector();
 

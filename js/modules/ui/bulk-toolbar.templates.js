@@ -7,7 +7,7 @@ window.EveBulkToolbar = window.EveBulkToolbar || {};
 
     const bulkToolbarTemplate = `
 <div id="bulk-toolbar">
-    <span id="bulk-count" style="color:white; font-weight:bold;">0 Selected</span>
+    <span id="bulk-count">0 Selected</span>
     <button onclick="bulkPinSelected()">Pin</button>
     <button onclick="bulkUnpinSelected()">Unpin</button>
     <button onclick="bulkMarkDone()">Done</button>

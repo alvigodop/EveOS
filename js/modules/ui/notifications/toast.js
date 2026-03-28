@@ -9,21 +9,21 @@ window.showToast = function (msg, type = 'info') {
     if (!container) return;
 
     const toast = document.createElement('div');
-    toast.style.background = 'var(--bg-secondary)';
-    toast.style.color = 'var(--text-primary)';
+    toast.style.background = 'var(--modal-bg)';
+    toast.style.color = 'var(--text-main)';
     toast.style.padding = '10px 20px';
     toast.style.borderRadius = '8px';
-    toast.style.border = '1px solid var(--border-color)';
+    toast.style.border = '1px solid var(--modal-border)';
     toast.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
     toast.style.opacity = '0';
     toast.style.transform = 'translateY(20px)';
     toast.style.transition = 'all 0.3s ease';
     toast.style.pointerEvents = 'auto';
 
-    let icon = 'ℹ️';
-    if (type === 'success') icon = '✅';
-    if (type === 'error') icon = '❌';
-    if (type === 'warning') icon = '⚠️';
+    let icon = '\u2139\uFE0F';
+    if (type === 'success') icon = '\u2705';
+    if (type === 'error') icon = '\u274C';
+    if (type === 'warning') icon = '\u26A0\uFE0F';
 
     toast.innerHTML = `<span style="margin-right:8px;">${icon}</span> ${msg}`;
 
@@ -41,8 +41,6 @@ window.showToast = function (msg, type = 'info') {
     }, 3000);
 };
 
-// Initialize on load if needed, but handled by script-loader usually.
-// Explicit check for safety:
 if (document.readyState === 'interactive' || document.readyState === 'complete') {
     window.initNotifications();
 } else {

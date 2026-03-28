@@ -13,7 +13,7 @@ window.ContextMenus.template = `
 <div id="sidebar-context-menu" class="context-menu">
     <div class="ctx-item" onclick="openWorkspaceModal(ctxWsId)">&#9998; Edit</div>
     <div class="ctx-divider"></div>
-    <div class="ctx-item" style="color:var(--danger)" onclick="ctxWsDelete()">&#128465; Delete</div>
+    <div class="ctx-item ctx-item--danger" onclick="ctxWsDelete()">&#128465; Delete</div>
 </div>
 <div id="link-context-menu" class="context-menu">
     <div class="ctx-item" onclick="ctxEdit()">&#9998; Edit</div>
@@ -26,7 +26,7 @@ window.ContextMenus.template = `
     <div class="ctx-item" onclick="ctxLaunch()">&#128640; Launch</div>
     <div class="ctx-item" onclick="ctxNeuralEcho()">&#8987; Neural Echo (Wayback)</div>
     <div class="ctx-divider"></div>
-    <div class="ctx-item" style="color:var(--danger)" onclick="ctxDelete()">&#128465; Delete</div>
+    <div class="ctx-item ctx-item--danger" onclick="ctxDelete()">&#128465; Delete</div>
 </div>
 <div id="folder-context-menu" class="context-menu">
     <div class="ctx-item" onclick="ctxFolderAdd()">&#10133; Add Bookmark</div>
@@ -41,9 +41,9 @@ window.ContextMenus.template = `
     <div class="ctx-item" onclick="ctxFolderExport()">&#128190; Export Directory</div>
     <div class="ctx-item" onclick="ctxFolderBulkPatch()">&#9881; Bulk Patch</div>
     <div class="ctx-divider"></div>
-    <div style="padding: 6px 12px; font-size: 0.8rem; color: #888; cursor: default;" id="ctx-folder-stats-folders">Folders: 0</div>
-    <div style="padding: 6px 12px; font-size: 0.8rem; color: #888; cursor: default;" id="ctx-folder-stats-items">Items: 0</div>
+    <div class="ctx-meta" id="ctx-folder-stats-folders">Folders: 0</div>
+    <div class="ctx-meta" id="ctx-folder-stats-items">Items: 0</div>
     <div class="ctx-divider"></div>
-    <div class="ctx-item" style="color:var(--danger)" onclick="ctxFolderDelete()">&#128465; Delete</div>
+    <div class="ctx-item ctx-item--danger" onclick="ctxFolderDelete()">&#128465; Delete</div>
 </div>
 `;

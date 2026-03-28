@@ -1,16 +1,18 @@
 /* --- UI ELEMENTS (Generic Buttons/Inputs used in modals) --- */
 button {
-    border: none;
-    border-radius: 6px;
+    border: 1px solid rgba(128, 128, 128, 0.3);
+    border-radius: 8px;
     padding: 8px 12px;
     cursor: pointer;
-    background: #333;
-    color: white;
-    transition: 0.2s;
+    background: var(--input-bg);
+    color: var(--text-main);
+    transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
 }
 
 button:hover {
-    background: #444;
+    background: color-mix(in srgb, var(--input-bg) 82%, var(--accent) 18%);
+    border-color: color-mix(in srgb, var(--accent) 55%, rgba(128, 128, 128, 0.3) 45%);
+    color: var(--text-main);
 }
 
 input,
@@ -90,7 +92,7 @@ input:focus {
     max-height: 90vh;
     overflow-y: auto;
     scrollbar-width: thin;
-    scrollbar-color: var(--accent) transparent;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }
 
 #settingsModal .modal input,
@@ -146,12 +148,16 @@ html[data-native-scheme="light"] #settingsModal .modal option {
 }
 
 .modal::-webkit-scrollbar-track {
-    background: rgba(0, 0, 0, 0.1);
+    background: var(--scrollbar-track);
 }
 
 .modal::-webkit-scrollbar-thumb {
-    background: var(--accent);
+    background: var(--scrollbar-thumb);
     border-radius: 3px;
+}
+
+.modal::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
 }
 
 .btn-danger {

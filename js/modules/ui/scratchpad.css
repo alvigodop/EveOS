@@ -5,13 +5,15 @@
     right: -400px;
     width: 350px;
     height: 100vh;
-    background: #1a1a1a;
+    background: var(--notes-panel-bg);
     z-index: 4000;
     transition: 0.3s;
     padding: 20px;
-    border-left: 1px solid #444;
+    border-left: 1px solid var(--notes-border);
     display: flex;
     flex-direction: column;
+    color: var(--text-main);
+    box-shadow: -12px 0 30px rgba(0, 0, 0, 0.18);
 }
 
 #scratchpad-container.open {
@@ -30,10 +32,41 @@
 
 #notes-area {
     flex-grow: 1;
-    background: #111;
-    border: 1px solid #333;
-    color: #ddd;
+    background: var(--notes-surface-bg);
+    border: 1px solid var(--notes-border);
+    color: var(--text-main);
     padding: 15px;
     resize: none;
     margin-top: 10px;
+    border-radius: 10px;
+    outline: none;
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+#notes-area::placeholder {
+    color: var(--text-muted);
+}
+
+#notes-area:focus {
+    border-color: color-mix(in srgb, var(--accent) 58%, var(--notes-border) 42%);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent 82%);
+}
+
+#notes-area::-webkit-scrollbar {
+    width: 8px;
+}
+
+#notes-area::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+    border-radius: 999px;
+}
+
+#notes-area::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 999px;
+}
+
+#notes-area::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
 }

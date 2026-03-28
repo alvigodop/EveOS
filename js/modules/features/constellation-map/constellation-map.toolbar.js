@@ -34,9 +34,14 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         toggleAuraEffects,
         toggleAuraEmitterKind,
         toggleAuraDepth,
+        setMapThemeColor,
+        setMapThemeTuningValue,
+        resetMapThemeControls,
+        toggleMapThemeFollowSite,
         resetConstellationControls,
         ensureAuraControls,
         ensureFxControls,
+        applyMapTheme,
         toggleFxControl
     } = shared;
 
@@ -76,6 +81,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         state.statsEl = container.querySelector('[data-map-stats]');
         state.infoEl = container.querySelector('[data-map-info]');
         state.findInput = container.querySelector('[data-map-find]');
+        applyMapTheme(container);
 
         if (ns.FX && ns.FX.manager) {
             ns.FX.manager.init(container);
@@ -202,6 +208,18 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             } else if (toolbarAction === 'controls') {
                 state.controlsExpanded = !state.controlsExpanded;
                 renderToolbarState();
+            } else if (toolbarAction === 'theme-follow-site') {
+                toggleMapThemeFollowSite();
+                renderToolbarState();
+                requestDraw();
+            } else if (toolbarAction === 'theme-reset') {
+                resetMapThemeControls();
+                renderToolbarState();
+                requestDraw();
+            } else if (toolbarAction === 'open-site-theme') {
+                if (typeof window.openSettings === 'function') {
+                    window.openSettings();
+                }
             } else if (toolbarAction === 'rewire-mode') {
                 if (typeof ns._setConstellationRewireEnabled === 'function') {
                     ns._setConstellationRewireEnabled();
@@ -310,6 +328,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             const fxTuningNumberMode = event.target?.dataset?.mapFxTuningNumber;
             const auraTuningMode = event.target?.dataset?.mapAuraTuning;
             const auraTuningNumberMode = event.target?.dataset?.mapAuraTuningNumber;
+            const themeTuningMode = event.target?.dataset?.mapThemeTuning;
+            const themeTuningNumberMode = event.target?.dataset?.mapThemeTuningNumber;
+            const themeColorMode = event.target?.dataset?.mapThemeColor;
 
             if (polarityMode || polarityNumberMode) {
                 setPolarityStrengthValue(polarityMode || polarityNumberMode, event.target.value);
@@ -335,6 +356,20 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             if (auraTuningMode || auraTuningNumberMode) {
                 setAuraTuningValue(auraTuningMode || auraTuningNumberMode, event.target.value);
+                renderToolbarState();
+                requestDraw();
+                return;
+            }
+
+            if (themeTuningMode || themeTuningNumberMode) {
+                setMapThemeTuningValue(themeTuningMode || themeTuningNumberMode, event.target.value);
+                renderToolbarState();
+                requestDraw();
+                return;
+            }
+
+            if (themeColorMode) {
+                setMapThemeColor(themeColorMode, event.target.value);
                 renderToolbarState();
                 requestDraw();
             }

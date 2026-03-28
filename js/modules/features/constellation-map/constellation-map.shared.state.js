@@ -179,6 +179,30 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             workspaceOffsetScale: 1
         },
         auraPreset: 'source',
+        themeControls: {
+            followSiteTheme: true,
+            colors: {
+                panelTint: '#0b1630',
+                panelEdge: '#8fdcff',
+                mapAccent: '#7bdcff',
+                auraAccent: '#66f0ff',
+                fxAccent: '#4cecff',
+                cardAuraFill: '#66f0ff',
+                cardAuraDash: '#c4fbff',
+                workspaceAuraFill: '#5df7cf',
+                workspaceAuraDash: '#d5fff1',
+                folderAuraFill: '#7ea9ff',
+                folderAuraDash: '#d7e4ff',
+                titleColor: '#f4fbff',
+                dangerAccent: '#ff6b93'
+            },
+            tuning: {
+                panelFill: 0.9,
+                buttonFill: 0.12,
+                backgroundFill: 0.94,
+                blur: 12
+            }
+        },
 
         kindPolarities: {
             workspace: 'repel',
@@ -379,6 +403,48 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         }
     });
 
+    const MAP_THEME_COLOR_FIELDS = Object.freeze([
+        { key: 'panelTint', label: 'Panel Tint', defaultValue: '#0b1630', section: 'shell' },
+        { key: 'panelEdge', label: 'Panel Edge', defaultValue: '#8fdcff', section: 'shell' },
+        { key: 'dangerAccent', label: 'Danger Accent', defaultValue: '#ff6b93', section: 'shell' },
+        { key: 'mapAccent', label: 'Map Accent', defaultValue: '#7bdcff', section: 'map' },
+        { key: 'auraAccent', label: 'Aura Accent', defaultValue: '#66f0ff', section: 'map' },
+        { key: 'fxAccent', label: 'FX Accent', defaultValue: '#4cecff', section: 'map' },
+        { key: 'titleColor', label: 'Title Glow', defaultValue: '#f4fbff', section: 'map' },
+        { key: 'cardAuraFill', label: 'Card Aura Fill', defaultValue: '#66f0ff', section: 'auras' },
+        { key: 'cardAuraDash', label: 'Card Aura Dash', defaultValue: '#c4fbff', section: 'auras' },
+        { key: 'workspaceAuraFill', label: 'Tab Aura Fill', defaultValue: '#5df7cf', section: 'auras' },
+        { key: 'workspaceAuraDash', label: 'Tab Aura Dash', defaultValue: '#d5fff1', section: 'auras' },
+        { key: 'folderAuraFill', label: 'Folder Aura Fill', defaultValue: '#7ea9ff', section: 'auras' },
+        { key: 'folderAuraDash', label: 'Folder Aura Dash', defaultValue: '#d7e4ff', section: 'auras' }
+    ]);
+
+    const MAP_THEME_SITE_AURA_PALETTES = Object.freeze({
+        dark: Object.freeze({
+            cardAuraFill: '#66f0ff',
+            cardAuraDash: '#c4fbff',
+            workspaceAuraFill: '#5df7cf',
+            workspaceAuraDash: '#d5fff1',
+            folderAuraFill: '#7ea9ff',
+            folderAuraDash: '#d7e4ff'
+        }),
+        light: Object.freeze({
+            cardAuraFill: '#0ea5e9',
+            cardAuraDash: '#075985',
+            workspaceAuraFill: '#10b981',
+            workspaceAuraDash: '#065f46',
+            folderAuraFill: '#6366f1',
+            folderAuraDash: '#3730a3'
+        })
+    });
+
+    const MAP_THEME_TUNING_FIELDS = Object.freeze([
+        { key: 'panelFill', label: 'Panel Glass', min: 0.55, max: 0.98, step: 0.01, defaultValue: 0.9, section: 'shell' },
+        { key: 'buttonFill', label: 'Button Glass', min: 0.04, max: 0.32, step: 0.01, defaultValue: 0.12, section: 'shell' },
+        { key: 'backgroundFill', label: 'Map Haze', min: 0.55, max: 0.98, step: 0.01, defaultValue: 0.94, section: 'shell' },
+        { key: 'blur', label: 'Frost Blur', min: 0, max: 26, step: 1, defaultValue: 12, section: 'shell' }
+    ]);
+
     const sharedState = ns._sharedState = ns._sharedState || {};
 
     Object.assign(sharedState, {
@@ -400,6 +466,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         MOTION_TUNING_FIELDS,
         AURA_TUNING_FIELDS,
         AURA_PRESETS,
+        MAP_THEME_SITE_AURA_PALETTES,
+        MAP_THEME_COLOR_FIELDS,
+        MAP_THEME_TUNING_FIELDS,
         LABEL_CURSOR_RADIUS,
         LABEL_FOCUS_LIMIT
     });
