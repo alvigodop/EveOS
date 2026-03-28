@@ -25,6 +25,11 @@
     --notes-surface-bg: rgba(10, 10, 10, 0.92);
     --notes-border: rgba(255, 255, 255, 0.12);
     --accent: #00d4ff;
+    --btn-primary-bg: color-mix(in srgb, var(--accent) 24%, var(--input-bg) 76%);
+    --btn-primary-bg-hover: color-mix(in srgb, var(--accent) 30%, var(--input-bg) 70%);
+    --btn-primary-border: color-mix(in srgb, var(--accent) 52%, rgba(255, 255, 255, 0.16) 48%);
+    --btn-primary-text: color-mix(in srgb, var(--accent) 18%, var(--text-main) 82%);
+    --btn-primary-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 14%, transparent), 0 10px 24px rgba(0, 0, 0, 0.18);
     --danger: #ff4d4d;
     --success: #00ff88;
     --warning: #ffcc00;
@@ -317,6 +322,11 @@ html[data-native-scheme="light"] option {
     --notes-panel-bg: rgba(255, 255, 255, 0.97);
     --notes-surface-bg: rgba(0, 0, 0, 0.035);
     --notes-border: rgba(0, 0, 0, 0.12);
+    --btn-primary-bg: color-mix(in srgb, var(--accent) 16%, #ffffff 84%);
+    --btn-primary-bg-hover: color-mix(in srgb, var(--accent) 24%, #ffffff 76%);
+    --btn-primary-border: color-mix(in srgb, var(--accent) 42%, rgba(0, 0, 0, 0.18) 58%);
+    --btn-primary-text: color-mix(in srgb, var(--accent) 48%, #0f172a 52%);
+    --btn-primary-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 10%, transparent), 0 10px 22px rgba(15, 23, 42, 0.08);
     color-scheme: light;
 }
 
@@ -415,23 +425,32 @@ html[data-native-scheme="light"] option {
 }
 
 /* --- UI COMPONENTS: BUTTONS --- */
+button.btn-primary,
 .btn-primary {
-    background: var(--accent);
-    color: #000;
-    font-weight: bold;
-    border: none;
+    background: var(--btn-primary-bg);
+    color: var(--btn-primary-text);
+    font-weight: 600;
+    border: 1px solid var(--btn-primary-border);
     padding: 8px 16px;
     border-radius: 6px;
     cursor: pointer;
+    box-shadow: var(--btn-primary-shadow);
 }
 
-.light-theme .btn-primary {
-    color: #fff;
-    background: var(--accent);
-}
-
+button.btn-primary:hover,
 .btn-primary:hover {
-    filter: brightness(1.06);
+    background: var(--btn-primary-bg-hover);
+    border-color: color-mix(in srgb, var(--accent) 58%, var(--btn-primary-border) 42%);
+    color: var(--btn-primary-text);
+}
+
+button.btn-primary:focus-visible,
+.btn-primary:focus-visible {
+    outline: none;
+    border-color: color-mix(in srgb, var(--accent) 68%, var(--btn-primary-border) 32%);
+    box-shadow:
+        0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent),
+        var(--btn-primary-shadow);
 }
 
 .btn-danger {

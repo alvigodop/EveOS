@@ -4,6 +4,7 @@ window.EveBulkImport = window.EveBulkImport || {};
     const api = window.EveBulkImport._api = window.EveBulkImport._api || {};
 
 const BULK_IMPORT_BATCH_SIZE = 12;
+const BULK_URL_MATCH_REGEX = /(?:https?:\/\/|www\.)[^\s<>"'`]+/gi;
 
 async function runBatched(items, worker, batchSize = BULK_IMPORT_BATCH_SIZE) {
     const list = Array.isArray(items) ? items : [];
@@ -73,13 +74,90 @@ function updateBulkModeUi() {
         if (mode === 'name') {
             text.placeholder = "One name per line...";
             hint.textContent = "Names-only mode: each line becomes a bookmark title and URL is a Google search link.";
+            if (autoLineBreakBtn) {
+                autoLineBreakBtn.textContent = 'Auto Line Break Names';
+                autoLineBreakBtn.style.display = 'inline-flex';
+            }
+            if (textToolsHint) {
+                textToolsHint.textContent = 'Splits pasted name blobs into separate lines.';
+                textToolsHint.style.display = 'block';
+            }
         } else {
             text.placeholder = "One URL per line...";
             hint.textContent = "URL mode: each line should be a URL.";
-            if (autoLineBreakBtn) autoLineBreakBtn.style.display = 'inline-flex';
-            if (textToolsHint) textToolsHint.style.display = 'block';
+            if (autoLineBreakBtn) {
+                autoLineBreakBtn.textContent = 'Auto Line Break URLs';
+                autoLineBreakBtn.style.display = 'inline-flex';
+            }
+            if (textToolsHint) {
+                textToolsHint.textContent = 'Splits pasted URL blobs into one URL per line.';
+                textToolsHint.style.display = 'block';
+            }
         }
     }
+}
+
+function splitBulkUrlsToLines(rawValue) {
+    const urlMatches = String(rawValue || '').match(BULK_URL_MATCH_REGEX) || [];
+    const rewritten = urlMatches
+        .map(url => url.replace(/[),.;!?]+$/g, '').trim())
+        .filter(Boolean)
+        .join('\n');
+    return {
+        count: urlMatches.length,
+        rewritten
+    };
+}
+
+function maybeNormalizeBulkUrlBlob(rawValue) {
+    const source = String(rawValue || '');
+    const { count, rewritten } = splitBulkUrlsToLines(source);
+    if (count < 2 || !rewritten) {
+        return source;
+    }
+
+    const residue = source
+        .replace(BULK_URL_MATCH_REGEX, ' ')
+        .replace(/[\s,;|()[\]{}<>]+/g, ' ')
+        .trim();
+
+    return residue ? source : rewritten;
+}
+
+function splitBulkNamesToLines(rawValue) {
+    const source = String(rawValue || '').replace(/\r/g, '').trim();
+    if (!source) {
+        return {
+            count: 0,
+            rewritten: ''
+        };
+    }
+
+    let candidate = source
+        .replace(/\s*[•●▪◦]+\s*/g, '\n')
+        .replace(/\s*[;|]+\s*/g, '\n')
+        .replace(/\t+/g, '\n')
+        .replace(/\s+(?=\d+\.\s+)/g, '\n');
+
+    if (!candidate.includes('\n')) {
+        const commaParts = candidate
+            .split(/\s*,\s*/g)
+            .map(part => part.trim())
+            .filter(Boolean);
+        if (commaParts.length > 1) {
+            candidate = commaParts.join('\n');
+        }
+    }
+
+    const parts = candidate
+        .split(/\n+/g)
+        .map(part => part.trim())
+        .filter(Boolean);
+
+    return {
+        count: parts.length,
+        rewritten: parts.join('\n')
+    };
 }
 
 function autoLineBreakBulkUrls() {
@@ -93,22 +171,49 @@ function autoLineBreakBulkUrls() {
         return;
     }
 
-    const urlMatches = rawValue.match(/(?:https?:\/\/|www\.)[^\s<>"'`]+/gi) || [];
-    if (urlMatches.length === 0) {
+    const { count, rewritten } = splitBulkUrlsToLines(rawValue);
+    if (count === 0 || !rewritten) {
         showToast('No URLs found to split', 'warning');
         text.focus();
         return;
     }
 
-    const rewritten = urlMatches
-        .map(url => url.replace(/[),.;!?]+$/g, '').trim())
-        .filter(Boolean)
-        .join('\n');
+    text.value = rewritten;
+    text.focus();
+    text.selectionStart = text.selectionEnd = text.value.length;
+    showToast(`Split ${count} URL${count === 1 ? '' : 's'} into separate lines`, 'success');
+}
+
+function autoLineBreakBulkNames() {
+    const text = document.getElementById('bulkText');
+    if (!text) return;
+
+    const rawValue = String(text.value || '');
+    if (!rawValue.trim()) {
+        showToast('Nothing to split', 'info');
+        text.focus();
+        return;
+    }
+
+    const { count, rewritten } = splitBulkNamesToLines(rawValue);
+    if (count === 0 || !rewritten) {
+        showToast('No names found to split', 'warning');
+        text.focus();
+        return;
+    }
 
     text.value = rewritten;
     text.focus();
     text.selectionStart = text.selectionEnd = text.value.length;
-    showToast(`Split ${urlMatches.length} URL${urlMatches.length === 1 ? '' : 's'} into separate lines`, 'success');
+    showToast(`Split ${count} name${count === 1 ? '' : 's'} into separate lines`, 'success');
+}
+
+function autoFormatBulkText() {
+    if (getBulkMode() === 'name') {
+        autoLineBreakBulkNames();
+        return;
+    }
+    autoLineBreakBulkUrls();
 }
 
 function initBulkModeUi() {
@@ -191,10 +296,16 @@ function clearBulkInput() {
 
     Object.assign(api, {
         BULK_IMPORT_BATCH_SIZE,
+        BULK_URL_MATCH_REGEX,
         runBatched,
         getBulkMode,
         updateBulkModeUi,
+        splitBulkUrlsToLines,
+        maybeNormalizeBulkUrlBlob,
+        splitBulkNamesToLines,
+        autoFormatBulkText,
         autoLineBreakBulkUrls,
+        autoLineBreakBulkNames,
         initBulkModeUi,
         openBulkModal,
         clearBulkInput

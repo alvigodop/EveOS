@@ -2,7 +2,7 @@ window.EveBulkImport = window.EveBulkImport || {};
 
 (function () {
     const api = window.EveBulkImport._api = window.EveBulkImport._api || {};
-    const { getBulkMode, runBatched, processStructuredFile } = api;
+    const { getBulkMode, runBatched, processStructuredFile, maybeNormalizeBulkUrlBlob } = api;
 
 async function processBulk() {
     const catInput = document.getElementById('bulkCategory');
@@ -83,7 +83,7 @@ async function processBulk() {
                     parentFolderId = createdFolders.get(parentPath) || '';
                 }
 
-                const content = await file.text();
+                const content = maybeNormalizeBulkUrlBlob(await file.text());
                 const isStructured = content.match(/^(Title|URL|Episode|Ep|Chapter|Ch|Type|Notes|Finished Ep|Going To Ep)[\s:-]+/mi);
                 const isMediaFile = file.name.match(/^(Was\s+|[\{\(]\d+[\}\)])/i);
 
@@ -169,7 +169,7 @@ async function processBulk() {
 
         await runBatched(selectedFiles, async (file, index) => {
             try {
-                const content = await file.text();
+                const content = maybeNormalizeBulkUrlBlob(await file.text());
                 // Check if the file contains structured library data fields, shorthands, or if the filename specifies a media entry
                 const isStructured = content.match(/^(Title|URL|Episode|Ep|Chapter|Ch|Type|Notes|Finished Ep|Going To Ep)[\s:-]+/mi);
                 const isMediaFile = file.name.match(/^(Was\s+|[\{\(]\d+[\}\)])/i);

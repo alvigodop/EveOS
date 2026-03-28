@@ -4578,7 +4578,7 @@ window.EveModuleManifestParts.scripts = [
 
 
 
-        'js/modules/modals/templates/tpl-bulk.js?v=0.1.1',
+        'js/modules/modals/templates/tpl-bulk.js?v=0.1.2',
 
 
 
@@ -5186,10 +5186,10 @@ window.EveModuleManifestParts.scripts = [
 
 
 
-        'js/modules/modals/modal-bulk.runtime.js?v=0.1.1',
+        'js/modules/modals/modal-bulk.runtime.js?v=0.1.2',
         'js/modules/modals/modal-bulk.structured.js?v=0.1.0',
-        'js/modules/modals/modal-bulk.process.js?v=0.1.0',
-        'js/modules/modals/modal-bulk.js?v=0.3.1',
+        'js/modules/modals/modal-bulk.process.js?v=0.1.1',
+        'js/modules/modals/modal-bulk.js?v=0.3.2',
         'js/modules/modals/modal-category-settings.core.js?v=0.2.2',
 
         'js/modules/modals/modal-category-settings.folders.js?v=0.2.2',

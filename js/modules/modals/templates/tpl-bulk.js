@@ -23,7 +23,7 @@ window.modalTemplate += `
         </div>
         <textarea id="bulkText" style="min-height:150px;" placeholder="One URL per line..."></textarea>
         <div id="bulkTextTools" style="display:flex; gap:10px; margin-top:10px; align-items:center;">
-            <button id="bulkAutoLineBreakBtn" type="button" onclick="autoLineBreakBulkUrls()" style="display:none;">Auto Line Break URLs</button>
+            <button id="bulkAutoLineBreakBtn" type="button" onclick="autoFormatBulkText()" style="display:none;">Auto Line Break URLs</button>
             <div id="bulkTextToolsHint" style="font-size:0.78rem; opacity:0.72; display:none;">Splits pasted URL blobs into one URL per line.</div>
         </div>
 

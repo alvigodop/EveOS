@@ -15,6 +15,30 @@ button:hover {
     color: var(--text-main);
 }
 
+button.btn-primary,
+.btn-primary {
+    background: var(--btn-primary-bg);
+    color: var(--btn-primary-text);
+    border-color: var(--btn-primary-border);
+    box-shadow: var(--btn-primary-shadow);
+}
+
+button.btn-primary:hover,
+.btn-primary:hover {
+    background: var(--btn-primary-bg-hover);
+    border-color: color-mix(in srgb, var(--accent) 58%, var(--btn-primary-border) 42%);
+    color: var(--btn-primary-text);
+}
+
+button.btn-primary:focus-visible,
+.btn-primary:focus-visible {
+    outline: none;
+    border-color: color-mix(in srgb, var(--accent) 68%, var(--btn-primary-border) 32%);
+    box-shadow:
+        0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent),
+        var(--btn-primary-shadow);
+}
+
 input,
 select {
     padding: 10px;
