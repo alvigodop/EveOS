@@ -25,10 +25,14 @@ function updateBulkModeUi() {
     const fileDropZone = document.getElementById('bulkFileDropZone');
     const folderDropZone = document.getElementById('bulkFolderDropZone');
     const hint = document.getElementById('bulkModeHint');
+    const autoLineBreakBtn = document.getElementById('bulkAutoLineBreakBtn');
+    const textToolsHint = document.getElementById('bulkTextToolsHint');
     if (!text || !hint) return;
 
     if (fileDropZone) fileDropZone.style.display = 'none';
     if (folderDropZone) folderDropZone.style.display = 'none';
+    if (autoLineBreakBtn) autoLineBreakBtn.style.display = 'none';
+    if (textToolsHint) textToolsHint.style.display = 'none';
 
     if (mode === 'folder') {
         text.style.display = 'none';
@@ -72,8 +76,39 @@ function updateBulkModeUi() {
         } else {
             text.placeholder = "One URL per line...";
             hint.textContent = "URL mode: each line should be a URL.";
+            if (autoLineBreakBtn) autoLineBreakBtn.style.display = 'inline-flex';
+            if (textToolsHint) textToolsHint.style.display = 'block';
         }
     }
+}
+
+function autoLineBreakBulkUrls() {
+    const text = document.getElementById('bulkText');
+    if (!text) return;
+
+    const rawValue = String(text.value || '');
+    if (!rawValue.trim()) {
+        showToast('Nothing to split', 'info');
+        text.focus();
+        return;
+    }
+
+    const urlMatches = rawValue.match(/(?:https?:\/\/|www\.)[^\s<>"'`]+/gi) || [];
+    if (urlMatches.length === 0) {
+        showToast('No URLs found to split', 'warning');
+        text.focus();
+        return;
+    }
+
+    const rewritten = urlMatches
+        .map(url => url.replace(/[),.;!?]+$/g, '').trim())
+        .filter(Boolean)
+        .join('\n');
+
+    text.value = rewritten;
+    text.focus();
+    text.selectionStart = text.selectionEnd = text.value.length;
+    showToast(`Split ${urlMatches.length} URL${urlMatches.length === 1 ? '' : 's'} into separate lines`, 'success');
 }
 
 function initBulkModeUi() {
@@ -159,6 +194,7 @@ function clearBulkInput() {
         runBatched,
         getBulkMode,
         updateBulkModeUi,
+        autoLineBreakBulkUrls,
         initBulkModeUi,
         openBulkModal,
         clearBulkInput

@@ -22,6 +22,10 @@ window.modalTemplate += `
             </label>
         </div>
         <textarea id="bulkText" style="min-height:150px;" placeholder="One URL per line..."></textarea>
+        <div id="bulkTextTools" style="display:flex; gap:10px; margin-top:10px; align-items:center;">
+            <button id="bulkAutoLineBreakBtn" type="button" onclick="autoLineBreakBulkUrls()" style="display:none;">Auto Line Break URLs</button>
+            <div id="bulkTextToolsHint" style="font-size:0.78rem; opacity:0.72; display:none;">Splits pasted URL blobs into one URL per line.</div>
+        </div>
 
         <div id="bulkFileDropZone" style="display:none; min-height:150px; background:#111; border:2px dashed #444; border-radius:6px; flex-direction:column; align-items:center; justify-content:center; color:#aaa; cursor:pointer; position:relative; text-align:center; padding: 20px; transition: border-color 0.2s, background-color 0.2s;">
             <div style="font-size:2.5rem; margin-bottom:10px; pointer-events:none;">📄</div>
