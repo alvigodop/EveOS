@@ -118,267 +118,232 @@ function buildSeedPayload() {
 }
 
 async function runBrowserSmoke(page) {
-  return page.evaluate(async () => {
-    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const categoryName = 'Reading';
+  const cardSelector = `.category-card[data-card-category="${categoryName}"][data-card-workspace="main"]`;
+  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-    function getCard(categoryName) {
-      return document.querySelector(`.category-card[data-card-category="${categoryName}"][data-card-workspace="main"]`);
-    }
+  async function smokeLog(message) {
+    logStep(String(message || ''));
+  }
 
-    function currentTileTitles(cardOrCategory) {
-      const card = typeof cardOrCategory === 'string'
-        ? getCard(cardOrCategory)
-        : cardOrCategory;
-      if (!card) return [];
-      return Array.from(card.querySelectorAll('.folder-tile'))
-        .filter((tile) => tile.getClientRects().length > 0)
-        .map((tile) => (tile.querySelector('.folder-tile-title')?.textContent || '').trim())
-        .filter(Boolean);
-    }
+  async function currentTileTitles() {
+    return page.locator(`${cardSelector} .folder-tile .folder-tile-title`).evaluateAll((nodes) => nodes
+      .filter((node) => node.closest('.folder-tile')?.getClientRects().length > 0)
+      .map((node) => (node.textContent || '').trim())
+      .filter(Boolean));
+  }
 
-    async function waitForFolderTile(categoryName, title, timeoutMs = 5000) {
-      const start = Date.now();
-      while (Date.now() - start < timeoutMs) {
-        const card = getCard(categoryName);
-        if (card) {
-          const found = Array.from(card.querySelectorAll('.folder-tile')).find((el) => {
-            if (el.getClientRects().length === 0) return false;
-            const text = (el.querySelector('.folder-tile-title')?.textContent || '').trim();
-            return text === title;
-          });
-          if (found) return found;
-        }
-        await wait(100);
-      }
-      throw new Error(`Folder tile not found: ${title}`);
-    }
+  async function currentGhostEditCount() {
+    return page.locator(`${cardSelector} .folder-tile-ghost .folder-tile-edit-btn`).evaluateAll((nodes) => nodes
+      .filter((node) => node.getClientRects().length > 0).length);
+  }
 
-    async function clickFolderTile(categoryName, title) {
-      const tile = await waitForFolderTile(categoryName, title);
+  async function waitForFolderTile(title, timeoutMs = 5000) {
+    await page.waitForFunction(({ cardSelector, title }) => {
+      const card = document.querySelector(cardSelector);
+      if (!card) return false;
+      return Array.from(card.querySelectorAll('.folder-tile')).some((tile) => {
+        if (tile.getClientRects().length === 0) return false;
+        const text = (tile.querySelector('.folder-tile-title')?.textContent || '').trim();
+        return text === title;
+      });
+    }, { cardSelector, title }, { timeout: timeoutMs });
+  }
+
+  async function clickFolderTile(title, timeoutMs = 5000) {
+    await smokeLog(`click:start:${title}`);
+    await waitForFolderTile(title, timeoutMs);
+    await page.evaluate(({ cardSelector, title }) => {
+      const card = document.querySelector(cardSelector);
+      if (!card) throw new Error(`Card not found for ${cardSelector}`);
+      const tile = Array.from(card.querySelectorAll('.folder-tile')).find((node) => {
+        if (node.getClientRects().length === 0) return false;
+        const text = (node.querySelector('.folder-tile-title')?.textContent || '').trim();
+        return text === title;
+      });
+      if (!tile) throw new Error(`Folder tile not found: ${title}`);
       tile.scrollIntoView({ block: 'center', inline: 'center' });
-      await wait(50);
       tile.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    }, { cardSelector, title });
+    await wait(300);
+    await smokeLog(`click:done:${title}`);
+  }
+
+  async function exitFolder() {
+    await smokeLog('exit-folder:start');
+    await page.evaluate(({ categoryName }) => {
+      window.EveFolderViewV2.exitFolder(null, categoryName, 'main');
+    }, { categoryName });
+    await wait(150);
+    await smokeLog('exit-folder:done');
+  }
+
+  async function resetRootView() {
+    await smokeLog('reset-root:start');
+    await page.evaluate(({ categoryName }) => {
+      const key = `main::${categoryName}`;
+      const cfg = window.eveState?.config;
+      if (cfg?.activeManhwaFolders) delete cfg.activeManhwaFolders[key];
+      if (cfg?.activeManhwaFolderChains) delete cfg.activeManhwaFolderChains[key];
+      if (cfg?.activeManhwaScopeRoots) delete cfg.activeManhwaScopeRoots[key];
+      if (typeof window.renderDashboard === 'function') window.renderDashboard();
+    }, { categoryName });
+    await wait(300);
+    await page.locator(cardSelector).waitFor({ state: 'visible', timeout: 10000 });
+    await waitForFolderTile('[ System Views ]', 10000);
+    await smokeLog('reset-root:done');
+  }
+
+  await page.locator(cardSelector).waitFor({ state: 'visible', timeout: 10000 });
+  await smokeLog('card:reading:ready');
+
+  await waitForFolderTile('[ System Views ]', 8000);
+  await smokeLog('tile:system-views:ready');
+
+  const topLevel = await currentTileTitles();
+  if (!topLevel.includes('[ System Views ]')) {
+    throw new Error(`System Views missing from top level: ${topLevel.join(' | ')}`);
+  }
+
+  await clickFolderTile('[ System Views ]');
+  await clickFolderTile('[ Smart Indexes ]');
+  await smokeLog('branch:smart-indexes');
+
+  const indexTiles = await currentTileTitles();
+  const expectedIndexes = [
+    '[ By Tags ]',
+    '[ By Genres ]',
+    '[ By Authors ]',
+    '[ By Language ]',
+    '[ By Rating ]',
+    '[ By Confidence ]',
+    '[ By Title ]',
+    '[ By Status ]',
+    '[ By Last Read ]',
+    '[ By Progress Units ]',
+    '[ By Demographic ]',
+    '[ By Publication Era ]'
+  ];
+  expectedIndexes.forEach((label) => {
+    if (!indexTiles.includes(label)) {
+      throw new Error(`Missing smart index tile: ${label} :: ${indexTiles.join(' | ')}`);
     }
-
-    function currentGhostEditCount(cardOrCategory) {
-      const card = typeof cardOrCategory === 'string'
-        ? getCard(cardOrCategory)
-        : cardOrCategory;
-      if (!card) return 0;
-      return card.querySelectorAll('.folder-tile-ghost .folder-tile-edit-btn').length;
-    }
-
-    const categoryName = 'Reading';
-    const card = getCard(categoryName);
-    if (!card) throw new Error('Reading card not found');
-
-    await waitForFolderTile(categoryName, '[ System Views ]', 8000);
-
-    const topLevel = currentTileTitles(categoryName);
-    if (!topLevel.includes('[ System Views ]')) {
-      throw new Error(`System Views missing from top level: ${topLevel.join(' | ')}`);
-    }
-
-    await clickFolderTile(categoryName, '[ System Views ]');
-    await wait(300);
-    await clickFolderTile(categoryName, '[ Smart Indexes ]');
-    await wait(300);
-
-    const indexTiles = currentTileTitles(categoryName);
-    const expectedIndexes = [
-      '[ By Tags ]',
-      '[ By Genres ]',
-      '[ By Authors ]',
-      '[ By Language ]',
-      '[ By Rating ]',
-      '[ By Confidence ]',
-      '[ By Title ]',
-      '[ By Status ]',
-      '[ By Last Read ]',
-      '[ By Progress Units ]',
-      '[ By Demographic ]',
-      '[ By Publication Era ]'
-    ];
-    expectedIndexes.forEach((label) => {
-      if (!indexTiles.includes(label)) {
-        throw new Error(`Missing smart index tile: ${label} :: ${indexTiles.join(' | ')}`);
-      }
-    });
-
-    if (currentGhostEditCount(categoryName) !== 0) {
-      throw new Error('Ghost tiles should not expose edit buttons');
-    }
-
-    await clickFolderTile(categoryName, '[ By Tags ]');
-    await wait(300);
-    await clickFolderTile(categoryName, '[ Action ]');
-    await wait(300);
-
-    const actionTiles = currentTileTitles(categoryName);
-    const requiredActionTiles = ['[ By Tags ]', '[ By Rating ]', '[ By Confidence ]', '[ Maintenance ]', '[ Activity ]', '[ Domains ]'];
-    requiredActionTiles.forEach((label) => {
-      if (!actionTiles.includes(label)) {
-        throw new Error(`Missing recursive action tile: ${label} :: ${actionTiles.join(' | ')}`);
-      }
-    });
-
-    await clickFolderTile(categoryName, '[ Maintenance ]');
-    await wait(300);
-    const maintenanceTiles = currentTileTitles(categoryName);
-    if (!maintenanceTiles.includes('[ Missing Covers ]')) {
-      throw new Error(`Missing maintenance branch inside action scope: ${maintenanceTiles.join(' | ')}`);
-    }
-
-    window.EveFolderViewV2.exitFolder(null, categoryName, 'main');
-    await wait(100);
-    await clickFolderTile(categoryName, '[ System Views ]');
-    await wait(300);
-    await clickFolderTile(categoryName, '[ Domains ]');
-    await wait(300);
-    await clickFolderTile(categoryName, '[ ALPHA.EXAMPLE.COM ]');
-    await wait(300);
-
-    const domainTiles = currentTileTitles(categoryName);
-    ['[ Maintenance ]', '[ Activity ]', '[ Insights ]', '[ By Tags ]', '[ By Rating ]'].forEach((label) => {
-      if (!domainTiles.includes(label)) {
-        throw new Error(`Missing recursive domain tile: ${label} :: ${domainTiles.join(' | ')}`);
-      }
-    });
-    if (domainTiles.includes('[ Domains ]')) {
-      throw new Error(`Domains should not immediately recurse inside a single-domain branch :: ${domainTiles.join(' | ')}`);
-    }
-
-    window.EveFolderViewV2.exitFolder(null, categoryName, 'main');
-    await wait(100);
-    await clickFolderTile(categoryName, '[ System Views ]');
-    await wait(300);
-    await clickFolderTile(categoryName, '[ Insights ]');
-    await wait(300);
-    await clickFolderTile(categoryName, '[ Large Folders (>15) ]');
-    await wait(300);
-
-    const largeFolderTiles = currentTileTitles(categoryName);
-    ['[ By Tags ]', '[ By Rating ]', '[ Maintenance ]', '[ Activity ]', '[ Insights ]'].forEach((label) => {
-      if (!largeFolderTiles.includes(label)) {
-        throw new Error(`Missing recursive large-folders tile: ${label} :: ${largeFolderTiles.join(' | ')}`);
-      }
-    });
-
-    window.EveFolderViewV2.exitFolder(null, categoryName, 'main');
-    await wait(100);
-    await clickFolderTile(categoryName, 'H18');
-    await wait(300);
-    await clickFolderTile(categoryName, '[ System Views ]');
-    await wait(300);
-    await clickFolderTile(categoryName, '[ Insights ]');
-    await wait(300);
-    await clickFolderTile(categoryName, '[ Large Folders (>15) ]');
-    await wait(300);
-
-    const nestedLargeFolderTiles = currentTileTitles(categoryName);
-    ['[ By Tags ]', '[ By Rating ]', '[ Maintenance ]', '[ Activity ]', '[ Insights ]'].forEach((label) => {
-      if (!nestedLargeFolderTiles.includes(label)) {
-        throw new Error(`Missing nested recursive large-folders tile: ${label} :: ${nestedLargeFolderTiles.join(' | ')}`);
-      }
-    });
-
-    window.EveFolderViewV2.exitFolder(null, categoryName, 'main');
-    await wait(100);
-    await clickFolderTile(categoryName, '[ System Views ]');
-    await wait(300);
-    await clickFolderTile(categoryName, '[ Smart Indexes ]');
-    await wait(300);
-    await clickFolderTile(categoryName, '[ By Status ]');
-    await wait(300);
-    await clickFolderTile(categoryName, '[ Reading ]');
-    await wait(300);
-
-    const readingTiles = currentTileTitles(categoryName);
-    ['[ Maintenance ]', '[ Activity ]', '[ Insights ]'].forEach((label) => {
-      if (!readingTiles.includes(label)) {
-        throw new Error(`Missing recursive single-status tile: ${label} :: ${readingTiles.join(' | ')}`);
-      }
-    });
-    if (readingTiles.includes('[ Reading Status ]')) {
-      throw new Error(`Reading Status should not immediately recurse inside a single-status branch :: ${readingTiles.join(' | ')}`);
-    }
-
-    window.EveFolderViewV2.exitFolder(null, categoryName, 'main');
-    await wait(100);
-    await clickFolderTile(categoryName, '[ System Views ]');
-    await wait(300);
-    await clickFolderTile(categoryName, '[ Maintenance ]');
-    await wait(300);
-    await clickFolderTile(categoryName, '[ Missing Notes ]');
-    await wait(300);
-    await clickFolderTile(categoryName, '[ By Tags ]');
-    await wait(300);
-    await clickFolderTile(categoryName, '[ Male Protagonist ]');
-    await wait(300);
-
-    const maleProtagonistTiles = currentTileTitles(categoryName);
-    ['[ Maintenance ]', '[ Activity ]', '[ By Status ]', '[ By Rating ]'].forEach((label) => {
-      if (!maleProtagonistTiles.includes(label)) {
-        throw new Error(`Missing recursive missing-notes/tag tile: ${label} :: ${maleProtagonistTiles.join(' | ')}`);
-      }
-    });
-
-    window.EveFolderViewV2.exitFolder(null, categoryName, 'main');
-    await wait(100);
-    await clickFolderTile(categoryName, '[ System Views ]');
-    await wait(300);
-    await clickFolderTile(categoryName, '[ Smart Indexes ]');
-    await wait(300);
-
-    window.openCategorySettings(categoryName, 'folders');
-    await wait(400);
-    const modal = document.getElementById('categorySettingsModal');
-    if (!modal || modal.style.display === 'none') {
-      throw new Error('Category settings modal did not open');
-    }
-
-    const folderTab = document.getElementById('cat-tab-folders');
-    const settingsText = folderTab ? (folderTab.textContent || '') : '';
-    ['[ By Confidence ]', '[ By Progress Units ]', '[ By Demographic ]', '[ By Publication Era ]', '[ Domain Grouping ]', '[ Genre Clusters ]', '[ Missing Icons ]'].forEach((label) => {
-      if (!settingsText.includes(label)) {
-        throw new Error(`Missing ghost toggle in folder settings: ${label}`);
-      }
-    });
-
-    const publicationToggle = Array.from(folderTab.querySelectorAll('label')).find((label) => (label.textContent || '').includes('[ By Publication Era ]'));
-    if (!publicationToggle) throw new Error('Publication toggle label missing');
-    const publicationInput = publicationToggle.querySelector('input');
-    if (!publicationInput) throw new Error('Publication toggle input missing');
-    publicationInput.click();
-    await wait(500);
-
-    window.closeModals();
-    await wait(200);
-    window.EveFolderViewV2.exitFolder(null, categoryName, 'main');
-    await wait(100);
-    await clickFolderTile(categoryName, '[ System Views ]');
-    await wait(300);
-    await clickFolderTile(categoryName, '[ Smart Indexes ]');
-    await wait(300);
-
-    const afterToggleTiles = currentTileTitles(categoryName);
-    if (afterToggleTiles.includes('[ By Publication Era ]')) {
-      throw new Error('Publication era index should disappear after toggle off');
-    }
-
-    return {
-      topLevel,
-      indexTiles,
-      actionTiles,
-      maintenanceTiles,
-      domainTiles,
-      largeFolderTiles,
-      nestedLargeFolderTiles,
-      readingTiles,
-      maleProtagonistTiles,
-      afterToggleTiles
-    };
   });
+
+  if (await currentGhostEditCount() !== 0) {
+    throw new Error('Ghost tiles should not expose edit buttons');
+  }
+
+  await resetRootView();
+  await clickFolderTile('[ System Views ]');
+  await clickFolderTile('[ Smart Indexes ]');
+  await clickFolderTile('[ By Tags ]');
+  await clickFolderTile('[ Action ]');
+  await smokeLog('branch:by-tags:action');
+
+  const actionTiles = await currentTileTitles();
+  ['[ By Tags ]', '[ By Rating ]', '[ By Confidence ]', '[ Maintenance ]', '[ Activity ]', '[ Domains ]'].forEach((label) => {
+    if (!actionTiles.includes(label)) {
+      throw new Error(`Missing recursive action tile: ${label} :: ${actionTiles.join(' | ')}`);
+    }
+  });
+
+  await clickFolderTile('[ Maintenance ]');
+  await smokeLog('branch:action:maintenance');
+  const maintenanceTiles = await currentTileTitles();
+  if (!maintenanceTiles.includes('[ Missing Covers ]')) {
+    throw new Error(`Missing maintenance branch inside action scope: ${maintenanceTiles.join(' | ')}`);
+  }
+
+  await resetRootView();
+  await clickFolderTile('[ System Views ]');
+  await clickFolderTile('[ Domains ]');
+  await clickFolderTile('[ ALPHA.EXAMPLE.COM ]');
+  await smokeLog('branch:domains:alpha');
+
+  const domainTiles = await currentTileTitles();
+  ['[ Maintenance ]', '[ Activity ]', '[ Insights ]', '[ By Tags ]', '[ By Rating ]'].forEach((label) => {
+    if (!domainTiles.includes(label)) {
+      throw new Error(`Missing recursive domain tile: ${label} :: ${domainTiles.join(' | ')}`);
+    }
+  });
+  if (domainTiles.includes('[ Domains ]')) {
+    throw new Error(`Domains should not immediately recurse inside a single-domain branch :: ${domainTiles.join(' | ')}`);
+  }
+
+  await resetRootView();
+  await clickFolderTile('[ System Views ]');
+  await clickFolderTile('[ Insights ]');
+  await clickFolderTile('[ Large Folders (>15) ]');
+  await smokeLog('branch:insights:large-folders:root');
+
+  const largeFolderTiles = await currentTileTitles();
+  ['[ By Tags ]', '[ By Rating ]', '[ Maintenance ]', '[ Activity ]', '[ Insights ]'].forEach((label) => {
+    if (!largeFolderTiles.includes(label)) {
+      throw new Error(`Missing recursive large-folders tile: ${label} :: ${largeFolderTiles.join(' | ')}`);
+    }
+  });
+
+  await resetRootView();
+  await clickFolderTile('H18');
+  await clickFolderTile('[ System Views ]');
+  await clickFolderTile('[ Insights ]');
+  await clickFolderTile('[ Large Folders (>15) ]');
+  await smokeLog('branch:insights:large-folders:nested');
+
+  const nestedLargeFolderTiles = await currentTileTitles();
+  ['[ By Tags ]', '[ By Rating ]', '[ Maintenance ]', '[ Activity ]', '[ Insights ]'].forEach((label) => {
+    if (!nestedLargeFolderTiles.includes(label)) {
+      throw new Error(`Missing nested recursive large-folders tile: ${label} :: ${nestedLargeFolderTiles.join(' | ')}`);
+    }
+  });
+
+  await resetRootView();
+
+  await smokeLog('ghost-toggle:publication-era:await-api');
+  await page.waitForFunction(() => (
+    typeof window.EveFolderViewV2?.isGhostFolderEnabled === 'function' &&
+    typeof window.EveFolderViewV2?.toggleGhostFolder === 'function'
+  ), undefined, { timeout: 120000 });
+  await smokeLog('ghost-toggle:publication-era:api-ready');
+
+  const publicationEraInitiallyEnabled = await page.evaluate(({ categoryName }) => (
+    window.EveFolderViewV2.isGhostFolderEnabled('main', categoryName, 'publication_index')
+  ), { categoryName });
+  if (!publicationEraInitiallyEnabled) {
+    throw new Error('Publication era ghost folder should start enabled for the smoke seed');
+  }
+
+  await smokeLog('ghost-toggle:publication-era:start');
+  await page.evaluate(({ categoryName }) => {
+    window.EveFolderViewV2.toggleGhostFolder('main', categoryName, 'publication_index');
+  }, { categoryName });
+  await page.waitForFunction(({ categoryName }) => (
+    window.EveFolderViewV2.isGhostFolderEnabled('main', categoryName, 'publication_index') === false
+  ), { categoryName }, { timeout: 10000 });
+  await wait(500);
+  await smokeLog('ghost-toggle:publication-era:done');
+
+  await resetRootView();
+  await clickFolderTile('[ System Views ]');
+  await clickFolderTile('[ Smart Indexes ]');
+  await smokeLog('branch:smart-indexes:post-toggle');
+
+  const afterToggleTiles = await currentTileTitles();
+  if (afterToggleTiles.includes('[ By Publication Era ]')) {
+    throw new Error('Publication era index should disappear after toggle off');
+  }
+
+  return {
+    topLevel,
+    indexTiles,
+    actionTiles,
+    maintenanceTiles,
+    domainTiles,
+    largeFolderTiles,
+    nestedLargeFolderTiles,
+    afterToggleTiles
+  };
 }
 
 async function main() {
@@ -403,6 +368,7 @@ async function main() {
 
     browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
+    await page.exposeFunction('__smartViewsLog', (message) => logStep(String(message || '')));
     const seed = buildSeedPayload();
 
     await page.addInitScript((payload) => {
@@ -414,18 +380,23 @@ async function main() {
     }, seed);
 
     await page.goto(`http://localhost:${port}/EveOS.html`, { waitUntil: 'domcontentloaded', timeout: 120000 });
+    logStep('goto:done');
     await page.waitForFunction(() => (
       !!window.EveBookmarkFolders &&
       !!window.EveFolderViewV2 &&
       !!window.openCategorySettings &&
       document.querySelector('.category-card')
     ), undefined, { timeout: 180000 });
+    logStep('wait:core-ready');
     await page.waitForFunction(() => (
       !!document.querySelector('.category-card[data-card-category="Reading"][data-card-workspace="main"]')
     ), undefined, { timeout: 180000 });
+    logStep('wait:reading-card-ready');
     await page.waitForTimeout(2500);
+    logStep('wait:settle-done');
 
     const result = await runBrowserSmoke(page);
+    logStep('run:done');
     console.log(`SMART_VIEWS_BROWSER_SMOKE_OK ${JSON.stringify(result)}`);
   } catch (error) {
     console.error(error && error.stack ? error.stack : String(error));

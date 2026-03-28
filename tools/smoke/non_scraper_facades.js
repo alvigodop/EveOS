@@ -455,12 +455,12 @@ async function testDataTransferImportFacades() {
     context.window.showDirectoryPicker = async () => ({ name: 'root' });
 
     loadModules(context, [
-        'js/modules/features/data-transfer.folder-import.state.infer.js',
-        'js/modules/features/data-transfer.folder-import.state.build.js',
-        'js/modules/features/data-transfer.folder-import.state.js',
-        'js/modules/features/data-transfer.folder-import.parse.handles.js',
-        'js/modules/features/data-transfer.folder-import.parse.root.js',
-        'js/modules/features/data-transfer.folder-import.parse.js'
+        'js/modules/features/data-transfer/data-transfer.folder-import.state.infer.js',
+        'js/modules/features/data-transfer/data-transfer.folder-import.state.build.js',
+        'js/modules/features/data-transfer/data-transfer.folder-import.state.js',
+        'js/modules/features/data-transfer/data-transfer.folder-import.parse.handles.js',
+        'js/modules/features/data-transfer/data-transfer.folder-import.parse.root.js',
+        'js/modules/features/data-transfer/data-transfer.folder-import.parse.js'
     ]);
 
     context.window.EveDataTransfer.parseAnyDataPackFolder = async () => ({
@@ -477,9 +477,9 @@ async function testDataTransferImportFacades() {
     });
 
     loadModules(context, [
-        'js/modules/features/data-transfer.folder-import.activate.js',
-        'js/modules/features/data-transfer.folder-import.restore.js',
-        'js/modules/features/data-transfer.folder-import.js'
+        'js/modules/features/data-transfer/data-transfer.folder-import.activate.js',
+        'js/modules/features/data-transfer/data-transfer.folder-import.restore.js',
+        'js/modules/features/data-transfer/data-transfer.folder-import.js'
     ]);
 
     const ns = context.window.EveDataTransfer;
