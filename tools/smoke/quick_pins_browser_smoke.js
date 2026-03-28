@@ -34,13 +34,23 @@ async function waitForStatus(url, timeoutMs = 30000) {
 }
 
 function buildSeedPayload() {
+    const fillerLinks = Array.from({ length: 40 }, (_, index) => ({
+        id: `reading-extra-${index}`,
+        title: `Reading Extra ${index}`,
+        url: `https://example.com/reading-extra-${index}`,
+        workspace: 'main',
+        category: 'Reading',
+        done: false,
+        pinned: false
+    }));
+
     return {
         links: [
             { id: 'root-1', title: 'Root One', url: 'https://example.com/root', workspace: 'main', category: 'Reading', done: false, pinned: false },
             { id: 'folder-1', title: 'Folder One', url: 'https://example.com/folder', workspace: 'main', category: 'Reading', folderId: 'f-parent', done: false, pinned: false },
             { id: 'folder-2', title: 'Folder Two', url: 'https://example.com/folder-two', workspace: 'main', category: 'Reading', folderId: 'f-parent', done: false, pinned: false },
             { id: 'other-1', title: 'Other Card', url: 'https://example.com/other', workspace: 'main', category: 'Watching', done: false, pinned: false }
-        ],
+        ].concat(fillerLinks),
         quickPins: [],
         bookmarkFolders: {
             'main::Reading': {
@@ -53,7 +63,8 @@ function buildSeedPayload() {
             activeWorkspace: 'main',
             workspaces: [
                 { id: 'main', name: 'Main', icon: 'folder' }
-            ]
+            ],
+            scrollableCategories: true
         }
     };
 }
@@ -71,6 +82,19 @@ async function runQuickPinsSmoke(page) {
         if (typeof window.showLinkContextMenu !== 'function') throw new Error('showLinkContextMenu unavailable');
         if (typeof window.setFocus !== 'function' || typeof window.clearFocus !== 'function') {
             throw new Error('focus helpers unavailable');
+        }
+
+        const readingScrollable = document.querySelector('.category-card[data-card-category="Reading"] .category-scrollable');
+        if (!readingScrollable) {
+            throw new Error('Expected scrollable Reading card list');
+        }
+        readingScrollable.scrollTop = Math.max(0, readingScrollable.scrollHeight - readingScrollable.clientHeight - 80);
+        const readingScrollBeforePin = readingScrollable.scrollTop;
+        window.togglePin('reading-extra-39');
+        await wait(350);
+        const readingScrollAfterPin = document.querySelector('.category-card[data-card-category="Reading"] .category-scrollable')?.scrollTop ?? 0;
+        if (Math.abs(readingScrollAfterPin - readingScrollBeforePin) > 4) {
+            throw new Error(`Expected Reading card scroll to persist after pin. before=${readingScrollBeforePin} after=${readingScrollAfterPin}`);
         }
 
         window.togglePin('root-1');
@@ -147,6 +171,8 @@ async function runQuickPinsSmoke(page) {
         await wait(300);
 
         return {
+            readingScrollBeforePin,
+            readingScrollAfterPin,
             rootScope,
             folderScopeAfterContextChange: window.EveQuickPins.getBookmarkScopeType('folder-1'),
             normalDock,
