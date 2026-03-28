@@ -2,7 +2,7 @@
 #sidebar {
     width: 60px;
     background: var(--sidebar-bg);
-    border-right: 1px solid #333;
+    border-right: 1px solid var(--sidebar-border);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -13,6 +13,25 @@
     transition: width 0.2s;
     overflow-y: auto;
     overflow-x: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+#sidebar::-webkit-scrollbar {
+    width: 6px;
+}
+
+#sidebar::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+}
+
+#sidebar::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 999px;
+}
+
+#sidebar::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
 }
 
 #sidebar:hover {
@@ -23,8 +42,8 @@
     width: 40px;
     height: 40px;
     border-radius: 10px;
-    background: #333;
-    color: #aaa;
+    background: var(--sidebar-item-bg);
+    color: var(--sidebar-item-text);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -38,7 +57,7 @@
 .ws-item:hover,
 .ws-item.active {
     background: var(--accent);
-    color: #000;
+    color: var(--accent-contrast);
     box-shadow: 0 0 10px var(--accent);
 }
 
@@ -46,7 +65,7 @@
     position: absolute;
     left: 55px;
     font-size: 0.9rem;
-    color: white;
+    color: var(--text-main);
     opacity: 0;
     transition: 0.2s;
     pointer-events: none;
@@ -64,7 +83,7 @@
 }
 
 .ws-add {
-    border: 1px dashed #666;
+    border: 1px dashed var(--sidebar-divider);
     background: transparent;
 }
 
@@ -83,14 +102,14 @@
 .ws-unidex:hover,
 .ws-unidex.active {
     border-color: var(--accent);
-    color: #000;
+    color: var(--accent-contrast);
     box-shadow: 0 0 12px rgba(0, 212, 255, 0.5);
 }
 
 .ws-divider {
     width: 36px;
     height: 1px;
-    background: #4a4a4a;
+    background: var(--sidebar-divider);
     opacity: 0.75;
     flex-shrink: 0;
 }

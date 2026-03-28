@@ -71,13 +71,12 @@ function applyFolderAura(node, folder, orientX, orientY, distToParent, isRootFol
 
 
 
-        // SINGULARITY FUSION: Immediate children are now EXEMPT from repulsion 
-
+        // SINGULARITY FUSION: Immediate children of NON-ROOT folders are EXEMPT from repulsion 
         // to allow them to dock deep into the parent's core.
-
+        // ROOT folders (direct children of card/workspace) must repel their children
+        // to maintain aura boundary integrity — same pattern as the card itself.
         const isImmediateChild = (node.parentId === folder.id || (node.data && node.data.anchorNodeId === folder.id));
-
-        if (isImmediateChild) return;
+        if (isImmediateChild && !isRootFolder) return;
 
         if (node.id === folder.id) return;
 
@@ -93,19 +92,14 @@ function applyFolderAura(node, folder, orientX, orientY, distToParent, isRootFol
 
 
 
-        // Repulsive center is offset from folder toward parent
-
+        // Repulsive center is offset from folder toward parent.
         const shape = getFolderAuraShape(folder, distToParent, isRootFolder);
         const offsetDist = shape.offsetDist;
 
         const fnx = orientX;
-
         const fny = orientY;
 
-
-
         const centerX = folder.x + fnx * offsetDist;
-
         const centerY = folder.y + fny * offsetDist;
 
 
@@ -145,25 +139,26 @@ function applyFolderAura(node, folder, orientX, orientY, distToParent, isRootFol
         if (normDistSq < 1.0) {
 
             const normDist = Math.sqrt(normDistSq);
+            const penetration = 1 - normDist;
 
-            // STABILIZED: Quadratic force (1-d)^2 ensures a "Soft-Contact" at the boundary
-
-            // This prevents the "spring kick" that causes high-frequency jitter.
-
-            let force = 2.0 * Math.pow(1 - normDist, 2);
+            // ROOT FOLDERS need much stronger repulsion to enforce their boundary
+            // against card-direct bookmarks that have strong anchor pulls.
+            let force;
+            if (isRootFolder) {
+                force = 8.0 * penetration + 20.0 * Math.pow(penetration, 2);
+            } else {
+                // Non-root: soft quadratic contact
+                force = 2.0 * Math.pow(penetration, 2);
+            }
 
             if (nodeDepth >= 2) force *= 1.4;
 
 
 
             // MICRO-DAMPING ZONE: Freeze nodes that are settling into the boundary
-
-            if (normDist > 0.85) {
-
-                node.vx *= 0.85;
-
-                node.vy *= 0.85;
-
+            if (normDist > (isRootFolder ? 0.7 : 0.85)) {
+                node.vx *= (isRootFolder ? 0.75 : 0.85);
+                node.vy *= (isRootFolder ? 0.75 : 0.85);
             }
 
 
@@ -180,7 +175,13 @@ function applyFolderAura(node, folder, orientX, orientY, distToParent, isRootFol
 
             node.vy += (rdy / rdist) * force;
 
-
+            // ROOT FOLDER HARD BOUNDARY: Position push to prevent tunneling.
+            if (isRootFolder && penetration > 0.05) {
+                const radiusLong2 = projLong > 0 ? radiusFront : radiusBack;
+                const pushMagnitude = penetration * radiusLong2 * 0.3;
+                node.x += (rdx / rdist) * pushMagnitude;
+                node.y += (rdy / rdist) * pushMagnitude;
+            }
 
             // Lateral Shunt
 
@@ -196,7 +197,7 @@ function applyFolderAura(node, folder, orientX, orientY, distToParent, isRootFol
 
             if (projLong > 0) {
 
-                const fallbackForce = 1.2 * (1 - normDist);
+                const fallbackForce = (isRootFolder ? 4.0 : 1.2) * penetration;
 
                 node.vx -= fnx * fallbackForce;
 
@@ -225,12 +226,9 @@ function applyCardAuraRepulsion(node, card, cardData) {
         const distSq = dx * dx + dy * dy;
 
         // PERFORMANCE: Coarse distance check for Colossal Card Reach (2160px+)
-
         if (distSq > 2500 * 2500) return;
 
-        // SINGULARITY FUSION: Direct children of the Card are exempt from its massive aura.
-
-        if (node.parentId === card.id || (node.data && node.data.anchorNodeId === card.id)) return;
+        // ALL EXEMPTIONS DELETED. Every single child node, regardless of depth, must respect the Main Card Aura.
 
         const dist = Math.sqrt(distSq) || 1;
 
@@ -261,50 +259,49 @@ function applyCardAuraRepulsion(node, card, cardData) {
 
         const normDistSq = Math.pow(distLat / radiusLat, 2) + Math.pow(projLong / radiusLong, 2);
 
+        // CLEARANCE TARGET: Expand the boundary to physically block the node BEFORE its graphic radius crosses the dashed line.
+        const marginRatio = ((Number(node.radius) || 16) + 4) / radiusLong;
+        const clearanceRatio = 1.25 + marginRatio;
 
-
-        if (normDistSq < 1.0) {
-
+        if (normDistSq < clearanceRatio * clearanceRatio) {
             const normDist = Math.sqrt(normDistSq);
+            const penetration = clearanceRatio - normDist;
+            // How deep inside: 0 = at boundary, 1 = at center
+            const depthRatio = penetration / clearanceRatio;
 
-            // HARDENED: Linear force and significantly higher coefficient
-
+            // STRENGTHENED BOUNDARY: Increased base force and quadratic ramp
             const nodeDepth = (node.data && typeof node.data.depth === 'number') ? node.data.depth : 0;
+            let force = 12.0 * penetration + 45.0 * Math.pow(penetration, 2);
+            if (nodeDepth >= 2) force *= 1.4;
 
-            let force = 1.3 * (1 - normDist);
+            // GRADUATED DAMPING: More aggressive damping to prevent oscillation at the wall
+            const dampFactor = Math.max(0.1, 0.6 - depthRatio * 0.5);
+            node.vx *= dampFactor;
+            node.vy *= dampFactor;
 
-            if (nodeDepth >= 2) force *= 1.3; // Sub-sub folders are pushed harder by cards
+            const nx = dx / dist;
+            const ny = dy / dist;
 
+            node.vx += nx * force;
+            node.vy += ny * force;
 
+            // HARD BOUNDARY ENFORCEMENT: Physical position push to guarantee exclusion.
+            // This prevents "tunneling" at high speeds or tight edge springs.
+            const pushMagnitude = penetration * radiusLong * 0.5;
+            node.x += nx * pushMagnitude;
+            node.y += ny * pushMagnitude;
 
-            node.vx += (dx / dist) * force;
-
-            node.vy += (dy / dist) * force;
-
-
-
-            // Lateral shunt
-
+            // Lateral shunt toward the sides
             const sideDot = (dx * latX + dy * latY) > 0 ? 1 : -1;
-
-            node.vx += latX * sideDot * (force * 0.9);
-
-            node.vy += latY * sideDot * (force * 0.9);
-
-
+            node.vx += latX * sideDot * (force * 0.4);
+            node.vy += latY * sideDot * (force * 0.4);
 
             // Fallback (push toward back of card)
-
             if (projLong > 0) {
-
-                const fallback = 1.0 * (1 - normDist);
-
+                const fallback = 6.0 * penetration + 18.0 * Math.pow(penetration, 2);
                 node.vx -= cardData.frontX * fallback;
-
                 node.vy -= cardData.frontY * fallback;
-
             }
-
         }
 
     }
@@ -389,29 +386,69 @@ function applyWorkspaceAuraRepulsion(node, workspace, workspaceData) {
 
 
 
-function applyFolderRecovery(node, anchor, motionProfile) {
-
+function applyFolderRecovery(node, parentNode, anchor, motionProfile) {
         if (!node || node.kind !== 'folder' || !anchor) return;
 
-        const dx = anchor.x - node.x;
+        let targetX = anchor.x;
+        let targetY = anchor.y;
 
-        const dy = anchor.y - node.y;
+        // AURA PENETRATION KILL-SWITCH: If we are anywhere inside the Card's teardrop aura, 
+        // the only force that should act on us is the physical boundary repulsion!
+        // We completely deactivate the pulling spring to prevent dragging the node through the Card's center.
+        if (parentNode) {
+            const isRootParent = parentNode.kind === 'category' || parentNode.kind === 'workspace';
+            if (isRootParent) {
+                const rootData = state.chainRoots?.get(parentNode.chainId);
+                if (rootData && rootData.frontX !== undefined && rootData.frontY !== undefined) {
+                    const cx = node.x - parentNode.x;
+                    const cy = node.y - parentNode.y;
+                    const projLong = cx * rootData.frontX + cy * rootData.frontY;
+                    const distLat = Math.abs(cx * -rootData.frontY + cy * rootData.frontX);
+                    const shape = getCardAuraShape(parentNode);
+                    const radiusLong = projLong > 0 ? shape.radiusFront : shape.radiusBack;
+                    const normDistSq = Math.pow(distLat / shape.radiusLat, 2) + Math.pow(projLong / radiusLong, 2);
+                    const clearanceRatio = 1.0 + (((Number(node.radius) || 16) + 4) / radiusLong);
+                    
+                    if (normDistSq < clearanceRatio * clearanceRatio) {
+                        return; // AURA BREACHED! KILL ALL PULL FORCES IMMEDIATELY!
+                    }
 
+                    // SPINAL DOCKING: Target is directly behind the card, just outside the aura
+                    const dockDist = shape.radiusBack + (Number(node.radius) || 16) + 20;
+                    targetX = parentNode.x - rootData.frontX * dockDist;
+                    targetY = parentNode.y - rootData.frontY * dockDist;
+                }
+            }
+        }
+
+        const dx = targetX - node.x;
+        const dy = targetY - node.y;
         const dist = Math.sqrt((dx * dx) + (dy * dy));
 
-
-
-        // SINGULARITY RECOVERY: No 110px deadzone. Pull folders to their heart instantly.
-
         if (!Number.isFinite(dist) || dist <= 1) return;
+
+        // SPINAL DOCK DEADZONE: Prevents the root folder from relentlessly fighting the socket Target.
+        if (parentNode) {
+            const isRootParent = parentNode.kind === 'category' || parentNode.kind === 'workspace';
+            // Because targetX/Y is already perfectly shifted to the exterior padding, 
+            // the Folder safely deactivates its spring once it sits directly on that coordinate.
+            if (isRootParent && dist < 12) {
+                node.vx *= 0.85;
+                node.vy *= 0.85;
+                return;
+            }
+        }
 
 
 
         const recoveryScale = (Number(motionProfile?.folderRecoveryScale) || 1) * getMotionTuningValue('folderRecovery');
 
-        // High-stiffness recovery: Using full distance instead of (dist - 110)
+        const isRootFolder = parentNode && (parentNode.kind === 'category' || parentNode.kind === 'workspace');
 
-        const recovery = Math.min(0.08, dist * 0.00015 * recoveryScale);
+        // Root folders get a MUCH stiffer spring to lock behind the card's aura direction
+        const stiffness = isRootFolder ? 0.004 : 0.00015;
+        const maxRecovery = isRootFolder ? 0.25 : 0.08;
+        const recovery = Math.min(maxRecovery, dist * stiffness * recoveryScale);
 
         node.vx += dx * recovery;
 
@@ -456,9 +493,6 @@ function applyBookmarkAwayBias(node, parentNode, anchor, motionProfile) {
 
 
             // Quadratic scaling: Starts at 0 at the boundary, ramps up smoothly
-
-            const isRootParent = (parentNode.kind === 'category' || parentNode.kind === 'workspace');
-
             const forceBase = isRootParent ? 1.5 : 1.0;
 
             const pushForce = Math.pow(1 - normDist, 2) * minReach * forceBase;
@@ -486,20 +520,48 @@ function applyBookmarkAwayBias(node, parentNode, anchor, motionProfile) {
 
 
         // 2. Proactive Spinal Bias: Damped as it approaches the anchor
+        let targetX = anchor.x;
+        let targetY = anchor.y;
 
-        const adx = anchor.x - node.x;
+        // AURA PENETRATION KILL-SWITCH
+        if (isRootParent) {
+            const rootData = state.chainRoots?.get(parentNode.chainId);
+            if (rootData && rootData.frontX !== undefined && rootData.frontY !== undefined) {
+                const cx = node.x - parentNode.x;
+                const cy = node.y - parentNode.y;
+                const projLong = cx * rootData.frontX + cy * rootData.frontY;
+                const distLat = Math.abs(cx * -rootData.frontY + cy * rootData.frontX);
+                const shape = getCardAuraShape(parentNode);
+                const radiusLong = projLong > 0 ? shape.radiusFront : shape.radiusBack;
+                const normDistSq = Math.pow(distLat / shape.radiusLat, 2) + Math.pow(projLong / radiusLong, 2);
+                const clearanceRatio = 1.0 + (((Number(node.radius) || 12) + 4) / radiusLong);
+                
+                if (normDistSq < clearanceRatio * clearanceRatio) {
+                    return; // AURA BREACHED! SURRENDER TO REPULSION!
+                }
 
-        const ady = anchor.y - node.y;
+                // SPINAL SOCKET NAVIGATION 
+                // Exact exterior of the widest back aura (radiusBack + bookmark radius + padding)
+                const dockDist = shape.radiusBack + (Number(node.radius) || 12) + 12;
+                targetX -= rootData.frontX * dockDist;
+                targetY -= rootData.frontY * dockDist;
+            }
+        }
+
+        const adx = targetX - node.x;
+        const ady = targetY - node.y;
 
         const adistSq = adx * adx + ady * ady;
 
         if (adistSq > 1) {
-
             const adist = Math.sqrt(adistSq);
 
-            const isRootParent = (parentNode.kind === 'category' || parentNode.kind === 'workspace');
-
-
+            // PERFECT DOCK DEADZONE: Cease structural pulling once it aligns outside the Aura visually.
+            if (isRootParent && adist < 15) {
+                node.vx *= 0.85;
+                node.vy *= 0.85;
+                return;
+            }
 
             // BLACK HOLE GLUE: High-Stiffness anchoring for zero-latency tracking
 
@@ -552,75 +614,56 @@ function applyBookmarkAwayBias(node, parentNode, anchor, motionProfile) {
 
 
 function stabilizeDirectCardBookmarkClearance(node, anchor) {
+        // UNIVERSAL HARD POSITIONAL AURA CLAMP:
+        // After ALL velocity integration, check this node against EVERY card aura in the system.
+        // If the node ended up inside ANY card's teardrop aura, teleport it to the boundary.
+        // This is mathematically impossible to overwhelm because it operates on final position.
+        if (!node) return;
+        // Cards don't clamp against themselves
+        if (node.kind === 'category' || node.kind === 'workspace') return;
 
-        if (!node || node.kind !== 'link' || !anchor) return;
+        const chainRoots = state.chainRoots;
+        if (!chainRoots || !chainRoots.size) return;
 
+        chainRoots.forEach((rootData) => {
+            const card = rootData.node;
+            if (!card || card.id === node.id) return;
+            if (rootData.frontX === undefined || rootData.frontY === undefined) return;
 
+            const cdx = node.x - card.x;
+            const cdy = node.y - card.y;
+            const coarseDistSq = cdx * cdx + cdy * cdy;
+            if (coarseDistSq > 2500 * 2500) return;
 
-        const parentId = (node.data && node.data.anchorNodeId) ? node.data.anchorNodeId : '';
+            const projLong = cdx * rootData.frontX + cdy * rootData.frontY;
+            const latAxis_x = -rootData.frontY;
+            const latAxis_y = rootData.frontX;
+            const absDistLat = Math.abs(cdx * latAxis_x + cdy * latAxis_y);
 
-        const parentNode = parentId ? state.nodeIndex.get(parentId) : null;
+            const shape = getCardAuraShape(card);
+            const radiusLong = projLong > 0 ? shape.radiusFront : shape.radiusBack;
+            const normDistSq = Math.pow(absDistLat / shape.radiusLat, 2) + Math.pow(projLong / radiusLong, 2);
 
-        if (!parentNode || (parentNode.kind !== 'category' && parentNode.kind !== 'workspace')) return;
+            const nodeR = (Number(node.radius) || 12) + 6;
+            const marginRatio = nodeR / radiusLong;
+            const clearanceRatio = 1.25 + marginRatio;
 
-
-
-        const dx = node.x - parentNode.x;
-
-        const dy = node.y - parentNode.y;
-
-        const dist = Math.sqrt((dx * dx) + (dy * dy)) || 1;
-
-
-
-        const anchorDx = anchor.x - parentNode.x;
-
-        const anchorDy = anchor.y - parentNode.y;
-
-        const anchorDist = Math.sqrt((anchorDx * anchorDx) + (anchorDy * anchorDy));
-
-
-
-        let axisX = 0;
-
-        let axisY = 0;
-
-        if (Number.isFinite(anchorDist) && anchorDist > 8) {
-
-            axisX = anchorDx / anchorDist;
-
-            axisY = anchorDy / anchorDist;
-
-        } else if (dist > 1) {
-
-            axisX = dx / dist;
-
-            axisY = dy / dist;
-
-        } else {
-
-            return;
-
-        }
-
-
-
-        const minRadius = Math.max(
-            (Number(parentNode.radius) || 12) + 24,
-            (Number.isFinite(anchorDist) ? (anchorDist > 60 ? anchorDist * 0.82 : anchorDist * 0.55) : 0),
-            32
-        );
-        if (dist >= minRadius) return;
-
-
-        node.x = parentNode.x + (axisX * minRadius);
-
-        node.y = parentNode.y + (axisY * minRadius);
-
-        node.vx *= 0.72;
-
-        node.vy *= 0.72;
-
+            if (normDistSq < clearanceRatio * clearanceRatio) {
+                // SMOOTH EASING CLAMP: Instead of a jarring instant teleport,
+                // ease the node 70% of the way toward the boundary each frame.
+                // This produces silk-smooth docking over 3-5 frames.
+                const normDist = Math.sqrt(normDistSq) || 0.001;
+                const targetScale = (clearanceRatio / normDist);
+                const targetX = card.x + cdx * targetScale;
+                const targetY = card.y + cdy * targetScale;
+                // Ease 70% toward the target position
+                node.x += (targetX - node.x) * 0.7;
+                node.y += (targetY - node.y) * 0.7;
+                // Gently drain residual velocity
+                node.vx *= 0.5;
+                node.vy *= 0.5;
+            }
+        });
     }
 
 

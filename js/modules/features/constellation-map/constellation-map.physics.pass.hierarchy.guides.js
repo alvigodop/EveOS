@@ -158,18 +158,24 @@ function buildParentChildren() {
                 const isSingleChild = childCount === 1;
                 const delta = Math.abs(getAngleDelta(currentAngle, targetAngle));
                 const hasLockedDirection = Number.isFinite(lockedAngle);
+
+                // DEADZONE: Drastically reduced for high-precision control
                 const deadzone = hasLockedDirection
-                    ? (isSingleChild ? 0.55 : childCount <= 3 ? 0.44 : 0.32)
-                    : (isSingleChild ? 0.22 : childCount <= 3 ? 0.18 : 0.12);
+                    ? (isSingleChild ? 0.12 : childCount <= 3 ? 0.1 : 0.08)
+                    : (isSingleChild ? 0.08 : childCount <= 3 ? 0.06 : 0.04);
+
                 if (delta <= deadzone) {
                     frontAngle = currentAngle;
                 } else {
+                    // RESPONSIVENESS: Increased for snappier tracking
                     const responsiveness = hasLockedDirection
-                        ? (isDraggingChildCategory ? 0.00035 : isSingleChild ? 0.0008 : childCount <= 3 ? 0.0011 : 0.0016)
-                        : (isDraggingChildCategory ? 0.0014 : isSingleChild ? 0.0035 : childCount <= 3 ? 0.0055 : 0.008);
+                        ? (isDraggingChildCategory ? 0.0008 : isSingleChild ? 0.0018 : childCount <= 3 ? 0.0025 : 0.0035)
+                        : (isDraggingChildCategory ? 0.0035 : isSingleChild ? 0.008 : childCount <= 3 ? 0.012 : 0.018);
+
                     const maxStep = hasLockedDirection
-                        ? (isDraggingChildCategory ? 0.0006 : isSingleChild ? 0.0012 : childCount <= 3 ? 0.0018 : 0.0024)
-                        : (isDraggingChildCategory ? 0.002 : isSingleChild ? 0.004 : childCount <= 3 ? 0.006 : 0.009);
+                        ? (isDraggingChildCategory ? 0.0012 : isSingleChild ? 0.0024 : childCount <= 3 ? 0.0036 : 0.0048)
+                        : (isDraggingChildCategory ? 0.004 : isSingleChild ? 0.008 : childCount <= 3 ? 0.012 : 0.018);
+
                     const adjustedTarget = normalizeAngle(currentAngle + Math.sign(getAngleDelta(currentAngle, targetAngle)) * Math.max(0, delta - deadzone));
                     frontAngle = lerpAngle(currentAngle, adjustedTarget, responsiveness);
                     const steppedDelta = getAngleDelta(currentAngle, frontAngle);

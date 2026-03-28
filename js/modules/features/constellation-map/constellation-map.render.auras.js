@@ -7,6 +7,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         text,
         isAuraVisualsEnabled,
         isAuraEmitterEnabled,
+        getMapThemeRgba,
         getCardAuraShape,
         getFolderAuraShape,
         getWorkspaceAuraShape
@@ -140,22 +141,33 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                     targetAngle = normalizeAngle(lockedAngle + (getAngleDelta(lockedAngle, targetAngle) * childInfluence));
                 }
                 const delta = Math.abs(getAngleDelta(currentAngle, targetAngle));
+
+                // DEADZONE: Drastically reduced for high-precision control (approx 3-5 degrees)
                 const deadzone = hasLockedDirection
-                    ? (isSingleChild ? 0.82 : childCount <= 3 ? 0.66 : 0.5)
-                    : (directFolders.length > 0 ? (isSingleChild ? 0.3 : childCount <= 3 ? 0.22 : 0.16) : 0);
+                    ? (isSingleChild ? 0.12 : childCount <= 3 ? 0.1 : 0.08)
+                    : (directFolders.length > 0 ? (isSingleChild ? 0.08 : childCount <= 3 ? 0.06 : 0.04) : 0);
+
                 if (delta <= deadzone) {
+
                     frontAngle = currentAngle;
+
                 } else {
+
+                    // RESPONSIVENESS: Increased for snappier tracking
                     const smoothing = hasLockedDirection
-                        ? (isSingleChild ? 0.0012 : childCount <= 3 ? 0.0018 : 0.0026)
-                        : (directFolders.length > 0 ? (isSingleChild ? 0.006 : childCount <= 3 ? 0.01 : 0.015) : 0.05);
+                        ? (isSingleChild ? 0.0025 : childCount <= 3 ? 0.0035 : 0.0045)
+                        : (directFolders.length > 0 ? (isSingleChild ? 0.012 : childCount <= 3 ? 0.018 : 0.025) : 0.1);
+
                     const maxStep = hasLockedDirection
-                        ? (isSingleChild ? 0.002 : childCount <= 3 ? 0.003 : 0.0045)
-                        : (directFolders.length > 0 ? (isSingleChild ? 0.008 : childCount <= 3 ? 0.012 : 0.018) : 0.07);
+                        ? (isSingleChild ? 0.004 : childCount <= 3 ? 0.006 : 0.009)
+                        : (directFolders.length > 0 ? (isSingleChild ? 0.016 : childCount <= 3 ? 0.024 : 0.036) : 0.14);
+
                     const adjustedTarget = deadzone > 0
                         ? normalizeAngle(currentAngle + (Math.sign(getAngleDelta(currentAngle, targetAngle)) * Math.max(0, delta - deadzone)))
                         : targetAngle;
+
                     frontAngle = stepAngleToward(currentAngle, adjustedTarget, smoothing, maxStep);
+
                 }
                 frontX = Math.cos(frontAngle);
                 frontY = Math.sin(frontAngle);
@@ -196,13 +208,13 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             ctx.ellipse(0, 0, radiusBack, radiusLat, 0, Math.PI / 2, 3 * Math.PI / 2);
             ctx.closePath();
             const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, Math.max(radiusFront, radiusLat));
-            gradient.addColorStop(0, `rgba(122, 255, 196, ${0.015 * zoomAlpha})`);
-            gradient.addColorStop(0.6, `rgba(122, 255, 196, ${0.005 * zoomAlpha})`);
-            gradient.addColorStop(1, 'rgba(122, 255, 196, 0)');
+            gradient.addColorStop(0, getMapThemeRgba('cardAuraFill', 0.05 * zoomAlpha));
+            gradient.addColorStop(0.6, getMapThemeRgba('cardAuraFill', 0.018 * zoomAlpha));
+            gradient.addColorStop(1, getMapThemeRgba('cardAuraFill', 0));
             ctx.fillStyle = gradient;
             ctx.fill();
             ctx.beginPath();
-            ctx.strokeStyle = `rgba(122, 255, 196, ${0.06 * zoomAlpha})`;
+            ctx.strokeStyle = getMapThemeRgba('cardAuraDash', 0.24 * zoomAlpha);
             ctx.setLineDash([15, 45]);
             ctx.lineWidth = 1.0 / state.transform.scale;
             ctx.ellipse(0, 0, radiusFront * 0.92, radiusLat * 0.9, 0, -Math.PI / 2, Math.PI / 2);
@@ -229,9 +241,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             ctx.rotate(backAngle - (Math.PI / 2));
 
             const fillGradient = ctx.createLinearGradient(0, centerOffset - capsuleRadius, 0, centerOffset + capsuleRadius);
-            fillGradient.addColorStop(0, `rgba(255, 209, 102, ${0.018 * zoomAlpha})`);
-            fillGradient.addColorStop(0.5, `rgba(255, 209, 102, ${0.036 * zoomAlpha})`);
-            fillGradient.addColorStop(1, 'rgba(255, 209, 102, 0)');
+            fillGradient.addColorStop(0, getMapThemeRgba('workspaceAuraFill', 0.05 * zoomAlpha));
+            fillGradient.addColorStop(0.5, getMapThemeRgba('workspaceAuraFill', 0.11 * zoomAlpha));
+            fillGradient.addColorStop(1, getMapThemeRgba('workspaceAuraFill', 0));
             ctx.beginPath();
             ctx.lineCap = 'round';
             ctx.strokeStyle = fillGradient;
@@ -242,7 +254,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             ctx.beginPath();
             ctx.setLineDash([18, 40]);
-            ctx.strokeStyle = `rgba(255, 209, 102, ${0.14 * zoomAlpha})`;
+            ctx.strokeStyle = getMapThemeRgba('workspaceAuraDash', 0.3 * zoomAlpha);
             ctx.lineWidth = 2.5 / Math.max(0.35, state.transform.scale);
             ctx.moveTo(-capsuleHalfWidth, centerOffset);
             ctx.lineTo(capsuleHalfWidth, centerOffset);
@@ -284,24 +296,26 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             ctx.rotate(angle);
             const zoomAlpha = Math.min(1.0, state.transform.scale * 3.0);
             const showDetails = state.transform.scale > 0.15;
-            const alpha = (isRoot ? 0.04 : 0.015) * zoomAlpha;
+            const alpha = (isRoot ? 0.08 : 0.032) * zoomAlpha;
             ctx.beginPath();
             ctx.ellipse(0, 0, radiusFront, radiusLat, 0, -Math.PI / 2, Math.PI / 2);
             const gradFront = ctx.createRadialGradient(0, 0, 0, 0, 0, radiusLat);
-            gradFront.addColorStop(0, `rgba(0, 212, 255, ${alpha})`);
-            gradFront.addColorStop(1, 'rgba(0, 212, 255, 0)');
+            gradFront.addColorStop(0, getMapThemeRgba('folderAuraFill', alpha));
+            gradFront.addColorStop(1, getMapThemeRgba('folderAuraFill', 0));
             ctx.fillStyle = gradFront;
             ctx.fill();
             ctx.beginPath();
             ctx.ellipse(0, 0, radiusBack, radiusLat, 0, Math.PI / 2, 3 * Math.PI / 2);
             const gradBack = ctx.createRadialGradient(0, 0, 0, 0, 0, radiusLat);
-            gradBack.addColorStop(0, `rgba(0, 212, 255, ${alpha})`);
-            gradBack.addColorStop(1, 'rgba(0, 212, 255, 0)');
+            gradBack.addColorStop(0, getMapThemeRgba('folderAuraFill', alpha));
+            gradBack.addColorStop(1, getMapThemeRgba('folderAuraFill', 0));
             ctx.fillStyle = gradBack;
             ctx.fill();
             if (showDetails) {
                 ctx.beginPath();
-                ctx.strokeStyle = isRoot ? `rgba(0, 212, 255, ${0.12 * zoomAlpha})` : `rgba(0, 212, 255, ${0.06 * zoomAlpha})`;
+                ctx.strokeStyle = isRoot
+                    ? getMapThemeRgba('folderAuraDash', 0.24 * zoomAlpha)
+                    : getMapThemeRgba('folderAuraDash', 0.15 * zoomAlpha);
                 ctx.setLineDash([20, 60]);
                 ctx.ellipse(0, 0, radiusFront, radiusLat * 0.9, 0, -Math.PI / 2, Math.PI / 2);
                 ctx.ellipse(0, 0, radiusBack, radiusLat * 0.9, 0, Math.PI / 2, 3 * Math.PI / 2);
@@ -340,14 +354,14 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                     ctx.beginPath();
                     ctx.moveTo(node.x, node.y);
                     ctx.lineTo(node.x + (dx / dist) * 35 / state.transform.scale, node.y + (dy / dist) * 35 / state.transform.scale);
-                    ctx.strokeStyle = `rgba(200, 160, 255, ${0.08 * zoomAlpha})`;
+                    ctx.strokeStyle = getMapThemeRgba('mapAccent', 0.08 * zoomAlpha);
                     ctx.lineWidth = 1.0 / state.transform.scale;
                     ctx.stroke();
                     if (projLong > 0) {
                         ctx.beginPath();
                         ctx.moveTo(node.x, node.y);
                         ctx.lineTo(node.x - cfx * 60 / state.transform.scale, node.y - cfy * 60 / state.transform.scale);
-                        ctx.strokeStyle = `rgba(255, 180, 100, ${0.1 * zoomAlpha})`;
+                        ctx.strokeStyle = getMapThemeRgba('dangerAccent', 0.1 * zoomAlpha);
                         ctx.lineWidth = 1.5 / state.transform.scale;
                         ctx.stroke();
                     }
@@ -357,7 +371,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             ctx.beginPath();
             ctx.moveTo(node.x, node.y);
             ctx.lineTo(node.x + (rdx / rdist) * 30 / state.transform.scale, node.y + (rdy / rdist) * 30 / state.transform.scale);
-            ctx.strokeStyle = `rgba(122, 255, 196, ${0.12 * zoomAlpha})`;
+            ctx.strokeStyle = getMapThemeRgba('auraAccent', 0.12 * zoomAlpha);
             ctx.lineWidth = 1 / state.transform.scale;
             ctx.stroke();
         });

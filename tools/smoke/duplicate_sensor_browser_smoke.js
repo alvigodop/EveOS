@@ -73,6 +73,17 @@ async function runDuplicateSmoke(page) {
     return page.evaluate(async () => {
         const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+        async function waitForSelectOptions(element, minimumOptions = 1, timeoutMs = 5000) {
+            const start = Date.now();
+            while (Date.now() - start < timeoutMs) {
+                if (element && element.options && element.options.length >= minimumOptions) {
+                    return;
+                }
+                await wait(100);
+            }
+            throw new Error(`Select did not populate in time: ${element?.id || 'unknown'}`);
+        }
+
         if (!document.getElementById('settingsModal') && window.modalTemplate) {
             const host = document.createElement('div');
             host.innerHTML = window.modalTemplate;
@@ -84,46 +95,69 @@ async function runDuplicateSmoke(page) {
         if (typeof window.openSettings !== 'function') {
             throw new Error('openSettings unavailable');
         }
-        if (typeof window.runDuplicateSensor !== 'function') {
-            throw new Error('runDuplicateSensor unavailable');
+        if (typeof window.runDuplicateSensorForFullBackup !== 'function' ||
+            typeof window.runDuplicateSensorForWorkspace !== 'function' ||
+            typeof window.runDuplicateSensorForCard !== 'function' ||
+            typeof window.runDuplicateSensorForFolder !== 'function') {
+            throw new Error('duplicate sensor runners unavailable');
         }
 
         window.openSettings();
-        await wait(300);
+        await wait(500);
 
-        const scopeSelect = document.getElementById('duplicateSensorScope');
-        const workspaceSelect = document.getElementById('duplicateSensorWorkspaceSelect');
-        const categorySelect = document.getElementById('duplicateSensorCategorySelect');
-        const folderSelect = document.getElementById('duplicateSensorFolderSelect');
-        const summaryNode = document.getElementById('duplicateSensorSummary');
-        const resultsNode = document.getElementById('duplicateSensorResults');
-        if (!scopeSelect || !workspaceSelect || !categorySelect || !folderSelect || !summaryNode || !resultsNode) {
-            throw new Error('Duplicate sensor controls missing');
+        const backupModeSelect = document.getElementById('backupSettingsMode');
+        const tabBackupSelect = document.getElementById('tabBackupSelect');
+        const cardWorkspaceSelect = document.getElementById('cardBackupWorkspaceSelect');
+        const cardCategorySelect = document.getElementById('cardBackupCategorySelect');
+        const folderWorkspaceSelect = document.getElementById('folderBackupWorkspaceSelect');
+        const folderCategorySelect = document.getElementById('folderBackupCategorySelect');
+        const folderSelect = document.getElementById('folderBackupFolderSelect');
+        const fullSummaryNode = document.getElementById('duplicateSensorSummaryFull');
+        const fullResultsNode = document.getElementById('duplicateSensorResultsFull');
+        const workspaceSummaryNode = document.getElementById('duplicateSensorSummaryWorkspace');
+        const workspaceResultsNode = document.getElementById('duplicateSensorResultsWorkspace');
+        const cardSummaryNode = document.getElementById('duplicateSensorSummaryCard');
+        const cardResultsNode = document.getElementById('duplicateSensorResultsCard');
+        const folderSummaryNode = document.getElementById('duplicateSensorSummaryFolder');
+        const folderResultsNode = document.getElementById('duplicateSensorResultsFolder');
+
+        if (!backupModeSelect || !tabBackupSelect || !cardWorkspaceSelect || !cardCategorySelect ||
+            !folderWorkspaceSelect || !folderCategorySelect || !folderSelect ||
+            !fullSummaryNode || !fullResultsNode || !workspaceSummaryNode || !workspaceResultsNode ||
+            !cardSummaryNode || !cardResultsNode || !folderSummaryNode || !folderResultsNode) {
+            throw new Error('Integrated duplicate sensor controls missing');
         }
 
-        const runScope = async (scope, workspaceId, categoryName, folderId) => {
-            scopeSelect.value = scope;
-            scopeSelect.dispatchEvent(new Event('change', { bubbles: true }));
-            await wait(150);
+        backupModeSelect.value = 'all';
+        backupModeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        await wait(200);
 
-            if (workspaceId != null && workspaceSelect.style.display !== 'none') {
-                workspaceSelect.value = workspaceId;
-                workspaceSelect.dispatchEvent(new Event('change', { bubbles: true }));
-                await wait(150);
-            }
-            if (categoryName != null && categorySelect.style.display !== 'none') {
-                categorySelect.value = categoryName;
-                categorySelect.dispatchEvent(new Event('change', { bubbles: true }));
-                await wait(150);
-            }
-            if (folderId != null && folderSelect.style.display !== 'none') {
-                folderSelect.value = folderId;
-                folderSelect.dispatchEvent(new Event('change', { bubbles: true }));
-                await wait(150);
+        await waitForSelectOptions(tabBackupSelect);
+        await waitForSelectOptions(cardWorkspaceSelect);
+        await waitForSelectOptions(cardCategorySelect);
+        await waitForSelectOptions(folderWorkspaceSelect);
+        await waitForSelectOptions(folderCategorySelect);
+
+        const setSelectValue = async (element, value) => {
+            if (!element || value == null) return;
+            element.value = value;
+            element.dispatchEvent(new Event('change', { bubbles: true }));
+            await wait(150);
+        };
+
+        const runScope = async ({ workspaceId, categoryName, folderId, runner, summaryNode, resultsNode }) => {
+            await setSelectValue(tabBackupSelect, workspaceId);
+            await setSelectValue(cardWorkspaceSelect, workspaceId);
+            await setSelectValue(cardCategorySelect, categoryName);
+            await setSelectValue(folderWorkspaceSelect, workspaceId);
+            await setSelectValue(folderCategorySelect, categoryName);
+            if (folderId != null) {
+                await waitForSelectOptions(folderSelect);
+                await setSelectValue(folderSelect, folderId);
             }
 
-            const report = window.runDuplicateSensor();
-            await wait(150);
+            const report = runner();
+            await wait(200);
             return {
                 report,
                 summary: summaryNode.textContent.trim(),
@@ -131,32 +165,54 @@ async function runDuplicateSmoke(page) {
             };
         };
 
-        const folder = await runScope('folder', 'main', 'Reading', 'f-a');
+        const folder = await runScope({
+            workspaceId: 'main',
+            categoryName: 'Reading',
+            folderId: 'f-a',
+            runner: window.runDuplicateSensorForFolder,
+            summaryNode: folderSummaryNode,
+            resultsNode: folderResultsNode
+        });
         if (folder.report.duplicateGroups !== 1 || folder.renderedGroups !== 1) {
             throw new Error(`Folder duplicate mismatch: ${JSON.stringify(folder)}`);
         }
 
-        const card = await runScope('card', 'main', 'Reading', null);
+        const card = await runScope({
+            workspaceId: 'main',
+            categoryName: 'Reading',
+            runner: window.runDuplicateSensorForCard,
+            summaryNode: cardSummaryNode,
+            resultsNode: cardResultsNode
+        });
         if (card.report.duplicateGroups !== 2) {
             throw new Error(`Card duplicate mismatch: ${JSON.stringify(card)}`);
         }
 
-        const workspace = await runScope('workspace', 'main', null, null);
+        const workspace = await runScope({
+            workspaceId: 'main',
+            runner: window.runDuplicateSensorForWorkspace,
+            summaryNode: workspaceSummaryNode,
+            resultsNode: workspaceResultsNode
+        });
         if (workspace.report.duplicateGroups !== 3) {
             throw new Error(`Workspace duplicate mismatch: ${JSON.stringify(workspace)}`);
         }
 
-        const allTabs = await runScope('all_tabs', null, null, null);
-        if (allTabs.report.duplicateGroups !== 4) {
-            throw new Error(`All-tabs duplicate mismatch: ${JSON.stringify(allTabs)}`);
+        const full = await runScope({
+            runner: window.runDuplicateSensorForFullBackup,
+            summaryNode: fullSummaryNode,
+            resultsNode: fullResultsNode
+        });
+        if (full.report.duplicateGroups !== 4) {
+            throw new Error(`Full duplicate mismatch: ${JSON.stringify(full)}`);
         }
 
         return {
             folder: folder.report.duplicateGroups,
             card: card.report.duplicateGroups,
             workspace: workspace.report.duplicateGroups,
-            allTabs: allTabs.report.duplicateGroups,
-            finalSummary: allTabs.summary
+            allTabs: full.report.duplicateGroups,
+            finalSummary: full.summary
         };
     });
 }
@@ -196,7 +252,10 @@ async function main() {
         });
         await page.waitForFunction(() => (
             !!window.EveDuplicateSensor &&
-            !!window.runDuplicateSensor &&
+            !!window.runDuplicateSensorForFullBackup &&
+            !!window.runDuplicateSensorForWorkspace &&
+            !!window.runDuplicateSensorForCard &&
+            !!window.runDuplicateSensorForFolder &&
             !!window.openSettings &&
             !!document.querySelector('.category-card')
         ), undefined, { timeout: 180000 });

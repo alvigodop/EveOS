@@ -11,11 +11,33 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     const passes = ns._physicsTickPasses || {};
     const { runPairwisePass, runEdgePass, runHierarchyPass, runIntegrationPass } = passes;
 
+    let polarityDirections = new Float32Array(0);
+    let polarityStrengths = new Float32Array(0);
+
     function buildTickContext() {
         const nodeCount = state.nodes.length;
         const motionProfile = getMotionProfile(nodeCount);
 
+        const hubs = [];
+        for (let i = 0; i < nodeCount; i++) {
+            const n = state.nodes[i];
+            if (n.kind === 'category' || n.kind === 'workspace') {
+                hubs.push(n);
+            }
+        }
+
+        if (polarityDirections.length !== nodeCount) {
+            polarityDirections = new Float32Array(nodeCount);
+            polarityStrengths = new Float32Array(nodeCount);
+        }
+
         syncMotionAnchors(false);
+
+        for (let i = 0; i < nodeCount; i++) {
+            const node = state.nodes[i];
+            polarityDirections[i] = getPolarityDirection(node);
+            polarityStrengths[i] = getPolarityStrength(node, motionProfile);
+        }
 
         return {
             nodeCount,
@@ -29,26 +51,46 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 * (motionProfile.springScale || 1)
                 * getMotionTuningValue('spring'),
             frontierReach: getMotionTuningValue('frontierReach'),
-            polarityCache: state.nodes.map((node) => ({
-                direction: getPolarityDirection(node),
-                strength: getPolarityStrength(node, motionProfile)
-            }))
+            polarityDirections,
+            polarityStrengths,
+            hubs
         };
     }
 
+    let wakeTicks = 120;
+    let tickCounter = 0;
+
+    let lastKineticEnergy = 0;
+
     function tickPhysics() {
         if (!state.nodes.length || !state.canvas) return;
+        tickCounter++;
 
-        const ctx = buildTickContext();
+        const nodeCount = state.nodes.length;
+        const isDragging = state.pointer.mode === 'node' && !!state.pointer.node;
+        const avgEnergy = lastKineticEnergy / nodeCount;
 
-        runPairwisePass(ctx);
-        runEdgePass(ctx);
-
-        if (state.chainHierarchyEnabled) {
-            runHierarchyPass(ctx);
+        if (isDragging || avgEnergy > 0.0002) {
+            wakeTicks = 90;
+        } else if (wakeTicks > 0) {
+            wakeTicks -= 1;
         }
 
-        runIntegrationPass(ctx);
+        const shouldSleep = wakeTicks === 0;
+        const ctx = buildTickContext();
+        ctx.tickCounter = tickCounter;
+
+        if (!shouldSleep) {
+            runPairwisePass(ctx);
+            runEdgePass(ctx);
+
+            if (state.chainHierarchyEnabled) {
+                runHierarchyPass(ctx);
+            }
+        }
+
+        // Integration pass now returns kinetic energy to avoid redundant loop
+        lastKineticEnergy = runIntegrationPass(ctx);
     }
 
     const physicsTick = ns._physicsTick = ns._physicsTick || {};

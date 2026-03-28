@@ -51,7 +51,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         getLinkMeta,
 
-        getResolvedLinkCover
+        getResolvedLinkCover,
+
+        getResolvedMapThemeColorValue
 
     } = shared;
 
@@ -257,7 +259,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 id: 'folder_' + workspaceId + '_' + categoryName + '_' + String(folderNodeModel.id),
                 chainId: 'chain_' + workspaceId + '_' + categoryName,
                 label: text(folderNodeModel?.name, 'Folder'),
-                color: '#b45eff',
+                color: getResolvedMapThemeColorValue('folderNodeColor'),
                 radius: 8,
                 kind: 'folder',
                 x: position.x,
@@ -305,7 +307,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
                 label: text(categoryName, 'Unsorted'),
 
-                color: '#ff4df1',
+                color: getResolvedMapThemeColorValue('categoryNodeColor'),
 
                 radius: 12,
 
@@ -416,7 +418,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                     id: 'detached_folder_' + String(entry.id) + '_' + String(folderNodeModel.id),
                     chainId: 'detached_' + String(entry.id),
                     label: text(folderNodeModel?.name, 'Detached Folder'),
-                    color: '#b45eff',
+                    color: getResolvedMapThemeColorValue('folderNodeColor'),
                     radius: depth === 0 ? 9 : 7,
                     kind: 'folder',
                     x: position.x,
@@ -516,7 +518,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
                     label: getWorkspaceName(workspaceId),
 
-                    color: '#ffd166',
+                    color: getResolvedMapThemeColorValue('workspaceNodeColor'),
 
                     radius: 15,
 
@@ -584,7 +586,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
                     label: text(subtree.targetNode?.name, 'Folder'),
 
-                    color: '#b45eff',
+                    color: getResolvedMapThemeColorValue('folderNodeColor'),
 
                     radius: 10,
 

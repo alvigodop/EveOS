@@ -8,7 +8,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         getWorkspaceName,
         getScopedLinks,
         getFolderView,
-        collectFolderSubtree
+        collectFolderSubtree,
+        getResolvedMapThemeColorValue
     } = shared;
 
     function hasResolvedCover(link) {
@@ -21,13 +22,13 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
     function getLinkColor(link) {
 
-        if (link?.done) return '#6e7583';
+        if (link?.done) return getResolvedMapThemeColorValue('bookmarkDoneColor');
 
-        if (hasResolvedCover(link)) return '#42c9ff';
+        if (hasResolvedCover(link)) return getResolvedMapThemeColorValue('bookmarkCoveredColor');
 
-        if (Array.isArray(link?.tags) && link.tags.length) return '#7ee787';
+        if (Array.isArray(link?.tags) && link.tags.length) return getResolvedMapThemeColorValue('bookmarkTaggedColor');
 
-        return '#00d4ff';
+        return getResolvedMapThemeColorValue('bookmarkDefaultColor');
 
     }
 

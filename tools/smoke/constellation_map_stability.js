@@ -104,6 +104,7 @@ const elementsById = new Map();
 global.window = global;
 global.innerWidth = 1440;
 global.innerHeight = 900;
+global.Path2D = class { moveTo(){} lineTo(){} arc(){} rect(){} closePath(){} };
 global.location = { origin: 'https://eveos.local' };
 global.addEventListener = () => {};
 global.removeEventListener = () => {};

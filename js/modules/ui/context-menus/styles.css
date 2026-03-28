@@ -2,17 +2,22 @@
 .context-menu {
     position: fixed;
     display: none;
-    background: #222;
-    border: 1px solid #444;
+    background: var(--card-bg);
+    border: 1px solid var(--modal-border, rgba(128, 128, 128, 0.35));
     z-index: 2000;
     min-width: 150px;
     border-radius: 8px;
+    box-shadow: 0 16px 30px rgba(0, 0, 0, 0.22);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    overflow: hidden;
 }
 
 .ctx-item {
     padding: 10px 15px;
     cursor: pointer;
-    color: #ddd;
+    color: var(--text-main);
+    transition: background 0.18s ease, color 0.18s ease;
 }
 
 .ctx-item:hover {
@@ -20,8 +25,24 @@
     color: #000;
 }
 
+.ctx-item--danger {
+    color: var(--danger);
+}
+
+.light-theme .ctx-item:hover,
+html[data-native-scheme="light"] .ctx-item:hover {
+    color: #fff;
+}
+
+.ctx-meta {
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    cursor: default;
+}
+
 .ctx-divider {
     height: 1px;
     margin: 4px 8px;
-    background: #444;
+    background: var(--modal-border, rgba(128, 128, 128, 0.35));
 }

@@ -17,13 +17,16 @@ window.DashboardCategories = window.DashboardCategories || {};
     function getBookmarkHoverPreview(link) {
         if (!link) return null;
         const libraryEntry = window.EveLibrary?.ConnectionsAPI?.getLinkedEntry?.(link.id)?.entry || null;
-        const coverUrl = String(
+        const rawCoverUrl = String(
             window.EveBookmarkCovers?.getDisplayCover?.(link, libraryEntry?.image || libraryEntry?.imageUrl)
             || link?.coverImage
             || libraryEntry?.image
             || libraryEntry?.imageUrl
             || ''
         ).trim();
+        const coverUrl = (typeof window.EveBookmarkCovers?.isRenderableCoverUrl === 'function' && !window.EveBookmarkCovers.isRenderableCoverUrl(rawCoverUrl))
+            ? ''
+            : rawCoverUrl;
         if (!coverUrl) return null;
 
         let domain = '';
@@ -95,16 +98,23 @@ window.DashboardCategories = window.DashboardCategories || {};
         const subtitle = overlay.querySelector('.bookmark-cover-hover-subtitle');
         if (!image || !title || !subtitle) return;
 
+        overlay.classList.remove('is-imageless');
         title.textContent = preview.title;
         subtitle.textContent = preview.subtitle;
         image.alt = preview.title + ' cover';
+        image.style.display = '';
+        image.onload = function () {
+            image.style.display = '';
+            overlay.classList.remove('is-imageless');
+        };
 
         if (typeof window.setupProxiedImage === 'function') {
             window.setupProxiedImage(image, preview.coverUrl);
         } else {
             image.src = preview.coverUrl;
             image.onerror = function () {
-                overlay.classList.remove('is-visible');
+                image.style.display = 'none';
+                overlay.classList.add('is-imageless');
             };
         }
 
@@ -123,6 +133,7 @@ window.DashboardCategories = window.DashboardCategories || {};
         const overlay = document.getElementById('bookmark-cover-hover-overlay');
         if (!overlay) return;
         overlay.classList.remove('is-visible');
+        overlay.classList.remove('is-imageless');
     }
 
     window.showBookmarkCoverHover = showBookmarkCoverHover;

@@ -11,14 +11,14 @@
             position: fixed;
             z-index: 99999;
             pointer-events: none;
-            background: rgba(10, 10, 15, 0.85);
+            background: var(--card-bg);
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            border: 1px solid var(--modal-border, rgba(255, 255, 255, 0.12));
             border-radius: 12px;
             padding: 12px;
             width: 300px;
-            color: #fff;
+            color: var(--text-main);
             font-family: sans-serif;
             box-shadow: 0 8px 32px rgba(0,0,0,0.5);
             opacity: 0;
@@ -44,8 +44,10 @@
         if (data.ogImage) {
             const imgDiv = document.createElement('div');
             imgDiv.style.cssText = "width:100%; height:120px; border-radius:6px; background-size:cover; background-position:center; margin-bottom:8px;";
-            imgDiv.style.backgroundImage = `url('${data.ogImage.replace(/'/g, "%27").replace(/"/g, "%22")}')`;
-            peekOverlay.appendChild(imgDiv);
+            if (typeof window.isRenderableImageUrl !== 'function' || window.isRenderableImageUrl(data.ogImage)) {
+                imgDiv.style.backgroundImage = `url('${String(data.ogImage).replace(/'/g, "%27").replace(/"/g, "%22")}')`;
+                peekOverlay.appendChild(imgDiv);
+            }
         }
         if (data.liveTitle) {
             const titleDiv = document.createElement('div');

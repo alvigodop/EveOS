@@ -30,253 +30,114 @@ function getMotionProfile(nodeCount) {
 
         if (normalizedMode === 'slow') {
 
-
-
             return {
 
-
-
                 mode: normalizedMode,
-
-
 
                 repulsionScale: 0.44,
 
-
-
                 centerPullScale: 1.18,
-
-
 
                 springScale: 0.94,
 
-
-
                 hierarchyReactionScale: 0.56,
-
-
 
                 folderRecoveryScale: 1.08,
 
-
-
                 dampingScale: 0.89,
-
-
 
                 speedScale: 0.34,
 
-
-
                 worldTetherScale: 1.28,
-
-
 
                 anchorScaleByKind: { workspace: 1.42, category: 1.16, folder: 1.02, link: 0.92 },
 
+                dampingScaleByKind: { workspace: 0.9, category: 0.91, folder: 0.93, link: 0.90 }, // Reduced from 0.95
 
+                speedScaleByKind: { workspace: 0.28, category: 0.36, folder: 0.46, link: 1.2 } 
 
-                dampingScaleByKind: { workspace: 0.9, category: 0.91, folder: 0.93, link: 0.95 },
+                };
 
+                }
 
+                if (normalizedMode === 'web') {
 
-                speedScaleByKind: { workspace: 0.28, category: 0.36, folder: 0.46, link: 0.6 }
-
-
-
-            };
-
-
-
-        }
-
-
-
-        if (normalizedMode === 'web') {
-
-
-
-            return {
-
-
+                return {
 
                 mode: normalizedMode,
-
-
 
                 repulsionScale: 0.04,
 
-
-
                 centerPullScale: 2.95,
-
-
 
                 springScale: 0.38,
 
-
-
                 hierarchyReactionScale: 0.02,
-
-
 
                 folderRecoveryScale: 3.2,
 
-
-
                 dampingScale: 0.8,
-
-
 
                 speedScale: 0.2,
 
-
-
                 worldTetherScale: 1.42,
-
-
 
                 anchorScaleByKind: { workspace: 8.8, category: 6.9, folder: 1.28, link: 1.02 },
 
+                dampingScaleByKind: { workspace: 0.62, category: 0.68, folder: 0.58, link: 0.48 }, // Reduced from 0.52
 
+                speedScaleByKind: { workspace: 0.03, category: 0.06, folder: 0.22, link: 1.1 } 
 
-                dampingScaleByKind: { workspace: 0.62, category: 0.68, folder: 0.58, link: 0.52 },
+                };
 
+                }
 
+                if (normalizedMode === 'free') {
+                return {
+                mode: normalizedMode,
+                repulsionScale: 1.15,
+                centerPullScale: 0.82,
+                springScale: 0.88,
+                hierarchyReactionScale: 1.12,
+                folderRecoveryScale: 0.82,
+                dampingScale: 0.98,
+                speedScale: 0.95,
+                worldTetherScale: 1.05,
+                anchorScaleByKind: { workspace: 0.85, category: 0.88, folder: 0.82, link: 0.75 },
+                dampingScaleByKind: { workspace: 1.02, category: 1.02, folder: 1.01, link: 0.92 }, // Reduced from 1.01
+                speedScaleByKind: { workspace: 0.95, category: 0.98, folder: 0.92, link: 1.12 }
+                };
+                }
 
-                speedScaleByKind: { workspace: 0.03, category: 0.06, folder: 0.22, link: 0.32 }
-
-
-
-            };
-
-
-
-        }
-
-
-
-        if (normalizedMode === 'free') {
-
-
-
-            return {
-
-
+                return {
 
                 mode: normalizedMode,
 
+                repulsionScale: 0.88,
 
+                centerPullScale: 1.08,
 
-                repulsionScale: 1.42,
+                springScale: 1.02,
 
+                hierarchyReactionScale: 0.74,
 
+                folderRecoveryScale: 1.12,
 
-                centerPullScale: 0.68,
+                dampingScale: 0.95,
 
+                speedScale: 0.74,
 
+                worldTetherScale: 1.12,
 
-                springScale: 0.82,
+                anchorScaleByKind: { workspace: 1.52, category: 1.22, folder: 1.08, link: 0.96 },
 
+                dampingScaleByKind: { workspace: 0.93, category: 0.95, folder: 0.94, link: 0.92 }, // Reduced from 0.98
 
+                speedScaleByKind: { workspace: 0.5, category: 0.6, folder: 0.42, link: 1.2 } 
 
-                hierarchyReactionScale: 1.24,
+                };
 
-
-
-                folderRecoveryScale: 0.62,
-
-
-
-                dampingScale: 1.12,
-
-
-
-                speedScale: 1.34,
-
-
-
-                worldTetherScale: 0.82,
-
-
-
-                anchorScaleByKind: { workspace: 0.72, category: 0.78, folder: 0.72, link: 0.7 },
-
-
-
-                dampingScaleByKind: { workspace: 1.06, category: 1.05, folder: 1.03, link: 1.02 },
-
-
-
-                speedScaleByKind: { workspace: 1.2, category: 1.18, folder: 1.12, link: 1.24 }
-
-
-
-            };
-
-
-
-        }
-
-
-
-        return {
-
-
-
-            mode: normalizedMode,
-
-
-
-            repulsionScale: 0.88,
-
-
-
-            centerPullScale: 1.08,
-
-
-
-            springScale: 1.02,
-
-
-
-            hierarchyReactionScale: 0.74,
-
-
-
-            folderRecoveryScale: 1.12,
-
-
-
-            dampingScale: 0.95,
-
-
-
-            speedScale: 0.74,
-
-
-
-            worldTetherScale: 1.12,
-
-
-
-            anchorScaleByKind: { workspace: 1.52, category: 1.22, folder: 1.08, link: 0.96 },
-
-
-
-            dampingScaleByKind: { workspace: 0.93, category: 0.95, folder: 0.94, link: 0.98 },
-
-
-
-            speedScaleByKind: { workspace: 0.5, category: 0.6, folder: 0.42, link: 0.88 }
-
-
-
-        };
-
-
-
-    }
+                }
 
 
 function getHierarchyTargetReactionFactor(edge, motionProfile) {
@@ -309,7 +170,7 @@ function getHierarchyTargetReactionFactor(edge, motionProfile) {
 
         } else if (targetKind === 'category') {
 
-            baseFactor = sourceKind === 'folder' ? 0.06 : 0.04;
+            baseFactor = sourceKind === 'folder' ? 0.06 : 0.01;
 
         } else if (targetKind === 'workspace') {
 
@@ -350,13 +211,17 @@ function getPairwiseInfluenceScale(targetNode, sourceNode, motionProfile) {
 
         // ASYMMETRIC AUTHORITY: Higher levels are harder to push
 
-        if (isMainTarget && !isMainSource) return 0.04; // Main nodes (Cards) are nearly immovable by folders/links
+        if (isMainTarget && !isMainSource) {
+            // Bookmarks get an even heavier discount — they massively outnumber folders
+            if (sourceKind === 'link') return 0.005;
+            return 0.02; // Folders still get a small influence
+        }
 
         if (targetDepth < sourceDepth) {
 
             const gap = sourceDepth - targetDepth;
-
-            return Math.max(0.02, 0.12 / gap); // Hierarchy authority
+            const isSourceLink = sourceKind === 'link';
+            return Math.max(isSourceLink ? 0.005 : 0.02, (isSourceLink ? 0.04 : 0.12) / gap); // Hierarchy authority
 
         }
 
@@ -384,9 +249,9 @@ function getPairwiseInfluenceScale(targetNode, sourceNode, motionProfile) {
 
         if (targetKind === 'workspace') {
 
-            if (sourceKind === 'link') return 0.02;
+            if (sourceKind === 'link') return 0.005;
 
-            if (sourceKind === 'folder') return 0.05;
+            if (sourceKind === 'folder') return 0.03;
 
             if (sourceKind === 'category') return 0.16;
 
@@ -396,9 +261,9 @@ function getPairwiseInfluenceScale(targetNode, sourceNode, motionProfile) {
 
         if (targetKind === 'category') {
 
-            if (sourceKind === 'link') return 0.04;
+            if (sourceKind === 'link') return 0.008;
 
-            if (sourceKind === 'folder') return 0.12;
+            if (sourceKind === 'folder') return 0.06;
 
             if (sourceKind === 'workspace') return 0.24;
 
@@ -504,7 +369,7 @@ function getDynamicVelocityDamping(node, motionProfile) {
 
 
 
-        const base = node?.kind === 'folder' ? 0.76 : (node?.kind === 'link' ? 0.88 : 0.86);
+        const base = node?.kind === 'folder' ? 0.76 : (node?.kind === 'link' ? 0.82 : 0.86); // Reduced from 0.88
 
 
 
@@ -544,27 +409,15 @@ function getReleaseVelocityScale(node) {
 
 function getMaxNodeSpeed(node, motionProfile) {
 
-
-
         if (!node) return 18;
-
-
 
         let base = 10;
 
-
-
-        if (node.kind === 'link') base = 6;
-
-
+        if (node.kind === 'link') base = 12; // Doubled from 6
 
         else if (node.kind === 'folder') base = 3.5;
 
-
-
         else if (node.kind === 'category') base = 8;
-
-
 
         else if (node.kind === 'workspace') base = 7;
 

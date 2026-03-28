@@ -23,9 +23,36 @@ function maintainHierarchyState() {
         [...state.workspaceAuraRoots.keys()].forEach((id) => {
             if (!activeNodeIds.has(id)) state.workspaceAuraRoots.delete(id);
         });
+
+        // POPULATE CHAIN ROOTS: Ensure every category/workspace has an entry.
+        // Without this, all card-relative physics (aura repulsion, folder docking,
+        // hierarchy anchors, orientation tracking) silently does nothing.
+        const renderAuraRoots = state.auraRoots instanceof Map ? state.auraRoots : new Map();
+        state.nodes.forEach((node) => {
+            if (!node || !node.chainId) return;
+            if (node.kind !== 'category' && node.kind !== 'workspace') return;
+            if (state.chainRoots.has(node.chainId)) {
+                // Update the node reference in case it changed
+                state.chainRoots.get(node.chainId).node = node;
+                return;
+            }
+            // Seed frontAngle from render-side auraRoots if available
+            const renderData = renderAuraRoots.get(node.chainId);
+            const seedAngle = renderData && Number.isFinite(renderData.frontAngle)
+                ? renderData.frontAngle
+                : undefined;
+            state.chainRoots.set(node.chainId, {
+                node,
+                frontAngle: seedAngle,
+                frontX: seedAngle !== undefined ? Math.cos(seedAngle) : 0,
+                frontY: seedAngle !== undefined ? Math.sin(seedAngle) : -1
+            });
+        });
     }
 
     function finalizeCardFrontVectors() {
+        const renderAuraRoots = state.auraRoots instanceof Map ? state.auraRoots : new Map();
+
         state.chainRoots.forEach((data) => {
             const node = data.node;
             const isBeingDragged = (state.pointer.mode === 'node' && state.pointer.node?.id === node.id);
@@ -34,16 +61,16 @@ function maintainHierarchyState() {
             if (isBeingDragged && speed > 0.5) {
                 const moveAngle = Math.atan2(node.vy, node.vx);
                 data.frontAngle = lerpAngle(data.frontAngle === undefined ? moveAngle : data.frontAngle, moveAngle, 0.15);
-            } else if (data.count > 0) {
-                const avgX = data.sumX / data.count;
-                const avgY = data.sumY / data.count;
-                const dx = node.x - avgX;
-                const dy = node.y - avgY;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-
-                if (dist > 30) {
-                    const targetAngle = Math.atan2(dy, dx);
-                    data.frontAngle = lerpAngle(data.frontAngle === undefined ? targetAngle : data.frontAngle, targetAngle, 0.005);
+            } else {
+                // SYNC FROM RENDER: When not dragging, track the render-side auraRoots
+                // which correctly computes card orientation from folder positions and drag history.
+                const renderData = renderAuraRoots.get(node.chainId);
+                if (renderData && Number.isFinite(renderData.frontAngle)) {
+                    if (data.frontAngle === undefined) {
+                        data.frontAngle = renderData.frontAngle;
+                    } else {
+                        data.frontAngle = lerpAngle(data.frontAngle, renderData.frontAngle, 0.12);
+                    }
                 }
             }
 
@@ -96,6 +123,8 @@ function maintainHierarchyState() {
                     parent: null,
                     nx: Math.cos(smoothedAngle),
                     ny: Math.sin(smoothedAngle),
+                    auraDirX: Math.cos(smoothedAngle),
+                    auraDirY: Math.sin(smoothedAngle),
                     dist: 0,
                     isRoot: true,
                     orientAngle: smoothedAngle
@@ -114,19 +143,29 @@ function maintainHierarchyState() {
             if (isRoot) {
                 const rootData = chainRoots.get(pNode.chainId);
                 if (rootData && rootData.frontAngle !== undefined) {
-                    targetAngle = rootData.frontAngle + Math.PI;
+                    // ROOT FOLDERS: Orientation should point TOWARD the card front direction,
+                    // which is where the parent is. Consistent with non-root folders.
+                    targetAngle = rootData.frontAngle;
                 }
             }
 
             const existing = folderOrientations.get(n.id);
             const currentAngle = (existing && existing.orientAngle !== undefined) ? existing.orientAngle : targetAngle;
-            const smoothedAngle = lerpAngle(currentAngle, targetAngle, 0.08);
+            // Root folders track the card heading tightly; deeper folders lerp slower
+            const smoothedAngle = lerpAngle(currentAngle, targetAngle, isRoot ? 0.18 : 0.08);
+
+            // auraDirX/Y = live direction toward parent (matches render aura orientation)
+            // nx/ny = smoothed orientation for child placement (may differ for root folders)
+            const liveDirX = fdx / fdist;
+            const liveDirY = fdy / fdist;
 
             folderOrientations.set(n.id, {
                 node: n,
                 parent: pNode,
                 nx: Math.cos(smoothedAngle),
                 ny: Math.sin(smoothedAngle),
+                auraDirX: liveDirX,
+                auraDirY: liveDirY,
                 dist: fdist,
                 isRoot,
                 orientAngle: smoothedAngle

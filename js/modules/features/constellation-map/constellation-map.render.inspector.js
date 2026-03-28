@@ -285,7 +285,7 @@ function getCompactInspectorMarkup(headerLabel, headerKindLabel) {
 
 
 
-            '<button type="button" data-map-info-toggle="1" title="Expand inspector" style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:78px;height:78px;border:1px solid rgba(255,255,255,0.14);background:radial-gradient(circle at 30% 25%, rgba(16,32,54,0.94), rgba(3,10,20,0.94));color:#fff;border-radius:999px;cursor:pointer;box-shadow:0 16px 32px rgba(0,0,0,0.28);padding:10px;gap:4px;">',
+            '<button type="button" data-map-info-toggle="1" title="Expand inspector" style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:78px;height:78px;border:1px solid color-mix(in srgb, var(--map-theme-border-base) 74%, transparent);background:radial-gradient(circle at 30% 25%, color-mix(in srgb, var(--map-theme-panel-base) 94%, transparent), color-mix(in srgb, var(--map-theme-panel-strong-base) 94%, transparent));color:var(--map-theme-text);border-radius:999px;cursor:pointer;box-shadow:0 16px 32px rgba(0,0,0,0.28);padding:10px;gap:4px;backdrop-filter:blur(calc(var(--map-theme-blur) * 0.8));">',
 
 
 
@@ -373,7 +373,7 @@ function renderInspector() {
 
 
 
-            '<button type="button" data-map-info-toggle="1" style="border:1px solid rgba(255,255,255,0.16);background:rgba(255,255,255,0.06);color:#fff;border-radius:9px;padding:6px 10px;cursor:pointer;white-space:nowrap;">' + escapeHtml(toggleLabel) + '</button>',
+            '<button type="button" data-map-info-toggle="1" style="border:1px solid color-mix(in srgb, var(--map-theme-border-base) 74%, transparent);background:color-mix(in srgb, var(--map-theme-button-base) var(--map-theme-button-fill), transparent);color:var(--map-theme-text);border-radius:9px;padding:6px 10px;cursor:pointer;white-space:nowrap;backdrop-filter:blur(calc(var(--map-theme-blur) * 0.7));">' + escapeHtml(toggleLabel) + '</button>',
 
 
 
@@ -389,7 +389,7 @@ function renderInspector() {
 
 
 
-            ? '<div data-map-info-cover style="position:absolute;right:0;bottom:calc(100% + 14px);width:132px;height:182px;border:1px solid rgba(255,255,255,0.18);background:rgba(7,14,24,0.96);border-radius:18px;overflow:hidden;box-shadow:0 18px 38px rgba(0,0,0,0.34);opacity:0;transform:translateY(8px) scale(0.985);transition:opacity 140ms ease, transform 140ms ease;pointer-events:none;">'
+            ? '<div data-map-info-cover style="position:absolute;right:0;bottom:calc(100% + 14px);width:132px;height:182px;border:1px solid color-mix(in srgb, var(--map-theme-border-base) 76%, transparent);background:color-mix(in srgb, var(--map-theme-panel-strong-base) 92%, transparent);border-radius:18px;overflow:hidden;box-shadow:0 18px 38px rgba(0,0,0,0.34);opacity:0;transform:translateY(8px) scale(0.985);transition:opacity 140ms ease, transform 140ms ease;pointer-events:none;backdrop-filter:blur(calc(var(--map-theme-blur) * 0.7));">'
 
 
 
@@ -465,11 +465,11 @@ function renderInspector() {
 
 
 
-                + '<button type="button" data-map-action="primary" style="border:1px solid rgba(0,212,255,0.32);background:rgba(0,212,255,0.12);color:#eafcff;border-radius:10px;padding:8px 12px;cursor:pointer;">' + escapeHtml(primaryAction.label) + '</button>'
+                + '<button type="button" data-map-action="primary" style="border:1px solid color-mix(in srgb, var(--map-theme-accent) 54%, transparent);background:color-mix(in srgb, var(--map-theme-accent) 16%, transparent);color:var(--map-theme-text);border-radius:10px;padding:8px 12px;cursor:pointer;backdrop-filter:blur(calc(var(--map-theme-blur) * 0.65));">' + escapeHtml(primaryAction.label) + '</button>'
 
 
 
-                + '<button type="button" data-map-action="center" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.06);color:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;">Center</button>'
+                + '<button type="button" data-map-action="center" style="border:1px solid color-mix(in srgb, var(--map-theme-border-base) 76%, transparent);background:color-mix(in srgb, var(--map-theme-button-base) var(--map-theme-button-fill), transparent);color:var(--map-theme-text);border-radius:10px;padding:8px 12px;cursor:pointer;backdrop-filter:blur(calc(var(--map-theme-blur) * 0.65));">Center</button>'
 
 
 
@@ -489,7 +489,7 @@ function renderInspector() {
 
 
 
-                + secondaryActions.map((entry) => '<button type="button" data-map-action="' + escapeHtml(entry.action) + '" style="border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.06);color:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;">' + escapeHtml(entry.label) + '</button>').join('')
+                + secondaryActions.map((entry) => '<button type="button" data-map-action="' + escapeHtml(entry.action) + '" style="border:1px solid color-mix(in srgb, var(--map-theme-border-base) 76%, transparent);background:color-mix(in srgb, var(--map-theme-button-base) var(--map-theme-button-fill), transparent);color:var(--map-theme-text);border-radius:10px;padding:8px 12px;cursor:pointer;backdrop-filter:blur(calc(var(--map-theme-blur) * 0.65));">' + escapeHtml(entry.label) + '</button>').join('')
 
 
 
@@ -525,25 +525,25 @@ function renderInspector() {
 
 
 
-                    '<div style="font-size:0.74rem;opacity:0.68;margin-top:8px;">' + escapeHtml(getScopeText(state.scope)) + '</div>',
+                    '<div style="font-size:0.74rem;color:var(--map-theme-text-muted);opacity:0.88;margin-top:8px;">' + escapeHtml(getScopeText(state.scope)) + '</div>',
 
 
 
                     staticState.isStatic
 
-                        ? '<div style="font-size:0.72rem;color:#ffd65a;opacity:0.92;margin-top:7px;">Static ' + escapeHtml(staticState.source === 'kind' ? ('Type Lock | ' + headerKindLabel) : (staticState.source === 'branch' ? 'Chain Lock' : 'Node Lock')) + '</div>'
+                        ? '<div style="font-size:0.72rem;color:var(--map-theme-fx);opacity:0.92;margin-top:7px;">Static ' + escapeHtml(staticState.source === 'kind' ? ('Type Lock | ' + headerKindLabel) : (staticState.source === 'branch' ? 'Chain Lock' : 'Node Lock')) + '</div>'
 
                         : '',
 
 
 
-                    '<div style="font-size:0.72rem;color:' + escapeHtml(polarityState.effective === 'attract' ? '#7affc4' : '#ffc37d') + ';opacity:0.92;margin-top:7px;">Flow ' + escapeHtml(polarityState.effective === 'attract' ? 'Pull' : 'Push') + ' | ' + escapeHtml(polarityState.source === 'node' ? 'Node Override' : (polarityState.source === 'kind' ? 'Type Rule' : 'Default')) + '</div>',
+                    '<div style="font-size:0.72rem;color:' + escapeHtml(polarityState.effective === 'attract' ? 'var(--map-theme-aura)' : 'var(--map-theme-danger)') + ';opacity:0.92;margin-top:7px;">Flow ' + escapeHtml(polarityState.effective === 'attract' ? 'Pull' : 'Push') + ' | ' + escapeHtml(polarityState.source === 'node' ? 'Node Override' : (polarityState.source === 'kind' ? 'Type Rule' : 'Default')) + '</div>',
 
                     rewireSummary
-                        ? '<div style="font-size:0.72rem;color:#9edbff;opacity:0.94;margin-top:7px;">Chain Surgery | ' + escapeHtml(rewireSummary) + '</div>'
+                        ? '<div style="font-size:0.72rem;color:var(--map-theme-accent);opacity:0.94;margin-top:7px;">Chain Surgery | ' + escapeHtml(rewireSummary) + '</div>'
                         : '',
 
-                    '<div style="font-size:0.82rem;opacity:0.82;line-height:1.45;margin-top:10px;">' + escapeHtml(targetNode.meta || 'No details') + '</div>',
+                    '<div style="font-size:0.82rem;color:var(--map-theme-text);opacity:0.86;line-height:1.45;margin-top:10px;">' + escapeHtml(targetNode.meta || 'No details') + '</div>',
 
 
                     actionRow,

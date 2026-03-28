@@ -82,6 +82,11 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         state.selected = node || null;
         state.selectionIds = node ? new Set([text(node.id, '')].filter(Boolean)) : new Set();
+        state.infoHovered = false;
+        state.infoHoverStartedAt = 0;
+        if (state.coverPreviewSession) {
+            state.coverPreviewSession.startedAt = 0;
+        }
 
         renderInspector();
 
@@ -288,6 +293,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             state.pointer.releaseVy = 0;
 
+            // DRAG SENSOR STABILIZATION: Average velocity over 5 frames
+            state.pointer.dragHistory = [];
+
             if (state.pointer.node) {
 
                 if (!(event.ctrlKey || event.metaKey)) {
@@ -388,9 +396,23 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
                 state.pointer.node.vy = 0;
 
-                state.pointer.releaseVx = point.x - (Number(state.pointer.lastWorldX) || point.x);
+                const instantVx = point.x - (Number(state.pointer.lastWorldX) || point.x);
+                const instantVy = point.y - (Number(state.pointer.lastWorldY) || point.y);
 
-                state.pointer.releaseVy = point.y - (Number(state.pointer.lastWorldY) || point.y);
+                // DRAG STABILIZATION: Update moving average
+                if (!state.pointer.dragHistory) state.pointer.dragHistory = [];
+                state.pointer.dragHistory.push({ vx: instantVx, vy: instantVy });
+                if (state.pointer.dragHistory.length > 5) state.pointer.dragHistory.shift();
+
+                let sumVx = 0;
+                let sumVy = 0;
+                state.pointer.dragHistory.forEach((sample) => {
+                    sumVx += sample.vx;
+                    sumVy += sample.vy;
+                });
+
+                state.pointer.releaseVx = sumVx / state.pointer.dragHistory.length;
+                state.pointer.releaseVy = sumVy / state.pointer.dragHistory.length;
 
                 state.pointer.lastWorldX = point.x;
 

@@ -4,7 +4,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     const physicsHierarchy = ns._physicsHierarchy = ns._physicsHierarchy || {};
     const { lerpAngle, compareNodeOrder } = physicsHierarchy;
     const shared = ns._shared || {};
-    const { state, text, isNodeStatic } = shared;
+    const { state, text, isNodeStatic, getCardAuraShape, getFolderAuraShape } = shared;
     const physicsHelpers = ns._physicsHelpers || {};
     const { applyFolderAura, applyCardAuraRepulsion, applyWorkspaceAuraRepulsion } = physicsHelpers;
 
@@ -63,7 +63,12 @@ function buildHierarchyAnchors(parentChildren, frontierReach, rootChildGuides, w
                     const gapArc = Math.PI * 1.1;
                     const availableArc = (Math.PI * 2) - gapArc;
                     const startAngle = rootGuide.folderAngle + (gapArc * 0.5);
-                    const baseRadius = Math.max((parent.radius || 12) + 140, (frontierReach * 0.8) + 40);
+                    
+                    // CARD AURA AWARENESS: Anchors must be placed OUTSIDE the physics repulsion aura.
+                    const cardAura = getCardAuraShape(parent);
+                    const maxAuraRadius = Math.max(cardAura.radiusFront, cardAura.radiusBack, cardAura.radiusLat);
+                    const baseRadius = Math.max((parent.radius || 12) + 220, (frontierReach * 0.9) + 80, maxAuraRadius + 140);
+
                     const bandSpacing = 32;
                     const targetChord = 42;
                     let remaining = rootLinks.length;
@@ -116,7 +121,10 @@ function buildHierarchyAnchors(parentChildren, frontierReach, rootChildGuides, w
             const parentOrient = folderOrientations.get(parent.id);
             if (parentOrient) {
                 baseAngle = Math.atan2(-parentOrient.ny, -parentOrient.nx);
-                radius = (parent.radius || 15) + 12;
+                // FOLDER AURA AWARENESS: Place children outside the parent folder's aura
+                const folderAura = getFolderAuraShape(parent, parentOrient.dist, parentOrient.isRoot);
+                const folderAuraR = Math.max(folderAura.radiusBack, folderAura.radiusFront) || 0;
+                radius = Math.max((parent.radius || 15) + 12, folderAuraR + 30);
                 foundBase = true;
             } else if (parent.kind === 'category' || parent.kind === 'workspace') {
                 const rootData = chainRoots.get(parent.chainId);
@@ -133,7 +141,11 @@ function buildHierarchyAnchors(parentChildren, frontierReach, rootChildGuides, w
             const index = siblings.indexOf(node);
             const count = siblings.length;
 
-            node.spinalAngle = lerpAngle(node.spinalAngle || baseAngle, baseAngle, 0.08);
+            // Root children track the card's aura direction tightly;
+            // Immediate folder children track their parent folder's aura direction at medium speed
+            const isImmediateFolderChild = !isRootChild && parent.kind === 'folder';
+            const spinalLerpRate = isRootChild ? 0.22 : (isImmediateFolderChild ? 0.15 : 0.08);
+            node.spinalAngle = lerpAngle(node.spinalAngle || baseAngle, baseAngle, spinalLerpRate);
 
             let baseSpread = isRootChild ? Math.PI * 0.22 : Math.PI * 0.35;
             if (!isRootChild && node.kind === 'link') baseSpread = Math.PI * 0.45;
@@ -155,16 +167,44 @@ function buildHierarchyAnchors(parentChildren, frontierReach, rootChildGuides, w
             let finalRadius = radius;
             if (node.kind === 'link') {
                 const popPull = isRootChild ? Math.min(60, count * 0.12) : 0;
-                const rootBase = frontierReach * 0.85;
-                const baseR = isRootChild ? 60 + rootBase - popPull : (parent.radius || 15) + frontierReach;
+                const rootBase = frontierReach * 0.95;
+                
+                // CARD AURA AWARENESS (Secondary Link Path)
+                const cardAura = isRootChild ? getCardAuraShape(parent) : null;
+                const auraR = cardAura ? Math.max(cardAura.radiusFront, cardAura.radiusBack, cardAura.radiusLat) : 0;
+
+                // FOLDER AURA AWARENESS (Non-Root Link Path)
+                const parentFolderOrient = !isRootChild ? folderOrientations.get(parent.id) : null;
+                const parentFolderAura = parentFolderOrient ? getFolderAuraShape(parent, parentFolderOrient.dist, parentFolderOrient.isRoot) : null;
+                const folderAuraR = parentFolderAura ? Math.max(parentFolderAura.radiusBack, parentFolderAura.radiusFront) : 0;
+
+                // CARD-DIRECT BOOKMARKS: Bring them closer to the card.
+                // Squeezed even closer to the card's boundary
+                const baseR = isRootChild 
+                    ? Math.max(5 + (rootBase * 0.25) - popPull, auraR * 0.30) 
+                    : Math.max((parent.radius || 15) + 40, folderAuraR + 15);
+
                 const rowDepth = isRootChild ? 10 : 100;
                 const popPush = isRootChild ? 0 : Math.min(60, count * 3);
                 finalRadius = baseR + (row * rowDepth) + popPush + jitterVal;
             } else if (node.kind === 'folder') {
                 const fRow = index % 2;
                 const fPopPull = isRootChild ? Math.min(45, count * 0.10) : 0;
-                const frootBase = frontierReach * 0.80;
-                const fBaseR = isRootChild ? 60 + frootBase - fPopPull : (parent.radius || 15) + (frontierReach - 60);
+                const frootBase = frontierReach * 0.90;
+                
+                // CARD AURA AWARENESS (Folder Path)
+                const cardAura = isRootChild ? getCardAuraShape(parent) : null;
+                const auraR = cardAura ? Math.max(cardAura.radiusFront, cardAura.radiusBack, cardAura.radiusLat) : 0;
+
+                // FOLDER AURA AWARENESS (Non-Root Sub-Folder Path)
+                const parentFolderOrient2 = !isRootChild ? folderOrientations.get(parent.id) : null;
+                const parentFolderAura2 = parentFolderOrient2 ? getFolderAuraShape(parent, parentFolderOrient2.dist, parentFolderOrient2.isRoot) : null;
+                const folderAuraR2 = parentFolderAura2 ? Math.max(parentFolderAura2.radiusBack, parentFolderAura2.radiusFront) : 0;
+
+                const fBaseR = isRootChild 
+                    ? Math.max(20 + (frootBase * 0.45) - fPopPull, (auraR * 0.5) + 20) 
+                    : Math.max((parent.radius || 15) + 20, folderAuraR2 + 10);
+
                 const fRowDepth = isRootChild ? 10 : 50;
                 const fPopPush = isRootChild ? 0 : Math.min(30, count * 4);
                 finalRadius = fBaseR + (fRow * fRowDepth) + fPopPush;
@@ -205,7 +245,7 @@ function buildHierarchyAnchors(parentChildren, frontierReach, rootChildGuides, w
                     if (currentParent.kind === 'folder') {
                         const orient = folderOrientations.get(currentParent.id);
                         if (orient) {
-                            applyFolderAura(node, currentParent, orient.nx, orient.ny, orient.dist, orient.isRoot);
+                            applyFolderAura(node, currentParent, orient.auraDirX, orient.auraDirY, orient.dist, orient.isRoot);
                         }
                     }
                     if (currentParent.kind === 'workspace') {
@@ -218,7 +258,41 @@ function buildHierarchyAnchors(parentChildren, frontierReach, rootChildGuides, w
                 }
             }
 
-            applyCardAuraRepulsion(node, root, rootData);
+            // UNIVERSAL AURA ENFORCEMENT: Check this node against EVERY card in the system,
+            // not just its own chain root. This prevents cross-chain aura breaches.
+            chainRoots.forEach((otherRootData) => {
+                const otherRoot = otherRootData.node;
+                if (otherRoot === node) return;
+                applyCardAuraRepulsion(node, otherRoot, otherRootData);
+            });
+
+            // UNIVERSAL ROOT FOLDER AURA ENFORCEMENT
+            const isCardDirectChild = parentNode && (parentNode.kind === 'category' || parentNode.kind === 'workspace');
+            if (!isCardDirectChild) {
+                folderOrientations.forEach((orient) => {
+                    if (!orient.isRoot || !orient.node) return;
+                    if (orient.node === node || orient.node.id === node.id) return;
+                    if (orient.node.chainId !== node.chainId) return;
+                    
+                    // Only repel if the node is an ACTUAL descendant of this specific root folder
+                    let isDescendant = false;
+                    let curr = parentNode;
+                    let checks = 0;
+                    while (curr && checks < 8) {
+                        if (curr.id === orient.node.id) {
+                            isDescendant = true;
+                            break;
+                        }
+                        const pNext = text(curr.data?.anchorNodeId, '');
+                        curr = pNext ? state.nodeIndex.get(pNext) : null;
+                        checks++;
+                    }
+                    
+                    if (isDescendant) {
+                        applyFolderAura(node, orient.node, orient.auraDirX, orient.auraDirY, orient.dist, true);
+                    }
+                });
+            }
 
             if (workspaceAncestor) {
                 const workspaceData = workspaceAuraRoots.get(workspaceAncestor.id);

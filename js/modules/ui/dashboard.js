@@ -107,8 +107,59 @@ if (!window.__dashboardMasonryResizeBound) {
 var _scrollSave = -1;
 var _scrollRafId = 0;
 var _scrollSpacer = null;
+var _dashboardScrollableSelectors = [
+    '.category-scrollable',
+    '.bookmark-folder-sections',
+    '.v2-folder-root-container',
+    '.v2-folder-container',
+    '.focused-category-entries'
+];
+
+function escapeDashboardSelectorValue(value) {
+    return String(value).replace(/["\\]/g, '\\$&');
+}
+
+function captureDashboardCardScrollState() {
+    var snapshot = {};
+    document.querySelectorAll('.category-card[data-card-target-id]').forEach(function (card) {
+        var targetId = String(card.getAttribute('data-card-target-id') || '').trim();
+        if (!targetId) return;
+        for (var i = 0; i < _dashboardScrollableSelectors.length; i += 1) {
+            var selector = _dashboardScrollableSelectors[i];
+            var node = card.querySelector(selector);
+            if (!node) continue;
+            var top = Number(node.scrollTop || 0);
+            var left = Number(node.scrollLeft || 0);
+            var isScrollable = node.scrollHeight > node.clientHeight || node.scrollWidth > node.clientWidth;
+            if (!isScrollable && top <= 0 && left <= 0) continue;
+            snapshot[targetId] = {
+                selector: selector,
+                top: top,
+                left: left
+            };
+            break;
+        }
+    });
+    return snapshot;
+}
+
+function restoreDashboardCardScrollState(snapshot) {
+    if (!snapshot) return;
+    Object.keys(snapshot).forEach(function (targetId) {
+        var state = snapshot[targetId];
+        if (!state) return;
+        var card = document.querySelector('.category-card[data-card-target-id="' + escapeDashboardSelectorValue(targetId) + '"]');
+        if (!card) return;
+        var node = card.querySelector(state.selector);
+        if (!node) return;
+        if (typeof state.top === 'number') node.scrollTop = state.top;
+        if (typeof state.left === 'number') node.scrollLeft = state.left;
+    });
+}
 
 function renderDashboard() {
+    var cardScrollState = captureDashboardCardScrollState();
+
     // Capture scroll position ONCE per synchronous batch
     if (_scrollSave < 0) {
         _scrollSave = document.documentElement.scrollTop || window.pageYOffset || 0;
@@ -133,12 +184,14 @@ function renderDashboard() {
 
     // Restore scroll position immediately
     window.scrollTo(0, _scrollSave);
+    restoreDashboardCardScrollState(cardScrollState);
 
     // Remove spacer and affirm scroll position AFTER Masonry has likely finished
     // 300ms is generous enough to span typical reflows and transitions
     var target = _scrollSave;
     _scrollRafId = setTimeout(function () {
         window.scrollTo(0, target);
+        restoreDashboardCardScrollState(cardScrollState);
         if (_scrollSpacer && _scrollSpacer.parentNode) {
             _scrollSpacer.parentNode.removeChild(_scrollSpacer);
         }

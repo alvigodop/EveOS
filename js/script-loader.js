@@ -5,6 +5,9 @@
     const MAX_BOOTSTRAP_RELOADS = 1;
     const RELOAD_ATTEMPT_KEY = 'eveos.scriptLoader.reloadAttempts';
     const DEFERRED_LOAD_DELAY_MS = 6000;
+    const CRITICAL_BATCH_SIZE = 16;
+    const CRITICAL_BATCH_PAUSE_MS = 10;
+    const LOCALHOST_CRITICAL_BATCH_MIN_SCRIPTS = 80;
     const DEFERRED_IDLE_TIMEOUT_MS = 2500;
     const DEFERRED_BATCH_SIZE = 4;
     const DEFERRED_BATCH_PAUSE_MS = 300;
@@ -59,10 +62,21 @@
 
     function shouldDeferScript(src) {
         const normalized = String(src || '');
-        if (window.location.protocol !== 'file:') return false;
+        if (isExternalScript(normalized)) return true;
+        const host = String(window.location.hostname || '').toLowerCase();
+        const isLocalBootstrapContext = window.location.protocol === 'file:' || host === 'localhost' || host === '127.0.0.1';
+        if (!isLocalBootstrapContext) return false;
         if (normalized.includes('/scraper/')) return true;
         if (normalized.includes('/gemini/gemini-init.js')) return true;
         return false;
+    }
+
+    function shouldBatchCriticalScripts(criticalScripts) {
+        if (!Array.isArray(criticalScripts) || criticalScripts.length < LOCALHOST_CRITICAL_BATCH_MIN_SCRIPTS) {
+            return false;
+        }
+        const host = String(window.location.hostname || '').toLowerCase();
+        return host === 'localhost' || host === '127.0.0.1';
     }
 
     function getBootBuckets() {
@@ -119,6 +133,18 @@
 
     function sleep(ms) {
         return new Promise((resolve) => window.setTimeout(resolve, ms));
+    }
+
+    async function loadScriptsInBatches(scriptSources, batchSize, pauseMs = 0) {
+        if (!Array.isArray(scriptSources) || !scriptSources.length) return;
+        const size = Math.max(1, Number(batchSize) || 1);
+        for (let i = 0; i < scriptSources.length; i += size) {
+            const batch = scriptSources.slice(i, i + size);
+            await Promise.all(batch.map((src) => loadScript(src)));
+            if (pauseMs > 0 && i + size < scriptSources.length) {
+                await sleep(pauseMs);
+            }
+        }
     }
 
     function waitForIdleTask() {
@@ -185,15 +211,15 @@
         if (previousReloadAttempts > 0) clearReloadAttempts();
 
         try {
-            console.log('Starting parallel script loading...');
             const { criticalScripts, deferredScripts } = getBootBuckets();
             const hasDeferredScripts = deferredScripts.length > 0;
-
-            // Create all script tags immediately to trigger parallel downloads
-            const promises = criticalScripts.map(src => loadScript(src));
-
-            // Wait for all to complete
-            await Promise.all(promises);
+            if (shouldBatchCriticalScripts(criticalScripts)) {
+                console.log(`Starting batched critical script loading (${criticalScripts.length})...`);
+                await loadScriptsInBatches(criticalScripts, CRITICAL_BATCH_SIZE, CRITICAL_BATCH_PAUSE_MS);
+            } else {
+                console.log('Starting parallel script loading...');
+                await Promise.all(criticalScripts.map((src) => loadScript(src)));
+            }
             clearReloadAttempts();
             if (hasDeferredScripts) {
                 console.log(`Critical scripts loaded (${criticalScripts.length}/${scripts.length}). Initializing...`);

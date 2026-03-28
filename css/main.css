@@ -8,6 +8,22 @@
     --modal-border: #555555;
     --text-main: #e0e0e0;
     --text-muted: #a0a0a0;
+    --bg-primary: #121212;
+    --bg-secondary: rgba(30, 30, 30, 0.92);
+    --text-primary: #e0e0e0;
+    --text-secondary: #a0a0a0;
+    --border-color: rgba(128, 128, 128, 0.35);
+    --scrollbar-track: rgba(255, 255, 255, 0.08);
+    --scrollbar-thumb: color-mix(in srgb, var(--accent) 78%, rgba(255, 255, 255, 0.18) 22%);
+    --scrollbar-thumb-hover: color-mix(in srgb, var(--accent) 88%, rgba(255, 255, 255, 0.12) 12%);
+    --accent-contrast: #000;
+    --sidebar-border: rgba(255, 255, 255, 0.12);
+    --sidebar-item-bg: rgba(255, 255, 255, 0.08);
+    --sidebar-item-text: var(--text-muted);
+    --sidebar-divider: rgba(255, 255, 255, 0.16);
+    --notes-panel-bg: rgba(18, 18, 18, 0.96);
+    --notes-surface-bg: rgba(10, 10, 10, 0.92);
+    --notes-border: rgba(255, 255, 255, 0.12);
     --accent: #00d4ff;
     --danger: #ff4d4d;
     --success: #00ff88;
@@ -277,6 +293,7 @@ html[data-native-scheme="light"] option {
     --bg-color: #f0f2f5;
     --text-color: #222;
     --card-bg: #fff;
+    --sidebar-bg: rgba(255, 255, 255, 0.96);
     --border-color: #ddd;
     --accent: #0060df;
     /* Default blue for light mode */
@@ -285,6 +302,21 @@ html[data-native-scheme="light"] option {
     --modal-bg: #fff;
     --modal-text: #222;
     --modal-border: #ddd;
+    --bg-primary: #f0f2f5;
+    --bg-secondary: #fff;
+    --text-primary: #222;
+    --text-secondary: #666;
+    --scrollbar-track: rgba(0, 0, 0, 0.08);
+    --scrollbar-thumb: color-mix(in srgb, var(--accent) 72%, rgba(0, 0, 0, 0.16) 28%);
+    --scrollbar-thumb-hover: color-mix(in srgb, var(--accent) 84%, rgba(0, 0, 0, 0.12) 16%);
+    --accent-contrast: #fff;
+    --sidebar-border: rgba(0, 0, 0, 0.12);
+    --sidebar-item-bg: rgba(0, 0, 0, 0.06);
+    --sidebar-item-text: rgba(0, 0, 0, 0.62);
+    --sidebar-divider: rgba(0, 0, 0, 0.16);
+    --notes-panel-bg: rgba(255, 255, 255, 0.97);
+    --notes-surface-bg: rgba(0, 0, 0, 0.035);
+    --notes-border: rgba(0, 0, 0, 0.12);
     color-scheme: light;
 }
 
@@ -322,13 +354,15 @@ html[data-native-scheme="light"] option {
 }
 
 .light-theme button {
-    color: #333;
-    border: 1px solid #ccc;
-    background: #f8f8f8;
+    color: var(--text-main);
+    border: 1px solid var(--border-color);
+    background: var(--input-bg);
 }
 
 .light-theme button:hover {
-    background: #e8e8e8;
+    background: color-mix(in srgb, var(--input-bg) 86%, var(--accent) 14%);
+    border-color: color-mix(in srgb, var(--accent) 55%, var(--border-color) 45%);
+    color: var(--text-main);
 }
 
 .light-theme .modal-overlay {
@@ -394,6 +428,10 @@ html[data-native-scheme="light"] option {
 .light-theme .btn-primary {
     color: #fff;
     background: var(--accent);
+}
+
+.btn-primary:hover {
+    filter: brightness(1.06);
 }
 
 .btn-danger {
@@ -560,8 +598,12 @@ html[data-native-scheme="light"] option {
 
 .top-right button:hover,
 .btn-sec:hover,
-.category-header button:hover {
-    filter: brightness(1.1);
+.category-header button:hover,
+.popup-nav-btn:hover {
+    background: color-mix(in srgb, var(--input-bg) 84%, var(--accent) 16%) !important;
+    border-color: color-mix(in srgb, var(--accent) 55%, rgba(128, 128, 128, 0.3) 45%) !important;
+    color: var(--text-main) !important;
+    filter: none;
 }
 
 .light-theme .top-right button,
