@@ -252,6 +252,28 @@ class FXManager {
             return Number.isFinite(fallback) ? fallback : 1;
         }
 
+        getThemeColor(key, fallback) {
+            if (shared.getResolvedMapThemeColorValue) {
+                return shared.getResolvedMapThemeColorValue(key);
+            }
+            return typeof fallback === 'string' ? fallback : '#ffffff';
+        }
+
+        getThemeRgba(key, alpha, fallback) {
+            if (shared.getMapThemeRgba) {
+                return shared.getMapThemeRgba(key, alpha);
+            }
+            const color = this.getThemeColor(key, fallback).replace('#', '');
+            const normalized = color.length === 3
+                ? color.split('').map((part) => part + part).join('')
+                : color;
+            const red = parseInt(normalized.slice(0, 2), 16);
+            const green = parseInt(normalized.slice(2, 4), 16);
+            const blue = parseInt(normalized.slice(4, 6), 16);
+            const opacity = Math.min(1, Math.max(0, Number(alpha) || 0));
+            return `rgba(${red}, ${green}, ${blue}, ${opacity})`;
+        }
+
         getFxFlag(key) {
             const controls = shared.ensureFxControls ? shared.ensureFxControls() : {};
             return controls?.[key] !== false;

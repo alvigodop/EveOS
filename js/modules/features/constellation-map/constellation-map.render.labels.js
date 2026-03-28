@@ -2,7 +2,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
 (function (ns) {
     const shared = ns._shared || {};
-    const { state, LABEL_CURSOR_RADIUS, LABEL_FOCUS_LIMIT } = shared;
+    const { state, LABEL_CURSOR_RADIUS, LABEL_FOCUS_LIMIT, getMapThemeRgba } = shared;
     const renderAnchors = ns._renderAnchors || {};
     const { getScreenPoint } = renderAnchors;
 
@@ -62,10 +62,20 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     }
 
     function getLabelBackdropColor(box) {
-        if (box.isSelected) return 'rgba(12, 20, 32, 0.82)';
-        if (box.isHovered) return 'rgba(8, 18, 30, 0.76)';
-        if (box.node.kind === 'link') return 'rgba(6, 12, 22, 0.52)';
-        return 'rgba(6, 12, 22, 0.66)';
+        if (box.isSelected) return getMapThemeRgba('panelTint', 0.9);
+        if (box.isHovered) return getMapThemeRgba('panelTint', 0.84);
+        if (box.node.kind === 'link') return getMapThemeRgba('panelTint', 0.58);
+        return getMapThemeRgba('panelTint', 0.72);
+    }
+
+    function getLabelStrokeColor(box) {
+        if (box.isSelected) return getMapThemeRgba('mapAccent', 0.78);
+        if (box.isHovered || box.isPointerFocused || box.isSearchMatch) return getMapThemeRgba('panelEdge', 0.72);
+        return getMapThemeRgba('panelEdge', 0.54);
+    }
+
+    function getLabelTextColor(labelOpacity) {
+        return getMapThemeRgba('titleColor', labelOpacity);
     }
 
     function drawRoundedBackdrop(ctx, box) {
@@ -253,13 +263,13 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             ctx.font = `${box.fontSize}px sans-serif`;
             ctx.lineJoin = 'round';
             drawRoundedBackdrop(ctx, box);
-            ctx.strokeStyle = 'rgba(4, 10, 18, 0.82)';
+            ctx.strokeStyle = getLabelStrokeColor(box);
             ctx.lineWidth = box.isSelected || box.isHovered ? 4.4 : 3.2;
             ctx.shadowBlur = box.isHovered || box.isSelected ? 12 : 6;
-            ctx.shadowColor = 'rgba(0,0,0,0.5)';
+            ctx.shadowColor = getMapThemeRgba('panelTint', 0.42);
             ctx.strokeText(box.node.label, box.textX, box.textY);
             ctx.shadowBlur = 0;
-            ctx.fillStyle = `rgba(255,255,255,${labelOpacity})`;
+            ctx.fillStyle = getLabelTextColor(labelOpacity);
             ctx.fillText(box.node.label, box.textX, box.textY);
         });
     }

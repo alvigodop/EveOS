@@ -83,6 +83,20 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         state.findInput = container.querySelector('[data-map-find]');
         applyMapTheme(container);
 
+        if (!state.themeObserver && typeof MutationObserver === 'function') {
+            state.themeObserver = new MutationObserver(() => {
+                if (!state.container) return;
+                applyMapTheme(state.container);
+                if (state.container.style.display === 'none') return;
+                renderToolbarState();
+                requestDraw();
+            });
+            state.themeObserver.observe(document.documentElement, {
+                attributes: true,
+                attributeFilter: ['class', 'data-native-scheme']
+            });
+        }
+
         if (ns.FX && ns.FX.manager) {
             ns.FX.manager.init(container);
         }
@@ -362,6 +376,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             }
 
             if (themeTuningMode || themeTuningNumberMode) {
+                const themeControls = ensureMapThemeControls();
+                themeControls.followSiteTheme = false;
                 setMapThemeTuningValue(themeTuningMode || themeTuningNumberMode, event.target.value);
                 renderToolbarState();
                 requestDraw();
@@ -369,6 +385,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             }
 
             if (themeColorMode) {
+                const themeControls = ensureMapThemeControls();
+                themeControls.followSiteTheme = false;
                 setMapThemeColor(themeColorMode, event.target.value);
                 renderToolbarState();
                 requestDraw();

@@ -10,6 +10,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         ctx: null,
 
+        themeObserver: null,
+
         titleEl: null,
 
         scopeEl: null,
@@ -187,6 +189,13 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 mapAccent: '#7bdcff',
                 auraAccent: '#66f0ff',
                 fxAccent: '#4cecff',
+                workspaceNodeColor: '#ffd166',
+                categoryNodeColor: '#ff4df1',
+                folderNodeColor: '#b45eff',
+                bookmarkDefaultColor: '#00d4ff',
+                bookmarkCoveredColor: '#42c9ff',
+                bookmarkTaggedColor: '#7ee787',
+                bookmarkDoneColor: '#6e7583',
                 cardAuraFill: '#66f0ff',
                 cardAuraDash: '#c4fbff',
                 workspaceAuraFill: '#5df7cf',
@@ -411,6 +420,13 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         { key: 'auraAccent', label: 'Aura Accent', defaultValue: '#66f0ff', section: 'map' },
         { key: 'fxAccent', label: 'FX Accent', defaultValue: '#4cecff', section: 'map' },
         { key: 'titleColor', label: 'Title Glow', defaultValue: '#f4fbff', section: 'map' },
+        { key: 'workspaceNodeColor', label: 'Tab Node', defaultValue: '#ffd166', section: 'nodes' },
+        { key: 'categoryNodeColor', label: 'Card Node', defaultValue: '#ff4df1', section: 'nodes' },
+        { key: 'folderNodeColor', label: 'Folder Node', defaultValue: '#b45eff', section: 'nodes' },
+        { key: 'bookmarkDefaultColor', label: 'Bookmark Default', defaultValue: '#00d4ff', section: 'bookmarks' },
+        { key: 'bookmarkCoveredColor', label: 'Bookmark Covered', defaultValue: '#42c9ff', section: 'bookmarks' },
+        { key: 'bookmarkTaggedColor', label: 'Bookmark Tagged', defaultValue: '#7ee787', section: 'bookmarks' },
+        { key: 'bookmarkDoneColor', label: 'Bookmark Done', defaultValue: '#6e7583', section: 'bookmarks' },
         { key: 'cardAuraFill', label: 'Card Aura Fill', defaultValue: '#66f0ff', section: 'auras' },
         { key: 'cardAuraDash', label: 'Card Aura Dash', defaultValue: '#c4fbff', section: 'auras' },
         { key: 'workspaceAuraFill', label: 'Tab Aura Fill', defaultValue: '#5df7cf', section: 'auras' },
@@ -419,8 +435,22 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         { key: 'folderAuraDash', label: 'Folder Aura Dash', defaultValue: '#d7e4ff', section: 'auras' }
     ]);
 
-    const MAP_THEME_SITE_AURA_PALETTES = Object.freeze({
+    const MAP_THEME_SITE_COLOR_PALETTES = Object.freeze({
         dark: Object.freeze({
+            panelTint: '#0b1630',
+            panelEdge: '#8fdcff',
+            dangerAccent: '#ff6b93',
+            mapAccent: '#7bdcff',
+            auraAccent: '#66f0ff',
+            fxAccent: '#4cecff',
+            titleColor: '#f4fbff',
+            workspaceNodeColor: '#ffd166',
+            categoryNodeColor: '#ff4df1',
+            folderNodeColor: '#b45eff',
+            bookmarkDefaultColor: '#00d4ff',
+            bookmarkCoveredColor: '#42c9ff',
+            bookmarkTaggedColor: '#7ee787',
+            bookmarkDoneColor: '#6e7583',
             cardAuraFill: '#66f0ff',
             cardAuraDash: '#c4fbff',
             workspaceAuraFill: '#5df7cf',
@@ -429,6 +459,20 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             folderAuraDash: '#d7e4ff'
         }),
         light: Object.freeze({
+            panelTint: '#eef5ff',
+            panelEdge: '#7ea2cf',
+            dangerAccent: '#d94870',
+            mapAccent: '#0b78c8',
+            auraAccent: '#0ea5e9',
+            fxAccent: '#10b981',
+            titleColor: '#163b63',
+            workspaceNodeColor: '#b7791f',
+            categoryNodeColor: '#c026d3',
+            folderNodeColor: '#6d28d9',
+            bookmarkDefaultColor: '#2563eb',
+            bookmarkCoveredColor: '#0284c7',
+            bookmarkTaggedColor: '#15803d',
+            bookmarkDoneColor: '#6b7280',
             cardAuraFill: '#0ea5e9',
             cardAuraDash: '#075985',
             workspaceAuraFill: '#10b981',
@@ -466,7 +510,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         MOTION_TUNING_FIELDS,
         AURA_TUNING_FIELDS,
         AURA_PRESETS,
-        MAP_THEME_SITE_AURA_PALETTES,
+        MAP_THEME_SITE_COLOR_PALETTES,
         MAP_THEME_COLOR_FIELDS,
         MAP_THEME_TUNING_FIELDS,
         LABEL_CURSOR_RADIUS,

@@ -23,7 +23,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         AURA_DEPTH_ORDER,
         AURA_TUNING_FIELDS,
         AURA_PRESETS,
-        MAP_THEME_SITE_AURA_PALETTES,
+        MAP_THEME_SITE_COLOR_PALETTES,
         MAP_THEME_COLOR_FIELDS,
         MAP_THEME_TUNING_FIELDS,
         LABEL_CURSOR_RADIUS,
@@ -650,9 +650,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         const controls = ensureMapThemeControls();
         if (controls.followSiteTheme !== false) {
             const siteThemeMode = getCurrentSiteThemeMode();
-            const siteAuraPalette = MAP_THEME_SITE_AURA_PALETTES[siteThemeMode] || MAP_THEME_SITE_AURA_PALETTES.dark;
-            if (Object.prototype.hasOwnProperty.call(siteAuraPalette, field.key)) {
-                return siteAuraPalette[field.key];
+            const sitePalette = MAP_THEME_SITE_COLOR_PALETTES[siteThemeMode] || MAP_THEME_SITE_COLOR_PALETTES.dark;
+            if (Object.prototype.hasOwnProperty.call(sitePalette, field.key)) {
+                return sitePalette[field.key];
             }
         }
 
@@ -725,7 +725,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         const controls = ensureMapThemeControls();
 
         return controls.followSiteTheme
-            ? 'Theme: Site-linked shell with dark/light aura palette'
+            ? 'Theme: Site-linked dark/light Constellation palette'
             : 'Theme: Map-local shell and accents';
 
     }
@@ -755,6 +755,20 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
     }
 
+    function getMapThemeRgbChannels(key) {
+
+        const color = getResolvedMapThemeColorValue(key).replace('#', '');
+        const normalized = color.length === 3
+            ? color.split('').map((part) => part + part).join('')
+            : color;
+        const red = parseInt(normalized.slice(0, 2), 16);
+        const green = parseInt(normalized.slice(2, 4), 16);
+        const blue = parseInt(normalized.slice(4, 6), 16);
+
+        return `${red} ${green} ${blue}`;
+
+    }
+
     function applyMapTheme(container) {
 
         if (!container || !container.style) return;
@@ -765,27 +779,27 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         const controls = ensureMapThemeControls();
         const followSiteTheme = controls.followSiteTheme !== false;
-        const panelTint = getMapThemeColorValue('panelTint');
-        const panelEdge = getMapThemeColorValue('panelEdge');
-        const mapAccent = getMapThemeColorValue('mapAccent');
-        const auraAccent = getMapThemeColorValue('auraAccent');
-        const fxAccent = getMapThemeColorValue('fxAccent');
-        const cardAuraFill = getMapThemeColorValue('cardAuraFill');
-        const cardAuraDash = getMapThemeColorValue('cardAuraDash');
-        const workspaceAuraFill = getMapThemeColorValue('workspaceAuraFill');
-        const workspaceAuraDash = getMapThemeColorValue('workspaceAuraDash');
-        const folderAuraFill = getMapThemeColorValue('folderAuraFill');
-        const folderAuraDash = getMapThemeColorValue('folderAuraDash');
-        const titleColor = getMapThemeColorValue('titleColor');
-        const dangerAccent = getMapThemeColorValue('dangerAccent');
+        const panelTint = getResolvedMapThemeColorValue('panelTint');
+        const panelEdge = getResolvedMapThemeColorValue('panelEdge');
+        const mapAccent = getResolvedMapThemeColorValue('mapAccent');
+        const auraAccent = getResolvedMapThemeColorValue('auraAccent');
+        const fxAccent = getResolvedMapThemeColorValue('fxAccent');
+        const cardAuraFill = getResolvedMapThemeColorValue('cardAuraFill');
+        const cardAuraDash = getResolvedMapThemeColorValue('cardAuraDash');
+        const workspaceAuraFill = getResolvedMapThemeColorValue('workspaceAuraFill');
+        const workspaceAuraDash = getResolvedMapThemeColorValue('workspaceAuraDash');
+        const folderAuraFill = getResolvedMapThemeColorValue('folderAuraFill');
+        const folderAuraDash = getResolvedMapThemeColorValue('folderAuraDash');
+        const workspaceNodeColor = getResolvedMapThemeColorValue('workspaceNodeColor');
+        const categoryNodeColor = getResolvedMapThemeColorValue('categoryNodeColor');
+        const folderNodeColor = getResolvedMapThemeColorValue('folderNodeColor');
+        const bookmarkDefaultColor = getResolvedMapThemeColorValue('bookmarkDefaultColor');
+        const bookmarkCoveredColor = getResolvedMapThemeColorValue('bookmarkCoveredColor');
+        const bookmarkTaggedColor = getResolvedMapThemeColorValue('bookmarkTaggedColor');
+        const bookmarkDoneColor = getResolvedMapThemeColorValue('bookmarkDoneColor');
+        const titleColor = getResolvedMapThemeColorValue('titleColor');
+        const dangerAccent = getResolvedMapThemeColorValue('dangerAccent');
         const siteThemeMode = getCurrentSiteThemeMode();
-        const siteAuraPalette = MAP_THEME_SITE_AURA_PALETTES[siteThemeMode] || MAP_THEME_SITE_AURA_PALETTES.dark;
-        const resolvedCardAuraFill = followSiteTheme ? siteAuraPalette.cardAuraFill : cardAuraFill;
-        const resolvedCardAuraDash = followSiteTheme ? siteAuraPalette.cardAuraDash : cardAuraDash;
-        const resolvedWorkspaceAuraFill = followSiteTheme ? siteAuraPalette.workspaceAuraFill : workspaceAuraFill;
-        const resolvedWorkspaceAuraDash = followSiteTheme ? siteAuraPalette.workspaceAuraDash : workspaceAuraDash;
-        const resolvedFolderAuraFill = followSiteTheme ? siteAuraPalette.folderAuraFill : folderAuraFill;
-        const resolvedFolderAuraDash = followSiteTheme ? siteAuraPalette.folderAuraDash : folderAuraDash;
         const panelFill = Math.round(getMapThemeTuningValue('panelFill') * 100) + '%';
         const buttonFill = Math.round(getMapThemeTuningValue('buttonFill') * 100) + '%';
         const backgroundFill = Math.round(getMapThemeTuningValue('backgroundFill') * 100) + '%';
@@ -824,12 +838,33 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         setVar('--map-theme-fx', followSiteTheme
             ? `color-mix(in srgb, ${fxAccent} 82%, var(--accent) 18%)`
             : fxAccent);
-        setVar('--map-theme-card-aura-fill', resolvedCardAuraFill);
-        setVar('--map-theme-card-aura-dash', resolvedCardAuraDash);
-        setVar('--map-theme-workspace-aura-fill', resolvedWorkspaceAuraFill);
-        setVar('--map-theme-workspace-aura-dash', resolvedWorkspaceAuraDash);
-        setVar('--map-theme-folder-aura-fill', resolvedFolderAuraFill);
-        setVar('--map-theme-folder-aura-dash', resolvedFolderAuraDash);
+        setVar('--map-theme-card-aura-fill', cardAuraFill);
+        setVar('--map-theme-card-aura-dash', cardAuraDash);
+        setVar('--map-theme-workspace-aura-fill', workspaceAuraFill);
+        setVar('--map-theme-workspace-aura-dash', workspaceAuraDash);
+        setVar('--map-theme-folder-aura-fill', folderAuraFill);
+        setVar('--map-theme-folder-aura-dash', folderAuraDash);
+        setVar('--map-theme-workspace-node', workspaceNodeColor);
+        setVar('--map-theme-category-node', categoryNodeColor);
+        setVar('--map-theme-folder-node', folderNodeColor);
+        setVar('--map-theme-bookmark-default', bookmarkDefaultColor);
+        setVar('--map-theme-bookmark-covered', bookmarkCoveredColor);
+        setVar('--map-theme-bookmark-tagged', bookmarkTaggedColor);
+        setVar('--map-theme-bookmark-done', bookmarkDoneColor);
+        setVar('--map-theme-panel-tint-rgb', getMapThemeRgbChannels('panelTint'));
+        setVar('--map-theme-panel-edge-rgb', getMapThemeRgbChannels('panelEdge'));
+        setVar('--map-theme-accent-rgb', getMapThemeRgbChannels('mapAccent'));
+        setVar('--map-theme-aura-rgb', getMapThemeRgbChannels('auraAccent'));
+        setVar('--map-theme-fx-rgb', getMapThemeRgbChannels('fxAccent'));
+        setVar('--map-theme-title-rgb', getMapThemeRgbChannels('titleColor'));
+        setVar('--map-theme-danger-rgb', getMapThemeRgbChannels('dangerAccent'));
+        setVar('--map-theme-workspace-node-rgb', getMapThemeRgbChannels('workspaceNodeColor'));
+        setVar('--map-theme-category-node-rgb', getMapThemeRgbChannels('categoryNodeColor'));
+        setVar('--map-theme-folder-node-rgb', getMapThemeRgbChannels('folderNodeColor'));
+        setVar('--map-theme-bookmark-default-rgb', getMapThemeRgbChannels('bookmarkDefaultColor'));
+        setVar('--map-theme-bookmark-covered-rgb', getMapThemeRgbChannels('bookmarkCoveredColor'));
+        setVar('--map-theme-bookmark-tagged-rgb', getMapThemeRgbChannels('bookmarkTaggedColor'));
+        setVar('--map-theme-bookmark-done-rgb', getMapThemeRgbChannels('bookmarkDoneColor'));
         setVar('--map-theme-danger', followSiteTheme
             ? `color-mix(in srgb, var(--danger) 52%, ${dangerAccent} 48%)`
             : dangerAccent);
@@ -1077,6 +1112,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         getMapThemeSummaryText,
 
         getMapThemeRgba,
+
+        getMapThemeRgbChannels,
 
         applyMapTheme,
 

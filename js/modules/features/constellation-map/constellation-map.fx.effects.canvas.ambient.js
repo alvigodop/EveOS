@@ -8,11 +8,11 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         return Math.min(max, Math.max(min, value));
     }
 
-    function createGradientWash(ctx, width, height, strength) {
+    function createGradientWash(ctx, width, height, strength, getThemeRgba) {
         const gradient = ctx.createRadialGradient(width * 0.5, height * 0.48, width * 0.06, width * 0.5, height * 0.5, width * 0.72);
-        gradient.addColorStop(0, 'rgba(48, 226, 255,' + (0.08 * strength).toFixed(3) + ')');
-        gradient.addColorStop(0.45, 'rgba(11, 78, 132,' + (0.06 * strength).toFixed(3) + ')');
-        gradient.addColorStop(1, 'rgba(0, 7, 18, 0)');
+        gradient.addColorStop(0, getThemeRgba('auraAccent', 0.08 * strength));
+        gradient.addColorStop(0.45, getThemeRgba('mapAccent', 0.06 * strength));
+        gradient.addColorStop(1, getThemeRgba('panelTint', 0));
         return gradient;
     }
 
@@ -64,9 +64,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             this.syncSettings();
             if (!this.ctx) return;
             const ctx = this.ctx;
-            ctx.fillStyle = 'rgba(1, 8, 18, 0.15)';
+            ctx.fillStyle = this.getThemeRgba('panelTint', 0.15);
             ctx.fillRect(0, 0, this.width, this.height);
-            ctx.fillStyle = createGradientWash(ctx, this.width, this.height, this.glow);
+            ctx.fillStyle = createGradientWash(ctx, this.width, this.height, this.glow, this.getThemeRgba.bind(this));
             ctx.fillRect(0, 0, this.width, this.height);
             const pointerX = this.pointer.px || (this.width * 0.5);
             const pointerY = this.pointer.py || (this.height * 0.5);
@@ -96,7 +96,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                     for (let i = 1; i < particle.trail.length; i += 1) {
                         ctx.lineTo(particle.trail[i].x, particle.trail[i].y);
                     }
-                    ctx.strokeStyle = 'hsla(' + particle.hue + ', 100%, 70%, ' + (0.1 + this.glow * 0.18).toFixed(3) + ')';
+                    const trailColorKey = index % 3 === 0 ? 'fxAccent' : (index % 3 === 1 ? 'auraAccent' : 'mapAccent');
+                    ctx.strokeStyle = this.getThemeRgba(trailColorKey, 0.1 + this.glow * 0.18);
                     ctx.lineWidth = 1.1 + this.glow * 1.4;
                     ctx.stroke();
                 }
@@ -132,7 +133,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             if (!this.ctx) return;
             const ctx = this.ctx;
             ctx.clearRect(0, 0, this.width, this.height);
-            ctx.fillStyle = 'rgba(4, 14, 28, 0.12)';
+            ctx.fillStyle = this.getThemeRgba('panelTint', 0.12);
             ctx.fillRect(0, 0, this.width, this.height);
             const waveCount = Math.max(16, Math.round(20 + this.density * 26));
             const centerX = this.width * (0.5 + (this.pointer.x - 0.5) * 0.05 * this.parallax);
@@ -140,7 +141,6 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             const spreadY = this.height * 0.68;
             for (let i = 0; i < waveCount; i += 1) {
                 const phase = (i / waveCount) * Math.PI * 2;
-                const hue = 184 + ((i * 9) % 68);
                 ctx.beginPath();
                 for (let step = 0; step <= 120; step += 1) {
                     const t = step / 120;
@@ -152,7 +152,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                     const x = centerX + pointerShift + envelope * (wobble + secondary);
                     if (step === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
                 }
-                ctx.strokeStyle = 'hsla(' + hue + ', 100%, 70%, ' + (0.055 + this.glow * 0.05).toFixed(3) + ')';
+                const waveColorKey = i % 3 === 0 ? 'fxAccent' : (i % 3 === 1 ? 'auraAccent' : 'mapAccent');
+                ctx.strokeStyle = this.getThemeRgba(waveColorKey, 0.055 + this.glow * 0.05);
                 ctx.lineWidth = 0.8 + this.glow * 0.9;
                 ctx.stroke();
             }
@@ -220,14 +221,14 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             const ctx = this.ctx;
             const metrics = this.textMetrics;
             ctx.clearRect(0, 0, this.width, this.height);
-            ctx.fillStyle = 'rgba(0, 6, 16, 0.42)';
+            ctx.fillStyle = this.getThemeRgba('panelTint', 0.42);
             ctx.fillRect(0, 0, this.width, this.height);
             ctx.font = metrics.fontSize.toFixed(2) + 'px monospace';
             ctx.textBaseline = 'top';
             const gradient = ctx.createLinearGradient(0, 0, this.width, this.height);
-            gradient.addColorStop(0, 'rgba(107, 243, 255, ' + (0.28 + this.glow * 0.12).toFixed(3) + ')');
-            gradient.addColorStop(0.5, 'rgba(59, 159, 255, ' + (0.22 + this.glow * 0.12).toFixed(3) + ')');
-            gradient.addColorStop(1, 'rgba(93, 255, 222, ' + (0.24 + this.glow * 0.1).toFixed(3) + ')');
+            gradient.addColorStop(0, this.getThemeRgba('auraAccent', 0.28 + this.glow * 0.12));
+            gradient.addColorStop(0.5, this.getThemeRgba('mapAccent', 0.22 + this.glow * 0.12));
+            gradient.addColorStop(1, this.getThemeRgba('fxAccent', 0.24 + this.glow * 0.1));
             ctx.fillStyle = gradient;
             const pointerCol = (this.pointer.px || (this.width * 0.5)) / metrics.charWidth;
             const pointerRow = (this.pointer.py || (this.height * 0.5)) / metrics.lineHeight;
@@ -244,7 +245,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                     ctx.fillText(this.chars[idx], metrics.offsetX + (col * metrics.charWidth), y);
                 }
             }
-            ctx.fillStyle = 'rgba(118, 255, 233, 0.06)';
+            ctx.fillStyle = this.getThemeRgba('fxAccent', 0.06);
             ctx.fillRect(0, 0, this.width, this.height);
         }
     }

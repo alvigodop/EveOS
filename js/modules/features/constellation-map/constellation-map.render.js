@@ -142,7 +142,8 @@ function draw() {
             : null;
         const validRewireTargets = state.rewire?.validTargetIds instanceof Set ? state.rewire.validTargetIds : new Set();
 
-        const pathsByColor = {};
+        const fillPathsByColor = {};
+        const strokePathsByColor = {};
         const staticPathsByColor = {};
         const multiSelectedPath = new Path2D();
         const hoveredSelectedPaths = [];
@@ -155,7 +156,7 @@ function draw() {
             const isSelected = state.selected && state.selected.id === node.id;
             const isMultiSelected = state.selectionIds instanceof Set && state.selectionIds.has(String(node.id || ''));
             const isStatic = getStaticStateForNode(node).isStatic;
-            const color = node.color || '#444';
+            const color = node.color || getMapThemeRgba('mapAccent', 0.6);
 
             if (isHovered || isSelected) {
                 hoveredSelectedPaths.push({ node, isHovered, isSelected, isMultiSelected, isStatic });
@@ -168,26 +169,26 @@ function draw() {
 
             const simplifyLinks = isUltraMassive ? state.transform.scale < 0.5 : (isHyperMassive ? state.transform.scale < 0.35 : (isMassive && state.transform.scale < 0.15));
             if (simplifyLinks && node.kind === 'link') {
-                if (!pathsByColor[color]) pathsByColor[color] = new Path2D();
-                pathsByColor[color].rect(node.x - 2, node.y - 2, 4, 4);
+                if (!fillPathsByColor[color]) fillPathsByColor[color] = new Path2D();
+                fillPathsByColor[color].rect(node.x - 2, node.y - 2, 4, 4);
                 continue;
             }
 
             // Batch standard nodes
-            if (!pathsByColor[color]) pathsByColor[color] = new Path2D();
-            pathsByColor[color].moveTo(node.x + node.radius, node.y);
-            pathsByColor[color].arc(node.x, node.y, node.radius, 0, Math.PI * 2);
+            if (!fillPathsByColor[color]) fillPathsByColor[color] = new Path2D();
+            fillPathsByColor[color].moveTo(node.x + node.radius, node.y);
+            fillPathsByColor[color].arc(node.x, node.y, node.radius, 0, Math.PI * 2);
 
             if (node.kind === 'folder' && node.data && typeof node.data.depth === 'number' && node.data.depth > 0) {
                 const maxRings = Math.min(node.data.depth, 4);
                 const gap = Math.max(1.5, node.radius / (maxRings + 1.5));
                 const ringColor = getMapThemeRgba('titleColor', 0.4);
-                if (!pathsByColor[ringColor]) pathsByColor[ringColor] = new Path2D();
+                if (!strokePathsByColor[ringColor]) strokePathsByColor[ringColor] = new Path2D();
                 for (let r = 1; r <= maxRings; r++) {
                     const ringRadius = node.radius - (gap * r);
                     if (ringRadius > 0.5) {
-                        pathsByColor[ringColor].moveTo(node.x + ringRadius, node.y);
-                        pathsByColor[ringColor].arc(node.x, node.y, ringRadius, 0, Math.PI * 2);
+                        strokePathsByColor[ringColor].moveTo(node.x + ringRadius, node.y);
+                        strokePathsByColor[ringColor].arc(node.x, node.y, ringRadius, 0, Math.PI * 2);
                     }
                 }
             }
@@ -206,15 +207,15 @@ function draw() {
         }
 
         // Draw Batches!
-        for (const color in pathsByColor) {
-            if (color.startsWith('rgba(255, 255, 255')) {
-                ctx.strokeStyle = color;
-                ctx.lineWidth = 1 / state.transform.scale;
-                ctx.stroke(pathsByColor[color]);
-            } else {
-                ctx.fillStyle = color;
-                ctx.fill(pathsByColor[color]);
-            }
+        for (const color in fillPathsByColor) {
+            ctx.fillStyle = color;
+            ctx.fill(fillPathsByColor[color]);
+        }
+
+        for (const color in strokePathsByColor) {
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1 / state.transform.scale;
+            ctx.stroke(strokePathsByColor[color]);
         }
 
         ctx.strokeStyle = getMapThemeRgba('mapAccent', 0.78);
@@ -232,12 +233,13 @@ function draw() {
         // Draw hovered/selected individually so they get drop shadows correctly and render ON TOP
         for (let i = 0; i < hoveredSelectedPaths.length; i++) {
             const { node, isHovered, isSelected, isMultiSelected, isStatic } = hoveredSelectedPaths[i];
+            const nodeColor = node.color || getMapThemeRgba('mapAccent', 0.6);
             
             ctx.beginPath();
             ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
-            ctx.fillStyle = node.color;
+            ctx.fillStyle = nodeColor;
             ctx.shadowBlur = 20 / state.transform.scale;
-            ctx.shadowColor = node.color;
+            ctx.shadowColor = nodeColor;
             ctx.fill();
             ctx.shadowBlur = 0;
 
