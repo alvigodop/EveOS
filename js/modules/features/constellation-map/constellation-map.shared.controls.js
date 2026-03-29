@@ -287,6 +287,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
     function resetConstellationControls() {
         resetFxControls();
+        const blobShared = ns._sharedBlobs || {};
+        if (typeof blobShared.resetBlobControls === 'function') blobShared.resetBlobControls();
         resetAuraControls();
         resetMotionTuning();
         const themeShared = ns._sharedTheme || {};
@@ -294,6 +296,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             themeShared.resetMapThemeControls();
         }
 
+        state.motionMode = 'free';
+        state.lastMotionMode = 'free';
+        state.labelMode = 'off';
         state.stableMainNodes = true;
         state.chainInternalForcesEnabled = true;
         state.chainExternalForcesEnabled = true;

@@ -8,6 +8,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         FX_TUNING_FIELDS,
         MOTION_TUNING_FIELDS,
         AURA_TUNING_FIELDS,
+        BLOB_TUNING_FIELDS,
         AURA_PRESETS,
         AURA_DEPTH_ORDER,
         MAP_THEME_COLOR_FIELDS,
@@ -41,6 +42,18 @@ function buildRangeNumberRows(fields, rangeAttr, numberAttr, valueAttr) {
 function buildAuraTuningMarkup(section) {
         const fields = AURA_TUNING_FIELDS.filter((field) => field.section === section);
         return buildRangeNumberRows(fields, 'data-map-aura-tuning', 'data-map-aura-tuning-number', 'data-map-aura-tuning-value');
+    }
+
+function buildBlobTuningMarkup(section) {
+        const fields = BLOB_TUNING_FIELDS.filter((field) => field.section === section);
+        return fields.map((field) => [
+            '<label class="map-controls-range-row">',
+            '<span>' + escapeHtml(field.label) + '</span>',
+            '<input data-map-blob-tuning="' + escapeHtml(field.key) + '" type="range" min="' + escapeHtml(String(field.min)) + '" max="' + escapeHtml(String(field.max)) + '" step="' + escapeHtml(String(field.step)) + '" value="' + escapeHtml(shared.getBlobTuningText(field.key)) + '">',
+            '<span data-map-blob-tuning-value="' + escapeHtml(field.key) + '" class="map-controls-range-value">' + escapeHtml(shared.getBlobTuningText(field.key)) + '</span>',
+            '<input data-map-blob-tuning-number="' + escapeHtml(field.key) + '" type="number" min="' + escapeHtml(String(field.min)) + '" max="' + escapeHtml(String(field.max)) + '" step="' + escapeHtml(String(field.step)) + '" value="' + escapeHtml(shared.getBlobTuningText(field.key)) + '" class="map-controls-number-input">',
+            '</label>'
+        ].join('')).join('');
     }
 
 function buildFxTuningMarkup(section) {
@@ -105,6 +118,7 @@ function buildDepthButtons() {
         getInteractionTargetNode,
         buildRangeNumberRows,
         buildAuraTuningMarkup,
+        buildBlobTuningMarkup,
         buildFxTuningMarkup,
         buildMotionTuningMarkup,
         buildThemeTuningMarkup,

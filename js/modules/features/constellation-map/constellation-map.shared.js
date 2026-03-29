@@ -20,6 +20,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         DEFAULT_KIND_POLARITIES,
         AURA_DEPTH_ORDER,
         AURA_TUNING_FIELDS,
+        BLOB_MODE_ORDER,
+        BLOB_TUNING_FIELDS,
         AURA_PRESETS,
         MAP_THEME_COLOR_FIELDS,
         MAP_THEME_TUNING_FIELDS,
@@ -49,6 +51,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     } = sharedHelpers;
 
     const controls = ns._sharedControls || {};
+    const blobs = ns._sharedBlobs || {};
     const theme = ns._sharedTheme || {};
     const geometry = ns._sharedGeometry || {};
 
@@ -70,6 +73,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         FX_TUNING_FIELDS,
         MOTION_TUNING_FIELDS,
         AURA_TUNING_FIELDS,
+        BLOB_MODE_ORDER,
+        BLOB_TUNING_FIELDS,
         AURA_PRESETS,
         AURA_DEPTH_ORDER,
         MAP_THEME_COLOR_FIELDS,
@@ -94,5 +99,5 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         getCategoryNames,
         getFolderView,
         collectFolderSubtree
-    }, controls, theme, geometry);
+    }, controls, blobs, theme, geometry);
 })(window.EveConstellationMap);

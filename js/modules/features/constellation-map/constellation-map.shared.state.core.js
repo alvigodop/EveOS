@@ -101,7 +101,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         },
 
-        motionMode: 'web',
+        motionMode: 'free',
 
         activeWebGlFx: 'none',
 
@@ -134,11 +134,11 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         motionAnchors: new Map(),
 
-        lastMotionMode: 'web',
+        lastMotionMode: 'free',
 
         controlsExpanded: false,
 
-        labelMode: 'auto',
+        labelMode: 'off',
 
         labelHitBoxes: [],
 
@@ -154,6 +154,20 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         auraRoots: new Map(),
         workspaceAuraRoots: new Map(),
+        blobControls: {
+            enabled: false,
+            mode: 'edge',
+            rootShellsEnabled: true,
+            layeredEnabled: false
+        },
+        blobTuning: {
+            padding: 18,
+            bridgeWidth: 1,
+            rootScale: 1,
+            opacity: 1,
+            outline: 1,
+            layerGap: 8
+        },
         auraControls: {
             visualsEnabled: true,
             effectsEnabled: true,

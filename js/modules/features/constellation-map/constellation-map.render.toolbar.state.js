@@ -4,6 +4,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     const shared = ns._shared || {};
     const base = ns._renderToolbarBase || {};
     const wheel = ns._renderToolbarWheel || {};
+    const blobs = ns._renderToolbarBlobs || {};
     const {
         state,
         KIND_ORDER,
@@ -21,6 +22,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         MAP_THEME_TUNING_FIELDS,
         getKindDisplayName,
         ensureAuraControls,
+        ensureBlobControls,
         getNodePolarityState,
         getPolaritySummary,
         getPolarityStrengthText,
@@ -41,6 +43,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     } = shared;
     const { getKindLockButtonLabel, getControlsToggleText, setButtonActive, setButtonEnabled, queryAll } = base;
     const { AURA_EMITTER_LABELS, AURA_DEPTH_LABELS, renderActionWheel } = wheel;
+    const { renderBlobToolbarState } = blobs;
 
 function renderToolbarState() {
         if (!state.container) return;
@@ -48,6 +51,7 @@ function renderToolbarState() {
         applyMapTheme(state.container);
 
         const controls = ensureAuraControls();
+        ensureBlobControls();
         const fxControls = ensureFxControls();
         const themeControls = ensureMapThemeControls();
         const fxButton = state.container.querySelector('[data-map-toolbar="fx"]');
@@ -244,6 +248,10 @@ function renderToolbarState() {
         const auraPresetSummary = state.container.querySelector('[data-map-aura-preset-summary]');
         if (auraPresetSummary) {
             auraPresetSummary.textContent = getAuraPresetText();
+        }
+
+        if (typeof renderBlobToolbarState === 'function') {
+            renderBlobToolbarState(queryAll, setButtonActive);
         }
 
         MOTION_TUNING_FIELDS.forEach((field) => {

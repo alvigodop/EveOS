@@ -10,7 +10,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     const toolbarMarkup = ns._toolbarMarkup || {};
 
     const {
-        state, LABEL_MODE_ORDER, MOTION_MODE_ORDER, cycleNodePolarity, toggleKindPolarity, setPolarityStrengthValue, setFxTuningValue, setMotionTuningValue, resetMotionTuning, resetFxControls, clearPolarityOverrides, toggleStaticForNode, toggleStaticForKind, toggleStaticBranch, clearStaticLocks, setAuraTuningValue, resetAuraControls, applyAuraPreset, toggleAuraVisuals, toggleAuraEffects, toggleAuraEmitterKind, toggleAuraDepth, setMapThemeColor, setMapThemeTuningValue, resetMapThemeControls, toggleMapThemeFollowSite, resetConstellationControls, ensureMapThemeControls, toggleFxControl
+        state, LABEL_MODE_ORDER, MOTION_MODE_ORDER, cycleNodePolarity, toggleKindPolarity, setPolarityStrengthValue, setFxTuningValue, setMotionTuningValue, resetMotionTuning, resetFxControls, clearPolarityOverrides, toggleStaticForNode, toggleStaticForKind, toggleStaticBranch, clearStaticLocks, setAuraTuningValue, resetAuraControls, applyAuraPreset, toggleAuraVisuals, toggleAuraEffects, toggleAuraEmitterKind, toggleAuraDepth, setMapThemeColor, setMapThemeTuningValue, resetMapThemeControls, toggleMapThemeFollowSite, resetConstellationControls, ensureMapThemeControls, toggleFxControl, toggleBlobVisuals, cycleBlobMode, toggleBlobRootShells, toggleBlobLayers, resetBlobControls, setBlobTuningValue
     } = shared;
     const { buildGraphData } = graph;
     const { requestDraw, renderHeader, renderInspector, renderToolbarState } = render;
@@ -95,6 +95,17 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 return;
             }
 
+            const blobToggleEl = event.target.closest('[data-map-blob-toggle]');
+            if (blobToggleEl) {
+                const blobMode = blobToggleEl.dataset.mapBlobToggle;
+                if (blobMode === 'visuals') toggleBlobVisuals();
+                else if (blobMode === 'root-shells') toggleBlobRootShells();
+                else if (blobMode === 'layers') toggleBlobLayers();
+                renderToolbarState();
+                requestDraw();
+                return;
+            }
+
             const staticKindEl = event.target.closest('[data-map-static-kind]');
             const directStaticKind = staticKindEl?.dataset?.mapStaticKind;
             if (directStaticKind) {
@@ -140,6 +151,14 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             } else if (toolbarAction === 'controls') {
                 state.controlsExpanded = !state.controlsExpanded;
                 renderToolbarState();
+            } else if (toolbarAction === 'blob-mode') {
+                cycleBlobMode();
+                renderToolbarState();
+                requestDraw();
+            } else if (toolbarAction === 'blob-reset') {
+                resetBlobControls();
+                renderToolbarState();
+                requestDraw();
             } else if (toolbarAction === 'theme-follow-site') {
                 toggleMapThemeFollowSite();
                 renderToolbarState();
@@ -260,6 +279,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             const fxTuningNumberMode = event.target?.dataset?.mapFxTuningNumber;
             const auraTuningMode = event.target?.dataset?.mapAuraTuning;
             const auraTuningNumberMode = event.target?.dataset?.mapAuraTuningNumber;
+            const blobTuningMode = event.target?.dataset?.mapBlobTuning;
+            const blobTuningNumberMode = event.target?.dataset?.mapBlobTuningNumber;
             const themeTuningMode = event.target?.dataset?.mapThemeTuning;
             const themeTuningNumberMode = event.target?.dataset?.mapThemeTuningNumber;
             const themeColorMode = event.target?.dataset?.mapThemeColor;
@@ -288,6 +309,13 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             if (auraTuningMode || auraTuningNumberMode) {
                 setAuraTuningValue(auraTuningMode || auraTuningNumberMode, event.target.value);
+                renderToolbarState();
+                requestDraw();
+                return;
+            }
+
+            if (blobTuningMode || blobTuningNumberMode) {
+                setBlobTuningValue(blobTuningMode || blobTuningNumberMode, event.target.value);
                 renderToolbarState();
                 requestDraw();
                 return;

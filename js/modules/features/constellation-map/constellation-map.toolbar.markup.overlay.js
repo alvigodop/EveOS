@@ -5,6 +5,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     const { escapeHtml, getMapThemeSummaryText, getAuraPresetText, getKindDisplayName } = shared;
     const builders = ns._toolbarMarkupBuilders || {};
     const { buildThemeColorMarkup, buildThemeTuningMarkup, buildAuraTuningMarkup, buildFxTuningMarkup, buildMotionTuningMarkup, buildPresetButtons, buildDepthButtons } = builders;
+    const blobMarkup = ns._toolbarMarkupBlobs || {};
+    const { buildBlobControlsSection } = blobMarkup;
 function buildOverlayMarkup() {
         return [
             '<style>',
@@ -103,8 +105,8 @@ function buildOverlayMarkup() {
             '<button type="button" data-map-toolbar="zoom-in" class="map-btn">+</button>',
             '<button type="button" data-map-toolbar="fit" class="map-btn">Fit</button>',
             '<button type="button" data-map-toolbar="reset" class="map-btn">Reset</button>',
-            '<button type="button" data-map-toolbar="labels" class="map-btn">Labels: Auto</button>',
-            '<button type="button" data-map-toolbar="motion" class="map-btn">Motion: Web</button>',
+            '<button type="button" data-map-toolbar="labels" class="map-btn">Labels: Off</button>',
+            '<button type="button" data-map-toolbar="motion" class="map-btn">Motion: Free</button>',
             '<button type="button" data-map-toolbar="controls" class="map-btn">Control Center</button>',
             '<button type="button" data-map-toolbar="close" class="map-btn map-btn-danger">Close</button>',
             '</div>',
@@ -280,11 +282,12 @@ function buildOverlayMarkup() {
             '</div>',
             '</div>',
             '</details>',
+            buildBlobControlsSection(),
             '<details open class="map-controls-section">',
             '<summary class="map-section-title" style="cursor:pointer;">Motion</summary>',
             '<div style="display:flex;flex-direction:column;gap:10px;padding-top:10px;">',
             '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">',
-            '<button type="button" data-map-toolbar="motion" class="map-btn">Motion: Web</button>',
+            '<button type="button" data-map-toolbar="motion" class="map-btn">Motion: Free</button>',
             '<button type="button" data-map-toolbar="stability" class="map-btn">Hold Main Nodes: ON</button>',
             '</div>',
             '<div style="display:flex;flex-direction:column;gap:8px;">',

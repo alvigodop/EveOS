@@ -162,6 +162,7 @@ load('js/modules/features/constellation-map/constellation-map.shared.helpers.sco
 load('js/modules/features/constellation-map/constellation-map.shared.helpers.folders.js');
 load('js/modules/features/constellation-map/constellation-map.shared.helpers.js');
 load('js/modules/features/constellation-map/constellation-map.shared.controls.js');
+load('js/modules/features/constellation-map/constellation-map.shared.blobs.js');
 load('js/modules/features/constellation-map/constellation-map.shared.theme.js');
 load('js/modules/features/constellation-map/constellation-map.shared.geometry.js');
 load('js/modules/features/constellation-map/constellation-map.shared.js');
@@ -187,9 +188,11 @@ load('js/modules/features/constellation-map/constellation-map.graph.js');
 load('js/modules/features/constellation-map/constellation-map.render.anchors.js');
 load('js/modules/features/constellation-map/constellation-map.render.labels.js');
 load('js/modules/features/constellation-map/constellation-map.render.auras.js');
+load('js/modules/features/constellation-map/constellation-map.render.blobs.js');
 load('js/modules/features/constellation-map/constellation-map.render.canvas.js');
 load('js/modules/features/constellation-map/constellation-map.render.toolbar.helpers.js');
 load('js/modules/features/constellation-map/constellation-map.render.toolbar.wheel.js');
+load('js/modules/features/constellation-map/constellation-map.render.toolbar.blobs.js');
 load('js/modules/features/constellation-map/constellation-map.render.toolbar.state.js');
 load('js/modules/features/constellation-map/constellation-map.render.toolbar.js');
 load('js/modules/features/constellation-map/constellation-map.render.inspector.core.js');
@@ -228,6 +231,7 @@ load('js/modules/features/constellation-map/constellation-map.events.inspector.j
 load('js/modules/features/constellation-map/constellation-map.events.window.js');
 load('js/modules/features/constellation-map/constellation-map.events.js');
 load('js/modules/features/constellation-map/constellation-map.toolbar.markup.builders.js');
+load('js/modules/features/constellation-map/constellation-map.toolbar.markup.blobs.js');
 load('js/modules/features/constellation-map/constellation-map.toolbar.markup.overlay.js');
 load('js/modules/features/constellation-map/constellation-map.toolbar.markup.js');
 load('js/modules/features/constellation-map/constellation-map.toolbar.handlers.js');

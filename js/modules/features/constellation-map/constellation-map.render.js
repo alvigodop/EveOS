@@ -32,7 +32,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         renderLabels,
 
-        drawPhysicsAuras
+        drawPhysicsAuras,
+
+        drawBlobLayers
 
     } = renderCanvas;
 
@@ -88,6 +90,7 @@ function draw() {
         ctx.scale(state.transform.scale, state.transform.scale);
 
         drawPhysicsAuras(ctx);
+        drawBlobLayers(ctx);
 
         const boundsLeft = -state.transform.tx / state.transform.scale - 500;
         const boundsTop = -state.transform.ty / state.transform.scale - 500;
