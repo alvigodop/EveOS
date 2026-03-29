@@ -117,15 +117,205 @@
 
     }
 
+    function renderFolderManagerSelectOptions(options, selectedValue) {
 
+        return (Array.isArray(options) ? options : []).map((option) => {
 
-    function renderFolderManagerRows(categoryName, workspaceId, viewModel, folderId, depth) {
+            const value = escapeCategorySettingsHtml(option?.value);
+
+            const label = escapeCategorySettingsHtml(option?.label);
+
+            const selected = option?.value === selectedValue ? ' selected' : '';
+
+            return `<option value="${value}"${selected}>${label}</option>`;
+
+        }).join('');
+
+    }
+
+    function normalizeFolderTaskModeValue(value) {
+
+        const normalized = String(value || '').trim().toLowerCase();
+
+        return normalized === 'task' || normalized === 'non_task' || normalized === 'inherit'
+
+            ? normalized
+
+            : 'inherit';
+
+    }
+
+    function buildFolderManagerRenderState(categoryName, workspaceId, viewModel, scopedLinks) {
 
         const clickApi = getClickBehaviorApi();
 
         const folderApi = getFolderApi();
 
         const pinApi = getPinApi();
+
+        const linkById = new Map((Array.isArray(scopedLinks) ? scopedLinks : []).map((link) => [String(link?.id || '').trim(), link]));
+
+        const cardPins = Array.isArray(pinApi?.getPins?.())
+
+            ? pinApi.getPins().filter((pin) => {
+
+                if (!pin || typeof pin !== 'object') return false;
+
+                if (pin.targetType === 'bookmark') {
+
+                    return linkById.has(String(pin.targetId || '').trim());
+
+                }
+
+                if (pin.targetType === 'folder') {
+
+                    const target = pinApi.parseFolderTargetId?.(pin.targetId) || {};
+
+                    return String(target.workspaceId || '') === workspaceId
+
+                        && String(target.categoryName || 'Unsorted') === categoryName;
+
+                }
+
+                if (pin.targetType === 'card') {
+
+                    const target = pinApi.parseCardTargetId?.(pin.targetId) || {};
+
+                    return String(target.workspaceId || '') === workspaceId
+
+                        && String(target.categoryName || 'Unsorted') === categoryName;
+
+                }
+
+                return false;
+
+            })
+
+            : [];
+
+        const folderPinState = new Map();
+
+        const directBookmarkPinsByFolderId = new Map();
+
+        let cardPinnedBookmarkCount = 0;
+
+        cardPins.forEach((pin) => {
+
+            if (pin?.targetType === 'bookmark') {
+
+                cardPinnedBookmarkCount += 1;
+
+                const folderId = String(linkById.get(String(pin.targetId || '').trim())?.folderId || '').trim();
+
+                if (folderId) {
+
+                    directBookmarkPinsByFolderId.set(folderId, (directBookmarkPinsByFolderId.get(folderId) || 0) + 1);
+
+                }
+
+                return;
+
+            }
+
+            if (pin?.targetType === 'folder') {
+
+                const target = pinApi.parseFolderTargetId?.(pin.targetId) || {};
+
+                const folderId = String(target.folderId || '').trim();
+
+                if (!folderId || folderPinState.has(folderId)) return;
+
+                folderPinState.set(folderId, {
+
+                    pinned: true,
+
+                    scopeType: String(pin.scopeType || 'tab').trim().toLowerCase() === 'card' ? 'card' : 'tab'
+
+                });
+
+            }
+
+        });
+
+        const subtreePinnedBookmarkCounts = new Map();
+
+        const computePinnedBookmarkCount = (folderId) => {
+
+            const normalizedFolderId = String(folderId || '').trim();
+
+            if (!normalizedFolderId) return 0;
+
+            if (subtreePinnedBookmarkCounts.has(normalizedFolderId)) {
+
+                return subtreePinnedBookmarkCounts.get(normalizedFolderId) || 0;
+
+            }
+
+            let total = directBookmarkPinsByFolderId.get(normalizedFolderId) || 0;
+
+            (viewModel.childrenMap.get(normalizedFolderId) || []).forEach((child) => {
+
+                if (!child?.isGhost) {
+
+                    total += computePinnedBookmarkCount(child.id);
+
+                }
+
+            });
+
+            subtreePinnedBookmarkCounts.set(normalizedFolderId, total);
+
+            return total;
+
+        };
+
+        (viewModel.childrenMap.get(null) || []).forEach((folder) => {
+
+            if (!folder?.isGhost) computePinnedBookmarkCount(folder.id);
+
+        });
+
+        return {
+
+            clickModeOptions: clickApi?.getModeOptions?.() || [{ value: 'inherit', label: 'Inherit Current Behavior' }],
+
+            taskModeOptions: folderApi?.getTaskModeOptions?.() || [{ value: 'inherit', label: 'Inherit Card Task Mode' }],
+
+            pinScopeOptions: pinApi?.getTargetVisibilityScopeOptions?.() || [{ value: 'tab', label: 'This Tab' }],
+
+            cardPinnedBookmarkCount,
+
+            subtreePinnedBookmarkCounts,
+
+            folderPinState,
+
+            getModeHint(mode) {
+
+                return clickApi?.describeMode ? clickApi.describeMode(mode) : '';
+
+            },
+
+            getTaskModeHint(mode) {
+
+                return folderApi?.describeTaskMode ? folderApi.describeTaskMode(mode) : '';
+
+            },
+
+            getPinScopeHint(scopeType, isPinned) {
+
+                if (!isPinned) return 'Pin this folder to control where its dock shortcut appears.';
+
+                return pinApi?.describeTargetVisibilityScope?.(scopeType) || '';
+
+            }
+
+        };
+
+    }
+
+
+
+    function renderFolderManagerRows(categoryName, workspaceId, viewModel, renderState, folderId, depth) {
 
         const folders = (viewModel.childrenMap.get(folderId) || []).filter((folder) => !folder?.isGhost);
 
@@ -139,11 +329,7 @@
 
             const childCount = (viewModel.childrenMap.get(folder.id) || []).length;
 
-            const pinnedBookmarkCount = Array.isArray(pinApi?.filterPinsForFolder?.(workspaceId, categoryName, folder.id))
-
-                ? pinApi.filterPinsForFolder(workspaceId, categoryName, folder.id).filter((pin) => pin?.targetType === 'bookmark').length
-
-                : 0;
+            const pinnedBookmarkCount = renderState.subtreePinnedBookmarkCounts.get(folder.id) || 0;
 
             const metaParts = [];
 
@@ -155,59 +341,31 @@
 
             const indentPx = depth * 18;
 
-            const selectedMode = clickApi?.getFolderMode ? clickApi.getFolderMode(workspaceId, categoryName, folder.id) : 'inherit';
+            const selectedMode = getClickBehaviorApi()?.normalizeMode
 
-            const modeOptionsHtml = clickApi?.getModeOptions
+                ? getClickBehaviorApi().normalizeMode(folder?.clickBehaviorMode)
 
-                ? clickApi.getModeOptions().map((option) => {
+                : String(folder?.clickBehaviorMode || 'inherit').trim().toLowerCase() || 'inherit';
 
-                    const selected = option.value === selectedMode ? ' selected' : '';
+            const modeOptionsHtml = renderFolderManagerSelectOptions(renderState.clickModeOptions, selectedMode);
 
-                    return `<option value="${escapeCategorySettingsHtml(option.value)}"${selected}>${escapeCategorySettingsHtml(option.label)}</option>`;
+            const modeHint = renderState.getModeHint(selectedMode);
 
-                }).join('')
+            const selectedTaskMode = normalizeFolderTaskModeValue(folder?.taskMode);
 
-                : '<option value="inherit">Inherit Current Behavior</option>';
+            const taskModeOptionsHtml = renderFolderManagerSelectOptions(renderState.taskModeOptions, selectedTaskMode);
 
-            const modeHint = clickApi?.describeMode ? clickApi.describeMode(selectedMode) : '';
+            const taskModeHint = renderState.getTaskModeHint(selectedTaskMode);
 
-            const selectedTaskMode = folderApi?.getFolderTaskMode ? folderApi.getFolderTaskMode(workspaceId, categoryName, folder.id) : 'inherit';
+            const folderPinState = renderState.folderPinState.get(folder.id) || null;
 
-            const taskModeOptionsHtml = folderApi?.getTaskModeOptions
+            const isFolderPinned = !!folderPinState?.pinned;
 
-                ? folderApi.getTaskModeOptions().map((option) => {
+            const selectedPinScope = folderPinState?.scopeType || 'tab';
 
-                    const selected = option.value === selectedTaskMode ? ' selected' : '';
+            const pinScopeOptionsHtml = renderFolderManagerSelectOptions(renderState.pinScopeOptions, selectedPinScope);
 
-                    return `<option value="${escapeCategorySettingsHtml(option.value)}"${selected}>${escapeCategorySettingsHtml(option.label)}</option>`;
-
-                }).join('')
-
-                : '<option value="inherit">Inherit Card Task Mode</option>';
-
-            const taskModeHint = folderApi?.describeTaskMode ? folderApi.describeTaskMode(selectedTaskMode) : '';
-
-            const isFolderPinned = !!pinApi?.isFolderPinned?.(workspaceId, categoryName, folder.id);
-
-            const selectedPinScope = pinApi?.getFolderScopeType?.(workspaceId, categoryName, folder.id) || 'tab';
-
-            const pinScopeOptionsHtml = pinApi?.getTargetVisibilityScopeOptions
-
-                ? pinApi.getTargetVisibilityScopeOptions().map((option) => {
-
-                    const selected = option.value === selectedPinScope ? ' selected' : '';
-
-                    return `<option value="${escapeCategorySettingsHtml(option.value)}"${selected}>${escapeCategorySettingsHtml(option.label)}</option>`;
-
-                }).join('')
-
-                : '<option value="tab">This Tab</option>';
-
-            const pinScopeHint = isFolderPinned
-
-                ? (pinApi?.describeTargetVisibilityScope?.(selectedPinScope) || '')
-
-                : 'Pin this folder to control where its dock shortcut appears.';
+            const pinScopeHint = renderState.getPinScopeHint(selectedPinScope, isFolderPinned);
 
             const actionsExpanded = isFolderActionExpanded(workspaceId, categoryName, folder.id);
 
@@ -287,7 +445,7 @@
 
                     + '</div>'
 
-                    + renderFolderManagerRows(categoryName, workspaceId, viewModel, folder.id, depth + 1)
+                    + renderFolderManagerRows(categoryName, workspaceId, viewModel, renderState, folder.id, depth + 1)
 
                 + '</div>';
 
@@ -308,8 +466,6 @@
         const workspaceId = getCategorySettingsWorkspaceId();
 
         const folderApi = getFolderApi();
-
-        const pinApi = getPinApi();
 
         const safeCategoryJs = escapeCategorySettingsJs(categoryName);
 
@@ -339,15 +495,13 @@
 
         const viewModel = folderApi.buildFolderView(workspaceId, categoryName, scopedLinks);
 
+        const renderState = buildFolderManagerRenderState(categoryName, workspaceId, viewModel, scopedLinks);
+
         const rootBookmarks = viewModel.rootLinks.length;
 
         const folderCount = viewModel.nodes.filter((node) => !node?.isGhost).length;
 
-        const cardPinnedCount = Array.isArray(pinApi?.filterPinsForCard?.(workspaceId, categoryName))
-
-            ? pinApi.filterPinsForCard(workspaceId, categoryName).filter((pin) => pin?.targetType === 'bookmark').length
-
-            : 0;
+        const cardPinnedCount = renderState.cardPinnedBookmarkCount;
 
 
 
@@ -605,7 +759,7 @@
 
 
 
-        container.innerHTML = ''
+        const staticHtml = ''
 
             + manhwaModeHtml
 
@@ -633,21 +787,51 @@
 
                 + '</div>'
 
-            + '</div>'
+            + '</div>';
 
-            + (folderCount
+        const emptyStateHtml = ''
 
-                ? renderFolderManagerRows(categoryName, workspaceId, viewModel, null, 0)
+            + '<div style="padding:12px; border:1px dashed rgba(255,255,255,0.18); border-radius:10px; opacity:0.8;">'
 
-                : ''
+                + '<div style="font-weight:600; margin-bottom:4px;">No folders in this card yet</div>'
 
-                    + '<div style="padding:12px; border:1px dashed rgba(255,255,255,0.18); border-radius:10px; opacity:0.8;">'
+                + `<div style="font-size:0.84rem;">Root bookmarks currently visible in this card: ${rootBookmarks}</div>`
 
-                        + '<div style="font-weight:600; margin-bottom:4px;">No folders in this card yet</div>'
+            + '</div>';
 
-                        + `<div style="font-size:0.84rem;">Root bookmarks currently visible in this card: ${rootBookmarks}</div>`
+        const renderToken = String(Date.now() + Math.random());
 
-                    + '</div>');
+        container.setAttribute('data-folder-render-token', renderToken);
+
+        const renderRowsIntoContainer = function () {
+
+            if (container.getAttribute('data-folder-render-token') !== renderToken) return;
+
+            container.innerHTML = staticHtml + (
+
+                folderCount
+
+                    ? renderFolderManagerRows(categoryName, workspaceId, viewModel, renderState, null, 0)
+
+                    : emptyStateHtml
+
+            );
+
+        };
+
+        if (folderCount > 120) {
+
+            container.innerHTML = staticHtml
+
+                + `<div style="padding:12px; border:1px dashed rgba(255,255,255,0.18); border-radius:10px; opacity:0.8;">Rendering ${folderCount} folders...</div>`;
+
+            setTimeout(renderRowsIntoContainer, 0);
+
+            return;
+
+        }
+
+        renderRowsIntoContainer();
 
     };
 
