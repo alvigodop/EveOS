@@ -35,9 +35,49 @@ window.fetchTitle = async function (btn) {
             ? utils.isClearlyBetterTitle
             : ((candidate, primary) => !!candidate?.title && (!primary?.title || String(candidate.title).length > String(primary.title || '').length));
 
-        const data = await window.getTitleFromUrl(url, { allowSlowCover: true });
-        const usedLightpandaFallback = !!(data?.source === 'Lightpanda');
-        const usedCamofoxFallback = !!(data?.source === 'Camofox');
+        const baseData = await window.getTitleFromUrl(url, { allowSlowCover: true });
+        let data = baseData;
+        let headlessFollowup = null;
+
+        const shouldEscalateToHeadless = window.location?.protocol === 'file:'
+            && typeof window.getTitleFromUrlHeadless === 'function'
+            && (!data || isWeakAutotitleResult(data, url) || !data.coverUrl)
+            && data?.source !== 'Camofox';
+
+        if (shouldEscalateToHeadless) {
+            console.log("Autotitle UI: Escalating bookmark edit fetch to full headless chain...");
+            headlessFollowup = await window.getTitleFromUrlHeadless(url, {
+                lightpandaTimeoutMs: 30000,
+                camofoxTimeoutMs: 45000
+            });
+            if (headlessFollowup) {
+                const shouldAdoptHeadlessTitle = !!headlessFollowup?.title
+                    && headlessFollowup.title !== 'CLOUDFLARE_BLOCK'
+                    && (
+                        !data?.title
+                        || isClearlyBetterTitle(headlessFollowup, data, url)
+                        || isWeakAutotitleResult(data, url)
+                        || !data?.coverUrl
+                        || data?.source === 'Lightpanda'
+                    );
+
+                if (!data || shouldAdoptHeadlessTitle) {
+                    data = adoptAutotitleTitle(data, headlessFollowup, url);
+                } else {
+                    data = mergeAutotitleMetadata(data, headlessFollowup, url);
+                }
+                data = {
+                    ...data,
+                    blocked: !!(data?.blocked || headlessFollowup?.blocked),
+                    lightpandaBlocked: !!(data?.lightpandaBlocked || headlessFollowup?.lightpandaBlocked),
+                    camofoxBlocked: !!(data?.camofoxBlocked || headlessFollowup?.camofoxBlocked),
+                    browserFallbackBlocked: !!(data?.browserFallbackBlocked || headlessFollowup?.browserFallbackBlocked)
+                };
+            }
+        }
+
+        const usedLightpandaFallback = !!(headlessFollowup?.source === 'Lightpanda' || data?.source === 'Lightpanda');
+        const usedCamofoxFallback = !!(headlessFollowup?.source === 'Camofox' || data?.source === 'Camofox');
         const browserFallbackBlocked = !!(data?.browserFallbackBlocked || data?.lightpandaBlocked || data?.camofoxBlocked);
 
         if (browserFallbackBlocked && isWeakAutotitleResult(data, url)) {
