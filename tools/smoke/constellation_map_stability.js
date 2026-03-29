@@ -179,8 +179,12 @@ load('js/modules/features/constellation-map/constellation-map.render.labels.js')
 load('js/modules/features/constellation-map/constellation-map.render.auras.js');
 load('js/modules/features/constellation-map/constellation-map.render.canvas.js');
 load('js/modules/features/constellation-map/constellation-map.render.toolbar.js');
+load('js/modules/features/constellation-map/constellation-map.render.inspector.core.js');
+load('js/modules/features/constellation-map/constellation-map.render.inspector.runtime.js');
 load('js/modules/features/constellation-map/constellation-map.render.inspector.js');
 load('js/modules/features/constellation-map/constellation-map.render.js');
+load('js/modules/features/constellation-map/constellation-map.physics.aura.repulsion.js');
+load('js/modules/features/constellation-map/constellation-map.physics.aura.recovery.js');
 load('js/modules/features/constellation-map/constellation-map.physics.aura.js');
 load('js/modules/features/constellation-map/constellation-map.physics.motion.profiles.js');
 load('js/modules/features/constellation-map/constellation-map.physics.motion.anchors.js');
@@ -212,6 +216,8 @@ load('js/modules/features/constellation-map/constellation-map.core.actions.wheel
 load('js/modules/features/constellation-map/constellation-map.core.actions.navigate.js');
 load('js/modules/features/constellation-map/constellation-map.core.actions.dispatch.js');
 load('js/modules/features/constellation-map/constellation-map.core.actions.js');
+load('js/modules/features/constellation-map/constellation-map.core.debug.graph.js');
+load('js/modules/features/constellation-map/constellation-map.core.debug.inspector.js');
 load('js/modules/features/constellation-map/constellation-map.core.debug.js');
 load('js/modules/features/constellation-map/constellation-map.core.js');
 window.EveConstellationMap.openMap();
