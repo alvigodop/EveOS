@@ -5,12 +5,15 @@
     const view = ns._view || {};
 
     const { state, getViewportSize } = shared;
-    const { fitToGraph, zoomAt } = view;
+    const { fitToGraph, zoomAt, getCanvasCenterClientPoint } = view;
 
     function bindWindowEvents() {
         state.resizeHandler = function () {
             if (!state.canvas) return;
-            const { width, height } = getViewportSize();
+            const viewport = getViewportSize();
+            const rect = state.canvas.getBoundingClientRect();
+            const width = Math.max(1, Math.round(Number(rect.width) || viewport.width || 1));
+            const height = Math.max(1, Math.round(Number(rect.height) || viewport.height || 1));
             state.canvas.width = width;
             state.canvas.height = height;
             fitToGraph();
@@ -31,10 +34,12 @@
                 state.pointer.forcePan = true;
             } else if (event.key === '+' || event.key === '=') {
                 event.preventDefault();
-                zoomAt(1.12, state.canvas.width / 2, state.canvas.height / 2);
+                const center = getCanvasCenterClientPoint();
+                zoomAt(1.12, center.x, center.y);
             } else if (event.key === '-') {
                 event.preventDefault();
-                zoomAt(0.9, state.canvas.width / 2, state.canvas.height / 2);
+                const center = getCanvasCenterClientPoint();
+                zoomAt(0.9, center.x, center.y);
             }
         };
         window.addEventListener('keydown', state.keyHandler);

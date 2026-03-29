@@ -139,17 +139,55 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
 
 
+    function getCanvasMetrics() {
+
+        if (!state.canvas) {
+            return {
+                rect: { left: 0, top: 0, width: 1, height: 1 },
+                scaleX: 1,
+                scaleY: 1
+            };
+        }
+
+        const rect = state.canvas.getBoundingClientRect();
+        const rectWidth = Math.max(1, Number(rect.width) || Number(state.canvas.clientWidth) || Number(state.canvas.width) || 1);
+        const rectHeight = Math.max(1, Number(rect.height) || Number(state.canvas.clientHeight) || Number(state.canvas.height) || 1);
+        const canvasWidth = Math.max(1, Number(state.canvas.width) || rectWidth);
+        const canvasHeight = Math.max(1, Number(state.canvas.height) || rectHeight);
+
+        return {
+            rect,
+            scaleX: canvasWidth / rectWidth,
+            scaleY: canvasHeight / rectHeight
+        };
+
+    }
+
+
+
+    function getCanvasCenterClientPoint() {
+
+        const metrics = getCanvasMetrics();
+
+        return {
+            x: metrics.rect.left + (metrics.rect.width / 2),
+            y: metrics.rect.top + (metrics.rect.height / 2)
+        };
+
+    }
+
+
+
     function worldPointFromClient(clientX, clientY) {
 
         if (!state.canvas) return { x: 0, y: 0 };
-
-        const rect = state.canvas.getBoundingClientRect();
+        const point = canvasPointFromClient(clientX, clientY);
 
         return {
 
-            x: (clientX - rect.left - state.transform.tx) / state.transform.scale,
+            x: (point.x - state.transform.tx) / state.transform.scale,
 
-            y: (clientY - rect.top - state.transform.ty) / state.transform.scale
+            y: (point.y - state.transform.ty) / state.transform.scale
 
         };
 
@@ -160,14 +198,13 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     function canvasPointFromClient(clientX, clientY) {
 
         if (!state.canvas) return { x: 0, y: 0 };
-
-        const rect = state.canvas.getBoundingClientRect();
+        const metrics = getCanvasMetrics();
 
         return {
 
-            x: clientX - rect.left,
+            x: (clientX - metrics.rect.left) * metrics.scaleX,
 
-            y: clientY - rect.top
+            y: (clientY - metrics.rect.top) * metrics.scaleY
 
         };
 
@@ -178,12 +215,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     function zoomAt(factor, clientX, clientY) {
 
         if (!state.canvas) return;
-
-        const rect = state.canvas.getBoundingClientRect();
-
-        const localX = clientX - rect.left;
-
-        const localY = clientY - rect.top;
+        const localPoint = canvasPointFromClient(clientX, clientY);
+        const localX = localPoint.x;
+        const localY = localPoint.y;
 
         const worldX = (localX - state.transform.tx) / state.transform.scale;
 
@@ -327,6 +361,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         setTransform,
         resetView,
         centerOnNode,
+        getCanvasCenterClientPoint,
         worldPointFromClient,
         canvasPointFromClient,
         zoomAt,

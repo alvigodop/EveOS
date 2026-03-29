@@ -15,7 +15,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     const { buildGraphData } = graph;
     const { requestDraw, renderHeader, renderInspector, renderToolbarState } = render;
     const { syncMotionAnchors } = physics;
-    const { fitToGraph, resetView, zoomAt } = view;
+    const { fitToGraph, resetView, zoomAt, getCanvasCenterClientPoint } = view;
     const { runFind } = events;
     const { getInteractionTargetNode } = toolbarMarkup;
 
@@ -122,9 +122,11 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             if (toolbarAction === 'find') {
                 runFind();
             } else if (toolbarAction === 'zoom-in') {
-                zoomAt(1.12, state.canvas.width / 2, state.canvas.height / 2);
+                const center = getCanvasCenterClientPoint();
+                zoomAt(1.12, center.x, center.y);
             } else if (toolbarAction === 'zoom-out') {
-                zoomAt(0.9, state.canvas.width / 2, state.canvas.height / 2);
+                const center = getCanvasCenterClientPoint();
+                zoomAt(0.9, center.x, center.y);
             } else if (toolbarAction === 'fit') {
                 fitToGraph();
             } else if (toolbarAction === 'reset') {
