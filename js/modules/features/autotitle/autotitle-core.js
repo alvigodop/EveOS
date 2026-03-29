@@ -1,4 +1,31 @@
 // --- AUTO-TITLE CORE MODULE ---
+window.getTitleFromUrlLightpanda = async function (url, options = {}) {
+    const strategy = window.EveOS?.Autotitle?.Strategies?.Lightpanda;
+    if (typeof strategy !== 'function') {
+        console.error("Autotitle Lightpanda strategy not loaded.");
+        return null;
+    }
+
+    const timeoutMs = Number(options.timeoutMs || 20000);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+        const result = await strategy(url, controller.signal);
+        const normalizeAutotitleResult = window.EveOS?.Autotitle?.CoreUtils?.normalizeAutotitleResult;
+        return typeof normalizeAutotitleResult === 'function'
+            ? normalizeAutotitleResult(result, url)
+            : result;
+    } catch (error) {
+        if (error?.name !== 'AbortError') {
+            console.warn("Autotitle Lightpanda-only fetch failed", error);
+        }
+        return null;
+    } finally {
+        clearTimeout(timeoutId);
+    }
+};
+
 window.getTitleFromUrl = async function (url, options = {}) {
     // Orchestrates the strategies defined in external modules
 

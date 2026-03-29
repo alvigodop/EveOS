@@ -7,6 +7,10 @@ set "SELF_PATH=%~f0"
 
 set "GEMINI_MENU_BAT=%PROJECT_ROOT%\server\server-menu.bat"
 set "GEMINI_AUTOSTART_BAT=%PROJECT_ROOT%\server\start-gemini.bat"
+set "LIGHTPANDA_CONTROLLER_BAT=%PROJECT_ROOT%\start-lightpanda-bridge.bat"
+set "LIGHTPANDA_BRIDGE_PORT=3037"
+set "LIGHTPANDA_MONITOR_TITLE=EveOS Lightpanda Monitor"
+set "LIGHTPANDA_ACTIVITY_LOG=%PROJECT_ROOT%\bin\lightpanda_activity.log"
 set "MAIN_DATA_PACK=%PROJECT_ROOT%\data\modular-state"
 set "LAST_USED_PACK_FILE=%PROJECT_ROOT%\data\launcher-last-pack.txt"
 set "LAST_USED_PACK_PATH="
@@ -17,6 +21,7 @@ set "LP_ENABLED_STATE=1"
 
 :MainMenu
 cls
+call :RefreshLightpandaStatus
 echo ========================================
 echo   EveOS Startup Launcher
 echo ========================================
@@ -24,13 +29,19 @@ echo.
 call :ShowTrackedInstances
 echo.
 if defined LP_READY (
-    if "%LP_ENABLED_STATE%"=="1" (
-        echo   [STATUS] Lightpanda High-Reliability Bridge: READY ^(ENABLED^)
-    ) else (
-        echo   [STATUS] Lightpanda High-Reliability Bridge: READY ^(DISABLED^)
-    )
+    echo   [STATUS] Lightpanda binary: READY
 ) else (
-    echo   [STATUS] Lightpanda Bridge: NOT FOUND ^(Standard proxies only^)
+    echo   [STATUS] Lightpanda binary: NOT FOUND ^(standard proxies only^)
+)
+if "%LP_ENABLED_STATE%"=="1" (
+    echo   [STATUS] Integrated bridge for new EveOS instances: ENABLED
+) else (
+    echo   [STATUS] Integrated bridge for new EveOS instances: DISABLED
+)
+if defined LP_STANDALONE_PID (
+    echo   [STATUS] Standalone bridge: RUNNING on http://127.0.0.1:%LIGHTPANDA_BRIDGE_PORT% ^(PID %LP_STANDALONE_PID%^)
+) else (
+    echo   [STATUS] Standalone bridge: STOPPED
 )
 echo.
 echo [1] Start EveOS instance ^(choose port + data-pack^)
@@ -41,10 +52,9 @@ echo [3] Run Gemini auto-start helper ^(server\start-gemini.bat^)
 echo     - Compatibility launcher: starts monitor flow via server-menu option 10.
 echo [4] Browse and launch any .bat in this EveOS project
 echo     - Shows every local project batch script with purpose notes.
-echo [5] Exit
-if defined LP_READY (
-    echo [6] Toggle Lightpanda Bridge ^(currently %LP_ENABLED_STATE%^)
-)
+echo [5] Lightpanda controls
+echo     - Integrated toggle, standalone controller, and shared activity monitor.
+echo [6] Exit
 echo.
 set /p "choice=Enter your choice: "
 
@@ -64,20 +74,71 @@ if "%choice%"=="4" (
     call :BrowseProjectBatchFiles
     goto :MainMenu
 )
-if "%choice%"=="5" exit /b 0
-if "%choice%"=="6" (
-    if "%LP_ENABLED_STATE%"=="1" (
-        set "LP_ENABLED_STATE=0"
-    ) else (
-        set "LP_ENABLED_STATE=1"
-    )
-    goto :MainMenu
+if "%choice%"=="5" (
+    goto :LightpandaMenu
 )
+if "%choice%"=="6" exit /b 0
 
 echo.
 echo [ERROR] Invalid option.
 timeout /t 1 /nobreak >nul
 goto :MainMenu
+
+:LightpandaMenu
+cls
+call :RefreshLightpandaStatus
+echo ========================================
+echo   Lightpanda Controls
+echo ========================================
+echo.
+if defined LP_READY (
+    echo   [STATUS] Lightpanda binary: READY
+) else (
+    echo   [STATUS] Lightpanda binary: NOT FOUND
+)
+if "%LP_ENABLED_STATE%"=="1" (
+    echo   [STATUS] Integrated bridge for new EveOS instances: ENABLED
+) else (
+    echo   [STATUS] Integrated bridge for new EveOS instances: DISABLED
+)
+if defined LP_STANDALONE_PID (
+    echo   [STATUS] Standalone bridge: RUNNING on http://127.0.0.1:%LIGHTPANDA_BRIDGE_PORT% ^(PID %LP_STANDALONE_PID%^)
+) else (
+    echo   [STATUS] Standalone bridge: STOPPED
+)
+echo.
+echo   Auto-Title ^> Use Lightpanda checks the standalone bridge first.
+echo   If standalone is off, the integrated EveOS server fallback still exists.
+echo.
+echo [1] Open standalone Lightpanda controller
+echo [2] Toggle integrated bridge for new EveOS instances
+echo [3] Open shared Lightpanda activity monitor
+echo [4] Return
+echo.
+set /p "lpchoice=Enter your choice: "
+
+if "%lpchoice%"=="1" (
+    call :LaunchBatch "%LIGHTPANDA_CONTROLLER_BAT%"
+    goto :LightpandaMenu
+)
+if "%lpchoice%"=="2" (
+    if "%LP_ENABLED_STATE%"=="1" (
+        set "LP_ENABLED_STATE=0"
+    ) else (
+        set "LP_ENABLED_STATE=1"
+    )
+    goto :LightpandaMenu
+)
+if "%lpchoice%"=="3" (
+    call :EnsureLightpandaMonitor
+    goto :LightpandaMenu
+)
+if "%lpchoice%"=="4" goto :MainMenu
+
+echo.
+echo [ERROR] Invalid option.
+timeout /t 1 /nobreak >nul
+goto :LightpandaMenu
 
 :StartEveServer
 echo.
@@ -248,8 +309,7 @@ set "LP_FLAG="
 if "%LP_ENABLED_STATE%"=="0" (
     set "LP_FLAG=set ""EVEOS_LIGHTPANDA_DISABLED=1"" && "
 ) else (
-    if not exist "bin\lightpanda_activity.log" type nul > "bin\lightpanda_activity.log"
-    start "Lightpanda Bridge Monitor" cmd /k "echo ======================================== && echo   Lightpanda Bridge Activity Monitor && echo ======================================== && echo. && powershell -NoProfile -Command ""Get-Content -Path bin\lightpanda_activity.log -Wait -Tail 10"""
+    call :EnsureLightpandaMonitor
 )
 start "EveOS Instance %INSTANCE_PORT%" cmd /k "%LP_FLAG%set ""EVEOS_MODULAR_ROOT=%INSTANCE_PACK_PATH%"" && cd /d ""%PROJECT_ROOT%"" && python python-server.py %INSTANCE_PORT%"
 call :TrackInstance "%INSTANCE_PORT%" "%INSTANCE_PACK_PATH%" "%INSTANCE_KIND%"
@@ -346,6 +406,10 @@ if /I "%rel%"=="start-server.bat" (
     set "BATCH_NOTE=Master EveOS launcher menu (this script)."
     exit /b 0
 )
+if /I "%rel%"=="start-lightpanda-bridge.bat" (
+    set "BATCH_NOTE=Standalone Lightpanda controller for manual start/stop."
+    exit /b 0
+)
 set "BATCH_NOTE=Project-specific batch script."
 exit /b 0
 
@@ -432,6 +496,28 @@ for %%P in (%ACTIVE_INSTANCE_PORTS%) do (
         echo   - Port %%P ^| !entryKind! ^| !entryPath!
     )
 )
+exit /b 0
+
+:RefreshLightpandaStatus
+call :CheckLightpanda
+call :CheckStandaloneLightpanda
+exit /b 0
+
+:CheckStandaloneLightpanda
+set "LP_STANDALONE_PID="
+for /f "tokens=5" %%P in ('netstat -aon ^| findstr /r /c:":%LIGHTPANDA_BRIDGE_PORT% .*LISTENING"') do (
+    set "LP_STANDALONE_PID=%%P"
+    goto :CheckStandaloneLightpandaDone
+)
+:CheckStandaloneLightpandaDone
+exit /b 0
+
+:EnsureLightpandaMonitor
+if not exist "%PROJECT_ROOT%\bin" mkdir "%PROJECT_ROOT%\bin" >nul 2>nul
+if not exist "%LIGHTPANDA_ACTIVITY_LOG%" type nul > "%LIGHTPANDA_ACTIVITY_LOG%"
+tasklist /v /fi "imagename eq cmd.exe" | findstr /i /c:"%LIGHTPANDA_MONITOR_TITLE%" >nul
+if %ERRORLEVEL% EQU 0 exit /b 0
+start "%LIGHTPANDA_MONITOR_TITLE%" cmd /k "echo ======================================== && echo   %LIGHTPANDA_MONITOR_TITLE% && echo ======================================== && echo. && powershell -NoProfile -Command ""Get-Content -Path '%LIGHTPANDA_ACTIVITY_LOG%' -Wait -Tail 20"""
 exit /b 0
 
 :CheckLightpanda

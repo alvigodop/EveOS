@@ -4627,7 +4627,7 @@ window.EveModuleManifestParts.scripts = [
 
 
 
-        'js/modules/modals/templates/tpl-bulk.js?v=0.1.2',
+        'js/modules/modals/templates/tpl-bulk.js?v=0.1.3',
 
 
 
@@ -6560,7 +6560,7 @@ window.EveModuleManifestParts.scripts = [
 
 
         'js/modules/features/autotitle/strategies/scraper-engine.js?v=0.2.9',
-        'js/modules/features/autotitle/strategies/lightpanda.js?v=0.1.0',
+        'js/modules/features/autotitle/strategies/lightpanda.js?v=0.1.1',
 
 
 
@@ -6595,7 +6595,7 @@ window.EveModuleManifestParts.scripts = [
         'js/modules/features/autotitle/strategies/url-slug.js',
         'js/modules/features/autotitle/autotitle-utils.js?v=0.2.1',
 
-        'js/modules/features/autotitle/autotitle-core.js?v=0.3.0',
+        'js/modules/features/autotitle/autotitle-core.js?v=0.3.1',
 
 
 
@@ -6659,7 +6659,7 @@ window.EveModuleManifestParts.scripts = [
 
 
 
-'js/modules/features/autotitle/autotitle-bulk.js?v=0.2.3',
+'js/modules/features/autotitle/autotitle-bulk.js?v=0.2.4',
 
 
 

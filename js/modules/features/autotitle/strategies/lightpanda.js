@@ -57,7 +57,7 @@
         console.log("Autotitle: Attempting Lightpanda Strategy...");
 
         const isFileProtocol = window.location?.protocol === 'file:';
-        let portsToTry = isFileProtocol ? [window._eveLightpandaPort, 3000, 3001, 3002, 3003, 3004, 3005].filter(Boolean) : [null];
+        let portsToTry = isFileProtocol ? [window._eveLightpandaPort, 3037, 3000, 3001, 3002, 3003, 3004, 3005].filter(Boolean) : [null];
         portsToTry = [...new Set(portsToTry)]; // Remove duplicates
         
         for (const port of portsToTry) {
@@ -112,7 +112,7 @@
         }
 
         if (isFileProtocol) {
-            console.error("Autotitle: Could not connect to any local EveOS server (ports 3000-3005). Please ensure 'start-server.bat' is running.");
+            console.error("Autotitle: Could not connect to a local Lightpanda bridge. Start 'start-lightpanda-bridge.bat' from 'start-server.bat', then retry.");
         }
 
         return null;
