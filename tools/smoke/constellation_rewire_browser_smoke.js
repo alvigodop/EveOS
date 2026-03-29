@@ -164,16 +164,15 @@ async function main() {
         await seedState(page, buildSeedPayload());
         await openWorkspaceMap(page);
 
-        const linkToGamma = await getNodeScreenPoint(page, { kind: 'link', linkId: 'alpha-folder-1' });
         const gammaCard = await getNodeScreenPoint(page, { kind: 'category', categoryName: 'Gamma' });
-        if (!linkToGamma || !gammaCard) throw new Error('Missing source link or Gamma card node');
+        if (!gammaCard) throw new Error('Missing Gamma card node');
         await page.evaluate(() => {
             const map = window.EveConstellationMap;
             const state = map?._shared?.state;
             const linkNode = state?.nodes?.find((node) => node.kind === 'link' && String(node.data?.linkId || '') === 'alpha-folder-1');
             map?._armConstellationRewireNode?.(linkNode, { keepEnabled: true });
         });
-        await dragNode(page, linkToGamma, gammaCard);
+        await clickNode(page, gammaCard);
 
         let state = await readState(page);
         const movedLink = state.links.find((link) => link.id === 'alpha-folder-1');

@@ -446,7 +446,11 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             if (state.pointer.mode === 'idle') return;
 
-            const hitNode = getHitNode(event.clientX, event.clientY);
+            const clientX = Number.isFinite(event?.clientX) ? event.clientX : state.pointer.canvasX;
+
+            const clientY = Number.isFinite(event?.clientY) ? event.clientY : state.pointer.canvasY;
+
+            const hitNode = getHitNode(clientX, clientY);
 
             const previousNode = state.pointer.node;
 
@@ -475,7 +479,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                     state.rewire.targetNodeId = text(hitNode.id, '');
                 }
                 if (!moved && (hasTargetSelection || clickedValidTarget) && typeof ns._finishConstellationRewireDrag === 'function') {
-                    ns._finishConstellationRewireDrag(event.clientX, event.clientY);
+                    ns._finishConstellationRewireDrag(clientX, clientY);
                     return;
                 }
                 if (!moved) {
@@ -485,7 +489,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                     return;
                 }
                 if (typeof ns._finishConstellationRewireDrag === 'function') {
-                    ns._finishConstellationRewireDrag(event.clientX, event.clientY);
+                    ns._finishConstellationRewireDrag(clientX, clientY);
                 }
                 return;
             }
@@ -580,6 +584,18 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
 
         state.canvas.addEventListener('pointerup', clearPointer);
+
+        state.pointerUpHandler = function (event) {
+
+            if (state.pointer.mode === 'idle') return;
+
+            clearPointer(event);
+
+        };
+
+        window.addEventListener('pointerup', state.pointerUpHandler);
+
+        window.addEventListener('pointercancel', state.pointerUpHandler);
 
         state.canvas.addEventListener('pointerleave', (event) => {
 

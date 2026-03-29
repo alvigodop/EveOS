@@ -282,7 +282,10 @@ window.EveModuleManifestParts.scripts = [
 
         'js/modules/features/constellation-map/constellation-map.shared.state.js?v=0.1.12',
         'js/modules/features/constellation-map/constellation-map.shared.helpers.js?v=0.1.2',
-        'js/modules/features/constellation-map/constellation-map.shared.js?v=0.4.7',
+        'js/modules/features/constellation-map/constellation-map.shared.controls.js?v=0.1.0',
+        'js/modules/features/constellation-map/constellation-map.shared.theme.js?v=0.1.0',
+        'js/modules/features/constellation-map/constellation-map.shared.geometry.js?v=0.1.0',
+        'js/modules/features/constellation-map/constellation-map.shared.js?v=0.4.8',
         'js/modules/features/constellation-map/constellation-map.detached.js?v=0.1.4',
         'js/modules/features/constellation-map/constellation-map.detached.store.js?v=0.1.0',
         'js/modules/features/constellation-map/constellation-map.detached.park.js?v=0.1.0',
@@ -305,7 +308,10 @@ window.EveModuleManifestParts.scripts = [
         'js/modules/features/constellation-map/constellation-map.covers.js?v=0.1.1',
         'js/modules/features/constellation-map/constellation-map.static.js?v=0.1.0',
 
-        'js/modules/features/constellation-map/constellation-map.graph.js?v=0.2.6',
+        'js/modules/features/constellation-map/constellation-map.graph.builders.js?v=0.1.0',
+        'js/modules/features/constellation-map/constellation-map.graph.detached.js?v=0.1.0',
+        'js/modules/features/constellation-map/constellation-map.graph.world.js?v=0.1.0',
+        'js/modules/features/constellation-map/constellation-map.graph.js?v=0.2.7',
 
         'js/modules/features/constellation-map/constellation-map.render.anchors.js?v=0.1.0',
         'js/modules/features/constellation-map/constellation-map.render.labels.js?v=0.1.1',
@@ -333,7 +339,7 @@ window.EveModuleManifestParts.scripts = [
         'js/modules/features/constellation-map/constellation-map.physics.js?v=0.2.0',
 
         'js/modules/features/constellation-map/constellation-map.view.js?v=0.1.1',
-        'js/modules/features/constellation-map/constellation-map.events.js?v=0.1.6',
+        'js/modules/features/constellation-map/constellation-map.events.js?v=0.1.7',
         'js/modules/features/constellation-map/constellation-map.toolbar.markup.js?v=0.1.15',
         'js/modules/features/constellation-map/constellation-map.toolbar.js?v=0.2.9',
         'js/modules/features/constellation-map/index.js?v=0.1.0',

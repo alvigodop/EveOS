@@ -156,6 +156,9 @@ global.window.EveBookmarkFolders = {
 
 load('js/modules/features/constellation-map/constellation-map.shared.state.js');
 load('js/modules/features/constellation-map/constellation-map.shared.helpers.js');
+load('js/modules/features/constellation-map/constellation-map.shared.controls.js');
+load('js/modules/features/constellation-map/constellation-map.shared.theme.js');
+load('js/modules/features/constellation-map/constellation-map.shared.geometry.js');
 load('js/modules/features/constellation-map/constellation-map.shared.js');
 load('js/modules/features/constellation-map/constellation-map.fx.base.js');
 load('js/modules/features/constellation-map/constellation-map.fx.effects.webgl.three.js');
@@ -167,6 +170,9 @@ load('js/modules/features/constellation-map/constellation-map.fx.js');
 load('js/modules/features/constellation-map/constellation-map.polarity.js');
 load('js/modules/features/constellation-map/constellation-map.covers.js');
 load('js/modules/features/constellation-map/constellation-map.static.js');
+load('js/modules/features/constellation-map/constellation-map.graph.builders.js');
+load('js/modules/features/constellation-map/constellation-map.graph.detached.js');
+load('js/modules/features/constellation-map/constellation-map.graph.world.js');
 load('js/modules/features/constellation-map/constellation-map.graph.js');
 load('js/modules/features/constellation-map/constellation-map.render.anchors.js');
 load('js/modules/features/constellation-map/constellation-map.render.labels.js');
