@@ -323,13 +323,13 @@ window.EveOS.Autotitle = window.EveOS.Autotitle || {};
         const genericPatterns = ['view video', 'watch video', 'home', 'welcome', 'index', 'untitled', 'loading...', 'please wait'];
         if (genericPatterns.some(p => cleanTitle.includes(p))) return true;
 
-        // Title is just the domain name (reject "ExampleSite" for "video-site-a.test" if it's a detail page)
+        // Title is just the domain name (reject a bare site label on a detail page)
         try {
             const parsed = new URL(url);
             const domain = parsed.hostname.replace('www.', '').split('.')[0].toLowerCase();
             const normalizedTitle = cleanTitle.replace(/[^a-z0-9]/g, '');
             
-            // If the title is just the domain name (e.g. "ExampleSite")
+            // If the title is just the bare domain label (e.g. "ExampleSite")
             if (normalizedTitle === domain || normalizedTitle === domain + 'com' || normalizedTitle === domain + 'org' || normalizedTitle === domain + 'net') {
                 // Reject it if it's a detail page (has a path longer than just /)
                 if (parsed.pathname.length > 1) {

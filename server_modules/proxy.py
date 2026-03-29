@@ -9,6 +9,16 @@ import http.cookiejar
 
 logger = logging.getLogger("FandomDiscoveryServer")
 
+
+def _origin_referer(target_url):
+    try:
+        parsed = urllib.parse.urlparse(target_url)
+        if parsed.scheme in ('http', 'https') and parsed.netloc:
+            return f'{parsed.scheme}://{parsed.netloc}/'
+    except Exception:
+        return None
+    return None
+
 def handle_proxy_request(handler, query):
     """Handle requests to /api/proxy?url=..."""
     target_url_list = query.get('url')
@@ -63,9 +73,10 @@ def handle_proxy_request(handler, query):
         elif is_brave:
             headers['Referer'] = 'https://search.brave.com/'
             headers['Host'] = 'search.brave.com'
-        elif '.video-cdn.test' in target_url.lower() or '.video-site-a.test' in target_url.lower():
-            headers['Referer'] = 'https://www.video-site-a.test/'
         else:
+            referer = _origin_referer(target_url)
+            if referer:
+                headers['Referer'] = referer
             headers['Sec-Fetch-Dest'] = 'document'
             headers['Sec-Fetch-Mode'] = 'navigate'
             headers['Sec-Fetch-Site'] = 'none'

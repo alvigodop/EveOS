@@ -38,6 +38,17 @@ function shellQuote(value) {
   return `'${String(value).replace(/'/g, `'\"'\"'`)}'`;
 }
 
+function parseCookiesArg(rawValue) {
+  const encoded = String(rawValue || '').trim();
+  if (!encoded) return [];
+  try {
+    const parsed = JSON.parse(Buffer.from(encoded, 'base64').toString('utf8'));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_error) {
+    return [];
+  }
+}
+
 async function getFreePort() {
   return await new Promise((resolve, reject) => {
     const server = net.createServer();
@@ -296,13 +307,14 @@ async function extractSnapshot(page) {
 }
 
 async function main() {
-  const [, , binaryPath, targetUrl] = process.argv;
+  const [, , binaryPath, targetUrl, cookiesArg] = process.argv;
   if (!binaryPath || !targetUrl) {
-    throw new Error('Usage: node lightpanda_render_extract.js <lightpandaBinaryPath> <targetUrl>');
+    throw new Error('Usage: node lightpanda_render_extract.js <lightpandaBinaryPath> <targetUrl> [cookiesBase64]');
   }
 
   const port = await getFreePort();
   const host = getReachableHost();
+  const cookies = parseCookiesArg(cookiesArg);
   const serve = startServe(binaryPath, port);
   let browser = null;
   try {
@@ -328,6 +340,9 @@ async function main() {
     }
 
     const context = browser.contexts()[0] || await browser.newContext();
+    if (cookies.length) {
+      await context.addCookies(cookies).catch(() => null);
+    }
     const page = await context.newPage();
     await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => null);
     if (page.isClosed()) {

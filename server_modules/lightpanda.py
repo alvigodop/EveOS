@@ -1,3 +1,5 @@
+import base64
+import importlib.util
 import json
 import logging
 import os
@@ -22,6 +24,7 @@ BLOCKED_TITLE_TOKENS = (
     "403 forbidden",
     "404 not found",
     "too many requests",
+    "cloudflare_block",
 )
 
 
@@ -80,6 +83,178 @@ def _build_lightpanda_command(target_url, include_frames=False, http_timeout_ms=
         "-lc",
         " ".join(args),
     ]
+
+
+def _local_runtime_root():
+    explicit = (os.environ.get("EVEOS_LIGHTPANDA_RUNTIME_ROOT") or "").strip()
+    if explicit:
+        return explicit
+    local_appdata = (os.environ.get("LOCALAPPDATA") or "").strip()
+    if local_appdata:
+        return os.path.join(local_appdata, "EveOS")
+    return os.path.join(os.path.expanduser("~"), ".eveos")
+
+
+def _local_cookie_config_path():
+    explicit = (os.environ.get("EVEOS_LIGHTPANDA_COOKIE_CONFIG") or "").strip()
+    if explicit:
+        return explicit
+    return os.path.join(_local_runtime_root(), "lightpanda-site-cookies.json")
+
+
+def _load_local_cookie_config():
+    path = _local_cookie_config_path()
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+            return payload if isinstance(payload, dict) else {}
+    except Exception:
+        logger.warning("Lightpanda: Failed to load local cookie config at %s", path)
+        return {}
+
+
+def _host_candidates(hostname):
+    host = str(hostname or "").strip().lower()
+    if not host:
+        return []
+    parts = [part for part in host.split(".") if part]
+    candidates = []
+    for index in range(len(parts) - 1):
+        candidate = ".".join(parts[index:])
+        if candidate not in candidates:
+            candidates.append(candidate)
+    if host not in candidates:
+        candidates.insert(0, host)
+    return candidates
+
+
+def _normalize_cookie_entries(raw_value, target_url):
+    parsed = urlparse(target_url)
+    hostname = parsed.hostname or ""
+    base_url = f"{parsed.scheme or 'https'}://{hostname}/" if hostname else target_url
+    entries = []
+
+    if isinstance(raw_value, dict):
+        iterator = raw_value.items()
+        for name, value in iterator:
+            if value is None:
+                continue
+            entries.append({
+                "name": str(name),
+                "value": str(value),
+                "domain": hostname,
+                "path": "/",
+                "secure": parsed.scheme == "https",
+            })
+    elif isinstance(raw_value, list):
+        for item in raw_value:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name") or "").strip()
+            value = str(item.get("value") or "")
+            if not name:
+                continue
+            cookie = {
+                "name": name,
+                "value": value,
+                "domain": str(item.get("domain") or hostname or "").strip() or hostname,
+                "path": str(item.get("path") or "/").strip() or "/",
+                "secure": bool(item.get("secure", parsed.scheme == "https")),
+                "httpOnly": bool(item.get("httpOnly", False)),
+            }
+            if item.get("sameSite"):
+                cookie["sameSite"] = str(item["sameSite"])
+            if item.get("expires") is not None:
+                try:
+                    cookie["expires"] = int(item["expires"])
+                except Exception:
+                    pass
+            entries.append(cookie)
+
+    normalized = []
+    for cookie in entries:
+        domain = str(cookie.get("domain") or hostname or "").strip()
+        if not domain:
+            continue
+        normalized_cookie = {
+            "name": str(cookie.get("name") or "").strip(),
+            "value": str(cookie.get("value") or ""),
+            "domain": domain,
+            "path": str(cookie.get("path") or "/").strip() or "/",
+            "secure": bool(cookie.get("secure", parsed.scheme == "https")),
+            "httpOnly": bool(cookie.get("httpOnly", False)),
+            "url": base_url,
+        }
+        if not normalized_cookie["name"]:
+            continue
+        if cookie.get("sameSite"):
+            normalized_cookie["sameSite"] = str(cookie["sameSite"])
+        if cookie.get("expires") is not None:
+            try:
+                normalized_cookie["expires"] = int(cookie["expires"])
+            except Exception:
+                pass
+        normalized.append(normalized_cookie)
+    return normalized
+
+
+def _cookies_for_target(target_url):
+    parsed = urlparse(target_url)
+    hostname = parsed.hostname or ""
+    config = _load_local_cookie_config()
+    cookie_map = config.get("cookies") if isinstance(config.get("cookies"), dict) else {}
+    for candidate in _host_candidates(hostname):
+        raw_value = cookie_map.get(candidate)
+        if raw_value:
+            return _normalize_cookie_entries(raw_value, target_url)
+    return []
+
+
+def _cookies_base64_for_target(target_url):
+    cookies = _cookies_for_target(target_url)
+    if not cookies:
+        return ""
+    return base64.b64encode(json.dumps(cookies).encode("utf-8")).decode("ascii")
+
+
+def _cookie_dict_for_requests(target_url):
+    cookies = _cookies_for_target(target_url)
+    return {cookie["name"]: cookie["value"] for cookie in cookies if cookie.get("name")}
+
+
+def _local_extractor_module_path():
+    explicit = (os.environ.get("EVEOS_LIGHTPANDA_LOCAL_EXTRACTOR") or "").strip()
+    if explicit:
+        return explicit
+    return os.path.join(_local_runtime_root(), "lightpanda_local_extractors.py")
+
+
+def _run_local_extractor(target_url):
+    module_path = _local_extractor_module_path()
+    if not os.path.exists(module_path):
+        return None
+    try:
+        spec = importlib.util.spec_from_file_location("eveos_lightpanda_local_extractors", module_path)
+        if not spec or not spec.loader:
+            return None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        extract_fn = getattr(module, "extract", None)
+        if not callable(extract_fn):
+            return None
+        payload = extract_fn(target_url, _cookie_dict_for_requests(target_url))
+        if not payload:
+            return None
+        if isinstance(payload, dict) and "metadata" in payload:
+            return payload
+        if isinstance(payload, dict):
+            return {"metadata": payload, "html": ""}
+        return None
+    except Exception as exc:
+        logger.warning("Lightpanda local extractor failed for %s: %s", target_url, exc)
+        return None
 
 
 def _build_lightpanda_serve_command(port, timeout_seconds=DEFAULT_RENDER_TIMEOUT_SECONDS):
@@ -426,6 +601,7 @@ def _render_extract_with_playwright(target_url):
     try:
         binary_path = _lightpanda_binary_path()
         binary_wsl_path = _windows_to_wsl_path(binary_path) if ":" in binary_path[:3] else binary_path
+        cookies_arg = _cookies_base64_for_target(target_url)
         result = subprocess.run(
             [
                 "wsl",
@@ -437,7 +613,8 @@ def _render_extract_with_playwright(target_url):
                     f"cd {shlex.quote(_windows_to_wsl_path(_project_root()))} && "
                     f"node {shlex.quote(_windows_to_wsl_path(helper_script))} "
                     f"{shlex.quote(binary_wsl_path)} "
-                    f"{shlex.quote(str(target_url))}"
+                    f"{shlex.quote(str(target_url))} "
+                    f"{shlex.quote(cookies_arg)}"
                 ),
             ],
             capture_output=True,
@@ -481,6 +658,7 @@ def _fetch_with_upgrade(target_url):
     best_html = primary_html
     best_metadata = primary_metadata
     used_retry = False
+    used_local_extractor = False
 
     if primary.returncode == 0 and (_is_weak_metadata(primary_metadata) or not primary_metadata.get("coverUrl")):
         retry = fetch_lightpanda_html(target_url, timeout=45, include_frames=True, http_timeout_ms=22000)
@@ -492,6 +670,19 @@ def _fetch_with_upgrade(target_url):
             best_html = retry_html
             best_metadata = retry_metadata
             used_retry = True
+
+    if best_result.returncode != 0 or _is_weak_metadata(best_metadata) or not best_metadata.get("coverUrl"):
+        local_payload = _run_local_extractor(target_url)
+        local_metadata = (local_payload or {}).get("metadata")
+        local_html = str((local_payload or {}).get("html") or "")
+        if local_metadata:
+            best_metadata = _merge_metadata(best_metadata, local_metadata, target_url)
+            if best_result.returncode != 0:
+                best_result = SimpleNamespace(returncode=0, stdout=local_html, stderr="")
+                best_html = local_html
+            elif local_html and len(local_html) > len(best_html or ""):
+                best_html = local_html
+            used_local_extractor = True
 
     used_rendered = False
     if best_result.returncode != 0 or _is_weak_metadata(best_metadata) or not best_metadata.get("coverUrl"):
@@ -507,7 +698,7 @@ def _fetch_with_upgrade(target_url):
                 best_html = rendered_html
             used_rendered = True
 
-    return best_result, best_html, best_metadata, used_retry, used_rendered
+    return best_result, best_html, best_metadata, used_retry, used_rendered, used_local_extractor
 
 
 
@@ -547,7 +738,7 @@ def handle_lightpanda_fetch(handler, query):
     log_activity(f"FETCH START: {target_url}")
 
     try:
-        result, content, metadata, used_retry, used_rendered = _fetch_with_upgrade(target_url)
+        result, content, metadata, used_retry, used_rendered, used_local_extractor = _fetch_with_upgrade(target_url)
 
         if result.returncode == 0:
             logger.info(f"Lightpanda: Successfully fetched {len(content)} bytes from {target_url}")
@@ -564,6 +755,7 @@ def handle_lightpanda_fetch(handler, query):
                     "html": content,
                     "retriedWithFrames": bool(used_retry),
                     "usedRenderedExtraction": bool(used_rendered),
+                    "usedLocalExtractor": bool(used_local_extractor),
                 }
                 body = json.dumps(payload).encode("utf-8")
                 handler.send_response(HTTPStatus.OK)
