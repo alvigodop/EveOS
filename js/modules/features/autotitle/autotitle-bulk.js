@@ -1,12 +1,12 @@
 // --- BULK TITLE LOGIC ---
 (function () {
-    function getLightpandaBlockedMessage(data) {
+    function getProtectedBrowserMessage(data) {
         const cookiePath = data?.cookieConfigPath || '%LOCALAPPDATA%\\EveOS\\lightpanda-site-cookies.json';
         if (!data?.cookieFileExists) {
-            return `Protected pages were blocked. No local Lightpanda cookie file was found. Add host cookies to ${cookiePath} for real metadata extraction.`;
+            return `Protected pages were blocked. No local browser fallback cookie file was found. Add host cookies to ${cookiePath} for real metadata extraction.`;
         }
         if (!data?.cookieHostConfigured || Number(data?.nonEmptyCookieCount || 0) <= 0) {
-            return `Protected pages were blocked. The local Lightpanda cookie file has no active cookies for this host. Update ${cookiePath} for real metadata extraction.`;
+            return `Protected pages were blocked. The local browser fallback cookie file has no active cookies for this host. Update ${cookiePath} for real metadata extraction.`;
         }
         return `Protected pages were blocked even with local cookies. Refresh the cookies in ${cookiePath} and try again.`;
     }
@@ -175,7 +175,7 @@
                     ? await window.getTitleFromUrlLightpanda(link.url)
                     : await window.getTitleFromUrl(link.url);
 
-                if (data?.lightpandaBlocked && isWeakAutotitleResult(data, link.url)) {
+                if ((data?.browserFallbackBlocked || data?.lightpandaBlocked || data?.camofoxBlocked) && isWeakAutotitleResult(data, link.url)) {
                     statusSpan.innerText = 'BLOCK';
                     statusSpan.title = 'Protected page requires local cookies for real metadata';
                     blockedCount++;
@@ -217,7 +217,7 @@
         if (lightpandaOnly && updatedCount === 0 && hadConnectionFailure) {
             showToast('Lightpanda is not reachable. Start it from start-server.bat > Open Lightpanda standalone controller, then retry.', 'warning');
         } else if (lightpandaOnly && updatedCount === 0 && blockedCount > 0) {
-            showToast(getLightpandaBlockedMessage(blockedSample), 'warning');
+            showToast(getProtectedBrowserMessage(blockedSample), 'warning');
         }
 
         setTimeout(() => {

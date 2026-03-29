@@ -8,20 +8,28 @@ set "SELF_PATH=%~f0"
 set "GEMINI_MENU_BAT=%PROJECT_ROOT%\server\server-menu.bat"
 set "GEMINI_AUTOSTART_BAT=%PROJECT_ROOT%\server\start-gemini.bat"
 set "LIGHTPANDA_CONTROLLER_BAT=%PROJECT_ROOT%\start-lightpanda-bridge.bat"
+set "CAMOFOX_CONTROLLER_BAT=%PROJECT_ROOT%\start-camofox-bridge.bat"
 set "LIGHTPANDA_BRIDGE_PORT=3037"
 set "LIGHTPANDA_MONITOR_TITLE=EveOS Lightpanda Monitor"
 set "LIGHTPANDA_ACTIVITY_LOG=%PROJECT_ROOT%\bin\lightpanda_activity.log"
+set "CAMOFOX_BRIDGE_PORT=3038"
+set "CAMOFOX_MONITOR_TITLE=EveOS Camofox Monitor"
+set "CAMOFOX_ACTIVITY_LOG=%PROJECT_ROOT%\bin\camofox_activity.log"
+set "CAMOFOX_RUNTIME_SERVER=%PROJECT_ROOT%\tools\camofox-runtime\node_modules\@askjo\camofox-browser\server.js"
 set "MAIN_DATA_PACK=%PROJECT_ROOT%\data\modular-state"
 set "LAST_USED_PACK_FILE=%PROJECT_ROOT%\data\launcher-last-pack.txt"
 set "LAST_USED_PACK_PATH="
 set "ACTIVE_INSTANCE_PORTS="
 call :LoadLastUsedPackPath
-call :CheckLightpanda
+set "LP_READY="
+if exist "%PROJECT_ROOT%\bin\lightpanda" (
+    set "LP_READY=1"
+)
 set "LP_ENABLED_STATE=1"
 
 :MainMenu
 cls
-call :RefreshLightpandaStatus
+call :RefreshBrowserFallbackStatus
 echo ========================================
 echo   EveOS Startup Launcher
 echo ========================================
@@ -43,6 +51,16 @@ if defined LP_STANDALONE_PID (
 ) else (
     echo   [STATUS] Standalone bridge: STOPPED
 )
+if defined CF_READY (
+    echo   [STATUS] Camofox runtime: READY
+) else (
+    echo   [STATUS] Camofox runtime: NOT INSTALLED
+)
+if defined CF_STANDALONE_PID (
+    echo   [STATUS] Camofox bridge: RUNNING on http://127.0.0.1:%CAMOFOX_BRIDGE_PORT% ^(PID %CF_STANDALONE_PID%^)
+) else (
+    echo   [STATUS] Camofox bridge: STOPPED
+)
 echo.
 echo [1] Start EveOS instance ^(choose port + data-pack^)
 echo     - Port 3000 uses active modular path; other ports default to per-instance packs.
@@ -52,8 +70,8 @@ echo [3] Run Gemini auto-start helper ^(server\start-gemini.bat^)
 echo     - Compatibility launcher: starts monitor flow via server-menu option 10.
 echo [4] Browse and launch any .bat in this EveOS project
 echo     - Shows every local project batch script with purpose notes.
-echo [5] Lightpanda controls
-echo     - Integrated toggle, standalone controller, and shared activity monitor.
+echo [5] Browser fallback controls
+echo     - Lightpanda and Camofox standalone controllers plus monitors.
 echo [6] Exit
 echo.
 set /p "choice=Enter your choice: "
@@ -75,7 +93,7 @@ if "%choice%"=="4" (
     goto :MainMenu
 )
 if "%choice%"=="5" (
-    goto :LightpandaMenu
+    goto :BrowserFallbackMenu
 )
 if "%choice%"=="6" exit /b 0
 
@@ -84,11 +102,11 @@ echo [ERROR] Invalid option.
 timeout /t 1 /nobreak >nul
 goto :MainMenu
 
-:LightpandaMenu
+:BrowserFallbackMenu
 cls
-call :RefreshLightpandaStatus
+call :RefreshBrowserFallbackStatus
 echo ========================================
-echo   Lightpanda Controls
+echo   Browser Fallback Controls
 echo ========================================
 echo.
 if defined LP_READY (
@@ -106,39 +124,59 @@ if defined LP_STANDALONE_PID (
 ) else (
     echo   [STATUS] Standalone bridge: STOPPED
 )
+if defined CF_READY (
+    echo   [STATUS] Camofox runtime: READY
+) else (
+    echo   [STATUS] Camofox runtime: NOT INSTALLED
+)
+if defined CF_STANDALONE_PID (
+    echo   [STATUS] Camofox bridge: RUNNING on http://127.0.0.1:%CAMOFOX_BRIDGE_PORT% ^(PID %CF_STANDALONE_PID%^)
+) else (
+    echo   [STATUS] Camofox bridge: STOPPED
+)
 echo.
 echo   Auto-Title ^> Use Lightpanda checks the standalone bridge first.
-echo   If standalone is off, the integrated EveOS server fallback still exists.
+echo   If Lightpanda still fails, normal autotitle can escalate to Camofox.
 echo.
 echo [1] Open standalone Lightpanda controller
-echo [2] Toggle integrated bridge for new EveOS instances
-echo [3] Open shared Lightpanda activity monitor
-echo [4] Return
+echo [2] Open standalone Camofox controller
+echo [3] Toggle integrated Lightpanda bridge for new EveOS instances
+echo [4] Open shared Lightpanda activity monitor
+echo [5] Open shared Camofox activity monitor
+echo [6] Return
 echo.
 set /p "lpchoice=Enter your choice: "
 
 if "%lpchoice%"=="1" (
     call :LaunchBatch "%LIGHTPANDA_CONTROLLER_BAT%"
-    goto :LightpandaMenu
+    goto :BrowserFallbackMenu
 )
 if "%lpchoice%"=="2" (
+    call :LaunchBatch "%CAMOFOX_CONTROLLER_BAT%"
+    goto :BrowserFallbackMenu
+)
+if "%lpchoice%"=="3" (
     if "%LP_ENABLED_STATE%"=="1" (
         set "LP_ENABLED_STATE=0"
     ) else (
         set "LP_ENABLED_STATE=1"
     )
-    goto :LightpandaMenu
+    goto :BrowserFallbackMenu
 )
-if "%lpchoice%"=="3" (
+if "%lpchoice%"=="4" (
     call :EnsureLightpandaMonitor
-    goto :LightpandaMenu
+    goto :BrowserFallbackMenu
 )
-if "%lpchoice%"=="4" goto :MainMenu
+if "%lpchoice%"=="5" (
+    call :EnsureCamofoxMonitor
+    goto :BrowserFallbackMenu
+)
+if "%lpchoice%"=="6" goto :MainMenu
 
 echo.
 echo [ERROR] Invalid option.
 timeout /t 1 /nobreak >nul
-goto :LightpandaMenu
+goto :BrowserFallbackMenu
 
 :StartEveServer
 echo.
@@ -498,9 +536,18 @@ for %%P in (%ACTIVE_INSTANCE_PORTS%) do (
 )
 exit /b 0
 
-:RefreshLightpandaStatus
-call :CheckLightpanda
+:RefreshBrowserFallbackStatus
+set "LP_READY="
+if exist "%PROJECT_ROOT%\bin\lightpanda" (
+    set "LP_READY=1"
+)
 call :CheckStandaloneLightpanda
+call :CheckCamofoxRuntime
+call :CheckStandaloneCamofox
+exit /b 0
+
+:RefreshLightpandaStatus
+call :RefreshBrowserFallbackStatus
 exit /b 0
 
 :CheckStandaloneLightpanda
@@ -512,6 +559,22 @@ for /f "tokens=5" %%P in ('netstat -aon ^| findstr /r /c:":%LIGHTPANDA_BRIDGE_PO
 :CheckStandaloneLightpandaDone
 exit /b 0
 
+:CheckCamofoxRuntime
+set "CF_READY="
+if exist "%CAMOFOX_RUNTIME_SERVER%" (
+    set "CF_READY=1"
+)
+exit /b 0
+
+:CheckStandaloneCamofox
+set "CF_STANDALONE_PID="
+for /f "tokens=5" %%P in ('netstat -aon ^| findstr /r /c:":%CAMOFOX_BRIDGE_PORT% .*LISTENING"') do (
+    set "CF_STANDALONE_PID=%%P"
+    goto :CheckStandaloneCamofoxDone
+)
+:CheckStandaloneCamofoxDone
+exit /b 0
+
 :EnsureLightpandaMonitor
 if not exist "%PROJECT_ROOT%\bin" mkdir "%PROJECT_ROOT%\bin" >nul 2>nul
 if not exist "%LIGHTPANDA_ACTIVITY_LOG%" type nul > "%LIGHTPANDA_ACTIVITY_LOG%"
@@ -520,9 +583,10 @@ if %ERRORLEVEL% EQU 0 exit /b 0
 start "%LIGHTPANDA_MONITOR_TITLE%" cmd /k "echo ======================================== && echo   %LIGHTPANDA_MONITOR_TITLE% && echo ======================================== && echo. && powershell -NoProfile -Command ""Get-Content -Path '%LIGHTPANDA_ACTIVITY_LOG%' -Wait -Tail 20"""
 exit /b 0
 
-:CheckLightpanda
-set "LP_READY="
-if exist "%PROJECT_ROOT%\bin\lightpanda" (
-    set "LP_READY=1"
-)
+:EnsureCamofoxMonitor
+if not exist "%PROJECT_ROOT%\bin" mkdir "%PROJECT_ROOT%\bin" >nul 2>nul
+if not exist "%CAMOFOX_ACTIVITY_LOG%" type nul > "%CAMOFOX_ACTIVITY_LOG%"
+tasklist /v /fi "imagename eq cmd.exe" | findstr /i /c:"%CAMOFOX_MONITOR_TITLE%" >nul
+if %ERRORLEVEL% EQU 0 exit /b 0
+start "%CAMOFOX_MONITOR_TITLE%" cmd /k "echo ======================================== && echo   %CAMOFOX_MONITOR_TITLE% && echo ======================================== && echo. && powershell -NoProfile -Command ""Get-Content -Path '%CAMOFOX_ACTIVITY_LOG%' -Wait -Tail 20"""
 exit /b 0

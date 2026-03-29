@@ -19,6 +19,7 @@ window.getTitleFromUrlLightpanda = async function (url, options = {}) {
                 title: 'CLOUDFLARE_BLOCK',
                 blocked: true,
                 lightpandaBlocked: true,
+                browserFallbackBlocked: true,
                 source: result.source || 'Lightpanda'
             };
         }
@@ -35,6 +36,50 @@ window.getTitleFromUrlLightpanda = async function (url, options = {}) {
     } catch (error) {
         if (error?.name !== 'AbortError') {
             console.warn("Autotitle Lightpanda-only fetch failed", error);
+        }
+        return null;
+    } finally {
+        clearTimeout(timeoutId);
+    }
+};
+
+window.getTitleFromUrlCamofox = async function (url, options = {}) {
+    const strategy = window.EveOS?.Autotitle?.Strategies?.Camofox;
+    if (typeof strategy !== 'function') {
+        console.error("Autotitle Camofox strategy not loaded.");
+        return null;
+    }
+
+    const normalizeAutotitleResult = window.EveOS?.Autotitle?.CoreUtils?.normalizeAutotitleResult;
+    const preserveBlockedCamofoxResult = (result) => {
+        if (!result) return null;
+        const normalized = typeof normalizeAutotitleResult === 'function'
+            ? normalizeAutotitleResult(result, url)
+            : result;
+        if (normalized) return normalized;
+        if (result?.blocked || result?.title === 'CLOUDFLARE_BLOCK') {
+            return {
+                ...result,
+                title: 'CLOUDFLARE_BLOCK',
+                blocked: true,
+                camofoxBlocked: true,
+                browserFallbackBlocked: true,
+                source: result.source || 'Camofox'
+            };
+        }
+        return null;
+    };
+
+    const timeoutMs = Number(options.timeoutMs || 45000);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+        const result = await strategy(url, controller.signal);
+        return preserveBlockedCamofoxResult(result);
+    } catch (error) {
+        if (error?.name !== 'AbortError') {
+            console.warn("Autotitle Camofox-only fetch failed", error);
         }
         return null;
     } finally {
@@ -111,10 +156,13 @@ window.getTitleFromUrl = async function (url, options = {}) {
         mergeAutotitleResult,
         mergeAutotitleMetadata,
         adoptAutotitleTitle,
-        isClearlyBetterTitle
+        isClearlyBetterTitle,
+        isWeakAutotitleResult
     } = utils;
     let lightpandaBlocked = false;
     let lightpandaAttempted = false;
+    let camofoxBlocked = false;
+    let camofoxAttempted = false;
     const normalizeLightpandaResult = (result) => {
         if (!result) return null;
         const normalized = normalizeAutotitleResult(result, url);
@@ -124,15 +172,35 @@ window.getTitleFromUrl = async function (url, options = {}) {
                 ...result,
                 title: 'CLOUDFLARE_BLOCK',
                 blocked: true,
+                lightpandaBlocked: true,
+                browserFallbackBlocked: true,
                 source: result.source || 'Lightpanda'
+            };
+        }
+        return null;
+    };
+    const normalizeCamofoxResult = (result) => {
+        if (!result) return null;
+        const normalized = normalizeAutotitleResult(result, url);
+        if (normalized) return normalized;
+        if (result?.blocked || result?.title === 'CLOUDFLARE_BLOCK') {
+            return {
+                ...result,
+                title: 'CLOUDFLARE_BLOCK',
+                blocked: true,
+                camofoxBlocked: true,
+                browserFallbackBlocked: true,
+                source: result.source || 'Camofox'
             };
         }
         return null;
     };
     const shouldSkipBrowserProxyFallbacks = () => (
         isBrowserHtmlMode
-        && lightpandaAttempted
-        && !!window._eveLightpandaReachable
+        && (
+            (lightpandaAttempted && !!window._eveLightpandaReachable)
+            || (camofoxAttempted && !!window._eveCamofoxReachable)
+        )
     );
 
     try {
@@ -282,14 +350,51 @@ window.getTitleFromUrl = async function (url, options = {}) {
             }
         }
 
-        if (shouldSkipBrowserProxyFallbacks()) {
-            console.log("Autotitle: Local Lightpanda bridge responded. Skipping browser proxy fallbacks.");
+        if (isBrowserHtmlMode && strats.Camofox && (!primaryResult || primaryResult.isFallback || primaryResult.title === "CLOUDFLARE_BLOCK" || looksLikeGenericSiteName(primaryResult.title, url) || (allowSlowCover && !primaryResult.coverUrl))) {
+            console.log("Autotitle: Trying Camofox after Lightpanda...");
+            try {
+                camofoxAttempted = true;
+                const earlyCamofoxRawResult = await runStrategy(strats.Camofox, 45000);
+                const earlyCamofoxResult = normalizeCamofoxResult(earlyCamofoxRawResult);
+                if (earlyCamofoxResult) {
+                    if (earlyCamofoxResult.blocked || earlyCamofoxResult.title === "CLOUDFLARE_BLOCK") {
+                        camofoxBlocked = true;
+                    }
+                    if (!primaryResult || isClearlyBetterTitle(earlyCamofoxResult, primaryResult, url)) {
+                        primaryResult = adoptAutotitleTitle(primaryResult, earlyCamofoxResult, url);
+                    } else {
+                        primaryResult = mergeAutotitleMetadata(primaryResult, earlyCamofoxResult, url);
+                    }
+                    if (primaryResult?.title && primaryResult?.coverUrl && !primaryResult?.blocked) {
+                        const normalizedEarlyCamofox = normalizeAutotitleResult(primaryResult, url);
+                        if (normalizedEarlyCamofox) {
+                            normalizedEarlyCamofox.blocked = false;
+                            normalizedEarlyCamofox.lightpandaBlocked = false;
+                            normalizedEarlyCamofox.camofoxBlocked = false;
+                            normalizedEarlyCamofox.browserFallbackBlocked = false;
+                            if (normalizedEarlyCamofox.quality) {
+                                normalizedEarlyCamofox.quality.blocked = false;
+                                normalizedEarlyCamofox.quality.hasCover = !!normalizedEarlyCamofox.coverUrl;
+                            }
+                        }
+                        return normalizedEarlyCamofox;
+                    }
+                }
+            } catch (e) {
+                console.warn("Autotitle: Early Camofox strategy failed", e);
+            }
         }
 
-        if (primaryResult && lightpandaBlocked && primaryResult.title === "CLOUDFLARE_BLOCK") {
+        if (shouldSkipBrowserProxyFallbacks()) {
+            console.log("Autotitle: Local browser bridge responded. Skipping browser proxy fallbacks.");
+        }
+
+        if (primaryResult && (lightpandaBlocked || camofoxBlocked) && primaryResult.title === "CLOUDFLARE_BLOCK") {
             return {
                 ...primaryResult,
-                lightpandaBlocked: true
+                lightpandaBlocked: !!lightpandaBlocked,
+                camofoxBlocked: !!camofoxBlocked,
+                browserFallbackBlocked: true
             };
         }
 
@@ -405,18 +510,41 @@ window.getTitleFromUrl = async function (url, options = {}) {
             }
         }
 
-        if (primaryResult && lightpandaBlocked && primaryResult.title === "CLOUDFLARE_BLOCK") {
+        if (strats.Camofox && !camofoxAttempted && (!primaryResult || primaryResult.isFallback || primaryResult.title === "CLOUDFLARE_BLOCK" || looksLikeGenericSiteName(primaryResult.title, url) || (allowSlowCover && !primaryResult.coverUrl))) {
+            console.log("Autotitle: Trying Camofox final browser fallback...");
+            try {
+                camofoxAttempted = true;
+                const camofoxResult = normalizeCamofoxResult(await runStrategy(strats.Camofox, 45000));
+                if (camofoxResult) {
+                    if (camofoxResult.blocked || camofoxResult.title === "CLOUDFLARE_BLOCK") {
+                        camofoxBlocked = true;
+                    }
+                    if (!primaryResult || isClearlyBetterTitle(camofoxResult, primaryResult, url)) {
+                        primaryResult = adoptAutotitleTitle(primaryResult, camofoxResult, url);
+                    } else {
+                        primaryResult = mergeAutotitleMetadata(primaryResult, camofoxResult, url);
+                    }
+                }
+            } catch (e) {
+                console.warn("Autotitle: Camofox strategy failed", e);
+            }
+        }
+
+        if (primaryResult && (lightpandaBlocked || camofoxBlocked) && primaryResult.title === "CLOUDFLARE_BLOCK") {
             return {
                 ...primaryResult,
-                lightpandaBlocked: true
+                lightpandaBlocked: !!lightpandaBlocked,
+                camofoxBlocked: !!camofoxBlocked,
+                browserFallbackBlocked: true
             };
         }
 
-        if (isBrowserHtmlMode && allowSlowCover && !lightpandaBlocked && (!primaryResult?.coverUrl || scoreCoverUrl(primaryResult.coverUrl, url) < 60)) {
+        if (isBrowserHtmlMode && allowSlowCover && !(lightpandaBlocked || camofoxBlocked) && (!primaryResult?.coverUrl || scoreCoverUrl(primaryResult.coverUrl, url) < 60)) {
             const coverRecoveryStrategies = [
                 { fn: isGalleryPage ? strats.GalleryPageHtml : null, timeout: 22000, attempts: 2 },
                 { fn: isMangaFireHost ? strats.MangaFireHtml : null, timeout: 22000, attempts: 2 },
                 { fn: !lightpandaAttempted ? strats.Lightpanda : null, timeout: 30000, attempts: 1 },
+                { fn: !camofoxAttempted ? strats.Camofox : null, timeout: 45000, attempts: 1 },
                 { fn: shouldSkipBrowserProxyFallbacks() ? null : strats.AllOrigins, timeout: 12000, attempts: 2 },
                 { fn: strats.LinkMeta, timeout: 5000, attempts: 2 },
                 { fn: shouldSkipBrowserProxyFallbacks() ? null : strats.CorsProxy, timeout: 5000, attempts: 2 },
@@ -430,10 +558,15 @@ window.getTitleFromUrl = async function (url, options = {}) {
                 });
                 const recoveryResult = strategy.fn === strats.Lightpanda
                     ? normalizeLightpandaResult(recoveryRawResult)
-                    : normalizeAutotitleResult(recoveryRawResult, url);
+                    : strategy.fn === strats.Camofox
+                        ? normalizeCamofoxResult(recoveryRawResult)
+                        : normalizeAutotitleResult(recoveryRawResult, url);
                 if (!recoveryResult) continue;
                 if (strategy.fn === strats.Lightpanda && (recoveryResult.blocked || recoveryResult.title === "CLOUDFLARE_BLOCK")) {
                     lightpandaBlocked = true;
+                }
+                if (strategy.fn === strats.Camofox && (recoveryResult.blocked || recoveryResult.title === "CLOUDFLARE_BLOCK")) {
+                    camofoxBlocked = true;
                 }
                 primaryResult = mergeAutotitleMetadata(primaryResult, recoveryResult, url);
                 if (scoreCoverUrl(primaryResult?.coverUrl, url) >= 80) break;
@@ -444,7 +577,28 @@ window.getTitleFromUrl = async function (url, options = {}) {
         if (primaryResult) {
             console.log("Autotitle: Using primary result:", primaryResult.title);
             const normalizedPrimary = normalizeAutotitleResult(primaryResult, url);
-            if (normalizedPrimary) normalizedPrimary.lightpandaBlocked = !!lightpandaBlocked;
+            if (normalizedPrimary) {
+                const finalStrongSuccess = !!normalizedPrimary.title
+                    && normalizedPrimary.title !== "CLOUDFLARE_BLOCK"
+                    && !isWeakAutotitleResult({
+                        ...normalizedPrimary,
+                        blocked: false,
+                        lightpandaBlocked: false,
+                        camofoxBlocked: false,
+                        browserFallbackBlocked: false
+                    }, url);
+                const finalBlocked = finalStrongSuccess
+                    ? false
+                    : !!(normalizedPrimary.blocked || normalizedPrimary.title === "CLOUDFLARE_BLOCK");
+                normalizedPrimary.blocked = finalBlocked && !finalStrongSuccess;
+                normalizedPrimary.lightpandaBlocked = finalStrongSuccess ? false : !!lightpandaBlocked;
+                normalizedPrimary.camofoxBlocked = finalStrongSuccess ? false : !!camofoxBlocked;
+                normalizedPrimary.browserFallbackBlocked = finalStrongSuccess ? false : !!(lightpandaBlocked || camofoxBlocked || finalBlocked);
+                if (normalizedPrimary.quality) {
+                    normalizedPrimary.quality.blocked = !!normalizedPrimary.blocked;
+                    normalizedPrimary.quality.hasCover = !!normalizedPrimary.coverUrl;
+                }
+            }
             return normalizedPrimary;
         }
 
@@ -454,6 +608,8 @@ window.getTitleFromUrl = async function (url, options = {}) {
             const result = normalizeAutotitleResult(strats.UrlSlug(url), url);
             if (result) {
                 result.lightpandaBlocked = !!lightpandaBlocked;
+                result.camofoxBlocked = !!camofoxBlocked;
+                result.browserFallbackBlocked = !!(lightpandaBlocked || camofoxBlocked);
                 return result;
             }
         }

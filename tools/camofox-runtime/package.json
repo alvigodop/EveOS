@@ -1,0 +1,9 @@
+{
+  "name": "eveos-camofox-runtime",
+  "private": true,
+  "type": "module",
+  "description": "Standalone Camofox runtime for EveOS browser fallback scraping.",
+  "dependencies": {
+    "@askjo/camofox-browser": "1.4.1"
+  }
+}

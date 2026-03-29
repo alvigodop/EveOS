@@ -1,14 +1,14 @@
 // --- AUTO-TITLE UI MODULE ---
 
-function getLightpandaBlockedMessage(data) {
+function getProtectedBrowserMessage(data) {
     const cookiePath = data?.cookieConfigPath || '%LOCALAPPDATA%\\EveOS\\lightpanda-site-cookies.json';
     if (!data?.cookieFileExists) {
-        return `Protected page. No local Lightpanda cookie file was found. Add host cookies to ${cookiePath} for real title and cover extraction.`;
+        return `Protected page. No local browser fallback cookie file was found. Add host cookies to ${cookiePath} for real title and cover extraction.`;
     }
     if (!data?.cookieHostConfigured || Number(data?.nonEmptyCookieCount || 0) <= 0) {
-        return `Protected page. Lightpanda reached a challenge page and the local cookie file has no active cookies for this host. Update ${cookiePath} for real title and cover extraction.`;
+        return `Protected page. Browser fallbacks reached a challenge page and the local cookie file has no active cookies for this host. Update ${cookiePath} for real title and cover extraction.`;
     }
-    return `Protected page. Lightpanda reached a challenge page even with local cookies. Refresh the cookies in ${cookiePath} and try again.`;
+    return `Protected page. Browser fallbacks reached a challenge page even with local cookies. Refresh the cookies in ${cookiePath} and try again.`;
 }
 
 window.fetchTitle = async function (btn) {
@@ -37,10 +37,11 @@ window.fetchTitle = async function (btn) {
 
         const data = await window.getTitleFromUrl(url, { allowSlowCover: true });
         const usedLightpandaFallback = !!(data?.source === 'Lightpanda');
-        const lightpandaBlocked = !!data?.lightpandaBlocked;
+        const usedCamofoxFallback = !!(data?.source === 'Camofox');
+        const browserFallbackBlocked = !!(data?.browserFallbackBlocked || data?.lightpandaBlocked || data?.camofoxBlocked);
 
-        if (lightpandaBlocked && isWeakAutotitleResult(data, url)) {
-            showToast(getLightpandaBlockedMessage(data), "warning");
+        if (browserFallbackBlocked && isWeakAutotitleResult(data, url)) {
+            showToast(getProtectedBrowserMessage(data), "warning");
             return;
         }
 
@@ -51,6 +52,8 @@ window.fetchTitle = async function (btn) {
                 document.getElementById('newTitle').value = data.title;
                 if (usedLightpandaFallback || data.source === 'Lightpanda') {
                     showToast("Fetched via Lightpanda fallback.", "success");
+                } else if (usedCamofoxFallback || data.source === 'Camofox') {
+                    showToast("Fetched via Camofox fallback.", "success");
                 } else if (data.isFallback) {
                     showToast("Proxies blocked. Derived title from URL.", "info");
                 } else if (data.isAdvancedScrape) {

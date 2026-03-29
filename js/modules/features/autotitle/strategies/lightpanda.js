@@ -107,12 +107,12 @@
                 const apiBase = port ? `http://localhost:${port}` : '';
                 const apiUrl = `${apiBase}/api/lightpanda?format=json&metadata_only=1&url=${encodeURIComponent(url)}`;
                 const response = await fetch(apiUrl);
-                if (isFileProtocol) {
-                    window._eveLightpandaReachable = true;
-                    if (port) window._eveLightpandaPort = port;
-                }
 
                 if (response.ok) {
+                    if (isFileProtocol) {
+                        window._eveLightpandaReachable = true;
+                        if (port) window._eveLightpandaPort = port;
+                    }
                     const contentType = String(response.headers.get('content-type') || '').toLowerCase();
 
                     if (contentType.includes('application/json')) {
