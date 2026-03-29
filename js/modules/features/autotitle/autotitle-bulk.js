@@ -43,6 +43,29 @@
         }
     }
 
+    function isUntitledLink(link) {
+        const title = String(link?.title || '').trim();
+        if (!title) return true;
+        if (/^untitled$/i.test(title)) return true;
+        return title === String(link?.url || '').trim();
+    }
+
+    function hasNoCover(link) {
+        return !String(link?.coverImage || '').trim();
+    }
+
+    function selectBulkTitleByPredicate(predicate) {
+        const checkboxes = document.querySelectorAll('.bulk-title-check');
+        let matched = 0;
+        checkboxes.forEach((cb) => {
+            const link = links.find((entry) => String(entry.id) === String(cb.dataset.id));
+            const shouldCheck = !!(link && predicate(link));
+            cb.checked = shouldCheck;
+            if (shouldCheck) matched += 1;
+        });
+        return matched;
+    }
+
     window.openBulkTitleModal = function (categoryOrOptions, maybeOptions) {
         bulkTitleContext = normalizeBulkTitleContext(categoryOrOptions, maybeOptions);
         const container = document.getElementById('bulkTitleList');
@@ -95,6 +118,20 @@
         document.querySelectorAll('.bulk-title-check').forEach((cb) => {
             cb.checked = checked;
         });
+    };
+
+    window.selectUntitledBulkTitle = function () {
+        const matched = selectBulkTitleByPredicate(isUntitledLink);
+        if (matched === 0) {
+            showToast('No untitled bookmarks found in this selection.', 'info');
+        }
+    };
+
+    window.selectNoCoverBulkTitle = function () {
+        const matched = selectBulkTitleByPredicate(hasNoCover);
+        if (matched === 0) {
+            showToast('No bookmarks without covers found in this selection.', 'info');
+        }
     };
 
     window.runBulkTitleUpdate = async function (options = {}) {

@@ -71,6 +71,8 @@ window.modalTemplate += `
                 All</button>
             <button onclick="toggleAllBulkTitle(false)" style="font-size:0.8rem; padding:5px 10px;">Deselect
                 All</button>
+            <button onclick="selectUntitledBulkTitle()" style="font-size:0.8rem; padding:5px 10px;">Select Untitled</button>
+            <button onclick="selectNoCoverBulkTitle()" style="font-size:0.8rem; padding:5px 10px;">Select No-Cover</button>
         </div>
         <div style="display:flex; gap:10px;">
             <button class="btn-primary" onclick="runBulkTitleUpdate()" id="btnRunBulkTitle">Start Update</button>

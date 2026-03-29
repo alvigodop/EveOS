@@ -3,6 +3,7 @@ import logging
 import os
 import re
 import shlex
+import socket
 import subprocess
 from html import unescape
 from html.parser import HTMLParser
@@ -13,6 +14,7 @@ from urllib.parse import urljoin, urlparse
 logger = logging.getLogger("FandomDiscoveryServer")
 
 DEFAULT_WSL_DISTRO = "Ubuntu"
+DEFAULT_RENDER_TIMEOUT_SECONDS = 45
 BLOCKED_TITLE_TOKENS = (
     "just a moment",
     "attention required! | cloudflare",
@@ -80,6 +82,23 @@ def _build_lightpanda_command(target_url, include_frames=False, http_timeout_ms=
     ]
 
 
+def _build_lightpanda_serve_command(port, timeout_seconds=DEFAULT_RENDER_TIMEOUT_SECONDS):
+    binary_path = _lightpanda_binary_path()
+    binary_wsl_path = _windows_to_wsl_path(binary_path) if ":" in binary_path[:3] else binary_path
+    return [
+        "wsl",
+        "-d",
+        _wsl_distro(),
+        "bash",
+        "-lc",
+        (
+            f"{shlex.quote(binary_wsl_path)} serve "
+            f"--host 127.0.0.1 --port {int(port)} --timeout {int(timeout_seconds)} "
+            "--obey_robots --log_level error"
+        ),
+    ]
+
+
 def is_lightpanda_available():
     return os.path.exists(_lightpanda_binary_path())
 
@@ -140,7 +159,8 @@ def _truncate_text(value, limit):
     text = re.sub(r"\s+", " ", str(value or "")).strip()
     if len(text) <= limit:
         return text
-    return f"{text[:limit - 1].rstrip()}…"
+    return f"{text[:max(0, limit - 3)].rstrip()}..."
+
 
 
 class _LightpandaHtmlMetadataParser(HTMLParser):
@@ -335,22 +355,160 @@ def _is_weak_metadata(metadata):
     return False
 
 
+def _metadata_score(metadata):
+    if not metadata:
+        return -999
+    score = 0
+    if metadata.get("title"):
+        score += 50
+    if not metadata.get("genericTitle"):
+        score += 35
+    if not metadata.get("blocked"):
+        score += 20
+    if metadata.get("coverUrl"):
+        score += 35
+    if metadata.get("description"):
+        score += 10
+    if metadata.get("icon"):
+        score += 8
+    if metadata.get("canonicalUrl"):
+        score += 5
+    score += min(12, len(metadata.get("quickLinks") or []) * 2)
+    return score
+
+
+def _merge_metadata(primary, candidate, target_url):
+    if not primary:
+        return candidate
+    if not candidate:
+        return primary
+
+    merged = dict(primary)
+    if not primary.get("title") or primary.get("blocked") or primary.get("genericTitle"):
+        merged["title"] = candidate.get("title") or primary.get("title")
+    elif _metadata_score(candidate) > _metadata_score(primary):
+        merged["title"] = candidate.get("title") or primary.get("title")
+
+    for key in ("coverUrl", "icon", "canonicalUrl"):
+        if candidate.get(key) and (not merged.get(key) or key == "canonicalUrl"):
+            merged[key] = candidate.get(key)
+
+    if candidate.get("description") and (not merged.get("description") or len(candidate["description"]) > len(merged.get("description") or "")):
+        merged["description"] = candidate["description"]
+
+    if len(candidate.get("quickLinks") or []) > len(merged.get("quickLinks") or []):
+        merged["quickLinks"] = candidate.get("quickLinks") or []
+
+    merged["blocked"] = _looks_blocked_title(merged.get("title"))
+    merged["genericTitle"] = _looks_generic_title(merged.get("title"), target_url)
+    merged["quality"] = {
+        "hasTitle": bool(merged.get("title")),
+        "blocked": merged["blocked"],
+        "genericTitle": merged["genericTitle"],
+        "hasCover": bool(merged.get("coverUrl")),
+        "hasDescription": bool(merged.get("description")),
+        "quickLinkCount": len(merged.get("quickLinks") or []),
+    }
+    return merged
+
+
+def _find_free_local_port():
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        return int(sock.getsockname()[1])
+
+
+def _render_extract_with_playwright(target_url):
+    helper_script = os.path.join(_project_root(), "server_modules", "lightpanda_render_extract.js")
+    if not os.path.exists(helper_script):
+        return None
+
+    try:
+        binary_path = _lightpanda_binary_path()
+        binary_wsl_path = _windows_to_wsl_path(binary_path) if ":" in binary_path[:3] else binary_path
+        result = subprocess.run(
+            [
+                "wsl",
+                "-d",
+                _wsl_distro(),
+                "bash",
+                "-lc",
+                (
+                    f"cd {shlex.quote(_windows_to_wsl_path(_project_root()))} && "
+                    f"node {shlex.quote(_windows_to_wsl_path(helper_script))} "
+                    f"{shlex.quote(binary_wsl_path)} "
+                    f"{shlex.quote(str(target_url))}"
+                ),
+            ],
+            capture_output=True,
+            text=False,
+            timeout=DEFAULT_RENDER_TIMEOUT_SECONDS + 20,
+        )
+        if result.returncode != 0:
+            logger.warning("Lightpanda rendered extraction failed: %s", _decode_lightpanda_stream(result.stderr).strip()[:300])
+            return None
+
+        output = _decode_lightpanda_stream(result.stdout).strip()
+        if not output:
+            return None
+
+        payload = json.loads(output)
+        metadata = dict(payload.get("metadata") or {})
+        metadata["blocked"] = _looks_blocked_title(metadata.get("title"))
+        metadata["genericTitle"] = _looks_generic_title(metadata.get("title"), target_url)
+        metadata["quality"] = {
+            "hasTitle": bool(metadata.get("title")),
+            "blocked": metadata["blocked"],
+            "genericTitle": metadata["genericTitle"],
+            "hasCover": bool(metadata.get("coverUrl")),
+            "hasDescription": bool(metadata.get("description")),
+            "quickLinkCount": len(metadata.get("quickLinks") or []),
+        }
+        return {
+            "metadata": metadata,
+            "html": str(payload.get("html") or ""),
+        }
+    except Exception:
+        return None
+
+
+
 def _fetch_with_upgrade(target_url):
     primary = fetch_lightpanda_html(target_url, timeout=30, include_frames=False, http_timeout_ms=15000)
     primary_html = primary.stdout or ""
     primary_metadata = extract_lightpanda_metadata(primary_html, target_url)
+    best_result = primary
+    best_html = primary_html
+    best_metadata = primary_metadata
+    used_retry = False
 
-    if primary.returncode == 0 and not _is_weak_metadata(primary_metadata):
-        return primary, primary_html, primary_metadata, False
+    if primary.returncode == 0 and (_is_weak_metadata(primary_metadata) or not primary_metadata.get("coverUrl")):
+        retry = fetch_lightpanda_html(target_url, timeout=45, include_frames=True, http_timeout_ms=22000)
+        retry_html = retry.stdout or ""
+        retry_metadata = extract_lightpanda_metadata(retry_html, target_url)
 
-    retry = fetch_lightpanda_html(target_url, timeout=45, include_frames=True, http_timeout_ms=22000)
-    retry_html = retry.stdout or ""
-    retry_metadata = extract_lightpanda_metadata(retry_html, target_url)
+        if retry.returncode == 0 and _metadata_score(retry_metadata) > _metadata_score(best_metadata):
+            best_result = retry
+            best_html = retry_html
+            best_metadata = retry_metadata
+            used_retry = True
 
-    if retry.returncode == 0 and (not primary_html or not _is_weak_metadata(retry_metadata)):
-        return retry, retry_html, retry_metadata, True
+    used_rendered = False
+    if best_result.returncode != 0 or _is_weak_metadata(best_metadata) or not best_metadata.get("coverUrl"):
+        rendered_payload = _render_extract_with_playwright(target_url)
+        rendered_metadata = (rendered_payload or {}).get("metadata")
+        rendered_html = str((rendered_payload or {}).get("html") or "")
+        if rendered_metadata:
+            best_metadata = _merge_metadata(best_metadata, rendered_metadata, target_url)
+            if best_result.returncode != 0:
+                best_result = SimpleNamespace(returncode=0, stdout=rendered_html, stderr="")
+                best_html = rendered_html
+            elif rendered_html and len(rendered_html) > len(best_html or ""):
+                best_html = rendered_html
+            used_rendered = True
 
-    return primary, primary_html, primary_metadata, False
+    return best_result, best_html, best_metadata, used_retry, used_rendered
+
 
 
 def handle_lightpanda_fetch(handler, query):
@@ -389,7 +547,7 @@ def handle_lightpanda_fetch(handler, query):
     log_activity(f"FETCH START: {target_url}")
 
     try:
-        result, content, metadata, used_retry = _fetch_with_upgrade(target_url)
+        result, content, metadata, used_retry, used_rendered = _fetch_with_upgrade(target_url)
 
         if result.returncode == 0:
             logger.info(f"Lightpanda: Successfully fetched {len(content)} bytes from {target_url}")
@@ -405,6 +563,7 @@ def handle_lightpanda_fetch(handler, query):
                     "metadata": metadata,
                     "html": content,
                     "retriedWithFrames": bool(used_retry),
+                    "usedRenderedExtraction": bool(used_rendered),
                 }
                 body = json.dumps(payload).encode("utf-8")
                 handler.send_response(HTTPStatus.OK)

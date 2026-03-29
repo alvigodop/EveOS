@@ -4627,7 +4627,7 @@ window.EveModuleManifestParts.scripts = [
 
 
 
-        'js/modules/modals/templates/tpl-bulk.js?v=0.1.3',
+        'js/modules/modals/templates/tpl-bulk.js?v=0.1.4',
 
 
 
@@ -6659,7 +6659,7 @@ window.EveModuleManifestParts.scripts = [
 
 
 
-'js/modules/features/autotitle/autotitle-bulk.js?v=0.2.4',
+'js/modules/features/autotitle/autotitle-bulk.js?v=0.2.5',
 
 
 
