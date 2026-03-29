@@ -6593,7 +6593,7 @@ window.EveModuleManifestParts.scripts = [
 
 
         'js/modules/features/autotitle/strategies/url-slug.js',
-        'js/modules/features/autotitle/autotitle-utils.js?v=0.2.1',
+        'js/modules/features/autotitle/autotitle-utils.js?v=0.2.2',
 
         'js/modules/features/autotitle/autotitle-core.js?v=0.3.1',
 
@@ -6627,7 +6627,7 @@ window.EveModuleManifestParts.scripts = [
 
 
 
-        'js/modules/features/autotitle/autotitle-ui.js?v=0.2.6',
+        'js/modules/features/autotitle/autotitle-ui.js?v=0.2.7',
 
 
 

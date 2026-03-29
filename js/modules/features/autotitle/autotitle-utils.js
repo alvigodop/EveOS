@@ -389,6 +389,13 @@ window.EveOS.Autotitle = window.EveOS.Autotitle || {};
         return candidateResult.title.length > primaryResult.title.length + 5;
     }
 
+    function isWeakAutotitleResult(result, url) {
+        if (!result || !result.title) return true;
+        if (result.title === "CLOUDFLARE_BLOCK") return true;
+        if (result.isFallback) return true;
+        return looksLikeGenericSiteName(result.title, url);
+    }
+
     ns.CoreUtils = Object.assign(ns.CoreUtils || {}, {
         toTitleCaseSlug,
         getUrlHints,
@@ -409,6 +416,7 @@ window.EveOS.Autotitle = window.EveOS.Autotitle || {};
         mergeAutotitleResult,
         mergeAutotitleMetadata,
         adoptAutotitleTitle,
-        isClearlyBetterTitle
+        isClearlyBetterTitle,
+        isWeakAutotitleResult
     });
 })(window.EveOS.Autotitle);
