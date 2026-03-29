@@ -5,7 +5,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     const { state } = sharedState;
 
     const sharedHelpers = ns._sharedHelpers || {};
-    const { text } = sharedHelpers;
+    const { text, clamp } = sharedHelpers;
+    const sharedBlobs = ns._sharedBlobs || {};
+    const { measureBlobHalfWidthForNode } = sharedBlobs;
 
     function getAuraValue(key) {
         const controls = ns._sharedControls || {};
@@ -24,7 +26,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         };
     }
 
-    function getFolderAuraShape(folder, distToParent, isRootFolder) {
+    function getFolderAuraShape(folder, distToParent, isRootFolder, parentNode) {
         let offsetDist = 140 * getAuraValue('folderOffsetScale');
         if (isRootFolder) {
             offsetDist = 80 * getAuraValue('folderOffsetScale');
@@ -32,6 +34,30 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         const distFromCenterToParent = distToParent - offsetDist;
         const extraBuffer = isRootFolder ? 110 : 250;
+        const widthScale = getAuraValue('folderWidthScale');
+        let radiusLat = 1100 * widthScale;
+
+        let resolvedParentNode = parentNode || null;
+        if (!resolvedParentNode) {
+            const parentId = text(folder?.data?.anchorNodeId, '');
+            resolvedParentNode = parentId ? state.nodeIndex.get(parentId) || null : null;
+        }
+
+        if (
+            isRootFolder
+            && resolvedParentNode?.kind === 'category'
+            && typeof measureBlobHalfWidthForNode === 'function'
+        ) {
+            const axisAngle = Math.atan2(
+                (Number(resolvedParentNode.y) || 0) - (Number(folder?.y) || 0),
+                (Number(resolvedParentNode.x) || 0) - (Number(folder?.x) || 0)
+            );
+            const blobHalfWidth = measureBlobHalfWidthForNode(resolvedParentNode, axisAngle);
+            if (Number.isFinite(blobHalfWidth) && blobHalfWidth > 0) {
+                const purposefulWidth = clamp(blobHalfWidth * 1.04, 96, 1600);
+                radiusLat = purposefulWidth * widthScale;
+            }
+        }
 
         return {
             offsetDist,
@@ -39,7 +65,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 ? 300 * getAuraValue('folderFrontScale')
                 : Math.max(300 * getAuraValue('folderFrontScale'), (distFromCenterToParent + extraBuffer) * getAuraValue('folderFrontScale')),
             radiusBack: (isRootFolder ? 260 : 250) * getAuraValue('folderBackScale'),
-            radiusLat: 1100 * getAuraValue('folderWidthScale')
+            radiusLat
         };
     }
 

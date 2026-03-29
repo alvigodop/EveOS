@@ -84,6 +84,63 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         });
     }
 
+    function buildBlobChildrenMap() {
+        const childrenMap = new Map();
+        state.nodes.forEach((node) => {
+            const parentId = String(node?.data?.anchorNodeId || '').trim();
+            if (!parentId) return;
+            if (!childrenMap.has(parentId)) childrenMap.set(parentId, []);
+            childrenMap.get(parentId).push(node);
+        });
+        return childrenMap;
+    }
+
+    function collectBlobMembers(parentNode, mode, childrenMap, members, seen) {
+        if (!parentNode || !(childrenMap instanceof Map)) return;
+        const children = childrenMap.get(String(parentNode.id || '')) || [];
+        children.forEach((child) => {
+            const childId = String(child?.id || '').trim();
+            if (!childId || seen.has(childId)) return;
+            seen.add(childId);
+            members.push(child);
+            if (mode === 'onion' && child.kind !== 'link') {
+                collectBlobMembers(child, mode, childrenMap, members, seen);
+            }
+        });
+    }
+
+    function getBlobMemberRadius(node, parentNode, padding, rootScale) {
+        const basePadding = padding * (node?.id === parentNode?.id ? rootScale : 1);
+        return Math.max((Number(node?.radius) || 0) + 2, (Number(node?.radius) || 0) + basePadding);
+    }
+
+    function measureBlobHalfWidthForNode(parentNode, axisAngle) {
+        if (!parentNode || !Number.isFinite(axisAngle)) return 0;
+        ensureBlobControls();
+
+        const childrenMap = buildBlobChildrenMap();
+        const members = [parentNode];
+        const seen = new Set([String(parentNode.id || '')]);
+        collectBlobMembers(parentNode, getBlobMode(), childrenMap, members, seen);
+        if (members.length < 2) return 0;
+
+        const padding = getBlobTuningValue('padding');
+        const rootScale = getBlobTuningValue('rootScale');
+        const lateralX = -Math.sin(axisAngle);
+        const lateralY = Math.cos(axisAngle);
+        let halfWidth = 0;
+
+        members.forEach((member) => {
+            const radius = getBlobMemberRadius(member, parentNode, padding, rootScale);
+            const dx = (Number(member?.x) || 0) - (Number(parentNode?.x) || 0);
+            const dy = (Number(member?.y) || 0) - (Number(parentNode?.y) || 0);
+            const lateralDistance = Math.abs((dx * lateralX) + (dy * lateralY));
+            halfWidth = Math.max(halfWidth, lateralDistance + radius);
+        });
+
+        return halfWidth;
+    }
+
     function isBlobVisualsEnabled() {
         return ensureBlobControls().enabled === true;
     }
@@ -141,6 +198,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         setBlobTuningValue,
         getBlobTuningText,
         resetBlobTuning,
+        measureBlobHalfWidthForNode,
         isBlobVisualsEnabled,
         isBlobRootShellsEnabled,
         isBlobLayeredEnabled,
