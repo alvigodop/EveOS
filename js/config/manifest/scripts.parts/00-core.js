@@ -146,7 +146,10 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/quick-pins/quick-pins.core.context.js?v=0.1.0",
     "js/modules/features/quick-pins/quick-pins.core.actions.js?v=0.1.0",
     "js/modules/features/quick-pins/quick-pins.core.js?v=0.3.0",
-    "js/modules/features/quick-pins/quick-pins.main.js?v=0.3.1",
+    "js/modules/features/quick-pins/quick-pins.main.presentation.js?v=0.1.0",
+    "js/modules/features/quick-pins/quick-pins.main.activation.js?v=0.1.0",
+    "js/modules/features/quick-pins/quick-pins.main.collection.js?v=0.1.0",
+    "js/modules/features/quick-pins/quick-pins.main.js?v=0.4.0",
     "js/modules/core/actions.js?v=0.2.6",
     "js/modules/core/categories.js?v=0.1.0"
 ]);

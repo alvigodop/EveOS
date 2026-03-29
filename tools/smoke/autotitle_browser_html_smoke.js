@@ -21,13 +21,24 @@ async function main() {
         'https://mangafire.to/manga/souda-baikoku-shiyou-tensai-ouji-no-akaji-kokka-saisei-jutsuu.0229k'
     ];
 
-    const results = [];
-    for (const url of urls) {
-        const result = await page.evaluate(async (targetUrl) => {
-            return await window.getTitleFromUrl(targetUrl, { allowSlowCover: true });
-        }, url);
-        results.push({ url, result });
-    }
+    const results = await page.evaluate(async (targetUrls) => {
+        const originalStrategies = window.EveOS.Autotitle.Strategies;
+        window.EveOS.Autotitle.Strategies = {
+            ...originalStrategies,
+            Lightpanda: async () => null,
+            Camofox: async () => null
+        };
+        try {
+            const collected = [];
+            for (const targetUrl of targetUrls) {
+                const result = await window.getTitleFromUrl(targetUrl, { allowSlowCover: true });
+                collected.push({ url: targetUrl, result });
+            }
+            return collected;
+        } finally {
+            window.EveOS.Autotitle.Strategies = originalStrategies;
+        }
+    }, urls);
 
     const syntheticFallback = await page.evaluate(async () => {
         const originalStrategies = window.EveOS.Autotitle.Strategies;
