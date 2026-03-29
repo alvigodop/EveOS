@@ -154,6 +154,45 @@ async function main() {
         }
     });
 
+    const headlessCoverUpgrade = await page.evaluate(async () => {
+        const originalStrategies = window.EveOS.Autotitle.Strategies;
+        let lightpandaCalls = 0;
+        let camofoxCalls = 0;
+        window.EveOS.Autotitle.Strategies = {
+            ...originalStrategies,
+            GoogleSearch: async () => null,
+            AllOrigins: async () => null,
+            CorsProxy: async () => null,
+            LinkMeta: async () => null,
+            ScraperEngine: async () => null,
+            Lightpanda: async () => {
+                lightpandaCalls += 1;
+                return {
+                    title: 'Exact Demo Title',
+                    source: 'Lightpanda',
+                    coverUrl: 'https://video.example/thumbs/preview-small.jpg'
+                };
+            },
+            Camofox: async () => {
+                camofoxCalls += 1;
+                return {
+                    title: 'Exact Demo Title',
+                    source: 'Camofox',
+                    coverUrl: 'https://video.example/poster/main-cover.jpg'
+                };
+            }
+        };
+        try {
+            const result = await window.getTitleFromUrlHeadless('https://video.example/watch/exact-demo', {
+                lightpandaTimeoutMs: 1000,
+                camofoxTimeoutMs: 1000
+            });
+            return { result, lightpandaCalls, camofoxCalls };
+        } finally {
+            window.EveOS.Autotitle.Strategies = originalStrategies;
+        }
+    });
+
     const galleryFormatMismatch = await page.evaluate(async () => {
         const originalStrategies = window.EveOS.Autotitle.Strategies;
         window.EveOS.Autotitle.Strategies = {
@@ -233,8 +272,14 @@ async function main() {
     if (galleryDirectImageCover?.coverUrl !== 'https://gallery.example.org/g/abc123.webp') {
         throw new Error(`Expected direct gallery image cover to survive normalization, got ${JSON.stringify(galleryDirectImageCover)}`);
     }
+    if (headlessCoverUpgrade?.lightpandaCalls !== 1 || headlessCoverUpgrade?.camofoxCalls !== 1) {
+        throw new Error(`Expected headless chain to continue from Lightpanda to Camofox on weak cover, got ${JSON.stringify(headlessCoverUpgrade)}`);
+    }
+    if (headlessCoverUpgrade?.result?.coverUrl !== 'https://video.example/poster/main-cover.jpg') {
+        throw new Error(`Expected headless chain to upgrade weak Lightpanda cover with Camofox poster, got ${JSON.stringify(headlessCoverUpgrade)}`);
+    }
 
-    console.log(`AUTOTITLE_BROWSER_HTML_SMOKE_OK ${JSON.stringify({ results, syntheticFallback, cssUrlFallback, galleryHtmlPriority, galleryCoverVariant, galleryFormatMismatch, galleryDirectImageCover })}`);
+    console.log(`AUTOTITLE_BROWSER_HTML_SMOKE_OK ${JSON.stringify({ results, syntheticFallback, cssUrlFallback, galleryHtmlPriority, galleryCoverVariant, galleryFormatMismatch, galleryDirectImageCover, headlessCoverUpgrade })}`);
 }
 
 main().catch((error) => {

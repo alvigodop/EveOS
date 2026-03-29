@@ -40,19 +40,19 @@ async function main() {
             window.getTitleFromUrl = async function () {
                 baseCalls += 1;
                 return {
-                    title: 'Weak Placeholder',
+                    title: 'Correct Title',
                     source: 'Lightpanda',
                     isFallback: false,
-                    coverUrl: null
+                    coverUrl: 'https://example.com/thumbs/preview-small.jpg'
                 };
             };
 
             window.getTitleFromUrlHeadless = async function () {
                 headlessCalls += 1;
                 return {
-                    title: 'Recovered By Camofox',
+                    title: 'Correct Title',
                     source: 'Camofox',
-                    coverUrl: 'https://example.com/camofox-cover.jpg',
+                    coverUrl: 'https://example.com/poster/main-cover.jpg',
                     icon: 'https://example.com/favicon.ico'
                 };
             };
@@ -89,10 +89,10 @@ async function main() {
         if (result.headlessCalls !== 1) {
             throw new Error(`Expected one headless follow-up call, saw ${result.headlessCalls}`);
         }
-        if (result.title !== 'Recovered By Camofox') {
-            throw new Error(`Expected Camofox title to populate field, saw ${result.title}`);
+        if (result.title !== 'Correct Title') {
+            throw new Error(`Expected title field to stay correct after headless merge, saw ${result.title}`);
         }
-        if (result.coverUrl !== 'https://example.com/camofox-cover.jpg') {
+        if (result.coverUrl !== 'https://example.com/poster/main-cover.jpg') {
             throw new Error(`Expected Camofox cover to populate field, saw ${result.coverUrl}`);
         }
 

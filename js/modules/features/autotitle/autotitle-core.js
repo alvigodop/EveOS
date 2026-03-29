@@ -92,12 +92,17 @@ window.getTitleFromUrlHeadless = async function (url, options = {}) {
     const isWeakAutotitleResult = typeof utils.isWeakAutotitleResult === 'function'
         ? utils.isWeakAutotitleResult
         : (result) => !result || !result.title || result.title === 'CLOUDFLARE_BLOCK' || !!result.isFallback;
+    const scoreCoverUrl = typeof utils.scoreCoverUrl === 'function'
+        ? utils.scoreCoverUrl
+        : ((coverUrl) => coverUrl ? 0 : -999);
     const mergeAutotitleMetadata = typeof utils.mergeAutotitleMetadata === 'function'
         ? utils.mergeAutotitleMetadata
         : ((primary, candidate) => candidate || primary);
     const isClearlyBetterTitle = typeof utils.isClearlyBetterTitle === 'function'
         ? utils.isClearlyBetterTitle
         : ((candidate, primary) => !!candidate?.title && (!primary?.title || String(candidate.title).length > String(primary.title || '').length));
+    const strongCoverThreshold = Number(options.coverStrengthThreshold || 80);
+    const hasStrongCoverResult = (result) => scoreCoverUrl(result?.coverUrl, url) >= strongCoverThreshold;
 
     let best = null;
 
@@ -106,7 +111,7 @@ window.getTitleFromUrlHeadless = async function (url, options = {}) {
     });
     if (lightpandaResult) {
         best = lightpandaResult;
-        if (!isWeakAutotitleResult(lightpandaResult, url) && lightpandaResult.title !== 'CLOUDFLARE_BLOCK') {
+        if (!isWeakAutotitleResult(lightpandaResult, url) && lightpandaResult.title !== 'CLOUDFLARE_BLOCK' && hasStrongCoverResult(lightpandaResult)) {
             return lightpandaResult;
         }
     }
@@ -203,6 +208,9 @@ window.getTitleFromUrl = async function (url, options = {}) {
         isClearlyBetterTitle,
         isWeakAutotitleResult
     } = utils;
+    const strongCoverThreshold = Number(options.coverStrengthThreshold || 80);
+    const hasStrongCoverResult = (result) => scoreCoverUrl(result?.coverUrl, url) >= strongCoverThreshold;
+    const needsCoverUpgrade = (result) => allowSlowCover && (!result?.coverUrl || !hasStrongCoverResult(result));
     let lightpandaBlocked = false;
     let lightpandaAttempted = false;
     let camofoxBlocked = false;
@@ -368,7 +376,7 @@ window.getTitleFromUrl = async function (url, options = {}) {
             }
         }
 
-        if (isBrowserHtmlMode && strats.Lightpanda && (!primaryResult || primaryResult.isFallback || primaryResult.title === "CLOUDFLARE_BLOCK" || looksLikeGenericSiteName(primaryResult.title, url) || (allowSlowCover && !primaryResult.coverUrl))) {
+        if (isBrowserHtmlMode && strats.Lightpanda && (!primaryResult || primaryResult.isFallback || primaryResult.title === "CLOUDFLARE_BLOCK" || looksLikeGenericSiteName(primaryResult.title, url) || needsCoverUpgrade(primaryResult))) {
             console.log("Autotitle: Trying Lightpanda early before proxy fallbacks...");
             try {
                 lightpandaAttempted = true;
@@ -383,7 +391,7 @@ window.getTitleFromUrl = async function (url, options = {}) {
                     } else {
                         primaryResult = mergeAutotitleMetadata(primaryResult, earlyLightpandaResult, url);
                     }
-                    if (primaryResult?.title && primaryResult?.coverUrl && !primaryResult?.blocked) {
+                    if (primaryResult?.title && primaryResult?.coverUrl && !primaryResult?.blocked && hasStrongCoverResult(primaryResult)) {
                         const normalizedEarlyLightpanda = normalizeAutotitleResult(primaryResult, url);
                         if (normalizedEarlyLightpanda) normalizedEarlyLightpanda.lightpandaBlocked = !!lightpandaBlocked;
                         return normalizedEarlyLightpanda;
@@ -394,7 +402,7 @@ window.getTitleFromUrl = async function (url, options = {}) {
             }
         }
 
-        if (isBrowserHtmlMode && strats.Camofox && (!primaryResult || primaryResult.isFallback || primaryResult.title === "CLOUDFLARE_BLOCK" || looksLikeGenericSiteName(primaryResult.title, url) || (allowSlowCover && !primaryResult.coverUrl))) {
+        if (isBrowserHtmlMode && strats.Camofox && (!primaryResult || primaryResult.isFallback || primaryResult.title === "CLOUDFLARE_BLOCK" || looksLikeGenericSiteName(primaryResult.title, url) || needsCoverUpgrade(primaryResult))) {
             console.log("Autotitle: Trying Camofox after Lightpanda...");
             try {
                 camofoxAttempted = true;
@@ -409,7 +417,7 @@ window.getTitleFromUrl = async function (url, options = {}) {
                     } else {
                         primaryResult = mergeAutotitleMetadata(primaryResult, earlyCamofoxResult, url);
                     }
-                    if (primaryResult?.title && primaryResult?.coverUrl && !primaryResult?.blocked) {
+                    if (primaryResult?.title && primaryResult?.coverUrl && !primaryResult?.blocked && hasStrongCoverResult(primaryResult)) {
                         const normalizedEarlyCamofox = normalizeAutotitleResult(primaryResult, url);
                         if (normalizedEarlyCamofox) {
                             normalizedEarlyCamofox.blocked = false;
@@ -517,7 +525,7 @@ window.getTitleFromUrl = async function (url, options = {}) {
         }
 
         // Strategy 5: Advanced Scraper Engine (proxy pool / browser emulator)
-        if (strats.ScraperEngine && !(isBrowserHtmlMode && (lightpandaBlocked || shouldSkipBrowserProxyFallbacks())) && (!primaryResult || primaryResult.isFallback || primaryResult.title === "CLOUDFLARE_BLOCK" || looksLikeGenericSiteName(primaryResult.title, url) || (allowSlowCover && !primaryResult.coverUrl))) {
+        if (strats.ScraperEngine && !(isBrowserHtmlMode && (lightpandaBlocked || shouldSkipBrowserProxyFallbacks())) && (!primaryResult || primaryResult.isFallback || primaryResult.title === "CLOUDFLARE_BLOCK" || looksLikeGenericSiteName(primaryResult.title, url) || needsCoverUpgrade(primaryResult))) {
             console.log("Autotitle: Trying Advanced Scraper Engine fallback...");
             try {
                 const scraperResult = normalizeAutotitleResult(await runStrategy(strats.ScraperEngine, 9000), url);
@@ -534,7 +542,7 @@ window.getTitleFromUrl = async function (url, options = {}) {
         }
 
         // Strategy 5.5: Lightpanda (WSL-based Browsing) - High Reliability Fallback
-        if (strats.Lightpanda && !lightpandaAttempted && (!primaryResult || primaryResult.isFallback || primaryResult.title === "CLOUDFLARE_BLOCK" || looksLikeGenericSiteName(primaryResult.title, url) || (allowSlowCover && !primaryResult.coverUrl))) {
+        if (strats.Lightpanda && !lightpandaAttempted && (!primaryResult || primaryResult.isFallback || primaryResult.title === "CLOUDFLARE_BLOCK" || looksLikeGenericSiteName(primaryResult.title, url) || needsCoverUpgrade(primaryResult))) {
             console.log("Autotitle: Trying Lightpanda high-reliability fallback...");
             try {
                 lightpandaAttempted = true;
@@ -554,7 +562,7 @@ window.getTitleFromUrl = async function (url, options = {}) {
             }
         }
 
-        if (strats.Camofox && !camofoxAttempted && (!primaryResult || primaryResult.isFallback || primaryResult.title === "CLOUDFLARE_BLOCK" || looksLikeGenericSiteName(primaryResult.title, url) || (allowSlowCover && !primaryResult.coverUrl))) {
+        if (strats.Camofox && !camofoxAttempted && (!primaryResult || primaryResult.isFallback || primaryResult.title === "CLOUDFLARE_BLOCK" || looksLikeGenericSiteName(primaryResult.title, url) || needsCoverUpgrade(primaryResult))) {
             console.log("Autotitle: Trying Camofox final browser fallback...");
             try {
                 camofoxAttempted = true;
@@ -583,7 +591,7 @@ window.getTitleFromUrl = async function (url, options = {}) {
             };
         }
 
-        if (isBrowserHtmlMode && allowSlowCover && !(lightpandaBlocked || camofoxBlocked) && (!primaryResult?.coverUrl || scoreCoverUrl(primaryResult.coverUrl, url) < 60)) {
+        if (isBrowserHtmlMode && allowSlowCover && !(lightpandaBlocked || camofoxBlocked) && needsCoverUpgrade(primaryResult)) {
             const coverRecoveryStrategies = [
                 { fn: isGalleryPage ? strats.GalleryPageHtml : null, timeout: 22000, attempts: 2 },
                 { fn: isMangaFireHost ? strats.MangaFireHtml : null, timeout: 22000, attempts: 2 },
@@ -613,7 +621,7 @@ window.getTitleFromUrl = async function (url, options = {}) {
                     camofoxBlocked = true;
                 }
                 primaryResult = mergeAutotitleMetadata(primaryResult, recoveryResult, url);
-                if (scoreCoverUrl(primaryResult?.coverUrl, url) >= 80) break;
+                if (hasStrongCoverResult(primaryResult)) break;
             }
         }
 

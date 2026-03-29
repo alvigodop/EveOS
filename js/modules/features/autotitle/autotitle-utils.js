@@ -193,12 +193,17 @@ window.EveOS.Autotitle = window.EveOS.Autotitle || {};
             if (/\/cover\/(?:avif|webp|png|jpe?g)\/_s\d+\.(jpg|jpeg|png|webp|avif)(?:[?#].*)?$/i.test(url)) score += 45;
             if (/\/cover\/avif\/[^/?#]+\.avif(?:[?#].*)?$/i.test(url)) score += 85;
             if (/\/cover\/webp\/[^/?#]+\.webp(?:[?#].*)?$/i.test(url)) score += 75;
-            if (/cover|poster|thumbnail|thumb|banner|hero|backdrop|manga|comic|chapter|title|og-image/.test(url)) score += 45;
+            if (/cover|poster|hero|backdrop|og-image/.test(url)) score += 60;
+            if (/banner|manga|comic|chapter|title/.test(url)) score += 35;
+            if (/thumbnail|thumb/.test(url)) score += 12;
             if (/\.(jpg|jpeg|png|webp|avif)(?:[?#].*)?$/i.test(url)) score += 35;
             if (/[a-z0-9][a-z0-9_-]{4,}\/\d+\//i.test(url)) score += 25;
             if (/\/cover\/\d+\//i.test(url) && !/[a-z0-9][a-z0-9_-]{4,}\/\d+\//i.test(url)) score -= 40;
             if (/\/assets\//.test(url)) score -= 25;
             if (/@\d+\.(jpg|jpeg|png|webp|avif)(?:[?#].*)?$/i.test(url)) score -= 20;
+            if (/\/thumbs?(?:\/|[-_])|\/thumbnails?(?:\/|[-_])|(?:^|[_-])(thumb|thumbnail)(?:[_-]|$)/.test(url)) score -= 35;
+            if (/preview|sample|related|recommend|avatar/.test(url)) score -= 25;
+            if (/(?:^|[_-])small(?:[_-]|$)|[?&](?:size|width|w)=\d{1,3}(?:$|&)/.test(url)) score -= 15;
             if (/placeholder|default|no-cover|noimage|blank/.test(url)) score -= 60;
         }
 

@@ -31,6 +31,9 @@ window.fetchTitle = async function (btn) {
         const adoptAutotitleTitle = typeof utils.adoptAutotitleTitle === 'function'
             ? utils.adoptAutotitleTitle
             : ((primary, candidate) => candidate || primary);
+        const scoreCoverUrl = typeof utils.scoreCoverUrl === 'function'
+            ? utils.scoreCoverUrl
+            : ((coverUrl) => coverUrl ? 0 : -999);
         const isClearlyBetterTitle = typeof utils.isClearlyBetterTitle === 'function'
             ? utils.isClearlyBetterTitle
             : ((candidate, primary) => !!candidate?.title && (!primary?.title || String(candidate.title).length > String(primary.title || '').length));
@@ -38,10 +41,11 @@ window.fetchTitle = async function (btn) {
         const baseData = await window.getTitleFromUrl(url, { allowSlowCover: true });
         let data = baseData;
         let headlessFollowup = null;
+        const currentCoverScore = scoreCoverUrl(data?.coverUrl, url);
 
         const shouldEscalateToHeadless = window.location?.protocol === 'file:'
             && typeof window.getTitleFromUrlHeadless === 'function'
-            && (!data || isWeakAutotitleResult(data, url) || !data.coverUrl)
+            && (!data || isWeakAutotitleResult(data, url) || !data.coverUrl || currentCoverScore < 80)
             && data?.source !== 'Camofox';
 
         if (shouldEscalateToHeadless) {
