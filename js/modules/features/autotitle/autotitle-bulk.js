@@ -41,16 +41,16 @@
 
     function setBulkTitleButtonsDisabled(disabled, activeMode) {
         const normalBtn = document.getElementById('btnRunBulkTitle');
-        const lightpandaBtn = document.getElementById('btnRunBulkTitleLightpanda');
+        const headlessBtn = document.getElementById('btnRunBulkTitleLightpanda');
 
         if (normalBtn) {
             normalBtn.disabled = disabled;
             normalBtn.innerText = activeMode === 'normal' && disabled ? 'Processing...' : 'Start Update';
         }
 
-        if (lightpandaBtn) {
-            lightpandaBtn.disabled = disabled;
-            lightpandaBtn.innerText = activeMode === 'lightpanda' && disabled ? 'Processing...' : 'Use Lightpanda';
+        if (headlessBtn) {
+            headlessBtn.disabled = disabled;
+            headlessBtn.innerText = activeMode === 'headless' && disabled ? 'Processing...' : 'Use Headless Scrapers';
         }
     }
 
@@ -155,8 +155,8 @@
         const isWeakAutotitleResult = typeof utils.isWeakAutotitleResult === 'function'
             ? utils.isWeakAutotitleResult
             : (result) => !result || !result.title || result.title === 'CLOUDFLARE_BLOCK' || !!result.isFallback;
-        const lightpandaOnly = !!options.lightpandaOnly;
-        setBulkTitleButtonsDisabled(true, lightpandaOnly ? 'lightpanda' : 'normal');
+        const headlessOnly = !!(options.headlessOnly || options.lightpandaOnly);
+        setBulkTitleButtonsDisabled(true, headlessOnly ? 'headless' : 'normal');
 
         let updatedCount = 0;
         let hadConnectionFailure = false;
@@ -171,8 +171,8 @@
 
             statusSpan.innerText = '...';
             try {
-                const data = lightpandaOnly
-                    ? await window.getTitleFromUrlLightpanda(link.url)
+                const data = headlessOnly
+                    ? await window.getTitleFromUrlHeadless(link.url)
                     : await window.getTitleFromUrl(link.url);
 
                 if ((data?.browserFallbackBlocked || data?.lightpandaBlocked || data?.camofoxBlocked) && isWeakAutotitleResult(data, link.url)) {
@@ -196,39 +196,43 @@
                     blockedSample = blockedSample || data;
                 } else {
                     statusSpan.innerText = 'FAIL';
-                    if (lightpandaOnly) hadConnectionFailure = true;
+                    if (headlessOnly) hadConnectionFailure = true;
                 }
             } catch (error) {
                 statusSpan.innerText = 'WARN';
-                if (lightpandaOnly) hadConnectionFailure = true;
+                if (headlessOnly) hadConnectionFailure = true;
             }
         }
 
         if (typeof saveData === 'function') saveData();
 
         const normalBtn = document.getElementById('btnRunBulkTitle');
-        const lightpandaBtn = document.getElementById('btnRunBulkTitleLightpanda');
-        if (lightpandaOnly && lightpandaBtn) {
-            lightpandaBtn.innerText = `Done! (${updatedCount} updated)`;
+        const headlessBtn = document.getElementById('btnRunBulkTitleLightpanda');
+        if (headlessOnly && headlessBtn) {
+            headlessBtn.innerText = `Done! (${updatedCount} updated)`;
         } else if (normalBtn) {
             normalBtn.innerText = `Done! (${updatedCount} updated)`;
         }
 
-        if (lightpandaOnly && updatedCount === 0 && hadConnectionFailure) {
-            showToast('Lightpanda is not reachable. Start it from start-server.bat > Open Lightpanda standalone controller, then retry.', 'warning');
-        } else if (lightpandaOnly && updatedCount === 0 && blockedCount > 0) {
+        if (headlessOnly && updatedCount === 0 && hadConnectionFailure) {
+            showToast('Headless scrapers are not reachable. Start Lightpanda or Camofox from start-server.bat > Browser fallback controls, then retry.', 'warning');
+        } else if (headlessOnly && updatedCount === 0 && blockedCount > 0) {
             showToast(getProtectedBrowserMessage(blockedSample), 'warning');
         }
 
         setTimeout(() => {
             setBulkTitleButtonsDisabled(false, null);
-            if (!(lightpandaOnly && updatedCount === 0 && hadConnectionFailure) && typeof closeModals === 'function') {
+            if (!(headlessOnly && updatedCount === 0 && hadConnectionFailure) && typeof closeModals === 'function') {
                 closeModals();
             }
         }, 1500);
     };
 
+    window.runBulkTitleUpdateHeadless = function () {
+        return window.runBulkTitleUpdate({ headlessOnly: true });
+    };
+
     window.runBulkTitleUpdateLightpanda = function () {
-        return window.runBulkTitleUpdate({ lightpandaOnly: true });
+        return window.runBulkTitleUpdateHeadless();
     };
 })();

@@ -76,7 +76,7 @@ window.modalTemplate += `
         </div>
         <div style="display:flex; gap:10px;">
             <button class="btn-primary" onclick="runBulkTitleUpdate()" id="btnRunBulkTitle">Start Update</button>
-            <button onclick="runBulkTitleUpdateLightpanda()" id="btnRunBulkTitleLightpanda">Use Lightpanda</button>
+            <button onclick="runBulkTitleUpdateHeadless()" id="btnRunBulkTitleLightpanda">Use Headless Scrapers</button>
             <button onclick="closeModals()">Close</button>
         </div>
     </div>

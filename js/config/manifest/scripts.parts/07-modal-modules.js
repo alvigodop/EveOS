@@ -7,7 +7,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/modals/templates/tpl-core.js?v=0.2.46",
     "js/modules/modals/templates/tpl-settings.backup.js?v=0.2.7",
     "js/modules/modals/templates/tpl-settings.js?v=0.2.4",
-    "js/modules/modals/templates/tpl-bulk.js?v=0.1.4",
+    "js/modules/modals/templates/tpl-bulk.js?v=0.1.5",
     "js/modules/modals/templates/tpl-emoji.js",
     "js/modules/modals/templates/tpl-folder-actions.js",
     "js/modules/modals/templates/tpl-category-settings.js?v=0.2.15",

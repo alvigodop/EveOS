@@ -87,6 +87,50 @@ window.getTitleFromUrlCamofox = async function (url, options = {}) {
     }
 };
 
+window.getTitleFromUrlHeadless = async function (url, options = {}) {
+    const utils = window.EveOS?.Autotitle?.CoreUtils || {};
+    const isWeakAutotitleResult = typeof utils.isWeakAutotitleResult === 'function'
+        ? utils.isWeakAutotitleResult
+        : (result) => !result || !result.title || result.title === 'CLOUDFLARE_BLOCK' || !!result.isFallback;
+    const mergeAutotitleMetadata = typeof utils.mergeAutotitleMetadata === 'function'
+        ? utils.mergeAutotitleMetadata
+        : ((primary, candidate) => candidate || primary);
+    const isClearlyBetterTitle = typeof utils.isClearlyBetterTitle === 'function'
+        ? utils.isClearlyBetterTitle
+        : ((candidate, primary) => !!candidate?.title && (!primary?.title || String(candidate.title).length > String(primary.title || '').length));
+
+    let best = null;
+
+    const lightpandaResult = await window.getTitleFromUrlLightpanda(url, {
+        timeoutMs: Number(options.lightpandaTimeoutMs || 30000)
+    });
+    if (lightpandaResult) {
+        best = lightpandaResult;
+        if (!isWeakAutotitleResult(lightpandaResult, url) && lightpandaResult.title !== 'CLOUDFLARE_BLOCK') {
+            return lightpandaResult;
+        }
+    }
+
+    const camofoxResult = await window.getTitleFromUrlCamofox(url, {
+        timeoutMs: Number(options.camofoxTimeoutMs || 45000)
+    });
+    if (camofoxResult) {
+        if (!best || isClearlyBetterTitle(camofoxResult, best, url)) {
+            best = camofoxResult;
+        } else {
+            best = mergeAutotitleMetadata(best, camofoxResult, url);
+            if (camofoxResult.title && (!best.title || isClearlyBetterTitle(camofoxResult, best, url))) {
+                best.title = camofoxResult.title;
+            }
+        }
+        if (!isWeakAutotitleResult(camofoxResult, url) && camofoxResult.title !== 'CLOUDFLARE_BLOCK') {
+            return best;
+        }
+    }
+
+    return best;
+};
+
 window.getTitleFromUrl = async function (url, options = {}) {
     // Orchestrates the strategies defined in external modules
 
