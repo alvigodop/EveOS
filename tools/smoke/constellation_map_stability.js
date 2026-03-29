@@ -187,6 +187,8 @@ load('js/modules/features/constellation-map/constellation-map.physics.aura.repul
 load('js/modules/features/constellation-map/constellation-map.physics.aura.recovery.js');
 load('js/modules/features/constellation-map/constellation-map.physics.aura.js');
 load('js/modules/features/constellation-map/constellation-map.physics.motion.profiles.js');
+load('js/modules/features/constellation-map/constellation-map.physics.motion.anchors.stability.js');
+load('js/modules/features/constellation-map/constellation-map.physics.motion.anchors.web.js');
 load('js/modules/features/constellation-map/constellation-map.physics.motion.anchors.js');
 load('js/modules/features/constellation-map/constellation-map.physics.motion.js');
 load('js/modules/features/constellation-map/constellation-map.physics.polarity.js');
