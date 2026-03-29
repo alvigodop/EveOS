@@ -1,15 +1,27 @@
-import subprocess
-import logging
 import json
-from http import HTTPStatus
+import logging
 import os
 import re
 import shlex
+import subprocess
+from html import unescape
+from html.parser import HTMLParser
+from http import HTTPStatus
 from types import SimpleNamespace
+from urllib.parse import urljoin, urlparse
 
 logger = logging.getLogger("FandomDiscoveryServer")
 
 DEFAULT_WSL_DISTRO = "Ubuntu"
+BLOCKED_TITLE_TOKENS = (
+    "just a moment",
+    "attention required! | cloudflare",
+    "access denied",
+    "403 forbidden",
+    "404 not found",
+    "too many requests",
+)
+
 
 def _project_root():
     return (
@@ -17,14 +29,17 @@ def _project_root():
         or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     )
 
+
 def _lightpanda_binary_path():
     explicit = (os.environ.get("EVEOS_LIGHTPANDA_BIN") or "").strip()
     if explicit:
         return explicit
     return os.path.join(_project_root(), "bin", "lightpanda")
 
+
 def _wsl_distro():
     return (os.environ.get("EVEOS_LIGHTPANDA_WSL_DISTRO") or DEFAULT_WSL_DISTRO).strip() or DEFAULT_WSL_DISTRO
+
 
 def _windows_to_wsl_path(path):
     normalized = os.path.abspath(path).replace("\\", "/")
@@ -35,21 +50,39 @@ def _windows_to_wsl_path(path):
     remainder = match.group(2)
     return f"/mnt/{drive}/{remainder}"
 
-def _build_lightpanda_command(target_url):
+
+def _build_lightpanda_command(target_url, include_frames=False, http_timeout_ms=15000):
     binary_path = _lightpanda_binary_path()
     binary_wsl_path = _windows_to_wsl_path(binary_path) if ":" in binary_path[:3] else binary_path
     target_url = str(target_url or "").strip()
+    args = [
+        shlex.quote(binary_wsl_path),
+        "fetch",
+        "--dump",
+        "html",
+        "--with_base",
+        "--obey_robots",
+        "--log_level",
+        "error",
+        "--http_timeout",
+        str(int(http_timeout_ms)),
+    ]
+    if include_frames:
+        args.append("--with_frames")
+    args.append(shlex.quote(target_url))
     return [
         "wsl",
         "-d",
         _wsl_distro(),
         "bash",
         "-lc",
-        f"{shlex.quote(binary_wsl_path)} fetch --dump html --obey_robots --log_level error {shlex.quote(target_url)}",
+        " ".join(args),
     ]
+
 
 def is_lightpanda_available():
     return os.path.exists(_lightpanda_binary_path())
+
 
 def _decode_lightpanda_stream(raw_bytes):
     if raw_bytes is None:
@@ -63,10 +96,11 @@ def _decode_lightpanda_stream(raw_bytes):
             continue
     return raw_bytes.decode("utf-8", errors="replace")
 
-def fetch_lightpanda_html(target_url, timeout=30):
+
+def fetch_lightpanda_html(target_url, timeout=30, include_frames=False, http_timeout_ms=15000):
     if not is_lightpanda_available():
         raise FileNotFoundError(f"Lightpanda binary not found at {_lightpanda_binary_path()}")
-    cmd = _build_lightpanda_command(target_url)
+    cmd = _build_lightpanda_command(target_url, include_frames=include_frames, http_timeout_ms=http_timeout_ms)
     result = subprocess.run(cmd, capture_output=True, text=False, timeout=timeout)
     return SimpleNamespace(
         returncode=result.returncode,
@@ -74,84 +108,346 @@ def fetch_lightpanda_html(target_url, timeout=30):
         stderr=_decode_lightpanda_stream(result.stderr),
     )
 
+
+def _looks_blocked_title(title):
+    clean = str(title or "").strip().lower()
+    if not clean:
+        return False
+    return any(token in clean for token in BLOCKED_TITLE_TOKENS)
+
+
+def _looks_generic_title(title, target_url):
+    clean = str(title or "").strip().lower()
+    if not clean:
+        return True
+    if len(clean) < 4:
+        return True
+    generic_patterns = ("view video", "watch video", "home", "welcome", "index", "untitled", "loading", "please wait")
+    if any(pattern in clean for pattern in generic_patterns):
+        return True
+    try:
+        parsed = urlparse(target_url)
+        domain = parsed.hostname.replace("www.", "").split(".")[0].lower()
+        normalized_title = re.sub(r"[^a-z0-9]", "", clean)
+        if normalized_title in {domain, f"{domain}com", f"{domain}org", f"{domain}net"} and len(parsed.path or "") > 1:
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def _truncate_text(value, limit):
+    text = re.sub(r"\s+", " ", str(value or "")).strip()
+    if len(text) <= limit:
+        return text
+    return f"{text[:limit - 1].rstrip()}…"
+
+
+class _LightpandaHtmlMetadataParser(HTMLParser):
+    def __init__(self, target_url):
+        super().__init__(convert_charrefs=True)
+        self.target_url = target_url
+        self.base_url = target_url
+        self.title_parts = []
+        self.in_title = False
+        self.meta = {}
+        self.icon = None
+        self.apple_icon = None
+        self.canonical = None
+        self.anchors = []
+        self._anchor_href = None
+        self._anchor_text_parts = []
+
+    def handle_starttag(self, tag, attrs):
+        attrs_dict = {str(key).lower(): value for key, value in attrs}
+        tag = str(tag or "").lower()
+
+        if tag == "title":
+            self.in_title = True
+            return
+
+        if tag == "base":
+            href = attrs_dict.get("href")
+            if href:
+                self.base_url = urljoin(self.base_url, href)
+            return
+
+        if tag == "meta":
+            key = (attrs_dict.get("property") or attrs_dict.get("name") or "").strip().lower()
+            content = (attrs_dict.get("content") or "").strip()
+            if key and content and key not in self.meta:
+                self.meta[key] = content
+            return
+
+        if tag == "link":
+            rel_tokens = {token.strip().lower() for token in str(attrs_dict.get("rel") or "").split() if token.strip()}
+            href = (attrs_dict.get("href") or "").strip()
+            if not href:
+                return
+            absolute_href = urljoin(self.base_url, href)
+            if "canonical" in rel_tokens and not self.canonical:
+                self.canonical = absolute_href
+            if any(token in rel_tokens for token in ("icon", "shortcut", "shortcut icon")) and not self.icon:
+                self.icon = absolute_href
+            if "apple-touch-icon" in rel_tokens and not self.apple_icon:
+                self.apple_icon = absolute_href
+            return
+
+        if tag == "a":
+            href = (attrs_dict.get("href") or "").strip()
+            if href:
+                self._anchor_href = urljoin(self.base_url, href)
+                self._anchor_text_parts = []
+
+    def handle_data(self, data):
+        if self.in_title:
+            self.title_parts.append(data)
+        if self._anchor_href:
+            self._anchor_text_parts.append(data)
+
+    def handle_endtag(self, tag):
+        tag = str(tag or "").lower()
+        if tag == "title":
+            self.in_title = False
+            return
+        if tag == "a" and self._anchor_href:
+            text = _truncate_text(unescape(" ".join(self._anchor_text_parts)), 120)
+            self.anchors.append({"href": self._anchor_href, "text": text})
+            self._anchor_href = None
+            self._anchor_text_parts = []
+
+    def extracted_title(self):
+        candidates = [
+            self.meta.get("og:title"),
+            self.meta.get("twitter:title"),
+            "".join(self.title_parts).strip(),
+        ]
+        for candidate in candidates:
+            candidate = _truncate_text(unescape(candidate or ""), 300)
+            if candidate:
+                return candidate
+        return None
+
+
+def _pick_cover(parser):
+    candidates = [
+        parser.meta.get("og:image"),
+        parser.meta.get("og:image:secure_url"),
+        parser.meta.get("twitter:image"),
+        parser.meta.get("twitter:image:src"),
+    ]
+    for candidate in candidates:
+        if candidate:
+            return urljoin(parser.base_url, candidate)
+    return None
+
+
+def _pick_description(parser):
+    candidates = [
+        parser.meta.get("og:description"),
+        parser.meta.get("twitter:description"),
+        parser.meta.get("description"),
+    ]
+    for candidate in candidates:
+        text = _truncate_text(unescape(candidate or ""), 500)
+        if text:
+            return text
+    return None
+
+
+def _pick_icon(parser):
+    return parser.icon or parser.apple_icon
+
+
+def _extract_quick_links(parser):
+    target_host = ""
+    try:
+        target_host = urlparse(parser.target_url).hostname or ""
+    except Exception:
+        pass
+
+    quick_links = []
+    seen = set()
+    for anchor in parser.anchors:
+        href = str(anchor.get("href") or "").strip()
+        text = str(anchor.get("text") or "").strip()
+        if not href or not text:
+            continue
+        if href.startswith(("javascript:", "mailto:", "tel:")):
+            continue
+        parsed = urlparse(href)
+        if parsed.scheme not in ("http", "https"):
+            continue
+        if target_host and parsed.hostname and parsed.hostname != target_host:
+            continue
+        if len(text) < 2:
+            continue
+        key = (href, text.lower())
+        if key in seen:
+            continue
+        seen.add(key)
+        quick_links.append({"text": text, "url": href})
+        if len(quick_links) >= 8:
+            break
+    return quick_links
+
+
+def extract_lightpanda_metadata(html_content, target_url):
+    parser = _LightpandaHtmlMetadataParser(target_url)
+    try:
+        parser.feed(html_content or "")
+        parser.close()
+    except Exception:
+        pass
+
+    title = parser.extracted_title()
+    metadata = {
+        "title": title,
+        "description": _pick_description(parser),
+        "icon": _pick_icon(parser),
+        "coverUrl": _pick_cover(parser),
+        "canonicalUrl": parser.canonical or target_url,
+        "quickLinks": _extract_quick_links(parser),
+        "source": "Lightpanda",
+    }
+    metadata["blocked"] = _looks_blocked_title(metadata["title"])
+    metadata["genericTitle"] = _looks_generic_title(metadata["title"], target_url)
+    metadata["quality"] = {
+        "hasTitle": bool(metadata["title"]),
+        "blocked": metadata["blocked"],
+        "genericTitle": metadata["genericTitle"],
+        "hasCover": bool(metadata["coverUrl"]),
+        "hasDescription": bool(metadata["description"]),
+        "quickLinkCount": len(metadata["quickLinks"]),
+    }
+    return metadata
+
+
+def _is_weak_metadata(metadata):
+    if not metadata:
+        return True
+    if metadata.get("blocked"):
+        return True
+    if not metadata.get("title"):
+        return True
+    if metadata.get("genericTitle"):
+        return True
+    return False
+
+
+def _fetch_with_upgrade(target_url):
+    primary = fetch_lightpanda_html(target_url, timeout=30, include_frames=False, http_timeout_ms=15000)
+    primary_html = primary.stdout or ""
+    primary_metadata = extract_lightpanda_metadata(primary_html, target_url)
+
+    if primary.returncode == 0 and not _is_weak_metadata(primary_metadata):
+        return primary, primary_html, primary_metadata, False
+
+    retry = fetch_lightpanda_html(target_url, timeout=45, include_frames=True, http_timeout_ms=22000)
+    retry_html = retry.stdout or ""
+    retry_metadata = extract_lightpanda_metadata(retry_html, target_url)
+
+    if retry.returncode == 0 and (not primary_html or not _is_weak_metadata(retry_metadata)):
+        return retry, retry_html, retry_metadata, True
+
+    return primary, primary_html, primary_metadata, False
+
+
 def handle_lightpanda_fetch(handler, query):
     """Handle requests to /api/lightpanda?url=..."""
-    target_url_list = query.get('url')
-    
+    target_url_list = query.get("url")
+    response_format = str((query.get("format") or ["html"])[0] or "html").strip().lower()
+
     if not target_url_list:
         handler.send_response(HTTPStatus.BAD_REQUEST)
-        handler.send_header('Content-Type', 'application/json')
+        handler.send_header("Content-Type", "application/json")
         handler.end_headers()
         handler.wfile.write(b'{"error": "Missing url parameter"}')
         return
 
-    # Check if Lightpanda is manually disabled via environment variable
     if os.environ.get("EVEOS_LIGHTPANDA_DISABLED") == "1":
         logger.info("Lightpanda: Fetch requested but bridge is currently DISABLED via toggle.")
         handler.send_response(HTTPStatus.SERVICE_UNAVAILABLE)
-        handler.send_header('Content-Type', 'application/json')
+        handler.send_header("Content-Type", "application/json")
         handler.end_headers()
         handler.wfile.write(b'{"error": "Lightpanda bridge is disabled"}')
         return
 
-    # Path for activity monitoring
     log_path = os.path.join(_project_root(), "bin", "lightpanda_activity.log")
-    
+
     def log_activity(msg):
         try:
             from datetime import datetime
             timestamp = datetime.now().strftime("%H:%M:%S")
-            with open(log_path, "a", encoding="utf-8") as f:
-                f.write(f"[{timestamp}] {msg}\n")
-        except:
+            with open(log_path, "a", encoding="utf-8") as handle:
+                handle.write(f"[{timestamp}] {msg}\n")
+        except Exception:
             pass
 
     target_url = target_url_list[0]
     logger.info(f"Lightpanda: Fetching URL: {target_url}")
     log_activity(f"FETCH START: {target_url}")
-    
+
     try:
-        result = fetch_lightpanda_html(target_url, timeout=30)
-        
+        result, content, metadata, used_retry = _fetch_with_upgrade(target_url)
+
         if result.returncode == 0:
-            content = result.stdout or ""
             logger.info(f"Lightpanda: Successfully fetched {len(content)} bytes from {target_url}")
-            log_activity(f"SUCCESS: {target_url} ({len(content)} bytes)")
-            
+            if used_retry:
+                log_activity(f"SUCCESS-RETRY: {target_url} ({len(content)} bytes)")
+            else:
+                log_activity(f"SUCCESS: {target_url} ({len(content)} bytes)")
+
+            if response_format == "json":
+                payload = {
+                    "ok": True,
+                    "url": target_url,
+                    "metadata": metadata,
+                    "html": content,
+                    "retriedWithFrames": bool(used_retry),
+                }
+                body = json.dumps(payload).encode("utf-8")
+                handler.send_response(HTTPStatus.OK)
+                handler.send_header("Content-Type", "application/json")
+                handler.end_headers()
+                handler.wfile.write(body)
+                return
+
             handler.send_response(HTTPStatus.OK)
-            handler.send_header('Content-Type', 'text/html')
+            handler.send_header("Content-Type", "text/html; charset=utf-8")
             handler.end_headers()
-            handler.wfile.write(content.encode('utf-8'))
-        else:
-            logger.warning(f"Lightpanda: Execution failed with return code {result.returncode}")
-            log_activity(f"FAILED: {target_url} (Code: {result.returncode})")
-            if result.stderr:
-                log_activity(f"  ERR: {result.stderr.strip()[:100]}")
-            
-            handler.send_response(HTTPStatus.INTERNAL_SERVER_ERROR)
-            handler.send_header('Content-Type', 'application/json')
-            handler.end_headers()
-            error_msg = json.dumps({
-                "error": "Lightpanda execution failed",
-                "details": result.stderr
-            })
-            handler.wfile.write(error_msg.encode('utf-8'))
-            
+            handler.wfile.write(content.encode("utf-8"))
+            return
+
+        logger.warning(f"Lightpanda: Execution failed with return code {result.returncode}")
+        log_activity(f"FAILED: {target_url} (Code: {result.returncode})")
+        if result.stderr:
+            log_activity(f"  ERR: {result.stderr.strip()[:180]}")
+
+        handler.send_response(HTTPStatus.INTERNAL_SERVER_ERROR)
+        handler.send_header("Content-Type", "application/json")
+        handler.end_headers()
+        error_msg = json.dumps({
+            "error": "Lightpanda execution failed",
+            "details": result.stderr,
+        })
+        handler.wfile.write(error_msg.encode("utf-8"))
+
     except subprocess.TimeoutExpired:
         logger.warning(f"Lightpanda: Timeout fetching {target_url}")
         log_activity(f"TIMEOUT: {target_url}")
         handler.send_response(HTTPStatus.GATEWAY_TIMEOUT)
-        handler.send_header('Content-Type', 'application/json')
+        handler.send_header("Content-Type", "application/json")
         handler.end_headers()
         handler.wfile.write(b'{"error": "Lightpanda fetch timed out"}')
-        
-    except Exception as e:
-        logger.error(f"Lightpanda: Unexpected error: {str(e)}")
+
+    except Exception as exc:
+        logger.error(f"Lightpanda: Unexpected error: {str(exc)}")
         handler.send_response(HTTPStatus.INTERNAL_SERVER_ERROR)
-        handler.send_header('Content-Type', 'application/json')
+        handler.send_header("Content-Type", "application/json")
         handler.end_headers()
         error_msg = json.dumps({
             "error": "Internal Server Error",
-            "details": str(e)
+            "details": str(exc),
         })
-        handler.wfile.write(error_msg.encode('utf-8'))
+        handler.wfile.write(error_msg.encode("utf-8"))

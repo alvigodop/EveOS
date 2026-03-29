@@ -23,12 +23,8 @@
         return title;
     };
 
-    const utils = window.EveOS?.Autotitle?.CoreUtils || {};
-    
-    // Fallback extractors if utils aren't available
-    const extractMetadata = (html, baseUrl) => {
+    const extractMetadataFromHtml = (html, baseUrl) => {
         const doc = new DOMParser().parseFromString(html, 'text/html');
-        
         const title = cleanTitle(
             doc.querySelector('meta[property="og:title"]')?.getAttribute('content')
             || doc.querySelector('meta[name="twitter:title"]')?.getAttribute('content')
@@ -45,12 +41,30 @@
             || doc.querySelector('meta[name="twitter:image"]')?.getAttribute('content')
             || null;
 
+        const description = doc.querySelector('meta[property="og:description"]')?.getAttribute('content')
+            || doc.querySelector('meta[name="twitter:description"]')?.getAttribute('content')
+            || doc.querySelector('meta[name="description"]')?.getAttribute('content')
+            || null;
+
         return {
             title: title ? title.trim() : null,
-            icon: icon,
-            coverUrl: coverUrl,
+            icon,
+            coverUrl,
+            description,
+            canonicalUrl: doc.querySelector('link[rel="canonical"]')?.href || baseUrl,
+            quickLinks: [],
             source: 'Lightpanda'
         };
+    };
+
+    const normalizePayloadMetadata = (payload, url) => {
+        const metadata = payload?.metadata ? { ...payload.metadata } : null;
+        if (!metadata) return null;
+        metadata.title = cleanTitle(metadata.title);
+        metadata.source = 'Lightpanda';
+        metadata.quickLinks = Array.isArray(metadata.quickLinks) ? metadata.quickLinks : [];
+        metadata.canonicalUrl = metadata.canonicalUrl || url;
+        return metadata;
     };
 
     window.EveOS.Autotitle.Strategies.Lightpanda = async function (url, signal) {
@@ -58,56 +72,58 @@
 
         const isFileProtocol = window.location?.protocol === 'file:';
         let portsToTry = isFileProtocol ? [window._eveLightpandaPort, 3037, 3000, 3001, 3002, 3003, 3004, 3005].filter(Boolean) : [null];
-        portsToTry = [...new Set(portsToTry)]; // Remove duplicates
-        
+        portsToTry = [...new Set(portsToTry)];
+
         for (const port of portsToTry) {
             try {
                 const apiBase = port ? `http://localhost:${port}` : '';
-                const apiUrl = `${apiBase}/api/lightpanda?url=${encodeURIComponent(url)}`;
-                
+                const apiUrl = `${apiBase}/api/lightpanda?format=json&url=${encodeURIComponent(url)}`;
                 const response = await fetch(apiUrl, { signal });
-                
+
                 if (response.ok) {
-                    const html = await response.text();
-                    
-                    // Use enhanced utils if available, else fallback
-                    if (window.EveOS?.Autotitle?.CoreUtils?.extractMetadata) {
-                        const metadata = window.EveOS.Autotitle.CoreUtils.extractMetadata(html, url);
-                        if (metadata) {
-                            metadata.source = 'Lightpanda';
-                            console.log(`Autotitle: Lightpanda success (via port ${port || 'default'}):`, metadata.title);
-                            
-                            // If we found a working port on file protocol, maybe cache it for this session?
+                    const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+
+                    if (contentType.includes('application/json')) {
+                        const payload = await response.json();
+                        const metadata = normalizePayloadMetadata(payload, url);
+                        if (metadata?.title || metadata?.coverUrl || metadata?.icon) {
+                            console.log(`Autotitle: Lightpanda JSON success (via port ${port || 'default'}):`, metadata.title || metadata.coverUrl || metadata.icon);
                             if (isFileProtocol && port) window._eveLightpandaPort = port;
-                            
                             return metadata;
                         }
+
+                        if (payload?.html) {
+                            const fallback = extractMetadataFromHtml(payload.html, url);
+                            if (fallback?.title || fallback?.coverUrl || fallback?.icon) {
+                                console.log(`Autotitle: Lightpanda HTML fallback success (via port ${port || 'default'}):`, fallback.title);
+                                if (isFileProtocol && port) window._eveLightpandaPort = port;
+                                return fallback;
+                            }
+                        }
                     } else {
-                        const metadata = extractMetadata(html, url);
-                        if (metadata.title) {
-                            console.log(`Autotitle: Lightpanda (simple parse) success (via port ${port || 'default'}):`, metadata.title);
+                        const html = await response.text();
+                        const metadata = extractMetadataFromHtml(html, url);
+                        if (metadata?.title || metadata?.coverUrl || metadata?.icon) {
+                            console.log(`Autotitle: Lightpanda HTML success (via port ${port || 'default'}):`, metadata.title);
+                            if (isFileProtocol && port) window._eveLightpandaPort = port;
                             return metadata;
                         }
                     }
                 } else if (response.status === 503) {
                     console.warn("Autotitle: Lightpanda bridge is currently DISABLED in the launcher.");
-                    return null; // Don't try other ports if it's explicitly disabled
+                    return null;
                 } else {
                     console.warn(`Autotitle: Lightpanda backend at ${apiBase} returned error ${response.status}`);
                 }
             } catch (error) {
                 if (error.name === 'AbortError') return null;
-                
-                // If connection refused, try next port
                 if (isFileProtocol) {
                     console.warn(`Autotitle: Lightpanda connection refused at localhost:${port}. Probing next...`);
                     continue;
                 }
-                
                 console.warn("Autotitle: Lightpanda strategy failed", error);
             }
-            
-            // If not file protocol or we already tried the dynamic port, just stop
+
             if (!isFileProtocol) break;
         }
 

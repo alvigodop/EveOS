@@ -6560,7 +6560,7 @@ window.EveModuleManifestParts.scripts = [
 
 
         'js/modules/features/autotitle/strategies/scraper-engine.js?v=0.2.9',
-        'js/modules/features/autotitle/strategies/lightpanda.js?v=0.1.1',
+        'js/modules/features/autotitle/strategies/lightpanda.js?v=0.1.2',
 
 
 
