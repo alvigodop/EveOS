@@ -339,7 +339,11 @@ window.EveModuleManifestParts.scripts = [
         'js/modules/features/constellation-map/constellation-map.physics.js?v=0.2.0',
 
         'js/modules/features/constellation-map/constellation-map.view.js?v=0.1.1',
-        'js/modules/features/constellation-map/constellation-map.events.js?v=0.1.7',
+        'js/modules/features/constellation-map/constellation-map.events.state.js?v=0.1.0',
+        'js/modules/features/constellation-map/constellation-map.events.canvas.js?v=0.1.0',
+        'js/modules/features/constellation-map/constellation-map.events.inspector.js?v=0.1.0',
+        'js/modules/features/constellation-map/constellation-map.events.window.js?v=0.1.0',
+        'js/modules/features/constellation-map/constellation-map.events.js?v=0.1.8',
         'js/modules/features/constellation-map/constellation-map.toolbar.markup.js?v=0.1.15',
         'js/modules/features/constellation-map/constellation-map.toolbar.js?v=0.2.9',
         'js/modules/features/constellation-map/index.js?v=0.1.0',
