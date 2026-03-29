@@ -24,21 +24,13 @@ window.fetchTitle = async function (btn) {
             ? utils.isClearlyBetterTitle
             : ((candidate, primary) => !!candidate?.title && (!primary?.title || String(candidate.title).length > String(primary.title || '').length));
 
-        let data = await window.getTitleFromUrl(url, { allowSlowCover: true });
-        let usedLightpandaFallback = false;
+        const data = await window.getTitleFromUrl(url, { allowSlowCover: true });
+        const usedLightpandaFallback = !!(data?.source === 'Lightpanda');
+        const lightpandaBlocked = !!data?.lightpandaBlocked;
 
-        if (typeof window.getTitleFromUrlLightpanda === 'function' && data?.source !== 'Lightpanda' && isWeakAutotitleResult(data, url)) {
-            const lightpandaData = await window.getTitleFromUrlLightpanda(url, { timeoutMs: 20000 });
-            if (lightpandaData) {
-                if (!data || isWeakAutotitleResult(data, url) || isClearlyBetterTitle(lightpandaData, data, url)) {
-                    data = adoptAutotitleTitle(data, lightpandaData, url);
-                } else {
-                    data = mergeAutotitleMetadata(data, lightpandaData, url);
-                }
-                if (!isWeakAutotitleResult(lightpandaData, url)) {
-                    usedLightpandaFallback = true;
-                }
-            }
+        if (lightpandaBlocked && isWeakAutotitleResult(data, url)) {
+            showToast("Protected page. Lightpanda reached a challenge page. Add local cookies in %LOCALAPPDATA%\\EveOS\\lightpanda-site-cookies.json for real title and cover extraction.", "warning");
+            return;
         }
 
         if (data && data.title) {

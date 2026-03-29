@@ -6,16 +6,32 @@ window.getTitleFromUrlLightpanda = async function (url, options = {}) {
         return null;
     }
 
-    const timeoutMs = Number(options.timeoutMs || 20000);
+    const normalizeAutotitleResult = window.EveOS?.Autotitle?.CoreUtils?.normalizeAutotitleResult;
+    const preserveBlockedLightpandaResult = (result) => {
+        if (!result) return null;
+        const normalized = typeof normalizeAutotitleResult === 'function'
+            ? normalizeAutotitleResult(result, url)
+            : result;
+        if (normalized) return normalized;
+        if (result?.blocked || result?.title === 'CLOUDFLARE_BLOCK') {
+            return {
+                ...result,
+                title: 'CLOUDFLARE_BLOCK',
+                blocked: true,
+                lightpandaBlocked: true,
+                source: result.source || 'Lightpanda'
+            };
+        }
+        return null;
+    };
+
+    const timeoutMs = Number(options.timeoutMs || 30000);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
         const result = await strategy(url, controller.signal);
-        const normalizeAutotitleResult = window.EveOS?.Autotitle?.CoreUtils?.normalizeAutotitleResult;
-        return typeof normalizeAutotitleResult === 'function'
-            ? normalizeAutotitleResult(result, url)
-            : result;
+        return preserveBlockedLightpandaResult(result);
     } catch (error) {
         if (error?.name !== 'AbortError') {
             console.warn("Autotitle Lightpanda-only fetch failed", error);
@@ -97,6 +113,27 @@ window.getTitleFromUrl = async function (url, options = {}) {
         adoptAutotitleTitle,
         isClearlyBetterTitle
     } = utils;
+    let lightpandaBlocked = false;
+    let lightpandaAttempted = false;
+    const normalizeLightpandaResult = (result) => {
+        if (!result) return null;
+        const normalized = normalizeAutotitleResult(result, url);
+        if (normalized) return normalized;
+        if (result?.blocked || result?.title === 'CLOUDFLARE_BLOCK') {
+            return {
+                ...result,
+                title: 'CLOUDFLARE_BLOCK',
+                blocked: true,
+                source: result.source || 'Lightpanda'
+            };
+        }
+        return null;
+    };
+    const shouldSkipBrowserProxyFallbacks = () => (
+        isBrowserHtmlMode
+        && lightpandaAttempted
+        && !!window._eveLightpandaReachable
+    );
 
     try {
         let parsedUrl = null;
@@ -219,8 +256,45 @@ window.getTitleFromUrl = async function (url, options = {}) {
             }
         }
 
+        if (isBrowserHtmlMode && strats.Lightpanda && (!primaryResult || primaryResult.isFallback || primaryResult.title === "CLOUDFLARE_BLOCK" || looksLikeGenericSiteName(primaryResult.title, url) || (allowSlowCover && !primaryResult.coverUrl))) {
+            console.log("Autotitle: Trying Lightpanda early before proxy fallbacks...");
+            try {
+                lightpandaAttempted = true;
+                const earlyLightpandaRawResult = await runStrategy(strats.Lightpanda, 30000);
+                const earlyLightpandaResult = normalizeLightpandaResult(earlyLightpandaRawResult);
+                if (earlyLightpandaResult) {
+                    if (earlyLightpandaResult.blocked || earlyLightpandaResult.title === "CLOUDFLARE_BLOCK") {
+                        lightpandaBlocked = true;
+                    }
+                    if (!primaryResult || isClearlyBetterTitle(earlyLightpandaResult, primaryResult, url)) {
+                        primaryResult = adoptAutotitleTitle(primaryResult, earlyLightpandaResult, url);
+                    } else {
+                        primaryResult = mergeAutotitleMetadata(primaryResult, earlyLightpandaResult, url);
+                    }
+                    if (primaryResult?.title && primaryResult?.coverUrl && !primaryResult?.blocked) {
+                        const normalizedEarlyLightpanda = normalizeAutotitleResult(primaryResult, url);
+                        if (normalizedEarlyLightpanda) normalizedEarlyLightpanda.lightpandaBlocked = !!lightpandaBlocked;
+                        return normalizedEarlyLightpanda;
+                    }
+                }
+            } catch (e) {
+                console.warn("Autotitle: Early Lightpanda strategy failed", e);
+            }
+        }
+
+        if (shouldSkipBrowserProxyFallbacks()) {
+            console.log("Autotitle: Local Lightpanda bridge responded. Skipping browser proxy fallbacks.");
+        }
+
+        if (primaryResult && lightpandaBlocked && primaryResult.title === "CLOUDFLARE_BLOCK") {
+            return {
+                ...primaryResult,
+                lightpandaBlocked: true
+            };
+        }
+
         // Strategy 1: AllOrigins (JSON) - For normal sites
-        if (strats.AllOrigins) {
+        if (strats.AllOrigins && !(isBrowserHtmlMode && (lightpandaBlocked || shouldSkipBrowserProxyFallbacks()))) {
             console.log("Autotitle: Trying AllOrigins strategy...");
             try {
                 const allOriginsResult = normalizeAutotitleResult(await runStrategy(strats.AllOrigins, isBrowserHtmlMode ? 12000 : 4500), url);
@@ -245,7 +319,7 @@ window.getTitleFromUrl = async function (url, options = {}) {
         }
 
         // Strategy 2: CorsProxy.io (Raw HTML)
-        if (strats.CorsProxy) {
+        if (strats.CorsProxy && !(isBrowserHtmlMode && (lightpandaBlocked || shouldSkipBrowserProxyFallbacks()))) {
             console.log("Autotitle: Trying CorsProxy strategy...");
             const corsResult = normalizeAutotitleResult(await runStrategy(strats.CorsProxy, 4500), url);
             if (corsResult && !looksLikeGenericSiteName(corsResult.title, url)) {
@@ -294,7 +368,7 @@ window.getTitleFromUrl = async function (url, options = {}) {
         }
 
         // Strategy 5: Advanced Scraper Engine (proxy pool / browser emulator)
-        if (strats.ScraperEngine && (!primaryResult || primaryResult.isFallback || primaryResult.title === "CLOUDFLARE_BLOCK" || looksLikeGenericSiteName(primaryResult.title, url) || (allowSlowCover && !primaryResult.coverUrl))) {
+        if (strats.ScraperEngine && !(isBrowserHtmlMode && (lightpandaBlocked || shouldSkipBrowserProxyFallbacks())) && (!primaryResult || primaryResult.isFallback || primaryResult.title === "CLOUDFLARE_BLOCK" || looksLikeGenericSiteName(primaryResult.title, url) || (allowSlowCover && !primaryResult.coverUrl))) {
             console.log("Autotitle: Trying Advanced Scraper Engine fallback...");
             try {
                 const scraperResult = normalizeAutotitleResult(await runStrategy(strats.ScraperEngine, 9000), url);
@@ -311,11 +385,15 @@ window.getTitleFromUrl = async function (url, options = {}) {
         }
 
         // Strategy 5.5: Lightpanda (WSL-based Browsing) - High Reliability Fallback
-        if (strats.Lightpanda && (!primaryResult || primaryResult.isFallback || primaryResult.title === "CLOUDFLARE_BLOCK" || looksLikeGenericSiteName(primaryResult.title, url) || (allowSlowCover && !primaryResult.coverUrl))) {
+        if (strats.Lightpanda && !lightpandaAttempted && (!primaryResult || primaryResult.isFallback || primaryResult.title === "CLOUDFLARE_BLOCK" || looksLikeGenericSiteName(primaryResult.title, url) || (allowSlowCover && !primaryResult.coverUrl))) {
             console.log("Autotitle: Trying Lightpanda high-reliability fallback...");
             try {
-                const lpResult = normalizeAutotitleResult(await runStrategy(strats.Lightpanda, 15000), url);
+                lightpandaAttempted = true;
+                const lpResult = normalizeLightpandaResult(await runStrategy(strats.Lightpanda, 30000));
                 if (lpResult) {
+                    if (lpResult.blocked || lpResult.title === "CLOUDFLARE_BLOCK") {
+                        lightpandaBlocked = true;
+                    }
                     if (!primaryResult || isClearlyBetterTitle(lpResult, primaryResult, url)) {
                         primaryResult = adoptAutotitleTitle(primaryResult, lpResult, url);
                     } else {
@@ -327,23 +405,36 @@ window.getTitleFromUrl = async function (url, options = {}) {
             }
         }
 
-        if (isBrowserHtmlMode && allowSlowCover && (!primaryResult?.coverUrl || scoreCoverUrl(primaryResult.coverUrl, url) < 60)) {
+        if (primaryResult && lightpandaBlocked && primaryResult.title === "CLOUDFLARE_BLOCK") {
+            return {
+                ...primaryResult,
+                lightpandaBlocked: true
+            };
+        }
+
+        if (isBrowserHtmlMode && allowSlowCover && !lightpandaBlocked && (!primaryResult?.coverUrl || scoreCoverUrl(primaryResult.coverUrl, url) < 60)) {
             const coverRecoveryStrategies = [
                 { fn: isGalleryPage ? strats.GalleryPageHtml : null, timeout: 22000, attempts: 2 },
                 { fn: isMangaFireHost ? strats.MangaFireHtml : null, timeout: 22000, attempts: 2 },
-                { fn: strats.Lightpanda, timeout: 20000, attempts: 1 },
-                { fn: strats.AllOrigins, timeout: 12000, attempts: 2 },
+                { fn: !lightpandaAttempted ? strats.Lightpanda : null, timeout: 30000, attempts: 1 },
+                { fn: shouldSkipBrowserProxyFallbacks() ? null : strats.AllOrigins, timeout: 12000, attempts: 2 },
                 { fn: strats.LinkMeta, timeout: 5000, attempts: 2 },
-                { fn: strats.CorsProxy, timeout: 5000, attempts: 2 },
-                { fn: strats.ScraperEngine, timeout: 10000, attempts: 2 }
+                { fn: shouldSkipBrowserProxyFallbacks() ? null : strats.CorsProxy, timeout: 5000, attempts: 2 },
+                { fn: shouldSkipBrowserProxyFallbacks() ? null : strats.ScraperEngine, timeout: 10000, attempts: 2 }
             ];
             for (const strategy of coverRecoveryStrategies) {
                 if (typeof strategy.fn !== 'function') continue;
-                const recoveryResult = normalizeAutotitleResult(await runStrategy(strategy.fn, strategy.timeout, {
+                const recoveryRawResult = await runStrategy(strategy.fn, strategy.timeout, {
                     attempts: strategy.attempts || 1,
                     accept: (result) => !!result?.coverUrl
-                }), url);
+                });
+                const recoveryResult = strategy.fn === strats.Lightpanda
+                    ? normalizeLightpandaResult(recoveryRawResult)
+                    : normalizeAutotitleResult(recoveryRawResult, url);
                 if (!recoveryResult) continue;
+                if (strategy.fn === strats.Lightpanda && (recoveryResult.blocked || recoveryResult.title === "CLOUDFLARE_BLOCK")) {
+                    lightpandaBlocked = true;
+                }
                 primaryResult = mergeAutotitleMetadata(primaryResult, recoveryResult, url);
                 if (scoreCoverUrl(primaryResult?.coverUrl, url) >= 80) break;
             }
@@ -352,7 +443,9 @@ window.getTitleFromUrl = async function (url, options = {}) {
         // Return whatever we got
         if (primaryResult) {
             console.log("Autotitle: Using primary result:", primaryResult.title);
-            return normalizeAutotitleResult(primaryResult, url);
+            const normalizedPrimary = normalizeAutotitleResult(primaryResult, url);
+            if (normalizedPrimary) normalizedPrimary.lightpandaBlocked = !!lightpandaBlocked;
+            return normalizedPrimary;
         }
 
         // Strategy 6: URL Slug Fallback
@@ -360,6 +453,7 @@ window.getTitleFromUrl = async function (url, options = {}) {
             console.log("Autotitle: Trying UrlSlug fallback...");
             const result = normalizeAutotitleResult(strats.UrlSlug(url), url);
             if (result) {
+                result.lightpandaBlocked = !!lightpandaBlocked;
                 return result;
             }
         }

@@ -7,6 +7,7 @@ import re
 import shlex
 import socket
 import subprocess
+import errno
 from html import unescape
 from html.parser import HTMLParser
 from http import HTTPStatus
@@ -26,6 +27,33 @@ BLOCKED_TITLE_TOKENS = (
     "too many requests",
     "cloudflare_block",
 )
+
+
+def _is_client_disconnect(exc):
+    if isinstance(exc, (BrokenPipeError, ConnectionResetError, ConnectionAbortedError)):
+        return True
+    if isinstance(exc, OSError):
+        winerror = getattr(exc, "winerror", None)
+        if winerror in (10053, 10054):
+            return True
+        if exc.errno in (errno.EPIPE, errno.ECONNRESET, errno.ECONNABORTED):
+            return True
+    return False
+
+
+def _safe_send_response(handler, status, content_type, body_bytes):
+    try:
+        handler.send_response(status)
+        handler.send_header("Content-Type", content_type)
+        handler.end_headers()
+        if body_bytes:
+            handler.wfile.write(body_bytes)
+        return True
+    except Exception as exc:
+        if _is_client_disconnect(exc):
+            logger.info("Lightpanda: Client disconnected before response write completed.")
+            return False
+        raise
 
 
 def _project_root():
@@ -706,20 +734,15 @@ def handle_lightpanda_fetch(handler, query):
     """Handle requests to /api/lightpanda?url=..."""
     target_url_list = query.get("url")
     response_format = str((query.get("format") or ["html"])[0] or "html").strip().lower()
+    metadata_only = str((query.get("metadata_only") or ["0"])[0] or "0").strip().lower() in ("1", "true", "yes", "on")
 
     if not target_url_list:
-        handler.send_response(HTTPStatus.BAD_REQUEST)
-        handler.send_header("Content-Type", "application/json")
-        handler.end_headers()
-        handler.wfile.write(b'{"error": "Missing url parameter"}')
+        _safe_send_response(handler, HTTPStatus.BAD_REQUEST, "application/json", b'{"error": "Missing url parameter"}')
         return
 
     if os.environ.get("EVEOS_LIGHTPANDA_DISABLED") == "1":
         logger.info("Lightpanda: Fetch requested but bridge is currently DISABLED via toggle.")
-        handler.send_response(HTTPStatus.SERVICE_UNAVAILABLE)
-        handler.send_header("Content-Type", "application/json")
-        handler.end_headers()
-        handler.wfile.write(b'{"error": "Lightpanda bridge is disabled"}')
+        _safe_send_response(handler, HTTPStatus.SERVICE_UNAVAILABLE, "application/json", b'{"error": "Lightpanda bridge is disabled"}')
         return
 
     log_path = os.path.join(_project_root(), "bin", "lightpanda_activity.log")
@@ -752,22 +775,17 @@ def handle_lightpanda_fetch(handler, query):
                     "ok": True,
                     "url": target_url,
                     "metadata": metadata,
-                    "html": content,
                     "retriedWithFrames": bool(used_retry),
                     "usedRenderedExtraction": bool(used_rendered),
                     "usedLocalExtractor": bool(used_local_extractor),
                 }
+                if not metadata_only:
+                    payload["html"] = content
                 body = json.dumps(payload).encode("utf-8")
-                handler.send_response(HTTPStatus.OK)
-                handler.send_header("Content-Type", "application/json")
-                handler.end_headers()
-                handler.wfile.write(body)
+                _safe_send_response(handler, HTTPStatus.OK, "application/json", body)
                 return
 
-            handler.send_response(HTTPStatus.OK)
-            handler.send_header("Content-Type", "text/html; charset=utf-8")
-            handler.end_headers()
-            handler.wfile.write(content.encode("utf-8"))
+            _safe_send_response(handler, HTTPStatus.OK, "text/html; charset=utf-8", content.encode("utf-8"))
             return
 
         logger.warning(f"Lightpanda: Execution failed with return code {result.returncode}")
@@ -775,30 +793,24 @@ def handle_lightpanda_fetch(handler, query):
         if result.stderr:
             log_activity(f"  ERR: {result.stderr.strip()[:180]}")
 
-        handler.send_response(HTTPStatus.INTERNAL_SERVER_ERROR)
-        handler.send_header("Content-Type", "application/json")
-        handler.end_headers()
         error_msg = json.dumps({
             "error": "Lightpanda execution failed",
             "details": result.stderr,
         })
-        handler.wfile.write(error_msg.encode("utf-8"))
+        _safe_send_response(handler, HTTPStatus.INTERNAL_SERVER_ERROR, "application/json", error_msg.encode("utf-8"))
 
     except subprocess.TimeoutExpired:
         logger.warning(f"Lightpanda: Timeout fetching {target_url}")
         log_activity(f"TIMEOUT: {target_url}")
-        handler.send_response(HTTPStatus.GATEWAY_TIMEOUT)
-        handler.send_header("Content-Type", "application/json")
-        handler.end_headers()
-        handler.wfile.write(b'{"error": "Lightpanda fetch timed out"}')
+        _safe_send_response(handler, HTTPStatus.GATEWAY_TIMEOUT, "application/json", b'{"error": "Lightpanda fetch timed out"}')
 
     except Exception as exc:
+        if _is_client_disconnect(exc):
+            logger.info("Lightpanda: Client disconnected during response handling for %s", target_url)
+            return
         logger.error(f"Lightpanda: Unexpected error: {str(exc)}")
-        handler.send_response(HTTPStatus.INTERNAL_SERVER_ERROR)
-        handler.send_header("Content-Type", "application/json")
-        handler.end_headers()
         error_msg = json.dumps({
             "error": "Internal Server Error",
             "details": str(exc),
         })
-        handler.wfile.write(error_msg.encode("utf-8"))
+        _safe_send_response(handler, HTTPStatus.INTERNAL_SERVER_ERROR, "application/json", error_msg.encode("utf-8"))

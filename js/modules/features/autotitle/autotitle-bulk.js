@@ -140,11 +140,16 @@
             return showToast('Select at least one link.', 'warning');
         }
 
+        const utils = window.EveOS?.Autotitle?.CoreUtils || {};
+        const isWeakAutotitleResult = typeof utils.isWeakAutotitleResult === 'function'
+            ? utils.isWeakAutotitleResult
+            : (result) => !result || !result.title || result.title === 'CLOUDFLARE_BLOCK' || !!result.isFallback;
         const lightpandaOnly = !!options.lightpandaOnly;
         setBulkTitleButtonsDisabled(true, lightpandaOnly ? 'lightpanda' : 'normal');
 
         let updatedCount = 0;
         let hadConnectionFailure = false;
+        let blockedCount = 0;
 
         for (const cb of checkboxes) {
             const id = cb.dataset.id;
@@ -158,7 +163,11 @@
                     ? await window.getTitleFromUrlLightpanda(link.url)
                     : await window.getTitleFromUrl(link.url);
 
-                if (data && data.title && data.title !== 'CLOUDFLARE_BLOCK') {
+                if (data?.lightpandaBlocked && isWeakAutotitleResult(data, link.url)) {
+                    statusSpan.innerText = 'BLOCK';
+                    statusSpan.title = 'Protected page requires local cookies for real metadata';
+                    blockedCount++;
+                } else if (data && data.title && data.title !== 'CLOUDFLARE_BLOCK') {
                     link.title = data.title;
                     if (data.icon) link.icon = data.icon;
                     if (data.coverUrl) link.coverImage = data.coverUrl;
@@ -170,6 +179,7 @@
                 } else if (data && data.title === 'CLOUDFLARE_BLOCK') {
                     statusSpan.innerText = 'BLOCK';
                     statusSpan.title = 'Blocked by Cloudflare';
+                    blockedCount++;
                 } else {
                     statusSpan.innerText = 'FAIL';
                     if (lightpandaOnly) hadConnectionFailure = true;
@@ -192,6 +202,8 @@
 
         if (lightpandaOnly && updatedCount === 0 && hadConnectionFailure) {
             showToast('Lightpanda is not reachable. Start it from start-server.bat > Open Lightpanda standalone controller, then retry.', 'warning');
+        } else if (lightpandaOnly && updatedCount === 0 && blockedCount > 0) {
+            showToast('Protected pages were blocked. Add local cookies in %LOCALAPPDATA%\\EveOS\\lightpanda-site-cookies.json for real title and cover extraction.', 'warning');
         }
 
         setTimeout(() => {

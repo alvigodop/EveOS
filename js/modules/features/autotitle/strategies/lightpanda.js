@@ -64,6 +64,9 @@
         metadata.source = 'Lightpanda';
         metadata.quickLinks = Array.isArray(metadata.quickLinks) ? metadata.quickLinks : [];
         metadata.canonicalUrl = metadata.canonicalUrl || url;
+        metadata.blocked = !!(payload?.metadata?.blocked || metadata.title === 'CLOUDFLARE_BLOCK');
+        metadata.usedLocalExtractor = !!payload?.usedLocalExtractor;
+        metadata.usedRenderedExtraction = !!payload?.usedRenderedExtraction;
         return metadata;
     };
 
@@ -71,14 +74,21 @@
         console.log("Autotitle: Attempting Lightpanda Strategy...");
 
         const isFileProtocol = window.location?.protocol === 'file:';
+        if (isFileProtocol) {
+            window._eveLightpandaReachable = false;
+        }
         let portsToTry = isFileProtocol ? [window._eveLightpandaPort, 3037, 3000, 3001, 3002, 3003, 3004, 3005].filter(Boolean) : [null];
         portsToTry = [...new Set(portsToTry)];
 
         for (const port of portsToTry) {
             try {
                 const apiBase = port ? `http://localhost:${port}` : '';
-                const apiUrl = `${apiBase}/api/lightpanda?format=json&url=${encodeURIComponent(url)}`;
+                const apiUrl = `${apiBase}/api/lightpanda?format=json&metadata_only=1&url=${encodeURIComponent(url)}`;
                 const response = await fetch(apiUrl, { signal });
+                if (isFileProtocol) {
+                    window._eveLightpandaReachable = true;
+                    if (port) window._eveLightpandaPort = port;
+                }
 
                 if (response.ok) {
                     const contentType = String(response.headers.get('content-type') || '').toLowerCase();
@@ -88,7 +98,6 @@
                         const metadata = normalizePayloadMetadata(payload, url);
                         if (metadata?.title || metadata?.coverUrl || metadata?.icon) {
                             console.log(`Autotitle: Lightpanda JSON success (via port ${port || 'default'}):`, metadata.title || metadata.coverUrl || metadata.icon);
-                            if (isFileProtocol && port) window._eveLightpandaPort = port;
                             return metadata;
                         }
 
@@ -96,7 +105,6 @@
                             const fallback = extractMetadataFromHtml(payload.html, url);
                             if (fallback?.title || fallback?.coverUrl || fallback?.icon) {
                                 console.log(`Autotitle: Lightpanda HTML fallback success (via port ${port || 'default'}):`, fallback.title);
-                                if (isFileProtocol && port) window._eveLightpandaPort = port;
                                 return fallback;
                             }
                         }
@@ -105,7 +113,6 @@
                         const metadata = extractMetadataFromHtml(html, url);
                         if (metadata?.title || metadata?.coverUrl || metadata?.icon) {
                             console.log(`Autotitle: Lightpanda HTML success (via port ${port || 'default'}):`, metadata.title);
-                            if (isFileProtocol && port) window._eveLightpandaPort = port;
                             return metadata;
                         }
                     }

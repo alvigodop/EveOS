@@ -7,6 +7,7 @@ run it on demand without the full EveOS backend.
 """
 
 import argparse
+import errno
 import http.server
 import json
 import logging
@@ -30,6 +31,20 @@ logger = logging.getLogger("LightpandaBridge")
 
 class ReusableThreadingTCPServer(socketserver.ThreadingTCPServer):
     allow_reuse_address = True
+
+    def handle_error(self, request, client_address):
+        exc_type, exc, _tb = sys.exc_info()
+        if isinstance(exc, (BrokenPipeError, ConnectionResetError, ConnectionAbortedError)):
+            logger.info("Client disconnected: %s", client_address)
+            return
+        if isinstance(exc, OSError):
+            if getattr(exc, "winerror", None) in (10053, 10054):
+                logger.info("Client disconnected: %s", client_address)
+                return
+            if exc.errno in (errno.EPIPE, errno.ECONNRESET, errno.ECONNABORTED):
+                logger.info("Client disconnected: %s", client_address)
+                return
+        super().handle_error(request, client_address)
 
 
 class BridgeHandler(http.server.BaseHTTPRequestHandler):
