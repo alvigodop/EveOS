@@ -165,7 +165,6 @@ window.EveOS.Autotitle = window.EveOS.Autotitle || {};
 
         for (const url of variants) {
             if (/\/cover\/\d+\/_s\d+\.(jpg|jpeg|png|webp|avif)(?:[?#].*)?$/i.test(url)) return true;
-            if (/\/g\/[a-z0-9_-]{1,12}\.(jpg|jpeg|png|webp|avif)(?:[?#].*)?$/i.test(url)) return true;
             if (/\/g\/ygm\.png(?:[?#].*)?$/i.test(url)) return true;
             if (/\/cover\/avif\/[^/?#]+\.(?:jpe?g|png|webp)(?:[?#].*)?$/i.test(url)) return true;
             if (/\/cover\/webp\/[^/?#]+\.(?:jpe?g|png|avif)(?:[?#].*)?$/i.test(url)) return true;
@@ -198,7 +197,6 @@ window.EveOS.Autotitle = window.EveOS.Autotitle || {};
             if (/\.(jpg|jpeg|png|webp|avif)(?:[?#].*)?$/i.test(url)) score += 35;
             if (/[a-z0-9][a-z0-9_-]{4,}\/\d+\//i.test(url)) score += 25;
             if (/\/cover\/\d+\//i.test(url) && !/[a-z0-9][a-z0-9_-]{4,}\/\d+\//i.test(url)) score -= 40;
-            if (/\/g\/[a-z0-9_-]{1,8}\.(jpg|jpeg|png|webp|avif)(?:[?#].*)?$/i.test(url)) score -= 100;
             if (/\/assets\//.test(url)) score -= 25;
             if (/@\d+\.(jpg|jpeg|png|webp|avif)(?:[?#].*)?$/i.test(url)) score -= 20;
             if (/placeholder|default|no-cover|noimage|blank/.test(url)) score -= 60;

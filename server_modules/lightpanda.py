@@ -143,6 +143,21 @@ def _load_local_cookie_config():
         return {}
 
 
+def _count_non_empty_cookie_entries(raw_value):
+    count = 0
+    if isinstance(raw_value, dict):
+        for value in raw_value.values():
+            if str(value or "").strip():
+                count += 1
+    elif isinstance(raw_value, list):
+        for item in raw_value:
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("value") or "").strip():
+                count += 1
+    return count
+
+
 def _host_candidates(hostname):
     host = str(hostname or "").strip().lower()
     if not host:
@@ -238,6 +253,33 @@ def _cookies_for_target(target_url):
         if raw_value:
             return _normalize_cookie_entries(raw_value, target_url)
     return []
+
+
+def _cookie_diagnostics_for_target(target_url):
+    parsed = urlparse(target_url)
+    hostname = parsed.hostname or ""
+    path = _local_cookie_config_path()
+    file_exists = os.path.exists(path)
+    config = _load_local_cookie_config() if file_exists else {}
+    cookie_map = config.get("cookies") if isinstance(config.get("cookies"), dict) else {}
+
+    configured_host = None
+    raw_value = None
+    for candidate in _host_candidates(hostname):
+        candidate_value = cookie_map.get(candidate)
+        if candidate_value:
+            configured_host = candidate
+            raw_value = candidate_value
+            break
+
+    normalized = _normalize_cookie_entries(raw_value, target_url) if raw_value else []
+    return {
+        "cookieFileExists": bool(file_exists),
+        "cookieConfigPath": path,
+        "cookieHostConfigured": bool(configured_host),
+        "configuredHost": configured_host,
+        "nonEmptyCookieCount": len(normalized) if normalized else _count_non_empty_cookie_entries(raw_value),
+    }
 
 
 def _cookies_base64_for_target(target_url):
@@ -757,6 +799,7 @@ def handle_lightpanda_fetch(handler, query):
             pass
 
     target_url = target_url_list[0]
+    cookie_diagnostics = _cookie_diagnostics_for_target(target_url)
     logger.info(f"Lightpanda: Fetching URL: {target_url}")
     log_activity(f"FETCH START: {target_url}")
 
@@ -778,6 +821,7 @@ def handle_lightpanda_fetch(handler, query):
                     "retriedWithFrames": bool(used_retry),
                     "usedRenderedExtraction": bool(used_rendered),
                     "usedLocalExtractor": bool(used_local_extractor),
+                    "cookieDiagnostics": cookie_diagnostics,
                 }
                 if not metadata_only:
                     payload["html"] = content

@@ -133,6 +133,27 @@ async function main() {
         }
     });
 
+    const galleryDirectImageCover = await page.evaluate(async () => {
+        const originalStrategies = window.EveOS.Autotitle.Strategies;
+        window.EveOS.Autotitle.Strategies = {
+            ...originalStrategies,
+            GalleryPageHtml: async () => ({
+                title: 'Direct Image Demo',
+                icon: 'https://gallery.example.org/favicon.ico',
+                coverUrl: 'https://gallery.example.org/g/abc123.webp',
+                source: 'GalleryPageHtml'
+            }),
+            AllOrigins: async () => null,
+            CorsProxy: async () => null,
+            ScraperEngine: async () => null
+        };
+        try {
+            return await window.getTitleFromUrl('https://gallery.example.org/g/3716901/37d412a562/', { allowSlowCover: true });
+        } finally {
+            window.EveOS.Autotitle.Strategies = originalStrategies;
+        }
+    });
+
     const galleryFormatMismatch = await page.evaluate(async () => {
         const originalStrategies = window.EveOS.Autotitle.Strategies;
         window.EveOS.Autotitle.Strategies = {
@@ -209,8 +230,11 @@ async function main() {
     if (galleryFormatMismatch?.coverUrl !== 'https://img1.demo-cdn.com/gallery/cover/avif/_S19461.jpg.avif') {
         throw new Error(`Expected avif cover path to beat mismatched jpg variant, got ${JSON.stringify(galleryFormatMismatch)}`);
     }
+    if (galleryDirectImageCover?.coverUrl !== 'https://gallery.example.org/g/abc123.webp') {
+        throw new Error(`Expected direct gallery image cover to survive normalization, got ${JSON.stringify(galleryDirectImageCover)}`);
+    }
 
-    console.log(`AUTOTITLE_BROWSER_HTML_SMOKE_OK ${JSON.stringify({ results, syntheticFallback, cssUrlFallback, galleryHtmlPriority, galleryCoverVariant, galleryFormatMismatch })}`);
+    console.log(`AUTOTITLE_BROWSER_HTML_SMOKE_OK ${JSON.stringify({ results, syntheticFallback, cssUrlFallback, galleryHtmlPriority, galleryCoverVariant, galleryFormatMismatch, galleryDirectImageCover })}`);
 }
 
 main().catch((error) => {

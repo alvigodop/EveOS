@@ -1,5 +1,16 @@
 // --- AUTO-TITLE UI MODULE ---
 
+function getLightpandaBlockedMessage(data) {
+    const cookiePath = data?.cookieConfigPath || '%LOCALAPPDATA%\\EveOS\\lightpanda-site-cookies.json';
+    if (!data?.cookieFileExists) {
+        return `Protected page. No local Lightpanda cookie file was found. Add host cookies to ${cookiePath} for real title and cover extraction.`;
+    }
+    if (!data?.cookieHostConfigured || Number(data?.nonEmptyCookieCount || 0) <= 0) {
+        return `Protected page. Lightpanda reached a challenge page and the local cookie file has no active cookies for this host. Update ${cookiePath} for real title and cover extraction.`;
+    }
+    return `Protected page. Lightpanda reached a challenge page even with local cookies. Refresh the cookies in ${cookiePath} and try again.`;
+}
+
 window.fetchTitle = async function (btn) {
     const urlInput = document.getElementById('newUrl');
     const url = String(urlInput?.value || '').trim();
@@ -29,7 +40,7 @@ window.fetchTitle = async function (btn) {
         const lightpandaBlocked = !!data?.lightpandaBlocked;
 
         if (lightpandaBlocked && isWeakAutotitleResult(data, url)) {
-            showToast("Protected page. Lightpanda reached a challenge page. Add local cookies in %LOCALAPPDATA%\\EveOS\\lightpanda-site-cookies.json for real title and cover extraction.", "warning");
+            showToast(getLightpandaBlockedMessage(data), "warning");
             return;
         }
 

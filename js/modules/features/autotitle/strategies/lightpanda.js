@@ -3,6 +3,7 @@
     window.EveOS = window.EveOS || {};
     window.EveOS.Autotitle = window.EveOS.Autotitle || {};
     window.EveOS.Autotitle.Strategies = window.EveOS.Autotitle.Strategies || {};
+    window.EveOS.Autotitle._lightpandaInflight = window.EveOS.Autotitle._lightpandaInflight || new Map();
 
     const cleanTitle = (raw) => {
         if (!raw) return null;
@@ -67,12 +68,33 @@
         metadata.blocked = !!(payload?.metadata?.blocked || metadata.title === 'CLOUDFLARE_BLOCK');
         metadata.usedLocalExtractor = !!payload?.usedLocalExtractor;
         metadata.usedRenderedExtraction = !!payload?.usedRenderedExtraction;
+        metadata.cookieFileExists = !!payload?.cookieDiagnostics?.cookieFileExists;
+        metadata.cookieHostConfigured = !!payload?.cookieDiagnostics?.cookieHostConfigured;
+        metadata.configuredHost = payload?.cookieDiagnostics?.configuredHost || null;
+        metadata.nonEmptyCookieCount = Number(payload?.cookieDiagnostics?.nonEmptyCookieCount || 0);
+        metadata.cookieConfigPath = payload?.cookieDiagnostics?.cookieConfigPath || null;
         return metadata;
     };
 
-    window.EveOS.Autotitle.Strategies.Lightpanda = async function (url, signal) {
-        console.log("Autotitle: Attempting Lightpanda Strategy...");
+    const createAbortError = () => {
+        try {
+            return new DOMException('Aborted', 'AbortError');
+        } catch (e) {
+            const error = new Error('Aborted');
+            error.name = 'AbortError';
+            return error;
+        }
+    };
 
+    const waitForAbort = (signal) => {
+        if (!signal) return null;
+        if (signal.aborted) return Promise.reject(createAbortError());
+        return new Promise((_, reject) => {
+            signal.addEventListener('abort', () => reject(createAbortError()), { once: true });
+        });
+    };
+
+    const requestLightpanda = async function (url) {
         const isFileProtocol = window.location?.protocol === 'file:';
         if (isFileProtocol) {
             window._eveLightpandaReachable = false;
@@ -84,7 +106,7 @@
             try {
                 const apiBase = port ? `http://localhost:${port}` : '';
                 const apiUrl = `${apiBase}/api/lightpanda?format=json&metadata_only=1&url=${encodeURIComponent(url)}`;
-                const response = await fetch(apiUrl, { signal });
+                const response = await fetch(apiUrl);
                 if (isFileProtocol) {
                     window._eveLightpandaReachable = true;
                     if (port) window._eveLightpandaPort = port;
@@ -123,7 +145,6 @@
                     console.warn(`Autotitle: Lightpanda backend at ${apiBase} returned error ${response.status}`);
                 }
             } catch (error) {
-                if (error.name === 'AbortError') return null;
                 if (isFileProtocol) {
                     console.warn(`Autotitle: Lightpanda connection refused at localhost:${port}. Probing next...`);
                     continue;
@@ -139,5 +160,32 @@
         }
 
         return null;
+    };
+
+    window.EveOS.Autotitle.Strategies.Lightpanda = async function (url, signal) {
+        console.log("Autotitle: Attempting Lightpanda Strategy...");
+
+        const inflight = window.EveOS.Autotitle._lightpandaInflight;
+        let request = inflight.get(url);
+        if (!request) {
+            request = requestLightpanda(url).finally(() => {
+                if (inflight.get(url) === request) {
+                    inflight.delete(url);
+                }
+            });
+            inflight.set(url, request);
+        }
+
+        const abortPromise = waitForAbort(signal);
+        if (!abortPromise) {
+            return request;
+        }
+
+        try {
+            return await Promise.race([request, abortPromise]);
+        } catch (error) {
+            if (error?.name === 'AbortError') return null;
+            throw error;
+        }
     };
 })();

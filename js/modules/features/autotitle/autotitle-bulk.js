@@ -1,5 +1,16 @@
 // --- BULK TITLE LOGIC ---
 (function () {
+    function getLightpandaBlockedMessage(data) {
+        const cookiePath = data?.cookieConfigPath || '%LOCALAPPDATA%\\EveOS\\lightpanda-site-cookies.json';
+        if (!data?.cookieFileExists) {
+            return `Protected pages were blocked. No local Lightpanda cookie file was found. Add host cookies to ${cookiePath} for real metadata extraction.`;
+        }
+        if (!data?.cookieHostConfigured || Number(data?.nonEmptyCookieCount || 0) <= 0) {
+            return `Protected pages were blocked. The local Lightpanda cookie file has no active cookies for this host. Update ${cookiePath} for real metadata extraction.`;
+        }
+        return `Protected pages were blocked even with local cookies. Refresh the cookies in ${cookiePath} and try again.`;
+    }
+
     let bulkTitleContext = {
         categoryName: null,
         linkIds: null,
@@ -150,6 +161,7 @@
         let updatedCount = 0;
         let hadConnectionFailure = false;
         let blockedCount = 0;
+        let blockedSample = null;
 
         for (const cb of checkboxes) {
             const id = cb.dataset.id;
@@ -167,6 +179,7 @@
                     statusSpan.innerText = 'BLOCK';
                     statusSpan.title = 'Protected page requires local cookies for real metadata';
                     blockedCount++;
+                    blockedSample = blockedSample || data;
                 } else if (data && data.title && data.title !== 'CLOUDFLARE_BLOCK') {
                     link.title = data.title;
                     if (data.icon) link.icon = data.icon;
@@ -180,6 +193,7 @@
                     statusSpan.innerText = 'BLOCK';
                     statusSpan.title = 'Blocked by Cloudflare';
                     blockedCount++;
+                    blockedSample = blockedSample || data;
                 } else {
                     statusSpan.innerText = 'FAIL';
                     if (lightpandaOnly) hadConnectionFailure = true;
@@ -203,7 +217,7 @@
         if (lightpandaOnly && updatedCount === 0 && hadConnectionFailure) {
             showToast('Lightpanda is not reachable. Start it from start-server.bat > Open Lightpanda standalone controller, then retry.', 'warning');
         } else if (lightpandaOnly && updatedCount === 0 && blockedCount > 0) {
-            showToast('Protected pages were blocked. Add local cookies in %LOCALAPPDATA%\\EveOS\\lightpanda-site-cookies.json for real title and cover extraction.', 'warning');
+            showToast(getLightpandaBlockedMessage(blockedSample), 'warning');
         }
 
         setTimeout(() => {
