@@ -225,6 +225,60 @@ async function runSmoke(page) {
         throw new Error(`Expected default motion mode to be free, got ${cardStats.motionMode}`);
     }
 
+    const folderAuraWidthStats = await page.evaluate(() => {
+        const shared = window.EveConstellationMap?._shared;
+        const state = shared?.state;
+        const shapeFn = shared?.getFolderAuraShape;
+        const measureBlobHalfWidthForNode = shared?.measureBlobHalfWidthForNode;
+        const getAuraTuningValue = shared?.getAuraTuningValue;
+        const clamp = shared?.clamp;
+        if (!state?.nodeIndex || typeof shapeFn !== 'function' || typeof measureBlobHalfWidthForNode !== 'function') {
+            throw new Error('Constellation shared geometry helpers unavailable for folder aura width test');
+        }
+
+        const rootFolder = state.nodeIndex.get('folder_main_Alpha_f-parent');
+        const childFolder = state.nodeIndex.get('folder_main_Alpha_f-child');
+        const categoryNode = state.nodeIndex.get('category_main_Alpha');
+        if (!rootFolder || !childFolder || !categoryNode) {
+            throw new Error('Missing category/root/child folder nodes for aura width test');
+        }
+
+        const widthScale = typeof getAuraTuningValue === 'function' ? getAuraTuningValue('folderWidthScale') : 1;
+
+        const rootAxisAngle = Math.atan2(categoryNode.y - rootFolder.y, categoryNode.x - rootFolder.x);
+        const rootBlobHalfWidth = measureBlobHalfWidthForNode(categoryNode, rootAxisAngle);
+        const rootShape = shapeFn(rootFolder, Math.hypot(categoryNode.x - rootFolder.x, categoryNode.y - rootFolder.y), true, categoryNode);
+        const expectedRootRadiusLat = clamp(rootBlobHalfWidth * 1.04, 96, 1600) * widthScale;
+
+        const childAxisAngle = Math.atan2(rootFolder.y - childFolder.y, rootFolder.x - childFolder.x);
+        const childBlobHalfWidth = measureBlobHalfWidthForNode(rootFolder, childAxisAngle);
+        const childShape = shapeFn(childFolder, Math.hypot(rootFolder.x - childFolder.x, rootFolder.y - childFolder.y), false, rootFolder);
+        const expectedChildRadiusLat = clamp(childBlobHalfWidth * 1.04, 96, 1600) * widthScale;
+        const legacyRadiusLat = 1100 * widthScale;
+
+        return {
+            rootRadiusLat: rootShape.radiusLat,
+            expectedRootRadiusLat,
+            childRadiusLat: childShape.radiusLat,
+            expectedChildRadiusLat,
+            legacyRadiusLat,
+            childBlobHalfWidth
+        };
+    });
+
+    if (Math.abs(folderAuraWidthStats.rootRadiusLat - folderAuraWidthStats.expectedRootRadiusLat) > 0.75) {
+        throw new Error(`Expected root folder aura width to follow category blob half-width, got ${JSON.stringify(folderAuraWidthStats)}`);
+    }
+    if (!(folderAuraWidthStats.childBlobHalfWidth > 0)) {
+        throw new Error(`Expected child folder blob half-width to resolve from parent folder, got ${JSON.stringify(folderAuraWidthStats)}`);
+    }
+    if (Math.abs(folderAuraWidthStats.childRadiusLat - folderAuraWidthStats.expectedChildRadiusLat) > 0.75) {
+        throw new Error(`Expected child folder aura width to follow parent folder blob half-width, got ${JSON.stringify(folderAuraWidthStats)}`);
+    }
+    if (Math.abs(folderAuraWidthStats.childRadiusLat - folderAuraWidthStats.legacyRadiusLat) < 1) {
+        throw new Error(`Expected child folder aura width to stop using legacy fixed width, got ${JSON.stringify(folderAuraWidthStats)}`);
+    }
+
     const categorySeed = await page.evaluate(() => {
         const stats = window.EveConstellationMap.__debugGetGraphStats();
         const categoryNode = stats.sampleNodes.find((node) => node.kind === 'category');
@@ -605,6 +659,7 @@ async function runSmoke(page) {
         if (node) select(node);
     }, folderDragSeed.id);
     await page.waitForTimeout(80);
+    await ensureControlsExpanded(page);
     await clickToolbarControl(page, '[data-map-toolbar="polarity-node"]');
     await page.waitForTimeout(140);
     const folderNodePullStats = await getStats(page);

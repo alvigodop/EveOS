@@ -44,8 +44,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         }
 
         if (
-            isRootFolder
-            && resolvedParentNode?.kind === 'category'
+            (resolvedParentNode?.kind === 'category' || resolvedParentNode?.kind === 'folder')
             && typeof measureBlobHalfWidthForNode === 'function'
         ) {
             const axisAngle = Math.atan2(
