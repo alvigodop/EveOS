@@ -8,7 +8,10 @@ window.EveOS.API = window.EveOS.API || {};
         ANILIST: 'https://graphql.anilist.co',
         JIKAN_MANGA: 'https://api.jikan.moe/v4/manga',
         JIKAN_ANIME: 'https://api.jikan.moe/v4/anime',
-        MANGADEX: 'https://api.mangadex.org/manga'
+        MANGADEX: 'https://api.mangadex.org/manga',
+        MANGAUPDATES: 'https://api.mangaupdates.com/v1/series/search',
+        KITSU_ANIME: 'https://kitsu.io/api/edge/anime',
+        KITSU_MANGA: 'https://kitsu.io/api/edge/manga'
     };
 
     async function safeFetch(url, options = {}, errorMsg = 'API Request failed') {
@@ -33,6 +36,9 @@ window.EveOS.API = window.EveOS.API || {};
         JIKAN_MANGA_API: ENDPOINTS.JIKAN_MANGA,
         JIKAN_ANIME_API: ENDPOINTS.JIKAN_ANIME,
         MANGADEX_API: ENDPOINTS.MANGADEX,
+        MANGAUPDATES_API: ENDPOINTS.MANGAUPDATES,
+        KITSU_ANIME_API: ENDPOINTS.KITSU_ANIME,
+        KITSU_MANGA_API: ENDPOINTS.KITSU_MANGA,
         safeFetch
     };
 })();

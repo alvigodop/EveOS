@@ -14,19 +14,24 @@ window.EveOS = window.EveOS || {};
             const MangaDex = window.EveOS.API.MangaDex;
             const Jikan = window.EveOS.API.Jikan;
             const AniList = window.EveOS.API.AniList;
+            const MangaUpdates = window.EveOS.API.MangaUpdates;
+            const Kitsu = window.EveOS.API.Kitsu;
             const Display = window.EveOS.API.Display;
 
-            if (!Core || !MangaDex || !Jikan || !AniList || !Display) {
+            if (!Core || !MangaDex || !Jikan || !AniList || !MangaUpdates || !Kitsu || !Display) {
                 resultsContainer.innerHTML = 'Error: API Modules not loaded.';
                 return;
             }
 
-            const [mangadexResults, jikanMangaResults, jikanAnimeResults, anilistMangaResults, anilistAnimeResults] = await Promise.all([
+            const [mangadexResults, jikanMangaResults, jikanAnimeResults, anilistMangaResults, anilistAnimeResults, mangaupdatesResults, kitsuAnimeResults, kitsuMangaResults] = await Promise.all([
                 MangaDex.searchMangaDex(query),
                 Jikan.searchJikanManga(query),
                 Jikan.searchJikanAnime(query),
                 AniList.searchAniListManga(query),
-                AniList.searchAniListAnime(query)
+                AniList.searchAniListAnime(query),
+                MangaUpdates.searchMangaUpdates(query),
+                Kitsu.searchKitsuAnime(query),
+                Kitsu.searchKitsuManga(query)
             ]);
 
             Display.displayResults(
@@ -35,7 +40,10 @@ window.EveOS = window.EveOS || {};
                     jikanManga: jikanMangaResults,
                     jikanAnime: jikanAnimeResults,
                     anilistManga: anilistMangaResults,
-                    anilistAnime: anilistAnimeResults
+                    anilistAnime: anilistAnimeResults,
+                    mangaupdates: mangaupdatesResults,
+                    kitsuAnime: kitsuAnimeResults,
+                    kitsuManga: kitsuMangaResults
                 },
                 resultsContainer,
                 onSelect

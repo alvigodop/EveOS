@@ -48,7 +48,9 @@ window.EveOS.API.DisplayInternals = window.EveOS.API.DisplayInternals || {};
             "toArray",
             "getMangaDexMeta",
             "getJikanMeta",
-            "getAniListMeta"
+            "getAniListMeta",
+            "getMangaUpdatesMeta",
+            "getKitsuMeta"
         ];
         const missing = requiredFns.filter(name => typeof internals[name] !== "function");
         if (missing.length) {
@@ -65,6 +67,9 @@ window.EveOS.API.DisplayInternals = window.EveOS.API.DisplayInternals || {};
         appendResults(sources.jikanAnime?.data, item => internals.getJikanMeta(item, "Anime"), resultsDiv, onSelect);
         appendResults(sources.anilistManga?.data?.Page?.media, internals.getAniListMeta, resultsDiv, onSelect);
         appendResults(sources.anilistAnime?.data?.Page?.media, internals.getAniListMeta, resultsDiv, onSelect);
+        appendResults(sources.mangaupdates?.results, internals.getMangaUpdatesMeta, resultsDiv, onSelect);
+        appendResults(sources.kitsuAnime?.data, internals.getKitsuMeta, resultsDiv, onSelect);
+        appendResults(sources.kitsuManga?.data, internals.getKitsuMeta, resultsDiv, onSelect);
 
         if (resultsDiv.children.length === 0) {
             resultsDiv.innerHTML = '<div style="padding:10px; opacity:0.7;">No results found from API providers.</div>';
