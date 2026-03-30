@@ -46,6 +46,33 @@ function refreshModalThemedControls(root = document) {
     });
 }
 
+function getSiteKeyboardShortcuts() {
+    const registered = window.EveKeyboardShortcuts?.list;
+    if (Array.isArray(registered) && registered.length) {
+        return registered;
+    }
+    return [
+        { keys: '/', description: 'Focus the main search field', scope: 'Global' },
+        { keys: 'Shift+Enter', description: 'Open Expanded search mode for the current query', scope: 'Search field' },
+        { keys: 'N', description: 'Open the Add Link modal', scope: 'Global' },
+        { keys: 'Alt+B', description: 'Toggle Select mode', scope: 'Global' },
+        { keys: 'Escape', description: 'Close open modals and menus, clear search focus, and exit Select mode', scope: 'Global' }
+    ];
+}
+
+function renderSettingsShortcutList() {
+    const container = document.getElementById('settingsShortcutList');
+    if (!container) return;
+
+    container.innerHTML = getSiteKeyboardShortcuts().map((shortcut) => `
+        <div style="display:grid; grid-template-columns:minmax(110px, auto) 1fr auto; gap:10px; align-items:start; padding:8px 10px; border:1px solid rgba(255,255,255,0.08); border-radius:8px; background:rgba(255,255,255,0.03);">
+            <code style="font-size:0.85rem; color:var(--accent); white-space:nowrap;">${shortcut.keys}</code>
+            <span style="font-size:0.9rem;">${shortcut.description}</span>
+            <span style="font-size:0.75rem; opacity:0.7; white-space:nowrap;">${shortcut.scope || 'Global'}</span>
+        </div>
+    `).join('');
+}
+
 function openSettings() {
     ensureSettingsOutsideClickCloseBinding();
     document.getElementById('settingsModal').style.display = 'flex';
@@ -112,6 +139,7 @@ function openSettings() {
 
     refreshModularLayerSelectors();
     refreshModularStorePathFromServer();
+    renderSettingsShortcutList();
     refreshModalThemedControls(document.getElementById('settingsModal'));
 }
 
@@ -165,3 +193,4 @@ function saveSettingsFile(input) {
 }
 
 window.refreshModalThemedControls = refreshModalThemedControls;
+window.renderSettingsShortcutList = renderSettingsShortcutList;

@@ -1,5 +1,16 @@
 // --- EVENTS & INTERACTION (CLEANED) ---
 
+const SITE_KEYBOARD_SHORTCUTS = Object.freeze([
+    { keys: '/', description: 'Focus the main search field', scope: 'Global' },
+    { keys: 'Shift+Enter', description: 'Open Expanded search mode for the current query', scope: 'Search field' },
+    { keys: 'N', description: 'Open the Add Link modal', scope: 'Global' },
+    { keys: 'Alt+B', description: 'Toggle Select mode', scope: 'Global' },
+    { keys: 'Escape', description: 'Close open modals and menus, clear search focus, and exit Select mode', scope: 'Global' }
+]);
+
+window.EveKeyboardShortcuts = window.EveKeyboardShortcuts || {};
+window.EveKeyboardShortcuts.list = SITE_KEYBOARD_SHORTCUTS.map((entry) => ({ ...entry }));
+
 // --- DRAG & DROP ---
 function allowDrop(ev) {
     ev.preventDefault();
@@ -103,7 +114,17 @@ function drop(ev, newCategory) {
 }
 
 // --- KEYBOARD SHORTCUTS ---
+function isEditableKeyboardTarget(target) {
+    if (!(target instanceof HTMLElement)) return false;
+    if (target.isContentEditable) return true;
+    const tagName = String(target.tagName || '').toUpperCase();
+    if (tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT') return true;
+    return !!target.closest('[contenteditable="true"]');
+}
+
 document.addEventListener('keydown', (e) => {
+    const keyboardTarget = e.target instanceof HTMLElement ? e.target : document.activeElement;
+
     if (e.key === 'Escape') {
         if (typeof closeModals === 'function') closeModals();
         if (typeof closeAllMenus === 'function') closeAllMenus();
@@ -119,7 +140,12 @@ document.addEventListener('keydown', (e) => {
         if (typeof bulkMode !== 'undefined' && bulkMode && typeof toggleBulkMode === 'function') toggleBulkMode();
         return;
     }
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (e.altKey && !e.ctrlKey && !e.metaKey && e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        if (typeof toggleBulkMode === 'function') toggleBulkMode();
+        return;
+    }
+    if (isEditableKeyboardTarget(keyboardTarget)) return;
     if (e.key === '/') {
         e.preventDefault();
         const search = document.getElementById('search');

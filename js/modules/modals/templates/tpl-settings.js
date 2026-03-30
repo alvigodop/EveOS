@@ -83,6 +83,12 @@ window.modalTemplate += `
                 <div style="font-size:0.8rem; opacity:0.75; margin-top:4px;">Adjust greeting/clock messages, font, color, and effects.</div>
             </div>
 
+            <div style="border-top:1px solid #444; padding-top:10px; margin-top:5px;">
+                <h4 style="margin:0 0 10px 0; color:var(--accent);">Keyboard Shortcuts</h4>
+                <div id="settingsShortcutList" style="display:flex; flex-direction:column; gap:8px;"></div>
+                <div style="font-size:0.78rem; opacity:0.75; margin-top:8px;">Plain key shortcuts pause while you are typing into a field. Modifier shortcuts like Alt+B remain available globally.</div>
+            </div>
+
             <!-- Styling Section -->
             <div style="border-top:1px solid #444; padding-top:10px; margin-top:5px;">
                 <h4 style="margin:0 0 10px 0; color:var(--accent);">Styling</h4>
