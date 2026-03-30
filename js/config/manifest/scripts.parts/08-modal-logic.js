@@ -17,7 +17,9 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/modals/modal-bookmark-focus.metadata.js?v=0.2.1",
     "js/modules/modals/modal-bookmark-focus.helpers.js",
     "js/modules/modals/modal-bookmark-focus.js?v=0.2.4",
-    "js/modules/modals/logic/link-form.js?v=0.2.44",
+    "js/modules/modals/logic/link-form.cover-images.js?v=0.1.0",
+    "js/modules/modals/logic/link-form.modal.js?v=0.1.0",
+    "js/modules/modals/logic/link-form.js?v=0.3.0",
     "js/modules/modals/logic/category-rename.js?v=0.1.0",
     "js/modules/modals/logic/workspace.js"
 ]);
