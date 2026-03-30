@@ -13,7 +13,7 @@ window.EveOS = window.EveOS || {};
             .join('&');
         if (!query) return {};
 
-        const url = `${Core.PROXY_URL}https://api.mangadex.org/statistics/manga?${query}`;
+        const url = `${Core.ACTIVE_PROXY_URL}${encodeURIComponent('https://api.mangadex.org/statistics/manga?' + query)}`;
         const response = await Core.safeFetch(url, {}, 'MangaDex Statistics failed');
         return response?.statistics && typeof response.statistics === 'object'
             ? response.statistics
@@ -24,7 +24,7 @@ window.EveOS = window.EveOS || {};
         const Core = window.EveOS.API.Core;
         if (!Core) { console.error("EveOS.API.Core missing"); return { data: [] }; }
 
-        const url = `${Core.PROXY_URL}${Core.MANGADEX_API}?title=${encodeURIComponent(query)}&limit=3&includes[]=author&includes[]=cover_art&includes[]=artist&order[relevance]=desc`;
+        const url = `${Core.ACTIVE_PROXY_URL}${encodeURIComponent(`${Core.MANGADEX_API}?title=${encodeURIComponent(query)}&limit=3&includes[]=author&includes[]=cover_art&includes[]=artist&order[relevance]=desc`)}`;
         const searchResponse = await Core.safeFetch(url, {}, 'MangaDex Search failed');
         const data = Array.isArray(searchResponse?.data) ? searchResponse.data : [];
         if (!data.length) return { data: [] };
