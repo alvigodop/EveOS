@@ -135,7 +135,7 @@ async function ensureControlsExpanded(page) {
 }
 
 async function clickToolbarControl(page, selector) {
-    const locator = page.locator(selector);
+    const locator = page.locator(`${selector}:visible`).first();
     await locator.scrollIntoViewIfNeeded();
     await locator.click();
 }
@@ -221,8 +221,8 @@ async function runSmoke(page) {
     if (cardStats.nodeCount !== 7) {
         throw new Error(`Expected card nodeCount=7, got ${cardStats.nodeCount}`);
     }
-    if (cardStats.motionMode !== 'web') {
-        throw new Error(`Expected default motion mode to be web, got ${cardStats.motionMode}`);
+    if (cardStats.motionMode !== 'free') {
+        throw new Error(`Expected default motion mode to be free, got ${cardStats.motionMode}`);
     }
 
     const categorySeed = await page.evaluate(() => {
@@ -318,25 +318,19 @@ async function runSmoke(page) {
 
     await ensureControlsExpanded(page);
 
-    await page.click('[data-map-toolbar="motion"]');
-    await page.waitForTimeout(140);
-    const freeMotionStats = await getStats(page);
-    if (freeMotionStats.motionMode !== 'free') {
-        throw new Error(`Expected motion mode to cycle to free, got ${freeMotionStats.motionMode}`);
-    }
-    await page.click('[data-map-toolbar="motion"]');
+    await clickToolbarControl(page, '[data-map-toolbar="motion"]');
     await page.waitForTimeout(140);
     const smoothMotionStats = await getStats(page);
     if (smoothMotionStats.motionMode !== 'smooth') {
         throw new Error(`Expected motion mode to cycle to smooth, got ${smoothMotionStats.motionMode}`);
     }
-    await page.click('[data-map-toolbar="motion"]');
+    await clickToolbarControl(page, '[data-map-toolbar="motion"]');
     await page.waitForTimeout(140);
     const slowMotionStats = await getStats(page);
     if (slowMotionStats.motionMode !== 'slow') {
         throw new Error(`Expected motion mode to cycle to slow, got ${slowMotionStats.motionMode}`);
     }
-    await page.click('[data-map-toolbar="motion"]');
+    await clickToolbarControl(page, '[data-map-toolbar="motion"]');
     await page.waitForTimeout(140);
     const webMotionStats = await getStats(page);
     if (webMotionStats.motionMode !== 'web') {
@@ -355,6 +349,12 @@ async function runSmoke(page) {
     );
     if (webCategoryDrift > 8) {
         throw new Error(`Expected web mode to keep the category hub steady, got drift=${webCategoryDrift}`);
+    }
+    await clickToolbarControl(page, '[data-map-toolbar="motion"]');
+    await page.waitForTimeout(140);
+    const freeMotionStats = await getStats(page);
+    if (freeMotionStats.motionMode !== 'free') {
+        throw new Error(`Expected motion mode to cycle back to free, got ${freeMotionStats.motionMode}`);
     }
     if (!(freeMotionStats.motionProfile.repulsionScale > smoothMotionStats.motionProfile.repulsionScale
         && smoothMotionStats.motionProfile.repulsionScale > slowMotionStats.motionProfile.repulsionScale
@@ -376,15 +376,14 @@ async function runSmoke(page) {
             web: webMotionStats.motionProfile
         })}`);
     }
-    await page.click('[data-map-toolbar="motion"]');
-    await page.click('[data-map-toolbar="motion"]');
+    await clickToolbarControl(page, '[data-map-toolbar="motion"]');
     await page.waitForTimeout(140);
     const resetMotionStats = await getStats(page);
     if (resetMotionStats.motionMode !== 'smooth') {
         throw new Error(`Expected motion mode to cycle back to smooth, got ${resetMotionStats.motionMode}`);
     }
 
-    await page.click('[data-map-toolbar="polarity-kind"]');
+    await clickToolbarControl(page, '[data-map-toolbar="polarity-kind"]');
     await page.waitForTimeout(140);
     const categoryPullStats = await getStats(page);
     const pulledCategory = categoryPullStats.sampleNodes.find((node) => node.id === categorySeed.id);
@@ -395,7 +394,7 @@ async function runSmoke(page) {
         throw new Error(`Expected selected category to inherit pull polarity, got ${JSON.stringify(pulledCategory)}`);
     }
 
-    await page.click('[data-map-toolbar="polarity-node"]');
+    await clickToolbarControl(page, '[data-map-toolbar="polarity-node"]');
     await page.waitForTimeout(140);
     const categoryNodePullStats = await getStats(page);
     const categoryNodePull = categoryNodePullStats.sampleNodes.find((node) => node.id === categorySeed.id);
@@ -403,7 +402,7 @@ async function runSmoke(page) {
         throw new Error(`Expected selected category node override to switch to attract, got ${JSON.stringify(categoryNodePull)}`);
     }
 
-    await page.click('[data-map-toolbar="polarity-node"]');
+    await clickToolbarControl(page, '[data-map-toolbar="polarity-node"]');
     await page.waitForTimeout(140);
     const categoryNodePushStats = await getStats(page);
     const categoryNodePush = categoryNodePushStats.sampleNodes.find((node) => node.id === categorySeed.id);
@@ -411,7 +410,7 @@ async function runSmoke(page) {
         throw new Error(`Expected selected category node override to switch to repel, got ${JSON.stringify(categoryNodePush)}`);
     }
 
-    await page.click('[data-map-toolbar="polarity-node"]');
+    await clickToolbarControl(page, '[data-map-toolbar="polarity-node"]');
     await page.waitForTimeout(140);
     const categoryNodeResetStats = await getStats(page);
     const categoryNodeReset = categoryNodeResetStats.sampleNodes.find((node) => node.id === categorySeed.id);
@@ -549,9 +548,21 @@ async function runSmoke(page) {
         };
     }, categorySeed.id);
 
-    await page.mouse.move(categoryDragSeed.startX, categoryDragSeed.startY);
+    const categoryDragPoint = await page.evaluate((categoryId) => {
+        const stats = window.EveConstellationMap.__debugGetGraphStats();
+        const categoryNode = stats.sampleNodes.find((node) => node.id === categoryId);
+        if (!categoryNode) throw new Error('Missing category node before drag');
+        const canvas = document.querySelector('[data-map-canvas]');
+        const rect = canvas.getBoundingClientRect();
+        return {
+            x: rect.left + stats.transform.tx + (categoryNode.x * stats.transform.scale),
+            y: rect.top + stats.transform.ty + (categoryNode.y * stats.transform.scale)
+        };
+    }, categoryDragSeed.id);
+
+    await page.mouse.move(categoryDragPoint.x, categoryDragPoint.y);
     await page.mouse.down();
-    await page.mouse.move(categoryDragSeed.startX + 240, categoryDragSeed.startY - 70, { steps: 14 });
+    await page.mouse.move(categoryDragPoint.x + 240, categoryDragPoint.y - 70, { steps: 14 });
     await page.mouse.up();
     await page.waitForTimeout(900);
     const anchoredStats = await getStats(page);
@@ -594,23 +605,35 @@ async function runSmoke(page) {
         if (node) select(node);
     }, folderDragSeed.id);
     await page.waitForTimeout(80);
-    await page.click('[data-map-toolbar="polarity-node"]');
+    await clickToolbarControl(page, '[data-map-toolbar="polarity-node"]');
     await page.waitForTimeout(140);
     const folderNodePullStats = await getStats(page);
     const folderNodePull = folderNodePullStats.sampleNodes.find((node) => node.id === folderDragSeed.id);
     if (!folderNodePull || folderNodePull.nodePolarity !== 'attract' || folderNodePull.polarity !== 'attract') {
         throw new Error(`Expected selected folder node override to switch to attract, got ${JSON.stringify(folderNodePull)}`);
     }
-    await page.click('[data-map-toolbar="polarity-clear"]');
+    await clickToolbarControl(page, '[data-map-toolbar="polarity-clear"]');
     await page.waitForTimeout(140);
     const clearedPolarityStats = await getStats(page);
     if (clearedPolarityStats.polaritySummary.nodeOverrideCount !== 0 || clearedPolarityStats.polaritySummary.attractKinds.length !== 0) {
         throw new Error(`Expected polarity controls to clear, got ${JSON.stringify(clearedPolarityStats.polaritySummary)}`);
     }
 
-    await page.mouse.move(folderDragSeed.startX, folderDragSeed.startY);
+    const folderDragPoint = await page.evaluate((folderId) => {
+        const stats = window.EveConstellationMap.__debugGetGraphStats();
+        const folderNode = stats.sampleNodes.find((node) => node.id === folderId);
+        if (!folderNode) throw new Error('Missing folder node before drag');
+        const canvas = document.querySelector('[data-map-canvas]');
+        const rect = canvas.getBoundingClientRect();
+        return {
+            x: rect.left + stats.transform.tx + (folderNode.x * stats.transform.scale),
+            y: rect.top + stats.transform.ty + (folderNode.y * stats.transform.scale)
+        };
+    }, folderDragSeed.id);
+
+    await page.mouse.move(folderDragPoint.x, folderDragPoint.y);
     await page.mouse.down();
-    await page.mouse.move(folderDragSeed.startX + 170, folderDragSeed.startY + 55, { steps: 14 });
+    await page.mouse.move(folderDragPoint.x + 170, folderDragPoint.y + 55, { steps: 14 });
     await page.mouse.up();
     await page.waitForTimeout(260);
     const folderAnchoredStats = await getStats(page);
@@ -691,7 +714,7 @@ async function runSmoke(page) {
         }
     }, categorySeed.id);
     await page.waitForTimeout(150);
-    await page.click('[data-map-toolbar="static-chain"]');
+    await clickToolbarControl(page, '[data-map-toolbar="static-chain"]');
     await page.waitForTimeout(180);
     const staticChainStats = await getStats(page);
     const branchRoots = staticChainStats.staticSummary?.branchRoots || [];
@@ -707,7 +730,7 @@ async function runSmoke(page) {
         throw new Error(`Expected category chain to lock category and folder descendants, got ${JSON.stringify(branchNodes)}`);
     }
 
-    await page.click('[data-map-toolbar="static-clear"]');
+    await clickToolbarControl(page, '[data-map-toolbar="static-clear"]');
     await page.waitForTimeout(120);
     const clearedStaticStats = await getStats(page);
     if ((clearedStaticStats.staticSummary?.nodeIds || []).length || (clearedStaticStats.staticSummary?.kinds || []).length) {
@@ -912,5 +935,3 @@ main().catch((error) => {
     console.error(error && error.stack ? error.stack : String(error));
     process.exit(1);
 });
-
-

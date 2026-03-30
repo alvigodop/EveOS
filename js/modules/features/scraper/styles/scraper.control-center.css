@@ -1,0 +1,299 @@
+/* ==========================================================================
+   PORTED STYLES FROM SCRAPER SUB-PROJECT (Advanced UI)
+   ========================================================================== */
+
+/* --- Control Center --- */
+.control-center {
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.05);
+    /* Adjusted for Dark Mode compatibility in Eve OS */
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.control-row {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.control-row.justify-between {
+    justify-content: space-between;
+}
+
+.control-row.search-row {
+    width: 100%;
+}
+
+.control-row.filters-row {
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding-top: 15px;
+}
+
+.filter-group-label {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: #aaa;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-right: 5px;
+}
+
+.separator-vertical {
+    width: 1px;
+    height: 24px;
+    background: rgba(255, 255, 255, 0.2);
+    margin: 0 5px;
+}
+
+.layout-toggles .layout-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 5px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9em;
+    color: #eee;
+    transition: all 0.2s ease;
+}
+
+.layout-toggles .layout-btn.active {
+    background: #0060df;
+    color: white;
+    border-color: #0050bc;
+    box-shadow: 0 2px 4px rgba(0, 96, 223, 0.2);
+}
+
+.layout-toggles .layout-btn:hover:not(.active) {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* --- Toggle Switches --- */
+.source-toggle-container {
+    display: flex;
+    background: rgba(255, 255, 255, 0.1);
+    padding: 4px;
+    border-radius: 8px;
+    gap: 0;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.source-toggle-btn {
+    flex: 1;
+    padding: 6px 16px;
+    border: none;
+    background: transparent;
+    color: #aaa;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    position: relative;
+}
+
+.source-toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: #fff;
+}
+
+.source-toggle-btn.active {
+    background: #333;
+    color: #4dabf7;
+    /* Adjusted blue for dark mode */
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    font-weight: 700;
+}
+
+.source-toggle-btn[data-source="wikipedia"].active {
+    color: #fff;
+    border-bottom: 2px solid #fff;
+}
+
+.source-toggle-btn[data-source="fandom"].active {
+    color: #ff4081;
+    border-bottom: 2px solid #ff4081;
+}
+
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #555;
+    transition: .4s;
+    border-radius: 34px;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+input:checked+.toggle-slider {
+    background-color: #2196F3;
+}
+
+input:focus+.toggle-slider {
+    box-shadow: 0 0 1px #2196F3;
+}
+
+input:checked+.toggle-slider:before {
+    transform: translateX(20px);
+}
+
+.filter-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.9rem;
+    color: #ccc;
+    cursor: pointer;
+    user-select: none;
+    margin-right: 15px;
+}
+
+/* --- Domain Manager & Wiki Management --- */
+.wiki-management {
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: 5px;
+    padding: 20px;
+    margin-top: 20px;
+}
+
+.wiki-management h2 {
+    margin-bottom: 20px;
+    color: var(--primary-color, #4dabf7);
+}
+
+.domain-add-form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px dashed rgba(255, 255, 255, 0.1);
+    margin-bottom: 20px;
+}
+
+.domain-add-form input {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white;
+    border-radius: 4px;
+    padding: 8px 12px;
+}
+
+.entry-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.entry-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.2);
+    margin-bottom: 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.entry-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.entry-image {
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
+    object-fit: contain;
+    background: #fff;
+}
+
+.entry-name {
+    font-weight: 600;
+    color: #eee;
+}
+
+.entry-actions {
+    display: flex;
+    gap: 5px;
+}
+
+.action-btn {
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    font-size: 0.8rem;
+}
+
+.update-btn {
+    background-color: #1976d2;
+    color: white;
+}
+
+.remove-btn {
+    background-color: #d32f2f;
+    color: white;
+}
+
+.visit-btn {
+    background: transparent;
+    color: #4dabf7;
+    text-decoration: none;
+}
+
+.discovery-search {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 15px;
+}
+
+.discovery-search-input {
+    flex: 1;
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(0, 0, 0, 0.3);
+    color: white;
+}

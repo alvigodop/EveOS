@@ -1,0 +1,193 @@
+/* FX Panel */
+.fx-panel-popup {
+    background: color-mix(in srgb, var(--map-theme-panel-base) var(--map-theme-panel-fill), transparent);
+    backdrop-filter: blur(calc(var(--map-theme-blur) * 1.3));
+    border: 1px solid color-mix(in srgb, var(--map-theme-border-base) 72%, transparent);
+    border-radius: 24px;
+    width: 320px;
+    padding: 24px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8);
+    display: none;
+    flex-direction: column;
+    gap: 16px;
+    margin-top: 10px;
+    transform-origin: top right;
+    animation: fxPanelPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.fx-panel-popup.visible {
+    display: flex;
+}
+
+@keyframes fxPanelPop {
+    from { opacity: 0; transform: scale(0.9) translateY(-10px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.fx-row {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.fx-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--map-theme-text-muted);
+}
+
+.fx-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+
+.fx-item-btn {
+    background: color-mix(in srgb, var(--map-theme-button-base) calc(var(--map-theme-button-fill) - 4%), transparent);
+    border: 1px solid color-mix(in srgb, var(--map-theme-border-base) 66%, transparent);
+    color: var(--map-theme-text);
+    padding: 6px;
+    border-radius: 12px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    text-align: center;
+    backdrop-filter: blur(calc(var(--map-theme-blur) * 0.65));
+}
+
+.fx-item-btn:hover {
+    background: color-mix(in srgb, var(--map-theme-fx) 16%, transparent);
+    border-color: color-mix(in srgb, var(--map-theme-fx) 48%, transparent);
+}
+
+.fx-item-btn.active {
+    background: color-mix(in srgb, var(--map-theme-fx) 18%, transparent);
+    border-color: color-mix(in srgb, var(--map-theme-fx) 54%, transparent);
+    color: var(--map-theme-text);
+}
+
+.fx-toggle-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.fx-toggle-chip {
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    background: color-mix(in srgb, var(--map-theme-button-base) calc(var(--map-theme-button-fill) + 2%), transparent);
+    border: 1px solid color-mix(in srgb, var(--map-theme-border-base) 72%, transparent);
+    cursor: pointer;
+    min-width: 80px;
+    text-align: center;
+    color: var(--map-theme-text);
+}
+
+.fx-toggle-chip.active {
+    background: color-mix(in srgb, var(--map-theme-fx) 20%, transparent);
+    border-color: color-mix(in srgb, var(--map-theme-fx) 56%, transparent);
+    color: var(--map-theme-text);
+}
+
+/* New High-Fidelity FX Styles */
+.fx-blurred-loader {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: color-mix(in srgb, var(--map-theme-bg-b) 88%, var(--map-theme-panel-base) 12%);
+    --fx-hue-shift: 200;
+    --fx-blur-strength: 100px;
+    --fx-blob-speed: 12s;
+    --fx-orbit-tilt-x: 0deg;
+    --fx-orbit-tilt-y: 0deg;
+    --fx-blob-scale: 1;
+}
+
+.fx-blurred-loader .glass-bg {
+    position: absolute;
+    inset: 40px;
+    background: color-mix(in srgb, var(--map-theme-panel-base) 18%, transparent);
+    backdrop-filter: blur(100px);
+    border-radius: 40px;
+    border: 1px solid color-mix(in srgb, var(--map-theme-border-base) 42%, transparent);
+    box-shadow: 0 50px 100px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+}
+
+.fx-blurred-loader .orbit-container {
+    position: relative;
+    width: 300px;
+    height: 300px;
+    filter: blur(calc(var(--fx-blur-strength) * 0.2)) contrast(calc(22 + (var(--map-fx-contrast) * 10)));
+    animation: huerotate var(--fx-blob-speed) linear infinite;
+    transform: rotateX(var(--fx-orbit-tilt-x)) rotateY(var(--fx-orbit-tilt-y));
+    transform-style: preserve-3d;
+}
+
+.fx-blurred-loader .blob {
+    position: absolute;
+    width: 100px;
+    height: 100px;
+    background: oklch(0.7 0.2 var(--fx-hue-shift));
+    border-radius: 50%;
+    filter: blur(calc(var(--fx-blur-strength) * 0.14));
+    transform: scale(var(--fx-blob-scale));
+}
+
+.fx-blurred-loader .blob-1 { top: 20%; left: 20%; animation: blob1 calc(var(--fx-blob-speed) * 0.66) infinite alternate; }
+.fx-blurred-loader .blob-2 { top: 60%; left: 50%; animation: blob2 calc(var(--fx-blob-speed) * 0.82) infinite alternate; }
+.fx-blurred-loader .blob-3 { top: 40%; left: 70%; animation: blob3 calc(var(--fx-blob-speed) * 0.58) infinite alternate; }
+.fx-blurred-loader .blob-4 { top: 24%; left: 62%; animation: blob2 calc(var(--fx-blob-speed) * 0.94) infinite alternate-reverse; }
+
+@keyframes blob1 { 0% { transform: scale(1) translate(0, 0); } 100% { transform: scale(1.5) translate(100px, 50px); } }
+@keyframes blob2 { 0% { transform: scale(1.2) translate(0, 0); } 100% { transform: scale(0.8) translate(-80px, -120px); } }
+@keyframes blob3 { 0% { transform: scale(0.9) translate(0, 0); } 100% { transform: scale(1.8) translate(50px, 80px); } }
+@keyframes huerotate { from { filter: hue-rotate(0deg) blur(calc(var(--fx-blur-strength) * 0.2)) contrast(calc(22 + (var(--map-fx-contrast) * 10))); } to { filter: hue-rotate(360deg) blur(calc(var(--fx-blur-strength) * 0.2)) contrast(calc(22 + (var(--map-fx-contrast) * 10))); } }
+
+/* Dramatic SVG Styles */
+.fx-svg-dramatic {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: color-mix(in srgb, var(--map-theme-bg-b) 92%, var(--map-theme-panel-base) 8%);
+    --fx-svg-tilt-x: 0deg;
+    --fx-svg-tilt-y: 0deg;
+    --fx-svg-glow: 0.08;
+}
+
+.fx-svg-dramatic .glass-wall {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    padding: 40px;
+    justify-content: center;
+    filter: url(#fx-svg-liquid);
+    transform: perspective(1200px) rotateX(var(--fx-svg-tilt-x)) rotateY(var(--fx-svg-tilt-y));
+}
+
+.fx-svg-dramatic .glass-card {
+    width: 280px;
+    height: 380px;
+    background: color-mix(in srgb, var(--map-theme-panel-base) 24%, transparent);
+    backdrop-filter: blur(40px);
+    border: 1px solid color-mix(in srgb, var(--map-theme-border-base) 44%, transparent);
+    border-radius: 30px;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.fx-svg-dramatic .glass-card:hover { transform: translateY(-10px) rotate(2deg); }
+
+.fx-svg-dramatic .card-glow {
+    position: absolute;
+    inset: -50%;
+    background: conic-gradient(from 0deg, transparent, rgb(var(--map-theme-fx-rgb) / var(--fx-svg-glow)), transparent 50%);
+    animation: rotateGlow 4s linear infinite;
+}
+
+@keyframes rotateGlow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+

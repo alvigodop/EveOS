@@ -1,0 +1,331 @@
+/**
+ * Result Card CSS
+ * Core styles for individual result cards/items
+ * Extracted from result-display.css
+ */
+
+/* Result Card (Grid View) */
+.result-card {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    overflow: hidden;
+    background-color: #fff;
+    transition: transform 0.2s, box-shadow 0.2s;
+    height: 100%;
+    position: relative;
+}
+
+.result-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.result-header {
+    padding: 0;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 120px;
+    background-color: #f5f5f5;
+}
+
+.result-thumbnail {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.result-thumbnail img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    transition: transform 0.2s;
+}
+
+.result-card:hover .result-thumbnail img {
+    transform: scale(1.05);
+}
+
+.result-title {
+    padding: 0.75rem;
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    border-bottom: 1px solid #eee;
+    color: #333;
+}
+
+.result-content {
+    padding: 0.75rem;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.result-snippet {
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+    color: #666;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    -webkit-box-orient: vertical;
+    text-overflow: ellipsis;
+}
+
+.result-snippet.expanded {
+    max-height: none !important;
+    display: block !important;
+    -webkit-line-clamp: unset;
+    line-clamp: unset;
+    -webkit-box-orient: vertical;
+}
+
+.result-domain {
+    font-size: 0.8rem;
+    color: #888;
+    margin-bottom: 0.5rem;
+}
+
+.result-footer {
+    padding: 0.75rem;
+    border-top: 1px solid #eee;
+    display: flex;
+    justify-content: space-between;
+}
+
+.result-action {
+    font-size: 0.85rem;
+    cursor: pointer;
+    text-decoration: none;
+    color: var(--wiki-blue, #0645ad);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 500;
+    transition: color 0.2s ease;
+    padding: 0;
+    background: none;
+    border: none;
+}
+
+.result-action:hover {
+    color: var(--wiki-link-hover, #0b0080);
+    text-decoration: underline;
+}
+
+.result-action .external-link-icon,
+.result-action::after {
+    font-size: 0.75em;
+    opacity: 0.7;
+}
+
+/* Result Item (List View) */
+.result-item {
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    background-color: #fff;
+    overflow: hidden;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.result-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
+}
+
+.result-row {
+    display: flex;
+    padding: 0.75rem;
+}
+
+.result-item .result-thumbnail {
+    width: 80px;
+    height: 80px;
+    flex-shrink: 0;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-right: 1rem;
+}
+
+.result-item .result-icon {
+    width: 60px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #f5f5f5;
+    border-radius: 4px;
+    margin-right: 1rem;
+}
+
+.result-item .result-content {
+    flex-grow: 1;
+    padding: 0;
+}
+
+.result-item .result-title {
+    border: none;
+    padding: 0;
+    margin-bottom: 0.35rem;
+}
+
+.result-item .result-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-left: 1rem;
+    flex-shrink: 0;
+}
+
+/* Common Components */
+.result-categories {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-bottom: 10px;
+}
+
+.result-link {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-size: 0.9rem;
+    display: inline-flex;
+    align-items: center;
+}
+
+.result-link:hover {
+    text-decoration: underline;
+}
+
+.relevance-indicator {
+    height: 3px;
+    background-color: rgba(0, 0, 0, 0.05);
+    border-radius: 2px;
+    margin-bottom: 12px;
+    overflow: hidden;
+}
+
+.relevance-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #4caf50, #81c784);
+    border-radius: 2px;
+}
+
+/* Special Styling */
+.result-card.main-community,
+.result-item.main-community {
+    border-color: #1565c0;
+    background-color: #f8fbff;
+}
+
+.result-card.main-community:hover,
+.result-item.main-community:hover {
+    box-shadow: 0 5px 15px rgba(21, 101, 192, 0.2);
+}
+
+.main-community .result-title {
+    color: #1565c0;
+}
+
+.result-content .content-type-badge {
+    align-self: flex-start;
+    margin-bottom: 5px;
+}
+
+.result-content .status-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    margin-left: 8px;
+    vertical-align: middle;
+}
+
+/* Type Specific Styling */
+.result-type-community {
+    border-left: 4px solid #1565c0;
+}
+
+.result-source-wikipedia .result-title {
+    color: #347bff;
+}
+
+.result-source-fandom .result-title {
+    color: #fa005a;
+}
+
+.result-type-article {
+    border-left: 4px solid #9c27b0;
+}
+
+.result-type-category {
+    border-left: 4px solid #ff9800;
+}
+
+.result-type-image {
+    border-left: 4px solid #4caf50;
+}
+
+.result-card[data-fallback="true"],
+.result-item[data-fallback="true"] {
+    opacity: 0.8;
+    background-color: #f9f9f9;
+}
+
+.view-more-btn {
+    font-size: 0.8rem;
+    color: var(--primary-color);
+    cursor: pointer;
+    margin-bottom: 10px;
+    display: none;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.view-more-btn:hover {
+    background-color: rgba(33, 150, 243, 0.1);
+    transform: translateX(2px);
+}
+
+.view-more-btn.visible {
+    display: inline-block;
+}
+
+/* Responsive Overrides for Cards */
+@media (max-width: 768px) {
+    .result-item .result-thumbnail {
+        width: 60px;
+        height: 60px;
+    }
+}
+
+@media (max-width: 480px) {
+    .result-row {
+        flex-direction: column;
+    }
+
+    .result-item .result-thumbnail {
+        width: 100%;
+        height: 140px;
+        margin-right: 0;
+        margin-bottom: 0.75rem;
+    }
+
+    .result-item .result-actions {
+        flex-direction: row;
+        margin-left: 0;
+        margin-top: 0.75rem;
+    }
+}
+

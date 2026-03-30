@@ -1,0 +1,228 @@
+/* Body/Root Container Styling */
+#gemini-ui-root {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Header (Scoped) */
+#gemini-ui-root .mdl-layout__header {
+    background-color: var(--header-bg) !important;
+    transition: background-color 0.3s ease;
+}
+
+#gemini-ui-root .mdl-layout__header-row {
+    color: var(--header-text) !important;
+}
+
+/* Theme Toggle Button */
+#gemini-ui-root #theme-toggle-btn {
+    color: var(--header-text) !important;
+    margin-right: 8px !important;
+    transition: transform 0.3s ease, background-color 0.3s ease !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-width: 40px !important;
+    min-height: 40px !important;
+    z-index: 10 !important;
+}
+
+#gemini-ui-root #theme-toggle-btn:hover {
+    transform: scale(1.1);
+    background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+#gemini-ui-root #theme-toggle-btn .material-icons {
+    color: inherit !important;
+    font-size: 24px !important;
+    transition: transform 0.3s ease;
+}
+
+[data-theme="dark"] #gemini-ui-root #theme-toggle-btn .material-icons {
+    transform: rotate(180deg);
+}
+
+/* Communication Panel (White box in top-left) */
+.video-section {
+    background-color: var(--bg-secondary) !important;
+    background: var(--bg-secondary) !important;
+    box-shadow: var(--shadow-sm) !important;
+    transition: background-color 0.3s ease;
+}
+
+.button-group {
+    background: transparent !important;
+}
+
+/* Chat Container */
+.chat-container {
+    background: var(--bg-chat) !important;
+    box-shadow: var(--shadow-sm) !important;
+    transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* Chat Log */
+#chatLog {
+    background-color: var(--bg-chat-log) !important;
+    border-color: var(--border-color) !important;
+    transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+/* Chat Header */
+.chat-header {
+    background-color: var(--accent-primary) !important;
+    color: var(--header-text) !important;
+    transition: background-color 0.3s ease;
+}
+
+/* User Messages */
+.user-message {
+    background-color: var(--user-msg-bg) !important;
+    color: var(--user-msg-text) !important;
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.user-message .message-timestamp {
+    color: var(--user-msg-text) !important;
+}
+
+/* Gemini Messages */
+.gemini-message {
+    background-color: var(--gemini-msg-bg) !important;
+    color: var(--gemini-msg-text) !important;
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.gemini-message .message-timestamp {
+    color: var(--gemini-msg-text) !important;
+}
+
+/* System Log */
+#systemLog {
+    background-color: var(--system-log-bg) !important;
+    border-color: var(--border-accent) !important;
+    transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+.system-header {
+    background-color: var(--accent-primary) !important;
+    transition: background-color 0.3s ease;
+}
+
+.system-message {
+    background-color: var(--system-log-bg) !important;
+    color: var(--system-log-text) !important;
+    border-left-color: var(--border-accent) !important;
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Text Input Section */
+.text-input-section {
+    background: var(--bg-secondary) !important;
+    box-shadow: var(--shadow-sm) !important;
+    transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* MDL Textfield */
+.mdl-textfield__input {
+    color: var(--text-primary) !important;
+    border-bottom-color: var(--border-color) !important;
+    transition: color 0.3s ease, border-bottom-color 0.3s ease;
+}
+
+.mdl-textfield__label {
+    color: var(--text-secondary) !important;
+    transition: color 0.3s ease;
+}
+
+/* Past Chats Log */
+#pastChatsLog {
+    background-color: var(--bg-tertiary) !important;
+    border-color: var(--border-color) !important;
+    transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+.past-chat-section {
+    background-color: var(--bg-secondary) !important;
+    border-color: var(--border-color) !important;
+    transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+.past-chat-section .chat-messages-container {
+    background-color: var(--bg-tertiary) !important;
+    border-color: var(--border-color) !important;
+}
+
+/* Scrollbar Styling */
+.chat-messages-container::-webkit-scrollbar-thumb,
+#pastChatsLog::-webkit-scrollbar-thumb,
+.system-messages-container::-webkit-scrollbar-thumb {
+    background-color: var(--scrollbar-thumb) !important;
+}
+
+.chat-messages-container::-webkit-scrollbar-thumb:hover,
+#pastChatsLog::-webkit-scrollbar-thumb:hover,
+.system-messages-container::-webkit-scrollbar-thumb:hover {
+    background-color: var(--scrollbar-thumb-hover) !important;
+}
+
+/* Theme Toggle Button */
+#theme-toggle-btn {
+    color: var(--header-text);
+    margin-right: 8px;
+    transition: transform 0.3s ease;
+}
+
+#theme-toggle-btn:hover {
+    transform: scale(1.1);
+}
+
+#theme-toggle-btn .material-icons {
+    transition: transform 0.3s ease;
+}
+
+[data-theme="dark"] #theme-toggle-btn .material-icons {
+    transform: rotate(180deg);
+}
+
+/* MDL Layout Content */
+.mdl-layout__content {
+    background-color: var(--bg-primary) !important;
+    transition: background-color 0.3s ease;
+}
+
+/* App Container adjustments for dark mode */
+.app-container {
+    transition: background-color 0.3s ease;
+}
+
+/* Button Group styling */
+.button-group {
+    transition: background-color 0.3s ease;
+}
+
+/* Additional MDL overrides for dark mode */
+[data-theme="dark"] .mdl-button--colored {
+    background-color: var(--accent-primary) !important;
+}
+
+[data-theme="dark"] .mdl-button--fab.mdl-button--colored {
+    background-color: var(--accent-success) !important;
+}
+
+[data-theme="dark"] .mdl-button--fab.mdl-button--colored:hover {
+    background-color: #57a05e !important;
+}
+
+/* Video section dark mode */
+[data-theme="dark"] video,
+[data-theme="dark"] .video-container {
+    border-color: var(--border-color) !important;
+}
+
+/* Canvas dark mode */
+[data-theme="dark"] canvas {
+    border-color: var(--border-color) !important;
+}
+

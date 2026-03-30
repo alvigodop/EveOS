@@ -1,0 +1,240 @@
+/* Agentic Functions Section */
+.agentic-functions {
+    background-color: var(--bg-tertiary) !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+.agentic-functions h4 {
+    color: var(--accent-primary) !important;
+}
+
+/* Agentic Function Cards */
+.agentic-function-card {
+    background-color: var(--bg-secondary) !important;
+    color: var(--text-primary) !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+.agentic-function-card span {
+    color: var(--text-primary) !important;
+}
+
+.agentic-function-card div[style*="color: #666"],
+.agentic-function-card div[style*="color: #757575"],
+#currentTimeDisplay {
+    color: var(--text-secondary) !important;
+}
+
+.agentic-function-card div[style*="font-size: 12px"] {
+    color: var(--text-muted) !important;
+}
+
+/* Fix for any hardcoded white backgrounds in dark mode */
+[data-theme="dark"] [style*="background-color: white"],
+[data-theme="dark"] [style*="background-color: #fff"],
+[data-theme="dark"] [style*="background-color: #ffffff"],
+[data-theme="dark"] [style*="background-color:#fff"],
+[data-theme="dark"] [style*="background-color:#ffffff"] {
+    background-color: var(--bg-secondary) !important;
+}
+
+/* Fix for any hardcoded dark text in dark mode */
+[data-theme="dark"] [style*="color: #333"],
+[data-theme="dark"] [style*="color: #000"],
+[data-theme="dark"] [style*="color:#333"],
+[data-theme="dark"] [style*="color:#000"] {
+    color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] [style*="color: #666"],
+[data-theme="dark"] [style*="color: #757575"] {
+    color: var(--text-secondary) !important;
+}
+
+/* Chat Header and System Header titles */
+.chat-header h3,
+.system-header span {
+    color: var(--header-text) !important;
+}
+
+/* Connection Status text */
+#connectionText,
+.connection-text {
+    color: var(--header-text) !important;
+}
+
+#connectionStatus {
+    color: var(--text-primary) !important;
+}
+
+/* System Messages scrollable container background */
+.system-messages-container {
+    background-color: var(--bg-chat-log) !important;
+}
+
+/* Text message operators section (where Send button is) */
+.right-column .text-input-section {
+    background-color: var(--bg-secondary) !important;
+}
+
+/* Previous Conversation History Styles */
+.previous-user-message {
+    background-color: var(--user-msg-bg) !important;
+    transition: background-color 0.3s ease;
+}
+
+.previous-gemini-message {
+    background-color: var(--gemini-msg-bg) !important;
+    transition: background-color 0.3s ease;
+}
+
+.previous-system-message {
+    background-color: #e8f5e9 !important;
+    color: #2e7d32 !important;
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+[data-theme="dark"] .previous-system-message {
+    background-color: #1a3d1a !important;
+    color: #81c784 !important;
+}
+
+#previousConversationLog {
+    background-color: var(--bg-secondary) !important;
+    border-color: var(--border-accent) !important;
+    transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+.previous-chat-controls {
+    background-color: var(--bg-secondary) !important;
+    border-top-color: var(--border-color) !important;
+    transition: background-color 0.3s ease, border-top-color 0.3s ease;
+}
+
+/* MDL Switch and Checkbox dark mode */
+[data-theme="dark"] .mdl-switch__label,
+[data-theme="dark"] .mdl-checkbox__label {
+    color: var(--text-primary) !important;
+}
+
+/* MDL Card dark mode */
+[data-theme="dark"] .mdl-card {
+    background-color: var(--bg-secondary) !important;
+    color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .mdl-card__title,
+[data-theme="dark"] .mdl-card__supporting-text {
+    color: var(--text-primary) !important;
+}
+
+/* Dialog dark mode */
+[data-theme="dark"] .mdl-dialog {
+    background-color: var(--bg-secondary) !important;
+    color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .mdl-dialog__title {
+    color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .mdl-dialog__content {
+    color: var(--text-secondary) !important;
+}
+
+/* Tooltip dark mode */
+[data-theme="dark"] .mdl-tooltip {
+    background-color: var(--bg-tertiary) !important;
+    color: var(--text-primary) !important;
+}
+
+/* Select/dropdown dark mode */
+[data-theme="dark"] select,
+[data-theme="dark"] option {
+    background-color: var(--bg-secondary) !important;
+    color: var(--text-primary) !important;
+    border-color: var(--border-color) !important;
+}
+
+/* --- Dynamic Content and Dialog Overrides --- */
+
+[data-theme="dark"] .mdl-dialog__actions {
+    background-color: var(--bg-tertiary) !important;
+}
+
+[data-theme="dark"] .mdl-dialog .mdl-button {
+    color: var(--text-primary) !important;
+}
+
+/* Overrides for hardcoded colors in settings dialogs */
+[data-theme="dark"] .settings-section h5,
+[data-theme="dark"] .settings-section [style*="color: #333"],
+[data-theme="dark"] .settings-section [style*="color:#333"] {
+    color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .settings-section label,
+[data-theme="dark"] .settings-section [style*="color: #757575"],
+[data-theme="dark"] .settings-section [style*="color:#757575"] {
+    color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .prompt-list,
+[data-theme="dark"] .instruction-list,
+[data-theme="dark"] [style*="background-color: #f9f9f9"],
+[data-theme="dark"] [style*="background-color:#f9f9f9"] {
+    background-color: var(--bg-tertiary) !important;
+    border-color: var(--border-color) !important;
+}
+
+[data-theme="dark"] .delay-setting input,
+[data-theme="dark"] [style*="border: 1px solid #ccc"] {
+    background-color: var(--bg-tertiary) !important;
+    border-color: var(--border-color) !important;
+    color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .settings-actions .mdl-button--raised[style*="background-color: #e0e0e0"] {
+    background-color: var(--bg-tertiary) !important;
+    color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .settings-actions .mdl-button--raised[style*="background-color: #ffcdd2"] {
+    background-color: #c62828 !important;
+    color: #ffffff !important;
+}
+
+[data-theme="dark"] .settings-section {
+    border-top-color: var(--border-color) !important;
+}
+
+[data-theme="dark"] .settings-note {
+    color: var(--text-muted) !important;
+}
+
+/* Fix for icons and buttons in lists */
+[data-theme="dark"] .prompt-item,
+[data-theme="dark"] .instruction-item {
+    border-bottom: 1px solid var(--border-color) !important;
+}
+
+[data-theme="dark"] .material-icons {
+    color: var(--text-secondary);
+}
+
+[data-theme="dark"] .mdl-button--fab .material-icons {
+    color: white;
+}
+
+/* MDL Textfield Fixes */
+[data-theme="dark"] .mdl-textfield__input {
+    color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .mdl-textfield__label {
+    color: var(--text-muted) !important;
+}
+
+[data-theme="dark"] .mdl-textfield__label:after {
+    background-color: var(--accent-primary) !important;
+}

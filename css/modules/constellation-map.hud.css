@@ -1,0 +1,67 @@
+/* Neural Nexus HUD */
+.fx-hud-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 10;
+    --fx-hud-glow: 0.18;
+    --fx-hud-contrast: 1;
+}
+
+.hud-frame {
+    position: absolute;
+    inset: 40px;
+    border: 2px solid rgb(var(--map-theme-fx-rgb) / 0.1);
+    box-shadow: inset 0 0 100px rgb(var(--map-theme-fx-rgb) / calc(var(--fx-hud-glow) * 0.32));
+    border-radius: 40px;
+    overflow: hidden;
+    filter: saturate(var(--fx-hud-contrast));
+}
+
+.hud-corner {
+    position: absolute;
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--map-theme-fx);
+}
+
+.hud-corner.tl { top: -2px; left: -2px; border-right: 0; border-bottom: 0; border-top-left-radius: 38px; }
+.hud-corner.tr { top: -2px; right: -2px; border-left: 0; border-bottom: 0; border-top-right-radius: 38px; }
+.hud-corner.bl { bottom: -2px; left: -2px; border-right: 0; border-top: 0; border-bottom-left-radius: 38px; }
+.hud-corner.br { bottom: -2px; right: -2px; border-left: 0; border-top: 0; border-bottom-right-radius: 38px; }
+
+.hud-scanline {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 4px;
+    background: rgb(var(--map-theme-fx-rgb) / 0.2);
+    box-shadow: 0 0 20px rgb(var(--map-theme-fx-rgb) / 0.5);
+    animation: scanMove 4s linear infinite;
+}
+
+.hud-ring {
+    position: absolute;
+    border-radius: 50%;
+    border: 1px solid rgb(var(--map-theme-aura-rgb) / calc(var(--fx-hud-glow) * 0.75));
+    box-shadow: 0 0 30px rgb(var(--map-theme-aura-rgb) / calc(var(--fx-hud-glow) * 0.45));
+}
+
+.hud-ring-a {
+    width: 240px;
+    height: 240px;
+    right: 54px;
+    top: 54px;
+    animation: rotateGlow 10s linear infinite;
+}
+
+.hud-ring-b {
+    width: 140px;
+    height: 140px;
+    left: 72px;
+    bottom: 56px;
+    animation: rotateGlow 7s linear infinite reverse;
+}
+
+@keyframes scanMove { from { top: 0%; } to { top: 100%; } }

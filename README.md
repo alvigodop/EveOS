@@ -268,6 +268,331 @@ python python-server.py
 
 3. Open `EveOS.html` in a browser.
 
+## Agent Validation And Smoke-Test Protocol
+
+This repository is large enough that "edit first, click around later" is not an acceptable workflow. Any agent working in EveOS should validate changes from the terminal with the same toolchain already used by the project. The goal is to keep behavior stable, keep regressions local to the changed surface, and avoid wasting time on slow or low-signal manual retests.
+
+### Core Rules
+
+1. Work from the repo root:
+
+```bash
+cd EveOS-0.4
+```
+
+2. Validate the smallest affected surface first.
+3. Prefer targeted smoke tests over broad untargeted reruns.
+4. Run syntax checks before browser smokes.
+5. If a change touches load order, shared state, or cross-module orchestration, run at least one neighboring regression smoke in addition to the direct target.
+6. Do not assume `file://` behavior is representative for backend-assisted flows. Browser fallback chains, modular-store flows, and scraper bridges should be validated through terminal-launched local services or smoke scripts.
+
+### Fast Pre-Flight Checks
+
+For JavaScript:
+
+```bash
+node --check path\\to\\file.js
+```
+
+For Python:
+
+```bash
+python -m py_compile path\\to\\file.py
+```
+
+For repo search before choosing a smoke:
+
+```bash
+rg "feature-name|module-name|functionName" js server_modules tools\\smoke
+```
+
+Use `rg` to identify the closest existing smoke instead of inventing a new manual workflow every time.
+
+### Smoke Test Philosophy
+
+Most UI smokes under `tools/smoke/` are the correct terminal path for validating frontend behavior. They typically:
+
+- launch `python-server.py` themselves
+- use an isolated temporary modular root
+- seed runtime state directly
+- drive a real browser with Playwright
+- fail with concrete assertions instead of vague visual checks
+
+That makes them better than ad hoc manual browser clicking for routine validation. If an agent changes a runtime path and does not run the nearest smoke, they are operating below the repo's current standard.
+
+### Standard Validation Sequence
+
+For a normal code change, use this order:
+
+1. Syntax check changed files.
+2. Run the most specific smoke for the touched feature.
+3. Run one adjacent regression smoke if the change touches shared state, rendering, folder movement, manifest order, library connections, or scraper fallback logic.
+4. Only then consider broader exploratory manual testing.
+
+Example:
+
+```bash
+node --check js\\modules\\features\\autotitle\\autotitle-core.js
+node tools\\smoke\\bookmark_edit_autotitle_headless_browser_smoke.js
+node tools\\smoke\\autotitle_browser_html_smoke.js
+```
+
+### Feature-To-Smoke Mapping
+
+Use the nearest smoke already in the repo. Start here.
+
+#### Auto-title, scraper, and browser-fallback chain
+
+Primary scripts:
+
+- `tools/smoke/autotitle_browser_html_smoke.js`
+- `tools/smoke/bookmark_edit_autotitle_headless_browser_smoke.js`
+- `tools/smoke/camofox_cover_scoring_smoke.py`
+
+Use when touching:
+
+- `js/modules/features/autotitle/*`
+- `server_modules/lightpanda.py`
+- `server_modules/camofox.py`
+- `lightpanda-bridge.py`
+- `camofox-bridge.py`
+- fallback ordering, cover scoring, blocked-page behavior, or bookmark edit auto-fetch flows
+
+Recommended command set:
+
+```bash
+node --check js\\modules\\features\\autotitle\\autotitle-core.js
+node tools\\smoke\\autotitle_browser_html_smoke.js
+node tools\\smoke\\bookmark_edit_autotitle_headless_browser_smoke.js
+python tools\\smoke\\camofox_cover_scoring_smoke.py
+```
+
+#### Bookmark folders, folder movement, and card rendering
+
+Primary scripts:
+
+- `tools/smoke/category_folder_manager_browser_smoke.js`
+- `tools/smoke/folder_scoped_actions_browser_smoke.js`
+- `tools/smoke/library_folder_browser_smoke.js`
+- `tools/smoke/bookmark_cover_folder_moves_browser_smoke.js`
+
+Use when touching:
+
+- `js/modules/features/bookmark-folders/*`
+- category-card folder rendering
+- bookmark move behavior
+- folder-linked cover behavior
+- card-folder modal flows
+
+Recommended command set:
+
+```bash
+node tools\\smoke\\category_folder_manager_browser_smoke.js
+node tools\\smoke\\folder_scoped_actions_browser_smoke.js
+node tools\\smoke\\bookmark_cover_folder_moves_browser_smoke.js
+```
+
+#### Constellation map, scope, drag, motion, and toolbar controls
+
+Primary scripts:
+
+- `tools/smoke/constellation_scope_browser_smoke.js`
+- `tools/smoke/constellation_rewire_browser_smoke.js`
+- `tools/smoke/constellation_zoom_hit_browser_smoke.js`
+- `tools/smoke/constellation_map_stability.js`
+
+Use when touching:
+
+- `js/modules/features/constellation-map/*`
+- `css/modules/constellation-map*.css`
+- scope transitions
+- drag/polarity/static-node toolbars
+- zoom/pan or rewire flows
+
+Recommended command set:
+
+```bash
+node tools\\smoke\\constellation_scope_browser_smoke.js
+node tools\\smoke\\constellation_rewire_browser_smoke.js
+node tools\\smoke\\constellation_zoom_hit_browser_smoke.js
+```
+
+#### Link form, modals, and bookmark editing
+
+Primary scripts:
+
+- `tools/smoke/link_form_modal_browser_smoke.js`
+- `tools/smoke/category_delete_modal_browser_smoke.js`
+
+Use when touching:
+
+- `js/modules/modals/*`
+- `js/modules/modals/logic/*`
+- bookmark edit save flows
+- modal templates or modal button wiring
+
+Recommended command set:
+
+```bash
+node tools\\smoke\\link_form_modal_browser_smoke.js
+node tools\\smoke\\category_delete_modal_browser_smoke.js
+```
+
+#### Data-state, backup, restore, import/export
+
+Primary scripts:
+
+- `tools/smoke/folder_layer_backup_browser_smoke.js`
+- `tools/smoke/full_backup_path_budget_browser_smoke.js`
+- `tools/smoke/folder_layer_api_roundtrip.py`
+
+Use when touching:
+
+- `js/modules/features/data-state/*`
+- `js/modules/features/data-transfer/*`
+- modular JSON import/export logic
+- backup folder naming or Windows path-budget behavior
+
+Recommended command set:
+
+```bash
+node tools\\smoke\\folder_layer_backup_browser_smoke.js
+node tools\\smoke\\full_backup_path_budget_browser_smoke.js
+python tools\\smoke\\folder_layer_api_roundtrip.py
+```
+
+#### Dashboard, workspace, quick pins, and shared UI facades
+
+Primary scripts:
+
+- `tools/smoke/workspace_switch_browser_smoke.js`
+- `tools/smoke/quick_pins_browser_smoke.js`
+- `tools/smoke/non_scraper_facades.js`
+- `tools/smoke/duplicate_sensor_browser_smoke.js`
+
+Use when touching:
+
+- `js/modules/ui/dashboard/*`
+- `js/modules/features/quick-pins/*`
+- shared facade or manifest wiring
+- duplicate-sensor behavior
+
+Recommended command set:
+
+```bash
+node tools\\smoke\\workspace_switch_browser_smoke.js
+node tools\\smoke\\quick_pins_browser_smoke.js
+node tools\\smoke\\non_scraper_facades.js
+```
+
+### Browser Fallback Bridges
+
+The scraper fallback stack is not just frontend code. Agents touching browser-assisted scraping should use the same local standalone services the product already supports.
+
+Available controllers:
+
+- `start-lightpanda-bridge.bat`
+- `start-camofox-bridge.bat`
+- `start-server.bat`
+
+Expected local endpoints:
+
+- Lightpanda bridge: `http://127.0.0.1:3037`
+- Camofox bridge: `http://127.0.0.1:3038`
+
+Use cases:
+
+- Lightpanda validates the first local headless browser fallback.
+- Camofox validates the heavier browser fallback after Lightpanda.
+- `start-server.bat` exposes the same operational controls the product expects in normal use.
+
+If a change touches bridge detection, timeout behavior, headless ordering, or blocked-page recovery, validate both the frontend smoke and the relevant bridge-backed runtime path.
+
+### Manual Terminal Flows For Bridge Work
+
+Lightpanda:
+
+```bash
+start-lightpanda-bridge.bat
+```
+
+Camofox:
+
+```bash
+start-camofox-bridge.bat
+```
+
+General launcher:
+
+```bash
+start-server.bat
+```
+
+Agents should prefer the existing batch launchers instead of reconstructing ad hoc startup commands, because the batch files encode the expected Windows-side process layout, monitoring, and port conventions already used by the project.
+
+### When To Add A New Smoke
+
+Add a new smoke only when all of the following are true:
+
+1. The changed behavior is important enough to regress again.
+2. No existing smoke covers the path with a small extension.
+3. The assertion can be made deterministically from the terminal.
+4. The smoke can run in isolation without requiring manual browser setup.
+
+If a nearby smoke exists, extend it instead of proliferating one-off scripts.
+
+### Manifest And Load-Order Changes
+
+If an agent touches:
+
+- `js/config/manifest.js`
+- `js/config/manifest/scripts.js`
+- `js/config/manifest/scripts.parts/*`
+- `js/config/manifest/styles.js`
+
+then the minimum bar is:
+
+```bash
+node tools\\smoke\\non_scraper_facades.js
+node tools\\smoke\\workspace_switch_browser_smoke.js
+```
+
+Then add one feature smoke from the affected surface. Manifest changes can break modules that do not obviously reference the edited file, so treating them like ordinary local edits is not rigorous enough.
+
+### State, Local Storage, And Isolated Runs
+
+Agents should assume EveOS state can be polluted by previous runs if they test casually in a reused browser profile. The safer patterns are:
+
+- use the existing smoke scripts, which seed state directly
+- use temporary modular roots when launching local server instances for validation
+- avoid drawing conclusions from one manually reused browser tab
+
+For server-backed validation, `python-server.py` supports isolated modular roots:
+
+```bash
+python python-server.py 3000 --no-browser --modular-root "data/modular-packs/agent-smoke"
+```
+
+This matters for:
+
+- folder movement tests
+- backup/restore flows
+- library connection behavior
+- multi-workspace state
+- any debugging session where stale local storage would contaminate results
+
+### Recommended Discipline For Other Agents
+
+If multiple agents are working in parallel on EveOS, each agent should:
+
+1. keep changes scoped to a narrow subsystem
+2. run syntax checks on only the files they touched
+3. run the nearest smoke for that subsystem before handing work back
+4. document exactly which smoke scripts they ran
+5. avoid committing a "green" status based only on manual clicking
+
+That discipline keeps the repo fast to work in and prevents efficiency loss from regression-chasing across unrelated surfaces.
+
 ## Notes
 
 - SSL keys currently tracked in repo:

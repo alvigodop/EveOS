@@ -1,0 +1,226 @@
+/**
+ * Library CSS Styles for Eve OS
+ * Styles for library panels inside category cards
+ * Adapted from MegaBase CSS components
+ */
+
+/* Library Panel Container */
+.lib-panel {
+    background: var(--modal-bg, rgba(20, 20, 20, 0.9));
+    color: var(--modal-text, var(--text-main, #e0e0e0));
+    border-radius: 8px;
+    padding: 12px;
+    margin-top: 10px;
+    border: 1px solid var(--modal-border, #333);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16);
+}
+
+.lib-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--modal-border, #333);
+}
+
+.lib-panel-header-left {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-width: 0;
+}
+
+.lib-type-select {
+    background: var(--input-bg, #2c2c2c);
+    color: var(--text-main, #e0e0e0);
+    border: 1px solid var(--modal-border, #444);
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-size: 0.9rem;
+}
+
+.lib-folder-filter-bar {
+    display: flex;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-width: 0;
+}
+
+.lib-folder-filter-bar.is-empty {
+    display: none;
+}
+
+.lib-folder-select-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+
+.lib-folder-select-label {
+    font-size: 0.68rem;
+    color: var(--text-muted, #8f8f8f);
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.lib-folder-select {
+    background: var(--input-bg, #2c2c2c);
+    color: var(--text-main, #e0e0e0);
+    border: 1px solid var(--modal-border, #444);
+    border-radius: 4px;
+    padding: 5px 8px;
+    font-size: 0.78rem;
+    max-width: 170px;
+}
+
+.lib-folder-chain-toggle {
+    background: transparent;
+    color: var(--text-muted, #a0a0a0);
+    border: 1px dashed var(--modal-border, #555);
+    border-radius: 999px;
+    padding: 4px 9px;
+    font-size: 0.76rem;
+    cursor: pointer;
+    align-self: center;
+}
+
+.lib-folder-chain-toggle:hover {
+    color: var(--text-main, #e0e0e0);
+    border-color: var(--accent, #777);
+}
+
+.lib-panel-controls {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+/* Buttons */
+.lib-btn {
+    background: var(--input-bg, rgba(30, 30, 30, 0.85));
+    color: var(--text-main, #e0e0e0);
+    border: 1px solid var(--modal-border, #444);
+    border-radius: 4px;
+    padding: 5px 10px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.lib-btn:hover {
+    background: color-mix(in srgb, var(--input-bg, #2c2c2c) 72%, var(--accent, #00d4ff) 28%);
+}
+
+.lib-btn-primary {
+    background: var(--accent, #4B0082);
+    border-color: var(--accent, #6A0DAD);
+    color: #000;
+}
+
+.lib-btn-primary:hover {
+    filter: brightness(1.08);
+}
+
+/* Entry Form */
+.lib-entry-form {
+    background: color-mix(in srgb, var(--modal-bg, #1e1e1e) 82%, var(--input-bg, #2c2c2c) 18%);
+    border: 1px solid var(--modal-border, #444);
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 10px;
+}
+
+.lib-entry-form h4 {
+    margin: 0 0 10px 0;
+    color: var(--accent, #00d4ff);
+}
+
+.lib-form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 8px;
+}
+
+.lib-form-grid label {
+    display: flex;
+    flex-direction: column;
+    font-size: 0.85rem;
+    color: var(--text-muted, #a0a0a0);
+}
+
+.lib-form-grid input,
+.lib-form-grid select,
+.lib-form-grid textarea {
+    background: var(--input-bg, #2c2c2c);
+    color: var(--text-main, #e0e0e0);
+    border: 1px solid var(--modal-border, #444);
+    border-radius: 4px;
+    padding: 6px;
+    margin-top: 4px;
+    font-size: 0.9rem;
+}
+
+.lib-full-width {
+    grid-column: 1 / -1;
+}
+
+.lib-entry-meta-line {
+    flex-direction: row !important;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.78rem !important;
+    opacity: 0.72;
+}
+
+.lib-form-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+    justify-content: flex-end;
+}
+
+/* Search Bar */
+.lib-search-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 10px;
+    padding: 8px;
+    background: color-mix(in srgb, var(--modal-bg, #1e1e1e) 76%, transparent);
+    border-radius: 6px;
+    border: 1px solid color-mix(in srgb, var(--modal-border, #555) 75%, transparent);
+}
+
+.lib-search-bar input,
+.lib-search-bar select {
+    background: var(--input-bg, #2c2c2c);
+    color: var(--text-main, #e0e0e0);
+    border: 1px solid var(--modal-border, #444);
+    border-radius: 4px;
+    padding: 5px 8px;
+    font-size: 0.8rem;
+    min-width: 80px;
+}
+
+.lib-search-bar input[type="text"] {
+    width: 100px;
+}
+
+.lib-search-bar input[type="number"] {
+    width: 60px;
+}
+
+.lib-fav-filter {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.85rem;
+    color: var(--text-muted, #a0a0a0);
+}
+

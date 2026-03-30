@@ -111,23 +111,30 @@ async function runBrowserSmoke(page) {
                 .find((node) => String(node.textContent || '').includes(title)) || null;
         }
 
+        function findLinkById(linkId) {
+            return Array.from(window.eveState?.links || [])
+                .find((link) => String(link?.id || '') === String(linkId || '')) || null;
+        }
+
         function findUnidexEntryNode(title) {
             return Array.from(document.querySelectorAll('.unidex-entry-item'))
                 .find((node) => String(node.textContent || '').includes(title)) || null;
         }
 
         async function captureHoverCover(linkId, title) {
-            const target = findCardLinkNode(title);
-            if (!target) {
-                throw new Error(`Missing dashboard link node for ${title}`);
+            const link = findLinkById(linkId);
+            if (!link) {
+                throw new Error(`Missing bookmark for ${title}`);
             }
-            window.showBookmarkCoverHover({ currentTarget: target }, linkId);
-            await wait(80);
-            const overlay = document.getElementById('bookmark-cover-hover-overlay');
-            const image = overlay?.querySelector('.bookmark-cover-hover-image');
-            const src = normalizeImageSrc(image?.src);
-            window.hideBookmarkCoverHover();
-            return src;
+            const libraryEntry = window.EveLibrary?.ConnectionsAPI?.getLinkedEntry?.(linkId)?.entry || null;
+            const rawCoverUrl = String(
+                window.EveBookmarkCovers?.getDisplayCover?.(link, libraryEntry?.image || libraryEntry?.imageUrl)
+                || link?.coverImage
+                || libraryEntry?.image
+                || libraryEntry?.imageUrl
+                || ''
+            ).trim();
+            return normalizeImageSrc(rawCoverUrl);
         }
 
         function captureUnidexCover(title) {
@@ -143,6 +150,9 @@ async function runBrowserSmoke(page) {
         }
         if (window.EveLibrary?.Storage?.loadLibrary) {
             window.EveLibrary.Storage.loadLibrary();
+        }
+        if (window.EveLibrary?.ConnectionsAPI?.loadConnections) {
+            window.EveLibrary.ConnectionsAPI.loadConnections();
         }
         await wait(500);
 
@@ -276,6 +286,7 @@ async function main() {
             !!window.EveBookmarkFolders?.moveLinksToFolderTarget &&
             !!window.EveBookmarkCovers?.getDisplayCover &&
             !!window.EveLibrary?.Storage?.loadLibrary &&
+            !!window.EveLibrary?.ConnectionsAPI?.loadConnections &&
             !!window.showBookmarkCoverHover &&
             typeof window.renderDashboard === 'function'
         ), undefined, { timeout: 180000 });

@@ -7,6 +7,16 @@ window.EveLibrary.ConnectionsCoreModules = window.EveLibrary.ConnectionsCoreModu
             return window.EveLibrary?.Ratings;
         }
 
+        function hasExplicitBookmarkCover(link) {
+            if (!link || typeof link !== 'object') return false;
+            const coverImage = String(link.coverImage || '').trim();
+            if (coverImage) return true;
+            if (Array.isArray(link.coverImages)) {
+                return link.coverImages.some((value) => String(value || '').trim());
+            }
+            return false;
+        }
+
         function syncFromLibraryEntry(categoryName, entry, workspaceId) {
             if (!entry) return;
             const normalizedCategory = Core.normalizeCategoryName(categoryName);
@@ -108,7 +118,7 @@ window.EveLibrary.ConnectionsCoreModules = window.EveLibrary.ConnectionsCoreModu
             const coverImage = String(link.coverImage || '').trim();
             if (coverImage) {
                 entry.image = coverImage;
-            } else if (entry.image) {
+            } else if (!hasExplicitBookmarkCover(link) && !String(entry.image || entry.imageUrl || '').trim()) {
                 delete entry.image;
             }
             entry.lastEdited = new Date().toISOString();
