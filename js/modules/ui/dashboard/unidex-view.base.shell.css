@@ -1,0 +1,275 @@
+ï»¿/* --- UNIDEX VIEW (TABS -> CARDS -> ENTRIES) --- */
+#main-content.unidex-view-active .header {
+    display: none;
+}
+
+#main-content.unidex-view-active #focus-banner,
+#main-content.unidex-view-active #dock-container {
+    display: none !important;
+}
+
+.container.unidex-mode {
+    display: block !important;
+    max-width: min(1380px, 96vw);
+    margin: 16px auto 0;
+    padding: 0 0 40px;
+}
+
+.unidex-shell {
+    display: block;
+    margin: 0;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 18px;
+    padding: 24px;
+    background: linear-gradient(160deg, rgba(255, 255, 255, 0.04), rgba(0, 0, 0, 0.18));
+    backdrop-filter: blur(4px);
+    line-height: 1.25;
+}
+
+/* Keep Unidex geometry stable even when late-loaded global resets apply. */
+.unidex-shell,
+.unidex-shell *,
+.unidex-shell *::before,
+.unidex-shell *::after {
+    box-sizing: border-box;
+}
+
+.unidex-shell h2,
+.unidex-shell h3,
+.unidex-shell h4,
+.unidex-shell p,
+.unidex-shell button,
+.unidex-shell select {
+    margin: 0;
+}
+
+.unidex-hero {
+    display: block;
+    padding: 0;
+    border: 0;
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.unidex-title {
+    margin: 0;
+    font-size: clamp(1.8rem, 2.8vw, 2.6rem);
+    font-weight: 300;
+    letter-spacing: 0.08rem;
+    color: var(--accent);
+}
+
+.unidex-echo-title {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.unidex-echo-title > span {
+    display: inline-block;
+    transition: letter-spacing 0.35s ease, transform 0.35s ease;
+}
+
+.unidex-panel-title.unidex-echo-title > span {
+    letter-spacing: 0.08rem;
+    word-spacing: 0.14rem;
+}
+
+.unidex-echo-title:hover > span {
+    transform: scale(0.985);
+    letter-spacing: 0;
+}
+
+.unidex-panel-title.unidex-echo-title:hover > span {
+    letter-spacing: 0.02rem;
+}
+
+.unidex-panel-header {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 0;
+    border: 0;
+    margin-bottom: 16px;
+}
+
+.unidex-panel-controls {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.unidex-tabs-controls {
+    justify-content: center;
+    width: min(100%, 980px);
+    margin: 0 auto 16px;
+}
+
+.unidex-panel-title {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.unidex-back-btn {
+    border: 1px solid rgba(255, 255, 255, 0.24);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-main);
+    padding: 8px 12px;
+    cursor: pointer;
+    line-height: 1.2;
+    font-family: inherit;
+}
+
+.unidex-back-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.unidex-layout-btn,
+.unidex-map-btn {
+    border: 1px solid rgba(255, 255, 255, 0.24);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-main);
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 0.82rem;
+    line-height: 1.2;
+    font-family: inherit;
+}
+
+.unidex-layout-btn:hover,
+.unidex-map-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.unidex-map-btn {
+    border-color: rgba(0, 212, 255, 0.28);
+    box-shadow: inset 0 0 0 1px rgba(0, 212, 255, 0.08);
+}
+
+.unidex-filter-select {
+    border: 1px solid rgba(255, 255, 255, 0.24);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-main);
+    padding: 8px 10px;
+    cursor: pointer;
+    font-size: 0.82rem;
+    min-width: 152px;
+    line-height: 1.2;
+    font-family: inherit;
+}
+
+.unidex-confidence-controls {
+    border: 1px solid rgba(255, 255, 255, 0.24);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-main);
+    min-height: 34px;
+    padding: 4px 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+}
+
+.unidex-confidence-label {
+    color: var(--text-muted);
+    white-space: nowrap;
+    font-size: 0.74rem;
+}
+
+.unidex-confidence-separator {
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    white-space: nowrap;
+}
+
+.unidex-confidence-input {
+    width: 66px;
+    min-width: 0;
+    border: 1px solid rgba(255, 255, 255, 0.24);
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.2);
+    color: var(--text-main);
+    padding: 4px 6px;
+    font-size: 0.76rem;
+    line-height: 1.1;
+    font-family: inherit;
+}
+
+.unidex-confidence-input:focus-visible {
+    outline: 2px solid rgba(0, 212, 255, 0.4);
+    outline-offset: 1px;
+}
+
+.unidex-filter-select:focus-visible {
+    outline: 2px solid rgba(0, 212, 255, 0.4);
+    outline-offset: 1px;
+}
+
+.unidex-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.unidex-switch-input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+}
+
+.unidex-switch-track {
+    width: 38px;
+    height: 22px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.08);
+    position: relative;
+    transition: background 0.2s ease, border-color 0.2s ease;
+    flex-shrink: 0;
+}
+
+.unidex-switch-track::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.92);
+    transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.unidex-switch-input:checked + .unidex-switch-track {
+    border-color: var(--accent);
+    background: rgba(0, 212, 255, 0.35);
+}
+
+.unidex-switch-input:checked + .unidex-switch-track::after {
+    transform: translateX(16px);
+    background: #0f0f0f;
+}
+
+.unidex-switch-label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.unidex-switch:hover .unidex-switch-label {
+    color: var(--text-main);
+}
+

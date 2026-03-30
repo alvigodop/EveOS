@@ -1,0 +1,214 @@
+.unidex-tabs {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch;
+    width: min(100%, 980px);
+    margin: 0 auto;
+    gap: 12px !important;
+}
+
+.unidex-tab-btn {
+    position: relative;
+    width: 100%;
+    min-height: 78px !important;
+    box-sizing: border-box;
+    align-self: stretch;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 12px;
+    padding: 14px;
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-main);
+    cursor: pointer;
+    text-align: center;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+    line-height: 1.2;
+    font-family: inherit;
+}
+
+.unidex-tab-btn:hover {
+    transform: translateY(-2px);
+    border-color: rgba(255, 255, 255, 0.34);
+}
+
+.unidex-tab-btn::before {
+    content: attr(data-text);
+    position: absolute;
+    left: 50%;
+    top: 56%;
+    transform: translate(-50%, -50%);
+    font-size: 2.3rem;
+    font-weight: 800;
+    letter-spacing: 0.08rem;
+    color: var(--accent);
+    opacity: 0;
+    text-shadow: 0 0 14px rgba(0, 212, 255, 0.28);
+    pointer-events: none;
+    white-space: nowrap;
+    transition: opacity 0.25s ease;
+}
+
+.unidex-tab-btn:hover::before {
+    opacity: 0.26;
+}
+
+.unidex-tab-main {
+    display: block;
+    font-size: 0.94rem;
+    font-weight: 600;
+    transition: opacity 0.25s ease;
+}
+
+.unidex-tab-count {
+    display: block;
+    margin-top: 8px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    transition: opacity 0.25s ease;
+}
+
+.unidex-tab-btn:hover .unidex-tab-main {
+    opacity: 0.3;
+}
+
+.unidex-tab-btn:hover .unidex-tab-count {
+    opacity: 0.4;
+}
+
+.unidex-cards {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch;
+    width: min(100%, 980px);
+    margin: 0 auto;
+    gap: 14px !important;
+}
+
+.unidex-card {
+    width: 100% !important;
+    box-sizing: border-box;
+    align-self: stretch;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 14px;
+    background: rgba(10, 10, 10, 0.22);
+}
+
+.unidex-card-hit {
+    position: relative;
+    width: 100% !important;
+    border: 0;
+    border-radius: 14px;
+    padding: 16px;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    text-align: center;
+    overflow: hidden;
+    transition: transform 0.2s ease, background 0.2s ease;
+    line-height: 1.2;
+    font-family: inherit;
+}
+
+.unidex-card-hit:hover {
+    transform: translateY(-3px);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.unidex-card-hit::before {
+    content: attr(data-text);
+    position: absolute;
+    left: 50%;
+    top: 54%;
+    transform: translate(-50%, -50%);
+    font-size: 2.2rem;
+    font-weight: 800;
+    letter-spacing: 0.08rem;
+    color: var(--accent);
+    opacity: 0;
+    text-shadow: 0 0 14px rgba(0, 212, 255, 0.25);
+    pointer-events: none;
+    white-space: nowrap;
+    transition: opacity 0.25s ease;
+}
+
+.unidex-card-hit:hover::before {
+    opacity: 0.22;
+}
+
+.unidex-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 6px;
+    position: relative;
+    min-height: 26px;
+    padding: 0 42px;
+}
+
+.unidex-card-title {
+    margin: 0;
+    font-size: 1.02rem;
+    font-weight: 600;
+    color: var(--text-main);
+    text-align: center;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: opacity 0.25s ease;
+}
+
+.unidex-card-pill {
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 999px;
+    padding: 2px 8px;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    transition: opacity 0.25s ease;
+}
+
+.unidex-card-meta {
+    margin: 0 0 12px;
+    font-size: 0.84rem;
+    color: var(--text-muted);
+    text-align: center;
+    transition: opacity 0.25s ease;
+}
+
+.unidex-card-progress {
+    height: 6px;
+    width: min(100%, 620px);
+    margin: 0 auto;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.12);
+    overflow: hidden;
+    transition: opacity 0.25s ease;
+}
+
+.unidex-card-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), #6bf1ff);
+}
+
+.unidex-card-hit:hover .unidex-card-title {
+    opacity: 0.32;
+}
+
+.unidex-card-hit:hover .unidex-card-meta {
+    opacity: 0.42;
+}
+
+.unidex-card-hit:hover .unidex-card-pill,
+.unidex-card-hit:hover .unidex-card-progress {
+    opacity: 0.5;
+}
+
