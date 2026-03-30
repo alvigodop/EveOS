@@ -6,7 +6,7 @@ window.EveOS = window.EveOS || {};
         if (!Core) { console.error("EveOS.API.Core missing"); return { data: [] }; }
 
         const targetUrl = Core.WLNUPDATES_API;
-        const proxyUrl = `${Core.PROXY_URL}${encodeURIComponent(targetUrl)}`;
+        const proxyUrl = `${Core.ACTIVE_PROXY_URL}${encodeURIComponent(targetUrl)}`;
         
         // WlnUpdates API uses POST but we can use form-urlencoded via proxy to bypass CORS
         const body = new URLSearchParams();

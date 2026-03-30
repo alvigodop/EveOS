@@ -4,6 +4,28 @@ window.EveOS.API = window.EveOS.API || {};
 (function () {
     // Ported from MegaBase Constants
     const PROXY_URL = 'https://corsproxy.io/?';
+    const BRIDGE_PORT = 3037;
+    let _activeProxyBase = ''; // Empty means use relative /api/proxy (local server)
+
+    // Probe for standalone bridge if running on file:// or if local server might be down
+    async function probeBridge() {
+        try {
+            const res = await fetch(`http://localhost:${BRIDGE_PORT}/api/status`);
+            if (res.ok) {
+                const data = await res.json();
+                if (data.service === 'lightpanda-bridge') {
+                    console.log(`API Core: Standalone bridge detected on port ${BRIDGE_PORT}`);
+                    _activeProxyBase = `http://localhost:${BRIDGE_PORT}`;
+                }
+            }
+        } catch (e) {
+            // Bridge not running
+        }
+    }
+
+    // Run probe immediately
+    probeBridge();
+
     const ENDPOINTS = {
         ANILIST: 'https://graphql.anilist.co',
         JIKAN_MANGA: 'https://api.jikan.moe/v4/manga',
@@ -35,6 +57,9 @@ window.EveOS.API = window.EveOS.API || {};
     // Expose for other modules
     window.EveOS.API.Core = {
         PROXY_URL,
+        get ACTIVE_PROXY_URL() {
+            return `${_activeProxyBase}/api/proxy?url=`;
+        },
         ANILIST_API: ENDPOINTS.ANILIST,
         JIKAN_API: ENDPOINTS.JIKAN_MANGA,
         JIKAN_MANGA_API: ENDPOINTS.JIKAN_MANGA,
