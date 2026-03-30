@@ -41,6 +41,22 @@ window.EveLibrary.Modules = window.EveLibrary.Modules || {};
                 ? `<button class="lib-entry-title-btn" onclick="window.EveLibrary.UI.openEntryLink('${safeSourceUrl}')" title="Open source link">${displayNumber}. ${entry.title}</button>`
                 : `<h4 class="lib-entry-title">${displayNumber}. ${entry.title}</h4>`;
 
+            let identifierTagsHtml = '';
+            if (window.EveLibrary?.ConnectionsAPI && window.EveBookmarkIdentifiers?.getBadgeHtmlForLink) {
+                const conns = window.EveLibrary.ConnectionsAPI.getAll() || [];
+                const conn = conns.find(c => String(c.libraryEntryId) === String(safeId));
+                if (conn && conn.linkId) {
+                    const linksList = window.eveState?.links || (typeof links !== 'undefined' ? links : []);
+                    const link = linksList.find(l => String(l.id) === String(conn.linkId));
+                    if (link) {
+                        const badges = window.EveBookmarkIdentifiers.getBadgeHtmlForLink(link);
+                        if (badges) {
+                            identifierTagsHtml = '<div class="lib-entry-identifiers" style="margin-top:4px; margin-bottom:8px;">' + badges + '</div>';
+                        }
+                    }
+                }
+            }
+
             return `
             <div class="lib-entry" data-id="${safeId}">
                 <div class="lib-entry-actions">
@@ -56,6 +72,7 @@ window.EveLibrary.Modules = window.EveLibrary.Modules || {};
                 </div>
                 ${displayImage ? `<img class="lib-entry-image" src="${displayImage}" alt="${entry.title}" onclick="window.EveLibrary.UI.openLightbox('${safeDisplayImage}')" title="View Fullsize">` : ''}
                 ${titleHtml}
+                ${identifierTagsHtml}
                 <div class="lib-entry-details">
                     <p><strong>Author:</strong> ${entry.author || 'N/A'}</p>
                     <p><strong>Status:</strong> ${entry.status || 'N/A'}</p>

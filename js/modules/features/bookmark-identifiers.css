@@ -44,6 +44,33 @@
     cursor: pointer;
 }
 
+.bookmark-identifier-add-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.05);
+    color: inherit;
+    cursor: pointer;
+    font-size: 0.82rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+.bookmark-identifier-add-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.bookmark-identifier-add-btn::before {
+    content: "+";
+    font-size: 1.1rem;
+    line-height: 1;
+    margin-right: 2px;
+}
+
 .bookmark-identifier-editor-option input {
     margin: 0;
 }

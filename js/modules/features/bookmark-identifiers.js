@@ -183,6 +183,7 @@ window.EveBookmarkIdentifiers = window.EveBookmarkIdentifiers || {};
                         </label>
                     `;
                 }).join('')}
+                <button type="button" class="bookmark-identifier-add-btn" onclick="quickAddBookmarkIdentifier()" title="Add custom identifier">Custom</button>
             </div>
         `;
     }
@@ -344,6 +345,47 @@ window.EveBookmarkIdentifiers = window.EveBookmarkIdentifiers || {};
         rerenderActiveModalEditor();
     }
 
+    async function quickAddBookmarkIdentifier() {
+        const promptFn = typeof showPrompt === 'function' ? showPrompt : window.prompt;
+        const result = promptFn('Enter a label for the new custom identifier:');
+        
+        const label = (result instanceof Promise) ? await result : result;
+        if (!label || !label.trim()) return;
+
+        const cfg = getConfigObject();
+        if (!cfg) return;
+
+        const rawDefinition = {
+            id: '',
+            label: label.trim(),
+            icon: '',
+            color: '#5b8def',
+            description: ''
+        };
+
+        const current = getDefinitions();
+        const takenIds = new Set(current.map((definition) => definition.id));
+        const normalized = normalizeDefinition(rawDefinition, takenIds, current.length);
+        if (!normalized) return;
+
+        // Capture current checkbox state before re-rendering
+        const currentSelection = readModalEditorSelection('newBookmarkIdentifiers');
+
+        // Update config
+        cfg.bookmarkIdentifiers = [...current, normalized];
+        
+        // Persist only the config (no dashboard re-render)
+        if (typeof saveConfig === 'function') saveConfig();
+        renderSettingsManager();
+        
+        // Add new ID to selection and re-render the specific editor container
+        currentSelection.push(normalized.id);
+        const modal = document.getElementById('addModal');
+        if (modal && modal.style.display === 'flex') {
+            renderModalEditor('newBookmarkIdentifiers', currentSelection);
+        }
+    }
+
     async function resetToDefaults() {
         const confirmed = typeof showConfirm === 'function'
             ? await showConfirm('Restore default bookmark identifiers? This replaces the identifier registry but keeps matching bookmark assignments where IDs still exist.')
@@ -371,6 +413,7 @@ window.EveBookmarkIdentifiers = window.EveBookmarkIdentifiers || {};
     window.editBookmarkIdentifierDefinition = editDefinition;
     window.deleteBookmarkIdentifierDefinition = deleteDefinition;
     window.resetBookmarkIdentifiersToDefaults = resetToDefaults;
+    window.quickAddBookmarkIdentifier = quickAddBookmarkIdentifier;
 
     ensureConfigDefaults();
 })(window.EveBookmarkIdentifiers);

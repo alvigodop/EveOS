@@ -87,8 +87,14 @@ window.setupModal = function (title, msg, isPrompt, callback, defaultValue = '')
 
     if (isPrompt) {
         input.onkeydown = (e) => {
-            if (e.key === 'Enter') confirmBtn.click();
-            if (e.key === 'Escape') cancelBtn.click();
+            if (e.key === 'Enter') {
+                e.stopPropagation();
+                confirmBtn.click();
+            }
+            if (e.key === 'Escape') {
+                e.stopPropagation();
+                cancelBtn.click();
+            }
         };
     }
 };
