@@ -11,7 +11,9 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/data-state/data-state.capture.scoped.js?v=0.2.2",
     "js/modules/features/data-state/data-state.capture.js?v=0.2.2",
     "js/modules/features/data-state/data-state.apply.shared.js?v=0.2.2",
-    "js/modules/features/data-state/data-state.apply.scoped.js?v=0.2.3",
+    "js/modules/features/data-state/data-state.apply.scoped.helpers.js?v=0.2.1",
+    "js/modules/features/data-state/data-state.apply.scoped.variants.js?v=0.2.1",
+    "js/modules/features/data-state/data-state.apply.scoped.js?v=0.3.0",
     "js/modules/features/data-state/data-state.apply.js?v=0.2.1",
     "js/modules/features/data-state/data-state.core.js",
     "js/modules/features/data-transfer/data-transfer.shared.js?v=0.2.1",
@@ -55,3 +57,5 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/ui/sidebar.js?v=0.2.38",
     "js/modules/ui/dashboard/dashboard-dock.js?v=0.2.4"
 ]);
+
+
