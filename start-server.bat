@@ -349,8 +349,26 @@ if "%LP_ENABLED_STATE%"=="0" (
 ) else (
     call :EnsureLightpandaMonitor
 )
+
+if defined CF_READY (
+    call :EnsureCamofoxMonitor
+    call :StartCamofoxBridge
+)
+
 start "EveOS Instance %INSTANCE_PORT%" cmd /k "%LP_FLAG%set ""EVEOS_MODULAR_ROOT=%INSTANCE_PACK_PATH%"" && cd /d ""%PROJECT_ROOT%"" && python python-server.py %INSTANCE_PORT%"
 call :TrackInstance "%INSTANCE_PORT%" "%INSTANCE_PACK_PATH%" "%INSTANCE_KIND%"
+exit /b 0
+
+:StartCamofoxBridge
+netstat -ano | findstr ":%CAMOFOX_BRIDGE_PORT%" | find "LISTENING" >nul 2>nul
+if %ERRORLEVEL% EQU 0 exit /b 0
+
+if not exist "%PROJECT_ROOT%\bin" mkdir "%PROJECT_ROOT%\bin" >nul 2>nul
+if not exist "%CAMOFOX_ACTIVITY_LOG%" type nul > "%CAMOFOX_ACTIVITY_LOG%"
+
+echo [INFO] Starting Camofox bridge...
+start "EveOS Camofox Bridge" /min cmd /c "cd /d ""%PROJECT_ROOT%"" && set ""EVEOS_PROJECT_ROOT=%PROJECT_ROOT%"" && python ""camofox-bridge.py"" %CAMOFOX_BRIDGE_PORT%"
+timeout /t 2 /nobreak >nul
 exit /b 0
 
 :LaunchBatch

@@ -142,3 +142,78 @@ def handle_proxy_request(handler, query):
         handler.end_headers()
         error_msg = f'{{"error": "Internal Proxy Error", "details": "{str(e)}"}}'
         handler.wfile.write(error_msg.encode('utf-8'))
+
+def handle_proxy_post_request(handler, query):
+    """Handle POST requests to /api/proxy?url=..."""
+    target_url_list = query.get('url')
+    
+    if not target_url_list:
+        handler.send_response(HTTPStatus.BAD_REQUEST)
+        handler.send_header('Content-Type', 'application/json')
+        handler.end_headers()
+        handler.wfile.write(b'{"error": "Missing url parameter"}')
+        return
+
+    target_url = target_url_list[0]
+    
+    # Read the POST body from the incoming request
+    content_length = int(handler.headers.get('Content-Length', 0))
+    post_data = handler.rfile.read(content_length) if content_length > 0 else None
+    
+    # Forward the requested Content-Type
+    content_type_in = handler.headers.get('Content-Type', 'application/json')
+    
+    logger.info(f"POST Proxying request to: {target_url}")
+    
+    try:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': '*/*',
+            'Content-Type': content_type_in,
+        }
+        
+        req = urllib.request.Request(target_url, data=post_data, headers=headers, method='POST')
+        
+        ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+        
+        with urllib.request.urlopen(req, timeout=30, context=ssl_context) as response:
+            content = response.read()
+            content_type_out = response.getheader('Content-Type', 'application/json')
+            
+        logger.info(f"POST Proxy success: {len(content)} bytes from {target_url}")
+        
+        handler.send_response(HTTPStatus.OK)
+        handler.send_header('Content-Type', content_type_out)
+        handler.end_headers()
+        handler.wfile.write(content)
+            
+    except urllib.error.HTTPError as e:
+        logger.warning(f"POST Proxy HTTP Error {e.code} for {target_url}")
+        try:
+            error_body = e.read().decode('utf-8', errors='replace')[:500]
+            logger.warning(f"Error body: {error_body}")
+        except:
+            pass
+        handler.send_response(e.code)
+        handler.send_header('Content-Type', 'text/plain')
+        handler.end_headers()
+        handler.wfile.write(str(e).encode('utf-8'))
+        
+    except urllib.error.URLError as e:
+        logger.warning(f"POST Proxy URL Error for {target_url}: {e.reason}")
+        handler.send_response(HTTPStatus.BAD_GATEWAY)
+        handler.send_header('Content-Type', 'application/json')
+        handler.end_headers()
+        error_msg = f'{{"error": "Failed to reach target URL", "details": "{str(e.reason)}"}}'
+        handler.wfile.write(error_msg.encode('utf-8'))
+        
+    except Exception as e:
+        logger.error(f"POST Proxy unexpected error for {target_url}: {type(e).__name__}: {str(e)}")
+        logger.error(traceback.format_exc())
+        handler.send_response(HTTPStatus.INTERNAL_SERVER_ERROR)
+        handler.send_header('Content-Type', 'application/json')
+        handler.end_headers()
+        error_msg = f'{{"error": "Internal Proxy Error", "details": "{str(e)}"}}'
+        handler.wfile.write(error_msg.encode('utf-8'))

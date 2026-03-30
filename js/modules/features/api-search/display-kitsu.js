@@ -31,6 +31,10 @@ window.EveOS.API.DisplayInternals = window.EveOS.API.DisplayInternals || {};
         const providerUrl = `https://kitsu.io/${item?.type}/${attributes.slug || item?.id}`;
 
         const extractedTags = item?._extractedTags || [];
+        const genres = internals.uniqStrings([
+            ...internals.limitList(extractedTags, 8),
+            format
+        ]);
 
         return {
             source: "Kitsu",
@@ -53,8 +57,8 @@ window.EveOS.API.DisplayInternals = window.EveOS.API.DisplayInternals || {};
             volumes,
             episodes,
             duration,
-            genres: internals.limitList(extractedTags, 5),
-            tags: internals.limitList(extractedTags, 24),
+            genres: genres,
+            tags: extractedTags,
             year,
             season: "",
             format,

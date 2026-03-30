@@ -16,14 +16,31 @@ window.EveOS = window.EveOS || {};
             const AniList = window.EveOS.API.AniList;
             const MangaUpdates = window.EveOS.API.MangaUpdates;
             const Kitsu = window.EveOS.API.Kitsu;
+            const TVmaze = window.EveOS.API.TVmaze;
+            const iTunes = window.EveOS.API.iTunes;
+            const WlnUpdates = window.EveOS.API.WlnUpdates;
+            const OpenLibrary = window.EveOS.API.OpenLibrary;
             const Display = window.EveOS.API.Display;
 
-            if (!Core || !MangaDex || !Jikan || !AniList || !MangaUpdates || !Kitsu || !Display) {
+            if (!Core || !MangaDex || !Jikan || !AniList || !MangaUpdates || !Kitsu || !TVmaze || !iTunes || !WlnUpdates || !OpenLibrary || !Display) {
                 resultsContainer.innerHTML = 'Error: API Modules not loaded.';
                 return;
             }
 
-            const [mangadexResults, jikanMangaResults, jikanAnimeResults, anilistMangaResults, anilistAnimeResults, mangaupdatesResults, kitsuAnimeResults, kitsuMangaResults] = await Promise.all([
+            const [
+                mangadexResults, 
+                jikanMangaResults, 
+                jikanAnimeResults, 
+                anilistMangaResults, 
+                anilistAnimeResults, 
+                mangaupdatesResults, 
+                kitsuAnimeResults, 
+                kitsuMangaResults,
+                tvmazeResults,
+                itunesResults,
+                wlnupdatesResults,
+                openlibraryResults
+            ] = await Promise.all([
                 MangaDex.searchMangaDex(query),
                 Jikan.searchJikanManga(query),
                 Jikan.searchJikanAnime(query),
@@ -31,7 +48,11 @@ window.EveOS = window.EveOS || {};
                 AniList.searchAniListAnime(query),
                 MangaUpdates.searchMangaUpdates(query),
                 Kitsu.searchKitsuAnime(query),
-                Kitsu.searchKitsuManga(query)
+                Kitsu.searchKitsuManga(query),
+                TVmaze.searchTVmaze(query),
+                iTunes.searchiTunes(query),
+                WlnUpdates.searchWlnUpdates(query),
+                OpenLibrary.searchOpenLibrary(query)
             ]);
 
             Display.displayResults(
@@ -43,7 +64,11 @@ window.EveOS = window.EveOS || {};
                     anilistAnime: anilistAnimeResults,
                     mangaupdates: mangaupdatesResults,
                     kitsuAnime: kitsuAnimeResults,
-                    kitsuManga: kitsuMangaResults
+                    kitsuManga: kitsuMangaResults,
+                    tvmaze: tvmazeResults,
+                    itunes: itunesResults,
+                    wlnupdates: wlnupdatesResults,
+                    openlibrary: openlibraryResults
                 },
                 resultsContainer,
                 onSelect

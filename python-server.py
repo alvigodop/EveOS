@@ -166,6 +166,11 @@ class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         """Handle API POST endpoints"""
         parsed_path = urlparse(self.path)
         path = parsed_path.path
+        query = parse_qs(parsed_path.query)
+
+        if path == '/api/proxy':
+            proxy.handle_proxy_post_request(self, query)
+            return
 
         if path.startswith('/api/eve-state/modular/'):
             if eve_state_store.handle_post_request(self, path):

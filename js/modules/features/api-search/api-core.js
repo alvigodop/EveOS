@@ -11,7 +11,11 @@ window.EveOS.API = window.EveOS.API || {};
         MANGADEX: 'https://api.mangadex.org/manga',
         MANGAUPDATES: 'https://api.mangaupdates.com/v1/series/search',
         KITSU_ANIME: 'https://kitsu.io/api/edge/anime',
-        KITSU_MANGA: 'https://kitsu.io/api/edge/manga'
+        KITSU_MANGA: 'https://kitsu.io/api/edge/manga',
+        TVMAZE: 'https://api.tvmaze.com/search/shows',
+        ITUNES: 'https://itunes.apple.com/search',
+        WLNUPDATES: 'https://www.wlnupdates.com/api',
+        OPENLIBRARY: 'https://openlibrary.org/search.json'
     };
 
     async function safeFetch(url, options = {}, errorMsg = 'API Request failed') {
@@ -39,6 +43,10 @@ window.EveOS.API = window.EveOS.API || {};
         MANGAUPDATES_API: ENDPOINTS.MANGAUPDATES,
         KITSU_ANIME_API: ENDPOINTS.KITSU_ANIME,
         KITSU_MANGA_API: ENDPOINTS.KITSU_MANGA,
+        TVMAZE_API: ENDPOINTS.TVMAZE,
+        ITUNES_API: ENDPOINTS.ITUNES,
+        WLNUPDATES_API: ENDPOINTS.WLNUPDATES,
+        OPENLIBRARY_API: ENDPOINTS.OPENLIBRARY,
         safeFetch
     };
 })();

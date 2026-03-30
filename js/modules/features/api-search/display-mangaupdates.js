@@ -6,23 +6,30 @@ window.EveOS.API.DisplayInternals = window.EveOS.API.DisplayInternals || {};
     internals.getMangaUpdatesMeta = function (item) {
         const record = item?.record || {};
         const title = record.title || "No Title";
-        const description = internals.cleanText(record.description || record.synopsis, 240);
+        
+        // Use the helpers properly from internals or provide fallbacks
+        const cleanText = internals.cleanText || ((t) => t || "");
+        const toArray = internals.toArray || ((a) => Array.isArray(a) ? a : []);
+        const uniqStrings = internals.uniqStrings || ((arr) => [...new Set(arr)]);
+        const limitList = internals.limitList || ((arr, lim) => (arr || []).slice(0, lim));
+
+        const description = cleanText(record.description || record.synopsis, 240);
         
         let coverUrl = "https://via.placeholder.com/120x180?text=No+Cover";
         if (record.image?.url?.original) {
             coverUrl = record.image.url.original;
         }
 
-        const genres = internals.uniqStrings(internals.toArray(record.genres).map(g => g?.genre));
-        const tags = internals.uniqStrings(internals.toArray(record.categories).map(c => c?.category));
+        const genres = uniqStrings(toArray(record.genres).map(g => g?.genre));
+        const tags = uniqStrings(toArray(record.categories).map(c => c?.category));
 
-        const authors = internals.uniqStrings(
-            internals.toArray(record.authors)
+        const authors = uniqStrings(
+            toArray(record.authors)
                 .filter(a => a?.type === "Author")
                 .map(a => a?.name)
         );
-        const artists = internals.uniqStrings(
-            internals.toArray(record.authors)
+        const artists = uniqStrings(
+            toArray(record.authors)
                 .filter(a => a?.type === "Artist")
                 .map(a => a?.name)
         );
@@ -56,7 +63,7 @@ window.EveOS.API.DisplayInternals = window.EveOS.API.DisplayInternals || {};
             episodes: "",
             duration: "",
             genres,
-            tags: internals.limitList(tags, 24),
+            tags: limitList(tags, 24),
             year,
             season: "",
             format,
