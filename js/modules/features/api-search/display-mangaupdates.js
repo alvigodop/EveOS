@@ -42,15 +42,28 @@ window.EveOS.API.DisplayInternals = window.EveOS.API.DisplayInternals || {};
         
         const providerUrl = details.url || record.url || (record.series_id ? `https://www.mangaupdates.com/series/${record.series_id}` : "");
 
+        // Serialization & Publishers
+        const publications = toArray(details.publications).map(p => p.publication_name);
+        const publishers = toArray(details.publishers).map(p => p.publisher_name);
+        const serialization = publications.length ? publications.join(", ") : "";
+
+        // Related Series Summary
+        const related = toArray(details.related_series)
+            .slice(0, 5)
+            .map(r => `${r.related_series_name} (${r.relation_type})`);
+
         // Combine Genres and top Categories into prominent colored chips
         const combinedGenres = uniqStrings([
             ...genres,
-            ...limitList(tags, 6),
+            ...limitList(tags, 12),
             format
         ]);
 
-        const metaTags = [...limitList(tags, 32)];
+        // "Make sure all categories are drawn" - Increased limit to 100
+        const metaTags = [...limitList(tags, 100)];
         if (details.licensed) metaTags.unshift("Licensed (EN)");
+        if (serialization) metaTags.push(`Serialization: ${serialization}`);
+        if (publishers.length) metaTags.push(`Publishers: ${publishers.join(", ")}`);
         if (listReading) metaTags.push(`Reading: ${listReading}`);
         if (listWish) metaTags.push(`Wish: ${listWish}`);
 
@@ -86,7 +99,8 @@ window.EveOS.API.DisplayInternals = window.EveOS.API.DisplayInternals || {};
             startDate: year,
             endDate: "",
             url: providerUrl,
-            providerUrl
+            providerUrl,
+            externalLinks: related.map(text => ({ label: "Related", url: "#", note: text }))
         };
     };
 })(window.EveOS.API.DisplayInternals);
