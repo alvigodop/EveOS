@@ -89,6 +89,36 @@ window.modalTemplate += `
                 <div style="font-size:0.78rem; opacity:0.75; margin-top:8px;">Plain key shortcuts pause while you are typing into a field. Modifier shortcuts like Alt+B remain available globally.</div>
             </div>
 
+            <div style="border-top:1px solid #444; padding-top:10px; margin-top:5px;">
+                <h4 style="margin:0 0 10px 0; color:var(--accent);">Bookmark Identifiers</h4>
+                <div style="font-size:0.8rem; opacity:0.75; margin-bottom:10px;">Reusable bookmark-level markers. They are centrally configured like labels or select options, not freeform tags, and they stay separate from Library metadata.</div>
+                <div id="bookmarkIdentifiersSettingsList" class="bookmark-identifier-settings-list"></div>
+                <div style="display:grid; grid-template-columns:minmax(0, 1.1fr) minmax(0, 0.8fr) auto; gap:8px; margin-top:12px; align-items:end;">
+                    <input type="hidden" id="bookmarkIdentifierEditId">
+                    <div style="display:flex; flex-direction:column; gap:4px;">
+                        <label for="bookmarkIdentifierLabel" style="font-size:0.78rem; opacity:0.82;">Label</label>
+                        <input type="text" id="bookmarkIdentifierLabel" placeholder="Reading">
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:4px;">
+                        <label for="bookmarkIdentifierIcon" style="font-size:0.78rem; opacity:0.82;">Icon / Short Mark</label>
+                        <input type="text" id="bookmarkIdentifierIcon" placeholder="Read">
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:4px;">
+                        <label for="bookmarkIdentifierColor" style="font-size:0.78rem; opacity:0.82;">Color</label>
+                        <input type="color" id="bookmarkIdentifierColor" value="#4f8cff" style="height:38px;">
+                    </div>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:4px; margin-top:8px;">
+                    <label for="bookmarkIdentifierDescription" style="font-size:0.78rem; opacity:0.82;">Description</label>
+                    <input type="text" id="bookmarkIdentifierDescription" placeholder="Long-form text, books, manga, or articles.">
+                </div>
+                <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+                    <button type="button" id="bookmarkIdentifierSaveBtn" onclick="saveBookmarkIdentifierDefinition()">Add Identifier</button>
+                    <button type="button" onclick="clearBookmarkIdentifierForm()">Clear</button>
+                    <button type="button" onclick="resetBookmarkIdentifiersToDefaults()">Restore Defaults</button>
+                </div>
+            </div>
+
             <!-- Styling Section -->
             <div style="border-top:1px solid #444; padding-top:10px; margin-top:5px;">
                 <h4 style="margin:0 0 10px 0; color:var(--accent);">Styling</h4>

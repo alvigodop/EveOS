@@ -4,7 +4,7 @@ window.EveModuleManifestScriptChunks = window.EveModuleManifestScriptChunks || [
 
 window.EveModuleManifestScriptChunks.push([
     // Core Modules (Ordered by Dependency)
-    "js/modules/core/state.js?v=0.2.4",
+    "js/modules/core/state.js?v=0.2.5",
     "js/modules/core/category-order.js?v=0.1.0",
     "js/modules/core/utils.js?v=0.2.1",
     "js/modules/core/storage.js?v=0.2.3",

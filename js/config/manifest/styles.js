@@ -19,6 +19,7 @@ window.EveModuleManifestParts.styles = [
 
         // Feature Modules
         'js/modules/features/widgets.css',
+        'js/modules/features/bookmark-identifiers.css?v=0.1.0',
         'js/modules/features/search.css',
         'js/modules/features/header-controls/hc.css',
         'js/modules/features/search-advanced/sa.css',

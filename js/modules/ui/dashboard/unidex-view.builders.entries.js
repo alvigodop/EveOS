@@ -142,6 +142,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 const confidenceTagHtml = confidenceLabelRaw
                     ? `<span class="unidex-entry-tag confidence">Conf ${confidenceLabel}</span>`
                     : '';
+                const identifierTagsHtml = window.EveBookmarkIdentifiers?.getBadgeHtmlForLink?.(link) || '';
                 const extraTagsHtml = typeof entryOptions.getExtraTagsHtml === 'function'
                     ? String(entryOptions.getExtraTagsHtml(link) || '')
                     : '';
@@ -162,6 +163,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                         ${libraryDetailHtml}
                         <div class="unidex-entry-tags">
                             ${categoryTagHtml}
+                            ${identifierTagsHtml}
                             ${extraTagsHtml}
                             ${taskTagHtml}
                             ${libraryTagHtml}

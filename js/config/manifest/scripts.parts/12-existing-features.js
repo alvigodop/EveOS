@@ -13,5 +13,6 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/search-advanced/sa-ui.results.js",
     "js/modules/features/search-advanced/sa-ui.helpers.js",
     "js/modules/features/search-advanced/sa-ui.js",
+    "js/modules/features/bookmark-identifiers.js?v=0.1.0",
     "js/modules/core/events.js?v=0.2.1"
 ]);

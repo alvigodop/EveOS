@@ -135,6 +135,7 @@ window.DashboardCategoriesModules = window.DashboardCategoriesModules || {};
         const taskTagHtml = isTaskMode
             ? '<span class="unidex-entry-tag ' + (link.done ? 'done' : 'pending') + '">' + (link.done ? 'Done' : 'Pending') + '</span>'
             : '';
+        const identifierTagHtml = window.EveBookmarkIdentifiers?.getBadgeHtmlForLink?.(link) || '';
         const bookmarkPinned = isPinned(normalizedId);
         const pinnedTagHtml = bookmarkPinned ? '<span class="unidex-entry-tag pinned">Pinned</span>' : '';
         const doneActionHtml = isTaskMode
@@ -161,6 +162,7 @@ window.DashboardCategoriesModules = window.DashboardCategoriesModules || {};
                     + '<p class="unidex-entry-domain">' + safeDomain + '</p>'
                     + libraryDetailHtml
                     + '<div class="unidex-entry-tags">'
+                        + identifierTagHtml
                         + taskTagHtml
                         + libraryTagHtml
                         + pinnedTagHtml

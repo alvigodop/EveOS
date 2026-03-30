@@ -189,6 +189,9 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
     const detachedBadge = (l?.detached && !folderBadge)
         ? '<span class="bookmark-folder-link-badge">Detached</span>'
         : '';
+    const identifierBadges = window.EveBookmarkIdentifiers?.getBadgeHtmlForLink?.(l)
+        ? `<span class="bookmark-link-identifiers">${window.EveBookmarkIdentifiers.getBadgeHtmlForLink(l)}</span>`
+        : '';
     const isTaskEnabled = extraOptions.isTaskEnabled !== false;
     const doneClass = isTaskEnabled && l.done ? 'done' : '';
     const doneActionHtml = isTaskEnabled
@@ -197,7 +200,7 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
 
     return `<li class="${doneClass} ${isLocal ? 'is-local' : ''} ${pClass} ${pinnedClass}" draggable="true" ondragstart="${dragStartHandler}" oncontextmenu="showLinkContextMenu(event, ${jsLinkIdLiteral})" onmouseenter="showBookmarkCoverHover(event, ${jsLinkIdLiteral})" onmousemove="moveBookmarkCoverHover(event)" onmouseleave="hideBookmarkCoverHover()">
                 <input type="checkbox" class="bulk-check" data-bulk-id="${linkId.replace(/&/g, '&amp;').replace(/\"/g, '&quot;')}" onclick="event.preventDefault();event.stopPropagation();toggleSelect(this, ${jsLinkIdLiteral}, event);return false;" ${isChecked}>
-                ${iconHtml} ${wsBadge} ${folderBadge} ${detachedBadge} <a href="${l.url}" target="_blank" rel="noopener noreferrer" onclick='return (typeof openBookmarkFromDashboard==="function") ? openBookmarkFromDashboard(event, decodeURIComponent("${encodedLinkId}")) : true;'>${l.title}</a>
+                ${iconHtml} ${wsBadge} ${folderBadge} ${detachedBadge} ${identifierBadges} <a href="${l.url}" target="_blank" rel="noopener noreferrer" onclick='return (typeof openBookmarkFromDashboard==="function") ? openBookmarkFromDashboard(event, decodeURIComponent("${encodedLinkId}")) : true;'>${l.title}</a>
                 <div class="actions">
                     <span class="icon-btn ${isPinned ? 'pin-active' : ''}" onclick="togglePin(${jsLinkIdLiteral})">${PIN_ICON}</span>
                     ${doneActionHtml}

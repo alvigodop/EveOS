@@ -1,0 +1,97 @@
+.bookmark-identifier-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    font-size: 0.72rem;
+    line-height: 1.2;
+    font-weight: 600;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+.bookmark-identifier-badge__icon {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    opacity: 0.88;
+}
+
+.bookmark-identifier-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.bookmark-identifier-editor-grid,
+.bookmark-identifier-settings-preview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.bookmark-identifier-editor-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.03);
+    cursor: pointer;
+}
+
+.bookmark-identifier-editor-option input {
+    margin: 0;
+}
+
+.bookmark-identifier-editor-empty,
+.bookmark-identifier-settings-empty {
+    font-size: 0.82rem;
+    opacity: 0.75;
+}
+
+.bookmark-identifier-settings-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.bookmark-identifier-settings-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.bookmark-identifier-settings-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.bookmark-identifier-settings-description {
+    font-size: 0.78rem;
+    opacity: 0.74;
+}
+
+.bookmark-identifier-settings-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.bookmark-link-identifiers {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-right: 6px;
+    vertical-align: middle;
+}

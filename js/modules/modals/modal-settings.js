@@ -140,6 +140,9 @@ function openSettings() {
     refreshModularLayerSelectors();
     refreshModularStorePathFromServer();
     renderSettingsShortcutList();
+    if (window.EveBookmarkIdentifiers?.renderSettingsManager) {
+        window.EveBookmarkIdentifiers.renderSettingsManager();
+    }
     refreshModalThemedControls(document.getElementById('settingsModal'));
 }
 

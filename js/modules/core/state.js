@@ -15,6 +15,7 @@ let config = {
     userName: "",
     searchEngine: "https://www.google.com/search?q=",
     searchMode: "basic",
+    bookmarkIdentifiers: [],
     backupSettingsMode: "all",
     bookmarkClickOpensLink: false,
     headerMode: "greeting",

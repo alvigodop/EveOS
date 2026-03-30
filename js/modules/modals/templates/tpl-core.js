@@ -54,6 +54,11 @@ window.modalTemplate = `
                 <option value="">Root / No Folder</option>
             </select>
         </div>
+        <div style="display:flex; flex-direction:column; gap:5px; margin-top:8px;">
+            <label for="newBookmarkIdentifiers" style="font-size:0.82rem; opacity:0.84;">Bookmark Identifiers</label>
+            <div id="newBookmarkIdentifiers" class="bookmark-identifier-editor"></div>
+            <div style="font-size:0.78rem; opacity:0.72;">Structured bookmark labels like Reading, Watching, or Research. Manage the available set from Settings.</div>
+        </div>
         <datalist id="availableCategories"></datalist>
         <div style="margin:10px 0; border:1px solid #333; border-radius:8px; padding:10px;">
             <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px;">

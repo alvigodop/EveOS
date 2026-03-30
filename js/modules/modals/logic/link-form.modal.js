@@ -28,6 +28,7 @@ window.EveLinkForm = window.EveLinkForm || {};
             newUrl: document.getElementById('newUrl'),
             newCategory: document.getElementById('newCategory'),
             newFolderId: document.getElementById('newFolderId'),
+            newBookmarkIdentifiers: document.getElementById('newBookmarkIdentifiers'),
             newCoverImage: document.getElementById('newCoverImage'),
             newCoverImages: document.getElementById('newCoverImages'),
             newFixedCoverImage: document.getElementById('newFixedCoverImage'),
@@ -88,6 +89,9 @@ window.EveLinkForm = window.EveLinkForm || {};
         } else if (modal.newFolderId) {
             modal.newFolderId.value = '';
         }
+        if (window.EveBookmarkIdentifiers?.renderModalEditor) {
+            window.EveBookmarkIdentifiers.renderModalEditor('newBookmarkIdentifiers', []);
+        }
         if (modal.newCoverImage) modal.newCoverImage.value = '';
         if (modal.newCoverImages) modal.newCoverImages.value = '';
         if (modal.newFixedCoverImage) modal.newFixedCoverImage.value = '';
@@ -131,6 +135,9 @@ window.EveLinkForm = window.EveLinkForm || {};
         } else if (modal.newFolderId) {
             modal.newFolderId.value = String(link.folderId || '').trim();
         }
+        if (window.EveBookmarkIdentifiers?.renderModalEditor) {
+            window.EveBookmarkIdentifiers.renderModalEditor('newBookmarkIdentifiers', Array.isArray(link.identifiers) ? link.identifiers : []);
+        }
         if (modal.newCoverImage) modal.newCoverImage.value = String(link.coverImage || '').trim();
         if (modal.newCoverImages) modal.newCoverImages.value = Array.isArray(link.coverImages) ? link.coverImages.join('\n') : '';
         if (modal.newFixedCoverImage) modal.newFixedCoverImage.value = String(link.fixedCoverImage || '').trim();
@@ -166,6 +173,9 @@ window.EveLinkForm = window.EveLinkForm || {};
         }
         const priority = modal.newPriority.value;
         const icon = normalizeManualIcon(modal.newIcon.value);
+        const identifiers = window.EveBookmarkIdentifiers?.readModalEditorSelection
+            ? window.EveBookmarkIdentifiers.readModalEditorSelection('newBookmarkIdentifiers')
+            : [];
 
         if (!title || !url) return showToast('Missing Info', 'warning');
 
@@ -185,6 +195,8 @@ window.EveLinkForm = window.EveLinkForm || {};
                 else delete links[index].coverImages;
                 if (fixedCoverImage) links[index].fixedCoverImage = fixedCoverImage;
                 else delete links[index].fixedCoverImage;
+                if (identifiers.length) links[index].identifiers = identifiers;
+                else delete links[index].identifiers;
                 links[index].priority = priority;
                 links[index].icon = icon;
                 links[index].sources = [...window.tempSources];
@@ -201,6 +213,7 @@ window.EveLinkForm = window.EveLinkForm || {};
                 coverImage: coverImage || undefined,
                 coverImages: coverImages.length ? coverImages : undefined,
                 fixedCoverImage: fixedCoverImage || undefined,
+                identifiers: identifiers.length ? identifiers : undefined,
                 icon,
                 done: false,
                 priority,
