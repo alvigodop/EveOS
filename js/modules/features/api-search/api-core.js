@@ -122,53 +122,64 @@ window.EveOS.API = window.EveOS.API || {};
                     const rawData = res.html || res.snapshot || res.metadata;
 
                     if (typeof rawData === 'string' && rawData.length > 0) {
-                        try {
-                            const parsed = JSON.parse(rawData);
-                            if (typeof parsed === 'object' && parsed !== null) return parsed;
-                        } catch (e) {
-                            // Browsers directly visiting JSON endpoints (like Camofox fallback) often wrap it in a <pre> tag.
-                            const preMatch = rawData.match(/<pre[^>]*>([\s\S]*?)<\/pre>/i);
-                            if (preMatch && preMatch[1]) {
+                        const tryParse = (text) => {
+                            if (!text) return null;
+                            try { return JSON.parse(text); } catch (e) {}
+                            
+                            // Try de-escaping if it looks like an escaped string
+                            if (text.includes('\\"')) {
                                 try {
-                                    // Decode HTML entities within the <pre> block
-                                    const decodedPre = preMatch[1].replace(/&quot;/g, '"').replace(/&amp;/g, '&');
-                                    const parsedPre = JSON.parse(decodedPre);
-                                    if (typeof parsedPre === 'object' && parsedPre !== null) return parsedPre;
-                                } catch (e2) {}
+                                    const unescaped = text.replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+                                    return JSON.parse(unescaped);
+                                } catch (e) {}
                             }
-                            
-                            // If still failing, use the browser's native DOM parser to safely extract text content
-                            const doc = new DOMParser().parseFromString(rawData, 'text/html');
-                            // Remove scripts and styles so they don't pollute the extracted text
-                            const scripts = doc.querySelectorAll('script, style');
-                            scripts.forEach(s => s.remove());
-                            
-                            const htmlStripped = doc.body ? (doc.body.textContent || doc.body.innerText || '') : '';
-                            
-                            const firstBrace = htmlStripped.indexOf('{');
-                            const firstBracket = htmlStripped.indexOf('[');
-                            const firstChar = Math.min(firstBrace !== -1 ? firstBrace : Infinity, firstBracket !== -1 ? firstBracket : Infinity);
 
-                            if (firstChar !== Infinity) {
-                                const lastBrace = htmlStripped.lastIndexOf('}');
-                                const lastBracket = htmlStripped.lastIndexOf(']');
-                                const lastChar = Math.max(lastBrace, lastBracket);
-                                
-                                if (lastChar > firstChar) {
-                                    const jsonCandidate = htmlStripped.substring(firstChar, lastChar + 1);
-                                    try {
-                                        const parsedSlice = JSON.parse(jsonCandidate);
-                                        if (typeof parsedSlice === 'object' && parsedSlice !== null) return parsedSlice;
-                                    } catch (e3) {
-                                        console.warn("API Core: Extensive JSON extraction failed", e3);
+                            // Extract using balanced markers
+                            const firstBrace = text.indexOf('{');
+                            const firstBracket = text.indexOf('[');
+                            const start = Math.min(firstBrace !== -1 ? firstBrace : Infinity, firstBracket !== -1 ? firstBracket : Infinity);
+                            if (start !== Infinity) {
+                                const lastBrace = text.lastIndexOf('}');
+                                const lastBracket = text.lastIndexOf(']');
+                                const end = Math.max(lastBrace, lastBracket);
+                                if (end > start) {
+                                    const slice = text.substring(start, end + 1);
+                                    try { return JSON.parse(slice); } catch (e) {}
+                                    // Try unescaping the slice too
+                                    if (slice.includes('\\"')) {
+                                        try { return JSON.parse(slice.replace(/\\"/g, '"').replace(/\\\\/g, '\\')); } catch (e) {}
                                     }
                                 }
                             }
-                            
-                            // If all parsers failed, this layer returned bad data (like Cloudflare HTML). 
-                            // Skip to the next fallback bridge instead of returning raw text!
-                            continue;
+                            return null;
+                        };
+
+                        // 1. Try raw
+                        let result = tryParse(rawData);
+                        if (result) return result;
+
+                        // 2. Try HTML entity decode
+                        const decoded = rawData.replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+                        result = tryParse(decoded);
+                        if (result) return result;
+
+                        // 3. Try <pre> extraction
+                        const preMatch = rawData.match(/<pre[^>]*>([\s\S]*?)<\/pre>/i);
+                        if (preMatch) {
+                            result = tryParse(preMatch[1].replace(/&quot;/g, '"').replace(/&amp;/g, '&'));
+                            if (result) return result;
                         }
+
+                        // 4. Try DOM stripping
+                        try {
+                            const doc = new DOMParser().parseFromString(rawData, 'text/html');
+                            const text = doc.body.textContent || doc.body.innerText || '';
+                            result = tryParse(text);
+                            if (result) return result;
+                        } catch (e) {}
+
+                        // If still failing, skip to next bridge
+                        continue;
                     }
                     if (typeof rawData === 'object' && rawData !== null) return rawData;
                 }

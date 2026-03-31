@@ -36,19 +36,24 @@ window.EveOS.API.DisplayInternals = window.EveOS.API.DisplayInternals || {};
         // Helper to extract strings from arrays of objects or strings
         const extractNames = (arr) => {
             if (!Array.isArray(arr)) return [];
-            return arr.map(i => i?.name || i?.title || i?.slug || (typeof i === 'string' ? i : '')).filter(Boolean);
+            return arr.map(i => {
+                if (typeof i === 'string') return i;
+                // Discover common name/title keys in nested ComicK objects
+                return i?.name || i?.title || i?.slug || i?.md_genres?.name || i?.md_tags?.name || '';
+            }).filter(Boolean);
         };
 
         const authors = extractNames(item.authors || item.author);
         const artists = extractNames(item.artists || item.artist);
-        let tags = extractNames(
-            item.md_comic_md_genres || 
-            item.genres || 
-            item.tags || 
-            (item.mu_comics && item.mu_comics.mu_valid_genres) || 
-            (item.mu_comics && item.mu_comics.genre)
-        );
-        const synonyms = extractNames(item.md_titles || item.alt_titles);
+        let tags = extractNames([
+            ...(item.md_comic_md_genres || []),
+            ...(item.md_comic_md_tags || []),
+            ...(item.genres || []),
+            ...(item.tags || []),
+            ...((item.mu_comics && item.mu_comics.mu_valid_genres) || []),
+            ...((item.mu_comics && item.mu_comics.genre) || [])
+        ]);
+        const synonyms = extractNames(item.md_titles || item.alt_titles || item.md_comic?.md_titles);
         const publishers = extractNames(item.publishers || item.publisher);
 
         // Map demographic to target Demographic tag if available
@@ -62,6 +67,11 @@ window.EveOS.API.DisplayInternals = window.EveOS.API.DisplayInternals || {};
             const demoStr = demoMap[item.demographic] || String(item.demographic);
             tags.push(`Demographic: ${demoStr}`);
         }
+
+        // Add translation status and publishers to tags for visibility
+        if (item.translation_completed === true) tags.push("Translation: Completed");
+        if (item.translation_completed === false) tags.push("Translation: Ongoing");
+        publishers.forEach(p => tags.push(`Publisher: ${p}`));
 
         return {
             source: "ComicK",
@@ -91,7 +101,7 @@ window.EveOS.API.DisplayInternals = window.EveOS.API.DisplayInternals || {};
             format: item.translation_completed === false ? "Ongoing Translation" : "Translation Completed",
             sourceMaterial: "",
             countryOfOrigin: item.country ? item.country.toUpperCase() : "",
-            contentRating: item.content_rating || "",
+            contentRating: item.content_rating ? item.content_rating.charAt(0).toUpperCase() + item.content_rating.slice(1) : "Safe",
             startDate: year,
             endDate: "",
             url: providerUrl,
