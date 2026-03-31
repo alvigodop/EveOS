@@ -33,35 +33,58 @@ window.EveOS.API.DisplayInternals = window.EveOS.API.DisplayInternals || {};
 
         const providerUrl = `https://comick.io/comic/${item.slug}`;
 
+        // Helper to extract strings from arrays of objects or strings
+        const extractNames = (arr) => {
+            if (!Array.isArray(arr)) return [];
+            return arr.map(i => i?.name || i?.title || i?.slug || (typeof i === 'string' ? i : '')).filter(Boolean);
+        };
+
+        const authors = extractNames(item.authors || item.author);
+        const artists = extractNames(item.artists || item.artist);
+        let tags = extractNames(
+            item.md_comic_md_genres || 
+            item.genres || 
+            item.tags || 
+            (item.mu_comics && item.mu_comics.mu_valid_genres) || 
+            (item.mu_comics && item.mu_comics.genre)
+        );
+        const synonyms = extractNames(item.md_titles || item.alt_titles);
+        const publishers = extractNames(item.publishers || item.publisher);
+
+        // Map demographic to target Demographic tag if available
+        if (item.demographic) {
+            tags.push(`Demographic: ${item.demographic}`);
+        }
+
         return {
             source: "ComicK",
-            mediaType: "Manga",
+            mediaType: item.country === 'kr' ? "Manhwa" : item.country === 'cn' ? "Manhua" : "Manga",
             title,
             coverUrl,
-            author: "",
-            artist: "",
-            studios: [],
+            author: authors.join(", "),
+            artist: artists.join(", "),
+            studios: publishers, // publishers mapped to studios for TVMaze/AniList parity
             producers: [],
-            synonyms: [],
+            synonyms: synonyms,
             description,
             status,
             score,
-            rank: "",
+            rank: item.rank ? String(item.rank) : "",
             popularity: followers,
             members: followers,
             favorites: "",
             chapters,
-            volumes: "?",
+            volumes: item.last_volume ? String(item.last_volume) : "?",
             episodes: "",
             duration: "",
-            genres: [],
+            genres: tags, // Combine genres/tags
             tags: [],
             year,
             season: "",
-            format: "Manga",
+            format: item.translation_completed === false ? "Ongoing Translation" : "Translation Completed",
             sourceMaterial: "",
             countryOfOrigin: item.country ? item.country.toUpperCase() : "",
-            contentRating: "",
+            contentRating: item.content_rating || "",
             startDate: year,
             endDate: "",
             url: providerUrl,
