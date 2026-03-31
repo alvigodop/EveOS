@@ -80,7 +80,7 @@ window.EveOS = window.EveOS || {};
 
         } catch (error) {
             console.error('Search error:', error);
-            resultsContainer.innerHTML = 'An error occurred while searching.';
+            resultsContainer.innerHTML = 'An error occurred while searching.<br><pre style="text-align:left; font-size:12px; color:red;">' + (error.stack || error.message || error) + '</pre>';
         }
     }
 

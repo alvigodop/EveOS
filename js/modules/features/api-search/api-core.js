@@ -137,12 +137,13 @@ window.EveOS.API = window.EveOS.API || {};
                                 } catch (e2) {}
                             }
                             
-                            // If still failing, try stripping HTML as a last resort for complex JSON Viewers
-                            let cleanHTML = rawData.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-                                                   .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
-                                                   
-                            let htmlStripped = cleanHTML.replace(/<[^>]+>/g, '').trim();
-                            htmlStripped = htmlStripped.replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ');
+                            // If still failing, use the browser's native DOM parser to safely extract text content
+                            const doc = new DOMParser().parseFromString(rawData, 'text/html');
+                            // Remove scripts and styles so they don't pollute the extracted text
+                            const scripts = doc.querySelectorAll('script, style');
+                            scripts.forEach(s => s.remove());
+                            
+                            const htmlStripped = doc.body ? (doc.body.textContent || doc.body.innerText || '') : '';
                             
                             const firstBrace = htmlStripped.indexOf('{');
                             const firstBracket = htmlStripped.indexOf('[');
