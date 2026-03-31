@@ -6,8 +6,7 @@ window.EveOS = window.EveOS || {};
         if (!Core) { console.error("EveOS.API.Core missing"); return { docs: [] }; }
 
         const targetUrl = `${Core.OPENLIBRARY_API}?q=${encodeURIComponent(query)}&limit=5`;
-        const url = `${Core.ACTIVE_PROXY_URL}${encodeURIComponent(targetUrl)}`;
-        return Core.safeFetch(url, {}, 'OpenLibrary Search failed') || { docs: [] };
+        return await Core.fetchWithFallback(targetUrl, {}, 'OpenLibrary Search failed') || { docs: [] };
     }
 
     window.EveOS.API.OpenLibrary = {

@@ -6,8 +6,7 @@ window.EveOS = window.EveOS || {};
         if (!Core) { console.error("EveOS.API.Core missing"); return { results: [] }; }
 
         const targetUrl = `${Core.ITUNES_API}?term=${encodeURIComponent(query)}&entity=movie&limit=5`;
-        const url = `${Core.ACTIVE_PROXY_URL}${encodeURIComponent(targetUrl)}`;
-        return Core.safeFetch(url, {}, 'iTunes Search failed') || { results: [] };
+        return await Core.fetchWithFallback(targetUrl, {}, 'iTunes Search failed') || { results: [] };
     }
 
     window.EveOS.API.iTunes = {

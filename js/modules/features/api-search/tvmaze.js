@@ -6,8 +6,7 @@ window.EveOS = window.EveOS || {};
         if (!Core) { console.error("EveOS.API.Core missing"); return []; }
 
         const targetUrl = `${Core.TVMAZE_API}?q=${encodeURIComponent(query)}`;
-        const url = `${Core.ACTIVE_PROXY_URL}${encodeURIComponent(targetUrl)}`;
-        return Core.safeFetch(url, {}, 'TVmaze Search failed') || [];
+        return await Core.fetchWithFallback(targetUrl, {}, 'TVmaze Search failed') || [];
     }
 
     window.EveOS.API.TVmaze = {

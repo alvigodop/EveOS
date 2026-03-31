@@ -37,7 +37,8 @@ window.EveOS.API = window.EveOS.API || {};
         TVMAZE: 'https://api.tvmaze.com/search/shows',
         ITUNES: 'https://itunes.apple.com/search',
         WLNUPDATES: 'https://www.wlnupdates.com/api',
-        OPENLIBRARY: 'https://openlibrary.org/search.json'
+        OPENLIBRARY: 'https://openlibrary.org/search.json',
+        COMICK: 'https://api.comick.io/v1.0/search'
     };
 
     async function safeFetch(url, options = {}, errorMsg = 'API Request failed') {
@@ -52,6 +53,30 @@ window.EveOS.API = window.EveOS.API || {};
             console.warn(errorMsg, e);
             return null;
         }
+    }
+
+    async function fetchWithFallback(targetUrl, options = {}, errorMsg = 'API Search failed') {
+        const proxyUrl = `${window.EveOS.API.Core.ACTIVE_PROXY_URL}${encodeURIComponent(targetUrl)}`;
+        
+        // 1. Try standard Proxy first
+        try {
+            const response = await fetch(proxyUrl, options);
+            if (response.ok) return await response.json();
+            
+            // If we get a 403 (Cloudflare) or 5xx, we fall back
+            if (response.status !== 403 && response.status < 500) {
+                return null; 
+            }
+        } catch (e) {}
+
+        // 2. Fallback to Lightpanda
+        const proxyBase = window.EveOS.API.Core.ACTIVE_PROXY_URL.split('/api/proxy')[0];
+        const lpUrl = `${proxyBase}/api/lightpanda?format=json&url=${encodeURIComponent(targetUrl)}`;
+        
+        console.log(`API Core: Proxy failed/blocked for ${targetUrl.substring(0, 40)}..., falling back to Lightpanda.`);
+        const lpRes = await safeFetch(lpUrl, {}, `${errorMsg} (Lightpanda Fallback)`);
+        
+        return lpRes?.ok ? lpRes.metadata : null;
     }
 
     // Expose for other modules
@@ -72,6 +97,7 @@ window.EveOS.API = window.EveOS.API || {};
         ITUNES_API: ENDPOINTS.ITUNES,
         WLNUPDATES_API: ENDPOINTS.WLNUPDATES,
         OPENLIBRARY_API: ENDPOINTS.OPENLIBRARY,
-        safeFetch
+        safeFetch,
+        fetchWithFallback
     };
 })();

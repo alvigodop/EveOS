@@ -15,6 +15,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/api-search/itunes.js",
     "js/modules/features/api-search/wlnupdates.js",
     "js/modules/features/api-search/openlibrary.js",
+    "js/modules/features/api-search/comick.js",
     "js/modules/features/api-search/display-utils.js",
     "js/modules/features/api-search/display-mangadex.js?v=0.2.2",
     "js/modules/features/api-search/display-jikan.js",
@@ -25,6 +26,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/api-search/display-itunes.js",
     "js/modules/features/api-search/display-wlnupdates.js",
     "js/modules/features/api-search/display-openlibrary.js",
+    "js/modules/features/api-search/display-comick.js",
     "js/modules/features/api-search/display.js",
     "js/modules/features/api-search/index.js",
     "js/modules/features/sources/source-manager.js"

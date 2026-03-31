@@ -20,9 +20,10 @@ window.EveOS = window.EveOS || {};
             const iTunes = window.EveOS.API.iTunes;
             const WlnUpdates = window.EveOS.API.WlnUpdates;
             const OpenLibrary = window.EveOS.API.OpenLibrary;
+            const ComicK = window.EveOS.API.ComicK;
             const Display = window.EveOS.API.Display;
 
-            if (!Core || !MangaDex || !Jikan || !AniList || !MangaUpdates || !Kitsu || !TVmaze || !iTunes || !WlnUpdates || !OpenLibrary || !Display) {
+            if (!Core || !MangaDex || !Jikan || !AniList || !MangaUpdates || !Kitsu || !TVmaze || !iTunes || !WlnUpdates || !OpenLibrary || !ComicK || !Display) {
                 resultsContainer.innerHTML = 'Error: API Modules not loaded.';
                 return;
             }
@@ -39,7 +40,8 @@ window.EveOS = window.EveOS || {};
                 tvmazeResults,
                 itunesResults,
                 wlnupdatesResults,
-                openlibraryResults
+                openlibraryResults,
+                comickResults
             ] = await Promise.all([
                 MangaDex.searchMangaDex(query),
                 Jikan.searchJikanManga(query),
@@ -52,7 +54,8 @@ window.EveOS = window.EveOS || {};
                 TVmaze.searchTVmaze(query),
                 iTunes.searchiTunes(query),
                 WlnUpdates.searchWlnUpdates(query),
-                OpenLibrary.searchOpenLibrary(query)
+                OpenLibrary.searchOpenLibrary(query),
+                ComicK.searchComicK(query)
             ]);
 
             Display.displayResults(
@@ -68,7 +71,8 @@ window.EveOS = window.EveOS || {};
                     tvmaze: tvmazeResults,
                     itunes: itunesResults,
                     wlnupdates: wlnupdatesResults,
-                    openlibrary: openlibraryResults
+                    openlibrary: openlibraryResults,
+                    comick: comickResults
                 },
                 resultsContainer,
                 onSelect

@@ -54,7 +54,8 @@ window.EveOS.API.DisplayInternals = window.EveOS.API.DisplayInternals || {};
             "getTVmazeMeta",
             "getiTunesMeta",
             "getWlnUpdatesMeta",
-            "getOpenLibraryMeta"
+            "getOpenLibraryMeta",
+            "getComicKMeta"
         ];
         const missing = requiredFns.filter(name => typeof internals[name] !== "function");
         if (missing.length) {
@@ -78,6 +79,7 @@ window.EveOS.API.DisplayInternals = window.EveOS.API.DisplayInternals || {};
         appendResults(sources.itunes?.results, internals.getiTunesMeta, resultsDiv, onSelect);
         appendResults(sources.wlnupdates?.data, internals.getWlnUpdatesMeta, resultsDiv, onSelect);
         appendResults(sources.openlibrary?.docs, internals.getOpenLibraryMeta, resultsDiv, onSelect);
+        appendResults(sources.comick, internals.getComicKMeta, resultsDiv, onSelect);
 
         if (resultsDiv.children.length === 0) {
             resultsDiv.innerHTML = '<div style="padding:10px; opacity:0.7;">No results found from API providers.</div>';

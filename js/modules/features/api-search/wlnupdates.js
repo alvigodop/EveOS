@@ -8,18 +8,18 @@ window.EveOS = window.EveOS || {};
         const targetUrl = Core.WLNUPDATES_API;
         const proxyUrl = `${Core.ACTIVE_PROXY_URL}${encodeURIComponent(targetUrl)}`;
         
-        // WlnUpdates API uses POST but we can use form-urlencoded via proxy to bypass CORS
-        const body = new URLSearchParams();
-        body.append('mode', 'search-title');
-        body.append('title', query);
+        const body = {
+            mode: 'search-title',
+            title: query
+        };
 
         try {
             const response = await fetch(proxyUrl, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded'
+                    'Content-Type': 'application/json'
                 },
-                body: body
+                body: JSON.stringify(body)
             });
             if (!response.ok) {
                 console.warn('WlnUpdates Search failed', response.status);
