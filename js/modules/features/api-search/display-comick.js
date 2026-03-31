@@ -11,8 +11,8 @@ window.EveOS.API.DisplayInternals = window.EveOS.API.DisplayInternals || {};
         let coverUrl = "https://via.placeholder.com/120x180?text=No+Cover";
         if (item.md_covers && item.md_covers.length > 0) {
             const cover = item.md_covers[0];
-            if (cover.b2c) {
-                coverUrl = `https://meo.comick.pictures/${cover.b2c}`;
+            if (cover.b2key) {
+                coverUrl = `https://meo.comick.pictures/${cover.b2key}`;
             }
         }
 
