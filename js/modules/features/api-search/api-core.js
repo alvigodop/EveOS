@@ -96,9 +96,14 @@ window.EveOS.API = window.EveOS.API || {};
                     if (response.ok) {
                         const data = await response.json();
                         if (data.contents) {
-                            try { return JSON.parse(data.contents); } catch(e) {}
+                            try { 
+                                const parsed = JSON.parse(data.contents); 
+                                if (typeof parsed === 'object' && parsed !== null) return parsed;
+                            } catch(e) {
+                                continue; // Likely Cloudflare HTML, skip to next proxy
+                            }
                         }
-                        return data;
+                        if (typeof data === 'object' && data !== null && !data.contents) return data;
                     }
                 } catch (e) {}
             }
@@ -118,7 +123,8 @@ window.EveOS.API = window.EveOS.API || {};
 
                     if (typeof rawData === 'string' && rawData.length > 0) {
                         try {
-                            return JSON.parse(rawData);
+                            const parsed = JSON.parse(rawData);
+                            if (typeof parsed === 'object' && parsed !== null) return parsed;
                         } catch (e) {
                             // Browsers directly visiting JSON endpoints (like Camofox fallback) often wrap it in a <pre> tag.
                             const preMatch = rawData.match(/<pre[^>]*>([\s\S]*?)<\/pre>/i);
@@ -126,34 +132,21 @@ window.EveOS.API = window.EveOS.API || {};
                                 try {
                                     // Decode HTML entities within the <pre> block
                                     const decodedPre = preMatch[1].replace(/&quot;/g, '"').replace(/&amp;/g, '&');
-                                    return JSON.parse(decodedPre);
+                                    const parsedPre = JSON.parse(decodedPre);
+                                    if (typeof parsedPre === 'object' && parsedPre !== null) return parsedPre;
                                 } catch (e2) {}
                             }
                             
                             // If still failing, try stripping HTML as a last resort for complex JSON Viewers
-                            // 1. Remove style and script tags which contaminate text extract
                             let cleanHTML = rawData.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
                                                    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
                                                    
-                            // 2. Strip standard html tags
                             let htmlStripped = cleanHTML.replace(/<[^>]+>/g, '').trim();
+                            htmlStripped = htmlStripped.replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ');
                             
-                            // 3. Decode basic HTML entities that break JSON syntax
-                            htmlStripped = htmlStripped.replace(/&quot;/g, '"')
-                                                       .replace(/&amp;/g, '&')
-                                                       .replace(/&lt;/g, '<')
-                                                       .replace(/&gt;/g, '>')
-                                                       .replace(/&#39;/g, "'")
-                                                       .replace(/&nbsp;/g, ' ');
-                            
-                            // 4. Extract exactly from the first JSON bracket to the last JSON bracket
-                            // (bypasses browser UI text like "JSON Headers Save Copy")
                             const firstBrace = htmlStripped.indexOf('{');
                             const firstBracket = htmlStripped.indexOf('[');
-                            const firstChar = Math.min(
-                                firstBrace !== -1 ? firstBrace : Infinity,
-                                firstBracket !== -1 ? firstBracket : Infinity
-                            );
+                            const firstChar = Math.min(firstBrace !== -1 ? firstBrace : Infinity, firstBracket !== -1 ? firstBracket : Infinity);
 
                             if (firstChar !== Infinity) {
                                 const lastBrace = htmlStripped.lastIndexOf('}');
@@ -163,15 +156,17 @@ window.EveOS.API = window.EveOS.API || {};
                                 if (lastChar > firstChar) {
                                     const jsonCandidate = htmlStripped.substring(firstChar, lastChar + 1);
                                     try {
-                                        return JSON.parse(jsonCandidate);
+                                        const parsedSlice = JSON.parse(jsonCandidate);
+                                        if (typeof parsedSlice === 'object' && parsedSlice !== null) return parsedSlice;
                                     } catch (e3) {
                                         console.warn("API Core: Extensive JSON extraction failed", e3);
                                     }
                                 }
                             }
-
-                            // If it's not JSON, it might just be the raw html text we wanted
-                            return rawData;
+                            
+                            // If all parsers failed, this layer returned bad data (like Cloudflare HTML). 
+                            // Skip to the next fallback bridge instead of returning raw text!
+                            continue;
                         }
                     }
                     if (typeof rawData === 'object' && rawData !== null) return rawData;
