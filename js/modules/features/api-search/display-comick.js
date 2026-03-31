@@ -53,7 +53,14 @@ window.EveOS.API.DisplayInternals = window.EveOS.API.DisplayInternals || {};
 
         // Map demographic to target Demographic tag if available
         if (item.demographic) {
-            tags.push(`Demographic: ${item.demographic}`);
+            const demoMap = {
+                1: "Shounen",
+                2: "Shoujo",
+                3: "Seinen",
+                4: "Josei"
+            };
+            const demoStr = demoMap[item.demographic] || String(item.demographic);
+            tags.push(`Demographic: ${demoStr}`);
         }
 
         return {
