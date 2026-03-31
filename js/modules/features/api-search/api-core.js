@@ -5,16 +5,17 @@ window.EveOS.API = window.EveOS.API || {};
     // Ported from MegaBase Constants
     const PROXY_URL = 'https://corsproxy.io/?';
     const BRIDGE_PORT = 3037;
+    const CAMOFOX_BRIDGE_PORT = 3038;
     const SERVER_PORT = 3000;
     let _activeProxyBase = ''; // Empty means use relative /api/proxy (local server)
 
-    // Probe for ANY active local service (Main Server or Standalone Bridge)
+    // Probe for ANY active local service (Main Server, LP Bridge, or Camofox Bridge)
     async function probeLocalServices() {
-        const ports = [BRIDGE_PORT, SERVER_PORT];
+        const ports = [BRIDGE_PORT, CAMOFOX_BRIDGE_PORT, SERVER_PORT];
         for (const port of ports) {
             try {
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 1000);
+                const timeoutId = setTimeout(() => controller.abort(), 800);
                 
                 const res = await fetch(`http://localhost:${port}/api/status`, { signal: controller.signal });
                 clearTimeout(timeoutId);
@@ -46,7 +47,7 @@ window.EveOS.API = window.EveOS.API || {};
         ITUNES: 'https://itunes.apple.com/search',
         WLNUPDATES: 'https://www.wlnupdates.com/api',
         OPENLIBRARY: 'https://openlibrary.org/search.json',
-        COMICK: 'https://api.comick.io/v1.0/search'
+        COMICK: 'https://api.comick.dev/v1.0/search'
     };
 
     async function safeFetch(url, options = {}, errorMsg = 'API Request failed') {
@@ -67,13 +68,13 @@ window.EveOS.API = window.EveOS.API || {};
         const Core = window.EveOS.API.Core;
         const isPost = options.method === 'POST';
         
-        // 0. Try Direct Fetch (Works if browser security is disabled or API allows it)
+        // 0. Try Direct Fetch (Works if browser security is disabled)
         try {
             const directRes = await fetch(targetUrl, options);
             if (directRes.ok) return await directRes.json();
         } catch (e) {}
 
-        // 1. Try Detected Local Proxy (Port 3000 or 3037)
+        // 1. Try Detected Local Proxy (Port 3000, 3037, or 3038)
         if (_activeProxyBase) {
             try {
                 const proxyUrl = `${_activeProxyBase}/api/proxy?url=${encodeURIComponent(targetUrl)}`;
@@ -103,12 +104,79 @@ window.EveOS.API = window.EveOS.API || {};
             }
         }
 
-        // 3. Last Resort: Force Lightpanda Bridge (Fallback if probe failed but bridge is active)
-        const bridgeUrl = `http://localhost:3037/api/lightpanda?format=json&url=${encodeURIComponent(targetUrl)}`;
-        const lpRes = await safeFetch(bridgeUrl, {}, `${errorMsg} (Lightpanda Fallback)`);
-        
-        if (lpRes?.ok && lpRes.html) {
-            try { return JSON.parse(lpRes.html); } catch (e) { return lpRes.metadata; }
+        // 3. Fallback Chain: Lightpanda -> Camofox (The "Solve it" engines)
+        const bridges = [
+            { name: 'Lightpanda', url: `http://localhost:3037/api/lightpanda?format=json&url=${encodeURIComponent(targetUrl)}` },
+            { name: 'Camofox', url: `http://localhost:3038/api/camofox?format=json&url=${encodeURIComponent(targetUrl)}` }
+        ];
+        for (const bridge of bridges) {
+            try {
+                const res = await safeFetch(bridge.url, {}, `${errorMsg} (${bridge.name} Fallback)`);
+                if (res) {
+                    // Try to find the content in .html (Lightpanda), .snapshot (Camofox), or .metadata
+                    const rawData = res.html || res.snapshot || res.metadata;
+
+                    if (typeof rawData === 'string' && rawData.length > 0) {
+                        try {
+                            return JSON.parse(rawData);
+                        } catch (e) {
+                            // Browsers directly visiting JSON endpoints (like Camofox fallback) often wrap it in a <pre> tag.
+                            const preMatch = rawData.match(/<pre[^>]*>([\s\S]*?)<\/pre>/i);
+                            if (preMatch && preMatch[1]) {
+                                try {
+                                    // Decode HTML entities within the <pre> block
+                                    const decodedPre = preMatch[1].replace(/&quot;/g, '"').replace(/&amp;/g, '&');
+                                    return JSON.parse(decodedPre);
+                                } catch (e2) {}
+                            }
+                            
+                            // If still failing, try stripping HTML as a last resort for complex JSON Viewers
+                            // 1. Remove style and script tags which contaminate text extract
+                            let cleanHTML = rawData.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+                                                   .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
+                                                   
+                            // 2. Strip standard html tags
+                            let htmlStripped = cleanHTML.replace(/<[^>]+>/g, '').trim();
+                            
+                            // 3. Decode basic HTML entities that break JSON syntax
+                            htmlStripped = htmlStripped.replace(/&quot;/g, '"')
+                                                       .replace(/&amp;/g, '&')
+                                                       .replace(/&lt;/g, '<')
+                                                       .replace(/&gt;/g, '>')
+                                                       .replace(/&#39;/g, "'")
+                                                       .replace(/&nbsp;/g, ' ');
+                            
+                            // 4. Extract exactly from the first JSON bracket to the last JSON bracket
+                            // (bypasses browser UI text like "JSON Headers Save Copy")
+                            const firstBrace = htmlStripped.indexOf('{');
+                            const firstBracket = htmlStripped.indexOf('[');
+                            const firstChar = Math.min(
+                                firstBrace !== -1 ? firstBrace : Infinity,
+                                firstBracket !== -1 ? firstBracket : Infinity
+                            );
+
+                            if (firstChar !== Infinity) {
+                                const lastBrace = htmlStripped.lastIndexOf('}');
+                                const lastBracket = htmlStripped.lastIndexOf(']');
+                                const lastChar = Math.max(lastBrace, lastBracket);
+                                
+                                if (lastChar > firstChar) {
+                                    const jsonCandidate = htmlStripped.substring(firstChar, lastChar + 1);
+                                    try {
+                                        return JSON.parse(jsonCandidate);
+                                    } catch (e3) {
+                                        console.warn("API Core: Extensive JSON extraction failed", e3);
+                                    }
+                                }
+                            }
+
+                            // If it's not JSON, it might just be the raw html text we wanted
+                            return rawData;
+                        }
+                    }
+                    if (typeof rawData === 'object' && rawData !== null) return rawData;
+                }
+            } catch (e) {}
         }
         
         return null;

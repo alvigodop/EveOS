@@ -18,6 +18,7 @@ from http import HTTPStatus
 from urllib.parse import parse_qs, urlparse
 
 from server_modules import camofox
+from server_modules import proxy
 
 DEFAULT_PORT = 3038
 
@@ -50,7 +51,7 @@ class ReusableThreadingTCPServer(socketserver.ThreadingTCPServer):
 class BridgeHandler(http.server.BaseHTTPRequestHandler):
     def end_headers(self):
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Requested-With")
         self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
         super().end_headers()
@@ -58,6 +59,23 @@ class BridgeHandler(http.server.BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         self.send_response(HTTPStatus.NO_CONTENT)
         self.end_headers()
+
+    def do_POST(self):
+        parsed = urlparse(self.path)
+        query = parse_qs(parsed.query)
+
+        if parsed.path == "/api/proxy":
+            proxy.handle_proxy_post_request(self, query)
+            return
+
+        if parsed.path == "/api/camofox":
+            camofox.handle_camofox_fetch(self, query)
+            return
+
+        self.send_response(HTTPStatus.NOT_FOUND)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(b'{"error":"Unknown POST endpoint"}')
 
     def do_GET(self):
         parsed = urlparse(self.path)
@@ -78,6 +96,10 @@ class BridgeHandler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(body)
             return
 
+        if parsed.path == "/api/proxy":
+            proxy.handle_proxy_request(self, query)
+            return
+
         if parsed.path == "/api/camofox":
             camofox.handle_camofox_fetch(self, query)
             return
@@ -85,7 +107,7 @@ class BridgeHandler(http.server.BaseHTTPRequestHandler):
         self.send_response(HTTPStatus.NOT_FOUND)
         self.send_header("Content-Type", "application/json")
         self.end_headers()
-        self.wfile.write(b'{"error":"Unknown endpoint"}')
+        self.wfile.write(b'{"error":"Unknown GET endpoint"}')
 
     def log_message(self, fmt, *args):
         logger.info(fmt % args)
