@@ -5,26 +5,34 @@ window.EveOS.API = window.EveOS.API || {};
     // Ported from MegaBase Constants
     const PROXY_URL = 'https://corsproxy.io/?';
     const BRIDGE_PORT = 3037;
+    const SERVER_PORT = 3000;
     let _activeProxyBase = ''; // Empty means use relative /api/proxy (local server)
 
-    // Probe for standalone bridge if running on file:// or if local server might be down
-    async function probeBridge() {
-        try {
-            const res = await fetch(`http://localhost:${BRIDGE_PORT}/api/status`);
-            if (res.ok) {
-                const data = await res.json();
-                if (data.service === 'lightpanda-bridge') {
-                    console.log(`API Core: Standalone bridge detected on port ${BRIDGE_PORT}`);
-                    _activeProxyBase = `http://localhost:${BRIDGE_PORT}`;
+    // Probe for ANY active local service (Main Server or Standalone Bridge)
+    async function probeLocalServices() {
+        const ports = [BRIDGE_PORT, SERVER_PORT];
+        for (const port of ports) {
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 1000);
+                
+                const res = await fetch(`http://localhost:${port}/api/status`, { signal: controller.signal });
+                clearTimeout(timeoutId);
+                
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.status === 'ok') {
+                        console.log(`API Core: Local service detected on port ${port} (${data.service || 'server'})`);
+                        _activeProxyBase = `http://localhost:${port}`;
+                        return;
+                    }
                 }
-            }
-        } catch (e) {
-            // Bridge not running
+            } catch (e) {}
         }
     }
 
     // Run probe immediately
-    probeBridge();
+    probeLocalServices();
 
     const ENDPOINTS = {
         ANILIST: 'https://graphql.anilist.co',
@@ -56,34 +64,61 @@ window.EveOS.API = window.EveOS.API || {};
     }
 
     async function fetchWithFallback(targetUrl, options = {}, errorMsg = 'API Search failed') {
-        const proxyUrl = `${window.EveOS.API.Core.ACTIVE_PROXY_URL}${encodeURIComponent(targetUrl)}`;
+        const Core = window.EveOS.API.Core;
+        const isPost = options.method === 'POST';
         
-        // 1. Try standard Proxy first
+        // 0. Try Direct Fetch (Works if browser security is disabled or API allows it)
         try {
-            const response = await fetch(proxyUrl, options);
-            if (response.ok) return await response.json();
-            
-            // If we get a 403 (Cloudflare) or 5xx, we fall back
-            if (response.status !== 403 && response.status < 500) {
-                return null; 
-            }
+            const directRes = await fetch(targetUrl, options);
+            if (directRes.ok) return await directRes.json();
         } catch (e) {}
 
-        // 2. Fallback to Lightpanda
-        const proxyBase = window.EveOS.API.Core.ACTIVE_PROXY_URL.split('/api/proxy')[0];
-        const lpUrl = `${proxyBase}/api/lightpanda?format=json&url=${encodeURIComponent(targetUrl)}`;
+        // 1. Try Detected Local Proxy (Port 3000 or 3037)
+        if (_activeProxyBase) {
+            try {
+                const proxyUrl = `${_activeProxyBase}/api/proxy?url=${encodeURIComponent(targetUrl)}`;
+                const response = await fetch(proxyUrl, options);
+                if (response.ok) return await response.json();
+            } catch (e) {}
+        }
+
+        // 2. Try Public Proxies (Works in file:// without any server)
+        if (!isPost) {
+            const publicProxies = [
+                `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`,
+                `${Core.PROXY_URL}${encodeURIComponent(targetUrl)}`
+            ];
+
+            for (const pubUrl of publicProxies) {
+                try {
+                    const response = await fetch(pubUrl);
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.contents) {
+                            try { return JSON.parse(data.contents); } catch(e) {}
+                        }
+                        return data;
+                    }
+                } catch (e) {}
+            }
+        }
+
+        // 3. Last Resort: Force Lightpanda Bridge (Fallback if probe failed but bridge is active)
+        const bridgeUrl = `http://localhost:3037/api/lightpanda?format=json&url=${encodeURIComponent(targetUrl)}`;
+        const lpRes = await safeFetch(bridgeUrl, {}, `${errorMsg} (Lightpanda Fallback)`);
         
-        console.log(`API Core: Proxy failed/blocked for ${targetUrl.substring(0, 40)}..., falling back to Lightpanda.`);
-        const lpRes = await safeFetch(lpUrl, {}, `${errorMsg} (Lightpanda Fallback)`);
+        if (lpRes?.ok && lpRes.html) {
+            try { return JSON.parse(lpRes.html); } catch (e) { return lpRes.metadata; }
+        }
         
-        return lpRes?.ok ? lpRes.metadata : null;
+        return null;
     }
 
     // Expose for other modules
     window.EveOS.API.Core = {
         PROXY_URL,
         get ACTIVE_PROXY_URL() {
-            return `${_activeProxyBase}/api/proxy?url=`;
+            return (_activeProxyBase || 'http://localhost:3000') + '/api/proxy?url=';
         },
         ANILIST_API: ENDPOINTS.ANILIST,
         JIKAN_API: ENDPOINTS.JIKAN_MANGA,
