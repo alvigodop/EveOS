@@ -1,28 +1,9 @@
-const fs = require('fs');
-const path = require('path');
-const vm = require('vm');
-
 function assert(condition, message) {
     if (!condition) {
         console.error('ASSERT_FAILED:', message);
         process.exit(1);
     }
 }
-
-// Mock the global structure for the logic extraction
-const context = {
-    console,
-    DOMParser: class {
-        parseFromString(html) {
-            return {
-                body: {
-                    textContent: html.replace(/<[^>]*>/g, ''),
-                    innerText: html.replace(/<[^>]*>/g, '')
-                }
-            };
-        }
-    }
-};
 
 // Target Logic extraction from api-core.js (extracted for isolated test)
 const tryParse = (text) => {
@@ -84,15 +65,32 @@ const fullExtractor = (rawData) => {
     return null;
 };
 
-// Test 1: Real ComicK snapshot with markdown and escaped JSON
-const realSnapshot = fs.readFileSync(path.join(__dirname, '../../comick_search_snapshot.txt'), 'utf16le').replace('\ufeff', '');
+// Test 1: Representative bridge snapshot with leading/trailing HTML noise.
+const realSnapshot = `
+<!DOCTYPE html>
+<html>
+  <head><title>Snapshot</title></head>
+  <body>
+    <div>debug wrapper</div>
+    [
+      {
+        "id": 42,
+        "title": "Attack on Titan",
+        "desc": "Humanity fights titans.",
+        "md_covers": [{ "b2key": "shingeki-no-kyojin-cover.jpg" }],
+        "translation_completed": true
+      }
+    ]
+    <footer>done</footer>
+  </body>
+</html>`;
 const result1 = fullExtractor(realSnapshot);
 
 assert(Array.isArray(result1), 'Result 1 should be an array');
-assert(result1.length > 0, 'Result 1 should not be empty');
+assert(result1.length === 1, 'Result 1 should contain one parsed item');
 assert(result1[0].title === 'Attack on Titan', 'First item title mismatch');
 
-console.log('Test 1: PASSED (Real Snapshot)');
+console.log('Test 1: PASSED (Representative Snapshot)');
 
 // Test 2: HTML pre-wrapped escaped JSON
 const htmlSnapshot = '<html><body><pre>[{\\"id\\":42,\\"title\\":\\"Test\\"}]</pre></body></html>';
