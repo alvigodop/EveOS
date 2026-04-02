@@ -4,32 +4,56 @@ window.EveOS.API = window.EveOS.API || {};
 (function () {
     // Ported from MegaBase Constants
     const PROXY_URL = 'https://corsproxy.io/?';
+    const CODETABS_PROXY_URL = 'https://api.codetabs.com/v1/proxy/?quest=';
+    const LOCAL_HOST = '127.0.0.1';
     const BRIDGE_PORT = 3037;
     const CAMOFOX_BRIDGE_PORT = 3038;
     const SERVER_PORT = 3000;
-    let _activeProxyBase = ''; // Empty means use relative /api/proxy (local server)
+    const LIGHTPANDA_BASE = `http://${LOCAL_HOST}:${BRIDGE_PORT}`;
+    const CAMOFOX_BASE = `http://${LOCAL_HOST}:${CAMOFOX_BRIDGE_PORT}`;
+    const SERVER_BASE = `http://${LOCAL_HOST}:${SERVER_PORT}`;
+    let _activeProxyBase = ''; // Empty means no local proxy server is available.
+    let _serviceProbePromise = null;
+    const _bridgeAvailability = {
+        lightpanda: false,
+        camofox: false
+    };
 
-    // Probe for ANY active local service (Main Server, LP Bridge, or Camofox Bridge)
-    async function probeLocalServices() {
-        const ports = [BRIDGE_PORT, CAMOFOX_BRIDGE_PORT, SERVER_PORT];
-        for (const port of ports) {
-            try {
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 800);
-                
-                const res = await fetch(`http://localhost:${port}/api/status`, { signal: controller.signal });
-                clearTimeout(timeoutId);
-                
-                if (res.ok) {
-                    const data = await res.json();
-                    if (data.status === 'ok') {
-                        console.log(`API Core: Local service detected on port ${port} (${data.service || 'server'})`);
-                        _activeProxyBase = `http://localhost:${port}`;
-                        return;
-                    }
-                }
-            } catch (e) {}
+    async function probeStatus(baseUrl) {
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 350);
+            const res = await fetch(`${baseUrl}/api/status`, { signal: controller.signal });
+            clearTimeout(timeoutId);
+            if (!res.ok) return null;
+            const data = await res.json();
+            return data?.status === 'ok' ? data : null;
+        } catch (e) {
+            return null;
         }
+    }
+
+    // Probe local services once so only the actual main server is treated as /api/proxy.
+    async function probeLocalServices(force = false) {
+        if (_serviceProbePromise && !force) return _serviceProbePromise;
+
+        _serviceProbePromise = (async () => {
+            const [serverStatus, lightpandaStatus, camofoxStatus] = await Promise.all([
+                probeStatus(SERVER_BASE),
+                probeStatus(LIGHTPANDA_BASE),
+                probeStatus(CAMOFOX_BASE)
+            ]);
+
+            _activeProxyBase = serverStatus ? SERVER_BASE : '';
+            _bridgeAvailability.lightpanda = Boolean(lightpandaStatus);
+            _bridgeAvailability.camofox = Boolean(camofoxStatus);
+
+            if (_activeProxyBase) {
+                console.log(`API Core: Local proxy server detected (${serverStatus?.service || 'server'})`);
+            }
+        })();
+
+        return _serviceProbePromise;
     }
 
     // Run probe immediately
@@ -64,8 +88,55 @@ window.EveOS.API = window.EveOS.API || {};
         }
     }
 
+    async function fetchDirectThenProxy(targetUrl, options = {}, errorMsg = 'API Request failed') {
+        try {
+            const directRes = await fetch(targetUrl, options);
+            if (directRes.ok) return await directRes.json();
+        } catch (e) {}
+
+        await probeLocalServices();
+        if (!_activeProxyBase) return null;
+
+        const proxyUrl = `${_activeProxyBase}/api/proxy?url=${encodeURIComponent(targetUrl)}`;
+        return await safeFetch(proxyUrl, options, `${errorMsg} (Local Proxy)`);
+    }
+
+    async function fetchTextWithFallback(targetUrl, options = {}, errorMsg = 'API Text Fetch failed') {
+        const isPost = options.method === 'POST';
+
+        try {
+            const directRes = await fetch(targetUrl, options);
+            if (directRes.ok) return await directRes.text();
+        } catch (e) {}
+
+        await probeLocalServices();
+        if (_activeProxyBase) {
+            try {
+                const proxyUrl = `${_activeProxyBase}/api/proxy?url=${encodeURIComponent(targetUrl)}`;
+                const response = await fetch(proxyUrl, options);
+                if (response.ok) return await response.text();
+            } catch (e) {}
+        }
+
+        if (isPost) return null;
+
+        const publicTextProxies = [
+            `${CODETABS_PROXY_URL}${encodeURIComponent(targetUrl)}`,
+            `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`
+        ];
+
+        for (const proxyUrl of publicTextProxies) {
+            try {
+                const response = await fetch(proxyUrl);
+                if (response.ok) return await response.text();
+            } catch (e) {}
+        }
+
+        console.warn(errorMsg);
+        return null;
+    }
+
     async function fetchWithFallback(targetUrl, options = {}, errorMsg = 'API Search failed') {
-        const Core = window.EveOS.API.Core;
         const isPost = options.method === 'POST';
         
         // 0. Try Direct Fetch (Works if browser security is disabled)
@@ -74,7 +145,9 @@ window.EveOS.API = window.EveOS.API || {};
             if (directRes.ok) return await directRes.json();
         } catch (e) {}
 
-        // 1. Try Detected Local Proxy (Port 3000, 3037, or 3038)
+        await probeLocalServices();
+
+        // 1. Try Detected Local Proxy (port 3000 only)
         if (_activeProxyBase) {
             try {
                 const proxyUrl = `${_activeProxyBase}/api/proxy?url=${encodeURIComponent(targetUrl)}`;
@@ -86,15 +159,26 @@ window.EveOS.API = window.EveOS.API || {};
         // 2. Try Public Proxies (Works in file:// without any server)
         if (!isPost) {
             const publicProxies = [
-                `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`,
-                `${Core.PROXY_URL}${encodeURIComponent(targetUrl)}`
+                {
+                    parse: 'raw-json',
+                    url: `${CODETABS_PROXY_URL}${encodeURIComponent(targetUrl)}`
+                },
+                {
+                    parse: 'allorigins',
+                    url: `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`
+                }
             ];
 
-            for (const pubUrl of publicProxies) {
+            for (const proxyConfig of publicProxies) {
                 try {
-                    const response = await fetch(pubUrl);
+                    const response = await fetch(proxyConfig.url);
                     if (response.ok) {
                         const data = await response.json();
+
+                        if (proxyConfig.parse === 'raw-json' && typeof data === 'object' && data !== null) {
+                            return data;
+                        }
+
                         if (data.contents) {
                             try { 
                                 const parsed = JSON.parse(data.contents); 
@@ -111,9 +195,9 @@ window.EveOS.API = window.EveOS.API || {};
 
         // 3. Fallback Chain: Lightpanda -> Camofox (The "Solve it" engines)
         const bridges = [
-            { name: 'Lightpanda', url: `http://localhost:3037/api/lightpanda?format=json&url=${encodeURIComponent(targetUrl)}` },
-            { name: 'Camofox', url: `http://localhost:3038/api/camofox?format=json&url=${encodeURIComponent(targetUrl)}` }
-        ];
+            _bridgeAvailability.lightpanda ? { name: 'Lightpanda', url: `${LIGHTPANDA_BASE}/api/lightpanda?format=json&url=${encodeURIComponent(targetUrl)}` } : null,
+            _bridgeAvailability.camofox ? { name: 'Camofox', url: `${CAMOFOX_BASE}/api/camofox?format=json&url=${encodeURIComponent(targetUrl)}` } : null
+        ].filter(Boolean);
         for (const bridge of bridges) {
             try {
                 const res = await safeFetch(bridge.url, {}, `${errorMsg} (${bridge.name} Fallback)`);
@@ -192,8 +276,9 @@ window.EveOS.API = window.EveOS.API || {};
     // Expose for other modules
     window.EveOS.API.Core = {
         PROXY_URL,
+        CODETABS_PROXY_URL,
         get ACTIVE_PROXY_URL() {
-            return (_activeProxyBase || 'http://localhost:3000') + '/api/proxy?url=';
+            return _activeProxyBase ? `${_activeProxyBase}/api/proxy?url=` : '';
         },
         ANILIST_API: ENDPOINTS.ANILIST,
         JIKAN_API: ENDPOINTS.JIKAN_MANGA,
@@ -207,7 +292,10 @@ window.EveOS.API = window.EveOS.API || {};
         ITUNES_API: ENDPOINTS.ITUNES,
         WLNUPDATES_API: ENDPOINTS.WLNUPDATES,
         OPENLIBRARY_API: ENDPOINTS.OPENLIBRARY,
+        ensureLocalServicesProbed: probeLocalServices,
         safeFetch,
+        fetchDirectThenProxy,
+        fetchTextWithFallback,
         fetchWithFallback
     };
 })();

@@ -29,7 +29,7 @@ window.EveOS = window.EveOS || {};
         if (!Core) { console.error("EveOS.API.Core missing"); return { data: [] }; }
 
         const url = `${Core.KITSU_ANIME_API}?filter[text]=${encodeURIComponent(query)}&page[limit]=3&include=categories`;
-        const res = await Core.safeFetch(url, {}, 'Kitsu Anime Search failed');
+        const res = await Core.fetchDirectThenProxy(url, {}, 'Kitsu Anime Search failed');
         return enrichKitsuData(res);
     }
 
@@ -38,7 +38,7 @@ window.EveOS = window.EveOS || {};
         if (!Core) { console.error("EveOS.API.Core missing"); return { data: [] }; }
 
         const url = `${Core.KITSU_MANGA_API}?filter[text]=${encodeURIComponent(query)}&page[limit]=3&include=categories`;
-        const res = await Core.safeFetch(url, {}, 'Kitsu Manga Search failed');
+        const res = await Core.fetchDirectThenProxy(url, {}, 'Kitsu Manga Search failed');
         return enrichKitsuData(res);
     }
 

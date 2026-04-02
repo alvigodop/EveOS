@@ -48,15 +48,18 @@ const sampleItem = {
     content_rating: "safe",
     demographic: 1,
     md_covers: [{ b2key: "shingeki-no-kyojin-cover.jpg" }],
+    // Flat genres as seen in some search results
+    md_genres: [
+        { name: "Action", slug: "action" },
+        { name: "Drama", slug: "drama" }
+    ],
+    // Nested genres as seen in others
     md_comic_md_genres: [
-        { md_genres: { name: "Action" } },
-        { md_genres: { name: "Drama" } },
         { md_genres: { name: "Tragedy" } }
     ],
     md_comic_md_tags: [
         { md_tags: { name: "Military" } },
-        { md_tags: { name: "Monsters" } },
-        { md_tags: { name: "Post-Apocalyptic" } }
+        { md_tags: { name: "Monsters" } }
     ],
     authors: [{ name: "Isayama Hajime" }],
     artists: [{ name: "Isayama Hajime" }],
@@ -73,8 +76,9 @@ console.log('----------------------------');
 // Assertions
 assert(result.title === 'Attack on Titan', 'Title mismatch');
 assert(result.score === '8.9', 'Score mismatch');
-assert(result.genres.includes('Action'), 'Missing Genre: Action');
-assert(result.genres.includes('Military'), 'Missing Theme: Military (from md_tags)');
+assert(result.genres.includes('Action'), 'Missing Flat Genre: Action');
+assert(result.genres.includes('Tragedy'), 'Missing Nested Genre: Tragedy');
+assert(result.genres.includes('Military'), 'Missing Theme: Military');
 assert(result.genres.includes('Demographic: Shounen'), 'Missing Demographic: Shounen');
 assert(result.genres.includes('Translation: Completed'), 'Missing Translation status');
 assert(result.contentRating === 'Safe', 'Content rating mismatch');

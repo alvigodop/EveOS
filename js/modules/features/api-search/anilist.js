@@ -87,8 +87,7 @@ window.EveOS = window.EveOS || {};
             })
         };
 
-        const url = `${Core.ACTIVE_PROXY_URL}${encodeURIComponent(Core.ANILIST_API)}`;
-        const result = await Core.safeFetch(url, options, 'AniList Search failed');
+        const result = await Core.fetchDirectThenProxy(Core.ANILIST_API, options, 'AniList Search failed');
         return result || { data: { Page: { media: [] } } };
     }
 

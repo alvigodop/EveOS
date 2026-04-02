@@ -38,18 +38,22 @@ window.EveOS.API.DisplayInternals = window.EveOS.API.DisplayInternals || {};
             if (!Array.isArray(arr)) return [];
             return arr.map(i => {
                 if (typeof i === 'string') return i;
-                // Discover common name/title keys in nested ComicK objects
-                return i?.name || i?.title || i?.slug || i?.md_genres?.name || i?.md_tags?.name || '';
+                // Discover common name/title keys in nested ComicK objects (Search & Detail APIs)
+                return i?.name || i?.title || i?.slug || i?.md_genres?.name || i?.md_tags?.name || i?.label || '';
             }).filter(Boolean);
         };
 
         const authors = extractNames(item.authors || item.author);
         const artists = extractNames(item.artists || item.artist);
+        
+        // Comprehensive tag gathering from all possible ComicK API keys
         let tags = extractNames([
             ...(item.md_comic_md_genres || []),
             ...(item.md_comic_md_tags || []),
             ...(item.genres || []),
             ...(item.tags || []),
+            ...(item.md_genres || []), 
+            ...(item.md_tags || []),
             ...((item.mu_comics && item.mu_comics.mu_valid_genres) || []),
             ...((item.mu_comics && item.mu_comics.genre) || [])
         ]);

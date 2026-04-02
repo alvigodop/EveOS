@@ -5,27 +5,20 @@ window.EveOS = window.EveOS || {};
         const Core = window.EveOS.API.Core;
         if (!Core) { console.error("EveOS.API.Core missing"); return { data: [] }; }
 
-        const targetUrl = Core.WLNUPDATES_API;
-        const proxyUrl = `${Core.ACTIVE_PROXY_URL}${encodeURIComponent(targetUrl)}`;
-        
         const body = {
             mode: 'search-title',
             title: query
         };
 
         try {
-            const response = await fetch(proxyUrl, {
+            const result = await Core.fetchDirectThenProxy(Core.WLNUPDATES_API, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(body)
-            });
-            if (!response.ok) {
-                console.warn('WlnUpdates Search failed', response.status);
-                return { data: [] };
-            }
-            return await response.json();
+            }, 'WlnUpdates Search failed');
+            return result || { data: [] };
         } catch (e) {
             console.warn('WlnUpdates Search failed', e);
             return { data: [] };
