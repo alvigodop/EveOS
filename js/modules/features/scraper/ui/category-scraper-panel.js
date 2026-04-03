@@ -61,9 +61,23 @@
                 CPMUtils.checkLocalDevMode(); // Re-check to update local indicator
             }
 
+            const currentSource = window.TabManager?.getCurrentSource?.() || window.TabManagerState?.getCurrentSource?.() || 'wikipedia';
+            const apiSourceCluster = container.querySelector('#apiSourceToggleCluster');
+            if (apiSourceCluster && window.EveOS?.API?.Manager?.renderScraperSourceTabs) {
+                window.EveOS.API.Manager.renderScraperSourceTabs(apiSourceCluster, currentSource);
+            }
+            container.querySelectorAll('.source-toggle-btn').forEach(function (button) {
+                button.classList.toggle('active', button.dataset.source === currentSource);
+            });
+
             const apiPanelContainer = container.querySelector('#api-scraper-panel-container');
             if (apiPanelContainer && window.EveOS?.API?.Manager?.renderScraperPanelUI) {
-                window.EveOS.API.Manager.renderScraperPanelUI(apiPanelContainer, categoryName);
+                window.EveOS.API.Manager.renderScraperPanelUI(apiPanelContainer, categoryName, {
+                    providerKey: window.EveOS?.API?.Manager?.isProviderSource?.(currentSource) ? currentSource : null
+                });
+            }
+            if (window.TabManagerUI?.updatePanels) {
+                window.TabManagerUI.updatePanels(currentSource, true);
             }
         },
 

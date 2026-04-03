@@ -55,7 +55,7 @@ function _setGeminiLiveLinkStatus(message, isError) {
     const statusEl = document.getElementById('geminiLiveLinkStatus');
     if (!statusEl) return;
     statusEl.textContent = message;
-    statusEl.style.color = isError ? '#c62828' : '#757575';
+    statusEl.classList.toggle('is-error', !!isError);
 }
 
 function _applyGeminiLiveLinkEnabledState(enabled) {
@@ -74,7 +74,7 @@ function _applyGeminiLiveLinkEnabledState(enabled) {
         controls.setAttribute('aria-hidden', isEnabled ? 'false' : 'true');
     }
     if (statusEl) {
-        statusEl.style.marginBottom = isEnabled ? '8px' : '0';
+        statusEl.classList.toggle('is-collapsed', !isEnabled);
     }
 
     if (!isEnabled) {
@@ -167,27 +167,30 @@ async function loadGeminiLiveLinkCard() {
 
     try {
         const htmlContent = `
-<div id="gemini-live-link-card" class="agentic-function-card" style="background-color: white; padding: 12px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.12); min-width: 240px;">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-        <span style="font-weight: 500; color: #333;">Gemini Live Link</span>
+<div id="gemini-live-link-card" class="agentic-function-card gemini-live-link-card">
+    <div class="gemini-live-link-head">
+        <div>
+            <div class="gemini-live-link-kicker">Context Relay</div>
+            <span class="gemini-live-link-title">Gemini Live Link</span>
+        </div>
         <label class="mdl-switch mdl-js-switch mdl-js-ripple-effect" for="geminiLiveLinkToggle">
             <input type="checkbox" id="geminiLiveLinkToggle" class="mdl-switch__input" checked>
             <span class="mdl-switch__label"></span>
         </label>
     </div>
-    <div id="geminiLiveLinkStatus" style="font-size:12px; color:#757575; min-height:18px; margin-bottom:8px;"></div>
-    <div id="geminiLiveLinkControls" style="display:block;">
-        <div style="display:flex; gap:8px; align-items:flex-end; margin-bottom:8px;">
-            <div style="flex:1;">
-                <label for="geminiLiveLinkMode" style="display:block; font-size:12px; color:#616161; margin-bottom:6px;">Context Mode</label>
-                <select id="geminiLiveLinkMode" style="width:100%;">
+    <div id="geminiLiveLinkStatus" class="gemini-live-link-status"></div>
+    <div id="geminiLiveLinkControls" class="gemini-live-link-controls" style="display:block;">
+        <div class="gemini-live-link-row">
+            <div class="gemini-live-link-select-wrap">
+                <label for="geminiLiveLinkMode" class="gemini-live-link-label">Context Mode</label>
+                <select id="geminiLiveLinkMode" class="gemini-live-link-select">
                     <option value="summary">Summary</option>
                     <option value="full">Full JSON</option>
                 </select>
             </div>
-            <button id="geminiLiveLinkSendButton" class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored" style="min-width: 88px;">Send</button>
+            <button id="geminiLiveLinkSendButton" class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored gemini-live-link-send">Send</button>
         </div>
-        <div style="font-size:12px; color:#757575;">
+        <div class="gemini-live-link-help">
             Sends active data-pack context into the Gemini chat session.
         </div>
     </div>

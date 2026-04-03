@@ -34,16 +34,19 @@
                     <div class="control-center">
                         <!-- Row 1: Source & Layout -->
                         <div class="control-row justify-between control-row-margin">
-                            <div class="source-toggle-container">
-                                <button class="source-toggle-btn active" data-source="wikipedia" onclick="updateSource('wikipedia')">
-                                    <span class="icon">W</span> Wikipedia
-                                </button>
-                                <button class="source-toggle-btn" data-source="fandom" onclick="updateSource('fandom')">
-                                    <span class="icon">F</span> Fandom
-                                </button>
-                                <button class="source-toggle-btn" data-source="api" onclick="updateSource('api')">
-                                    <span class="icon">A</span> APIs
-                                </button>
+                            <div class="source-toggle-container scraper-source-rail">
+                                <div class="source-toggle-group source-toggle-group--library">
+                                    <button class="source-toggle-btn active" data-source="wikipedia" onclick="updateSource('wikipedia')">
+                                        <span class="icon">W</span> Wikipedia
+                                    </button>
+                                    <button class="source-toggle-btn" data-source="fandom" onclick="updateSource('fandom')">
+                                        <span class="icon">F</span> Fandom
+                                    </button>
+                                </div>
+                                <div class="source-toggle-group source-toggle-group--apis">
+                                    <div class="source-toggle-group-label">API Providers</div>
+                                    <div id="apiSourceToggleCluster" class="source-toggle-cluster"></div>
+                                </div>
                             </div>
                             <div class="layout-toggles">
                                 <button id="layoutGridBtn" class="layout-btn active" onclick="updateLayout('grid')" title="Grid View">
@@ -293,7 +296,7 @@
                                     <!-- API Search Management -->
                                     <div id="apiManagement" class="wiki-management-panel" style="display: none;">
                                         <div class="domain-actions domain-actions-container">
-                                            <span class="wiki-link wiki-link-action" style="pointer-events:none; opacity:0.7;">Card-scoped API cache</span>
+                                            <span class="wiki-link wiki-link-action" style="pointer-events:none; opacity:0.7;">Card-scoped provider cache</span>
                                         </div>
                                         <div id="api-scraper-panel-container"></div>
                                     </div>

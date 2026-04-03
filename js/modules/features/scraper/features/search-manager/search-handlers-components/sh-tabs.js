@@ -35,11 +35,10 @@
             const fandomTab = document.getElementById('fandomTab');
             const wikipediaTab = document.getElementById('wikipediaTab');
             const activeSourceBtn = document.querySelector('.source-toggle-btn.active');
+            const isProviderSource = window.EveOS?.API?.Manager?.isProviderSource?.bind(window.EveOS.API.Manager);
 
             if (activeSourceBtn && activeSourceBtn.dataset.source) {
-                if (activeSourceBtn.dataset.source === 'fandom') activeTabId = 'fandomTab';
-                if (activeSourceBtn.dataset.source === 'wikipedia') activeTabId = 'wikipediaTab';
-                if (activeSourceBtn.dataset.source === 'api') activeTabId = 'apiTab';
+                activeTabId = activeSourceBtn.dataset.source;
             } else if (fandomTab && fandomTab.classList.contains('active')) {
                 activeTabId = 'fandomTab';
             } else if (wikipediaTab && wikipediaTab.classList.contains('active')) {
@@ -52,12 +51,14 @@
 
             const isFandom = (activeTabId === 'fandomTab' || activeTabId === 'fandom' || activeTabId === 'tab-fandom');
             const isWikipedia = (activeTabId === 'wikipediaTab' || activeTabId === 'wikipedia' || activeTabId === 'tab-wikipedia');
-            const isApi = (activeTabId === 'apiTab' || activeTabId === 'api' || activeTabId === 'tab-api');
+            const isApiProvider = typeof isProviderSource === 'function' && isProviderSource(activeTabId);
+            const isApi = isApiProvider || (activeTabId === 'apiTab' || activeTabId === 'api' || activeTabId === 'tab-api');
 
             let source = 'all';
             if (isFandom) source = 'fandom';
             if (isWikipedia) source = 'wikipedia';
-            if (isApi) source = 'api';
+            if (isApiProvider) source = activeTabId;
+            else if (isApi) source = 'api';
 
             console.log(`SHTabs: Handling main search for query "${query}". Detected Active Tab: ${activeTabId}, Source: ${source}`);
 

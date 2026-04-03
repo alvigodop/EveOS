@@ -53,7 +53,7 @@
          */
         getActiveTabId: function (currentSource) {
             if (currentSource === 'wikipedia') return 'wikipediaTab';
-            if (currentSource === 'api') return 'apiTab';
+            if (currentSource === 'api' || window.EveOS?.API?.Manager?.isProviderSource?.(currentSource)) return currentSource;
             return 'fandomTab';
         },
 

@@ -140,7 +140,7 @@ const context = {
                 OpenLibrary: {
                     async searchOpenLibrary() {
                         providerCalls += 1;
-                        return { docs: [] };
+                        return { docs: [{ key: '/works/OL1W', title: 'Kingdom Atlas' }] };
                     }
                 },
                 ComicK: {
@@ -204,7 +204,7 @@ loadScript('js/modules/features/api-search/index.js');
     assert(hybridFetch?.meta?.fromCache === false, 'Hybrid miss should report live fetch');
     assert(api.Cache.getQuery('kingdom', 'Card Beta'), 'Hybrid miss should store results in the card cache');
     assert(!api.Cache.getQuery('kingdom', 'Card Gamma'), 'Cached query must remain isolated to the card');
-    assert(resultsCounter.textContent === '1', 'Result count should reflect cached summary totals');
+    assert(resultsCounter.textContent === '2', 'Result count should reflect cached summary totals');
 
     providerCalls = 0;
     displayCalls = 0;
@@ -217,10 +217,21 @@ loadScript('js/modules/features/api-search/index.js');
     assert(displayCalls === 1, 'Cache hit should render once');
     assert(cacheHit?.meta?.fromCache === true, 'Cache hit should report cached data');
 
-    api.Cache.savePrefs({ liveResults: true, hybridResults: false }, 'Card Beta');
+    displayCalls = 0;
+    const providerCacheHit = await api.Manager.runSearch('kingdom', resultsContainer, null, {
+        categoryName: 'Card Beta',
+        providerKey: 'mangadex',
+        liveResults: false,
+        hybridResults: false
+    });
+    assert(displayCalls === 1, 'Provider cache hit should render once');
+    assert(providerCacheHit?.meta?.summary?.totalResults === 1, 'Provider cache hit should only expose one provider result');
+
+    api.Cache.savePrefs({ liveResults: true, hybridResults: false, ttlMs: 3600000 }, 'Card Beta');
     const savedPrefs = api.Cache.loadPrefs('Card Beta');
     assert(savedPrefs.liveResults === true, 'Saved live pref should persist per card');
     assert(savedPrefs.hybridResults === false, 'Saved hybrid pref should persist per card');
+    assert(savedPrefs.ttlMs === 3600000, 'Saved TTL pref should persist per card');
     assert(api.Cache.loadPrefs('Card Alpha').hybridResults === true, 'Prefs must remain scoped per card');
 
     console.log('API_CACHE_MANAGER_SMOKE_OK');

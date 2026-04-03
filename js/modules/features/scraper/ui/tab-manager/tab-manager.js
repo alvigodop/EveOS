@@ -162,7 +162,7 @@
     TabManager.getActiveTabId = function () {
         if (window.TabManagerUtils) return TabManagerUtils.getActiveTabId(this.currentSource);
         if (this.currentSource === 'wikipedia') return 'wikipediaTab';
-        if (this.currentSource === 'api') return 'apiTab';
+        if (this.currentSource === 'api' || window.EveOS?.API?.Manager?.isProviderSource?.(this.currentSource)) return this.currentSource;
         return 'fandomTab';
     };
 

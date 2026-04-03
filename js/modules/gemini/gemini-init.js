@@ -65,26 +65,21 @@
 
         const geminiContainer = document.createElement('div');
         geminiContainer.id = 'gemini-ui-root';
-        geminiContainer.style.width = '100%';
-        geminiContainer.style.height = '600px';
-        geminiContainer.style.maxHeight = '80vh';
-        geminiContainer.style.display = 'flex';
-        geminiContainer.style.flexDirection = 'column';
-        geminiContainer.style.overflow = 'auto';
-        geminiContainer.style.background = '#fff';
-        geminiContainer.style.color = '#333';
-        geminiContainer.style.position = 'relative';
-        geminiContainer.style.marginTop = '0';
-        geminiContainer.style.borderRadius = '8px';
-        geminiContainer.style.boxShadow = '0 2px 10px rgba(0,0,0,0.2)';
-        geminiContainer.style.marginBottom = '20px';
+        geminiContainer.className = 'gemini-monitor-shell';
         geminiContainer.tabIndex = 0;
 
         geminiContainer.innerHTML = `
-            <div id="app-loading-state" style="display: flex; justify-content: center; align-items: center; height: 100%; width: 100%; font-family: 'Roboto', sans-serif; color: #666; flex-grow: 1;">
-                <div style="text-align: center;">
-                    <h3>Loading Gemini Interface...</h3>
-                    <p>Status: Modules load on demand to keep startup fast.</p>
+            <div id="app-loading-state" class="gemini-monitor-card">
+                <div class="gemini-monitor-head">
+                    <div>
+                        <div class="gemini-monitor-kicker">Gemini Link</div>
+                        <h3 class="gemini-monitor-title">Search Monitor Assistant</h3>
+                    </div>
+                    <div class="gemini-monitor-pill">Lazy Boot</div>
+                </div>
+                <div class="gemini-monitor-body">
+                    <p class="gemini-monitor-copy">Wake Gemini from the Search Monitor when you need active context or chat controls.</p>
+                    <p class="gemini-monitor-meta">Modules load on demand to keep startup light and preserve dashboard responsiveness.</p>
                 </div>
             </div>
         `;

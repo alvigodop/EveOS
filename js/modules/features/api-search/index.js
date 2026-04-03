@@ -2,20 +2,37 @@ window.EveOS = window.EveOS || {};
 window.EveOS.API = window.EveOS.API || {};
 
 (function (api) {
-    const PROVIDER_ORDER = [
-        ['mangadex', 'MangaDex'],
-        ['jikanManga', 'Jikan Manga'],
-        ['jikanAnime', 'Jikan Anime'],
-        ['anilistManga', 'AniList Manga'],
-        ['anilistAnime', 'AniList Anime'],
-        ['mangaupdates', 'MangaUpdates'],
-        ['kitsuAnime', 'Kitsu Anime'],
-        ['kitsuManga', 'Kitsu Manga'],
-        ['tvmaze', 'TVmaze'],
-        ['itunes', 'iTunes'],
-        ['wlnupdates', 'WLNUpdates'],
-        ['openlibrary', 'OpenLibrary'],
-        ['comick', 'ComicK']
+    const PROVIDER_CONFIG = [
+        { key: 'mangadex', label: 'MangaDex', shortLabel: 'Dex' },
+        { key: 'jikanManga', label: 'Jikan Manga', shortLabel: 'J-Manga' },
+        { key: 'jikanAnime', label: 'Jikan Anime', shortLabel: 'J-Anime' },
+        { key: 'anilistManga', label: 'AniList Manga', shortLabel: 'AL Manga' },
+        { key: 'anilistAnime', label: 'AniList Anime', shortLabel: 'AL Anime' },
+        { key: 'mangaupdates', label: 'MangaUpdates', shortLabel: 'MU' },
+        { key: 'kitsuAnime', label: 'Kitsu Anime', shortLabel: 'K Anime' },
+        { key: 'kitsuManga', label: 'Kitsu Manga', shortLabel: 'K Manga' },
+        { key: 'tvmaze', label: 'TVmaze', shortLabel: 'TV' },
+        { key: 'itunes', label: 'iTunes', shortLabel: 'iTunes' },
+        { key: 'wlnupdates', label: 'WLNUpdates', shortLabel: 'WLN' },
+        { key: 'openlibrary', label: 'OpenLibrary', shortLabel: 'Books' },
+        { key: 'comick', label: 'ComicK', shortLabel: 'ComicK' }
+    ];
+    const PROVIDER_ORDER = PROVIDER_CONFIG.map(function (provider) {
+        return [provider.key, provider.label];
+    });
+    const PROVIDER_KEYS = PROVIDER_CONFIG.map(function (provider) {
+        return provider.key;
+    });
+    const PROVIDER_LABELS = PROVIDER_CONFIG.reduce(function (acc, provider) {
+        acc[provider.key] = provider.label;
+        return acc;
+    }, {});
+    const PROVIDER_SET = new Set(PROVIDER_KEYS);
+    const TTL_OPTIONS = [
+        { value: 60 * 60 * 1000, label: '1 hour' },
+        { value: 6 * 60 * 60 * 1000, label: '6 hours' },
+        { value: 24 * 60 * 60 * 1000, label: '24 hours' },
+        { value: 7 * 24 * 60 * 60 * 1000, label: '7 days' }
     ];
 
     function normalizeCategoryName(categoryName) {
@@ -75,7 +92,95 @@ window.EveOS.API = window.EveOS.API || {};
             .replace(/'/g, '&#39;');
     }
 
-    async function collectLiveResults(query) {
+    function isProviderSource(source) {
+        return PROVIDER_SET.has(String(source || '').trim());
+    }
+
+    function getProviderLabel(providerKey) {
+        return PROVIDER_LABELS[String(providerKey || '').trim()] || 'API Provider';
+    }
+
+    function buildTtlOptionsMarkup(selectedTtlMs) {
+        const fallbackTtl = Number(selectedTtlMs) > 0 ? Number(selectedTtlMs) : Number(api.Cache?.DEFAULT_TTL_MS || (24 * 60 * 60 * 1000));
+        return TTL_OPTIONS.map(function (option) {
+            const selected = Number(option.value) === fallbackTtl ? 'selected' : '';
+            return `<option value="${option.value}" ${selected}>${escapeHtml(option.label)}</option>`;
+        }).join('');
+    }
+
+    function syncTtlState(ttlMs, origin) {
+        const selectors = [
+            '[data-api-ttl-select="search"]',
+            '[data-api-ttl-select="scraper"]'
+        ];
+
+        selectors.forEach(function (selector) {
+            document.querySelectorAll(selector).forEach(function (element) {
+                if (element === origin) return;
+                element.value = String(ttlMs);
+            });
+        });
+    }
+
+    function persistTtlPreference(categoryName, ttlMs, origin) {
+        const resolvedCategory = ensureCategoryContext(categoryName);
+        const normalizedTtl = Number(ttlMs) > 0 ? Number(ttlMs) : Number(api.Cache?.DEFAULT_TTL_MS || (24 * 60 * 60 * 1000));
+        if (api.Cache) {
+            api.Cache.savePrefs({ ttlMs: normalizedTtl }, resolvedCategory);
+        }
+        syncTtlState(normalizedTtl, origin);
+    }
+
+    function filterSourcesByProvider(sources, providerKey) {
+        if (!providerKey || !isProviderSource(providerKey)) {
+            return sources || {};
+        }
+        return {
+            [providerKey]: sources?.[providerKey]
+        };
+    }
+
+    function mergeSources(baseSources, nextSources) {
+        return {
+            ...(baseSources && typeof baseSources === 'object' ? baseSources : {}),
+            ...(nextSources && typeof nextSources === 'object' ? nextSources : {})
+        };
+    }
+
+    async function fetchProviderResults(query, providerKey) {
+        switch (providerKey) {
+            case 'mangadex':
+                return api.MangaDex.searchMangaDex(query);
+            case 'jikanManga':
+                return api.Jikan.searchJikanManga(query);
+            case 'jikanAnime':
+                return api.Jikan.searchJikanAnime(query);
+            case 'anilistManga':
+                return api.AniList.searchAniListManga(query);
+            case 'anilistAnime':
+                return api.AniList.searchAniListAnime(query);
+            case 'mangaupdates':
+                return api.MangaUpdates.searchMangaUpdates(query);
+            case 'kitsuAnime':
+                return api.Kitsu.searchKitsuAnime(query);
+            case 'kitsuManga':
+                return api.Kitsu.searchKitsuManga(query);
+            case 'tvmaze':
+                return api.TVmaze.searchTVmaze(query);
+            case 'itunes':
+                return api.iTunes.searchiTunes(query);
+            case 'wlnupdates':
+                return api.WlnUpdates.searchWlnUpdates(query);
+            case 'openlibrary':
+                return api.OpenLibrary.searchOpenLibrary(query);
+            case 'comick':
+                return api.ComicK.searchComicK(query);
+            default:
+                throw new Error(`Unsupported API provider source: ${providerKey}`);
+        }
+    }
+
+    async function collectLiveResults(query, providerKey = null) {
         const Core = api.Core;
         const MangaDex = api.MangaDex;
         const Jikan = api.Jikan;
@@ -92,63 +197,33 @@ window.EveOS.API = window.EveOS.API || {};
             throw new Error('API modules are not fully loaded.');
         }
 
-        const [
-            mangadexResults,
-            jikanMangaResults,
-            jikanAnimeResults,
-            anilistMangaResults,
-            anilistAnimeResults,
-            mangaupdatesResults,
-            kitsuAnimeResults,
-            kitsuMangaResults,
-            tvmazeResults,
-            itunesResults,
-            wlnupdatesResults,
-            openlibraryResults,
-            comickResults
-        ] = await Promise.all([
-            MangaDex.searchMangaDex(query),
-            Jikan.searchJikanManga(query),
-            Jikan.searchJikanAnime(query),
-            AniList.searchAniListManga(query),
-            AniList.searchAniListAnime(query),
-            MangaUpdates.searchMangaUpdates(query),
-            Kitsu.searchKitsuAnime(query),
-            Kitsu.searchKitsuManga(query),
-            TVmaze.searchTVmaze(query),
-            iTunes.searchiTunes(query),
-            WlnUpdates.searchWlnUpdates(query),
-            OpenLibrary.searchOpenLibrary(query),
-            ComicK.searchComicK(query)
-        ]);
+        if (providerKey && isProviderSource(providerKey)) {
+            return {
+                [providerKey]: await fetchProviderResults(query, providerKey)
+            };
+        }
 
-        return {
-            mangadex: mangadexResults,
-            jikanManga: jikanMangaResults,
-            jikanAnime: jikanAnimeResults,
-            anilistManga: anilistMangaResults,
-            anilistAnime: anilistAnimeResults,
-            mangaupdates: mangaupdatesResults,
-            kitsuAnime: kitsuAnimeResults,
-            kitsuManga: kitsuMangaResults,
-            tvmaze: tvmazeResults,
-            itunes: itunesResults,
-            wlnupdates: wlnupdatesResults,
-            openlibrary: openlibraryResults,
-            comick: comickResults
-        };
+        const pairs = await Promise.all(PROVIDER_KEYS.map(async function (key) {
+            return [key, await fetchProviderResults(query, key)];
+        }));
+
+        return pairs.reduce(function (acc, pair) {
+            acc[pair[0]] = pair[1];
+            return acc;
+        }, {});
     }
 
-    function renderSourceResults(sourceResults, resultsContainer, onSelect) {
+    function renderSourceResults(sourceResults, resultsContainer, onSelect, providerKey = null) {
         const Display = api.Display;
         if (!Display || typeof Display.displayResults !== 'function') {
             throw new Error('Display module is not loaded.');
         }
 
+        const visibleSources = filterSourcesByProvider(sourceResults || {}, providerKey);
         resultsContainer.style.display = 'block';
-        Display.displayResults(sourceResults || {}, resultsContainer, onSelect);
-        updateResultsCount(countResults(sourceResults));
-        return sourceResults;
+        Display.displayResults(visibleSources, resultsContainer, onSelect);
+        updateResultsCount(countResults(visibleSources));
+        return visibleSources;
     }
 
     function resolveLivePreference(categoryName, explicitValue) {
@@ -170,14 +245,15 @@ window.EveOS.API = window.EveOS.API || {};
         callback();
     }
 
-    function renderCacheOnlyMessage(resultsContainer, query) {
+    function renderCacheOnlyMessage(resultsContainer, query, providerKey = null) {
         if (!resultsContainer) return;
+        const providerLabel = providerKey ? getProviderLabel(providerKey) : 'this view';
         resultsContainer.style.display = 'block';
         resultsContainer.innerHTML = `
             <div style="padding:12px; border:1px solid rgba(255,255,255,0.08); border-radius:10px; background:rgba(255,255,255,0.03);">
                 <div style="font-weight:600; margin-bottom:4px;">No cached API result for this card.</div>
                 <div style="font-size:0.83rem; opacity:0.75;">
-                    Query <strong>${escapeHtml(query)}</strong> has not been cached inside this card yet. Enable Hybrid or Live to fetch it.
+                    Query <strong>${escapeHtml(query)}</strong> has not been cached for <strong>${escapeHtml(providerLabel)}</strong> inside this card yet. Enable Hybrid or Live to fetch it.
                 </div>
             </div>
         `;
@@ -236,36 +312,45 @@ window.EveOS.API = window.EveOS.API || {};
         syncHybridToggleState(enabled !== false, origin);
     }
 
-    function buildCacheListMarkup(entries, emptyMessage) {
-        if (!Array.isArray(entries) || !entries.length) {
+    function buildCacheListMarkup(entries, emptyMessage, providerKey = null) {
+        const visibleEntries = Array.isArray(entries) ? entries.filter(function (entry) {
+            if (!providerKey || !isProviderSource(providerKey)) return true;
+            return Number(entry.summary?.perSource?.[providerKey] || 0) > 0;
+        }) : [];
+
+        if (!visibleEntries.length) {
             return `<div style="opacity:0.68; font-size:0.83rem;">${escapeHtml(emptyMessage)}</div>`;
         }
 
-        return entries.map(function (entry) {
+        return visibleEntries.map(function (entry) {
+            const totalResults = providerKey && isProviderSource(providerKey)
+                ? Number(entry.summary?.perSource?.[providerKey] || 0)
+                : Number(entry.summary?.totalResults || 0);
             const providerBadges = PROVIDER_ORDER
                 .map(function ([key, label]) {
                     const count = Number(entry.summary?.perSource?.[key] || 0);
+                    if (providerKey && key !== providerKey) return '';
                     if (!count) return '';
-                    return `<span style="display:inline-flex; align-items:center; gap:4px; padding:2px 6px; border-radius:999px; background:rgba(255,255,255,0.08); font-size:0.72rem;">${escapeHtml(label)} <strong>${count}</strong></span>`;
+                    return `<span class="api-provider-badge">${escapeHtml(label)} <strong>${count}</strong></span>`;
                 })
                 .filter(Boolean)
                 .join('');
 
             return `
-                <div class="api-cache-entry" data-query="${escapeHtml(entry.query)}" style="display:flex; flex-direction:column; gap:8px; padding:10px; border:1px solid rgba(255,255,255,0.08); border-radius:10px; background:rgba(255,255,255,0.03);">
-                    <div style="display:flex; justify-content:space-between; gap:10px; align-items:flex-start;">
-                        <div style="min-width:0;">
-                            <div style="font-weight:600; word-break:break-word;">${escapeHtml(entry.query)}</div>
-                            <div style="font-size:0.77rem; opacity:0.7;">${entry.summary?.totalResults || 0} results . updated ${escapeHtml(formatRelativeTime(entry.updatedAt))}</div>
-                            <div style="font-size:0.74rem; opacity:0.58;">${escapeHtml(formatExpiry(entry.expiresAt))}</div>
+                <div class="api-cache-entry" data-query="${escapeHtml(entry.query)}">
+                    <div class="api-cache-entry-header">
+                        <div class="api-cache-entry-copy">
+                            <div class="api-cache-entry-title">${escapeHtml(entry.query)}</div>
+                            <div class="api-cache-entry-meta">${totalResults} results . updated ${escapeHtml(formatRelativeTime(entry.updatedAt))}</div>
+                            <div class="api-cache-entry-expiry">${escapeHtml(formatExpiry(entry.expiresAt))}</div>
                         </div>
-                        <div style="display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;">
+                        <div class="api-cache-actions">
                             <button type="button" class="api-cache-load-btn" data-query="${escapeHtml(entry.query)}">Load</button>
                             <button type="button" class="api-cache-refresh-btn" data-query="${escapeHtml(entry.query)}">Refresh</button>
                             <button type="button" class="api-cache-delete-btn" data-query="${escapeHtml(entry.query)}">Delete</button>
                         </div>
                     </div>
-                    <div style="display:flex; gap:6px; flex-wrap:wrap;">${providerBadges || '<span style="opacity:0.55; font-size:0.78rem;">No provider hits stored.</span>'}</div>
+                    <div class="api-provider-badges">${providerBadges || '<span class="api-provider-empty">No provider hits stored.</span>'}</div>
                 </div>
             `;
         }).join('');
@@ -276,7 +361,7 @@ window.EveOS.API = window.EveOS.API || {};
 
         const resolvedCategory = ensureCategoryContext(categoryName);
         const cacheEntries = api.Cache ? api.Cache.listQueries(resolvedCategory) : [];
-        container.innerHTML = buildCacheListMarkup(cacheEntries, 'No API queries cached for this card yet.');
+        container.innerHTML = buildCacheListMarkup(cacheEntries, 'No API queries cached for this card yet.', options.providerKey);
         const interactionDelayMs = Number(options.interactionDelayMs) > 0 ? Number(options.interactionDelayMs) : 0;
 
         function assignQuery(query) {
@@ -293,6 +378,7 @@ window.EveOS.API = window.EveOS.API || {};
                 runAfterDelay(function () {
                     loadCachedQuery(query, resultsContainer, null, {
                         categoryName: resolvedCategory,
+                        providerKey: options.providerKey,
                         onAfterRender: options.onRefresh
                     });
                 }, interactionDelayMs);
@@ -308,6 +394,7 @@ window.EveOS.API = window.EveOS.API || {};
                 runAfterDelay(function () {
                     runSearch(query, resultsContainer, null, {
                         categoryName: resolvedCategory,
+                        providerKey: options.providerKey,
                         liveResults: true,
                         onAfterRender: function () {
                             if (typeof options.onRefresh === 'function') options.onRefresh();
@@ -327,9 +414,27 @@ window.EveOS.API = window.EveOS.API || {};
         });
     }
 
-    function getLatestCachedQuery(categoryName) {
+    function getLatestCachedQuery(categoryName, providerKey = null) {
         const cacheEntries = api.Cache ? api.Cache.listQueries(categoryName) : [];
-        return cacheEntries[0] || null;
+        if (!providerKey || !isProviderSource(providerKey)) {
+            return cacheEntries[0] || null;
+        }
+        return cacheEntries.find(function (entry) {
+            return Number(entry.summary?.perSource?.[providerKey] || 0) > 0;
+        }) || null;
+    }
+
+    function renderScraperSourceTabs(container, activeSource) {
+        if (!container) return;
+
+        container.innerHTML = PROVIDER_CONFIG.map(function (provider) {
+            const isActive = String(activeSource || '').trim() === provider.key ? ' active' : '';
+            return `
+                <button class="source-toggle-btn${isActive}" data-source="${escapeHtml(provider.key)}" data-provider-source="true" onclick="updateSource('${escapeHtml(provider.key)}')">
+                    <span class="icon">${escapeHtml(provider.shortLabel)}</span> ${escapeHtml(provider.label)}
+                </button>
+            `;
+        }).join('');
     }
 
     function ensureScraperLiveToggleBinding(categoryName) {
@@ -365,30 +470,34 @@ window.EveOS.API = window.EveOS.API || {};
         if (!query || !resultsContainer) return null;
 
         const resolvedCategory = ensureCategoryContext(options.categoryName);
+        const providerKey = isProviderSource(options.providerKey) ? options.providerKey : null;
         const shouldUseLive = resolveLivePreference(resolvedCategory, options.liveResults);
         const shouldUseHybrid = resolveHybridPreference(resolvedCategory, options.hybridResults);
         const normalizedQuery = String(query).trim();
         const cachedEntry = api.Cache ? api.Cache.getQuery(normalizedQuery, resolvedCategory) : null;
+        const cachedVisibleSources = filterSourcesByProvider(cachedEntry?.sources || {}, providerKey);
+        const cachedVisibleCount = countResults(cachedVisibleSources);
 
         resultsContainer.style.display = 'block';
 
-        if (!shouldUseLive && cachedEntry?.sources) {
+        if (!shouldUseLive && cachedEntry?.sources && cachedVisibleCount > 0) {
             if (api.Cache) api.Cache.touchQuery(normalizedQuery, resolvedCategory);
-            renderSourceResults(cachedEntry.sources, resultsContainer, onSelect);
+            const renderedSources = renderSourceResults(cachedEntry.sources, resultsContainer, onSelect, providerKey);
             if (typeof options.onAfterRender === 'function') {
                 options.onAfterRender({ fromCache: true, entry: cachedEntry, categoryName: resolvedCategory });
             }
             return {
-                sources: cachedEntry.sources,
+                sources: renderedSources,
                 meta: {
                     fromCache: true,
-                    summary: cachedEntry.summary || api.Cache?.summarizeSources?.(cachedEntry.sources) || { totalResults: 0 }
+                    providerKey,
+                    summary: api.Cache?.summarizeSources?.(renderedSources) || { totalResults: 0 }
                 }
             };
         }
 
         if (!shouldUseLive && !shouldUseHybrid) {
-            renderCacheOnlyMessage(resultsContainer, normalizedQuery);
+            renderCacheOnlyMessage(resultsContainer, normalizedQuery, providerKey);
             if (typeof options.onAfterRender === 'function') {
                 options.onAfterRender({
                     fromCache: false,
@@ -406,38 +515,41 @@ window.EveOS.API = window.EveOS.API || {};
             };
         }
 
-        resultsContainer.innerHTML = '<div style="padding:10px;">Searching APIs...</div>';
+        resultsContainer.innerHTML = `<div style="padding:10px;">Searching ${escapeHtml(providerKey ? getProviderLabel(providerKey) : 'API providers')}...</div>`;
         updateResultsCount(0);
 
         try {
-            const sourceResults = await collectLiveResults(normalizedQuery);
-            const storedEntry = api.Cache ? api.Cache.storeQuery(normalizedQuery, sourceResults, resolvedCategory) : null;
-            renderSourceResults(sourceResults, resultsContainer, onSelect);
+            const liveSources = await collectLiveResults(normalizedQuery, providerKey);
+            const mergedSources = providerKey ? mergeSources(cachedEntry?.sources, liveSources) : liveSources;
+            const storedEntry = api.Cache ? api.Cache.storeQuery(normalizedQuery, mergedSources, resolvedCategory, { ttlMs: options.ttlMs }) : null;
+            const renderedSources = renderSourceResults(mergedSources, resultsContainer, onSelect, providerKey);
             if (typeof options.onAfterRender === 'function') {
                 options.onAfterRender({ fromCache: false, entry: storedEntry, categoryName: resolvedCategory });
             }
             return {
-                sources: sourceResults,
+                sources: renderedSources,
                 meta: {
                     fromCache: false,
-                    summary: storedEntry?.summary || api.Cache?.summarizeSources?.(sourceResults) || { totalResults: 0 }
+                    providerKey,
+                    summary: api.Cache?.summarizeSources?.(renderedSources) || { totalResults: 0 }
                 }
             };
         } catch (error) {
             console.error('API search error:', error);
 
-            if (cachedEntry?.sources) {
+            if (cachedEntry?.sources && cachedVisibleCount > 0) {
                 if (api.Cache) api.Cache.touchQuery(normalizedQuery, resolvedCategory);
-                renderSourceResults(cachedEntry.sources, resultsContainer, onSelect);
+                const renderedSources = renderSourceResults(cachedEntry.sources, resultsContainer, onSelect, providerKey);
                 if (typeof options.onAfterRender === 'function') {
                     options.onAfterRender({ fromCache: true, fallback: true, entry: cachedEntry, categoryName: resolvedCategory });
                 }
                 return {
-                    sources: cachedEntry.sources,
+                    sources: renderedSources,
                     meta: {
                         fromCache: true,
                         fallback: true,
-                        summary: cachedEntry.summary || api.Cache?.summarizeSources?.(cachedEntry.sources) || { totalResults: 0 }
+                        providerKey,
+                        summary: api.Cache?.summarizeSources?.(renderedSources) || { totalResults: 0 }
                     }
                 };
             }
@@ -451,51 +563,67 @@ window.EveOS.API = window.EveOS.API || {};
         if (!query || !resultsContainer || !api.Cache) return null;
 
         const resolvedCategory = ensureCategoryContext(options.categoryName);
+        const providerKey = isProviderSource(options.providerKey) ? options.providerKey : null;
         const cachedEntry = api.Cache.getQuery(query, resolvedCategory);
         if (!cachedEntry?.sources) return null;
+        if (countResults(filterSourcesByProvider(cachedEntry.sources, providerKey)) < 1) return null;
 
         api.Cache.touchQuery(query, resolvedCategory);
-        renderSourceResults(cachedEntry.sources, resultsContainer, onSelect);
+        const renderedSources = renderSourceResults(cachedEntry.sources, resultsContainer, onSelect, providerKey);
         if (typeof options.onAfterRender === 'function') {
             options.onAfterRender({ fromCache: true, entry: cachedEntry, categoryName: resolvedCategory });
         }
-        return cachedEntry;
+        return {
+            ...cachedEntry,
+            renderedSources
+        };
     }
 
     function renderSearchUI(searchContainer, resultsContainer, categoryName) {
         if (!searchContainer || !resultsContainer) return;
 
         const resolvedCategory = ensureCategoryContext(categoryName);
-        const prefs = api.Cache ? api.Cache.loadPrefs(resolvedCategory) : { liveResults: false };
+        const prefs = api.Cache ? api.Cache.loadPrefs(resolvedCategory) : {
+            liveResults: false,
+            hybridResults: true,
+            ttlMs: api.Cache?.DEFAULT_TTL_MS
+        };
 
         searchContainer.innerHTML = `
-            <div class="api-search-box" style="display:flex; gap:8px; margin-bottom:10px;">
-                <input type="text" class="api-search-input" placeholder="Search Manga / Anime / Comics / Books..." style="flex:1; padding:6px 8px;">
-                <button type="button" class="api-search-btn" style="padding:6px 10px;">Search</button>
+            <div class="api-control-card">
+                <div class="api-search-box">
+                    <input type="text" class="api-search-input" placeholder="Search all API providers for this card...">
+                    <button type="button" class="api-search-btn">Search</button>
+                </div>
+                <div class="api-preferences-row">
+                    <label class="api-toggle-chip">
+                        <input type="checkbox" data-api-hybrid-toggle="search" ${prefs.hybridResults !== false ? 'checked' : ''}>
+                        <span>Hybrid cache</span>
+                    </label>
+                    <label class="api-toggle-chip">
+                        <input type="checkbox" data-api-live-toggle="search" ${prefs.liveResults ? 'checked' : ''}>
+                        <span>Live results</span>
+                    </label>
+                    <label class="api-select-chip">
+                        <span>TTL</span>
+                        <select data-api-ttl-select="search" class="api-ttl-select">${buildTtlOptionsMarkup(prefs.ttlMs)}</select>
+                    </label>
+                    <button type="button" class="api-action-btn api-search-refresh-last-btn">Refresh Last</button>
+                    <button type="button" class="api-action-btn api-search-clear-cache-btn">Clear Cache Pool</button>
+                    <span class="api-surface-note">Cache is isolated to this card only.</span>
+                </div>
+                <details class="api-cache-pool-details" open>
+                    <summary>Cache Pool</summary>
+                    <div class="api-cache-pool-list"></div>
+                </details>
             </div>
-            <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:10px;">
-                <label style="display:inline-flex; align-items:center; gap:6px; font-size:0.84rem;">
-                    <input type="checkbox" data-api-hybrid-toggle="search" ${prefs.hybridResults !== false ? 'checked' : ''}>
-                    <span>Hybrid cache</span>
-                </label>
-                <label style="display:inline-flex; align-items:center; gap:6px; font-size:0.84rem;">
-                    <input type="checkbox" data-api-live-toggle="search" ${prefs.liveResults ? 'checked' : ''}>
-                    <span>Live results</span>
-                </label>
-                <button type="button" class="api-search-refresh-last-btn" style="padding:4px 8px;">Refresh Last</button>
-                <button type="button" class="api-search-clear-cache-btn" style="padding:4px 8px;">Clear Cache Pool</button>
-                <span style="font-size:0.78rem; opacity:0.64;">Cache is scoped to this card only.</span>
-            </div>
-            <details class="api-cache-pool-details" open>
-                <summary style="cursor:pointer; margin-bottom:8px;">Cache Pool</summary>
-                <div class="api-cache-pool-list" style="display:flex; flex-direction:column; gap:8px;"></div>
-            </details>
         `;
 
         const input = searchContainer.querySelector('.api-search-input');
         const button = searchContainer.querySelector('.api-search-btn');
         const hybridToggle = searchContainer.querySelector('[data-api-hybrid-toggle="search"]');
         const liveToggle = searchContainer.querySelector('[data-api-live-toggle="search"]');
+        const ttlSelect = searchContainer.querySelector('[data-api-ttl-select="search"]');
         const refreshLastButton = searchContainer.querySelector('.api-search-refresh-last-btn');
         const clearCacheButton = searchContainer.querySelector('.api-search-clear-cache-btn');
         const cachePoolList = searchContainer.querySelector('.api-cache-pool-list');
@@ -511,6 +639,7 @@ window.EveOS.API = window.EveOS.API || {};
             if (!nextQuery) return;
             runSearch(nextQuery, resultsContainer, null, {
                 categoryName: resolvedCategory,
+                ttlMs: Number(ttlSelect?.value) > 0 ? Number(ttlSelect.value) : prefs.ttlMs,
                 liveResults: typeof forceLive === 'boolean' ? forceLive : liveToggle.checked,
                 hybridResults: hybridToggle?.checked !== false,
                 onAfterRender: refreshPool
@@ -539,9 +668,15 @@ window.EveOS.API = window.EveOS.API || {};
             });
         }
 
+        if (ttlSelect) {
+            ttlSelect.addEventListener('change', function () {
+                persistTtlPreference(resolvedCategory, ttlSelect.value, ttlSelect);
+            });
+        }
+
         if (refreshLastButton) {
             refreshLastButton.addEventListener('click', function () {
-                const fallbackEntry = getLatestCachedQuery(resolvedCategory);
+                const fallbackEntry = getLatestCachedQuery(resolvedCategory, null);
                 if (!String(input.value || '').trim() && fallbackEntry?.query) {
                     input.value = fallbackEntry.query;
                 }
@@ -554,6 +689,7 @@ window.EveOS.API = window.EveOS.API || {};
                 if (api.Cache) {
                     api.Cache.clearAll(resolvedCategory);
                     api.Cache.savePrefs({
+                        ttlMs: Number(ttlSelect?.value) > 0 ? Number(ttlSelect.value) : prefs.ttlMs,
                         liveResults: liveToggle?.checked === true,
                         hybridResults: hybridToggle?.checked !== false
                     }, resolvedCategory);
@@ -570,32 +706,50 @@ window.EveOS.API = window.EveOS.API || {};
         refreshPool();
         syncHybridToggleState(hybridToggle?.checked !== false, hybridToggle);
         syncLiveToggleState(liveToggle?.checked === true, liveToggle);
+        syncTtlState(Number(ttlSelect?.value) > 0 ? Number(ttlSelect.value) : prefs.ttlMs, ttlSelect);
     }
 
-    function renderScraperPanelUI(container, categoryName) {
+    function renderScraperPanelUI(container, categoryName, options = {}) {
         if (!container) return;
 
         const resolvedCategory = ensureCategoryContext(categoryName);
-        const prefs = api.Cache ? api.Cache.loadPrefs(resolvedCategory) : { liveResults: false };
+        const providerKey = isProviderSource(options.providerKey) ? options.providerKey : null;
+        const providerLabel = providerKey ? getProviderLabel(providerKey) : 'All API Sources';
+        const prefs = api.Cache ? api.Cache.loadPrefs(resolvedCategory) : {
+            liveResults: false,
+            hybridResults: true,
+            ttlMs: api.Cache?.DEFAULT_TTL_MS
+        };
 
         container.innerHTML = `
-            <div style="display:flex; flex-direction:column; gap:12px;">
-                <div style="font-size:0.83rem; opacity:0.78;">
-                    Search all API providers from the left search bar. Cached queries and results stay inside this card.
+            <div class="api-scraper-shell">
+                <div class="api-scraper-hero">
+                    <div>
+                        <div class="api-scraper-kicker">Card-scoped provider cache</div>
+                        <div class="api-scraper-provider-title">${escapeHtml(providerLabel)}</div>
+                        <div class="api-scraper-provider-meta">
+                            ${providerKey ? `Search and cache only ${escapeHtml(providerLabel)} results from the left search bar.` : 'Search all API providers from the left search bar. Cached queries and results stay inside this card.'}
+                        </div>
+                    </div>
+                    <div class="api-scraper-focus-pill">${providerKey ? 'Provider view' : 'All providers'}</div>
                 </div>
-                <label style="display:inline-flex; align-items:center; gap:8px; font-size:0.84rem;">
-                    <input type="checkbox" data-api-hybrid-toggle="scraper" ${prefs.hybridResults !== false ? 'checked' : ''}>
-                    <span>Hybrid cache</span>
-                </label>
-                <label style="display:inline-flex; align-items:center; gap:8px; font-size:0.84rem;">
-                    <input type="checkbox" data-api-live-toggle="scraper" ${prefs.liveResults ? 'checked' : ''}>
-                    <span>Live results</span>
-                </label>
-                <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                    <button type="button" class="api-scraper-refresh-btn">Refresh Last</button>
-                    <button type="button" class="api-scraper-clear-btn">Clear Cache Pool</button>
+                <div class="api-preferences-row">
+                    <label class="api-toggle-chip">
+                        <input type="checkbox" data-api-hybrid-toggle="scraper" ${prefs.hybridResults !== false ? 'checked' : ''}>
+                        <span>Hybrid cache</span>
+                    </label>
+                    <label class="api-toggle-chip">
+                        <input type="checkbox" data-api-live-toggle="scraper" ${prefs.liveResults ? 'checked' : ''}>
+                        <span>Live results</span>
+                    </label>
+                    <label class="api-select-chip">
+                        <span>TTL</span>
+                        <select data-api-ttl-select="scraper" class="api-ttl-select">${buildTtlOptionsMarkup(prefs.ttlMs)}</select>
+                    </label>
+                    <button type="button" class="api-action-btn api-scraper-refresh-btn">Refresh Last</button>
+                    <button type="button" class="api-action-btn api-scraper-clear-btn">Clear Cache Pool</button>
                 </div>
-                <div class="api-scraper-cache-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+                <div class="api-scraper-cache-list"></div>
             </div>
         `;
 
@@ -603,6 +757,7 @@ window.EveOS.API = window.EveOS.API || {};
         const resultsContainer = document.getElementById('results');
         const hybridToggle = container.querySelector('[data-api-hybrid-toggle="scraper"]');
         const liveToggle = container.querySelector('[data-api-live-toggle="scraper"]');
+        const ttlSelect = container.querySelector('[data-api-ttl-select="scraper"]');
         const refreshButton = container.querySelector('.api-scraper-refresh-btn');
         const clearButton = container.querySelector('.api-scraper-clear-btn');
         const cacheList = container.querySelector('.api-scraper-cache-list');
@@ -610,10 +765,11 @@ window.EveOS.API = window.EveOS.API || {};
         ensureScraperLiveToggleBinding(resolvedCategory);
         syncHybridToggleState(prefs.hybridResults !== false, hybridToggle);
         syncLiveToggleState(prefs.liveResults === true, liveToggle);
+        syncTtlState(Number(ttlSelect?.value) > 0 ? Number(ttlSelect.value) : prefs.ttlMs, ttlSelect);
 
         function beforeLoad() {
             if (typeof window.updateSource === 'function') {
-                window.updateSource('api');
+                window.updateSource(providerKey || 'api');
             }
         }
 
@@ -621,6 +777,7 @@ window.EveOS.API = window.EveOS.API || {};
             wireCacheList(cacheList, resolvedCategory, resultsContainer, queryInput, {
                 beforeLoad: beforeLoad,
                 interactionDelayMs: 340,
+                providerKey: providerKey,
                 onRefresh: refreshPool
             });
         }
@@ -637,16 +794,24 @@ window.EveOS.API = window.EveOS.API || {};
             });
         }
 
+        if (ttlSelect) {
+            ttlSelect.addEventListener('change', function () {
+                persistTtlPreference(resolvedCategory, ttlSelect.value, ttlSelect);
+            });
+        }
+
         if (refreshButton) {
             refreshButton.addEventListener('click', function () {
                 beforeLoad();
-                const latestEntry = getLatestCachedQuery(resolvedCategory);
+                const latestEntry = getLatestCachedQuery(resolvedCategory, providerKey);
                 const nextQuery = String(queryInput?.value || '').trim() || latestEntry?.query || '';
                 if (!nextQuery || !resultsContainer) return;
                 if (queryInput) queryInput.value = nextQuery;
                 runAfterDelay(function () {
                     runSearch(nextQuery, resultsContainer, null, {
                         categoryName: resolvedCategory,
+                        providerKey: providerKey,
+                        ttlMs: Number(ttlSelect?.value) > 0 ? Number(ttlSelect.value) : prefs.ttlMs,
                         liveResults: true,
                         hybridResults: hybridToggle?.checked !== false,
                         onAfterRender: refreshPool
@@ -660,6 +825,7 @@ window.EveOS.API = window.EveOS.API || {};
                 if (api.Cache) {
                     api.Cache.clearAll(resolvedCategory);
                     api.Cache.savePrefs({
+                        ttlMs: Number(ttlSelect?.value) > 0 ? Number(ttlSelect.value) : prefs.ttlMs,
                         liveResults: liveToggle?.checked === true,
                         hybridResults: hybridToggle?.checked !== false
                     }, resolvedCategory);
@@ -678,6 +844,9 @@ window.EveOS.API = window.EveOS.API || {};
 
     api.Manager = {
         collectLiveResults,
+        getProviderLabel,
+        isProviderSource,
+        renderScraperSourceTabs,
         renderSearchUI,
         renderScraperPanelUI,
         refreshScraperPanel: renderScraperPanelUI,

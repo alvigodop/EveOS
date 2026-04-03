@@ -101,6 +101,14 @@ function buildSeedPayload() {
 async function runBrowserSmoke(page) {
     return page.evaluate(async () => {
         const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+        const waitFor = async (predicate, timeoutMs, label) => {
+            const started = Date.now();
+            while (Date.now() - started < timeoutMs) {
+                if (predicate()) return;
+                await wait(50);
+            }
+            throw new Error(`Timed out waiting for ${label}`);
+        };
 
         function normalizeImageSrc(value) {
             return String(value || '').trim();
@@ -154,7 +162,11 @@ async function runBrowserSmoke(page) {
         if (window.EveLibrary?.ConnectionsAPI?.loadConnections) {
             window.EveLibrary.ConnectionsAPI.loadConnections();
         }
-        await wait(500);
+        await waitFor(() => (
+            Array.isArray(window.eveState?.links)
+            && window.eveState.links.length >= 3
+            && !!window.EveLibrary?.ConnectionsAPI?.getLinkedEntry?.('l-library')?.entry
+        ), 5000, 'seeded bookmark and library state');
 
         if (!window.EveBookmarkFolders?.moveLinksToFolderTarget) {
             throw new Error('moveLinksToFolderTarget unavailable');
@@ -166,11 +178,21 @@ async function runBrowserSmoke(page) {
             throw new Error(`Expected folder moves to succeed: extra=${movedExtra}, library=${movedLibrary}`);
         }
 
-        await wait(250);
+        await waitFor(() => {
+            const extraLink = findLinkById('l-extra');
+            const libraryLink = findLinkById('l-library');
+            return String(extraLink?.folderId || '') === 'f-parent'
+                && String(libraryLink?.folderId || '') === 'f-grand';
+        }, 4000, 'folder ids to update after move');
         if (typeof window.renderDashboard === 'function') {
             window.renderDashboard();
         }
-        await wait(300);
+        await waitFor(() => {
+            const rootLink = findLinkById('l-root');
+            const extraLink = findLinkById('l-extra');
+            const libraryLink = findLinkById('l-library');
+            return !!rootLink && !!extraLink && !!libraryLink;
+        }, 4000, 'dashboard state to stabilize');
 
         const rootHover = await captureHoverCover('l-root', 'Root Cover Bookmark');
         const extraHover = await captureHoverCover('l-extra', 'Extra Cover Bookmark');
@@ -209,14 +231,21 @@ async function runBrowserSmoke(page) {
         if (typeof window.renderDashboard === 'function') {
             window.renderDashboard();
         }
-        await wait(250);
+        await waitFor(() => !!window.UnidexView?.switchWorkspaceTab && !!window.UnidexView?.selectCategory, 4000, 'Unidex helpers');
         if (!window.UnidexView?.switchWorkspaceTab || !window.UnidexView?.selectCategory) {
             throw new Error('Unidex navigation helpers unavailable');
         }
         window.UnidexView.switchWorkspaceTab('main');
-        await wait(250);
+        await waitFor(() => {
+            const tab = document.querySelector('[data-unidex-workspace-tab="main"], .unidex-workspace-tab.active');
+            return !tab || String(tab.dataset?.workspaceId || 'main') === 'main';
+        }, 4000, 'Unidex workspace switch');
         window.UnidexView.selectCategory('Reading');
-        await wait(800);
+        await waitFor(() => {
+            return !!findUnidexEntryNode('Root Cover Bookmark')
+                && !!findUnidexEntryNode('Extra Cover Bookmark')
+                && !!findUnidexEntryNode('Library Cover Bookmark');
+        }, 8000, 'Unidex entries to render');
 
         const unidexRoot = captureUnidexCover('Root Cover Bookmark');
         const unidexExtra = captureUnidexCover('Extra Cover Bookmark');

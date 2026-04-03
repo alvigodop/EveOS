@@ -46,7 +46,7 @@ async function main() {
                 ['TVmaze', 'searchTVmaze', () => ([])],
                 ['iTunes', 'searchiTunes', () => ({ results: [] })],
                 ['WlnUpdates', 'searchWlnUpdates', () => ({ data: [] })],
-                ['OpenLibrary', 'searchOpenLibrary', () => ({ docs: [] })],
+                ['OpenLibrary', 'searchOpenLibrary', () => ({ docs: [{ key: '/works/OL1W', title: 'Kingdom Atlas' }] })],
                 ['ComicK', 'searchComicK', () => ([])]
             ];
 
@@ -72,10 +72,11 @@ async function main() {
             const searchButton = modal.querySelector('.api-search-btn');
             const searchHybridToggle = modal.querySelector('[data-api-hybrid-toggle="search"]');
             const searchLiveToggle = modal.querySelector('[data-api-live-toggle="search"]');
+            const searchTtlSelect = modal.querySelector('[data-api-ttl-select="search"]');
             const searchCachePool = modal.querySelector('.api-cache-pool-list');
             const searchResults = document.getElementById('modal-api-results-container');
 
-            if (!searchInput || !searchButton || !searchHybridToggle || !searchLiveToggle || !searchCachePool || !searchResults) {
+            if (!searchInput || !searchButton || !searchHybridToggle || !searchLiveToggle || !searchTtlSelect || !searchCachePool || !searchResults) {
                 throw new Error('Search tab API UI failed to render');
             }
 
@@ -83,6 +84,8 @@ async function main() {
             searchHybridToggle.dispatchEvent(new Event('change', { bubbles: true }));
             searchLiveToggle.checked = false;
             searchLiveToggle.dispatchEvent(new Event('change', { bubbles: true }));
+            searchTtlSelect.value = String(60 * 60 * 1000);
+            searchTtlSelect.dispatchEvent(new Event('change', { bubbles: true }));
 
             searchInput.value = 'kingdom';
             searchButton.click();
@@ -108,6 +111,7 @@ async function main() {
             const alphaCacheEntry = window.EveOS.API.Cache.getQuery('kingdom', 'Alpha');
             const betaCacheEntry = window.EveOS.API.Cache.getQuery('kingdom', 'Beta');
             const alphaPrefsAfterSearch = window.EveOS.API.Cache.loadPrefs('Alpha');
+            const allProviderRenderedCards = searchResults.querySelectorAll('.manga-item').length;
 
             searchHybridToggle.checked = false;
             searchHybridToggle.dispatchEvent(new Event('change', { bubbles: true }));
@@ -120,11 +124,12 @@ async function main() {
             window.switchCategoryTab('scraper');
             await new Promise((resolve) => setTimeout(resolve, 800));
 
-            const sourceApiBtn = modal.querySelector('.source-toggle-btn[data-source="api"]');
-            if (!sourceApiBtn) {
-                throw new Error('Scraper tab missing API source toggle');
+            const providerSourceButtons = Array.from(modal.querySelectorAll('#apiSourceToggleCluster .source-toggle-btn'));
+            const sourceMangaDexBtn = modal.querySelector('.source-toggle-btn[data-source="mangadex"]');
+            if (!sourceMangaDexBtn || providerSourceButtons.length < 13) {
+                throw new Error('Scraper tab missing provider source toggles');
             }
-            sourceApiBtn.click();
+            sourceMangaDexBtn.click();
 
             await new Promise((resolve, reject) => {
                 const started = Date.now();
@@ -145,8 +150,10 @@ async function main() {
 
             const scraperHybridToggle = modal.querySelector('[data-api-hybrid-toggle="scraper"]');
             const scraperLiveToggle = modal.querySelector('[data-api-live-toggle="scraper"]');
+            const scraperTtlSelect = modal.querySelector('[data-api-ttl-select="scraper"]');
             const scraperCacheEntries = modal.querySelectorAll('#api-scraper-panel-container .api-cache-entry').length;
             const apiManagementDisplay = window.getComputedStyle(document.getElementById('apiManagement')).display;
+            const scraperProviderTitle = modal.querySelector('.api-scraper-provider-title')?.textContent?.trim() || '';
 
             const scraperSearchInput = modal.querySelector('#searchInput');
             if (!scraperSearchInput) {
@@ -155,7 +162,7 @@ async function main() {
             scraperSearchInput.value = 'kingdom';
 
             const providerCallsBeforeScraperSearch = window.__apiSmokeProviderCalls;
-            await window.SearchCoordinatorFlow.performContentSearch('kingdom', 'api', {
+            await window.SearchCoordinatorFlow.performContentSearch('kingdom', 'mangadex', {
                 layout: 'grid',
                 liveSearch: false,
                 hybridSearch: false
@@ -163,6 +170,7 @@ async function main() {
             await new Promise((resolve) => setTimeout(resolve, 300));
             const providerCallsAfterScraperSearch = window.__apiSmokeProviderCalls;
             const alphaPrefsFinal = window.EveOS.API.Cache.loadPrefs('Alpha');
+            const providerFilteredResultCount = document.getElementById('resultCount')?.textContent || '';
 
             return {
                 providerCallsAfterHybridMiss,
@@ -173,12 +181,17 @@ async function main() {
                 betaCacheVisible: !!betaCacheEntry,
                 alphaPrefsAfterSearch,
                 alphaPrefsFinal,
-                searchResultCount: document.getElementById('resultCount')?.textContent || '',
+                searchResultCount: allProviderRenderedCards,
                 searchResultsVisible: window.getComputedStyle(searchResults).display,
                 scraperApiPanelVisible: apiManagementDisplay,
                 scraperHybridChecked: !!scraperHybridToggle?.checked,
                 scraperLiveChecked: !!scraperLiveToggle?.checked,
-                scraperCacheEntries
+                scraperTtlValue: scraperTtlSelect?.value || '',
+                searchTtlValue: searchTtlSelect?.value || '',
+                scraperCacheEntries,
+                providerSourceButtons: providerSourceButtons.length,
+                scraperProviderTitle,
+                providerFilteredResultCount
             };
         });
 
@@ -191,20 +204,20 @@ async function main() {
         if (result.providerCallsAfterScraperSearch !== result.providerCallsBeforeScraperSearch) {
             throw new Error(`Scraper API cache-only path should not fetch live providers: ${JSON.stringify(result)}`);
         }
-        if (!result.alphaCacheSummary || result.alphaCacheSummary.totalResults !== 1) {
-            throw new Error(`Expected Alpha cache summary to store one result: ${JSON.stringify(result.alphaCacheSummary)}`);
+        if (!result.alphaCacheSummary || result.alphaCacheSummary.totalResults !== 2) {
+            throw new Error(`Expected Alpha cache summary to store two provider results: ${JSON.stringify(result.alphaCacheSummary)}`);
         }
         if (result.betaCacheVisible) {
             throw new Error('Beta card should not see Alpha cache entries');
         }
-        if (result.alphaPrefsAfterSearch.liveResults !== false || result.alphaPrefsAfterSearch.hybridResults !== true) {
+        if (result.alphaPrefsAfterSearch.liveResults !== false || result.alphaPrefsAfterSearch.hybridResults !== true || result.alphaPrefsAfterSearch.ttlMs !== 60 * 60 * 1000) {
             throw new Error(`Alpha prefs not persisted as expected: ${JSON.stringify(result.alphaPrefsAfterSearch)}`);
         }
-        if (result.alphaPrefsFinal.liveResults !== false || result.alphaPrefsFinal.hybridResults !== false) {
+        if (result.alphaPrefsFinal.liveResults !== false || result.alphaPrefsFinal.hybridResults !== false || result.alphaPrefsFinal.ttlMs !== 60 * 60 * 1000) {
             throw new Error(`Final Alpha prefs should reflect cache-only retest: ${JSON.stringify(result.alphaPrefsFinal)}`);
         }
-        if (String(result.searchResultCount).trim() !== '1') {
-            throw new Error(`Expected result count to remain 1, saw ${result.searchResultCount}`);
+        if (Number(result.searchResultCount) !== 2) {
+            throw new Error(`Expected all-provider result count to remain 2, saw ${result.searchResultCount}`);
         }
         if (result.searchResultsVisible === 'none') {
             throw new Error('Expected API search results container to be visible');
@@ -215,8 +228,20 @@ async function main() {
         if (result.scraperHybridChecked || result.scraperLiveChecked) {
             throw new Error(`Expected scraper API toggles to reflect cached Alpha prefs: ${JSON.stringify(result)}`);
         }
+        if (result.scraperTtlValue !== String(60 * 60 * 1000) || result.searchTtlValue !== String(60 * 60 * 1000)) {
+            throw new Error(`Expected TTL select sync between search and scraper panels: ${JSON.stringify(result)}`);
+        }
         if (result.scraperCacheEntries < 1) {
             throw new Error(`Expected scraper API panel to show cached entries: ${JSON.stringify(result)}`);
+        }
+        if (result.providerSourceButtons < 13) {
+            throw new Error(`Expected all provider source tabs to render: ${JSON.stringify(result)}`);
+        }
+        if (result.scraperProviderTitle !== 'MangaDex') {
+            throw new Error(`Expected scraper provider title to reflect selected source: ${JSON.stringify(result)}`);
+        }
+        if (String(result.providerFilteredResultCount).trim() !== '1') {
+            throw new Error(`Expected provider-filtered result count of 1 for MangaDex cache-only search: ${JSON.stringify(result)}`);
         }
 
         const criticalConsoleErrors = consoleErrors.filter((entry) => {

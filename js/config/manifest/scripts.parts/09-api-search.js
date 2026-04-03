@@ -29,6 +29,6 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/api-search/display-openlibrary.js",
     "js/modules/features/api-search/display-comick.js?v=0.2.4",
     "js/modules/features/api-search/display.js",
-    "js/modules/features/api-search/index.js?v=0.3.0",
+    "js/modules/features/api-search/index.js?v=0.4.0",
     "js/modules/features/sources/source-manager.js"
 ]);

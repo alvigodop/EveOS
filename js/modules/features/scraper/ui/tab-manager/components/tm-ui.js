@@ -18,9 +18,11 @@
          */
         switchTab: function (source, isInitialLoad, silent) {
             try {
+                const isApiProviderSource = !!window.EveOS?.API?.Manager?.isProviderSource?.(source);
+
                 // Check source validity
-                if (!['wikipedia', 'fandom', 'api'].includes(source)) {
-                    console.error(`Invalid source: ${source}, must be 'wikipedia', 'fandom', or 'api'`);
+                if (!['wikipedia', 'fandom', 'api'].includes(source) && !isApiProviderSource) {
+                    console.error(`Invalid source: ${source}, must be 'wikipedia', 'fandom', 'api', or a registered API provider`);
                     return;
                 }
 
@@ -60,6 +62,7 @@
             const wikipediaTab = document.getElementById('wikipediaTab');
             const fandomTab = document.getElementById('fandomTab');
             const apiTab = document.getElementById('apiTab');
+            const isApiProviderSource = !!window.EveOS?.API?.Manager?.isProviderSource?.(source);
 
             if (wikipediaTab) {
                 wikipediaTab.classList.toggle('active', source === 'wikipedia');
@@ -70,7 +73,7 @@
             }
 
             if (apiTab) {
-                apiTab.classList.toggle('active', source === 'api');
+                apiTab.classList.toggle('active', source === 'api' || isApiProviderSource);
             }
         },
 
@@ -98,8 +101,18 @@
                 console.warn('fandomManagement element not found');
             }
 
+            const isApiProviderSource = !!window.EveOS?.API?.Manager?.isProviderSource?.(source);
+
             if (apiManagement) {
-                apiManagement.style.display = source === 'api' ? 'block' : 'none';
+                apiManagement.style.display = (source === 'api' || isApiProviderSource) ? 'block' : 'none';
+                if ((source === 'api' || isApiProviderSource) && window.EveOS?.API?.Manager?.renderScraperPanelUI) {
+                    const apiPanelContainer = apiManagement.querySelector('#api-scraper-panel-container');
+                    if (apiPanelContainer) {
+                        window.EveOS.API.Manager.renderScraperPanelUI(apiPanelContainer, window.currentCategoryCtx || window.StorageManager?.categoryContext || '', {
+                            providerKey: isApiProviderSource ? source : null
+                        });
+                    }
+                }
             } else if (!isInitialLoad) {
                 console.warn('apiManagement element not found');
             }
@@ -164,10 +177,20 @@
                 if (fandomManagement) fandomManagement.style.display = 'none';
                 if (apiManagement) apiManagement.style.display = 'none';
 
+                const isApiProviderSource = !!window.EveOS?.API?.Manager?.isProviderSource?.(source);
+
                 if (source === 'wikipedia') {
                     if (wikipediaManagement) wikipediaManagement.style.display = 'block';
-                } else if (source === 'api') {
+                } else if (source === 'api' || isApiProviderSource) {
                     if (apiManagement) apiManagement.style.display = 'block';
+                    if (apiManagement && window.EveOS?.API?.Manager?.renderScraperPanelUI) {
+                        const apiPanelContainer = apiManagement.querySelector('#api-scraper-panel-container');
+                        if (apiPanelContainer) {
+                            window.EveOS.API.Manager.renderScraperPanelUI(apiPanelContainer, window.currentCategoryCtx || window.StorageManager?.categoryContext || '', {
+                                providerKey: isApiProviderSource ? source : null
+                            });
+                        }
+                    }
                 } else {
                     if (fandomManagement) fandomManagement.style.display = 'block';
                 }

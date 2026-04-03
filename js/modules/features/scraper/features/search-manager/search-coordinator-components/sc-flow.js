@@ -18,10 +18,16 @@ SearchCoordinatorFlow.performContentSearch = async function (query, source, opti
     console.log(`SearchCoordinatorFlow: Performing content search. Query: "${query}", Source: ${source}, Redisplay: ${redisplayOnly}`);
 
     const resultsContainerId = 'results';
+    const apiManager = window.EveOS?.API?.Manager;
+    const isApiProviderSource = !!apiManager?.isProviderSource?.(source);
+    const isApiSource = source === 'api' || isApiProviderSource;
+    const loadingLabel = isApiProviderSource && apiManager?.getProviderLabel
+        ? `${apiManager.getProviderLabel(source)} API`
+        : source;
 
     // Delegate to UI Renderer for loading
     if (window.SearchUIRenderer) {
-        SearchUIRenderer.showLoading(true, resultsContainerId, `Searching ${source} content...`);
+        SearchUIRenderer.showLoading(true, resultsContainerId, `Searching ${loadingLabel} content...`);
     }
 
     if (!redisplayOnly) {
@@ -45,7 +51,7 @@ SearchCoordinatorFlow.performContentSearch = async function (query, source, opti
         SearchManager._lastQueryOptions.options = searchOptions;
     }
 
-    if (source === 'api') {
+    if (isApiSource) {
         try {
             const apiResultsContainer = document.getElementById(resultsContainerId);
             const apiPanelContainer = document.getElementById('api-scraper-panel-container');
@@ -55,11 +61,14 @@ SearchCoordinatorFlow.performContentSearch = async function (query, source, opti
 
             const apiSearchResult = await window.EveOS.API.Manager.runSearch(query, apiResultsContainer, null, {
                 categoryName: window.currentCategoryCtx || window.StorageManager?.categoryContext || '',
+                providerKey: isApiProviderSource ? source : null,
                 liveResults: searchOptions.liveSearch === true,
                 hybridResults: searchOptions.hybridSearch !== false,
                 onAfterRender: function () {
                     if (apiPanelContainer && window.EveOS?.API?.Manager?.renderScraperPanelUI) {
-                        window.EveOS.API.Manager.renderScraperPanelUI(apiPanelContainer, window.currentCategoryCtx || window.StorageManager?.categoryContext || '');
+                        window.EveOS.API.Manager.renderScraperPanelUI(apiPanelContainer, window.currentCategoryCtx || window.StorageManager?.categoryContext || '', {
+                            providerKey: isApiProviderSource ? source : null
+                        });
                     }
                 }
             });
@@ -69,7 +78,10 @@ SearchCoordinatorFlow.performContentSearch = async function (query, source, opti
             }
         } catch (error) {
             console.error('SearchCoordinatorFlow: Error during API search', error);
-            if (window.SearchUIRenderer) SearchUIRenderer.showError(`Error searching API providers: ${error.message}`, resultsContainerId);
+            const apiErrorLabel = isApiProviderSource && apiManager?.getProviderLabel
+                ? apiManager.getProviderLabel(source)
+                : 'API providers';
+            if (window.SearchUIRenderer) SearchUIRenderer.showError(`Error searching ${apiErrorLabel}: ${error.message}`, resultsContainerId);
         } finally {
             if (window.SearchUIRenderer) SearchUIRenderer.showLoading(false, resultsContainerId);
         }
