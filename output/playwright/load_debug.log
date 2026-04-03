@@ -1,0 +1,18 @@
+start
+before launch
+after launch
+after newPage
+before goto
+console:log:Theme Boot: Initializing...
+console:log:Theme Boot: Applied theme dark
+console:log:Starting parallel script loading...
+after goto
+console:log:All modular styles loaded successfully.
+console:log:BookmarkFolders initialized
+console:log:[ConstellationMap] Initializing module...
+console:log:[ConstellationMap] Module ready.
+console:log:EveLibrary initialized
+console:log:EveOS Autotitle: MicroLink.io strategy loaded
+after wait
+caught:page.evaluate: Target page, context or browser has been closed
+    at C:\Users\alvin\Documents\Workspace\RoughProjDeving\EveOS-0.4\tools\smoke\tmp_load_debug_file.js:24:30
