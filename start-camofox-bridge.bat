@@ -4,7 +4,8 @@ pushd "%~dp0"
 
 set "PROJECT_ROOT=%CD%"
 set "BRIDGE_PORT=3038"
-set "SERVER_PORT=9377"
+set "SERVER_PORT_START=9377"
+set "SERVER_PORT_END=9382"
 set "BRIDGE_SCRIPT=%PROJECT_ROOT%\camofox-bridge.py"
 set "RUNTIME_ROOT=%PROJECT_ROOT%\tools\camofox-runtime"
 set "RUNTIME_PACKAGE=%RUNTIME_ROOT%\package.json"
@@ -75,13 +76,17 @@ if defined BRIDGE_PID (
 )
 
 set "SERVER_PID="
-for /f "tokens=5" %%P in ('netstat -aon ^| findstr /r /c:":%SERVER_PORT% .*LISTENING"') do (
-    set "SERVER_PID=%%P"
-    goto :showStatusServerDone
+set "SERVER_PORT_FOUND="
+for /L %%P in (%SERVER_PORT_START%,1,%SERVER_PORT_END%) do (
+    for /f "tokens=5" %%Q in ('netstat -aon ^| findstr /r /c:":%%P .*LISTENING"') do (
+        set "SERVER_PID=%%Q"
+        set "SERVER_PORT_FOUND=%%P"
+        goto :showStatusServerDone
+    )
 )
 :showStatusServerDone
 if defined SERVER_PID (
-    echo [STATUS] Upstream camofox-browser server: RUNNING on http://127.0.0.1:%SERVER_PORT% ^(PID !SERVER_PID!^)
+    echo [STATUS] Upstream camofox-browser server: RUNNING on http://127.0.0.1:!SERVER_PORT_FOUND! ^(PID !SERVER_PID!^)
 ) else (
     echo [STATUS] Upstream camofox-browser server: STOPPED
 )
@@ -167,14 +172,11 @@ if not defined FOUND_PID (
 )
 
 set "SERVER_PID="
-for /f "tokens=5" %%P in ('netstat -aon ^| findstr /r /c:":%SERVER_PORT% .*LISTENING"') do (
-    set "SERVER_PID=%%P"
-    goto :stopServerFound
-)
-:stopServerFound
-if defined SERVER_PID (
-    echo [OK] Stopping upstream Camofox server PID %SERVER_PID%...
-    taskkill /F /PID %SERVER_PID% >nul 2>nul
+for /L %%P in (%SERVER_PORT_START%,1,%SERVER_PORT_END%) do (
+    for /f "tokens=5" %%Q in ('netstat -aon ^| findstr /r /c:":%%P .*LISTENING"') do (
+        echo [OK] Stopping upstream Camofox server PID %%Q on port %%P...
+        taskkill /F /PID %%Q >nul 2>nul
+    )
 )
 
 timeout /t 1 /nobreak >nul

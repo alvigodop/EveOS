@@ -34,6 +34,7 @@ BLOCKED_TITLE_TOKENS = (
 
 _SERVER_LOCK = threading.Lock()
 _SERVER_PROCESS = None
+_ACTIVE_SERVER_PORT = None
 _SERVER_LOG_TAIL = deque(maxlen=80)
 
 
@@ -77,6 +78,24 @@ def _camofox_server_port():
     if port < 1 or port > 65535:
         return DEFAULT_CAMOFOX_SERVER_PORT
     return port
+
+
+def current_camofox_server_port():
+    return _ACTIVE_SERVER_PORT or _camofox_server_port()
+
+
+def _candidate_camofox_server_ports():
+    configured_port = _camofox_server_port()
+    explicit = (os.environ.get("EVEOS_CAMOFOX_SERVER_PORT") or "").strip()
+    if explicit:
+        return [configured_port]
+
+    max_candidates = 6
+    return [
+        configured_port + offset
+        for offset in range(max_candidates)
+        if 1 <= configured_port + offset <= 65535
+    ]
 
 
 def _append_server_log(line):
@@ -713,10 +732,10 @@ def _start_log_thread(pipe, prefix):
     return thread
 
 
-def _server_env():
+def _server_env(port=None):
     env = os.environ.copy()
     env.setdefault("NODE_ENV", "development")
-    env["CAMOFOX_PORT"] = str(_camofox_server_port())
+    env["CAMOFOX_PORT"] = str(port or _camofox_server_port())
     env.setdefault("SESSION_TIMEOUT_MS", "600000")
     env.setdefault("TAB_INACTIVITY_MS", "180000")
     env.setdefault("BROWSER_IDLE_TIMEOUT_MS", "180000")
@@ -726,20 +745,21 @@ def _server_env():
     return env
 
 
-def _probe_health(timeout=3):
+def _probe_health(timeout=3, port=None):
     try:
-        payload = _json_request("GET", "/health", timeout=timeout)
+        payload = _json_request("GET", "/health", timeout=timeout, port=port)
         return bool(payload.get("ok") or payload.get("browserConnected") or payload.get("browserRunning"))
     except Exception:
         return False
 
 
 def _terminate_server_process():
-    global _SERVER_PROCESS
+    global _SERVER_PROCESS, _ACTIVE_SERVER_PORT
     process = _SERVER_PROCESS
     _SERVER_PROCESS = None
     if not process:
         return
+    _ACTIVE_SERVER_PORT = None
     try:
         if process.poll() is None:
             process.terminate()
@@ -760,7 +780,7 @@ def is_camofox_runtime_available():
 
 
 def ensure_camofox_server():
-    global _SERVER_PROCESS
+    global _SERVER_PROCESS, _ACTIVE_SERVER_PORT
 
     if not is_camofox_runtime_available():
         raise RuntimeError(
@@ -771,43 +791,64 @@ def ensure_camofox_server():
         if _SERVER_PROCESS and _SERVER_PROCESS.poll() is None and _probe_health(timeout=3):
             return True
 
+        if _probe_health(timeout=3):
+            _ACTIVE_SERVER_PORT = current_camofox_server_port()
+            return True
+
         _terminate_server_process()
-        _SERVER_LOG_TAIL.clear()
+        candidate_ports = _candidate_camofox_server_ports()
+        last_tail = ""
 
-        process = subprocess.Popen(
-            [_node_binary(), _camofox_server_entry_path()],
-            cwd=_runtime_root(),
-            env=_server_env(),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-        )
-        _SERVER_PROCESS = process
-        if process.stdout:
-            _start_log_thread(process.stdout, "[server]")
-        if process.stderr:
-            _start_log_thread(process.stderr, "[server-err]")
-
-        deadline = time.time() + DEFAULT_CAMOFOX_SERVER_START_TIMEOUT_SECONDS
-        while time.time() < deadline:
-            if process.poll() is not None:
-                break
-            if _probe_health(timeout=3):
+        for index, candidate_port in enumerate(candidate_ports):
+            if _probe_health(timeout=3, port=candidate_port):
+                _ACTIVE_SERVER_PORT = candidate_port
                 return True
-            time.sleep(0.5)
 
-        tail = _server_log_tail_text()
-        _terminate_server_process()
+            _SERVER_LOG_TAIL.clear()
+            process = subprocess.Popen(
+                [_node_binary(), _camofox_server_entry_path()],
+                cwd=_runtime_root(),
+                env=_server_env(candidate_port),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+            )
+            _SERVER_PROCESS = process
+            if process.stdout:
+                _start_log_thread(process.stdout, "[server]")
+            if process.stderr:
+                _start_log_thread(process.stderr, "[server-err]")
+
+            deadline = time.time() + DEFAULT_CAMOFOX_SERVER_START_TIMEOUT_SECONDS
+            while time.time() < deadline:
+                if process.poll() is not None:
+                    break
+                if _probe_health(timeout=3, port=candidate_port):
+                    _ACTIVE_SERVER_PORT = candidate_port
+                    return True
+                time.sleep(0.5)
+
+            tail = _server_log_tail_text()
+            last_tail = tail
+            _terminate_server_process()
+
+            # The default upstream port may already be claimed on this machine.
+            # When that happens, walk to the next local candidate instead of failing the bridge.
+            if "port in use" in str(tail or "").lower() and index < len(candidate_ports) - 1:
+                continue
+            break
+
         message = "Camofox server failed to start."
-        if tail:
-            message = f"{message} {tail[-600:]}"
+        if last_tail:
+            message = f"{message} {last_tail[-600:]}"
         raise RuntimeError(message)
 
 
-def _json_request(method, path, payload=None, query=None, timeout=20):
-    url = f"http://127.0.0.1:{_camofox_server_port()}{path}"
+def _json_request(method, path, payload=None, query=None, timeout=20, port=None):
+    target_port = port or current_camofox_server_port()
+    url = f"http://127.0.0.1:{target_port}{path}"
     if query:
         url = f"{url}?{urllib.parse.urlencode(query)}"
     data = None

@@ -235,6 +235,14 @@ async function fetchStub(url, options = {}) {
         return makeResponse(true, MU_SEARCH_HTML);
     }
 
+    if (url === 'https://api.comick.dev/comic/naruto/?tachiyomi=true') {
+        throw new TypeError('CORS blocked');
+    }
+
+    if (url === 'http://127.0.0.1:3000/api/proxy?url=' + encodeURIComponent('https://api.comick.dev/comic/naruto/?tachiyomi=true')) {
+        return makeResponse(false, {}, 502);
+    }
+
     if (url === 'https://www.mangaupdates.com/series/7z3yqqk/naruto') {
         return makeResponse(true, MU_DETAIL_HTML);
     }
@@ -354,12 +362,12 @@ function loadScript(relPath) {
     const mangadexResult = await Core.fetchWithFallback(mangadexUrl, {}, 'MangaDex Search failed');
     assert(Array.isArray(mangadexResult.data) && mangadexResult.data[0].id === 'md-1', 'MangaDex should fall back to CodeTabs JSON proxy');
 
-    const blockedLocalAttempts = fetchCalls.filter((call) =>
-        call.url.includes('127.0.0.1:3000')
-        || call.url.includes('127.0.0.1:3037')
-        || call.url.includes('127.0.0.1:3038')
+    const localStatusProbes = fetchCalls.filter((call) =>
+        call.url === 'http://127.0.0.1:3000/api/status'
+        || call.url === 'http://127.0.0.1:3037/api/status'
+        || call.url === 'http://127.0.0.1:3038/api/status'
     );
-    assert(blockedLocalAttempts.length === 3, 'Only initial status probes should hit local services when bridges are off');
+    assert(localStatusProbes.length === 3, 'Initial status probes should hit all three local services');
 
     loadScript('js/modules/features/api-search/anilist.js');
     const aniResult = await context.window.EveOS.API.AniList.searchAniListManga('naruto');
@@ -380,6 +388,12 @@ function loadScript(relPath) {
     assert(muResult.results[0]._fullDetails?.categories?.some((entry) => entry.category === 'Ninja'), 'MangaUpdates detail enrichment should capture categories');
     assert(muResult.results[0]._fullDetails?.publications?.[0]?.publication_name === 'Weekly Shounen Jump', 'MangaUpdates detail enrichment should capture publications');
     assert(muResult.results[0]._fullDetails?.rank?.lists?.reading === 41, 'MangaUpdates detail enrichment should capture list stats');
+
+    const comickDetailUrl = 'https://api.comick.dev/comic/naruto/?tachiyomi=true';
+    const comickDetailResult = await Core.fetchWithFallback(comickDetailUrl, {}, 'ComicK Detail failed');
+    assert(comickDetailResult === null, 'ComicK detail should return null when direct/local/public proxy fetches fail');
+    assert(!fetchCalls.some((call) => call.url.includes('127.0.0.1:3037/api/lightpanda?format=json&url=' + encodeURIComponent(comickDetailUrl))), 'API detail fetches should not fall through to Lightpanda');
+    assert(!fetchCalls.some((call) => call.url.includes('127.0.0.1:3038/api/camofox?format=json&url=' + encodeURIComponent(comickDetailUrl))), 'API detail fetches should not fall through to Camofox');
 
     loadScript('js/modules/features/api-search/display-utils.js');
     loadScript('js/modules/features/api-search/display-mangaupdates.js');

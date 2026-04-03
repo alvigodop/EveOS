@@ -87,7 +87,7 @@ class BridgeHandler(http.server.BaseHTTPRequestHandler):
                 "service": "camofox-bridge",
                 "runtimeAvailable": bool(camofox.is_camofox_runtime_available()),
                 "bridgePort": self.server.server_address[1],
-                "serverPort": camofox._camofox_server_port(),
+                "serverPort": camofox.current_camofox_server_port(),
             }
             body = json.dumps(payload).encode("utf-8")
             self.send_response(HTTPStatus.OK)

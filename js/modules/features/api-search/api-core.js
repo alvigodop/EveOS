@@ -19,10 +19,27 @@ window.EveOS.API = window.EveOS.API || {};
         camofox: false
     };
 
-    async function probeStatus(baseUrl) {
+    const SERVER_STATUS_TIMEOUT_MS = 1500;
+    const BRIDGE_STATUS_TIMEOUT_MS = 350;
+    const OPTIMISTIC_LOCAL_PROXY_TIMEOUT_MS = 1000;
+    const BLOCKED_TEXT_TOKENS = [
+        'just a moment',
+        'attention required! | cloudflare',
+        'access denied',
+        'performing security verification',
+        'verify you are human',
+        'checking your browser',
+        'enable javascript and cookies',
+        'cf-turnstile',
+        'cdn-cgi/challenge-platform',
+        'captcha',
+        'too many requests'
+    ];
+
+    async function probeStatus(baseUrl, timeoutMs = BRIDGE_STATUS_TIMEOUT_MS) {
         try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 350);
+            const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
             const res = await fetch(`${baseUrl}/api/status`, { signal: controller.signal });
             clearTimeout(timeoutId);
             if (!res.ok) return null;
@@ -39,9 +56,9 @@ window.EveOS.API = window.EveOS.API || {};
 
         _serviceProbePromise = (async () => {
             const [serverStatus, lightpandaStatus, camofoxStatus] = await Promise.all([
-                probeStatus(SERVER_BASE),
-                probeStatus(LIGHTPANDA_BASE),
-                probeStatus(CAMOFOX_BASE)
+                probeStatus(SERVER_BASE, SERVER_STATUS_TIMEOUT_MS),
+                probeStatus(LIGHTPANDA_BASE, BRIDGE_STATUS_TIMEOUT_MS),
+                probeStatus(CAMOFOX_BASE, BRIDGE_STATUS_TIMEOUT_MS)
             ]);
 
             _activeProxyBase = serverStatus ? SERVER_BASE : '';
@@ -88,6 +105,78 @@ window.EveOS.API = window.EveOS.API || {};
         }
     }
 
+    function isLikelyApiUrl(targetUrl) {
+        try {
+            const parsed = new URL(targetUrl);
+            const host = String(parsed.hostname || '').toLowerCase();
+            const pathname = String(parsed.pathname || '').toLowerCase();
+
+            return host.startsWith('api.')
+                || host.startsWith('graphql.')
+                || pathname.includes('/graphql')
+                || pathname.endsWith('.json');
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function looksBlockedTextResponse(value) {
+        const text = String(value || '').toLowerCase();
+        if (!text) return false;
+        return BLOCKED_TEXT_TOKENS.some((token) => text.includes(token));
+    }
+
+    function extractBridgeTextPayload(payload) {
+        if (!payload || typeof payload !== 'object') return '';
+        if (typeof payload.html === 'string' && payload.html.trim()) return payload.html;
+        if (typeof payload.snapshot === 'string' && payload.snapshot.trim()) return payload.snapshot;
+        if (typeof payload.text === 'string' && payload.text.trim()) return payload.text;
+        if (typeof payload.metadata === 'string' && payload.metadata.trim()) return payload.metadata;
+        return '';
+    }
+
+    function splitRequestOptions(options = {}) {
+        const {
+            allowBridgeForApiTarget = false,
+            ...requestOptions
+        } = options || {};
+
+        return {
+            allowBridgeForApiTarget: allowBridgeForApiTarget === true,
+            requestOptions
+        };
+    }
+
+    async function tryOptimisticLocalProxy(targetUrl, options = {}) {
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), OPTIMISTIC_LOCAL_PROXY_TIMEOUT_MS);
+            const proxyUrl = `${SERVER_BASE}/api/proxy?url=${encodeURIComponent(targetUrl)}`;
+            const response = await fetch(proxyUrl, { ...options, signal: controller.signal });
+            clearTimeout(timeoutId);
+            if (!response.ok) return null;
+            _activeProxyBase = SERVER_BASE;
+            return await response.json();
+        } catch (e) {
+            return null;
+        }
+    }
+
+    async function tryOptimisticLocalProxyText(targetUrl, options = {}) {
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), OPTIMISTIC_LOCAL_PROXY_TIMEOUT_MS);
+            const proxyUrl = `${SERVER_BASE}/api/proxy?url=${encodeURIComponent(targetUrl)}`;
+            const response = await fetch(proxyUrl, { ...options, signal: controller.signal });
+            clearTimeout(timeoutId);
+            if (!response.ok) return null;
+            _activeProxyBase = SERVER_BASE;
+            return await response.text();
+        } catch (e) {
+            return null;
+        }
+    }
+
     async function fetchDirectThenProxy(targetUrl, options = {}, errorMsg = 'API Request failed') {
         try {
             const directRes = await fetch(targetUrl, options);
@@ -102,20 +191,31 @@ window.EveOS.API = window.EveOS.API || {};
     }
 
     async function fetchTextWithFallback(targetUrl, options = {}, errorMsg = 'API Text Fetch failed') {
-        const isPost = options.method === 'POST';
+        const { allowBridgeForApiTarget, requestOptions } = splitRequestOptions(options);
+        const isPost = requestOptions.method === 'POST';
+        const isApiTarget = isLikelyApiUrl(targetUrl);
 
         try {
-            const directRes = await fetch(targetUrl, options);
-            if (directRes.ok) return await directRes.text();
+            const directRes = await fetch(targetUrl, requestOptions);
+            if (directRes.ok) {
+                const text = await directRes.text();
+                if (text && !looksBlockedTextResponse(text)) return text;
+            }
         } catch (e) {}
 
         await probeLocalServices();
         if (_activeProxyBase) {
             try {
                 const proxyUrl = `${_activeProxyBase}/api/proxy?url=${encodeURIComponent(targetUrl)}`;
-                const response = await fetch(proxyUrl, options);
-                if (response.ok) return await response.text();
+                const response = await fetch(proxyUrl, requestOptions);
+                if (response.ok) {
+                    const text = await response.text();
+                    if (text && !looksBlockedTextResponse(text)) return text;
+                }
             } catch (e) {}
+        } else {
+            const optimisticProxyResult = await tryOptimisticLocalProxyText(targetUrl, requestOptions);
+            if (optimisticProxyResult && !looksBlockedTextResponse(optimisticProxyResult)) return optimisticProxyResult;
         }
 
         if (isPost) return null;
@@ -128,7 +228,32 @@ window.EveOS.API = window.EveOS.API || {};
         for (const proxyUrl of publicTextProxies) {
             try {
                 const response = await fetch(proxyUrl);
-                if (response.ok) return await response.text();
+                if (response.ok) {
+                    const text = await response.text();
+                    if (text && !looksBlockedTextResponse(text)) return text;
+                }
+            } catch (e) {}
+        }
+
+        if (isApiTarget && !allowBridgeForApiTarget) {
+            console.warn(errorMsg);
+            return null;
+        }
+
+        const bridges = [
+            _bridgeAvailability.lightpanda ? { name: 'Lightpanda', url: `${LIGHTPANDA_BASE}/api/lightpanda?format=json&url=${encodeURIComponent(targetUrl)}` } : null,
+            _bridgeAvailability.camofox ? { name: 'Camofox', url: `${CAMOFOX_BASE}/api/camofox?format=json&url=${encodeURIComponent(targetUrl)}` } : null
+        ].filter(Boolean);
+
+        for (const bridge of bridges) {
+            try {
+                const response = await fetch(bridge.url);
+                if (!response.ok) continue;
+                const payload = await response.json();
+                const rawText = extractBridgeTextPayload(payload);
+                if (rawText && !looksBlockedTextResponse(rawText)) {
+                    return rawText;
+                }
             } catch (e) {}
         }
 
@@ -137,11 +262,13 @@ window.EveOS.API = window.EveOS.API || {};
     }
 
     async function fetchWithFallback(targetUrl, options = {}, errorMsg = 'API Search failed') {
-        const isPost = options.method === 'POST';
+        const { allowBridgeForApiTarget, requestOptions } = splitRequestOptions(options);
+        const isPost = requestOptions.method === 'POST';
+        const isApiTarget = isLikelyApiUrl(targetUrl);
         
         // 0. Try Direct Fetch (Works if browser security is disabled)
         try {
-            const directRes = await fetch(targetUrl, options);
+            const directRes = await fetch(targetUrl, requestOptions);
             if (directRes.ok) return await directRes.json();
         } catch (e) {}
 
@@ -151,9 +278,12 @@ window.EveOS.API = window.EveOS.API || {};
         if (_activeProxyBase) {
             try {
                 const proxyUrl = `${_activeProxyBase}/api/proxy?url=${encodeURIComponent(targetUrl)}`;
-                const response = await fetch(proxyUrl, options);
+                const response = await fetch(proxyUrl, requestOptions);
                 if (response.ok) return await response.json();
             } catch (e) {}
+        } else if (isApiTarget) {
+            const optimisticProxyResult = await tryOptimisticLocalProxy(targetUrl, requestOptions);
+            if (optimisticProxyResult) return optimisticProxyResult;
         }
 
         // 2. Try Public Proxies (Works in file:// without any server)
@@ -193,7 +323,11 @@ window.EveOS.API = window.EveOS.API || {};
             }
         }
 
-        // 3. Fallback Chain: Lightpanda -> Camofox (The "Solve it" engines)
+        // 3. Fallback Chain: Lightpanda -> Camofox (HTML/content pages only)
+        if (isApiTarget && !allowBridgeForApiTarget) {
+            return null;
+        }
+
         const bridges = [
             _bridgeAvailability.lightpanda ? { name: 'Lightpanda', url: `${LIGHTPANDA_BASE}/api/lightpanda?format=json&url=${encodeURIComponent(targetUrl)}` } : null,
             _bridgeAvailability.camofox ? { name: 'Camofox', url: `${CAMOFOX_BASE}/api/camofox?format=json&url=${encodeURIComponent(targetUrl)}` } : null

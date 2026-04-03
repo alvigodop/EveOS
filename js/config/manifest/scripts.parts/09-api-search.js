@@ -4,7 +4,7 @@ window.EveModuleManifestScriptChunks = window.EveModuleManifestScriptChunks || [
 
 window.EveModuleManifestScriptChunks.push([
     // API Search
-    "js/modules/features/api-search/api-core.js?v=0.2.1",
+    "js/modules/features/api-search/api-core.js?v=0.2.5",
     "js/modules/features/api-search/card-ui.js",
     "js/modules/features/api-search/mangadex.js?v=0.2.1",
     "js/modules/features/api-search/jikan.js",
@@ -15,7 +15,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/api-search/itunes.js",
     "js/modules/features/api-search/wlnupdates.js?v=0.2.1",
     "js/modules/features/api-search/openlibrary.js",
-    "js/modules/features/api-search/comick.js",
+    "js/modules/features/api-search/comick.js?v=0.2.6",
     "js/modules/features/api-search/display-utils.js",
     "js/modules/features/api-search/display-mangadex.js?v=0.2.2",
     "js/modules/features/api-search/display-jikan.js",
@@ -26,7 +26,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/api-search/display-itunes.js",
     "js/modules/features/api-search/display-wlnupdates.js",
     "js/modules/features/api-search/display-openlibrary.js",
-    "js/modules/features/api-search/display-comick.js?v=0.2.1",
+    "js/modules/features/api-search/display-comick.js?v=0.2.4",
     "js/modules/features/api-search/display.js",
     "js/modules/features/api-search/index.js",
     "js/modules/features/sources/source-manager.js"
