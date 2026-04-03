@@ -135,6 +135,6 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/scraper/ui/startup-loader/startup-loader.js",
     "js/modules/features/scraper/core/app-recovery.js",
     "js/modules/features/scraper/ui/category-scraper-panel.js?v=0.1.1",
-    "js/modules/features/scraper/ui/templates/scraper-panel-template.js?v=0.1.2",
+    "js/modules/features/scraper/ui/templates/scraper-panel-template.js?v=0.1.3",
     "js/modules/features/scraper/core/scraper-init.js"
 ]);

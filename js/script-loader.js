@@ -67,7 +67,6 @@
         const isLocalBootstrapContext = window.location.protocol === 'file:' || host === 'localhost' || host === '127.0.0.1';
         if (!isLocalBootstrapContext) return false;
         if (normalized.includes('/scraper/')) return true;
-        if (normalized.includes('/gemini/gemini-init.js')) return true;
         return false;
     }
 
@@ -213,6 +212,7 @@
         try {
             const { criticalScripts, deferredScripts } = getBootBuckets();
             const hasDeferredScripts = deferredScripts.length > 0;
+            let deferredLoadPromise = null;
             if (shouldBatchCriticalScripts(criticalScripts)) {
                 console.log(`Starting batched critical script loading (${criticalScripts.length})...`);
                 await loadScriptsInBatches(criticalScripts, CRITICAL_BATCH_SIZE, CRITICAL_BATCH_PAUSE_MS);
@@ -251,13 +251,23 @@
                 if (!hasDeferredScripts) {
                     return;
                 }
-                try {
-                    await loadDeferredScriptsInBatches(deferredScripts);
-                    if (window.ScraperInit && typeof ScraperInit.init === 'function') ScraperInit.init();
-                    console.log('All scripts loaded.');
-                } catch (deferredError) {
-                    console.warn('[ScriptLoader] Deferred script load warning:', deferredError);
+                if (!deferredLoadPromise) {
+                    deferredLoadPromise = (async () => {
+                        try {
+                            await loadDeferredScriptsInBatches(deferredScripts);
+                            if (window.ScraperInit && typeof ScraperInit.init === 'function') ScraperInit.init();
+                            console.log('All scripts loaded.');
+                        } catch (deferredError) {
+                            console.warn('[ScriptLoader] Deferred script load warning:', deferredError);
+                            throw deferredError;
+                        }
+                    })();
                 }
+                return deferredLoadPromise;
+            };
+
+            window.__loadDeferredScriptsNow = function () {
+                return runDeferredLoad();
             };
 
             if (typeof window.requestIdleCallback === 'function' && hasDeferredScripts) {

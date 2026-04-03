@@ -170,10 +170,25 @@
                         <div class="sidebar-column">
                             <section id="wikiManagementSection">
                                 <div class="wiki-management">
-                                    <h2>Manage Wiki Domains</h2>
+                                    <div class="scraper-sidebar-hero">
+                                        <div>
+                                            <div class="scraper-sidebar-kicker">Card-Scoped Scraper</div>
+                                            <h2>Knowledge Sources</h2>
+                                            <p class="scraper-sidebar-copy">Keep each card isolated while mixing managed wiki sources, live discovery, and provider cache controls in one workspace.</p>
+                                        </div>
+                                        <div class="scraper-sidebar-pill">Scoped</div>
+                                    </div>
 
                                     <!-- Wikipedia Management -->
-                                    <div id="wikipediaManagement" class="wiki-management-panel">
+                                    <div id="wikipediaManagement" class="wiki-management-panel scraper-management-panel">
+                                        <div class="scraper-panel-hero">
+                                            <div>
+                                                <div class="scraper-panel-kicker">Library Source</div>
+                                                <h3 class="scraper-panel-title">Wikipedia</h3>
+                                                <p class="scraper-panel-copy">Manage saved entries, category seeds, and live article discovery for this card.</p>
+                                            </div>
+                                            <div class="scraper-panel-pill">Reference</div>
+                                        </div>
                                         <div class="domain-actions domain-actions-container">
                                             <button id="reloadAllWikiBtn" class="btn secondary-btn" onclick="WikiManager.reloadAllWikiStatus()" title="Reload status for all entries">Reload</button>
                                             <button id="clearAllWikiCacheBtn" class="btn danger-btn" onclick="CacheManager.clearAllWikiCaches()" title="Clear all Wikipedia caches">Clear Cache</button>
@@ -186,13 +201,13 @@
                                             <button id="addWikiBtn" class="btn primary-btn">Add Entry</button>
                                         </div>
 
-                                        <div class="wiki-entries">
+                                        <div class="wiki-entries scraper-management-block">
                                             <h3>Entries</h3>
                                             <ul id="wikiEntryList" class="entry-list"></ul>
                                         </div>
 
                                         <!-- Wikipedia Categories -->
-                                        <div class="wiki-categories wiki-categories-container">
+                                        <div class="wiki-categories wiki-categories-container scraper-management-block">
                                             <h3>Categories</h3>
                                             <div class="domain-add-form">
                                                 <input type="text" id="wikiCategoryInput" placeholder="Enter Category">
@@ -202,7 +217,7 @@
                                         </div>
 
                                         <!-- Discover Wikis -->
-                                        <div class="wiki-discovery">
+                                        <div class="wiki-discovery scraper-management-block">
                                             <h3>Discover Articles</h3>
                                             <div class="discovery-search discovery-search-container wrap">
                                                 <input type="text" id="wikiDiscoveryInput" class="discovery-search-input full-width" placeholder="Search Wikipedia...">
@@ -237,7 +252,15 @@
                                     </div>
 
                                     <!-- Fandom Management -->
-                                    <div id="fandomManagement" class="wiki-management-panel" style="display: none;">
+                                    <div id="fandomManagement" class="wiki-management-panel scraper-management-panel" style="display: none;">
+                                        <div class="scraper-panel-hero">
+                                            <div>
+                                                <div class="scraper-panel-kicker">Community Source</div>
+                                                <h3 class="scraper-panel-title">Fandom</h3>
+                                                <p class="scraper-panel-copy">Track saved communities, keep cache health visible, and discover new fandom domains without leaving the card.</p>
+                                            </div>
+                                            <div class="scraper-panel-pill">Community</div>
+                                        </div>
                                         <div class="domain-actions domain-actions-container">
                                             <button id="reloadAllFandomBtn" class="btn secondary-btn" onclick="WikiManager.reloadAllFandomWikiStatus()">Reload</button>
                                             <button id="clearAllFandomCacheBtn" class="btn danger-btn" onclick="CacheManager.clearAllFandomCaches()">Clear Cache</button>
@@ -250,12 +273,12 @@
                                             <button id="addFandomBtn" class="btn primary-btn">Add Domain</button>
                                         </div>
 
-                                        <div class="wiki-entries">
+                                        <div class="wiki-entries scraper-management-block">
                                             <h3>Fandom Domains</h3>
                                             <ul id="fandomDomainList" class="entry-list"></ul>
                                         </div>
 
-                                        <div id="fandom-search-container" class="wiki-discovery">
+                                        <div id="fandom-search-container" class="wiki-discovery scraper-management-block">
                                             <h3>Discover Communities</h3>
                                             <div id="fandom-search-section" class="discovery-search discovery-search-container wrap">
                                                 <input type="text" id="fandom-search-input" class="discovery-search-input full-width" placeholder="Find a community...">
@@ -297,9 +320,17 @@
                                     </div>
 
                                     <!-- API Search Management -->
-                                    <div id="apiManagement" class="wiki-management-panel" style="display: none;">
+                                    <div id="apiManagement" class="wiki-management-panel scraper-management-panel" style="display: none;">
+                                        <div class="scraper-panel-hero">
+                                            <div>
+                                                <div class="scraper-panel-kicker">Provider Source</div>
+                                                <h3 class="scraper-panel-title">API Cache</h3>
+                                                <p class="scraper-panel-copy">Manage provider-specific cache pools and live refresh rules without crossing card boundaries.</p>
+                                            </div>
+                                            <div class="scraper-panel-pill">Providers</div>
+                                        </div>
                                         <div class="domain-actions domain-actions-container">
-                                            <span class="wiki-link wiki-link-action" style="pointer-events:none; opacity:0.7;">Card-scoped provider cache</span>
+                                            <span class="wiki-link wiki-link-action scraper-passive-note">Card-scoped provider cache</span>
                                         </div>
                                         <div id="api-scraper-panel-container"></div>
                                     </div>

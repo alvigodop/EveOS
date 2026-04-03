@@ -12,10 +12,162 @@
 
 .gemini-monitor-shell {
     width: 100%;
-    max-height: 42vh;
+    max-height: 72vh;
     overflow: auto;
     color: #e6f6ff;
     padding-right: 2px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.gemini-monitor-shell-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 18px;
+    background: linear-gradient(145deg, rgba(11, 16, 24, 0.95), rgba(7, 11, 17, 0.92));
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.gemini-monitor-shell-kicker {
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(230, 246, 255, 0.52);
+    margin-bottom: 4px;
+}
+
+.gemini-monitor-shell-title {
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: #f4fbff;
+}
+
+.gemini-monitor-view-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.gemini-monitor-view-btn {
+    min-height: 34px;
+    padding: 7px 12px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: rgba(230, 246, 255, 0.72);
+    font-size: 0.76rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    transition:
+        background 0.16s ease,
+        border-color 0.16s ease,
+        color 0.16s ease,
+        transform 0.16s ease;
+}
+
+.gemini-monitor-view-btn:hover {
+    color: #f4fbff;
+    transform: translateY(-1px);
+}
+
+.gemini-monitor-view-btn.active {
+    background: linear-gradient(135deg, rgba(0, 212, 255, 0.88), rgba(110, 231, 255, 0.72));
+    border-color: rgba(110, 231, 255, 0.45);
+    color: #031017;
+    box-shadow: 0 10px 24px rgba(0, 212, 255, 0.14);
+}
+
+.gemini-monitor-summary-pane {
+    display: block;
+}
+
+.gemini-monitor-workspace-shell {
+    display: none;
+    gap: 12px;
+    padding: 16px 18px;
+    border-radius: 22px;
+    background:
+        radial-gradient(circle at top right, rgba(0, 212, 255, 0.14), transparent 32%),
+        linear-gradient(145deg, rgba(13, 19, 27, 0.98), rgba(8, 12, 18, 0.95));
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.04),
+        0 18px 34px rgba(0, 0, 0, 0.18);
+}
+
+.gemini-monitor-workspace-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: flex-start;
+}
+
+.gemini-monitor-workspace-kicker {
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(230, 246, 255, 0.48);
+    margin-bottom: 6px;
+}
+
+.gemini-monitor-workspace-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #f5fbff;
+}
+
+.gemini-monitor-workspace-pill {
+    flex: 0 0 auto;
+    padding: 7px 10px;
+    border-radius: 999px;
+    background: rgba(110, 231, 255, 0.12);
+    border: 1px solid rgba(110, 231, 255, 0.18);
+    color: #d8f7ff;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.gemini-monitor-workspace-primary,
+.gemini-monitor-workspace-secondary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.gemini-monitor-workspace-secondary:empty {
+    display: none;
+}
+
+.gemini-monitor-workspace-note {
+    color: rgba(230, 246, 255, 0.64);
+    font-size: 0.8rem;
+    line-height: 1.45;
+}
+
+#gemini-ui-root[data-gemini-monitor-view="full"][data-gemini-full-ready="0"] .gemini-monitor-summary-pane::after {
+    content: "Loading full Gemini workspace...";
+    display: block;
+    margin-top: 10px;
+    padding: 8px 10px;
+    border-radius: 12px;
+    background: rgba(110, 231, 255, 0.08);
+    border: 1px solid rgba(110, 231, 255, 0.14);
+    color: rgba(230, 246, 255, 0.78);
+    font-size: 0.76rem;
+    font-weight: 600;
 }
 
 .gemini-monitor-card {
@@ -282,4 +434,205 @@
     .gemini-live-link-send {
         width: 100%;
     }
+}
+
+/* Embedded Gemini surface inside Search Monitor */
+#loadingIndicator #gemini-ui-root {
+    background: transparent !important;
+    color: #e6f6ff;
+    overflow: auto !important;
+    height: auto !important;
+    max-height: none !important;
+}
+
+#loadingIndicator #gemini-ui-root .mdl-layout__container {
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    display: block;
+}
+
+#loadingIndicator #gemini-ui-root .mdl-layout,
+#loadingIndicator #gemini-ui-root .mdl-layout__content,
+#loadingIndicator #gemini-ui-root .app-container,
+#loadingIndicator #gemini-ui-root .demo-box,
+#loadingIndicator #gemini-ui-root .page-content,
+#loadingIndicator #gemini-ui-root .demo-content,
+#loadingIndicator #gemini-ui-root .left-column,
+#loadingIndicator #gemini-ui-root .right-column {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+#loadingIndicator #gemini-ui-root .agentic-functions {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+#loadingIndicator #gemini-ui-root .agentic-functions > div {
+    display: flex !important;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+#loadingIndicator #gemini-ui-root .agentic-function-card {
+    flex: 1 1 280px;
+}
+
+#loadingIndicator #gemini-ui-root #gemini-live-link-card-placeholder {
+    display: block !important;
+    width: 100% !important;
+}
+
+#loadingIndicator #gemini-ui-root .gemini-live-link-card {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="summary"] .mdl-layout__container {
+    display: none !important;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="summary"] .gemini-monitor-summary-pane {
+    display: block;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="summary"] .gemini-monitor-workspace-shell {
+    display: none !important;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="summary"] .mdl-layout__header,
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="summary"] .video-section,
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="summary"] .right-column,
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="summary"] #time-perception-card-placeholder,
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="summary"] #conversation-memory-card-placeholder,
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="summary"] #ai-self-talk-card-placeholder,
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="summary"] #audio-processing-controls-card-placeholder,
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="summary"] #session-controls-card-placeholder,
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="summary"] #screen-capture-settings-card-placeholder {
+    display: none !important;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="summary"] .agentic-functions > h4 {
+    display: none !important;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="summary"] .agentic-functions > div {
+    display: block !important;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"][data-gemini-full-ready="0"] .gemini-monitor-summary-pane {
+    display: block;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] {
+    max-height: 72vh !important;
+    padding-right: 4px;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .gemini-monitor-summary-pane {
+    display: block;
+    padding-bottom: 10px;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .gemini-monitor-workspace-shell {
+    display: grid;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .mdl-layout__container {
+    margin-top: 4px;
+    padding-top: 4px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .mdl-layout__header {
+    display: flex !important;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background-color: rgba(31, 43, 120, 0.94) !important;
+    backdrop-filter: blur(10px);
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .mdl-layout__header-row {
+    min-height: 56px !important;
+    padding: 0 16px !important;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .demo-content {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 14px !important;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .left-column,
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .right-column {
+    display: flex !important;
+    flex-direction: column;
+    gap: 14px;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .video-section,
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .agentic-functions,
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .chat-container,
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .text-input-section {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    border-radius: 18px;
+    overflow: hidden;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .chat-container,
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .text-input-section {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .agentic-functions {
+    padding: 14px !important;
+    background: linear-gradient(145deg, rgba(18, 24, 34, 0.9), rgba(10, 14, 20, 0.88)) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .page-content {
+    display: grid !important;
+    gap: 14px !important;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"].gemini-collapsed-mode .mdl-layout__content,
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"].gemini-collapsed-mode .app-container,
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"].gemini-collapsed-mode .demo-box,
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .mdl-layout.gemini-collapsed-mode,
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .mdl-layout__container.gemini-collapsed-mode {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .agentic-functions > h4 {
+    display: block !important;
+    margin: 0 0 10px 0 !important;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .gemini-live-link-card {
+    min-height: 0;
+    flex: 1 1 100%;
 }

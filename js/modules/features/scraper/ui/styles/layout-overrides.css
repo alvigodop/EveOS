@@ -246,3 +246,82 @@ main {
 .cursor-pointer {
     cursor: pointer;
 }
+
+/* Modern discovery controls */
+.wiki-link-action {
+    color: rgba(224, 246, 255, 0.84);
+    font-weight: 700;
+    font-size: 0.78rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.wiki-link-action:hover {
+    color: #ffffff;
+    text-decoration: none;
+}
+
+.wiki-discovery .search-btn,
+#fandom-search-container .search-btn,
+.search-actions-container .search-btn,
+.wiki-discovery .btn.secondary-btn,
+#fandom-search-container .btn.secondary-btn,
+.search-actions-container .btn.secondary-btn,
+#fandom-pagination button {
+    min-height: 40px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.wiki-discovery .search-btn,
+#fandom-search-container .search-btn,
+.search-actions-container .search-btn {
+    background: linear-gradient(135deg, rgba(0, 212, 255, 0.9), rgba(110, 231, 255, 0.72));
+    color: #041118;
+}
+
+.wiki-discovery .btn.secondary-btn,
+#fandom-search-container .btn.secondary-btn,
+.search-actions-container .btn.secondary-btn,
+#fandom-pagination button {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.04));
+    color: #eef7ff;
+}
+
+.wiki-discovery .search-btn:hover,
+#fandom-search-container .search-btn:hover,
+.search-actions-container .search-btn:hover,
+.wiki-discovery .btn.secondary-btn:hover,
+#fandom-search-container .btn.secondary-btn:hover,
+.search-actions-container .btn.secondary-btn:hover,
+#fandom-pagination button:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.05),
+        0 10px 20px rgba(0, 0, 0, 0.16);
+}
+
+.link-behavior-options .link-behavior-label,
+.search-mode-selector .link-behavior-label {
+    color: rgba(232, 244, 255, 0.64);
+    font-size: 0.76rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.link-behavior-options input[type="radio"] {
+    accent-color: #6ee7ff;
+}
+
+#fandom-pagination {
+    margin-top: 16px;
+    justify-content: flex-start;
+}
+
+#fandom-pagination #fandomPageInfo,
+#fandom-pagination #pageInfo {
+    color: rgba(232, 244, 255, 0.68);
+}

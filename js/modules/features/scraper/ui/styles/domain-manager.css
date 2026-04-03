@@ -113,3 +113,51 @@
     background-color: var(--danger);
     color: #fff;
 }
+
+/* Modern shell overrides */
+.domain-add-form {
+    background:
+        linear-gradient(145deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.025)) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    border-radius: 18px !important;
+    padding: 12px !important;
+}
+
+.domain-add-form input {
+    min-height: 42px;
+    border-radius: 14px !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03)) !important;
+    color: #f4fbff !important;
+}
+
+.domain-add-form button,
+.update-btn,
+.remove-btn {
+    min-height: 40px;
+    border-radius: 12px !important;
+    font-weight: 700;
+    transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+}
+
+.domain-add-form button {
+    background: linear-gradient(135deg, rgba(0, 212, 255, 0.88), rgba(110, 231, 255, 0.7)) !important;
+    color: #041118 !important;
+    border: 1px solid rgba(110, 231, 255, 0.4) !important;
+}
+
+.domain-item {
+    border-radius: 18px !important;
+    background:
+        radial-gradient(circle at top right, rgba(76, 201, 240, 0.08), transparent 30%),
+        rgba(255, 255, 255, 0.04) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    box-shadow: none !important;
+}
+
+.update-btn:hover,
+.remove-btn:hover,
+.domain-add-form button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.16);
+}

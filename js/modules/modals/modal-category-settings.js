@@ -8,6 +8,66 @@
 
     const renderCategoryPinSettings = helpers.renderCategoryPinSettings || function () {};
 
+    function renderScraperBootState(container, message) {
+        if (!container) return;
+        container.innerHTML = `
+            <div class="scraper-boot-card">
+                <div class="scraper-boot-kicker">Scraper Workspace</div>
+                <div class="scraper-boot-title">Loading scraper modules</div>
+                <div class="scraper-boot-copy">${String(message || 'Preparing the card-scoped scraper workspace and updated provider controls.')}</div>
+            </div>
+        `;
+    }
+
+    function renderScraperWhenReady(scraperCont, modalInner) {
+        if (!scraperCont) return;
+
+        if (modalInner) {
+            modalInner.style.width = '900px';
+            modalInner.style.maxWidth = '95%';
+        }
+
+        if (window.CategoryScraperPanel && window.ScraperPanelTemplate) {
+            window.CategoryScraperPanel.renderInModal(window.currentCategoryCtx, scraperCont);
+            setTimeout(() => {
+                const input = scraperCont.querySelector('.scraper-search-input, #searchInput');
+                if (input) input.focus();
+            }, 100);
+            return;
+        }
+
+        renderScraperBootState(scraperCont);
+
+        if (typeof window.__loadDeferredScriptsNow === 'function') {
+            window.__loadDeferredScriptsNow();
+        }
+
+        const startedAt = Date.now();
+        const poll = window.setInterval(function () {
+            const scraperTab = document.getElementById('cat-tab-scraper');
+            const stillVisible = scraperTab && scraperTab.style.display !== 'none';
+            if (!stillVisible) {
+                window.clearInterval(poll);
+                return;
+            }
+
+            if (window.CategoryScraperPanel && window.ScraperPanelTemplate) {
+                window.clearInterval(poll);
+                window.CategoryScraperPanel.renderInModal(window.currentCategoryCtx, scraperCont);
+                setTimeout(() => {
+                    const input = scraperCont.querySelector('.scraper-search-input, #searchInput');
+                    if (input) input.focus();
+                }, 100);
+                return;
+            }
+
+            if (Date.now() - startedAt > 20000) {
+                window.clearInterval(poll);
+                renderScraperBootState(scraperCont, 'Scraper modules are taking longer than expected. Keep this tab open for a moment or reload the page.');
+            }
+        }, 200);
+    }
+
 
 
     window.openCategorySettings = function (categoryName, activeTab = 'general') {
@@ -149,28 +209,7 @@
         if (tabName === 'scraper') {
 
             const scraperCont = document.getElementById('modal-scraper-container');
-
-            if (modalInner) {
-
-                modalInner.style.width = '900px';
-
-                modalInner.style.maxWidth = '95%';
-
-            }
-
-            if (scraperCont && window.CategoryScraperPanel) {
-
-                window.CategoryScraperPanel.renderInModal(window.currentCategoryCtx, scraperCont);
-
-                setTimeout(() => {
-
-                    const input = scraperCont.querySelector('.scraper-search-input');
-
-                    if (input) input.focus();
-
-                }, 100);
-
-            }
+            renderScraperWhenReady(scraperCont, modalInner);
 
         }
 
