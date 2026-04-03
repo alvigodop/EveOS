@@ -160,7 +160,10 @@
      * Get the active tab ID
      */
     TabManager.getActiveTabId = function () {
-        return window.TabManagerUtils ? TabManagerUtils.getActiveTabId(this.currentSource) : (this.currentSource === 'wikipedia' ? 'wikipediaTab' : 'fandomTab');
+        if (window.TabManagerUtils) return TabManagerUtils.getActiveTabId(this.currentSource);
+        if (this.currentSource === 'wikipedia') return 'wikipediaTab';
+        if (this.currentSource === 'api') return 'apiTab';
+        return 'fandomTab';
     };
 
     // Register with ModuleRegistry if available

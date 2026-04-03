@@ -69,13 +69,13 @@ window.modalTemplate += `
         </div>
 
         <div id="cat-tab-search" class="tab-content" style="display:none;">
-            <p style="opacity:0.7; font-size:0.9rem; margin-bottom:10px;">Search for Manga/Anime to add or view.</p>
+            <p style="opacity:0.7; font-size:0.9rem; margin-bottom:10px;">Search API providers with card-scoped caching and an optional live-results override.</p>
             <div id="modal-api-search-container"></div>
             <div id="modal-api-results-container" style="margin-top:15px; max-height: 400px; overflow-y: auto; background: rgba(0,0,0,0.2);"></div>
         </div>
 
         <div id="cat-tab-scraper" class="tab-content" style="display:none;">
-            <p style="opacity:0.7; font-size:0.9rem; margin-bottom:10px;">Search Wikipedia and Fandom wikis for articles.</p>
+            <p style="opacity:0.7; font-size:0.9rem; margin-bottom:10px;">Search Wikipedia, Fandom, or API providers from this card's isolated scraper workspace.</p>
             <div id="modal-scraper-container"></div>
         </div>
 

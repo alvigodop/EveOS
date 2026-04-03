@@ -41,6 +41,9 @@
                                 <button class="source-toggle-btn" data-source="fandom" onclick="updateSource('fandom')">
                                     <span class="icon">F</span> Fandom
                                 </button>
+                                <button class="source-toggle-btn" data-source="api" onclick="updateSource('api')">
+                                    <span class="icon">A</span> APIs
+                                </button>
                             </div>
                             <div class="layout-toggles">
                                 <button id="layoutGridBtn" class="layout-btn active" onclick="updateLayout('grid')" title="Grid View">
@@ -285,6 +288,14 @@
                                                 <button id="fandom-nextBtn" disabled>Next</button>
                                             </div>
                                         </div>
+                                    </div>
+
+                                    <!-- API Search Management -->
+                                    <div id="apiManagement" class="wiki-management-panel" style="display: none;">
+                                        <div class="domain-actions domain-actions-container">
+                                            <span class="wiki-link wiki-link-action" style="pointer-events:none; opacity:0.7;">Card-scoped API cache</span>
+                                        </div>
+                                        <div id="api-scraper-panel-container"></div>
                                     </div>
                                 </div>
                             </section>

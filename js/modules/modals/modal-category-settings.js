@@ -16,6 +16,10 @@
 
         window.ctxCatName = categoryName;
 
+        if (window.StorageManager && typeof window.StorageManager.setCategoryContext === 'function') {
+            window.StorageManager.setCategoryContext(categoryName);
+        }
+
 
 
         const titleEl = document.getElementById('catSettingsTitle');
@@ -117,6 +121,10 @@
             const searchCont = document.getElementById('modal-api-search-container');
 
             const resultsCont = document.getElementById('modal-api-results-container');
+
+            if (window.StorageManager && typeof window.StorageManager.setCategoryContext === 'function') {
+                window.StorageManager.setCategoryContext(window.currentCategoryCtx);
+            }
 
             if (window.EveOS?.API?.Manager) {
 

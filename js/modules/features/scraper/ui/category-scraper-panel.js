@@ -60,6 +60,11 @@
                 CPMUtils.updateStatusIndicators(CORSProxyManager.getProxies());
                 CPMUtils.checkLocalDevMode(); // Re-check to update local indicator
             }
+
+            const apiPanelContainer = container.querySelector('#api-scraper-panel-container');
+            if (apiPanelContainer && window.EveOS?.API?.Manager?.renderScraperPanelUI) {
+                window.EveOS.API.Manager.renderScraperPanelUI(apiPanelContainer, categoryName);
+            }
         },
 
         /**

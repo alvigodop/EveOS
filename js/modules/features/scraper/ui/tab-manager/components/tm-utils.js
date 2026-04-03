@@ -52,7 +52,9 @@
          * @returns {string}
          */
         getActiveTabId: function (currentSource) {
-            return currentSource === 'wikipedia' ? 'wikipediaTab' : 'fandomTab';
+            if (currentSource === 'wikipedia') return 'wikipediaTab';
+            if (currentSource === 'api') return 'apiTab';
+            return 'fandomTab';
         },
 
         /**

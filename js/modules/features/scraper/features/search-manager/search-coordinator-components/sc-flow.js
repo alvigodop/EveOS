@@ -45,6 +45,37 @@ SearchCoordinatorFlow.performContentSearch = async function (query, source, opti
         SearchManager._lastQueryOptions.options = searchOptions;
     }
 
+    if (source === 'api') {
+        try {
+            const apiResultsContainer = document.getElementById(resultsContainerId);
+            const apiPanelContainer = document.getElementById('api-scraper-panel-container');
+            if (!window.EveOS?.API?.Manager?.runSearch || !apiResultsContainer) {
+                throw new Error('API Manager is not available.');
+            }
+
+            const apiSearchResult = await window.EveOS.API.Manager.runSearch(query, apiResultsContainer, null, {
+                categoryName: window.currentCategoryCtx || window.StorageManager?.categoryContext || '',
+                liveResults: searchOptions.liveSearch === true,
+                hybridResults: searchOptions.hybridSearch !== false,
+                onAfterRender: function () {
+                    if (apiPanelContainer && window.EveOS?.API?.Manager?.renderScraperPanelUI) {
+                        window.EveOS.API.Manager.renderScraperPanelUI(apiPanelContainer, window.currentCategoryCtx || window.StorageManager?.categoryContext || '');
+                    }
+                }
+            });
+
+            if (window.SearchManager) {
+                SearchManager._lastSearchResults = apiSearchResult?.sources || {};
+            }
+        } catch (error) {
+            console.error('SearchCoordinatorFlow: Error during API search', error);
+            if (window.SearchUIRenderer) SearchUIRenderer.showError(`Error searching API providers: ${error.message}`, resultsContainerId);
+        } finally {
+            if (window.SearchUIRenderer) SearchUIRenderer.showLoading(false, resultsContainerId);
+        }
+        return;
+    }
+
     // 2. Get Managed List
     let managedList = [];
     if (source === 'wikipedia' && window.WikiManager && WikiManager.wikiEntries) {

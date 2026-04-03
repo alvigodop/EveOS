@@ -12,15 +12,15 @@
     const TabManagerUI = {
         /**
          * Core logic to switch tabs
-         * @param {string} source - 'wikipedia' or 'fandom'
+         * @param {string} source - 'wikipedia', 'fandom', or 'api'
          * @param {boolean} isInitialLoad 
          * @param {boolean} silent 
          */
         switchTab: function (source, isInitialLoad, silent) {
             try {
                 // Check source validity
-                if (source !== 'wikipedia' && source !== 'fandom') {
-                    console.error(`Invalid source: ${source}, must be 'wikipedia' or 'fandom'`);
+                if (!['wikipedia', 'fandom', 'api'].includes(source)) {
+                    console.error(`Invalid source: ${source}, must be 'wikipedia', 'fandom', or 'api'`);
                     return;
                 }
 
@@ -53,8 +53,13 @@
         },
 
         updateTabButtons: function (source) {
+            document.querySelectorAll('.source-toggle-btn').forEach(function (button) {
+                button.classList.toggle('active', button.dataset.source === source);
+            });
+
             const wikipediaTab = document.getElementById('wikipediaTab');
             const fandomTab = document.getElementById('fandomTab');
+            const apiTab = document.getElementById('apiTab');
 
             if (wikipediaTab) {
                 wikipediaTab.classList.toggle('active', source === 'wikipedia');
@@ -62,6 +67,10 @@
 
             if (fandomTab) {
                 fandomTab.classList.toggle('active', source === 'fandom');
+            }
+
+            if (apiTab) {
+                apiTab.classList.toggle('active', source === 'api');
             }
         },
 
@@ -75,6 +84,7 @@
             // Update management panels
             const wikipediaManagement = document.getElementById('wikipediaManagement');
             const fandomManagement = document.getElementById('fandomManagement');
+            const apiManagement = document.getElementById('apiManagement');
 
             if (wikipediaManagement) {
                 wikipediaManagement.style.display = source === 'wikipedia' ? 'block' : 'none';
@@ -86,6 +96,12 @@
                 fandomManagement.style.display = source === 'fandom' ? 'block' : 'none';
             } else if (!isInitialLoad) {
                 console.warn('fandomManagement element not found');
+            }
+
+            if (apiManagement) {
+                apiManagement.style.display = source === 'api' ? 'block' : 'none';
+            } else if (!isInitialLoad) {
+                console.warn('apiManagement element not found');
             }
         },
 
@@ -143,11 +159,15 @@
             try {
                 const wikipediaManagement = document.getElementById('wikipediaManagement');
                 const fandomManagement = document.getElementById('fandomManagement');
+                const apiManagement = document.getElementById('apiManagement');
                 if (wikipediaManagement) wikipediaManagement.style.display = 'none';
                 if (fandomManagement) fandomManagement.style.display = 'none';
+                if (apiManagement) apiManagement.style.display = 'none';
 
                 if (source === 'wikipedia') {
                     if (wikipediaManagement) wikipediaManagement.style.display = 'block';
+                } else if (source === 'api') {
+                    if (apiManagement) apiManagement.style.display = 'block';
                 } else {
                     if (fandomManagement) fandomManagement.style.display = 'block';
                 }
