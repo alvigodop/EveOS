@@ -614,6 +614,11 @@
     align-items: flex-start;
 }
 
+#gemini-ui-root .gemini-agentic-card-head > :first-child {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
 #gemini-ui-root .gemini-agentic-card-title {
     font-size: 0.92rem;
     font-weight: 700;
@@ -634,16 +639,44 @@
 }
 
 #gemini-ui-root .gemini-agentic-switch {
-    padding: 2px 4px;
+    display: inline-block;
+    flex: 0 0 52px;
+    width: 52px;
+    min-width: 52px;
+    height: 32px;
+    padding: 3px 8px;
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.06);
+    box-sizing: border-box;
+    vertical-align: middle;
+    overflow: visible;
+}
+
+#gemini-ui-root .gemini-agentic-switch .mdl-switch__track {
+    left: 7px;
+    right: auto;
+    top: 8px;
+}
+
+#gemini-ui-root .gemini-agentic-switch .mdl-switch__thumb {
+    left: 6px;
+    right: auto;
+    top: 5px;
+}
+
+#gemini-ui-root .gemini-agentic-switch.is-checked .mdl-switch__thumb {
+    left: 24px;
 }
 
 #gemini-ui-root .gemini-agentic-card-actions {
     display: inline-flex;
     align-items: center;
+    justify-content: flex-end;
+    flex: 0 0 auto;
     gap: 8px;
+    min-width: max-content;
+    white-space: nowrap;
 }
 
 #gemini-ui-root .gemini-agentic-icon-btn {

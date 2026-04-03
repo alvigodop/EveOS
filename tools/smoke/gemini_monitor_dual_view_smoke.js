@@ -69,6 +69,9 @@ async function main() {
             const summaryPane = box('#gemini-monitor-summary-pane');
             const workspace = box('#gemini-ui-root .mdl-layout__container');
             const liveLinkCard = box('#gemini-live-link-card');
+            const selfTalkActions = box('.gemini-agentic-card--self-talk .gemini-agentic-card-actions');
+            const selfTalkToggle = box('.gemini-agentic-card--self-talk .gemini-agentic-switch');
+            const audioToggle = box('.gemini-agentic-card--audio .gemini-agentic-switch');
 
             return {
                 compact: document.getElementById('loadingIndicator')?.classList.contains('compact') || false,
@@ -77,7 +80,10 @@ async function main() {
                 savedMode: window.localStorage?.getItem('eve.geminiMonitorView') || '',
                 summaryPane,
                 workspace,
-                liveLinkCard
+                liveLinkCard,
+                selfTalkActions,
+                selfTalkToggle,
+                audioToggle
             };
         });
 
@@ -95,6 +101,17 @@ async function main() {
         }
         if (!result.liveLinkCard || result.liveLinkCard.height < 180) {
             throw new Error(`Full Gemini Live Link card did not render: ${JSON.stringify(result)}`);
+        }
+        if (!result.selfTalkToggle || result.selfTalkToggle.width < 48 || result.selfTalkToggle.height < 28) {
+            throw new Error(`Self-talk toggle did not render inside its card bounds: ${JSON.stringify(result)}`);
+        }
+        if (!result.audioToggle || result.audioToggle.width < 48 || result.audioToggle.height < 28) {
+            throw new Error(`Audio toggle did not render inside its card bounds: ${JSON.stringify(result)}`);
+        }
+        if (!result.selfTalkActions
+            || result.selfTalkToggle.x < result.selfTalkActions.x
+            || (result.selfTalkToggle.x + result.selfTalkToggle.width) > (result.selfTalkActions.x + result.selfTalkActions.width + 1)) {
+            throw new Error(`Self-talk toggle overflowed its action row: ${JSON.stringify(result)}`);
         }
 
         const criticalConsoleErrors = consoleErrors.filter((entry) => !isBenignConsoleError(entry));
