@@ -11,7 +11,7 @@ const AGENTIC_HTML_LOADERS_BASE_PATH = (window.GEMINI_APP_ROOT || '') + 'js/modu
 const agenticUILoaderScripts = [
     `${AGENTIC_HTML_LOADERS_BASE_PATH}/time_perc/timePerceptionUILoader.js`,
     `${AGENTIC_HTML_LOADERS_BASE_PATH}/conv_mem/conversationMemoryUILoader.js`,
-    `${AGENTIC_HTML_LOADERS_BASE_PATH}/gemini_link/geminiLiveLinkUILoader.js?v=0.1.1`,
+    `${AGENTIC_HTML_LOADERS_BASE_PATH}/gemini_link/geminiLiveLinkUILoader.js?v=0.1.2`,
     `${AGENTIC_HTML_LOADERS_BASE_PATH}/audio_proc/audioProcessingControlsUILoader.js`,
     `${AGENTIC_HTML_LOADERS_BASE_PATH}/audio_proc/audioSettingsDialogUILoader.js`,
     `${AGENTIC_HTML_LOADERS_BASE_PATH}/sess_ctrl/sessionControlsUILoader.js`,

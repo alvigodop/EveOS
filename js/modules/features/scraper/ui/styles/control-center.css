@@ -13,11 +13,26 @@
     flex-direction: column;
     gap: 15px;
     padding: 20px;
-    background: var(--card-bg);
+    background:
+        radial-gradient(circle at top left, rgba(79, 172, 254, 0.14), transparent 28%),
+        radial-gradient(circle at bottom right, rgba(0, 242, 254, 0.1), transparent 30%),
+        linear-gradient(145deg, rgba(18, 24, 34, 0.96), rgba(10, 14, 20, 0.94));
     border-radius: 16px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(128, 128, 128, 0.2);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.22);
+    backdrop-filter: blur(14px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    position: relative;
+    overflow: hidden;
+}
+
+.control-center::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.25), transparent);
+    opacity: 0.8;
+    pointer-events: none;
 }
 
 .control-row {
@@ -62,21 +77,28 @@
     flex-wrap: wrap;
     gap: 10px 14px;
     align-items: flex-start;
-    padding: 12px;
-    border-radius: 18px;
+    padding: 14px;
+    border-radius: 22px;
     background:
-        radial-gradient(circle at top left, rgba(255, 255, 255, 0.08), transparent 45%),
-        linear-gradient(145deg, rgba(18, 24, 32, 0.96), rgba(10, 14, 20, 0.92));
+        radial-gradient(circle at top left, rgba(255, 255, 255, 0.09), transparent 42%),
+        linear-gradient(145deg, rgba(17, 23, 31, 0.98), rgba(7, 11, 17, 0.96));
     border: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.05),
+        0 10px 24px rgba(0, 0, 0, 0.18);
     overflow-x: auto;
 }
 
 .source-toggle-group {
     display: flex;
+    flex-direction: column;
     flex-wrap: wrap;
     gap: 8px;
-    align-items: center;
+    align-items: flex-start;
+}
+
+.source-toggle-group--library {
+    min-width: 240px;
 }
 
 .source-toggle-group--apis {
@@ -107,28 +129,42 @@
     padding: 9px 14px;
     border-radius: 999px;
     border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(255, 255, 255, 0.04);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.035));
     color: rgba(255, 255, 255, 0.72);
     font-size: 0.82rem;
     font-weight: 700;
     letter-spacing: 0.01em;
-    box-shadow: none;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    transition:
+        transform 0.16s ease,
+        background 0.16s ease,
+        color 0.16s ease,
+        border-color 0.16s ease,
+        box-shadow 0.16s ease;
 }
 
 .source-toggle-btn .icon {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 18px;
+    min-width: 22px;
+    min-height: 22px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
     color: inherit;
-    font-size: 0.72rem;
+    font-size: 0.68rem;
+    font-weight: 800;
     opacity: 0.82;
 }
 
 .source-toggle-btn:hover {
-    background: rgba(255, 255, 255, 0.09);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.06));
     color: rgba(255, 255, 255, 0.96);
     transform: translateY(-1px);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.05),
+        0 10px 20px rgba(0, 0, 0, 0.16);
 }
 
 .source-toggle-btn.active {
@@ -136,6 +172,11 @@
     border-color: rgba(90, 184, 255, 0.52);
     color: #f4fbff;
     box-shadow: 0 10px 24px rgba(10, 95, 177, 0.22);
+}
+
+.source-toggle-btn.active .icon {
+    background: rgba(255, 255, 255, 0.16);
+    color: #ffffff;
 }
 
 .source-toggle-btn[data-source="wikipedia"].active {
@@ -155,22 +196,57 @@
     padding-inline: 12px;
 }
 
+.source-toggle-btn[data-source="mangadex"].active,
+.source-toggle-btn[data-source="jikanManga"].active,
+.source-toggle-btn[data-source="jikanAnime"].active,
+.source-toggle-btn[data-source="anilistManga"].active,
+.source-toggle-btn[data-source="anilistAnime"].active,
+.source-toggle-btn[data-source="mangaupdates"].active,
+.source-toggle-btn[data-source="kitsuAnime"].active,
+.source-toggle-btn[data-source="kitsuManga"].active,
+.source-toggle-btn[data-source="wlnupdates"].active {
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.28), rgba(16, 185, 129, 0.18));
+    border-color: rgba(96, 165, 250, 0.48);
+}
+
+.source-toggle-btn[data-source="openlibrary"].active {
+    background: linear-gradient(135deg, rgba(217, 119, 6, 0.3), rgba(245, 158, 11, 0.18));
+    border-color: rgba(251, 191, 36, 0.38);
+}
+
+.source-toggle-btn[data-source="tvmaze"].active {
+    background: linear-gradient(135deg, rgba(225, 29, 72, 0.28), rgba(249, 115, 22, 0.2));
+    border-color: rgba(251, 113, 133, 0.4);
+}
+
+.source-toggle-btn[data-source="itunes"].active {
+    background: linear-gradient(135deg, rgba(101, 163, 13, 0.3), rgba(14, 165, 233, 0.18));
+    border-color: rgba(163, 230, 53, 0.36);
+}
+
+.source-toggle-btn[data-source="comick"].active {
+    background: linear-gradient(135deg, rgba(190, 24, 93, 0.28), rgba(244, 63, 94, 0.18));
+    border-color: rgba(244, 114, 182, 0.42);
+}
+
 .layout-toggles .layout-btn {
-    background: var(--input-bg);
-    border: 1px solid rgba(128, 128, 128, 0.3);
-    color: var(--text-main);
-    padding: 5px 10px;
-    border-radius: 4px;
+    min-height: 38px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.03));
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.86);
+    padding: 5px 12px;
+    border-radius: 12px;
     cursor: pointer;
     font-size: 0.9em;
     transition: all 0.2s ease;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .layout-toggles .layout-btn.active {
-    background: var(--accent);
-    color: #000;
-    border-color: var(--accent);
-    box-shadow: 0 0 10px var(--accent-glow, rgba(0, 212, 255, 0.3));
+    background: linear-gradient(135deg, rgba(0, 212, 255, 0.88), rgba(110, 231, 255, 0.78));
+    color: #051118;
+    border-color: rgba(110, 231, 255, 0.6);
+    box-shadow: 0 10px 24px rgba(0, 212, 255, 0.2);
     font-weight: bold;
 }
 
@@ -180,13 +256,14 @@
 
 /* Enhancing the search button */
 .btn-search-primary {
-    background: var(--accent);
-    color: #000;
+    background: linear-gradient(135deg, rgba(0, 212, 255, 0.94), rgba(110, 231, 255, 0.82));
+    color: #041017;
     border: none;
     padding: 12px 24px;
     border-radius: 24px;
     font-weight: 700;
-    box-shadow: 0 4px 10px var(--accent-glow, rgba(0, 212, 255, 0.3));
+    letter-spacing: 0.01em;
+    box-shadow: 0 12px 28px rgba(0, 212, 255, 0.18);
     transition: all 0.2s ease;
     cursor: pointer;
 }
@@ -199,4 +276,25 @@
 
 .btn-search-primary:active {
     transform: translateY(0);
+}
+
+.search-row .search-input {
+    min-height: 48px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
+    color: #f6fbff;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.search-row .search-input::placeholder {
+    color: rgba(255, 255, 255, 0.48);
+}
+
+.search-row .search-input:focus {
+    border-color: rgba(110, 231, 255, 0.46);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.04),
+        0 0 0 3px rgba(0, 212, 255, 0.12);
 }

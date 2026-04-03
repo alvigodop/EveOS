@@ -172,8 +172,9 @@ async function loadGeminiLiveLinkCard() {
         <div>
             <div class="gemini-live-link-kicker">Context Relay</div>
             <span class="gemini-live-link-title">Gemini Live Link</span>
+            <div class="gemini-live-link-subtitle">Push the active data-pack into Gemini without leaving the current workflow.</div>
         </div>
-        <label class="mdl-switch mdl-js-switch mdl-js-ripple-effect" for="geminiLiveLinkToggle">
+        <label class="mdl-switch mdl-js-switch mdl-js-ripple-effect gemini-live-link-toggle" for="geminiLiveLinkToggle">
             <input type="checkbox" id="geminiLiveLinkToggle" class="mdl-switch__input" checked>
             <span class="mdl-switch__label"></span>
         </label>
@@ -188,10 +189,10 @@ async function loadGeminiLiveLinkCard() {
                     <option value="full">Full JSON</option>
                 </select>
             </div>
-            <button id="geminiLiveLinkSendButton" class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored gemini-live-link-send">Send</button>
+            <button id="geminiLiveLinkSendButton" class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored gemini-live-link-send">Send Context</button>
         </div>
         <div class="gemini-live-link-help">
-            Sends active data-pack context into the Gemini chat session.
+            Sends the active data-pack context into the Gemini session and keeps the relay scoped to the current working surface.
         </div>
     </div>
 </div>

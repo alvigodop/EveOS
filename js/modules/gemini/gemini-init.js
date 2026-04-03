@@ -75,11 +75,15 @@
                         <div class="gemini-monitor-kicker">Gemini Link</div>
                         <h3 class="gemini-monitor-title">Search Monitor Assistant</h3>
                     </div>
-                    <div class="gemini-monitor-pill">Lazy Boot</div>
+                    <div class="gemini-monitor-pill">On Demand</div>
                 </div>
                 <div class="gemini-monitor-body">
-                    <p class="gemini-monitor-copy">Wake Gemini from the Search Monitor when you need active context or chat controls.</p>
-                    <p class="gemini-monitor-meta">Modules load on demand to keep startup light and preserve dashboard responsiveness.</p>
+                    <div class="gemini-monitor-status-row">
+                        <span class="gemini-monitor-status-dot" aria-hidden="true"></span>
+                        <span class="gemini-monitor-status-text">Standing by for context relay, prompt assist, and live tool controls.</span>
+                    </div>
+                    <p class="gemini-monitor-copy">Wake Gemini from the Search Monitor when you need active context, inline reasoning support, or chat controls without paying the full startup cost up front.</p>
+                    <p class="gemini-monitor-meta">Modules stay deferred until you interact, keeping the dashboard responsive while preserving a clear AI entry point.</p>
                 </div>
             </div>
         `;

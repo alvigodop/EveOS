@@ -36,12 +36,15 @@
                         <div class="control-row justify-between control-row-margin">
                             <div class="source-toggle-container scraper-source-rail">
                                 <div class="source-toggle-group source-toggle-group--library">
-                                    <button class="source-toggle-btn active" data-source="wikipedia" onclick="updateSource('wikipedia')">
-                                        <span class="icon">W</span> Wikipedia
-                                    </button>
-                                    <button class="source-toggle-btn" data-source="fandom" onclick="updateSource('fandom')">
-                                        <span class="icon">F</span> Fandom
-                                    </button>
+                                    <div class="source-toggle-group-label">Knowledge Bases</div>
+                                    <div class="source-toggle-cluster">
+                                        <button class="source-toggle-btn active" data-source="wikipedia" onclick="updateSource('wikipedia')">
+                                            <span class="icon">W</span> Wikipedia
+                                        </button>
+                                        <button class="source-toggle-btn" data-source="fandom" onclick="updateSource('fandom')">
+                                            <span class="icon">F</span> Fandom
+                                        </button>
+                                    </div>
                                 </div>
                                 <div class="source-toggle-group source-toggle-group--apis">
                                     <div class="source-toggle-group-label">API Providers</div>
