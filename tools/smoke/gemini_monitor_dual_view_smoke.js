@@ -67,23 +67,25 @@ async function main() {
 
             const root = document.getElementById('gemini-ui-root');
             const summaryPane = box('#gemini-monitor-summary-pane');
-            const workspace = box('#gemini-monitor-workspace-shell');
+            const workspace = box('#gemini-ui-root .mdl-layout__container');
             const liveLinkCard = box('#gemini-live-link-card');
-            const extraCards = document.querySelectorAll('#gemini-monitor-workspace-secondary .agentic-function-card').length;
 
             return {
+                compact: document.getElementById('loadingIndicator')?.classList.contains('compact') || false,
                 rootMode: root?.dataset.geminiMonitorView || '',
                 fullReady: root?.dataset.geminiFullReady || '',
                 savedMode: window.localStorage?.getItem('eve.geminiMonitorView') || '',
                 summaryPane,
                 workspace,
-                liveLinkCard,
-                extraCards
+                liveLinkCard
             };
         });
 
         if (result.rootMode !== 'full' || result.savedMode !== 'full') {
             throw new Error(`Gemini monitor did not persist full workspace mode: ${JSON.stringify(result)}`);
+        }
+        if (result.compact) {
+            throw new Error(`Search Monitor collapsed while switching Gemini workspace mode: ${JSON.stringify(result)}`);
         }
         if (!result.summaryPane || result.summaryPane.display === 'none' || result.summaryPane.height < 120) {
             throw new Error(`Compact summary pane should remain visible in workspace mode: ${JSON.stringify(result)}`);

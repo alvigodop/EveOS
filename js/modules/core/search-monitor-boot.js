@@ -13,6 +13,15 @@
         indicator.style.display = '';
     }
 
+    function shouldIgnoreToggleEvent(event, indicator) {
+        if (!event || !indicator) return false;
+        const target = event.target;
+        if (!target || target === indicator) return false;
+        if (typeof target.closest !== 'function') return false;
+        const interactive = target.closest('button, a, input, textarea, select, summary, [role="button"], [contenteditable="true"]');
+        return !!interactive && indicator.contains(interactive);
+    }
+
     function expandFallback(indicator) {
         if (!indicator) return;
         ensureVisible(indicator);
@@ -71,6 +80,7 @@
     function handleToggle(event) {
         const indicator = getIndicator();
         if (!indicator) return;
+        if (shouldIgnoreToggleEvent(event, indicator)) return;
 
         if (toggleViaModule(event)) {
             return;

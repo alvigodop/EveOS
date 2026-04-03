@@ -75,44 +75,8 @@
         if (!container) return;
         const hasFullUi = !!container.querySelector('.mdl-layout__container');
         container.dataset.geminiFullReady = hasFullUi ? '1' : '0';
-        syncWorkspaceShell(container);
         if (hasFullUi && container.dataset.geminiMonitorView === 'full') {
             ensureExpandedWorkspace(container);
-        }
-    }
-
-    function syncWorkspaceShell(container) {
-        if (!container) return;
-        const shell = container.querySelector('#gemini-monitor-workspace-shell');
-        const primarySlot = container.querySelector('#gemini-monitor-live-link-slot');
-        const secondarySlot = container.querySelector('#gemini-monitor-workspace-secondary');
-        const note = container.querySelector('#gemini-monitor-workspace-note');
-        if (!shell || !primarySlot || !secondarySlot || !note) return;
-
-        const liveLinkCard = document.getElementById('gemini-live-link-card');
-        if (liveLinkCard && liveLinkCard.parentElement !== primarySlot) {
-            primarySlot.appendChild(liveLinkCard);
-        }
-
-        const legacyCards = Array.from(document.querySelectorAll('.agentic-function-card'))
-            .filter(function (card) {
-                return card.id && card.id !== 'gemini-live-link-card' && card.parentElement !== secondarySlot;
-            });
-        legacyCards.forEach(function (card) {
-            secondarySlot.appendChild(card);
-        });
-
-        const hasPrimary = primarySlot.children.length > 0;
-        const hasSecondary = secondarySlot.children.length > 0;
-        const nextNoteText = hasPrimary
-            ? (hasSecondary
-                ? 'Legacy Gemini controls are available below the compact monitor card.'
-                : 'Full Gemini Live Link controls are available below the compact monitor card.')
-            : 'Loading the expanded Gemini Live Link controls...';
-
-        shell.dataset.hasCards = hasPrimary || hasSecondary ? '1' : '0';
-        if (note.textContent !== nextNoteText) {
-            note.textContent = nextNoteText;
         }
     }
 
@@ -140,23 +104,25 @@
         if (headerIcon) headerIcon.textContent = 'expand_less';
     }
 
-    function stopWorkspaceSyncLoop(container) {
-        if (!container || !container.__geminiWorkspaceSyncTimer) return;
-        window.clearInterval(container.__geminiWorkspaceSyncTimer);
-        container.__geminiWorkspaceSyncTimer = null;
+    function stopFullUiPolling(container) {
+        if (!container || !container.__geminiFullUiPollTimer) return;
+        window.clearInterval(container.__geminiFullUiPollTimer);
+        container.__geminiFullUiPollTimer = null;
     }
 
-    function startWorkspaceSyncLoop(container) {
-        if (!container || container.__geminiWorkspaceSyncTimer) return;
+    function startFullUiPolling(container) {
+        if (!container || container.__geminiFullUiPollTimer) return;
         const startedAt = Date.now();
-        container.__geminiWorkspaceSyncTimer = window.setInterval(function () {
+        container.__geminiFullUiPollTimer = window.setInterval(function () {
             if (!document.body.contains(container) || container.dataset.geminiMonitorView !== 'full' || Date.now() - startedAt > 30000) {
-                stopWorkspaceSyncLoop(container);
+                stopFullUiPolling(container);
                 return;
             }
-            ensureExpandedWorkspace(container);
-            syncWorkspaceShell(container);
-        }, 400);
+            syncFullUiReadiness(container);
+            if (container.dataset.geminiFullReady === '1') {
+                stopFullUiPolling(container);
+            }
+        }, 500);
     }
 
     function updateMonitorViewState(container, view) {
@@ -173,10 +139,10 @@
 
         if (normalized === 'full') {
             ensureExpandedWorkspace(container);
-            startWorkspaceSyncLoop(container);
             requestGeminiBoot('full-monitor-view');
+            startFullUiPolling(container);
         } else {
-            stopWorkspaceSyncLoop(container);
+            stopFullUiPolling(container);
         }
     }
 
@@ -189,16 +155,6 @@
                 updateMonitorViewState(container, button.dataset.geminiMonitorViewBtn);
             });
         });
-    }
-
-    function observeMonitorShell(container) {
-        if (!container || container.__geminiMonitorObserver) return;
-        const observer = new MutationObserver(function () {
-            syncFullUiReadiness(container);
-        });
-        observer.observe(container, { childList: true, subtree: true });
-        container.__geminiMonitorObserver = observer;
-        syncFullUiReadiness(container);
     }
 
     function bindOnDemandBoot(container) {
@@ -254,18 +210,6 @@
                     </div>
                 </div>
             </div>
-            <div id="gemini-monitor-workspace-shell" class="gemini-monitor-workspace-shell">
-                <div class="gemini-monitor-workspace-head">
-                    <div>
-                        <div class="gemini-monitor-workspace-kicker">Legacy Workspace</div>
-                        <div class="gemini-monitor-workspace-title">Expanded Gemini Controls</div>
-                    </div>
-                    <div class="gemini-monitor-workspace-pill">Full</div>
-                </div>
-                <div id="gemini-monitor-live-link-slot" class="gemini-monitor-workspace-primary"></div>
-                <div id="gemini-monitor-workspace-secondary" class="gemini-monitor-workspace-secondary"></div>
-                <div id="gemini-monitor-workspace-note" class="gemini-monitor-workspace-note">Loading the expanded Gemini Live Link controls...</div>
-            </div>
         `;
 
         let target = document.getElementById('gemini-placeholder');
@@ -290,7 +234,7 @@
 
         bindMonitorViewControls(geminiContainer);
         bindOnDemandBoot(geminiContainer);
-        observeMonitorShell(geminiContainer);
+        syncFullUiReadiness(geminiContainer);
         updateMonitorViewState(geminiContainer, getPreferredMonitorView());
 
         if (shouldEagerBoot()) {
