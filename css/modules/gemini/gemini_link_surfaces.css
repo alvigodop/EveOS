@@ -578,6 +578,17 @@
     display: flex;
     flex-wrap: wrap;
     gap: 12px;
+    align-items: flex-start;
+}
+
+#gemini-ui-root .gemini-agentic-grid > div {
+    flex: 1 1 220px;
+    min-width: 220px;
+    align-self: flex-start;
+}
+
+#gemini-ui-root .gemini-agentic-grid > div > * {
+    width: 100%;
 }
 
 #gemini-ui-root .gemini-agentic-card {
@@ -1138,6 +1149,7 @@
     flex-wrap: wrap;
     gap: 12px;
     min-width: 0;
+    align-items: flex-start;
 }
 
 #loadingIndicator #gemini-ui-root .agentic-function-card {
@@ -1145,13 +1157,14 @@
 }
 
 #loadingIndicator #gemini-ui-root .gemini-agentic-grid > div {
-    display: flex;
     flex: 1 1 220px;
     min-width: min(100%, 220px);
+    align-self: flex-start;
 }
 
 #loadingIndicator #gemini-ui-root .gemini-agentic-grid > div > * {
-    flex: 1 1 auto;
+    display: block;
+    width: 100%;
     min-width: 0;
 }
 
