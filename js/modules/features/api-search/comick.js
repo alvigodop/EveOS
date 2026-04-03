@@ -60,6 +60,10 @@ window.EveOS = window.EveOS || {};
         return match ? match[1].replace(/,/g, '') : '';
     }
 
+    function escapeRegExp(value) {
+        return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
     function buildPageText(doc) {
         const body = doc?.body;
         if (!body) return '';
@@ -118,33 +122,161 @@ window.EveOS = window.EveOS || {};
         return values.filter(Boolean);
     }
 
+    function isAccessibilitySnapshot(lines) {
+        return Array.isArray(lines) && lines.some((line) => /^-\s+(heading|paragraph|link|text|listitem|table|cell)\b/i.test(normalizeText(line)));
+    }
+
+    function extractSnapshotRowValue(lines, label) {
+        const pattern = new RegExp(`\\b${escapeRegExp(label)}:\\s*([^"]+)`, 'i');
+
+        for (const line of Array.isArray(lines) ? lines : []) {
+            const match = normalizeText(line).match(pattern);
+            if (match) {
+                return normalizeText(match[1]);
+            }
+        }
+
+        return '';
+    }
+
+    function extractSnapshotParagraphAfterHeading(lines, headingLabel) {
+        const headingPattern = new RegExp(`^[-\\s]*heading\\s+"${escapeRegExp(headingLabel)}\\b`, 'i');
+        const stopPattern = /^[-\s]*heading\s+"/i;
+        const values = [];
+        let inSection = false;
+
+        for (const line of Array.isArray(lines) ? lines : []) {
+            const normalized = normalizeText(line);
+            if (!normalized) continue;
+
+            if (!inSection) {
+                if (headingPattern.test(normalized)) {
+                    inSection = true;
+                }
+                continue;
+            }
+
+            if (stopPattern.test(normalized)) break;
+            if (/^[-\s]*separator\b/i.test(normalized)) break;
+
+            const paragraphMatch = normalized.match(/^(?:[-\s]*paragraph:|[-\s]*text:)\s*"(.+)"$/i);
+            if (paragraphMatch) {
+                values.push(normalizeText(paragraphMatch[1]));
+                continue;
+            }
+        }
+
+        return values.join(' ');
+    }
+
+    function extractSnapshotLinkSection(lines, headingLabel) {
+        const headingPattern = new RegExp(`^[-\\s]*heading\\s+"${escapeRegExp(headingLabel)}\\b`, 'i');
+        const stopPattern = /^[-\s]*heading\s+"/i;
+        const values = [];
+        let inSection = false;
+
+        for (const line of Array.isArray(lines) ? lines : []) {
+            const normalized = normalizeText(line);
+            if (!normalized) continue;
+
+            if (!inSection) {
+                if (headingPattern.test(normalized)) {
+                    inSection = true;
+                }
+                continue;
+            }
+
+            if (stopPattern.test(normalized)) break;
+
+            const linkMatch = normalized.match(/link\s+"([^"]+)"/i);
+            if (!linkMatch) continue;
+
+            const value = normalizeText(linkMatch[1])
+                .replace(/\s*\([^)]*\)\s*$/, '')
+                .trim();
+            if (!value || /^\d[\d,]*\s+users?$/i.test(value)) continue;
+            values.push(value);
+        }
+
+        return uniqueStrings(values);
+    }
+
+    function extractSnapshotFollowCount(pageText) {
+        const directMatch = String(pageText || '').match(/link\s+"([\d,]+)\s+users"/i);
+        if (directMatch) return parseNumberValue(directMatch[1]);
+        return '';
+    }
+
     function parseComicKPageDetails(html, item) {
         try {
             const doc = new DOMParser().parseFromString(html, 'text/html');
             const pageText = buildPageText(doc);
             if (!pageText) return null;
             const lines = getTextLines(doc);
+            const snapshotMode = isAccessibilitySnapshot(lines);
 
-            const description = extractSectionLines(lines, 'Description', ['More Info', 'Reviews', 'Chapters', 'Comments', 'Recommendations', 'FAQ']).join(' ');
-            const origination = extractSectionLines(lines, 'Origination', ['Demographic', 'Published', 'Status'])[0] || '';
-            const demographic = extractSectionLines(lines, 'Demographic', ['Published', 'Status', 'Translation', 'Anime Start'])[0] || '';
-            const published = extractSectionLines(lines, 'Published', ['Status', 'Translation', 'Anime Start', 'Final Chapter', 'Ranked'])[0] || '';
-            const status = extractSectionLines(lines, 'Status', ['Translation', 'Anime Start', 'Anime End', 'Final Chapter', 'Ranked', 'Followed by', 'Description'])[0] || '';
-            const translation = extractSectionLines(lines, 'Translation', ['Anime Start', 'Anime End', 'Final Chapter', 'Ranked', 'Followed by', 'Description'])[0] || '';
-            const finalChapter = parseChapterValue(extractSectionLines(lines, 'Final Chapter', ['Ranked', 'Followed by', 'Description', 'More Info'])[0] || '');
-            const rank = parseNumberValue(extractSectionLines(lines, 'Ranked', ['Followed by', 'Description', 'More Info'])[0] || '');
-            const followCount = parseNumberValue(extractSectionLines(lines, 'Followed by', ['Description', 'More Info'])[0] || '');
-
-            const artists = splitList(extractSectionLines(lines, 'Artists', ['Authors', 'Genres', 'Theme', 'Format', 'Publishers', 'Relations', 'Tags', 'Referrers']).join(', '));
-            const authors = splitList(extractSectionLines(lines, 'Authors', ['Genres', 'Theme', 'Format', 'Publishers', 'Relations', 'Tags', 'Referrers']).join(', '));
-            const genres = splitList(extractSectionLines(lines, 'Genres', ['Theme', 'Format', 'Publishers', 'Relations', 'Tags', 'Referrers']).join(', '));
-            const themes = splitList(extractSectionLines(lines, 'Theme', ['Format', 'Publishers', 'Relations', 'Tags', 'Referrers']).join(', '));
-            const formats = splitList(extractSectionLines(lines, 'Format', ['Publishers', 'Relations', 'Tags', 'Referrers']).join(', '));
-            const publishers = splitList(extractSectionLines(lines, 'Publishers', ['Relations', 'Tags', 'Referrers', 'Reviews', 'Chapters']).join(', '));
-            const tags = uniqueStrings(
-                extractSectionLines(lines, 'Tags', ['Referrers', 'Reviews', 'Chapters', 'Comments', 'Recommendations', 'FAQ'])
-                    .filter((entry) => entry && !/^show\s+(less|more)$/i.test(entry))
+            const description = extractSectionLines(lines, 'Description', ['More Info', 'Reviews', 'Chapters', 'Comments', 'Recommendations', 'FAQ']).join(' ')
+                || (snapshotMode ? extractSnapshotParagraphAfterHeading(lines, 'Description') : '');
+            const origination = extractSectionLines(lines, 'Origination', ['Demographic', 'Published', 'Status'])[0]
+                || (snapshotMode ? extractSnapshotRowValue(lines, 'Origination') : '')
+                || '';
+            const demographic = extractSectionLines(lines, 'Demographic', ['Published', 'Status', 'Translation', 'Anime Start'])[0]
+                || (snapshotMode ? extractSnapshotRowValue(lines, 'Demographic') : '')
+                || '';
+            const published = extractSectionLines(lines, 'Published', ['Status', 'Translation', 'Anime Start', 'Final Chapter', 'Ranked'])[0]
+                || (snapshotMode ? extractSnapshotRowValue(lines, 'Published') : '')
+                || '';
+            const status = extractSectionLines(lines, 'Status', ['Translation', 'Anime Start', 'Anime End', 'Final Chapter', 'Ranked', 'Followed by', 'Description'])[0]
+                || (snapshotMode ? extractSnapshotRowValue(lines, 'Status') : '')
+                || '';
+            const translation = extractSectionLines(lines, 'Translation', ['Anime Start', 'Anime End', 'Final Chapter', 'Ranked', 'Followed by', 'Description'])[0]
+                || (snapshotMode ? extractSnapshotRowValue(lines, 'Translation') : '')
+                || '';
+            const finalChapter = parseChapterValue(
+                extractSectionLines(lines, 'Final Chapter', ['Ranked', 'Followed by', 'Description', 'More Info'])[0]
+                || (snapshotMode ? extractSnapshotRowValue(lines, 'Final Chapter') : '')
+                || ''
             );
+            const rank = parseNumberValue(
+                extractSectionLines(lines, 'Ranked', ['Followed by', 'Description', 'More Info'])[0]
+                || (snapshotMode ? pageText.match(/Ranked:\s*#?([\d,]+)/i)?.[1] : '')
+                || ''
+            );
+            const followCount = parseNumberValue(
+                extractSectionLines(lines, 'Followed by', ['Description', 'More Info'])[0]
+                || (snapshotMode ? extractSnapshotFollowCount(pageText) : '')
+                || ''
+            );
+
+            const artists = splitList(
+                extractSectionLines(lines, 'Artists', ['Authors', 'Genres', 'Theme', 'Format', 'Publishers', 'Relations', 'Tags', 'Referrers']).join(', ')
+                || (snapshotMode ? extractSnapshotRowValue(lines, 'Artists') : '')
+            );
+            const authors = splitList(
+                extractSectionLines(lines, 'Authors', ['Genres', 'Theme', 'Format', 'Publishers', 'Relations', 'Tags', 'Referrers']).join(', ')
+                || (snapshotMode ? extractSnapshotRowValue(lines, 'Authors') : '')
+            );
+            const genres = splitList(
+                extractSectionLines(lines, 'Genres', ['Theme', 'Format', 'Publishers', 'Relations', 'Tags', 'Referrers']).join(', ')
+                || (snapshotMode ? extractSnapshotRowValue(lines, 'Genres') : '')
+            );
+            const themes = splitList(
+                extractSectionLines(lines, 'Theme', ['Format', 'Publishers', 'Relations', 'Tags', 'Referrers']).join(', ')
+                || (snapshotMode ? extractSnapshotRowValue(lines, 'Theme') : '')
+            );
+            const formats = splitList(
+                extractSectionLines(lines, 'Format', ['Publishers', 'Relations', 'Tags', 'Referrers']).join(', ')
+                || (snapshotMode ? extractSnapshotRowValue(lines, 'Format') : '')
+            );
+            const publishers = splitList(
+                extractSectionLines(lines, 'Publishers', ['Relations', 'Tags', 'Referrers', 'Reviews', 'Chapters']).join(', ')
+                || (snapshotMode ? extractSnapshotRowValue(lines, 'Publishers') : '')
+            );
+            const tags = uniqueStrings([
+                ...extractSectionLines(lines, 'Tags', ['Referrers', 'Reviews', 'Chapters', 'Comments', 'Recommendations', 'FAQ'])
+                    .filter((entry) => entry && !/^show\s+(less|more)$/i.test(entry)),
+                ...(snapshotMode ? extractSnapshotLinkSection(lines, 'Tags') : [])
+            ]);
 
             return {
                 title: normalizeText(doc?.querySelector?.('meta[property="og:title"]')?.getAttribute('content') || item?.title || ''),
