@@ -12,19 +12,9 @@ async function loadConnectionStatusIndicator() {
     try {
         const htmlContent = `
 <!-- Connection Status Indicator -->
-<div class="connection-status" style="display: flex; align-items: center; gap: 8px;">
-    <div id="connectionDot" class="connection-dot" style="
-        width: 12px; 
-        height: 12px; 
-        border-radius: 50%; 
-        background-color: #9e9e9e;
-        transition: background-color 0.3s ease;
-    "></div>
-    <span id="connectionText" class="connection-text" style="
-        color: #333;
-        font-size: 14px;
-        font-weight: 500;
-    ">Not Connected</span>
+<div id="connectionStatus" class="connection-status gemini-connection-pill" data-status="disconnected">
+    <div id="connectionDot" class="connection-dot gemini-connection-dot"></div>
+    <span id="connectionText" class="connection-text gemini-connection-text">Not Connected</span>
 </div>
 `;
         placeholder.innerHTML = htmlContent;
@@ -115,36 +105,33 @@ function initializeConnectionStatusAfterLoad() {
  * Helper function to update the connection status elements directly
  */
 function updateConnectionStatusElements(status, message) {
+    const connectionRoot = document.getElementById('connectionStatus');
     const connectionDot = document.getElementById('connectionDot');
     const connectionText = document.getElementById('connectionText');
 
-    if (!connectionDot || !connectionText) {
+    if (!connectionDot || !connectionText || !connectionRoot) {
         return;
     }
 
+    connectionRoot.dataset.status = status || 'unknown';
+
     switch (status) {
         case 'connecting':
-            connectionDot.style.backgroundColor = '#ff9800'; // Orange
             connectionText.textContent = message || 'Connecting...';
             break;
         case 'connected':
-            connectionDot.style.backgroundColor = '#4caf50'; // Green
             connectionText.textContent = message || 'Connected';
             break;
         case 'disconnected':
-            connectionDot.style.backgroundColor = '#f44336'; // Red
             connectionText.textContent = message || 'Disconnected';
             break;
         case 'error':
-            connectionDot.style.backgroundColor = '#f44336'; // Red
             connectionText.textContent = message || 'Connection Error';
             break;
         case 'waiting':
-            connectionDot.style.backgroundColor = '#ff9800'; // Orange
             connectionText.textContent = message || 'Waiting for Server...';
             break;
         default:
-            connectionDot.style.backgroundColor = '#9e9e9e'; // Gray
             connectionText.textContent = message || 'Unknown';
     }
 }

@@ -4,22 +4,25 @@
 async function loadPageHeader() {
     try {
         const html = `
-<header class="mdl-layout__header" id="main-header">
-    <div class="mdl-layout__header-row">
+<header class="mdl-layout__header gemini-app-header" id="main-header">
+    <div class="mdl-layout__header-row gemini-app-header-row">
         <!-- Collapse/Expand Button -->
-        <button id="header-collapse-btn" class="mdl-button mdl-js-button mdl-button--icon" title="Collapse Demo">
+        <button id="header-collapse-btn" class="mdl-button mdl-js-button mdl-button--icon gemini-header-icon-btn" title="Collapse Workspace" aria-label="Collapse Workspace">
             <i class="material-icons" id="header-collapse-icon">expand_less</i>
         </button>
         <!-- Title -->
-        <span class="mdl-layout-title">Gemini Live Link</span>
+        <div class="gemini-app-header-main">
+            <div class="gemini-app-kicker">Gemini Link</div>
+            <span class="mdl-layout-title gemini-app-title">Live Workspace</span>
+        </div>
         <!-- Spacer -->
         <div class="mdl-layout-spacer"></div>
+        <!-- Connection Status Indicator Placeholder -->
+        <div id="connection-status-placeholder" class="gemini-header-status-slot"></div>
         <!-- Theme Toggle Button -->
-        <button id="theme-toggle-btn" class="mdl-button mdl-js-button mdl-button--icon" title="Toggle Dark/Light Mode">
+        <button id="theme-toggle-btn" class="mdl-button mdl-js-button mdl-button--icon gemini-header-icon-btn" title="Toggle Dark/Light Mode" aria-label="Toggle Theme">
             <i class="material-icons" id="theme-icon">dark_mode</i>
         </button>
-        <!-- Connection Status Indicator Placeholder -->
-        <div id="connection-status-placeholder"></div>
     </div>
 </header>
 `;
@@ -44,26 +47,26 @@ async function loadPageHeader() {
                 /* Ensure the Header itself remains visible and interactive */
                 .gemini-collapsed-mode#gemini-ui-root .mdl-layout__header,
                 .gemini-collapsed-mode .mdl-layout__header {
-                    background: #fff !important; /* Restore white background for header strip */
-                    color: #333 !important;
+                    background: linear-gradient(145deg, rgba(14, 20, 31, 0.96), rgba(9, 14, 22, 0.94)) !important;
+                    color: #e8f7ff !important;
                     display: flex !important;
                     visibility: visible !important;
                     z-index: 100 !important;
-                    box-shadow: 0 2px 5px rgba(0,0,0,0.1) !important;
+                    box-shadow: 0 16px 28px rgba(0,0,0,0.22) !important;
                 }
 
-                /* Fix White-on-White buttons/text */
+                /* Fix collapsed header button/text colors */
                 .gemini-collapsed-mode#gemini-ui-root .mdl-layout__header .mdl-button,
                 .gemini-collapsed-mode#gemini-ui-root .mdl-layout__header .material-icons,
                 .gemini-collapsed-mode#gemini-ui-root .mdl-layout__header .mdl-layout-title,
                 .gemini-collapsed-mode #header-collapse-btn,
                 .gemini-collapsed-mode #theme-toggle-btn {
-                    color: #333 !important; /* Force dark color for icons/text */
+                    color: #e8f7ff !important;
                 }
 
                 .gemini-collapsed-mode .mdl-layout__header-row {
                     height: 64px !important;
-                    padding: 0 40px !important;
+                    padding: 0 20px !important;
                 }
                 
                 /* Target the KEY ROOT container that has hardcoded height/background in gemini-init.js */
@@ -99,9 +102,9 @@ async function loadPageHeader() {
             if (collapseBtn) {
                 // Function to toggle the main content visibility
                 const toggleDemoContent = (shouldCollapse) => {
-                    const geminiRoot = document.getElementById('gemini-ui-root');
-                    const mdlLayout = document.querySelector('.mdl-layout');
-                    const mdlLayoutContainer = document.querySelector('.mdl-layout__container');
+                    const geminiRoot = collapseBtn.closest('#gemini-ui-root') || document.getElementById('gemini-ui-root');
+                    const mdlLayout = geminiRoot ? geminiRoot.querySelector('.mdl-layout') : document.querySelector('.mdl-layout');
+                    const mdlLayoutContainer = geminiRoot ? geminiRoot.querySelector('.mdl-layout__container') : document.querySelector('.mdl-layout__container');
 
                     // The root container is the most important one to collapse
                     // as it has hardcoded height and white background
@@ -140,26 +143,28 @@ async function loadPageHeader() {
 
                 if (isCollapsed) {
                     if (collapseIcon) collapseIcon.textContent = 'expand_more';
-                    collapseBtn.title = "Expand Demo";
+                    collapseBtn.title = "Expand Workspace";
                     toggleDemoContent(true);
                 } else {
                     toggleDemoContent(false);
                 }
 
-                collapseBtn.addEventListener('click', () => {
+                collapseBtn.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
                     // Check current state based on icon (expand_more means currently collapsed)
                     const isNowCollapsed = collapseIcon.textContent === 'expand_more';
 
                     if (isNowCollapsed) {
                         // Currently collapsed, so EXPAND it
                         if (collapseIcon) collapseIcon.textContent = 'expand_less';
-                        collapseBtn.title = "Collapse Demo";
+                        collapseBtn.title = "Collapse Workspace";
                         toggleDemoContent(false);
                         localStorage.setItem('geminiDemoCollapsed', 'false');
                     } else {
                         // Currently expanded, so COLLAPSE it
                         if (collapseIcon) collapseIcon.textContent = 'expand_more';
-                        collapseBtn.title = "Expand Demo";
+                        collapseBtn.title = "Expand Workspace";
                         toggleDemoContent(true);
                         localStorage.setItem('geminiDemoCollapsed', 'true');
                     }

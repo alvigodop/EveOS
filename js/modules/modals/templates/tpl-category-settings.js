@@ -75,7 +75,7 @@ window.modalTemplate += `
         </div>
 
         <div id="cat-tab-scraper" class="tab-content" style="display:none;">
-            <p style="opacity:0.7; font-size:0.9rem; margin-bottom:10px;">Search Wikipedia, Fandom, or API providers from this card's isolated scraper workspace.</p>
+            <p style="opacity:0.7; font-size:0.9rem; margin-bottom:10px;">Use this card's isolated scraper workspace to search live sources, manage saved domains, and reuse provider cache without cross-card bleed.</p>
             <div id="modal-scraper-container"></div>
         </div>
 

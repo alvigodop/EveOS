@@ -6,53 +6,47 @@ async function loadScreenCaptureSettingsCard() {
     const placeholder = document.getElementById('screen-capture-settings-card-placeholder');
     if (!placeholder) {
         console.error('Placeholder for Screen Capture Interval card not found!');
-        return Promise.reject('Placeholder not found'); // Return a rejected promise
+        return Promise.reject('Placeholder not found');
     }
 
     try {
         const htmlContent = `
-<!-- Screen Capture Interval Card Component -->
-<div class="agentic-function-card" style="background-color: white; padding: 12px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.12); min-width: 200px;">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-        <span style="font-weight: 500; color: #333;">Screen Capture Interval</span>
-        <div style="display: flex; align-items: center;">
-            <button id="screenCaptureSettingsButton" class="mdl-button mdl-js-button mdl-button--icon">
-                <i class="material-icons">settings</i>
-            </button>
+<div class="agentic-function-card gemini-agentic-card gemini-agentic-card--screen">
+    <div class="gemini-agentic-card-head">
+        <div>
+            <div class="gemini-agentic-card-kicker">Share Sampling</div>
+            <span class="gemini-agentic-card-title">Screen Capture Interval</span>
         </div>
+        <button id="screenCaptureSettingsButton" class="mdl-button mdl-js-button mdl-button--icon gemini-agentic-icon-btn">
+            <i class="material-icons">settings</i>
+        </button>
     </div>
-    <div style="font-size: 12px; color: #757575; margin-top: 8px;">
+    <div class="gemini-agentic-card-copy">
         Interval in seconds between periodic screen captures when sharing
     </div>
 </div>
 `;
         placeholder.innerHTML = htmlContent;
-        // After loading, you might need to manually upgrade MDL components within the loaded HTML
         if (typeof componentHandler !== 'undefined') {
             componentHandler.upgradeElements(placeholder);
         }
 
-        // Set the initial state of the settings button based on screen sharing state
         const settingsButton = document.getElementById('screenCaptureSettingsButton');
         if (settingsButton && typeof window.isScreenShared !== 'undefined') {
             settingsButton.disabled = !window.isScreenShared;
         } else if (settingsButton) {
             console.warn('window.isScreenShared not defined when initializing screenCaptureSettingsUILoader.js. Button state may be incorrect.');
-            settingsButton.disabled = true; // Default to disabled if state is unknown
+            settingsButton.disabled = true;
         }
 
-        return Promise.resolve(); // Resolve the promise on success
+        return Promise.resolve();
 
     } catch (error) {
         console.error('Failed to load Screen Capture Interval card:', error);
-        return Promise.reject(error); // Return a rejected promise on error
+        return Promise.reject(error);
     }
 }
 
-/**
- * Loads the Screen Capture Settings Dialog HTML component and inserts it into the page.
- * Returns a Promise that resolves when the loading and insertion is complete.
- */
 async function loadScreenCaptureSettingsDialog() {
     const placeholder = document.getElementById('screen-capture-settings-dialog-placeholder');
     if (!placeholder) {
@@ -62,7 +56,6 @@ async function loadScreenCaptureSettingsDialog() {
 
     try {
         const htmlContent = `
-<!-- Screen Capture Settings Dialog Component -->
 <dialog id="screenCaptureSettingsDialog" class="mdl-dialog" style="width: 300px;">
     <h4 class="mdl-dialog__title">Screen Capture Settings</h4>
     <div class="mdl-dialog__content">
@@ -77,12 +70,10 @@ async function loadScreenCaptureSettingsDialog() {
 `;
         placeholder.innerHTML = htmlContent;
 
-        // Upgrade MDL components within the loaded HTML
         if (typeof componentHandler !== 'undefined') {
             componentHandler.upgradeElements(placeholder);
         }
 
-        // Initialize the dialog polyfill if needed
         const dialog = document.getElementById('screenCaptureSettingsDialog');
         if (dialog && typeof window.dialogPolyfill !== 'undefined') {
             window.dialogPolyfill.registerDialog(dialog);
@@ -97,9 +88,6 @@ async function loadScreenCaptureSettingsDialog() {
     }
 }
 
-/**
- * Initializes the Screen Capture Settings button handler.
- */
 function initializeScreenCaptureSettingsHandler() {
     console.log('ScreenCaptureSettingsAgentic.initializeScreenCaptureSettingsHandler called.');
     const settingsButton = document.getElementById('screenCaptureSettingsButton');
@@ -112,11 +100,8 @@ function initializeScreenCaptureSettingsHandler() {
         return;
     }
 
-    // Show the dialog when the settings button is clicked
     settingsButton.addEventListener('click', () => {
         console.log('Screen Capture Settings button clicked. Opening dialog.');
-
-        // Restore current setting
         const currentInterval = localStorage.getItem('screenCaptureInterval') || '1000';
         const input = document.getElementById('screenCaptureIntervalInput');
         if (input) {
@@ -131,7 +116,6 @@ function initializeScreenCaptureSettingsHandler() {
         }
     });
 
-    // Close the dialog when the cancel button is clicked
     if (cancelButton) {
         cancelButton.addEventListener('click', () => {
             console.log('Screen Capture Settings dialog Cancel button clicked.');
@@ -143,22 +127,15 @@ function initializeScreenCaptureSettingsHandler() {
         });
     }
 
-    // Close the dialog and save settings (if any) when the save button is clicked
     if (saveButton) {
         saveButton.addEventListener('click', () => {
             console.log('Screen Capture Settings dialog Save button clicked.');
-
             const input = document.getElementById('screenCaptureIntervalInput');
             if (input) {
                 let interval = parseInt(input.value, 10);
                 if (isNaN(interval) || interval < 100) interval = 1000;
-
-                // Save to localStorage
                 localStorage.setItem('screenCaptureInterval', interval.toString());
-
-                // Update global if available
                 window.screenCaptureIntervalGlobal = interval;
-
                 if (typeof window.displayMessage === 'function') {
                     window.displayMessage(`System Message: Screen capture interval set to ${interval}ms`, true);
                 }
@@ -175,8 +152,7 @@ function initializeScreenCaptureSettingsHandler() {
     console.log('Screen Capture Settings Handler initialized successfully.');
 }
 
-// Export the functions to be called by pageInitializer.js
 window.loadScreenCaptureSettingsCard = loadScreenCaptureSettingsCard;
 window.loadScreenCaptureSettingsDialog = loadScreenCaptureSettingsDialog;
 window.ScreenCaptureSettingsAgentic = window.ScreenCaptureSettingsAgentic || {};
-window.ScreenCaptureSettingsAgentic.initializeScreenCaptureSettingsHandler = initializeScreenCaptureSettingsHandler; 
+window.ScreenCaptureSettingsAgentic.initializeScreenCaptureSettingsHandler = initializeScreenCaptureSettingsHandler;

@@ -5,18 +5,22 @@ async function loadButtonGroupContainer() {
     try {
         const html = `
 <!-- Voice Control Buttons Container -->
-<div class="button-group">
-    <div id="start-button-placeholder"></div>
-    <div id="stop-button-placeholder"></div>
-    <div id="screen-share-button-placeholder"></div>
-    <div id="reinitiate-model-button-placeholder"></div>
-    <div id="new-chat-button-placeholder"></div>
-    <div id="toggle-conversation-history-button-placeholder"></div>
-    <div id="system-message-toggle-placeholder" style="margin-left: 10px;"></div>
-    <div id="send-history-button-placeholder" style="margin-left: 10px;"></div>
-    <div id="clear-chat-button-placeholder"></div>
-    <div id="clear-system-log-button-placeholder" style="margin-left: 10px;"></div>
-    <div id="toggle-past-chats-button-placeholder"></div>
+<div class="button-group gemini-command-bar">
+    <div class="gemini-command-icon-row">
+        <div id="start-button-placeholder"></div>
+        <div id="stop-button-placeholder"></div>
+        <div id="screen-share-button-placeholder"></div>
+        <div id="reinitiate-model-button-placeholder"></div>
+        <div id="new-chat-button-placeholder"></div>
+        <div id="toggle-conversation-history-button-placeholder"></div>
+    </div>
+    <div class="gemini-command-action-row">
+        <div id="system-message-toggle-placeholder"></div>
+        <div id="send-history-button-placeholder"></div>
+        <div id="clear-chat-button-placeholder"></div>
+        <div id="clear-system-log-button-placeholder"></div>
+        <div id="toggle-past-chats-button-placeholder"></div>
+    </div>
 </div>
 `;
         const placeholder = document.getElementById('button-group-container-placeholder');

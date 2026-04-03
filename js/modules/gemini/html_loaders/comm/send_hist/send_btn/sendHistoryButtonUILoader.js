@@ -11,9 +11,9 @@ async function loadSendChatHistoryButton() {
 
     try {
         const htmlContent = `
-<button id="sendHistoryButton" class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored" style="margin-left: 10px;">
-    <i class="material-icons" style="vertical-align: middle; margin-right: 4px;">history</i>
-    Send Chat History
+<button id="sendHistoryButton" class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored gemini-command-action-btn gemini-command-action-btn--history">
+    <i class="material-icons gemini-command-action-icon">history</i>
+    <span class="gemini-command-action-label">Send Chat History</span>
 </button>
 `;
         placeholder.innerHTML = htmlContent;

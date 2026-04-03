@@ -5,11 +5,15 @@
                 <div class="scraper-ui-wrapper">
                     <!-- Top Bar Tools -->
                     <div class="scraper-toolbar">
+                        <div class="scraper-toolbar-copy">
+                            <div class="scraper-toolbar-kicker">Card Workspace</div>
+                            <div class="scraper-toolbar-title">Scraper Control Center</div>
+                        </div>
                         <button id="forceReloadBtn" class="tool-btn" onclick="return handleForceReloadClick();" title="Force reload all modules">
-                            <span class="btn-icon">🔄</span> Force Reload
+                            Refresh Workspace
                         </button>
                         <div class="dropdown">
-                            <button class="tool-btn dropdown-btn" id="modulesDropdownBtn" onclick="toggleModulesDropdown(event)">Modules</button>
+                            <button class="tool-btn dropdown-btn" id="modulesDropdownBtn" onclick="toggleModulesDropdown(event)">Workspace Tools</button>
                             <div id="modulesDropdown" class="dropdown-content">
                                 <a href="#" onclick="DataManager.exportData(); return false;">Export Data</a>
                                 <a href="#" onclick="DataManager.importData(); return false;">Import Data</a>
@@ -17,16 +21,16 @@
                             </div>
                         </div>
                         <button class="tool-btn btn-cache-stats" id="cacheStatsBtn" onclick="CacheManager.viewCache(); return false;" title="View Cache Statistics">
-                            <span class="btn-icon">📊</span> Cache Stats
+                            Cache Overview
                         </button>
                         <button class="tool-btn btn-debug" id="debugBtn" onclick="showErrorPanel(); return false;" title="Show Error Debug Panel (Alt+E)">
-                            <span class="btn-icon">🐞</span> Debug
+                            Diagnostics
                         </button>
                         
                         <!-- Server Status Indicators -->
                         <div class="server-status-indicators">
-                            <div class="local-server-indicator" title="Local Server Status">Local Server</div>
-                            <div class="cors-proxy-status" title="CORS Proxy Status">CORS Proxy</div>
+                            <div class="local-server-indicator" title="Local Server Status">Loopback</div>
+                            <div class="cors-proxy-status" title="CORS Proxy Status">Proxy</div>
                         </div>
                     </div>
 
@@ -53,23 +57,23 @@
                             </div>
                             <div class="layout-toggles">
                                 <button id="layoutGridBtn" class="layout-btn active" onclick="updateLayout('grid')" title="Grid View">
-                                    <span class="icon">⊞</span>
+                                    <span class="icon">Grid</span>
                                 </button>
                                 <button id="layoutListBtn" class="layout-btn" onclick="updateLayout('list')" title="List View">
-                                    <span class="icon">☰</span>
+                                    <span class="icon">List</span>
                                 </button>
                             </div>
                         </div>
 
                         <!-- Row 2: Search Bar -->
                         <div class="control-row search-row">
-                            <input type="text" id="searchInput" class="search-input flex-1" placeholder="Search for articles in your library...">
+                            <input type="text" id="searchInput" class="search-input flex-1" placeholder="Search this card's isolated knowledge workspace...">
                             <button id="searchBtn" class="btn-search-primary" onclick="triggerSearchManagerUpdate()">Search</button>
                         </div>
 
                         <!-- Row 3: Filters & Settings -->
                         <div class="control-row filters-row">
-                            <span class="filter-group-label">Filters:</span>
+                            <span class="filter-group-label">Focus</span>
                             <label class="filter-label" title="Prioritize Manga/Anime content">
                                 <div class="toggle-switch">
                                     <input type="checkbox" id="mangaFilter" onchange="applyFilters()">
@@ -87,11 +91,11 @@
 
                             <div class="separator-vertical"></div>
 
-                            <span class="filter-group-label">View:</span>
+                            <span class="filter-group-label">Layout</span>
                             <div class="group-by-container">
-                                <label for="groupBySelect">Group:</label>
+                                <label for="groupBySelect">Cluster</label>
                                 <select id="groupBySelect" onchange="applyFilters()">
-                                    <option value="none">None</option>
+                                    <option value="none">No grouping</option>
                                     <option value="contentType">Type</option>
                                     <option value="wiki">Wiki</option>
                                 </select>
@@ -99,7 +103,7 @@
 
                             <div class="separator-vertical"></div>
 
-                            <span class="filter-group-label">Settings:</span>
+                            <span class="filter-group-label">Modes</span>
                             <label class="filter-label" title="Remove duplicate entries (Smart Linking)">
                                 <div class="toggle-switch">
                                     <input type="checkbox" id="smartDedupToggle" checked onchange="applyFilters()">
@@ -124,7 +128,7 @@
 
                             <div class="flex-line-break"></div>
 
-                            <span class="filter-group-label">Hide:</span>
+                            <span class="filter-group-label">Hide</span>
                             <label class="filter-label" title="Exclude results identified as real people">
                                 <div class="toggle-switch">
                                     <input type="checkbox" id="hidePersonsToggle" checked onchange="applyFilters()">
@@ -193,7 +197,7 @@
                                             <button id="reloadAllWikiBtn" class="btn secondary-btn" onclick="WikiManager.reloadAllWikiStatus()" title="Reload status for all entries">Reload</button>
                                             <button id="clearAllWikiCacheBtn" class="btn danger-btn" onclick="CacheManager.clearAllWikiCaches()" title="Clear all Wikipedia caches">Clear Cache</button>
                                             <a href="javascript:void(0)" onclick="if(window.PopupManager && PopupManager.openPopup) { PopupManager.openPopup('https://en.wikipedia.org', 'Wikipedia'); } else { window.open('https://en.wikipedia.org', '_blank'); }" class="wiki-link wiki-link-action">
-                                                Wikipedia <span class="external-link-icon">↗</span>
+                                                Wikipedia <span class="external-link-icon">Open</span>
                                             </a>
                                         </div>
                                         <div class="domain-add-form">
@@ -242,9 +246,9 @@
                                             <div id="wiki-search-mode-selector" class="search-mode-selector">
                                                 <label for="wiki-search-mode" class="link-behavior-label">Search Mode:</label>
                                                 <select id="wiki-search-mode" class="search-mode-select" onchange="WikipediaDiscovery.setSearchMode(this.value)">
-                                                    <option value="direct" title="Uses Wikipedia API with CORS proxies (works from file://)">🌐 Direct API</option>
-                                                    <option value="server" title="Uses localhost Python server (more reliable, requires server)">🖥️ Server Mode</option>
-                                                    <option value="google-cse" title="Uses Google Custom Search Engine (Web Search)">🔍 Google Web Search</option>
+                                                    <option value="direct" title="Uses Wikipedia API with CORS proxies (works from file://)">Direct API</option>
+                                                    <option value="server" title="Uses localhost Python server (more reliable, requires server)">Server Mode</option>
+                                                    <option value="google-cse" title="Uses Google Custom Search Engine (Web Search)">Google Web Search</option>
                                                 </select>
                                             </div>
                                             <div id="wikiDiscoveryResults" class="discovery-results"></div>
@@ -265,7 +269,7 @@
                                             <button id="reloadAllFandomBtn" class="btn secondary-btn" onclick="WikiManager.reloadAllFandomWikiStatus()">Reload</button>
                                             <button id="clearAllFandomCacheBtn" class="btn danger-btn" onclick="CacheManager.clearAllFandomCaches()">Clear Cache</button>
                                             <a href="javascript:void(0)" onclick="if(window.PopupManager && PopupManager.openPopup) { PopupManager.openPopup('https://www.fandom.com', 'Fandom'); } else { window.open('https://www.fandom.com', '_blank'); }" class="wiki-link wiki-link-action">
-                                                Fandom <span class="external-link-icon">↗</span>
+                                                Fandom <span class="external-link-icon">Open</span>
                                             </a>
                                         </div>
                                         <div class="domain-add-form">
@@ -292,11 +296,11 @@
                                             <div id="fandom-engine-selector" class="search-mode-selector">
                                                 <label for="fandom-search-engine" class="link-behavior-label">Search Engine:</label>
                                                 <select id="fandom-search-engine" class="search-mode-select">
-                                                    <option value="google" title="Uses Google Custom Search API (100 queries/day limit)">🔍 Google API</option>
-                                                    <option value="google-cse" title="Uses Google Custom Search Engine (Web Search)">🔍 Google Web Search</option>
-                                                    <option value="domain-guess" title="Guesses domain names and validates via MediaWiki API (no limits)">🎯 Domain Guess</option>
-                                                    <option value="brave" title="Scrapes Brave Search results (requires localhost server)">🦁 Brave Scraper</option>
-                                                    <option value="yahoo" title="Scrapes Yahoo Search results via CORS proxy">🟣 Yahoo Scraper</option>
+                                                    <option value="google" title="Uses Google Custom Search API (100 queries/day limit)">Google API</option>
+                                                    <option value="google-cse" title="Uses Google Custom Search Engine (Web Search)">Google Web Search</option>
+                                                    <option value="domain-guess" title="Guesses domain names and validates via MediaWiki API (no limits)">Domain Guess</option>
+                                                    <option value="brave" title="Scrapes Brave Search results (requires localhost server)">Brave Scraper</option>
+                                                    <option value="yahoo" title="Scrapes Yahoo Search results via CORS proxy">Yahoo Scraper</option>
                                                 </select>
                                             </div>
 

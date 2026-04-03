@@ -12,8 +12,7 @@ async function loadReinitiateModelButtonCard() {
     try {
         const htmlContent = `
 <button id="initiateModelButton"
-    class="mdl-button mdl-js-button mdl-button--fab mdl-button--mini-fab"
-    style="background-color: #9c27b0;"
+    class="mdl-button mdl-js-button mdl-button--fab mdl-button--mini-fab gemini-command-icon-btn gemini-command-icon-btn--model"
     title="Reinitiate Model">
     <i class="material-icons">smart_toy</i>
 </button>

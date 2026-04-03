@@ -11,27 +11,28 @@ async function loadAudioProcessingControlsCard() {
 
     try {
         const htmlContent = `
-<!-- Audio Processing Controls Card Component -->
-<div class="agentic-function-card" style="background-color: white; padding: 12px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.12); min-width: 200px;">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-        <span style="font-weight: 500; color: #333;">Audio Processing Controls</span>
-        <div style="display: flex; align-items: center;">
-            <button id="audioSettingsButton" class="mdl-button mdl-js-button mdl-button--icon" style="margin-right: 8px;">
+<div class="agentic-function-card gemini-agentic-card gemini-agentic-card--audio">
+    <div class="gemini-agentic-card-head">
+        <div>
+            <div class="gemini-agentic-card-kicker">Audio Pipeline</div>
+            <span class="gemini-agentic-card-title">Audio Processing Controls</span>
+        </div>
+        <div class="gemini-agentic-card-actions">
+            <button id="audioSettingsButton" class="mdl-button mdl-js-button mdl-button--icon gemini-agentic-icon-btn">
                 <i class="material-icons">settings_audio</i>
             </button>
-            <label class="mdl-switch mdl-js-switch mdl-js-ripple-effect" for="playProcessedAudioToggle">
+            <label class="mdl-switch mdl-js-switch mdl-js-ripple-effect gemini-agentic-switch" for="playProcessedAudioToggle">
                 <input type="checkbox" id="playProcessedAudioToggle" class="mdl-switch__input">
                 <span class="mdl-switch__label"></span>
             </label>
         </div>
     </div>
-    <div style="font-size: 12px; color: #757575;">
+    <div class="gemini-agentic-card-copy">
         Enable playback of the final processed audio message
     </div>
 </div>
 `;
         placeholder.innerHTML = htmlContent;
-        // Manually upgrade MDL components within the loaded HTML
         if (typeof componentHandler !== 'undefined') {
             componentHandler.upgradeElements(placeholder);
         }
@@ -43,5 +44,4 @@ async function loadAudioProcessingControlsCard() {
     }
 }
 
-// Export the function to be called by pageInitializer.js
-window.loadAudioProcessingControlsCard = loadAudioProcessingControlsCard; 
+window.loadAudioProcessingControlsCard = loadAudioProcessingControlsCard;

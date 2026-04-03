@@ -12,11 +12,10 @@ async function loadTogglePastChatsButton() {
     try {
         const htmlContent = `
 <button id="togglePastChatsButton"
-    class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored"
-    style="margin-left: 10px; background-color: #673ab7;"
+    class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored gemini-command-action-btn gemini-command-action-btn--secondary"
     title="Toggle Past Chats Display">
-    <i class="material-icons" style="vertical-align: middle; margin-right: 4px;">history_toggle_off</i>
-    Toggle Past Chats
+    <i class="material-icons gemini-command-action-icon">history_toggle_off</i>
+    <span class="gemini-command-action-label">Toggle Past Chats</span>
 </button>
 `;
         placeholder.innerHTML = htmlContent;

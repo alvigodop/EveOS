@@ -12,8 +12,7 @@ async function loadNewChatButtonCard() {
     try {
         const htmlContent = `
 <button id="newChatButton"
-    class="mdl-button mdl-js-button mdl-button--fab mdl-button--mini-fab"
-    style="background-color: #00bcd4;"
+    class="mdl-button mdl-js-button mdl-button--fab mdl-button--mini-fab gemini-command-icon-btn gemini-command-icon-btn--compose"
     title="Start New Chat">
     <i class="material-icons">add_comment</i>
 </button>

@@ -12,9 +12,9 @@ async function loadClearChatButton() {
     try {
         const htmlContent = `
 <!-- Clear Chat Button Component -->
-<button id="clearChatButton" class="mdl-button mdl-js-button mdl-button--raised mdl-button--accent" style="margin-left: 10px; background-color: #ff5722;">
-    <i class="material-icons" style="vertical-align: middle; margin-right: 4px;">clear_all</i>
-    Clear Chat
+<button id="clearChatButton" class="mdl-button mdl-js-button mdl-button--raised mdl-button--accent gemini-command-action-btn gemini-command-action-btn--danger">
+    <i class="material-icons gemini-command-action-icon">clear_all</i>
+    <span class="gemini-command-action-label">Clear Chat</span>
 </button>
 `;
         placeholder.innerHTML = htmlContent;

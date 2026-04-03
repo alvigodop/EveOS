@@ -12,7 +12,7 @@ async function loadStartButton() {
     try {
         const html = `
 <button id="startButton"
-    class="mdl-button mdl-js-button mdl-button--fab mdl-button--mini-fab mdl-button--colored"
+    class="mdl-button mdl-js-button mdl-button--fab mdl-button--mini-fab mdl-button--colored gemini-command-icon-btn gemini-command-icon-btn--voice"
     title="Start Voice Input">
     <i class="material-icons">mic</i>
 </button>

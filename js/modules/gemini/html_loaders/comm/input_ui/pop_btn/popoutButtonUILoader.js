@@ -11,19 +11,16 @@ async function loadPopoutButtonCard() {
 
     try {
         const htmlContent = `
-<!-- Popout Button Component -->
-<button id="popoutButton" class="mdl-button mdl-js-button mdl-button--icon" title="Popout Chat">
+<button id="popoutButton" class="gemini-popout-btn" type="button" title="Open Gemini in a separate window">
     <i class="material-icons">open_in_new</i>
 </button>
 `;
         placeholder.innerHTML = htmlContent;
-        // Manually upgrade MDL components within the loaded HTML
         if (window.componentHandler) {
             window.componentHandler.upgradeElements(placeholder);
         }
         console.log('Popout Button card loaded and MDL components upgraded.');
 
-        // Initialize the popout chat feature after the button is loaded
         if (window.LogInterfaceDisplay &&
             window.LogInterfaceDisplay.MessagingInterface &&
             window.LogInterfaceDisplay.MessagingInterface.PopoutChatFeature &&
@@ -43,5 +40,4 @@ async function loadPopoutButtonCard() {
     }
 }
 
-// Export the function to be called by the group aggregator
-window.loadPopoutButtonCard = loadPopoutButtonCard; 
+window.loadPopoutButtonCard = loadPopoutButtonCard;

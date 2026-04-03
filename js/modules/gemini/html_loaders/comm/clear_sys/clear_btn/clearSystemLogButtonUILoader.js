@@ -12,9 +12,9 @@ async function loadClearSystemLogButton() {
     try {
         const htmlContent = `
 <!-- Clear System Log Button Component -->
-<button id="clearSystemLogButton" class="mdl-button mdl-js-button mdl-button--raised mdl-button--accent" style="margin-left: 10px; background-color: #ff9800;">
-    <i class="material-icons" style="vertical-align: middle; margin-right: 4px;">delete_sweep</i>
-    Clear System Log
+<button id="clearSystemLogButton" class="mdl-button mdl-js-button mdl-button--raised mdl-button--accent gemini-command-action-btn gemini-command-action-btn--warning">
+    <i class="material-icons gemini-command-action-icon">delete_sweep</i>
+    <span class="gemini-command-action-label">Clear System Log</span>
 </button>
 `;
         placeholder.innerHTML = htmlContent;

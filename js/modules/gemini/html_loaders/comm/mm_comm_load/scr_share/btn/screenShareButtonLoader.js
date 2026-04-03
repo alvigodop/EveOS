@@ -11,7 +11,7 @@ async function loadScreenShareButton() {
     try {
         const html = `
 <button id="screenShareButton"
-    class="mdl-button mdl-js-button mdl-button--fab mdl-button--mini-fab"
+    class="mdl-button mdl-js-button mdl-button--fab mdl-button--mini-fab gemini-command-icon-btn gemini-command-icon-btn--screen"
     title="Toggle Screen Share">
     <i class="material-icons">screen_share</i>
 </button>

@@ -1,78 +1,81 @@
 window.CommunicationPanel = window.CommunicationPanel || {};
-window.CommunicationPanel.SystemMessageToggleCommunicationPanel = window.CommunicationPanel.SystemMessageToggleCommunicationPanel || {};
+window.CommunicationPanel.SystemMessageToggleCommunicationPanel =
+    window.CommunicationPanel.SystemMessageToggleCommunicationPanel || {};
 
-window.CommunicationPanel.SystemMessageToggleCommunicationPanel.initializeSystemMessageToggleHandler = function() {
+window.CommunicationPanel.SystemMessageToggleCommunicationPanel.initializeSystemMessageToggleHandler = function () {
+    const STORAGE_KEY = 'systemMessagesToggleState';
+    const RETRY_DELAY_MS = 350;
+
     const systemMessagesToggle = document.getElementById('systemMessagesToggle');
-    const systemLog = document.getElementById('systemLog');
-
     if (!systemMessagesToggle) {
-        console.warn('System messages toggle not found. Will try again after a delay.');
-        // Retry after a short delay to allow for async HTML loading
-        setTimeout(() => {
+        window.setTimeout(function () {
             window.CommunicationPanel.SystemMessageToggleCommunicationPanel.initializeSystemMessageToggleHandler();
-        }, 500);
+        }, RETRY_DELAY_MS);
         return;
     }
 
-    if (!systemLog) {
-        console.debug('System log element not found. Toggle will work but visibility changes may not be immediate.');
-        // Continue with initialization even without system log - it might be loaded later
-    }
-
-    // FORCE ENABLE system messages - clear any bad localStorage
-    console.log(`[System Toggle Debug] Forcing system messages to be enabled...`);
-    
-    // Clear any potentially problematic localStorage
-    const storedState = localStorage.getItem('systemMessagesToggleState');
-    console.log(`[System Toggle Debug] Previous stored state: ${storedState}`);
-    
-    // Force enable system messages
-    const showSystemMessages = true;
-    systemMessagesToggle.checked = true;
-    localStorage.setItem('systemMessagesToggleState', 'true');
-    
-    console.log(`[System Toggle Debug] System messages FORCED to enabled state: ${showSystemMessages}`);
-
-    // Ensure MDL visual state is correct
-    // Check if componentHandler is available and the element has been upgraded by MDL
-    if (window.componentHandler && systemMessagesToggle.parentElement && systemMessagesToggle.parentElement.classList.contains('is-upgraded')) {
-        if (systemMessagesToggle.parentElement.MaterialSwitch) {
-            systemMessagesToggle.parentElement.MaterialSwitch.on();
+    const getStoredState = function () {
+        try {
+            const stored = window.localStorage ? window.localStorage.getItem(STORAGE_KEY) : null;
+            if (stored === 'false') return false;
+            if (stored === 'true') return true;
+        } catch (error) {
+            console.warn('System message toggle: failed reading state', error);
         }
-    } else if (systemMessagesToggle.parentElement && systemMessagesToggle.parentElement.classList.contains('mdl-switch')) {
-        // Fallback for MDL state if MaterialSwitch object isn't directly available or not upgraded yet
-        systemMessagesToggle.parentElement.classList.add('is-checked');
-    }
-    
-    // Set initial visibility of the system log if it exists
-    if (systemLog) {
-        systemLog.style.display = 'block';
-        console.log(`[System Toggle Debug] System log visibility set to block`);
+        return true;
+    };
+
+    const persistState = function (value) {
+        try {
+            if (window.localStorage) {
+                window.localStorage.setItem(STORAGE_KEY, value ? 'true' : 'false');
+            }
+        } catch (error) {
+            console.warn('System message toggle: failed storing state', error);
+        }
+    };
+
+    const syncVisibility = function (showSystemMessages) {
+        const systemLogPlaceholder = document.getElementById('system-log-display-placeholder');
+        const systemLog = document.getElementById('systemLog');
+
+        if (systemLogPlaceholder) {
+            systemLogPlaceholder.style.display = showSystemMessages ? '' : 'none';
+            systemLogPlaceholder.setAttribute('aria-hidden', showSystemMessages ? 'false' : 'true');
+        }
+
+        if (systemLog) {
+            systemLog.style.display = '';
+            systemLog.setAttribute('aria-hidden', showSystemMessages ? 'false' : 'true');
+        }
+    };
+
+    const initialState = getStoredState();
+    systemMessagesToggle.checked = initialState;
+    syncVisibility(initialState);
+
+    if (systemMessagesToggle.dataset.systemToggleBound === '1') {
+        window.setTimeout(function () {
+            syncVisibility(systemMessagesToggle.checked);
+        }, RETRY_DELAY_MS);
+        return;
     }
 
-    // Add event listener for the toggle
-    systemMessagesToggle.addEventListener('change', function() {
-        const newState = this.checked;
-        localStorage.setItem('systemMessagesToggleState', newState.toString());
-        
-        console.log(`[System Toggle Debug] Toggle changed to: ${newState}`);
-        
-        // Update system log visibility if it exists
-        const currentSystemLog = document.getElementById('systemLog');
-        if (currentSystemLog) {
-            currentSystemLog.style.display = newState ? 'block' : 'none';
-        }
-        
-        // displayMessage function is expected to be globally available or part of a namespace
-        // Assuming it's available as window.displayMessage or similar as per other modules
+    systemMessagesToggle.dataset.systemToggleBound = '1';
+    systemMessagesToggle.addEventListener('change', function () {
+        const nextState = !!systemMessagesToggle.checked;
+        persistState(nextState);
+        syncVisibility(nextState);
+
         if (typeof window.displayMessage === 'function') {
-            window.displayMessage(`System Message: System messages ${newState ? 'enabled' : 'disabled'}`, true);
-        } else if (window.LogInterfaceDisplay && window.LogInterfaceDisplay.MessagingLog && typeof window.LogInterfaceDisplay.MessagingLog.displayMessage === 'function') {
-            window.LogInterfaceDisplay.MessagingLog.displayMessage(`System Message: System messages ${newState ? 'enabled' : 'disabled'}`, true);
-        } else {
-            console.log(`System messages ${newState ? 'enabled' : 'disabled'}`);
+            window.displayMessage(
+                'System Message: System messages ' + (nextState ? 'enabled' : 'disabled'),
+                true
+            );
         }
     });
-    
-    console.log(`System Message Toggle Handler initialized. FORCED State: ${showSystemMessages}`);
-}; 
+
+    window.setTimeout(function () {
+        syncVisibility(systemMessagesToggle.checked);
+    }, RETRY_DELAY_MS);
+};

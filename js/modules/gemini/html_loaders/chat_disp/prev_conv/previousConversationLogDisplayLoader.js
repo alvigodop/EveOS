@@ -11,30 +11,30 @@ async function loadPreviousConversationLogCard() {
 
     try {
         const htmlContent = `
-<!-- Previous Conversation Log Card Component -->
-<div id="previousConversationLog" class="mdl-shadow--2dp" style="display: none; margin-bottom: 16px; border: 1px solid #673ab7; border-radius: 8px; padding: 0;">
-    <div class="previous-chat-controls" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; background-color: #f3e5f5; border-bottom: 1px solid #673ab7; position: sticky; top: 0; z-index: 1;">
-        <span style="font-weight: bold; color: #673ab7;">Previous Conversations</span>
-        <div style="display: flex; gap: 8px;">
-            <button id="clearPreviousConversationButton" class="mdl-button mdl-js-button mdl-button--icon" title="Clear Previous Conversation" style="color: #f44336;">
+<div id="previousConversationLog" class="mdl-shadow--2dp gemini-history-log" style="display: none;">
+    <div class="previous-chat-controls gemini-history-header">
+        <div class="gemini-history-header-copy">
+            <div class="gemini-history-kicker">Conversation Cache</div>
+            <span class="gemini-history-title">Previous Conversations</span>
+        </div>
+        <div class="gemini-history-actions">
+            <button id="clearPreviousConversationButton" class="mdl-button mdl-js-button mdl-button--icon gemini-history-btn gemini-history-btn--danger" title="Clear Previous Conversation">
                 <i class="material-icons">delete</i>
             </button>
-            <button id="hidePreviousConversationButton" class="mdl-button mdl-js-button mdl-button--icon" title="Hide Previous Conversation" onclick="toggleConversationHistory()">
-            <i class="material-icons">close</i>
-        </button>
+            <button id="hidePreviousConversationButton" class="mdl-button mdl-js-button mdl-button--icon gemini-history-btn" title="Hide Previous Conversation" onclick="toggleConversationHistory()">
+                <i class="material-icons">close</i>
+            </button>
+        </div>
     </div>
-    </div>
-    <div id="previousConversationContent" style="padding: 0 16px 16px 16px;"></div>
+    <div id="previousConversationContent" class="gemini-history-content"></div>
 </div>
 `;
         placeholder.innerHTML = htmlContent;
-        // Manually upgrade MDL components within the loaded HTML
         if (window.componentHandler) {
             window.componentHandler.upgradeElements(placeholder);
         }
         console.log('Previous Conversation Log card loaded and MDL components upgraded.');
 
-        // Initialize the previous conversation clear handler after the HTML is loaded
         if (window.CommunicationPanel &&
             window.CommunicationPanel.ToggleConversationHistoryCommuicationPanel &&
             window.CommunicationPanel.ToggleConversationHistoryCommuicationPanel.ConversationHistoryUI &&
@@ -54,5 +54,4 @@ async function loadPreviousConversationLogCard() {
     }
 }
 
-// Export the function to be called by the group aggregator
-window.loadPreviousConversationLogCard = loadPreviousConversationLogCard; 
+window.loadPreviousConversationLogCard = loadPreviousConversationLogCard;

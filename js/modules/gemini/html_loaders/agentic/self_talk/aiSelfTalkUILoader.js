@@ -11,33 +11,33 @@ async function loadAiSelfTalkCard() {
 
     try {
         const html = `
-<div class="agentic-function-card" style="background-color: white; padding: 12px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.12); min-width: 200px;">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-        <span style="font-weight: 500; color: #333;">AI Self-talk</span>
-        <div style="display: flex; align-items: center;">
-            <button id="selfTalkSettingsButton" class="mdl-button mdl-js-button mdl-button--icon" style="margin-right: 8px;">
+<div class="agentic-function-card gemini-agentic-card gemini-agentic-card--self-talk">
+    <div class="gemini-agentic-card-head">
+        <div>
+            <div class="gemini-agentic-card-kicker">Auto Continuation</div>
+            <span class="gemini-agentic-card-title">AI Self-talk</span>
+        </div>
+        <div class="gemini-agentic-card-actions">
+            <button id="selfTalkSettingsButton" class="mdl-button mdl-js-button mdl-button--icon gemini-agentic-icon-btn">
                 <i class="material-icons">settings</i>
             </button>
-            <label class="mdl-switch mdl-js-switch mdl-js-ripple-effect" for="aiSelftalkToggle">
+            <label class="mdl-switch mdl-js-switch mdl-js-ripple-effect gemini-agentic-switch" for="aiSelftalkToggle">
                 <input type="checkbox" id="aiSelftalkToggle" class="mdl-switch__input">
                 <span class="mdl-switch__label"></span>
             </label>
         </div>
     </div>
-    <div style="font-size: 12px; color: #757575; margin-top: 8px;">
+    <div class="gemini-agentic-card-copy">
         Enable AI to occasionally continue the conversation without user input
     </div>
 </div>
 `;
         placeholder.innerHTML = html;
 
-        // Upgrade MDL components within the loaded HTML
         if (window.componentHandler) {
             window.componentHandler.upgradeElements(placeholder);
         }
         console.log('AI Self-talk card loaded and MDL components upgraded.');
-
-        // Return true to indicate successful loading
         return true;
 
     } catch (error) {
@@ -45,7 +45,3 @@ async function loadAiSelfTalkCard() {
         return false;
     }
 }
-
-// Expose the loader function globally or via a namespace if needed elsewhere
-// window.AiSelfTalkAgentic = window.AiSelfTalkAgentic || {};
-// window.AiSelfTalkAgentic.loadAiSelfTalkCard = loadAiSelfTalkCard; 

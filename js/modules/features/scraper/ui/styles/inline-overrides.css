@@ -18,9 +18,40 @@
     display: flex;
     gap: 10px;
     margin-bottom: 20px;
-    padding: 0 10px;
+    padding: 14px 16px;
     align-items: center;
     justify-content: flex-start;
+    flex-wrap: wrap;
+    border-radius: 22px;
+    background:
+        radial-gradient(circle at top left, rgba(79, 172, 254, 0.16), transparent 28%),
+        radial-gradient(circle at bottom right, rgba(0, 242, 254, 0.1), transparent 32%),
+        linear-gradient(145deg, rgba(18, 24, 34, 0.98), rgba(8, 12, 18, 0.95));
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.04),
+        0 18px 34px rgba(0, 0, 0, 0.18);
+}
+
+.scraper-toolbar-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-right: 8px;
+}
+
+.scraper-toolbar-kicker {
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.46);
+}
+
+.scraper-toolbar-title {
+    font-size: 0.96rem;
+    font-weight: 700;
+    color: #f4fbff;
 }
 
 .scraper-ui-wrapper {
@@ -64,18 +95,24 @@
     display: flex;
     gap: 8px;
     margin-left: auto;
+    flex-wrap: wrap;
 }
 
 /* Tool Button Consistency */
 .tool-btn {
-    background: var(--input-bg) !important;
-    color: var(--text-main) !important;
-    border: 1px solid rgba(128, 128, 128, 0.2) !important;
+    min-height: 40px;
+    padding: 0 14px;
+    border-radius: 14px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.04)) !important;
+    color: #eff7ff !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    font-weight: 700;
 }
 
 .tool-btn:hover {
-    background: var(--accent) !important;
-    color: #000 !important;
+    background: linear-gradient(135deg, rgba(0, 212, 255, 0.18), rgba(110, 231, 255, 0.12)) !important;
+    color: #f8fdff !important;
 }
 
 /* ============================================
@@ -293,15 +330,32 @@
 
 /* Cache Stats Button */
 .btn-cache-stats {
-    background-color: var(--accent) !important;
-    color: #000 !important;
-    font-weight: bold;
+    background: linear-gradient(135deg, rgba(0, 212, 255, 0.9), rgba(110, 231, 255, 0.72)) !important;
+    color: #041118 !important;
     margin-left: 5px;
+    border-color: rgba(110, 231, 255, 0.42) !important;
 }
 
 /* Debug Button */
 .btn-debug {
-    background-color: var(--danger) !important;
-    color: white !important;
+    background: linear-gradient(135deg, rgba(249, 115, 22, 0.28), rgba(239, 68, 68, 0.2)) !important;
+    color: #fff6f3 !important;
     margin-left: 5px;
+    border-color: rgba(249, 115, 22, 0.3) !important;
+}
+
+.local-server-indicator,
+.cors-proxy-status {
+    display: inline-flex;
+    align-items: center;
+    min-height: 38px;
+    padding: 0 12px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: rgba(244, 251, 255, 0.82);
+    font-size: 0.76rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
 }

@@ -11,12 +11,12 @@ async function loadSendButtonCard() {
 
     try {
         const htmlContent = `
-<button id="sendButton" class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored">
-    Send
+<button id="sendButton" class="gemini-send-btn" type="button">
+    <span>Send</span>
+    <i class="material-icons" aria-hidden="true">arrow_upward</i>
 </button>
 `;
         placeholder.innerHTML = htmlContent;
-        // Manually upgrade MDL components within the loaded HTML
         if (window.componentHandler) {
             window.componentHandler.upgradeElements(placeholder);
         }
@@ -29,5 +29,4 @@ async function loadSendButtonCard() {
     }
 }
 
-// Export the function to be called by the group aggregator
-window.loadSendButtonCard = loadSendButtonCard; 
+window.loadSendButtonCard = loadSendButtonCard;

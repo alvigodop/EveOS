@@ -12,7 +12,7 @@ async function loadStopButton() {
     try {
         const html = `
 <button id="stopButton"
-    class="mdl-button mdl-js-button mdl-button--fab mdl-button--mini-fab"
+    class="mdl-button mdl-js-button mdl-button--fab mdl-button--mini-fab gemini-command-icon-btn gemini-command-icon-btn--muted"
     title="Stop Voice Input">
     <i class="material-icons">mic_off</i>
 </button>

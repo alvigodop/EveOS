@@ -71,11 +71,19 @@
         }, 250);
     }
 
+    function isWorkspaceCollapsed() {
+        try {
+            return !!(window.localStorage && window.localStorage.getItem('geminiDemoCollapsed') === 'true');
+        } catch (e) {
+            return false;
+        }
+    }
+
     function syncFullUiReadiness(container) {
         if (!container) return;
         const hasFullUi = !!container.querySelector('.mdl-layout__container');
         container.dataset.geminiFullReady = hasFullUi ? '1' : '0';
-        if (hasFullUi && container.dataset.geminiMonitorView === 'full') {
+        if (hasFullUi && container.dataset.geminiMonitorView === 'full' && !isWorkspaceCollapsed()) {
             ensureExpandedWorkspace(container);
         }
     }
@@ -100,7 +108,7 @@
             if (node) node.classList.remove('gemini-collapsed-mode');
         });
 
-        if (headerButton) headerButton.title = 'Collapse Demo';
+        if (headerButton) headerButton.title = 'Collapse Workspace';
         if (headerIcon) headerIcon.textContent = 'expand_less';
     }
 

@@ -23,6 +23,25 @@ async function waitForApp(page) {
     ), undefined, { timeout: 180000 });
 }
 
+async function waitForScraperShell(page, timeoutMs) {
+    const started = Date.now();
+    while (Date.now() - started < timeoutMs) {
+        const state = await page.evaluate(() => ({
+            hero: !!document.querySelector('.scraper-sidebar-hero'),
+            wikiPanel: !!document.querySelector('#wikipediaManagement.scraper-management-panel'),
+            apiProviderTabs: document.querySelectorAll('#apiSourceToggleCluster .source-toggle-btn').length
+        }));
+
+        if (state.hero && state.wikiPanel && state.apiProviderTabs > 0) {
+            return state;
+        }
+
+        await page.waitForTimeout(250);
+    }
+
+    throw new Error('Timed out waiting for scraper shell to render');
+}
+
 async function main() {
     const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage({ viewport: { width: 1680, height: 1280 } });
@@ -37,25 +56,25 @@ async function main() {
     });
 
     try {
-        await page.goto(FILE_URL, { waitUntil: 'domcontentloaded', timeout: 240000 });
+        await page.goto(FILE_URL, { waitUntil: 'load', timeout: 240000 });
         await waitForApp(page);
+        await page.waitForTimeout(2000);
 
         await page.evaluate(() => {
             window.currentCategoryCtx = 'Alpha';
+            if (window.StorageManager?.setCategoryContext) {
+                window.StorageManager.setCategoryContext('Alpha');
+            }
             window.openCategorySettings('Alpha', 'scraper');
         });
+        await page.waitForTimeout(500);
+        await page.evaluate(() => {
+            if (typeof window.switchCategoryTab === 'function') {
+                window.switchCategoryTab('scraper');
+            }
+        });
 
-        await page.waitForFunction(() => {
-            const bootCard = document.querySelector('.scraper-boot-card');
-            const hero = document.querySelector('.scraper-sidebar-hero');
-            return !!bootCard || !!hero;
-        }, undefined, { timeout: 30000 });
-
-        await page.waitForFunction(() => (
-            !!document.querySelector('.scraper-sidebar-hero')
-            && !!document.querySelector('#wikipediaManagement.scraper-management-panel')
-            && !!document.querySelector('#apiSourceToggleCluster .source-toggle-btn')
-        ), undefined, { timeout: 180000 });
+        await waitForScraperShell(page, 180000);
 
         const initialResult = await page.evaluate(() => {
             function style(selector) {

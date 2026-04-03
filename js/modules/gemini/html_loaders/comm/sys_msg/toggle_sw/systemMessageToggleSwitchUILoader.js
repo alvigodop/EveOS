@@ -11,19 +11,23 @@ async function loadSystemMessageToggleSwitch() {
 
     try {
         const htmlContent = `
-<label class="mdl-switch mdl-js-switch mdl-js-ripple-effect" for="systemMessagesToggle">
-    <input type="checkbox" id="systemMessagesToggle" class="mdl-switch__input" checked>
-    <span class="mdl-switch__label">System Messages</span>
+<label class="gemini-command-switch gemini-command-switch--dock" for="systemMessagesToggle">
+    <input type="checkbox" id="systemMessagesToggle" class="gemini-command-switch-input" checked>
+    <span class="gemini-command-switch-track" aria-hidden="true">
+        <span class="gemini-command-switch-thumb"></span>
+    </span>
+    <span class="gemini-command-switch-copy">
+        <span class="gemini-command-switch-kicker">System Log</span>
+        <span class="gemini-command-switch-label">Messages</span>
+    </span>
 </label>
 `;
         placeholder.innerHTML = htmlContent;
-        // Manually upgrade MDL components within the loaded HTML
         if (window.componentHandler) {
             window.componentHandler.upgradeElements(placeholder);
         }
         console.log('System Message Toggle Switch HTML loaded and MDL components upgraded.');
 
-        // Initialize the handler after the HTML is loaded
         if (window.CommunicationPanel &&
             window.CommunicationPanel.SystemMessageToggleCommunicationPanel &&
             typeof window.CommunicationPanel.SystemMessageToggleCommunicationPanel.initializeSystemMessageToggleHandler === 'function') {
@@ -42,5 +46,4 @@ async function loadSystemMessageToggleSwitch() {
     }
 }
 
-// Export the function to be called by the group aggregator
-window.loadSystemMessageToggleSwitch = loadSystemMessageToggleSwitch; 
+window.loadSystemMessageToggleSwitch = loadSystemMessageToggleSwitch;

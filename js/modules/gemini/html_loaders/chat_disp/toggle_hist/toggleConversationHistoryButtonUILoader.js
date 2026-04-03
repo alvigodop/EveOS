@@ -12,8 +12,7 @@ async function loadToggleConversationHistoryButton() {
     try {
         const htmlContent = `
 <button id="toggleHistoryButton"
-    class="mdl-button mdl-js-button mdl-button--fab mdl-button--mini-fab"
-    style="background-color: #673ab7;"
+    class="mdl-button mdl-js-button mdl-button--fab mdl-button--mini-fab gemini-command-icon-btn gemini-command-icon-btn--history"
     title="Toggle Conversation History">
     <i class="material-icons">history</i>
 </button>

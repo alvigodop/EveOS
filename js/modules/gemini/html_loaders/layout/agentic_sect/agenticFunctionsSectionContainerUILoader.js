@@ -8,9 +8,16 @@ async function loadAgenticFunctionsSectionContainer() {
     try {
         const html = `
 <!-- Agentic Functions Section Container -->
-<div class="agentic-functions" style="padding: 15px; background-color: #f5f5f5; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-    <h4 style="margin-top: 0; margin-bottom: 10px; color: #3f51b5;">Agentic Functions</h4>
-    <div style="display: flex; flex-wrap: wrap; gap: 15px;">
+<div class="agentic-functions gemini-agentic-shell">
+    <div class="gemini-agentic-shell-head">
+        <div>
+            <div class="gemini-agentic-shell-kicker">Agentic Functions</div>
+            <h4 class="gemini-agentic-shell-title">Context and Workspace Controls</h4>
+        </div>
+        <div class="gemini-agentic-shell-pill">Live</div>
+    </div>
+    <div class="gemini-agentic-shell-copy">Keep contextual tools, memory relays, and session controls available without leaving the Gemini workspace.</div>
+    <div class="gemini-agentic-grid">
         <!-- Placeholder for Time Perception Card - Loaded by JavaScript -->
         <div id="time-perception-card-placeholder"></div>
         <!-- Placeholder for Conversation Memory Card - Loaded by JavaScript -->
