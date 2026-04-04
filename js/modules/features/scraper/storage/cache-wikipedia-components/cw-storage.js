@@ -15,15 +15,8 @@ const CWStorage = {
             const wikiCacheStore = window.CacheCore ? CacheCore.wikiCacheStore : null;
             if (!wikiCacheStore) return null;
 
-            // Check entryResults (new structure) first
+            // 1. Try modern entryResults sub-structure first
             if (wikiCacheStore.entryResults && wikiCacheStore.entryResults[title]) {
-                const entry = wikiCacheStore.entryResults[title].main || wikiCacheStore.entryResults[title];
-                if (entry && typeof entry === 'object') return entry;
-            }
-
-            // Fallback to root level (legacy structure)
-            const rootEntry = wikiCacheStore[title];
-            if (rootEntry && typeof rootEntry === 'object') {
                 return rootEntry;
             }
 

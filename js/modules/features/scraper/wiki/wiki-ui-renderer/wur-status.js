@@ -49,34 +49,51 @@
      * Get HTML for Wiki entry cache status
      */
     WikiUIRenderer.getWikiCacheStatus = function (title, cacheStore) {
-        if (!cacheStore || !cacheStore.entryResults || !cacheStore.entryResults[title]) {
+        if (!cacheStore) return '<span class="status-badge not-cached">Not Cached</span>';
+
+        // 1. Try modern entryResults sub-structure first
+        let entryCache = cacheStore.entryResults ? cacheStore.entryResults[title] : null;
+
+        // 2. Fallback to legacy root-level entry storage
+        if (!entryCache && cacheStore[title]) {
+            entryCache = cacheStore[title];
+        }
+
+        if (!entryCache) {
             return '<span class="status-badge not-cached">Not Cached</span>';
         }
 
-        const entryCache = cacheStore.entryResults[title];
-        const lastUpdate = entryCache.lastUpdate || entryCache.main?.lastUpdate;
+        // 3. Resilient timestamp detection (lastUpdate, lastFetch, or entry-level timestamp)
+        const lastUpdate = entryCache.lastUpdate || entryCache.lastFetch || entryCache.timestamp || (entryCache.main ? entryCache.main.lastUpdate : null);
 
         if (!lastUpdate) {
-            return '<span class="status-badge not-cached">Not Cached</span>';
+            // If data exists but no timestamp, we still consider it "Cached" but mark update as unknown
+            return `
+                <span class="status-badge cached">Cached</span>
+                <span class="status-info">Update Time: Unknown</span>
+            `;
         }
 
         const lastDate = new Date(lastUpdate);
         const dayDiff = Math.floor((new Date() - lastDate) / (1000 * 60 * 60 * 24));
 
-        // Count cached items
+        // 4. Robust Item Count (handle nested searchResults or root-level keys)
         let itemCount = 0;
         if (entryCache.main) itemCount++;
         if (entryCache.searchResults) {
             itemCount += Object.keys(entryCache.searchResults).length;
+        } else if (entryCache.extract || entryCache.title === title) {
+            // It's a single entry object stored at the root or within entryResults
+            itemCount = 1;
         }
 
         let statusHtml = `
             <span class="status-badge cached">Cached</span>
-            <span class="status-info">Updated: ${dayDiff === 0 ? 'Today' : (dayDiff === 1 ? 'Yesterday' : dayDiff + ' days ago')}</span>
+            <span class="status-info">Updated: ${isNaN(dayDiff) ? 'Recently' : (dayDiff === 0 ? 'Today' : (dayDiff === 1 ? 'Yesterday' : dayDiff + ' days ago'))}</span>
             <span class="status-info">Items: ${itemCount}</span>
         `;
 
-        if (dayDiff > 30) {
+        if (!isNaN(dayDiff) && dayDiff > 30) {
             statusHtml += '<span class="status-badge outdated">Outdated</span>';
         }
 

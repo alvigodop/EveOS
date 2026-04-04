@@ -209,6 +209,7 @@
         return results;
     };
 
+
     /**
      * Update cache for a specific entry
      * @param {string} title 
@@ -216,6 +217,12 @@
      */
     WikipediaCache.updateEntryCache = async function (title, liveData) {
         if (window.CacheManager && liveData) {
+            // Ensure timestamp consistency
+            if (!liveData.lastUpdate && liveData.lastFetch) {
+                liveData.lastUpdate = new Date(liveData.lastFetch).toISOString();
+            } else if (!liveData.lastUpdate) {
+                liveData.lastUpdate = new Date().toISOString();
+            }
             await CacheManager.updateWikipediaEntryData(title, liveData);
         }
     };
@@ -246,11 +253,13 @@
      * @param {Array} results 
      */
     WikipediaCache.updateWikiCacheStore = function (results) {
-        if (results.length > 0 && window.CacheManager && CacheManager.wikiCacheStore) {
+        if (results.length > 0 && window.CacheManager) {
             try {
                 CacheManager.init();
-                if (!CacheManager.wikiCacheStore.entryResults) {
-                    CacheManager.wikiCacheStore.entryResults = {};
+                const wikiStore = (window.CacheCore && CacheCore.wikiCacheStore) ? CacheCore.wikiCacheStore : (CacheManager.wikiCacheStore || {});
+                
+                if (!wikiStore.entryResults) {
+                    wikiStore.entryResults = {};
                 }
 
                 const resultsByEntry = {};
@@ -263,16 +272,16 @@
                 }
 
                 for (const [entryTitle, results] of Object.entries(resultsByEntry)) {
-                    if (!CacheManager.wikiCacheStore.entryResults[entryTitle]) {
-                        CacheManager.wikiCacheStore.entryResults[entryTitle] = {};
+                    if (!wikiStore.entryResults[entryTitle]) {
+                        wikiStore.entryResults[entryTitle] = {};
                     }
-                    if (!CacheManager.wikiCacheStore.entryResults[entryTitle].searchResults) {
-                        CacheManager.wikiCacheStore.entryResults[entryTitle].searchResults = {};
+                    if (!wikiStore.entryResults[entryTitle].searchResults) {
+                        wikiStore.entryResults[entryTitle].searchResults = {};
                     }
 
                     for (const result of results) {
                         const key = result.title + (result.isTextMatch ? `_match_${result.matchNumber || 1}` : '');
-                        CacheManager.wikiCacheStore.entryResults[entryTitle].searchResults[key] = cloneCachedResult(result, {
+                        wikiStore.entryResults[entryTitle].searchResults[key] = cloneCachedResult(result, {
                             title: result.title,
                             snippet: result.snippet,
                             url: result.url,
@@ -283,13 +292,13 @@
                             lastUpdate: new Date().toISOString()
                         });
                     }
-                    CacheManager.wikiCacheStore.entryResults[entryTitle].lastUpdate = new Date().toISOString();
+                    wikiStore.entryResults[entryTitle].lastUpdate = new Date().toISOString();
                 }
 
                 if (window.CacheCore && typeof CacheCore.saveWikiCacheStore === 'function') {
                     CacheCore.saveWikiCacheStore();
                 } else {
-                    localStorage.setItem('wikiCacheStore', JSON.stringify(CacheManager.wikiCacheStore));
+                    localStorage.setItem('wikiCacheStore', JSON.stringify(wikiStore));
                 }
             } catch (mergeError) {
                 console.warn(`Error merging Wikipedia results to cache:`, mergeError);
