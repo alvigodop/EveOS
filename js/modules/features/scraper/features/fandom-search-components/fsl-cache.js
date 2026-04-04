@@ -208,7 +208,8 @@
                 return null;
             }
 
-            const activeDomains = new Set((Array.isArray(domains) ? domains : [])
+            const domainsList = Array.isArray(domains) ? domains : (domains ? [domains] : []);
+            const activeDomains = new Set(domainsList
                 .map((domainInfo) => String(domainInfo?.domain || domainInfo || '').trim().toLowerCase())
                 .filter(Boolean));
             const results = [];

@@ -3,14 +3,14 @@
  * 
  * Orchestrates Wikipedia search logic.
  * 
- * @version 1.0.0
+ * @version 1.0.1
  */
 
 (function () {
     'use strict';
 
     const SWOrchestrator = {
-        version: '1.0.0',
+        version: '1.0.1',
 
         init: function () {
             console.log('SWOrchestrator initialized');
@@ -49,7 +49,6 @@
 
                     if (validResults.length > 0) {
                         // Check if enrichment needed
-                        const needsEnrichment = validResults.some(r => r.source === 'wikipedia' && (!r.categories || r.categories.length === 0));
                         if (needsEnrichment && window.WikipediaAPI) {
                             console.log(`SWOrchestrator: Cached results have missing categories, triggering enrichment for query "${query}"...`);
                             await WikipediaAPI.enrichResults(validResults);
@@ -65,14 +64,37 @@
                         if (window.WikiManager && typeof WikiManager.renderWikiEntryList === 'function') {
                             WikiManager.renderWikiEntryList(true);
                         }
-                        return validResults;
-                    } else {
-                        console.log(`SWOrchestrator: Cached results exist but none match active entries for "${query}". Fetching fresh...`);
+                        
+                        // Flag cached results so UI badge displays correctly
+                        return validResults.map(function (r) {
+                            return { ...r, fromCache: true };
+                        });
                     }
-                } else {
-                    console.log(`SWOrchestrator: Cache stale or missing for query "${query}", fetching fresh results`);
                 }
             }
+
+            // --- 1.5. Local Entry Store Fallback (Similar Word Matching) ---
+            if (shouldUseCache && window.WikipediaCache && typeof WikipediaCache.searchCachedEntryStore === 'function') {
+                const fallbackResults = WikipediaCache.searchCachedEntryStore(normalizedQuery, entries, { hidePersons: false });
+                if (fallbackResults && fallbackResults.length > 0) {
+                    console.log(`SWOrchestrator: Found ${fallbackResults.length} partial match results in local entry store for "${query}"`);
+                    
+                    // Refresh entries tab and re-render so "CACHED" badge stays in sync
+                    if (window.WikiManager && typeof WikiManager.refreshCacheStores === 'function') {
+                        WikiManager.refreshCacheStores();
+                    }
+                    if (window.WikiManager && typeof WikiManager.renderWikiEntryList === 'function') {
+                        WikiManager.renderWikiEntryList(true);
+                    }
+                    
+                    // Return flagged results
+                    return fallbackResults.map(function (r) {
+                        return { ...r, fromCache: true };
+                    });
+                }
+            }
+
+            console.log(`SWOrchestrator: No cached results or partial matches found for query "${query}", fetching fresh results`);
 
             const allResults = [];
             const processedUrls = new Set();

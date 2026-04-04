@@ -49,9 +49,10 @@ window.EveOS.API.DisplayInternals = window.EveOS.API.DisplayInternals || {};
         }
     }
 
-    function appendResults(items, transform, resultsDiv, onSelect) {
+    function appendResults(items, transform, resultsDiv, onSelect, isCached) {
+        if (!items) return;
         internals.toArray(items).forEach(item => {
-            createMangaCard(transform(item), resultsDiv, onSelect);
+            createMangaCard({ ...transform(item), isCached: !!isCached }, resultsDiv, onSelect);
         });
     }
 
@@ -61,6 +62,10 @@ window.EveOS.API.DisplayInternals = window.EveOS.API.DisplayInternals || {};
         const resultsDiv = normalized.resultsDiv;
         const onSelect = normalized.onSelect;
         if (!resultsDiv) return;
+
+        // Determine cache status: prioritize explicit options object (arg4), then sources/arg1
+        const options = (arg4 && typeof arg4 === 'object' && !arg4.nodeType) ? arg4 : {};
+        const isCached = !!(options.isCached ?? arg1?.isCached ?? sources.isCached);
 
         const requiredFns = [
             "toArray",
@@ -85,19 +90,19 @@ window.EveOS.API.DisplayInternals = window.EveOS.API.DisplayInternals || {};
         resultsDiv.innerHTML = "";
         resultsDiv.classList.add("api-search-results-grid");
 
-        appendResults(sources.mangadex?.data, internals.getMangaDexMeta, resultsDiv, onSelect);
-        appendResults(sources.jikanManga?.data, item => internals.getJikanMeta(item, "Manga"), resultsDiv, onSelect);
-        appendResults(sources.jikanAnime?.data, item => internals.getJikanMeta(item, "Anime"), resultsDiv, onSelect);
-        appendResults(sources.anilistManga?.data?.Page?.media, internals.getAniListMeta, resultsDiv, onSelect);
-        appendResults(sources.anilistAnime?.data?.Page?.media, internals.getAniListMeta, resultsDiv, onSelect);
-        appendResults(sources.mangaupdates?.results, internals.getMangaUpdatesMeta, resultsDiv, onSelect);
-        appendResults(sources.kitsuAnime?.data, internals.getKitsuMeta, resultsDiv, onSelect);
-        appendResults(sources.kitsuManga?.data, internals.getKitsuMeta, resultsDiv, onSelect);
-        appendResults(sources.tvmaze, internals.getTVmazeMeta, resultsDiv, onSelect);
-        appendResults(sources.itunes?.results, internals.getiTunesMeta, resultsDiv, onSelect);
-        appendResults(sources.wlnupdates?.data, internals.getWlnUpdatesMeta, resultsDiv, onSelect);
-        appendResults(sources.openlibrary?.docs, internals.getOpenLibraryMeta, resultsDiv, onSelect);
-        appendResults(sources.comick, internals.getComicKMeta, resultsDiv, onSelect);
+        appendResults(sources.mangadex?.data, internals.getMangaDexMeta, resultsDiv, onSelect, isCached);
+        appendResults(sources.jikanManga?.data, item => internals.getJikanMeta(item, "Manga"), resultsDiv, onSelect, isCached);
+        appendResults(sources.jikanAnime?.data, item => internals.getJikanMeta(item, "Anime"), resultsDiv, onSelect, isCached);
+        appendResults(sources.anilistManga?.data?.Page?.media, internals.getAniListMeta, resultsDiv, onSelect, isCached);
+        appendResults(sources.anilistAnime?.data?.Page?.media, internals.getAniListMeta, resultsDiv, onSelect, isCached);
+        appendResults(sources.mangaupdates?.results, internals.getMangaUpdatesMeta, resultsDiv, onSelect, isCached);
+        appendResults(sources.kitsuAnime?.data, internals.getKitsuMeta, resultsDiv, onSelect, isCached);
+        appendResults(sources.kitsuManga?.data, internals.getKitsuMeta, resultsDiv, onSelect, isCached);
+        appendResults(sources.tvmaze, internals.getTVmazeMeta, resultsDiv, onSelect, isCached);
+        appendResults(sources.itunes?.results, internals.getiTunesMeta, resultsDiv, onSelect, isCached);
+        appendResults(sources.wlnupdates?.data, internals.getWlnUpdatesMeta, resultsDiv, onSelect, isCached);
+        appendResults(sources.openlibrary?.docs, internals.getOpenLibraryMeta, resultsDiv, onSelect, isCached);
+        appendResults(sources.comick, internals.getComicKMeta, resultsDiv, onSelect, isCached);
 
         if (resultsDiv.children.length === 0) {
             resultsDiv.innerHTML = '<div style="padding:10px; opacity:0.7;">No results found from API providers.</div>';

@@ -1940,7 +1940,7 @@ window.EveOS.API = window.EveOS.API || {};
         });
     }
 
-    function renderProviderResultsSubset(sourceResults, resultsContainer, onSelect, providerKey) {
+    function renderProviderResultsSubset(sourceResults, resultsContainer, onSelect, providerKey, isGlobalCached) {
         const Display = api.Display;
         if (!Display || typeof Display.displayResults !== 'function' || !resultsContainer) {
             return {};
@@ -1948,7 +1948,9 @@ window.EveOS.API = window.EveOS.API || {};
 
         const visibleSources = filterSourcesByProvider(sourceResults || {}, providerKey);
         resultsContainer.style.display = 'block';
-        Display.displayResults(visibleSources, resultsContainer, onSelect);
+        Display.displayResults(visibleSources, resultsContainer, onSelect, { 
+            isCached: !!(isGlobalCached ?? sourceResults.isCached)
+        });
         return visibleSources;
     }
 
@@ -2017,7 +2019,8 @@ window.EveOS.API = window.EveOS.API || {};
                 providerSections.forEach(function ([providerKey]) {
                     const providerHost = apiSectionsHost.querySelector(`[data-unidex-api-provider-results="${providerKey}"]`);
                     if (!providerHost) return;
-                    renderProviderResultsSubset(payload.api.allSources, providerHost, onSelect, providerKey);
+                    const isCached = !!(payload.api?.meta?.fromCache);
+                    renderProviderResultsSubset(payload.api.allSources, providerHost, onSelect, providerKey, isCached);
                 });
             } else {
                 apiSectionsHost.innerHTML = `<div class="unidex-search-empty">No API provider matches for this query inside this card yet.</div>`;
@@ -2127,7 +2130,8 @@ window.EveOS.API = window.EveOS.API || {};
             return null;
         }
 
-        const renderedSources = renderSourceResults(resolved.allSources, resultsContainer, onSelect, providerKey);
+        const renderedSources = renderProviderResultsSubset(resolved.allSources, resultsContainer, onSelect, providerKey, !!resolved.meta?.fromCache);
+        updateResultsCount(countResults(renderedSources));
         if (typeof options.onAfterRender === 'function') {
             options.onAfterRender({
                 fromCache: resolved.meta?.fromCache === true,
@@ -2157,7 +2161,8 @@ window.EveOS.API = window.EveOS.API || {};
         if (!isClaimCurrent(resultsContainer, requestId)) return null;
 
         api.Cache.touchQuery(query, resolvedCategory);
-        const renderedSources = renderSourceResults(cachedEntry.sources, resultsContainer, onSelect, providerKey);
+        const renderedSources = renderProviderResultsSubset(cachedEntry.sources, resultsContainer, onSelect, providerKey, true);
+        updateResultsCount(countResults(renderedSources));
         if (typeof options.onAfterRender === 'function') {
             options.onAfterRender({ fromCache: true, entry: cachedEntry, categoryName: resolvedCategory });
         }

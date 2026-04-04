@@ -107,6 +107,8 @@
             synonym => synonym.toLowerCase() !== title.toLowerCase()
         );
 
+        const isCached = !!data.isCached;
+        const statusLabel = isCached ? "Cached" : "Live";
         const coverUrl = data.coverUrl || "https://via.placeholder.com/120x180?text=No+Cover";
         const description = String(data.description || "").trim();
         const mediaType = String(data.mediaType || "").trim();
@@ -129,6 +131,7 @@
                 <div class="manga-source-row">
                     ${sourceTagMarkup}
                     ${mediaType ? `<span class="media-type-tag">${escapeHtml(mediaType)}</span>` : ""}
+                    <span class="media-type-tag status-tag ${isCached ? 'status-cached' : 'status-live'}">${escapeHtml(statusLabel)}</span>
                 </div>
                 <h3 class="manga-title">${titleMarkup}</h3>
                 <div class="manga-meta">${renderMetaRow(data)}</div>

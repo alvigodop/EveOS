@@ -3,14 +3,14 @@
  * 
  * Main orchestration for Fandom search.
  * 
- * @version 1.0.0
+ * @version 1.1.0
  */
 
 (function () {
     'use strict';
 
     const FSLCore = {
-        version: '1.0.0',
+        version: '1.1.0',
 
         init: function () {
             console.log('FSLCore initialized');
@@ -88,9 +88,18 @@
 
                 // 1. Try Cache
                 if (shouldUseCache && window.FSLCache) {
+                    // A. Exact Match Cache (per domain/query)
                     const cached = await FSLCache.getCachedResults(domain, query, cacheKey);
-                    if (cached) {
+                    if (cached && cached.length > 0) {
                         domainResults = cached;
+                    } 
+                    // B. Partial Match Local Store (similar word matching fallback)
+                    else if (typeof FSLCache.getCachedDomainStoreResults === 'function') {
+                        const partialMatches = FSLCache.getCachedDomainStoreResults(query, [domain]);
+                        if (partialMatches && partialMatches.length > 0) {
+                            console.log(`FSLCore: Found ${partialMatches.length} partial matches in domain store for "${domain}" (query: "${query}")`);
+                            domainResults = partialMatches;
+                        }
                     }
                 }
 
