@@ -76,6 +76,10 @@
                     providerKey: window.EveOS?.API?.Manager?.isProviderSource?.(currentSource) ? currentSource : null
                 });
             }
+            const unidexPanelContainer = container.querySelector('#unidex-scraper-panel-container');
+            if (unidexPanelContainer && window.EveOS?.API?.Manager?.renderUnidexPanelUI) {
+                window.EveOS.API.Manager.renderUnidexPanelUI(unidexPanelContainer, categoryName);
+            }
             if (window.TabManagerUI?.updatePanels) {
                 window.TabManagerUI.updatePanels(currentSource, true);
             }

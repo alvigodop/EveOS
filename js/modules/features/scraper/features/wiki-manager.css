@@ -149,21 +149,20 @@
 .entry-actions {
     display: flex;
     gap: 6px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
     margin-top: 0;
     flex-shrink: 0;
-    max-width: none;
-    /* Let it expand or wrap naturally */
+    max-width: 100%;
     justify-content: flex-end;
 }
 
 .action-btn {
-    padding: 5px 10px;
+    padding: 5px 9px;
     border-radius: 4px;
     border: none;
     cursor: pointer;
-    font-size: 0.8rem;
+    font-size: 0.76rem;
     font-weight: 500;
     transition: all 0.2s ease;
     position: relative;
@@ -211,7 +210,7 @@
     align-items: center;
     gap: 3px;
     font-weight: 500;
-    font-size: 0.8rem;
+    font-size: 0.76rem;
     padding: 0 !important;
     border: none !important;
     box-shadow: none !important;
@@ -502,9 +501,10 @@
 .domain-actions-container {
     margin-bottom: 0 !important;
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 8px;
     align-items: center;
+    justify-content: flex-start;
     padding: 10px 12px;
     border-radius: 16px;
     background:
@@ -519,6 +519,16 @@
     mask-image: linear-gradient(to right, rgba(0, 0, 0, 0.16) 0px, #000 12px, #000 calc(100% - 12px), rgba(0, 0, 0, 0.16) 100%),
         linear-gradient(to bottom, rgba(0, 0, 0, 0.16) 0px, #000 12px, #000 calc(100% - 12px), rgba(0, 0, 0, 0.16) 100%);
     mask-composite: intersect;
+}
+
+.domain-actions-container .btn,
+.domain-actions-container .wiki-link-action {
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+
+.domain-actions-container .wiki-link-action {
+    margin-left: auto;
 }
 
 .domain-add-form,
@@ -594,7 +604,7 @@
 
 .entry-item,
 .domain-item {
-    align-items: center !important;
+    align-items: start !important;
     gap: 10px;
     padding: 10px 12px !important;
     border-radius: 16px !important;
@@ -609,6 +619,11 @@
     mask-image: linear-gradient(to right, rgba(0, 0, 0, 0.14) 0px, #000 10px, #000 calc(100% - 10px), rgba(0, 0, 0, 0.14) 100%),
         linear-gradient(to bottom, rgba(0, 0, 0, 0.14) 0px, #000 10px, #000 calc(100% - 10px), rgba(0, 0, 0, 0.14) 100%);
     mask-composite: intersect;
+}
+
+.entry-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
 }
 
 .entry-item:hover,
@@ -656,5 +671,24 @@
     .scraper-sidebar-pill,
     .scraper-panel-pill {
         align-self: flex-start;
+    }
+}
+
+@media (max-width: 560px) {
+    .domain-actions-container {
+        flex-wrap: wrap;
+    }
+
+    .domain-actions-container .wiki-link-action {
+        margin-left: 0;
+    }
+
+    .entry-item {
+        grid-template-columns: 1fr;
+    }
+
+    .entry-actions {
+        flex-wrap: wrap;
+        justify-content: flex-start;
     }
 }

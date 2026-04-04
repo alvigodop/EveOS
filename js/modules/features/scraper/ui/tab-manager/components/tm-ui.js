@@ -12,7 +12,7 @@
     const TabManagerUI = {
         /**
          * Core logic to switch tabs
-         * @param {string} source - 'wikipedia', 'fandom', or 'api'
+         * @param {string} source - 'wikipedia', 'fandom', 'unidex', or 'api'
          * @param {boolean} isInitialLoad 
          * @param {boolean} silent 
          */
@@ -21,8 +21,8 @@
                 const isApiProviderSource = !!window.EveOS?.API?.Manager?.isProviderSource?.(source);
 
                 // Check source validity
-                if (!['wikipedia', 'fandom', 'api'].includes(source) && !isApiProviderSource) {
-                    console.error(`Invalid source: ${source}, must be 'wikipedia', 'fandom', 'api', or a registered API provider`);
+                if (!['wikipedia', 'fandom', 'unidex', 'api'].includes(source) && !isApiProviderSource) {
+                    console.error(`Invalid source: ${source}, must be 'wikipedia', 'fandom', 'unidex', 'api', or a registered API provider`);
                     return;
                 }
 
@@ -87,6 +87,7 @@
             // Update management panels
             const wikipediaManagement = document.getElementById('wikipediaManagement');
             const fandomManagement = document.getElementById('fandomManagement');
+            const unidexManagement = document.getElementById('unidexManagement');
             const apiManagement = document.getElementById('apiManagement');
 
             if (wikipediaManagement) {
@@ -99,6 +100,18 @@
                 fandomManagement.style.display = source === 'fandom' ? 'block' : 'none';
             } else if (!isInitialLoad) {
                 console.warn('fandomManagement element not found');
+            }
+
+            if (unidexManagement) {
+                unidexManagement.style.display = source === 'unidex' ? 'block' : 'none';
+                if (source === 'unidex' && window.EveOS?.API?.Manager?.renderUnidexPanelUI) {
+                    const unidexPanelContainer = unidexManagement.querySelector('#unidex-scraper-panel-container');
+                    if (unidexPanelContainer) {
+                        window.EveOS.API.Manager.renderUnidexPanelUI(unidexPanelContainer, window.currentCategoryCtx || window.StorageManager?.categoryContext || '');
+                    }
+                }
+            } else if (!isInitialLoad) {
+                console.warn('unidexManagement element not found');
             }
 
             const isApiProviderSource = !!window.EveOS?.API?.Manager?.isProviderSource?.(source);
@@ -172,15 +185,25 @@
             try {
                 const wikipediaManagement = document.getElementById('wikipediaManagement');
                 const fandomManagement = document.getElementById('fandomManagement');
+                const unidexManagement = document.getElementById('unidexManagement');
                 const apiManagement = document.getElementById('apiManagement');
                 if (wikipediaManagement) wikipediaManagement.style.display = 'none';
                 if (fandomManagement) fandomManagement.style.display = 'none';
+                if (unidexManagement) unidexManagement.style.display = 'none';
                 if (apiManagement) apiManagement.style.display = 'none';
 
                 const isApiProviderSource = !!window.EveOS?.API?.Manager?.isProviderSource?.(source);
 
                 if (source === 'wikipedia') {
                     if (wikipediaManagement) wikipediaManagement.style.display = 'block';
+                } else if (source === 'unidex') {
+                    if (unidexManagement) unidexManagement.style.display = 'block';
+                    if (unidexManagement && window.EveOS?.API?.Manager?.renderUnidexPanelUI) {
+                        const unidexPanelContainer = unidexManagement.querySelector('#unidex-scraper-panel-container');
+                        if (unidexPanelContainer) {
+                            window.EveOS.API.Manager.renderUnidexPanelUI(unidexPanelContainer, window.currentCategoryCtx || window.StorageManager?.categoryContext || '');
+                        }
+                    }
                 } else if (source === 'api' || isApiProviderSource) {
                     if (apiManagement) apiManagement.style.display = 'block';
                     if (apiManagement && window.EveOS?.API?.Manager?.renderScraperPanelUI) {

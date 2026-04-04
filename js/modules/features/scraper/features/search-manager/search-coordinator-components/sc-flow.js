@@ -21,6 +21,7 @@ SearchCoordinatorFlow.performContentSearch = async function (query, source, opti
     const apiManager = window.EveOS?.API?.Manager;
     const isApiProviderSource = !!apiManager?.isProviderSource?.(source);
     const isApiSource = source === 'api' || isApiProviderSource;
+    const isUnidexSource = source === 'unidex';
     const loadingLabel = isApiProviderSource && apiManager?.getProviderLabel
         ? `${apiManager.getProviderLabel(source)} API`
         : source;
@@ -49,6 +50,44 @@ SearchCoordinatorFlow.performContentSearch = async function (query, source, opti
 
     if (window.SearchManager) {
         SearchManager._lastQueryOptions.options = searchOptions;
+    }
+
+    if (isUnidexSource) {
+        try {
+            const unidexPanelContainer = document.getElementById('unidex-scraper-panel-container');
+            const resultsContainer = document.getElementById(resultsContainerId);
+            if (!window.EveOS?.API?.Manager?.renderUnidexPanelUI || !unidexPanelContainer || !resultsContainer) {
+                throw new Error('Unidex panel is not available.');
+            }
+
+            window.EveOS.API.Manager.renderUnidexPanelUI(unidexPanelContainer, window.currentCategoryCtx || window.StorageManager?.categoryContext || '', {
+                filterQuery: query
+            });
+
+            const groupCount = unidexPanelContainer.querySelectorAll('.unidex-source-card').length;
+            const resultCount = document.getElementById('resultCount');
+            if (resultCount) {
+                resultCount.textContent = String(groupCount);
+            }
+
+            resultsContainer.innerHTML = `
+                <div class="info-message">
+                    <h3>${groupCount} unified source${groupCount === 1 ? '' : 's'} matched</h3>
+                    <p>Unidex filters the card-scoped source graph in the Knowledge Sources panel.</p>
+                    <p>Use the lane actions to jump into Wikipedia, Fandom, or a specific API provider cache.</p>
+                </div>
+            `;
+
+            if (window.SearchManager) {
+                SearchManager._lastSearchResults = { unidex: groupCount };
+            }
+        } catch (error) {
+            console.error('SearchCoordinatorFlow: Error during Unidex search', error);
+            if (window.SearchUIRenderer) SearchUIRenderer.showError(`Error loading Unidex: ${error.message}`, resultsContainerId);
+        } finally {
+            if (window.SearchUIRenderer) SearchUIRenderer.showLoading(false, resultsContainerId);
+        }
+        return;
     }
 
     if (isApiSource) {

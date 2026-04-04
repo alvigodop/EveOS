@@ -39,17 +39,20 @@
                         <!-- Row 1: Source & Layout -->
                         <div class="control-row justify-between control-row-margin">
                             <div class="source-toggle-container scraper-source-rail">
-                                <div class="source-toggle-group source-toggle-group--library">
-                                    <div class="source-toggle-group-label">Knowledge Bases</div>
-                                    <div class="source-toggle-cluster">
-                                        <button class="source-toggle-btn active" data-source="wikipedia" onclick="updateSource('wikipedia')">
-                                            <span class="icon">W</span> Wikipedia
-                                        </button>
-                                        <button class="source-toggle-btn" data-source="fandom" onclick="updateSource('fandom')">
-                                            <span class="icon">F</span> Fandom
-                                        </button>
+                                    <div class="source-toggle-group source-toggle-group--library">
+                                        <div class="source-toggle-group-label">Knowledge Bases</div>
+                                        <div class="source-toggle-cluster">
+                                            <button class="source-toggle-btn active" data-source="wikipedia" onclick="updateSource('wikipedia')">
+                                                <span class="icon">W</span> Wikipedia
+                                            </button>
+                                            <button class="source-toggle-btn" data-source="fandom" onclick="updateSource('fandom')">
+                                                <span class="icon">F</span> Fandom
+                                            </button>
+                                            <button class="source-toggle-btn" data-source="unidex" onclick="updateSource('unidex')">
+                                                <span class="icon">U</span> Unidex
+                                            </button>
+                                        </div>
                                     </div>
-                                </div>
                                 <div class="source-toggle-group source-toggle-group--apis">
                                     <div class="source-toggle-group-label">API Providers</div>
                                     <div id="apiSourceToggleCluster" class="source-toggle-cluster"></div>
@@ -321,6 +324,11 @@
                                                 <button id="fandom-nextBtn" disabled>Next</button>
                                             </div>
                                         </div>
+                                    </div>
+
+                                    <!-- Unified Knowledge Base -->
+                                    <div id="unidexManagement" class="wiki-management-panel scraper-management-panel" style="display: none;">
+                                        <div id="unidex-scraper-panel-container"></div>
                                     </div>
 
                                     <!-- API Search Management -->

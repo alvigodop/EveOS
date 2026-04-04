@@ -9,7 +9,7 @@ window.modalTemplate += `
         <div class="modal-tabs">
             <button class="tab-btn active" onclick="switchCategoryTab('general')" id="tab-btn-general">General</button>
             <button class="tab-btn" onclick="switchCategoryTab('folders')" id="tab-btn-folders">Folders</button>
-            <button class="tab-btn" onclick="switchCategoryTab('search')" id="tab-btn-search">Search</button>
+            <button class="tab-btn" onclick="switchCategoryTab('search')" id="tab-btn-search">Search Unidex</button>
             <button class="tab-btn" onclick="switchCategoryTab('scraper')" id="tab-btn-scraper">Scraper</button>
         </div>
 
@@ -69,7 +69,7 @@ window.modalTemplate += `
         </div>
 
         <div id="cat-tab-search" class="tab-content" style="display:none;">
-            <p style="opacity:0.7; font-size:0.9rem; margin-bottom:10px;">Search API providers with card-scoped caching and an optional live-results override.</p>
+            <p style="opacity:0.7; font-size:0.9rem; margin-bottom:10px;">Search API providers and manage the same unified source graph shown in Scraper &gt; Unidex for this card only.</p>
             <div id="modal-api-search-container"></div>
             <div id="modal-api-results-container" style="margin-top:15px; max-height: 400px; overflow-y: auto; background: rgba(0,0,0,0.2);"></div>
         </div>

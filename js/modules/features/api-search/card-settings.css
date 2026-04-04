@@ -85,7 +85,9 @@
 
 .api-search-btn,
 .api-action-btn,
-.api-cache-actions button {
+.api-cache-actions button,
+.unidex-lane-actions button,
+.unidex-api-provider-actions button {
     min-height: 40px;
     padding: 10px 14px;
     border-radius: 12px;
@@ -107,7 +109,9 @@
 
 .api-search-btn:hover,
 .api-action-btn:hover,
-.api-cache-actions button:hover {
+.api-cache-actions button:hover,
+.unidex-lane-actions button:hover,
+.unidex-api-provider-actions button:hover {
     transform: translateY(-1px);
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.06));
     border-color: rgba(90, 184, 255, 0.42);
@@ -208,6 +212,42 @@
     gap: 10px;
 }
 
+.api-cache-section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.api-cache-section + .api-cache-section {
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.api-cache-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 0.76rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.54);
+    padding: 0 2px;
+}
+
+.api-cache-section-count {
+    font-size: 0.68rem;
+    letter-spacing: 0.06em;
+    color: rgba(144, 224, 255, 0.82);
+}
+
+.api-cache-section-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
 .api-cache-entry {
     display: flex;
     flex-direction: column;
@@ -262,6 +302,12 @@
     color: rgba(255, 255, 255, 0.56);
 }
 
+.api-cache-entry-source .api-cache-entry-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
 .api-cache-actions {
     display: flex;
     flex-wrap: wrap;
@@ -289,6 +335,103 @@
     color: #e5f5ff;
     font-size: 0.74rem;
     border: 1px solid rgba(90, 184, 255, 0.22);
+}
+
+.api-provider-badge-source {
+    background: linear-gradient(135deg, rgba(129, 140, 248, 0.16), rgba(56, 189, 248, 0.08));
+    border-color: rgba(129, 140, 248, 0.22);
+}
+
+.unidex-source-list {
+    gap: 12px;
+}
+
+.unidex-source-card {
+    gap: 14px;
+}
+
+.unidex-lane-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.unidex-lane {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+    border-radius: 16px;
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.025));
+    border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.unidex-lane--missing {
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.028), rgba(255, 255, 255, 0.016));
+    border-style: dashed;
+}
+
+.unidex-lane-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.unidex-lane-title {
+    font-size: 0.86rem;
+    font-weight: 800;
+    color: #f8fdff;
+}
+
+.unidex-lane-meta,
+.unidex-lane-status,
+.unidex-api-provider-meta {
+    font-size: 0.78rem;
+    color: rgba(255, 255, 255, 0.6);
+    line-height: 1.4;
+}
+
+.unidex-lane-actions,
+.unidex-api-provider-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.unidex-lane-actions button,
+.unidex-api-provider-actions button {
+    min-width: 70px;
+}
+
+.unidex-api-provider-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.unidex-api-provider-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 11px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.032);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.unidex-api-provider-copy {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.unidex-api-provider-title {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #eef8ff;
 }
 
 .api-scraper-hero {
@@ -337,11 +480,14 @@
 
 @media (max-width: 960px) {
     .api-cache-entry-header,
-    .api-scraper-hero {
+    .api-scraper-hero,
+    .unidex-api-provider-row {
         flex-direction: column;
     }
 
-    .api-cache-actions {
+    .api-cache-actions,
+    .unidex-lane-actions,
+    .unidex-api-provider-actions {
         justify-content: flex-start;
     }
 

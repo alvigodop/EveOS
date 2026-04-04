@@ -30,7 +30,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/scraper/features/fandom-search-components/fsl-live.js",
     "js/modules/features/scraper/features/fandom-search-components/fsl-core.js",
     "js/modules/features/scraper/features/fandom-search/fandom-search-logic.js",
-    "js/modules/features/scraper/features/search-manager/search-coordinator-components/sc-flow.js?v=0.1.1",
+    "js/modules/features/scraper/features/search-manager/search-coordinator-components/sc-flow.js?v=0.1.2",
     "js/modules/features/scraper/features/search-manager/search-coordinator-components/sc-managed.js",
     "js/modules/features/scraper/features/search-manager/search-coordinator-components/sc-cache.js",
     "js/modules/features/scraper/features/search-manager/search-coordinator.js",
@@ -134,7 +134,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/scraper/ui/startup-loader/components/startup-init.js",
     "js/modules/features/scraper/ui/startup-loader/startup-loader.js",
     "js/modules/features/scraper/core/app-recovery.js",
-    "js/modules/features/scraper/ui/category-scraper-panel.js?v=0.1.1",
-    "js/modules/features/scraper/ui/templates/scraper-panel-template.js?v=0.1.3",
+    "js/modules/features/scraper/ui/category-scraper-panel.js?v=0.1.2",
+    "js/modules/features/scraper/ui/templates/scraper-panel-template.js?v=0.1.4",
     "js/modules/features/scraper/core/scraper-init.js"
 ]);

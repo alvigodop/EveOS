@@ -16,7 +16,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/scraper/ui/view-list/view-list.js",
     "js/modules/features/scraper/ui/tab-manager/components/tm-state.js",
     "js/modules/features/scraper/ui/tab-manager/components/tm-utils.js?v=0.1.1",
-    "js/modules/features/scraper/ui/tab-manager/components/tm-ui.js?v=0.1.1",
+    "js/modules/features/scraper/ui/tab-manager/components/tm-ui.js?v=0.1.2",
     "js/modules/features/scraper/ui/tab-manager/tab-manager.js?v=0.1.1",
     "js/modules/features/scraper/ui/popup-manager/components/popup-history.js",
     "js/modules/features/scraper/ui/popup-manager/components/popup-confirmation.js",
