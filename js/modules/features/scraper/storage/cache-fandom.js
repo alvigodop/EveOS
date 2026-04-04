@@ -99,24 +99,14 @@
              * Clear all Fandom domain caches
              */
             clearAllFandomCaches: async function () {
-                // Use WikiManager.fandomDomains if available, fallback to global or empty
-                const domains = (window.WikiManager && window.WikiManager.fandomDomains) || window.fandomDomains || [];
-
-                if (domains && domains.length > 0) {
-                    domains.forEach(domain => {
-                        const domainKey = domain.domain || domain; // Handle object or string
-                        if (CacheCore.wikiDataStore.searchResults) {
-                            delete CacheCore.wikiDataStore.searchResults[domainKey];
-                        }
-                    });
-                }
-
                 // Deep clean all fandom internal caches (ALWAYS Perform this)
                 // This clears internal API response caches, independent of saved domains
                 // Matches pattern: cache_fandom_...
-                CacheCore.clearInternalApiCache('fandom_');
-
-                CacheCore.saveWikiDataStore();
+                if (window.CacheCore) {
+                    CacheCore.wikiDataStore.searchResults = {};
+                    CacheCore.clearInternalApiCache('fandom_');
+                    CacheCore.saveWikiDataStore();
+                }
 
                 if (window.WikiManager && typeof WikiManager.refreshCacheStores === 'function') {
                     WikiManager.refreshCacheStores();

@@ -18,26 +18,38 @@
         }
 
         const domainCache = cacheStore.searchResults[domain];
-        // Note: original code had constlastUpdate typo fix here? 
-        // Original: constlastUpdate = domainCache.lastUpdate;
-        const lastUpdate = domainCache.lastUpdate;
+        let lastUpdate = domainCache.lastUpdate;
 
         if (!lastUpdate) {
+            const items = Object.keys(domainCache).filter(k => k !== 'lastUpdate').map(k => domainCache[k]);
+            for (const item of items) {
+                if (item && typeof item === 'object' && (item.lastUpdate || item.lastFetch || item.timestamp)) {
+                    const itemTs = new Date(item.lastUpdate || item.lastFetch || item.timestamp).getTime();
+                    const currentTs = lastUpdate ? new Date(lastUpdate).getTime() : 0;
+                    if (itemTs > currentTs) {
+                        lastUpdate = item.lastUpdate || item.lastFetch || item.timestamp;
+                    }
+                }
+            }
+        }
+
+        const itemCount = Object.keys(domainCache).filter(k => k !== 'lastUpdate').length;
+
+        if (!lastUpdate) {
+            if (itemCount > 0) {
+                return '<span class="status-badge cached">Cached</span><span class="status-line">Data available</span>';
+            }
             return '<span class="status-badge not-cached">Not Cached</span>';
         }
 
         const lastDate = new Date(lastUpdate);
         const dayDiff = Math.floor((new Date() - lastDate) / (1000 * 60 * 60 * 24));
 
-        // Count cached items
-        const itemCount = Object.keys(domainCache).filter(k => k !== 'lastUpdate').length;
-
         let statusHtml = `
             <span class="status-badge cached">Cached</span>
             <span class="status-info">Updated: ${dayDiff === 0 ? 'Today' : (dayDiff === 1 ? 'Yesterday' : dayDiff + ' days ago')}</span>
             <span class="status-info">Items: ${itemCount}</span>
         `;
-
         if (dayDiff > 30) {
             statusHtml += '<span class="status-badge outdated">Outdated</span>';
         }
@@ -49,11 +61,26 @@
      * Get HTML for Wiki entry cache status
      */
     WikiUIRenderer.getWikiCacheStatus = function (title, cacheStore) {
-        if (!cacheStore) return '<span class="status-badge not-cached">Not Cached</span>';
+        if (!title || !cacheStore) return '<span class="status-badge not-cached">Not Cached</span>';
 
-        // 1. Try modern entryResults sub-structure first
+        // 1. Try modern entryResults sub-structure
+        const normalize = (s) => String(s || "").trim().toLowerCase().replace(/_/g, " ");
+        const targetNormalized = normalize(title);
+        
         let entryCache = cacheStore.entryResults ? cacheStore.entryResults[title] : null;
 
+        // Fuzzy fallback if exact match fails
+        if (!entryCache && cacheStore.entryResults) {
+            const keys = Object.keys(cacheStore.entryResults);
+            const fuzzyKey = keys.find(k => normalize(k) === targetNormalized);
+            if (fuzzyKey) {
+                entryCache = cacheStore.entryResults[fuzzyKey];
+                console.log(`[Badge-Debug] Fuzzy match found for "${title}" -> "${fuzzyKey}"`);
+            } else {
+                console.log(`[Badge-Debug] No match for "${title}" in keys:`, keys);
+            }
+        }
+        
         // 2. Fallback to legacy root-level entry storage
         if (!entryCache && cacheStore[title]) {
             entryCache = cacheStore[title];
@@ -63,37 +90,67 @@
             return '<span class="status-badge not-cached">Not Cached</span>';
         }
 
-        // 3. Resilient timestamp detection (lastUpdate, lastFetch, or entry-level timestamp)
-        const lastUpdate = entryCache.lastUpdate || entryCache.lastFetch || entryCache.timestamp || (entryCache.main ? entryCache.main.lastUpdate : null);
+        // Deep timestamp check (Root -> Main -> Fallbacks)
+        const lastUpdate = 
+            entryCache.lastUpdate || 
+            entryCache.lastFetch || 
+            entryCache.timestamp || 
+            (entryCache.main ? (entryCache.main.lastUpdate || entryCache.main.lastFetch || entryCache.main.timestamp) : null);
 
         if (!lastUpdate) {
-            // If data exists but no timestamp, we still consider it "Cached" but mark update as unknown
-            return `
-                <span class="status-badge cached">Cached</span>
-                <span class="status-info">Update Time: Unknown</span>
-            `;
+            // Data exists but no timestamp? Likely very old or partial cache
+            return '<span class="status-badge cached">Cached</span><span class="status-line">Data available</span>';
         }
 
-        const lastDate = new Date(lastUpdate);
-        const dayDiff = Math.floor((new Date() - lastDate) / (1000 * 60 * 60 * 24));
+        // Format relative time
+        let timeStr = 'Recently';
+        let dayDiff = NaN;
+        try {
+            const date = new Date(lastUpdate);
+            if (!isNaN(date.getTime())) {
+                const now = new Date();
+                const diffMs = now - date;
+                dayDiff = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                const diffMins = Math.floor(diffMs / 60000);
+                
+                if (diffMins < 1) timeStr = 'Just now';
+                else if (diffMins < 60) timeStr = `${diffMins}m ago`;
+                else if (dayDiff === 0) timeStr = 'Today';
+                else if (dayDiff === 1) timeStr = 'Yesterday';
+                else if (dayDiff < 30) timeStr = `${dayDiff} days ago`;
+                else timeStr = date.toLocaleDateString();
+            }
+        } catch (e) {
+            timeStr = 'Cached';
+        }
 
-        // 4. Robust Item Count (handle nested main + searchResults or root-level keys)
+        // Item count logic (Search Results + Main)
         let itemCount = 0;
-        
-        // Count the primary article if present (nested or root)
-        if (entryCache.main || entryCache.extract || entryCache.title === title) {
-            itemCount++;
-        }
-        
-        // Count additional snippet/search matches
         if (entryCache.searchResults) {
-            itemCount += Object.keys(entryCache.searchResults).length;
+            itemCount = Object.keys(entryCache.searchResults).length;
         }
+        
+        // Detailed quality check for Main data (article context)
+        const mainData = entryCache.main || entryCache;
+        const hasExtract = !!(mainData.extract && String(mainData.extract).length > 20); // Heuristic for full content
+        const hasThumbnail = !!(mainData.thumbnail || mainData.imageUrl);
+        const hasSnippet = !!(mainData.snippet || mainData.extract || mainData.description);
+        const hasValidUrl = !!mainData.url;
+
+        if (hasSnippet || hasThumbnail || hasValidUrl || mainData.title || itemCount > 0) {
+            if (itemCount === 0) itemCount = 1; // Show at least 1 item for synced metadata
+        }
+
+        // Cache quality indicators (Metadata is sufficient for a positive "Cached" notice now)
+        const badgeClass = hasExtract ? 'cached' : 'partial-cached';
+        const badgeLabel = 'Cached'; // Unify label as requested by user
+        const qualityNote = hasExtract ? '' : '<span class="status-line">Metadata synced</span>';
 
         let statusHtml = `
-            <span class="status-badge cached">Cached</span>
-            <span class="status-info">Updated: ${isNaN(dayDiff) ? 'Recently' : (dayDiff === 0 ? 'Today' : (dayDiff === 1 ? 'Yesterday' : dayDiff + ' days ago'))}</span>
+            <span class="status-badge ${badgeClass}">${badgeLabel}</span>
+            <span class="status-info">Updated: ${timeStr}</span>
             <span class="status-info">Items: ${itemCount}</span>
+            ${qualityNote}
         `;
 
         if (!isNaN(dayDiff) && dayDiff > 30) {

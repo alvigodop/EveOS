@@ -100,10 +100,10 @@
                     const success = CWStorage.clearAllWikiCaches(entries);
 
                     if (window.CWView) {
-                        CWView.notifyClearAll(success && entries.length > 0);
+                        CWView.notifyClearAll(success);
                     }
 
-                    if (success && entries.length > 0) {
+                    if (success) {
                         // Fix for stale UI: Refresh WikiManager's cache store
                         if (window.WikiManager && typeof WikiManager.refreshCacheStores === 'function') {
                             WikiManager.refreshCacheStores();

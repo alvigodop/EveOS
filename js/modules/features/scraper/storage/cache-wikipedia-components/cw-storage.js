@@ -48,13 +48,27 @@ const CWStorage = {
             if (!CacheCore.wikiCacheStore) CacheCore.wikiCacheStore = {};
             if (!CacheCore.wikiCacheStore.entryResults) CacheCore.wikiCacheStore.entryResults = {};
 
-            // Store in the standard entryResults structure
+            // Store in the standard entryResults structure (Merging with existing)
             if (!CacheCore.wikiCacheStore.entryResults[title]) {
                 CacheCore.wikiCacheStore.entryResults[title] = {};
             }
             
-            CacheCore.wikiCacheStore.entryResults[title].main = data;
-            CacheCore.wikiCacheStore.entryResults[title].lastUpdate = data.lastUpdate || new Date().toISOString();
+            const existingEntry = CacheCore.wikiCacheStore.entryResults[title].main || {};
+            const timestamp = data.lastUpdate || new Date().toISOString();
+
+            // Perform a deep merge-like update for .main to preserve existing full extracts if we're only doing a metadata update
+            const updatedMain = {
+                ...existingEntry,
+                ...data,
+                // Only use the new timestamp if this is a 'real' update or if there was no previous timestamp
+                lastUpdate: timestamp
+            };
+
+            // Update .main 
+            CacheCore.wikiCacheStore.entryResults[title].main = updatedMain;
+            
+            // Update root of entryResults[title] for UI status line
+            CacheCore.wikiCacheStore.entryResults[title].lastUpdate = timestamp;
             
             // Also update overall cache timestamp
             CacheCore.wikiCacheStore.lastUpdate = Date.now(); 
@@ -110,28 +124,13 @@ const CWStorage = {
      * @returns {boolean} True if successful
      */
     clearAllWikiCaches(entries) {
-        let entryCleared = false;
-
-        if (entries && entries.length > 0) {
-            entries.forEach(entry => {
-                const title = entry.title || entry; // Handle object or string
-                delete CacheCore.wikiCacheStore[title];
-                // Also clear entryResults if present
-                if (CacheCore.wikiCacheStore.entryResults) {
-                    delete CacheCore.wikiCacheStore.entryResults[title];
-                }
-            });
-            entryCleared = true;
-        }
-
-        // Deep clean all wiki internal caches (ALWAYS Perform this, even if no saved entries)
-        CacheCore.clearInternalApiCache('wiki_');
-        // Also clear per-query Wikipedia search caches
         if (window.CacheCore) {
+            CacheCore.wikiCacheStore = {};
+            CacheCore.clearInternalApiCache('wiki_');
             CacheCore.clearInternalApiCache('wikipedia_search_');
+            CacheCore.saveWikiCacheStore();
         }
 
-        CacheCore.saveWikiCacheStore();
         return true;
     }
 };

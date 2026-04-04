@@ -74,11 +74,66 @@
                             });
                         }
 
-                        // Update sidebar cache status if WikiManager is available
-                        if (window.WikiManager) {
-                            if (typeof WikiManager.refreshCacheStores === 'function') WikiManager.refreshCacheStores();
-                            if (typeof WikiManager.renderWikiEntryList === 'function') WikiManager.renderWikiEntryList(true);
+                        // Deep Sync metadata to sidebar cache for existing entries
+                        if (window.WikiManager && window.CacheWikipedia) {
+                            const advancedNormalizeTitle = (t) => {
+                                if (!t) return "";
+                                return String(t)
+                                    .replace(/_/g, " ") // Standardize spaces
+                                    .replace(/\s*\([^)]+\)$/, "") // Remove Wikipedia parentheticals e.g. "(manga)", "(anime)"
+                                    .trim()
+                                    .toLowerCase();
+                            };
+                            
+                            const sidebarEntries = WikiManager.wikiEntries || [];
+                            console.log(`[Deep-Sync] Checking ${results.length} search results against ${sidebarEntries.length} sidebar entries.`);
+                            
+                            // Use for...of to properly await each sync operation
+                            for (const item of results) {
+                                const resultTitle = item.title || "";
+                                const normalizedResultTitle = advancedNormalizeTitle(resultTitle);
+                                const resultSnippet = (item.description || item.snippet || "").toLowerCase();
+                                
+                                for (const entry of sidebarEntries) {
+                                    const entryTitle = entry.title || "";
+                                    const normEntryTitle = advancedNormalizeTitle(entryTitle);
+                                    
+                                    // Match Logic:
+                                    // 1. Exact title match (normalized)
+                                    // 2. Prefix match (result starts with entry title + colon) e.g. "Naruto: Ninja Council" matches "Naruto"
+                                    // 3. Metadata match (snippet contains "linked from: [entry title]")
+                                    const isExactMatch = normEntryTitle === normalizedResultTitle;
+                                    const isPrefixMatch = normalizedResultTitle.startsWith(normEntryTitle + ":") || normalizedResultTitle.startsWith(normEntryTitle + " ");
+                                    const isLinkedMatch = resultSnippet.includes(`linked from: ${normEntryTitle}`);
+                                    
+                                    if (isExactMatch || isPrefixMatch || isLinkedMatch) {
+                                        const matchType = isExactMatch ? "EXACT" : (isPrefixMatch ? "PREFIX" : "LINKED");
+                                        console.log(`[Deep-Sync] ${matchType} MATCH for "${resultTitle}" -> "${entryTitle}". Updating sidebar cache.`);
+                                        
+                                        // Soft-update the cache with metadata
+                                        await CacheWikipedia.updateWikipediaEntryData(entryTitle, {
+                                            thumbnail: item.thumbnail,
+                                            snippet: item.description || item.snippet,
+                                            url: item.url,
+                                            lastUpdate: new Date().toISOString()
+                                        });
+                                        
+                                        // Once matched, we don't need to check other sidebar entries for THIS result
+                                        break; 
+                                    }
+                                }
+                            }
                         }
+
+                        // Update sidebar cache status if WikiManager is available
+                        // Final UI Refresh with small delay to ensure storage flush 
+                        setTimeout(() => {
+                            if (window.WikiManager) {
+                                console.log('[Deep-Sync] Performing delayed UI refresh...');
+                                if (typeof WikiManager.refreshCacheStores === 'function') WikiManager.refreshCacheStores();
+                                if (typeof WikiManager.renderWikiEntryList === 'function') WikiManager.renderWikiEntryList(true);
+                            }
+                        }, 50);
                     } else {
                         // Hide loading indicator
                         if (window.WDIUI) WDIUI.updateLoadingIndicator(false);

@@ -145,11 +145,20 @@
         /**
          * Handle fetch result - update cache and entries
          */
-        _handleFetchResult: function (originalTitle, data) {
+        _handleFetchResult: async function (originalTitle, data) {
             if (!data) return;
+            console.log(`WikiEntries: Processing fetch result for ${originalTitle}`);
 
-            // Update cache store if WikiManager is available
-            if (window.WikiManager && WikiManager.wikiCacheStore) {
+            // 1. Centralized Cache Update (Delegated to CacheWikipedia)
+            if (window.CacheWikipedia && typeof CacheWikipedia.updateWikipediaEntryData === 'function') {
+                await CacheWikipedia.updateWikipediaEntryData(originalTitle, {
+                    title: data.title,
+                    snippet: data.snippet,
+                    imageUrl: data.imageUrl,
+                    lastUpdate: data.lastUpdate || new Date().toISOString()
+                });
+            } else if (window.WikiManager && WikiManager.wikiCacheStore) {
+                // Fallback for missing facade: direct store update (Less ideal but compatible)
                 if (!WikiManager.wikiCacheStore.entryResults) WikiManager.wikiCacheStore.entryResults = {};
                 if (!WikiManager.wikiCacheStore.entryResults[originalTitle]) WikiManager.wikiCacheStore.entryResults[originalTitle] = {};
 
@@ -157,12 +166,10 @@
                     title: data.title,
                     snippet: data.snippet,
                     imageUrl: data.imageUrl,
-                    lastUpdate: data.lastUpdate
+                    lastUpdate: data.lastUpdate || new Date().toISOString()
                 };
                 if (window.StorageManager) {
                     StorageManager.saveData('wikiCacheStore', WikiManager.wikiCacheStore);
-                } else {
-                    localStorage.setItem('wikiCacheStore', JSON.stringify(WikiManager.wikiCacheStore));
                 }
             }
 

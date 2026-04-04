@@ -570,7 +570,7 @@ window.EveOS.API = window.EveOS.API || {};
             const title = String(entry?.title || entry?.name || '').trim();
             if (!title) return null;
             const cached = wikiCacheStore.entryResults?.[title] || wikiCacheStore[title];
-            const updatedAt = toTimestamp(cached?.lastUpdate || cached?.main?.lastUpdate);
+            const updatedAt = toTimestamp(cached?.lastUpdate || cached?.lastFetch || cached?.timestamp || cached?.main?.lastUpdate || cached?.main?.lastFetch || cached?.main?.timestamp);
 
             const searchResults = cached?.searchResults && typeof cached.searchResults === 'object'
                 ? cached.searchResults
@@ -595,11 +595,22 @@ window.EveOS.API = window.EveOS.API || {};
             const domain = String(entry?.domain || entry || '').trim();
             if (!domain) return null;
             const cached = fandomResults[domain];
-            const updatedAt = toTimestamp(cached?.lastUpdate);
-
+            
             const itemCount = Object.keys(cached || {}).filter(function (key) {
                 return key !== 'lastUpdate';
             }).length;
+
+            let updatedAt = toTimestamp(cached?.lastUpdate);
+            if (!updatedAt && cached && typeof cached === 'object') {
+                Object.keys(cached).forEach(function(key) {
+                    if (key !== 'lastUpdate' && cached[key] && typeof cached[key] === 'object') {
+                         const childTs = toTimestamp(cached[key].lastUpdate || cached[key].lastFetch || cached[key].timestamp);
+                         if (childTs > updatedAt) updatedAt = childTs;
+                    }
+                });
+            }
+            if (!updatedAt && itemCount > 0) updatedAt = Date.now(); // Fallback if items exist but no timestamp
+
             if (!includeUncached && !updatedAt) return null;
 
             return {

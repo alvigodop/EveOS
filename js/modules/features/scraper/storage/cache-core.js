@@ -23,9 +23,11 @@
 
             /**
              * Initialize the cache core
+             * @param {boolean} force - Force re-initialization even if already initialized
              */
-            init: function () {
-                console.log('Initializing CacheCore (Force context reload)');
+            init: function (force = false) {
+                if (this._initialized && !force) return this;
+                console.log('Initializing CacheCore (Force context reload: ' + force + ')');
                 if (window.StorageManager) {
                     this.wikiDataStore = StorageManager.loadData('wikiDataStore', { searchResults: {} });
                     this.wikiCacheStore = StorageManager.loadData('wikiCacheStore', {});

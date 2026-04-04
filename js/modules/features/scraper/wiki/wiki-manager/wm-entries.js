@@ -76,6 +76,13 @@ WikiManagerEntries.renderWikiEntryList = function (force) {
     if (wm.refreshCacheStores && typeof wm.refreshCacheStores === 'function') {
         wm.refreshCacheStores();
     }
+    
+    // Trace context if possible
+    let currentPrefix = "Root";
+    if (window.StorageManager && typeof StorageManager.getCardPrefix === 'function') {
+        currentPrefix = StorageManager.getCardPrefix() || "Root";
+    }
+    console.log(`[Context-Debug] Rendering sidebar entries for context: "${currentPrefix}"`);
 
     // Helper for cache store
     let cacheStore = {};

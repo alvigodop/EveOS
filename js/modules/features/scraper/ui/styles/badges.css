@@ -204,6 +204,13 @@
     border: 1px solid rgba(76, 175, 80, 0.3);
 }
 
+.status-badge.partial-cached {
+    background: linear-gradient(135deg, rgba(56, 142, 60, 0.15) 0%, rgba(76, 175, 80, 0.2) 100%);
+    color: #4caf50;
+    border: 1px solid rgba(76, 175, 80, 0.25);
+    /* Slightly distinct but definitely green as requested */
+}
+
 .status-badge.not-cached {
     background: linear-gradient(135deg, rgba(231, 76, 60, 0.2) 0%, rgba(192, 57, 43, 0.3) 100%);
     color: var(--accent-color, #e74c3c);

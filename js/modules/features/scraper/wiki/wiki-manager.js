@@ -107,9 +107,9 @@ if (!Object.getOwnPropertyDescriptor(WikiManager, 'wikiCategories')) {
  */
 WikiManager.refreshCacheStores = function () {
     // We now use reactive getters for most storage access, 
-    // but we still ensure CacheCore is initialized here.
-    if (window.CacheCore && !CacheCore._initialized) {
-        CacheCore.init();
+    // but we still ensure CacheCore is re-synced here for modern context.
+    if (window.CacheCore) {
+        CacheCore.init(true);
     }
     
     // For backward compatibility and immediate UI needs
