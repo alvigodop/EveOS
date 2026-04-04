@@ -77,14 +77,17 @@
         const lastDate = new Date(lastUpdate);
         const dayDiff = Math.floor((new Date() - lastDate) / (1000 * 60 * 60 * 24));
 
-        // 4. Robust Item Count (handle nested searchResults or root-level keys)
+        // 4. Robust Item Count (handle nested main + searchResults or root-level keys)
         let itemCount = 0;
-        if (entryCache.main) itemCount++;
+        
+        // Count the primary article if present (nested or root)
+        if (entryCache.main || entryCache.extract || entryCache.title === title) {
+            itemCount++;
+        }
+        
+        // Count additional snippet/search matches
         if (entryCache.searchResults) {
             itemCount += Object.keys(entryCache.searchResults).length;
-        } else if (entryCache.extract || entryCache.title === title) {
-            // It's a single entry object stored at the root or within entryResults
-            itemCount = 1;
         }
 
         let statusHtml = `

@@ -25,7 +25,7 @@
              * Initialize the cache core
              */
             init: function () {
-                console.log('Initializing CacheCore');
+                console.log('Initializing CacheCore (Force context reload)');
                 if (window.StorageManager) {
                     this.wikiDataStore = StorageManager.loadData('wikiDataStore', { searchResults: {} });
                     this.wikiCacheStore = StorageManager.loadData('wikiCacheStore', {});
@@ -40,6 +40,7 @@
                 }
 
                 if (window.CCMaintenance && typeof CCMaintenance.init === 'function') {
+                    // Force CCMaintenance to re-sync if it has its own stores
                     CCMaintenance.init();
                     CCMaintenance._initialized = true;
                 }

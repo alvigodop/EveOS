@@ -26,13 +26,13 @@
             set wikiCacheStore(val) { if (window.CacheCore) CacheCore.wikiCacheStore = val; },
 
             init: function () {
-                console.log('Initializing CacheManager facade');
+                console.log('CacheManager: Orchestrating context-aware initialization');
 
-                // Initialize sub-modules
-                if (window.CacheCore && !CacheCore._initialized) CacheCore.init();
-                if (window.CacheUI && !CacheUI._initialized) CacheUI.init();
-                if (window.CacheFandom && !CacheFandom._initialized) CacheFandom.init();
-                if (window.CacheWikipedia && !CacheWikipedia._initialized) CacheWikipedia.init();
+                // Initialize sub-modules (always call init to ensure category context is synced)
+                if (window.CacheCore) CacheCore.init();
+                if (window.CacheUI && !CacheUI._initialized) CacheUI.init(); // UI only needs once
+                if (window.CacheFandom) CacheFandom.init();
+                if (window.CacheWikipedia) CacheWikipedia.init();
 
                 this._initialized = true;
                 return this;

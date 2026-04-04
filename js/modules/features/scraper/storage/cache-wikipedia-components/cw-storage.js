@@ -17,7 +17,13 @@ const CWStorage = {
 
             // 1. Try modern entryResults sub-structure first
             if (wikiCacheStore.entryResults && wikiCacheStore.entryResults[title]) {
-                return rootEntry;
+                const entry = wikiCacheStore.entryResults[title].main || wikiCacheStore.entryResults[title];
+                if (entry && typeof entry === 'object') return entry;
+            }
+
+            // 2. Fallback to legacy root-level entry storage
+            if (wikiCacheStore[title] && typeof wikiCacheStore[title] === 'object') {
+                return wikiCacheStore[title];
             }
 
             return null;
@@ -48,7 +54,7 @@ const CWStorage = {
             }
             
             CacheCore.wikiCacheStore.entryResults[title].main = data;
-            CacheCore.wikiCacheStore.entryResults[title].lastUpdate = new Date().toISOString();
+            CacheCore.wikiCacheStore.entryResults[title].lastUpdate = data.lastUpdate || new Date().toISOString();
             
             // Also update overall cache timestamp
             CacheCore.wikiCacheStore.lastUpdate = Date.now(); 
