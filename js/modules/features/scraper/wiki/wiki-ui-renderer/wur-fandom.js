@@ -78,19 +78,20 @@
             };
             infoDiv.style.cursor = 'pointer';
 
+            const metaDiv = document.createElement('div');
+            metaDiv.className = 'entry-meta';
+            
             const nameSpan = document.createElement('span');
             nameSpan.className = 'entry-name'; // Changed from 'domain-name'
             nameSpan.textContent = wiki.name || wiki.domain;
-            infoDiv.appendChild(nameSpan);
+            metaDiv.appendChild(nameSpan);
 
             const domainSpan = document.createElement('span');
             domainSpan.className = 'domain-url';
-            // Let's keep it but maybe as a sub-text if needed.
-            domainSpan.style.fontSize = '0.85em';
-            domainSpan.style.color = '#666';
-            domainSpan.style.marginLeft = '8px';
             domainSpan.textContent = wiki.domain;
-            infoDiv.appendChild(domainSpan);
+            metaDiv.appendChild(domainSpan);
+            
+            infoDiv.appendChild(metaDiv);
 
             // Status Badge
             const statusDiv = document.createElement('div');
@@ -101,7 +102,9 @@
             } else {
                 statusDiv.textContent = 'Status unavailable';
             }
-            infoDiv.appendChild(statusDiv);
+            metaDiv.appendChild(statusDiv);
+            
+            infoDiv.appendChild(metaDiv);
 
             const actionsDiv = document.createElement('div');
             actionsDiv.className = 'entry-actions'; // Changed from 'domain-actions'
@@ -123,8 +126,11 @@
 
             // Reload Button
             const reloadBtn = document.createElement('button');
-            reloadBtn.className = 'action-btn reload-btn';
-            reloadBtn.textContent = 'Reload'; // Will show '...' when reloading
+            reloadBtn.className = 'action-btn-premium reload-btn-premium';
+            reloadBtn.innerHTML = `
+                <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"></path><path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path><path d="M3 22v-6h6"></path><path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path></svg>
+                <span>Reload</span>
+            `;
             reloadBtn.onclick = function (e) {
                 e.stopPropagation();
                 if (handlers.onReload) {
@@ -158,8 +164,11 @@
 
             // Clear Cache Button
             const clearCacheBtn = document.createElement('button');
-            clearCacheBtn.className = 'action-btn remove-btn'; // Changed to remove-btn for Red styling
-            clearCacheBtn.textContent = 'Clear Cache';
+            clearCacheBtn.className = 'action-btn-premium clear-cache-btn-premium';
+            clearCacheBtn.innerHTML = `
+                <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m3 21 2-2m4.6-4.6L11 13m4.6-4.6L17 7m-3 10 2 2 2-2-2-2-2 2Zm-5-5L4 4m6 6-1.5 1.5"></path></svg>
+                <span>Clear Cache</span>
+            `;
             clearCacheBtn.title = 'Clear Cache';
             clearCacheBtn.onclick = function (e) {
                 e.stopPropagation();

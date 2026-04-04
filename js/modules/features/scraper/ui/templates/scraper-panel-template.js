@@ -197,8 +197,14 @@
                                             <div class="scraper-panel-pill">Reference</div>
                                         </div>
                                         <div class="domain-actions domain-actions-container">
-                                            <button id="reloadAllWikiBtn" class="btn secondary-btn" onclick="WikiManager.reloadAllWikiStatus()" title="Reload status for all entries">Reload</button>
-                                            <button id="clearAllWikiCacheBtn" class="btn danger-btn" onclick="CacheManager.clearAllWikiCaches()" title="Clear all Wikipedia caches">Clear Cache</button>
+                                            <button id="reloadAllWikiBtn" class="action-btn-premium reload-btn-premium" onclick="WikiManager.reloadAllWikiStatus()" title="Reload status for all entries">
+                                                <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"></path><path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path><path d="M3 22v-6h6"></path><path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path></svg>
+                                                Reload
+                                            </button>
+                                            <button id="clearAllWikiCacheBtn" class="action-btn-premium clear-cache-btn-premium" onclick="CacheManager.clearAllWikiCaches()" title="Clear all Wikipedia caches">
+                                                <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m3 21 2-2m4.6-4.6L11 13m4.6-4.6L17 7m-3 10 2 2 2-2-2-2-2 2Zm-5-5L4 4m6 6-1.5 1.5"></path></svg>
+                                                Clear Cache
+                                            </button>
                                             <a href="javascript:void(0)" onclick="if(window.PopupManager && PopupManager.openPopup) { PopupManager.openPopup('https://en.wikipedia.org', 'Wikipedia'); } else { window.open('https://en.wikipedia.org', '_blank'); }" class="wiki-link wiki-link-action">
                                                 Wikipedia <span class="external-link-icon">Open</span>
                                             </a>
@@ -269,8 +275,14 @@
                                             <div class="scraper-panel-pill">Community</div>
                                         </div>
                                         <div class="domain-actions domain-actions-container">
-                                            <button id="reloadAllFandomBtn" class="btn secondary-btn" onclick="WikiManager.reloadAllFandomWikiStatus()">Reload</button>
-                                            <button id="clearAllFandomCacheBtn" class="btn danger-btn" onclick="CacheManager.clearAllFandomCaches()">Clear Cache</button>
+                                            <button id="reloadAllFandomBtn" class="action-btn-premium reload-btn-premium" onclick="WikiManager.reloadAllFandomWikiStatus()">
+                                                <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"></path><path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path><path d="M3 22v-6h6"></path><path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path></svg>
+                                                Reload
+                                            </button>
+                                            <button id="clearAllFandomCacheBtn" class="action-btn-premium clear-cache-btn-premium" onclick="CacheManager.clearAllFandomCaches()">
+                                                <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m3 21 2-2m4.6-4.6L11 13m4.6-4.6L17 7m-3 10 2 2 2-2-2-2-2 2Zm-5-5L4 4m6 6-1.5 1.5"></path></svg>
+                                                Clear Cache
+                                            </button>
                                             <a href="javascript:void(0)" onclick="if(window.PopupManager && PopupManager.openPopup) { PopupManager.openPopup('https://www.fandom.com', 'Fandom'); } else { window.open('https://www.fandom.com', '_blank'); }" class="wiki-link wiki-link-action">
                                                 Fandom <span class="external-link-icon">Open</span>
                                             </a>
