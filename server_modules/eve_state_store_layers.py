@@ -8,6 +8,15 @@ from pathlib import Path
 
 FORMAT_VERSION = 1
 VALID_LAYER_SCOPES = {"store", "tab", "card", "folder", "bookmark"}
+KNOWLEDGE_STORAGE_KEYS = (
+    "fandomDomains",
+    "wikiEntries",
+    "wikiCategories",
+    "wikiDataStore",
+    "wikiCacheStore",
+    "apiSearchCachePool",
+    "apiSearchPrefs",
+)
 
 
 def _to_number(value, default):
@@ -396,6 +405,74 @@ def _normalize_single_folder_tree(tree):
     return normalized.get(temp_key, {"nodes": [], "settings": _normalize_folder_tree_settings({})})
 
 
+def _normalize_knowledge_context_key(value):
+    normalized = str(value or "").strip().lower().replace(" ", "_")
+    return normalized or "__global__"
+
+
+def _clone_json_compatible(value, fallback):
+    try:
+        return json.loads(json.dumps(value))
+    except Exception:
+        return fallback
+
+
+def _normalize_knowledge_state(knowledge):
+    source = knowledge if isinstance(knowledge, dict) else {}
+    scoped_storage = source.get("scopedStorage") if isinstance(source.get("scopedStorage"), dict) else {}
+    normalized = {}
+    for context_key, raw_bucket in scoped_storage.items():
+        if not isinstance(raw_bucket, dict):
+            continue
+        bucket = {}
+        for field_key in KNOWLEDGE_STORAGE_KEYS:
+            if field_key not in raw_bucket:
+                continue
+            bucket[field_key] = _clone_json_compatible(raw_bucket.get(field_key), raw_bucket.get(field_key))
+        if not bucket:
+            continue
+        normalized[_normalize_knowledge_context_key(context_key)] = bucket
+    return {"scopedStorage": normalized}
+
+
+def _filter_knowledge_state(knowledge, category_names):
+    normalized = _normalize_knowledge_state(knowledge)
+    contexts = {
+        _normalize_knowledge_context_key(name)
+        for name in (category_names or [])
+        if str(name or "").strip()
+    }
+    if not contexts:
+        return {"scopedStorage": {}}
+    return {
+        "scopedStorage": {
+            context_key: _clone_json_compatible(bucket, {})
+            for context_key, bucket in (normalized.get("scopedStorage") or {}).items()
+            if context_key in contexts
+        }
+    }
+
+
+def _replace_knowledge_contexts(base_knowledge, incoming_knowledge, category_names=None):
+    if category_names is None:
+        return _normalize_knowledge_state(incoming_knowledge)
+
+    contexts = {
+        _normalize_knowledge_context_key(name)
+        for name in (category_names or [])
+        if str(name or "").strip()
+    }
+    base_buckets = dict((_normalize_knowledge_state(base_knowledge).get("scopedStorage") or {}))
+    incoming_buckets = dict((_normalize_knowledge_state(incoming_knowledge).get("scopedStorage") or {}))
+
+    for context_key in contexts:
+        base_buckets.pop(context_key, None)
+        if context_key in incoming_buckets:
+            base_buckets[context_key] = _clone_json_compatible(incoming_buckets[context_key], {})
+
+    return {"scopedStorage": base_buckets}
+
+
 def _folder_nodes_for_tree(tree):
     if isinstance(tree, dict):
         return list(tree.get("nodes") or [])
@@ -533,6 +610,7 @@ def _normalize_state_payload(state):
     connections = _normalize_connections((source.get("library") or {}).get("connections") or [])
     folders = _normalize_bookmark_folders((source.get("bookmarks") or {}).get("folders") or {})
     pins = _normalize_quick_pins((source.get("bookmarks") or {}).get("pins"), links=links)
+    knowledge = _normalize_knowledge_state(source.get("knowledge") or {})
 
     return {
         "metadata": dict(source.get("metadata") or {}),
@@ -545,7 +623,8 @@ def _normalize_state_payload(state):
         "library": {
             "categories": categories,
             "connections": connections
-        }
+        },
+        "knowledge": knowledge
     }
 
 
@@ -574,6 +653,7 @@ def _build_layer_state(
     pins,
     categories,
     connections,
+    knowledge,
     layer_type,
     workspace_id="",
     category_name="",
@@ -615,7 +695,8 @@ def _build_layer_state(
         "library": {
             "categories": {key: value for key, value in (categories or {}).items()},
             "connections": _normalize_connections(connections or [])
-        }
+        },
+        "knowledge": _normalize_knowledge_state(knowledge)
     }
 
 
@@ -638,6 +719,9 @@ def empty_unified_state(format_version=FORMAT_VERSION):
         "library": {
             "categories": {},
             "connections": []
+        },
+        "knowledge": {
+            "scopedStorage": {}
         }
     }
 
@@ -749,12 +833,13 @@ def extract_layer_state(state, layer, workspace_id="", category_name="", folder_
     pins = list(normalized["bookmarks"].get("pins") or [])
     categories = dict(normalized["library"]["categories"])
     connections = list(normalized["library"]["connections"])
+    knowledge = dict(normalized.get("knowledge") or {})
 
     scope = str(layer or "store").strip().lower()
     if scope not in VALID_LAYER_SCOPES:
         raise ValueError(f"Unsupported layer scope: {scope}")
     if scope == "store":
-        return _build_layer_state(links, config, folders, pins, categories, connections, "store", format_version=format_version)
+        return _build_layer_state(links, config, folders, pins, categories, connections, knowledge, "store", format_version=format_version)
 
     ws_id = str(workspace_id or "").strip() or str(config.get("activeWorkspace") or "").strip()
     if scope in {"tab", "card", "folder", "bookmark"} and not ws_id:
@@ -779,6 +864,7 @@ def extract_layer_state(state, layer, workspace_id="", category_name="", folder_
             pin for pin in pins
             if str((_pin_target_context(pin, links=links) or {}).get("workspace_id") or "main").strip() == ws_id
         ]
+        scoped_category_names = [parsed.get("category_name") for parsed in map(_parse_scoped_category_key, scoped_categories.keys())]
         tab_config = dict(config)
         _ensure_workspace_config_entry(tab_config, ws_id, incoming_config=config)
         tab_config["workspaces"] = [
@@ -792,6 +878,7 @@ def extract_layer_state(state, layer, workspace_id="", category_name="", folder_
             scoped_pins,
             scoped_categories,
             scoped_connections,
+            _filter_knowledge_state(knowledge, scoped_category_names),
             "workspace",
             workspace_id=ws_id,
             format_version=format_version
@@ -834,6 +921,7 @@ def extract_layer_state(state, layer, workspace_id="", category_name="", folder_
             scoped_pins,
             scoped_categories,
             scoped_connections,
+            _filter_knowledge_state(knowledge, [cat_name]),
             "card",
             workspace_id=ws_id,
             category_name=cat_name,
@@ -901,6 +989,7 @@ def extract_layer_state(state, layer, workspace_id="", category_name="", folder_
             scoped_pins,
             scoped_categories,
             scoped_connections,
+            _filter_knowledge_state(knowledge, [cat_name]),
             "folder",
             workspace_id=ws_id,
             category_name=cat_name,
@@ -956,6 +1045,7 @@ def extract_layer_state(state, layer, workspace_id="", category_name="", folder_
         scoped_pins,
         scoped_categories,
         scoped_connections,
+        _filter_knowledge_state(knowledge, [cat_from_link]),
         "bookmark",
         workspace_id=ws_from_link,
         category_name=cat_from_link,
@@ -979,6 +1069,7 @@ def merge_layer_state(base_state, incoming_state, layer, workspace_id="", catego
             incoming["bookmarks"].get("pins") or [],
             incoming["library"]["categories"],
             incoming["library"]["connections"],
+            incoming.get("knowledge") or {},
             "store",
             format_version=format_version
         )
@@ -989,12 +1080,14 @@ def merge_layer_state(base_state, incoming_state, layer, workspace_id="", catego
     base_config = dict(base["bookmarks"]["config"])
     base_folders = dict(base["bookmarks"].get("folders") or {})
     base_pins = list(base["bookmarks"].get("pins") or [])
+    base_knowledge = dict(base.get("knowledge") or {})
     incoming_links = list(incoming["bookmarks"]["links"])
     incoming_categories = dict(incoming["library"]["categories"])
     incoming_connections = list(incoming["library"]["connections"])
     incoming_config = dict(incoming["bookmarks"]["config"])
     incoming_folders = dict(incoming["bookmarks"].get("folders") or {})
     incoming_pins = list(incoming["bookmarks"].get("pins") or [])
+    incoming_knowledge = dict(incoming.get("knowledge") or {})
     existing_links_for_pins = list(base_links)
     incoming_links_for_pins = list(incoming_links)
 
@@ -1039,6 +1132,11 @@ def merge_layer_state(base_state, incoming_state, layer, workspace_id="", catego
             pin for pin in incoming_pins
             if str((_pin_target_context(pin, links=incoming_links_for_pins) or {}).get("workspace_id") or "main").strip() == ws_id
         ]
+        tab_category_names = [
+            parsed.get("category_name")
+            for parsed in map(_parse_scoped_category_key, import_categories.keys())
+        ]
+        base_knowledge = _replace_knowledge_contexts(base_knowledge, incoming_knowledge, tab_category_names)
         _ensure_workspace_config_entry(base_config, ws_id, incoming_config=incoming_config)
         base_config["activeWorkspace"] = ws_id
         return _build_layer_state(
@@ -1048,6 +1146,7 @@ def merge_layer_state(base_state, incoming_state, layer, workspace_id="", catego
             base_pins,
             base_categories,
             base_connections,
+            base_knowledge,
             "workspace",
             workspace_id=ws_id,
             format_version=format_version
@@ -1104,6 +1203,7 @@ def merge_layer_state(base_state, incoming_state, layer, workspace_id="", catego
             pin for pin in incoming_pins
             if _pin_matches_card_scope(pin, ws_id, cat_name, links=incoming_links_for_pins)
         ]
+        base_knowledge = _replace_knowledge_contexts(base_knowledge, incoming_knowledge, [cat_name])
         _ensure_workspace_config_entry(base_config, ws_id, incoming_config=incoming_config)
         base_config["activeWorkspace"] = ws_id
         return _build_layer_state(
@@ -1113,6 +1213,7 @@ def merge_layer_state(base_state, incoming_state, layer, workspace_id="", catego
             base_pins,
             base_categories,
             base_connections,
+            base_knowledge,
             "card",
             workspace_id=ws_id,
             category_name=cat_name,
@@ -1175,6 +1276,7 @@ def merge_layer_state(base_state, incoming_state, layer, workspace_id="", catego
             pin for pin in base_pins
             if not _pin_matches_folder_subtree(pin, ws_id, cat_name, removed_ids, links=existing_links_for_pins)
         ] + list(incoming_pins)
+        base_knowledge = _replace_knowledge_contexts(base_knowledge, incoming_knowledge, [cat_name])
 
         entry_ids = {
             str(_connection_entry_id(conn) or "").strip()
@@ -1202,6 +1304,7 @@ def merge_layer_state(base_state, incoming_state, layer, workspace_id="", catego
             base_pins,
             base_categories,
             base_connections,
+            base_knowledge,
             "folder",
             workspace_id=ws_id,
             category_name=cat_name,
@@ -1255,6 +1358,7 @@ def merge_layer_state(base_state, incoming_state, layer, workspace_id="", catego
             and str((pin or {}).get("targetId") or "").strip() == target_bookmark_id
         )
     ]
+    base_knowledge = _replace_knowledge_contexts(base_knowledge, incoming_knowledge, [cat_from_link])
 
     _ensure_workspace_config_entry(base_config, ws_from_link, incoming_config=incoming_config)
     base_config["activeWorkspace"] = ws_from_link
@@ -1265,6 +1369,7 @@ def merge_layer_state(base_state, incoming_state, layer, workspace_id="", catego
         base_pins,
         base_categories,
         base_connections,
+        base_knowledge,
         "bookmark",
         workspace_id=ws_from_link,
         category_name=cat_from_link,

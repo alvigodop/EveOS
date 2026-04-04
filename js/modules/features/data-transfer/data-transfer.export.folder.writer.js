@@ -32,14 +32,15 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         sortLinksForExport: ns.sortLinksForExport,
         buildBookmarkFileName: ns.buildBookmarkFileName,
         shortHashHex: ns.shortHashHex,
-        BACKUP_DIRS: Object.freeze({
-            meta: '_meta',
-            state: 'state',
-            tabs: 'tabs',
-            cards: 'cards',
-            folders: 'folders',
-            entries: 'entries'
-        })
+        BACKUP_DIRS: Object.freeze({
+            meta: '_meta',
+            state: 'state',
+            knowledge: 'knowledge',
+            tabs: 'tabs',
+            cards: 'cards',
+            folders: 'folders',
+            entries: 'entries'
+        })
     };
 
     const fsHelpers = createFsHelpers(deps);
@@ -48,12 +49,14 @@ window.EveDataTransfer = window.EveDataTransfer || {};
 
     Object.assign(ns, {
         writeJsonFileToFolder: fsHelpers.writeJsonFileToFolder,
-        writeStoreMetaFiles: fsHelpers.writeStoreMetaFiles,
-        writeFallbackMetaFiles: fsHelpers.writeFallbackMetaFiles,
-        writeScopedCardFolder: cardHelpers.writeScopedCardFolder,
-        writeFullStoreFolderBackup: cardHelpers.writeFullStoreFolderBackup,
-        buildFallbackConfig: ns.buildFallbackConfig,
-        sortLinksForExport: ns.sortLinksForExport,
+        writeStoreMetaFiles: fsHelpers.writeStoreMetaFiles,
+        writeFallbackMetaFiles: fsHelpers.writeFallbackMetaFiles,
+        writeScopedCardFolder: cardHelpers.writeScopedCardFolder,
+        writeFullStoreFolderBackup: cardHelpers.writeFullStoreFolderBackup,
+        writeKnowledgeSnapshot: cardHelpers.writeKnowledgeSnapshot,
+        filterKnowledgeState: cardHelpers.filterKnowledgeState,
+        buildFallbackConfig: ns.buildFallbackConfig,
+        sortLinksForExport: ns.sortLinksForExport,
         buildConnectionMap: ns.buildConnectionMap,
         getConnectionEntryId: ns.getConnectionEntryId,
         findLibraryEntryById: ns.findLibraryEntryById,

@@ -5,12 +5,14 @@ window.EveDataStore = window.EveDataStore || {};
 window.EveDataStore.CaptureModules = window.EveDataStore.CaptureModules || {};
 
 (function () {
-    window.EveDataStore.CaptureModules.createCaptureScopedCaptureHelpers = function createCaptureScopedCaptureHelpers(base, sharedHelpers, pinHelpers) {
-        const cloneBookmarkFolders = base.cloneBookmarkFolders;
-        const captureState = base.captureState;
-        const getConnectionCategoryName = sharedHelpers.getConnectionCategoryName;
-        const buildScopedCategoryKey = sharedHelpers.buildScopedCategoryKey;
-        const getScopedFolderNodes = sharedHelpers.getScopedFolderNodes;
+    window.EveDataStore.CaptureModules.createCaptureScopedCaptureHelpers = function createCaptureScopedCaptureHelpers(base, sharedHelpers, pinHelpers) {
+        const cloneBookmarkFolders = base.cloneBookmarkFolders;
+        const captureState = base.captureState;
+        const normalizeKnowledgeContextKey = base.normalizeKnowledgeContextKey;
+        const filterKnowledgeState = base.filterKnowledgeState;
+        const getConnectionCategoryName = sharedHelpers.getConnectionCategoryName;
+        const buildScopedCategoryKey = sharedHelpers.buildScopedCategoryKey;
+        const getScopedFolderNodes = sharedHelpers.getScopedFolderNodes;
         const buildFolderMaps = sharedHelpers.buildFolderMaps;
         const collectFolderSubtreeIds = sharedHelpers.collectFolderSubtreeIds;
         const buildFolderSubtree = sharedHelpers.buildFolderSubtree;
@@ -23,28 +25,39 @@ window.EveDataStore.CaptureModules = window.EveDataStore.CaptureModules || {};
         const getWorkspaceName = sharedHelpers.getWorkspaceName;
         const parseLibraryKey = sharedHelpers.parseLibraryKey;
         const filterPinsForWorkspace = pinHelpers.filterPinsForWorkspace;
-        const filterPinsForCard = pinHelpers.filterPinsForCard;
-        const filterPinsForBookmark = pinHelpers.filterPinsForBookmark;
-        const filterPinsForFolder = pinHelpers.filterPinsForFolder;
-
-        function captureWorkspace(workspaceId) {
-            const state = captureState();
-            const workspaceLinks = filterLinksForWorkspace(workspaceId);
-            const workspaceConnections = filterConnectionsForWorkspace(workspaceId, workspaceLinks);
-            state.metadata.workspaceId = workspaceId;
-            state.metadata.workspaceName = getWorkspaceName(workspaceId);
-            state.metadata.type = 'workspace';
+        const filterPinsForCard = pinHelpers.filterPinsForCard;
+        const filterPinsForBookmark = pinHelpers.filterPinsForBookmark;
+        const filterPinsForFolder = pinHelpers.filterPinsForFolder;
+
+        function applyKnowledgeContexts(state, categoryNames) {
+            const contexts = Array.from(new Set(
+                (Array.isArray(categoryNames) ? categoryNames : [categoryNames])
+                    .map((value) => normalizeKnowledgeContextKey(value))
+                    .filter((value) => value && value !== '__global__')
+            ));
+            state.knowledge = filterKnowledgeState(state.knowledge, contexts);
+        }
+
+        function captureWorkspace(workspaceId) {
+            const state = captureState();
+            const workspaceLinks = filterLinksForWorkspace(workspaceId);
+            const workspaceConnections = filterConnectionsForWorkspace(workspaceId, workspaceLinks);
+            const workspaceCategoryNames = Array.from(new Set(workspaceLinks.map((entry) => String(entry?.category || 'Unsorted').trim() || 'Unsorted')));
+            state.metadata.workspaceId = workspaceId;
+            state.metadata.workspaceName = getWorkspaceName(workspaceId);
+            state.metadata.type = 'workspace';
             state.bookmarks.links = workspaceLinks;
             state.bookmarks.config = {
                 ...state.bookmarks.config,
                 activeWorkspace: workspaceId
             };
             state.bookmarks.folders = filterFolderTreesForWorkspace(cloneBookmarkFolders(), workspaceId);
-            state.bookmarks.pins = filterPinsForWorkspace(workspaceId);
-            state.library.connections = workspaceConnections;
-            state.library.categories = filterCategoriesForConnections(state.library.categories, workspaceConnections);
-            return state;
-        }
+            state.bookmarks.pins = filterPinsForWorkspace(workspaceId);
+            state.library.connections = workspaceConnections;
+            state.library.categories = filterCategoriesForConnections(state.library.categories, workspaceConnections);
+            applyKnowledgeContexts(state, workspaceCategoryNames);
+            return state;
+        }
 
         function captureCard(workspaceId, categoryName) {
             const state = captureWorkspace(workspaceId);
@@ -64,12 +77,13 @@ window.EveDataStore.CaptureModules = window.EveDataStore.CaptureModules || {};
                 ...state.bookmarks.config,
                 activeWorkspace: workspaceId
             };
-            state.bookmarks.folders = filterFolderTreesForCard(cloneBookmarkFolders(), workspaceId, categoryName);
-            state.bookmarks.pins = filterPinsForCard(workspaceId, categoryName);
-            state.library.connections = cardConnections;
-            state.library.categories = filterCategoriesForConnections(state.library.categories, cardConnections);
-            return state;
-        }
+            state.bookmarks.folders = filterFolderTreesForCard(cloneBookmarkFolders(), workspaceId, categoryName);
+            state.bookmarks.pins = filterPinsForCard(workspaceId, categoryName);
+            state.library.connections = cardConnections;
+            state.library.categories = filterCategoriesForConnections(state.library.categories, cardConnections);
+            applyKnowledgeContexts(state, [categoryName]);
+            return state;
+        }
 
         function captureBookmark(workspaceId, categoryName, linkId) {
             const normalizedWorkspace = String(workspaceId || '').trim();
@@ -94,12 +108,13 @@ window.EveDataStore.CaptureModules = window.EveDataStore.CaptureModules || {};
                 ...state.bookmarks.config,
                 activeWorkspace: normalizedWorkspace
             };
-            state.bookmarks.folders = filterFolderTreesForCard(cloneBookmarkFolders(), normalizedWorkspace, bookmarkCategory);
-            state.bookmarks.pins = filterPinsForBookmark(normalizedLinkId);
-            state.library.connections = bookmarkConnections;
-            state.library.categories = filterCategoriesForConnections(state.library.categories, bookmarkConnections);
-            return state;
-        }
+            state.bookmarks.folders = filterFolderTreesForCard(cloneBookmarkFolders(), normalizedWorkspace, bookmarkCategory);
+            state.bookmarks.pins = filterPinsForBookmark(normalizedLinkId);
+            state.library.connections = bookmarkConnections;
+            state.library.categories = filterCategoriesForConnections(state.library.categories, bookmarkConnections);
+            applyKnowledgeContexts(state, [bookmarkCategory]);
+            return state;
+        }
 
         function captureFolder(workspaceId, categoryName, folderId) {
             const normalizedWorkspace = String(workspaceId || '').trim();
@@ -139,16 +154,17 @@ window.EveDataStore.CaptureModules = window.EveDataStore.CaptureModules || {};
                 ...state.bookmarks.config,
                 activeWorkspace: normalizedWorkspace
             };
-            state.bookmarks.folders = {
-                [scopedKey]: {
-                    nodes: subtreeNodes
-                }
-            };
-            state.bookmarks.pins = filterPinsForFolder(normalizedWorkspace, normalizedCategory, normalizedFolderId);
-            state.library.connections = folderConnections;
-            state.library.categories = filterCategoriesForConnections(state.library.categories, folderConnections);
-            return state;
-        }
+            state.bookmarks.folders = {
+                [scopedKey]: {
+                    nodes: subtreeNodes
+                }
+            };
+            state.bookmarks.pins = filterPinsForFolder(normalizedWorkspace, normalizedCategory, normalizedFolderId);
+            state.library.connections = folderConnections;
+            state.library.categories = filterCategoriesForConnections(state.library.categories, folderConnections);
+            applyKnowledgeContexts(state, [normalizedCategory]);
+            return state;
+        }
 
         function findCategoryLibraryData(categories, workspaceId, categoryName) {
             if (!categories || typeof categories !== 'object') return null;

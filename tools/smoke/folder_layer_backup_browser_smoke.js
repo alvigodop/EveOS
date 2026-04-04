@@ -75,7 +75,40 @@ function buildSeedPayload() {
             { id: 'c-a', linkId: 'l-a', workspace: 'main', categoryName: 'Reading', libraryEntryId: 'e-a' },
             { id: 'c-b', linkId: 'l-b', workspace: 'main', categoryName: 'Reading', libraryEntryId: 'e-b' },
             { id: 'c-x', linkId: 'l-x', workspace: 'main', categoryName: 'Reading', libraryEntryId: 'e-x' }
-        ]
+        ],
+        knowledge: {
+            wikiEntries: [{ title: 'Reading', url: 'https://en.wikipedia.org/wiki/Reading' }],
+            fandomDomains: [{ title: 'Readingverse', domain: 'readingverse.fandom.com', url: 'https://readingverse.fandom.com' }],
+            wikiCategories: [{ name: 'Reference' }],
+            wikiDataStore: {
+                searchResults: {
+                    'readingverse.fandom.com': {
+                        domain: 'readingverse.fandom.com',
+                        items: [{ title: 'Readingverse Home' }]
+                    }
+                }
+            },
+            wikiCacheStore: {
+                Reading: { title: 'Reading', updatedAt: 1712000000000 }
+            },
+            apiSearchCachePool: {
+                naruto: {
+                    query: 'naruto',
+                    updatedAt: 1712000000000,
+                    expiresAt: 1712086400000,
+                    summary: { totalResults: 2, perSource: { openlibrary: 1, tvmaze: 1 } },
+                    sources: {
+                        openlibrary: { docs: [{ title: 'Naruto Companion' }] },
+                        tvmaze: [{ name: 'Naruto Live Action' }]
+                    }
+                }
+            },
+            apiSearchPrefs: {
+                liveResults: false,
+                hybridResults: true,
+                ttlMs: 86400000
+            }
+        }
     };
 }
 
@@ -240,6 +273,13 @@ async function main() {
             localStorage.setItem('eveV22BookmarkFolders', JSON.stringify(payload.bookmarkFolders));
             localStorage.setItem('eveLibraryData', JSON.stringify(payload.libraries));
             localStorage.setItem('eveLibraryConnections', JSON.stringify(payload.connections));
+            localStorage.setItem('reading_wikiEntries', JSON.stringify(payload.knowledge.wikiEntries));
+            localStorage.setItem('reading_fandomDomains', JSON.stringify(payload.knowledge.fandomDomains));
+            localStorage.setItem('reading_wikiCategories', JSON.stringify(payload.knowledge.wikiCategories));
+            localStorage.setItem('reading_wikiDataStore', JSON.stringify(payload.knowledge.wikiDataStore));
+            localStorage.setItem('reading_wikiCacheStore', JSON.stringify(payload.knowledge.wikiCacheStore));
+            localStorage.setItem('reading_apiSearchCachePool', JSON.stringify(payload.knowledge.apiSearchCachePool));
+            localStorage.setItem('reading_apiSearchPrefs', JSON.stringify(payload.knowledge.apiSearchPrefs));
         }, seed);
 
         await page.goto(`http://localhost:${PORT}/EveOS.html`, {
@@ -282,6 +322,9 @@ async function main() {
 
         if (!exportedFiles.some((file) => /entries\/.+\.json$/i.test(file))) {
             throw new Error(`Expected bookmark entry JSON files in exported subtree. Files: ${exportedFiles.join(', ')}`);
+        }
+        if (!exportedFiles.includes('knowledge/scoped-storage.json')) {
+            throw new Error(`Expected knowledge/scoped-storage.json in exported subtree. Files: ${exportedFiles.join(', ')}`);
         }
 
         console.log(`FOLDER_LAYER_BROWSER_SMOKE_OK ${JSON.stringify({

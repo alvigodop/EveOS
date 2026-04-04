@@ -13,6 +13,8 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
         const writeFallbackMetaFiles = deps.writeFallbackMetaFiles;
         const writeFullStoreFolderBackup = deps.writeFullStoreFolderBackup;
         const writeScopedCardFolder = deps.writeScopedCardFolder;
+        const writeKnowledgeSnapshot = deps.writeKnowledgeSnapshot;
+        const filterKnowledgeState = deps.filterKnowledgeState;
         const sortLinksForExport = deps.sortLinksForExport;
         const buildConnectionMap = deps.buildConnectionMap;
         const buildCardFolderName = deps.buildCardFolderName;
@@ -83,6 +85,7 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
                     notes: 'Client folder backup snapshot (full data-pack layout + unified state).',
                     files: {
                         state: `${backupDirs.state}/eve_state.json`,
+                        knowledge: `${backupDirs.knowledge}/scoped-storage.json`,
                         tabsRoot: `${backupDirs.tabs}/`
                     },
                     dataPack: {
@@ -119,6 +122,7 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
                 const categories = workspaceState?.library?.categories || {};
                 const connections = workspaceState?.library?.connections || [];
                 const folderTrees = workspaceState?.bookmarks?.folders || {};
+                const knowledgeState = filterKnowledgeState(workspaceState?.knowledge, cardEntries.map(([categoryName]) => categoryName));
                 const connectionMap = buildConnectionMap(connections);
                 const workspaceMeta = getWorkspaceMeta(workspaceId, workspaceState?.bookmarks?.config);
                 const scopedConfig = buildFallbackConfig(workspaceState?.bookmarks?.config, workspaceMeta);
@@ -128,6 +132,7 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
 
                 await writeJsonFileToFolder(rootHandle, `${backupDirs.state}/workspace-state.json`, workspaceState || {});
                 await writeFallbackMetaFiles(rootHandle, scopedConfig, workspaceMeta);
+                await writeKnowledgeSnapshot(rootHandle, knowledgeState);
                 await writeJsonFileToFolder(rootHandle, `${tabRootPath}/tab.json`, {
                     schema: 'eveos.tab.v1',
                     id: workspaceMeta.id,
@@ -179,6 +184,7 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
                 const categories = cardState?.library?.categories || {};
                 const connections = cardState?.library?.connections || [];
                 const folderTrees = cardState?.bookmarks?.folders || {};
+                const knowledgeState = filterKnowledgeState(cardState?.knowledge, [categoryName]);
                 const connectionMap = buildConnectionMap(connections);
                 const workspaceMeta = getWorkspaceMeta(workspaceId, cardState?.bookmarks?.config);
                 const scopedConfig = buildFallbackConfig(cardState?.bookmarks?.config, workspaceMeta);
@@ -187,6 +193,7 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
 
                 await writeJsonFileToFolder(rootHandle, `${backupDirs.state}/card-state.json`, cardState || {});
                 await writeFallbackMetaFiles(rootHandle, scopedConfig, workspaceMeta);
+                await writeKnowledgeSnapshot(rootHandle, knowledgeState);
                 const writtenBookmarks = await writeScopedCardFolder(
                     rootHandle,
                     cardRootPath,
@@ -223,6 +230,7 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
                 const categories = folderState?.library?.categories || {};
                 const connections = folderState?.library?.connections || [];
                 const folderTrees = folderState?.bookmarks?.folders || {};
+                const knowledgeState = filterKnowledgeState(folderState?.knowledge, [categoryName]);
                 const connectionMap = buildConnectionMap(connections);
                 const workspaceMeta = getWorkspaceMeta(workspaceId, folderState?.bookmarks?.config);
                 const scopedConfig = buildFallbackConfig(folderState?.bookmarks?.config, workspaceMeta);
@@ -231,6 +239,7 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
 
                 await writeJsonFileToFolder(rootHandle, `${backupDirs.state}/folder-state.json`, folderState || {});
                 await writeFallbackMetaFiles(rootHandle, scopedConfig, workspaceMeta);
+                await writeKnowledgeSnapshot(rootHandle, knowledgeState);
                 const writtenBookmarks = await writeScopedCardFolder(
                     rootHandle,
                     cardRootPath,

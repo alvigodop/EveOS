@@ -14,12 +14,47 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
         const writeJsonFileToFolder = fsHelpers.writeJsonFileToFolder;
         const writeStoreMetaFiles = fsHelpers.writeStoreMetaFiles;
         const BACKUP_DIRS = fsHelpers.BACKUP_DIRS;
-        const normalizeClickBehaviorMode = treeHelpers.normalizeClickBehaviorMode;
-        const getScopedFolderTree = treeHelpers.getScopedFolderTree;
-        const buildFolderChildrenMap = treeHelpers.buildFolderChildrenMap;
-        const buildWorkspaceCardEntries = treeHelpers.buildWorkspaceCardEntries;
-        const writeBookmarkPayloadAtPath = bookmarkHelpers.writeBookmarkPayloadAtPath;
-        const writeFolderBranch = bookmarkHelpers.writeFolderBranch;
+        const normalizeClickBehaviorMode = treeHelpers.normalizeClickBehaviorMode;
+        const getScopedFolderTree = treeHelpers.getScopedFolderTree;
+        const buildFolderChildrenMap = treeHelpers.buildFolderChildrenMap;
+        const buildWorkspaceCardEntries = treeHelpers.buildWorkspaceCardEntries;
+        const writeBookmarkPayloadAtPath = bookmarkHelpers.writeBookmarkPayloadAtPath;
+        const writeFolderBranch = bookmarkHelpers.writeFolderBranch;
+
+        function normalizeKnowledgeContextKey(value) {
+            const normalized = String(value || '').trim().toLowerCase().replace(/\s+/g, '_');
+            return normalized || '__global__';
+        }
+
+        function filterKnowledgeState(knowledgeState, categoryNames) {
+            const normalizedContexts = new Set(
+                (Array.isArray(categoryNames) ? categoryNames : [categoryNames])
+                    .map((value) => normalizeKnowledgeContextKey(value))
+                    .filter((value) => value && value !== '__global__')
+            );
+            const source = knowledgeState?.scopedStorage && typeof knowledgeState.scopedStorage === 'object'
+                ? knowledgeState.scopedStorage
+                : {};
+            const scopedStorage = {};
+
+            Object.entries(source).forEach(([contextKey, bucket]) => {
+                const normalizedContext = normalizeKnowledgeContextKey(contextKey);
+                if (!normalizedContexts.has(normalizedContext)) return;
+                scopedStorage[normalizedContext] = JSON.parse(JSON.stringify(bucket || {}));
+            });
+
+            return { scopedStorage };
+        }
+
+        async function writeKnowledgeSnapshot(rootHandle, knowledgeState) {
+            const scopedStorage = knowledgeState?.scopedStorage && typeof knowledgeState.scopedStorage === 'object'
+                ? knowledgeState.scopedStorage
+                : {};
+            await writeJsonFileToFolder(rootHandle, `${BACKUP_DIRS.knowledge}/scoped-storage.json`, {
+                schema: 'eveos.knowledge.v1',
+                scopedStorage
+            });
+        }
 
         async function writeScopedCardFolder(rootHandle, cardRootPath, workspaceId, categoryName, links, categories, connectionMap, folderTrees = {}) {
             const sortedLinks = sortLinksForExport(links);
@@ -111,15 +146,16 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
             const connectionMap = buildConnectionMap(connections);
             const linksByWorkspace = groupLinksByWorkspaceAndCategory(links);
 
-            await writeJsonFileToFolder(rootHandle, `${BACKUP_DIRS.state}/eve_state.json`, {
-                ...(fullState || {}),
-                bookmarks: {
-                    ...(fullState?.bookmarks || {}),
-                    config: normalizedConfig
-                }
-            });
-
-            let tabCount = 0;
+            await writeJsonFileToFolder(rootHandle, `${BACKUP_DIRS.state}/eve_state.json`, {
+                ...(fullState || {}),
+                bookmarks: {
+                    ...(fullState?.bookmarks || {}),
+                    config: normalizedConfig
+                }
+            });
+            await writeKnowledgeSnapshot(rootHandle, fullState?.knowledge);
+
+            let tabCount = 0;
             let cardCount = 0;
             let bookmarkCount = 0;
 
@@ -165,9 +201,11 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
             };
         }
 
-        return {
-            writeScopedCardFolder,
-            writeFullStoreFolderBackup
-        };
-    };
-})();
+        return {
+            writeScopedCardFolder,
+            writeFullStoreFolderBackup,
+            writeKnowledgeSnapshot,
+            filterKnowledgeState
+        };
+    };
+})();

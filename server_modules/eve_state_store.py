@@ -326,6 +326,9 @@ def _write_card_layer_backup_to_root(state, root_path):
         tabs_root = temp_root / "tabs"
         dst_cards_root = target_root / "cards"
         dst_cards_root.mkdir(parents=True, exist_ok=True)
+        src_knowledge_root = temp_root / "knowledge"
+        if src_knowledge_root.exists() and src_knowledge_root.is_dir():
+            shutil.copytree(src_knowledge_root, target_root / "knowledge", dirs_exist_ok=True)
         if tabs_root.exists():
             for workspace_folder in sorted(tabs_root.iterdir()):
                 if not workspace_folder.is_dir():
@@ -383,6 +386,9 @@ def _write_folder_layer_backup_to_root(state, root_path):
         tabs_root = temp_root / "tabs"
         dst_cards_root = target_root / "cards"
         dst_cards_root.mkdir(parents=True, exist_ok=True)
+        src_knowledge_root = temp_root / "knowledge"
+        if src_knowledge_root.exists() and src_knowledge_root.is_dir():
+            shutil.copytree(src_knowledge_root, target_root / "knowledge", dirs_exist_ok=True)
         if tabs_root.exists():
             for workspace_folder in sorted(tabs_root.iterdir()):
                 if not workspace_folder.is_dir():

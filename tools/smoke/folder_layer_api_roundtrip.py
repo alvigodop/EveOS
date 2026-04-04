@@ -88,6 +88,49 @@ def build_base_state():
                 {"id": "c-x", "linkId": "l-x", "workspace": "main", "categoryName": "Reading", "libraryEntryId": "e-x"},
             ],
         },
+        "knowledge": {
+            "scopedStorage": {
+                "reading": {
+                    "wikiEntries": [
+                        {"title": "Reading", "url": "https://en.wikipedia.org/wiki/Reading"}
+                    ],
+                    "fandomDomains": [
+                        {"title": "Readingverse", "domain": "readingverse.fandom.com", "url": "https://readingverse.fandom.com"}
+                    ],
+                    "wikiDataStore": {
+                        "searchResults": {
+                            "readingverse.fandom.com": {
+                                "domain": "readingverse.fandom.com",
+                                "items": [{"title": "Readingverse Home"}]
+                            }
+                        }
+                    },
+                    "wikiCacheStore": {
+                        "Reading": {
+                            "title": "Reading",
+                            "updatedAt": 1712000000000
+                        }
+                    },
+                    "apiSearchCachePool": {
+                        "naruto": {
+                            "query": "naruto",
+                            "updatedAt": 1712000000000,
+                            "expiresAt": 1712086400000,
+                            "summary": {"totalResults": 2, "perSource": {"openlibrary": 1, "tvmaze": 1}},
+                            "sources": {
+                                "openlibrary": {"docs": [{"title": "Naruto Companion"}]},
+                                "tvmaze": [{"name": "Naruto Live Action"}]
+                            }
+                        }
+                    },
+                    "apiSearchPrefs": {
+                        "liveResults": False,
+                        "hybridResults": True,
+                        "ttlMs": 86400000
+                    }
+                }
+            }
+        },
     }
 
 
@@ -121,6 +164,22 @@ def build_modified_state():
         {"id": "e-a2", "title": "Entry A2"},
         {"id": "e-x", "title": "Entry X"},
     ]
+    state["knowledge"]["scopedStorage"]["reading"] = {
+        "wikiEntries": [
+            {"title": "Reading Replacement", "url": "https://example.com/replacement"}
+        ],
+        "apiSearchCachePool": {
+            "bleach": {
+                "query": "bleach",
+                "updatedAt": 1713000000000,
+                "expiresAt": 1713086400000,
+                "summary": {"totalResults": 1, "perSource": {"openlibrary": 1}},
+                "sources": {
+                    "openlibrary": {"docs": [{"title": "Bleach Novel"}]}
+                }
+            }
+        }
+    }
     return state
 
 
@@ -184,20 +243,28 @@ def main():
         assert load_payload.get("ok") is True, load_payload
         state = load_payload.get("state") or {}
         links = (state.get("bookmarks") or {}).get("links") or []
+        knowledge = ((state.get("knowledge") or {}).get("scopedStorage") or {}).get("reading") or {}
         reading_ids = sorted(
             str(link.get("id"))
             for link in links
             if str(link.get("workspace")) == "main" and str(link.get("category")) == "Reading"
         )
         assert reading_ids == ["l-a", "l-b", "l-root", "l-x"], reading_ids
+        wiki_entries = knowledge.get("wikiEntries") or []
+        api_pool = knowledge.get("apiSearchCachePool") or {}
+        assert wiki_entries and str(wiki_entries[0].get("title")) == "Reading", wiki_entries
+        assert "naruto" in api_pool, api_pool
+        assert "bleach" not in api_pool, api_pool
 
         files = walk_files(backup_path)
         assert any(file.endswith("/folder.json") or file == "folder.json" for file in files), files
         assert any("/entries/" in file and file.endswith(".json") for file in files), files
+        assert "knowledge/scoped-storage.json" in files, files
 
         print("FOLDER_LAYER_API_ROUNDTRIP_OK " + json.dumps({
             "backupPath": backup_path,
             "readingIds": reading_ids,
+            "knowledgeKeys": sorted(knowledge.keys()),
             "files": files,
         }))
     finally:

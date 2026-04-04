@@ -7,6 +7,15 @@ window.EveDataStore.CaptureModules = window.EveDataStore.CaptureModules || {};
 (function () {
     window.EveDataStore.CaptureModules.createCaptureCloneHelpers = function createCaptureCloneHelpers() {
         const VERSION = 1;
+        const KNOWLEDGE_STORAGE_KEYS = Object.freeze([
+            'fandomDomains',
+            'wikiEntries',
+            'wikiCategories',
+            'wikiDataStore',
+            'wikiCacheStore',
+            'apiSearchCachePool',
+            'apiSearchPrefs'
+        ]);
 
         function getLibraryStateModule() {
             return window.EveLibrary?.State;
@@ -75,6 +84,95 @@ window.EveDataStore.CaptureModules = window.EveDataStore.CaptureModules || {};
             return connections.map(entry => ({ ...entry }));
         }
 
+        function normalizeKnowledgeContextKey(value) {
+            const normalized = String(value || '').trim().toLowerCase().replace(/\s+/g, '_');
+            return normalized || '__global__';
+        }
+
+        function parseKnowledgeStorageKey(storageKey) {
+            const rawKey = String(storageKey || '').trim();
+            if (!rawKey) return null;
+
+            for (const fieldKey of KNOWLEDGE_STORAGE_KEYS) {
+                if (rawKey === fieldKey) {
+                    return { contextKey: '__global__', fieldKey };
+                }
+
+                const suffix = `_${fieldKey}`;
+                if (!rawKey.endsWith(suffix)) continue;
+
+                let contextKey = rawKey.slice(0, -suffix.length);
+                if (!contextKey) {
+                    return { contextKey: '__global__', fieldKey };
+                }
+
+                if ((fieldKey === 'apiSearchCachePool' || fieldKey === 'apiSearchPrefs') && contextKey.startsWith('api_')) {
+                    contextKey = contextKey.slice(4);
+                }
+
+                return {
+                    contextKey: normalizeKnowledgeContextKey(contextKey),
+                    fieldKey
+                };
+            }
+
+            return null;
+        }
+
+        function cloneValue(value, fallbackValue) {
+            try {
+                return JSON.parse(JSON.stringify(value));
+            } catch (error) {
+                return fallbackValue;
+            }
+        }
+
+        function cloneKnowledgeState() {
+            const scopedStorage = {};
+            if (typeof localStorage === 'undefined' || typeof localStorage.length !== 'number') {
+                return { scopedStorage };
+            }
+
+            for (let index = 0; index < localStorage.length; index += 1) {
+                const storageKey = localStorage.key(index);
+                const parsed = parseKnowledgeStorageKey(storageKey);
+                if (!parsed) continue;
+
+                try {
+                    const rawValue = localStorage.getItem(storageKey);
+                    if (rawValue == null) continue;
+                    const parsedValue = JSON.parse(rawValue);
+                    const contextKey = normalizeKnowledgeContextKey(parsed.contextKey);
+                    if (!scopedStorage[contextKey]) scopedStorage[contextKey] = {};
+                    scopedStorage[contextKey][parsed.fieldKey] = cloneValue(parsedValue, parsedValue);
+                } catch (error) {
+                    console.warn('[EveDataStore] Skipping invalid knowledge storage key during capture:', storageKey, error);
+                }
+            }
+
+            return { scopedStorage };
+        }
+
+        function filterKnowledgeState(knowledgeState, contexts) {
+            const normalizedContexts = new Set(
+                (Array.isArray(contexts) ? contexts : [contexts])
+                    .map((value) => normalizeKnowledgeContextKey(value))
+                    .filter(Boolean)
+            );
+            const scopedStorage = {};
+            const sourceBuckets = knowledgeState?.scopedStorage && typeof knowledgeState.scopedStorage === 'object'
+                ? knowledgeState.scopedStorage
+                : {};
+
+            Object.entries(sourceBuckets).forEach(([contextKey, bucket]) => {
+                const normalizedContext = normalizeKnowledgeContextKey(contextKey);
+                if (!normalizedContexts.has(normalizedContext)) return;
+                scopedStorage[normalizedContext] = cloneValue(bucket, {});
+            });
+
+            return { scopedStorage };
+        }
+
         function captureState() {
             return {
                 metadata: {
@@ -91,7 +189,8 @@ window.EveDataStore.CaptureModules = window.EveDataStore.CaptureModules || {};
                 library: {
                     categories: cloneLibraries(),
                     connections: cloneConnections()
-                }
+                },
+                knowledge: cloneKnowledgeState()
             };
         }
 
@@ -106,6 +205,11 @@ window.EveDataStore.CaptureModules = window.EveDataStore.CaptureModules || {};
             cloneBookmarkFolders,
             cloneQuickPins,
             cloneConnections,
+            KNOWLEDGE_STORAGE_KEYS,
+            normalizeKnowledgeContextKey,
+            parseKnowledgeStorageKey,
+            cloneKnowledgeState,
+            filterKnowledgeState,
             captureState
         };
     };

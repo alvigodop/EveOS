@@ -22,11 +22,26 @@ window.EveDataTransfer = window.EveDataTransfer || {};
     const buildUnifiedStateFromParsed = ns.buildUnifiedStateFromParsed;
     const buildParsedTabsFromCards = ns.buildParsedTabsFromCards;
 
+    async function tryReadKnowledgeStateFromFolder(rootHandle) {
+        const knowledgeRoot = await getDirectoryHandleByAliases(rootHandle, ['knowledge', 'k']);
+        if (!knowledgeRoot) return null;
+        const payload = await readJsonFileIfExists(knowledgeRoot, 'scoped-storage.json');
+        if (!payload || typeof payload !== 'object') return null;
+        if (!payload.scopedStorage || typeof payload.scopedStorage !== 'object') return null;
+        return {
+            scopedStorage: payload.scopedStorage
+        };
+    }
+
     async function tryReadUnifiedStateFromFolder(rootHandle) {
         const stateRoot = await getDirectoryHandleByAliases(rootHandle, ['state', 's']);
         if (!stateRoot) return null;
         const statePayload = await readJsonFileIfExists(stateRoot, 'eve_state.json');
         if (!statePayload || typeof statePayload !== 'object' || !statePayload.bookmarks || !statePayload.library) return null;
+        if (!statePayload.knowledge) {
+            const knowledgeState = await tryReadKnowledgeStateFromFolder(rootHandle);
+            if (knowledgeState) statePayload.knowledge = knowledgeState;
+        }
         return statePayload;
     }
 
@@ -44,12 +59,15 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         for (const tabFolder of tabFolders) {
             parsedTabs.push(await parseTabFolderHandle(tabFolder));
         }
-        return buildUnifiedStateFromParsed(parsedTabs, {
+        const nextState = buildUnifiedStateFromParsed(parsedTabs, {
             metadataType: 'store',
             config: configPayload || {},
             quickPins: Array.isArray(pinsPayload?.pins) ? pinsPayload.pins : [],
             activeWorkspace: configPayload?.activeWorkspace || parsedTabs[0]?.workspaceId || 'main'
         });
+        const knowledgeState = await tryReadKnowledgeStateFromFolder(rootHandle);
+        if (knowledgeState) nextState.knowledge = knowledgeState;
+        return nextState;
     }
 
     async function parseAnyDataPackFolder(rootHandle, options = {}) {
@@ -72,6 +90,8 @@ window.EveDataTransfer = window.EveDataTransfer || {};
                 config: currentConfig && typeof currentConfig === 'object' ? currentConfig : {},
                 activeWorkspace: parsedTabs[0]?.workspaceId || preferredWorkspaceId
             });
+            const knowledgeState = await tryReadKnowledgeStateFromFolder(rootHandle);
+            if (knowledgeState) state.knowledge = knowledgeState;
             return { state, sourceType: 'card' };
         }
     }

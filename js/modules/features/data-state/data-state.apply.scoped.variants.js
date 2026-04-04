@@ -15,6 +15,7 @@ window.EveDataStore = window.EveDataStore || {};
     const getBookmarkFolders = ns.getBookmarkFolders;
     const cloneConnections = ns.cloneConnections;
     const getConnectionCategoryName = ns.getConnectionCategoryName;
+    const parseLibraryKey = ns.parseLibraryKey;
     const findCategoryLibraryData = ns.findCategoryLibraryData;
     const stripLegacyPinnedFlag = ns.stripLegacyPinnedFlag;
     const mergeLibraryEntries = ns.mergeLibraryEntries;
@@ -37,6 +38,7 @@ window.EveDataStore = window.EveDataStore || {};
     const setQuickPins = ns.setQuickPins;
     const applyLibraryCategories = ns.applyLibraryCategories;
     const applyConnections = ns.applyConnections;
+    const applyKnowledgeState = ns.applyKnowledgeState;
 
     function applyState(state) {
         if (!state || typeof state !== 'object') return false;
@@ -68,6 +70,8 @@ window.EveDataStore = window.EveDataStore || {};
                 }
             }
         }
+
+        applyKnowledgeState(state.knowledge);
 
         return true;
     }
@@ -101,6 +105,13 @@ window.EveDataStore = window.EveDataStore || {};
             applyLibraryCategories(state.library.categories);
             applyConnections(workspaceId, state.library.connections || []);
         }
+
+        const workspaceCategoryNames = Array.from(new Set(
+            (state.bookmarks?.links || [])
+                .map((entry) => String(entry?.category || 'Unsorted').trim() || 'Unsorted')
+                .concat(Object.keys(state.library?.categories || {}).map((key) => String(parseLibraryKey(key)?.categoryName || '').trim()).filter(Boolean))
+        ));
+        applyKnowledgeState(state.knowledge, workspaceCategoryNames);
 
         return true;
     }
@@ -167,6 +178,8 @@ window.EveDataStore = window.EveDataStore || {};
                 window.EveLibrary.Connections = next;
             }
         }
+
+        applyKnowledgeState(state.knowledge, [categoryName]);
 
         return true;
     }
@@ -235,6 +248,8 @@ window.EveDataStore = window.EveDataStore || {};
             window.EveLibrary = window.EveLibrary || {};
             window.EveLibrary.Connections = next;
         }
+
+        applyKnowledgeState(state.knowledge, [categoryName]);
 
         return true;
     }
@@ -349,6 +364,8 @@ window.EveDataStore = window.EveDataStore || {};
                 applyLibraryCategories({ [scopedKey]: mergedCategory });
             }
         }
+
+        applyKnowledgeState(state.knowledge, [categoryName]);
 
         return true;
     }

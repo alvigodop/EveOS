@@ -273,6 +273,7 @@ def write_modular_state_full(
     quick_pins = normalize_quick_pins(bookmarks.get("pins"), links=links)
     connections = list(library.get("connections") or [])
     categories = library.get("categories") or {}
+    knowledge = state.get("knowledge") if isinstance(state.get("knowledge"), dict) else {"scopedStorage": {}}
 
     ensure_clean_store()
 
@@ -310,6 +311,15 @@ def write_modular_state_full(
         json.dumps({
             "schema": "eveos.quick-pins.v1",
             "pins": quick_pins,
+        }, ensure_ascii=False, indent=2),
+        encoding="utf-8"
+    )
+    knowledge_root = store_root / "knowledge"
+    knowledge_root.mkdir(parents=True, exist_ok=True)
+    (knowledge_root / "scoped-storage.json").write_text(
+        json.dumps({
+            "schema": "eveos.knowledge.v1",
+            "scopedStorage": dict((knowledge or {}).get("scopedStorage") or {}),
         }, ensure_ascii=False, indent=2),
         encoding="utf-8"
     )
@@ -565,6 +575,12 @@ def read_modular_state_raw(*, store_root, meta_dir, tabs_dir, format_version):
     if pins_file.exists():
         pins_payload = load_json_file(pins_file, fallback={})
         quick_pins = normalize_quick_pins((pins_payload or {}).get("pins"), links=None)
+    knowledge = {"scopedStorage": {}}
+    knowledge_file = store_root / "knowledge" / "scoped-storage.json"
+    if knowledge_file.exists():
+        knowledge_payload = load_json_file(knowledge_file, fallback={})
+        if isinstance((knowledge_payload or {}).get("scopedStorage"), dict):
+            knowledge["scopedStorage"] = dict(knowledge_payload.get("scopedStorage") or {})
 
     links = []
     connections_by_link = {}
@@ -754,4 +770,5 @@ def read_modular_state_raw(*, store_root, meta_dir, tabs_dir, format_version):
             "categories": categories,
             "connections": list(connections_by_link.values()),
         },
+        "knowledge": knowledge,
     }

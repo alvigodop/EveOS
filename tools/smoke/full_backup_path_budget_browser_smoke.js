@@ -73,6 +73,31 @@ function buildSeedState() {
                 }
             },
             connections: []
+        },
+        knowledge: {
+            scopedStorage: {
+                an_extremely_long_card_name_for_path_budget_testing: {
+                    wikiEntries: [
+                        { title: 'Path Budget Wiki Entry', url: 'https://en.wikipedia.org/wiki/Path_budget' }
+                    ],
+                    fandomDomains: [
+                        { title: 'PathBudgetWiki', domain: 'pathbudget.fandom.com', url: 'https://pathbudget.fandom.com' }
+                    ],
+                    apiSearchCachePool: {
+                        hobbit: {
+                            query: 'hobbit',
+                            updatedAt: Date.now(),
+                            expiresAt: Date.now() + 86400000,
+                            summary: { totalResults: 1, perSource: { openlibrary: 1 } },
+                            sources: {
+                                openlibrary: {
+                                    docs: [{ title: 'The Hobbit' }]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     };
 }
@@ -149,6 +174,16 @@ async function runSmoke(page) {
             }
         }
 
+        function collectFiles(dir, bucket = []) {
+            for (const fileHandle of dir.files.values()) {
+                bucket.push(fileHandle.relativePath);
+            }
+            for (const childDir of dir.dirs.values()) {
+                collectFiles(childDir, bucket);
+            }
+            return bucket;
+        }
+
         if (!window.EveDataTransfer?.writeFullStoreFolderBackup) {
             throw new Error('writeFullStoreFolderBackup unavailable');
         }
@@ -158,7 +193,8 @@ async function runSmoke(page) {
         const summary = await window.EveDataTransfer.writeFullStoreFolderBackup(backupRoot, seed);
 
         return {
-            summary
+            summary,
+            files: collectFiles(root).sort()
         };
     }, payload);
 }
@@ -192,6 +228,9 @@ async function main() {
         await page.waitForTimeout(1500);
 
         const result = await runSmoke(page);
+        if (!result.files.some((file) => /\/knowledge\/scoped-storage\.json$/i.test(file))) {
+            throw new Error(`Knowledge snapshot missing from backup: ${JSON.stringify(result.files)}`);
+        }
         console.log(`FULL_BACKUP_PATH_BUDGET_OK ${JSON.stringify(result)}`);
     } catch (error) {
         console.error(error && error.stack ? error.stack : String(error));
