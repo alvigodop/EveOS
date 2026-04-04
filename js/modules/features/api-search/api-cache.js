@@ -96,6 +96,207 @@ window.EveOS.API = window.EveOS.API || {};
         return Array.isArray(value) ? value : [];
     }
 
+    function cloneValue(value) {
+        if (value == null) return value;
+        try {
+            return JSON.parse(JSON.stringify(value));
+        } catch (error) {
+            return value;
+        }
+    }
+
+    function normalizeSearchText(value) {
+        return String(value || '')
+            .toLowerCase()
+            .replace(/[_-]+/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    function matchesSearchText(query, value) {
+        const normalizedQuery = normalizeSearchText(query);
+        if (!normalizedQuery) return false;
+
+        const haystack = normalizeSearchText(value);
+        if (!haystack) return false;
+        if (haystack.includes(normalizedQuery)) return true;
+
+        const tokens = normalizedQuery.split(/[^a-z0-9]+/i).filter(Boolean);
+        if (!tokens.length) return false;
+        return tokens.every(function (token) {
+            return haystack.includes(token);
+        });
+    }
+
+    function getProviderList(sources, providerKey) {
+        switch (providerKey) {
+            case 'mangadex':
+                return toArray(sources?.mangadex?.data);
+            case 'jikanManga':
+                return toArray(sources?.jikanManga?.data);
+            case 'jikanAnime':
+                return toArray(sources?.jikanAnime?.data);
+            case 'anilistManga':
+                return toArray(sources?.anilistManga?.data?.Page?.media);
+            case 'anilistAnime':
+                return toArray(sources?.anilistAnime?.data?.Page?.media);
+            case 'mangaupdates':
+                return toArray(sources?.mangaupdates?.results);
+            case 'kitsuAnime':
+                return toArray(sources?.kitsuAnime?.data);
+            case 'kitsuManga':
+                return toArray(sources?.kitsuManga?.data);
+            case 'tvmaze':
+                return toArray(sources?.tvmaze);
+            case 'itunes':
+                return toArray(sources?.itunes?.results);
+            case 'wlnupdates':
+                return toArray(sources?.wlnupdates?.data);
+            case 'openlibrary':
+                return toArray(sources?.openlibrary?.docs);
+            case 'comick':
+                return toArray(sources?.comick);
+            default:
+                return [];
+        }
+    }
+
+    function setProviderList(target, providerKey, items) {
+        const list = toArray(items).map(cloneValue);
+        switch (providerKey) {
+            case 'mangadex':
+                target.mangadex = { data: list };
+                break;
+            case 'jikanManga':
+                target.jikanManga = { data: list };
+                break;
+            case 'jikanAnime':
+                target.jikanAnime = { data: list };
+                break;
+            case 'anilistManga':
+                target.anilistManga = { data: { Page: { media: list } } };
+                break;
+            case 'anilistAnime':
+                target.anilistAnime = { data: { Page: { media: list } } };
+                break;
+            case 'mangaupdates':
+                target.mangaupdates = { results: list };
+                break;
+            case 'kitsuAnime':
+                target.kitsuAnime = { data: list };
+                break;
+            case 'kitsuManga':
+                target.kitsuManga = { data: list };
+                break;
+            case 'tvmaze':
+                target.tvmaze = list;
+                break;
+            case 'itunes':
+                target.itunes = { results: list };
+                break;
+            case 'wlnupdates':
+                target.wlnupdates = { data: list };
+                break;
+            case 'openlibrary':
+                target.openlibrary = { docs: list };
+                break;
+            case 'comick':
+                target.comick = list;
+                break;
+        }
+    }
+
+    function getSearchableProviderKeys() {
+        return [
+            'mangadex',
+            'jikanManga',
+            'jikanAnime',
+            'anilistManga',
+            'anilistAnime',
+            'mangaupdates',
+            'kitsuAnime',
+            'kitsuManga',
+            'tvmaze',
+            'itunes',
+            'wlnupdates',
+            'openlibrary',
+            'comick'
+        ];
+    }
+
+    function findCachedSourceMatches(query, categoryName, providerKey) {
+        const normalizedQuery = normalizeQuery(query);
+        if (!normalizedQuery) {
+            return null;
+        }
+
+        const pool = loadPool(categoryName);
+        const matchedSources = {};
+        const matchedQueryKeys = [];
+        const allowedProviders = providerKey ? [providerKey] : getSearchableProviderKeys();
+
+        pool.order.forEach(function (queryKey) {
+            const entry = pool.queries[queryKey];
+            if (!entry?.sources) return;
+
+            let matchedThisQuery = false;
+            allowedProviders.forEach(function (nextProviderKey) {
+                const items = getProviderList(entry.sources, nextProviderKey);
+                if (!items.length) return;
+
+                const matchedItems = items.filter(function (item) {
+                    return matchesSearchText(normalizedQuery, JSON.stringify(item));
+                });
+                if (!matchedItems.length) return;
+
+                const existingItems = getProviderList(matchedSources, nextProviderKey);
+                const seen = new Set(existingItems.map(function (item) {
+                    return normalizeSearchText(JSON.stringify(item));
+                }));
+
+                matchedItems.forEach(function (item) {
+                    const dedupeKey = normalizeSearchText(JSON.stringify(item));
+                    if (!dedupeKey || seen.has(dedupeKey)) return;
+                    seen.add(dedupeKey);
+                    existingItems.push(cloneValue(item));
+                });
+
+                if (existingItems.length) {
+                    setProviderList(matchedSources, nextProviderKey, existingItems);
+                    matchedThisQuery = true;
+                }
+            });
+
+            if (matchedThisQuery) {
+                matchedQueryKeys.push(queryKey);
+            }
+        });
+
+        const summary = summarizeSources(matchedSources);
+        if (!(summary.totalResults > 0)) {
+            return null;
+        }
+
+        matchedQueryKeys.forEach(function (queryKey) {
+            const entry = pool.queries[queryKey];
+            if (entry) {
+                entry.lastUsedAt = Date.now();
+            }
+        });
+        if (matchedQueryKeys.length) {
+            savePool(pool, categoryName);
+        }
+
+        return {
+            query: normalizeText(query),
+            key: normalizedQuery,
+            sources: matchedSources,
+            summary,
+            cacheOrigin: 'pool-search',
+            matchedQueries: matchedQueryKeys.slice()
+        };
+    }
+
     function summarizeSources(sources) {
         const summary = {
             totalResults: 0,
@@ -319,6 +520,7 @@ window.EveOS.API = window.EveOS.API || {};
         storeQuery: storeQueryEntry,
         deleteQuery: deleteQueryEntry,
         listQueries: listQueryEntries,
+        searchCachedSources: findCachedSourceMatches,
         clearAll
     };
 })(window.EveOS.API);

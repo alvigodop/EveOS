@@ -29,6 +29,53 @@
         };
     }
 
+    function resolveWikiCacheStore() {
+        if (window.CacheCore && !CacheCore._initialized) CacheCore.init();
+        return window.CacheCore ? (CacheCore.wikiCacheStore || {}) : {};
+    }
+
+    function getCachedEntryRecord(title) {
+        const wikiCacheStore = resolveWikiCacheStore();
+        const rootEntry = wikiCacheStore ? wikiCacheStore[title] : null;
+        const entryResults = wikiCacheStore?.entryResults?.[title];
+        return {
+            rootEntry: rootEntry && typeof rootEntry === 'object' ? rootEntry : null,
+            entryResults: entryResults && typeof entryResults === 'object' ? entryResults : null
+        };
+    }
+
+    function resolveCachedTimestamp(data) {
+        const lastFetch = Number(data?.lastFetch || 0);
+        if (lastFetch > 0) return lastFetch;
+
+        const lastUpdate = data?.lastUpdate;
+        if (typeof lastUpdate === 'number' && Number.isFinite(lastUpdate) && lastUpdate > 0) {
+            return lastUpdate;
+        }
+        if (typeof lastUpdate === 'string') {
+            const parsed = Date.parse(lastUpdate);
+            if (Number.isFinite(parsed) && parsed > 0) {
+                return parsed;
+            }
+        }
+        return 0;
+    }
+
+    function hasUsableCachedEntryData(data) {
+        if (!data || typeof data !== 'object') return false;
+        return Boolean(
+            String(data.title || '').trim()
+            || String(data.extract || '').trim()
+            || String(data.content || '').trim()
+            || (Array.isArray(data.links) && data.links.length)
+            || (Array.isArray(data.categories) && data.categories.length)
+            || (Array.isArray(data.tags) && data.tags.length)
+            || (Array.isArray(data.names) && data.names.length)
+            || (Array.isArray(data.aliases) && data.aliases.length)
+            || (data.searchResults && typeof data.searchResults === 'object' && Object.keys(data.searchResults).length)
+        );
+    }
+
     /**
      * Check if a query has cached results
      * @param {string} query 
@@ -66,18 +113,100 @@
         if (!window.CacheManager) return null;
         try {
             const cachedData = await CacheManager.getWikipediaEntryData(title);
-            if (cachedData) {
-                const cacheAge = Date.now() - (cachedData.lastFetch || 0);
-                const hasCategories = cachedData.categories && Array.isArray(cachedData.categories) && cachedData.categories.length > 0;
+            const entryRecord = getCachedEntryRecord(title);
+            const mainEntryData = entryRecord.entryResults?.main && typeof entryRecord.entryResults.main === 'object'
+                ? entryRecord.entryResults.main
+                : null;
+            const entryData = (cachedData && typeof cachedData === 'object') ? cachedData : mainEntryData;
 
-                if (cacheAge < CACHE_MAX_AGE_MS && hasCategories) {
-                    return { ...cachedData, source: 'wikipedia', entryDataFromCache: true };
+            if (entryData && hasUsableCachedEntryData(entryData)) {
+                const cacheTimestamp = resolveCachedTimestamp(entryData) || resolveCachedTimestamp(entryRecord.entryResults) || resolveCachedTimestamp(entryRecord.rootEntry);
+                const isFresh = cacheTimestamp <= 0 || (Date.now() - cacheTimestamp) < CACHE_MAX_AGE_MS;
+                if (isFresh) {
+                    return {
+                        ...entryData,
+                        source: 'wikipedia',
+                        entryDataFromCache: true,
+                        lastFetch: cacheTimestamp || entryData.lastFetch || 0
+                    };
                 }
             }
         } catch (e) {
             console.warn(`Error reading entry cache for "${title}":`, e);
         }
         return null;
+    };
+
+    WikipediaCache.searchCachedEntryStore = function (query, entries, options = {}) {
+        const normalizedQuery = window.WikipediaProcessor?.removeDiacritics?.(String(query || '').toLowerCase().trim()) || String(query || '').toLowerCase().trim();
+        if (!normalizedQuery || !Array.isArray(entries) || !entries.length || !window.WikipediaProcessor) {
+            return [];
+        }
+
+        const results = [];
+        const processedUrls = new Set();
+
+        entries.forEach((entry) => {
+            if (!entry?.title) return;
+            const entryRecord = getCachedEntryRecord(entry.title);
+            const baseEntryData = entryRecord.rootEntry || entryRecord.entryResults?.main;
+            if (baseEntryData && hasUsableCachedEntryData(baseEntryData)) {
+                const cachedEntryData = {
+                    ...baseEntryData,
+                    source: 'wikipedia',
+                    entryDataFromCache: true
+                };
+
+                const mainResult = window.WikipediaProcessor.createMainEntryResult(entry, cachedEntryData, normalizedQuery, options);
+                if (mainResult && !processedUrls.has(mainResult.url)) {
+                    results.push(cloneCachedResult(mainResult, {
+                        fromCache: true,
+                        entryDataFromCache: true
+                    }));
+                    processedUrls.add(mainResult.url);
+                }
+
+                window.WikipediaProcessor.findContentMatches(entry, cachedEntryData, normalizedQuery, options, processedUrls).forEach((result) => {
+                    if (processedUrls.has(result.url)) return;
+                    results.push(cloneCachedResult(result, {
+                        fromCache: true,
+                        entryDataFromCache: true
+                    }));
+                    processedUrls.add(result.url);
+                });
+
+                window.WikipediaProcessor.findLinkedMatches(entry, cachedEntryData, normalizedQuery, options, processedUrls).forEach((result) => {
+                    if (processedUrls.has(result.url)) return;
+                    results.push(cloneCachedResult(result, {
+                        fromCache: true,
+                        entryDataFromCache: true
+                    }));
+                    processedUrls.add(result.url);
+                });
+            }
+
+            const searchResults = entryRecord.entryResults?.searchResults;
+            Object.values(searchResults || {}).forEach((value) => {
+                if (!value || typeof value !== 'object') return;
+                const haystack = window.WikipediaProcessor.removeDiacritics(
+                    JSON.stringify(value).toLowerCase()
+                );
+                if (!haystack.includes(normalizedQuery)) return;
+
+                const url = String(value.url || '').trim();
+                const dedupeKey = url || `${entry.title}:${value.title || ''}:${value.snippet || ''}`;
+                if (!dedupeKey || processedUrls.has(dedupeKey)) return;
+                processedUrls.add(dedupeKey);
+                results.push(cloneCachedResult(value, {
+                    source: 'wikipedia',
+                    fromCache: true,
+                    entryDataFromCache: true,
+                    relatedTo: value.relatedTo || entry.title
+                }));
+            });
+        });
+
+        return results;
     };
 
     /**

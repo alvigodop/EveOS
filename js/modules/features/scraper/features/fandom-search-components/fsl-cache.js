@@ -21,6 +21,61 @@
             return String(query || '').trim().toLowerCase();
         },
 
+        _normalizeTitleValue: function (value) {
+            return String(value || '').replace(/\s+/g, ' ').trim();
+        },
+
+        _normalizeTitleKey: function (value) {
+            return this._normalizeTitleValue(value)
+                .toLowerCase()
+                .replace(/[_-]+/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+        },
+
+        _extractSlugTitle: function (url) {
+            const rawUrl = String(url || '').trim();
+            if (!rawUrl) return '';
+
+            try {
+                const parsed = new URL(rawUrl, window.location.href);
+                const match = parsed.pathname.match(/\/wiki\/(.+)$/i);
+                if (!match || !match[1]) return '';
+                return this._normalizeTitleValue(decodeURIComponent(match[1]).replace(/_/g, ' '));
+            } catch (error) {
+                return '';
+            }
+        },
+
+        _resolveStoredTitle: function (result) {
+            const source = result && typeof result === 'object' ? result : {};
+            const rawTitle = this._normalizeTitleValue(source.title || source.name || '');
+            const wikiName = this._normalizeTitleValue(source.wiki_name || '');
+            const domainLabel = this._normalizeTitleValue(
+                String(source.domain || source.wiki_domain || '')
+                    .replace(/^https?:\/\//i, '')
+                    .replace(/\.fandom\.com$/i, '')
+                    .replace(/\.[^.]+$/, '')
+                    .replace(/[-_]+/g, ' ')
+            );
+            const rawKey = this._normalizeTitleKey(rawTitle);
+            const genericKeys = new Set([
+                this._normalizeTitleKey(wikiName),
+                this._normalizeTitleKey(`${wikiName} wiki`),
+                this._normalizeTitleKey(domainLabel),
+                this._normalizeTitleKey(`${domainLabel} wiki`),
+                'untitled',
+                'no title'
+            ].filter(Boolean));
+            const slugTitle = this._extractSlugTitle(source.url);
+
+            if (slugTitle && (!rawKey || genericKeys.has(rawKey))) {
+                return slugTitle;
+            }
+
+            return rawTitle || slugTitle || 'Untitled';
+        },
+
         _getAggregateCacheKey: function (query) {
             return `fandom_managed_search_${this._normalizeQuery(query)}`;
         },
@@ -63,6 +118,7 @@
             const source = result && typeof result === 'object' ? result : {};
             return {
                 ...source,
+                title: this._resolveStoredTitle(source),
                 categories: Array.isArray(source.categories) ? source.categories.slice() : [],
                 tags: Array.isArray(source.tags) ? source.tags.slice() : [],
                 genres: Array.isArray(source.genres) ? source.genres.slice() : [],
@@ -241,9 +297,10 @@
                     }
 
                     for (const result of results) {
-                        const key = result.title;
+                        const resolvedTitle = this._resolveStoredTitle(result);
+                        const key = resolvedTitle;
                         CacheManager.wikiDataStore.searchResults[domain][key] = this._cloneResult(result, {
-                            title: result.title,
+                            title: resolvedTitle,
                             content: result.content || result.snippet || '',
                             snippet: result.snippet || '',
                             wiki_domain: result.domain || domain,
