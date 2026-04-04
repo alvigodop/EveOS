@@ -287,20 +287,22 @@
          * Update the main WikiDataStore cache for "View Cache" functionality
          */
         updateDomainStore: function (domain, results) {
-            if (results.length > 0 && window.CacheManager && CacheManager.wikiDataStore) {
+            if (results.length > 0 && window.CacheManager) {
                 try {
                     CacheManager.init();
-                    if (!CacheManager.wikiDataStore.searchResults) {
-                        CacheManager.wikiDataStore.searchResults = {};
+                    const targetStore = (window.CacheCore && CacheCore.wikiDataStore) ? CacheCore.wikiDataStore : (CacheManager.wikiDataStore || { searchResults: {} });
+
+                    if (!targetStore.searchResults) {
+                        targetStore.searchResults = {};
                     }
-                    if (!CacheManager.wikiDataStore.searchResults[domain]) {
-                        CacheManager.wikiDataStore.searchResults[domain] = { lastUpdate: null };
+                    if (!targetStore.searchResults[domain]) {
+                        targetStore.searchResults[domain] = { lastUpdate: null };
                     }
 
                     for (const result of results) {
                         const resolvedTitle = this._resolveStoredTitle(result);
                         const key = resolvedTitle;
-                        CacheManager.wikiDataStore.searchResults[domain][key] = this._cloneResult(result, {
+                        targetStore.searchResults[domain][key] = this._cloneResult(result, {
                             title: resolvedTitle,
                             content: result.content || result.snippet || '',
                             snippet: result.snippet || '',
@@ -309,12 +311,12 @@
                             lastUpdate: new Date().toISOString()
                         });
                     }
-                    CacheManager.wikiDataStore.searchResults[domain].lastUpdate = new Date().toISOString();
+                    targetStore.searchResults[domain].lastUpdate = new Date().toISOString();
 
                     if (window.CacheCore && typeof CacheCore.saveWikiDataStore === 'function') {
                         CacheCore.saveWikiDataStore();
                     } else {
-                        localStorage.setItem('wikiDataStore', JSON.stringify(CacheManager.wikiDataStore));
+                        localStorage.setItem('wikiDataStore', JSON.stringify(targetStore));
                     }
                 } catch (mergeError) {
                     console.warn(`FSLCache: Error merging results to domain cache:`, mergeError);

@@ -76,7 +76,7 @@ WikiManagerEntries.renderWikiEntryList = function (force) {
     if (wm.refreshCacheStores && typeof wm.refreshCacheStores === 'function') {
         wm.refreshCacheStores();
     }
-    
+
     // Trace context if possible
     let currentPrefix = "Root";
     if (window.StorageManager && typeof StorageManager.getCardPrefix === 'function') {
@@ -86,15 +86,18 @@ WikiManagerEntries.renderWikiEntryList = function (force) {
 
     // Helper for cache store
     let cacheStore = {};
-    if (wm.wikiCacheStore) {
+    if (window.CacheCore && window.CacheCore.wikiCacheStore) {
+        cacheStore = window.CacheCore.wikiCacheStore;
+    } else if (wm.wikiCacheStore) {
         cacheStore = wm.wikiCacheStore;
     } else if (window.StorageManager) {
         cacheStore = StorageManager.loadFromCacheStore() || {};
     }
 
     if (window.WikiUIRenderer && window.WikiStore) {
+        const entries = window.WikiStore.getWikiEntries ? window.WikiStore.getWikiEntries() : (wm.wikiEntries || []);
         WikiUIRenderer.renderWikiEntryList(
-            WikiStore.getWikiEntries(),
+            entries,
             listElement,
             cacheStore,
             {
@@ -109,16 +112,20 @@ WikiManagerEntries.renderWikiEntryList = function (force) {
                 },
                 onReload: (title, btn) => {
                     if (wm.reloadWikiEntryStatus) wm.reloadWikiEntryStatus(title, btn);
-                    else if (window.WikiManagerDelegates) WikiManagerDelegates.reloadWikiEntryStatus(title, btn);
+                    else if (window.WikiCacheManagerUpdate) window.WikiCacheManagerUpdate.reloadWikiEntryStatus(title, btn);
                 },
                 onViewCache: (title) => {
-                    if (wm.viewWikiCachedData) wm.viewWikiCachedData(title);
-                    else if (window.WikiManagerDelegates) WikiManagerDelegates.viewWikiCachedData(title);
+                    if (window.CacheManager && typeof window.CacheManager.viewWikiCachedData === 'function') {
+                        window.CacheManager.viewWikiCachedData(title);
+                    }
                 },
-                onRemove: (title) => this.removeWikiEntry(title),
+                onRemove: (title) => {
+                    if (wm.removeWikiEntry) wm.removeWikiEntry(title);
+                },
                 onClearCache: (title) => {
-                    if (wm.clearWikiCache) wm.clearWikiCache(title);
-                    else if (window.WikiManagerDelegates) WikiManagerDelegates.clearWikiCache(title);
+                    if (window.CacheManager && typeof window.CacheManager.clearWikiCache === 'function') {
+                        window.CacheManager.clearWikiCache(title);
+                    }
                 }
             }
         );

@@ -296,6 +296,17 @@ SearchCoordinatorFlow.performContentSearch = async function (query, source, opti
         if (window.SearchUIRenderer && isActiveResultsRequest(resultsContainer, requestId)) {
             SearchUIRenderer.showLoading(false, resultsContainerId);
         }
+
+        // Fix: Auto-refresh cache status UI (e.g. 'Not Cached' -> 'Cached') for active Scraper panels
+        if (window.WikiManager && typeof WikiManager.refreshCacheStores === 'function') {
+            WikiManager.refreshCacheStores();
+            if (typeof WikiManager.renderWikiEntryList === 'function') {
+                WikiManager.renderWikiEntryList(true);
+            }
+            if (typeof WikiManager.renderFandomDomainList === 'function') {
+                WikiManager.renderFandomDomainList(true);
+            }
+        }
     }
 };
 

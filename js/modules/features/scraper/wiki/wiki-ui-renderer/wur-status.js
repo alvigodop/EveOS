@@ -170,14 +170,18 @@
 
         const cacheData = cacheStore.categoryResults[category];
         const lastUpdate = cacheData.lastUpdate;
+        const pageCount = Object.keys(cacheData).filter(k => k !== 'lastUpdate').length;
 
-        if (!lastUpdate) {
+        if (!lastUpdate && pageCount === 0) {
             return '<span class="status-badge not-cached">Not Cached</span>';
         }
 
-        const lastDate = new Date(lastUpdate);
-        const dayDiff = Math.floor((new Date() - lastDate) / (1000 * 60 * 60 * 24));
-        const pageCount = Object.keys(cacheData).filter(k => k !== 'lastUpdate').length;
+        let timeStr = 'Data available';
+        if (lastUpdate) {
+            const lastDate = new Date(lastUpdate);
+            const dayDiff = Math.floor((new Date() - lastDate) / (1000 * 60 * 60 * 24));
+            timeStr = dayDiff === 0 ? 'Today' : (dayDiff === 1 ? 'Yesterday' : dayDiff + ' days ago');
+        }
 
         let statusHtml = `
             <span class="status-badge cached">Cached</span>

@@ -364,6 +364,26 @@ window.EveOS.API = window.EveOS.API || {};
                 window.WikiManager.renderFandomDomainList(true);
             }
         }
+
+        const unidexContainer = document.getElementById('unidex-scraper-panel-container');
+        if (unidexContainer && unidexContainer.innerHTML.trim() !== '' && typeof window.EveOS?.API?.Manager?.renderUnidexPanelUI === 'function') {
+            const ctx = window.currentCategoryCtx || window.StorageManager?.categoryContext || '';
+            const searchInput = document.getElementById('searchInput');
+            window.EveOS.API.Manager.renderUnidexPanelUI(unidexContainer, ctx, {
+                filterQuery: searchInput ? searchInput.value : ''
+            });
+        }
+
+        const apiContainer = document.getElementById('api-scraper-panel-container');
+        if (apiContainer && apiContainer.innerHTML.trim() !== '' && typeof window.EveOS?.API?.Manager?.renderScraperPanelUI === 'function') {
+            const ctx = window.currentCategoryCtx || window.StorageManager?.categoryContext || '';
+            const providerKey = apiContainer.dataset.providerKey || null;
+            const searchInput = document.getElementById('searchInput');
+            window.EveOS.API.Manager.renderScraperPanelUI(apiContainer, ctx, {
+                providerKey: providerKey,
+                query: searchInput ? searchInput.value : ''
+            });
+        }
     }
 
     function persistLivePreference(categoryName, enabled, origin) {
@@ -570,12 +590,16 @@ window.EveOS.API = window.EveOS.API || {};
             const title = String(entry?.title || entry?.name || '').trim();
             if (!title) return null;
             const cached = wikiCacheStore.entryResults?.[title] || wikiCacheStore[title];
-            const updatedAt = toTimestamp(cached?.lastUpdate || cached?.lastFetch || cached?.timestamp || cached?.main?.lastUpdate || cached?.main?.lastFetch || cached?.main?.timestamp);
-
+            
             const searchResults = cached?.searchResults && typeof cached.searchResults === 'object'
                 ? cached.searchResults
                 : {};
             const itemCount = (cached?.main ? 1 : 0) + Object.keys(searchResults).length;
+
+            let updatedAt = toTimestamp(cached?.lastUpdate || cached?.lastFetch || cached?.timestamp || cached?.main?.lastUpdate || cached?.main?.lastFetch || cached?.main?.timestamp);
+            
+            if (!updatedAt && itemCount > 0) updatedAt = Date.now(); // Fallback if items exist but no timestamp
+
             if (!includeUncached && !updatedAt) return null;
 
             return {
