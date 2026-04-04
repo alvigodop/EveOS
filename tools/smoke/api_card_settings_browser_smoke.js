@@ -81,10 +81,15 @@ async function main() {
                     searchResults: {
                         'naruto.fandom.com': {
                             lastUpdate: '2026-04-04T09:05:00.000Z',
-                            ninja: { title: 'Ninja', snippet: 'Shinobi article.' }
+                            ninja: { title: 'Ninja', snippet: 'Shinobi article.', url: 'https://naruto.fandom.com/wiki/Ninja', domain: 'naruto.fandom.com' }
                         }
                     }
                 });
+            }
+            // Force CacheCore to reload seeded wikiCacheStore and wikiDataStore
+            if (window.CacheCore) {
+                CacheCore._initialized = false;
+                CacheCore.init();
             }
             if (window.EveOS?.API?.Cache?.storeQuery) {
                 window.EveOS.API.Cache.storeQuery('naruto', {
@@ -121,7 +126,7 @@ async function main() {
             }
             if (window.FSLCache?.updateAggregateCache) {
                 await window.FSLCache.updateAggregateCache('naruto', [{
-                    title: 'Naruto',
+                    title: 'Naruto Wiki',
                     snippet: 'Naruto Uzumaki fandom page.',
                     url: 'https://naruto.fandom.com/wiki/Naruto_Uzumaki',
                     domain: 'naruto.fandom.com',
@@ -131,6 +136,33 @@ async function main() {
                     tags: ['Shinobi'],
                     rating: 8.8
                 }]);
+            }
+
+            window.__knowledgeLiveCalls = {
+                wikipediaEntry: 0,
+                fandomDomainSearch: 0,
+                fandomPageDetails: 0
+            };
+            if (window.WikipediaAPI?.fetchLiveEntry) {
+                const originalFetchLiveEntry = window.WikipediaAPI.fetchLiveEntry.bind(window.WikipediaAPI);
+                window.WikipediaAPI.fetchLiveEntry = async function () {
+                    window.__knowledgeLiveCalls.wikipediaEntry += 1;
+                    return originalFetchLiveEntry.apply(this, arguments);
+                };
+            }
+            if (window.SearchFandom?.fetchLiveFandomDomainSearch) {
+                const originalFetchLiveFandomDomainSearch = window.SearchFandom.fetchLiveFandomDomainSearch.bind(window.SearchFandom);
+                window.SearchFandom.fetchLiveFandomDomainSearch = async function () {
+                    window.__knowledgeLiveCalls.fandomDomainSearch += 1;
+                    return originalFetchLiveFandomDomainSearch.apply(this, arguments);
+                };
+            }
+            if (window.SearchFandom?.fetchLiveFandomPageDetails) {
+                const originalFetchLiveFandomPageDetails = window.SearchFandom.fetchLiveFandomPageDetails.bind(window.SearchFandom);
+                window.SearchFandom.fetchLiveFandomPageDetails = async function () {
+                    window.__knowledgeLiveCalls.fandomPageDetails += 1;
+                    return originalFetchLiveFandomPageDetails.apply(this, arguments);
+                };
             }
 
             window.openCategorySettings('Alpha', 'search');
@@ -295,6 +327,7 @@ async function main() {
             const unifiedWikiText = searchResults.querySelector('[data-unidex-section="wikipedia"]')?.textContent || '';
             const unifiedFandomText = searchResults.querySelector('[data-unidex-section="fandom"]')?.textContent || '';
             const unifiedApiText = searchResults.querySelector('[data-unidex-section="api"]')?.textContent || '';
+            const fandomTitleRepaired = unifiedFandomText.includes('Naruto Uzumaki') && !unifiedFandomText.includes('Naruto WikiNarutopedia');
 
             searchHybridToggle.checked = false;
             searchHybridToggle.dispatchEvent(new Event('change', { bubbles: true }));
@@ -303,6 +336,34 @@ async function main() {
             searchButton.click();
             await new Promise((resolve) => setTimeout(resolve, 300));
             const providerCallsAfterCacheOnlyHit = window.__apiSmokeProviderCalls;
+
+            searchInput.value = 'ninja';
+            searchButton.click();
+            await new Promise((resolve, reject) => {
+                const started = Date.now();
+                const timer = window.setInterval(() => {
+                    const wikiSection = searchResults.querySelector('[data-unidex-section="wikipedia"]');
+                    const fandomSection = searchResults.querySelector('[data-unidex-section="fandom"]');
+                    const apiSection = searchResults.querySelector('[data-unidex-section="api"]');
+                    const hasWikiCard = wikiSection?.querySelector('.unidex-search-card');
+                    const hasFandomCard = fandomSection?.querySelector('.unidex-search-card');
+                    const hasApiCard = apiSection?.querySelector('.manga-item');
+                    if (hasWikiCard && hasFandomCard && hasApiCard) {
+                        window.clearInterval(timer);
+                        resolve();
+                        return;
+                    }
+                    if (Date.now() - started > 8000) {
+                        window.clearInterval(timer);
+                        reject(new Error('Timed out waiting for Search Unidex cache-backed ninja results'));
+                    }
+                }, 80);
+            });
+            const providerCallsAfterCacheFallbackHit = window.__apiSmokeProviderCalls;
+            const knowledgeLiveCallsAfterCacheFallbackHit = { ...window.__knowledgeLiveCalls };
+            const ninjaWikiText = searchResults.querySelector('[data-unidex-section="wikipedia"]')?.textContent || '';
+            const ninjaFandomText = searchResults.querySelector('[data-unidex-section="fandom"]')?.textContent || '';
+            const ninjaApiText = searchResults.querySelector('[data-unidex-section="api"]')?.textContent || '';
 
             openUnidexButton.click();
             await new Promise((resolve, reject) => {
@@ -403,8 +464,10 @@ async function main() {
             return {
                 providerCallsAfterHybridMiss,
                 providerCallsAfterCacheOnlyHit,
+                providerCallsAfterCacheFallbackHit,
                 providerCallsBeforeScraperSearch,
                 providerCallsAfterScraperSearch,
+                knowledgeLiveCallsAfterCacheFallbackHit,
                 alphaCacheSummary: alphaCacheEntry?.summary || null,
                 narutoApiCacheSummary: narutoApiCacheEntry?.summary || null,
                 betaCacheVisible: !!betaCacheEntry,
@@ -416,6 +479,10 @@ async function main() {
                 unifiedWikiText,
                 unifiedFandomText,
                 unifiedApiText,
+                fandomTitleRepaired,
+                ninjaWikiText,
+                ninjaFandomText,
+                ninjaApiText,
                 searchTabLabel,
                 searchResultCount: allProviderRenderedCards,
                 searchResultsVisible: window.getComputedStyle(searchResults).display,
@@ -449,8 +516,16 @@ async function main() {
         if (result.providerCallsAfterCacheOnlyHit !== result.providerCallsAfterHybridMiss) {
             throw new Error(`Cache-only search should not fetch live providers again: ${JSON.stringify(result)}`);
         }
+        if (result.providerCallsAfterCacheFallbackHit !== result.providerCallsAfterHybridMiss) {
+            throw new Error(`Search Unidex cache fallback should not fetch live API providers again: ${JSON.stringify(result)}`);
+        }
         if (result.providerCallsAfterScraperSearch !== result.providerCallsBeforeScraperSearch) {
             throw new Error(`Scraper API cache-only path should not fetch live providers: ${JSON.stringify(result)}`);
+        }
+        if (Number(result.knowledgeLiveCallsAfterCacheFallbackHit?.wikipediaEntry || 0) !== 0
+            || Number(result.knowledgeLiveCallsAfterCacheFallbackHit?.fandomDomainSearch || 0) !== 0
+            || Number(result.knowledgeLiveCallsAfterCacheFallbackHit?.fandomPageDetails || 0) !== 0) {
+            throw new Error(`Search Unidex cache-backed knowledge search should not fetch live wiki/fandom data: ${JSON.stringify(result.knowledgeLiveCallsAfterCacheFallbackHit)}`);
         }
         if (!result.alphaCacheSummary || result.alphaCacheSummary.totalResults !== 2) {
             throw new Error(`Expected Alpha cache summary to store two provider results: ${JSON.stringify(result.alphaCacheSummary)}`);
@@ -484,6 +559,12 @@ async function main() {
         }
         if (!/Naruto/i.test(result.unifiedWikiText) || !/Naruto/i.test(result.unifiedFandomText) || !/Naruto/i.test(result.unifiedApiText)) {
             throw new Error(`Expected Search Unidex to render cached Naruto results across all source lanes: ${JSON.stringify({ wiki: result.unifiedWikiText, fandom: result.unifiedFandomText, api: result.unifiedApiText })}`);
+        }
+        if (!result.fandomTitleRepaired) {
+            throw new Error(`Expected Search Unidex to repair generic cached Fandom titles from the page URL: ${JSON.stringify({ fandom: result.unifiedFandomText })}`);
+        }
+        if (!/Naruto|Ninja/i.test(result.ninjaWikiText) || !/Ninja/i.test(result.ninjaFandomText) || !/Naruto Archive/i.test(result.ninjaApiText)) {
+            throw new Error(`Expected Search Unidex to draw cache-backed ninja matches from Wikipedia, Fandom, and API source data: ${JSON.stringify({ wiki: result.ninjaWikiText, fandom: result.ninjaFandomText, api: result.ninjaApiText })}`);
         }
         if (Number(result.searchResultCount) !== 2) {
             throw new Error(`Expected all-provider result count to remain 2, saw ${result.searchResultCount}`);

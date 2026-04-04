@@ -1467,21 +1467,28 @@ window.EveOS.API = window.EveOS.API || {};
         const shouldUseLive = resolveLivePreference(resolvedCategory, options.liveResults);
         const shouldUseHybrid = resolveHybridPreference(resolvedCategory, options.hybridResults);
         const normalizedQuery = String(query).trim();
-        const cachedEntry = api.Cache ? api.Cache.getQuery(normalizedQuery, resolvedCategory) : null;
-        const cachedVisibleSources = filterSourcesByProvider(cachedEntry?.sources || {}, providerKey);
+        const exactCachedEntry = api.Cache ? api.Cache.getQuery(normalizedQuery, resolvedCategory) : null;
+        const exactCachedVisibleSources = filterSourcesByProvider(exactCachedEntry?.sources || {}, providerKey);
+        const exactCachedVisibleCount = countResults(exactCachedVisibleSources);
+        const derivedCachedEntry = (!exactCachedVisibleCount && api.Cache && typeof api.Cache.searchCachedSources === 'function')
+            ? api.Cache.searchCachedSources(normalizedQuery, resolvedCategory, providerKey)
+            : null;
+        const activeCachedEntry = exactCachedVisibleCount > 0 ? exactCachedEntry : derivedCachedEntry;
+        const cachedVisibleSources = filterSourcesByProvider(activeCachedEntry?.sources || {}, providerKey);
         const cachedVisibleCount = countResults(cachedVisibleSources);
 
-        if (!shouldUseLive && cachedEntry?.sources && cachedVisibleCount > 0) {
-            if (api.Cache) api.Cache.touchQuery(normalizedQuery, resolvedCategory);
+        if (!shouldUseLive && activeCachedEntry?.sources && cachedVisibleCount > 0) {
+            if (api.Cache && exactCachedVisibleCount > 0) api.Cache.touchQuery(normalizedQuery, resolvedCategory);
             return {
                 query: normalizedQuery,
                 categoryName: resolvedCategory,
                 providerKey,
-                allSources: cachedEntry.sources,
+                allSources: activeCachedEntry.sources,
                 visibleSources: cachedVisibleSources,
-                entry: cachedEntry,
+                entry: activeCachedEntry,
                 meta: {
                     fromCache: true,
+                    cacheOrigin: activeCachedEntry?.cacheOrigin || 'query',
                     providerKey,
                     summary: api.Cache?.summarizeSources?.(cachedVisibleSources) || { totalResults: 0 }
                 }
@@ -1507,7 +1514,7 @@ window.EveOS.API = window.EveOS.API || {};
 
         try {
             const liveSources = await collectLiveResults(normalizedQuery, providerKey);
-            const mergedSources = providerKey ? mergeSources(cachedEntry?.sources, liveSources) : liveSources;
+            const mergedSources = providerKey ? mergeSources(activeCachedEntry?.sources, liveSources) : liveSources;
             const visibleSources = filterSourcesByProvider(mergedSources, providerKey);
             const storedEntry = api.Cache ? api.Cache.storeQuery(normalizedQuery, mergedSources, resolvedCategory, { ttlMs: options.ttlMs }) : null;
             return {
@@ -1526,19 +1533,20 @@ window.EveOS.API = window.EveOS.API || {};
         } catch (error) {
             console.error('API search error:', error);
 
-            if (cachedEntry?.sources && cachedVisibleCount > 0) {
-                if (api.Cache) api.Cache.touchQuery(normalizedQuery, resolvedCategory);
+            if (activeCachedEntry?.sources && cachedVisibleCount > 0) {
+                if (api.Cache && exactCachedVisibleCount > 0) api.Cache.touchQuery(normalizedQuery, resolvedCategory);
                 return {
                     query: normalizedQuery,
                     categoryName: resolvedCategory,
                     providerKey,
-                    allSources: cachedEntry.sources,
+                    allSources: activeCachedEntry.sources,
                     visibleSources: cachedVisibleSources,
-                    entry: cachedEntry,
+                    entry: activeCachedEntry,
                     error,
                     meta: {
                         fromCache: true,
                         fallback: true,
+                        cacheOrigin: activeCachedEntry?.cacheOrigin || 'query',
                         providerKey,
                         summary: api.Cache?.summarizeSources?.(cachedVisibleSources) || { totalResults: 0 }
                     }
@@ -1587,7 +1595,10 @@ window.EveOS.API = window.EveOS.API || {};
         return (Array.isArray(results) ? results.slice() : []).sort(function (left, right) {
             const scoreDelta = Number(right?.matchScore || 0) - Number(left?.matchScore || 0);
             if (scoreDelta !== 0) return scoreDelta;
-            return String(left?.title || '').localeCompare(String(right?.title || ''));
+            const leftScope = String(left?.source || '').toLowerCase() === 'fandom' ? 'fandom' : 'wikipedia';
+            const rightScope = String(right?.source || '').toLowerCase() === 'fandom' ? 'fandom' : 'wikipedia';
+            return resolveKnowledgeResultTitle(left, leftScope)
+                .localeCompare(resolveKnowledgeResultTitle(right, rightScope));
         });
     }
 
@@ -1611,7 +1622,35 @@ window.EveOS.API = window.EveOS.API || {};
         try {
             if (normalizedScope === 'wikipedia') {
                 const entries = normalizeSavedWikipediaEntries(resolvedCategory);
-                if (!entries.length || !window.SearchWikipedia?.searchManagedWikipedia) {
+                if (!entries.length) {
+                    return {
+                        scope: normalizedScope,
+                        categoryName: resolvedCategory,
+                        results: [],
+                        sourceCount: 0,
+                        meta: { summary: { totalResults: 0 } }
+                    };
+                }
+
+                // Cache-only fast path: search local entry store without orchestrator
+                if (!shouldUseLive && !shouldUseHybrid) {
+                    let cacheResults = [];
+                    if (window.WikipediaCache && typeof WikipediaCache.searchCachedEntryStore === 'function') {
+                        cacheResults = WikipediaCache.searchCachedEntryStore(normalizedQuery, entries, { hidePersons: false });
+                    }
+                    return {
+                        scope: normalizedScope,
+                        categoryName: resolvedCategory,
+                        sourceCount: entries.length,
+                        results: sortKnowledgeResults(cacheResults),
+                        meta: {
+                            fromCache: true,
+                            summary: { totalResults: Array.isArray(cacheResults) ? cacheResults.length : 0 }
+                        }
+                    };
+                }
+
+                if (!window.SearchWikipedia?.searchManagedWikipedia) {
                     return {
                         scope: normalizedScope,
                         categoryName: resolvedCategory,
@@ -1640,7 +1679,36 @@ window.EveOS.API = window.EveOS.API || {};
 
             if (normalizedScope === 'fandom') {
                 const domains = normalizeSavedFandomDomains(resolvedCategory);
-                if (!domains.length || !window.SearchFandomLogic?.searchManagedFandom) {
+                if (!domains.length) {
+                    return {
+                        scope: normalizedScope,
+                        categoryName: resolvedCategory,
+                        results: [],
+                        sourceCount: 0,
+                        meta: { summary: { totalResults: 0 } }
+                    };
+                }
+
+                // Cache-only fast path: search domain store without orchestrator
+                if (!shouldUseLive && !shouldUseHybrid) {
+                    let cacheResults = null;
+                    if (window.FSLCache && typeof FSLCache.getCachedDomainStoreResults === 'function') {
+                        cacheResults = FSLCache.getCachedDomainStoreResults(normalizedQuery, domains);
+                    }
+                    const resultsList = Array.isArray(cacheResults) ? cacheResults : [];
+                    return {
+                        scope: normalizedScope,
+                        categoryName: resolvedCategory,
+                        sourceCount: domains.length,
+                        results: sortKnowledgeResults(resultsList),
+                        meta: {
+                            fromCache: true,
+                            summary: { totalResults: resultsList.length }
+                        }
+                    };
+                }
+
+                if (!window.SearchFandomLogic?.searchManagedFandom) {
                     return {
                         scope: normalizedScope,
                         categoryName: resolvedCategory,
@@ -1705,13 +1773,94 @@ window.EveOS.API = window.EveOS.API || {};
         return values.slice(0, 6);
     }
 
+    function normalizeKnowledgeTitleValue(value) {
+        return String(value || '').replace(/\s+/g, ' ').trim();
+    }
+
+    function normalizeKnowledgeTitleKey(value) {
+        return normalizeKnowledgeTitleValue(value)
+            .toLowerCase()
+            .replace(/[_-]+/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    function extractKnowledgeSlugTitle(url) {
+        const rawUrl = String(url || '').trim();
+        if (!rawUrl) return '';
+
+        try {
+            const parsed = new URL(rawUrl, window.location.href);
+            const match = parsed.pathname.match(/\/wiki\/(.+)$/i);
+            if (!match || !match[1]) return '';
+            return normalizeKnowledgeTitleValue(
+                decodeURIComponent(match[1]).replace(/_/g, ' ')
+            );
+        } catch (error) {
+            return '';
+        }
+    }
+
+    function stripKnowledgeSourceSuffix(title, sourceLabel) {
+        const normalizedTitle = normalizeKnowledgeTitleValue(title);
+        const normalizedSource = normalizeKnowledgeTitleValue(sourceLabel);
+        if (!normalizedTitle) return '';
+        if (!normalizedSource) return normalizedTitle;
+
+        const escapedSource = normalizedSource.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const suffixPatterns = [
+            new RegExp(`\\s*[|\\-–—:]\\s*${escapedSource}$`, 'i'),
+            new RegExp(`\\s*[|\\-–—:]\\s*${escapedSource}\\s+wiki$`, 'i'),
+            /\s*[|\\-–—:]\s*fandom$/i,
+            /\s*[|\\-–—:]\s*wikipedia$/i
+        ];
+
+        let nextTitle = normalizedTitle;
+        suffixPatterns.forEach(function (pattern) {
+            nextTitle = nextTitle.replace(pattern, '').trim();
+        });
+        return nextTitle || normalizedTitle;
+    }
+
+    function resolveKnowledgeResultTitle(result, scope) {
+        const rawTitle = normalizeKnowledgeTitleValue(result?.title || result?.name || '');
+        const wikiName = normalizeKnowledgeTitleValue(result?.wiki_name || '');
+        const domainLabel = normalizeKnowledgeTitleValue(
+            String(result?.domain || result?.wiki_domain || '')
+                .replace(/^https?:\/\//i, '')
+                .replace(/\.fandom\.com$/i, '')
+                .replace(/\.[^.]+$/, '')
+                .replace(/[-_]+/g, ' ')
+        );
+        const cleanedRawTitle = stripKnowledgeSourceSuffix(rawTitle, wikiName || domainLabel);
+        const cleanedSlugTitle = stripKnowledgeSourceSuffix(
+            extractKnowledgeSlugTitle(result?.url || ''),
+            wikiName || domainLabel
+        );
+        const rawKey = normalizeKnowledgeTitleKey(cleanedRawTitle);
+        const genericKeys = new Set([
+            normalizeKnowledgeTitleKey(wikiName),
+            normalizeKnowledgeTitleKey(`${wikiName} wiki`),
+            normalizeKnowledgeTitleKey(domainLabel),
+            normalizeKnowledgeTitleKey(`${domainLabel} wiki`),
+            'untitled',
+            'no title'
+        ].filter(Boolean));
+
+        if (scope === 'fandom' && cleanedSlugTitle && (!rawKey || genericKeys.has(rawKey))) {
+            return cleanedSlugTitle;
+        }
+
+        return cleanedRawTitle || cleanedSlugTitle || 'Untitled';
+    }
+
     function buildKnowledgeSectionTitle(scope) {
         return scope === 'wikipedia' ? 'Wikipedia Saved Sources' : 'Fandom Saved Sources';
     }
 
     function buildKnowledgeResultCard(result, scope, categoryName) {
         const targetUrl = String(result?.url || '').trim();
-        const title = String(result?.title || 'Untitled').trim();
+        const title = resolveKnowledgeResultTitle(result, scope);
         const sourceLabel = scope === 'wikipedia'
             ? String(result?.wiki_name || 'Wikipedia').trim()
             : String(result?.wiki_name || result?.domain || 'Fandom').trim();
