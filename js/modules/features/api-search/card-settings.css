@@ -15,6 +15,12 @@
         0 18px 32px rgba(0, 0, 0, 0.18);
     position: relative;
     overflow: hidden;
+    -webkit-mask-image: linear-gradient(to right, rgba(0, 0, 0, 0.18) 0px, #000 14px, #000 calc(100% - 14px), rgba(0, 0, 0, 0.18) 100%),
+        linear-gradient(to bottom, rgba(0, 0, 0, 0.18) 0px, #000 14px, #000 calc(100% - 14px), rgba(0, 0, 0, 0.18) 100%);
+    -webkit-mask-composite: source-in;
+    mask-image: linear-gradient(to right, rgba(0, 0, 0, 0.18) 0px, #000 14px, #000 calc(100% - 14px), rgba(0, 0, 0, 0.18) 100%),
+        linear-gradient(to bottom, rgba(0, 0, 0, 0.18) 0px, #000 14px, #000 calc(100% - 14px), rgba(0, 0, 0, 0.18) 100%);
+    mask-composite: intersect;
 }
 
 .api-control-card::before,
@@ -41,6 +47,19 @@
     border-radius: 18px;
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.06);
+    position: relative;
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(to right, rgba(0, 0, 0, 0.16) 0px, #000 12px, #000 calc(100% - 12px), rgba(0, 0, 0, 0.16) 100%),
+        linear-gradient(to bottom, rgba(0, 0, 0, 0.16) 0px, #000 12px, #000 calc(100% - 12px), rgba(0, 0, 0, 0.16) 100%);
+    -webkit-mask-composite: source-in;
+    mask-image: linear-gradient(to right, rgba(0, 0, 0, 0.16) 0px, #000 12px, #000 calc(100% - 12px), rgba(0, 0, 0, 0.16) 100%),
+        linear-gradient(to bottom, rgba(0, 0, 0, 0.16) 0px, #000 12px, #000 calc(100% - 12px), rgba(0, 0, 0, 0.16) 100%);
+    mask-composite: intersect;
+}
+
+.api-search-box > * {
+    position: relative;
+    z-index: 1;
 }
 
 .api-search-input {
@@ -110,6 +129,19 @@
     border-radius: 18px;
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.06);
+    position: relative;
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(to right, rgba(0, 0, 0, 0.16) 0px, #000 12px, #000 calc(100% - 12px), rgba(0, 0, 0, 0.16) 100%),
+        linear-gradient(to bottom, rgba(0, 0, 0, 0.16) 0px, #000 12px, #000 calc(100% - 12px), rgba(0, 0, 0, 0.16) 100%);
+    -webkit-mask-composite: source-in;
+    mask-image: linear-gradient(to right, rgba(0, 0, 0, 0.16) 0px, #000 12px, #000 calc(100% - 12px), rgba(0, 0, 0, 0.16) 100%),
+        linear-gradient(to bottom, rgba(0, 0, 0, 0.16) 0px, #000 12px, #000 calc(100% - 12px), rgba(0, 0, 0, 0.16) 100%);
+    mask-composite: intersect;
+}
+
+.api-preferences-row > * {
+    position: relative;
+    z-index: 1;
 }
 
 .api-toggle-chip,
@@ -154,6 +186,7 @@
 .api-cache-pool-details {
     border-top: 1px solid rgba(255, 255, 255, 0.08);
     padding-top: 12px;
+    position: relative;
 }
 
 .api-cache-pool-details summary {
@@ -186,6 +219,13 @@
         rgba(255, 255, 255, 0.035);
     border: 1px solid rgba(255, 255, 255, 0.08);
     transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(to right, rgba(0, 0, 0, 0.14) 0px, #000 10px, #000 calc(100% - 10px), rgba(0, 0, 0, 0.14) 100%),
+        linear-gradient(to bottom, rgba(0, 0, 0, 0.14) 0px, #000 10px, #000 calc(100% - 10px), rgba(0, 0, 0, 0.14) 100%);
+    -webkit-mask-composite: source-in;
+    mask-image: linear-gradient(to right, rgba(0, 0, 0, 0.14) 0px, #000 10px, #000 calc(100% - 10px), rgba(0, 0, 0, 0.14) 100%),
+        linear-gradient(to bottom, rgba(0, 0, 0, 0.14) 0px, #000 10px, #000 calc(100% - 10px), rgba(0, 0, 0, 0.14) 100%);
+    mask-composite: intersect;
 }
 
 .api-cache-entry:hover {

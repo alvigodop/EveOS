@@ -10,10 +10,10 @@
     background: var(--glass-bg-light);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
-    padding: 20px;
+    padding: 16px;
     border-radius: 16px;
     box-shadow: var(--glass-shadow-light);
-    margin-bottom: 25px;
+    margin-bottom: 20px;
     border: 1px solid var(--glass-border-light);
     transition: box-shadow 0.3s ease, transform 0.3s ease;
 }
@@ -25,8 +25,8 @@
 .control-row {
     display: flex;
     align-items: center;
-    gap: 15px;
-    margin-bottom: 12px;
+    gap: 12px;
+    margin-bottom: 10px;
 }
 
 .control-row:last-child {
@@ -41,9 +41,9 @@
 .search-input {
     width: 100%;
     border: 1px solid rgba(223, 225, 229, 0.7);
-    border-radius: 24px;
-    padding: 12px 24px;
-    font-size: 1rem;
+    border-radius: 14px;
+    padding: 10px 16px;
+    font-size: 0.92rem;
     box-shadow: 0 1px 6px rgba(32, 33, 36, 0.1);
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     background: rgba(255, 255, 255, 0.9);
@@ -64,9 +64,11 @@
     background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
     color: white;
     border: none;
-    border-radius: 24px;
-    padding: 10px 24px;
+    min-height: 44px;
+    border-radius: 16px;
+    padding: 0 18px;
     font-weight: 600;
+    font-size: 0.84rem;
     cursor: pointer;
     box-shadow: 0 2px 6px rgba(33, 150, 243, 0.3);
     transition: all 0.2s ease;
@@ -79,19 +81,19 @@
 
 /* Filter Group styling */
 .filter-group-label {
-    font-size: 0.85rem;
+    font-size: 0.72rem;
     font-weight: 600;
     color: var(--text-muted);
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-    margin-right: 5px;
+    letter-spacing: 0.12em;
+    margin-right: 2px;
 }
 
 .separator-vertical {
     width: 1px;
-    height: 24px;
+    height: 20px;
     background-color: var(--border-color);
-    margin: 0 10px;
+    margin: 0 2px;
 }
 
 .search-container {
@@ -102,20 +104,21 @@
 
 #searchInput {
     flex: 1;
-    padding: 12px 15px;
+    padding: 10px 14px;
     border: 1px solid var(--border-color);
-    border-radius: 5px;
-    font-size: 1rem;
+    border-radius: 14px;
+    font-size: 0.92rem;
 }
 
 #searchBtn {
-    padding: 12px 25px;
+    min-height: 44px;
+    padding: 0 18px;
     background-color: var(--primary-color);
     color: white;
     border: none;
-    border-radius: 5px;
+    border-radius: 16px;
     cursor: pointer;
-    font-size: 1rem;
+    font-size: 0.84rem;
     transition: background-color 0.3s ease;
 }
 

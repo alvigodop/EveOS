@@ -151,9 +151,9 @@
 input[type="text"].search-input {
     border: 2px solid transparent;
     background: #f1f3f4;
-    border-radius: 24px;
+    border-radius: 14px;
     /* Pill shape */
-    padding: 12px 20px;
+    padding: 10px 15px;
     transition: all 0.2s ease;
     box-shadow: none;
 }
@@ -170,9 +170,11 @@ input[type="text"].search-input:focus {
     background: linear-gradient(135deg, #2196F3, #1976D2);
     color: white;
     border: none;
-    padding: 12px 24px;
-    border-radius: 24px;
+    min-height: 44px;
+    padding: 0 18px;
+    border-radius: 16px;
     font-weight: 600;
+    font-size: 0.84rem;
     box-shadow: 0 4px 6px rgba(33, 150, 243, 0.2);
     transition: all 0.2s ease;
     cursor: pointer;
