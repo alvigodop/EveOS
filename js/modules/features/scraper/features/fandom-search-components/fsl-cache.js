@@ -17,6 +17,61 @@
             return this;
         },
 
+        _normalizeQuery: function (query) {
+            return String(query || '').trim().toLowerCase();
+        },
+
+        _getAggregateCacheKey: function (query) {
+            return `fandom_managed_search_${this._normalizeQuery(query)}`;
+        },
+
+        _buildMatchHaystack: function (result) {
+            const source = result && typeof result === 'object' ? result : {};
+            const values = [
+                source.title,
+                source.snippet,
+                source.content,
+                source.extract,
+                source.domain,
+                source.wiki_name,
+                ...(Array.isArray(source.categories) ? source.categories : []),
+                ...(Array.isArray(source.tags) ? source.tags : []),
+                ...(Array.isArray(source.genres) ? source.genres : []),
+                ...(Array.isArray(source.names) ? source.names : []),
+                ...(Array.isArray(source.aliases) ? source.aliases : [])
+            ];
+            return values
+                .map((value) => String(value || '').trim().toLowerCase())
+                .filter(Boolean)
+                .join(' ');
+        },
+
+        _matchesCachedQuery: function (query, result) {
+            const normalizedQuery = this._normalizeQuery(query);
+            if (!normalizedQuery) return false;
+
+            const haystack = this._buildMatchHaystack(result);
+            if (!haystack) return false;
+            if (haystack.includes(normalizedQuery)) return true;
+
+            const tokens = normalizedQuery.split(/[^a-z0-9]+/i).filter(Boolean);
+            if (!tokens.length) return false;
+            return tokens.every((token) => haystack.includes(token));
+        },
+
+        _cloneResult: function (result, overrides = {}) {
+            const source = result && typeof result === 'object' ? result : {};
+            return {
+                ...source,
+                categories: Array.isArray(source.categories) ? source.categories.slice() : [],
+                tags: Array.isArray(source.tags) ? source.tags.slice() : [],
+                genres: Array.isArray(source.genres) ? source.genres.slice() : [],
+                names: Array.isArray(source.names) ? source.names.slice() : [],
+                aliases: Array.isArray(source.aliases) ? source.aliases.slice() : [],
+                ...overrides
+            };
+        },
+
         /**
          * Try to get results from generic cache
          */
@@ -47,16 +102,127 @@
             return null;
         },
 
+        getCachedAggregateResults: async function (query, domains) {
+            if (!window.CacheManager || typeof CacheManager.getGeneric !== 'function') {
+                return null;
+            }
+
+            const cacheKey = this._getAggregateCacheKey(query);
+            const activeDomains = new Set((Array.isArray(domains) ? domains : [])
+                .map((domainInfo) => String(domainInfo?.domain || domainInfo || '').trim().toLowerCase())
+                .filter(Boolean));
+
+            const fallbackToDomainStore = () => this.getCachedDomainStoreResults(query, domains);
+
+            try {
+                const CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+                const cachedData = await CacheManager.getGeneric(cacheKey);
+                if (!cachedData || !Array.isArray(cachedData.results)) {
+                    return fallbackToDomainStore();
+                }
+
+                const cacheAge = Date.now() - (cachedData.lastFetch || 0);
+                if (cacheAge >= CACHE_MAX_AGE_MS) {
+                    console.log(`FSLCache: Aggregate cache stale for query "${query}"`);
+                    return fallbackToDomainStore();
+                }
+
+                const scopedResults = cachedData.results
+                    .map((result) => this._cloneResult(result, { fromCache: true }))
+                    .filter((result) => {
+                        if (!activeDomains.size) return true;
+                        const resultDomain = String(result.domain || result.wiki_domain || result.wiki_name || '').trim().toLowerCase();
+                        return resultDomain ? activeDomains.has(resultDomain) : true;
+                    });
+
+                if (!scopedResults.length) {
+                    return fallbackToDomainStore();
+                }
+
+                console.log(`FSLCache: Using aggregate cache for "${query}" (${scopedResults.length} results)`);
+                return scopedResults;
+            } catch (cacheError) {
+                console.warn(`FSLCache: Error reading aggregate cache for "${query}":`, cacheError);
+                return fallbackToDomainStore();
+            }
+        },
+
+        getCachedDomainStoreResults: function (query, domains) {
+            if (!window.CacheManager || !CacheManager.wikiDataStore?.searchResults) {
+                return null;
+            }
+
+            const activeDomains = new Set((Array.isArray(domains) ? domains : [])
+                .map((domainInfo) => String(domainInfo?.domain || domainInfo || '').trim().toLowerCase())
+                .filter(Boolean));
+            const results = [];
+            const seen = new Set();
+            const domainStore = CacheManager.wikiDataStore.searchResults || {};
+
+            Object.entries(domainStore).forEach(([domain, entries]) => {
+                const normalizedDomain = String(domain || '').trim().toLowerCase();
+                if (activeDomains.size && normalizedDomain && !activeDomains.has(normalizedDomain)) {
+                    return;
+                }
+
+                Object.entries(entries || {}).forEach(([entryKey, value]) => {
+                    if (entryKey === 'lastUpdate' || !value || typeof value !== 'object') return;
+                    if (!this._matchesCachedQuery(query, value)) return;
+
+                    const cloned = this._cloneResult(value, {
+                        domain: value.domain || domain,
+                        wiki_domain: value.wiki_domain || value.domain || domain,
+                        fromCache: true,
+                        cacheOrigin: 'domain-store'
+                    });
+                    const dedupeKey = String(cloned.url || `${cloned.domain || domain}::${cloned.title || entryKey}`).trim().toLowerCase();
+                    if (!dedupeKey || seen.has(dedupeKey)) return;
+                    seen.add(dedupeKey);
+                    results.push(cloned);
+                });
+            });
+
+            if (!results.length) {
+                return null;
+            }
+
+            console.log(`FSLCache: Using domain-store fallback cache for "${query}" (${results.length} results)`);
+            return results;
+        },
+
         /**
          * Update generic cache with fresh results
          */
         updateGenericCache: async function (cacheKey, results) {
             if (window.CacheManager && typeof CacheManager.updateGeneric === 'function') {
                 try {
-                    await CacheManager.updateGeneric(cacheKey, { results: results, lastFetch: Date.now() });
+                    const clonedResults = Array.isArray(results)
+                        ? results.map((result) => this._cloneResult(result))
+                        : [];
+                    await CacheManager.updateGeneric(cacheKey, { results: clonedResults, lastFetch: Date.now() });
                 } catch (cacheWriteError) {
                     console.warn(`FSLCache: Error writing cache:`, cacheWriteError);
                 }
+            }
+        },
+
+        updateAggregateCache: async function (query, results) {
+            if (!window.CacheManager || typeof CacheManager.updateGeneric !== 'function') {
+                return;
+            }
+
+            const cacheKey = this._getAggregateCacheKey(query);
+            try {
+                const clonedResults = Array.isArray(results)
+                    ? results.map((result) => this._cloneResult(result))
+                    : [];
+                await CacheManager.updateGeneric(cacheKey, {
+                    query: String(query || '').trim(),
+                    results: clonedResults,
+                    lastFetch: Date.now()
+                });
+            } catch (cacheWriteError) {
+                console.warn(`FSLCache: Error writing aggregate cache:`, cacheWriteError);
             }
         },
 
@@ -76,15 +242,14 @@
 
                     for (const result of results) {
                         const key = result.title;
-                        CacheManager.wikiDataStore.searchResults[domain][key] = {
+                        CacheManager.wikiDataStore.searchResults[domain][key] = this._cloneResult(result, {
                             title: result.title,
-                            content: result.snippet,
-                            snippet: result.snippet,
-                            categories: result.categories || [],
-                            contentType: result.contentType,
-                            thumbnail: result.thumbnail,
+                            content: result.content || result.snippet || '',
+                            snippet: result.snippet || '',
+                            wiki_domain: result.domain || domain,
+                            domain: result.domain || domain,
                             lastUpdate: new Date().toISOString()
-                        };
+                        });
                     }
                     CacheManager.wikiDataStore.searchResults[domain].lastUpdate = new Date().toISOString();
 

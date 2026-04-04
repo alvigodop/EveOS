@@ -140,19 +140,23 @@
         },
 
         clearResults: function (isInitialLoad, source) {
-            // Clear results after a short delay
+            const resultsDiv = document.getElementById('results');
+            if (resultsDiv) {
+                if (!resultsDiv.dataset) {
+                    resultsDiv.dataset = {};
+                }
+                resultsDiv.dataset.eveSearchRequestId = `tab-switch-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+                resultsDiv.dataset.eveSearchSource = String(source || '').trim();
+                resultsDiv.innerHTML = '';
+            }
+
+            const resultCount = document.getElementById('resultCount');
+            if (resultCount) {
+                resultCount.textContent = '0';
+            }
+
+            // Keep the event timing, but clear stale results immediately.
             setTimeout(() => {
-                const resultsDiv = document.getElementById('results');
-                if (resultsDiv) {
-                    resultsDiv.innerHTML = '';
-                }
-
-                const resultCount = document.getElementById('resultCount');
-                if (resultCount) {
-                    resultCount.textContent = '0';
-                }
-
-                // Dispatch a custom event to notify that tab has changed
                 const currentLayout = window.TabManagerState ? TabManagerState.getCurrentLayout() : 'grid';
                 const event = new CustomEvent('tabChanged', {
                     detail: {

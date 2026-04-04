@@ -16,12 +16,13 @@ const PopupViewer = {
             console.error('PopupViewer modules not loaded');
             // Fallback
             window.open(url, '_blank');
-            return;
+            return false;
         }
 
         const useIframe = true;
 
         if (useIframe) {
+            PVUI.toggleDataPopup(false);
             PVUI.updateWikiTitle(title);
             PVLoader.loadWikiUrl(url);
             PVUI.toggleWikiPopup(true);
@@ -30,8 +31,10 @@ const PopupViewer = {
             if (window.PopupHistory) {
                 PopupHistory.addToHistory({ type: 'page', url: url, title: title });
             }
+            return true;
         } else {
             window.open(url, '_blank');
+            return false;
         }
     },
 

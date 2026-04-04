@@ -114,6 +114,24 @@ window.EveOS.API = window.EveOS.API || {};
         }).join('');
     }
 
+    function buildOpenModeMarkup(selectedMode, scope) {
+        const openMode = selectedMode === 'newtab' ? 'newtab' : 'popup';
+        const radioGroupName = `apiOpenMode-${String(scope || 'shared').trim() || 'shared'}`;
+        return `
+            <div class="api-open-mode-chip" data-api-open-mode-scope="${escapeHtml(scope || 'shared')}">
+                <span class="api-open-mode-label">Links</span>
+                <label class="api-open-mode-option">
+                    <input type="radio" name="${escapeHtml(radioGroupName)}" value="popup" data-api-open-mode="${escapeHtml(scope || 'shared')}" ${openMode === 'popup' ? 'checked' : ''}>
+                    <span>Popup</span>
+                </label>
+                <label class="api-open-mode-option">
+                    <input type="radio" name="${escapeHtml(radioGroupName)}" value="newtab" data-api-open-mode="${escapeHtml(scope || 'shared')}" ${openMode === 'newtab' ? 'checked' : ''}>
+                    <span>New Tab</span>
+                </label>
+            </div>
+        `;
+    }
+
     function syncTtlState(ttlMs, origin) {
         const selectors = [
             '[data-api-ttl-select="search"]',
@@ -242,6 +260,11 @@ window.EveOS.API = window.EveOS.API || {};
         return api.Cache ? api.Cache.loadPrefs(categoryName).hybridResults !== false : true;
     }
 
+    function resolveOpenModePreference(categoryName, explicitValue) {
+        if (explicitValue === 'popup' || explicitValue === 'newtab') return explicitValue;
+        return api.Cache ? api.Cache.loadPrefs(categoryName).openMode : 'popup';
+    }
+
     function runAfterDelay(callback, delayMs) {
         if (!(typeof callback === 'function')) return;
         if (Number(delayMs) > 0) {
@@ -249,6 +272,26 @@ window.EveOS.API = window.EveOS.API || {};
             return;
         }
         callback();
+    }
+
+    function claimResultsView(resultsContainer, meta = {}) {
+        if (!resultsContainer) return '';
+        if (!resultsContainer.dataset) {
+            resultsContainer.dataset = {};
+        }
+        const nextRequestId = `eve-search-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        resultsContainer.dataset.eveSearchRequestId = nextRequestId;
+        resultsContainer.dataset.eveSearchQuery = String(meta.query || '').trim();
+        resultsContainer.dataset.eveSearchSource = String(meta.source || '').trim();
+        resultsContainer.style.display = 'block';
+        resultsContainer.innerHTML = '';
+        updateResultsCount(0);
+        return nextRequestId;
+    }
+
+    function isClaimCurrent(resultsContainer, requestId) {
+        if (!resultsContainer || !requestId) return true;
+        return resultsContainer.dataset.eveSearchRequestId === requestId;
     }
 
     function renderCacheOnlyMessage(resultsContainer, query, providerKey = null) {
@@ -302,6 +345,15 @@ window.EveOS.API = window.EveOS.API || {};
         });
     }
 
+    function syncOpenModeState(mode, origin) {
+        const normalizedMode = mode === 'newtab' ? 'newtab' : 'popup';
+        document.querySelectorAll('[data-api-open-mode]').forEach(function (element) {
+            if (element === origin) return;
+            if (!('checked' in element)) return;
+            element.checked = String(element.value || '').trim() === normalizedMode;
+        });
+    }
+
     function persistLivePreference(categoryName, enabled, origin) {
         const resolvedCategory = ensureCategoryContext(categoryName);
         if (api.Cache) {
@@ -316,6 +368,70 @@ window.EveOS.API = window.EveOS.API || {};
             api.Cache.savePrefs({ hybridResults: enabled !== false }, resolvedCategory);
         }
         syncHybridToggleState(enabled !== false, origin);
+    }
+
+    function persistOpenModePreference(categoryName, mode, origin) {
+        const resolvedCategory = ensureCategoryContext(categoryName);
+        const normalizedMode = mode === 'newtab' ? 'newtab' : 'popup';
+        if (api.Cache) {
+            api.Cache.savePrefs({ openMode: normalizedMode }, resolvedCategory);
+        }
+        syncOpenModeState(normalizedMode, origin);
+    }
+
+    async function openUrlInPopup(url, title) {
+        const targetUrl = String(url || '').trim();
+        if (!targetUrl) return false;
+
+        let popupUrl = targetUrl;
+        if (api.Core && typeof api.Core.getPopupViewerUrl === 'function') {
+            try {
+                const resolvedPopupUrl = await api.Core.getPopupViewerUrl(targetUrl);
+                if (resolvedPopupUrl) {
+                    popupUrl = resolvedPopupUrl;
+                }
+            } catch (error) {
+                console.warn('API popup viewer URL resolution failed, falling back to direct URL.', error);
+            }
+        }
+
+        if (window.PopupManager && typeof window.PopupManager.openPopup === 'function') {
+            const popupTitle = title || 'API Result';
+            const popupTarget = popupUrl || targetUrl;
+            const opened = window.PopupManager.openPopup(popupTarget, popupTitle);
+            if (opened !== false) {
+                return true;
+            }
+        }
+
+        const popup = window.open(targetUrl, 'apiResultPopup', 'width=900,height=700,scrollbars=yes,resizable=yes');
+        if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+            window.alert('Popup blocked. Please allow popups for this site.');
+            return false;
+        }
+        return true;
+    }
+
+    function handleResultLinkClick(event, url, title, options = {}) {
+        const targetUrl = String(url || '').trim();
+        if (!targetUrl) return true;
+
+        const categoryName = normalizeCategoryName(options.categoryName);
+        const openMode = resolveOpenModePreference(categoryName, options.openMode);
+        if (event && typeof event.preventDefault === 'function') {
+            event.preventDefault();
+        }
+        if (event && typeof event.stopPropagation === 'function') {
+            event.stopPropagation();
+        }
+
+        if (openMode === 'newtab') {
+            window.open(targetUrl, '_blank', 'noopener,noreferrer');
+            return false;
+        }
+
+        void openUrlInPopup(targetUrl, String(title || 'API Result').trim() || 'API Result');
+        return false;
     }
 
     function buildCacheListMarkup(entries, emptyMessage, providerKey = null) {
@@ -421,11 +537,16 @@ window.EveOS.API = window.EveOS.API || {};
             .filter(Boolean)));
     }
 
-    function loadKnowledgeCacheEntries(categoryName, options = {}) {
+    function loadSavedKnowledgeSources(categoryName) {
         const storedWikiEntries = getScopedStorageValue('wikiEntries', [], categoryName);
         const storedFandomDomains = getScopedStorageValue('fandomDomains', [], categoryName);
         const wikiEntries = Array.isArray(storedWikiEntries) ? storedWikiEntries : [];
         const fandomDomains = Array.isArray(storedFandomDomains) ? storedFandomDomains : [];
+        return { wikiEntries, fandomDomains };
+    }
+
+    function loadKnowledgeCacheEntries(categoryName, options = {}) {
+        const { wikiEntries, fandomDomains } = loadSavedKnowledgeSources(categoryName);
         const wikiCacheStore = getScopedStorageValue('wikiCacheStore', {}, categoryName) || {};
         const wikiDataStore = getScopedStorageValue('wikiDataStore', { searchResults: {} }, categoryName) || {};
         const fandomResults = wikiDataStore.searchResults && typeof wikiDataStore.searchResults === 'object'
@@ -1338,8 +1459,8 @@ window.EveOS.API = window.EveOS.API || {};
         }
     }
 
-    async function runSearch(query, resultsContainer, onSelect, options = {}) {
-        if (!query || !resultsContainer) return null;
+    async function resolveApiSearchData(query, options = {}) {
+        if (!query) return null;
 
         const resolvedCategory = ensureCategoryContext(options.categoryName);
         const providerKey = isProviderSource(options.providerKey) ? options.providerKey : null;
@@ -1350,25 +1471,494 @@ window.EveOS.API = window.EveOS.API || {};
         const cachedVisibleSources = filterSourcesByProvider(cachedEntry?.sources || {}, providerKey);
         const cachedVisibleCount = countResults(cachedVisibleSources);
 
-        resultsContainer.style.display = 'block';
-
         if (!shouldUseLive && cachedEntry?.sources && cachedVisibleCount > 0) {
             if (api.Cache) api.Cache.touchQuery(normalizedQuery, resolvedCategory);
-            const renderedSources = renderSourceResults(cachedEntry.sources, resultsContainer, onSelect, providerKey);
-            if (typeof options.onAfterRender === 'function') {
-                options.onAfterRender({ fromCache: true, entry: cachedEntry, categoryName: resolvedCategory });
-            }
             return {
-                sources: renderedSources,
+                query: normalizedQuery,
+                categoryName: resolvedCategory,
+                providerKey,
+                allSources: cachedEntry.sources,
+                visibleSources: cachedVisibleSources,
+                entry: cachedEntry,
                 meta: {
                     fromCache: true,
                     providerKey,
-                    summary: api.Cache?.summarizeSources?.(renderedSources) || { totalResults: 0 }
+                    summary: api.Cache?.summarizeSources?.(cachedVisibleSources) || { totalResults: 0 }
                 }
             };
         }
 
         if (!shouldUseLive && !shouldUseHybrid) {
+            return {
+                query: normalizedQuery,
+                categoryName: resolvedCategory,
+                providerKey,
+                allSources: {},
+                visibleSources: {},
+                meta: {
+                    fromCache: false,
+                    cacheMiss: true,
+                    cacheOnly: true,
+                    providerKey,
+                    summary: { totalResults: 0 }
+                }
+            };
+        }
+
+        try {
+            const liveSources = await collectLiveResults(normalizedQuery, providerKey);
+            const mergedSources = providerKey ? mergeSources(cachedEntry?.sources, liveSources) : liveSources;
+            const visibleSources = filterSourcesByProvider(mergedSources, providerKey);
+            const storedEntry = api.Cache ? api.Cache.storeQuery(normalizedQuery, mergedSources, resolvedCategory, { ttlMs: options.ttlMs }) : null;
+            return {
+                query: normalizedQuery,
+                categoryName: resolvedCategory,
+                providerKey,
+                allSources: mergedSources,
+                visibleSources,
+                entry: storedEntry,
+                meta: {
+                    fromCache: false,
+                    providerKey,
+                    summary: api.Cache?.summarizeSources?.(visibleSources) || { totalResults: 0 }
+                }
+            };
+        } catch (error) {
+            console.error('API search error:', error);
+
+            if (cachedEntry?.sources && cachedVisibleCount > 0) {
+                if (api.Cache) api.Cache.touchQuery(normalizedQuery, resolvedCategory);
+                return {
+                    query: normalizedQuery,
+                    categoryName: resolvedCategory,
+                    providerKey,
+                    allSources: cachedEntry.sources,
+                    visibleSources: cachedVisibleSources,
+                    entry: cachedEntry,
+                    error,
+                    meta: {
+                        fromCache: true,
+                        fallback: true,
+                        providerKey,
+                        summary: api.Cache?.summarizeSources?.(cachedVisibleSources) || { totalResults: 0 }
+                    }
+                };
+            }
+
+            return {
+                query: normalizedQuery,
+                categoryName: resolvedCategory,
+                providerKey,
+                allSources: {},
+                visibleSources: {},
+                error,
+                meta: {
+                    error,
+                    providerKey,
+                    summary: { totalResults: 0 }
+                }
+            };
+        }
+    }
+
+    function normalizeSavedWikipediaEntries(categoryName) {
+        return loadSavedKnowledgeSources(categoryName).wikiEntries.filter(function (entry) {
+            return String(entry?.title || entry?.name || '').trim();
+        });
+    }
+
+    function normalizeSavedFandomDomains(categoryName) {
+        return loadSavedKnowledgeSources(categoryName).fandomDomains
+            .map(function (entry) {
+                if (typeof entry === 'string') {
+                    return {
+                        domain: entry,
+                        name: entry.replace(/\.fandom\.com$/i, '')
+                    };
+                }
+                return entry;
+            })
+            .filter(function (entry) {
+                return String(entry?.domain || '').trim();
+            });
+    }
+
+    function sortKnowledgeResults(results) {
+        return (Array.isArray(results) ? results.slice() : []).sort(function (left, right) {
+            const scoreDelta = Number(right?.matchScore || 0) - Number(left?.matchScore || 0);
+            if (scoreDelta !== 0) return scoreDelta;
+            return String(left?.title || '').localeCompare(String(right?.title || ''));
+        });
+    }
+
+    async function resolveKnowledgeSearchData(scope, query, options = {}) {
+        const normalizedScope = String(scope || '').trim().toLowerCase();
+        const resolvedCategory = ensureCategoryContext(options.categoryName);
+        const normalizedQuery = String(query || '').trim();
+        const shouldUseLive = resolveLivePreference(resolvedCategory, options.liveResults);
+        const shouldUseHybrid = resolveHybridPreference(resolvedCategory, options.hybridResults);
+
+        if (!normalizedQuery) {
+            return {
+                scope: normalizedScope,
+                categoryName: resolvedCategory,
+                results: [],
+                sourceCount: 0,
+                meta: { summary: { totalResults: 0 } }
+            };
+        }
+
+        try {
+            if (normalizedScope === 'wikipedia') {
+                const entries = normalizeSavedWikipediaEntries(resolvedCategory);
+                if (!entries.length || !window.SearchWikipedia?.searchManagedWikipedia) {
+                    return {
+                        scope: normalizedScope,
+                        categoryName: resolvedCategory,
+                        results: [],
+                        sourceCount: entries.length,
+                        meta: { summary: { totalResults: 0 } }
+                    };
+                }
+
+                const results = await window.SearchWikipedia.searchManagedWikipedia(entries, normalizedQuery, {
+                    liveSearch: shouldUseLive,
+                    hybridSearch: shouldUseHybrid,
+                    hidePersons: false
+                }, null);
+
+                return {
+                    scope: normalizedScope,
+                    categoryName: resolvedCategory,
+                    sourceCount: entries.length,
+                    results: sortKnowledgeResults(results),
+                    meta: {
+                        summary: { totalResults: Array.isArray(results) ? results.length : 0 }
+                    }
+                };
+            }
+
+            if (normalizedScope === 'fandom') {
+                const domains = normalizeSavedFandomDomains(resolvedCategory);
+                if (!domains.length || !window.SearchFandomLogic?.searchManagedFandom) {
+                    return {
+                        scope: normalizedScope,
+                        categoryName: resolvedCategory,
+                        results: [],
+                        sourceCount: domains.length,
+                        meta: { summary: { totalResults: 0 } }
+                    };
+                }
+
+                const results = await window.SearchFandomLogic.searchManagedFandom(domains, normalizedQuery, {
+                    liveSearch: shouldUseLive,
+                    hybridSearch: shouldUseHybrid
+                }, null);
+
+                return {
+                    scope: normalizedScope,
+                    categoryName: resolvedCategory,
+                    sourceCount: domains.length,
+                    results: sortKnowledgeResults(results),
+                    meta: {
+                        summary: { totalResults: Array.isArray(results) ? results.length : 0 }
+                    }
+                };
+            }
+        } catch (error) {
+            console.error(`Search Unidex ${normalizedScope} search error:`, error);
+            return {
+                scope: normalizedScope,
+                categoryName: resolvedCategory,
+                results: [],
+                sourceCount: normalizedScope === 'wikipedia'
+                    ? normalizeSavedWikipediaEntries(resolvedCategory).length
+                    : normalizeSavedFandomDomains(resolvedCategory).length,
+                error,
+                meta: {
+                    error,
+                    summary: { totalResults: 0 }
+                }
+            };
+        }
+
+        return {
+            scope: normalizedScope,
+            categoryName: resolvedCategory,
+            results: [],
+            sourceCount: 0,
+            meta: { summary: { totalResults: 0 } }
+        };
+    }
+
+    function buildKnowledgeChips(result) {
+        const values = [];
+        ['genres', 'tags', 'categories', 'names', 'aliases'].forEach(function (field) {
+            const items = Array.isArray(result?.[field]) ? result[field] : [];
+            items.forEach(function (item) {
+                const next = String(item || '').trim();
+                if (!next) return;
+                if (values.some(function (existing) { return existing.toLowerCase() === next.toLowerCase(); })) return;
+                values.push(next);
+            });
+        });
+        return values.slice(0, 6);
+    }
+
+    function buildKnowledgeSectionTitle(scope) {
+        return scope === 'wikipedia' ? 'Wikipedia Saved Sources' : 'Fandom Saved Sources';
+    }
+
+    function buildKnowledgeResultCard(result, scope, categoryName) {
+        const targetUrl = String(result?.url || '').trim();
+        const title = String(result?.title || 'Untitled').trim();
+        const sourceLabel = scope === 'wikipedia'
+            ? String(result?.wiki_name || 'Wikipedia').trim()
+            : String(result?.wiki_name || result?.domain || 'Fandom').trim();
+        const metaParts = [
+            sourceLabel,
+            String(result?.contentType || '').trim(),
+            Number(result?.rating) > 0 ? `Rating ${Number(result.rating)}` : '',
+            result?.fromCache || result?.entryDataFromCache ? 'Cached' : 'Live'
+        ].filter(Boolean);
+        const chips = buildKnowledgeChips(result);
+        const titleMarkup = targetUrl
+            ? `<a href="${escapeHtml(targetUrl)}" class="unidex-search-card-title" data-unidex-link="1" data-unidex-link-title="${escapeHtml(title)}" data-unidex-link-category="${escapeHtml(categoryName)}">${escapeHtml(title)}</a>`
+            : `<span class="unidex-search-card-title">${escapeHtml(title)}</span>`;
+        return `
+            <article class="unidex-search-card" data-unidex-result-scope="${escapeHtml(scope)}">
+                <div class="unidex-search-card-header">
+                    <div class="unidex-search-card-kicker">${escapeHtml(scope === 'wikipedia' ? 'Wikipedia' : 'Fandom')}</div>
+                    ${titleMarkup}
+                    <div class="unidex-search-card-meta">${escapeHtml(metaParts.join(' . '))}</div>
+                </div>
+                ${String(result?.snippet || '').trim() ? `<p class="unidex-search-card-snippet">${escapeHtml(String(result.snippet).trim())}</p>` : ''}
+                ${chips.length ? `<div class="api-provider-badges">${chips.map(function (chip) { return `<span class="api-provider-badge">${escapeHtml(chip)}</span>`; }).join('')}</div>` : ''}
+                ${targetUrl ? `<div class="unidex-search-card-actions"><button type="button" class="api-action-btn unidex-search-open-btn" data-unidex-link-button="1" data-unidex-link-url="${escapeHtml(targetUrl)}" data-unidex-link-title="${escapeHtml(title)}" data-unidex-link-category="${escapeHtml(categoryName)}">Open</button></div>` : ''}
+            </article>
+        `;
+    }
+
+    function buildKnowledgeResultsSection(scope, payload, categoryName) {
+        const results = Array.isArray(payload?.results) ? payload.results : [];
+        const header = buildKnowledgeSectionTitle(scope);
+        const countLabel = `${results.length} result${results.length === 1 ? '' : 's'}`;
+        const sourceCount = Number(payload?.sourceCount || 0);
+        const body = payload?.error
+            ? `<div class="unidex-search-empty">Unable to load ${escapeHtml(header.toLowerCase())}: ${escapeHtml(payload.error.message || payload.error)}</div>`
+            : results.length
+                ? results.map(function (result) {
+                    return buildKnowledgeResultCard(result, scope, categoryName);
+                }).join('')
+                : `<div class="unidex-search-empty">${sourceCount > 0
+                    ? `No ${escapeHtml(header.toLowerCase())} matches for this query in this card yet.`
+                    : `No ${escapeHtml(header.toLowerCase())} are linked to this card yet.`}</div>`;
+
+        return `
+            <section class="api-cache-section unidex-search-section" data-unidex-section="${escapeHtml(scope)}">
+                <div class="api-cache-section-header">
+                    <span>${escapeHtml(header)}</span>
+                    <span class="api-cache-section-count">${escapeHtml(countLabel)}</span>
+                </div>
+                <div class="api-cache-section-list unidex-search-section-list">
+                    ${body}
+                </div>
+            </section>
+        `;
+    }
+
+    function bindUnifiedResultLinks(container) {
+        if (!container) return;
+
+        container.querySelectorAll('[data-unidex-link="1"]').forEach(function (link) {
+            link.addEventListener('click', function (event) {
+                const href = String(link.getAttribute('href') || '').trim();
+                const title = String(link.getAttribute('data-unidex-link-title') || '').trim();
+                const categoryName = String(link.getAttribute('data-unidex-link-category') || '').trim();
+                if (!href) return;
+                handleResultLinkClick(event, href, title || 'Search Result', { categoryName });
+            });
+        });
+
+        container.querySelectorAll('[data-unidex-link-button="1"]').forEach(function (button) {
+            button.addEventListener('click', function (event) {
+                const href = String(button.getAttribute('data-unidex-link-url') || '').trim();
+                const title = String(button.getAttribute('data-unidex-link-title') || '').trim();
+                const categoryName = String(button.getAttribute('data-unidex-link-category') || '').trim();
+                if (!href) return;
+                handleResultLinkClick(event, href, title || 'Search Result', { categoryName });
+            });
+        });
+    }
+
+    function renderProviderResultsSubset(sourceResults, resultsContainer, onSelect, providerKey) {
+        const Display = api.Display;
+        if (!Display || typeof Display.displayResults !== 'function' || !resultsContainer) {
+            return {};
+        }
+
+        const visibleSources = filterSourcesByProvider(sourceResults || {}, providerKey);
+        resultsContainer.style.display = 'block';
+        Display.displayResults(visibleSources, resultsContainer, onSelect);
+        return visibleSources;
+    }
+
+    function renderUnifiedSearchResults(payload, resultsContainer, onSelect) {
+        if (!resultsContainer) return payload;
+
+        const totalResults = Number(payload?.api?.meta?.summary?.totalResults || 0)
+            + Number(payload?.wikipedia?.results?.length || 0)
+            + Number(payload?.fandom?.results?.length || 0);
+
+        resultsContainer.innerHTML = `
+            <div class="api-unidex-results-shell">
+                <div class="api-unidex-results-summary">
+                    <span class="api-provider-badge api-provider-badge-source">Search Unidex</span>
+                    <span class="api-provider-badge">API <strong>${Number(payload?.api?.meta?.summary?.totalResults || 0)}</strong></span>
+                    <span class="api-provider-badge">Wikipedia <strong>${Number(payload?.wikipedia?.results?.length || 0)}</strong></span>
+                    <span class="api-provider-badge">Fandom <strong>${Number(payload?.fandom?.results?.length || 0)}</strong></span>
+                </div>
+                ${buildKnowledgeResultsSection('wikipedia', payload?.wikipedia, payload?.categoryName)}
+                ${buildKnowledgeResultsSection('fandom', payload?.fandom, payload?.categoryName)}
+                <section class="api-cache-section unidex-search-section" data-unidex-section="api">
+                    <div class="api-cache-section-header">
+                        <span>API Providers</span>
+                        <span class="api-cache-section-count">${Number(payload?.api?.meta?.summary?.totalResults || 0)} results</span>
+                    </div>
+                    <div class="api-cache-section-list">
+                        <div class="api-unidex-provider-sections"></div>
+                    </div>
+                </section>
+            </div>
+        `;
+
+        const apiSectionsHost = resultsContainer.querySelector('.api-unidex-provider-sections');
+        if (apiSectionsHost) {
+            const apiSummary = payload?.api?.meta?.summary || {};
+            const providerSections = PROVIDER_ORDER.filter(function ([providerKey]) {
+                return Number(apiSummary?.perSource?.[providerKey] || 0) > 0;
+            });
+
+            if (payload?.api?.meta?.cacheMiss && totalResults < 1) {
+                apiSectionsHost.innerHTML = `
+                    <div class="unidex-search-empty">
+                        No cached Search Unidex result for this card yet. Enable Hybrid or Live to fetch API, Wikipedia, and Fandom results.
+                    </div>
+                `;
+            } else if (payload?.api?.meta?.error && Number(payload?.api?.meta?.summary?.totalResults || 0) < 1) {
+                apiSectionsHost.innerHTML = `
+                    <div class="unidex-search-empty">
+                        Unable to load API provider results: ${escapeHtml(payload.api.meta.error.message || payload.api.meta.error)}
+                    </div>
+                `;
+            } else if (providerSections.length > 0) {
+                apiSectionsHost.innerHTML = providerSections.map(function ([providerKey, label]) {
+                    const providerCount = Number(apiSummary?.perSource?.[providerKey] || 0);
+                    return `
+                        <section class="api-cache-section api-unidex-provider-section" data-unidex-api-provider="${escapeHtml(providerKey)}">
+                            <div class="api-cache-section-header">
+                                <span>${escapeHtml(label)}</span>
+                                <span class="api-cache-section-count">${providerCount} results</span>
+                            </div>
+                            <div class="api-unidex-provider-results" data-unidex-api-provider-results="${escapeHtml(providerKey)}"></div>
+                        </section>
+                    `;
+                }).join('');
+
+                providerSections.forEach(function ([providerKey]) {
+                    const providerHost = apiSectionsHost.querySelector(`[data-unidex-api-provider-results="${providerKey}"]`);
+                    if (!providerHost) return;
+                    renderProviderResultsSubset(payload.api.allSources, providerHost, onSelect, providerKey);
+                });
+            } else {
+                apiSectionsHost.innerHTML = `<div class="unidex-search-empty">No API provider matches for this query inside this card yet.</div>`;
+            }
+        }
+
+        bindUnifiedResultLinks(resultsContainer);
+        updateResultsCount(totalResults);
+        return payload;
+    }
+
+    async function runUnifiedSearch(query, resultsContainer, onSelect, options = {}) {
+        if (!query || !resultsContainer) return null;
+
+        const resolvedCategory = ensureCategoryContext(options.categoryName);
+        const normalizedQuery = String(query).trim();
+        const requestId = claimResultsView(resultsContainer, {
+            query: normalizedQuery,
+            source: 'search-unidex'
+        });
+
+        resultsContainer.innerHTML = `<div style="padding:10px;">Searching Search Unidex across API, Wikipedia, and Fandom...</div>`;
+        updateResultsCount(0);
+
+        const [apiResult, wikipediaResult, fandomResult] = await Promise.all([
+            resolveApiSearchData(normalizedQuery, {
+                categoryName: resolvedCategory,
+                ttlMs: options.ttlMs,
+                liveResults: options.liveResults,
+                hybridResults: options.hybridResults
+            }),
+            resolveKnowledgeSearchData('wikipedia', normalizedQuery, {
+                categoryName: resolvedCategory,
+                liveResults: options.liveResults,
+                hybridResults: options.hybridResults
+            }),
+            resolveKnowledgeSearchData('fandom', normalizedQuery, {
+                categoryName: resolvedCategory,
+                liveResults: options.liveResults,
+                hybridResults: options.hybridResults
+            })
+        ]);
+
+        if (!isClaimCurrent(resultsContainer, requestId)) {
+            return null;
+        }
+
+        const payload = {
+            categoryName: resolvedCategory,
+            query: normalizedQuery,
+            api: apiResult,
+            wikipedia: wikipediaResult,
+            fandom: fandomResult
+        };
+
+        renderUnifiedSearchResults(payload, resultsContainer, onSelect);
+
+        if (typeof options.onAfterRender === 'function') {
+            options.onAfterRender(payload);
+        }
+
+        return payload;
+    }
+
+    async function runSearch(query, resultsContainer, onSelect, options = {}) {
+        if (!query || !resultsContainer) return null;
+
+        const resolvedCategory = ensureCategoryContext(options.categoryName);
+        const providerKey = isProviderSource(options.providerKey) ? options.providerKey : null;
+        const normalizedQuery = String(query).trim();
+        const requestId = claimResultsView(resultsContainer, {
+            query: normalizedQuery,
+            source: providerKey || 'api'
+        });
+
+        resultsContainer.innerHTML = `<div style="padding:10px;">Searching ${escapeHtml(providerKey ? getProviderLabel(providerKey) : 'API providers')}...</div>`;
+        updateResultsCount(0);
+
+        const resolved = await resolveApiSearchData(normalizedQuery, {
+            categoryName: resolvedCategory,
+            providerKey,
+            ttlMs: options.ttlMs,
+            liveResults: options.liveResults,
+            hybridResults: options.hybridResults
+        });
+        if (!isClaimCurrent(resultsContainer, requestId) || !resolved) {
+            return null;
+        }
+
+        if (resolved.meta?.cacheMiss) {
             renderCacheOnlyMessage(resultsContainer, normalizedQuery, providerKey);
             if (typeof options.onAfterRender === 'function') {
                 options.onAfterRender({
@@ -1379,56 +1969,28 @@ window.EveOS.API = window.EveOS.API || {};
             }
             return {
                 sources: {},
-                meta: {
-                    fromCache: false,
-                    cacheMiss: true,
-                    summary: { totalResults: 0 }
-                }
+                meta: resolved.meta
             };
         }
 
-        resultsContainer.innerHTML = `<div style="padding:10px;">Searching ${escapeHtml(providerKey ? getProviderLabel(providerKey) : 'API providers')}...</div>`;
-        updateResultsCount(0);
-
-        try {
-            const liveSources = await collectLiveResults(normalizedQuery, providerKey);
-            const mergedSources = providerKey ? mergeSources(cachedEntry?.sources, liveSources) : liveSources;
-            const storedEntry = api.Cache ? api.Cache.storeQuery(normalizedQuery, mergedSources, resolvedCategory, { ttlMs: options.ttlMs }) : null;
-            const renderedSources = renderSourceResults(mergedSources, resultsContainer, onSelect, providerKey);
-            if (typeof options.onAfterRender === 'function') {
-                options.onAfterRender({ fromCache: false, entry: storedEntry, categoryName: resolvedCategory });
-            }
-            return {
-                sources: renderedSources,
-                meta: {
-                    fromCache: false,
-                    providerKey,
-                    summary: api.Cache?.summarizeSources?.(renderedSources) || { totalResults: 0 }
-                }
-            };
-        } catch (error) {
-            console.error('API search error:', error);
-
-            if (cachedEntry?.sources && cachedVisibleCount > 0) {
-                if (api.Cache) api.Cache.touchQuery(normalizedQuery, resolvedCategory);
-                const renderedSources = renderSourceResults(cachedEntry.sources, resultsContainer, onSelect, providerKey);
-                if (typeof options.onAfterRender === 'function') {
-                    options.onAfterRender({ fromCache: true, fallback: true, entry: cachedEntry, categoryName: resolvedCategory });
-                }
-                return {
-                    sources: renderedSources,
-                    meta: {
-                        fromCache: true,
-                        fallback: true,
-                        providerKey,
-                        summary: api.Cache?.summarizeSources?.(renderedSources) || { totalResults: 0 }
-                    }
-                };
-            }
-
-            resultsContainer.innerHTML = 'An error occurred while searching.<br><pre style="text-align:left; font-size:12px; color:red;">' + (error.stack || error.message || error) + '</pre>';
+        if (resolved.meta?.error && Number(resolved.meta?.summary?.totalResults || 0) < 1) {
+            resultsContainer.innerHTML = 'An error occurred while searching.<br><pre style="text-align:left; font-size:12px; color:red;">' + escapeHtml(resolved.meta.error.stack || resolved.meta.error.message || resolved.meta.error) + '</pre>';
             return null;
         }
+
+        const renderedSources = renderSourceResults(resolved.allSources, resultsContainer, onSelect, providerKey);
+        if (typeof options.onAfterRender === 'function') {
+            options.onAfterRender({
+                fromCache: resolved.meta?.fromCache === true,
+                fallback: resolved.meta?.fallback === true,
+                entry: resolved.entry || null,
+                categoryName: resolvedCategory
+            });
+        }
+        return {
+            sources: renderedSources,
+            meta: resolved.meta
+        };
     }
 
     function loadCachedQuery(query, resultsContainer, onSelect, options = {}) {
@@ -1436,9 +1998,14 @@ window.EveOS.API = window.EveOS.API || {};
 
         const resolvedCategory = ensureCategoryContext(options.categoryName);
         const providerKey = isProviderSource(options.providerKey) ? options.providerKey : null;
+        const requestId = claimResultsView(resultsContainer, {
+            query: query,
+            source: providerKey || 'api-cache'
+        });
         const cachedEntry = api.Cache.getQuery(query, resolvedCategory);
         if (!cachedEntry?.sources) return null;
         if (countResults(filterSourcesByProvider(cachedEntry.sources, providerKey)) < 1) return null;
+        if (!isClaimCurrent(resultsContainer, requestId)) return null;
 
         api.Cache.touchQuery(query, resolvedCategory);
         const renderedSources = renderSourceResults(cachedEntry.sources, resultsContainer, onSelect, providerKey);
@@ -1464,7 +2031,7 @@ window.EveOS.API = window.EveOS.API || {};
         searchContainer.innerHTML = `
             <div class="api-control-card">
                 <div class="api-search-box">
-                    <input type="text" class="api-search-input" placeholder="Search API providers for this card's Unidex graph...">
+                    <input type="text" class="api-search-input" placeholder="Search API, Wikipedia, and Fandom saved sources for this card...">
                     <button type="button" class="api-search-btn">Search</button>
                 </div>
                 <div class="api-preferences-row">
@@ -1480,10 +2047,11 @@ window.EveOS.API = window.EveOS.API || {};
                         <span>TTL</span>
                         <select data-api-ttl-select="search" class="api-ttl-select">${buildTtlOptionsMarkup(prefs.ttlMs)}</select>
                     </label>
+                    ${buildOpenModeMarkup(prefs.openMode, 'search')}
                     <button type="button" class="api-action-btn api-search-refresh-last-btn">Refresh Last</button>
                     <button type="button" class="api-action-btn api-search-open-unidex-btn">Open Unidex</button>
                     <button type="button" class="api-action-btn api-search-clear-cache-btn">Clear Cache Pool</button>
-                    <span class="api-surface-note">This mirrors Scraper &gt; Unidex. Cache is isolated to this card only.</span>
+                    <span class="api-surface-note">This mirrors Scraper &gt; Unidex and searches API, Wikipedia, and Fandom data scoped to this card only.</span>
                 </div>
                 <details class="api-cache-pool-details" open>
                     <summary>Cache Pool</summary>
@@ -1497,6 +2065,7 @@ window.EveOS.API = window.EveOS.API || {};
         const hybridToggle = searchContainer.querySelector('[data-api-hybrid-toggle="search"]');
         const liveToggle = searchContainer.querySelector('[data-api-live-toggle="search"]');
         const ttlSelect = searchContainer.querySelector('[data-api-ttl-select="search"]');
+        const openModeRadios = searchContainer.querySelectorAll('[data-api-open-mode="search"]');
         const refreshLastButton = searchContainer.querySelector('.api-search-refresh-last-btn');
         const openUnidexButton = searchContainer.querySelector('.api-search-open-unidex-btn');
         const clearCacheButton = searchContainer.querySelector('.api-search-clear-cache-btn');
@@ -1511,7 +2080,7 @@ window.EveOS.API = window.EveOS.API || {};
         function executeSearch(forceLive) {
             const nextQuery = String(input.value || '').trim();
             if (!nextQuery) return;
-            runSearch(nextQuery, resultsContainer, null, {
+            runUnifiedSearch(nextQuery, resultsContainer, null, {
                 categoryName: resolvedCategory,
                 ttlMs: Number(ttlSelect?.value) > 0 ? Number(ttlSelect.value) : prefs.ttlMs,
                 liveResults: typeof forceLive === 'boolean' ? forceLive : liveToggle.checked,
@@ -1547,6 +2116,13 @@ window.EveOS.API = window.EveOS.API || {};
                 persistTtlPreference(resolvedCategory, ttlSelect.value, ttlSelect);
             });
         }
+
+        openModeRadios.forEach(function (radio) {
+            radio.addEventListener('change', function () {
+                if (!radio.checked) return;
+                persistOpenModePreference(resolvedCategory, radio.value, radio);
+            });
+        });
 
         if (refreshLastButton) {
             refreshLastButton.addEventListener('click', function () {
@@ -1592,7 +2168,8 @@ window.EveOS.API = window.EveOS.API || {};
                     api.Cache.savePrefs({
                         ttlMs: Number(ttlSelect?.value) > 0 ? Number(ttlSelect.value) : prefs.ttlMs,
                         liveResults: liveToggle?.checked === true,
-                        hybridResults: hybridToggle?.checked !== false
+                        hybridResults: hybridToggle?.checked !== false,
+                        openMode: resolveOpenModePreference(resolvedCategory, searchContainer.querySelector('[data-api-open-mode="search"]:checked')?.value)
                     }, resolvedCategory);
                 }
                 clearKnowledgeCaches(resolvedCategory);
@@ -1609,6 +2186,7 @@ window.EveOS.API = window.EveOS.API || {};
         syncHybridToggleState(hybridToggle?.checked !== false, hybridToggle);
         syncLiveToggleState(liveToggle?.checked === true, liveToggle);
         syncTtlState(Number(ttlSelect?.value) > 0 ? Number(ttlSelect.value) : prefs.ttlMs, ttlSelect);
+        syncOpenModeState(prefs.openMode, Array.from(openModeRadios).find(function (radio) { return radio.checked; }) || null);
     }
 
     function renderScraperPanelUI(container, categoryName, options = {}) {
@@ -1648,6 +2226,7 @@ window.EveOS.API = window.EveOS.API || {};
                         <span>TTL</span>
                         <select data-api-ttl-select="scraper" class="api-ttl-select">${buildTtlOptionsMarkup(prefs.ttlMs)}</select>
                     </label>
+                    ${buildOpenModeMarkup(prefs.openMode, 'scraper')}
                     <button type="button" class="api-action-btn api-scraper-refresh-btn">Refresh Last</button>
                     <button type="button" class="api-action-btn api-scraper-clear-btn">Clear Cache Pool</button>
                 </div>
@@ -1660,6 +2239,7 @@ window.EveOS.API = window.EveOS.API || {};
         const hybridToggle = container.querySelector('[data-api-hybrid-toggle="scraper"]');
         const liveToggle = container.querySelector('[data-api-live-toggle="scraper"]');
         const ttlSelect = container.querySelector('[data-api-ttl-select="scraper"]');
+        const openModeRadios = container.querySelectorAll('[data-api-open-mode="scraper"]');
         const refreshButton = container.querySelector('.api-scraper-refresh-btn');
         const clearButton = container.querySelector('.api-scraper-clear-btn');
         const cacheList = container.querySelector('.api-scraper-cache-list');
@@ -1668,6 +2248,7 @@ window.EveOS.API = window.EveOS.API || {};
         syncHybridToggleState(prefs.hybridResults !== false, hybridToggle);
         syncLiveToggleState(prefs.liveResults === true, liveToggle);
         syncTtlState(Number(ttlSelect?.value) > 0 ? Number(ttlSelect.value) : prefs.ttlMs, ttlSelect);
+        syncOpenModeState(prefs.openMode, Array.from(openModeRadios).find(function (radio) { return radio.checked; }) || null);
 
         function beforeLoad() {
             if (typeof window.updateSource === 'function') {
@@ -1702,6 +2283,13 @@ window.EveOS.API = window.EveOS.API || {};
             });
         }
 
+        openModeRadios.forEach(function (radio) {
+            radio.addEventListener('change', function () {
+                if (!radio.checked) return;
+                persistOpenModePreference(resolvedCategory, radio.value, radio);
+            });
+        });
+
         if (refreshButton) {
             refreshButton.addEventListener('click', function () {
                 beforeLoad();
@@ -1729,7 +2317,8 @@ window.EveOS.API = window.EveOS.API || {};
                     api.Cache.savePrefs({
                         ttlMs: Number(ttlSelect?.value) > 0 ? Number(ttlSelect.value) : prefs.ttlMs,
                         liveResults: liveToggle?.checked === true,
-                        hybridResults: hybridToggle?.checked !== false
+                        hybridResults: hybridToggle?.checked !== false,
+                        openMode: resolveOpenModePreference(resolvedCategory, container.querySelector('[data-api-open-mode="scraper"]:checked')?.value)
                     }, resolvedCategory);
                 }
                 if (resultsContainer) {
@@ -1755,7 +2344,9 @@ window.EveOS.API = window.EveOS.API || {};
         renderScraperPanelUI,
         renderUnidexPanelUI,
         refreshScraperPanel: renderScraperPanelUI,
+        handleResultLinkClick,
         loadCachedQuery,
+        runUnifiedSearch,
         runSearch
     };
 })(window.EveOS.API);

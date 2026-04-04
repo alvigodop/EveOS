@@ -35,7 +35,7 @@ async function main() {
 
         const result = await page.evaluate(async () => {
             const providers = [
-                ['MangaDex', 'searchMangaDex', () => ({ data: [{ id: 'md-1', title: 'Kingdom' }] })],
+                ['MangaDex', 'searchMangaDex', () => ({ data: [{ id: 'md-1', title: "JoJo's Kingdom" }] })],
                 ['Jikan', 'searchJikanManga', () => ({ data: [] })],
                 ['Jikan', 'searchJikanAnime', () => ({ data: [] })],
                 ['AniList', 'searchAniListManga', () => ({ data: { Page: { media: [] } } })],
@@ -88,9 +88,49 @@ async function main() {
             }
             if (window.EveOS?.API?.Cache?.storeQuery) {
                 window.EveOS.API.Cache.storeQuery('naruto', {
-                    mangadex: { data: [{ id: 'md-naruto', title: 'Naruto' }] },
-                    openlibrary: { docs: [{ key: '/works/OLNARUTO', title: 'Naruto Archive' }] }
+                    mangadex: {
+                        data: [{
+                            id: 'md-naruto',
+                            attributes: {
+                                title: { en: 'Naruto' },
+                                description: { en: 'Naruto manga overview.' },
+                                year: 1999,
+                                status: 'completed',
+                                tags: [{
+                                    attributes: {
+                                        name: { en: 'Action' },
+                                        group: 'genre'
+                                    }
+                                }]
+                            },
+                            relationships: [],
+                            stats: {
+                                follows: 250
+                            }
+                        }]
+                    },
+                    openlibrary: {
+                        docs: [{
+                            key: '/works/OLNARUTO',
+                            title: 'Naruto Archive',
+                            author_name: ['Masashi Kishimoto'],
+                            subject: ['Ninja']
+                        }]
+                    }
                 }, 'Alpha');
+            }
+            if (window.FSLCache?.updateAggregateCache) {
+                await window.FSLCache.updateAggregateCache('naruto', [{
+                    title: 'Naruto',
+                    snippet: 'Naruto Uzumaki fandom page.',
+                    url: 'https://naruto.fandom.com/wiki/Naruto_Uzumaki',
+                    domain: 'naruto.fandom.com',
+                    wiki_name: 'Narutopedia',
+                    contentType: 'character',
+                    categories: ['Characters'],
+                    tags: ['Shinobi'],
+                    rating: 8.8
+                }]);
             }
 
             window.openCategorySettings('Alpha', 'search');
@@ -102,12 +142,14 @@ async function main() {
             const searchHybridToggle = modal.querySelector('[data-api-hybrid-toggle="search"]');
             const searchLiveToggle = modal.querySelector('[data-api-live-toggle="search"]');
             const searchTtlSelect = modal.querySelector('[data-api-ttl-select="search"]');
+            const searchPopupRadio = modal.querySelector('[data-api-open-mode="search"][value="popup"]');
+            const searchNewTabRadio = modal.querySelector('[data-api-open-mode="search"][value="newtab"]');
             const openUnidexButton = modal.querySelector('.api-search-open-unidex-btn');
             const searchCachePool = modal.querySelector('.api-cache-pool-list');
             const searchResults = document.getElementById('modal-api-results-container');
             const searchTabLabel = document.getElementById('tab-btn-search')?.textContent?.trim() || '';
 
-            if (!searchInput || !searchButton || !searchHybridToggle || !searchLiveToggle || !searchTtlSelect || !openUnidexButton || !searchCachePool || !searchResults) {
+            if (!searchInput || !searchButton || !searchHybridToggle || !searchLiveToggle || !searchTtlSelect || !searchPopupRadio || !searchNewTabRadio || !openUnidexButton || !searchCachePool || !searchResults) {
                 throw new Error('Search tab API UI failed to render');
             }
 
@@ -125,7 +167,7 @@ async function main() {
                 const started = Date.now();
                 const timer = window.setInterval(() => {
                     const hasEntry = searchCachePool.querySelectorAll('.api-cache-entry').length > 0;
-                    const hasRenderedResults = String(searchResults.innerHTML || '').trim().length > 0;
+                    const hasRenderedResults = !!searchResults.querySelector('.api-unidex-provider-sections .manga-item');
                     if (hasEntry && hasRenderedResults) {
                         window.clearInterval(timer);
                         resolve();
@@ -155,6 +197,104 @@ async function main() {
                 openGroup: !!narutoSourceCard?.querySelector('.api-cache-open-group-btn'),
                 viewGroup: !!narutoSourceCard?.querySelector('.api-cache-view-group-btn')
             };
+            const viewGroupButton = narutoSourceCard?.querySelector('.api-cache-view-group-btn');
+            if (!viewGroupButton) {
+                throw new Error('Expected Search Unidex card to expose a group View button');
+            }
+            viewGroupButton.click();
+            await new Promise((resolve, reject) => {
+                const started = Date.now();
+                const timer = window.setInterval(() => {
+                    const popup = document.getElementById('dataPopup');
+                    const popupContent = document.getElementById('dataPopupContent');
+                    if (popup && window.getComputedStyle(popup).display !== 'none' && popupContent && String(popupContent.textContent || '').trim().length > 0) {
+                        window.clearInterval(timer);
+                        resolve();
+                        return;
+                    }
+                    if (Date.now() - started > 4000) {
+                        window.clearInterval(timer);
+                        reject(new Error('Timed out waiting for Search Unidex cache popup content'));
+                    }
+                }, 60);
+            });
+            const dataPopupVisible = window.getComputedStyle(document.getElementById('dataPopup')).display !== 'none';
+            const dataPopupText = String(document.getElementById('dataPopupContent')?.textContent || '').trim();
+            const dataPopupParentTag = String(document.getElementById('dataPopup')?.parentElement?.tagName || '');
+            document.getElementById('dataPopup').style.display = 'none';
+
+            const originalPopupOpen = window.PopupManager?.openPopup;
+            const originalWindowOpen = window.open;
+            const originalResolvePopupUrl = window.EveOS?.API?.Core?.getPopupViewerUrl;
+            window.__apiPopupCalls = [];
+            window.__apiNewTabCalls = [];
+            window.PopupManager = window.PopupManager || {};
+            window.PopupManager.openPopup = function (url, title) {
+                window.__apiPopupCalls.push({ url, title });
+            };
+            window.open = function (url, target) {
+                window.__apiNewTabCalls.push({ url, target });
+                return null;
+            };
+            if (window.EveOS?.API?.Core) {
+                window.EveOS.API.Core.getPopupViewerUrl = async function (url) {
+                    return `http://127.0.0.1:3037/api/lightpanda?url=${encodeURIComponent(url)}`;
+                };
+            }
+
+            const firstResultLink = searchResults.querySelector('.manga-title a');
+            if (!firstResultLink) {
+                throw new Error('Expected an API result title link');
+            }
+
+            searchPopupRadio.checked = true;
+            searchPopupRadio.dispatchEvent(new Event('change', { bubbles: true }));
+            firstResultLink.click();
+            await new Promise((resolve) => setTimeout(resolve, 80));
+
+            searchNewTabRadio.checked = true;
+            searchNewTabRadio.dispatchEvent(new Event('change', { bubbles: true }));
+            firstResultLink.click();
+            await new Promise((resolve) => setTimeout(resolve, 80));
+
+            const popupCalls = window.__apiPopupCalls.slice();
+            const newTabCalls = window.__apiNewTabCalls.slice();
+            window.PopupManager.openPopup = originalPopupOpen;
+            window.open = originalWindowOpen;
+            if (window.EveOS?.API?.Core) {
+                window.EveOS.API.Core.getPopupViewerUrl = originalResolvePopupUrl;
+            }
+
+            searchHybridToggle.checked = true;
+            searchHybridToggle.dispatchEvent(new Event('change', { bubbles: true }));
+            searchLiveToggle.checked = false;
+            searchLiveToggle.dispatchEvent(new Event('change', { bubbles: true }));
+            searchInput.value = 'naruto';
+            searchButton.click();
+            await new Promise((resolve, reject) => {
+                const started = Date.now();
+                const timer = window.setInterval(() => {
+                    const wikiSection = searchResults.querySelector('[data-unidex-section="wikipedia"]');
+                    const fandomSection = searchResults.querySelector('[data-unidex-section="fandom"]');
+                    const apiSection = searchResults.querySelector('[data-unidex-section="api"]');
+                    const hasWikiCard = wikiSection?.querySelector('.unidex-search-card');
+                    const hasFandomCard = fandomSection?.querySelector('.unidex-search-card');
+                    const hasApiCard = apiSection?.querySelector('.manga-item');
+                    if (hasWikiCard && hasFandomCard && hasApiCard) {
+                        window.clearInterval(timer);
+                        resolve();
+                        return;
+                    }
+                    if (Date.now() - started > 8000) {
+                        window.clearInterval(timer);
+                        reject(new Error('Timed out waiting for unified Search Unidex results'));
+                    }
+                }, 80);
+            });
+            const unifiedSectionTitles = Array.from(searchResults.querySelectorAll('.api-cache-section-header > span:first-child')).map((node) => node.textContent.trim());
+            const unifiedWikiText = searchResults.querySelector('[data-unidex-section="wikipedia"]')?.textContent || '';
+            const unifiedFandomText = searchResults.querySelector('[data-unidex-section="fandom"]')?.textContent || '';
+            const unifiedApiText = searchResults.querySelector('[data-unidex-section="api"]')?.textContent || '';
 
             searchHybridToggle.checked = false;
             searchHybridToggle.dispatchEvent(new Event('change', { bubbles: true }));
@@ -210,6 +350,7 @@ async function main() {
             const scraperHybridToggle = modal.querySelector('[data-api-hybrid-toggle="scraper"]');
             const scraperLiveToggle = modal.querySelector('[data-api-live-toggle="scraper"]');
             const scraperTtlSelect = modal.querySelector('[data-api-ttl-select="scraper"]');
+            const scraperNewTabRadio = modal.querySelector('[data-api-open-mode="scraper"][value="newtab"]');
             const scraperCacheEntries = modal.querySelectorAll('#api-scraper-panel-container .api-cache-entry').length;
             const apiManagementDisplay = window.getComputedStyle(document.getElementById('apiManagement')).display;
             const scraperProviderTitle = modal.querySelector('#apiManagement .api-scraper-provider-title')?.textContent?.trim() || '';
@@ -269,9 +410,18 @@ async function main() {
                 betaCacheVisible: !!betaCacheEntry,
                 alphaPrefsAfterSearch,
                 alphaPrefsFinal,
+                popupCalls,
+                newTabCalls,
+                unifiedSectionTitles,
+                unifiedWikiText,
+                unifiedFandomText,
+                unifiedApiText,
                 searchTabLabel,
                 searchResultCount: allProviderRenderedCards,
                 searchResultsVisible: window.getComputedStyle(searchResults).display,
+                dataPopupVisible,
+                dataPopupParentTag,
+                dataPopupText,
                 wikiCacheVisible,
                 fandomCacheVisible,
                 apiCacheVisible,
@@ -280,6 +430,7 @@ async function main() {
                 scraperHybridChecked: !!scraperHybridToggle?.checked,
                 scraperLiveChecked: !!scraperLiveToggle?.checked,
                 scraperTtlValue: scraperTtlSelect?.value || '',
+                scraperOpenMode: scraperNewTabRadio?.checked ? 'newtab' : 'popup',
                 searchTtlValue: searchTtlSelect?.value || '',
                 scraperCacheEntries,
                 providerSourceButtons: providerSourceButtons.length,
@@ -313,6 +464,27 @@ async function main() {
         if (result.alphaPrefsFinal.liveResults !== false || result.alphaPrefsFinal.hybridResults !== false || result.alphaPrefsFinal.ttlMs !== 60 * 60 * 1000) {
             throw new Error(`Final Alpha prefs should reflect cache-only retest: ${JSON.stringify(result.alphaPrefsFinal)}`);
         }
+        if (result.alphaPrefsAfterSearch.openMode !== 'popup' || result.alphaPrefsFinal.openMode !== 'newtab') {
+            throw new Error(`Expected API open-mode preference to persist and update: ${JSON.stringify({ after: result.alphaPrefsAfterSearch, final: result.alphaPrefsFinal })}`);
+        }
+        if (!Array.isArray(result.popupCalls) || result.popupCalls.length !== 1) {
+            throw new Error(`Expected popup mode to route API result links through PopupManager: ${JSON.stringify(result.popupCalls)}`);
+        }
+        if (!String(result.popupCalls[0].url || '').startsWith('http://127.0.0.1:3037/api/lightpanda?url=')) {
+            throw new Error(`Expected popup mode to use a local popup viewer URL for API results: ${JSON.stringify(result.popupCalls)}`);
+        }
+        if (!Array.isArray(result.newTabCalls) || result.newTabCalls.length !== 1) {
+            throw new Error(`Expected new-tab mode to route API result links through window.open: ${JSON.stringify(result.newTabCalls)}`);
+        }
+        if (!String(result.newTabCalls[0].url || '').includes('mangadex.org/title/md-1')) {
+            throw new Error(`Expected new-tab mode to preserve the raw provider URL: ${JSON.stringify(result.newTabCalls)}`);
+        }
+        if (!Array.isArray(result.unifiedSectionTitles) || !result.unifiedSectionTitles.includes('Wikipedia Saved Sources') || !result.unifiedSectionTitles.includes('Fandom Saved Sources') || !result.unifiedSectionTitles.includes('API Providers')) {
+            throw new Error(`Expected Search Unidex to render Wikipedia, Fandom, and API result sections: ${JSON.stringify(result.unifiedSectionTitles)}`);
+        }
+        if (!/Naruto/i.test(result.unifiedWikiText) || !/Naruto/i.test(result.unifiedFandomText) || !/Naruto/i.test(result.unifiedApiText)) {
+            throw new Error(`Expected Search Unidex to render cached Naruto results across all source lanes: ${JSON.stringify({ wiki: result.unifiedWikiText, fandom: result.unifiedFandomText, api: result.unifiedApiText })}`);
+        }
         if (Number(result.searchResultCount) !== 2) {
             throw new Error(`Expected all-provider result count to remain 2, saw ${result.searchResultCount}`);
         }
@@ -328,6 +500,12 @@ async function main() {
         if (!result.knowledgeActionButtons?.openGroup || !result.knowledgeActionButtons?.viewGroup) {
             throw new Error(`Expected unified group cache actions to render in the Search tab: ${JSON.stringify(result)}`);
         }
+        if (!result.dataPopupVisible || !/Naruto/i.test(result.dataPopupText)) {
+            throw new Error(`Expected Search Unidex View to open cached data popup content from the Search tab: ${JSON.stringify({ visible: result.dataPopupVisible, text: result.dataPopupText })}`);
+        }
+        if (result.dataPopupParentTag !== 'BODY') {
+            throw new Error(`Expected Search Unidex View popup to be hoisted to document.body: ${JSON.stringify({ parent: result.dataPopupParentTag })}`);
+        }
         if (!result.narutoApiCacheSummary || result.narutoApiCacheSummary.totalResults !== 2) {
             throw new Error(`Expected seeded Naruto API cache summary to remain available for Unidex: ${JSON.stringify(result.narutoApiCacheSummary)}`);
         }
@@ -339,6 +517,9 @@ async function main() {
         }
         if (result.scraperTtlValue !== String(60 * 60 * 1000) || result.searchTtlValue !== String(60 * 60 * 1000)) {
             throw new Error(`Expected TTL select sync between search and scraper panels: ${JSON.stringify(result)}`);
+        }
+        if (result.scraperOpenMode !== 'newtab') {
+            throw new Error(`Expected scraper API link mode control to stay in sync with Search Unidex: ${JSON.stringify(result)}`);
         }
         if (result.scraperCacheEntries < 1) {
             throw new Error(`Expected scraper API panel to show cached entries: ${JSON.stringify(result)}`);

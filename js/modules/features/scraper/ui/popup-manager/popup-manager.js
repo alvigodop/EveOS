@@ -53,8 +53,9 @@ PopupManager.closeConfirmation = function (confirmed) {
 
 PopupManager.openPopup = function (url, title) {
     if (window.PopupViewer) {
-        PopupViewer.openPopup(url, title);
+        return PopupViewer.openPopup(url, title);
     }
+    return false;
 };
 
 PopupManager.closePopup = function () {

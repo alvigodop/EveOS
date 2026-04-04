@@ -109,6 +109,15 @@
     font-weight: bold;
 }
 
+.source-tag-link {
+    text-decoration: none;
+}
+
+.source-tag-link:hover {
+    text-decoration: none;
+    filter: brightness(1.08);
+}
+
 .manga-source-row {
     display: flex;
     gap: 6px;

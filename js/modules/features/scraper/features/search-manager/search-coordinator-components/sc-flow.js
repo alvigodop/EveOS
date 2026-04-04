@@ -4,6 +4,29 @@
  */
 const SearchCoordinatorFlow = {};
 
+function claimResultsRequest(resultsContainer, source, query) {
+    if (!resultsContainer) return '';
+    if (!resultsContainer.dataset) {
+        resultsContainer.dataset = {};
+    }
+    const requestId = `scraper-search-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    resultsContainer.dataset.eveSearchRequestId = requestId;
+    resultsContainer.dataset.eveSearchSource = String(source || '').trim();
+    resultsContainer.dataset.eveSearchQuery = String(query || '').trim();
+    resultsContainer.innerHTML = '';
+    resultsContainer.style.display = 'block';
+    const resultCount = document.getElementById('resultCount');
+    if (resultCount) {
+        resultCount.textContent = '0';
+    }
+    return requestId;
+}
+
+function isActiveResultsRequest(resultsContainer, requestId) {
+    if (!resultsContainer || !requestId) return true;
+    return resultsContainer.dataset.eveSearchRequestId === requestId;
+}
+
 /**
  * Initialize the module
  */
@@ -18,6 +41,8 @@ SearchCoordinatorFlow.performContentSearch = async function (query, source, opti
     console.log(`SearchCoordinatorFlow: Performing content search. Query: "${query}", Source: ${source}, Redisplay: ${redisplayOnly}`);
 
     const resultsContainerId = 'results';
+    const resultsContainer = document.getElementById(resultsContainerId);
+    const requestId = claimResultsRequest(resultsContainer, source, query);
     const apiManager = window.EveOS?.API?.Manager;
     const isApiProviderSource = !!apiManager?.isProviderSource?.(source);
     const isApiSource = source === 'api' || isApiProviderSource;
@@ -55,7 +80,6 @@ SearchCoordinatorFlow.performContentSearch = async function (query, source, opti
     if (isUnidexSource) {
         try {
             const unidexPanelContainer = document.getElementById('unidex-scraper-panel-container');
-            const resultsContainer = document.getElementById(resultsContainerId);
             if (!window.EveOS?.API?.Manager?.renderUnidexPanelUI || !unidexPanelContainer || !resultsContainer) {
                 throw new Error('Unidex panel is not available.');
             }
@@ -70,6 +94,9 @@ SearchCoordinatorFlow.performContentSearch = async function (query, source, opti
                 resultCount.textContent = String(groupCount);
             }
 
+            if (!isActiveResultsRequest(resultsContainer, requestId)) {
+                return;
+            }
             resultsContainer.innerHTML = `
                 <div class="info-message">
                     <h3>${groupCount} unified source${groupCount === 1 ? '' : 's'} matched</h3>
@@ -83,9 +110,13 @@ SearchCoordinatorFlow.performContentSearch = async function (query, source, opti
             }
         } catch (error) {
             console.error('SearchCoordinatorFlow: Error during Unidex search', error);
-            if (window.SearchUIRenderer) SearchUIRenderer.showError(`Error loading Unidex: ${error.message}`, resultsContainerId);
+            if (window.SearchUIRenderer && isActiveResultsRequest(resultsContainer, requestId)) {
+                SearchUIRenderer.showError(`Error loading Unidex: ${error.message}`, resultsContainerId);
+            }
         } finally {
-            if (window.SearchUIRenderer) SearchUIRenderer.showLoading(false, resultsContainerId);
+            if (window.SearchUIRenderer && isActiveResultsRequest(resultsContainer, requestId)) {
+                SearchUIRenderer.showLoading(false, resultsContainerId);
+            }
         }
         return;
     }
@@ -112,6 +143,9 @@ SearchCoordinatorFlow.performContentSearch = async function (query, source, opti
                 }
             });
 
+            if (!isActiveResultsRequest(resultsContainer, requestId)) {
+                return;
+            }
             if (window.SearchManager) {
                 SearchManager._lastSearchResults = apiSearchResult?.sources || {};
             }
@@ -120,9 +154,13 @@ SearchCoordinatorFlow.performContentSearch = async function (query, source, opti
             const apiErrorLabel = isApiProviderSource && apiManager?.getProviderLabel
                 ? apiManager.getProviderLabel(source)
                 : 'API providers';
-            if (window.SearchUIRenderer) SearchUIRenderer.showError(`Error searching ${apiErrorLabel}: ${error.message}`, resultsContainerId);
+            if (window.SearchUIRenderer && isActiveResultsRequest(resultsContainer, requestId)) {
+                SearchUIRenderer.showError(`Error searching ${apiErrorLabel}: ${error.message}`, resultsContainerId);
+            }
         } finally {
-            if (window.SearchUIRenderer) SearchUIRenderer.showLoading(false, resultsContainerId);
+            if (window.SearchUIRenderer && isActiveResultsRequest(resultsContainer, requestId)) {
+                SearchUIRenderer.showLoading(false, resultsContainerId);
+            }
         }
         return;
     }
@@ -137,7 +175,9 @@ SearchCoordinatorFlow.performContentSearch = async function (query, source, opti
 
     if (!window.WikiManager) {
         console.error('SearchCoordinatorFlow: WikiManager not available');
-        if (window.SearchUIRenderer) SearchUIRenderer.showError('WikiManager module is not loaded.', resultsContainerId);
+        if (window.SearchUIRenderer && isActiveResultsRequest(resultsContainer, requestId)) {
+            SearchUIRenderer.showError('WikiManager module is not loaded.', resultsContainerId);
+        }
         return;
     }
 
@@ -161,10 +201,11 @@ SearchCoordinatorFlow.performContentSearch = async function (query, source, opti
     }
 
     if (managedList.length === 0) {
-        if (window.SearchUIRenderer) SearchUIRenderer.showLoading(false, resultsContainerId);
-        const container = document.getElementById(resultsContainerId);
-        if (container) {
-            container.innerHTML = `
+        if (window.SearchUIRenderer && isActiveResultsRequest(resultsContainer, requestId)) {
+            SearchUIRenderer.showLoading(false, resultsContainerId);
+        }
+        if (resultsContainer && isActiveResultsRequest(resultsContainer, requestId)) {
+            resultsContainer.innerHTML = `
                 <div class="info-message">
                     <h3>No ${source === 'wikipedia' ? 'Wikipedia entries' : 'Fandom domains'} found.</h3>
                     <p>The "View Search Results" section acts as your <strong>personal library search</strong>.</p>
@@ -207,6 +248,10 @@ SearchCoordinatorFlow.performContentSearch = async function (query, source, opti
             }
         }
 
+        if (!isActiveResultsRequest(resultsContainer, requestId)) {
+            return;
+        }
+
         // 4. Apply Final Processing
         if (window.ResultProcessor && typeof ResultProcessor.process === 'function') {
             const processOptions = { ...searchOptions, query: query, searchTerm: query };
@@ -222,11 +267,14 @@ SearchCoordinatorFlow.performContentSearch = async function (query, source, opti
         if (window.ResultDisplay) {
             const containerSelector = '#' + resultsContainerId;
             ResultDisplay.displayResults(finalResults, containerSelector, searchOptions);
-            if (window.SearchUIRenderer) SearchUIRenderer.showLoading(false, resultsContainerId);
+            if (window.SearchUIRenderer && isActiveResultsRequest(resultsContainer, requestId)) {
+                SearchUIRenderer.showLoading(false, resultsContainerId);
+            }
 
             // 6. Lazy load thumbnails for Fandom
             if (source === 'fandom') {
                 setTimeout(() => {
+                    if (!isActiveResultsRequest(resultsContainer, requestId)) return;
                     if (window.ThumbnailLoader && typeof ThumbnailLoader.loadFandomThumbnails === 'function') {
                         ThumbnailLoader.loadFandomThumbnails(finalResults, containerSelector);
                     }
@@ -234,14 +282,20 @@ SearchCoordinatorFlow.performContentSearch = async function (query, source, opti
             }
         } else {
             console.error('ResultDisplay module missing');
-            if (window.SearchUIRenderer) SearchUIRenderer.showError('ResultDisplay module missing.', resultsContainerId);
+            if (window.SearchUIRenderer && isActiveResultsRequest(resultsContainer, requestId)) {
+                SearchUIRenderer.showError('ResultDisplay module missing.', resultsContainerId);
+            }
         }
 
     } catch (error) {
         console.error('SearchCoordinatorFlow: Error during content search', error);
-        if (window.SearchUIRenderer) SearchUIRenderer.showError(`Error searching ${source}: ${error.message}`, resultsContainerId);
+        if (window.SearchUIRenderer && isActiveResultsRequest(resultsContainer, requestId)) {
+            SearchUIRenderer.showError(`Error searching ${source}: ${error.message}`, resultsContainerId);
+        }
     } finally {
-        if (window.SearchUIRenderer) SearchUIRenderer.showLoading(false, resultsContainerId);
+        if (window.SearchUIRenderer && isActiveResultsRequest(resultsContainer, requestId)) {
+            SearchUIRenderer.showLoading(false, resultsContainerId);
+        }
     }
 };
 

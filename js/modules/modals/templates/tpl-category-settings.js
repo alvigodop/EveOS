@@ -69,7 +69,7 @@ window.modalTemplate += `
         </div>
 
         <div id="cat-tab-search" class="tab-content" style="display:none;">
-            <p style="opacity:0.7; font-size:0.9rem; margin-bottom:10px;">Search API providers and manage the same unified source graph shown in Scraper &gt; Unidex for this card only.</p>
+            <p style="opacity:0.7; font-size:0.9rem; margin-bottom:10px;">Search API providers, saved Wikipedia entries, and saved Fandom domains from the same unified source graph shown in Scraper &gt; Unidex for this card only.</p>
             <div id="modal-api-search-container"></div>
             <div id="modal-api-results-container" style="margin-top:15px; max-height: 400px; overflow-y: auto; background: rgba(0,0,0,0.2);"></div>
         </div>

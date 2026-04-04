@@ -40,7 +40,31 @@
 
             // Cache Settings
             const shouldUseCache = options.liveSearch !== true;
-            const shouldFetchLive = (options.liveSearch || options.hybridSearch);
+            const shouldFetchLive = options.liveSearch === true || options.hybridSearch !== false;
+
+            if (shouldUseCache && window.FSLCache && typeof FSLCache.getCachedAggregateResults === 'function') {
+                const aggregateResults = await FSLCache.getCachedAggregateResults(query, domains);
+                if (aggregateResults && aggregateResults.length > 0) {
+                    if (typeof FSLCache.updateAggregateCache === 'function') {
+                        await FSLCache.updateAggregateCache(query, aggregateResults);
+                    }
+                    if (showLoadingFn) {
+                        showLoadingFn(true, 'results', `Loading cached Fandom results for "${query}"...`, {
+                            wikisSearched: domains.length,
+                            totalWikis: domains.length,
+                            resultsFound: aggregateResults.length,
+                            statusPhase: 'cache'
+                        });
+                    }
+
+                    if (window.WikiManager) {
+                        if (typeof WikiManager.refreshCacheStores === 'function') WikiManager.refreshCacheStores();
+                        if (typeof WikiManager.renderFandomDomainList === 'function') WikiManager.renderFandomDomainList(true);
+                    }
+
+                    return aggregateResults;
+                }
+            }
 
             let searchedDomains = 0;
             const totalDomains = domains.length;
@@ -109,6 +133,10 @@
             if (allResults.length > 0 && window.WikiManager) {
                 if (typeof WikiManager.refreshCacheStores === 'function') WikiManager.refreshCacheStores();
                 if (typeof WikiManager.renderFandomDomainList === 'function') WikiManager.renderFandomDomainList(true);
+            }
+
+            if (allResults.length > 0 && window.FSLCache && typeof FSLCache.updateAggregateCache === 'function') {
+                await FSLCache.updateAggregateCache(query, allResults);
             }
 
             console.log(`FSLCore: Aggregated ${allResults.length} potential results.`);

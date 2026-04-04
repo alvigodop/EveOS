@@ -16,6 +16,19 @@
         _initialized: true
     };
 
+    function cloneCachedResult(result, overrides = {}) {
+        const source = result && typeof result === 'object' ? result : {};
+        return {
+            ...source,
+            categories: Array.isArray(source.categories) ? source.categories.slice() : [],
+            tags: Array.isArray(source.tags) ? source.tags.slice() : [],
+            genres: Array.isArray(source.genres) ? source.genres.slice() : [],
+            names: Array.isArray(source.names) ? source.names.slice() : [],
+            aliases: Array.isArray(source.aliases) ? source.aliases.slice() : [],
+            ...overrides
+        };
+    }
+
     /**
      * Check if a query has cached results
      * @param {string} query 
@@ -31,8 +44,7 @@
                 const cacheAge = Date.now() - (cachedQueryResults.lastFetch || 0);
 
                 if (cacheAge < CACHE_MAX_AGE_MS) {
-                    return cachedQueryResults.results.map(r => ({
-                        ...r,
+                    return cachedQueryResults.results.map(r => cloneCachedResult(r, {
                         fromCache: true
                     }));
                 } else {
@@ -88,8 +100,10 @@
         if (results.length > 0 && window.CacheManager && typeof CacheManager.updateGeneric === 'function') {
             const queryCacheKey = `wikipedia_search_${query}`;
             try {
+                const clonedResults = results.map(result => cloneCachedResult(result));
                 await CacheManager.updateGeneric(queryCacheKey, {
-                    results: results,
+                    query: String(query || '').trim(),
+                    results: clonedResults,
                     lastFetch: Date.now()
                 });
             } catch (e) {
@@ -129,7 +143,7 @@
 
                     for (const result of results) {
                         const key = result.title + (result.isTextMatch ? `_match_${result.matchNumber || 1}` : '');
-                        CacheManager.wikiCacheStore.entryResults[entryTitle].searchResults[key] = {
+                        CacheManager.wikiCacheStore.entryResults[entryTitle].searchResults[key] = cloneCachedResult(result, {
                             title: result.title,
                             snippet: result.snippet,
                             url: result.url,
@@ -138,7 +152,7 @@
                             thumbnail: result.thumbnail,
                             isTextMatch: result.isTextMatch,
                             lastUpdate: new Date().toISOString()
-                        };
+                        });
                     }
                     CacheManager.wikiCacheStore.entryResults[entryTitle].lastUpdate = new Date().toISOString();
                 }
@@ -160,8 +174,10 @@
     WikipediaCache.updateQueryCacheAfterEnrichment = async function (query, results) {
         const queryCacheKey = `wikipedia_search_${query}`;
         try {
+            const clonedResults = results.map(result => cloneCachedResult(result));
             await CacheManager.updateGeneric(queryCacheKey, {
-                results: results,
+                query: String(query || '').trim(),
+                results: clonedResults,
                 lastFetch: Date.now()
             });
         } catch (e) {

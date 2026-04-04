@@ -35,9 +35,11 @@
             const popup = document.getElementById('dataPopup');
             if (popup) {
                 if (show) {
+                    popup.classList.add('active');
                     popup.style.display = 'flex';
                     popup.style.zIndex = '20000'; // Ensure it's above settings modal
                 } else {
+                    popup.classList.remove('active');
                     popup.style.display = 'none';
                 }
             }

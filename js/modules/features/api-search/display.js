@@ -4,7 +4,25 @@ window.EveOS.API.DisplayInternals = window.EveOS.API.DisplayInternals || {};
 
 (function (api, internals) {
     function normalizeDisplayArgs(arg1, arg2, arg3, arg4, arg5) {
-        if (arg1 && typeof arg1 === "object" && (arg1.mangadex || arg1.jikanManga || arg1.jikanAnime || arg1.anilistManga || arg1.anilistAnime)) {
+        if (
+            arg1
+            && typeof arg1 === "object"
+            && (
+                arg1.mangadex
+                || arg1.jikanManga
+                || arg1.jikanAnime
+                || arg1.anilistManga
+                || arg1.anilistAnime
+                || arg1.mangaupdates
+                || arg1.kitsuAnime
+                || arg1.kitsuManga
+                || arg1.tvmaze
+                || arg1.itunes
+                || arg1.wlnupdates
+                || arg1.openlibrary
+                || arg1.comick
+            )
+        ) {
             return {
                 sources: arg1,
                 resultsDiv: arg2,

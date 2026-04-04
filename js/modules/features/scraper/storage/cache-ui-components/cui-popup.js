@@ -6,6 +6,69 @@
 (function () {
     'use strict';
 
+    function ensureDataPopupElements() {
+        let popup = document.getElementById('dataPopup');
+        let dataPopupContent = document.getElementById('dataPopupContent');
+        let dataPopupTitle = document.getElementById('dataPopupTitle');
+        let dataPopupFrame = document.getElementById('dataPopupFrame');
+
+        if (popup && popup.parentElement !== document.body) {
+            document.body.appendChild(popup);
+        }
+
+        if (popup && !popup.dataset.cuiPopupBound) {
+            popup.dataset.cuiPopupBound = '1';
+            const closeButton = popup.querySelector('.popup-close');
+            if (closeButton) {
+                closeButton.removeAttribute('onclick');
+                closeButton.addEventListener('click', function () {
+                    popup.classList.remove('active');
+                    popup.style.display = 'none';
+                });
+            }
+        }
+
+        if (popup && dataPopupContent && dataPopupTitle) {
+            return { popup, dataPopupContent, dataPopupTitle, dataPopupFrame };
+        }
+
+        const host = document.createElement('div');
+        host.innerHTML = `
+            <div id="dataPopup" class="popup" style="display: none;">
+                <div class="popup-content data-popup-content">
+                    <div class="popup-header">
+                        <h3 id="dataPopupTitle">Cached Data</h3>
+                        <div class="popup-nav">
+                            <button class="popup-close" type="button" aria-label="Close Cache Popup">&times;</button>
+                        </div>
+                    </div>
+                    <div class="popup-body">
+                        <div id="dataPopupContent" class="data-content"></div>
+                        <iframe id="dataPopupFrame" class="popup-iframe" src="about:blank" style="display: none;"></iframe>
+                    </div>
+                </div>
+            </div>
+        `.trim();
+
+        popup = host.firstElementChild;
+        if (!popup) {
+            return { popup: null, dataPopupContent: null, dataPopupTitle: null, dataPopupFrame: null };
+        }
+
+        document.body.appendChild(popup);
+        popup.dataset.cuiPopupBound = '1';
+        popup.querySelector('.popup-close')?.addEventListener('click', function () {
+            popup.classList.remove('active');
+            popup.style.display = 'none';
+        });
+
+        dataPopupContent = popup.querySelector('#dataPopupContent');
+        dataPopupTitle = popup.querySelector('#dataPopupTitle');
+        dataPopupFrame = popup.querySelector('#dataPopupFrame');
+
+        return { popup, dataPopupContent, dataPopupTitle, dataPopupFrame };
+    }
+
     window.CUIPopup = {
         /**
          * Display cached data in a popup window
@@ -15,10 +78,13 @@
         displayCachedData: function (data, title) {
             console.log('Displaying cached data:', title);
 
-            // Get the data popup elements
-            const popup = document.getElementById('dataPopup');
-            const dataPopupContent = document.getElementById('dataPopupContent');
-            const dataPopupTitle = document.getElementById('dataPopupTitle');
+            // Ensure the popup shell exists even when the Scraper tab has not rendered yet.
+            const {
+                popup,
+                dataPopupContent,
+                dataPopupTitle,
+                dataPopupFrame
+            } = ensureDataPopupElements();
 
             if (!popup || !dataPopupContent) {
                 console.error('Data popup elements not found in DOM');
@@ -86,14 +152,15 @@
             dataPopupContent.style.display = 'block';
             dataPopupContent.classList.add('visible');
 
-            const iframe = document.getElementById('dataPopupFrame');
-            if (iframe) {
-                iframe.style.display = 'none';
-                iframe.classList.remove('visible');
+            if (dataPopupFrame) {
+                dataPopupFrame.style.display = 'none';
+                dataPopupFrame.classList.remove('visible');
             }
 
             // Show the popup
-            popup.style.display = 'block';
+            popup.classList.add('active');
+            popup.style.display = 'flex';
+            popup.style.zIndex = '20000';
         }
     };
 

@@ -31,6 +31,7 @@
 
             const normalizedQuery = WikipediaProcessor.removeDiacritics(query.toLowerCase().trim());
             const shouldUseCache = options.liveSearch !== true;
+            const shouldFetchLive = options.liveSearch === true || options.hybridSearch !== false;
 
             // --- 1. Global Query Cache Check ---
             if (shouldUseCache && window.WikipediaCache) {
@@ -112,7 +113,7 @@
                 }
 
                 // --- 3. Live Fetch (if no cache) ---
-                if (!entryData && window.WikipediaAPI) {
+                if (!entryData && shouldFetchLive && window.WikipediaAPI) {
                     console.log(`SWOrchestrator: Fetching live data for Wikipedia entry "${entry.title}"`);
                     try {
                         const liveData = await WikipediaAPI.fetchLiveEntry(entry.title);

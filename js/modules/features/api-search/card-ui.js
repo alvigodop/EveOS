@@ -12,6 +12,14 @@
             .replace(/'/g, "&#39;");
     }
 
+    function escapeJsString(value) {
+        return String(value ?? "")
+            .replace(/\\/g, "\\\\")
+            .replace(/'/g, "\\'")
+            .replace(/\r/g, "\\r")
+            .replace(/\n/g, "\\n");
+    }
+
     function uniqStrings(values) {
         const seen = new Set();
         const result = [];
@@ -102,6 +110,14 @@
         const coverUrl = data.coverUrl || "https://via.placeholder.com/120x180?text=No+Cover";
         const description = String(data.description || "").trim();
         const mediaType = String(data.mediaType || "").trim();
+        const targetUrl = String(data.providerUrl || data.url || "").trim() || "#";
+        const safeTargetUrl = escapeHtml(targetUrl);
+        const sourceTagMarkup = targetUrl && targetUrl !== '#'
+            ? `<a href="${safeTargetUrl}" rel="noopener noreferrer" class="source-tag source-tag-link" data-api-result-link="1" data-api-result-title="${escapeHtml(title)}">${escapeHtml(data.source || "Source")}</a>`
+            : `<span class="source-tag">${escapeHtml(data.source || "Source")}</span>`;
+        const titleMarkup = targetUrl && targetUrl !== '#'
+            ? `<a href="${safeTargetUrl}" rel="noopener noreferrer" data-api-result-link="1" data-api-result-title="${escapeHtml(title)}">${escapeHtml(title)}</a>`
+            : escapeHtml(title);
 
         mangaDiv.innerHTML = `
             <img
@@ -111,10 +127,10 @@
             >
             <div class="manga-info">
                 <div class="manga-source-row">
-                    <span class="source-tag">${escapeHtml(data.source || "Source")}</span>
+                    ${sourceTagMarkup}
                     ${mediaType ? `<span class="media-type-tag">${escapeHtml(mediaType)}</span>` : ""}
                 </div>
-                <h3 class="manga-title"><a href="${escapeHtml(data.url || "#")}" target="_blank" rel="noopener noreferrer">${escapeHtml(title)}</a></h3>
+                <h3 class="manga-title">${titleMarkup}</h3>
                 <div class="manga-meta">${renderMetaRow(data)}</div>
                 ${renderPeopleRows(data)}
                 ${genres.length ? `<div class="manga-chip-row manga-chip-row-genres">${renderChips(genres, "genres-tag")}</div>` : ""}
@@ -165,6 +181,17 @@
             }
             mangaDiv.appendChild(selectBtn);
         }
+
+        mangaDiv.querySelectorAll('[data-api-result-link="1"]').forEach((linkEl) => {
+            linkEl.addEventListener('click', function (event) {
+                const href = String(linkEl.getAttribute('href') || '').trim();
+                const linkTitle = String(linkEl.getAttribute('data-api-result-title') || title).trim() || title;
+                if (!href || href === '#') return;
+                if (window.EveOS?.API?.Manager?.handleResultLinkClick) {
+                    window.EveOS.API.Manager.handleResultLinkClick(event, href, linkTitle);
+                }
+            });
+        });
 
         resultsDiv.appendChild(mangaDiv);
     }

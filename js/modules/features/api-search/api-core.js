@@ -407,6 +407,31 @@ window.EveOS.API = window.EveOS.API || {};
         return null;
     }
 
+    async function getPopupViewerUrl(targetUrl) {
+        const normalizedTarget = String(targetUrl || '').trim();
+        if (!normalizedTarget) return '';
+
+        try {
+            const parsed = new URL(normalizedTarget);
+            const host = String(parsed.hostname || '').trim();
+            if ((host === LOCAL_HOST || host === 'localhost') && /^\/api\//.test(String(parsed.pathname || ''))) {
+                return normalizedTarget;
+            }
+        } catch (e) {}
+
+        await probeLocalServices();
+
+        if (_bridgeAvailability.lightpanda) {
+            return `${LIGHTPANDA_BASE}/api/lightpanda?url=${encodeURIComponent(normalizedTarget)}`;
+        }
+
+        if (_activeProxyBase) {
+            return `${_activeProxyBase}/api/proxy?url=${encodeURIComponent(normalizedTarget)}`;
+        }
+
+        return normalizedTarget;
+    }
+
     // Expose for other modules
     window.EveOS.API.Core = {
         PROXY_URL,
@@ -430,6 +455,7 @@ window.EveOS.API = window.EveOS.API || {};
         safeFetch,
         fetchDirectThenProxy,
         fetchTextWithFallback,
-        fetchWithFallback
+        fetchWithFallback,
+        getPopupViewerUrl
     };
 })();

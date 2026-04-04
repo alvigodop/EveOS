@@ -189,7 +189,8 @@ window.EveOS.API = window.EveOS.API || {};
         return {
             liveResults: stored?.liveResults === true,
             hybridResults: stored?.hybridResults !== false,
-            ttlMs: Number(stored?.ttlMs) > 0 ? Number(stored.ttlMs) : DEFAULT_TTL_MS
+            ttlMs: Number(stored?.ttlMs) > 0 ? Number(stored.ttlMs) : DEFAULT_TTL_MS,
+            openMode: stored?.openMode === 'newtab' ? 'newtab' : 'popup'
         };
     }
 
@@ -208,6 +209,7 @@ window.EveOS.API = window.EveOS.API || {};
         }
         merged.liveResults = merged.liveResults === true;
         merged.hybridResults = merged.hybridResults !== false;
+        merged.openMode = merged.openMode === 'newtab' ? 'newtab' : 'popup';
         return saveScopedValue(PREFS_KEY, merged, categoryName);
     }
 

@@ -99,7 +99,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/scraper/storage/cache-ui-components/cui-utils.js",
     "js/modules/features/scraper/storage/cache-ui-components/cui-stats.js",
     "js/modules/features/scraper/storage/cache-ui-components/cui-list.js",
-    "js/modules/features/scraper/storage/cache-ui-components/cui-popup.js",
+    "js/modules/features/scraper/storage/cache-ui-components/cui-popup.js?v=1.0.2",
     "js/modules/features/scraper/storage/cache-ui-components/cui-summary.js",
     "js/modules/features/scraper/storage/cache-ui.js",
     "js/modules/features/scraper/storage/cache-fandom.js",
