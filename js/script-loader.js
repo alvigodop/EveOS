@@ -4,7 +4,7 @@
     const EXTERNAL_SCRIPT_LOAD_TIMEOUT_MS = 45000;
     const MAX_BOOTSTRAP_RELOADS = 1;
     const RELOAD_ATTEMPT_KEY = 'eveos.scriptLoader.reloadAttempts';
-    const DEFERRED_LOAD_DELAY_MS = 6000;
+    const DEFERRED_LOAD_DELAY_MS = 1500;
     const CRITICAL_BATCH_SIZE = 16;
     const CRITICAL_BATCH_PAUSE_MS = 10;
     const LOCALHOST_CRITICAL_BATCH_MIN_SCRIPTS = 80;
@@ -148,6 +148,10 @@
 
     function waitForIdleTask() {
         return new Promise((resolve) => {
+            if (window.__RUSH_DEFERRED_LOAD) {
+                resolve();
+                return;
+            }
             if (typeof window.requestIdleCallback === 'function') {
                 window.requestIdleCallback(() => resolve(), { timeout: DEFERRED_IDLE_TIMEOUT_MS });
                 return;
@@ -158,6 +162,7 @@
 
     async function waitForQuietWindow() {
         while (true) {
+            if (window.__RUSH_DEFERRED_LOAD) return;
             const quietForMs = Date.now() - lastUserInteractionAt;
             const isVisible = document.visibilityState !== 'hidden';
             if (isVisible && quietForMs >= DEFERRED_QUIET_WINDOW_MS) {
@@ -195,7 +200,7 @@
             });
 
             if (i + DEFERRED_BATCH_SIZE < deferredScripts.length) {
-                await sleep(DEFERRED_BATCH_PAUSE_MS);
+                await sleep(window.__RUSH_DEFERRED_LOAD ? 0 : DEFERRED_BATCH_PAUSE_MS);
             }
         }
 
@@ -267,6 +272,7 @@
             };
 
             window.__loadDeferredScriptsNow = function () {
+                window.__RUSH_DEFERRED_LOAD = true;
                 return runDeferredLoad();
             };
 

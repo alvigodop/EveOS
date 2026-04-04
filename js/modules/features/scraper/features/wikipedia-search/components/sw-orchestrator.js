@@ -116,11 +116,13 @@
                 }
 
                 let entryData = null;
+                let isEntryFromCache = false;
 
                 // --- 2. Entry-Level Cache ---
                 if (shouldUseCache && window.WikipediaCache) {
                     entryData = await WikipediaCache.getCachedEntry(entry.title);
                     if (entryData) {
+                        isEntryFromCache = true;
                         console.log(`SWOrchestrator: Using fresh cache for Wikipedia entry "${entry.title}"`);
                         if (showLoadingFn) {
                             showLoadingFn(true, 'results', `Checking Wikipedia entry ${searchedEntries}/${totalEntries}: ${entry.name || entry.title}`, {
@@ -141,6 +143,7 @@
                         const liveData = await WikipediaAPI.fetchLiveEntry(entry.title);
                         if (liveData) {
                             liveData.source = 'wikipedia';
+                            isEntryFromCache = false;
                             // Update Entry Cache
                             if (window.CacheManager && window.WikipediaCache) {
                                 await WikipediaCache.updateEntryCache(entry.title, liveData);
@@ -170,9 +173,15 @@
 
                 // --- 4. Process Data & Generate Results ---
                 if (entryData) {
+                    const resultFlags = {
+                        fromCache: isEntryFromCache,
+                        entryDataFromCache: isEntryFromCache
+                    };
+
                     // A. Main Entry Match
-                    const mainResult = WikipediaProcessor.createMainEntryResult(entry, entryData, normalizedQuery, options);
-                    if (mainResult) {
+                    const mainResultRaw = WikipediaProcessor.createMainEntryResult(entry, entryData, normalizedQuery, options);
+                    if (mainResultRaw) {
+                        const mainResult = { ...mainResultRaw, ...resultFlags };
                         if (!processedUrls.has(mainResult.url)) {
                             allResults.push(mainResult);
                             processedUrls.add(mainResult.url);
@@ -190,7 +199,8 @@
 
                     // B. Content Matches (Snippet Search)
                     const contentMatches = WikipediaProcessor.findContentMatches(entry, entryData, normalizedQuery, options, processedUrls);
-                    contentMatches.forEach(result => {
+                    contentMatches.forEach(resultRaw => {
+                        const result = { ...resultRaw, ...resultFlags };
                         if (!processedUrls.has(result.url)) {
                             allResults.push(result);
                             processedUrls.add(result.url);
@@ -199,7 +209,8 @@
 
                     // C. Linked Article Matches
                     const linkedMatches = WikipediaProcessor.findLinkedMatches(entry, entryData, normalizedQuery, options, processedUrls);
-                    linkedMatches.forEach(result => {
+                    linkedMatches.forEach(resultRaw => {
+                        const result = { ...resultRaw, ...resultFlags };
                         if (!processedUrls.has(result.url)) {
                             allResults.push(result);
                             processedUrls.add(result.url);

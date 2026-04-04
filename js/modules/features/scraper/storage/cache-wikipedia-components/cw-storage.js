@@ -13,11 +13,20 @@ const CWStorage = {
 
         try {
             const wikiCacheStore = window.CacheCore ? CacheCore.wikiCacheStore : null;
-            const entryData = wikiCacheStore ? wikiCacheStore[title] : null;
+            if (!wikiCacheStore) return null;
 
-            if (entryData && typeof entryData === 'object') {
-                return entryData;
+            // Check entryResults (new structure) first
+            if (wikiCacheStore.entryResults && wikiCacheStore.entryResults[title]) {
+                const entry = wikiCacheStore.entryResults[title].main || wikiCacheStore.entryResults[title];
+                if (entry && typeof entry === 'object') return entry;
             }
+
+            // Fallback to root level (legacy structure)
+            const rootEntry = wikiCacheStore[title];
+            if (rootEntry && typeof rootEntry === 'object') {
+                return rootEntry;
+            }
+
             return null;
         } catch (e) {
             console.error(`Error getting Wikipedia entry data for "${title}":`, e);
@@ -38,9 +47,18 @@ const CWStorage = {
 
         try {
             if (!CacheCore.wikiCacheStore) CacheCore.wikiCacheStore = {};
+            if (!CacheCore.wikiCacheStore.entryResults) CacheCore.wikiCacheStore.entryResults = {};
 
-            CacheCore.wikiCacheStore[title] = data;
-            CacheCore.wikiCacheStore.lastUpdate = Date.now(); // Update overall cache timestamp
+            // Store in the standard entryResults structure
+            if (!CacheCore.wikiCacheStore.entryResults[title]) {
+                CacheCore.wikiCacheStore.entryResults[title] = {};
+            }
+            
+            CacheCore.wikiCacheStore.entryResults[title].main = data;
+            CacheCore.wikiCacheStore.entryResults[title].lastUpdate = new Date().toISOString();
+            
+            // Also update overall cache timestamp
+            CacheCore.wikiCacheStore.lastUpdate = Date.now(); 
 
             CacheCore.saveWikiCacheStore();
             return true;

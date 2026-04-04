@@ -22,8 +22,10 @@ window.EveOS.API = window.EveOS.API || {};
     }
 
     function fallbackStorageKey(key, categoryName) {
-        return `api_${normalizeCategoryName(categoryName)}_${key}`;
+        return `${normalizeCategoryName(categoryName)}_${key}`;
     }
+
+    const _memoryPools = {};
 
     function withScopedContext(categoryName, callback) {
         const manager = window.StorageManager;
@@ -375,13 +377,20 @@ window.EveOS.API = window.EveOS.API || {};
     }
 
     function loadPool(categoryName) {
+        const normalized = normalizeCategoryName(categoryName);
+        if (_memoryPools[normalized]) return _memoryPools[normalized];
+
         const pool = ensurePoolShape(loadScopedValue(CACHE_KEY, { queries: {}, order: [] }, categoryName));
         prunePool(pool);
+        
+        _memoryPools[normalized] = pool;
         return pool;
     }
 
     function savePool(pool, categoryName) {
+        const normalized = normalizeCategoryName(categoryName);
         const nextPool = prunePool(ensurePoolShape(pool));
+        _memoryPools[normalized] = nextPool;
         return saveScopedValue(CACHE_KEY, nextPool, categoryName);
     }
 
@@ -438,8 +447,12 @@ window.EveOS.API = window.EveOS.API || {};
 
         const pool = loadPool(categoryName);
         const entry = pool.queries[queryKey];
-        if (!entry) return null;
+        if (!entry) {
+            console.log(`API Cache: Miss for query [${query}] in context [${categoryName}]`);
+            return null;
+        }
 
+        console.log(`API Cache: Hit for query [${query}] in context [${categoryName}]`);
         entry.lastUsedAt = Date.now();
         pool.order = [queryKey].concat(pool.order.filter(function (value) { return value !== queryKey; }));
         savePool(pool, categoryName);
@@ -470,6 +483,7 @@ window.EveOS.API = window.EveOS.API || {};
 
         pool.order = [queryKey].concat(pool.order.filter(function (value) { return value !== queryKey; }));
         savePool(pool, categoryName);
+        console.log(`API Cache: Stored query [${queryLabel}] in context [${categoryName}] (${Object.keys(sources || {}).length} sources)`);
         return pool.queries[queryKey];
     }
 

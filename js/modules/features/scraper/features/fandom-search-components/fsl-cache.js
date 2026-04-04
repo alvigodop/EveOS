@@ -143,7 +143,7 @@
                             const results = cachedData.results || [];
                             if (results.length > 0) {
                                 console.log(`FSLCache: Using fresh cache for ${domain} query "${query}" (${results.length} results)`);
-                                return results;
+                                return results.map((result) => this._cloneResult(result, { fromCache: true }));
                             } else {
                                 console.log(`FSLCache: Cache empty for ${domain} query "${query}"`);
                             }

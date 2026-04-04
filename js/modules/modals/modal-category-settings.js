@@ -37,6 +37,7 @@
         }
 
         renderScraperBootState(scraperCont);
+        window.__RUSH_DEFERRED_LOAD = true;
 
         if (typeof window.__loadDeferredScriptsNow === 'function') {
             window.__loadDeferredScriptsNow();
@@ -65,7 +66,7 @@
                 window.clearInterval(poll);
                 renderScraperBootState(scraperCont, 'Scraper modules are taking longer than expected. Keep this tab open for a moment or reload the page.');
             }
-        }, 200);
+        }, 50);
     }
 
 

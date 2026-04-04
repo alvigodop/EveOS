@@ -1526,9 +1526,11 @@ window.EveOS.API = window.EveOS.API || {};
 
         try {
             const liveSources = await collectLiveResults(normalizedQuery, providerKey);
+            const hasCacheToMerge = activeCachedEntry?.sources && countResults(activeCachedEntry.sources) > 0;
             const mergedSources = providerKey ? mergeSources(activeCachedEntry?.sources, liveSources) : liveSources;
             const visibleSources = filterSourcesByProvider(mergedSources, providerKey);
             const storedEntry = api.Cache ? api.Cache.storeQuery(normalizedQuery, mergedSources, resolvedCategory, { ttlMs: options.ttlMs }) : null;
+            
             return {
                 query: normalizedQuery,
                 categoryName: resolvedCategory,
@@ -1538,6 +1540,7 @@ window.EveOS.API = window.EveOS.API || {};
                 entry: storedEntry,
                 meta: {
                     fromCache: false,
+                    hybridMatch: hasCacheToMerge,
                     providerKey,
                     summary: api.Cache?.summarizeSources?.(visibleSources) || { totalResults: 0 }
                 }

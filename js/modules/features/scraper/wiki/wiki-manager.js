@@ -106,20 +106,42 @@ if (!Object.getOwnPropertyDescriptor(WikiManager, 'wikiCategories')) {
  * Refresh local cache store references
  */
 WikiManager.refreshCacheStores = function () {
+    // We now use reactive getters for most storage access, 
+    // but we still ensure CacheCore is initialized here.
+    if (window.CacheCore && !CacheCore._initialized) {
+        CacheCore.init();
+    }
+    
+    // For backward compatibility and immediate UI needs
     if (window.StorageManager) {
-        WikiManager.wikiCacheStore = StorageManager.loadFromCacheStore() || {};
-        WikiManager.fandomCacheStore = StorageManager.loadFromDataStore() || { searchResults: {} };
-    } else {
-        // Fallbacks
-        try {
-            WikiManager.wikiCacheStore = JSON.parse(localStorage.getItem('wikiCacheStore')) || {};
-            WikiManager.fandomCacheStore = JSON.parse(localStorage.getItem('wikiDataStore')) || { searchResults: {} };
-        } catch (e) {
-            WikiManager.wikiCacheStore = {};
-            WikiManager.fandomCacheStore = { searchResults: {} };
-        }
+        this.wikiCacheStore = StorageManager.loadFromCacheStore() || {};
+        this.fandomCacheStore = StorageManager.loadFromDataStore() || { searchResults: {} };
     }
 };
+
+// Reactive getters to ensure facade is always in sync with Core storage
+Object.defineProperties(WikiManager, {
+    'wikiCacheStore': {
+        get: function () { 
+            return window.CacheCore ? CacheCore.wikiCacheStore : (this._wikiCacheStore || {}); 
+        },
+        set: function (val) { 
+            this._wikiCacheStore = val;
+            if (window.CacheCore) CacheCore.wikiCacheStore = val;
+        },
+        configurable: true
+    },
+    'fandomCacheStore': {
+        get: function () { 
+            return window.CacheCore ? CacheCore.wikiDataStore : (this._fandomCacheStore || { searchResults: {} }); 
+        },
+        set: function (val) { 
+            this._fandomCacheStore = val;
+            if (window.CacheCore) CacheCore.wikiDataStore = val;
+        },
+        configurable: true
+    }
+});
 
 /**
  * Initialize DOM-related operations
