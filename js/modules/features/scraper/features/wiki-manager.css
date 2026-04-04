@@ -367,8 +367,10 @@
 /* Ensure actions align properly */
 .entry-actions {
     display: flex;
-    flex-direction: column;
-    gap: 5px;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
 }
 
 .entry-item {

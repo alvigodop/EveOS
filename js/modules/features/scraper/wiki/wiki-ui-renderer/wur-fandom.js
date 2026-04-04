@@ -161,7 +161,6 @@
             clearCacheBtn.className = 'action-btn remove-btn'; // Changed to remove-btn for Red styling
             clearCacheBtn.textContent = 'Clear Cache';
             clearCacheBtn.title = 'Clear Cache';
-            clearCacheBtn.style.marginLeft = '5px';
             clearCacheBtn.onclick = function (e) {
                 e.stopPropagation();
                 if (handlers.onClearCache) handlers.onClearCache(wiki.domain);

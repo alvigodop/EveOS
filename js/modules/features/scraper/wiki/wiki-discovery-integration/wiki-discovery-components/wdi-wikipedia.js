@@ -73,6 +73,12 @@
                                 }
                             });
                         }
+
+                        // Update sidebar cache status if WikiManager is available
+                        if (window.WikiManager) {
+                            if (typeof WikiManager.refreshCacheStores === 'function') WikiManager.refreshCacheStores();
+                            if (typeof WikiManager.renderWikiEntryList === 'function') WikiManager.renderWikiEntryList(true);
+                        }
                     } else {
                         // Hide loading indicator
                         if (window.WDIUI) WDIUI.updateLoadingIndicator(false);

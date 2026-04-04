@@ -354,6 +354,18 @@ window.EveOS.API = window.EveOS.API || {};
         });
     }
 
+    function notifyScraperStatusUpdate() {
+        if (window.WikiManager && typeof window.WikiManager.refreshCacheStores === 'function') {
+            window.WikiManager.refreshCacheStores();
+            if (typeof window.WikiManager.renderWikiEntryList === 'function') {
+                window.WikiManager.renderWikiEntryList(true);
+            }
+            if (typeof window.WikiManager.renderFandomDomainList === 'function') {
+                window.WikiManager.renderFandomDomainList(true);
+            }
+        }
+    }
+
     function persistLivePreference(categoryName, enabled, origin) {
         const resolvedCategory = ensureCategoryContext(categoryName);
         if (api.Cache) {
@@ -2077,6 +2089,7 @@ window.EveOS.API = window.EveOS.API || {};
         };
 
         renderUnifiedSearchResults(payload, resultsContainer, onSelect);
+        notifyScraperStatusUpdate();
 
         if (typeof options.onAfterRender === 'function') {
             options.onAfterRender(payload);
@@ -2132,6 +2145,8 @@ window.EveOS.API = window.EveOS.API || {};
 
         const renderedSources = renderProviderResultsSubset(resolved.allSources, resultsContainer, onSelect, providerKey, !!resolved.meta?.fromCache);
         updateResultsCount(countResults(renderedSources));
+        notifyScraperStatusUpdate();
+
         if (typeof options.onAfterRender === 'function') {
             options.onAfterRender({
                 fromCache: resolved.meta?.fromCache === true,
@@ -2163,11 +2178,13 @@ window.EveOS.API = window.EveOS.API || {};
         api.Cache.touchQuery(query, resolvedCategory);
         const renderedSources = renderProviderResultsSubset(cachedEntry.sources, resultsContainer, onSelect, providerKey, true);
         updateResultsCount(countResults(renderedSources));
+        notifyScraperStatusUpdate();
+
         if (typeof options.onAfterRender === 'function') {
             options.onAfterRender({ fromCache: true, entry: cachedEntry, categoryName: resolvedCategory });
         }
         return {
-            ...cachedEntry,
+            sources: cachedEntry,
             renderedSources
         };
     }

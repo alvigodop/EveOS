@@ -34,11 +34,16 @@
                 if (window.WDIUI) WDIUI.updateLoadingIndicator(false);
 
                 // Display results
-                const resultsContainer = document.getElementById('discoveryResults');
                 if (resultsContainer && typeof FandomSearch.displayResults === 'function') {
                     FandomSearch.displayResults(results, searchTerm, resultsContainer);
                 } else if (resultsContainer) {
                     resultsContainer.innerHTML = '<div class="error">FandomSearch display logic missing</div>';
+                }
+
+                // Update sidebar cache status if WikiManager is available
+                if (window.WikiManager) {
+                    if (typeof WikiManager.refreshCacheStores === 'function') WikiManager.refreshCacheStores();
+                    if (typeof WikiManager.renderFandomDomainList === 'function') WikiManager.renderFandomDomainList(true);
                 }
             } catch (error) {
                 console.error('Error searching for Fandom wikis:', error);

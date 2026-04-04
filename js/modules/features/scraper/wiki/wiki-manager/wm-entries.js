@@ -72,6 +72,11 @@ WikiManagerEntries.renderWikiEntryList = function (force) {
     // Use WikiManager facade for callbacks to ensure consistent handling
     const wm = window.WikiManager || {};
 
+    // Always reload cache stores from storage before rendering to pick up writes from orchestrators
+    if (wm.refreshCacheStores && typeof wm.refreshCacheStores === 'function') {
+        wm.refreshCacheStores();
+    }
+
     // Helper for cache store
     let cacheStore = {};
     if (wm.wikiCacheStore) {
