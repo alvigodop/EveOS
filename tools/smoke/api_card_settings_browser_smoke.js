@@ -67,6 +67,8 @@ async function main() {
                 window.StorageManager.saveData('wikiEntries', [{ title: 'Naruto', name: 'Naruto' }]);
                 window.StorageManager.saveData('fandomDomains', [{ domain: 'naruto.fandom.com', name: 'Narutopedia' }]);
                 window.StorageManager.saveData('wikiCacheStore', {
+                    // Root level key satisfies legacy CWStorage.getWikipediaEntryData
+                    Naruto: { title: 'Naruto', extract: 'Leaf village ninja.', lastUpdate: '2026-04-04T09:00:00.000Z' },
                     entryResults: {
                         Naruto: {
                             main: { title: 'Naruto', extract: 'Leaf village ninja.' },
@@ -81,7 +83,13 @@ async function main() {
                     searchResults: {
                         'naruto.fandom.com': {
                             lastUpdate: '2026-04-04T09:05:00.000Z',
-                            ninja: { title: 'Ninja', snippet: 'Shinobi article.', url: 'https://naruto.fandom.com/wiki/Ninja', domain: 'naruto.fandom.com' }
+                            ninja: { 
+                                title: 'Ninja', 
+                                snippet: 'Shinobi article.', 
+                                url: 'https://naruto.fandom.com/wiki/Ninja', 
+                                domain: 'naruto.fandom.com',
+                                wiki_name: 'Narutopedia'
+                            }
                         }
                     }
                 });
@@ -337,6 +345,11 @@ async function main() {
             await new Promise((resolve) => setTimeout(resolve, 300));
             const providerCallsAfterCacheOnlyHit = window.__apiSmokeProviderCalls;
 
+            window.__knowledgeLiveCalls = {
+                wikipediaEntry: 0,
+                fandomDomainSearch: 0,
+                fandomPageDetails: 0
+            };
             searchInput.value = 'ninja';
             searchButton.click();
             await new Promise((resolve, reject) => {
