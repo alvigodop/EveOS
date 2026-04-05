@@ -80,33 +80,29 @@ SearchCoordinatorFlow.performContentSearch = async function (query, source, opti
     if (isUnidexSource) {
         try {
             const unidexPanelContainer = document.getElementById('unidex-scraper-panel-container');
-            if (!window.EveOS?.API?.Manager?.renderUnidexPanelUI || !unidexPanelContainer || !resultsContainer) {
-                throw new Error('Unidex panel is not available.');
+            if (!window.EveOS?.API?.Manager?.runUnifiedSearch || !resultsContainer) {
+                throw new Error('Search Unidex is not available.');
             }
 
-            window.EveOS.API.Manager.renderUnidexPanelUI(unidexPanelContainer, window.currentCategoryCtx || window.StorageManager?.categoryContext || '', {
-                filterQuery: query
+            // Also refresh the Unidex panel UI if it's visible to show matching source cards
+            if (unidexPanelContainer && window.EveOS?.API?.Manager?.renderUnidexPanelUI) {
+                window.EveOS.API.Manager.renderUnidexPanelUI(unidexPanelContainer, window.currentCategoryCtx || window.StorageManager?.categoryContext || '', {
+                    filterQuery: query
+                });
+            }
+
+            const unifiedResult = await window.EveOS.API.Manager.runUnifiedSearch(query, resultsContainer, null, {
+                categoryName: window.currentCategoryCtx || window.StorageManager?.categoryContext || '',
+                liveResults: searchOptions.liveSearch === true,
+                hybridResults: searchOptions.hybridSearch !== false
             });
-
-            const groupCount = unidexPanelContainer.querySelectorAll('.unidex-source-card').length;
-            const resultCount = document.getElementById('resultCount');
-            if (resultCount) {
-                resultCount.textContent = String(groupCount);
-            }
 
             if (!isActiveResultsRequest(resultsContainer, requestId)) {
                 return;
             }
-            resultsContainer.innerHTML = `
-                <div class="info-message">
-                    <h3>${groupCount} unified source${groupCount === 1 ? '' : 's'} matched</h3>
-                    <p>Unidex filters the card-scoped source graph in the Knowledge Sources panel.</p>
-                    <p>Use the lane actions to jump into Wikipedia, Fandom, or a specific API provider cache.</p>
-                </div>
-            `;
 
             if (window.SearchManager) {
-                SearchManager._lastSearchResults = { unidex: groupCount };
+                SearchManager._lastSearchResults = unifiedResult;
             }
         } catch (error) {
             console.error('SearchCoordinatorFlow: Error during Unidex search', error);
