@@ -79,7 +79,9 @@ WikiManagerFandom.renderFandomDomainList = function (force) {
 
     // Helper for cache store
     let cacheStore = { searchResults: {} };
-    if (wm.fandomCacheStore) {
+    if (window.CacheCore && window.CacheCore.wikiDataStore) {
+        cacheStore = window.CacheCore.wikiDataStore;
+    } else if (wm.fandomCacheStore) {
         cacheStore = wm.fandomCacheStore;
     } else if (window.StorageManager) {
         cacheStore = StorageManager.loadFromDataStore() || { searchResults: {} };
