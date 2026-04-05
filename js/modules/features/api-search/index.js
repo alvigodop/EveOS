@@ -384,6 +384,10 @@ window.EveOS.API = window.EveOS.API || {};
                 query: searchInput ? searchInput.value : ''
             });
         }
+
+        if (typeof window.EveOS?.API?.Manager?.refreshSearchUnidexPool === 'function') {
+            window.EveOS.API.Manager.refreshSearchUnidexPool();
+        }
     }
 
     function persistLivePreference(categoryName, enabled, origin) {
@@ -579,8 +583,19 @@ window.EveOS.API = window.EveOS.API || {};
 
     function loadKnowledgeCacheEntries(categoryName, options = {}) {
         const { wikiEntries, fandomDomains } = loadSavedKnowledgeSources(categoryName);
-        const wikiCacheStore = getScopedStorageValue('wikiCacheStore', {}, categoryName) || {};
-        const wikiDataStore = getScopedStorageValue('wikiDataStore', { searchResults: {} }, categoryName) || {};
+        
+        let wikiCacheStore, wikiDataStore;
+        const resolvedCategory = ensureCategoryContext(categoryName);
+        const currentContext = ensureCategoryContext(window.currentCategoryCtx || window.StorageManager?.categoryContext || '');
+        
+        if (resolvedCategory === currentContext && window.CacheCore) {
+            wikiCacheStore = window.CacheCore.wikiCacheStore || {};
+            wikiDataStore = window.CacheCore.wikiDataStore || { searchResults: {} };
+        } else {
+            wikiCacheStore = getScopedStorageValue('wikiCacheStore', {}, categoryName) || {};
+            wikiDataStore = getScopedStorageValue('wikiDataStore', { searchResults: {} }, categoryName) || {};
+        }
+        
         const fandomResults = wikiDataStore.searchResults && typeof wikiDataStore.searchResults === 'object'
             ? wikiDataStore.searchResults
             : {};
@@ -655,12 +670,20 @@ window.EveOS.API = window.EveOS.API || {};
 
     function clearKnowledgeCaches(categoryName) {
         const resolvedCategory = ensureCategoryContext(categoryName);
+        const currentContext = ensureCategoryContext(window.currentCategoryCtx || window.StorageManager?.categoryContext || '');
         const storedWikiEntries = getScopedStorageValue('wikiEntries', [], resolvedCategory);
         const storedFandomDomains = getScopedStorageValue('fandomDomains', [], resolvedCategory);
         const wikiEntries = Array.isArray(storedWikiEntries) ? storedWikiEntries : [];
         const fandomDomains = Array.isArray(storedFandomDomains) ? storedFandomDomains : [];
-        const wikiCacheStore = getScopedStorageValue('wikiCacheStore', {}, resolvedCategory) || {};
-        const wikiDataStore = getScopedStorageValue('wikiDataStore', { searchResults: {} }, resolvedCategory) || { searchResults: {} };
+        
+        let wikiCacheStore, wikiDataStore;
+        if (resolvedCategory === currentContext && window.CacheCore) {
+            wikiCacheStore = window.CacheCore.wikiCacheStore || {};
+            wikiDataStore = window.CacheCore.wikiDataStore || { searchResults: {} };
+        } else {
+            wikiCacheStore = getScopedStorageValue('wikiCacheStore', {}, resolvedCategory) || {};
+            wikiDataStore = getScopedStorageValue('wikiDataStore', { searchResults: {} }, resolvedCategory) || { searchResults: {} };
+        }
 
         wikiEntries.forEach(function (entry) {
             const title = String(entry?.title || entry?.name || '').trim();
@@ -685,6 +708,13 @@ window.EveOS.API = window.EveOS.API || {};
 
         saveScopedStorageValue('wikiCacheStore', wikiCacheStore, resolvedCategory);
         saveScopedStorageValue('wikiDataStore', wikiDataStore, resolvedCategory);
+
+        if (resolvedCategory === currentContext && window.CacheCore) {
+            window.CacheCore.wikiCacheStore = wikiCacheStore;
+            window.CacheCore.wikiDataStore = wikiDataStore;
+            if (typeof window.CacheCore.saveWikiCacheStore === 'function') window.CacheCore.saveWikiCacheStore();
+            if (typeof window.CacheCore.saveWikiDataStore === 'function') window.CacheCore.saveWikiDataStore();
+        }
 
         if (window.CacheCore && typeof window.CacheCore.clearInternalApiCache === 'function') {
             window.CacheCore.clearInternalApiCache('wiki_');
@@ -1954,15 +1984,15 @@ window.EveOS.API = window.EveOS.API || {};
                     : `No ${escapeHtml(header.toLowerCase())} are linked to this card yet.`}</div>`;
 
         return `
-            <section class="api-cache-section unidex-search-section" data-unidex-section="${escapeHtml(scope)}">
-                <div class="api-cache-section-header">
+            <details class="api-cache-section unidex-search-section" data-unidex-section="${escapeHtml(scope)}" open>
+                <summary class="api-cache-section-header">
                     <span>${escapeHtml(header)}</span>
                     <span class="api-cache-section-count">${escapeHtml(countLabel)}</span>
-                </div>
+                </summary>
                 <div class="api-cache-section-list unidex-search-section-list">
                     ${body}
                 </div>
-            </section>
+            </details>
         `;
     }
 
@@ -2021,15 +2051,15 @@ window.EveOS.API = window.EveOS.API || {};
                 </div>
                 ${buildKnowledgeResultsSection('wikipedia', payload?.wikipedia, payload?.categoryName)}
                 ${buildKnowledgeResultsSection('fandom', payload?.fandom, payload?.categoryName)}
-                <section class="api-cache-section unidex-search-section" data-unidex-section="api">
-                    <div class="api-cache-section-header">
+                <details class="api-cache-section unidex-search-section" data-unidex-section="api" open>
+                    <summary class="api-cache-section-header">
                         <span>API Providers</span>
                         <span class="api-cache-section-count">${Number(payload?.api?.meta?.summary?.totalResults || 0)} results</span>
-                    </div>
+                    </summary>
                     <div class="api-cache-section-list">
                         <div class="api-unidex-provider-sections"></div>
                     </div>
-                </section>
+                </details>
             </div>
         `;
 
@@ -2056,13 +2086,13 @@ window.EveOS.API = window.EveOS.API || {};
                 apiSectionsHost.innerHTML = providerSections.map(function ([providerKey, label]) {
                     const providerCount = Number(apiSummary?.perSource?.[providerKey] || 0);
                     return `
-                        <section class="api-cache-section api-unidex-provider-section" data-unidex-api-provider="${escapeHtml(providerKey)}">
-                            <div class="api-cache-section-header">
+                        <details class="api-cache-section api-unidex-provider-section" data-unidex-api-provider="${escapeHtml(providerKey)}" open>
+                            <summary class="api-cache-section-header">
                                 <span>${escapeHtml(label)}</span>
                                 <span class="api-cache-section-count">${providerCount} results</span>
-                            </div>
+                            </summary>
                             <div class="api-unidex-provider-results" data-unidex-api-provider-results="${escapeHtml(providerKey)}"></div>
-                        </section>
+                        </details>
                     `;
                 }).join('');
 
@@ -2285,6 +2315,9 @@ window.EveOS.API = window.EveOS.API || {};
                 onRefresh: refreshPool
             });
         }
+
+        if (!api.Manager) api.Manager = {};
+        api.Manager.refreshSearchUnidexPool = refreshPool;
 
         function executeSearch(forceLive) {
             const nextQuery = String(input.value || '').trim();

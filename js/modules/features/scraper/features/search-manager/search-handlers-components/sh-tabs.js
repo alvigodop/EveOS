@@ -51,13 +51,15 @@
 
             const isFandom = (activeTabId === 'fandomTab' || activeTabId === 'fandom' || activeTabId === 'tab-fandom');
             const isWikipedia = (activeTabId === 'wikipediaTab' || activeTabId === 'wikipedia' || activeTabId === 'tab-wikipedia');
+            const isUnidex = (activeTabId === 'unidexTab' || activeTabId === 'unidex' || activeTabId === 'tab-unidex');
             const isApiProvider = typeof isProviderSource === 'function' && isProviderSource(activeTabId);
             const isApi = isApiProvider || (activeTabId === 'apiTab' || activeTabId === 'api' || activeTabId === 'tab-api');
 
             let source = 'all';
-            if (isFandom) source = 'fandom';
-            if (isWikipedia) source = 'wikipedia';
-            if (isApiProvider) source = activeTabId;
+            if (isUnidex) source = 'unidex';
+            else if (isFandom) source = 'fandom';
+            else if (isWikipedia) source = 'wikipedia';
+            else if (isApiProvider) source = activeTabId;
             else if (isApi) source = 'api';
 
             console.log(`SHTabs: Handling main search for query "${query}". Detected Active Tab: ${activeTabId}, Source: ${source}`);
