@@ -470,11 +470,17 @@ window.EveOS.API = window.EveOS.API || {};
         const pool = loadPool(categoryName);
         const previous = pool.queries[queryKey] || {};
 
+        // Merge sources to prevent overwriting results from different providers
+        const mergedSources = {
+            ...(previous.sources || {}),
+            ...(sources || {})
+        };
+
         pool.queries[queryKey] = {
             key: queryKey,
             query: queryLabel,
-            sources: sources || {},
-            summary: summarizeSources(sources || {}),
+            sources: mergedSources,
+            summary: summarizeSources(mergedSources),
             createdAt: previous.createdAt || now,
             updatedAt: now,
             lastUsedAt: now,
@@ -483,7 +489,7 @@ window.EveOS.API = window.EveOS.API || {};
 
         pool.order = [queryKey].concat(pool.order.filter(function (value) { return value !== queryKey; }));
         savePool(pool, categoryName);
-        console.log(`API Cache: Stored query [${queryLabel}] in context [${categoryName}] (${Object.keys(sources || {}).length} sources)`);
+        console.log(`API Cache: Stored query [${queryLabel}] in context [${categoryName}] (${Object.keys(mergedSources).length} sources)`);
         return pool.queries[queryKey];
     }
 

@@ -204,7 +204,7 @@ window.EveOS.API = window.EveOS.API || {};
         }
     }
 
-    async function collectLiveResults(query, providerKey = null) {
+    async function collectLiveResults(query, providerKey = null, skipSources = null) {
         const Core = api.Core;
         const MangaDex = api.MangaDex;
         const Jikan = api.Jikan;
@@ -228,6 +228,14 @@ window.EveOS.API = window.EveOS.API || {};
         }
 
         const pairs = await Promise.all(PROVIDER_KEYS.map(async function (key) {
+            // Optimization: skip live fetch if we already have a valid cache hit for this specific provider in hybrid mode
+            if (skipSources && skipSources[key]) {
+                const list = getProviderList(skipSources, key);
+                if (list.length > 0) {
+                    console.log(`API Search: Skipping live fetch for [${key}] - using valid cache hit`);
+                    return [key, skipSources[key]];
+                }
+            }
             return [key, await fetchProviderResults(query, key)];
         }));
 
@@ -1590,9 +1598,14 @@ window.EveOS.API = window.EveOS.API || {};
         }
 
         try {
-            const liveSources = await collectLiveResults(normalizedQuery, providerKey);
+            // Optimization: if hybrid is enabled, tell collectLiveResults to skip providers already in cache
+            const skipSources = (!shouldUseLive && shouldUseHybrid) ? activeCachedEntry?.sources : null;
+            const liveSources = await collectLiveResults(normalizedQuery, providerKey, skipSources);
+            
             const hasCacheToMerge = activeCachedEntry?.sources && countResults(activeCachedEntry.sources) > 0;
-            const mergedSources = providerKey ? mergeSources(activeCachedEntry?.sources, liveSources) : liveSources;
+            // Always merge to preserve other providers in Unidex mode
+            const mergedSources = mergeSources(activeCachedEntry?.sources, liveSources);
+            
             const visibleSources = filterSourcesByProvider(mergedSources, providerKey);
             const storedEntry = api.Cache ? api.Cache.storeQuery(normalizedQuery, mergedSources, resolvedCategory, { ttlMs: options.ttlMs }) : null;
             
