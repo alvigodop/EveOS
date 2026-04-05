@@ -859,10 +859,10 @@ window.EveOS.API = window.EveOS.API || {};
             });
     }
 
-    function findSourceCacheGroup(categoryName, candidates, options = {}) {
+    async function findSourceCacheGroup(categoryName, candidates, options = {}) {
         const aliases = uniqueIdentities(candidates);
         if (!aliases.length) return null;
-        const groups = buildSourceCacheGroups(categoryName, options);
+        const groups = await buildSourceCacheGroups(categoryName, options);
         return groups.find(function (group) {
             return aliases.some(function (alias) {
                 return group.aliases && group.aliases.has(alias);
@@ -957,8 +957,8 @@ window.EveOS.API = window.EveOS.API || {};
         `;
     }
 
-    function buildUnifiedCacheListMarkup(categoryName) {
-        const groups = buildSourceCacheGroups(categoryName, { includeUncachedKnowledge: false });
+    async function buildUnifiedCacheListMarkup(categoryName) {
+        const groups = await buildSourceCacheGroups(categoryName, { includeUncachedKnowledge: false });
         if (!groups.length) {
             return '<div style="opacity:0.68; font-size:0.83rem;">No cached API, Wikipedia, or Fandom data for this card yet.</div>';
         }
@@ -1148,8 +1148,8 @@ window.EveOS.API = window.EveOS.API || {};
         `;
     }
 
-    function buildUnidexManagementMarkup(categoryName, filterQuery = '') {
-        const groups = buildSourceCacheGroups(categoryName, { includeUncachedKnowledge: true }).filter(function (group) {
+    async function buildUnidexManagementMarkup(categoryName, filterQuery = '') {
+        const groups = (await buildSourceCacheGroups(categoryName, { includeUncachedKnowledge: true })).filter(function (group) {
             return matchesGroupFilter(group, filterQuery);
         });
         if (!groups.length) {
@@ -1161,11 +1161,11 @@ window.EveOS.API = window.EveOS.API || {};
         return groups.map(buildUnidexGroupMarkup).join('');
     }
 
-    function wireCacheList(container, categoryName, resultsContainer, queryInput, options = {}) {
+    async function wireCacheList(container, categoryName, resultsContainer, queryInput, options = {}) {
         if (!container) return;
 
         const resolvedCategory = ensureCategoryContext(categoryName);
-        const cacheEntries = api.Cache ? api.Cache.listQueries(resolvedCategory) : [];
+        const cacheEntries = api.Cache ? await api.Cache.listQueries(resolvedCategory) : [];
         container.innerHTML = buildCacheListMarkup(cacheEntries, 'No API queries cached for this card yet.', options.providerKey);
         const interactionDelayMs = Number(options.interactionDelayMs) > 0 ? Number(options.interactionDelayMs) : 0;
 
@@ -1219,18 +1219,18 @@ window.EveOS.API = window.EveOS.API || {};
         });
     }
 
-    function wireUnifiedCacheList(container, categoryName, resultsContainer, queryInput, options = {}) {
+    async function wireUnifiedCacheList(container, categoryName, resultsContainer, queryInput, options = {}) {
         if (!container) return;
 
         const resolvedCategory = ensureCategoryContext(categoryName);
-        container.innerHTML = buildUnifiedCacheListMarkup(resolvedCategory);
+        container.innerHTML = await buildUnifiedCacheListMarkup(resolvedCategory);
 
         function refreshPool() {
             wireUnifiedCacheList(container, resolvedCategory, resultsContainer, queryInput, options);
         }
 
-        function getGroup(groupKey) {
-            return buildSourceCacheGroups(resolvedCategory).find(function (group) {
+        async function getGroup(groupKey) {
+            return (await buildSourceCacheGroups(resolvedCategory)).find(function (group) {
                 return String(group.id || '') === String(groupKey || '');
             }) || null;
         }
@@ -1255,8 +1255,8 @@ window.EveOS.API = window.EveOS.API || {};
         }
 
         container.querySelectorAll('.api-cache-open-group-btn').forEach(function (button) {
-            button.addEventListener('click', function () {
-                const group = getGroup(button.dataset.groupKey);
+            button.addEventListener('click', async function () {
+                const group = await getGroup(button.dataset.groupKey);
                 if (!group) return;
                 focusUnifiedGroup(group);
             });
@@ -1264,7 +1264,7 @@ window.EveOS.API = window.EveOS.API || {};
 
         container.querySelectorAll('.api-cache-view-group-btn').forEach(function (button) {
             button.addEventListener('click', async function () {
-                const group = getGroup(button.dataset.groupKey);
+                const group = await getGroup(button.dataset.groupKey);
                 if (!group) return;
                 ensureCategoryContext(resolvedCategory);
                 if (group.wikipediaEntry && window.CacheManager && typeof window.CacheManager.viewWikiCachedData === 'function') {
@@ -1288,7 +1288,7 @@ window.EveOS.API = window.EveOS.API || {};
 
         container.querySelectorAll('.api-cache-refresh-group-btn').forEach(function (button) {
             button.addEventListener('click', async function () {
-                const group = getGroup(button.dataset.groupKey);
+                const group = await getGroup(button.dataset.groupKey);
                 if (!group) return;
                 ensureCategoryContext(resolvedCategory);
                 if (group.wikipediaEntry && window.WikiManager && typeof window.WikiManager.reloadWikiEntryStatus === 'function') {
@@ -1312,7 +1312,7 @@ window.EveOS.API = window.EveOS.API || {};
 
         container.querySelectorAll('.api-cache-clear-group-btn').forEach(function (button) {
             button.addEventListener('click', async function () {
-                const group = getGroup(button.dataset.groupKey);
+                const group = await getGroup(button.dataset.groupKey);
                 if (!group) return;
                 ensureCategoryContext(resolvedCategory);
                 if (group.wikipediaEntry && window.CacheManager && typeof window.CacheManager.clearWikiCache === 'function') {
@@ -1339,7 +1339,7 @@ window.EveOS.API = window.EveOS.API || {};
         return base ? `${base}.fandom.com` : '';
     }
 
-    function renderUnidexPanelUI(container, categoryName, options = {}) {
+    async function renderUnidexPanelUI(container, categoryName, options = {}) {
         if (!container) return;
 
         const resolvedCategory = ensureCategoryContext(categoryName);
@@ -1355,7 +1355,7 @@ window.EveOS.API = window.EveOS.API || {};
                     <div class="api-scraper-focus-pill">Knowledge Base</div>
                 </div>
                 <div class="api-cache-pool-list unidex-source-list">
-                    ${buildUnidexManagementMarkup(resolvedCategory, filterQuery)}
+                    ${await buildUnidexManagementMarkup(resolvedCategory, filterQuery)}
                 </div>
             </div>
         `;
@@ -1367,8 +1367,8 @@ window.EveOS.API = window.EveOS.API || {};
             renderUnidexPanelUI(container, resolvedCategory, { filterQuery });
         }
 
-        function getGroup(groupKey) {
-            return buildSourceCacheGroups(resolvedCategory, { includeUncachedKnowledge: true }).find(function (group) {
+        async function getGroup(groupKey) {
+            return (await buildSourceCacheGroups(resolvedCategory, { includeUncachedKnowledge: true })).find(function (group) {
                 return String(group.id || '') === String(groupKey || '');
             }) || null;
         }
@@ -1384,7 +1384,7 @@ window.EveOS.API = window.EveOS.API || {};
         }
 
         container.querySelectorAll('.api-cache-open-source-btn').forEach(function (button) {
-            button.addEventListener('click', function () {
+            button.addEventListener('click', async function () {
                 const scope = String(button.dataset.sourceScope || '').trim();
                 const key = String(button.dataset.sourceKey || '').trim();
                 if (!scope || !key) return;
@@ -1464,7 +1464,7 @@ window.EveOS.API = window.EveOS.API || {};
 
         container.querySelectorAll('.api-cache-refresh-group-btn').forEach(function (button) {
             button.addEventListener('click', async function () {
-                const group = getGroup(button.dataset.groupKey);
+                const group = await getGroup(button.dataset.groupKey);
                 if (!group) return;
                 if (group.wikipediaEntry && window.WikiManager && typeof window.WikiManager.reloadWikiEntryStatus === 'function') {
                     await window.WikiManager.reloadWikiEntryStatus(group.wikipediaEntry.key);
@@ -1487,7 +1487,7 @@ window.EveOS.API = window.EveOS.API || {};
 
         container.querySelectorAll('.api-cache-clear-group-btn').forEach(function (button) {
             button.addEventListener('click', async function () {
-                const group = getGroup(button.dataset.groupKey);
+                const group = await getGroup(button.dataset.groupKey);
                 if (!group) return;
                 if (group.wikipediaEntry && window.CacheManager && typeof window.CacheManager.clearWikiCache === 'function') {
                     window.CacheManager.clearWikiCache(group.wikipediaEntry.key);
@@ -1524,8 +1524,8 @@ window.EveOS.API = window.EveOS.API || {};
         });
     }
 
-    function getLatestCachedQuery(categoryName, providerKey = null) {
-        const cacheEntries = api.Cache ? api.Cache.listQueries(categoryName) : [];
+    async function getLatestCachedQuery(categoryName, providerKey = null) {
+        const cacheEntries = api.Cache ? await api.Cache.listQueries(categoryName) : [];
         if (!providerKey || !isProviderSource(providerKey)) {
             return cacheEntries[0] || null;
         }
@@ -2500,8 +2500,8 @@ window.EveOS.API = window.EveOS.API || {};
         });
 
         if (refreshLastButton) {
-            refreshLastButton.addEventListener('click', function () {
-                const fallbackEntry = getLatestCachedQuery(resolvedCategory, null);
+            refreshLastButton.addEventListener('click', async function () {
+                const fallbackEntry = await getLatestCachedQuery(resolvedCategory, null);
                 if (!String(input.value || '').trim() && fallbackEntry?.query) {
                     input.value = fallbackEntry.query;
                 }
@@ -2666,9 +2666,9 @@ window.EveOS.API = window.EveOS.API || {};
         });
 
         if (refreshButton) {
-            refreshButton.addEventListener('click', function () {
+            refreshButton.addEventListener('click', async function () {
                 beforeLoad();
-                const latestEntry = getLatestCachedQuery(resolvedCategory, providerKey);
+                const latestEntry = await getLatestCachedQuery(resolvedCategory, providerKey);
                 const nextQuery = String(queryInput?.value || '').trim() || latestEntry?.query || '';
                 if (!nextQuery || !resultsContainer) return;
                 if (queryInput) queryInput.value = nextQuery;
