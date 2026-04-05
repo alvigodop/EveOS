@@ -204,6 +204,39 @@ window.EveOS.API = window.EveOS.API || {};
         }
     }
 
+    function getProviderList(sources, providerKey) {
+        const val = sources?.[providerKey];
+        if (!val) return [];
+        
+        switch (providerKey) {
+            case 'mangadex':
+                return Array.isArray(val.data) ? val.data : [];
+            case 'jikanManga':
+            case 'jikanAnime':
+                return Array.isArray(val.data) ? val.data : [];
+            case 'anilistManga':
+            case 'anilistAnime':
+                return Array.isArray(val.data?.Page?.media) ? val.data.Page.media : [];
+            case 'mangaupdates':
+                return Array.isArray(val.results) ? val.results : [];
+            case 'kitsuAnime':
+            case 'kitsuManga':
+                return Array.isArray(val.data) ? val.data : [];
+            case 'tvmaze':
+                return Array.isArray(val) ? val : [];
+            case 'itunes':
+                return Array.isArray(val.results) ? val.results : [];
+            case 'wlnupdates':
+                return Array.isArray(val.data) ? val.data : [];
+            case 'openlibrary':
+                return Array.isArray(val.docs) ? val.docs : [];
+            case 'comick':
+                return Array.isArray(val) ? val : [];
+            default:
+                return [];
+        }
+    }
+
     async function collectLiveResults(query, providerKey = null, skipSources = null) {
         const Core = api.Core;
         const MangaDex = api.MangaDex;
@@ -754,7 +787,7 @@ window.EveOS.API = window.EveOS.API || {};
         const resolvedCategory = ensureCategoryContext(categoryName);
         const apiEntries = api.Cache ? api.Cache.listQueries(resolvedCategory) : [];
         const knowledgeEntries = loadKnowledgeCacheEntries(resolvedCategory, {
-            includeUncached: options.includeUncachedKnowledge === true
+            includeUncachedKnowledge: options.includeUncachedKnowledge === true
         });
         const aliasMap = new Map();
         const groups = [];
@@ -1177,10 +1210,10 @@ window.EveOS.API = window.EveOS.API || {};
         });
 
         container.querySelectorAll('.api-cache-delete-btn').forEach(function (button) {
-            button.addEventListener('click', function () {
+            button.addEventListener('click', async function () {
                 const query = String(button.dataset.query || '').trim();
                 if (!query || !api.Cache) return;
-                api.Cache.deleteQuery(query, resolvedCategory);
+                await api.Cache.deleteQuery(query, resolvedCategory);
                 wireCacheList(container, resolvedCategory, resultsContainer, queryInput, options);
             });
         });
@@ -1230,7 +1263,7 @@ window.EveOS.API = window.EveOS.API || {};
         });
 
         container.querySelectorAll('.api-cache-view-group-btn').forEach(function (button) {
-            button.addEventListener('click', function () {
+            button.addEventListener('click', async function () {
                 const group = getGroup(button.dataset.groupKey);
                 if (!group) return;
                 ensureCategoryContext(resolvedCategory);
@@ -1245,7 +1278,7 @@ window.EveOS.API = window.EveOS.API || {};
                 const latestApi = group.apiEntries[0];
                 if (latestApi) {
                     if (queryInput) queryInput.value = latestApi.query;
-                    loadCachedQuery(latestApi.query, resultsContainer, null, {
+                    await loadCachedQuery(latestApi.query, resultsContainer, null, {
                         categoryName: resolvedCategory,
                         onAfterRender: refreshPool
                     });
@@ -1278,7 +1311,7 @@ window.EveOS.API = window.EveOS.API || {};
         });
 
         container.querySelectorAll('.api-cache-clear-group-btn').forEach(function (button) {
-            button.addEventListener('click', function () {
+            button.addEventListener('click', async function () {
                 const group = getGroup(button.dataset.groupKey);
                 if (!group) return;
                 ensureCategoryContext(resolvedCategory);
@@ -1289,9 +1322,9 @@ window.EveOS.API = window.EveOS.API || {};
                     window.CacheManager.clearFandomCache(group.fandomEntry.key);
                 }
                 if (group.apiEntries.length && api.Cache) {
-                    group.apiEntries.forEach(function (entry) {
-                        api.Cache.deleteQuery(entry.query, resolvedCategory);
-                    });
+                    for (const entry of group.apiEntries) {
+                        await api.Cache.deleteQuery(entry.query, resolvedCategory);
+                    }
                 }
                 refreshPool();
             });
@@ -1401,18 +1434,18 @@ window.EveOS.API = window.EveOS.API || {};
         });
 
         container.querySelectorAll('.api-cache-load-btn').forEach(function (button) {
-            button.addEventListener('click', function () {
+            button.addEventListener('click', async function () {
                 const query = String(button.dataset.query || '').trim();
                 if (!query) return;
                 if (queryInput) queryInput.value = query;
-                loadCachedQuery(query, resultsContainer, null, {
+                await loadCachedQuery(query, resultsContainer, null, {
                     categoryName: resolvedCategory
                 });
             });
         });
 
         container.querySelectorAll('.api-cache-open-provider-btn').forEach(function (button) {
-            button.addEventListener('click', function () {
+            button.addEventListener('click', async function () {
                 const providerKey = String(button.dataset.providerKey || '').trim();
                 const query = String(button.dataset.query || '').trim();
                 if (!providerKey || !query) return;
@@ -1421,7 +1454,7 @@ window.EveOS.API = window.EveOS.API || {};
                     window.updateSource(providerKey);
                 }
                 if (resultsContainer) {
-                    loadCachedQuery(query, resultsContainer, null, {
+                    await loadCachedQuery(query, resultsContainer, null, {
                         categoryName: resolvedCategory,
                         providerKey
                     });
@@ -1453,7 +1486,7 @@ window.EveOS.API = window.EveOS.API || {};
         });
 
         container.querySelectorAll('.api-cache-clear-group-btn').forEach(function (button) {
-            button.addEventListener('click', function () {
+            button.addEventListener('click', async function () {
                 const group = getGroup(button.dataset.groupKey);
                 if (!group) return;
                 if (group.wikipediaEntry && window.CacheManager && typeof window.CacheManager.clearWikiCache === 'function') {
@@ -1463,9 +1496,9 @@ window.EveOS.API = window.EveOS.API || {};
                     window.CacheManager.clearFandomCache(group.fandomEntry.key);
                 }
                 if (group.apiEntries.length && api.Cache) {
-                    group.apiEntries.forEach(function (entry) {
-                        api.Cache.deleteQuery(entry.query, resolvedCategory);
-                    });
+                    for (const entry of group.apiEntries) {
+                        await api.Cache.deleteQuery(entry.query, resolvedCategory);
+                    }
                 }
                 refreshPanel();
             });
@@ -1548,7 +1581,7 @@ window.EveOS.API = window.EveOS.API || {};
         }
     }
 
-    async function resolveApiSearchData(query, options = {}) {
+    async function resolveApiSearchData(query, options = {}, loadingCallback = null) {
         if (!query) return null;
 
         const resolvedCategory = ensureCategoryContext(options.categoryName);
@@ -1556,6 +1589,11 @@ window.EveOS.API = window.EveOS.API || {};
         const shouldUseLive = resolveLivePreference(resolvedCategory, options.liveResults);
         const shouldUseHybrid = resolveHybridPreference(resolvedCategory, options.hybridResults);
         const normalizedQuery = String(query).trim();
+
+        if (typeof loadingCallback === 'function') {
+            loadingCallback(true, 'api', `Checking cache for "${normalizedQuery}"...`, { statusPhase: 'cache' });
+        }
+
         const exactCachedEntry = api.Cache ? await api.Cache.getQuery(normalizedQuery, resolvedCategory) : null;
         const exactCachedVisibleSources = filterSourcesByProvider(exactCachedEntry?.sources || {}, providerKey);
         const exactCachedVisibleCount = countResults(exactCachedVisibleSources);
@@ -1568,6 +1606,14 @@ window.EveOS.API = window.EveOS.API || {};
 
         if (!shouldUseLive && activeCachedEntry?.sources && cachedVisibleCount > 0) {
             if (api.Cache && exactCachedVisibleCount > 0) await api.Cache.touchQuery(normalizedQuery, resolvedCategory);
+            
+            if (typeof loadingCallback === 'function') {
+                loadingCallback(true, 'api', `Found cached results for "${normalizedQuery}"`, { 
+                    statusPhase: 'results',
+                    resultsFound: cachedVisibleCount
+                });
+            }
+
             return {
                 query: normalizedQuery,
                 categoryName: resolvedCategory,
@@ -1604,6 +1650,12 @@ window.EveOS.API = window.EveOS.API || {};
         try {
             // Optimization: if hybrid is enabled, tell collectLiveResults to skip providers already in cache
             const skipSources = (!shouldUseLive && shouldUseHybrid) ? activeCachedEntry?.sources : null;
+            
+            if (typeof loadingCallback === 'function') {
+                const label = providerKey ? getProviderLabel(providerKey) : 'API providers';
+                loadingCallback(true, 'api', `Fetching live results from ${label}...`, { statusPhase: 'live' });
+            }
+
             const liveSources = await collectLiveResults(normalizedQuery, providerKey, skipSources);
             
             const hasCacheToMerge = activeCachedEntry?.sources && countResults(activeCachedEntry.sources) > 0;
@@ -1611,6 +1663,15 @@ window.EveOS.API = window.EveOS.API || {};
             const mergedSources = mergeSources(activeCachedEntry?.sources, liveSources);
             
             const visibleSources = filterSourcesByProvider(mergedSources, providerKey);
+            const totalVisible = countResults(visibleSources);
+
+            if (typeof loadingCallback === 'function') {
+                loadingCallback(true, 'api', `API search complete: ${totalVisible} results`, { 
+                    statusPhase: 'results',
+                    resultsFound: totalVisible
+                });
+            }
+
             const storedEntry = api.Cache ? await api.Cache.storeQuery(normalizedQuery, mergedSources, resolvedCategory, { ttlMs: options.ttlMs }) : null;
             
             return {
@@ -1699,7 +1760,7 @@ window.EveOS.API = window.EveOS.API || {};
         });
     }
 
-    async function resolveKnowledgeSearchData(scope, query, options = {}) {
+    async function resolveKnowledgeSearchData(scope, query, options = {}, loadingCallback = null) {
         const normalizedScope = String(scope || '').trim().toLowerCase();
         const resolvedCategory = ensureCategoryContext(options.categoryName);
         const normalizedQuery = String(query || '').trim();
@@ -1727,6 +1788,14 @@ window.EveOS.API = window.EveOS.API || {};
                         sourceCount: 0,
                         meta: { summary: { totalResults: 0 } }
                     };
+                }
+
+                if (typeof loadingCallback === 'function') {
+                    loadingCallback(true, 'wikipedia', `Searching Wikipedia: ${entries.length} sources...`, { 
+                        statusPhase: 'search',
+                        totalWikis: entries.length,
+                        wikisSearched: 0
+                    });
                 }
 
                 // Cache-only fast path: search local entry store without orchestrator
@@ -1761,7 +1830,7 @@ window.EveOS.API = window.EveOS.API || {};
                     liveSearch: shouldUseLive,
                     hybridSearch: shouldUseHybrid,
                     hidePersons: false
-                }, null);
+                }, loadingCallback);
 
                 return {
                     scope: normalizedScope,
@@ -1784,6 +1853,14 @@ window.EveOS.API = window.EveOS.API || {};
                         sourceCount: 0,
                         meta: { summary: { totalResults: 0 } }
                     };
+                }
+
+                if (typeof loadingCallback === 'function') {
+                    loadingCallback(true, 'fandom', `Searching Fandom: ${domains.length} sources...`, { 
+                        statusPhase: 'search',
+                        totalWikis: domains.length,
+                        wikisSearched: 0
+                    });
                 }
 
                 // Cache-only fast path: search domain store without orchestrator
@@ -1818,7 +1895,7 @@ window.EveOS.API = window.EveOS.API || {};
                 const results = await window.SearchFandomLogic.searchManagedFandom(domains, normalizedQuery, {
                     liveSearch: shouldUseLive,
                     hybridSearch: shouldUseHybrid
-                }, null);
+                }, loadingCallback);
 
                 return {
                     scope: normalizedScope,
@@ -2142,22 +2219,57 @@ window.EveOS.API = window.EveOS.API || {};
         resultsContainer.innerHTML = `<div style="padding:10px;">Searching Search Unidex across API, Wikipedia, and Fandom...</div>`;
         updateResultsCount(0);
 
+        // Progress tracking for Search Monitor
+        let totalResultsFound = 0;
+        let sourcesSearched = 0;
+        const totalSourcesToSearch = 3; // API, Wikipedia, Fandom
+
+        const monitorProgress = (isSearching, source, message, stats = {}) => {
+            if (!isSearching) return;
+            if (typeof options.loadingCallback === 'function') {
+                const combinedStats = {
+                    ...stats,
+                    wikisSearched: sourcesSearched,
+                    totalWikis: totalSourcesToSearch,
+                    resultsFound: totalResultsFound
+                };
+                options.loadingCallback(true, resultsContainer.id, message, combinedStats);
+            }
+        };
+
         const [apiResult, wikipediaResult, fandomResult] = await Promise.all([
             resolveApiSearchData(normalizedQuery, {
                 categoryName: resolvedCategory,
                 ttlMs: options.ttlMs,
                 liveResults: options.liveResults,
                 hybridResults: options.hybridResults
-            }),
+            }, (show, elementId, msg, stats) => {
+                if (stats?.resultsFound !== undefined) totalResultsFound += stats.resultsFound;
+                monitorProgress(show, 'api', msg, stats);
+            }).then(res => { sourcesSearched++; return res; }),
             resolveKnowledgeSearchData('wikipedia', normalizedQuery, {
                 categoryName: resolvedCategory,
                 liveResults: options.liveResults,
                 hybridResults: options.hybridResults
+            }, (show, elementId, msg, stats) => {
+                if (stats?.resultsFound !== undefined) totalResultsFound += stats.resultsFound;
+                monitorProgress(show, 'wikipedia', msg, stats);
+            }).then(res => { 
+                sourcesSearched++; 
+                if (res?.results?.length) totalResultsFound += res.results.length;
+                return res; 
             }),
             resolveKnowledgeSearchData('fandom', normalizedQuery, {
                 categoryName: resolvedCategory,
                 liveResults: options.liveResults,
                 hybridResults: options.hybridResults
+            }, (show, elementId, msg, stats) => {
+                if (stats?.resultsFound !== undefined) totalResultsFound += stats.resultsFound;
+                monitorProgress(show, 'fandom', msg, stats);
+            }).then(res => { 
+                sourcesSearched++; 
+                if (res?.results?.length) totalResultsFound += res.results.length;
+                return res; 
             })
         ]);
 
@@ -2203,7 +2315,7 @@ window.EveOS.API = window.EveOS.API || {};
             ttlMs: options.ttlMs,
             liveResults: options.liveResults,
             hybridResults: options.hybridResults
-        });
+        }, options.loadingCallback);
         if (!isClaimCurrent(resultsContainer, requestId) || !resolved) {
             return null;
         }
@@ -2246,7 +2358,7 @@ window.EveOS.API = window.EveOS.API || {};
         };
     }
 
-    function loadCachedQuery(query, resultsContainer, onSelect, options = {}) {
+    async function loadCachedQuery(query, resultsContainer, onSelect, options = {}) {
         if (!query || !resultsContainer || !api.Cache) return null;
 
         const resolvedCategory = ensureCategoryContext(options.categoryName);
@@ -2255,12 +2367,12 @@ window.EveOS.API = window.EveOS.API || {};
             query: query,
             source: providerKey || 'api-cache'
         });
-        const cachedEntry = api.Cache.getQuery(query, resolvedCategory);
+        const cachedEntry = await api.Cache.getQuery(query, resolvedCategory);
         if (!cachedEntry?.sources) return null;
         if (countResults(filterSourcesByProvider(cachedEntry.sources, providerKey)) < 1) return null;
         if (!isClaimCurrent(resultsContainer, requestId)) return null;
 
-        api.Cache.touchQuery(query, resolvedCategory);
+        await api.Cache.touchQuery(query, resolvedCategory);
         const renderedSources = renderProviderResultsSubset(cachedEntry.sources, resultsContainer, onSelect, providerKey, true);
         updateResultsCount(countResults(renderedSources));
         notifyScraperStatusUpdate();
@@ -2339,11 +2451,15 @@ window.EveOS.API = window.EveOS.API || {};
         function executeSearch(forceLive) {
             const nextQuery = String(input.value || '').trim();
             if (!nextQuery) return;
+            
+            const loadingCallback = window.SearchUIRenderer ? SearchUIRenderer.showLoading.bind(SearchUIRenderer) : null;
+
             runUnifiedSearch(nextQuery, resultsContainer, null, {
                 categoryName: resolvedCategory,
                 ttlMs: Number(ttlSelect?.value) > 0 ? Number(ttlSelect.value) : prefs.ttlMs,
                 liveResults: typeof forceLive === 'boolean' ? forceLive : liveToggle.checked,
                 hybridResults: hybridToggle?.checked !== false,
+                loadingCallback: loadingCallback,
                 onAfterRender: refreshPool
             });
         }
@@ -2423,8 +2539,8 @@ window.EveOS.API = window.EveOS.API || {};
         if (clearCacheButton) {
             clearCacheButton.addEventListener('click', async function () {
                 if (api.Cache) {
-                    api.Cache.clearAll(resolvedCategory);
-                    api.Cache.savePrefs({
+                    await api.Cache.clearAll(resolvedCategory);
+                    await api.Cache.savePrefs({
                         ttlMs: Number(ttlSelect?.value) > 0 ? Number(ttlSelect.value) : prefs.ttlMs,
                         liveResults: liveToggle?.checked === true,
                         hybridResults: hybridToggle?.checked !== false,
@@ -2556,6 +2672,9 @@ window.EveOS.API = window.EveOS.API || {};
                 const nextQuery = String(queryInput?.value || '').trim() || latestEntry?.query || '';
                 if (!nextQuery || !resultsContainer) return;
                 if (queryInput) queryInput.value = nextQuery;
+                
+                const loadingCallback = window.SearchUIRenderer ? SearchUIRenderer.showLoading.bind(SearchUIRenderer) : null;
+
                 runAfterDelay(function () {
                     runSearch(nextQuery, resultsContainer, null, {
                         categoryName: resolvedCategory,
@@ -2563,6 +2682,7 @@ window.EveOS.API = window.EveOS.API || {};
                         ttlMs: Number(ttlSelect?.value) > 0 ? Number(ttlSelect.value) : prefs.ttlMs,
                         liveResults: true,
                         hybridResults: hybridToggle?.checked !== false,
+                        loadingCallback: loadingCallback,
                         onAfterRender: refreshPool
                     });
                 }, 340);
@@ -2570,10 +2690,10 @@ window.EveOS.API = window.EveOS.API || {};
         }
 
         if (clearButton) {
-            clearButton.addEventListener('click', function () {
+            clearButton.addEventListener('click', async function () {
                 if (api.Cache) {
-                    api.Cache.clearAll(resolvedCategory);
-                    api.Cache.savePrefs({
+                    await api.Cache.clearAll(resolvedCategory);
+                    await api.Cache.savePrefs({
                         ttlMs: Number(ttlSelect?.value) > 0 ? Number(ttlSelect.value) : prefs.ttlMs,
                         liveResults: liveToggle?.checked === true,
                         hybridResults: hybridToggle?.checked !== false,
@@ -2609,4 +2729,3 @@ window.EveOS.API = window.EveOS.API || {};
         runSearch
     };
 })(window.EveOS.API);
-
