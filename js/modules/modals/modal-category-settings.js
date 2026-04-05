@@ -74,6 +74,10 @@
     window.openCategorySettings = function (categoryName, activeTab = 'general') {
 
         window.currentCategoryCtx = categoryName;
+        // Persist context for reload recovery
+        try {
+            localStorage.setItem('eve_current_category_context', categoryName);
+        } catch (e) {}
 
         window.ctxCatName = categoryName;
 

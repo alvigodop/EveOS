@@ -50,6 +50,14 @@ StorageManager.init = function () {
     try {
         localStorage.setItem('sm_test', 'test');
         localStorage.removeItem('sm_test');
+        
+        // Restore last context from storage if available
+        const lastContext = localStorage.getItem('eve_current_category_context');
+        if (lastContext) {
+            this.categoryContext = lastContext;
+            window.currentCategoryCtx = lastContext;
+            console.log(`StorageManager: Restored last context [${lastContext}]`);
+        }
     } catch (e) {
         console.error('LocalStorage is not available:', e);
     }

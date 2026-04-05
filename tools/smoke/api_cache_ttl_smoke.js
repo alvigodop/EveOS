@@ -82,7 +82,7 @@ loadScript('js/modules/features/api-search/api-cache.js');
 
     const expiredEntry = await cache.getQuery('ttl-check', 'TTL Card');
     assert(expiredEntry === null, 'TTL entry should expire after the configured TTL');
-    assert(cache.listQueries('TTL Card').length === 0, 'Expired TTL entry should be pruned from the cache pool');
+    assert((await cache.listQueries('TTL Card')).length === 0, 'Expired TTL entry should be pruned from the cache pool');
 
     console.log('API_CACHE_TTL_SMOKE_OK');
 })().catch((error) => {

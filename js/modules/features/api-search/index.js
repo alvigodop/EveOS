@@ -291,19 +291,19 @@ window.EveOS.API = window.EveOS.API || {};
         return visibleSources;
     }
 
-    function resolveLivePreference(categoryName, explicitValue) {
+    async function resolveLivePreference(categoryName, explicitValue) {
         if (typeof explicitValue === 'boolean') return explicitValue;
-        return api.Cache ? api.Cache.loadPrefs(categoryName).liveResults === true : false;
+        return api.Cache ? (await api.Cache.loadPrefs(categoryName)).liveResults === true : false;
     }
 
-    function resolveHybridPreference(categoryName, explicitValue) {
+    async function resolveHybridPreference(categoryName, explicitValue) {
         if (typeof explicitValue === 'boolean') return explicitValue;
-        return api.Cache ? api.Cache.loadPrefs(categoryName).hybridResults !== false : true;
+        return api.Cache ? (await api.Cache.loadPrefs(categoryName)).hybridResults !== false : true;
     }
 
-    function resolveOpenModePreference(categoryName, explicitValue) {
+    async function resolveOpenModePreference(categoryName, explicitValue) {
         if (explicitValue === 'popup' || explicitValue === 'newtab') return explicitValue;
-        return api.Cache ? api.Cache.loadPrefs(categoryName).openMode : 'popup';
+        return api.Cache ? (await api.Cache.loadPrefs(categoryName)).openMode : 'popup';
     }
 
     function runAfterDelay(callback, delayMs) {
@@ -783,9 +783,9 @@ window.EveOS.API = window.EveOS.API || {};
         return [];
     }
 
-    function buildSourceCacheGroups(categoryName, options = {}) {
+    async function buildSourceCacheGroups(categoryName, options = {}) {
         const resolvedCategory = ensureCategoryContext(categoryName);
-        const apiEntries = api.Cache ? api.Cache.listQueries(resolvedCategory) : [];
+        const apiEntries = api.Cache ? await api.Cache.listQueries(resolvedCategory) : [];
         const knowledgeEntries = loadKnowledgeCacheEntries(resolvedCategory, {
             includeUncachedKnowledge: options.includeUncachedKnowledge === true
         });
@@ -1586,8 +1586,8 @@ window.EveOS.API = window.EveOS.API || {};
 
         const resolvedCategory = ensureCategoryContext(options.categoryName);
         const providerKey = isProviderSource(options.providerKey) ? options.providerKey : null;
-        const shouldUseLive = resolveLivePreference(resolvedCategory, options.liveResults);
-        const shouldUseHybrid = resolveHybridPreference(resolvedCategory, options.hybridResults);
+        const shouldUseLive = await resolveLivePreference(resolvedCategory, options.liveResults);
+        const shouldUseHybrid = await resolveHybridPreference(resolvedCategory, options.hybridResults);
         const normalizedQuery = String(query).trim();
 
         if (typeof loadingCallback === 'function') {
@@ -2386,11 +2386,11 @@ window.EveOS.API = window.EveOS.API || {};
         };
     }
 
-    function renderSearchUI(searchContainer, resultsContainer, categoryName) {
+    async function renderSearchUI(searchContainer, resultsContainer, categoryName) {
         if (!searchContainer || !resultsContainer) return;
 
         const resolvedCategory = ensureCategoryContext(categoryName);
-        const prefs = api.Cache ? api.Cache.loadPrefs(resolvedCategory) : {
+        const prefs = api.Cache ? await api.Cache.loadPrefs(resolvedCategory) : {
             liveResults: false,
             hybridResults: true,
             ttlMs: api.Cache?.DEFAULT_TTL_MS
@@ -2564,13 +2564,13 @@ window.EveOS.API = window.EveOS.API || {};
         syncOpenModeState(prefs.openMode, Array.from(openModeRadios).find(function (radio) { return radio.checked; }) || null);
     }
 
-    function renderScraperPanelUI(container, categoryName, options = {}) {
+    async function renderScraperPanelUI(container, categoryName, options = {}) {
         if (!container) return;
 
         const resolvedCategory = ensureCategoryContext(categoryName);
         const providerKey = isProviderSource(options.providerKey) ? options.providerKey : null;
         const providerLabel = providerKey ? getProviderLabel(providerKey) : 'All API Sources';
-        const prefs = api.Cache ? api.Cache.loadPrefs(resolvedCategory) : {
+        const prefs = api.Cache ? await api.Cache.loadPrefs(resolvedCategory) : {
             liveResults: false,
             hybridResults: true,
             ttlMs: api.Cache?.DEFAULT_TTL_MS

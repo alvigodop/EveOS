@@ -27,10 +27,10 @@ window.EveOS.API = window.EveOS.API || {};
 
     const _memoryPools = {};
 
-    function withScopedContext(categoryName, callback) {
+    async function withScopedContext(categoryName, callback) {
         const manager = window.StorageManager;
         if (!manager || typeof manager.setCategoryContext !== 'function') {
-            return callback(null);
+            return await callback(null);
         }
 
         const previousContext = manager.categoryContext;
@@ -40,14 +40,14 @@ window.EveOS.API = window.EveOS.API || {};
         }
 
         try {
-            return callback(manager);
+            return await callback(manager);
         } finally {
             manager.setCategoryContext(previousContext || null);
         }
     }
 
-    function loadScopedValue(key, defaultValue, categoryName) {
-        return withScopedContext(categoryName, function (manager) {
+    async function loadScopedValue(key, defaultValue, categoryName) {
+        return await withScopedContext(categoryName, function (manager) {
             if (manager && typeof manager.loadData === 'function') {
                 return manager.loadData(key, defaultValue);
             }
@@ -63,7 +63,7 @@ window.EveOS.API = window.EveOS.API || {};
     }
 
     async function saveScopedValue(key, value, categoryName) {
-        return withScopedContext(categoryName, async function (manager) {
+        return await withScopedContext(categoryName, async function (manager) {
             if (manager && typeof manager.saveData === 'function') {
                 return await manager.saveData(key, value);
             }
@@ -78,8 +78,8 @@ window.EveOS.API = window.EveOS.API || {};
         });
     }
 
-    function deleteScopedValue(key, categoryName) {
-        return withScopedContext(categoryName, function (manager) {
+    async function deleteScopedValue(key, categoryName) {
+        return await withScopedContext(categoryName, function (manager) {
             if (manager && typeof manager.deleteData === 'function') {
                 return manager.deleteData(key);
             }
@@ -232,12 +232,12 @@ window.EveOS.API = window.EveOS.API || {};
             return null;
         }
 
-        const pool = loadPool(categoryName);
+        const pool = await loadPool(categoryName);
         const matchedSources = {};
         const matchedQueryKeys = [];
         const allowedProviders = providerKey ? [providerKey] : getSearchableProviderKeys();
 
-        pool.order.forEach(function (queryKey) {
+        (pool.order || []).forEach(function (queryKey) {
             const entry = pool.queries[queryKey];
             if (!entry?.sources) return;
 
@@ -349,7 +349,7 @@ window.EveOS.API = window.EveOS.API || {};
             }
         });
 
-        pool.order.forEach(function (queryKey) {
+        (pool.order || []).forEach(function (queryKey) {
             if (!pool.queries[queryKey] || seen.has(queryKey)) return;
             seen.add(queryKey);
             prunedOrder.push(queryKey);
@@ -376,11 +376,15 @@ window.EveOS.API = window.EveOS.API || {};
         return pool;
     }
 
-    function loadPool(categoryName) {
+    async function loadPool(categoryName) {
         const normalized = normalizeCategoryName(categoryName);
-        if (_memoryPools[normalized]) return _memoryPools[normalized];
+        if (_memoryPools[normalized]) {
+            const pool = _memoryPools[normalized];
+            prunePool(pool);
+            return pool;
+        }
 
-        const pool = ensurePoolShape(loadScopedValue(CACHE_KEY, { queries: {}, order: [] }, categoryName));
+        const pool = ensurePoolShape(await loadScopedValue(CACHE_KEY, { queries: {}, order: [] }, categoryName));
         prunePool(pool);
         
         _memoryPools[normalized] = pool;
@@ -394,8 +398,8 @@ window.EveOS.API = window.EveOS.API || {};
         return await saveScopedValue(CACHE_KEY, nextPool, categoryName);
     }
 
-    function loadPrefs(categoryName) {
-        const stored = loadScopedValue(PREFS_KEY, {}, categoryName);
+    async function loadPrefs(categoryName) {
+        const stored = await loadScopedValue(PREFS_KEY, {}, categoryName);
         return {
             liveResults: stored?.liveResults === true,
             hybridResults: stored?.hybridResults !== false,
@@ -405,7 +409,7 @@ window.EveOS.API = window.EveOS.API || {};
     }
 
     async function savePrefs(nextPrefs, categoryName) {
-        const currentPrefs = loadPrefs(categoryName);
+        const currentPrefs = await loadPrefs(categoryName);
         const incomingPrefs = nextPrefs && typeof nextPrefs === 'object' ? { ...nextPrefs } : {};
         if (typeof incomingPrefs.hybridSearch === 'boolean' && typeof incomingPrefs.hybridResults !== 'boolean') {
             incomingPrefs.hybridResults = incomingPrefs.hybridSearch;
@@ -427,7 +431,7 @@ window.EveOS.API = window.EveOS.API || {};
         const queryKey = normalizeQuery(query);
         if (!queryKey) return null;
 
-        const pool = loadPool(categoryName);
+        const pool = await loadPool(categoryName);
         const entry = pool.queries[queryKey];
         if (!entry) return null;
 
@@ -445,7 +449,7 @@ window.EveOS.API = window.EveOS.API || {};
         const queryKey = normalizeQuery(query);
         if (!queryKey) return null;
 
-        const pool = loadPool(categoryName);
+        const pool = await loadPool(categoryName);
         const entry = pool.queries[queryKey];
         if (!entry) {
             console.log(`API Cache: Miss for query [${query}] in context [${categoryName}]`);
@@ -464,10 +468,10 @@ window.EveOS.API = window.EveOS.API || {};
         const queryLabel = normalizeText(query);
         if (!queryKey || !queryLabel) return null;
 
-        const prefs = loadPrefs(categoryName);
+        const prefs = await loadPrefs(categoryName);
         const ttlMs = Number(options.ttlMs) > 0 ? Number(options.ttlMs) : prefs.ttlMs;
         const now = Date.now();
-        const pool = loadPool(categoryName);
+        const pool = await loadPool(categoryName);
         const previous = pool.queries[queryKey] || {};
 
         // Merge sources to prevent overwriting results from different providers
@@ -497,7 +501,7 @@ window.EveOS.API = window.EveOS.API || {};
         const queryKey = normalizeQuery(query);
         if (!queryKey) return false;
 
-        const pool = loadPool(categoryName);
+        const pool = await loadPool(categoryName);
         if (!pool.queries[queryKey]) return false;
 
         delete pool.queries[queryKey];
@@ -505,8 +509,8 @@ window.EveOS.API = window.EveOS.API || {};
         return await savePool(pool, categoryName);
     }
 
-    function listQueryEntries(categoryName) {
-        const pool = loadPool(categoryName);
+    async function listQueryEntries(categoryName) {
+        const pool = await loadPool(categoryName);
         return pool.order
             .map(function (queryKey) { return pool.queries[queryKey]; })
             .filter(Boolean)

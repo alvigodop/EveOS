@@ -171,7 +171,7 @@ loadScript('js/modules/features/api-search/index.js');
 (async () => {
     const api = context.window.EveOS.API;
 
-    const defaultPrefs = api.Cache.loadPrefs('Card Alpha');
+const defaultPrefs = await api.Cache.loadPrefs('Card Alpha');
     assert(defaultPrefs.liveResults === false, 'Live should default to false');
     assert(defaultPrefs.hybridResults === true, 'Hybrid should default to true');
 
@@ -182,6 +182,10 @@ loadScript('js/modules/features/api-search/index.js');
     providerCalls = 0;
     displayCalls = 0;
     resultsContainer.innerHTML = '';
+    
+    // Explicitly disable live/hybrid to test cache-only miss
+    await api.Cache.savePrefs({ liveResults: false, hybridResults: false }, 'Card Beta');
+
     const cacheOnlyMiss = await api.Manager.runSearch('new query', resultsContainer, null, {
         categoryName: 'Card Beta',
         liveResults: false,
@@ -228,11 +232,11 @@ loadScript('js/modules/features/api-search/index.js');
     assert(providerCacheHit?.meta?.summary?.totalResults === 1, 'Provider cache hit should only expose one provider result');
 
     await api.Cache.savePrefs({ liveResults: true, hybridResults: false, ttlMs: 3600000 }, 'Card Beta');
-    const savedPrefs = api.Cache.loadPrefs('Card Beta');
+    const savedPrefs = await api.Cache.loadPrefs('Card Beta');
     assert(savedPrefs.liveResults === true, 'Saved live pref should persist per card');
     assert(savedPrefs.hybridResults === false, 'Saved hybrid pref should persist per card');
     assert(savedPrefs.ttlMs === 3600000, 'Saved TTL pref should persist per card');
-    assert(api.Cache.loadPrefs('Card Alpha').hybridResults === true, 'Prefs must remain scoped per card');
+    assert((await api.Cache.loadPrefs('Card Alpha')).hybridResults === true, 'Prefs must remain scoped per card');
 
     console.log('API_CACHE_MANAGER_SMOKE_OK');
 })().catch((error) => {
