@@ -71,16 +71,16 @@ loadScript('js/modules/features/api-search/api-cache.js');
 
 (async () => {
     const cache = context.window.EveOS.API.Cache;
-    cache.savePrefs({ ttlMs: 25 }, 'TTL Card');
-    cache.storeQuery('ttl-check', { mangadex: { data: [{ id: 'one' }] } }, 'TTL Card');
+    await cache.savePrefs({ ttlMs: 25 }, 'TTL Card');
+    await cache.storeQuery('ttl-check', { mangadex: { data: [{ id: 'one' }] } }, 'TTL Card');
 
-    const freshEntry = cache.getQuery('ttl-check', 'TTL Card');
+    const freshEntry = await cache.getQuery('ttl-check', 'TTL Card');
     assert(!!freshEntry, 'TTL entry should exist immediately after storing');
     assert(freshEntry.expiresAt > Date.now(), 'TTL entry should have a future expiry');
 
     await new Promise((resolve) => setTimeout(resolve, 60));
 
-    const expiredEntry = cache.getQuery('ttl-check', 'TTL Card');
+    const expiredEntry = await cache.getQuery('ttl-check', 'TTL Card');
     assert(expiredEntry === null, 'TTL entry should expire after the configured TTL');
     assert(cache.listQueries('TTL Card').length === 0, 'Expired TTL entry should be pruned from the cache pool');
 

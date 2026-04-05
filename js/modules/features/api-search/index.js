@@ -373,9 +373,9 @@ window.EveOS.API = window.EveOS.API || {};
             }
         }
 
+        const ctx = window.currentCategoryCtx || window.StorageManager?.categoryContext || '';
         const unidexContainer = document.getElementById('unidex-scraper-panel-container');
         if (unidexContainer && unidexContainer.innerHTML.trim() !== '' && typeof window.EveOS?.API?.Manager?.renderUnidexPanelUI === 'function') {
-            const ctx = window.currentCategoryCtx || window.StorageManager?.categoryContext || '';
             const searchInput = document.getElementById('searchInput');
             window.EveOS.API.Manager.renderUnidexPanelUI(unidexContainer, ctx, {
                 filterQuery: searchInput ? searchInput.value : ''
@@ -384,7 +384,6 @@ window.EveOS.API = window.EveOS.API || {};
 
         const apiContainer = document.getElementById('api-scraper-panel-container');
         if (apiContainer && apiContainer.innerHTML.trim() !== '' && typeof window.EveOS?.API?.Manager?.renderScraperPanelUI === 'function') {
-            const ctx = window.currentCategoryCtx || window.StorageManager?.categoryContext || '';
             const providerKey = apiContainer.dataset.providerKey || null;
             const searchInput = document.getElementById('searchInput');
             window.EveOS.API.Manager.renderScraperPanelUI(apiContainer, ctx, {
@@ -398,27 +397,27 @@ window.EveOS.API = window.EveOS.API || {};
         }
     }
 
-    function persistLivePreference(categoryName, enabled, origin) {
+    async function persistLivePreference(categoryName, enabled, origin) {
         const resolvedCategory = ensureCategoryContext(categoryName);
         if (api.Cache) {
-            api.Cache.savePrefs({ liveResults: enabled === true }, resolvedCategory);
+            await api.Cache.savePrefs({ liveResults: enabled === true }, resolvedCategory);
         }
         syncLiveToggleState(enabled === true, origin);
     }
 
-    function persistHybridPreference(categoryName, enabled, origin) {
+    async function persistHybridPreference(categoryName, enabled, origin) {
         const resolvedCategory = ensureCategoryContext(categoryName);
         if (api.Cache) {
-            api.Cache.savePrefs({ hybridResults: enabled !== false }, resolvedCategory);
+            await api.Cache.savePrefs({ hybridResults: enabled !== false }, resolvedCategory);
         }
         syncHybridToggleState(enabled !== false, origin);
     }
 
-    function persistOpenModePreference(categoryName, mode, origin) {
+    async function persistOpenModePreference(categoryName, mode, origin) {
         const resolvedCategory = ensureCategoryContext(categoryName);
         const normalizedMode = mode === 'newtab' ? 'newtab' : 'popup';
         if (api.Cache) {
-            api.Cache.savePrefs({ openMode: normalizedMode }, resolvedCategory);
+            await api.Cache.savePrefs({ openMode: normalizedMode }, resolvedCategory);
         }
         syncOpenModeState(normalizedMode, origin);
     }
@@ -1521,24 +1520,29 @@ window.EveOS.API = window.EveOS.API || {};
 
         if (liveToggle) {
             const enabled = resolveLivePreference(categoryName);
-            liveToggle.checked = enabled;
+            // Only update if not currently focused to avoid "stuck" feeling during interaction
+            if (document.activeElement !== liveToggle) {
+                liveToggle.checked = enabled;
+            }
 
             if (liveToggle.dataset.apiLiveBound !== '1') {
                 liveToggle.dataset.apiLiveBound = '1';
-                liveToggle.addEventListener('change', function () {
-                    persistLivePreference(categoryName, liveToggle.checked, liveToggle);
+                liveToggle.addEventListener('change', async function () {
+                    await persistLivePreference(categoryName, liveToggle.checked, liveToggle);
                 });
             }
         }
 
         if (hybridToggle) {
             const enabled = resolveHybridPreference(categoryName);
-            hybridToggle.checked = enabled;
+            if (document.activeElement !== hybridToggle) {
+                hybridToggle.checked = enabled;
+            }
 
             if (hybridToggle.dataset.apiHybridBound !== '1') {
                 hybridToggle.dataset.apiHybridBound = '1';
-                hybridToggle.addEventListener('change', function () {
-                    persistHybridPreference(categoryName, hybridToggle.checked, hybridToggle);
+                hybridToggle.addEventListener('change', async function () {
+                    await persistHybridPreference(categoryName, hybridToggle.checked, hybridToggle);
                 });
             }
         }
@@ -1552,18 +1556,18 @@ window.EveOS.API = window.EveOS.API || {};
         const shouldUseLive = resolveLivePreference(resolvedCategory, options.liveResults);
         const shouldUseHybrid = resolveHybridPreference(resolvedCategory, options.hybridResults);
         const normalizedQuery = String(query).trim();
-        const exactCachedEntry = api.Cache ? api.Cache.getQuery(normalizedQuery, resolvedCategory) : null;
+        const exactCachedEntry = api.Cache ? await api.Cache.getQuery(normalizedQuery, resolvedCategory) : null;
         const exactCachedVisibleSources = filterSourcesByProvider(exactCachedEntry?.sources || {}, providerKey);
         const exactCachedVisibleCount = countResults(exactCachedVisibleSources);
         const derivedCachedEntry = (!exactCachedVisibleCount && api.Cache && typeof api.Cache.searchCachedSources === 'function')
-            ? api.Cache.searchCachedSources(normalizedQuery, resolvedCategory, providerKey)
+            ? await api.Cache.searchCachedSources(normalizedQuery, resolvedCategory, providerKey)
             : null;
         const activeCachedEntry = exactCachedVisibleCount > 0 ? exactCachedEntry : derivedCachedEntry;
         const cachedVisibleSources = filterSourcesByProvider(activeCachedEntry?.sources || {}, providerKey);
         const cachedVisibleCount = countResults(cachedVisibleSources);
 
         if (!shouldUseLive && activeCachedEntry?.sources && cachedVisibleCount > 0) {
-            if (api.Cache && exactCachedVisibleCount > 0) api.Cache.touchQuery(normalizedQuery, resolvedCategory);
+            if (api.Cache && exactCachedVisibleCount > 0) await api.Cache.touchQuery(normalizedQuery, resolvedCategory);
             return {
                 query: normalizedQuery,
                 categoryName: resolvedCategory,
@@ -1607,7 +1611,7 @@ window.EveOS.API = window.EveOS.API || {};
             const mergedSources = mergeSources(activeCachedEntry?.sources, liveSources);
             
             const visibleSources = filterSourcesByProvider(mergedSources, providerKey);
-            const storedEntry = api.Cache ? api.Cache.storeQuery(normalizedQuery, mergedSources, resolvedCategory, { ttlMs: options.ttlMs }) : null;
+            const storedEntry = api.Cache ? await api.Cache.storeQuery(normalizedQuery, mergedSources, resolvedCategory, { ttlMs: options.ttlMs }) : null;
             
             return {
                 query: normalizedQuery,
@@ -1627,7 +1631,7 @@ window.EveOS.API = window.EveOS.API || {};
             console.error('API search error:', error);
 
             if (activeCachedEntry?.sources && cachedVisibleCount > 0) {
-                if (api.Cache && exactCachedVisibleCount > 0) api.Cache.touchQuery(normalizedQuery, resolvedCategory);
+                if (api.Cache && exactCachedVisibleCount > 0) await api.Cache.touchQuery(normalizedQuery, resolvedCategory);
                 return {
                     query: normalizedQuery,
                     categoryName: resolvedCategory,

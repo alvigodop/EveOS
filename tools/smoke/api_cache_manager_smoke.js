@@ -175,9 +175,9 @@ loadScript('js/modules/features/api-search/index.js');
     assert(defaultPrefs.liveResults === false, 'Live should default to false');
     assert(defaultPrefs.hybridResults === true, 'Hybrid should default to true');
 
-    api.Cache.storeQuery('kingdom', { mangadex: { data: [{ id: 1 }] } }, 'Card Alpha');
-    assert(api.Cache.getQuery('kingdom', 'Card Alpha'), 'Card Alpha should keep its own cache');
-    assert(!api.Cache.getQuery('kingdom', 'Card Beta'), 'Card Beta must not see Card Alpha cache');
+    await api.Cache.storeQuery('kingdom', { mangadex: { data: [{ id: 1 }] } }, 'Card Alpha');
+    assert(await api.Cache.getQuery('kingdom', 'Card Alpha'), 'Card Alpha should keep its own cache');
+    assert(!await api.Cache.getQuery('kingdom', 'Card Beta'), 'Card Beta must not see Card Alpha cache');
 
     providerCalls = 0;
     displayCalls = 0;
@@ -202,8 +202,8 @@ loadScript('js/modules/features/api-search/index.js');
     assert(providerCalls === 13, 'Hybrid miss should call all live providers once');
     assert(displayCalls === 1, 'Hybrid miss should render results once');
     assert(hybridFetch?.meta?.fromCache === false, 'Hybrid miss should report live fetch');
-    assert(api.Cache.getQuery('kingdom', 'Card Beta'), 'Hybrid miss should store results in the card cache');
-    assert(!api.Cache.getQuery('kingdom', 'Card Gamma'), 'Cached query must remain isolated to the card');
+    assert(await api.Cache.getQuery('kingdom', 'Card Beta'), 'Hybrid miss should store results in the card cache');
+    assert(!await api.Cache.getQuery('kingdom', 'Card Gamma'), 'Cached query must remain isolated to the card');
     assert(resultsCounter.textContent === '2', 'Result count should reflect cached summary totals');
 
     providerCalls = 0;
@@ -227,7 +227,7 @@ loadScript('js/modules/features/api-search/index.js');
     assert(displayCalls === 1, 'Provider cache hit should render once');
     assert(providerCacheHit?.meta?.summary?.totalResults === 1, 'Provider cache hit should only expose one provider result');
 
-    api.Cache.savePrefs({ liveResults: true, hybridResults: false, ttlMs: 3600000 }, 'Card Beta');
+    await api.Cache.savePrefs({ liveResults: true, hybridResults: false, ttlMs: 3600000 }, 'Card Beta');
     const savedPrefs = api.Cache.loadPrefs('Card Beta');
     assert(savedPrefs.liveResults === true, 'Saved live pref should persist per card');
     assert(savedPrefs.hybridResults === false, 'Saved hybrid pref should persist per card');

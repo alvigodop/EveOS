@@ -100,7 +100,7 @@ async function main() {
                 CacheCore.init();
             }
             if (window.EveOS?.API?.Cache?.storeQuery) {
-                window.EveOS.API.Cache.storeQuery('naruto', {
+                await window.EveOS.API.Cache.storeQuery('naruto', {
                     mangadex: {
                         data: [{
                             id: 'md-naruto',
@@ -221,9 +221,9 @@ async function main() {
             });
 
             const providerCallsAfterHybridMiss = window.__apiSmokeProviderCalls;
-            const alphaCacheEntry = window.EveOS.API.Cache.getQuery('kingdom', 'Alpha');
-            const betaCacheEntry = window.EveOS.API.Cache.getQuery('kingdom', 'Beta');
-            const narutoApiCacheEntry = window.EveOS.API.Cache.getQuery('naruto', 'Alpha');
+            const alphaCacheEntry = await window.EveOS.API.Cache.getQuery('kingdom', 'Alpha');
+            const betaCacheEntry = await window.EveOS.API.Cache.getQuery('kingdom', 'Beta');
+            const narutoApiCacheEntry = await window.EveOS.API.Cache.getQuery('naruto', 'Alpha');
             const alphaPrefsAfterSearch = window.EveOS.API.Cache.loadPrefs('Alpha');
             const allProviderRenderedCards = searchResults.querySelectorAll('.manga-item').length;
             const searchPoolText = searchCachePool.textContent || '';

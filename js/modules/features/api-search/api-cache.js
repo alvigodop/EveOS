@@ -62,10 +62,10 @@ window.EveOS.API = window.EveOS.API || {};
         });
     }
 
-    function saveScopedValue(key, value, categoryName) {
-        return withScopedContext(categoryName, function (manager) {
+    async function saveScopedValue(key, value, categoryName) {
+        return withScopedContext(categoryName, async function (manager) {
             if (manager && typeof manager.saveData === 'function') {
-                return manager.saveData(key, value);
+                return await manager.saveData(key, value);
             }
 
             try {
@@ -226,7 +226,7 @@ window.EveOS.API = window.EveOS.API || {};
         ];
     }
 
-    function findCachedSourceMatches(query, categoryName, providerKey) {
+    async function findCachedSourceMatches(query, categoryName, providerKey) {
         const normalizedQuery = normalizeQuery(query);
         if (!normalizedQuery) {
             return null;
@@ -286,7 +286,7 @@ window.EveOS.API = window.EveOS.API || {};
             }
         });
         if (matchedQueryKeys.length) {
-            savePool(pool, categoryName);
+            await savePool(pool, categoryName);
         }
 
         return {
@@ -387,11 +387,11 @@ window.EveOS.API = window.EveOS.API || {};
         return pool;
     }
 
-    function savePool(pool, categoryName) {
+    async function savePool(pool, categoryName) {
         const normalized = normalizeCategoryName(categoryName);
         const nextPool = prunePool(ensurePoolShape(pool));
         _memoryPools[normalized] = nextPool;
-        return saveScopedValue(CACHE_KEY, nextPool, categoryName);
+        return await saveScopedValue(CACHE_KEY, nextPool, categoryName);
     }
 
     function loadPrefs(categoryName) {
@@ -404,7 +404,7 @@ window.EveOS.API = window.EveOS.API || {};
         };
     }
 
-    function savePrefs(nextPrefs, categoryName) {
+    async function savePrefs(nextPrefs, categoryName) {
         const currentPrefs = loadPrefs(categoryName);
         const incomingPrefs = nextPrefs && typeof nextPrefs === 'object' ? { ...nextPrefs } : {};
         if (typeof incomingPrefs.hybridSearch === 'boolean' && typeof incomingPrefs.hybridResults !== 'boolean') {
@@ -420,10 +420,10 @@ window.EveOS.API = window.EveOS.API || {};
         merged.liveResults = merged.liveResults === true;
         merged.hybridResults = merged.hybridResults !== false;
         merged.openMode = merged.openMode === 'newtab' ? 'newtab' : 'popup';
-        return saveScopedValue(PREFS_KEY, merged, categoryName);
+        return await saveScopedValue(PREFS_KEY, merged, categoryName);
     }
 
-    function getQueryEntry(query, categoryName) {
+    async function getQueryEntry(query, categoryName) {
         const queryKey = normalizeQuery(query);
         if (!queryKey) return null;
 
@@ -434,14 +434,14 @@ window.EveOS.API = window.EveOS.API || {};
         if (entry.expiresAt && entry.expiresAt <= Date.now()) {
             delete pool.queries[queryKey];
             pool.order = pool.order.filter(function (value) { return value !== queryKey; });
-            savePool(pool, categoryName);
+            await savePool(pool, categoryName);
             return null;
         }
 
         return entry;
     }
 
-    function touchQueryEntry(query, categoryName) {
+    async function touchQueryEntry(query, categoryName) {
         const queryKey = normalizeQuery(query);
         if (!queryKey) return null;
 
@@ -455,11 +455,11 @@ window.EveOS.API = window.EveOS.API || {};
         console.log(`API Cache: Hit for query [${query}] in context [${categoryName}]`);
         entry.lastUsedAt = Date.now();
         pool.order = [queryKey].concat(pool.order.filter(function (value) { return value !== queryKey; }));
-        savePool(pool, categoryName);
+        await savePool(pool, categoryName);
         return entry;
     }
 
-    function storeQueryEntry(query, sources, categoryName, options = {}) {
+    async function storeQueryEntry(query, sources, categoryName, options = {}) {
         const queryKey = normalizeQuery(query);
         const queryLabel = normalizeText(query);
         if (!queryKey || !queryLabel) return null;
@@ -488,12 +488,12 @@ window.EveOS.API = window.EveOS.API || {};
         };
 
         pool.order = [queryKey].concat(pool.order.filter(function (value) { return value !== queryKey; }));
-        savePool(pool, categoryName);
+        await savePool(pool, categoryName);
         console.log(`API Cache: Stored query [${queryLabel}] in context [${categoryName}] (${Object.keys(mergedSources).length} sources)`);
         return pool.queries[queryKey];
     }
 
-    function deleteQueryEntry(query, categoryName) {
+    async function deleteQueryEntry(query, categoryName) {
         const queryKey = normalizeQuery(query);
         if (!queryKey) return false;
 
@@ -502,7 +502,7 @@ window.EveOS.API = window.EveOS.API || {};
 
         delete pool.queries[queryKey];
         pool.order = pool.order.filter(function (value) { return value !== queryKey; });
-        return savePool(pool, categoryName);
+        return await savePool(pool, categoryName);
     }
 
     function listQueryEntries(categoryName) {
