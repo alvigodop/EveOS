@@ -29,6 +29,14 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/api-search/display-openlibrary.js",
     "js/modules/features/api-search/display-comick.js?v=0.2.4",
     "js/modules/features/api-search/display.js?v=0.1.1",
-    "js/modules/features/api-search/index.js?v=0.4.8",
+    "js/modules/features/api-search/components/api-manager-utils.js?v=0.4.9",
+    "js/modules/features/api-search/components/api-manager-prefs.js?v=0.4.9",
+    "js/modules/features/api-search/components/api-knowledge-core.js?v=0.4.9",
+    "js/modules/features/api-search/components/api-manager-ui-core.js?v=0.5.0",
+    "js/modules/features/api-search/components/api-manager-ui-cache.js?v=0.5.0",
+    "js/modules/features/api-search/components/api-manager-ui-unidex.js?v=0.5.0",
+    "js/modules/features/api-search/components/api-manager-ui-panels.js?v=0.5.0",
+    "js/modules/features/api-search/components/api-manager-orchestrator.js?v=0.4.9",
+    "js/modules/features/api-search/index.js?v=0.4.9",
     "js/modules/features/sources/source-manager.js"
 ]);
