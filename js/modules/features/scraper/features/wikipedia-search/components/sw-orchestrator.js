@@ -49,6 +49,7 @@
 
                     if (validResults.length > 0) {
                         // Check if enrichment needed
+                        const needsEnrichment = validResults.some(r => !r.categories || !r.extractedData);
                         if (needsEnrichment && window.WikipediaAPI) {
                             console.log(`SWOrchestrator: Cached results have missing categories, triggering enrichment for query "${query}"...`);
                             await WikipediaAPI.enrichResults(validResults);
