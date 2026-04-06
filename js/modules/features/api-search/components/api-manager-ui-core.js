@@ -3,7 +3,10 @@ window.EveOS.API = window.EveOS.API || {};
 (function (api) {
     const ctx = api.SearchInternals = api.SearchInternals || {};
 
-ctx.buildTtlOptionsMarkup = function buildTtlOptionsMarkup(selectedTtlMs) {
+    /**
+     * Build TTL options markup.
+     */
+    ctx.buildTtlOptionsMarkup = function buildTtlOptionsMarkup(selectedTtlMs) {
         const fallbackTtl = Number(selectedTtlMs) > 0 ? Number(selectedTtlMs) : Number(api.Cache?.DEFAULT_TTL_MS || (24 * 60 * 60 * 1000));
         return ctx.TTL_OPTIONS.map(function (option) {
             const selected = Number(option.value) === fallbackTtl ? 'selected' : '';
@@ -11,7 +14,10 @@ ctx.buildTtlOptionsMarkup = function buildTtlOptionsMarkup(selectedTtlMs) {
         }).join('');
     }
 
-ctx.buildOpenModeMarkup = function buildOpenModeMarkup(selectedMode, scope) {
+    /**
+     * Build open mode markup.
+     */
+    ctx.buildOpenModeMarkup = function buildOpenModeMarkup(selectedMode, scope) {
         const openMode = selectedMode === 'newtab' ? 'newtab' : 'popup';
         const radioGroupName = `apiOpenMode-${String(scope || 'shared').trim() || 'shared'}`;
         return `
@@ -29,7 +35,10 @@ ctx.buildOpenModeMarkup = function buildOpenModeMarkup(selectedMode, scope) {
         `;
     }
 
-ctx.renderSourceResults = function renderSourceResults(sourceResults, resultsContainer, onSelect, providerKey = null) {
+    /**
+     * Render source results to a container.
+     */
+    ctx.renderSourceResults = function renderSourceResults(sourceResults, resultsContainer, onSelect, providerKey = null) {
         const Display = api.Display;
         if (!Display || typeof Display.displayResults !== 'function') {
             throw new Error('Display module is not loaded.');
@@ -42,7 +51,10 @@ ctx.renderSourceResults = function renderSourceResults(sourceResults, resultsCon
         return visibleSources;
     }
 
-ctx.renderCacheOnlyMessage = function renderCacheOnlyMessage(resultsContainer, query, providerKey = null) {
+    /**
+     * Render cache-only message.
+     */
+    ctx.renderCacheOnlyMessage = function renderCacheOnlyMessage(resultsContainer, query, providerKey = null) {
         if (!resultsContainer) return;
         const providerLabel = providerKey ? ctx.getProviderLabel(providerKey) : 'this view';
         resultsContainer.style.display = 'block';
@@ -57,7 +69,10 @@ ctx.renderCacheOnlyMessage = function renderCacheOnlyMessage(resultsContainer, q
         ctx.updateResultsCount(0);
     }
 
-ctx.openUrlInPopup = async function openUrlInPopup(url, title) {
+    /**
+     * Open a URL in a popup.
+     */
+    ctx.openUrlInPopup = async function openUrlInPopup(url, title) {
         const targetUrl = String(url || '').trim();
         if (!targetUrl) return false;
 
@@ -90,12 +105,16 @@ ctx.openUrlInPopup = async function openUrlInPopup(url, title) {
         return true;
     }
 
-ctx.handleResultLinkClick = function handleResultLinkClick(event, url, title, options = {}) {
+    /**
+     * Handle result link click (Mode: Popup vs New Tab).
+     */
+    ctx.handleResultLinkClick = async function handleResultLinkClick(event, url, title, options = {}) {
         const targetUrl = String(url || '').trim();
         if (!targetUrl) return true;
 
         const categoryName = ctx.normalizeCategoryName(options.categoryName);
-        const openMode = ctx.resolveOpenModePreference(categoryName, options.openMode);
+        const openMode = await ctx.resolveOpenModePreference(categoryName, options.openMode);
+        
         if (event && typeof event.preventDefault === 'function') {
             event.preventDefault();
         }
@@ -112,12 +131,18 @@ ctx.handleResultLinkClick = function handleResultLinkClick(event, url, title, op
         return false;
     }
 
-ctx.formatCacheFreshness = function formatCacheFreshness(entry) {
+    /**
+     * Format cache freshness string.
+     */
+    ctx.formatCacheFreshness = function formatCacheFreshness(entry) {
         if (!entry || !entry.hasCache || !entry.updatedAt) return 'Not cached yet';
         return `Updated ${ctx.formatRelativeTime(entry.updatedAt)}`;
     }
 
-ctx.renderScraperSourceTabs = function renderScraperSourceTabs(container, activeSource) {
+    /**
+     * Render scraper source tabs.
+     */
+    ctx.renderScraperSourceTabs = function renderScraperSourceTabs(container, activeSource) {
         if (!container) return;
 
         container.innerHTML = ctx.PROVIDER_CONFIG.map(function (provider) {
@@ -130,12 +155,15 @@ ctx.renderScraperSourceTabs = function renderScraperSourceTabs(container, active
         }).join('');
     }
 
-ctx.ensureScraperLiveToggleBinding = function ensureScraperLiveToggleBinding(categoryName) {
+    /**
+     * Ensure scraper live search toggles are correctly bound and synced.
+     */
+    ctx.ensureScraperLiveToggleBinding = async function ensureScraperLiveToggleBinding(categoryName) {
         const liveToggle = document.getElementById('liveSearchToggle');
         const hybridToggle = document.getElementById('hybridSearchToggle');
 
         if (liveToggle) {
-            const enabled = ctx.resolveLivePreference(categoryName);
+            const enabled = await ctx.resolveLivePreference(categoryName);
             // Only update if not currently focused to avoid "stuck" feeling during interaction
             if (document.activeElement !== liveToggle) {
                 liveToggle.checked = enabled;
@@ -150,7 +178,7 @@ ctx.ensureScraperLiveToggleBinding = function ensureScraperLiveToggleBinding(cat
         }
 
         if (hybridToggle) {
-            const enabled = ctx.resolveHybridPreference(categoryName);
+            const enabled = await ctx.resolveHybridPreference(categoryName);
             if (document.activeElement !== hybridToggle) {
                 hybridToggle.checked = enabled;
             }

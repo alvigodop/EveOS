@@ -5,6 +5,7 @@ window.EveOS.API = window.EveOS.API || {};
 
 api.Manager = {
         collectLiveResults: ctx.collectLiveResults,
+        fetchProviderResults: ctx.fetchProviderResults,
         getProviderLabel: ctx.getProviderLabel,
         isProviderSource: ctx.isProviderSource,
         buildSourceCacheGroups: ctx.buildSourceCacheGroups,
@@ -14,7 +15,9 @@ api.Manager = {
         renderScraperPanelUI: ctx.renderScraperPanelUI,
         renderUnidexPanelUI: ctx.renderUnidexPanelUI,
         refreshScraperPanel: ctx.renderScraperPanelUI,
+        refreshSearchUnidexPool: ctx.refreshPool,
         handleResultLinkClick: ctx.handleResultLinkClick,
+        getLatestCachedQuery: ctx.getLatestCachedQuery,
         loadCachedQuery: ctx.loadCachedQuery,
         runUnifiedSearch: ctx.runUnifiedSearch,
         runSearch: ctx.runSearch

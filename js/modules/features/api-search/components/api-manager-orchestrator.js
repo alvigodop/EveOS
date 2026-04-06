@@ -3,91 +3,10 @@ window.EveOS.API = window.EveOS.API || {};
 (function (api) {
     const ctx = api.SearchInternals = api.SearchInternals || {};
 
-ctx.fetchProviderResults = async function fetchProviderResults(query, providerKey) {
-        switch (providerKey) {
-            case 'mangadex':
-                return api.MangaDex.searchMangaDex(query);
-            case 'jikanManga':
-                return api.Jikan.searchJikanManga(query);
-            case 'jikanAnime':
-                return api.Jikan.searchJikanAnime(query);
-            case 'anilistManga':
-                return api.AniList.searchAniListManga(query);
-            case 'anilistAnime':
-                return api.AniList.searchAniListAnime(query);
-            case 'mangaupdates':
-                return api.MangaUpdates.searchMangaUpdates(query);
-            case 'kitsuAnime':
-                return api.Kitsu.searchKitsuAnime(query);
-            case 'kitsuManga':
-                return api.Kitsu.searchKitsuManga(query);
-            case 'tvmaze':
-                return api.TVmaze.searchTVmaze(query);
-            case 'itunes':
-                return api.iTunes.searchiTunes(query);
-            case 'wlnupdates':
-                return api.WlnUpdates.searchWlnUpdates(query);
-            case 'openlibrary':
-                return api.OpenLibrary.searchOpenLibrary(query);
-            case 'comick':
-                return api.ComicK.searchComicK(query);
-            default:
-                throw new Error(`Unsupported API provider source: ${providerKey}`);
-        }
-    }
-
-ctx.collectLiveResults = async function collectLiveResults(query, providerKey = null, skipSources = null) {
-        const Core = api.Core;
-        const MangaDex = api.MangaDex;
-        const Jikan = api.Jikan;
-        const AniList = api.AniList;
-        const MangaUpdates = api.MangaUpdates;
-        const Kitsu = api.Kitsu;
-        const TVmaze = api.TVmaze;
-        const iTunes = api.iTunes;
-        const WlnUpdates = api.WlnUpdates;
-        const OpenLibrary = api.OpenLibrary;
-        const ComicK = api.ComicK;
-
-        if (!Core || !MangaDex || !Jikan || !AniList || !MangaUpdates || !Kitsu || !TVmaze || !iTunes || !WlnUpdates || !OpenLibrary || !ComicK) {
-            throw new Error('API modules are not fully loaded.');
-        }
-
-        if (providerKey && ctx.isProviderSource(providerKey)) {
-            return {
-                [providerKey]: await ctx.fetchProviderResults(query, providerKey)
-            };
-        }
-
-        const pairs = await Promise.all(ctx.PROVIDER_KEYS.map(async function (key) {
-            // Optimization: skip live fetch if we already have a valid cache hit for this specific provider in hybrid mode
-            if (skipSources && skipSources[key]) {
-                const list = ctx.getProviderList(skipSources, key);
-                if (list.length > 0) {
-                    console.log(`API Search: Skipping live fetch for [${key}] - using valid cache hit`);
-                    return [key, skipSources[key]];
-                }
-            }
-
-            try {
-                const result = await ctx.fetchProviderResults(query, key);
-                return [key, result];
-            } catch (error) {
-                console.error(`API Search: [${key}] fetch failed`, error);
-                // Return empty placeholder instead of throwing, allowing other providers to succeed
-                return [key, null];
-            }
-        }));
-
-        return pairs.reduce(function (acc, pair) {
-            if (pair[1] !== null) {
-                acc[pair[0]] = pair[1];
-            }
-            return acc;
-        }, {});
-    }
-
-ctx.notifyScraperStatusUpdate = function notifyScraperStatusUpdate() {
+    /**
+     * Notify other modules (like Scraper UI) that search status/cache has changed.
+     */
+    ctx.notifyScraperStatusUpdate = function notifyScraperStatusUpdate() {
         if (window.WikiManager && typeof window.WikiManager.refreshCacheStores === 'function') {
             window.WikiManager.refreshCacheStores();
             if (typeof window.WikiManager.renderWikiEntryList === 'function') {
@@ -98,11 +17,11 @@ ctx.notifyScraperStatusUpdate = function notifyScraperStatusUpdate() {
             }
         }
 
-        const ctx = window.currentCategoryCtx || window.StorageManager?.categoryContext || '';
+        const currentCtx = window.currentCategoryCtx || window.StorageManager?.categoryContext || '';
         const unidexContainer = document.getElementById('unidex-scraper-panel-container');
         if (unidexContainer && unidexContainer.innerHTML.trim() !== '' && typeof window.EveOS?.API?.Manager?.renderUnidexPanelUI === 'function') {
             const searchInput = document.getElementById('searchInput');
-            window.EveOS.API.Manager.renderUnidexPanelUI(unidexContainer, ctx, {
+            window.EveOS.API.Manager.renderUnidexPanelUI(unidexContainer, currentCtx, {
                 filterQuery: searchInput ? searchInput.value : ''
             });
         }
@@ -111,7 +30,7 @@ ctx.notifyScraperStatusUpdate = function notifyScraperStatusUpdate() {
         if (apiContainer && apiContainer.innerHTML.trim() !== '' && typeof window.EveOS?.API?.Manager?.renderScraperPanelUI === 'function') {
             const providerKey = apiContainer.dataset.providerKey || null;
             const searchInput = document.getElementById('searchInput');
-            window.EveOS.API.Manager.renderScraperPanelUI(apiContainer, ctx, {
+            window.EveOS.API.Manager.renderScraperPanelUI(apiContainer, currentCtx, {
                 providerKey: providerKey,
                 query: searchInput ? searchInput.value : ''
             });
@@ -120,9 +39,12 @@ ctx.notifyScraperStatusUpdate = function notifyScraperStatusUpdate() {
         if (typeof window.EveOS?.API?.Manager?.refreshSearchUnidexPool === 'function') {
             window.EveOS.API.Manager.refreshSearchUnidexPool();
         }
-    }
+    };
 
-ctx.matchesGroupFilter = function matchesGroupFilter(group, filterQuery) {
+    /**
+     * Check if a group matches a text filter.
+     */
+    ctx.matchesGroupFilter = function matchesGroupFilter(group, filterQuery) {
         const normalizedFilter = ctx.normalizeSourceIdentity(filterQuery);
         if (!normalizedFilter) return true;
 
@@ -149,9 +71,12 @@ ctx.matchesGroupFilter = function matchesGroupFilter(group, filterQuery) {
             const normalizedValue = ctx.normalizeSourceIdentity(value);
             return normalizedValue && normalizedValue.includes(normalizedFilter);
         });
-    }
+    };
 
-ctx.getLatestCachedQuery = async function getLatestCachedQuery(categoryName, providerKey = null) {
+    /**
+     * Get the latest cached query for a card/provider.
+     */
+    ctx.getLatestCachedQuery = async function getLatestCachedQuery(categoryName, providerKey = null) {
         const cacheEntries = api.Cache ? await api.Cache.listQueries(categoryName) : [];
         if (!providerKey || !ctx.isProviderSource(providerKey)) {
             return cacheEntries[0] || null;
@@ -159,9 +84,12 @@ ctx.getLatestCachedQuery = async function getLatestCachedQuery(categoryName, pro
         return cacheEntries.find(function (entry) {
             return Number(entry.summary?.perSource?.[providerKey] || 0) > 0;
         }) || null;
-    }
+    };
 
-ctx.resolveApiSearchData = async function resolveApiSearchData(query, options = {}, loadingCallback = null) {
+    /**
+     * High-level resolver for API search data (Cache -> Live Hybrid).
+     */
+    ctx.resolveApiSearchData = async function resolveApiSearchData(query, options = {}, loadingCallback = null) {
         if (!query) return null;
 
         const resolvedCategory = ctx.ensureCategoryContext(options.categoryName);
@@ -184,13 +112,8 @@ ctx.resolveApiSearchData = async function resolveApiSearchData(query, options = 
         const cachedVisibleSources = ctx.filterSourcesByProvider(activeCachedEntry?.sources || {}, providerKey);
         const cachedVisibleCount = ctx.countResults(cachedVisibleSources);
 
-        // Hybrid logic: if we have cache, only go live if specifically requested or if cache is stale.
-        // If liveResults is NOT explicitly true, and we have cache, we should prefer it (Hybrid fallback).
         if (!shouldUseLive && activeCachedEntry?.sources && cachedVisibleCount > 0) {
             const isFresh = activeCachedEntry.expiresAt > Date.now();
-            
-            // If hybrid is ON, we only return immediate cache if it's fresh.
-            // If hybrid is OFF, we return cache anyway if it exists.
             if (!shouldUseHybrid || isFresh) {
                 if (api.Cache && exactCachedVisibleCount > 0) await api.Cache.touchQuery(normalizedQuery, resolvedCategory);
 
@@ -236,7 +159,6 @@ ctx.resolveApiSearchData = async function resolveApiSearchData(query, options = 
         }
 
         try {
-            // Optimization: if hybrid is enabled, tell ctx.collectLiveResults to skip providers already in cache
             const skipSources = (!shouldUseLive && shouldUseHybrid) ? activeCachedEntry?.sources : null;
             
             if (typeof loadingCallback === 'function') {
@@ -245,11 +167,8 @@ ctx.resolveApiSearchData = async function resolveApiSearchData(query, options = 
             }
 
             const liveSources = await ctx.collectLiveResults(normalizedQuery, providerKey, skipSources);
-            
             const hasCacheToMerge = activeCachedEntry?.sources && ctx.countResults(activeCachedEntry.sources) > 0;
-            // Always merge to preserve other providers in Unidex mode
             const mergedSources = ctx.mergeSources(activeCachedEntry?.sources, liveSources);
-            
             const visibleSources = ctx.filterSourcesByProvider(mergedSources, providerKey);
             const totalVisible = ctx.countResults(visibleSources);
 
@@ -278,7 +197,6 @@ ctx.resolveApiSearchData = async function resolveApiSearchData(query, options = 
             };
         } catch (error) {
             console.error('API search error:', error);
-
             if (activeCachedEntry?.sources && cachedVisibleCount > 0) {
                 if (api.Cache && exactCachedVisibleCount > 0) await api.Cache.touchQuery(normalizedQuery, resolvedCategory);
                 return {
@@ -313,14 +231,17 @@ ctx.resolveApiSearchData = async function resolveApiSearchData(query, options = 
                 }
             };
         }
-    }
+    };
 
-ctx.resolveKnowledgeSearchData = async function resolveKnowledgeSearchData(scope, query, options = {}, loadingCallback = null) {
+    /**
+     * Resolve Knowledge Search Data (Wikipedia/Fandom).
+     */
+    ctx.resolveKnowledgeSearchData = async function resolveKnowledgeSearchData(scope, query, options = {}, loadingCallback = null) {
         const normalizedScope = String(scope || '').trim().toLowerCase();
         const resolvedCategory = ctx.ensureCategoryContext(options.categoryName);
         const normalizedQuery = String(query || '').trim();
-        const shouldUseLive = ctx.resolveLivePreference(resolvedCategory, options.liveResults);
-        const shouldUseHybrid = ctx.resolveHybridPreference(resolvedCategory, options.hybridResults);
+        const shouldUseLive = await ctx.resolveLivePreference(resolvedCategory, options.liveResults);
+        const shouldUseHybrid = await ctx.resolveHybridPreference(resolvedCategory, options.hybridResults);
 
         if (!normalizedQuery) {
             return {
@@ -335,15 +256,7 @@ ctx.resolveKnowledgeSearchData = async function resolveKnowledgeSearchData(scope
         try {
             if (normalizedScope === 'wikipedia') {
                 const entries = ctx.normalizeSavedWikipediaEntries(resolvedCategory);
-                if (!entries.length) {
-                    return {
-                        scope: normalizedScope,
-                        categoryName: resolvedCategory,
-                        results: [],
-                        sourceCount: 0,
-                        meta: { summary: { totalResults: 0 } }
-                    };
-                }
+                if (!entries.length) return { scope: normalizedScope, categoryName: resolvedCategory, results: [], sourceCount: 0, meta: { summary: { totalResults: 0 } } };
 
                 if (typeof loadingCallback === 'function') {
                     loadingCallback(true, 'wikipedia', `Searching Wikipedia: ${entries.length} sources...`, { 
@@ -353,7 +266,6 @@ ctx.resolveKnowledgeSearchData = async function resolveKnowledgeSearchData(scope
                     });
                 }
 
-                // Cache-only fast path: search local entry store without orchestrator
                 if (!shouldUseLive && !shouldUseHybrid) {
                     let cacheResults = [];
                     if (window.WikipediaCache && typeof WikipediaCache.searchCachedEntryStore === 'function') {
@@ -364,22 +276,11 @@ ctx.resolveKnowledgeSearchData = async function resolveKnowledgeSearchData(scope
                         categoryName: resolvedCategory,
                         sourceCount: entries.length,
                         results: ctx.sortKnowledgeResults(cacheResults),
-                        meta: {
-                            fromCache: true,
-                            summary: { totalResults: Array.isArray(cacheResults) ? cacheResults.length : 0 }
-                        }
+                        meta: { fromCache: true, summary: { totalResults: Array.isArray(cacheResults) ? cacheResults.length : 0 } }
                     };
                 }
 
-                if (!window.SearchWikipedia?.searchManagedWikipedia) {
-                    return {
-                        scope: normalizedScope,
-                        categoryName: resolvedCategory,
-                        results: [],
-                        sourceCount: entries.length,
-                        meta: { summary: { totalResults: 0 } }
-                    };
-                }
+                if (!window.SearchWikipedia?.searchManagedWikipedia) return { scope: normalizedScope, categoryName: resolvedCategory, results: [], sourceCount: entries.length, meta: { summary: { totalResults: 0 } } };
 
                 const results = await window.SearchWikipedia.searchManagedWikipedia(entries, normalizedQuery, {
                     liveSearch: shouldUseLive,
@@ -392,23 +293,13 @@ ctx.resolveKnowledgeSearchData = async function resolveKnowledgeSearchData(scope
                     categoryName: resolvedCategory,
                     sourceCount: entries.length,
                     results: ctx.sortKnowledgeResults(results),
-                    meta: {
-                        summary: { totalResults: Array.isArray(results) ? results.length : 0 }
-                    }
+                    meta: { summary: { totalResults: Array.isArray(results) ? results.length : 0 } }
                 };
             }
 
             if (normalizedScope === 'fandom') {
                 const domains = ctx.normalizeSavedFandomDomains(resolvedCategory);
-                if (!domains.length) {
-                    return {
-                        scope: normalizedScope,
-                        categoryName: resolvedCategory,
-                        results: [],
-                        sourceCount: 0,
-                        meta: { summary: { totalResults: 0 } }
-                    };
-                }
+                if (!domains.length) return { scope: normalizedScope, categoryName: resolvedCategory, results: [], sourceCount: 0, meta: { summary: { totalResults: 0 } } };
 
                 if (typeof loadingCallback === 'function') {
                     loadingCallback(true, 'fandom', `Searching Fandom: ${domains.length} sources...`, { 
@@ -418,7 +309,6 @@ ctx.resolveKnowledgeSearchData = async function resolveKnowledgeSearchData(scope
                     });
                 }
 
-                // Cache-only fast path: search domain store without orchestrator
                 if (!shouldUseLive && !shouldUseHybrid) {
                     let cacheResults = null;
                     if (window.FSLCache && typeof FSLCache.getCachedDomainStoreResults === 'function') {
@@ -430,22 +320,11 @@ ctx.resolveKnowledgeSearchData = async function resolveKnowledgeSearchData(scope
                         categoryName: resolvedCategory,
                         sourceCount: domains.length,
                         results: ctx.sortKnowledgeResults(resultsList),
-                        meta: {
-                            fromCache: true,
-                            summary: { totalResults: resultsList.length }
-                        }
+                        meta: { fromCache: true, summary: { totalResults: resultsList.length } }
                     };
                 }
 
-                if (!window.SearchFandomLogic?.searchManagedFandom) {
-                    return {
-                        scope: normalizedScope,
-                        categoryName: resolvedCategory,
-                        results: [],
-                        sourceCount: domains.length,
-                        meta: { summary: { totalResults: 0 } }
-                    };
-                }
+                if (!window.SearchFandomLogic?.searchManagedFandom) return { scope: normalizedScope, categoryName: resolvedCategory, results: [], sourceCount: domains.length, meta: { summary: { totalResults: 0 } } };
 
                 const results = await window.SearchFandomLogic.searchManagedFandom(domains, normalizedQuery, {
                     liveSearch: shouldUseLive,
@@ -457,9 +336,7 @@ ctx.resolveKnowledgeSearchData = async function resolveKnowledgeSearchData(scope
                     categoryName: resolvedCategory,
                     sourceCount: domains.length,
                     results: ctx.sortKnowledgeResults(results),
-                    meta: {
-                        summary: { totalResults: Array.isArray(results) ? results.length : 0 }
-                    }
+                    meta: { summary: { totalResults: Array.isArray(results) ? results.length : 0 } }
                 };
             }
         } catch (error) {
@@ -468,27 +345,19 @@ ctx.resolveKnowledgeSearchData = async function resolveKnowledgeSearchData(scope
                 scope: normalizedScope,
                 categoryName: resolvedCategory,
                 results: [],
-                sourceCount: normalizedScope === 'wikipedia'
-                    ? ctx.normalizeSavedWikipediaEntries(resolvedCategory).length
-                    : ctx.normalizeSavedFandomDomains(resolvedCategory).length,
+                sourceCount: normalizedScope === 'wikipedia' ? ctx.normalizeSavedWikipediaEntries(resolvedCategory).length : ctx.normalizeSavedFandomDomains(resolvedCategory).length,
                 error,
-                meta: {
-                    error,
-                    summary: { totalResults: 0 }
-                }
+                meta: { error, summary: { totalResults: 0 } }
             };
         }
 
-        return {
-            scope: normalizedScope,
-            categoryName: resolvedCategory,
-            results: [],
-            sourceCount: 0,
-            meta: { summary: { totalResults: 0 } }
-        };
-    }
+        return { scope: normalizedScope, categoryName: resolvedCategory, results: [], sourceCount: 0, meta: { summary: { totalResults: 0 } } };
+    };
 
-ctx.runUnifiedSearch = async function runUnifiedSearch(query, resultsContainer, onSelect, options = {}) {
+    /**
+     * Core runner for Unified (Unidex) Search.
+     */
+    ctx.runUnifiedSearch = async function runUnifiedSearch(query, resultsContainer, onSelect, options = {}) {
         if (!query || !resultsContainer) return null;
 
         const resolvedCategory = ctx.ensureCategoryContext(options.categoryName);
@@ -501,10 +370,9 @@ ctx.runUnifiedSearch = async function runUnifiedSearch(query, resultsContainer, 
         resultsContainer.innerHTML = `<div style="padding:10px;">Searching Search Unidex across API, Wikipedia, and Fandom...</div>`;
         ctx.updateResultsCount(0);
 
-        // Progress tracking for Search Monitor
         let totalResultsFound = 0;
         let sourcesSearched = 0;
-        const totalSourcesToSearch = 3; // API, Wikipedia, Fandom
+        const totalSourcesToSearch = 3;
 
         const monitorProgress = (isSearching, source, message, stats = {}) => {
             if (!isSearching) return;
@@ -565,9 +433,7 @@ ctx.runUnifiedSearch = async function runUnifiedSearch(query, resultsContainer, 
             })
         ]);
 
-        if (!ctx.isClaimCurrent(resultsContainer, requestId)) {
-            return null;
-        }
+        if (!ctx.isClaimCurrent(resultsContainer, requestId)) return null;
 
         const payload = {
             categoryName: resolvedCategory,
@@ -580,7 +446,6 @@ ctx.runUnifiedSearch = async function runUnifiedSearch(query, resultsContainer, 
         ctx.renderUnifiedSearchResults(payload, resultsContainer, onSelect);
         ctx.notifyScraperStatusUpdate();
 
-        // Ensure we send a final "Done" message to the Search Monitor with the final tallies
         if (typeof options.loadingCallback === 'function') {
             options.loadingCallback(false, resultsContainer.id, 'Search Unidex complete', {
                 totalWikis: totalSourcesToSearch,
@@ -589,14 +454,14 @@ ctx.runUnifiedSearch = async function runUnifiedSearch(query, resultsContainer, 
             });
         }
 
-        if (typeof options.onAfterRender === 'function') {
-            options.onAfterRender(payload);
-        }
-
+        if (typeof options.onAfterRender === 'function') options.onAfterRender(payload);
         return payload;
-    }
+    };
 
-ctx.runSearch = async function runSearch(query, resultsContainer, onSelect, options = {}) {
+    /**
+     * Core runner for Provider-specific search.
+     */
+    ctx.runSearch = async function runSearch(query, resultsContainer, onSelect, options = {}) {
         if (!query || !resultsContainer) return null;
 
         const resolvedCategory = ctx.ensureCategoryContext(options.categoryName);
@@ -617,23 +482,13 @@ ctx.runSearch = async function runSearch(query, resultsContainer, onSelect, opti
             liveResults: options.liveResults,
             hybridResults: options.hybridResults
         }, options.loadingCallback);
-        if (!ctx.isClaimCurrent(resultsContainer, requestId) || !resolved) {
-            return null;
-        }
+        
+        if (!ctx.isClaimCurrent(resultsContainer, requestId) || !resolved) return null;
 
         if (resolved.meta?.cacheMiss) {
             ctx.renderCacheOnlyMessage(resultsContainer, normalizedQuery, providerKey);
-            if (typeof options.onAfterRender === 'function') {
-                options.onAfterRender({
-                    fromCache: false,
-                    cacheMiss: true,
-                    categoryName: resolvedCategory
-                });
-            }
-            return {
-                sources: {},
-                meta: resolved.meta
-            };
+            if (typeof options.onAfterRender === 'function') options.onAfterRender({ fromCache: false, cacheMiss: true, categoryName: resolvedCategory });
+            return { sources: {}, meta: resolved.meta };
         }
 
         if (resolved.meta?.error && Number(resolved.meta?.summary?.totalResults || 0) < 1) {
@@ -653,13 +508,13 @@ ctx.runSearch = async function runSearch(query, resultsContainer, onSelect, opti
                 categoryName: resolvedCategory
             });
         }
-        return {
-            sources: renderedSources,
-            meta: resolved.meta
-        };
-    }
+        return { sources: renderedSources, meta: resolved.meta };
+    };
 
-ctx.loadCachedQuery = async function loadCachedQuery(query, resultsContainer, onSelect, options = {}) {
+    /**
+     * Core runner for loading a cached query.
+     */
+    ctx.loadCachedQuery = async function loadCachedQuery(query, resultsContainer, onSelect, options = {}) {
         if (!query || !resultsContainer || !api.Cache) return null;
 
         const resolvedCategory = ctx.ensureCategoryContext(options.categoryName);
@@ -678,12 +533,8 @@ ctx.loadCachedQuery = async function loadCachedQuery(query, resultsContainer, on
         ctx.updateResultsCount(ctx.countResults(renderedSources));
         ctx.notifyScraperStatusUpdate();
 
-        if (typeof options.onAfterRender === 'function') {
-            options.onAfterRender({ fromCache: true, entry: cachedEntry, categoryName: resolvedCategory });
-        }
-        return {
-            sources: cachedEntry,
-            renderedSources
-        };
-    }
+        if (typeof options.onAfterRender === 'function') options.onAfterRender({ fromCache: true, entry: cachedEntry, categoryName: resolvedCategory });
+        return { sources: cachedEntry, renderedSources };
+    };
+
 })(window.EveOS.API);

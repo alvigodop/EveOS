@@ -36,6 +36,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/api-search/components/api-manager-ui-cache.js?v=0.5.0",
     "js/modules/features/api-search/components/api-manager-ui-unidex.js?v=0.5.0",
     "js/modules/features/api-search/components/api-manager-ui-panels.js?v=0.5.0",
+    "js/modules/features/api-search/components/api-manager-providers.js?v=0.5.0",
     "js/modules/features/api-search/components/api-manager-orchestrator.js?v=0.4.9",
     "js/modules/features/api-search/index.js?v=0.4.9",
     "js/modules/features/sources/source-manager.js"

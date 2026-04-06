@@ -92,27 +92,27 @@ ctx.renderSearchUI = async function renderSearchUI(searchContainer, resultsConta
         }
 
         if (liveToggle) {
-            liveToggle.addEventListener('change', function () {
-                ctx.persistLivePreference(resolvedCategory, liveToggle.checked, liveToggle);
+            liveToggle.addEventListener('change', async function () {
+                await ctx.persistLivePreference(resolvedCategory, liveToggle.checked, liveToggle);
             });
         }
 
         if (hybridToggle) {
-            hybridToggle.addEventListener('change', function () {
-                ctx.persistHybridPreference(resolvedCategory, hybridToggle.checked, hybridToggle);
+            hybridToggle.addEventListener('change', async function () {
+                await ctx.persistHybridPreference(resolvedCategory, hybridToggle.checked, hybridToggle);
             });
         }
 
         if (ttlSelect) {
-            ttlSelect.addEventListener('change', function () {
-                ctx.persistTtlPreference(resolvedCategory, ttlSelect.value, ttlSelect);
+            ttlSelect.addEventListener('change', async function () {
+                await ctx.persistTtlPreference(resolvedCategory, ttlSelect.value, ttlSelect);
             });
         }
 
         openModeRadios.forEach(function (radio) {
-            radio.addEventListener('change', function () {
+            radio.addEventListener('change', async function () {
                 if (!radio.checked) return;
-                ctx.persistOpenModePreference(resolvedCategory, radio.value, radio);
+                await ctx.persistOpenModePreference(resolvedCategory, radio.value, radio);
             });
         });
 
@@ -258,27 +258,27 @@ ctx.renderScraperPanelUI = async function renderScraperPanelUI(container, catego
         }
 
         if (hybridToggle) {
-            hybridToggle.addEventListener('change', function () {
-                ctx.persistHybridPreference(resolvedCategory, hybridToggle.checked, hybridToggle);
+            hybridToggle.addEventListener('change', async function () {
+                await ctx.persistHybridPreference(resolvedCategory, hybridToggle.checked, hybridToggle);
             });
         }
 
         if (liveToggle) {
-            liveToggle.addEventListener('change', function () {
-                ctx.persistLivePreference(resolvedCategory, liveToggle.checked, liveToggle);
+            liveToggle.addEventListener('change', async function () {
+                await ctx.persistLivePreference(resolvedCategory, liveToggle.checked, liveToggle);
             });
         }
 
         if (ttlSelect) {
-            ttlSelect.addEventListener('change', function () {
-                ctx.persistTtlPreference(resolvedCategory, ttlSelect.value, ttlSelect);
+            ttlSelect.addEventListener('change', async function () {
+                await ctx.persistTtlPreference(resolvedCategory, ttlSelect.value, ttlSelect);
             });
         }
 
         openModeRadios.forEach(function (radio) {
-            radio.addEventListener('change', function () {
+            radio.addEventListener('change', async function () {
                 if (!radio.checked) return;
-                ctx.persistOpenModePreference(resolvedCategory, radio.value, radio);
+                await ctx.persistOpenModePreference(resolvedCategory, radio.value, radio);
             });
         });
 
