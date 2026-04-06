@@ -94,7 +94,12 @@ SearchCoordinatorFlow.performContentSearch = async function (query, source, opti
             const unifiedResult = await window.EveOS.API.Manager.runUnifiedSearch(query, resultsContainer, null, {
                 categoryName: window.currentCategoryCtx || window.StorageManager?.categoryContext || '',
                 liveResults: searchOptions.liveSearch === true,
-                hybridResults: searchOptions.hybridSearch !== false
+                hybridResults: searchOptions.hybridSearch !== false,
+                loadingCallback: (show, elementId, msg, stats) => {
+                    if (window.SearchUIRenderer && isActiveResultsRequest(resultsContainer, requestId)) {
+                        SearchUIRenderer.showLoading(show, resultsContainerId, msg, stats);
+                    }
+                }
             });
 
             if (!isActiveResultsRequest(resultsContainer, requestId)) {
@@ -130,6 +135,11 @@ SearchCoordinatorFlow.performContentSearch = async function (query, source, opti
                 providerKey: isApiProviderSource ? source : null,
                 liveResults: searchOptions.liveSearch === true,
                 hybridResults: searchOptions.hybridSearch !== false,
+                loadingCallback: (show, elementId, msg, stats) => {
+                    if (window.SearchUIRenderer && isActiveResultsRequest(resultsContainer, requestId)) {
+                        SearchUIRenderer.showLoading(show, resultsContainerId, msg, stats);
+                    }
+                },
                 onAfterRender: function () {
                     if (apiPanelContainer && window.EveOS?.API?.Manager?.renderScraperPanelUI) {
                         window.EveOS.API.Manager.renderScraperPanelUI(apiPanelContainer, window.currentCategoryCtx || window.StorageManager?.categoryContext || '', {

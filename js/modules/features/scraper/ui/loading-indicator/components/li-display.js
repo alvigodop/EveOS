@@ -42,19 +42,27 @@ window.LoadingIndicatorModules = window.LoadingIndicatorModules || {};
             const dot = indicator.querySelector('.dot');
 
             indicator.classList.toggle('searching', isSearching);
-            indicator.classList.add('visible');
-
-            if (isSearching || message === 'Idle') {
-                indicator.classList.remove('error');
-            }
 
             if (!isSearching) {
+                // If not searching, we should hide the overall overlay but maybe keep "Idle" if not specifically hidden
                 if (statusText) statusText.textContent = 'Idle';
                 if (searchStatus) searchStatus.textContent = 'Idle';
                 if (wikisSearched) wikisSearched.textContent = '0/0';
                 if (resultsFound) resultsFound.textContent = '0';
                 if (dot) dot.style.background = '#e0e0e0';
+
+                // Actually hide the overlay unless we have a specific reason to keep it visible
+                indicator.classList.remove('visible');
+                indicator.style.display = 'none';
                 return;
+            }
+
+            // If we ARE searching, make sure it is visible
+            indicator.classList.add('visible');
+            indicator.style.display = '';
+
+            if (isSearching || message === 'Idle') {
+                indicator.classList.remove('error');
             }
 
             if (statusText) {

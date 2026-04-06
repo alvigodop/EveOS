@@ -269,11 +269,21 @@ window.EveOS.API = window.EveOS.API || {};
                     return [key, skipSources[key]];
                 }
             }
-            return [key, await fetchProviderResults(query, key)];
+
+            try {
+                const result = await fetchProviderResults(query, key);
+                return [key, result];
+            } catch (error) {
+                console.error(`API Search: [${key}] fetch failed`, error);
+                // Return empty placeholder instead of throwing, allowing other providers to succeed
+                return [key, null];
+            }
         }));
 
         return pairs.reduce(function (acc, pair) {
-            acc[pair[0]] = pair[1];
+            if (pair[1] !== null) {
+                acc[pair[0]] = pair[1];
+            }
             return acc;
         }, {});
     }
@@ -1604,30 +1614,38 @@ window.EveOS.API = window.EveOS.API || {};
         const cachedVisibleSources = filterSourcesByProvider(activeCachedEntry?.sources || {}, providerKey);
         const cachedVisibleCount = countResults(cachedVisibleSources);
 
+        // Hybrid logic: if we have cache, only go live if specifically requested or if cache is stale.
+        // If liveResults is NOT explicitly true, and we have cache, we should prefer it (Hybrid fallback).
         if (!shouldUseLive && activeCachedEntry?.sources && cachedVisibleCount > 0) {
-            if (api.Cache && exactCachedVisibleCount > 0) await api.Cache.touchQuery(normalizedQuery, resolvedCategory);
+            const isFresh = activeCachedEntry.expiresAt > Date.now();
             
-            if (typeof loadingCallback === 'function') {
-                loadingCallback(true, 'api', `Found cached results for "${normalizedQuery}"`, { 
-                    statusPhase: 'results',
-                    resultsFound: cachedVisibleCount
-                });
-            }
+            // If hybrid is ON, we only return immediate cache if it's fresh.
+            // If hybrid is OFF, we return cache anyway if it exists.
+            if (!shouldUseHybrid || isFresh) {
+                if (api.Cache && exactCachedVisibleCount > 0) await api.Cache.touchQuery(normalizedQuery, resolvedCategory);
 
-            return {
-                query: normalizedQuery,
-                categoryName: resolvedCategory,
-                providerKey,
-                allSources: activeCachedEntry.sources,
-                visibleSources: cachedVisibleSources,
-                entry: activeCachedEntry,
-                meta: {
-                    fromCache: true,
-                    cacheOrigin: activeCachedEntry?.cacheOrigin || 'query',
-                    providerKey,
-                    summary: api.Cache?.summarizeSources?.(cachedVisibleSources) || { totalResults: 0 }
+                if (typeof loadingCallback === 'function') {
+                    loadingCallback(true, 'api', `Using ${isFresh ? 'fresh ' : ''}cached results for "${normalizedQuery}"`, { 
+                        statusPhase: 'results',
+                        resultsFound: cachedVisibleCount
+                    });
                 }
-            };
+
+                return {
+                    query: normalizedQuery,
+                    categoryName: resolvedCategory,
+                    providerKey,
+                    allSources: activeCachedEntry.sources,
+                    visibleSources: cachedVisibleSources,
+                    entry: activeCachedEntry,
+                    meta: {
+                        fromCache: true,
+                        cacheOrigin: activeCachedEntry?.cacheOrigin || 'query',
+                        providerKey,
+                        summary: api.Cache?.summarizeSources?.(cachedVisibleSources) || { totalResults: 0 }
+                    }
+                };
+            }
         }
 
         if (!shouldUseLive && !shouldUseHybrid) {
@@ -2237,8 +2255,22 @@ window.EveOS.API = window.EveOS.API || {};
             }
         };
 
+        const handleSourceSearch = async (source, searchFn, callback) => {
+            try {
+                const result = await searchFn();
+                sourcesSearched++;
+                if (callback) callback(result);
+                return result;
+            } catch (error) {
+                console.error(`runUnifiedSearch: ${source} search failed`, error);
+                sourcesSearched++;
+                monitorProgress(true, source, `${source} search failed: ${error.message || 'Unknown error'}`);
+                return null;
+            }
+        };
+
         const [apiResult, wikipediaResult, fandomResult] = await Promise.all([
-            resolveApiSearchData(normalizedQuery, {
+            handleSourceSearch('api', () => resolveApiSearchData(normalizedQuery, {
                 categoryName: resolvedCategory,
                 ttlMs: options.ttlMs,
                 liveResults: options.liveResults,
@@ -2246,30 +2278,26 @@ window.EveOS.API = window.EveOS.API || {};
             }, (show, elementId, msg, stats) => {
                 if (stats?.resultsFound !== undefined) totalResultsFound += stats.resultsFound;
                 monitorProgress(show, 'api', msg, stats);
-            }).then(res => { sourcesSearched++; return res; }),
-            resolveKnowledgeSearchData('wikipedia', normalizedQuery, {
+            })),
+            handleSourceSearch('wikipedia', () => resolveKnowledgeSearchData('wikipedia', normalizedQuery, {
                 categoryName: resolvedCategory,
                 liveResults: options.liveResults,
                 hybridResults: options.hybridResults
             }, (show, elementId, msg, stats) => {
                 if (stats?.resultsFound !== undefined) totalResultsFound += stats.resultsFound;
                 monitorProgress(show, 'wikipedia', msg, stats);
-            }).then(res => { 
-                sourcesSearched++; 
+            }), (res) => {
                 if (res?.results?.length) totalResultsFound += res.results.length;
-                return res; 
             }),
-            resolveKnowledgeSearchData('fandom', normalizedQuery, {
+            handleSourceSearch('fandom', () => resolveKnowledgeSearchData('fandom', normalizedQuery, {
                 categoryName: resolvedCategory,
                 liveResults: options.liveResults,
                 hybridResults: options.hybridResults
             }, (show, elementId, msg, stats) => {
                 if (stats?.resultsFound !== undefined) totalResultsFound += stats.resultsFound;
                 monitorProgress(show, 'fandom', msg, stats);
-            }).then(res => { 
-                sourcesSearched++; 
+            }), (res) => {
                 if (res?.results?.length) totalResultsFound += res.results.length;
-                return res; 
             })
         ]);
 
@@ -2280,13 +2308,22 @@ window.EveOS.API = window.EveOS.API || {};
         const payload = {
             categoryName: resolvedCategory,
             query: normalizedQuery,
-            api: apiResult,
-            wikipedia: wikipediaResult,
-            fandom: fandomResult
+            api: apiResult || { meta: { summary: { totalResults: 0 } }, allSources: {}, visibleSources: {} },
+            wikipedia: wikipediaResult || { results: [], meta: { summary: { totalResults: 0 } } },
+            fandom: fandomResult || { results: [], meta: { summary: { totalResults: 0 } } }
         };
 
         renderUnifiedSearchResults(payload, resultsContainer, onSelect);
         notifyScraperStatusUpdate();
+
+        // Ensure we send a final "Done" message to the Search Monitor with the final tallies
+        if (typeof options.loadingCallback === 'function') {
+            options.loadingCallback(false, resultsContainer.id, 'Search Unidex complete', {
+                totalWikis: totalSourcesToSearch,
+                wikisSearched: totalSourcesToSearch,
+                resultsFound: totalResultsFound
+            });
+        }
 
         if (typeof options.onAfterRender === 'function') {
             options.onAfterRender(payload);
