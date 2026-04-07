@@ -52,19 +52,6 @@
 
         const storedConfig = localStorage.getItem('eveV22Config');
         let config = {};
-
-        if (storedConfig) {
-            try {
-                config = JSON.parse(storedConfig);
-            } catch (e) {
-                console.error("Theme Boot: Config parse error", e);
-            }
-        }
-
-        // Default to Dark if not specified or config missing
-        const theme = config.themeMode || 'dark';
-        const isCustom = theme === 'custom';
-
         // 1. Apply Theme Mode (Light/Dark) on HTML element
         if (theme === 'light') {
             document.documentElement.classList.add('light-theme');

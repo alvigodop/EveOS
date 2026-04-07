@@ -53,7 +53,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/scraper/wiki/fandom-domains/fandom-domains-components/fd-storage.js",
     "js/modules/features/scraper/wiki/fandom-domains/fandom-domains-components/fd-api.js",
     "js/modules/features/scraper/wiki/fandom-domains/fandom-domains-components/fd-operations.js",
-    "js/modules/features/scraper/wiki/fandom-domains.js",
+    "js/modules/features/scraper/wiki/fandom-domains/fandom-domains.js",
     "js/modules/features/scraper/wiki/wiki-entries/wiki-entries-components/we-fetcher.js",
     "js/modules/features/scraper/wiki/wiki-entries/wiki-entries.js",
     "js/modules/features/scraper/wiki/wiki-store/wiki-store.js",
