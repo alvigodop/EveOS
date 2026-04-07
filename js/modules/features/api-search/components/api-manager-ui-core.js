@@ -173,6 +173,12 @@ window.EveOS.API = window.EveOS.API || {};
                 liveToggle.dataset.apiLiveBound = '1';
                 liveToggle.addEventListener('change', async function () {
                     await ctx.persistLivePreference(categoryName, liveToggle.checked, liveToggle);
+                    // Explicitly trigger search manager update now that the preference is saved
+                    if (typeof window.applyFilters === 'function') {
+                        window.applyFilters();
+                    } else if (typeof window.triggerSearchManagerUpdate === 'function') {
+                        window.triggerSearchManagerUpdate();
+                    }
                 });
             }
         }
@@ -187,6 +193,11 @@ window.EveOS.API = window.EveOS.API || {};
                 hybridToggle.dataset.apiHybridBound = '1';
                 hybridToggle.addEventListener('change', async function () {
                     await ctx.persistHybridPreference(categoryName, hybridToggle.checked, hybridToggle);
+                    if (typeof window.applyFilters === 'function') {
+                        window.applyFilters();
+                    } else if (typeof window.triggerSearchManagerUpdate === 'function') {
+                        window.triggerSearchManagerUpdate();
+                    }
                 });
             }
         }

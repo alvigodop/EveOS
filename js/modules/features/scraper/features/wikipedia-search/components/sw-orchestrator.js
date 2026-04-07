@@ -12,6 +12,17 @@
     const SWOrchestrator = {
         version: '1.0.1',
 
+        /**
+         * Check if entry data is considered "shallow" (missing deep content)
+         */
+        isShallowEntryData: function (data) {
+            if (!data || typeof data !== 'object') return true;
+            const hasLinks = Array.isArray(data.links) && data.links.length > 0;
+            const hasExtract = typeof data.extract === 'string' && data.extract.trim().length > 0;
+            const hasSections = Array.isArray(data.sections) && data.sections.length > 0;
+            return !hasLinks && !hasExtract && !hasSections;
+        },
+
         init: function () {
             console.log('SWOrchestrator initialized');
             return this;
@@ -67,10 +78,16 @@
                                 WikiManager.renderWikiEntryList(true);
                             }
                             
-                            // Flag cached results so UI badge displays correctly
-                            return validResults.map(function (r) {
-                                return { ...r, fromCache: true };
-                            });
+                            // [MOD] If hybridSearch is active, do not return early with cached query. 
+                            // Proceed to discovery loop so we can enrich with link/content discovery.
+                            if (options.hybridSearch !== true) {
+                                console.log(`SWOrchestrator: Returning early with exact cached query results (hybridSearch disabled)`);
+                                return validResults.map(function (r) {
+                                    return { ...r, fromCache: true };
+                                });
+                            }
+                            
+                            console.log(`SWOrchestrator: Exact cached query found but continuing to discovery loop (Hybrid Mode enrichment)`);
                         }
                     }
                 }
@@ -89,10 +106,16 @@
                             WikiManager.renderWikiEntryList(true);
                         }
                         
-                        // Return flagged results
-                        return fallbackResults.map(function (r) {
-                            return { ...r, fromCache: true };
-                        });
+                        // [MOD] If hybridSearch is active, do not return early here. 
+                        // Proceed to the full discovery loop so we find all links/snippets/sections
+                        if (options.hybridSearch !== true) {
+                            console.log(`SWOrchestrator: Returning early with shallow results (hybridSearch disabled)`);
+                            return fallbackResults.map(function (r) {
+                                return { ...r, fromCache: true };
+                            });
+                        }
+                        
+                        console.log(`SWOrchestrator: Found shallow matches but continuing to discovery loop (Hybrid Mode)`);
                     }
                 }
 
@@ -138,9 +161,32 @@
                         }
                     }
 
-                    // --- 3. Live Fetch (if no cache) ---
-                    if (!entryData && shouldFetchLive && window.WikipediaAPI) {
-                        console.log(`SWOrchestrator: Fetching live data for Wikipedia entry "${entry.title}"`);
+                    // --- 3. Live Fetch (if no cache OR shallow cache in Hybrid mode) ---
+                    const isShallow = this.isShallowEntryData(entryData);
+                    if ((!entryData || (options.hybridSearch && isShallow)) && shouldFetchLive && window.WikipediaAPI) {
+                        if (entryData && isShallow) {
+                            console.log(`SWOrchestrator: Cache for "${entry.title}" is shallow. Triggering Hybrid Discovery...`);
+                            if (showLoadingFn) {
+                                showLoadingFn(true, 'results', `Discovering related articles for "${entry.title}"...`, {
+                                    wikisSearched: searchedEntries,
+                                    totalWikis: totalEntries,
+                                    resultsFound: allResults.length,
+                                    currentResult: entry.title,
+                                    statusPhase: 'live'
+                                });
+                            }
+                        } else {
+                            console.log(`SWOrchestrator: Fetching live data for Wikipedia entry "${entry.title}"`);
+                            if (showLoadingFn) {
+                                showLoadingFn(true, 'results', `Fetching live Wikipedia data for "${entry.title}"...`, {
+                                    wikisSearched: searchedEntries,
+                                    totalWikis: totalEntries,
+                                    resultsFound: allResults.length,
+                                    currentResult: entry.title,
+                                    statusPhase: 'live'
+                                });
+                            }
+                        }
                         try {
                             const liveData = await WikipediaAPI.fetchLiveEntry(entry.title);
                             if (liveData) {

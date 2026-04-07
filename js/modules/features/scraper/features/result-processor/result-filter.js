@@ -58,6 +58,7 @@
                     if (options.hideSourceArticles) {
                         const titleLower = (item.title || '').toLowerCase().trim();
                         const relatedToLower = (item.relatedTo || '').toLowerCase().trim();
+                        const queryLower = (options.query || options.searchTerm || '').toLowerCase().trim();
 
                         // If the result title matches the source entry it came from, hide it
                         if (titleLower && relatedToLower && titleLower === relatedToLower) {

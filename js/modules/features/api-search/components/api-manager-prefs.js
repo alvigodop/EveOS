@@ -3,7 +3,7 @@ window.EveOS.API = window.EveOS.API || {};
 (function (api) {
     const ctx = api.SearchInternals = api.SearchInternals || {};
 
-ctx.syncTtlState = function syncTtlState(ttlMs, origin) {
+    ctx.syncTtlState = function syncTtlState(ttlMs, origin) {
         const selectors = [
             '[data-api-ttl-select="search"]',
             '[data-api-ttl-select="scraper"]'
@@ -17,7 +17,7 @@ ctx.syncTtlState = function syncTtlState(ttlMs, origin) {
         });
     }
 
-ctx.persistTtlPreference = function persistTtlPreference(categoryName, ttlMs, origin) {
+    ctx.persistTtlPreference = function persistTtlPreference(categoryName, ttlMs, origin) {
         const resolvedCategory = ctx.ensureCategoryContext(categoryName);
         const normalizedTtl = Number(ttlMs) > 0 ? Number(ttlMs) : Number(api.Cache?.DEFAULT_TTL_MS || (24 * 60 * 60 * 1000));
         if (api.Cache) {
@@ -26,22 +26,22 @@ ctx.persistTtlPreference = function persistTtlPreference(categoryName, ttlMs, or
         ctx.syncTtlState(normalizedTtl, origin);
     }
 
-ctx.resolveLivePreference = async function resolveLivePreference(categoryName, explicitValue) {
+    ctx.resolveLivePreference = async function resolveLivePreference(categoryName, explicitValue) {
         if (typeof explicitValue === 'boolean') return explicitValue;
         return api.Cache ? (await api.Cache.loadPrefs(categoryName)).liveResults === true : false;
     }
 
-ctx.resolveHybridPreference = async function resolveHybridPreference(categoryName, explicitValue) {
+    ctx.resolveHybridPreference = async function resolveHybridPreference(categoryName, explicitValue) {
         if (typeof explicitValue === 'boolean') return explicitValue;
         return api.Cache ? (await api.Cache.loadPrefs(categoryName)).hybridResults !== false : true;
     }
 
-ctx.resolveOpenModePreference = async function resolveOpenModePreference(categoryName, explicitValue) {
+    ctx.resolveOpenModePreference = async function resolveOpenModePreference(categoryName, explicitValue) {
         if (explicitValue === 'popup' || explicitValue === 'newtab') return explicitValue;
         return api.Cache ? (await api.Cache.loadPrefs(categoryName)).openMode : 'popup';
     }
 
-ctx.syncLiveToggleState = function syncLiveToggleState(enabled, origin) {
+    ctx.syncLiveToggleState = function syncLiveToggleState(enabled, origin) {
         const liveSelectors = [
             '[data-api-live-toggle="shared"]',
             '[data-api-live-toggle="search"]',
@@ -52,6 +52,9 @@ ctx.syncLiveToggleState = function syncLiveToggleState(enabled, origin) {
         liveSelectors.forEach(function (selector) {
             document.querySelectorAll(selector).forEach(function (element) {
                 if (element === origin) return;
+                // Only update if not currently focused to avoid "stuck" feeling during interaction
+                if (document.activeElement === element) return;
+
                 if ('checked' in element) {
                     element.checked = enabled;
                 }
@@ -59,7 +62,7 @@ ctx.syncLiveToggleState = function syncLiveToggleState(enabled, origin) {
         });
     }
 
-ctx.syncHybridToggleState = function syncHybridToggleState(enabled, origin) {
+    ctx.syncHybridToggleState = function syncHybridToggleState(enabled, origin) {
         const hybridSelectors = [
             '[data-api-hybrid-toggle="shared"]',
             '[data-api-hybrid-toggle="search"]',
@@ -70,6 +73,8 @@ ctx.syncHybridToggleState = function syncHybridToggleState(enabled, origin) {
         hybridSelectors.forEach(function (selector) {
             document.querySelectorAll(selector).forEach(function (element) {
                 if (element === origin) return;
+                if (document.activeElement === element) return;
+
                 if ('checked' in element) {
                     element.checked = enabled;
                 }
@@ -77,7 +82,7 @@ ctx.syncHybridToggleState = function syncHybridToggleState(enabled, origin) {
         });
     }
 
-ctx.syncOpenModeState = function syncOpenModeState(mode, origin) {
+    ctx.syncOpenModeState = function syncOpenModeState(mode, origin) {
         const normalizedMode = mode === 'newtab' ? 'newtab' : 'popup';
         document.querySelectorAll('[data-api-open-mode]').forEach(function (element) {
             if (element === origin) return;
@@ -86,7 +91,7 @@ ctx.syncOpenModeState = function syncOpenModeState(mode, origin) {
         });
     }
 
-ctx.persistLivePreference = async function persistLivePreference(categoryName, enabled, origin) {
+    ctx.persistLivePreference = async function persistLivePreference(categoryName, enabled, origin) {
         const resolvedCategory = ctx.ensureCategoryContext(categoryName);
         if (api.Cache) {
             await api.Cache.savePrefs({ liveResults: enabled === true }, resolvedCategory);
@@ -94,7 +99,7 @@ ctx.persistLivePreference = async function persistLivePreference(categoryName, e
         ctx.syncLiveToggleState(enabled === true, origin);
     }
 
-ctx.persistHybridPreference = async function persistHybridPreference(categoryName, enabled, origin) {
+    ctx.persistHybridPreference = async function persistHybridPreference(categoryName, enabled, origin) {
         const resolvedCategory = ctx.ensureCategoryContext(categoryName);
         if (api.Cache) {
             await api.Cache.savePrefs({ hybridResults: enabled !== false }, resolvedCategory);
@@ -102,7 +107,7 @@ ctx.persistHybridPreference = async function persistHybridPreference(categoryNam
         ctx.syncHybridToggleState(enabled !== false, origin);
     }
 
-ctx.persistOpenModePreference = async function persistOpenModePreference(categoryName, mode, origin) {
+    ctx.persistOpenModePreference = async function persistOpenModePreference(categoryName, mode, origin) {
         const resolvedCategory = ctx.ensureCategoryContext(categoryName);
         const normalizedMode = mode === 'newtab' ? 'newtab' : 'popup';
         if (api.Cache) {
@@ -111,12 +116,18 @@ ctx.persistOpenModePreference = async function persistOpenModePreference(categor
         ctx.syncOpenModeState(normalizedMode, origin);
     }
 
-ctx.getScopedStorageValue = function getScopedStorageValue(key, defaultValue, categoryName) {
+    ctx.getScopedStorageValue = function getScopedStorageValue(key, defaultValue, categoryName) {
         const resolvedCategory = ctx.ensureCategoryContext(categoryName);
-        if (window.StorageManager && typeof window.StorageManager.loadData === 'function') {
+        const currentManagerContext = window.StorageManager ? String(window.StorageManager.categoryContext || '').trim() : '';
+        
+        // If the requested category matches the current global StorageManager context, 
+        // we can use its standard loadData method.
+        if (window.StorageManager && typeof window.StorageManager.loadData === 'function' && resolvedCategory === currentManagerContext) {
             return window.StorageManager.loadData(key, defaultValue);
         }
 
+        // Otherwise (or if context differs/missing), we must manually scope the key 
+        // to ensure we read from the correct Card's storage prefix.
         try {
             const normalized = String(resolvedCategory || '')
                 .trim()
@@ -131,9 +142,12 @@ ctx.getScopedStorageValue = function getScopedStorageValue(key, defaultValue, ca
         }
     }
 
-ctx.saveScopedStorageValue = function saveScopedStorageValue(key, value, categoryName) {
+    ctx.saveScopedStorageValue = function saveScopedStorageValue(key, value, categoryName) {
         const resolvedCategory = ctx.ensureCategoryContext(categoryName);
-        if (window.StorageManager && typeof window.StorageManager.saveData === 'function') {
+        const currentManagerContext = window.StorageManager ? String(window.StorageManager.categoryContext || '').trim() : '';
+
+        // Same logic: use manager if context matches, otherwise manual prefix
+        if (window.StorageManager && typeof window.StorageManager.saveData === 'function' && resolvedCategory === currentManagerContext) {
             return window.StorageManager.saveData(key, value);
         }
 

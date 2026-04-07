@@ -42,6 +42,20 @@ window.EveOS.API = window.EveOS.API || {};
     };
 
     /**
+     * Check if an API cache entry is "shallow" (needs discovery enrichment).
+     */
+    ctx.isShallowApiCache = function isShallowApiCache(cacheEntry) {
+        if (!cacheEntry || !cacheEntry.sources) return true;
+        
+        const sources = cacheEntry.sources;
+        const providerCount = Object.keys(sources).length;
+        const totalResults = typeof ctx.countResults === 'function' ? ctx.countResults(sources) : 0;
+        
+        // If we have fewer than 3 providers (and not a single-provider search) OR zero results, it's shallow.
+        return (providerCount < 3 && totalResults === 0) || (providerCount === 0);
+    };
+
+    /**
      * Check if a group matches a text filter.
      */
     ctx.matchesGroupFilter = function matchesGroupFilter(group, filterQuery) {
@@ -115,12 +129,16 @@ window.EveOS.API = window.EveOS.API || {};
 
             if (!shouldUseLive && activeCachedEntry?.sources && cachedVisibleCount > 0) {
                 const isFresh = activeCachedEntry.expiresAt > Date.now();
-                if (!shouldUseHybrid || isFresh) {
+                // [MOD] If hybridSearch is active, do not return early with cached query.
+                // This ensures we fall through to the merge phase where sources (like Wikipedia) can discover deep results.
+                const isShallow = ctx.isShallowApiCache(activeCachedEntry);
+
+                if (!shouldUseHybrid || !isShallow) {
                     if (api.Cache && exactCachedVisibleCount > 0) await api.Cache.touchQuery(normalizedQuery, resolvedCategory);
 
                     if (typeof loadingCallback === 'function') {
                         loadingCallback(true, 'api', `Using ${isFresh ? 'fresh ' : ''}cached results for "${normalizedQuery}"`, { 
-                            statusPhase: 'results',
+                            statusPhase: 'results', 
                             resultsFound: cachedVisibleCount
                         });
                     }
@@ -139,6 +157,14 @@ window.EveOS.API = window.EveOS.API || {};
                             summary: api.Cache?.summarizeSources?.(cachedVisibleSources) || { totalResults: 0 }
                         }
                     };
+                }
+                
+                console.log(`API Orchestrator: Hybrid search active - proceeding to discovery enrichment despite fresh cache.`);
+                if (typeof loadingCallback === 'function') {
+                    loadingCallback(true, 'api', `Cache found for "${normalizedQuery}", proceeding to discovery enrichment...`, { 
+                        statusPhase: 'live',
+                        resultsFound: cachedVisibleCount
+                    });
                 }
             }
 
@@ -387,19 +413,26 @@ window.EveOS.API = window.EveOS.API || {};
         let sourcesSearched = 0;
         const totalSourcesToSearch = 3;
 
+        let activeSubSearches = 0;
         const monitorProgress = (isSearching, source, message, stats = {}) => {
             if (typeof options.loadingCallback === 'function' && ctx.isClaimCurrent(resultsContainer, requestId)) {
+                // If we're tracking sub-searches, only signal completion (false) when ALL are done.
+                // However, sub-searchers themselves signal completion when they finish.
+                // We should keep the overall indicator "true" (searching) as long as we are inside the Promise.all.
+                const shouldStayVisible = isSearching || activeSubSearches > 0;
+                
                 const combinedStats = {
                     ...stats,
                     wikisSearched: sourcesSearched,
                     totalWikis: totalSourcesToSearch,
                     resultsFound: totalResultsFound
                 };
-                options.loadingCallback(isSearching, resultsContainer.id, message, combinedStats);
+                options.loadingCallback(shouldStayVisible, resultsContainer.id, message, combinedStats);
             }
         };
 
         const handleSourceSearch = async (source, searchFn, callback) => {
+            activeSubSearches++;
             try {
                 const result = await searchFn();
                 sourcesSearched++;
@@ -410,6 +443,8 @@ window.EveOS.API = window.EveOS.API || {};
                 sourcesSearched++;
                 monitorProgress(true, source, `${source} search failed: ${error.message || 'Unknown error'}`);
                 return null;
+            } finally {
+                activeSubSearches--;
             }
         };
 

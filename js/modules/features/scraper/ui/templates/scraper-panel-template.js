@@ -116,14 +116,14 @@
                             </label>
                             <label class="filter-label" title="Hybrid Search: Prioritize cache but fetch live if needed">
                                 <div class="toggle-switch">
-                                    <input type="checkbox" id="hybridSearchToggle" checked onchange="applyFilters()">
+                                    <input type="checkbox" id="hybridSearchToggle" checked>
                                     <span class="toggle-slider"></span>
                                 </div>
                                 <span>Hybrid</span>
                             </label>
                             <label class="filter-label" title="Always fetch live data">
                                 <div class="toggle-switch">
-                                    <input type="checkbox" id="liveSearchToggle" onchange="applyFilters()">
+                                    <input type="checkbox" id="liveSearchToggle">
                                     <span class="toggle-slider"></span>
                                 </div>
                                 <span>Live</span>
