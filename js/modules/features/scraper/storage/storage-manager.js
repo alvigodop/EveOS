@@ -47,6 +47,7 @@ StorageManager._getPrefixedKey = function (key) {
  */
 StorageManager.init = function () {
     console.log('Initializing StorageManager');
+    // Ensure LZString is available globally if needed, but we check per call
     try {
         localStorage.setItem('sm_test', 'test');
         localStorage.removeItem('sm_test');
@@ -84,9 +85,47 @@ StorageManager.remove = function (key) {
     return this.deleteData(key);
 };
 
+/**
+ * [NEW] Smart Compression Helpers
+ */
+StorageManager._smartCompress = function (data) {
+    if (typeof LZString === 'undefined' || !data) return typeof data === 'string' ? data : JSON.stringify(data);
+    const json = typeof data === 'string' ? data : JSON.stringify(data);
+    if (json.length < 1024) return json;
+    try {
+        const compressed = LZString.compressToUTF16(json);
+        const packed = '_LZ_' + compressed;
+        
+        if (packed.length < json.length) {
+            const savings = Math.round((1 - packed.length / json.length) * 100);
+            console.log(`Storage: Compressed [${savings}% saved] from ${(json.length / 1024).toFixed(1)}KB to ${(packed.length / 1024).toFixed(1)}KB.`);
+            return packed;
+        }
+    } catch (e) {
+        console.warn('StorageManager: Compression failed:', e);
+        return json;
+    }
+    return json;
+};
+
+StorageManager._smartDecompress = function (str, fallback = null) {
+    if (typeof str !== 'string' || !str || !str.startsWith('_LZ_')) return str;
+    if (typeof LZString === 'undefined') {
+        console.warn('StorageManager: LZString missing during decompression attempt.');
+        return fallback;
+    }
+    try {
+        const decompressed = LZString.decompressFromUTF16(str.slice(4));
+        return decompressed || fallback;
+    } catch (e) {
+        console.warn('StorageManager: Decompression failed:', e);
+        return fallback;
+    }
+};
+
 StorageManager.saveData = function (key, data) {
     const prefixedKey = this._getPrefixedKey(key);
-    const stringifiedData = JSON.stringify(data);
+    const stringifiedData = this._smartCompress(data);
     
     try {
         localStorage.setItem(prefixedKey, stringifiedData);
@@ -114,11 +153,84 @@ StorageManager.saveData = function (key, data) {
     }
 };
 
+/**
+ * Save heavy data to IndexedDB asynchronously, falling back to localStorage
+ */
+StorageManager.saveHeavyData = async function(key, data) {
+    if (window.IDBStore) {
+        try {
+            await window.IDBStore.set(this._getPrefixedKey(key), data);
+            console.log(`StorageManager (IDB): Saved massive payload for [${key}]`);
+            return true;
+        } catch (e) {
+            console.warn(`StorageManager (IDB): Save failed for ${key}, falling back`, e);
+        }
+    }
+    return this.saveData(key, data);
+};
+
+/**
+ * Load heavy data from IndexedDB asynchronously, falling back to localStorage
+ */
+StorageManager.loadHeavyData = async function(key, defaultValue) {
+    if (window.IDBStore) {
+        try {
+            const val = await window.IDBStore.get(this._getPrefixedKey(key));
+            if (val !== undefined) return val;
+        } catch (e) {
+            console.warn(`StorageManager (IDB): Load failed for ${key}, falling back`, e);
+        }
+    }
+    return this.loadData(key, defaultValue);
+};
+
+/**
+ * Delete heavy data from IndexedDB asynchronously
+ */
+StorageManager.deleteHeavyData = async function(key) {
+    if (window.IDBStore) {
+        try {
+            await window.IDBStore.remove(this._getPrefixedKey(key));
+        } catch (e) {}
+    }
+    this.deleteData(key);
+};
+
+/**
+ * Get internal storage statistics
+ * @returns {object} - Statistics about localStorage usage
+ */
+StorageManager.getStats = function () {
+    let totalSize = 0;
+    let items = 0;
+    for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        const val = localStorage.getItem(key);
+        if (key && val) {
+            totalSize += (key.length + val.length);
+            items++;
+        }
+    }
+    const usedMB = (totalSize / (1024 * 1024)).toFixed(2);
+    console.log(`Storage Stats: ${items} items, ${usedMB}MB / 5.00MB used.`);
+    return { items, usedBytes: totalSize, usedMB };
+};
+
 StorageManager.loadData = function (key, defaultValue) {
     const prefixedKey = this._getPrefixedKey(key);
     try {
-        const data = localStorage.getItem(prefixedKey);
-        return data ? JSON.parse(data) : defaultValue;
+        const raw = localStorage.getItem(prefixedKey);
+        const data = this._smartDecompress(raw, null);
+        
+        // If we have a compressed prefix but no data/library, fail over to defaultValue
+        if (data === null) return defaultValue;
+        
+        try {
+            return JSON.parse(data);
+        } catch (parseError) {
+            console.error(`Error parsing JSON for ${prefixedKey}:`, parseError);
+            return defaultValue;
+        }
     } catch (error) {
         console.error(`Error loading data from localStorage (${prefixedKey}):`, error);
         return defaultValue;

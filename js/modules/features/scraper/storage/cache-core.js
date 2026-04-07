@@ -29,8 +29,31 @@
                 if (this._initialized && !force) return this;
                 console.log('Initializing CacheCore (Force context reload: ' + force + ')');
                 if (window.StorageManager) {
-                    this.wikiDataStore = StorageManager.loadData('wikiDataStore', { searchResults: {} });
-                    this.wikiCacheStore = StorageManager.loadData('wikiCacheStore', {});
+                    if (typeof StorageManager.loadHeavyData === 'function') {
+                        this.wikiDataStore = { searchResults: {} };
+                        StorageManager.loadHeavyData('wikiDataStore', { searchResults: {} }).then(store => {
+                            if (store) Object.assign(this.wikiDataStore, store);
+                            if (!this.wikiDataStore.searchResults) this.wikiDataStore.searchResults = {};
+                            console.log('CacheCore: Async heavy wiki data loaded from IDB.');
+                            if (window.WikiManager) {
+                                WikiManager.refreshCacheStores();
+                                if (typeof WikiManager.renderFandomDomainList === 'function') WikiManager.renderFandomDomainList();
+                            }
+                        }).catch(e => console.warn('CacheCore: Heavy wiki data async load failed', e));
+                        
+                        this.wikiCacheStore = {};
+                        StorageManager.loadHeavyData('wikiCacheStore', {}).then(store => {
+                            if (store) Object.assign(this.wikiCacheStore, store);
+                            console.log('CacheCore: Async heavy wiki cache loaded from IDB.');
+                            if (window.WikiManager) {
+                                WikiManager.refreshCacheStores();
+                                if (typeof WikiManager.renderWikiEntryList === 'function') WikiManager.renderWikiEntryList();
+                            }
+                        }).catch(e => console.warn('CacheCore: Heavy wiki cache async load failed', e));
+                    } else {
+                        this.wikiDataStore = StorageManager.loadData('wikiDataStore', { searchResults: {} });
+                        this.wikiCacheStore = StorageManager.loadData('wikiCacheStore', {});
+                    }
                 } else {
                     try {
                         this.wikiDataStore = JSON.parse(localStorage.getItem('wikiDataStore')) || { searchResults: {} };
@@ -57,16 +80,22 @@
              * @param {any} defaultValue - Default value to return if key not found
              * @returns {any} - The cached value or default value
              */
-            get: function (key, defaultValue) {
+            get: async function (key, defaultValue) {
                 try {
                     const cacheKey = 'cache_' + key;
-                    const cacheData = window.StorageManager ? StorageManager.loadData(cacheKey, null) : JSON.parse(localStorage.getItem(cacheKey));
+                    const cacheData = window.StorageManager ? 
+                        await (typeof StorageManager.loadHeavyData === 'function' ? StorageManager.loadHeavyData(cacheKey, null) : StorageManager.loadData(cacheKey, null)) : 
+                        JSON.parse(localStorage.getItem(cacheKey));
                     if (!cacheData) return defaultValue;
 
                     // Check if cache has expired
                     if (cacheData.expires && cacheData.expires < Date.now()) {
                         if (window.StorageManager) {
-                            StorageManager.deleteData(cacheKey);
+                            if (typeof StorageManager.deleteHeavyData === 'function') {
+                                await StorageManager.deleteHeavyData(cacheKey);
+                            } else {
+                                StorageManager.deleteData(cacheKey);
+                            }
                         } else {
                             localStorage.removeItem(cacheKey);
                         }
@@ -87,7 +116,7 @@
              * @param {number} ttl - Time to live in milliseconds (optional)
              * @returns {boolean} - True if successful
              */
-            set: function (key, value, ttl) {
+            set: async function (key, value, ttl) {
                 try {
                     const cacheKey = 'cache_' + key;
                     const cacheData = {
@@ -97,7 +126,11 @@
                     };
 
                     if (window.StorageManager) {
-                        StorageManager.saveData(cacheKey, cacheData);
+                        if (typeof StorageManager.saveHeavyData === 'function') {
+                            await StorageManager.saveHeavyData(cacheKey, cacheData);
+                        } else {
+                            StorageManager.saveData(cacheKey, cacheData);
+                        }
                     } else {
                         localStorage.setItem(cacheKey, JSON.stringify(cacheData));
                     }
@@ -177,6 +210,10 @@
              */
             saveWikiDataStore: function () {
                 if (window.StorageManager) {
+                    if (typeof StorageManager.saveHeavyData === 'function') {
+                        StorageManager.saveHeavyData('wikiDataStore', this.wikiDataStore).catch(e => console.warn('CacheCore: Async heavy wiki data save failed', e));
+                        return true;
+                    }
                     return StorageManager.saveData('wikiDataStore', this.wikiDataStore);
                 }
                 try {
@@ -193,6 +230,10 @@
              */
             saveWikiCacheStore: function () {
                 if (window.StorageManager) {
+                    if (typeof StorageManager.saveHeavyData === 'function') {
+                        StorageManager.saveHeavyData('wikiCacheStore', this.wikiCacheStore).catch(e => console.warn('CacheCore: Async heavy wiki save failed', e));
+                        return true;
+                    }
                     return StorageManager.saveData('wikiCacheStore', this.wikiCacheStore);
                 }
                 try {

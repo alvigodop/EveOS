@@ -106,7 +106,10 @@ if (!Object.getOwnPropertyDescriptor(WikiManager, 'wikiCategories')) {
  * Refresh local cache store references
  */
 WikiManager.refreshCacheStores = function () {
-    if (window.StorageManager) {
+    if (window.CacheCore && CacheCore.wikiCacheStore && CacheCore.wikiDataStore) {
+        WikiManager.wikiCacheStore = CacheCore.wikiCacheStore;
+        WikiManager.fandomCacheStore = CacheCore.wikiDataStore;
+    } else if (window.StorageManager) {
         WikiManager.wikiCacheStore = StorageManager.loadFromCacheStore() || {};
         WikiManager.fandomCacheStore = StorageManager.loadFromDataStore() || { searchResults: {} };
     } else {

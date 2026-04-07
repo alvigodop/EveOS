@@ -26,40 +26,53 @@
 
         /**
          * Emergency prune of the cache
-         * @param {number} percentage - Percentage of items to remove (0.0 to 1.0)
+         * Targets specific items to free up space based on size and importance
+         * @param {number} targetFreePercentage - Target percentage of storage to free up (0.0 to 1.0)
          */
-        emergencyPrune: function (percentage = 0.5) {
-            console.warn(`CCMaintenance: Emergency prune triggered (target: ${Math.round(percentage * 100)}%)...`);
+        emergencyPrune: function (targetFreePercentage = 0.3) {
+            console.warn(`CCMaintenance: Emergency prune triggered (Target: free up ~${Math.round(targetFreePercentage * 100)}% space)...`);
             try {
-                // 1. Identify all cache-related keys
+                // 1. Identify and measure all scrappable keys
                 const allKeys = [];
+                let currentPoolSize = 0;
                 for (let i = 0; i < localStorage.length; i++) {
                     const key = localStorage.key(i);
-                    if (key && (key.includes('cache_') || key.includes('browserEmulator_'))) {
-                        allKeys.push({
-                            key: key,
-                            size: localStorage.getItem(key).length,
-                            isHighValue: key.includes('browserEmulator_')
-                        });
+                    const val = localStorage.getItem(key);
+                    if (key && val) {
+                        const size = (key.length + val.length);
+                        currentPoolSize += size;
+                        if (key.includes('cache_') || key.includes('browserEmulator_') || key.includes('wiki') || key.includes('apiSearchCachePool')) {
+                            allKeys.push({
+                                key: key,
+                                size: size,
+                                isHighValue: key.includes('link') || key.includes('config')
+                            });
+                        }
                     }
                 }
 
-                if (allKeys.length === 0) return;
-
-                // 2. Sort by size (descending) so we free up the most space first
-                allKeys.sort((a, b) => b.size - a.size);
-
-                // 3. Remove the top percentage of items
-                const itemsToRemove = Math.max(1, Math.floor(allKeys.length * percentage));
-                let spaceFreed = 0;
-
-                for (let i = 0; i < itemsToRemove; i++) {
-                    const item = allKeys[i];
-                    spaceFreed += item.size;
-                    localStorage.removeItem(item.key);
+                if (allKeys.length === 0) {
+                    console.log('CCMaintenance: No prunable cache keys found.');
+                    return;
                 }
 
-                console.log(`CCMaintenance: Emergency prune complete. Removed ${itemsToRemove} items, freed approximately ${(spaceFreed / 1024).toFixed(2)} KB.`);
+                // 2. Sort by size (descending) - target largest non-high-value items first
+                allKeys.sort((a, b) => b.size - a.size);
+
+                // 3. Clear target amount
+                const targetBytesToFree = currentPoolSize * targetFreePercentage;
+                let actualBytesFreed = 0;
+                let itemsRemoved = 0;
+
+                for (const item of allKeys) {
+                    if (actualBytesFreed >= targetBytesToFree) break;
+                    
+                    localStorage.removeItem(item.key);
+                    actualBytesFreed += item.size;
+                    itemsRemoved++;
+                }
+
+                console.log(`CCMaintenance: Emergency prune complete. Removed ${itemsRemoved} items, freed approximately ${(actualBytesFreed / 1024).toFixed(2)} KB.`);
             } catch (e) {
                 console.error('CCMaintenance: Error during emergency prune:', e);
             }

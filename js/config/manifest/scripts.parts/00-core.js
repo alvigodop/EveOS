@@ -8,6 +8,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/core/category-order.js?v=0.1.0",
     "js/modules/core/utils.js?v=0.2.1",
     "js/modules/core/search-monitor-boot.js?v=0.1.1",
+    "js/modules/core/indexeddb-store.js",
     "js/modules/core/storage.js?v=0.2.3",
     "js/modules/features/semantic-drift.js?v=0.1.1",
     "js/modules/features/bookmark-folders/bookmark-folders.shared.store.js?v=0.1.0",

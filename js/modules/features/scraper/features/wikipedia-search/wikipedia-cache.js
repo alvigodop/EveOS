@@ -223,7 +223,14 @@
             } else if (!liveData.lastUpdate) {
                 liveData.lastUpdate = new Date().toISOString();
             }
-            await CacheManager.updateWikipediaEntryData(title, liveData);
+
+            // Minify payload to save space in localStorage
+            const slimData = { ...liveData };
+            delete slimData.content;
+            delete slimData.sections;
+            delete slimData.links;
+
+            await CacheManager.updateWikipediaEntryData(title, slimData);
         }
     };
 

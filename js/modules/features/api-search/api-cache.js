@@ -5,7 +5,7 @@ window.EveOS.API = window.EveOS.API || {};
     const CACHE_KEY = 'apiSearchCachePool';
     const PREFS_KEY = 'apiSearchPrefs';
     const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
-    const MAX_QUERIES = 12;
+    const MAX_QUERIES = 50; 
 
     function normalizeText(value) {
         return String(value || '').trim();
@@ -47,7 +47,10 @@ window.EveOS.API = window.EveOS.API || {};
     }
 
     async function loadScopedValue(key, defaultValue, categoryName) {
-        return await withScopedContext(categoryName, function (manager) {
+        return await withScopedContext(categoryName, async function (manager) {
+            if (manager && typeof manager.loadHeavyData === 'function' && key === CACHE_KEY) {
+                return await manager.loadHeavyData(key, defaultValue);
+            }
             if (manager && typeof manager.loadData === 'function') {
                 return manager.loadData(key, defaultValue);
             }
@@ -64,6 +67,9 @@ window.EveOS.API = window.EveOS.API || {};
 
     async function saveScopedValue(key, value, categoryName) {
         return await withScopedContext(categoryName, async function (manager) {
+            if (manager && typeof manager.saveHeavyData === 'function' && key === CACHE_KEY) {
+                return await manager.saveHeavyData(key, value);
+            }
             if (manager && typeof manager.saveData === 'function') {
                 return await manager.saveData(key, value);
             }
@@ -79,7 +85,10 @@ window.EveOS.API = window.EveOS.API || {};
     }
 
     async function deleteScopedValue(key, categoryName) {
-        return await withScopedContext(categoryName, function (manager) {
+        return await withScopedContext(categoryName, async function (manager) {
+            if (manager && typeof manager.deleteHeavyData === 'function' && key === CACHE_KEY) {
+                return await manager.deleteHeavyData(key);
+            }
             if (manager && typeof manager.deleteData === 'function') {
                 return manager.deleteData(key);
             }
@@ -479,6 +488,17 @@ window.EveOS.API = window.EveOS.API || {};
             ...(previous.sources || {}),
             ...(sources || {})
         };
+
+        // --- RUTHLESS TRIMMING ---
+        // Slice massive API arrays down to the top 15 display items
+        // This effectively cuts the localStorage payload size by up to 80%
+        getSearchableProviderKeys().forEach(function(providerKey) {
+            const list = getProviderList(mergedSources, providerKey);
+            if (list && list.length > 15) {
+                setProviderList(mergedSources, providerKey, list.slice(0, 15));
+            }
+        });
+        // -------------------------
 
         pool.queries[queryKey] = {
             key: queryKey,
