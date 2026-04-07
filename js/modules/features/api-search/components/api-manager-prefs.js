@@ -135,7 +135,17 @@ window.EveOS.API = window.EveOS.API || {};
                 .replace(/\s+/g, '_');
             const scopedKey = normalized ? `${normalized}_${key}` : key;
             const raw = localStorage.getItem(scopedKey);
-            return raw ? JSON.parse(raw) : defaultValue;
+            
+            if (raw) {
+                // If it's a legacy LZ compressed string and we hit this before StorageManager/CacheCore 
+                // is ready to decompress or route to IndexedDB, just return default. 
+                // The async IDB trigger will re-render the UI correctly moments later.
+                if (raw.startsWith('LZ:') || raw.startsWith('_LZ_')) {
+                     return defaultValue;
+                }
+                return JSON.parse(raw);
+            }
+            return defaultValue;
         } catch (error) {
             console.warn('API Manager: Failed to read scoped storage', key, error);
             return defaultValue;

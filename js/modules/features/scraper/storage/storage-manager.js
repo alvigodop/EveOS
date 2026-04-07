@@ -159,8 +159,11 @@ StorageManager.saveData = function (key, data) {
 StorageManager.saveHeavyData = async function(key, data) {
     if (window.IDBStore) {
         try {
-            await window.IDBStore.set(this._getPrefixedKey(key), data);
+            const prefixed = this._getPrefixedKey(key);
+            await window.IDBStore.set(prefixed, data);
             console.log(`StorageManager (IDB): Saved massive payload for [${key}]`);
+            // GC the old maxed out payload to free up the 5MB localStorage limit cleanly
+            try { localStorage.removeItem(prefixed); } catch(e) {}
             return true;
         } catch (e) {
             console.warn(`StorageManager (IDB): Save failed for ${key}, falling back`, e);
