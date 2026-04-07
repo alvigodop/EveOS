@@ -36,22 +36,27 @@
      * Generate Main Entry Result
      */
     WikipediaProcessor.createMainEntryResult = function (entry, entryData, normalizedQuery, options) {
-        const entryTitleLower = this.removeDiacritics(entry.title.toLowerCase());
-        const mainUrl = entryData.url || `https://en.wikipedia.org/wiki/${encodeURIComponent(entry.title.replace(/ /g, '_'))}`;
+        const entryTitle = String(entry.title || '').trim();
+        const entryName = String(entry.name || '').trim();
+        const entryTitleLower = this.removeDiacritics(entryTitle.toLowerCase());
+        const entryNameLower = this.removeDiacritics(entryName.toLowerCase());
+        
+        const mainUrl = entryData.url || `https://en.wikipedia.org/wiki/${encodeURIComponent(entryTitle.replace(/ /g, '_'))}`;
 
-        if (entryTitleLower.includes(normalizedQuery)) {
+        // Match if query is in title OR query is in name OR title/name is in query (for very short queries)
+        const isMatch = entryTitleLower.includes(normalizedQuery) || 
+                        entryNameLower.includes(normalizedQuery) ||
+                        (normalizedQuery.length > 3 && (entryTitleLower.includes(normalizedQuery) || normalizedQuery.includes(entryTitleLower)));
+
+        if (isMatch) {
             const contentType = entryData.contentType || 'Unknown';
             const categories = entryData.categories || [];
 
-            // Note: Filter checks should be done by caller or here? 
-            // The original logic checked filter *before* pushing to processedUrls for liveData, 
-            // but for "3. Process Data" it checks filter inside.
-
             return {
-                title: entry.title,
-                snippet: `Article: ${entry.title}`,
+                title: entryTitle,
+                snippet: `Article: ${entryTitle}`,
                 url: mainUrl,
-                wiki_name: entry.name || entry.title,
+                wiki_name: entryName || entryTitle,
                 wiki_url: 'https://en.wikipedia.org',
                 contentType: contentType,
                 categories: categories,
@@ -60,8 +65,8 @@
                 matchScore: 100,
                 source: 'wikipedia',
                 fromCache: false,
-                entryDataFromCache: entryData.entryDataFromCache || false, // Propagated from liveData or cache
-                relatedTo: entry.title
+                entryDataFromCache: entryData.entryDataFromCache || false,
+                relatedTo: entryTitle
             };
         }
         return null;

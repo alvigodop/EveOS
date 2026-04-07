@@ -224,13 +224,9 @@
                 liveData.lastUpdate = new Date().toISOString();
             }
 
-            // Minify payload to save space in localStorage
-            const slimData = { ...liveData };
-            delete slimData.content;
-            delete slimData.sections;
-            delete slimData.links;
-
-            await CacheManager.updateWikipediaEntryData(title, slimData);
+            // We no longer minify/slim the data because we have IndexedDB now.
+            // Keeping links, sections, and content is essential for local search richness.
+            await CacheManager.updateWikipediaEntryData(title, liveData);
         }
     };
 
