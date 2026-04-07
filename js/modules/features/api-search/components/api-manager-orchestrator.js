@@ -102,63 +102,63 @@ window.EveOS.API = window.EveOS.API || {};
             loadingCallback(true, 'api', `Checking cache for "${normalizedQuery}"...`, { statusPhase: 'cache' });
         }
 
-        const exactCachedEntry = api.Cache ? await api.Cache.getQuery(normalizedQuery, resolvedCategory) : null;
-        const exactCachedVisibleSources = ctx.filterSourcesByProvider(exactCachedEntry?.sources || {}, providerKey);
-        const exactCachedVisibleCount = ctx.countResults(exactCachedVisibleSources);
-        const derivedCachedEntry = (!exactCachedVisibleCount && api.Cache && typeof api.Cache.searchCachedSources === 'function')
-            ? await api.Cache.searchCachedSources(normalizedQuery, resolvedCategory, providerKey)
-            : null;
-        const activeCachedEntry = exactCachedVisibleCount > 0 ? exactCachedEntry : derivedCachedEntry;
-        const cachedVisibleSources = ctx.filterSourcesByProvider(activeCachedEntry?.sources || {}, providerKey);
-        const cachedVisibleCount = ctx.countResults(cachedVisibleSources);
+        try {
+            const exactCachedEntry = api.Cache ? await api.Cache.getQuery(normalizedQuery, resolvedCategory) : null;
+            const exactCachedVisibleSources = ctx.filterSourcesByProvider(exactCachedEntry?.sources || {}, providerKey);
+            const exactCachedVisibleCount = ctx.countResults(exactCachedVisibleSources);
+            const derivedCachedEntry = (!exactCachedVisibleCount && api.Cache && typeof api.Cache.searchCachedSources === 'function')
+                ? await api.Cache.searchCachedSources(normalizedQuery, resolvedCategory, providerKey)
+                : null;
+            const activeCachedEntry = exactCachedVisibleCount > 0 ? exactCachedEntry : derivedCachedEntry;
+            const cachedVisibleSources = ctx.filterSourcesByProvider(activeCachedEntry?.sources || {}, providerKey);
+            const cachedVisibleCount = ctx.countResults(cachedVisibleSources);
 
-        if (!shouldUseLive && activeCachedEntry?.sources && cachedVisibleCount > 0) {
-            const isFresh = activeCachedEntry.expiresAt > Date.now();
-            if (!shouldUseHybrid || isFresh) {
-                if (api.Cache && exactCachedVisibleCount > 0) await api.Cache.touchQuery(normalizedQuery, resolvedCategory);
+            if (!shouldUseLive && activeCachedEntry?.sources && cachedVisibleCount > 0) {
+                const isFresh = activeCachedEntry.expiresAt > Date.now();
+                if (!shouldUseHybrid || isFresh) {
+                    if (api.Cache && exactCachedVisibleCount > 0) await api.Cache.touchQuery(normalizedQuery, resolvedCategory);
 
-                if (typeof loadingCallback === 'function') {
-                    loadingCallback(true, 'api', `Using ${isFresh ? 'fresh ' : ''}cached results for "${normalizedQuery}"`, { 
-                        statusPhase: 'results',
-                        resultsFound: cachedVisibleCount
-                    });
+                    if (typeof loadingCallback === 'function') {
+                        loadingCallback(true, 'api', `Using ${isFresh ? 'fresh ' : ''}cached results for "${normalizedQuery}"`, { 
+                            statusPhase: 'results',
+                            resultsFound: cachedVisibleCount
+                        });
+                    }
+
+                    return {
+                        query: normalizedQuery,
+                        categoryName: resolvedCategory,
+                        providerKey,
+                        allSources: activeCachedEntry.sources,
+                        visibleSources: cachedVisibleSources,
+                        entry: activeCachedEntry,
+                        meta: {
+                            fromCache: true,
+                            cacheOrigin: activeCachedEntry?.cacheOrigin || 'query',
+                            providerKey,
+                            summary: api.Cache?.summarizeSources?.(cachedVisibleSources) || { totalResults: 0 }
+                        }
+                    };
                 }
+            }
 
+            if (!shouldUseLive && !shouldUseHybrid) {
                 return {
                     query: normalizedQuery,
                     categoryName: resolvedCategory,
                     providerKey,
-                    allSources: activeCachedEntry.sources,
-                    visibleSources: cachedVisibleSources,
-                    entry: activeCachedEntry,
+                    allSources: {},
+                    visibleSources: {},
                     meta: {
-                        fromCache: true,
-                        cacheOrigin: activeCachedEntry?.cacheOrigin || 'query',
+                        fromCache: false,
+                        cacheMiss: true,
+                        cacheOnly: true,
                         providerKey,
-                        summary: api.Cache?.summarizeSources?.(cachedVisibleSources) || { totalResults: 0 }
+                        summary: { totalResults: 0 }
                     }
                 };
             }
-        }
 
-        if (!shouldUseLive && !shouldUseHybrid) {
-            return {
-                query: normalizedQuery,
-                categoryName: resolvedCategory,
-                providerKey,
-                allSources: {},
-                visibleSources: {},
-                meta: {
-                    fromCache: false,
-                    cacheMiss: true,
-                    cacheOnly: true,
-                    providerKey,
-                    summary: { totalResults: 0 }
-                }
-            };
-        }
-
-        try {
             const skipSources = (!shouldUseLive && shouldUseHybrid) ? activeCachedEntry?.sources : null;
             
             if (typeof loadingCallback === 'function') {
@@ -197,20 +197,24 @@ window.EveOS.API = window.EveOS.API || {};
             };
         } catch (error) {
             console.error('API search error:', error);
-            if (activeCachedEntry?.sources && cachedVisibleCount > 0) {
-                if (api.Cache && exactCachedVisibleCount > 0) await api.Cache.touchQuery(normalizedQuery, resolvedCategory);
+            const exactCachedEntry = api.Cache ? await api.Cache.getQuery(normalizedQuery, resolvedCategory) : null;
+            const cachedVisibleSources = ctx.filterSourcesByProvider(exactCachedEntry?.sources || {}, providerKey);
+            const cachedVisibleCount = ctx.countResults(cachedVisibleSources);
+
+            if (exactCachedEntry?.sources && cachedVisibleCount > 0) {
+                if (api.Cache) await api.Cache.touchQuery(normalizedQuery, resolvedCategory);
                 return {
                     query: normalizedQuery,
                     categoryName: resolvedCategory,
                     providerKey,
-                    allSources: activeCachedEntry.sources,
+                    allSources: exactCachedEntry.sources,
                     visibleSources: cachedVisibleSources,
-                    entry: activeCachedEntry,
+                    entry: exactCachedEntry,
                     error,
                     meta: {
                         fromCache: true,
                         fallback: true,
-                        cacheOrigin: activeCachedEntry?.cacheOrigin || 'query',
+                        cacheOrigin: exactCachedEntry?.cacheOrigin || 'query',
                         providerKey,
                         summary: api.Cache?.summarizeSources?.(cachedVisibleSources) || { totalResults: 0 }
                     }
@@ -230,6 +234,10 @@ window.EveOS.API = window.EveOS.API || {};
                     summary: { totalResults: 0 }
                 }
             };
+        } finally {
+            if (typeof loadingCallback === 'function') {
+                loadingCallback(false, 'api', 'API search data resolved');
+            }
         }
     };
 
@@ -349,10 +357,15 @@ window.EveOS.API = window.EveOS.API || {};
                 error,
                 meta: { error, summary: { totalResults: 0 } }
             };
+        } finally {
+            if (typeof loadingCallback === 'function') {
+                loadingCallback(false, normalizedScope, `${normalizedScope} search resolved`);
+            }
         }
 
         return { scope: normalizedScope, categoryName: resolvedCategory, results: [], sourceCount: 0, meta: { summary: { totalResults: 0 } } };
     };
+
 
     /**
      * Core runner for Unified (Unidex) Search.
@@ -362,7 +375,7 @@ window.EveOS.API = window.EveOS.API || {};
 
         const resolvedCategory = ctx.ensureCategoryContext(options.categoryName);
         const normalizedQuery = String(query).trim();
-        const requestId = ctx.claimResultsView(resultsContainer, {
+        const requestId = options.requestId || ctx.claimResultsView(resultsContainer, {
             query: normalizedQuery,
             source: 'search-unidex'
         });
@@ -375,15 +388,14 @@ window.EveOS.API = window.EveOS.API || {};
         const totalSourcesToSearch = 3;
 
         const monitorProgress = (isSearching, source, message, stats = {}) => {
-            if (!isSearching) return;
-            if (typeof options.loadingCallback === 'function') {
+            if (typeof options.loadingCallback === 'function' && ctx.isClaimCurrent(resultsContainer, requestId)) {
                 const combinedStats = {
                     ...stats,
                     wikisSearched: sourcesSearched,
                     totalWikis: totalSourcesToSearch,
                     resultsFound: totalResultsFound
                 };
-                options.loadingCallback(true, resultsContainer.id, message, combinedStats);
+                options.loadingCallback(isSearching, resultsContainer.id, message, combinedStats);
             }
         };
 
@@ -401,61 +413,72 @@ window.EveOS.API = window.EveOS.API || {};
             }
         };
 
-        const [apiResult, wikipediaResult, fandomResult] = await Promise.all([
-            handleSourceSearch('api', () => ctx.resolveApiSearchData(normalizedQuery, {
+        try {
+            monitorProgress(true, 'init', `Starting Unidex search for "${normalizedQuery}"...`, { statusPhase: 'init' });
+
+            const [apiResult, wikipediaResult, fandomResult] = await Promise.all([
+                handleSourceSearch('api', () => ctx.resolveApiSearchData(normalizedQuery, {
+                    categoryName: resolvedCategory,
+                    ttlMs: options.ttlMs,
+                    liveResults: options.liveResults,
+                    hybridResults: options.hybridResults
+                }, (show, elementId, msg, stats) => {
+                    if (stats?.resultsFound !== undefined) {
+                        // totalResultsFound is updated by the sub-loader logic usually, but we sync here if needed
+                    }
+                    monitorProgress(show, 'api', msg, stats);
+                })),
+                handleSourceSearch('wikipedia', () => ctx.resolveKnowledgeSearchData('wikipedia', normalizedQuery, {
+                    categoryName: resolvedCategory,
+                    liveResults: options.liveResults,
+                    hybridResults: options.hybridResults
+                }, (show, elementId, msg, stats) => {
+                    monitorProgress(show, 'wikipedia', msg, stats);
+                })),
+                handleSourceSearch('fandom', () => ctx.resolveKnowledgeSearchData('fandom', normalizedQuery, {
+                    categoryName: resolvedCategory,
+                    liveResults: options.liveResults,
+                    hybridResults: options.hybridResults
+                }, (show, elementId, msg, stats) => {
+                    monitorProgress(show, 'fandom', msg, stats);
+                }))
+            ]);
+
+            if (!ctx.isClaimCurrent(resultsContainer, requestId)) return null;
+
+            const payload = {
                 categoryName: resolvedCategory,
-                ttlMs: options.ttlMs,
-                liveResults: options.liveResults,
-                hybridResults: options.hybridResults
-            }, (show, elementId, msg, stats) => {
-                if (stats?.resultsFound !== undefined) totalResultsFound += stats.resultsFound;
-                monitorProgress(show, 'api', msg, stats);
-            })),
-            handleSourceSearch('wikipedia', () => ctx.resolveKnowledgeSearchData('wikipedia', normalizedQuery, {
-                categoryName: resolvedCategory,
-                liveResults: options.liveResults,
-                hybridResults: options.hybridResults
-            }, (show, elementId, msg, stats) => {
-                if (stats?.resultsFound !== undefined) totalResultsFound += stats.resultsFound;
-                monitorProgress(show, 'wikipedia', msg, stats);
-            }), (res) => {
-                if (res?.results?.length) totalResultsFound += res.results.length;
-            }),
-            handleSourceSearch('fandom', () => ctx.resolveKnowledgeSearchData('fandom', normalizedQuery, {
-                categoryName: resolvedCategory,
-                liveResults: options.liveResults,
-                hybridResults: options.hybridResults
-            }, (show, elementId, msg, stats) => {
-                if (stats?.resultsFound !== undefined) totalResultsFound += stats.resultsFound;
-                monitorProgress(show, 'fandom', msg, stats);
-            }), (res) => {
-                if (res?.results?.length) totalResultsFound += res.results.length;
-            })
-        ]);
+                query: normalizedQuery,
+                api: apiResult || { meta: { summary: { totalResults: 0 } }, allSources: {}, visibleSources: {} },
+                wikipedia: wikipediaResult || { results: [], meta: { summary: { totalResults: 0 } } },
+                fandom: fandomResult || { results: [], meta: { summary: { totalResults: 0 } } }
+            };
 
-        if (!ctx.isClaimCurrent(resultsContainer, requestId)) return null;
+            totalResultsFound = (payload.api.meta?.summary?.totalResults || 0) + 
+                                (payload.wikipedia.meta?.summary?.totalResults || 0) + 
+                                (payload.fandom.meta?.summary?.totalResults || 0);
 
-        const payload = {
-            categoryName: resolvedCategory,
-            query: normalizedQuery,
-            api: apiResult || { meta: { summary: { totalResults: 0 } }, allSources: {}, visibleSources: {} },
-            wikipedia: wikipediaResult || { results: [], meta: { summary: { totalResults: 0 } } },
-            fandom: fandomResult || { results: [], meta: { summary: { totalResults: 0 } } }
-        };
+            monitorProgress(true, 'process', `Rendering ${totalResultsFound} Unidex results...`, { statusPhase: 'process' });
+            
+            ctx.renderUnifiedSearchResults(payload, resultsContainer, onSelect);
+            ctx.notifyScraperStatusUpdate();
 
-        ctx.renderUnifiedSearchResults(payload, resultsContainer, onSelect);
-        ctx.notifyScraperStatusUpdate();
+            if (typeof options.onAfterRender === 'function') options.onAfterRender(payload);
+            return payload;
 
-        if (typeof options.loadingCallback === 'function') {
-            options.loadingCallback(false, resultsContainer.id, 'Search Unidex complete', {
-                totalWikis: totalSourcesToSearch,
-                wikisSearched: totalSourcesToSearch,
-                resultsFound: totalResultsFound
-            });
+        } catch (error) {
+            console.error('runUnifiedSearch: Critical error', error);
+            monitorProgress(false, 'error', `Search failed: ${error.message}`, { statusPhase: 'error' });
+            throw error;
+        } finally {
+            if (typeof options.loadingCallback === 'function' && ctx.isClaimCurrent(resultsContainer, requestId)) {
+                options.loadingCallback(false, resultsContainer.id, 'Search Unidex complete', {
+                    totalWikis: totalSourcesToSearch,
+                    wikisSearched: sourcesSearched,
+                    resultsFound: totalResultsFound
+                });
+            }
         }
-
-        if (typeof options.onAfterRender === 'function') options.onAfterRender(payload);
-        return payload;
     };
 
     /**
@@ -467,7 +490,7 @@ window.EveOS.API = window.EveOS.API || {};
         const resolvedCategory = ctx.ensureCategoryContext(options.categoryName);
         const providerKey = ctx.isProviderSource(options.providerKey) ? options.providerKey : null;
         const normalizedQuery = String(query).trim();
-        const requestId = ctx.claimResultsView(resultsContainer, {
+        const requestId = options.requestId || ctx.claimResultsView(resultsContainer, {
             query: normalizedQuery,
             source: providerKey || 'api'
         });
@@ -475,40 +498,53 @@ window.EveOS.API = window.EveOS.API || {};
         resultsContainer.innerHTML = `<div style="padding:10px;">Searching ${ctx.escapeHtml(providerKey ? ctx.getProviderLabel(providerKey) : 'API providers')}...</div>`;
         ctx.updateResultsCount(0);
 
-        const resolved = await ctx.resolveApiSearchData(normalizedQuery, {
-            categoryName: resolvedCategory,
-            providerKey,
-            ttlMs: options.ttlMs,
-            liveResults: options.liveResults,
-            hybridResults: options.hybridResults
-        }, options.loadingCallback);
-        
-        if (!ctx.isClaimCurrent(resultsContainer, requestId) || !resolved) return null;
+        try {
+            const resolved = await ctx.resolveApiSearchData(normalizedQuery, {
+                categoryName: resolvedCategory,
+                providerKey,
+                ttlMs: options.ttlMs,
+                liveResults: options.liveResults,
+                hybridResults: options.hybridResults
+            }, options.loadingCallback);
+            
+            if (!ctx.isClaimCurrent(resultsContainer, requestId) || !resolved) return null;
 
-        if (resolved.meta?.cacheMiss) {
-            ctx.renderCacheOnlyMessage(resultsContainer, normalizedQuery, providerKey);
-            if (typeof options.onAfterRender === 'function') options.onAfterRender({ fromCache: false, cacheMiss: true, categoryName: resolvedCategory });
-            return { sources: {}, meta: resolved.meta };
+            if (resolved.meta?.cacheMiss) {
+                ctx.renderCacheOnlyMessage(resultsContainer, normalizedQuery, providerKey);
+                if (typeof options.onAfterRender === 'function') options.onAfterRender({ fromCache: false, cacheMiss: true, categoryName: resolvedCategory });
+                return { sources: {}, meta: resolved.meta };
+            }
+
+            if (resolved.meta?.error && Number(resolved.meta?.summary?.totalResults || 0) < 1) {
+                resultsContainer.innerHTML = 'An error occurred while searching.<br><pre style="text-align:left; font-size:12px; color:red;">' + ctx.escapeHtml(resolved.meta.error.stack || resolved.meta.error.message || resolved.meta.error) + '</pre>';
+                return null;
+            }
+
+            const renderedSources = ctx.renderProviderResultsSubset(resolved.allSources, resultsContainer, onSelect, providerKey, !!resolved.meta?.fromCache);
+            ctx.updateResultsCount(ctx.countResults(renderedSources));
+            ctx.notifyScraperStatusUpdate();
+
+            if (typeof options.onAfterRender === 'function') {
+                options.onAfterRender({
+                    fromCache: resolved.meta?.fromCache === true,
+                    fallback: resolved.meta?.fallback === true,
+                    entry: resolved.entry || null,
+                    categoryName: resolvedCategory
+                });
+            }
+            return { sources: renderedSources, meta: resolved.meta };
+
+        } catch (error) {
+            console.error('runSearch: Critical error', error);
+            if (typeof options.loadingCallback === 'function' && ctx.isClaimCurrent(resultsContainer, requestId)) {
+                options.loadingCallback(false, resultsContainer.id, `Search failed: ${error.message}`, { statusPhase: 'error' });
+            }
+            throw error;
+        } finally {
+            if (typeof options.loadingCallback === 'function' && ctx.isClaimCurrent(resultsContainer, requestId)) {
+                options.loadingCallback(false, resultsContainer.id, 'Search complete');
+            }
         }
-
-        if (resolved.meta?.error && Number(resolved.meta?.summary?.totalResults || 0) < 1) {
-            resultsContainer.innerHTML = 'An error occurred while searching.<br><pre style="text-align:left; font-size:12px; color:red;">' + ctx.escapeHtml(resolved.meta.error.stack || resolved.meta.error.message || resolved.meta.error) + '</pre>';
-            return null;
-        }
-
-        const renderedSources = ctx.renderProviderResultsSubset(resolved.allSources, resultsContainer, onSelect, providerKey, !!resolved.meta?.fromCache);
-        ctx.updateResultsCount(ctx.countResults(renderedSources));
-        ctx.notifyScraperStatusUpdate();
-
-        if (typeof options.onAfterRender === 'function') {
-            options.onAfterRender({
-                fromCache: resolved.meta?.fromCache === true,
-                fallback: resolved.meta?.fallback === true,
-                entry: resolved.entry || null,
-                categoryName: resolvedCategory
-            });
-        }
-        return { sources: renderedSources, meta: resolved.meta };
     };
 
     /**

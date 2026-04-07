@@ -45,6 +45,7 @@ window.LoadingIndicatorModules = window.LoadingIndicatorModules || {};
 
             if (!isSearching) {
                 // If not searching, we should hide the overall overlay but maybe keep "Idle" if not specifically hidden
+                indicator.classList.remove('searching');
                 if (statusText) statusText.textContent = 'Idle';
                 if (searchStatus) searchStatus.textContent = 'Idle';
                 if (wikisSearched) wikisSearched.textContent = '0/0';
@@ -54,6 +55,13 @@ window.LoadingIndicatorModules = window.LoadingIndicatorModules || {};
                 // Actually hide the overlay unless we have a specific reason to keep it visible
                 indicator.classList.remove('visible');
                 indicator.style.display = 'none';
+                
+                // Clear any stored stats in the monitor UI if it exists
+                const monitorStatus = document.querySelector('.gemini-monitor-status-text');
+                if (monitorStatus && monitorStatus.textContent.includes('Searching')) {
+                    monitorStatus.textContent = 'Search complete. Standing by.';
+                }
+                
                 return;
             }
 

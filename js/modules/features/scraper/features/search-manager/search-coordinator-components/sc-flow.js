@@ -95,6 +95,7 @@ SearchCoordinatorFlow.performContentSearch = async function (query, source, opti
                 categoryName: window.currentCategoryCtx || window.StorageManager?.categoryContext || '',
                 liveResults: searchOptions.liveSearch === true,
                 hybridResults: searchOptions.hybridSearch !== false,
+                requestId: requestId,
                 loadingCallback: (show, elementId, msg, stats) => {
                     if (window.SearchUIRenderer && isActiveResultsRequest(resultsContainer, requestId)) {
                         SearchUIRenderer.showLoading(show, resultsContainerId, msg, stats);
@@ -135,6 +136,7 @@ SearchCoordinatorFlow.performContentSearch = async function (query, source, opti
                 providerKey: isApiProviderSource ? source : null,
                 liveResults: searchOptions.liveSearch === true,
                 hybridResults: searchOptions.hybridSearch !== false,
+                requestId: requestId,
                 loadingCallback: (show, elementId, msg, stats) => {
                     if (window.SearchUIRenderer && isActiveResultsRequest(resultsContainer, requestId)) {
                         SearchUIRenderer.showLoading(show, resultsContainerId, msg, stats);
