@@ -35,10 +35,9 @@ StorageManager.setCategoryContext = function (context) {
 /**
  * Get the prefixed key based on current context
  */
-StorageManager._getPrefixedKey = function (key) {
-    if (!this.categoryContext) return key;
-    // Normalize context (lowercase, no spaces)
-    const normalized = this.categoryContext.toLowerCase().replace(/\s+/g, '_');
+StorageManager._getPrefixedKey = function (key, contextOverride = null) {
+    const context = contextOverride || this.categoryContext || 'global';
+    const normalized = context.toLowerCase().replace(/\s+/g, '_');
     return `${normalized}_${key}`;
 };
 
@@ -156,14 +155,14 @@ StorageManager.saveData = function (key, data) {
 /**
  * Save heavy data to IndexedDB asynchronously, falling back to localStorage
  */
-StorageManager.saveHeavyData = async function(key, data) {
+StorageManager.saveHeavyData = async function(key, data, context = null) {
     if (window.IDBStore) {
         try {
-            const prefixed = this._getPrefixedKey(key);
-            await window.IDBStore.set(prefixed, data);
+            const prefixedKey = this._getPrefixedKey(key, context);
+            await window.IDBStore.set(prefixedKey, data);
             console.log(`StorageManager (IDB): Saved massive payload for [${key}]`);
             // GC the old maxed out payload to free up the 5MB localStorage limit cleanly
-            try { localStorage.removeItem(prefixed); } catch(e) {}
+            try { localStorage.removeItem(prefixedKey); } catch(e) {}
             return true;
         } catch (e) {
             console.warn(`StorageManager (IDB): Save failed for ${key}, falling back`, e);
@@ -175,10 +174,10 @@ StorageManager.saveHeavyData = async function(key, data) {
 /**
  * Load heavy data from IndexedDB asynchronously, falling back to localStorage
  */
-StorageManager.loadHeavyData = async function(key, defaultValue) {
+StorageManager.loadHeavyData = async function(key, defaultValue, context = null) {
     if (window.IDBStore) {
         try {
-            const val = await window.IDBStore.get(this._getPrefixedKey(key));
+            const val = await window.IDBStore.get(this._getPrefixedKey(key, context));
             if (val !== undefined) return val;
         } catch (e) {
             console.warn(`StorageManager (IDB): Load failed for ${key}, falling back`, e);

@@ -5,7 +5,7 @@ window.EveOS.API = window.EveOS.API || {};
     const CACHE_KEY = 'apiSearchCachePool';
     const PREFS_KEY = 'apiSearchPrefs';
     const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
-    const MAX_QUERIES = 50; 
+    const MAX_QUERIES = 100; // Increased from 50 since we prioritize IDB now
 
     function normalizeText(value) {
         return String(value || '').trim();
@@ -34,7 +34,7 @@ window.EveOS.API = window.EveOS.API || {};
         }
 
         const previousContext = manager.categoryContext;
-        const nextContext = normalizeText(categoryName);
+        const nextContext = normalizeCategoryName(categoryName);
         if (nextContext) {
             manager.setCategoryContext(nextContext);
         }
@@ -48,37 +48,65 @@ window.EveOS.API = window.EveOS.API || {};
 
     async function loadScopedValue(key, defaultValue, categoryName) {
         return await withScopedContext(categoryName, async function (manager) {
+            const normalizedCategory = normalizeCategoryName(categoryName);
+            const fullKey = manager && typeof manager._getPrefixedKey === 'function' 
+                ? manager._getPrefixedKey(key, normalizedCategory) 
+                : `${normalizedCategory}_${key}`;
+
             if (manager && typeof manager.loadHeavyData === 'function' && key === CACHE_KEY) {
-                return await manager.loadHeavyData(key, defaultValue);
+                const val = await manager.loadHeavyData(key, defaultValue, normalizedCategory);
+                // Even if val is an empty pool, if it's a different object than defaultValue, it came from IDB
+                if (val !== undefined && val !== null && val !== defaultValue) {
+                    console.log(`API Cache: Loaded [${fullKey}] from IDB`);
+                    return val;
+                }
             }
+            
             if (manager && typeof manager.loadData === 'function') {
-                return manager.loadData(key, defaultValue);
+                const val = manager.loadData(key);
+                if (val) {
+                    console.log(`API Cache: Loaded [${fullKey}] from StorageManager`);
+                    return val;
+                }
             }
 
             try {
-                const raw = localStorage.getItem(fallbackStorageKey(key, categoryName));
-                return raw ? JSON.parse(raw) : defaultValue;
-            } catch (error) {
-                console.warn('API Cache: Failed to load scoped value', key, error);
-                return defaultValue;
+                const raw = localStorage.getItem(fullKey);
+                if (raw) {
+                    console.log(`API Cache: Loaded [${fullKey}] from localStorage fallback`);
+                    return JSON.parse(raw);
+                }
+            } catch (e) {
+                console.warn(`API Cache: Failed to load [${fullKey}] from localStorage`, e);
             }
+            return defaultValue;
         });
     }
 
     async function saveScopedValue(key, value, categoryName) {
         return await withScopedContext(categoryName, async function (manager) {
+            const normalizedCategory = normalizeCategoryName(categoryName);
+            const fullKey = manager && typeof manager._getPrefixedKey === 'function' 
+                ? manager._getPrefixedKey(key, normalizedCategory) 
+                : `${normalizedCategory}_${key}`;
+
             if (manager && typeof manager.saveHeavyData === 'function' && key === CACHE_KEY) {
-                return await manager.saveHeavyData(key, value);
+                const ok = await manager.saveHeavyData(key, value, normalizedCategory);
+                if (ok) console.log(`API Cache: Saved [${fullKey}] to IDB`);
+                return ok;
             }
             if (manager && typeof manager.saveData === 'function') {
-                return await manager.saveData(key, value);
+                const ok = manager.saveData(key, value);
+                if (ok) console.log(`API Cache: Saved [${fullKey}] to StorageManager`);
+                return ok;
             }
 
+            console.warn(`API Cache: No storage manager available to save [${key}]. Falling back to localStorage.`);
             try {
-                localStorage.setItem(fallbackStorageKey(key, categoryName), JSON.stringify(value));
+                localStorage.setItem(fullKey, JSON.stringify(value));
                 return true;
             } catch (error) {
-                console.warn('API Cache: Failed to save scoped value', key, error);
+                console.warn(`API Cache: Failed to save [${fullKey}] to localStorage`, error);
                 return false;
             }
         });
@@ -489,15 +517,6 @@ window.EveOS.API = window.EveOS.API || {};
             ...(sources || {})
         };
 
-        // --- RUTHLESS TRIMMING ---
-        // Slice massive API arrays down to the top 15 display items
-        // This effectively cuts the localStorage payload size by up to 80%
-        getSearchableProviderKeys().forEach(function(providerKey) {
-            const list = getProviderList(mergedSources, providerKey);
-            if (list && list.length > 15) {
-                setProviderList(mergedSources, providerKey, list.slice(0, 15));
-            }
-        });
         // -------------------------
 
         pool.queries[queryKey] = {

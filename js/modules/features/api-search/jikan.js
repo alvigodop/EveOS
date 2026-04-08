@@ -5,7 +5,7 @@ window.EveOS = window.EveOS || {};
         const Core = window.EveOS.API.Core;
         if (!Core) { console.error("EveOS.API.Core missing"); return { data: [] }; }
 
-        const targetUrl = `${Core.JIKAN_MANGA_API}?q=${encodeURIComponent(query)}&limit=2&sfw=true`;
+        const targetUrl = `${Core.JIKAN_MANGA_API}?q=${encodeURIComponent(query)}&limit=20&sfw=true`;
         return await Core.fetchWithFallback(targetUrl, {}, 'Jikan Manga Search failed') || { data: [] };
     }
 
@@ -13,7 +13,7 @@ window.EveOS = window.EveOS || {};
         const Core = window.EveOS.API.Core;
         if (!Core) { console.error("EveOS.API.Core missing"); return { data: [] }; }
 
-        const targetUrl = `${Core.JIKAN_ANIME_API}?q=${encodeURIComponent(query)}&limit=2&sfw=true`;
+        const targetUrl = `${Core.JIKAN_ANIME_API}?q=${encodeURIComponent(query)}&limit=20&sfw=true`;
         return await Core.fetchWithFallback(targetUrl, {}, 'Jikan Anime Search failed') || { data: [] };
     }
 

@@ -4,7 +4,7 @@ window.EveOS = window.EveOS || {};
     function buildSearchQuery() {
         return `
         query ($search: String, $type: MediaType) {
-            Page(page: 1, perPage: 2) {
+            Page(page: 1, perPage: 20) {
                 media(search: $search, type: $type, sort: POPULARITY_DESC) {
                     id
                     idMal

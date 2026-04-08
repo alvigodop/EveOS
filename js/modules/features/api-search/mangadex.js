@@ -24,7 +24,7 @@ window.EveOS = window.EveOS || {};
         const Core = window.EveOS.API.Core;
         if (!Core) { console.error("EveOS.API.Core missing"); return { data: [] }; }
 
-        const targetUrl = `${Core.MANGADEX_API}?title=${encodeURIComponent(query)}&limit=8&includes[]=author&includes[]=cover_art&includes[]=artist&order[relevance]=desc`;
+        const targetUrl = `${Core.MANGADEX_API}?title=${encodeURIComponent(query)}&limit=20&includes[]=author&includes[]=cover_art&includes[]=artist&order[relevance]=desc`;
         const searchResponse = await Core.fetchWithFallback(targetUrl, {}, 'MangaDex Search failed');
         const data = Array.isArray(searchResponse?.data) ? searchResponse.data : [];
         if (!data.length) return { data: [] };
