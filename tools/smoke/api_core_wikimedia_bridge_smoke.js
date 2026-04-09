@@ -30,7 +30,7 @@ function makeResponse(ok, payload, status = 200, headers = {}) {
 
 const fetchCalls = [];
 const wikiUrl = 'https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&format=json&origin=*';
-const bridgedUrl = 'http://127.0.0.1:3039/api/proxy?url=' + encodeURIComponent(wikiUrl);
+const bridgedUrl = 'http://127.0.0.1:3040/api/proxy?url=' + encodeURIComponent(wikiUrl);
 
 async function fetchStub(url, options = {}) {
     fetchCalls.push({ url, options });
@@ -38,7 +38,8 @@ async function fetchStub(url, options = {}) {
     if (url === 'http://127.0.0.1:3000/api/status') return makeResponse(false, {}, 404);
     if (url === 'http://127.0.0.1:3037/api/status') return makeResponse(false, {}, 404);
     if (url === 'http://127.0.0.1:3038/api/status') return makeResponse(false, {}, 404);
-    if (url === 'http://127.0.0.1:3039/api/status') return makeResponse(true, { status: 'ok', service: 'wikimedia-bridge' });
+    if (url === 'http://127.0.0.1:3039/api/status') return makeResponse(false, {}, 404);
+    if (url === 'http://127.0.0.1:3040/api/status') return makeResponse(true, { status: 'ok', service: 'popup-bridge', wikimediaTransport: true, capabilities: ['wikimedia-proxy'] });
 
     if (url === bridgedUrl) {
         return makeResponse(true, { query: { general: { sitename: 'Wikipedia' } } });
@@ -70,9 +71,9 @@ vm.runInContext(code, vmContext);
 
     const payload = await Core.fetchWikimediaJson(wikiUrl);
 
-    assert(payload?.query?.general?.sitename === 'Wikipedia', 'Wikimedia bridge fetch should return proxied JSON payload');
-    assert(fetchCalls.some((call) => call.url === bridgedUrl), 'Wikimedia requests should route through the standalone bridge when it is available');
-    assert(!fetchCalls.some((call) => call.url === wikiUrl), 'Wikimedia requests should not hit the direct browser URL when the standalone bridge is available');
+    assert(payload?.query?.general?.sitename === 'Wikipedia', 'Merged popup bridge fetch should return proxied Wikimedia JSON payload');
+    assert(fetchCalls.some((call) => call.url === bridgedUrl), 'Wikimedia requests should route through the merged popup bridge when it is available');
+    assert(!fetchCalls.some((call) => call.url === wikiUrl), 'Wikimedia requests should not hit the direct browser URL when the merged popup bridge is available');
 
     console.log('API_CORE_WIKIMEDIA_BRIDGE_SMOKE_OK');
 })();

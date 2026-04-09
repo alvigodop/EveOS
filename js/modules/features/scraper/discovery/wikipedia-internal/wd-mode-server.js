@@ -13,10 +13,17 @@
                     return;
                 }
 
-                // Use localhost server
-                const serverUrl = `http://localhost:3000/api/wikipedia/search?q=${encodeURIComponent(query)}`;
+                const resolveUrl = async () => {
+                    const helper = window.EveOS?.API?.Core?.getWikipediaSearchUrl;
+                    if (typeof helper === 'function') {
+                        const nextUrl = await helper(query);
+                        if (nextUrl) return nextUrl;
+                    }
+                    return `http://localhost:3000/api/wikipedia/search?q=${encodeURIComponent(query)}`;
+                };
 
-                fetch(serverUrl)
+                resolveUrl()
+                    .then((serverUrl) => fetch(serverUrl))
                     .then(response => {
                         if (!response.ok) {
                             throw new Error(`Server error! Status: ${response.status}`);

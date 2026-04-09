@@ -11,7 +11,7 @@ set "MONITOR_TITLE=EveOS Popup Bridge Monitor"
 :menu
 cls
 echo ========================================
-echo   Popup Standalone Controller
+echo   Popup + Wikimedia Standalone Controller
 echo ========================================
 echo.
 call :showStatus
@@ -61,7 +61,7 @@ for /f "tokens=5" %%P in ('netstat -aon ^| findstr /r /c:":%BRIDGE_PORT% .*LISTE
 :showStatusPortDone
 if defined BRIDGE_PID (
     echo [STATUS] Bridge: RUNNING on http://127.0.0.1:%BRIDGE_PORT% ^(PID !BRIDGE_PID!^)
-    echo          Use this to keep Search Unidex in-site popups on a safe local bridge.
+    echo          Use this for in-site popups plus Wikimedia/Wikipedia transport from file://
 ) else (
     echo [STATUS] Bridge: STOPPED
 )
@@ -88,7 +88,7 @@ if not exist "%PROJECT_ROOT%\bin" mkdir "%PROJECT_ROOT%\bin" >nul 2>nul
 if not exist "%ACTIVITY_LOG%" type nul > "%ACTIVITY_LOG%"
 
 echo.
-echo [OK] Starting popup bridge on port %BRIDGE_PORT%...
+echo [OK] Starting popup + Wikimedia bridge on port %BRIDGE_PORT%...
 start "EveOS Popup Bridge" cmd /k "cd /d ""%PROJECT_ROOT%"" && set ""EVEOS_PROJECT_ROOT=%PROJECT_ROOT%"" && python ""%BRIDGE_SCRIPT%"" %BRIDGE_PORT%"
 timeout /t 2 /nobreak >nul
 exit /b 0

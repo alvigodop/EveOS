@@ -92,7 +92,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/scraper/discovery/domain-generator/domain-generator.js",
     "js/modules/features/scraper/discovery/wikipedia-internal/wd-core.js",
     "js/modules/features/scraper/discovery/wikipedia-internal/wd-mode-direct.js",
-    "js/modules/features/scraper/discovery/wikipedia-internal/wd-mode-server.js",
+    "js/modules/features/scraper/discovery/wikipedia-internal/wd-mode-server.js?v=0.1.1",
     "js/modules/features/scraper/discovery/wikipedia-internal/wd-search.js",
     "js/modules/features/scraper/discovery/wikipedia-internal/wd-media.js",
     "js/modules/features/scraper/discovery/wikipedia-internal/wd-enhancer.js",

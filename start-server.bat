@@ -89,7 +89,7 @@ echo     - Compatibility launcher: starts monitor flow via server-menu option 10
 echo [4] Browse and launch any .bat in this EveOS project
 echo     - Shows every local project batch script with purpose notes.
 echo [5] Browser fallback controls
-echo     - Lightpanda, Camofox, and Wikimedia standalone controllers plus monitors.
+echo     - Lightpanda, Camofox, and the merged Popup+Wikimedia controller plus monitors.
 echo [6] Exit
 echo.
 set /p "choice=Enter your choice: "
@@ -165,13 +165,13 @@ if defined POPUP_STANDALONE_PID (
 echo.
 echo   Auto-Title ^> Use Lightpanda checks the standalone bridge first.
 echo   If Lightpanda still fails, normal autotitle can escalate to Camofox.
-echo   Wikimedia ^> Use the standalone bridge to keep file:// Wikipedia requests compliant.
-echo   Popup UI ^> Use the standalone bridge to keep Search Unidex in-site popups rendering through a safe local rewrite path.
+echo   Wikimedia ^> The Popup bridge now also handles compliant Wikipedia/Wikimedia requests from file://.
+echo   Popup UI ^> Use the Popup bridge for Search Unidex, Social Manager, bookmark internal view, and Wikimedia transport.
 echo.
 echo [1] Open standalone Lightpanda controller
 echo [2] Open standalone Camofox controller
-echo [3] Open standalone Wikimedia controller
-echo [4] Open standalone Popup bridge controller
+echo [3] Open standalone Wikimedia controller ^(legacy, optional^)
+echo [4] Open standalone Popup + Wikimedia bridge controller
 echo [5] Toggle integrated Lightpanda bridge for new EveOS instances
 echo [6] Open shared Lightpanda activity monitor
 echo [7] Open shared Camofox activity monitor
@@ -504,11 +504,11 @@ if /I "%rel%"=="start-camofox-bridge.bat" (
     exit /b 0
 )
 if /I "%rel%"=="start-wikimedia-bridge.bat" (
-    set "BATCH_NOTE=Standalone Wikimedia controller for compliant Wikipedia/Wikimedia fetches."
+    set "BATCH_NOTE=Legacy Wikimedia-only controller. The Popup bridge now covers Wikimedia fetches too."
     exit /b 0
 )
 if /I "%rel%"=="start-popup-bridge.bat" (
-    set "BATCH_NOTE=Standalone popup bridge controller for reliable in-site Search Unidex popups."
+    set "BATCH_NOTE=Standalone Popup+Wikimedia bridge controller for in-site popups and compliant Wikipedia fetches."
     exit /b 0
 )
 set "BATCH_NOTE=Project-specific batch script."

@@ -18,6 +18,8 @@ from http import HTTPStatus
 from urllib.parse import parse_qs, urlparse
 
 from server_modules import popup_viewer
+from server_modules import proxy
+from server_modules import wikipedia
 
 DEFAULT_PORT = 3040
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -77,11 +79,30 @@ class BridgeHandler(http.server.BaseHTTPRequestHandler):
                 "service": "popup-bridge",
                 "bridgePort": self.server.server_address[1],
                 "scope": "External http(s) targets excluding localhost/private networks",
+                "wikimediaTransport": True,
+                "capabilities": [
+                    "popup-view",
+                    "popup-resource",
+                    "wikimedia-proxy",
+                    "wikipedia-search"
+                ],
             }).encode("utf-8")
             self.send_response(HTTPStatus.OK)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
             self.wfile.write(body)
+            return
+
+        if parsed.path == "/api/proxy":
+            target_url = self._extract_target_url(query)
+            if not self._is_allowed_wikimedia_target(target_url):
+                self._send_target_error(target_url)
+                return
+            proxy.handle_proxy_request(self, query)
+            return
+
+        if parsed.path == "/api/wikipedia/search":
+            wikipedia.handle_wikipedia_search(self, query)
             return
 
         if parsed.path == "/api/popup-view":
@@ -101,6 +122,14 @@ class BridgeHandler(http.server.BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         query = parse_qs(parsed.query)
 
+        if parsed.path == "/api/proxy":
+            target_url = self._extract_target_url(query)
+            if not self._is_allowed_wikimedia_target(target_url):
+                self._send_target_error(target_url)
+                return
+            proxy.handle_proxy_post_request(self, query)
+            return
+
         if parsed.path == "/api/popup-resource":
             popup_viewer.handle_popup_resource_request(self, query)
             return
@@ -113,6 +142,27 @@ class BridgeHandler(http.server.BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         logger.info(fmt % args)
 
+    @staticmethod
+    def _extract_target_url(query):
+        target = query.get("url")
+        if not target:
+            return ""
+        return str(target[0] or "").strip()
+
+    @staticmethod
+    def _is_allowed_wikimedia_target(target_url):
+        return bool(target_url) and proxy._is_wikimedia_request(target_url)
+
+    def _send_target_error(self, target_url):
+        self.send_response(HTTPStatus.FORBIDDEN)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        body = json.dumps({
+            "error": "Popup bridge only proxies wikipedia.org and wikimedia.org targets on /api/proxy",
+            "url": target_url,
+        }).encode("utf-8")
+        self.wfile.write(body)
+
 
 def run_server(port):
     os.environ.setdefault("EVEOS_PROJECT_ROOT", PROJECT_ROOT)
@@ -122,8 +172,10 @@ def run_server(port):
             print("  ------------------------------")
             print(f"  View:    http://127.0.0.1:{port}/api/popup-view?url=...")
             print(f"  Proxy:   http://127.0.0.1:{port}/api/popup-resource?url=...")
+            print(f"  WMF:     http://127.0.0.1:{port}/api/proxy?url=...")
+            print(f"  Search:  http://127.0.0.1:{port}/api/wikipedia/search?q=...")
             print(f"  Status:  http://127.0.0.1:{port}/api/status")
-            print("  Scope:   External http(s) sites only; localhost/private targets denied")
+            print("  Scope:   Popup rendering plus Wikimedia transport from file://")
             print("  ------------------------------")
             print("  Press Ctrl+C to stop the bridge")
             httpd.serve_forever()

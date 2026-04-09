@@ -22,7 +22,8 @@ window.EveOS.API = window.EveOS.API || {};
         lightpanda: false,
         camofox: false,
         wikimedia: false,
-        popup: false
+        popup: false,
+        popupWikimedia: false
     };
 
     const SERVER_STATUS_TIMEOUT_MS = 1500;
@@ -77,8 +78,12 @@ window.EveOS.API = window.EveOS.API || {};
             _activeProxyBase = serverStatus ? SERVER_BASE : '';
             _bridgeAvailability.lightpanda = Boolean(lightpandaStatus);
             _bridgeAvailability.camofox = Boolean(camofoxStatus);
-            _bridgeAvailability.wikimedia = Boolean(wikimediaStatus);
             _bridgeAvailability.popup = Boolean(popupStatus);
+            _bridgeAvailability.popupWikimedia = Boolean(
+                popupStatus?.wikimediaTransport
+                || (Array.isArray(popupStatus?.capabilities) && popupStatus.capabilities.includes('wikimedia-proxy'))
+            );
+            _bridgeAvailability.wikimedia = Boolean(wikimediaStatus || _bridgeAvailability.popupWikimedia);
 
             if (_activeProxyBase) {
                 console.log(`API Core: Local proxy server detected (${serverStatus?.service || 'server'})`);
@@ -199,7 +204,7 @@ window.EveOS.API = window.EveOS.API || {};
     function warnWikimediaDirectMode() {
         if (_wikimediaDirectWarningShown) return;
         _wikimediaDirectWarningShown = true;
-        console.warn('API Core: Wikimedia live requests are running without the local EveOS proxy/bridge, so the browser cannot send a custom bot User-Agent. Start python-server.py or start-wikimedia-bridge.bat for policy-compliant Wikimedia transport.');
+        console.warn('API Core: Wikimedia live requests are running without the local EveOS proxy/bridge, so the browser cannot send a custom bot User-Agent. Start python-server.py or start-popup-bridge.bat for policy-compliant Wikimedia transport.');
     }
 
     async function enqueueWikimediaRequest(task) {
@@ -231,9 +236,11 @@ window.EveOS.API = window.EveOS.API || {};
         return enqueueWikimediaRequest(async () => {
             await probeLocalServices();
 
-            const bridgeBase = _bridgeAvailability.wikimedia
-                ? WIKIMEDIA_BASE
-                : (_activeProxyBase || '');
+            const bridgeBase = _bridgeAvailability.popupWikimedia
+                ? POPUP_BRIDGE_BASE
+                : (_bridgeAvailability.wikimedia
+                    ? WIKIMEDIA_BASE
+                    : (_activeProxyBase || ''));
             const requestUrl = bridgeBase
                 ? `${bridgeBase}/api/proxy?url=${encodeURIComponent(targetUrl)}`
                 : targetUrl;
@@ -263,6 +270,27 @@ window.EveOS.API = window.EveOS.API || {};
             throw new Error(`Wikimedia request failed (${response.status}): ${errorText}`);
         }
         return response.json();
+    }
+
+    async function getWikipediaSearchUrl(query) {
+        const normalizedQuery = String(query || '').trim();
+        if (!normalizedQuery) return '';
+
+        await probeLocalServices();
+
+        if (_bridgeAvailability.popupWikimedia) {
+            return `${POPUP_BRIDGE_BASE}/api/wikipedia/search?q=${encodeURIComponent(normalizedQuery)}`;
+        }
+
+        if (_bridgeAvailability.wikimedia) {
+            return `${WIKIMEDIA_BASE}/api/wikipedia/search?q=${encodeURIComponent(normalizedQuery)}`;
+        }
+
+        if (_activeProxyBase) {
+            return `${_activeProxyBase}/api/wikipedia/search?q=${encodeURIComponent(normalizedQuery)}`;
+        }
+
+        return `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(normalizedQuery)}&limit=10&namespace=0&format=json&origin=*`;
     }
 
     async function tryOptimisticLocalProxy(targetUrl, options = {}) {
@@ -587,6 +615,7 @@ window.EveOS.API = window.EveOS.API || {};
         fetchTextWithFallback,
         fetchWithFallback,
         getPopupViewerUrl,
+        getWikipediaSearchUrl,
         isWikimediaUrl,
         fetchWikimediaResponse,
         fetchWikimediaJson
