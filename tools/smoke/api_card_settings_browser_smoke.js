@@ -349,6 +349,7 @@ async function main() {
             const unifiedWikiText = searchResults.querySelector('[data-unidex-section="wikipedia"]')?.textContent || '';
             const unifiedFandomText = searchResults.querySelector('[data-unidex-section="fandom"]')?.textContent || '';
             const unifiedApiText = searchResults.querySelector('[data-unidex-section="api"]')?.textContent || '';
+            const unifiedWikiTitles = Array.from(searchResults.querySelectorAll('[data-unidex-section="wikipedia"] .unidex-search-card-title')).slice(0, 8).map((node) => node.textContent.trim());
             const fandomTitleRepaired = unifiedFandomText.includes('Naruto Uzumaki') && !unifiedFandomText.includes('Naruto WikiNarutopedia');
 
             searchHybridToggle.checked = false;
@@ -562,6 +563,7 @@ async function main() {
                 unifiedWikiText,
                 unifiedFandomText,
                 unifiedApiText,
+                unifiedWikiTitles,
                 fandomTitleRepaired,
                 fandomSidebarStatusText,
                 fandomSidebarHasViewButton,
@@ -636,6 +638,9 @@ async function main() {
         }
         if (!/Naruto/i.test(result.unifiedWikiText) || !/Naruto/i.test(result.unifiedFandomText) || !/Naruto/i.test(result.unifiedApiText)) {
             throw new Error(`Expected Search Unidex to render cached Naruto results across all source lanes: ${JSON.stringify({ wiki: result.unifiedWikiText, fandom: result.unifiedFandomText, api: result.unifiedApiText })}`);
+        }
+        if (!Array.isArray(result.unifiedWikiTitles) || new Set(result.unifiedWikiTitles).size < 2) {
+            throw new Error(`Expected cached Wikipedia result titles to stay distinct instead of repeating the same article title: ${JSON.stringify({ titles: result.unifiedWikiTitles })}`);
         }
         if (!result.fandomTitleRepaired) {
             throw new Error(`Expected Search Unidex to repair generic cached Fandom titles from the page URL: ${JSON.stringify({ fandom: result.unifiedFandomText })}`);

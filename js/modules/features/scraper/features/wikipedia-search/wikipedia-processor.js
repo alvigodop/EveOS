@@ -129,8 +129,10 @@
                 const deepLinkUrl = `${mainUrl}#:~:text=${encodeURIComponent(contextPhrase)}`;
 
                 if (!processedUrls.has(deepLinkUrl)) {
+                    const matchNumber = matchCount + 1;
                     results.push({
                         title: entry.title,
+                        displayTitle: `${entry.title} · Excerpt ${matchNumber}`,
                         snippet: snippetText,
                         url: deepLinkUrl,
                         wiki_name: entry.name || entry.title,
@@ -140,7 +142,7 @@
                         thumbnail: entryData.thumbnail,
                         isMainArticle: false,
                         isTextMatch: true,
-                        matchNumber: matchCount + 1,
+                        matchNumber: matchNumber,
                         matchScore: 90 - matchCount,
                         source: 'wikipedia',
                         fromCache: false,

@@ -533,6 +533,11 @@ window.EveOS.API = window.EveOS.API || {};
      * Resolve the most appropriate title for a knowledge result
      */
     ctx.resolveKnowledgeResultTitle = function resolveKnowledgeResultTitle(result, scope) {
+        const explicitDisplayTitle = ctx.normalizeKnowledgeTitleValue(result?.displayTitle || result?.fragmentTitle || '');
+        if (explicitDisplayTitle) {
+            return explicitDisplayTitle;
+        }
+
         const rawTitle = ctx.normalizeKnowledgeTitleValue(result?.title || result?.name || '');
         const wikiName = ctx.normalizeKnowledgeTitleValue(result?.wiki_name || '');
         const domainLabel = ctx.normalizeKnowledgeTitleValue(
@@ -559,6 +564,15 @@ window.EveOS.API = window.EveOS.API || {};
 
         if (scope === 'fandom' && cleanedSlugTitle && (!rawKey || genericKeys.has(rawKey))) {
             return cleanedSlugTitle;
+        }
+
+        if (scope === 'wikipedia' && result?.isTextMatch) {
+            const baseTitle = cleanedRawTitle || cleanedSlugTitle || rawTitle || 'Untitled';
+            const matchNumber = Number(result?.matchNumber || 0);
+            if (matchNumber > 0) {
+                return `${baseTitle} · Excerpt ${matchNumber}`;
+            }
+            return `${baseTitle} · Excerpt`;
         }
 
         return cleanedRawTitle || cleanedSlugTitle || 'Untitled';
