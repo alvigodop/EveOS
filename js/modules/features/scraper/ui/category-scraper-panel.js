@@ -12,7 +12,7 @@
             return this;
         },
 
-        renderInModal: function (categoryName, container) {
+        renderInModal: async function (categoryName, container) {
             console.log('CategoryScraperPanel: Rendering for category', categoryName);
 
             // Store context in StorageManager for data isolation
@@ -22,7 +22,7 @@
 
             // Sync WikiManager cache stores with the new context
             if (window.WikiManager && typeof WikiManager.refreshCacheStores === 'function') {
-                WikiManager.refreshCacheStores();
+                await WikiManager.refreshCacheStores();
             }
 
             container.innerHTML = window.ScraperPanelTemplate || '<div>Error: Template not loaded.</div>';
@@ -37,7 +37,7 @@
                 if (typeof WikiManager.initDomOperations === 'function') {
                     WikiManager.initDomOperations();
                 } else if (typeof WikiManager.init === 'function') {
-                    WikiManager.init();
+                    await WikiManager.init();
                 }
             }
 
@@ -88,12 +88,12 @@
         /**
          * Explicitly set category context
          */
-        setContext: function (categoryName) {
+        setContext: async function (categoryName) {
             if (window.StorageManager && typeof StorageManager.setCategoryContext === 'function') {
                 StorageManager.setCategoryContext(categoryName);
             }
             if (window.WikiManager && typeof WikiManager.refreshCacheStores === 'function') {
-                WikiManager.refreshCacheStores();
+                await WikiManager.refreshCacheStores();
             }
         }
     };

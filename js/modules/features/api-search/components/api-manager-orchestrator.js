@@ -287,9 +287,14 @@ window.EveOS.API = window.EveOS.API || {};
             };
         }
 
+        // Ensure Scraper Cache is synced with this card's context
+        if (window.CacheManager && typeof CacheManager.init === 'function') {
+            await CacheManager.init(resolvedCategory);
+        }
+
         try {
             if (normalizedScope === 'wikipedia') {
-                const entries = ctx.normalizeSavedWikipediaEntries(resolvedCategory);
+                const entries = await ctx.normalizeSavedWikipediaEntries(resolvedCategory);
                 if (!entries.length) return { scope: normalizedScope, categoryName: resolvedCategory, results: [], sourceCount: 0, meta: { summary: { totalResults: 0 } } };
 
                 if (typeof loadingCallback === 'function') {
@@ -299,6 +304,7 @@ window.EveOS.API = window.EveOS.API || {};
                         wikisSearched: 0
                     });
                 }
+
 
                 if (!shouldUseLive && !shouldUseHybrid) {
                     let cacheResults = [];
@@ -332,7 +338,7 @@ window.EveOS.API = window.EveOS.API || {};
             }
 
             if (normalizedScope === 'fandom') {
-                const domains = ctx.normalizeSavedFandomDomains(resolvedCategory);
+                const domains = await ctx.normalizeSavedFandomDomains(resolvedCategory);
                 if (!domains.length) return { scope: normalizedScope, categoryName: resolvedCategory, results: [], sourceCount: 0, meta: { summary: { totalResults: 0 } } };
 
                 if (typeof loadingCallback === 'function') {
@@ -342,6 +348,7 @@ window.EveOS.API = window.EveOS.API || {};
                         wikisSearched: 0
                     });
                 }
+
 
                 if (!shouldUseLive && !shouldUseHybrid) {
                     let cacheResults = null;
@@ -608,4 +615,14 @@ window.EveOS.API = window.EveOS.API || {};
         return { sources: cachedEntry, renderedSources };
     };
 
-})(window.EveOS.API);
+    /**
+     * Listen for Wiki cache updates to refresh Unidex panel reactively.
+     */
+    if (window.WikiManager && typeof window.WikiManager.on === 'function') {
+        window.WikiManager.on('wiki-cache-updated', function() {
+            console.log('API Orchestrator: Wiki cache updated, triggering status update');
+            ctx.notifyScraperStatusUpdate();
+        });
+    }
+
+})(window.EveOS.API);

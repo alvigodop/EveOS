@@ -25,11 +25,14 @@
             get wikiCacheStore() { return window.CacheCore ? CacheCore.wikiCacheStore : {}; },
             set wikiCacheStore(val) { if (window.CacheCore) CacheCore.wikiCacheStore = val; },
 
-            init: function () {
+            init: async function (categoryName = null) {
                 console.log('CacheManager: Orchestrating context-aware initialization');
 
                 // Initialize sub-modules (always call init to ensure category context is synced)
-                if (window.CacheCore) CacheCore.init();
+                if (window.CacheCore) {
+                    await CacheCore.init(categoryName);
+                }
+                
                 if (window.CacheUI && !CacheUI._initialized) CacheUI.init(); // UI only needs once
                 if (window.CacheFandom) CacheFandom.init();
                 if (window.CacheWikipedia) CacheWikipedia.init();

@@ -122,8 +122,8 @@ StorageManager._smartDecompress = function (str, fallback = null) {
     }
 };
 
-StorageManager.saveData = function (key, data) {
-    const prefixedKey = this._getPrefixedKey(key);
+StorageManager.saveData = function (key, data, context = null) {
+    const prefixedKey = this._getPrefixedKey(key, context);
     const stringifiedData = this._smartCompress(data);
     
     try {
@@ -183,8 +183,13 @@ StorageManager.loadHeavyData = async function(key, defaultValue, context = null)
             console.warn(`StorageManager (IDB): Load failed for ${key}, falling back`, e);
         }
     }
-    return this.loadData(key, defaultValue);
+    return this.loadData(key, defaultValue, context);
 };
+
+// Aliases for consistent async interface
+StorageManager.loadDataAsync = StorageManager.loadHeavyData;
+StorageManager.saveDataAsync = StorageManager.saveHeavyData;
+
 
 /**
  * Delete heavy data from IndexedDB asynchronously
@@ -218,8 +223,8 @@ StorageManager.getStats = function () {
     return { items, usedBytes: totalSize, usedMB };
 };
 
-StorageManager.loadData = function (key, defaultValue) {
-    const prefixedKey = this._getPrefixedKey(key);
+StorageManager.loadData = function (key, defaultValue, context = null) {
+    const prefixedKey = this._getPrefixedKey(key, context);
     try {
         const raw = localStorage.getItem(prefixedKey);
         const data = this._smartDecompress(raw, null);
@@ -239,8 +244,8 @@ StorageManager.loadData = function (key, defaultValue) {
     }
 };
 
-StorageManager.deleteData = function (key) {
-    const prefixedKey = this._getPrefixedKey(key);
+StorageManager.deleteData = function (key, context = null) {
+    const prefixedKey = this._getPrefixedKey(key, context);
     try {
         localStorage.removeItem(prefixedKey);
         return true;
@@ -274,35 +279,37 @@ StorageManager.clearAllData = function () {
 };
 
 // Wiki operations - delegate to SMWiki if available
-StorageManager.saveFandomDomains = function (domains) {
-    if (window.SMWiki) return SMWiki.saveFandomDomains(domains);
-    return this.saveData(this.KEYS.FANDOM_DOMAINS, domains);
+StorageManager.saveFandomDomains = async function (domains) {
+    if (window.SMWiki) return await SMWiki.saveFandomDomains(domains);
+    return await this.saveDataAsync(this.KEYS.FANDOM_DOMAINS, domains);
 };
 
-StorageManager.loadFandomDomains = function () {
-    if (window.SMWiki) return SMWiki.loadFandomDomains();
-    return this.loadData(this.KEYS.FANDOM_DOMAINS, []);
+StorageManager.loadFandomDomains = async function () {
+    if (window.SMWiki) return await SMWiki.loadFandomDomains();
+    return await this.loadDataAsync(this.KEYS.FANDOM_DOMAINS, []);
 };
 
-StorageManager.saveWikiEntries = function (entries) {
-    if (window.SMWiki) return SMWiki.saveWikiEntries(entries);
-    return this.saveData(this.KEYS.WIKI_ENTRIES, entries);
+
+StorageManager.saveWikiEntries = async function (entries) {
+    if (window.SMWiki) return await SMWiki.saveWikiEntries(entries);
+    return await this.saveDataAsync(this.KEYS.WIKI_ENTRIES, entries);
 };
 
-StorageManager.loadWikiEntries = function () {
-    if (window.SMWiki) return SMWiki.loadWikiEntries();
-    return this.loadData(this.KEYS.WIKI_ENTRIES, []);
+StorageManager.loadWikiEntries = async function () {
+    if (window.SMWiki) return await SMWiki.loadWikiEntries();
+    return await this.loadDataAsync(this.KEYS.WIKI_ENTRIES, []);
 };
 
-StorageManager.saveWikiCategories = function (categories) {
-    if (window.SMWiki) return SMWiki.saveWikiCategories(categories);
-    return this.saveData(this.KEYS.WIKI_CATEGORIES, categories);
+StorageManager.saveWikiCategories = async function (categories) {
+    if (window.SMWiki) return await SMWiki.saveWikiCategories(categories);
+    return await this.saveDataAsync(this.KEYS.WIKI_CATEGORIES, categories);
 };
 
-StorageManager.loadWikiCategories = function () {
-    if (window.SMWiki) return SMWiki.loadWikiCategories();
-    return this.loadData(this.KEYS.WIKI_CATEGORIES, []);
+StorageManager.loadWikiCategories = async function () {
+    if (window.SMWiki) return await SMWiki.loadWikiCategories();
+    return await this.loadDataAsync(this.KEYS.WIKI_CATEGORIES, []);
 };
+
 
 StorageManager.saveToDataStore = function (data) {
     if (window.SMWiki) return SMWiki.saveToDataStore(data);

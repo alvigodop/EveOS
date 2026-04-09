@@ -36,7 +36,7 @@ WikiManagerEntries.addWikiEntry = function (title, name, imageUrl) {
             if (window.WikiManagerDelegates) {
                 WikiManagerDelegates.updateWikipediaData(title);
             }
-            this.renderWikiEntryList(true);
+            await this.renderWikiEntryList(true);
 
             // Notify Discovery Integration
             if (window.WikiManagerDelegates) {
@@ -55,7 +55,7 @@ WikiManagerEntries.addWikiEntry = function (title, name, imageUrl) {
 WikiManagerEntries.removeWikiEntry = function (title) {
     if (window.WikiStore) {
         WikiStore.removeWikiEntry(title);
-        this.renderWikiEntryList(true);
+        await this.renderWikiEntryList(true);
         if (window.WikiManagerDelegates) {
             WikiManagerDelegates.updateDiscoveryButtonStatus('wikipedia', title, false);
         }
@@ -65,7 +65,7 @@ WikiManagerEntries.removeWikiEntry = function (title) {
 /**
  * Render Wiki entry list
  */
-WikiManagerEntries.renderWikiEntryList = function (force) {
+WikiManagerEntries.renderWikiEntryList = async function (force) {
     const listElement = document.getElementById('wikiEntryList');
     if (!listElement) return;
 
@@ -74,8 +74,9 @@ WikiManagerEntries.renderWikiEntryList = function (force) {
 
     // Always reload cache stores from storage before rendering to pick up writes from orchestrators
     if (wm.refreshCacheStores && typeof wm.refreshCacheStores === 'function') {
-        wm.refreshCacheStores();
+        await wm.refreshCacheStores();
     }
+
 
     // Trace context if possible
     let currentPrefix = "Root";
@@ -95,7 +96,7 @@ WikiManagerEntries.renderWikiEntryList = function (force) {
     }
 
     if (window.WikiUIRenderer && window.WikiStore) {
-        const entries = window.WikiStore.getWikiEntries ? window.WikiStore.getWikiEntries() : (wm.wikiEntries || []);
+        const entries = window.WikiStore.getWikiEntries ? await window.WikiStore.getWikiEntries() : (wm.wikiEntries || []);
         WikiUIRenderer.renderWikiEntryList(
             entries,
             listElement,
@@ -144,8 +145,9 @@ WikiManagerEntries.addDefaultWikiEntryIfNeeded = function () {
         console.log('Adding default entries...');
         WikiStore.addWikiEntry('Astro Boy', 'Astro Boy');
         WikiStore.addWikiEntry('Dragon Ball', 'Dragon Ball');
-        this.renderWikiEntryList(true);
+        await this.renderWikiEntryList(true);
     }
+
 };
 
 // Internal update helper

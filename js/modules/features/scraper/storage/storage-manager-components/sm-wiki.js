@@ -27,73 +27,76 @@
         },
 
         /**
-         * Save Fandom domains to localStorage
+         * Save Fandom domains to localStorage/IDB
          */
-        saveFandomDomains: function (domains) {
-            return this._save(this.KEYS.FANDOM_DOMAINS, domains);
+        saveFandomDomains: async function (domains) {
+            return await this._saveHeavy(this.KEYS.FANDOM_DOMAINS, domains);
         },
 
         /**
-         * Load Fandom domains from localStorage
+         * Load Fandom domains from localStorage/IDB
          */
-        loadFandomDomains: function () {
-            return this._load(this.KEYS.FANDOM_DOMAINS, []);
+        loadFandomDomains: async function () {
+            return await this._loadHeavy(this.KEYS.FANDOM_DOMAINS, []);
+        },
+
+
+        /**
+         * Save Wiki entries to localStorage/IDB
+         */
+        saveWikiEntries: async function (entries) {
+            return await this._saveHeavy(this.KEYS.WIKI_ENTRIES, entries);
         },
 
         /**
-         * Save Wiki entries to localStorage
+         * Load Wiki entries from localStorage/IDB
          */
-        saveWikiEntries: function (entries) {
-            return this._save(this.KEYS.WIKI_ENTRIES, entries);
+        loadWikiEntries: async function () {
+            return await this._loadHeavy(this.KEYS.WIKI_ENTRIES, []);
+        },
+
+
+        /**
+         * Save Wiki categories to localStorage/IDB
+         */
+        saveWikiCategories: async function (categories) {
+            return await this._saveHeavy(this.KEYS.WIKI_CATEGORIES, categories);
         },
 
         /**
-         * Load Wiki entries from localStorage
+         * Load Wiki categories from localStorage/IDB
          */
-        loadWikiEntries: function () {
-            return this._load(this.KEYS.WIKI_ENTRIES, []);
+        loadWikiCategories: async function () {
+            return await this._loadHeavy(this.KEYS.WIKI_CATEGORIES, []);
         },
 
-        /**
-         * Save Wiki categories to localStorage
-         */
-        saveWikiCategories: function (categories) {
-            return this._save(this.KEYS.WIKI_CATEGORIES, categories);
-        },
-
-        /**
-         * Load Wiki categories from localStorage
-         */
-        loadWikiCategories: function () {
-            return this._load(this.KEYS.WIKI_CATEGORIES, []);
-        },
 
         /**
          * Save data to the wiki data store
          */
-        saveToDataStore: function (data) {
-            return this._save(this.KEYS.WIKI_DATA_STORE, data);
+        saveToDataStore: async function (data) {
+            return this._saveHeavy(this.KEYS.WIKI_DATA_STORE, data);
         },
 
         /**
          * Load data from the wiki data store
          */
-        loadFromDataStore: function () {
-            return this._load(this.KEYS.WIKI_DATA_STORE, {});
+        loadFromDataStore: async function () {
+            return this._loadHeavy(this.KEYS.WIKI_DATA_STORE, {});
         },
 
         /**
          * Save data to the wiki cache store
          */
-        saveToCacheStore: function (data) {
-            return this._save(this.KEYS.WIKI_CACHE_STORE, data);
+        saveToCacheStore: async function (data) {
+            return this._saveHeavy(this.KEYS.WIKI_CACHE_STORE, data);
         },
 
         /**
          * Load data from the wiki cache store
          */
-        loadFromCacheStore: function () {
-            return this._load(this.KEYS.WIKI_CACHE_STORE, {});
+        loadFromCacheStore: async function () {
+            return this._loadHeavy(this.KEYS.WIKI_CACHE_STORE, {});
         },
 
         // Internal helpers
@@ -103,6 +106,22 @@
 
         _load: function (key, defaultValue) {
             return window.StorageManager ? StorageManager.loadData(key, defaultValue) : defaultValue;
+        },
+
+        _saveHeavy: async function (key, data) {
+            if (!window.StorageManager) return false;
+            if (typeof StorageManager.saveHeavyData === 'function') {
+                return await StorageManager.saveHeavyData(key, data);
+            }
+            return StorageManager.saveData(key, data);
+        },
+
+        _loadHeavy: async function (key, defaultValue) {
+            if (!window.StorageManager) return defaultValue;
+            if (typeof StorageManager.loadHeavyData === 'function') {
+                return await StorageManager.loadHeavyData(key, defaultValue);
+            }
+            return StorageManager.loadData(key, defaultValue);
         }
     };
 

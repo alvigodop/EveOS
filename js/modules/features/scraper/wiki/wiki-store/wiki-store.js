@@ -16,21 +16,23 @@ WikiStore.init = function () {
 
 /**
  * Get all Fandom domains
- * @returns {Array} List of domain objects
+ * @returns {Promise<Array>} List of domain objects
  */
-WikiStore.getFandomDomains = function () {
-    return window.StorageManager ? StorageManager.loadData('fandomDomains', []) : [];
+WikiStore.getFandomDomains = async function () {
+    if (!window.StorageManager) return [];
+    return await StorageManager.loadDataAsync(StorageManager.KEYS.FANDOM_DOMAINS || 'fandomDomains', []);
 };
+
 
 /**
  * Add a Fandom domain
  * @param {string} domain 
  * @param {string} name 
  * @param {string} imageUrl 
- * @returns {boolean} True if added, false if already exists
+ * @returns {Promise<boolean>} True if added, false if already exists
  */
-WikiStore.addFandomDomain = function (domain, name, imageUrl) {
-    const domains = this.getFandomDomains();
+WikiStore.addFandomDomain = async function (domain, name, imageUrl) {
+    const domains = await this.getFandomDomains();
 
     // Check if exists
     if (domains.some(d => d.domain === domain)) {
@@ -44,71 +46,67 @@ WikiStore.addFandomDomain = function (domain, name, imageUrl) {
     });
 
     if (window.StorageManager) {
-        StorageManager.saveData('fandomDomains', domains);
-    } else {
-        localStorage.setItem('fandomDomains', JSON.stringify(domains));
+        await StorageManager.saveDataAsync(StorageManager.KEYS.FANDOM_DOMAINS || 'fandomDomains', domains);
+        return true;
     }
-    return true;
+    return false;
 };
+
 
 /**
  * Update a Fandom domain (e.g. logo)
  * @param {string} domain 
  * @param {Object} data 
  */
-WikiStore.updateFandomDomain = function (domain, data) {
-    let domains = this.getFandomDomains();
+WikiStore.updateFandomDomain = async function (domain, data) {
+    let domains = await this.getFandomDomains();
     const index = domains.findIndex(d => d.domain === domain);
 
     if (index !== -1) {
         domains[index] = { ...domains[index], ...data };
         if (window.StorageManager) {
-            StorageManager.saveData('fandomDomains', domains);
-        } else {
-            localStorage.setItem('fandomDomains', JSON.stringify(domains));
+            await StorageManager.saveDataAsync(StorageManager.KEYS.FANDOM_DOMAINS || 'fandomDomains', domains);
+            return true;
         }
-        return true;
     }
     return false;
 };
+
 
 /**
  * Remove a Fandom domain
  * @param {string} domain 
  */
-WikiStore.removeFandomDomain = function (domain) {
-    let domains = this.getFandomDomains();
+WikiStore.removeFandomDomain = async function (domain) {
+    let domains = await this.getFandomDomains();
     const initialLength = domains.length;
     domains = domains.filter(d => d.domain !== domain);
 
     if (domains.length !== initialLength) {
         if (window.StorageManager) {
-            StorageManager.saveData('fandomDomains', domains);
-        } else {
-            localStorage.setItem('fandomDomains', JSON.stringify(domains));
+            await StorageManager.saveDataAsync(StorageManager.KEYS.FANDOM_DOMAINS || 'fandomDomains', domains);
+            return true;
         }
-        return true;
     }
     return false;
 };
 
+
 /**
  * Get all Wikipedia entries
- * @returns {Array} List of entry objects
+ * @returns {Promise<Array>} List of entry objects
  */
-WikiStore.getWikiEntries = function () {
-    return window.StorageManager ? StorageManager.loadData('wikiEntries', []) : [];
+WikiStore.getWikiEntries = async function () {
+    if (!window.StorageManager) return [];
+    return await StorageManager.loadDataAsync(StorageManager.KEYS.WIKI_ENTRIES || 'wikiEntries', []);
 };
+
 
 /**
  * Add a Wikipedia entry
- * @param {string} title 
- * @param {string} name 
- * @param {string} imageUrl 
- * @returns {boolean} True if added, false if exists
  */
-WikiStore.addWikiEntry = function (title, name, imageUrl) {
-    const entries = this.getWikiEntries();
+WikiStore.addWikiEntry = async function (title, name, imageUrl) {
+    const entries = await this.getWikiEntries();
 
     if (entries.some(e => e.title === title)) {
         return false;
@@ -121,49 +119,45 @@ WikiStore.addWikiEntry = function (title, name, imageUrl) {
     });
 
     if (window.StorageManager) {
-        StorageManager.saveData('wikiEntries', entries);
-    } else {
-        localStorage.setItem('wikiEntries', JSON.stringify(entries));
-    }
-    return true;
-};
-
-/**
- * Remove a Wikipedia entry
- * @param {string} title 
- */
-WikiStore.removeWikiEntry = function (title) {
-    let entries = this.getWikiEntries();
-    const initialLength = entries.length;
-    entries = entries.filter(e => e.title !== title);
-
-    if (entries.length !== initialLength) {
-        if (window.StorageManager) {
-            StorageManager.saveData('wikiEntries', entries);
-        } else {
-            localStorage.setItem('wikiEntries', JSON.stringify(entries));
-        }
+        await StorageManager.saveDataAsync(StorageManager.KEYS.WIKI_ENTRIES || 'wikiEntries', entries);
         return true;
     }
     return false;
 };
 
 /**
- * Get all Wikipedia categories
- * @returns {Array} List of category objects
+ * Remove a Wikipedia entry
  */
-WikiStore.getWikiCategories = function () {
-    return window.StorageManager ? StorageManager.loadData('wikiCategories', []) : [];
+WikiStore.removeWikiEntry = async function (title) {
+    let entries = await this.getWikiEntries();
+    const initialLength = entries.length;
+    entries = entries.filter(e => e.title !== title);
+
+    if (entries.length !== initialLength) {
+        if (window.StorageManager) {
+            await StorageManager.saveDataAsync(StorageManager.KEYS.WIKI_ENTRIES || 'wikiEntries', entries);
+            return true;
+        }
+    }
+    return false;
 };
+
+
+/**
+ * Get all Wikipedia categories
+ * @returns {Promise<Array>} List of category objects
+ */
+WikiStore.getWikiCategories = async function () {
+    if (!window.StorageManager) return [];
+    return await StorageManager.loadDataAsync(StorageManager.KEYS.WIKI_CATEGORIES || 'wikiCategories', []);
+};
+
 
 /**
  * Add a Wikipedia category
- * @param {string} category 
- * @param {string} name 
- * @returns {boolean} True if added, false if exists
  */
-WikiStore.addWikiCategory = function (category, name) {
-    let categories = this.getWikiCategories();
+WikiStore.addWikiCategory = async function (category, name) {
+    let categories = await this.getWikiCategories();
 
     // Clean up category name
     category = category.replace(/^Category:/i, '');
@@ -186,31 +180,29 @@ WikiStore.addWikiCategory = function (category, name) {
     });
 
     if (window.StorageManager) {
-        StorageManager.saveData('wikiCategories', categories);
-    } else {
-        localStorage.setItem('wikiCategories', JSON.stringify(categories));
+        await StorageManager.saveDataAsync(StorageManager.KEYS.WIKI_CATEGORIES || 'wikiCategories', categories);
+        return true;
     }
-    return true;
+    return false;
 };
+
 
 /**
  * Remove a Wikipedia category
- * @param {string} category 
  */
-WikiStore.removeWikiCategory = function (category) {
-    let categories = this.getWikiCategories();
+WikiStore.removeWikiCategory = async function (category) {
+    let categories = await this.getWikiCategories();
     const initialLength = categories.length;
     categories = categories.filter(c => c.category !== category);
 
     if (categories.length !== initialLength) {
         if (window.StorageManager) {
-            StorageManager.saveData('wikiCategories', categories);
-        } else {
-            localStorage.setItem('wikiCategories', JSON.stringify(categories));
+            await StorageManager.saveDataAsync(StorageManager.KEYS.WIKI_CATEGORIES || 'wikiCategories', categories);
+            return true;
         }
-        return true;
     }
     return false;
 };
+
 
 window.WikiStore = WikiStore;

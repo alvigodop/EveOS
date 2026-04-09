@@ -6,6 +6,10 @@ window.EveOS.API = window.EveOS.API || {};
 
     /**
      * Normalize a source identity for comparison
+     * Strips common wiki/pedia suffixes to improve grouping (e.g. narutopedia -> naruto).
+     */
+    /**
+     * Normalize a source identity for grouping (e.g., 'Narutopedia' -> 'naruto')
      */
     ctx.normalizeSourceIdentity = function normalizeSourceIdentity(value) {
         if (!value) return '';
@@ -15,11 +19,24 @@ window.EveOS.API = window.EveOS.API || {};
             .replace(/^https?:\/\//, '')
             .replace(/\/.*$/, '')
             .replace(/\.fandom\.com$/, '')
-            .replace(/[_-]+/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+
+        // 1. Basic cleaning
+        let stem = normalized
+            .replace(/[-_]+/g, ' ')
             .replace(/[^a-z0-9\s]/g, ' ')
             .replace(/\s+/g, ' ')
             .trim();
-        return normalized;
+
+        // 2. Strip common prefixes (The Naruto -> Naruto)
+        stem = stem.replace(/^(the|a|an)\s+/i, '');
+
+        // 3. Strip grouping suffixes (Narutopedia -> Naruto, Naruto Wiki -> Naruto)
+        stem = stem.replace(/\s*(pedia|wiki|encyclopedia|fandom|fanon|official|data)\s*$/i, '');
+        stem = stem.replace(/(pedia|wiki|encyclopedia|fanon|official|data)$/i, '');
+
+        return stem.trim() || normalized;
     };
 
     /**
@@ -32,21 +49,54 @@ window.EveOS.API = window.EveOS.API || {};
     };
 
     /**
-     * Load raw knowledge sources from storage
+     * Load raw knowledge sources from storage (async)
      */
-    ctx.loadSavedKnowledgeSources = function loadSavedKnowledgeSources(categoryName) {
-        const storedWikiEntries = ctx.getScopedStorageValue('wikiEntries', [], categoryName);
-        const storedFandomDomains = ctx.getScopedStorageValue('fandomDomains', [], categoryName);
+    ctx.loadSavedKnowledgeSources = async function loadSavedKnowledgeSources(categoryName) {
+        const storedWikiEntries = await ctx.getScopedStorageValueAsync('wikiEntries', [], categoryName);
+        const storedFandomDomains = await ctx.getScopedStorageValueAsync('fandomDomains', [], categoryName);
         const wikiEntries = Array.isArray(storedWikiEntries) ? storedWikiEntries : [];
         const fandomDomains = Array.isArray(storedFandomDomains) ? storedFandomDomains : [];
         return { wikiEntries, fandomDomains };
     };
 
+
     /**
-     * Transform raw sources into enriched cache entries
+     * Normalize and return saved Wikipedia entries for a category (async).
      */
-    ctx.loadKnowledgeCacheEntries = function loadKnowledgeCacheEntries(categoryName, options = {}) {
-        const { wikiEntries, fandomDomains } = ctx.loadSavedKnowledgeSources(categoryName);
+    ctx.normalizeSavedWikipediaEntries = async function normalizeSavedWikipediaEntries(categoryName) {
+        const { wikiEntries } = await ctx.loadSavedKnowledgeSources(categoryName);
+        return wikiEntries.map(function (entry) {
+            const title = String(entry?.title || entry?.name || entry || '').trim();
+            if (!title) return null;
+            return {
+                title: title,
+                name: String(entry?.name || title).trim()
+            };
+        }).filter(Boolean);
+    };
+
+
+    /**
+     * Normalize and return saved Fandom domains for a category (async).
+     */
+    ctx.normalizeSavedFandomDomains = async function normalizeSavedFandomDomains(categoryName) {
+        const { fandomDomains } = await ctx.loadSavedKnowledgeSources(categoryName);
+        return fandomDomains.map(function (entry) {
+            const domain = String(entry?.domain || entry || '').trim();
+            if (!domain) return null;
+            return {
+                domain: domain,
+                name: String(entry?.name || domain).trim()
+            };
+        }).filter(Boolean);
+    };
+
+
+    /**
+     * Transform raw sources into enriched cache entries (async)
+     */
+    ctx.loadKnowledgeCacheEntries = async function loadKnowledgeCacheEntries(categoryName, options = {}) {
+        const { wikiEntries, fandomDomains } = await ctx.loadSavedKnowledgeSources(categoryName);
         
         let wikiCacheStore, wikiDataStore;
         const resolvedCategory = ctx.ensureCategoryContext(categoryName);
@@ -56,8 +106,8 @@ window.EveOS.API = window.EveOS.API || {};
             wikiCacheStore = window.CacheCore.wikiCacheStore || {};
             wikiDataStore = window.CacheCore.wikiDataStore || { searchResults: {} };
         } else {
-            wikiCacheStore = ctx.getScopedStorageValue('wikiCacheStore', {}, categoryName) || {};
-            wikiDataStore = ctx.getScopedStorageValue('wikiDataStore', { searchResults: {} }, categoryName) || {};
+            wikiCacheStore = await ctx.getScopedStorageValueAsync('wikiCacheStore', {}, categoryName) || {};
+            wikiDataStore = await ctx.getScopedStorageValueAsync('wikiDataStore', { searchResults: {} }, categoryName) || {};
         }
         
         const fandomResults = wikiDataStore.searchResults && typeof wikiDataStore.searchResults === 'object'
@@ -99,10 +149,6 @@ window.EveOS.API = window.EveOS.API || {};
             if (!domain) return null;
             const cached = fandomResults[domain];
             
-            const itemCount = Object.keys(cached || {}).filter(function (key) {
-                return key !== 'lastUpdate';
-            }).length;
-
             let updatedAt = ctx.toTimestamp(cached?.lastUpdate);
             if (!updatedAt && cached && typeof cached === 'object') {
                 Object.keys(cached).forEach(function(key) {
@@ -112,18 +158,24 @@ window.EveOS.API = window.EveOS.API || {};
                     }
                 });
             }
-            if (!updatedAt && itemCount > 0) updatedAt = Date.now();
+            if (!updatedAt && cached && Object.keys(cached).filter(k => k !== 'lastUpdate').length > 0) updatedAt = Date.now();
 
-            if (!includeUncached && !updatedAt) return null;
+            // Determine count
+            let itemCount = 0;
+            if (cached) {
+                itemCount = Object.keys(cached).filter(k => k !== 'lastUpdate').length;
+            }
+
+            if (!includeUncached && !updatedAt && itemCount === 0) return null;
 
             return {
                 scope: 'fandom',
                 key: domain,
                 title: String(entry?.name || domain).trim(),
                 subtitle: domain,
-                updatedAt,
-                itemCount,
-                hasCache: updatedAt > 0
+                updatedAt: updatedAt,
+                itemCount: itemCount,
+                domain: domain
             };
         }).filter(Boolean).sort(function (left, right) {
             return Number(right.updatedAt || 0) - Number(left.updatedAt || 0);
@@ -131,6 +183,7 @@ window.EveOS.API = window.EveOS.API || {};
 
         return { wikipedia, fandom };
     };
+
 
     /**
      * Clear caches for entire knowledge base
@@ -197,12 +250,21 @@ window.EveOS.API = window.EveOS.API || {};
     ctx.getSourceCacheCandidates = function getSourceCacheCandidates(entry) {
         if (!entry) return [];
         if (entry.scope === 'wikipedia') {
-            return ctx.uniqueIdentities([entry.key, entry.title, entry.subtitle]);
+            const iden = ctx.uniqueIdentities([entry.key, entry.title, entry.subtitle]);
+            // If we have "Naruto (manga)", add "Naruto" as an alias
+            const mainIden = iden.map(i => i.replace(/\s*\(.*?\)\s*/g, '').trim()).filter(Boolean);
+            return Array.from(new Set([...iden, ...mainIden]));
         }
         if (entry.scope === 'fandom') {
             const domain = String(entry.key || '').trim();
             const domainStem = domain.replace(/\.fandom\.com$/i, '');
-            return ctx.uniqueIdentities([entry.key, entry.title, entry.subtitle, domainStem]);
+            const candidates = [entry.key, entry.title, entry.subtitle, domainStem];
+            
+            // Add stems without pedia/wiki suffixes if they aren't already there
+            const cleanStem = domainStem.replace(/(pedia|wiki|encyclopedia)$/i, '');
+            if (cleanStem && cleanStem !== domainStem) candidates.push(cleanStem);
+
+            return ctx.uniqueIdentities(candidates);
         }
         if (entry.query) {
             return ctx.uniqueIdentities([entry.query]);
@@ -217,35 +279,59 @@ window.EveOS.API = window.EveOS.API || {};
         const resolvedCategory = ctx.ensureCategoryContext(categoryName);
         const apiEntries = api.Cache ? await api.Cache.listQueries(resolvedCategory) : [];
 
-        const knowledgeEntries = ctx.loadKnowledgeCacheEntries(resolvedCategory, {
+        const knowledgeEntries = await ctx.loadKnowledgeCacheEntries(resolvedCategory, {
             includeUncachedKnowledge: options.includeUncachedKnowledge === true
         });
+
         
         const aliasMap = new Map();
-        const groups = {};
-
+        const groups = {}; // Keyed by primary identity string
+        
+        /**
+         * Get or create a group for an entry
+         * @param {object} entry - The entry to group
+         * @param {string[]} aliases - Its identity aliases
+         */
         ctx.getOrCreateGroup = function getOrCreateGroup(entry, aliases) {
             let group = null;
+            const entryTitle = String(entry.title || '').trim().toLowerCase();
+
+            // 1. Try to find existing group by aliases
             aliases.forEach(function (alias) {
                 if (!group && aliasMap.has(alias)) {
                     group = aliasMap.get(alias);
                 }
             });
 
+            // 2. Fallback: Try to find group by exact title match
+            if (!group && entryTitle) {
+                const existingGroups = Object.values(groups);
+                group = existingGroups.find(g => String(g.title || '').trim().toLowerCase() === entryTitle);
+                if (group) {
+                    // Link all this entry's aliases to the found group
+                    aliases.forEach(a => {
+                        group.aliases.add(a);
+                        aliasMap.set(a, group);
+                    });
+                }
+            }
+
+            // 3. Create new group if still not found
             if (!group) {
-                const primaryId = aliases[0] || ctx.normalizeSourceIdentity(entry?.title || entry?.query || entry?.key || `group_${Object.keys(groups).length + 1}`);
+                const primaryId = aliases[0] || ctx.normalizeSourceIdentity(entry.title || entry.key) || 'group_' + Date.now();
                 group = {
                     id: primaryId,
-                    title: String(entry?.title || entry?.query || entry?.key || 'Cached Source').trim(),
-                    updatedAt: 0,
+                    title: entry.title || entry.key || 'Untitled',
+                    aliases: new Set(aliases),
                     wikipediaEntry: null,
                     fandomEntry: null,
                     apiEntries: [],
-                    aliases: new Set()
+                    updatedAt: 0
                 };
                 groups[primaryId] = group;
             }
 
+            // Map all aliases to this group
             aliases.forEach(function (alias) {
                 if (!alias) return;
                 group.aliases.add(alias);
@@ -277,9 +363,11 @@ window.EveOS.API = window.EveOS.API || {};
 
         // 3. Map API queries
         apiEntries.forEach(function (entry) {
-            const aliases = ctx.getSourceCacheCandidates(entry);
-            const group = ctx.getOrCreateGroup(entry, aliases);
+            const aliases = ctx.getSourceCacheCandidates({ scope: 'api', query: entry.query });
+            const group = ctx.getOrCreateGroup({ key: entry.query, title: entry.query, scope: 'api' }, aliases);
+            if (!group.apiEntries) group.apiEntries = [];
             group.apiEntries.push(entry);
+            
             if (!group.wikipediaEntry && !group.fandomEntry) {
                 group.title = String(entry.query || group.title).trim();
             }

@@ -23,55 +23,65 @@
 
             /**
              * Initialize the cache core
+             * @param {string} categoryName - Optional category context to load from
              * @param {boolean} force - Force re-initialization even if already initialized
              */
-            init: function (force = false) {
-                if (this._initialized && !force) return this;
-                console.log('Initializing CacheCore (Force context reload: ' + force + ')');
+            init: function (categoryName = null, force = false) {
+                if (this._initialized && !force && !categoryName) return Promise.resolve(this);
+                const context = categoryName || (window.StorageManager ? StorageManager.categoryContext : null);
+                console.log('Initializing CacheCore (Context: ' + context + ', Force: ' + force + ')');
+
+                const loadPromises = [];
+
                 if (window.StorageManager) {
                     if (typeof StorageManager.loadHeavyData === 'function') {
                         this.wikiDataStore = { searchResults: {} };
-                        StorageManager.loadHeavyData('wikiDataStore', { searchResults: {} }).then(store => {
+                        const dataPromise = StorageManager.loadHeavyData('wikiDataStore', { searchResults: {} }, context).then(store => {
                             if (store) Object.assign(this.wikiDataStore, store);
                             if (!this.wikiDataStore.searchResults) this.wikiDataStore.searchResults = {};
-                            console.log('CacheCore: Async heavy wiki data loaded from IDB.');
+                            console.log(`CacheCore: Async wiki data [${context}] loaded from IDB.`);
                             if (window.WikiManager) {
                                 WikiManager.refreshCacheStores();
                                 if (typeof WikiManager.renderFandomDomainList === 'function') WikiManager.renderFandomDomainList();
                             }
-                        }).catch(e => console.warn('CacheCore: Heavy wiki data async load failed', e));
+                        });
+                        loadPromises.push(dataPromise);
                         
                         this.wikiCacheStore = {};
-                        StorageManager.loadHeavyData('wikiCacheStore', {}).then(store => {
+                        const cachePromise = StorageManager.loadHeavyData('wikiCacheStore', {}, context).then(store => {
                             if (store) Object.assign(this.wikiCacheStore, store);
-                            console.log('CacheCore: Async heavy wiki cache loaded from IDB.');
+                            console.log(`CacheCore: Async wiki cache [${context}] loaded from IDB.`);
                             if (window.WikiManager) {
                                 WikiManager.refreshCacheStores();
                                 if (typeof WikiManager.renderWikiEntryList === 'function') WikiManager.renderWikiEntryList();
                             }
-                        }).catch(e => console.warn('CacheCore: Heavy wiki cache async load failed', e));
+                        });
+                        loadPromises.push(cachePromise);
                     } else {
-                        this.wikiDataStore = StorageManager.loadData('wikiDataStore', { searchResults: {} });
-                        this.wikiCacheStore = StorageManager.loadData('wikiCacheStore', {});
+                        this.wikiDataStore = StorageManager.loadData('wikiDataStore', { searchResults: {} }, context);
+                        this.wikiCacheStore = StorageManager.loadData('wikiCacheStore', {}, context);
+                        loadPromises.push(Promise.resolve());
                     }
                 } else {
                     try {
-                        this.wikiDataStore = JSON.parse(localStorage.getItem('wikiDataStore')) || { searchResults: {} };
-                        this.wikiCacheStore = JSON.parse(localStorage.getItem('wikiCacheStore')) || {};
+                        const keyPrefix = context ? `${context}_` : '';
+                        this.wikiDataStore = JSON.parse(localStorage.getItem(keyPrefix + 'wikiDataStore')) || { searchResults: {} };
+                        this.wikiCacheStore = JSON.parse(localStorage.getItem(keyPrefix + 'wikiCacheStore')) || {};
                     } catch (e) {
                         this.wikiDataStore = { searchResults: {} };
                         this.wikiCacheStore = {};
                     }
+                    loadPromises.push(Promise.resolve());
                 }
 
-                if (window.CCMaintenance && typeof CCMaintenance.init === 'function') {
-                    // Force CCMaintenance to re-sync if it has its own stores
-                    CCMaintenance.init();
-                    CCMaintenance._initialized = true;
-                }
-
-                this._initialized = true;
-                return this;
+                return Promise.all(loadPromises).then(() => {
+                    if (window.CCMaintenance && typeof CCMaintenance.init === 'function') {
+                        CCMaintenance.init();
+                        CCMaintenance._initialized = true;
+                    }
+                    this._initialized = true;
+                    return this;
+                });
             },
 
             /**
@@ -116,27 +126,25 @@
              * @param {number} ttl - Time to live in milliseconds (optional)
              * @returns {boolean} - True if successful
              */
-            set: async function (key, value, ttl) {
+            set: async function (key, value, ttl, categoryName = null) {
                 try {
+                    const context = categoryName || (window.StorageManager ? StorageManager.categoryContext : null);
                     const cacheKey = 'cache_' + key;
-                    const cacheData = {
-                        value: value,
-                        timestamp: Date.now(),
-                        expires: ttl ? Date.now() + ttl : null
-                    };
+                    const expires = ttl ? Date.now() + ttl : null;
+                    const cacheData = { value, expires, timestamp: Date.now() };
 
                     if (window.StorageManager) {
                         if (typeof StorageManager.saveHeavyData === 'function') {
-                            await StorageManager.saveHeavyData(cacheKey, cacheData);
+                            await StorageManager.saveHeavyData(cacheKey, cacheData, context);
                         } else {
-                            StorageManager.saveData(cacheKey, cacheData);
+                            StorageManager.saveData(cacheKey, cacheData, context);
                         }
                     } else {
-                        localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+                        localStorage.setItem(context ? `${context}_${cacheKey}` : cacheKey, JSON.stringify(cacheData));
                     }
                     return true;
                 } catch (e) {
-                    console.error('Error in CacheCore.set:', e);
+                    console.error('CacheCore: Error setting cache', e);
                     if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
                         console.warn('LocalStorage quota exceeded. Pruning cache...');
                         this.pruneCache();

@@ -286,10 +286,12 @@
         /**
          * Update the main WikiDataStore cache for "View Cache" functionality
          */
-        updateDomainStore: function (domain, results) {
-            if (results.length > 0 && window.CacheManager) {
+        updateDomainStore: async function (domain, results) {
+            if (results && results.length > 0 && window.CacheManager) {
                 try {
-                    CacheManager.init();
+                    // Ensure storage is initialized before merging
+                    await CacheManager.init();
+                    
                     const targetStore = (window.CacheCore && CacheCore.wikiDataStore) ? CacheCore.wikiDataStore : (CacheManager.wikiDataStore || { searchResults: {} });
 
                     if (!targetStore.searchResults) {
@@ -315,8 +317,6 @@
 
                     if (window.CacheCore && typeof CacheCore.saveWikiDataStore === 'function') {
                         CacheCore.saveWikiDataStore();
-                    } else {
-                        localStorage.setItem('wikiDataStore', JSON.stringify(targetStore));
                     }
                 } catch (mergeError) {
                     console.warn(`FSLCache: Error merging results to domain cache:`, mergeError);

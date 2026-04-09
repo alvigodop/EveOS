@@ -141,8 +141,8 @@
 
                 // Refresh Fandom cache store and re-render so "CACHED" tab updates
                 if (allResults.length > 0 && window.WikiManager) {
-                    if (typeof WikiManager.refreshCacheStores === 'function') WikiManager.refreshCacheStores();
-                    if (typeof WikiManager.renderFandomDomainList === 'function') WikiManager.renderFandomDomainList(true);
+                    if (typeof WikiManager.refreshCacheStores === 'function') await WikiManager.refreshCacheStores();
+                    if (typeof WikiManager.renderFandomDomainList === 'function') await WikiManager.renderFandomDomainList(true);
                 }
 
                 if (allResults.length > 0 && window.FSLCache && typeof FSLCache.updateAggregateCache === 'function') {

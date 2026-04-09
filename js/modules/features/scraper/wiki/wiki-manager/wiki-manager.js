@@ -9,21 +9,45 @@
  * - WikiManagerDelegates: Integration delegations
  * - WikiManagerInput: Input handling
  */
-const WikiManager = {};
+const WikiManager = {
+    // EventBus for reactive updates
+    events: new EventTarget(),
+
+    on: function(event, callback) {
+        this.events.addEventListener(event, callback);
+    },
+
+    emit: function(event, detail) {
+        this.events.dispatchEvent(new CustomEvent(event, { detail }));
+    },
+
+    // Internal state for sync properties
+    _wikiEntries: [],
+    _fandomDomains: [],
+    _wikiCategories: []
+};
+
 
 // Initialization tracking
 WikiManager._initialized = false;
 
+
 /**
  * Initialize the wiki manager
  */
-WikiManager.init = function () {
+WikiManager.init = async function () {
     try {
         console.log('WikiManager initializing...');
 
         // Register with ModuleRegistry if available
         if (window.ModuleRegistry) {
             window.ModuleRegistry.register('WikiManager', WikiManager);
+        }
+
+        // Ensure storage is ready if we have a context
+        if (window.CacheManager && typeof CacheManager.init === 'function') {
+            const currentCategory = window.StorageManager ? StorageManager.categoryContext : null;
+            await CacheManager.init(currentCategory);
         }
 
         // Initialize Store and Renderer if they haven't been already
@@ -59,10 +83,12 @@ WikiManager.init = function () {
         }
 
         // Cache stores (kept for backward compatibility with external calls that might access them directly)
-        this.refreshCacheStores();
+        await this.refreshCacheStores();
 
         // Check for default entries (Delegated)
-        this.addDefaultWikiEntryIfNeeded();
+        if (typeof this.addDefaultWikiEntryIfNeeded === 'function') {
+            this.addDefaultWikiEntryIfNeeded();
+        }
 
         // Initialize DOM operations when ready
         if (document.readyState === 'complete' || document.readyState === 'interactive') {
@@ -82,38 +108,57 @@ WikiManager.init = function () {
 };
 
 /**
- * Define properties to delegate to WikiStore
+ * Define properties to delegate to internal state (synced via refreshCacheStores)
  */
 if (!Object.getOwnPropertyDescriptor(WikiManager, 'wikiEntries')) {
     Object.defineProperty(WikiManager, 'wikiEntries', {
-        get: function () { return window.WikiStore ? WikiStore.getWikiEntries() : []; }
+        get: function () { return WikiManager._wikiEntries; }
     });
 }
 
 if (!Object.getOwnPropertyDescriptor(WikiManager, 'fandomDomains')) {
     Object.defineProperty(WikiManager, 'fandomDomains', {
-        get: function () { return window.WikiStore ? WikiStore.getFandomDomains() : []; }
+        get: function () { return WikiManager._fandomDomains; }
     });
 }
 
 if (!Object.getOwnPropertyDescriptor(WikiManager, 'wikiCategories')) {
     Object.defineProperty(WikiManager, 'wikiCategories', {
-        get: function () { return window.WikiStore ? WikiStore.getWikiCategories() : []; }
+        get: function () { return WikiManager._wikiCategories; }
     });
 }
+
 
 /**
  * Refresh local cache store references
  */
-WikiManager.refreshCacheStores = function () {
+WikiManager.refreshCacheStores = async function () {
     if (window.CacheCore && CacheCore.wikiCacheStore && CacheCore.wikiDataStore) {
         WikiManager.wikiCacheStore = CacheCore.wikiCacheStore;
         WikiManager.fandomCacheStore = CacheCore.wikiDataStore;
     } else if (window.StorageManager) {
-        WikiManager.wikiCacheStore = StorageManager.loadFromCacheStore() || {};
-        WikiManager.fandomCacheStore = StorageManager.loadFromDataStore() || { searchResults: {} };
+        // Use loadHeavyData/loadData via StorageManager which respects context and async loading
+        const wikiCache = await StorageManager.loadFromCacheStore() || {};
+        const fandomCache = await StorageManager.loadFromDataStore() || { searchResults: {} };
+        
+        WikiManager.wikiCacheStore = wikiCache;
+        WikiManager.fandomCacheStore = fandomCache;
+
+        // Ensure CacheCore stays in sync if it exists
+        if (window.CacheCore) {
+            CacheCore.wikiCacheStore = wikiCache;
+            CacheCore.wikiDataStore = fandomCache;
+        }
+
+        // Sync list properties (now using async WikiStore)
+        if (window.WikiStore) {
+            WikiManager._fandomDomains = await WikiStore.getFandomDomains();
+            WikiManager._wikiEntries = await WikiStore.getWikiEntries();
+            WikiManager._wikiCategories = await WikiStore.getWikiCategories();
+        }
     } else {
         // Fallbacks
+
         try {
             WikiManager.wikiCacheStore = JSON.parse(localStorage.getItem('wikiCacheStore')) || {};
             WikiManager.fandomCacheStore = JSON.parse(localStorage.getItem('wikiDataStore')) || { searchResults: {} };
@@ -122,16 +167,20 @@ WikiManager.refreshCacheStores = function () {
             WikiManager.fandomCacheStore = { searchResults: {} };
         }
     }
+
+    // Emit event for reactive UI updates (e.g., Unidex panel)
+    WikiManager.emit('wiki-cache-updated', { categoryName: window.currentCategoryCtx });
 };
+
 
 /**
  * Initialize DOM-related operations
  */
-WikiManager.initDomOperations = function () {
+WikiManager.initDomOperations = async function () {
     // Render lists
-    this.renderFandomDomainList();
-    this.renderWikiEntryList();
-    this.renderWikiCategoryList();
+    await this.renderFandomDomainList();
+    await this.renderWikiEntryList();
+    await this.renderWikiCategoryList();
 
     // Setup button handlers via Input module
     if (window.WikiManagerInput) {
@@ -151,9 +200,10 @@ WikiManager.removeFandomDomain = function (domain) {
     if (window.WikiManagerFandom) return WikiManagerFandom.removeFandomDomain(domain);
 };
 
-WikiManager.renderFandomDomainList = function (force) {
-    if (window.WikiManagerFandom) return WikiManagerFandom.renderFandomDomainList(force);
+WikiManager.renderFandomDomainList = async function (force) {
+    if (window.WikiManagerFandom) return await WikiManagerFandom.renderFandomDomainList(force);
 };
+
 
 WikiManager._updateFandomData = function (domain) {
     // Delegate to Fandom component (or strictly speaking, Fandom component delegates to Delegates, so this is just a proxy)
@@ -176,9 +226,10 @@ WikiManager.removeWikiEntry = function (title) {
     if (window.WikiManagerEntries) return WikiManagerEntries.removeWikiEntry(title);
 };
 
-WikiManager.renderWikiEntryList = function (force) {
-    if (window.WikiManagerEntries) return WikiManagerEntries.renderWikiEntryList(force);
+WikiManager.renderWikiEntryList = async function (force) {
+    if (window.WikiManagerEntries) return await WikiManagerEntries.renderWikiEntryList(force);
 };
+
 
 WikiManager.addDefaultWikiEntryIfNeeded = function () {
     if (window.WikiManagerEntries) return WikiManagerEntries.addDefaultWikiEntryIfNeeded();
@@ -204,9 +255,10 @@ WikiManager.removeWikiCategory = function (category) {
     if (window.WikiManagerCategories) return WikiManagerCategories.removeWikiCategory(category);
 };
 
-WikiManager.renderWikiCategoryList = function (force) {
-    if (window.WikiManagerCategories) return WikiManagerCategories.renderWikiCategoryList(force);
+WikiManager.renderWikiCategoryList = async function (force) {
+    if (window.WikiManagerCategories) return await WikiManagerCategories.renderWikiCategoryList(force);
 };
+
 
 // ==========================================
 // Delegation to WikiManagerDelegates (Helpers)

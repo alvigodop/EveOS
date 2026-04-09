@@ -293,4 +293,69 @@ ctx.stripKnowledgeSourceSuffix = function stripKnowledgeSourceSuffix(title, sour
 ctx.buildKnowledgeSectionTitle = function buildKnowledgeSectionTitle(scope) {
         return scope === 'wikipedia' ? 'Wikipedia Saved Sources' : 'Fandom Saved Sources';
     }
+    /**
+     * Get a value from scoped storage (sync).
+     */
+    ctx.getScopedStorageValue = function getScopedStorageValue(key, defaultValue, categoryName) {
+        const resolvedCategory = ctx.ensureCategoryContext(categoryName);
+        if (window.StorageManager && typeof window.StorageManager.loadData === 'function') {
+            return window.StorageManager.loadData(key, resolvedCategory) ?? defaultValue;
+        }
+        
+        // Fallback to direct localStorage if StorageManager is missing
+        const fullKey = `${resolvedCategory}_${key}`;
+        try {
+            const raw = localStorage.getItem(fullKey);
+            return raw ? JSON.parse(raw) : defaultValue;
+        } catch (e) {
+            return defaultValue;
+        }
+    };
+
+    /**
+     * Save a value to scoped storage (sync).
+     */
+    ctx.saveScopedStorageValue = function saveScopedStorageValue(key, value, categoryName) {
+        const resolvedCategory = ctx.ensureCategoryContext(categoryName);
+        if (window.StorageManager && typeof window.StorageManager.saveData === 'function') {
+            return window.StorageManager.saveData(key, value, resolvedCategory);
+        }
+        
+        // Fallback to direct localStorage if StorageManager is missing
+        const fullKey = `${resolvedCategory}_${key}`;
+        try {
+            localStorage.setItem(fullKey, JSON.stringify(value));
+            return true;
+        } catch (e) {
+            return false;
+        }
+    };
+
+    /**
+     * Get a value from scoped storage (async) - supports heavy data.
+     */
+    ctx.getScopedStorageValueAsync = async function getScopedStorageValueAsync(key, defaultValue, categoryName) {
+        const resolvedCategory = ctx.ensureCategoryContext(categoryName);
+        if (window.StorageManager && typeof window.StorageManager.loadDataAsync === 'function') {
+            return (await window.StorageManager.loadDataAsync(key, resolvedCategory)) ?? defaultValue;
+        }
+        
+        // Fallback to sync if async is not available
+        return ctx.getScopedStorageValue(key, defaultValue, resolvedCategory);
+    };
+
+    /**
+     * Save a value to scoped storage (async) - supports heavy data.
+     */
+    ctx.saveScopedStorageValueAsync = async function saveScopedStorageValueAsync(key, value, categoryName) {
+        const resolvedCategory = ctx.ensureCategoryContext(categoryName);
+        if (window.StorageManager && typeof window.StorageManager.saveDataAsync === 'function') {
+            return await window.StorageManager.saveDataAsync(key, value, resolvedCategory);
+        }
+        
+        // Fallback to sync if async is not available
+        return ctx.saveScopedStorageValue(key, value, resolvedCategory);
+    };
+
+
 })(window.EveOS.API);

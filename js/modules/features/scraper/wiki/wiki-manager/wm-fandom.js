@@ -34,7 +34,7 @@ WikiManagerFandom.addFandomDomain = function (domain, name, imageUrl) {
             if (window.WikiManagerDelegates) {
                 WikiManagerDelegates.updateFandomData(domain);
             }
-            this.renderFandomDomainList(true);
+            await this.renderFandomDomainList(true);
 
             // Notify Discovery Integration
             if (window.WikiManagerDelegates) {
@@ -55,7 +55,7 @@ WikiManagerFandom.addFandomDomain = function (domain, name, imageUrl) {
 WikiManagerFandom.removeFandomDomain = function (domain) {
     if (window.WikiStore) {
         WikiStore.removeFandomDomain(domain);
-        this.renderFandomDomainList(true);
+        await this.renderFandomDomainList(true);
         if (window.WikiManagerDelegates) {
             WikiManagerDelegates.updateDiscoveryButtonStatus('fandom', domain, false);
         }
@@ -65,7 +65,7 @@ WikiManagerFandom.removeFandomDomain = function (domain) {
 /**
  * Render Fandom domain list
  */
-WikiManagerFandom.renderFandomDomainList = function (force) {
+WikiManagerFandom.renderFandomDomainList = async function (force) {
     const listElement = document.getElementById('fandomDomainList');
     if (!listElement) return; // Silent fail if UI not ready
 
@@ -73,8 +73,9 @@ WikiManagerFandom.renderFandomDomainList = function (force) {
     const wm = window.WikiManager || {};
 
     // Always reload cache stores from storage before rendering to pick up writes from orchestrators
+    // This is now ASYNC and must be awaited to ensure we have the latest data
     if (wm.refreshCacheStores && typeof wm.refreshCacheStores === 'function') {
-        wm.refreshCacheStores();
+        await wm.refreshCacheStores();
     }
 
     // Helper for cache store
@@ -84,12 +85,13 @@ WikiManagerFandom.renderFandomDomainList = function (force) {
     } else if (wm.fandomCacheStore) {
         cacheStore = wm.fandomCacheStore;
     } else if (window.StorageManager) {
-        cacheStore = StorageManager.loadFromDataStore() || { searchResults: {} };
+        // loadFromDataStore is now async in StorageManager/SMWiki contexts
+        cacheStore = await StorageManager.loadFromDataStore() || { searchResults: {} };
     }
 
     if (window.WikiUIRenderer && window.WikiStore) {
         WikiUIRenderer.renderFandomDomainList(
-            WikiStore.getFandomDomains(),
+            await WikiStore.getFandomDomains(),
             listElement,
             cacheStore,
             {

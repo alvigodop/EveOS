@@ -7,19 +7,20 @@ const DMExport = {};
 /**
  * Export all application data to a JSON file
  */
-DMExport.exportData = function () {
+DMExport.exportData = async function () {
     console.log('Exporting data...');
 
     // Gather all data from StorageManager/CacheManager
     const data = {
         version: '1.0',
         exportDate: new Date().toISOString(),
-        fandomDomains: StorageManager.loadFandomDomains(),
-        wikiEntries: StorageManager.loadWikiEntries(),
-        wikiDataStore: StorageManager.loadFromDataStore(),
-        wikiCacheStore: StorageManager.loadFromCacheStore(),
-        wikiCategories: StorageManager.loadData('wikiCategories', [])
+        fandomDomains: await StorageManager.loadFandomDomains(),
+        wikiEntries: await StorageManager.loadWikiEntries(),
+        wikiDataStore: await StorageManager.loadFromDataStore(),
+        wikiCacheStore: await StorageManager.loadFromCacheStore(),
+        wikiCategories: await StorageManager.loadDataAsync('wikiCategories', [])
     };
+
 
     try {
         const jsonStr = JSON.stringify(data, null, 2);

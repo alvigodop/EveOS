@@ -50,24 +50,30 @@ WikiManagerCategories.removeWikiCategory = function (category) {
 /**
  * Render Wiki Category list
  */
-WikiManagerCategories.renderWikiCategoryList = function (force) {
+WikiManagerCategories.renderWikiCategoryList = async function (force) {
     const listElement = document.getElementById('wikiCategoryList');
     if (!listElement) return;
 
     // Use WikiManager facade for callbacks
     const wm = window.WikiManager || {};
 
+    // Always reload cache stores from storage before rendering to pick up writes from orchestrators
+    if (wm.refreshCacheStores && typeof wm.refreshCacheStores === 'function') {
+        await wm.refreshCacheStores();
+    }
+
     // Helper for cache store
     let cacheStore = {};
     if (wm.wikiCacheStore) {
         cacheStore = wm.wikiCacheStore;
     } else if (window.StorageManager) {
-        cacheStore = StorageManager.loadFromCacheStore() || {};
+        cacheStore = await StorageManager.loadFromCacheStore() || {};
     }
+
 
     if (window.WikiUIRenderer && window.WikiStore) {
         WikiUIRenderer.renderWikiCategoryList(
-            WikiStore.getWikiCategories(),
+            await WikiStore.getWikiCategories(),
             listElement,
             cacheStore,
             {
