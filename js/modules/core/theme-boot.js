@@ -1,6 +1,29 @@
 (function () {
     console.log("Theme Boot: Initializing...");
     try {
+        const THEME_BOOT_KEY = 'eveV22ThemeBoot';
+        const LEGACY_CONFIG_KEY = 'eveV22Config';
+
+        function decodeStoredConfig(rawValue) {
+            if (typeof rawValue !== 'string' || !rawValue) return {};
+            let decoded = rawValue;
+            if (decoded.startsWith('_LZ_')) {
+                if (typeof LZString === 'undefined') return {};
+                try {
+                    decoded = LZString.decompressFromUTF16(decoded.slice(4)) || '';
+                } catch (error) {
+                    console.warn('Theme Boot: Failed to decompress stored config', error);
+                    return {};
+                }
+            }
+            try {
+                const parsed = JSON.parse(decoded);
+                return parsed && typeof parsed === 'object' ? parsed : {};
+            } catch (error) {
+                return {};
+            }
+        }
+
         function parseThemeColor(colorValue) {
             if (typeof colorValue !== 'string') return null;
             const value = colorValue.trim();
@@ -50,13 +73,8 @@
             return luminance >= 0.62 ? 'light' : 'dark';
         }
 
-        const storedConfig = localStorage.getItem('eveV22Config');
-        let config = {};
-        if (storedConfig) {
-            try {
-                config = JSON.parse(storedConfig);
-            } catch (e) {}
-        }
+        const storedConfig = localStorage.getItem(THEME_BOOT_KEY) || localStorage.getItem(LEGACY_CONFIG_KEY);
+        const config = decodeStoredConfig(storedConfig);
 
         const theme = config.theme || 'dark';
         const isCustom = theme === 'custom';

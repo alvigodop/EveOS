@@ -8,7 +8,14 @@ function normalizeUrl(url) {
 
 function saveNotes() {
     const notesArea = document.getElementById('notes-area');
-    if (notesArea) localStorage.setItem('eveV22Notes', notesArea.value);
+    if (!notesArea) return;
+    if (window.EveCoreStorage && typeof window.EveCoreStorage.saveText === 'function') {
+        void window.EveCoreStorage.saveText('eveV22Notes', notesArea.value, {
+            localFallbackKey: 'eveV22Notes'
+        });
+        return;
+    }
+    localStorage.setItem('eveV22Notes', notesArea.value);
 }
 
 function isRenderableImageUrl(url) {
