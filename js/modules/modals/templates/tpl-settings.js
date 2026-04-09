@@ -31,10 +31,15 @@ window.modalTemplate += `
                 </select>
                 <div style="font-size:0.8rem; opacity:0.75; margin-top:4px;">Tip: press Shift+Enter in search to open Expanded mode once.</div>
             </div>
-            <label style="display:flex; gap:10px; align-items:center;">
-                <input type="checkbox" id="bookmarkClickOpenToggle" onchange="saveSettingsBookmarkClickOpen()">
-                <span>Bookmark click opens link immediately</span>
-            </label>
+            <div style="display:flex; flex-direction:column; gap:4px;">
+                <label for="bookmarkClickBehaviorSelect" style="color:var(--accent);">Bookmark Click Behavior:</label>
+                <select id="bookmarkClickBehaviorSelect" onchange="saveSettingsBookmarkClickBehavior()">
+                    <option value="focus_only">Popup Only</option>
+                    <option value="open_and_focus">Open in New Tab + Popup</option>
+                    <option value="internal_only">Open Internal View</option>
+                </select>
+                <div style="font-size:0.8rem; opacity:0.75;">Internal View opens the site inside EveOS through the in-site popup viewer. Best results come with the popup bridge running.</div>
+            </div>
             <div style="border-top:1px solid #444; padding-top:10px; margin-top:5px;">
                 <h4 style="margin:0 0 10px 0; color:var(--accent);">Library Derived Ratings</h4>
                 <label style="display:block; margin-bottom:8px;">Default Scale:

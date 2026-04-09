@@ -11,6 +11,7 @@
     const getCurrentLinkId = focus.getCurrentLinkId;
     const ensureModalAvailable = focus.ensureModalAvailable;
     const openInNewTab = focus.openInNewTab;
+    const openBookmarkTarget = focus.openBookmarkTarget || openInNewTab;
     const refreshHeader = focus.refreshHeader;
     const refreshActionButtons = focus.refreshActionButtons;
     const loadLinkedRecord = focus.loadLinkedRecord;
@@ -106,16 +107,21 @@
         const resolution = clickBehaviorApi?.resolveBehaviorForLink
             ? clickBehaviorApi.resolveBehaviorForLink(link)
             : {
+                openTarget: ((typeof config !== 'undefined') && !!config.bookmarkClickOpensLink) ? 'newtab' : 'none',
                 openLink: (typeof config !== 'undefined') && !!config.bookmarkClickOpensLink,
                 openFocus: true
             };
-        if (resolution.openLink) {
-            openInNewTab(link.url);
+        if (resolution.openTarget && resolution.openTarget !== 'none') {
+            openBookmarkTarget(link.url, link.title, resolution.openTarget);
         }
         if (resolution.openFocus) {
             window.openBookmarkFocusModal(link.id);
         }
         return false;
+    };
+
+    window.handleLinkClick = function (event, linkId) {
+        return window.openBookmarkFromDashboard(event, linkId);
     };
 
     window.bookmarkFocusSaveClickBehavior = function (mode) {

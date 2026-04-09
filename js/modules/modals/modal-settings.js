@@ -87,7 +87,15 @@ function openSettings() {
     document.getElementById('accentColor').value = config.accent || '#00d4ff';
     document.getElementById('searchEngineSelect').value = config.searchEngine || 'https://www.google.com/search?q=';
     document.getElementById('searchModeSelect').value = config.searchMode || 'basic';
-    document.getElementById('bookmarkClickOpenToggle').checked = !!config.bookmarkClickOpensLink;
+    const bookmarkClickBehaviorSelect = document.getElementById('bookmarkClickBehaviorSelect');
+    if (bookmarkClickBehaviorSelect) {
+        const clickBehaviorApi = window.EveBookmarkClickBehavior;
+        const nextMode = clickBehaviorApi?.getDefaultMode?.()
+            || (config.bookmarkClickOpensLink ? 'open_and_focus' : 'focus_only');
+        bookmarkClickBehaviorSelect.value = ['focus_only', 'open_and_focus', 'internal_only'].includes(nextMode)
+            ? nextMode
+            : (nextMode === 'open_only' ? 'open_and_focus' : 'focus_only');
+    }
 
     const backupModeSelect = document.getElementById('backupSettingsMode');
     if (backupModeSelect) {
@@ -173,7 +181,17 @@ function saveSettingsCardColor() { config.cardColor = document.getElementById('c
 function saveSettingsPopupColor() { config.popupColor = document.getElementById('popupColor').value; saveConfig(); applySettings(); }
 function saveSettingsEngine() { config.searchEngine = document.getElementById('searchEngineSelect').value; saveConfig(); }
 function saveSettingsSearchMode() { config.searchMode = document.getElementById('searchModeSelect').value; saveConfig(); }
-function saveSettingsBookmarkClickOpen() { config.bookmarkClickOpensLink = !!document.getElementById('bookmarkClickOpenToggle').checked; saveConfig(); }
+function saveSettingsBookmarkClickBehavior() {
+    const select = document.getElementById('bookmarkClickBehaviorSelect');
+    const nextMode = String(select?.value || 'focus_only').trim().toLowerCase();
+    if (window.EveBookmarkClickBehavior?.setDefaultMode) {
+        window.EveBookmarkClickBehavior.setDefaultMode(nextMode);
+    } else {
+        config.bookmarkClickDefaultMode = nextMode;
+        config.bookmarkClickOpensLink = nextMode === 'open_and_focus' || nextMode === 'open_only';
+        saveConfig();
+    }
+}
 function saveSettingsUrl() { config.background = document.getElementById('bgUrl').value; saveConfig(); applySettings(); }
 
 function saveSettingsFile(input) {

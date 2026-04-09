@@ -93,7 +93,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             order,
             createdAt: String(source.createdAt || '').trim(),
             updatedAt: String(source.updatedAt || '').trim(),
-            clickBehaviorMode: ['inherit', 'invert', 'focus_only', 'open_and_focus', 'open_only'].includes(clickBehaviorMode)
+            clickBehaviorMode: ['inherit', 'invert', 'focus_only', 'internal_only', 'open_and_focus', 'open_only'].includes(clickBehaviorMode)
                 ? clickBehaviorMode
                 : 'inherit',
             taskMode: ['inherit', 'task', 'non_task'].includes(taskMode)
@@ -106,7 +106,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         const source = settings && typeof settings === 'object' ? settings : {};
         const clickBehaviorMode = String(source.clickBehaviorMode || '').trim().toLowerCase();
         return {
-            clickBehaviorMode: ['inherit', 'invert', 'focus_only', 'open_and_focus', 'open_only'].includes(clickBehaviorMode)
+            clickBehaviorMode: ['inherit', 'invert', 'focus_only', 'internal_only', 'open_and_focus', 'open_only'].includes(clickBehaviorMode)
                 ? clickBehaviorMode
                 : 'inherit'
         };

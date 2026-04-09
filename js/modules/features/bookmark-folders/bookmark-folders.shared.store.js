@@ -3,7 +3,7 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
 (function (ns) {
     const shared = ns._shared = ns._shared || {};
 
-const CLICK_BEHAVIOR_MODES = new Set(['inherit', 'invert', 'focus_only', 'open_and_focus', 'open_only']);
+const CLICK_BEHAVIOR_MODES = new Set(['inherit', 'invert', 'focus_only', 'internal_only', 'open_and_focus', 'open_only']);
 
     const TASK_MODES = new Set(['inherit', 'task', 'non_task']);
 

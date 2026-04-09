@@ -20,6 +20,11 @@ window.EveBookmarkClickBehavior = window.EveBookmarkClickBehavior || {};
             description: 'Open only the bookmark popup.'
         },
         {
+            value: 'internal_only',
+            label: 'Internal View',
+            description: 'Open the bookmark inside EveOS using the in-site viewer.'
+        },
+        {
             value: 'open_and_focus',
             label: 'Open Link + Popup',
             description: 'Open the link in a new tab and also open the bookmark popup.'
@@ -39,6 +44,40 @@ window.EveBookmarkClickBehavior = window.EveBookmarkClickBehavior || {};
 
     function getModeOptions() {
         return MODE_OPTIONS.map((option) => ({ ...option }));
+    }
+
+    function isExplicitDefaultMode(mode) {
+        const normalized = normalizeMode(mode);
+        return normalized !== 'inherit' && normalized !== 'invert';
+    }
+
+    function getRawConfig() {
+        return (typeof config !== 'undefined' && config)
+            ? config
+            : (window.eveState?.config || {});
+    }
+
+    function getDefaultMode() {
+        const rawConfig = getRawConfig();
+        const explicitMode = normalizeMode(rawConfig?.bookmarkClickDefaultMode);
+        if (isExplicitDefaultMode(explicitMode)) {
+            return explicitMode;
+        }
+
+        return !!rawConfig?.bookmarkClickOpensLink ? 'open_and_focus' : 'focus_only';
+    }
+
+    function setDefaultMode(mode) {
+        const rawConfig = getRawConfig();
+        if (!rawConfig || typeof rawConfig !== 'object') return getDefaultMode();
+
+        const normalized = normalizeMode(mode);
+        const nextMode = isExplicitDefaultMode(normalized) ? normalized : 'focus_only';
+        rawConfig.bookmarkClickDefaultMode = nextMode;
+        rawConfig.bookmarkClickOpensLink = nextMode === 'open_and_focus' || nextMode === 'open_only';
+
+        if (typeof saveConfig === 'function') saveConfig();
+        return nextMode;
     }
 
     function getLinks() {
@@ -143,31 +182,41 @@ window.EveBookmarkClickBehavior = window.EveBookmarkClickBehavior || {};
         if (normalized === 'inherit') return { ...state };
         if (normalized === 'invert') {
             return {
-                openLink: !state.openLink,
+                openTarget: state.openTarget === 'none'
+                    ? 'newtab'
+                    : 'none',
                 openFocus: true
             };
         }
         if (normalized === 'focus_only') {
             return {
-                openLink: false,
+                openTarget: 'none',
                 openFocus: true
+            };
+        }
+        if (normalized === 'internal_only') {
+            return {
+                openTarget: 'internal',
+                openFocus: false
             };
         }
         if (normalized === 'open_and_focus') {
             return {
-                openLink: true,
+                openTarget: 'newtab',
                 openFocus: true
             };
         }
         return {
-            openLink: true,
+            openTarget: 'newtab',
             openFocus: false
         };
     }
 
     function describeResolvedBehavior(result) {
-        if (result?.openLink && result?.openFocus) return 'Open link and popup';
-        if (result?.openLink) return 'Open link only';
+        if (result?.openTarget === 'internal' && result?.openFocus) return 'Open internal view and popup';
+        if (result?.openTarget === 'internal') return 'Open internal view';
+        if (result?.openTarget === 'newtab' && result?.openFocus) return 'Open link in new tab and popup';
+        if (result?.openTarget === 'newtab') return 'Open link in new tab';
         return 'Open popup only';
     }
 
@@ -180,11 +229,12 @@ window.EveBookmarkClickBehavior = window.EveBookmarkClickBehavior || {};
         const link = typeof linkOrId === 'object' ? linkOrId : findLinkById(linkOrId);
         if (!link) {
             const baseState = {
-                openLink: !!window.eveState?.config?.bookmarkClickOpensLink,
-                openFocus: true
+                ...applyMode({ openTarget: 'none', openFocus: false }, getDefaultMode())
             };
             return {
-                openLink: baseState.openLink,
+                openTarget: baseState.openTarget,
+                openLink: baseState.openTarget !== 'none',
+                openInternal: baseState.openTarget === 'internal',
                 openFocus: baseState.openFocus,
                 cardMode: 'inherit',
                 folderMode: 'inherit',
@@ -198,10 +248,7 @@ window.EveBookmarkClickBehavior = window.EveBookmarkClickBehavior || {};
         const categoryName = getCategoryName(link);
         const folderId = String(link?.folderId || '').trim();
 
-        const baseState = {
-            openLink: !!((typeof config !== 'undefined' ? config?.bookmarkClickOpensLink : window.eveState?.config?.bookmarkClickOpensLink)),
-            openFocus: true
-        };
+        const baseState = applyMode({ openTarget: 'none', openFocus: false }, getDefaultMode());
         const cardMode = getCardMode(workspaceId, categoryName);
         const folderModeChain = folderId ? getFolderModeChain(workspaceId, categoryName, folderId) : [];
         const folderMode = folderModeChain.length ? folderModeChain[folderModeChain.length - 1].mode : 'inherit';
@@ -222,7 +269,9 @@ window.EveBookmarkClickBehavior = window.EveBookmarkClickBehavior || {};
             folderModeChain,
             folderMode,
             bookmarkMode,
-            openLink: !!result.openLink,
+            openTarget: result.openTarget,
+            openLink: result.openTarget !== 'none',
+            openInternal: result.openTarget === 'internal',
             openFocus: !!result.openFocus,
             summary: describeResolvedBehavior(result)
         };
@@ -231,6 +280,8 @@ window.EveBookmarkClickBehavior = window.EveBookmarkClickBehavior || {};
     Object.assign(ns, {
         normalizeMode,
         getModeOptions,
+        getDefaultMode,
+        setDefaultMode,
         getBookmarkMode,
         setBookmarkMode,
         getCardMode,

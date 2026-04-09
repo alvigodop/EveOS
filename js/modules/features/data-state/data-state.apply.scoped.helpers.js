@@ -118,7 +118,7 @@
             ? normalizeMode(settings?.clickBehaviorMode)
             : String(settings?.clickBehaviorMode || '').trim().toLowerCase();
         return {
-            clickBehaviorMode: ['inherit', 'invert', 'focus_only', 'open_and_focus', 'open_only'].includes(clickBehaviorMode)
+            clickBehaviorMode: ['inherit', 'invert', 'focus_only', 'internal_only', 'open_and_focus', 'open_only'].includes(clickBehaviorMode)
                 ? clickBehaviorMode
                 : 'inherit'
         };

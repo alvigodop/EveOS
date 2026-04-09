@@ -18,6 +18,7 @@ let config = {
     bookmarkIdentifiers: [],
     backupSettingsMode: "all",
     bookmarkClickOpensLink: false,
+    bookmarkClickDefaultMode: "focus_only",
     headerMode: "greeting",
     headerControls: {
         showDate: true,

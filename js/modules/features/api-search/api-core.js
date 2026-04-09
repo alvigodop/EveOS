@@ -9,17 +9,20 @@ window.EveOS.API = window.EveOS.API || {};
     const BRIDGE_PORT = 3037;
     const CAMOFOX_BRIDGE_PORT = 3038;
     const WIKIMEDIA_BRIDGE_PORT = 3039;
+    const POPUP_BRIDGE_PORT = 3040;
     const SERVER_PORT = 3000;
     const LIGHTPANDA_BASE = `http://${LOCAL_HOST}:${BRIDGE_PORT}`;
     const CAMOFOX_BASE = `http://${LOCAL_HOST}:${CAMOFOX_BRIDGE_PORT}`;
     const WIKIMEDIA_BASE = `http://${LOCAL_HOST}:${WIKIMEDIA_BRIDGE_PORT}`;
+    const POPUP_BRIDGE_BASE = `http://${LOCAL_HOST}:${POPUP_BRIDGE_PORT}`;
     const SERVER_BASE = `http://${LOCAL_HOST}:${SERVER_PORT}`;
     let _activeProxyBase = ''; // Empty means no local proxy server is available.
     let _serviceProbePromise = null;
     const _bridgeAvailability = {
         lightpanda: false,
         camofox: false,
-        wikimedia: false
+        wikimedia: false,
+        popup: false
     };
 
     const SERVER_STATUS_TIMEOUT_MS = 1500;
@@ -63,17 +66,19 @@ window.EveOS.API = window.EveOS.API || {};
         if (_serviceProbePromise && !force) return _serviceProbePromise;
 
         _serviceProbePromise = (async () => {
-            const [serverStatus, lightpandaStatus, camofoxStatus, wikimediaStatus] = await Promise.all([
+            const [serverStatus, lightpandaStatus, camofoxStatus, wikimediaStatus, popupStatus] = await Promise.all([
                 probeStatus(SERVER_BASE, SERVER_STATUS_TIMEOUT_MS),
                 probeStatus(LIGHTPANDA_BASE, BRIDGE_STATUS_TIMEOUT_MS),
                 probeStatus(CAMOFOX_BASE, BRIDGE_STATUS_TIMEOUT_MS),
-                probeStatus(WIKIMEDIA_BASE, BRIDGE_STATUS_TIMEOUT_MS)
+                probeStatus(WIKIMEDIA_BASE, BRIDGE_STATUS_TIMEOUT_MS),
+                probeStatus(POPUP_BRIDGE_BASE, BRIDGE_STATUS_TIMEOUT_MS)
             ]);
 
             _activeProxyBase = serverStatus ? SERVER_BASE : '';
             _bridgeAvailability.lightpanda = Boolean(lightpandaStatus);
             _bridgeAvailability.camofox = Boolean(camofoxStatus);
             _bridgeAvailability.wikimedia = Boolean(wikimediaStatus);
+            _bridgeAvailability.popup = Boolean(popupStatus);
 
             if (_activeProxyBase) {
                 console.log(`API Core: Local proxy server detected (${serverStatus?.service || 'server'})`);
@@ -316,7 +321,7 @@ window.EveOS.API = window.EveOS.API || {};
             }
         } catch (e) {}
 
-        await probeLocalServices();
+        await probeLocalServices(true);
         if (_activeProxyBase) {
             try {
                 const proxyUrl = `${_activeProxyBase}/api/proxy?url=${encodeURIComponent(targetUrl)}`;
@@ -385,7 +390,7 @@ window.EveOS.API = window.EveOS.API || {};
             if (directRes.ok) return await directRes.json();
         } catch (e) {}
 
-        await probeLocalServices();
+        await probeLocalServices(true);
 
         // 1. Try Detected Local Proxy (port 3000 only)
         if (_activeProxyBase) {
@@ -523,6 +528,7 @@ window.EveOS.API = window.EveOS.API || {};
     async function getPopupViewerUrl(targetUrl) {
         const normalizedTarget = String(targetUrl || '').trim();
         if (!normalizedTarget) return '';
+        const runningFromFile = String(window.location?.protocol || '').toLowerCase() === 'file:';
 
         try {
             const parsed = new URL(normalizedTarget);
@@ -534,11 +540,22 @@ window.EveOS.API = window.EveOS.API || {};
 
         await probeLocalServices();
 
+        if (_bridgeAvailability.popup) {
+            return `${POPUP_BRIDGE_BASE}/api/popup-view?url=${encodeURIComponent(normalizedTarget)}`;
+        }
+
+        if (!runningFromFile && _activeProxyBase) {
+            return `${_activeProxyBase}/api/popup-view?url=${encodeURIComponent(normalizedTarget)}`;
+        }
+
         if (_bridgeAvailability.lightpanda) {
             return `${LIGHTPANDA_BASE}/api/lightpanda?url=${encodeURIComponent(normalizedTarget)}`;
         }
 
         if (_activeProxyBase) {
+            if (runningFromFile) {
+                return normalizedTarget;
+            }
             return `${_activeProxyBase}/api/proxy?url=${encodeURIComponent(normalizedTarget)}`;
         }
 

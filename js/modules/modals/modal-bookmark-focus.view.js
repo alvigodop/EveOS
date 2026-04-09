@@ -42,6 +42,27 @@ window.EveBookmarkFocus = window.EveBookmarkFocus || {};
         window.open(safeUrl, '_blank', 'noopener,noreferrer');
     }
 
+    function openInternalView(url, title) {
+        const safeUrl = normalizeUrl(String(url || '').trim());
+        if (!safeUrl) return false;
+
+        if (window.PopupManager && typeof window.PopupManager.openPopup === 'function') {
+            return !!window.PopupManager.openPopup(safeUrl, String(title || safeUrl).trim() || safeUrl);
+        }
+
+        openInNewTab(safeUrl);
+        return false;
+    }
+
+    function openBookmarkTarget(url, title, target) {
+        const normalizedTarget = String(target || 'newtab').trim().toLowerCase();
+        if (normalizedTarget === 'internal') {
+            return openInternalView(url, title);
+        }
+        openInNewTab(url);
+        return true;
+    }
+
     function refreshHeader(link) {
         const titleElement = document.getElementById('bookmarkFocusTitle');
         const urlElement = document.getElementById('bookmarkFocusUrl');
@@ -183,6 +204,8 @@ window.EveBookmarkFocus = window.EveBookmarkFocus || {};
         getCurrentLinkId,
         ensureModalAvailable,
         openInNewTab,
+        openInternalView,
+        openBookmarkTarget,
         refreshHeader,
         refreshActionButtons,
         loadLinkedRecord

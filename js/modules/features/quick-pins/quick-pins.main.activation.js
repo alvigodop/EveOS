@@ -26,12 +26,19 @@
         const resolution = clickBehaviorApi?.resolveBehaviorForLink
             ? clickBehaviorApi.resolveBehaviorForLink(link)
             : {
+                openTarget: !!getConfig().bookmarkClickOpensLink ? 'newtab' : 'none',
                 openLink: !!getConfig().bookmarkClickOpensLink,
                 openFocus: true
             };
-        if (resolution.openLink) {
+        if (resolution.openTarget && resolution.openTarget !== 'none') {
             const safeUrl = typeof normalizeUrl === 'function' ? normalizeUrl(String(link.url || '').trim()) : String(link.url || '').trim();
-            if (safeUrl) window.open(safeUrl, '_blank', 'noopener,noreferrer');
+            if (safeUrl) {
+                if (resolution.openTarget === 'internal' && window.PopupManager && typeof window.PopupManager.openPopup === 'function') {
+                    window.PopupManager.openPopup(safeUrl, String(link.title || safeUrl).trim() || safeUrl);
+                } else {
+                    window.open(safeUrl, '_blank', 'noopener,noreferrer');
+                }
+            }
         }
         if (resolution.openFocus && typeof window.openBookmarkFocusModal === 'function') {
             window.openBookmarkFocusModal(link.id);

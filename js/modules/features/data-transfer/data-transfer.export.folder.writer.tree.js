@@ -26,7 +26,7 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
 
         function normalizeClickBehaviorMode(value) {
             const normalized = String(value || '').trim().toLowerCase();
-            return ['inherit', 'invert', 'focus_only', 'open_and_focus', 'open_only'].includes(normalized)
+            return ['inherit', 'invert', 'focus_only', 'internal_only', 'open_and_focus', 'open_only'].includes(normalized)
                 ? normalized
                 : 'inherit';
         }

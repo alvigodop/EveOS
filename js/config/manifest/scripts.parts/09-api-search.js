@@ -5,7 +5,7 @@ window.EveModuleManifestScriptChunks = window.EveModuleManifestScriptChunks || [
 window.EveModuleManifestScriptChunks.push([
     // API Search
     "js/modules/features/api-search/api-cache.js?v=0.1.1",
-    "js/modules/features/api-search/api-core.js?v=0.2.6",
+    "js/modules/features/api-search/api-core.js?v=0.2.8",
     "js/modules/features/api-search/card-ui.js?v=0.1.2",
     "js/modules/features/api-search/mangadex.js?v=0.2.1",
     "js/modules/features/api-search/jikan.js",
@@ -32,7 +32,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/api-search/components/api-manager-utils.js?v=0.4.9",
     "js/modules/features/api-search/components/api-manager-prefs.js?v=0.4.9",
     "js/modules/features/api-search/components/api-knowledge-core.js?v=0.4.9",
-    "js/modules/features/api-search/components/api-manager-ui-core.js?v=0.5.0",
+    "js/modules/features/api-search/components/api-manager-ui-core.js?v=0.5.1",
     "js/modules/features/api-search/components/api-manager-ui-cache.js?v=0.5.0",
     "js/modules/features/api-search/components/api-manager-ui-unidex.js?v=0.5.0",
     "js/modules/features/api-search/components/api-manager-ui-panels.js?v=0.5.0",

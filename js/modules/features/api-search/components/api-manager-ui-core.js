@@ -76,22 +76,9 @@ window.EveOS.API = window.EveOS.API || {};
         const targetUrl = String(url || '').trim();
         if (!targetUrl) return false;
 
-        let popupUrl = targetUrl;
-        if (api.Core && typeof api.Core.getPopupViewerUrl === 'function') {
-            try {
-                const resolvedPopupUrl = await api.Core.getPopupViewerUrl(targetUrl);
-                if (resolvedPopupUrl) {
-                    popupUrl = resolvedPopupUrl;
-                }
-            } catch (error) {
-                console.warn('API popup viewer URL resolution failed, falling back to direct URL.', error);
-            }
-        }
-
         if (window.PopupManager && typeof window.PopupManager.openPopup === 'function') {
             const popupTitle = title || 'API Result';
-            const popupTarget = popupUrl || targetUrl;
-            const opened = window.PopupManager.openPopup(popupTarget, popupTitle);
+            const opened = window.PopupManager.openPopup(targetUrl, popupTitle);
             if (opened !== false) {
                 return true;
             }
