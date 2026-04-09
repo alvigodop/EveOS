@@ -225,6 +225,17 @@ window.EveBookmarkClickBehavior = window.EveBookmarkClickBehavior || {};
         return MODE_OPTIONS.find((option) => option.value === normalized)?.description || MODE_OPTIONS[0].description;
     }
 
+    function preserveBookmarkFocusAccess(result, bookmarkMode) {
+        const normalizedBookmarkMode = normalizeMode(bookmarkMode);
+        if ((normalizedBookmarkMode === 'internal_only' || normalizedBookmarkMode === 'open_only') && result?.openTarget !== 'none') {
+            return {
+                ...result,
+                openFocus: true
+            };
+        }
+        return { ...(result || {}) };
+    }
+
     function resolveBehaviorForLink(linkOrId) {
         const link = typeof linkOrId === 'object' ? linkOrId : findLinkById(linkOrId);
         if (!link) {
@@ -259,6 +270,7 @@ window.EveBookmarkClickBehavior = window.EveBookmarkClickBehavior || {};
             result = applyMode(result, step.mode);
         });
         result = applyMode(result, bookmarkMode);
+        result = preserveBookmarkFocusAccess(result, bookmarkMode);
 
         return {
             link,

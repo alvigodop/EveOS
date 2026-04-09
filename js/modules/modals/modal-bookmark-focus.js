@@ -62,7 +62,13 @@
 
         const resolution = clickBehaviorApi.resolveBehaviorForLink(link);
         if (summary) summary.textContent = `Current Result: ${resolution.summary}`;
-        if (hint) hint.textContent = clickBehaviorApi.describeMode(selectedMode);
+        if (hint) {
+            let nextHint = clickBehaviorApi.describeMode(selectedMode);
+            if (selectedMode === 'internal_only' || selectedMode === 'open_only') {
+                nextHint += ' Bookmark-level overrides keep Focus available so you can change them again later.';
+            }
+            hint.textContent = nextHint;
+        }
     }
 
     window.openBookmarkFocusModal = function (linkId) {
@@ -129,6 +135,8 @@
         if (!linkId || !clickBehaviorApi?.setBookmarkMode) return;
         clickBehaviorApi.setBookmarkMode(linkId, mode);
         const nextLink = findLinkById(linkId);
+        const modal = ensureModalAvailable();
+        if (modal) modal.style.display = 'flex';
         refreshClickBehaviorControls(nextLink);
         showToast('Bookmark click behavior updated', 'success');
     };
@@ -178,7 +186,13 @@
         if (!linkId) return;
         const link = findLinkById(linkId);
         if (!link) return;
-        openInNewTab(link.url);
+        const resolution = clickBehaviorApi?.resolveBehaviorForLink
+            ? clickBehaviorApi.resolveBehaviorForLink(link)
+            : null;
+        const openTarget = resolution?.openTarget && resolution.openTarget !== 'none'
+            ? resolution.openTarget
+            : 'newtab';
+        openBookmarkTarget(link.url, link.title, openTarget);
     };
 
     window.bookmarkFocusDelete = async function () {

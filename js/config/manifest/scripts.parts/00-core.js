@@ -147,7 +147,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/constellation-map/constellation-map.core.js?v=0.6.2",
     "js/modules/features/constellation-map/constellation-map-init.js?v=0.1.0",
     "js/modules/features/chronos-engine.js?v=0.1.1",
-    "js/modules/features/bookmark-click-behavior.js?v=0.2.2",
+    "js/modules/features/bookmark-click-behavior.js?v=0.2.3",
     "js/modules/features/bookmark-covers.js?v=0.2.5",
     "js/modules/features/quick-pins/quick-pins.core.base.js?v=0.1.0",
     "js/modules/features/quick-pins/quick-pins.core.store.js?v=0.1.0",
