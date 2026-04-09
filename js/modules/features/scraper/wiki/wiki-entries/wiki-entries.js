@@ -197,8 +197,10 @@
         _legacyFetch: async function (title) {
             let url = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=extracts|pageimages&exintro=1&pithumbsize=300&redirects=1&pilicense=any&format=json&origin=*`;
             try {
-                let response = await fetch(url);
-                let data = await response.json();
+                const fetchWikipediaJson = window.EveOS?.API?.Core?.fetchWikimediaJson;
+                let data = typeof fetchWikipediaJson === 'function'
+                    ? await fetchWikipediaJson(url)
+                    : await (await fetch(url)).json();
                 let page = Object.values(data.query?.pages || {})[0];
                 if (page && !page.missing) {
                     this._handleFetchResult(title, {

@@ -32,41 +32,38 @@
                     const searchQuery = `${searchTerm} wiki information`;
                     const url = `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(searchQuery)}&limit=5&namespace=0&format=json&origin=*`;
 
-                    // Use CORSProxyManager if available
-                    const fetcher = (window.CORSProxyManager && typeof CORSProxyManager.fetch === 'function')
-                        ? CORSProxyManager.fetch
-                        : fetch;
+                    const data = (window.CORSProxyManager && typeof CORSProxyManager.fetch === 'function')
+                        ? await (await CORSProxyManager.fetch(url)).json()
+                        : (typeof window.EveOS?.API?.Core?.fetchWikimediaJson === 'function'
+                            ? await window.EveOS.API.Core.fetchWikimediaJson(url)
+                            : await (await fetch(url)).json());
 
-                    const response = await fetcher(url);
-                    if (response.ok) {
-                        const data = await response.json();
-                        // OpenSearch returns [query, titles, descriptions, urls]
-                        if (data && data[1] && data[1].length > 0) {
-                            const newResults = [];
-                            for (let i = 0; i < data[1].length; i++) {
-                                const title = data[1][i];
-                                const description = data[2][i] || '';
-                                const url = data[3][i] || '';
+                    // OpenSearch returns [query, titles, descriptions, urls]
+                    if (data && data[1] && data[1].length > 0) {
+                        const newResults = [];
+                        for (let i = 0; i < data[1].length; i++) {
+                            const title = data[1][i];
+                            const description = data[2][i] || '';
+                            const url = data[3][i] || '';
 
-                                // Skip if duplicates
-                                if (results.some(r => r.title === title || r.url === url)) continue;
+                            // Skip if duplicates
+                            if (results.some(r => r.title === title || r.url === url)) continue;
 
-                                newResults.push({
-                                    title: title,
-                                    snippet: description || `Information about ${title}`,
-                                    description: description,
-                                    url: url,
-                                    wiki_name: 'Wikipedia',
-                                    source: 'wikipedia',
-                                    isWebEnhanced: true,
-                                    isMainArticle: (title.toLowerCase() === searchTerm.toLowerCase())
-                                });
-                            }
+                            newResults.push({
+                                title: title,
+                                snippet: description || `Information about ${title}`,
+                                description: description,
+                                url: url,
+                                wiki_name: 'Wikipedia',
+                                source: 'wikipedia',
+                                isWebEnhanced: true,
+                                isMainArticle: (title.toLowerCase() === searchTerm.toLowerCase())
+                            });
+                        }
 
-                            if (newResults.length > 0) {
-                                console.log('WDEnhancer: Added enhanced results:', newResults.length);
-                                return [...results, ...newResults];
-                            }
+                        if (newResults.length > 0) {
+                            console.log('WDEnhancer: Added enhanced results:', newResults.length);
+                            return [...results, ...newResults];
                         }
                     }
                 } catch (error) {

@@ -70,15 +70,15 @@
                     }
                 } else {
                     // Fallback if CORSProxyManager is not available
-                    console.warn('WESService: CORSProxyManager not available, attempting direct fetch');
+                    console.warn('WESService: CORSProxyManager not available, attempting Wikimedia helper/direct fetch');
                     try {
-                        const response = await fetch(url);
-                        if (response.ok) {
-                            const data = await response.json();
-                            if (window.WESProcessor) {
-                                const processedResults = WESProcessor.processWebResults(data, searchTerm, results);
-                                if (processedResults) return processedResults;
-                            }
+                        const fetchWikipediaJson = window.EveOS?.API?.Core?.fetchWikimediaJson;
+                        const data = typeof fetchWikipediaJson === 'function'
+                            ? await fetchWikipediaJson(url)
+                            : await (await fetch(url)).json();
+                        if (window.WESProcessor) {
+                            const processedResults = WESProcessor.processWebResults(data, searchTerm, results);
+                            if (processedResults) return processedResults;
                         }
                     } catch (directError) {
                         console.warn('WESService: Direct fetch failed:', directError);

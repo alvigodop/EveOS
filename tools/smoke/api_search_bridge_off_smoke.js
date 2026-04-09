@@ -223,8 +223,24 @@ async function fetchStub(url, options = {}) {
         throw new TypeError('CORS blocked');
     }
 
+    if (url === 'https://api.mangadex.org/manga?title=naruto&limit=20&includes[]=author&includes[]=cover_art&includes[]=artist&order[relevance]=desc') {
+        throw new TypeError('CORS blocked');
+    }
+
     if (url === 'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent('https://api.mangadex.org/manga?title=naruto&limit=8&includes[]=author&includes[]=cover_art&includes[]=artist&order[relevance]=desc')) {
         return makeResponse(true, { data: [{ id: 'md-1' }] });
+    }
+
+    if (url === 'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent('https://api.mangadex.org/manga?title=naruto&limit=20&includes[]=author&includes[]=cover_art&includes[]=artist&order[relevance]=desc')) {
+        return makeResponse(true, { data: [{ id: 'md-1' }] });
+    }
+
+    if (url === 'https://api.mangadex.org/statistics/manga?manga[]=md-1') {
+        throw new TypeError('CORS blocked');
+    }
+
+    if (url === 'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent('https://api.mangadex.org/statistics/manga?manga[]=md-1')) {
+        return makeResponse(true, { statistics: { 'md-1': { follows: 12345 } } });
     }
 
     if (url === 'https://www.mangaupdates.com/series?search=naruto') {
@@ -366,8 +382,9 @@ function loadScript(relPath) {
         call.url === 'http://127.0.0.1:3000/api/status'
         || call.url === 'http://127.0.0.1:3037/api/status'
         || call.url === 'http://127.0.0.1:3038/api/status'
+        || call.url === 'http://127.0.0.1:3039/api/status'
     );
-    assert(localStatusProbes.length === 3, 'Initial status probes should hit all three local services');
+    assert(localStatusProbes.length === 4, 'Initial status probes should hit all four local services');
 
     loadScript('js/modules/features/api-search/anilist.js');
     const aniResult = await context.window.EveOS.API.AniList.searchAniListManga('naruto');

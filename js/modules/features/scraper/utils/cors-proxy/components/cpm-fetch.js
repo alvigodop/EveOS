@@ -34,6 +34,14 @@
                 }
             }
 
+            const wikimediaFetch = window.EveOS?.API?.Core?.fetchWikimediaResponse;
+            const isWikimediaTarget = typeof window.EveOS?.API?.Core?.isWikimediaUrl === 'function'
+                ? window.EveOS.API.Core.isWikimediaUrl(url)
+                : false;
+            if (isWikimediaTarget && typeof wikimediaFetch === 'function') {
+                return wikimediaFetch(url, options);
+            }
+
             // OPTIMIZATION: For URLs with origin=* (Fandom/Wikipedia APIs), try direct fetch first
             // These APIs support CORS natively, so proxies are unnecessary and slow
             const hasOriginParam = url.includes('origin=*');

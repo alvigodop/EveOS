@@ -219,8 +219,10 @@
 
             try {
                 const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=Category:${encodeURIComponent(searchTerm)}&format=json&origin=*&srnamespace=14`;
-                const response = await fetch(searchUrl);
-                const data = await response.json();
+                const fetchWikipediaJson = window.EveOS?.API?.Core?.fetchWikimediaJson;
+                const data = typeof fetchWikipediaJson === 'function'
+                    ? await fetchWikipediaJson(searchUrl)
+                    : await (await fetch(searchUrl)).json();
 
                 if (resultsDiv) {
                     if (!data.query || !data.query.search || data.query.search.length === 0) {

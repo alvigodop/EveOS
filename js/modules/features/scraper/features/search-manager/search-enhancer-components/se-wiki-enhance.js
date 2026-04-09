@@ -54,14 +54,14 @@
                         console.warn('SEWikiEnhance: Error fetching web enhancement data:', fetchError);
                     }
                 } else {
-                    console.warn('SEWikiEnhance: CORSProxyManager not available, attempting direct fetch');
+                    console.warn('SEWikiEnhance: CORSProxyManager not available, attempting Wikimedia helper/direct fetch');
                     try {
-                        const response = await fetch(url);
-                        if (response.ok) {
-                            const data = await response.json();
-                            const processedResults = this._processWebResults(data, searchTerm, results);
-                            if (processedResults) return processedResults;
-                        }
+                        const fetchWikipediaJson = window.EveOS?.API?.Core?.fetchWikimediaJson;
+                        const data = typeof fetchWikipediaJson === 'function'
+                            ? await fetchWikipediaJson(url)
+                            : await (await fetch(url)).json();
+                        const processedResults = this._processWebResults(data, searchTerm, results);
+                        if (processedResults) return processedResults;
                     } catch (directError) {
                         console.warn('SEWikiEnhance: Direct fetch failed:', directError);
                     }

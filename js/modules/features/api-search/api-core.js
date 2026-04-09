@@ -8,15 +8,18 @@ window.EveOS.API = window.EveOS.API || {};
     const LOCAL_HOST = '127.0.0.1';
     const BRIDGE_PORT = 3037;
     const CAMOFOX_BRIDGE_PORT = 3038;
+    const WIKIMEDIA_BRIDGE_PORT = 3039;
     const SERVER_PORT = 3000;
     const LIGHTPANDA_BASE = `http://${LOCAL_HOST}:${BRIDGE_PORT}`;
     const CAMOFOX_BASE = `http://${LOCAL_HOST}:${CAMOFOX_BRIDGE_PORT}`;
+    const WIKIMEDIA_BASE = `http://${LOCAL_HOST}:${WIKIMEDIA_BRIDGE_PORT}`;
     const SERVER_BASE = `http://${LOCAL_HOST}:${SERVER_PORT}`;
     let _activeProxyBase = ''; // Empty means no local proxy server is available.
     let _serviceProbePromise = null;
     const _bridgeAvailability = {
         lightpanda: false,
-        camofox: false
+        camofox: false,
+        wikimedia: false
     };
 
     const SERVER_STATUS_TIMEOUT_MS = 1500;
@@ -35,6 +38,11 @@ window.EveOS.API = window.EveOS.API || {};
         'captcha',
         'too many requests'
     ];
+    const WIKIMEDIA_MIN_INTERVAL_MS = 250;
+    const WIKIMEDIA_DEFAULT_BACKOFF_MS = 5000;
+    let _wikimediaQueue = Promise.resolve();
+    let _wikimediaLastRequestAt = 0;
+    let _wikimediaDirectWarningShown = false;
 
     async function probeStatus(baseUrl, timeoutMs = BRIDGE_STATUS_TIMEOUT_MS) {
         try {
@@ -55,15 +63,17 @@ window.EveOS.API = window.EveOS.API || {};
         if (_serviceProbePromise && !force) return _serviceProbePromise;
 
         _serviceProbePromise = (async () => {
-            const [serverStatus, lightpandaStatus, camofoxStatus] = await Promise.all([
+            const [serverStatus, lightpandaStatus, camofoxStatus, wikimediaStatus] = await Promise.all([
                 probeStatus(SERVER_BASE, SERVER_STATUS_TIMEOUT_MS),
                 probeStatus(LIGHTPANDA_BASE, BRIDGE_STATUS_TIMEOUT_MS),
-                probeStatus(CAMOFOX_BASE, BRIDGE_STATUS_TIMEOUT_MS)
+                probeStatus(CAMOFOX_BASE, BRIDGE_STATUS_TIMEOUT_MS),
+                probeStatus(WIKIMEDIA_BASE, BRIDGE_STATUS_TIMEOUT_MS)
             ]);
 
             _activeProxyBase = serverStatus ? SERVER_BASE : '';
             _bridgeAvailability.lightpanda = Boolean(lightpandaStatus);
             _bridgeAvailability.camofox = Boolean(camofoxStatus);
+            _bridgeAvailability.wikimedia = Boolean(wikimediaStatus);
 
             if (_activeProxyBase) {
                 console.log(`API Core: Local proxy server detected (${serverStatus?.service || 'server'})`);
@@ -145,6 +155,109 @@ window.EveOS.API = window.EveOS.API || {};
             allowBridgeForApiTarget: allowBridgeForApiTarget === true,
             requestOptions
         };
+    }
+
+    function sleep(ms) {
+        return new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
+    }
+
+    function isWikimediaUrl(targetUrl) {
+        try {
+            const parsed = new URL(String(targetUrl || ''));
+            const host = String(parsed.hostname || '').toLowerCase();
+            return host === 'wikipedia.org'
+                || host.endsWith('.wikipedia.org')
+                || host === 'wikimedia.org'
+                || host.endsWith('.wikimedia.org');
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function parseRetryAfterMs(value) {
+        const rawValue = String(value || '').trim();
+        if (!rawValue) return 0;
+
+        const seconds = Number(rawValue);
+        if (Number.isFinite(seconds) && seconds >= 0) {
+            return seconds * 1000;
+        }
+
+        const retryDate = Date.parse(rawValue);
+        if (Number.isFinite(retryDate)) {
+            return Math.max(0, retryDate - Date.now());
+        }
+
+        return 0;
+    }
+
+    function warnWikimediaDirectMode() {
+        if (_wikimediaDirectWarningShown) return;
+        _wikimediaDirectWarningShown = true;
+        console.warn('API Core: Wikimedia live requests are running without the local EveOS proxy/bridge, so the browser cannot send a custom bot User-Agent. Start python-server.py or start-wikimedia-bridge.bat for policy-compliant Wikimedia transport.');
+    }
+
+    async function enqueueWikimediaRequest(task) {
+        const prior = _wikimediaQueue.catch(() => {});
+        let releaseQueue = null;
+        _wikimediaQueue = new Promise((resolve) => {
+            releaseQueue = resolve;
+        });
+
+        await prior;
+
+        try {
+            const waitMs = Math.max(0, (_wikimediaLastRequestAt + WIKIMEDIA_MIN_INTERVAL_MS) - Date.now());
+            if (waitMs > 0) {
+                await sleep(waitMs);
+            }
+            return await task();
+        } finally {
+            _wikimediaLastRequestAt = Date.now();
+            if (typeof releaseQueue === 'function') {
+                releaseQueue();
+            }
+        }
+    }
+
+    async function fetchWikimediaResponse(targetUrl, options = {}) {
+        const requestOptions = { ...(options || {}) };
+
+        return enqueueWikimediaRequest(async () => {
+            await probeLocalServices();
+
+            const bridgeBase = _bridgeAvailability.wikimedia
+                ? WIKIMEDIA_BASE
+                : (_activeProxyBase || '');
+            const requestUrl = bridgeBase
+                ? `${bridgeBase}/api/proxy?url=${encodeURIComponent(targetUrl)}`
+                : targetUrl;
+
+            if (!bridgeBase) {
+                warnWikimediaDirectMode();
+            }
+
+            for (let attempt = 0; attempt < 2; attempt += 1) {
+                const response = await fetch(requestUrl, requestOptions);
+                if (response.status !== 429 || attempt > 0) {
+                    return response;
+                }
+
+                const retryDelayMs = parseRetryAfterMs(response.headers.get('Retry-After')) || WIKIMEDIA_DEFAULT_BACKOFF_MS;
+                await sleep(retryDelayMs);
+            }
+
+            return fetch(requestUrl, requestOptions);
+        });
+    }
+
+    async function fetchWikimediaJson(targetUrl, options = {}) {
+        const response = await fetchWikimediaResponse(targetUrl, options);
+        if (!response.ok) {
+            const errorText = await response.text().catch(() => '');
+            throw new Error(`Wikimedia request failed (${response.status}): ${errorText}`);
+        }
+        return response.json();
     }
 
     async function tryOptimisticLocalProxy(targetUrl, options = {}) {
@@ -456,6 +569,9 @@ window.EveOS.API = window.EveOS.API || {};
         fetchDirectThenProxy,
         fetchTextWithFallback,
         fetchWithFallback,
-        getPopupViewerUrl
+        getPopupViewerUrl,
+        isWikimediaUrl,
+        fetchWikimediaResponse,
+        fetchWikimediaJson
     };
 })();

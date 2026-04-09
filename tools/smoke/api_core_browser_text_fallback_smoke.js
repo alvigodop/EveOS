@@ -34,6 +34,7 @@ async function fetchStub(url, options = {}) {
     if (url === 'http://127.0.0.1:3000/api/status') return makeResponse(false, {}, 404);
     if (url === 'http://127.0.0.1:3037/api/status') return makeResponse(false, {}, 404);
     if (url === 'http://127.0.0.1:3038/api/status') return makeResponse(true, { status: 'ok', service: 'camofox-bridge' });
+    if (url === 'http://127.0.0.1:3039/api/status') return makeResponse(false, {}, 404);
 
     if (url === targetUrl) {
         return makeResponse(true, blockedHtml);

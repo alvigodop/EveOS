@@ -23,13 +23,15 @@
          */
         fetchWikipediaData: async function (title, onSuccess) {
             console.log(`WEFetcher: Fetching data for Wikipedia: ${title}`);
+            const fetchWikipediaJson = window.EveOS?.API?.Core?.fetchWikimediaJson;
 
             // Stage 1: Standard API call (pageimages)
             let url = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=extracts|categories|pageimages&exintro=1&pithumbsize=300&redirects=1&pilicense=any&format=json&origin=*`;
 
             try {
-                let response = await fetch(url);
-                let data = await response.json();
+                let data = typeof fetchWikipediaJson === 'function'
+                    ? await fetchWikipediaJson(url)
+                    : await (await fetch(url)).json();
                 let page = Object.values(data.query?.pages || {})[0];
 
                 if (!page || page.missing) {
@@ -76,8 +78,10 @@
             try {
                 // Fetch list of images on the page
                 const imagesUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(canonicalTitle)}&prop=images&imlimit=20&format=json&origin=*`;
-                const imgResponse = await fetch(imagesUrl);
-                const imgData = await imgResponse.json();
+                const fetchWikipediaJson = window.EveOS?.API?.Core?.fetchWikimediaJson;
+                const imgData = typeof fetchWikipediaJson === 'function'
+                    ? await fetchWikipediaJson(imagesUrl)
+                    : await (await fetch(imagesUrl)).json();
                 const imgPage = Object.values(imgData.query?.pages || {})[0];
 
                 if (imgPage && imgPage.images && imgPage.images.length > 0) {
@@ -108,8 +112,10 @@
             console.log(`WEFetcher: Found candidate image: ${imageTitle}`);
             try {
                 const fileUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(imageTitle)}&prop=imageinfo&iiprop=url&format=json&origin=*`;
-                const fileResponse = await fetch(fileUrl);
-                const fileData = await fileResponse.json();
+                const fetchWikipediaJson = window.EveOS?.API?.Core?.fetchWikimediaJson;
+                const fileData = typeof fetchWikipediaJson === 'function'
+                    ? await fetchWikipediaJson(fileUrl)
+                    : await (await fetch(fileUrl)).json();
                 const filePage = Object.values(fileData.query?.pages || {})[0];
 
                 if (filePage && filePage.imageinfo && filePage.imageinfo[0] && filePage.imageinfo[0].url) {

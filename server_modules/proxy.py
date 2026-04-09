@@ -6,8 +6,17 @@ import logging
 import traceback
 import ssl
 import http.cookiejar
+import gzip
+import threading
+import time
 
 logger = logging.getLogger("FandomDiscoveryServer")
+
+WMF_USER_AGENT = "EveOS/0.4 (local Wikimedia client proxy; +https://github.com/driftai/EveOS)"
+WMF_MIN_INTERVAL_SECONDS = 0.25
+
+_WMF_THROTTLE_LOCK = threading.Lock()
+_WMF_NEXT_REQUEST_AT = 0.0
 
 
 def _origin_referer(target_url):
@@ -18,6 +27,54 @@ def _origin_referer(target_url):
     except Exception:
         return None
     return None
+
+
+def _is_wikimedia_request(target_url):
+    try:
+        parsed = urllib.parse.urlparse(target_url)
+        host = (parsed.hostname or '').lower()
+        return (
+            host == 'wikipedia.org'
+            or host.endswith('.wikipedia.org')
+            or host == 'wikimedia.org'
+            or host.endswith('.wikimedia.org')
+        )
+    except Exception:
+        return False
+
+
+def _throttle_wikimedia_request():
+    global _WMF_NEXT_REQUEST_AT
+    wait_seconds = 0.0
+    with _WMF_THROTTLE_LOCK:
+        now = time.monotonic()
+        wait_seconds = max(0.0, _WMF_NEXT_REQUEST_AT - now)
+        scheduled_at = max(_WMF_NEXT_REQUEST_AT, now)
+        _WMF_NEXT_REQUEST_AT = scheduled_at + WMF_MIN_INTERVAL_SECONDS
+
+    if wait_seconds > 0:
+        time.sleep(wait_seconds)
+
+
+def _retry_after_seconds(retry_after_value):
+    if not retry_after_value:
+        return 0.0
+
+    try:
+        return max(0.0, float(retry_after_value))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _read_response_body(response):
+    content = response.read()
+    content_encoding = str(response.getheader('Content-Encoding', '') or '').lower()
+    if 'gzip' in content_encoding:
+        try:
+            return gzip.decompress(content)
+        except OSError:
+            logger.warning("Failed to decompress gzip response; returning raw body")
+    return content
 
 def handle_proxy_request(handler, query):
     """Handle requests to /api/proxy?url=..."""
@@ -35,6 +92,7 @@ def handle_proxy_request(handler, query):
     is_bing = 'bing.com' in target_url.lower()
     is_ddg = 'duckduckgo.com' in target_url.lower()
     is_brave = 'search.brave.com' in target_url.lower()
+    is_wikimedia = _is_wikimedia_request(target_url)
     
     search_engine = ""
     if is_yahoo: search_engine = "[YAHOO]"
@@ -51,10 +109,10 @@ def handle_proxy_request(handler, query):
         
         # Create a request object with headers that mimic a real browser
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+            'User-Agent': WMF_USER_AGENT if is_wikimedia else 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'application/json,text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8' if is_wikimedia else 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
             'Accept-Language': 'en-US,en;q=0.9',
-            'Accept-Encoding': 'identity',  # Don't request compression to simplify handling
+            'Accept-Encoding': 'gzip' if is_wikimedia else 'identity',
             'Connection': 'keep-alive',
             'Upgrade-Insecure-Requests': '1',
             'Cache-Control': 'max-age=0',
@@ -89,22 +147,45 @@ def handle_proxy_request(handler, query):
         ssl_context.check_hostname = False
         ssl_context.verify_mode = ssl.CERT_NONE
         
-        # Use opener for cookie handling with search engines, regular urlopen otherwise
-        if is_yahoo or is_bing or is_ddg or is_brave:
-            # Install opener temporarily
-            urllib.request.install_opener(opener)
+        content = b''
+        content_type = 'text/html'
+        last_http_error = None
+
+        for attempt in range(2 if is_wikimedia else 1):
             try:
-                response = urllib.request.urlopen(req, timeout=30, context=ssl_context)
-                content = response.read()
-                content_type = response.getheader('Content-Type', 'text/html')
-                response.close()
-            finally:
-                urllib.request.install_opener(None)  # Reset to default
-        else:
-            with urllib.request.urlopen(req, timeout=30, context=ssl_context) as response:
-                content = response.read()
-                content_type = response.getheader('Content-Type', 'text/html')
-        
+                if is_wikimedia:
+                    _throttle_wikimedia_request()
+
+                # Use opener for cookie handling with search engines, regular urlopen otherwise
+                if is_yahoo or is_bing or is_ddg or is_brave:
+                    urllib.request.install_opener(opener)
+                    try:
+                        response = urllib.request.urlopen(req, timeout=30, context=ssl_context)
+                        content = _read_response_body(response)
+                        content_type = response.getheader('Content-Type', 'text/html')
+                        response.close()
+                    finally:
+                        urllib.request.install_opener(None)
+                else:
+                    with urllib.request.urlopen(req, timeout=30, context=ssl_context) as response:
+                        content = _read_response_body(response)
+                        content_type = response.getheader('Content-Type', 'text/html')
+
+                last_http_error = None
+                break
+            except urllib.error.HTTPError as http_error:
+                last_http_error = http_error
+                if is_wikimedia and http_error.code == HTTPStatus.TOO_MANY_REQUESTS and attempt == 0:
+                    retry_after_seconds = _retry_after_seconds(http_error.headers.get('Retry-After'))
+                    if retry_after_seconds > 0:
+                        logger.warning(f"Wikimedia requested backoff for {retry_after_seconds:.2f}s")
+                        time.sleep(retry_after_seconds)
+                        continue
+                raise
+
+        if last_http_error is not None:
+            raise last_http_error
+
         logger.info(f"Proxy success: {len(content)} bytes from {target_url}")
         
         handler.send_response(HTTPStatus.OK)
@@ -122,6 +203,9 @@ def handle_proxy_request(handler, query):
             pass
         handler.send_response(e.code)
         handler.send_header('Content-Type', 'text/plain')
+        retry_after_header = e.headers.get('Retry-After') if getattr(e, 'headers', None) else None
+        if retry_after_header:
+            handler.send_header('Retry-After', retry_after_header)
         handler.end_headers()
         handler.wfile.write(str(e).encode('utf-8'))
         
@@ -167,9 +251,10 @@ def handle_proxy_post_request(handler, query):
     
     try:
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'User-Agent': WMF_USER_AGENT if _is_wikimedia_request(target_url) else 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Accept': '*/*',
             'Content-Type': content_type_in,
+            'Accept-Encoding': 'gzip' if _is_wikimedia_request(target_url) else 'identity',
         }
         
         req = urllib.request.Request(target_url, data=post_data, headers=headers, method='POST')
@@ -178,8 +263,11 @@ def handle_proxy_post_request(handler, query):
         ssl_context.check_hostname = False
         ssl_context.verify_mode = ssl.CERT_NONE
         
+        if _is_wikimedia_request(target_url):
+            _throttle_wikimedia_request()
+
         with urllib.request.urlopen(req, timeout=30, context=ssl_context) as response:
-            content = response.read()
+            content = _read_response_body(response)
             content_type_out = response.getheader('Content-Type', 'application/json')
             
         logger.info(f"POST Proxy success: {len(content)} bytes from {target_url}")

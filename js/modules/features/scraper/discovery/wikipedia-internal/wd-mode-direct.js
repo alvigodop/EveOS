@@ -15,12 +15,14 @@
 
                 const wikipediaUrl = `https://en.wikipedia.org/w/api.php?action=opensearch&search=${query}&limit=10&namespace=0&format=json&origin=*`;
 
-                // Use CORSProxyManager if available, otherwise fetch directly (likely to fail if no CORS support)
-                const fetcher = (window.CORSProxyManager && typeof CORSProxyManager.fetch === 'function')
-                    ? CORSProxyManager.fetch
-                    : fetch;
+                const fetchWikimediaResponse = window.EveOS?.API?.Core?.fetchWikimediaResponse;
+                const fetchPromise = (window.CORSProxyManager && typeof CORSProxyManager.fetch === 'function')
+                    ? CORSProxyManager.fetch(wikipediaUrl)
+                    : (typeof fetchWikimediaResponse === 'function'
+                        ? fetchWikimediaResponse(wikipediaUrl)
+                        : fetch(wikipediaUrl));
 
-                fetcher(wikipediaUrl)
+                fetchPromise
                     .then(response => {
                         if (!response.ok) {
                             throw new Error(`HTTP error! Status: ${response.status}`);

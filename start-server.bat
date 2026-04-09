@@ -9,12 +9,16 @@ set "GEMINI_MENU_BAT=%PROJECT_ROOT%\server\server-menu.bat"
 set "GEMINI_AUTOSTART_BAT=%PROJECT_ROOT%\server\start-gemini.bat"
 set "LIGHTPANDA_CONTROLLER_BAT=%PROJECT_ROOT%\start-lightpanda-bridge.bat"
 set "CAMOFOX_CONTROLLER_BAT=%PROJECT_ROOT%\start-camofox-bridge.bat"
+set "WIKIMEDIA_CONTROLLER_BAT=%PROJECT_ROOT%\start-wikimedia-bridge.bat"
 set "LIGHTPANDA_BRIDGE_PORT=3037"
 set "LIGHTPANDA_MONITOR_TITLE=EveOS Lightpanda Monitor"
 set "LIGHTPANDA_ACTIVITY_LOG=%PROJECT_ROOT%\bin\lightpanda_activity.log"
 set "CAMOFOX_BRIDGE_PORT=3038"
 set "CAMOFOX_MONITOR_TITLE=EveOS Camofox Monitor"
 set "CAMOFOX_ACTIVITY_LOG=%PROJECT_ROOT%\bin\camofox_activity.log"
+set "WIKIMEDIA_BRIDGE_PORT=3039"
+set "WIKIMEDIA_MONITOR_TITLE=EveOS Wikimedia Monitor"
+set "WIKIMEDIA_ACTIVITY_LOG=%PROJECT_ROOT%\bin\wikimedia_activity.log"
 set "CAMOFOX_RUNTIME_SERVER=%PROJECT_ROOT%\tools\camofox-runtime\node_modules\@askjo\camofox-browser\server.js"
 set "MAIN_DATA_PACK=%PROJECT_ROOT%\data\modular-state"
 set "LAST_USED_PACK_FILE=%PROJECT_ROOT%\data\launcher-last-pack.txt"
@@ -61,6 +65,11 @@ if defined CF_STANDALONE_PID (
 ) else (
     echo   [STATUS] Camofox bridge: STOPPED
 )
+if defined WMF_STANDALONE_PID (
+    echo   [STATUS] Wikimedia bridge: RUNNING on http://127.0.0.1:%WIKIMEDIA_BRIDGE_PORT% ^(PID %WMF_STANDALONE_PID%^)
+) else (
+    echo   [STATUS] Wikimedia bridge: STOPPED
+)
 echo.
 echo [1] Start EveOS instance ^(choose port + data-pack^)
 echo     - Port 3000 uses active modular path; other ports default to per-instance packs.
@@ -71,7 +80,7 @@ echo     - Compatibility launcher: starts monitor flow via server-menu option 10
 echo [4] Browse and launch any .bat in this EveOS project
 echo     - Shows every local project batch script with purpose notes.
 echo [5] Browser fallback controls
-echo     - Lightpanda and Camofox standalone controllers plus monitors.
+echo     - Lightpanda, Camofox, and Wikimedia standalone controllers plus monitors.
 echo [6] Exit
 echo.
 set /p "choice=Enter your choice: "
@@ -134,16 +143,24 @@ if defined CF_STANDALONE_PID (
 ) else (
     echo   [STATUS] Camofox bridge: STOPPED
 )
+if defined WMF_STANDALONE_PID (
+    echo   [STATUS] Wikimedia bridge: RUNNING on http://127.0.0.1:%WIKIMEDIA_BRIDGE_PORT% ^(PID %WMF_STANDALONE_PID%^)
+) else (
+    echo   [STATUS] Wikimedia bridge: STOPPED
+)
 echo.
 echo   Auto-Title ^> Use Lightpanda checks the standalone bridge first.
 echo   If Lightpanda still fails, normal autotitle can escalate to Camofox.
+echo   Wikimedia ^> Use the standalone bridge to keep file:// Wikipedia requests compliant.
 echo.
 echo [1] Open standalone Lightpanda controller
 echo [2] Open standalone Camofox controller
-echo [3] Toggle integrated Lightpanda bridge for new EveOS instances
-echo [4] Open shared Lightpanda activity monitor
-echo [5] Open shared Camofox activity monitor
-echo [6] Return
+echo [3] Open standalone Wikimedia controller
+echo [4] Toggle integrated Lightpanda bridge for new EveOS instances
+echo [5] Open shared Lightpanda activity monitor
+echo [6] Open shared Camofox activity monitor
+echo [7] Open shared Wikimedia activity monitor
+echo [8] Return
 echo.
 set /p "lpchoice=Enter your choice: "
 
@@ -156,6 +173,10 @@ if "%lpchoice%"=="2" (
     goto :BrowserFallbackMenu
 )
 if "%lpchoice%"=="3" (
+    call :LaunchBatch "%WIKIMEDIA_CONTROLLER_BAT%"
+    goto :BrowserFallbackMenu
+)
+if "%lpchoice%"=="4" (
     if "%LP_ENABLED_STATE%"=="1" (
         set "LP_ENABLED_STATE=0"
     ) else (
@@ -163,15 +184,19 @@ if "%lpchoice%"=="3" (
     )
     goto :BrowserFallbackMenu
 )
-if "%lpchoice%"=="4" (
+if "%lpchoice%"=="5" (
     call :EnsureLightpandaMonitor
     goto :BrowserFallbackMenu
 )
-if "%lpchoice%"=="5" (
+if "%lpchoice%"=="6" (
     call :EnsureCamofoxMonitor
     goto :BrowserFallbackMenu
 )
-if "%lpchoice%"=="6" goto :MainMenu
+if "%lpchoice%"=="7" (
+    call :EnsureWikimediaMonitor
+    goto :BrowserFallbackMenu
+)
+if "%lpchoice%"=="8" goto :MainMenu
 
 echo.
 echo [ERROR] Invalid option.
@@ -449,6 +474,14 @@ if /I "%rel%"=="start-lightpanda-bridge.bat" (
     set "BATCH_NOTE=Standalone Lightpanda controller for manual start/stop."
     exit /b 0
 )
+if /I "%rel%"=="start-camofox-bridge.bat" (
+    set "BATCH_NOTE=Standalone Camofox controller for manual start/stop."
+    exit /b 0
+)
+if /I "%rel%"=="start-wikimedia-bridge.bat" (
+    set "BATCH_NOTE=Standalone Wikimedia controller for compliant Wikipedia/Wikimedia fetches."
+    exit /b 0
+)
 set "BATCH_NOTE=Project-specific batch script."
 exit /b 0
 
@@ -545,6 +578,7 @@ if exist "%PROJECT_ROOT%\bin\lightpanda" (
 call :CheckStandaloneLightpanda
 call :CheckCamofoxRuntime
 call :CheckStandaloneCamofox
+call :CheckStandaloneWikimedia
 exit /b 0
 
 :RefreshLightpandaStatus
@@ -576,6 +610,15 @@ for /f "tokens=5" %%P in ('netstat -aon ^| findstr /r /c:":%CAMOFOX_BRIDGE_PORT%
 :CheckStandaloneCamofoxDone
 exit /b 0
 
+:CheckStandaloneWikimedia
+set "WMF_STANDALONE_PID="
+for /f "tokens=5" %%P in ('netstat -aon ^| findstr /r /c:":%WIKIMEDIA_BRIDGE_PORT% .*LISTENING"') do (
+    set "WMF_STANDALONE_PID=%%P"
+    goto :CheckStandaloneWikimediaDone
+)
+:CheckStandaloneWikimediaDone
+exit /b 0
+
 :EnsureLightpandaMonitor
 if not exist "%PROJECT_ROOT%\bin" mkdir "%PROJECT_ROOT%\bin" >nul 2>nul
 if not exist "%LIGHTPANDA_ACTIVITY_LOG%" type nul > "%LIGHTPANDA_ACTIVITY_LOG%"
@@ -590,4 +633,12 @@ if not exist "%CAMOFOX_ACTIVITY_LOG%" type nul > "%CAMOFOX_ACTIVITY_LOG%"
 tasklist /v /fi "imagename eq cmd.exe" | findstr /i /c:"%CAMOFOX_MONITOR_TITLE%" >nul
 if %ERRORLEVEL% EQU 0 exit /b 0
 start "%CAMOFOX_MONITOR_TITLE%" cmd /k "echo ======================================== && echo   %CAMOFOX_MONITOR_TITLE% && echo ======================================== && echo. && powershell -NoProfile -Command ""Get-Content -Path '%CAMOFOX_ACTIVITY_LOG%' -Wait -Tail 20"""
+exit /b 0
+
+:EnsureWikimediaMonitor
+if not exist "%PROJECT_ROOT%\bin" mkdir "%PROJECT_ROOT%\bin" >nul 2>nul
+if not exist "%WIKIMEDIA_ACTIVITY_LOG%" type nul > "%WIKIMEDIA_ACTIVITY_LOG%"
+tasklist /v /fi "imagename eq cmd.exe" | findstr /i /c:"%WIKIMEDIA_MONITOR_TITLE%" >nul
+if %ERRORLEVEL% EQU 0 exit /b 0
+start "%WIKIMEDIA_MONITOR_TITLE%" cmd /k "echo ======================================== && echo   %WIKIMEDIA_MONITOR_TITLE% && echo ======================================== && echo. && powershell -NoProfile -Command ""Get-Content -Path '%WIKIMEDIA_ACTIVITY_LOG%' -Wait -Tail 20"""
 exit /b 0

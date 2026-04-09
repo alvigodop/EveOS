@@ -64,13 +64,22 @@
 
             // Try direct approach with origin=*
             console.log('Trying direct Wikipedia API call with origin=*');
-            const response = await fetch(endpoint, {
-                mode: 'cors',
-                cache: 'no-store',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            });
+            const fetchWikimediaResponse = window.EveOS?.API?.Core?.fetchWikimediaResponse;
+            const response = typeof fetchWikimediaResponse === 'function'
+                ? await fetchWikimediaResponse(endpoint, {
+                    mode: 'cors',
+                    cache: 'no-store',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                : await fetch(endpoint, {
+                    mode: 'cors',
+                    cache: 'no-store',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
 
             if (response.ok) {
                 const data = await response.json();
