@@ -114,6 +114,7 @@
             visitBtn.className = 'action-btn visit-btn';
             visitBtn.textContent = 'Visit ↗';
             visitBtn.onclick = function (e) {
+                e.preventDefault();
                 e.stopPropagation();
                 const url = `https://${wiki.domain}`;
                 if (handlers.onVisit) {
@@ -132,6 +133,7 @@
                 <span>Reload</span>
             `;
             reloadBtn.onclick = function (e) {
+                e.preventDefault();
                 e.stopPropagation();
                 if (handlers.onReload) {
                     handlers.onReload(wiki.domain, reloadBtn);
@@ -144,6 +146,7 @@
             cacheBtn.className = 'action-btn cache-btn';
             cacheBtn.textContent = 'View Cache';
             cacheBtn.onclick = function (e) {
+                e.preventDefault();
                 e.stopPropagation();
                 if (handlers.onViewCache) {
                     handlers.onViewCache(wiki.domain);
@@ -156,6 +159,7 @@
             deleteBtn.className = 'action-btn remove-btn';
             deleteBtn.textContent = 'Remove';
             deleteBtn.onclick = function (e) {
+                e.preventDefault();
                 e.stopPropagation();
                 console.log(`[WikiUIRenderer] Sidebar Remove clicked for ${wiki.domain}`);
                 if (handlers.onRemove) handlers.onRemove(wiki.domain);
@@ -171,6 +175,7 @@
             `;
             clearCacheBtn.title = 'Clear Cache';
             clearCacheBtn.onclick = function (e) {
+                e.preventDefault();
                 e.stopPropagation();
                 if (handlers.onClearCache) handlers.onClearCache(wiki.domain);
             };

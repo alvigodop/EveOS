@@ -296,10 +296,10 @@ ctx.buildKnowledgeSectionTitle = function buildKnowledgeSectionTitle(scope) {
     /**
      * Get a value from scoped storage (sync).
      */
-    ctx.getScopedStorageValue = function getScopedStorageValue(key, defaultValue, categoryName) {
+ctx.getScopedStorageValue = function getScopedStorageValue(key, defaultValue, categoryName) {
         const resolvedCategory = ctx.ensureCategoryContext(categoryName);
         if (window.StorageManager && typeof window.StorageManager.loadData === 'function') {
-            return window.StorageManager.loadData(key, resolvedCategory) ?? defaultValue;
+            return window.StorageManager.loadData(key, defaultValue, resolvedCategory) ?? defaultValue;
         }
         
         // Fallback to direct localStorage if StorageManager is missing
@@ -334,10 +334,10 @@ ctx.buildKnowledgeSectionTitle = function buildKnowledgeSectionTitle(scope) {
     /**
      * Get a value from scoped storage (async) - supports heavy data.
      */
-    ctx.getScopedStorageValueAsync = async function getScopedStorageValueAsync(key, defaultValue, categoryName) {
+ctx.getScopedStorageValueAsync = async function getScopedStorageValueAsync(key, defaultValue, categoryName) {
         const resolvedCategory = ctx.ensureCategoryContext(categoryName);
         if (window.StorageManager && typeof window.StorageManager.loadDataAsync === 'function') {
-            return (await window.StorageManager.loadDataAsync(key, resolvedCategory)) ?? defaultValue;
+            return (await window.StorageManager.loadDataAsync(key, defaultValue, resolvedCategory)) ?? defaultValue;
         }
         
         // Fallback to sync if async is not available

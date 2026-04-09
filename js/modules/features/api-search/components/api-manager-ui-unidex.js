@@ -50,8 +50,21 @@ ctx.buildUnidexApiProviderRows = function buildUnidexApiProviderRows(apiEntries)
         }).filter(Boolean).join('');
     }
 
+ctx.buildUnidexApiSummary = function buildUnidexApiSummary(apiEntries) {
+        const activeProviders = ctx.PROVIDER_ORDER.filter(function ([providerKey]) {
+            return (Array.isArray(apiEntries) ? apiEntries : []).some(function (entry) {
+                return Number(entry?.summary?.perSource?.[providerKey] || 0) > 0;
+            });
+        });
+        const providerCount = activeProviders.length;
+        const queryCount = Array.isArray(apiEntries) ? apiEntries.length : 0;
+        return `${providerCount} provider${providerCount === 1 ? '' : 's'} . ${queryCount} quer${queryCount === 1 ? 'y' : 'ies'}`;
+    }
+
 ctx.buildUnidexLaneMarkup = function buildUnidexLaneMarkup(group) {
         const lanes = [];
+        const wikipediaHasCache = ctx.entryHasCache(group.wikipediaEntry);
+        const fandomHasCache = ctx.entryHasCache(group.fandomEntry);
 
         if (group.wikipediaEntry) {
             lanes.push(`
@@ -59,7 +72,7 @@ ctx.buildUnidexLaneMarkup = function buildUnidexLaneMarkup(group) {
                     <div class="unidex-lane-copy">
                         <div class="unidex-lane-title">Wikipedia</div>
                         <div class="unidex-lane-meta">${ctx.escapeHtml(group.wikipediaEntry.subtitle)}</div>
-                        <div class="unidex-lane-status">${ctx.escapeHtml(ctx.formatCacheFreshness(group.wikipediaEntry))}${group.wikipediaEntry.hasCache ? ` . ${group.wikipediaEntry.itemCount} items` : ''}</div>
+                        <div class="unidex-lane-status">${ctx.escapeHtml(ctx.formatCacheFreshness(group.wikipediaEntry))}${wikipediaHasCache ? ` . ${group.wikipediaEntry.itemCount} items` : ''}</div>
                     </div>
                     <div class="unidex-lane-actions">
                         <button type="button" class="api-cache-open-source-btn" data-source-scope="wikipedia" data-source-key="${ctx.escapeHtml(group.wikipediaEntry.key)}">Open</button>
@@ -89,7 +102,7 @@ ctx.buildUnidexLaneMarkup = function buildUnidexLaneMarkup(group) {
                     <div class="unidex-lane-copy">
                         <div class="unidex-lane-title">Fandom</div>
                         <div class="unidex-lane-meta">${ctx.escapeHtml(group.fandomEntry.subtitle)}</div>
-                        <div class="unidex-lane-status">${ctx.escapeHtml(ctx.formatCacheFreshness(group.fandomEntry))}${group.fandomEntry.hasCache ? ` . ${group.fandomEntry.itemCount} items` : ''}</div>
+                        <div class="unidex-lane-status">${ctx.escapeHtml(ctx.formatCacheFreshness(group.fandomEntry))}${fandomHasCache ? ` . ${group.fandomEntry.itemCount} items` : ''}</div>
                     </div>
                     <div class="unidex-lane-actions">
                         <button type="button" class="api-cache-open-source-btn" data-source-scope="fandom" data-source-key="${ctx.escapeHtml(group.fandomEntry.key)}">Open</button>
@@ -121,6 +134,7 @@ ctx.buildUnidexLaneMarkup = function buildUnidexLaneMarkup(group) {
                 return `<span class="api-provider-badge">${ctx.escapeHtml(label)} <strong>${count}</strong></span>`;
             }).filter(Boolean).join('');
             const latestApi = group.apiEntries[0];
+            const apiSummary = ctx.buildUnidexApiSummary(group.apiEntries);
             lanes.push(`
                 <div class="unidex-lane">
                     <div class="unidex-lane-copy">
@@ -133,10 +147,16 @@ ctx.buildUnidexLaneMarkup = function buildUnidexLaneMarkup(group) {
                         <button type="button" class="api-cache-refresh-group-btn" data-group-key="${ctx.escapeHtml(group.id)}">Refresh</button>
                         <button type="button" class="api-cache-clear-group-btn" data-group-key="${ctx.escapeHtml(group.id)}">Clear</button>
                     </div>
-                    <div class="unidex-api-provider-list">
-                        ${ctx.buildUnidexApiProviderRows(group.apiEntries)}
-                    </div>
-                    <div class="api-provider-badges">${apiBadges}</div>
+                    <details class="unidex-api-details">
+                        <summary>
+                            <span class="unidex-api-summary-label">Providers</span>
+                            <span class="unidex-api-summary-meta">${ctx.escapeHtml(apiSummary)}</span>
+                        </summary>
+                        <div class="unidex-api-provider-list">
+                            ${ctx.buildUnidexApiProviderRows(group.apiEntries)}
+                        </div>
+                        <div class="api-provider-badges">${apiBadges}</div>
+                    </details>
                 </div>
             `);
         } else {

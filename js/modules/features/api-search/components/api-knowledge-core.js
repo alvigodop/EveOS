@@ -98,22 +98,24 @@ window.EveOS.API = window.EveOS.API || {};
     ctx.loadKnowledgeCacheEntries = async function loadKnowledgeCacheEntries(categoryName, options = {}) {
         const { wikiEntries, fandomDomains } = await ctx.loadSavedKnowledgeSources(categoryName);
         
-        let wikiCacheStore, wikiDataStore;
+        let wikiCacheStore, wikiDataStore, fandomCacheIndex;
         const resolvedCategory = ctx.ensureCategoryContext(categoryName);
         const currentContext = ctx.ensureCategoryContext(window.currentCategoryCtx || window.StorageManager?.categoryContext || '');
         
         if (resolvedCategory === currentContext && window.CacheCore) {
             wikiCacheStore = window.CacheCore.wikiCacheStore || {};
             wikiDataStore = window.CacheCore.wikiDataStore || { searchResults: {} };
+            fandomCacheIndex = await ctx.getScopedStorageValueAsync('fandomCacheIndex', {}, categoryName) || {};
         } else {
             wikiCacheStore = await ctx.getScopedStorageValueAsync('wikiCacheStore', {}, categoryName) || {};
             wikiDataStore = await ctx.getScopedStorageValueAsync('wikiDataStore', { searchResults: {} }, categoryName) || {};
+            fandomCacheIndex = await ctx.getScopedStorageValueAsync('fandomCacheIndex', {}, categoryName) || {};
         }
         
         const fandomResults = wikiDataStore.searchResults && typeof wikiDataStore.searchResults === 'object'
             ? wikiDataStore.searchResults
             : {};
-        const includeUncached = options.includeUncached === true;
+        const includeUncached = options.includeUncached === true || options.includeUncachedKnowledge === true;
 
         const wikipedia = wikiEntries.map(function (entry) {
             const title = String(entry?.title || entry?.name || '').trim();
@@ -148,8 +150,11 @@ window.EveOS.API = window.EveOS.API || {};
             const domain = String(entry?.domain || entry || '').trim();
             if (!domain) return null;
             const cached = fandomResults[domain];
+            const cacheIndexEntry = fandomCacheIndex && typeof fandomCacheIndex === 'object'
+                ? fandomCacheIndex[domain]
+                : null;
             
-            let updatedAt = ctx.toTimestamp(cached?.lastUpdate);
+            let updatedAt = ctx.toTimestamp(cached?.lastUpdate || cacheIndexEntry?.lastUpdate || cacheIndexEntry?.updatedAt);
             if (!updatedAt && cached && typeof cached === 'object') {
                 Object.keys(cached).forEach(function(key) {
                     if (key !== 'lastUpdate' && cached[key] && typeof cached[key] === 'object') {
@@ -165,6 +170,9 @@ window.EveOS.API = window.EveOS.API || {};
             if (cached) {
                 itemCount = Object.keys(cached).filter(k => k !== 'lastUpdate').length;
             }
+            if (!(itemCount > 0) && cacheIndexEntry) {
+                itemCount = Number(cacheIndexEntry.itemCount || 0);
+            }
 
             if (!includeUncached && !updatedAt && itemCount === 0) return null;
 
@@ -175,6 +183,7 @@ window.EveOS.API = window.EveOS.API || {};
                 subtitle: domain,
                 updatedAt: updatedAt,
                 itemCount: itemCount,
+                hasCache: updatedAt > 0 || itemCount > 0,
                 domain: domain
             };
         }).filter(Boolean).sort(function (left, right) {
@@ -188,18 +197,20 @@ window.EveOS.API = window.EveOS.API || {};
     /**
      * Clear caches for entire knowledge base
      */
-    ctx.clearKnowledgeCaches = function clearKnowledgeCaches(categoryName) {
+    ctx.clearKnowledgeCaches = async function clearKnowledgeCaches(categoryName) {
         const resolvedCategory = ctx.ensureCategoryContext(categoryName);
         const currentContext = ctx.ensureCategoryContext(window.currentCategoryCtx || window.StorageManager?.categoryContext || '');
-        const { wikiEntries, fandomDomains } = ctx.loadSavedKnowledgeSources(resolvedCategory);
+        const { wikiEntries, fandomDomains } = await ctx.loadSavedKnowledgeSources(resolvedCategory);
         
-        let wikiCacheStore, wikiDataStore;
+        let wikiCacheStore, wikiDataStore, fandomCacheIndex;
         if (resolvedCategory === currentContext && window.CacheCore) {
             wikiCacheStore = window.CacheCore.wikiCacheStore || {};
             wikiDataStore = window.CacheCore.wikiDataStore || { searchResults: {} };
+            fandomCacheIndex = await ctx.getScopedStorageValueAsync('fandomCacheIndex', {}, resolvedCategory) || {};
         } else {
-            wikiCacheStore = ctx.getScopedStorageValue('wikiCacheStore', {}, resolvedCategory) || {};
-            wikiDataStore = ctx.getScopedStorageValue('wikiDataStore', { searchResults: {} }, resolvedCategory) || { searchResults: {} };
+            wikiCacheStore = await ctx.getScopedStorageValueAsync('wikiCacheStore', {}, resolvedCategory) || {};
+            wikiDataStore = await ctx.getScopedStorageValueAsync('wikiDataStore', { searchResults: {} }, resolvedCategory) || { searchResults: {} };
+            fandomCacheIndex = await ctx.getScopedStorageValueAsync('fandomCacheIndex', {}, resolvedCategory) || {};
         }
 
         wikiEntries.forEach(function (entry) {
@@ -221,10 +232,14 @@ window.EveOS.API = window.EveOS.API || {};
             const domain = String(entry?.domain || entry || '').trim();
             if (!domain) return;
             delete wikiDataStore.searchResults[domain];
+            if (fandomCacheIndex && typeof fandomCacheIndex === 'object') {
+                delete fandomCacheIndex[domain];
+            }
         });
 
-        ctx.saveScopedStorageValue('wikiCacheStore', wikiCacheStore, resolvedCategory);
-        ctx.saveScopedStorageValue('wikiDataStore', wikiDataStore, resolvedCategory);
+        await ctx.saveScopedStorageValueAsync('wikiCacheStore', wikiCacheStore, resolvedCategory);
+        await ctx.saveScopedStorageValueAsync('wikiDataStore', wikiDataStore, resolvedCategory);
+        await ctx.saveScopedStorageValueAsync('fandomCacheIndex', fandomCacheIndex, resolvedCategory);
 
         if (resolvedCategory === currentContext && window.CacheCore) {
             window.CacheCore.wikiCacheStore = wikiCacheStore;
@@ -280,7 +295,7 @@ window.EveOS.API = window.EveOS.API || {};
         const apiEntries = api.Cache ? await api.Cache.listQueries(resolvedCategory) : [];
 
         const knowledgeEntries = await ctx.loadKnowledgeCacheEntries(resolvedCategory, {
-            includeUncachedKnowledge: options.includeUncachedKnowledge === true
+            includeUncached: options.includeUncachedKnowledge === true
         });
 
         

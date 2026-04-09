@@ -17,7 +17,7 @@ WikiManagerFandom.init = function () {
 /**
  * Add a Fandom domain
  */
-WikiManagerFandom.addFandomDomain = function (domain, name, imageUrl) {
+WikiManagerFandom.addFandomDomain = async function (domain, name, imageUrl) {
     if (!domain) {
         alert('Please enter a valid Fandom domain');
         return;
@@ -28,13 +28,13 @@ WikiManagerFandom.addFandomDomain = function (domain, name, imageUrl) {
     if (!domain.includes('.')) domain += '.fandom.com';
 
     if (window.WikiStore) {
-        const success = WikiStore.addFandomDomain(domain, name, imageUrl);
+        const success = await WikiStore.addFandomDomain(domain, name, imageUrl);
         if (success) {
             // Trigger update
             if (window.WikiManagerDelegates) {
                 WikiManagerDelegates.updateFandomData(domain);
             }
-            this.renderFandomDomainList(true);
+            await this.renderFandomDomainList(true);
 
             // Notify Discovery Integration
             if (window.WikiManagerDelegates) {
@@ -52,10 +52,10 @@ WikiManagerFandom.addFandomDomain = function (domain, name, imageUrl) {
 /**
  * Remove a Fandom domain
  */
-WikiManagerFandom.removeFandomDomain = function (domain) {
+WikiManagerFandom.removeFandomDomain = async function (domain) {
     if (window.WikiStore) {
-        WikiStore.removeFandomDomain(domain);
-        this.renderFandomDomainList(true);
+        await WikiStore.removeFandomDomain(domain);
+        await this.renderFandomDomainList(true);
         if (window.WikiManagerDelegates) {
             WikiManagerDelegates.updateDiscoveryButtonStatus('fandom', domain, false);
         }
@@ -65,29 +65,68 @@ WikiManagerFandom.removeFandomDomain = function (domain) {
 /**
  * Render Fandom domain list
  */
-WikiManagerFandom.renderFandomDomainList = function (force) {
+WikiManagerFandom.renderFandomDomainList = async function (force) {
     const listElement = document.getElementById('fandomDomainList');
     if (!listElement) return; // Silent fail if UI not ready
 
     // Use WikiManager facade for callbacks to ensure consistent handling
     const wm = window.WikiManager || {};
     if (typeof wm.refreshCacheStores === 'function') {
-        wm.refreshCacheStores();
+        await wm.refreshCacheStores();
     }
 
     // Helper for cache store
     let cacheStore = { searchResults: {} };
-    if (wm.fandomCacheStore) {
+    if (window.CacheCore && window.CacheCore.wikiDataStore) {
+        cacheStore = window.CacheCore.wikiDataStore;
+    } else if (wm.fandomCacheStore) {
         cacheStore = wm.fandomCacheStore;
     } else if (window.StorageManager) {
-        cacheStore = StorageManager.loadFromDataStore() || { searchResults: {} };
+        cacheStore = await StorageManager.loadFromDataStore() || { searchResults: {} };
+    }
+
+    const renderCacheStore = (cacheStore && typeof cacheStore === 'object')
+        ? { ...cacheStore, searchResults: { ...(cacheStore.searchResults || {}) } }
+        : { searchResults: {} };
+    let fandomCacheIndex = {};
+
+    if (window.StorageManager && typeof StorageManager.loadDataAsync === 'function') {
+        try {
+            fandomCacheIndex = await StorageManager.loadDataAsync('fandomCacheIndex', {}, null) || {};
+        } catch (error) {
+            console.warn('WikiManagerFandom: Failed to load fandom cache index', error);
+        }
+    }
+
+    if (fandomCacheIndex && typeof fandomCacheIndex === 'object') {
+        Object.entries(fandomCacheIndex).forEach(function ([domain, meta]) {
+            const normalizedDomain = String(domain || '').trim();
+            if (!normalizedDomain) return;
+
+            const existingEntry = renderCacheStore.searchResults[normalizedDomain];
+            const existingKeys = existingEntry && typeof existingEntry === 'object'
+                ? Object.keys(existingEntry).filter((key) => key !== 'lastUpdate' && key !== '__cacheMeta')
+                : [];
+
+            if (existingKeys.length > 0) return;
+
+            renderCacheStore.searchResults[normalizedDomain] = {
+                ...(existingEntry && typeof existingEntry === 'object' ? existingEntry : {}),
+                lastUpdate: existingEntry?.lastUpdate || meta?.updatedAt || meta?.lastUpdate || null,
+                __cacheMeta: {
+                    itemCount: Number(meta?.itemCount || existingEntry?.__cacheMeta?.itemCount || 0),
+                    updatedAt: meta?.updatedAt || meta?.lastUpdate || existingEntry?.__cacheMeta?.updatedAt || existingEntry?.lastUpdate || null,
+                    sampleTitles: Array.isArray(meta?.sampleTitles) ? meta.sampleTitles.slice(0, 5) : []
+                }
+            };
+        });
     }
 
     if (window.WikiUIRenderer && window.WikiStore) {
         WikiUIRenderer.renderFandomDomainList(
-            WikiStore.getFandomDomains(),
+            await WikiStore.getFandomDomains(),
             listElement,
-            cacheStore,
+            renderCacheStore,
             {
                 onVisit: (url, name) => {
                     if (wm._handleVisit) wm._handleVisit(url, name);
@@ -103,12 +142,16 @@ WikiManagerFandom.renderFandomDomainList = function (force) {
                     else if (window.WikiManagerDelegates) WikiManagerDelegates.reloadFandomWikiStatus(domain, btn);
                 },
                 onViewCache: (domain) => {
-                    if (wm.viewFandomCachedData) wm.viewFandomCachedData(domain);
+                    if (window.CacheManager && typeof window.CacheManager.viewFandomCachedData === 'function') {
+                        window.CacheManager.viewFandomCachedData(domain);
+                    } else if (wm.viewFandomCachedData) wm.viewFandomCachedData(domain);
                     else if (window.WikiManagerDelegates) WikiManagerDelegates.viewFandomCachedData(domain);
                 },
                 onRemove: (domain) => this.removeFandomDomain(domain),
                 onClearCache: (domain) => {
-                    if (wm.clearFandomCache) wm.clearFandomCache(domain);
+                    if (window.CacheManager && typeof window.CacheManager.clearFandomCache === 'function') {
+                        window.CacheManager.clearFandomCache(domain);
+                    } else if (wm.clearFandomCache) wm.clearFandomCache(domain);
                     else if (window.WikiManagerDelegates) WikiManagerDelegates.clearFandomCache(domain);
                 }
             }

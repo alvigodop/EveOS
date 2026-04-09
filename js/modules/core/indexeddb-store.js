@@ -82,6 +82,22 @@
                 console.warn('IDBStore.remove failed:', error);
                 return false;
             }
+        },
+
+        keys: async function() {
+            try {
+                const db = await this.init();
+                return await new Promise((resolve, reject) => {
+                    const tx = db.transaction(STORE_NAME, 'readonly');
+                    const store = tx.objectStore(STORE_NAME);
+                    const req = store.getAllKeys();
+                    req.onsuccess = () => resolve(Array.isArray(req.result) ? req.result : []);
+                    req.onerror = () => reject(req.error);
+                });
+            } catch (error) {
+                console.warn('IDBStore.keys failed:', error);
+                return [];
+            }
         }
     };
 

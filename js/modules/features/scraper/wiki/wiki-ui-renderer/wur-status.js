@@ -18,10 +18,14 @@
         }
 
         const domainCache = cacheStore.searchResults[domain];
-        let lastUpdate = domainCache.lastUpdate;
+        const cacheMeta = domainCache && typeof domainCache.__cacheMeta === 'object'
+            ? domainCache.__cacheMeta
+            : {};
+        let lastUpdate = domainCache.lastUpdate || cacheMeta.updatedAt || cacheMeta.lastUpdate || null;
+        const contentKeys = Object.keys(domainCache).filter(k => k !== 'lastUpdate' && k !== '__cacheMeta');
 
         if (!lastUpdate) {
-            const items = Object.keys(domainCache).filter(k => k !== 'lastUpdate').map(k => domainCache[k]);
+            const items = contentKeys.map(k => domainCache[k]);
             for (const item of items) {
                 if (item && typeof item === 'object' && (item.lastUpdate || item.lastFetch || item.timestamp)) {
                     const itemTs = new Date(item.lastUpdate || item.lastFetch || item.timestamp).getTime();
@@ -33,7 +37,10 @@
             }
         }
 
-        const itemCount = Object.keys(domainCache).filter(k => k !== 'lastUpdate').length;
+        let itemCount = contentKeys.length;
+        if (!(itemCount > 0) && Number(cacheMeta.itemCount) > 0) {
+            itemCount = Number(cacheMeta.itemCount);
+        }
 
         if (!lastUpdate) {
             if (itemCount > 0) {

@@ -117,6 +117,26 @@
             } catch (e) {
                 console.error('CCMaintenance: Error clearing prefixed cache:', e);
             }
+
+            if (window.IDBStore && typeof IDBStore.keys === 'function' && typeof IDBStore.remove === 'function') {
+                Promise.resolve()
+                    .then(() => IDBStore.keys())
+                    .then((keys) => {
+                        const idbKeysToRemove = (Array.isArray(keys) ? keys : []).filter((key) => {
+                            return String(key || '').startsWith(fullPrefix);
+                        });
+                        if (!idbKeysToRemove.length) return 0;
+                        return Promise.all(idbKeysToRemove.map((key) => IDBStore.remove(key))).then(() => idbKeysToRemove.length);
+                    })
+                    .then((removedCount) => {
+                        if (removedCount > 0) {
+                            console.log(`CCMaintenance: Removed ${removedCount} IndexedDB cache keys for prefix "${prefix}" (full: ${fullPrefix})`);
+                        }
+                    })
+                    .catch((error) => {
+                        console.error('CCMaintenance: Error clearing prefixed IndexedDB cache:', error);
+                    });
+            }
         },
 
         /**

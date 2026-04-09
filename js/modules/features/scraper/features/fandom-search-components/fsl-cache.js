@@ -318,6 +318,19 @@
                     if (window.CacheCore && typeof CacheCore.saveWikiDataStore === 'function') {
                         CacheCore.saveWikiDataStore();
                     }
+
+                    // Keep a tiny local index so file:// and cold-start UIs can show cached fandom sources
+                    // without loading the full heavy payload first.
+                    if (window.StorageManager && typeof StorageManager.saveData === 'function') {
+                        const cacheIndex = await StorageManager.loadDataAsync('fandomCacheIndex', {}, null) || {};
+                        cacheIndex[domain] = {
+                            domain,
+                            itemCount: results.length,
+                            updatedAt: targetStore.searchResults[domain].lastUpdate,
+                            sampleTitles: results.slice(0, 5).map((result) => this._resolveStoredTitle(result))
+                        };
+                        StorageManager.saveData('fandomCacheIndex', cacheIndex);
+                    }
                 } catch (mergeError) {
                     console.warn(`FSLCache: Error merging results to domain cache:`, mergeError);
                 }

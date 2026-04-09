@@ -112,15 +112,15 @@ window.EveOS.API = window.EveOS.API || {};
         const targetUrl = String(url || '').trim();
         if (!targetUrl) return true;
 
-        const categoryName = ctx.normalizeCategoryName(options.categoryName);
-        const openMode = await ctx.resolveOpenModePreference(categoryName, options.openMode);
-        
         if (event && typeof event.preventDefault === 'function') {
             event.preventDefault();
         }
         if (event && typeof event.stopPropagation === 'function') {
             event.stopPropagation();
         }
+
+        const categoryName = ctx.normalizeCategoryName(options.categoryName);
+        const openMode = await ctx.resolveOpenModePreference(categoryName, options.openMode);
 
         if (openMode === 'newtab') {
             window.open(targetUrl, '_blank', 'noopener,noreferrer');
@@ -132,10 +132,22 @@ window.EveOS.API = window.EveOS.API || {};
     }
 
     /**
+     * Determine whether a source entry has cache metadata or payload.
+     */
+    ctx.entryHasCache = function entryHasCache(entry) {
+        return !!(entry && (
+            entry.hasCache === true
+            || Number(entry.updatedAt || 0) > 0
+            || Number(entry.itemCount || 0) > 0
+        ));
+    }
+
+    /**
      * Format cache freshness string.
      */
     ctx.formatCacheFreshness = function formatCacheFreshness(entry) {
-        if (!entry || !entry.hasCache || !entry.updatedAt) return 'Not cached yet';
+        if (!ctx.entryHasCache(entry)) return 'Not cached yet';
+        if (!Number(entry.updatedAt || 0)) return 'Cached';
         return `Updated ${ctx.formatRelativeTime(entry.updatedAt)}`;
     }
 

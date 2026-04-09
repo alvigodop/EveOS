@@ -46,6 +46,25 @@
                 if (shouldUseCache && window.FSLCache && typeof FSLCache.getCachedAggregateResults === 'function') {
                     const aggregateResults = await FSLCache.getCachedAggregateResults(query, domains);
                     if (aggregateResults && aggregateResults.length > 0) {
+                        if (typeof FSLCache.updateDomainStore === 'function') {
+                            const resultsByDomain = new Map();
+                            aggregateResults.forEach((result) => {
+                                const resultDomain = String(result?.domain || result?.wiki_domain || '').trim();
+                                if (!resultDomain) return;
+                                if (!resultsByDomain.has(resultDomain)) {
+                                    resultsByDomain.set(resultDomain, []);
+                                }
+                                resultsByDomain.get(resultDomain).push(result);
+                            });
+
+                            for (const domainInfo of domains) {
+                                const domain = String(domainInfo?.domain || domainInfo || '').trim();
+                                const domainResults = resultsByDomain.get(domain);
+                                if (!domain || !Array.isArray(domainResults) || !domainResults.length) continue;
+                                await FSLCache.updateDomainStore(domain, domainResults);
+                            }
+                        }
+
                         if (typeof FSLCache.updateAggregateCache === 'function') {
                             await FSLCache.updateAggregateCache(query, aggregateResults);
                         }
@@ -59,8 +78,8 @@
                         }
 
                         if (window.WikiManager) {
-                            if (typeof WikiManager.refreshCacheStores === 'function') WikiManager.refreshCacheStores();
-                            if (typeof WikiManager.renderFandomDomainList === 'function') WikiManager.renderFandomDomainList(true);
+                            if (typeof WikiManager.refreshCacheStores === 'function') await WikiManager.refreshCacheStores();
+                            if (typeof WikiManager.renderFandomDomainList === 'function') await WikiManager.renderFandomDomainList(true);
                         }
 
                         return aggregateResults;
@@ -119,7 +138,7 @@
                     // Store in domain's main cache for "View Cache" / "CACHED" tab
                     // We update this regardless of source (live or cache) to ensure visual consistency
                     if (window.FSLCache && domainResults.length > 0) {
-                        FSLCache.updateDomainStore(domain, domainResults);
+                        await FSLCache.updateDomainStore(domain, domainResults);
                     }
 
                     // 3. Collect Results

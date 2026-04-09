@@ -26,6 +26,7 @@ window.EveOS.API = window.EveOS.API || {};
     }
 
     const _memoryPools = {};
+    const _prefsWrites = {};
 
     async function withScopedContext(categoryName, callback) {
         const manager = window.StorageManager;
@@ -446,22 +447,37 @@ window.EveOS.API = window.EveOS.API || {};
     }
 
     async function savePrefs(nextPrefs, categoryName) {
-        const currentPrefs = await loadPrefs(categoryName);
-        const incomingPrefs = nextPrefs && typeof nextPrefs === 'object' ? { ...nextPrefs } : {};
-        if (typeof incomingPrefs.hybridSearch === 'boolean' && typeof incomingPrefs.hybridResults !== 'boolean') {
-            incomingPrefs.hybridResults = incomingPrefs.hybridSearch;
-        }
-        const merged = {
-            ...currentPrefs,
-            ...incomingPrefs
-        };
-        if (!(Number(merged.ttlMs) > 0)) {
-            merged.ttlMs = DEFAULT_TTL_MS;
-        }
-        merged.liveResults = merged.liveResults === true;
-        merged.hybridResults = merged.hybridResults !== false;
-        merged.openMode = merged.openMode === 'newtab' ? 'newtab' : 'popup';
-        return await saveScopedValue(PREFS_KEY, merged, categoryName);
+        const normalizedCategory = normalizeCategoryName(categoryName);
+        const previousWrite = _prefsWrites[normalizedCategory] || Promise.resolve();
+        const nextWrite = previousWrite
+            .catch(function () { return null; })
+            .then(async function () {
+                const currentPrefs = await loadPrefs(categoryName);
+                const incomingPrefs = nextPrefs && typeof nextPrefs === 'object' ? { ...nextPrefs } : {};
+                if (typeof incomingPrefs.hybridSearch === 'boolean' && typeof incomingPrefs.hybridResults !== 'boolean') {
+                    incomingPrefs.hybridResults = incomingPrefs.hybridSearch;
+                }
+                const merged = {
+                    ...currentPrefs,
+                    ...incomingPrefs
+                };
+                if (!(Number(merged.ttlMs) > 0)) {
+                    merged.ttlMs = DEFAULT_TTL_MS;
+                }
+                merged.liveResults = merged.liveResults === true;
+                merged.hybridResults = merged.hybridResults !== false;
+                merged.openMode = merged.openMode === 'newtab' ? 'newtab' : 'popup';
+                await saveScopedValue(PREFS_KEY, merged, categoryName);
+                return merged;
+            });
+
+        _prefsWrites[normalizedCategory] = nextWrite.finally(function () {
+            if (_prefsWrites[normalizedCategory] === nextWrite) {
+                delete _prefsWrites[normalizedCategory];
+            }
+        });
+
+        return await nextWrite;
     }
 
     async function getQueryEntry(query, categoryName) {

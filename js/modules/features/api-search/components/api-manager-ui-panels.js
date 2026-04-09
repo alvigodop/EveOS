@@ -161,10 +161,10 @@ ctx.renderSearchUI = async function renderSearchUI(searchContainer, resultsConta
                         ttlMs: Number(ttlSelect?.value) > 0 ? Number(ttlSelect.value) : prefs.ttlMs,
                         liveResults: liveToggle?.checked === true,
                         hybridResults: hybridToggle?.checked !== false,
-                        openMode: ctx.resolveOpenModePreference(resolvedCategory, searchContainer.querySelector('[data-api-open-mode="search"]:checked')?.value)
+                        openMode: await ctx.resolveOpenModePreference(resolvedCategory, searchContainer.querySelector('[data-api-open-mode="search"]:checked')?.value)
                     }, resolvedCategory);
                 }
-                ctx.clearKnowledgeCaches(resolvedCategory);
+                await ctx.clearKnowledgeCaches(resolvedCategory);
                 if (resultsContainer) {
                     resultsContainer.innerHTML = '';
                     resultsContainer.style.display = 'none';
@@ -314,7 +314,7 @@ ctx.renderScraperPanelUI = async function renderScraperPanelUI(container, catego
                         ttlMs: Number(ttlSelect?.value) > 0 ? Number(ttlSelect.value) : prefs.ttlMs,
                         liveResults: liveToggle?.checked === true,
                         hybridResults: hybridToggle?.checked !== false,
-                        openMode: ctx.resolveOpenModePreference(resolvedCategory, container.querySelector('[data-api-open-mode="scraper"]:checked')?.value)
+                        openMode: await ctx.resolveOpenModePreference(resolvedCategory, container.querySelector('[data-api-open-mode="scraper"]:checked')?.value)
                     }, resolvedCategory);
                 }
                 if (resultsContainer) {

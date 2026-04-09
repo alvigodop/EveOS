@@ -46,11 +46,11 @@ window.EveOS.API = window.EveOS.API || {};
      */
     ctx.isShallowApiCache = function isShallowApiCache(cacheEntry) {
         if (!cacheEntry || !cacheEntry.sources) return true;
-        
+
         const sources = cacheEntry.sources;
         const providerCount = Object.keys(sources).length;
         const totalResults = typeof ctx.countResults === 'function' ? ctx.countResults(sources) : 0;
-        
+
         // If we have fewer than 3 providers (and not a single-provider search) OR zero results, it's shallow.
         return (providerCount < 3 && totalResults === 0) || (providerCount === 0);
     };
@@ -137,8 +137,8 @@ window.EveOS.API = window.EveOS.API || {};
                     if (api.Cache && exactCachedVisibleCount > 0) await api.Cache.touchQuery(normalizedQuery, resolvedCategory);
 
                     if (typeof loadingCallback === 'function') {
-                        loadingCallback(true, 'api', `Using ${isFresh ? 'fresh ' : ''}cached results for "${normalizedQuery}"`, { 
-                            statusPhase: 'results', 
+                        loadingCallback(true, 'api', `Using ${isFresh ? 'fresh ' : ''}cached results for "${normalizedQuery}"`, {
+                            statusPhase: 'results',
                             resultsFound: cachedVisibleCount
                         });
                     }
@@ -158,10 +158,10 @@ window.EveOS.API = window.EveOS.API || {};
                         }
                     };
                 }
-                
+
                 console.log(`API Orchestrator: Hybrid search active - proceeding to discovery enrichment despite fresh cache.`);
                 if (typeof loadingCallback === 'function') {
-                    loadingCallback(true, 'api', `Cache found for "${normalizedQuery}", proceeding to discovery enrichment...`, { 
+                    loadingCallback(true, 'api', `Cache found for "${normalizedQuery}", proceeding to discovery enrichment...`, {
                         statusPhase: 'live',
                         resultsFound: cachedVisibleCount
                     });
@@ -186,7 +186,7 @@ window.EveOS.API = window.EveOS.API || {};
             }
 
             const skipSources = (!shouldUseLive && shouldUseHybrid) ? activeCachedEntry?.sources : null;
-            
+
             if (typeof loadingCallback === 'function') {
                 const label = providerKey ? ctx.getProviderLabel(providerKey) : 'API providers';
                 loadingCallback(true, 'api', `Fetching live results from ${label}...`, { statusPhase: 'live' });
@@ -199,14 +199,14 @@ window.EveOS.API = window.EveOS.API || {};
             const totalVisible = ctx.countResults(visibleSources);
 
             if (typeof loadingCallback === 'function') {
-                loadingCallback(true, 'api', `API search complete: ${totalVisible} results`, { 
+                loadingCallback(true, 'api', `API search complete: ${totalVisible} results`, {
                     statusPhase: 'results',
                     resultsFound: totalVisible
                 });
             }
 
             const storedEntry = api.Cache ? await api.Cache.storeQuery(normalizedQuery, mergedSources, resolvedCategory, { ttlMs: options.ttlMs }) : null;
-            
+
             return {
                 query: normalizedQuery,
                 categoryName: resolvedCategory,
@@ -298,7 +298,7 @@ window.EveOS.API = window.EveOS.API || {};
                 if (!entries.length) return { scope: normalizedScope, categoryName: resolvedCategory, results: [], sourceCount: 0, meta: { summary: { totalResults: 0 } } };
 
                 if (typeof loadingCallback === 'function') {
-                    loadingCallback(true, 'wikipedia', `Searching Wikipedia: ${entries.length} sources...`, { 
+                    loadingCallback(true, 'wikipedia', `Searching Wikipedia: ${entries.length} sources...`, {
                         statusPhase: 'search',
                         totalWikis: entries.length,
                         wikisSearched: 0
@@ -342,7 +342,7 @@ window.EveOS.API = window.EveOS.API || {};
                 if (!domains.length) return { scope: normalizedScope, categoryName: resolvedCategory, results: [], sourceCount: 0, meta: { summary: { totalResults: 0 } } };
 
                 if (typeof loadingCallback === 'function') {
-                    loadingCallback(true, 'fandom', `Searching Fandom: ${domains.length} sources...`, { 
+                    loadingCallback(true, 'fandom', `Searching Fandom: ${domains.length} sources...`, {
                         statusPhase: 'search',
                         totalWikis: domains.length,
                         wikisSearched: 0
@@ -382,11 +382,14 @@ window.EveOS.API = window.EveOS.API || {};
             }
         } catch (error) {
             console.error(`Search Unidex ${normalizedScope} search error:`, error);
+            const fallbackSources = normalizedScope === 'wikipedia'
+                ? await ctx.normalizeSavedWikipediaEntries(resolvedCategory)
+                : await ctx.normalizeSavedFandomDomains(resolvedCategory);
             return {
                 scope: normalizedScope,
                 categoryName: resolvedCategory,
                 results: [],
-                sourceCount: normalizedScope === 'wikipedia' ? ctx.normalizeSavedWikipediaEntries(resolvedCategory).length : ctx.normalizeSavedFandomDomains(resolvedCategory).length,
+                sourceCount: Array.isArray(fallbackSources) ? fallbackSources.length : 0,
                 error,
                 meta: { error, summary: { totalResults: 0 } }
             };
@@ -427,7 +430,7 @@ window.EveOS.API = window.EveOS.API || {};
                 // However, sub-searchers themselves signal completion when they finish.
                 // We should keep the overall indicator "true" (searching) as long as we are inside the Promise.all.
                 const shouldStayVisible = isSearching || activeSubSearches > 0;
-                
+
                 const combinedStats = {
                     ...stats,
                     wikisSearched: sourcesSearched,
@@ -496,12 +499,12 @@ window.EveOS.API = window.EveOS.API || {};
                 fandom: fandomResult || { results: [], meta: { summary: { totalResults: 0 } } }
             };
 
-            totalResultsFound = (payload.api.meta?.summary?.totalResults || 0) + 
-                                (payload.wikipedia.meta?.summary?.totalResults || 0) + 
+            totalResultsFound = (payload.api.meta?.summary?.totalResults || 0) +
+                                (payload.wikipedia.meta?.summary?.totalResults || 0) +
                                 (payload.fandom.meta?.summary?.totalResults || 0);
 
             monitorProgress(true, 'process', `Rendering ${totalResultsFound} Unidex results...`, { statusPhase: 'process' });
-            
+
             ctx.renderUnifiedSearchResults(payload, resultsContainer, onSelect);
             ctx.notifyScraperStatusUpdate();
 
@@ -548,7 +551,7 @@ window.EveOS.API = window.EveOS.API || {};
                 liveResults: options.liveResults,
                 hybridResults: options.hybridResults
             }, options.loadingCallback);
-            
+
             if (!ctx.isClaimCurrent(resultsContainer, requestId) || !resolved) return null;
 
             if (resolved.meta?.cacheMiss) {
@@ -625,4 +628,4 @@ window.EveOS.API = window.EveOS.API || {};
         });
     }
 
-})(window.EveOS.API);
+})(window.EveOS.API);
