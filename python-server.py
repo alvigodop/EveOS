@@ -149,10 +149,10 @@ class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             # Handle Lightpanda fetch request
             lightpanda.handle_lightpanda_fetch(self, query)
 
-        elif path == '/api/popup-view':
+        elif path == '/api/popup-view' or path.startswith('/api/popup-view/'):
             popup_viewer.handle_popup_view(self, query)
 
-        elif path == '/api/popup-resource':
+        elif path == '/api/popup-resource' or path.startswith('/api/popup-resource/'):
             popup_viewer.handle_popup_resource_request(self, query)
 
         elif path.startswith('/api/eve-state/modular/'):
@@ -179,7 +179,7 @@ class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             proxy.handle_proxy_post_request(self, query)
             return
 
-        if path == '/api/popup-resource':
+        if path == '/api/popup-resource' or path.startswith('/api/popup-resource/'):
             popup_viewer.handle_popup_resource_request(self, query)
             return
 

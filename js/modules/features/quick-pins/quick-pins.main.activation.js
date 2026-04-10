@@ -33,7 +33,10 @@
         if (resolution.openTarget && resolution.openTarget !== 'none') {
             const safeUrl = typeof normalizeUrl === 'function' ? normalizeUrl(String(link.url || '').trim()) : String(link.url || '').trim();
             if (safeUrl) {
-                if (resolution.openTarget === 'internal' && window.PopupManager && typeof window.PopupManager.openPopup === 'function') {
+                const popupHelper = window.EveBookmarkFocus?.openInternalView;
+                if (resolution.openTarget === 'internal' && typeof popupHelper === 'function') {
+                    popupHelper(safeUrl, String(link.title || safeUrl).trim() || safeUrl);
+                } else if (resolution.openTarget === 'internal' && window.PopupManager && typeof window.PopupManager.openPopup === 'function') {
                     window.PopupManager.openPopup(safeUrl, String(link.title || safeUrl).trim() || safeUrl);
                 } else {
                     window.open(safeUrl, '_blank', 'noopener,noreferrer');

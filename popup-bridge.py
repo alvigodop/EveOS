@@ -105,11 +105,11 @@ class BridgeHandler(http.server.BaseHTTPRequestHandler):
             wikipedia.handle_wikipedia_search(self, query)
             return
 
-        if parsed.path == "/api/popup-view":
+        if parsed.path == "/api/popup-view" or parsed.path.startswith("/api/popup-view/"):
             popup_viewer.handle_popup_view(self, query)
             return
 
-        if parsed.path == "/api/popup-resource":
+        if parsed.path == "/api/popup-resource" or parsed.path.startswith("/api/popup-resource/"):
             popup_viewer.handle_popup_resource_request(self, query)
             return
 
@@ -130,7 +130,7 @@ class BridgeHandler(http.server.BaseHTTPRequestHandler):
             proxy.handle_proxy_post_request(self, query)
             return
 
-        if parsed.path == "/api/popup-resource":
+        if parsed.path == "/api/popup-resource" or parsed.path.startswith("/api/popup-resource/"):
             popup_viewer.handle_popup_resource_request(self, query)
             return
 

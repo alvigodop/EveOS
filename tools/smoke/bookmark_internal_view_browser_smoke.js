@@ -54,20 +54,18 @@ async function main() {
             const modal = document.getElementById('bookmarkFocusModal');
             if (modal) modal.style.display = 'none';
 
-            const popupCalls = [];
             const newTabCalls = [];
-            const originalPopupManager = window.PopupManager;
-            const originalPopupOpen = window.PopupManager?.openPopup;
             const originalWindowOpen = window.open;
-
-            window.PopupManager = window.PopupManager || {};
-            window.PopupManager.openPopup = function (url, title) {
-                popupCalls.push({ url, title });
-                return true;
-            };
             window.open = function (url, target) {
                 newTabCalls.push({ url, target });
                 return null;
+            };
+
+            const runtimeBefore = {
+                popupManagerPresent: !!window.PopupManager,
+                popupViewerPresent: !!window.PopupViewer,
+                pvUiPresent: !!window.PVUI,
+                pvLoaderPresent: !!window.PVLoader
             };
 
             const previousDefaultMode = window.EveBookmarkClickBehavior.getDefaultMode();
@@ -75,33 +73,74 @@ async function main() {
 
             const resolution = window.EveBookmarkClickBehavior.resolveBehaviorForLink(linkId);
             const dashboardHandled = window.openBookmarkFromDashboard({ preventDefault() {}, stopPropagation() {} }, linkId);
-            await new Promise((resolve) => setTimeout(resolve, 120));
+            const waitForPopupState = async () => {
+                const startedAt = Date.now();
+                while (Date.now() - startedAt < 6000) {
+                    const popup = document.getElementById('wikiPopup');
+                    const frame = document.getElementById('wikiPopupFrame');
+                    const popupVisible = !!(popup && (popup.classList.contains('active') || window.getComputedStyle(popup).display !== 'none'));
+                    const frameHasContent = !!(frame && ((frame.getAttribute('src') || '').trim() || (frame.getAttribute('srcdoc') || '').trim()));
+                    const runtimeReady = !!(window.PopupManager && window.PopupViewer && window.PVUI && window.PVLoader);
+                    if (popupVisible && frameHasContent && runtimeReady) {
+                        return {
+                            popupVisible,
+                            frameHasContent,
+                            runtimeReady
+                        };
+                    }
+                    await new Promise((resolve) => setTimeout(resolve, 100));
+                }
+
+                const popup = document.getElementById('wikiPopup');
+                const frame = document.getElementById('wikiPopupFrame');
+                return {
+                    popupVisible: !!(popup && (popup.classList.contains('active') || window.getComputedStyle(popup).display !== 'none')),
+                    frameHasContent: !!(frame && ((frame.getAttribute('src') || '').trim() || (frame.getAttribute('srcdoc') || '').trim())),
+                    runtimeReady: !!(window.PopupManager && window.PopupViewer && window.PVUI && window.PVLoader)
+                };
+            };
+
+            const dashboardPopupState = await waitForPopupState();
 
             const afterDashboard = {
-                popupCalls: popupCalls.slice(),
+                runtimeBefore,
+                runtimeAfter: {
+                    popupManagerPresent: !!window.PopupManager,
+                    popupViewerPresent: !!window.PopupViewer,
+                    pvUiPresent: !!window.PVUI,
+                    pvLoaderPresent: !!window.PVLoader
+                },
                 newTabCalls: newTabCalls.slice(),
                 focusVisible: modal ? window.getComputedStyle(modal).display !== 'none' : false,
-                dashboardHandled
+                dashboardHandled,
+                popupVisible: dashboardPopupState.popupVisible,
+                frameHasContent: dashboardPopupState.frameHasContent,
+                popupTitle: document.getElementById('wikiPopupTitle')?.textContent || ''
             };
 
             if (modal) modal.style.display = 'none';
+            if (window.PopupManager?.closePopup) {
+                window.PopupManager.closePopup();
+            }
+            const frame = document.getElementById('wikiPopupFrame');
+            if (frame) {
+                frame.removeAttribute('srcdoc');
+                frame.src = '';
+            }
             const quickPinHandled = window.EveQuickPins._main.activateBookmarkPin({ targetId: linkId });
-            await new Promise((resolve) => setTimeout(resolve, 120));
+            const quickPinPopupState = await waitForPopupState();
 
             const afterQuickPin = {
-                popupCalls: popupCalls.slice(),
                 newTabCalls: newTabCalls.slice(),
                 focusVisible: modal ? window.getComputedStyle(modal).display !== 'none' : false,
-                quickPinHandled
+                quickPinHandled,
+                popupVisible: quickPinPopupState.popupVisible,
+                frameHasContent: quickPinPopupState.frameHasContent,
+                popupTitle: document.getElementById('wikiPopupTitle')?.textContent || ''
             };
 
             window.EveBookmarkClickBehavior.setDefaultMode(previousDefaultMode);
             window.open = originalWindowOpen;
-            if (window.PopupManager && originalPopupOpen) {
-                window.PopupManager.openPopup = originalPopupOpen;
-            } else if (originalPopupManager) {
-                window.PopupManager = originalPopupManager;
-            }
 
             return {
                 settingsOptions,
@@ -124,13 +163,23 @@ async function main() {
             `Expected dashboard bookmark handler to cancel default navigation, got: ${result.afterDashboard.dashboardHandled}`
         );
         assert(
-            result.afterDashboard.popupCalls.length === 1
-                && result.afterDashboard.popupCalls[0].url === 'https://example.com/internal-view-smoke',
-            `Expected dashboard click to open the in-site popup once, got: ${JSON.stringify(result.afterDashboard.popupCalls)}`
+            result.afterDashboard.runtimeAfter.popupManagerPresent
+                && result.afterDashboard.runtimeAfter.popupViewerPresent
+                && result.afterDashboard.runtimeAfter.pvUiPresent
+                && result.afterDashboard.runtimeAfter.pvLoaderPresent,
+            `Expected dashboard click to ensure the popup runtime is available, got: ${JSON.stringify(result.afterDashboard.runtimeAfter)}`
         );
         assert(
             result.afterDashboard.newTabCalls.length === 0,
             `Expected dashboard click to avoid window.open for internal mode, got: ${JSON.stringify(result.afterDashboard.newTabCalls)}`
+        );
+        assert(
+            result.afterDashboard.popupVisible === true && result.afterDashboard.frameHasContent === true,
+            `Expected dashboard click to show the in-site popup with content, got: ${JSON.stringify(result.afterDashboard)}`
+        );
+        assert(
+            result.afterDashboard.popupTitle === 'Internal View Smoke',
+            `Expected dashboard click to set the popup title, got: ${JSON.stringify(result.afterDashboard.popupTitle)}`
         );
         assert(
             result.afterDashboard.focusVisible === false,
@@ -141,12 +190,16 @@ async function main() {
             'Expected quick pin activation to succeed for the smoke bookmark'
         );
         assert(
-            result.afterQuickPin.popupCalls.length === 2,
-            `Expected quick pin activation to reuse the in-site popup flow, got: ${JSON.stringify(result.afterQuickPin.popupCalls)}`
-        );
-        assert(
             result.afterQuickPin.newTabCalls.length === 0,
             `Expected quick pin activation to avoid window.open for internal mode, got: ${JSON.stringify(result.afterQuickPin.newTabCalls)}`
+        );
+        assert(
+            result.afterQuickPin.popupVisible === true && result.afterQuickPin.frameHasContent === true,
+            `Expected quick pin activation to reuse the in-site popup flow, got: ${JSON.stringify(result.afterQuickPin)}`
+        );
+        assert(
+            result.afterQuickPin.popupTitle === 'Internal View Smoke',
+            `Expected quick pin activation to preserve the popup title, got: ${JSON.stringify(result.afterQuickPin.popupTitle)}`
         );
         assert(
             result.afterQuickPin.focusVisible === false,
