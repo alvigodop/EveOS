@@ -261,7 +261,8 @@ html[data-native-scheme="light"] {
 .category-card.links-collapsed > ul,
 .category-card.links-collapsed .bookmark-folder-root-group,
 .category-card.links-collapsed .v2-folder-root-container > div > ul,
-.category-card.links-collapsed .v2-folder-root-container > .manhwa-divider {
+.category-card.links-collapsed .v2-folder-root-container > .manhwa-divider,
+.category-card.links-collapsed .bookmark-folder-links {
     display: none;
 }
 

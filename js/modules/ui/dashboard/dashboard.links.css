@@ -227,11 +227,11 @@ li:hover .actions {
 }
 
 .bookmark-folder-group.subfolders-collapsed .bookmark-folder-subfolders {
-    display: none;
+    display: none !important;
 }
 
 .bookmark-folder-group.sublinks-collapsed .bookmark-folder-links {
-    display: none;
+    display: none !important;
 }
 
 .bookmark-folder-summary-edit-toggle.is-collapsed {
