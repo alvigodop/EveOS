@@ -36,7 +36,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         const reader = new FileReader();
         reader.onload = async (e) => {
             try {
-                const json = JSON.parse(e.target.result);
+                const json = ns.robustParseJson(e.target.result);
                 const dataStore = getDataStore();
 
                 if (json.metadata && json.bookmarks && json.library) {
@@ -127,7 +127,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         const reader = new FileReader();
         reader.onload = async (e) => {
             try {
-                const json = JSON.parse(e.target.result);
+                const json = ns.robustParseJson(e.target.result);
                 const isWorkspace = json.metadata?.type === 'workspace';
                 const success = isWorkspace && dataStore ? dataStore.applyWorkspaceState(json) : false;
                 if (success) {
@@ -150,7 +150,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         const reader = new FileReader();
         reader.onload = async (e) => {
             try {
-                const json = JSON.parse(e.target.result);
+                const json = ns.robustParseJson(e.target.result);
                 const isCard = json.metadata?.type === 'card';
                 const success = isCard && dataStore?.applyCardState ? dataStore.applyCardState(json) : false;
                 if (success) {
@@ -173,7 +173,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         const reader = new FileReader();
         reader.onload = async (e) => {
             try {
-                const json = JSON.parse(e.target.result);
+                const json = ns.robustParseJson(e.target.result);
                 const isBookmark = json.metadata?.type === 'bookmark';
                 const success = isBookmark && dataStore?.applyBookmarkState ? dataStore.applyBookmarkState(json) : false;
                 if (success) {
@@ -196,7 +196,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         const reader = new FileReader();
         reader.onload = async (e) => {
             try {
-                const json = JSON.parse(e.target.result);
+                const json = ns.robustParseJson(e.target.result);
                 const isFolder = json.metadata?.type === 'folder';
                 const success = isFolder && dataStore?.applyFolderState ? dataStore.applyFolderState(json) : false;
                 if (success) {

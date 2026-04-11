@@ -376,6 +376,22 @@ window.EveDataTransfer = window.EveDataTransfer || {};
     window.refreshBookmarkBackupList = refreshBookmarkBackupList;
     window.refreshFolderBackupList = refreshFolderBackupList;
 
+    function robustParseJson(text) {
+        if (typeof text !== 'string') return null;
+        try {
+            return JSON.parse(text);
+        } catch (err) {
+            try {
+                // Attempt to repair common "dirty" JSON issues
+                // 1. Remove trailing commas in arrays/objects
+                let repaired = text.replace(/,(\s*[\]}])/g, '$1');
+                return JSON.parse(repaired);
+            } catch (innerErr) {
+                throw err;
+            }
+        }
+    }
+
     Object.assign(ns, {
         getDataStore,
         getAppConfig,
@@ -401,7 +417,8 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         refreshCardBackupList,
         refreshBookmarkBackupList,
         refreshFolderBackupList,
-        refreshWorkspaceBackupList
+        refreshWorkspaceBackupList,
+        robustParseJson
     });
     ns.sharedReady = true;
 })();

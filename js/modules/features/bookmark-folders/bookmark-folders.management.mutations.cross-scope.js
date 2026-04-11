@@ -150,6 +150,39 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         writeStore(nextStore, false);
     }
 
+    function transferCategoryFolders(sourceWs, sourceCat, targetWs, targetCat) {
+        const sWs = normalizeWorkspaceId(sourceWs);
+        const sCat = normalizeCategoryName(sourceCat);
+        const tWs = normalizeWorkspaceId(targetWs);
+        const tCat = normalizeCategoryName(targetCat);
+        if (sWs === tWs && sCat === tCat) return;
+
+        const sourceKey = buildScopedKey(sWs, sCat);
+        const targetKey = buildScopedKey(tWs, tCat);
+        const nextStore = cloneStore();
+
+        const sourceTree = nextStore[sourceKey];
+        if (!sourceTree || !sourceTree.nodes || sourceTree.nodes.length === 0) return;
+
+        if (!nextStore[targetKey]) {
+            nextStore[targetKey] = sourceTree;
+        } else {
+            const targetTree = nextStore[targetKey];
+            const mergedSettings = normalizeTreeSettings({
+                clickBehaviorMode: sourceTree.settings?.clickBehaviorMode !== 'inherit'
+                    ? sourceTree.settings.clickBehaviorMode
+                    : targetTree.settings?.clickBehaviorMode
+            });
+            nextStore[targetKey] = {
+                nodes: dedupeNodes([...(targetTree.nodes || []), ...(sourceTree.nodes || [])]),
+                settings: mergedSettings
+            };
+        }
+
+        delete nextStore[sourceKey];
+        writeStore(nextStore, false);
+    }
+
     function moveWorkspaceTrees(sourceWorkspaceId, targetWorkspaceId) {
         const sourceWorkspace = normalizeWorkspaceId(sourceWorkspaceId);
         const targetWorkspace = normalizeWorkspaceId(targetWorkspaceId);

@@ -90,7 +90,18 @@ window.EveDataStore = window.EveDataStore || {};
             setConfig({ activeWorkspace: workspaceId });
         }
         const existingFolderTrees = getFolderTreesObject(getBookmarkFolders());
-        const incomingFolderTrees = filterFolderTreesByWorkspace(state.bookmarks?.folders, workspaceId);
+        let incomingFolderTrees = filterFolderTreesByWorkspace(state.bookmarks?.folders, workspaceId);
+        
+        // Fallback: If no trees found for target workspace, but backup has trees, remap them to target workspace
+        if (Object.keys(incomingFolderTrees).length === 0) {
+            const rawIncoming = getFolderTreesObject(state.bookmarks?.folders);
+            Object.entries(rawIncoming).forEach(([key, value]) => {
+                const parts = String(key).split('::');
+                const cat = parts.length > 1 ? parts.slice(1).join('::') : parts[0];
+                incomingFolderTrees[buildScopedCategoryKey(workspaceId, cat)] = value;
+            });
+        }
+
         const remainingFolderTrees = Object.fromEntries(
             Object.entries(existingFolderTrees).filter(([key]) => String(key || '').split('::', 1)[0] !== String(workspaceId))
         );
@@ -137,9 +148,18 @@ window.EveDataStore = window.EveDataStore || {};
         const existingFolderTrees = getFolderTreesObject(getBookmarkFolders());
         const nextFolderTrees = { ...existingFolderTrees };
         delete nextFolderTrees[targetScopedKey];
-        if (Object.prototype.hasOwnProperty.call(getFolderTreesObject(state.bookmarks?.folders), targetScopedKey)) {
-            nextFolderTrees[targetScopedKey] = state.bookmarks.folders[targetScopedKey];
+        
+        const incomingFolders = getFolderTreesObject(state.bookmarks?.folders);
+        if (Object.prototype.hasOwnProperty.call(incomingFolders, targetScopedKey)) {
+            nextFolderTrees[targetScopedKey] = incomingFolders[targetScopedKey];
+        } else {
+            // Fallback: If applying single card state and backup has exactly one tree, remap it to target card
+            const keys = Object.keys(incomingFolders);
+            if (keys.length === 1) {
+                nextFolderTrees[targetScopedKey] = incomingFolders[keys[0]];
+            }
         }
+
         setBookmarkFolders(nextFolderTrees);
         if (state.bookmarks && Object.prototype.hasOwnProperty.call(state.bookmarks, 'pins')) {
             replaceQuickPinsForCard(workspaceId, categoryName, Array.isArray(state.bookmarks?.pins) ? state.bookmarks.pins : []);

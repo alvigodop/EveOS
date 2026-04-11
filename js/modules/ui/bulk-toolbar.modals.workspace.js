@@ -167,16 +167,53 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
         }
 
         function applyBulkWorkspaceMove(workspaceId, categoryName) {
-            const targetWorkspaceId = String(workspaceId || '').trim();
-            const targetCategoryName = String(categoryName || '').trim();
+            const targetWorkspaceId = String(workspaceId || '').trim() || 'main';
+            const targetCategoryName = String(categoryName || '').trim() || 'Unsorted';
             if (!targetWorkspaceId || !targetCategoryName) return false;
 
+            const allLinks = getLinks();
+            const selectedLinks = allLinks.filter(link => getSelectedIds().has(toBulkId(link.id)));
+            if (selectedLinks.length === 0) return false;
+
+            // 1) Identify source scopes (workspace::category) and determine if we are moving whole cards
+            const sourceScopes = new Set();
+            selectedLinks.forEach(link => {
+                sourceScopes.add(`${link.workspace}::${link.category || 'Unsorted'}`);
+            });
+
+            const folderApi = window.EveBookmarkFolders;
+            sourceScopes.forEach(scope => {
+                const [sWs, sCat] = scope.split('::');
+
+                // Check if we are moving the "whole card" (or most of it)
+                // If we are, we transfer the entire folder tree.
+                const allLinksInSource = allLinks.filter(l => l.workspace === sWs && (l.category || 'Unsorted') === sCat);
+                const selectedLinksInSource = selectedLinks.filter(l => l.workspace === sWs && (l.category || 'Unsorted') === sCat);
+
+                if (allLinksInSource.length > 0 && selectedLinksInSource.length === allLinksInSource.length) {
+                    if (typeof folderApi?.transferCategoryFolders === 'function') {
+                        folderApi.transferCategoryFolders(sWs, sCat, targetWorkspaceId, targetCategoryName);
+                    }
+                }
+            });
+
+            // 2) Update links
             const syncLinked = window.EveLibrary?.ConnectionsAPI?.syncFromLink;
-            getLinks().forEach(link => {
-                if (!getSelectedIds().has(toBulkId(link.id))) return;
+            selectedLinks.forEach(link => {
                 link.workspace = targetWorkspaceId;
                 link.category = targetCategoryName;
-                window.EveBookmarkFolders?.clearLinkFolderAssignment?.(link);
+
+                // Check if the link's folder exists in the target scope.
+                // If it does (because we transferred the tree or it was already there), keep it.
+                // Otherwise, we must clear it to avoid broken references.
+                const folderId = link.folderId;
+                if (folderId && folderApi) {
+                    const folder = folderApi.getFolderById(targetWorkspaceId, targetCategoryName, folderId);
+                    if (!folder) {
+                        folderApi.clearLinkFolderAssignment(link);
+                    }
+                }
+
                 if (typeof syncLinked === 'function') {
                     syncLinked(link.id);
                 }
