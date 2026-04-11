@@ -80,14 +80,29 @@ window.EveDataTransfer = window.EveDataTransfer || {};
 
         const hasCardFile = !!(await getFileHandleIfExists(rootHandle, 'card.json'));
         const hasEntriesDir = !!(await getDirectoryHandleByAliases(rootHandle, ['entries', 'e']));
-        if (hasCardFile || hasEntriesDir) {
+        
+        // If neither special file/folder exists, check if there are ANY bookmark-like JSON files
+        let hasBookmarkFiles = false;
+        if (!hasCardFile && !hasEntriesDir) {
+            const directEntries = await listDirectoryEntries(rootHandle);
+            for (const { name, handle } of directEntries) {
+                if (handle.kind === 'file' && name.toLowerCase().endsWith('.json') && !name.startsWith('_') && name.toLowerCase() !== 'card.json' && name.toLowerCase() !== 'folder.json') {
+                    hasBookmarkFiles = true;
+                    break;
+                }
+            }
+        }
+
+        if (hasCardFile || hasEntriesDir || hasBookmarkFiles) {
             return [rootHandle];
         }
 
         const directCardFolders = [];
         const directEntries = await listDirectoryEntries(rootHandle);
-        for (const { handle } of directEntries) {
+        for (const { name, handle } of directEntries) {
             if (handle.kind !== 'directory') continue;
+            if (['state', 'knowledge', '_meta'].includes(name.toLowerCase())) continue;
+            
             const childHasCard = !!(await getFileHandleIfExists(handle, 'card.json'));
             const childHasEntries = !!(await getDirectoryHandleByAliases(handle, ['entries', 'e']));
             if (childHasCard || childHasEntries) {

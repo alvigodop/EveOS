@@ -118,15 +118,23 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             const directCardState = stateRoot ? await ns.readJsonFileIfExists(stateRoot, 'card-state.json') : null;
             if (directCardState?.metadata?.type === 'card') {
                 // Ensure we honor the selected workspace/category even for direct state files
-                directCardState.metadata.workspaceId = selectedWorkspaceId;
-                if (selectedCategoryName) {
-                    directCardState.metadata.categoryName = selectedCategoryName;
-                    if (Array.isArray(directCardState.bookmarks?.links)) {
-                        directCardState.bookmarks.links.forEach(l => {
-                            l.workspace = selectedWorkspaceId;
-                            l.category = selectedCategoryName;
-                        });
-                    }
+                const targetWorkspaceId = selectedWorkspaceId;
+                const targetCategoryName = selectedCategoryName || directCardState.metadata.categoryName || 'Unsorted';
+                
+                directCardState.metadata.workspaceId = targetWorkspaceId;
+                directCardState.metadata.categoryName = targetCategoryName;
+                
+                if (Array.isArray(directCardState.bookmarks?.links)) {
+                    directCardState.bookmarks.links.forEach(l => {
+                        l.workspace = targetWorkspaceId;
+                        l.category = targetCategoryName;
+                    });
+                }
+                if (Array.isArray(directCardState.library?.connections)) {
+                    directCardState.library.connections.forEach(c => {
+                        c.workspace = targetWorkspaceId;
+                        c.categoryName = targetCategoryName;
+                    });
                 }
                 
                 const ok = dataStore.applyCardState(directCardState);
@@ -145,17 +153,22 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             let chosen = parsedCards.find((card) => String(card.workspaceId) === selectedWorkspaceId && String(card.categoryName || '').toLowerCase() === String(selectedCategoryName || '').toLowerCase());
             if (!chosen) chosen = parsedCards.find((card) => String(card.workspaceId) === selectedWorkspaceId) || parsedCards[0];
             
-            // Force re-mapping to user selection
+            // Force re-mapping to user selection OR backup's identified name
+            const finalCategoryName = selectedCategoryName || chosen.categoryName || 'Unsorted';
+            
             chosen.workspaceId = selectedWorkspaceId;
-            if (selectedCategoryName) {
-                chosen.categoryName = selectedCategoryName;
-                if (Array.isArray(chosen.links)) chosen.links.forEach(l => {
+            chosen.categoryName = finalCategoryName;
+            
+            if (Array.isArray(chosen.links)) {
+                chosen.links.forEach(l => {
                     l.workspace = selectedWorkspaceId;
-                    l.category = selectedCategoryName;
+                    l.category = finalCategoryName;
                 });
-                if (Array.isArray(chosen.connections)) chosen.connections.forEach(c => {
+            }
+            if (Array.isArray(chosen.connections)) {
+                chosen.connections.forEach(c => {
                     c.workspace = selectedWorkspaceId;
-                    c.categoryName = selectedCategoryName;
+                    c.categoryName = finalCategoryName;
                 });
             }
 

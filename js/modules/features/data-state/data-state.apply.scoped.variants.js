@@ -181,6 +181,8 @@ window.EveDataStore = window.EveDataStore || {};
         const existingFolderTrees = getFolderTreesObject(getBookmarkFolders());
         const nextFolderTrees = { ...existingFolderTrees };
         
+        // Always explicitly set or delete the tree for this scoped key to prevent "bleeding" 
+        // from previous states or incorrect keys.
         if (incomingTree) {
             nextFolderTrees[targetScopedKey] = incomingTree;
         } else {
