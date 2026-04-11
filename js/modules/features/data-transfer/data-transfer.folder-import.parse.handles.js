@@ -127,6 +127,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         const categoryName = String(cardJson?.categoryName || cardJson?.name || cardJson?.title || defaults.categoryName || inferCategoryFromFolderName(cardFolderHandle.name, 'Unsorted')).trim() || 'Unsorted';
         const dataType = String(cardJson?.dataType || 'graphicNovels').trim() || 'graphicNovels';
         const bookmarkFolderName = String(cardJson?.bookmarkFolder || 'entries').trim() || 'entries';
+        
         let entriesHandle = await getDirectoryHandleIfExists(cardFolderHandle, bookmarkFolderName);
         if (!entriesHandle && !['entries', 'e'].includes(bookmarkFolderName)) {
             entriesHandle = await getDirectoryHandleByAliases(cardFolderHandle, ['entries', 'e']);
@@ -139,17 +140,47 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         const categoryEntries = [];
         const folderTreeNodes = [];
         const folderTreeSettings = normalizeTreeSettings({ clickBehaviorMode: cardJson?.clickBehaviorMode });
+        
+        // 1. Parse root entries
         await parseEntriesDirectory(entriesHandle, workspaceId, categoryName, links, connectionMap, categoryEntries, null);
 
-        const foldersHandle = await getDirectoryHandleByAliases(cardFolderHandle, ['folders', 'f']);
+        // 2. Discover and parse folders
+        let foldersHandle = await getDirectoryHandleByAliases(cardFolderHandle, ['folders', 'f']);
         if (foldersHandle) {
             await parseFolderTree(foldersHandle, workspaceId, categoryName, links, connectionMap, categoryEntries, folderTreeNodes, null);
+        } else {
+            // Heuristic fallback: Look for ANY subdirectories that look like folders (but aren't "entries" or internal dirs)
+            const allEntries = await listDirectoryEntries(cardFolderHandle);
+            for (const { name, handle } of allEntries) {
+                if (handle.kind !== 'directory') continue;
+                if (['entries', 'e', 'folders', 'f', 'state', 'knowledge', '_meta'].includes(name.toLowerCase())) continue;
+                
+                // If it contains folder.json or its own folders/entries subdirs, it's likely a bookmark folder
+                const isLikelyFolder = !!(await getFileHandleIfExists(handle, 'folder.json')) 
+                    || !!(await getDirectoryHandleByAliases(handle, ['entries', 'e', 'folders', 'f']));
+                
+                if (isLikelyFolder) {
+                    const folderJson = await readJsonFileIfExists(handle, 'folder.json');
+                    const node = normalizeFolderNode(folderJson, handle.name, null, folderTreeNodes.length + 1);
+                    folderTreeNodes.push(node);
+                    
+                    const subEntries = await getDirectoryHandleByAliases(handle, ['entries', 'e']);
+                    if (subEntries) {
+                        await parseEntriesDirectory(subEntries, workspaceId, categoryName, links, connectionMap, categoryEntries, node.id);
+                    }
+                    const subFolders = await getDirectoryHandleByAliases(handle, ['folders', 'f']);
+                    if (subFolders) {
+                        await parseFolderTree(subFolders, workspaceId, categoryName, links, connectionMap, categoryEntries, folderTreeNodes, node.id);
+                    }
+                }
+            }
         }
 
         const unlinkedPayload = await readJsonFileIfExists(cardFolderHandle, '_library-unlinked.json');
         if (Array.isArray(unlinkedPayload?.entries)) {
             unlinkedPayload.entries.forEach((entry) => categoryEntries.push({ ...(entry || {}) }));
         }
+        
         if (links.length === 0 && folderTreeNodes.length === 0 && categoryEntries.length === 0 && folderTreeSettings.clickBehaviorMode === 'inherit') {
             links.push(makePlaceholderBookmark(workspaceId, categoryName));
         }

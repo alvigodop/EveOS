@@ -44,17 +44,22 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         try {
             const rootHandle = await pickDirectory({ mode: 'read' });
             if (!(await confirmDialog('Restore tab from selected folder? (Overwrites selected tab workspace)'))) return;
+            
+            const appConfig = typeof ns.getAppConfig === 'function' ? ns.getAppConfig() : {};
+            const selectedWorkspaceId = String(ns.getWorkspaceSelect?.()?.value || appConfig.activeWorkspace || '').trim() || 'main';
+
             const stateRoot = await ns.getDirectoryHandleIfExists(rootHandle, 'state');
             const directWorkspaceState = stateRoot ? await ns.readJsonFileIfExists(stateRoot, 'workspace-state.json') : null;
             if (directWorkspaceState?.metadata?.type === 'workspace') {
+                // Ensure we honor the selected workspace even for direct state files
+                directWorkspaceState.metadata.workspaceId = selectedWorkspaceId;
                 const ok = dataStore.applyWorkspaceState(directWorkspaceState);
                 if (!ok) return showToast('Tab folder restore could not be applied.', 'error');
                 showToast('Tab folder restored!', 'success');
                 location.reload();
                 return;
             }
-            const appConfig = typeof ns.getAppConfig === 'function' ? ns.getAppConfig() : {};
-            const selectedWorkspaceId = String(ns.getWorkspaceSelect?.()?.value || appConfig.activeWorkspace || '').trim() || 'main';
+
             const tabFolders = await ns.resolveTabFoldersFromRoot(rootHandle);
             if (!tabFolders.length) throw new Error('No tab folder found in selected location.');
             const parsedTabs = [];
@@ -63,6 +68,10 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             }
             let chosen = parsedTabs.find((tab) => String(tab.workspaceId) === selectedWorkspaceId);
             if (!chosen) chosen = parsedTabs[0];
+            
+            // Force re-mapping to user selection
+            chosen.workspaceId = selectedWorkspaceId;
+
             const workspaceState = ns.buildUnifiedStateFromParsed([chosen], {
                 metadataType: 'workspace',
                 config: { activeWorkspace: chosen.workspaceId },
@@ -89,18 +98,25 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         try {
             const rootHandle = await pickDirectory({ mode: 'read' });
             if (!(await confirmDialog('Restore card from selected folder? (Overwrites selected workspace/card)'))) return;
+
+            const appConfig = typeof ns.getAppConfig === 'function' ? ns.getAppConfig() : {};
+            const selectedWorkspaceId = String(ns.getCardWorkspaceSelect?.()?.value || appConfig.activeWorkspace || '').trim() || 'main';
+            const selectedCategoryName = String(ns.getCardCategorySelect?.()?.value || '').trim();
+
             const stateRoot = await ns.getDirectoryHandleIfExists(rootHandle, 'state');
             const directCardState = stateRoot ? await ns.readJsonFileIfExists(stateRoot, 'card-state.json') : null;
             if (directCardState?.metadata?.type === 'card') {
+                // Ensure we honor the selected workspace/category even for direct state files
+                directCardState.metadata.workspaceId = selectedWorkspaceId;
+                if (selectedCategoryName) directCardState.metadata.categoryName = selectedCategoryName;
+                
                 const ok = dataStore.applyCardState(directCardState);
                 if (!ok) return showToast('Card folder restore could not be applied.', 'error');
                 showToast('Card folder restored!', 'success');
                 location.reload();
                 return;
             }
-            const appConfig = typeof ns.getAppConfig === 'function' ? ns.getAppConfig() : {};
-            const selectedWorkspaceId = String(ns.getCardWorkspaceSelect?.()?.value || appConfig.activeWorkspace || '').trim() || 'main';
-            const selectedCategoryName = String(ns.getCardCategorySelect?.()?.value || '').trim();
+
             const cardFolders = await ns.resolveCardFoldersFromRoot(rootHandle);
             if (!cardFolders.length) throw new Error('No card folder found in selected location.');
             const parsedCards = [];
@@ -109,6 +125,11 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             }
             let chosen = parsedCards.find((card) => String(card.workspaceId) === selectedWorkspaceId && String(card.categoryName || '').toLowerCase() === String(selectedCategoryName || '').toLowerCase());
             if (!chosen) chosen = parsedCards.find((card) => String(card.workspaceId) === selectedWorkspaceId) || parsedCards[0];
+            
+            // Force re-mapping to user selection
+            chosen.workspaceId = selectedWorkspaceId;
+            if (selectedCategoryName) chosen.categoryName = selectedCategoryName;
+
             const workspaceMeta = typeof ns.getWorkspaceMeta === 'function' ? ns.getWorkspaceMeta(chosen.workspaceId) : { id: chosen.workspaceId, name: chosen.workspaceId, icon: 'folder' };
             const tabLike = { workspaceId: chosen.workspaceId, workspaceName: workspaceMeta.name, workspaceIcon: workspaceMeta.icon, parsedCards: [chosen] };
             const cardState = ns.buildUnifiedStateFromParsed([tabLike], {
@@ -138,19 +159,18 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         if (!dataStore?.applyFolderState) return showToast('Folder restore is unavailable right now.', 'error');
         try {
             const rootHandle = await pickDirectory({ mode: 'read' });
-            if (!(await confirmDialog('Restore folder subtree from selected folder? (Overwrites matching folder subtree)'))) return;
+            if (!(await confirmDialog('Restore folder subtree from selected folder? (Overwrites the matching folder subtree)'))) return;
+            
             const stateRoot = await ns.getDirectoryHandleIfExists(rootHandle, 'state');
             let folderState = stateRoot ? await ns.readJsonFileIfExists(stateRoot, 'folder-state.json') : null;
             
             if (!folderState || folderState?.metadata?.type !== 'folder') {
-                // Try parsing folder structure directly from the selected folder (datapack style)
+                // Datapack style backup
                 const appConfig = typeof ns.getAppConfig === 'function' ? ns.getAppConfig() : {};
                 const selectedWorkspaceId = String(ns.getFolderWorkspaceSelect?.()?.value || appConfig.activeWorkspace || '').trim() || 'main';
                 const selectedCategoryName = String(ns.getFolderCategorySelect?.()?.value || '').trim() || 'Unsorted';
                 const selectedFolderId = String(ns.getFolderSelect?.()?.value || '').trim();
                 
-                // We need to parse this as a card first to extract the folder tree, 
-                // then slice out the subtree if we have a target folder ID.
                 const card = await ns.parseCardFolderHandle(rootHandle, { 
                     workspaceId: selectedWorkspaceId, 
                     categoryName: selectedCategoryName 
@@ -168,8 +188,21 @@ window.EveDataTransfer = window.EveDataTransfer || {};
                     activeWorkspace: card.workspaceId
                 });
 
-                // If user selected a specific target folder in UI, we use that as the anchor
-                const targetFolderId = selectedFolderId || card.folderTree.nodes[0].id;
+                // If user selected a specific target folder in UI, we use that as the anchor.
+                // Otherwise, we take the first top-level folder found in the backup.
+                const targetFolderId = selectedFolderId || card.folderTree.nodes.find(n => !n.parentId)?.id || card.folderTree.nodes[0].id;
+                
+                // CRITICAL: Filter links to ONLY those within the target subtree to prevent bleeding to root
+                const subtreeIds = new Set([targetFolderId]);
+                let size;
+                do {
+                    size = subtreeIds.size;
+                    card.folderTree.nodes.forEach(node => {
+                        if (node.parentId && subtreeIds.has(node.parentId)) subtreeIds.add(node.id);
+                    });
+                } while (subtreeIds.size > size);
+
+                fullCardState.bookmarks.links = fullCardState.bookmarks.links.filter(l => l.folderId && subtreeIds.has(l.folderId));
                 
                 folderState = fullCardState;
                 folderState.metadata.type = 'folder';
