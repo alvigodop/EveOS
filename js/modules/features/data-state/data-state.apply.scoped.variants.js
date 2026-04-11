@@ -87,7 +87,22 @@ window.EveDataStore = window.EveDataStore || {};
         }
 
         if (state.bookmarks?.config) {
-            setConfig({ activeWorkspace: workspaceId });
+            const nextConfig = { activeWorkspace: workspaceId };
+            // If backup contains a category order for this specific workspace, restore it
+            const orderStore = state.bookmarks.config.categoryOrderByWorkspace;
+            if (orderStore && typeof orderStore === 'object' && orderStore[workspaceId]) {
+                if (window.EveCategoryOrder?.getOrder) {
+                    const order = window.EveCategoryOrder.getOrder(workspaceId, { persist: true });
+                    // Merge/Replace order
+                    const incomingOrder = Array.isArray(orderStore[workspaceId]) ? orderStore[workspaceId] : [];
+                    if (incomingOrder.length > 0) {
+                        const configStore = window.eveState?.config?.categoryOrderByWorkspace || {};
+                        configStore[workspaceId] = incomingOrder;
+                        if (window.eveState?.config) window.eveState.config.categoryOrderByWorkspace = configStore;
+                    }
+                }
+            }
+            setConfig(nextConfig);
         }
         const existingFolderTrees = getFolderTreesObject(getBookmarkFolders());
         let incomingFolderTrees = filterFolderTreesByWorkspace(state.bookmarks?.folders, workspaceId);
@@ -152,12 +167,14 @@ window.EveDataStore = window.EveDataStore || {};
                     workspace: workspaceId,
                     category: categoryName
                 };
-                
-                // If we are remapping from a different category, we must ensure folderId links remain valid.
-                // Since we are remapping the whole folder tree too, the IDs should match.
                 return normalized;
             });
             setLinks(remaining.concat(incoming));
+        }
+
+        // Ensure the category is registered in the workspace layout
+        if (window.EveCategoryOrder?.ensureCategory) {
+            window.EveCategoryOrder.ensureCategory(workspaceId, categoryName);
         }
 
         setConfig({ activeWorkspace: workspaceId });

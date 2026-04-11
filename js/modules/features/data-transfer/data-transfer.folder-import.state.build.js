@@ -12,6 +12,9 @@ window.EveDataTransfer = window.EveDataTransfer || {};
     const getWorkspaceMeta = ns.getWorkspaceMeta;
 
     function buildScopedCategoryKey(workspaceId, categoryName) {
+        if (window.EveBookmarkFolders?.buildScopedKey) {
+            return window.EveBookmarkFolders.buildScopedKey(workspaceId, categoryName);
+        }
         const ws = String(workspaceId || 'main').trim() || 'main';
         const cat = String(categoryName || 'Unsorted').trim() || 'Unsorted';
         return `${ws}::${cat}`;

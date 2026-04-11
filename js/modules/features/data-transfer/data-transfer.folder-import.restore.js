@@ -53,10 +53,13 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             if (directWorkspaceState?.metadata?.type === 'workspace') {
                 // Ensure we honor the selected workspace even for direct state files
                 directWorkspaceState.metadata.workspaceId = selectedWorkspaceId;
+                if (Array.isArray(directWorkspaceState.bookmarks?.links)) {
+                    directWorkspaceState.bookmarks.links.forEach(l => l.workspace = selectedWorkspaceId);
+                }
                 const ok = dataStore.applyWorkspaceState(directWorkspaceState);
                 if (!ok) return showToast('Tab folder restore could not be applied.', 'error');
                 showToast('Tab folder restored!', 'success');
-                location.reload();
+                setTimeout(() => location.reload(), 500);
                 return;
             }
 
@@ -71,6 +74,13 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             
             // Force re-mapping to user selection
             chosen.workspaceId = selectedWorkspaceId;
+            if (Array.isArray(chosen.parsedCards)) {
+                chosen.parsedCards.forEach(card => {
+                    card.workspaceId = selectedWorkspaceId;
+                    if (Array.isArray(card.links)) card.links.forEach(l => l.workspace = selectedWorkspaceId);
+                    if (Array.isArray(card.connections)) card.connections.forEach(c => c.workspace = selectedWorkspaceId);
+                });
+            }
 
             const workspaceState = ns.buildUnifiedStateFromParsed([chosen], {
                 metadataType: 'workspace',
@@ -83,8 +93,9 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             const ok = dataStore.applyWorkspaceState(workspaceState);
             if (!ok) return showToast('Tab folder restore could not be applied.', 'error');
             showToast('Tab folder restored!', 'success');
-            location.reload();
+            setTimeout(() => location.reload(), 500);
         } catch (error) {
+            console.error('[DataTransfer] Workspace restore failed:', error);
             if (error?.name === 'AbortError') return showToast('Tab folder restore canceled.', 'info');
             showToast(`Tab folder restore failed: ${error.message || error}`, 'error');
         }
@@ -108,12 +119,20 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             if (directCardState?.metadata?.type === 'card') {
                 // Ensure we honor the selected workspace/category even for direct state files
                 directCardState.metadata.workspaceId = selectedWorkspaceId;
-                if (selectedCategoryName) directCardState.metadata.categoryName = selectedCategoryName;
+                if (selectedCategoryName) {
+                    directCardState.metadata.categoryName = selectedCategoryName;
+                    if (Array.isArray(directCardState.bookmarks?.links)) {
+                        directCardState.bookmarks.links.forEach(l => {
+                            l.workspace = selectedWorkspaceId;
+                            l.category = selectedCategoryName;
+                        });
+                    }
+                }
                 
                 const ok = dataStore.applyCardState(directCardState);
                 if (!ok) return showToast('Card folder restore could not be applied.', 'error');
                 showToast('Card folder restored!', 'success');
-                location.reload();
+                setTimeout(() => location.reload(), 500);
                 return;
             }
 
@@ -128,7 +147,17 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             
             // Force re-mapping to user selection
             chosen.workspaceId = selectedWorkspaceId;
-            if (selectedCategoryName) chosen.categoryName = selectedCategoryName;
+            if (selectedCategoryName) {
+                chosen.categoryName = selectedCategoryName;
+                if (Array.isArray(chosen.links)) chosen.links.forEach(l => {
+                    l.workspace = selectedWorkspaceId;
+                    l.category = selectedCategoryName;
+                });
+                if (Array.isArray(chosen.connections)) chosen.connections.forEach(c => {
+                    c.workspace = selectedWorkspaceId;
+                    c.categoryName = selectedCategoryName;
+                });
+            }
 
             const workspaceMeta = typeof ns.getWorkspaceMeta === 'function' ? ns.getWorkspaceMeta(chosen.workspaceId) : { id: chosen.workspaceId, name: chosen.workspaceId, icon: 'folder' };
             const tabLike = { workspaceId: chosen.workspaceId, workspaceName: workspaceMeta.name, workspaceIcon: workspaceMeta.icon, parsedCards: [chosen] };
@@ -145,8 +174,9 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             const ok = dataStore.applyCardState(cardState);
             if (!ok) return showToast('Card folder restore could not be applied.', 'error');
             showToast('Card folder restored!', 'success');
-            location.reload();
+            setTimeout(() => location.reload(), 500);
         } catch (error) {
+            console.error('[DataTransfer] Card restore failed:', error);
             if (error?.name === 'AbortError') return showToast('Card folder restore canceled.', 'info');
             showToast(`Card folder restore failed: ${error.message || error}`, 'error');
         }

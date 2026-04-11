@@ -89,6 +89,7 @@
     function buildScopedCategoryKey(workspaceId, categoryName) {
         const stateModule = window.EveLibrary?.State;
         if (stateModule?.buildScopedCategoryKey) {
+            // Note: EveLibrary.State.buildScopedCategoryKey uses (categoryName, workspaceId)
             return stateModule.buildScopedCategoryKey(categoryName, workspaceId);
         }
         const ws = String(workspaceId || 'main').trim() || 'main';
