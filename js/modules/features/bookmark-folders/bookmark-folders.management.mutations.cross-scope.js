@@ -150,11 +150,13 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         writeStore(nextStore, false);
     }
 
-    function transferCategoryFolders(sourceWs, sourceCat, targetWs, targetCat) {
+    function transferCategoryFolders(sourceWs, sourceCat, targetWs, targetCat, options = {}) {
         const sWs = normalizeWorkspaceId(sourceWs);
         const sCat = normalizeCategoryName(sourceCat);
         const tWs = normalizeWorkspaceId(targetWs);
         const tCat = normalizeCategoryName(targetCat);
+        const mergeOnly = !!options.mergeOnly;
+        
         if (sWs === tWs && sCat === tCat) return;
 
         const sourceKey = buildScopedKey(sWs, sCat);
@@ -165,7 +167,11 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         if (!sourceTree || !sourceTree.nodes || sourceTree.nodes.length === 0) return;
 
         if (!nextStore[targetKey]) {
-            nextStore[targetKey] = sourceTree;
+            // Clone the nodes to ensure they are separate objects
+            nextStore[targetKey] = {
+                nodes: sourceTree.nodes.map(n => ({ ...n })),
+                settings: normalizeTreeSettings({ ...sourceTree.settings })
+            };
         } else {
             const targetTree = nextStore[targetKey];
             const mergedSettings = normalizeTreeSettings({
@@ -174,12 +180,14 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
                     : targetTree.settings?.clickBehaviorMode
             });
             nextStore[targetKey] = {
-                nodes: dedupeNodes([...(targetTree.nodes || []), ...(sourceTree.nodes || [])]),
+                nodes: dedupeNodes([...(targetTree.nodes || []), ...(sourceTree.nodes || []).map(n => ({ ...n }))]),
                 settings: mergedSettings
             };
         }
 
-        delete nextStore[sourceKey];
+        if (!mergeOnly) {
+            delete nextStore[sourceKey];
+        }
         writeStore(nextStore, false);
     }
 
@@ -217,6 +225,7 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         transferFolderToCategory,
         renameCategoryEverywhere,
         deleteCategoryEverywhere,
+        transferCategoryFolders,
         moveWorkspaceTrees
     });
 

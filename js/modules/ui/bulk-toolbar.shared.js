@@ -86,6 +86,28 @@ window.bulkLastToggledId = bulkLastToggledId;
         return normalized.length > 0 && normalized.every((id) => selectedIds.has(id));
     }
 
+    function getScopeLinkIdsForCard(categoryName, workspaceId) {
+        return getLinks()
+            .filter((link) => String(link?.workspace || '').trim() === String(workspaceId || '').trim())
+            .filter((link) => String(link?.category || 'Unsorted').trim() === String(categoryName || 'Unsorted').trim())
+            .map((link) => String(link.id));
+    }
+
+    function getScopeLinkIdsForFolder(categoryName, workspaceId, folderId) {
+        if (!folderId) {
+            return getLinks()
+                .filter((link) => String(link?.workspace || '').trim() === String(workspaceId || '').trim())
+                .filter((link) => String(link?.category || 'Unsorted').trim() === String(categoryName || 'Unsorted').trim())
+                .filter((link) => !String(link?.folderId || '').trim())
+                .map((link) => String(link.id));
+        }
+        const folderApi = window.EveFolderViewV2;
+        if (folderApi?.getFolderScopedLinkIds) {
+            return folderApi.getFolderScopedLinkIds(workspaceId, categoryName, folderId);
+        }
+        return [];
+    }
+
     function toggleScopeSelection(ids) {
         const normalized = Array.from(new Set((Array.isArray(ids) ? ids : []).map(toBulkId).filter(Boolean)));
         if (!normalized.length) return selectedIds;
@@ -100,9 +122,39 @@ window.bulkLastToggledId = bulkLastToggledId;
     function updateBulkUI() {
         const el = document.getElementById('bulk-count');
         if (el) el.innerText = `${selectedIds.size} Selected`;
+        
+        // 1. Update individual checkboxes
         document.querySelectorAll('.bulk-check[data-bulk-id]').forEach((checkbox) => {
             const bulkId = toBulkId(checkbox.getAttribute('data-bulk-id'));
             checkbox.checked = selectedIds.has(bulkId);
+        });
+
+        // 2. Update scope toggle buttons (Card/Folder selectors)
+        document.querySelectorAll('.bulk-scope-btn[data-scope-category]').forEach((btn) => {
+            const cat = btn.getAttribute('data-scope-category');
+            const ws = btn.getAttribute('data-scope-workspace');
+            const fid = btn.getAttribute('data-scope-folder-id'); // null for card root
+            
+            const scopeIds = fid 
+                ? getScopeLinkIdsForFolder(cat, ws, fid)
+                : getScopeLinkIdsForCard(cat, ws);
+            
+            const isFullySelected = areAllIdsSelected(scopeIds);
+            const symbol = isFullySelected ? '&#9745;' : '&#9744;';
+            
+            // Update the symbol part of the button
+            if (btn.tagName === 'BUTTON' && btn.childNodes.length > 0) {
+                // If it has text (e.g. "Select Card"), we only update the first text node or the icon part
+                const iconNode = Array.from(btn.childNodes).find(n => n.nodeType === 3 || (n.nodeType === 1 && n.tagName !== 'SPAN'));
+                if (iconNode) {
+                    if (iconNode.nodeType === 3) iconNode.textContent = isFullySelected ? '\u2611' : '\u2610';
+                    else iconNode.innerHTML = symbol;
+                } else {
+                    btn.innerHTML = symbol + (btn.querySelector('span') ? btn.querySelector('span').outerHTML : '');
+                }
+            } else {
+                btn.innerHTML = symbol;
+            }
         });
     }
 
@@ -191,6 +243,8 @@ window.bulkLastToggledId = bulkLastToggledId;
         setLastToggledId,
         getLastToggledId,
         updateBulkUI,
+        getScopeLinkIdsForCard,
+        getScopeLinkIdsForFolder,
         getAllCategoryNames,
         getVisibleDashboardCategoryNames,
         escapeBulkMoveHtml,

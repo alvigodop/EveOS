@@ -186,7 +186,7 @@ window.DashboardCategories = window.DashboardCategories || {};
         var headerButtonsHtml = isFocusMode
             ? ''
                 + '<div class="focus-card-controls">'
-                    + '<button class="category-action-btn bulk-scope-btn" onclick="bulkToggleCardScopeSelection(\'' + safeCatJs + '\', \'' + escapeCardJs(activeWorkspaceId) + '\')" title="Select all bookmarks in this card">&#9745; <span>Select Card</span></button>'
+                    + '<button class="category-action-btn bulk-scope-btn" data-scope-category="' + safeCatHtml + '" data-scope-workspace="' + escapeCardJs(activeWorkspaceId) + '" onclick="bulkToggleCardScopeSelection(\'' + safeCatJs + '\', \'' + escapeCardJs(activeWorkspaceId) + '\')" title="Select all bookmarks in this card">&#9744; <span>Select Card</span></button>'
                     + (!isDetachedParkingCard && visibleHeaderButtons.has('add')
                         ? '<button class="category-action-btn" onclick="openAddModal(\'' + safeCatJs + '\')" title="Add Bookmark">&#10133; <span>Add</span></button>'
                         : '')
@@ -228,7 +228,7 @@ window.DashboardCategories = window.DashboardCategories || {};
                 + '</div>'
             : ''
                 + '<div class="card-header-icon-row" onwheel="handleCardHeaderIconRowWheel(event)">'
-                    + '<button class="card-header-icon-btn bulk-scope-btn" onclick="bulkToggleCardScopeSelection(\'' + safeCatJs + '\', \'' + escapeCardJs(activeWorkspaceId) + '\')" title="Select Card">&#9745;</button>'
+                    + '<button class="card-header-icon-btn bulk-scope-btn" data-scope-category="' + safeCatHtml + '" data-scope-workspace="' + escapeCardJs(activeWorkspaceId) + '" onclick="bulkToggleCardScopeSelection(\'' + safeCatJs + '\', \'' + escapeCardJs(activeWorkspaceId) + '\')" title="Select Card">&#9744;</button>'
                     + nonFocusButtons.join('')
                 + '</div>';
 

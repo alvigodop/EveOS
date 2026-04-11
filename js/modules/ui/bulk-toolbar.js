@@ -47,35 +47,6 @@ window.EveBulkToolbar = window.EveBulkToolbar || {};
         updateBulkUI();
     }
 
-    function getVisibleBulkCheckboxes() {
-        return Array.from(document.querySelectorAll('.bulk-check[data-bulk-id]')).filter((checkbox) => {
-            if (!(checkbox instanceof HTMLInputElement)) return false;
-            return !!checkbox.offsetParent;
-        });
-    }
-
-    function applyRangeSelection(currentId, shouldSelect) {
-        const anchorId = getLastToggledId();
-        const bulkId = toBulkId(currentId);
-        if (!anchorId || !bulkId) return false;
-
-        const visibleIds = getVisibleBulkCheckboxes()
-            .map((checkbox) => toBulkId(checkbox.getAttribute('data-bulk-id')))
-            .filter(Boolean);
-        const anchorIndex = visibleIds.indexOf(anchorId);
-        const currentIndex = visibleIds.indexOf(bulkId);
-        if (anchorIndex < 0 || currentIndex < 0) return false;
-
-        const start = Math.min(anchorIndex, currentIndex);
-        const end = Math.max(anchorIndex, currentIndex);
-        const rangeIds = visibleIds.slice(start, end + 1);
-        if (!rangeIds.length) return false;
-
-        if (shouldSelect) addSelectedIds(rangeIds);
-        else removeSelectedIds(rangeIds);
-        return true;
-    }
-
     function toggleSelectAction(checkboxOrId, idOrEvent, maybeEvent) {
         const checkbox = checkboxOrId instanceof HTMLInputElement ? checkboxOrId : null;
         const id = checkbox ? idOrEvent : checkboxOrId;
@@ -94,28 +65,8 @@ window.EveBulkToolbar = window.EveBulkToolbar || {};
         updateBulkUI();
     }
 
-    function getSelectedLinkIds() {
-        return getSelectedLinks()
-            .map((link) => String(link.id));
-    }
-
-    function getScopeLinkIdsForCard(categoryName, workspaceId) {
-        return getLinks()
-            .filter((link) => String(link?.workspace || '').trim() === String(workspaceId || '').trim())
-            .filter((link) => String(link?.category || 'Unsorted').trim() === String(categoryName || 'Unsorted').trim())
-            .map((link) => String(link.id));
-    }
-
-    function getScopeLinkIdsForFolder(categoryName, workspaceId, folderId) {
-        const folderApi = window.EveFolderViewV2;
-        if (folderApi?.getFolderScopedLinkIds) {
-            return folderApi.getFolderScopedLinkIds(workspaceId, categoryName, folderId);
-        }
-        return [];
-    }
-
     function toggleCardScopeSelection(categoryName, workspaceId) {
-        const linkIds = getScopeLinkIdsForCard(categoryName, workspaceId);
+        const linkIds = ns.getScopeLinkIdsForCard ? ns.getScopeLinkIdsForCard(categoryName, workspaceId) : [];
         if (!linkIds.length) {
             showToast('No bookmarks found in this card.', 'info');
             return;
@@ -125,13 +76,7 @@ window.EveBulkToolbar = window.EveBulkToolbar || {};
     }
 
     function toggleFolderScopeSelection(categoryName, workspaceId, folderId) {
-        const linkIds = folderId
-            ? getScopeLinkIdsForFolder(categoryName, workspaceId, folderId)
-            : getLinks()
-                .filter((link) => String(link?.workspace || '').trim() === String(workspaceId || '').trim())
-                .filter((link) => String(link?.category || 'Unsorted').trim() === String(categoryName || 'Unsorted').trim())
-                .filter((link) => !String(link?.folderId || '').trim())
-                .map((link) => String(link.id));
+        const linkIds = ns.getScopeLinkIdsForFolder ? ns.getScopeLinkIdsForFolder(categoryName, workspaceId, folderId) : [];
         if (!linkIds.length) {
             showToast(folderId ? 'No bookmarks found in this folder subtree.' : 'No root bookmarks found in this card.', 'info');
             return;

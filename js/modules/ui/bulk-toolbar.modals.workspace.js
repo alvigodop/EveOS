@@ -175,7 +175,7 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
             const selectedLinks = allLinks.filter(link => getSelectedIds().has(toBulkId(link.id)));
             if (selectedLinks.length === 0) return false;
 
-            // 1) Identify source scopes (workspace::category) and determine if we are moving whole cards
+            // 1) Identify source scopes (workspace::category)
             const sourceScopes = new Set();
             selectedLinks.forEach(link => {
                 sourceScopes.add(`${link.workspace}::${link.category || 'Unsorted'}`);
@@ -185,15 +185,17 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
             sourceScopes.forEach(scope => {
                 const [sWs, sCat] = scope.split('::');
 
-                // Check if we are moving the "whole card" (or most of it)
-                // If we are, we transfer the entire folder tree.
+                // Check if we are moving the "whole card"
                 const allLinksInSource = allLinks.filter(l => l.workspace === sWs && (l.category || 'Unsorted') === sCat);
                 const selectedLinksInSource = selectedLinks.filter(l => l.workspace === sWs && (l.category || 'Unsorted') === sCat);
+                const isWholeCardMove = allLinksInSource.length > 0 && selectedLinksInSource.length === allLinksInSource.length;
 
-                if (allLinksInSource.length > 0 && selectedLinksInSource.length === allLinksInSource.length) {
-                    if (typeof folderApi?.transferCategoryFolders === 'function') {
-                        folderApi.transferCategoryFolders(sWs, sCat, targetWorkspaceId, targetCategoryName);
-                    }
+                if (typeof folderApi?.transferCategoryFolders === 'function') {
+                    // Always ensure target has the folder structure. 
+                    // If it's a partial move, we keep it in source too (mergeOnly: true).
+                    folderApi.transferCategoryFolders(sWs, sCat, targetWorkspaceId, targetCategoryName, {
+                        mergeOnly: !isWholeCardMove 
+                    });
                 }
             });
 
@@ -204,8 +206,6 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
                 link.category = targetCategoryName;
 
                 // Check if the link's folder exists in the target scope.
-                // If it does (because we transferred the tree or it was already there), keep it.
-                // Otherwise, we must clear it to avoid broken references.
                 const folderId = link.folderId;
                 if (folderId && folderApi) {
                     const folder = folderApi.getFolderById(targetWorkspaceId, targetCategoryName, folderId);
@@ -220,7 +220,6 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
             });
             return true;
         }
-
         function confirmBulkTabMove() {
             const movedCount = getSelectedIds().size;
             const target = resolveBulkWorkspaceTarget();
