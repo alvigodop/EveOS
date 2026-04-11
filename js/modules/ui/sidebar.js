@@ -34,6 +34,42 @@ function renderSidebar() {
     // --- Collapse state ---
     if (!Array.isArray(config.collapsedTabs)) config.collapsedTabs = [];
 
+    const helpers = window.EveWorkspaceHelpers;
+
+    // --- Drag-and-drop helpers ---
+    function isDescendantOf(dragId, targetId) {
+        if (!helpers) return false;
+        const target = helpers.findById(config.workspaces, targetId);
+        if (!target) return false;
+        return helpers.getDescendantIds(target).includes(dragId);
+    }
+
+    function moveWorkspaceToParent(dragId, targetParentId) {
+        if (dragId === targetParentId) return;
+        if (isDescendantOf(targetParentId, dragId)) return; // prevent circular
+        const dragNode = helpers.findById(config.workspaces, dragId);
+        if (!dragNode) return;
+        // Remove from current position
+        config.workspaces = helpers.removeById(config.workspaces, dragId);
+        // Add to target's subTabs
+        helpers.addSubTab(config.workspaces, targetParentId, dragNode);
+        saveConfig();
+        renderSidebar();
+        if (typeof renderDashboard === 'function') renderDashboard();
+    }
+
+    function promoteToRoot(dragId) {
+        const dragNode = helpers.findById(config.workspaces, dragId);
+        if (!dragNode) return;
+        const depth = helpers.getDepth(config.workspaces, dragId);
+        if (depth === 0) return; // already root
+        config.workspaces = helpers.removeById(config.workspaces, dragId);
+        config.workspaces.push(dragNode);
+        saveConfig();
+        renderSidebar();
+        if (typeof renderDashboard === 'function') renderDashboard();
+    }
+
     // --- Recursive workspace tree rendering ---
     function renderWorkspaceItem(ws, container, depth) {
         const currentDepth = typeof depth === 'number' ? depth : 0;
@@ -51,6 +87,45 @@ function renderSidebar() {
         const item = document.createElement('div');
         item.className = `ws-item ${isWorkspaceActive ? 'active' : ''}`;
         if (currentDepth > 0) item.classList.add('ws-sub-item');
+
+        // --- Drag source ---
+        item.draggable = true;
+        item.dataset.wsId = ws.id;
+        item.ondragstart = (e) => {
+            e.dataTransfer.setData('text/plain', ws.id);
+            e.dataTransfer.effectAllowed = 'move';
+            item.classList.add('ws-dragging');
+            // Mark sidebar as in-drag so we can style globally
+            sb.classList.add('ws-drag-active');
+        };
+        item.ondragend = () => {
+            item.classList.remove('ws-dragging');
+            sb.classList.remove('ws-drag-active');
+            // Clean up any lingering indicators
+            sb.querySelectorAll('.ws-drop-target').forEach(el => el.classList.remove('ws-drop-target'));
+        };
+
+        // --- Drop target ---
+        item.ondragover = (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+        };
+        item.ondragenter = (e) => {
+            e.preventDefault();
+            const dragId = e.dataTransfer.types.includes('text/plain') ? true : false;
+            if (dragId) item.classList.add('ws-drop-target');
+        };
+        item.ondragleave = () => {
+            item.classList.remove('ws-drop-target');
+        };
+        item.ondrop = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            item.classList.remove('ws-drop-target');
+            const dragId = e.dataTransfer.getData('text/plain');
+            if (!dragId || dragId === ws.id) return;
+            moveWorkspaceToParent(dragId, ws.id);
+        };
 
         // Toggle arrow for items with children
         if (hasChildren) {
@@ -124,10 +199,33 @@ function renderSidebar() {
 
     config.workspaces.forEach(ws => renderWorkspaceItem(ws, sb, 0));
 
-    // --- Add button (preserved) ---
+    // --- Add button + root drop zone ---
     const addBtn = document.createElement('div');
     addBtn.className = 'ws-item ws-add';
-    addBtn.innerHTML = '+';
+    addBtn.innerHTML = '+ <span class="ws-label">Add / Drop here</span>';
     addBtn.onclick = () => openWorkspaceModal(null);
+
+    // Root promote drop zone — drop a sub-tab here to make it a root tab
+    addBtn.ondragover = (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+    };
+    addBtn.ondragenter = (e) => {
+        e.preventDefault();
+        addBtn.classList.add('ws-drop-target');
+    };
+    addBtn.ondragleave = () => {
+        addBtn.classList.remove('ws-drop-target');
+    };
+    addBtn.ondrop = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        addBtn.classList.remove('ws-drop-target');
+        const dragId = e.dataTransfer.getData('text/plain');
+        if (!dragId) return;
+        promoteToRoot(dragId);
+    };
+
     sb.appendChild(addBtn);
 }
+
