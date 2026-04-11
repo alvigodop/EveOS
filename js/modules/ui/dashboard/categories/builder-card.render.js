@@ -270,7 +270,7 @@ window.DashboardCategories = window.DashboardCategories || {};
             var subTabIds = new Set();
             catLinks.forEach(function (link) {
                 var linkWs = String(link?.workspace || 'main').trim();
-                if (linkWs !== activeWorkspaceId) subTabIds.add(linkWs);
+                if (linkWs !== activeWsId) subTabIds.add(linkWs);
             });
             if (subTabIds.size > 0) {
                 var helpers = window.EveWorkspaceHelpers;
