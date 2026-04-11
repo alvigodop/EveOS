@@ -24,21 +24,25 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 const encodedId = encodeParam(workspace.id);
                 const safeName = escapeHtml(workspace.name);
                 const safeIcon = escapeHtml(workspace.icon || '');
-                const hiddenMarker = (depth > 0 && workspace.hiddenInParent) ? ' 👁‍🗨' : '';
-                const hiddenStyle = (depth > 0 && workspace.hiddenInParent) ? ' opacity:0.5;' : '';
-                const indent = depth > 0 ? (' style="margin-left:' + (depth * 16) + 'px; font-size:0.92em; opacity:0.92;' + hiddenStyle + '"') : '';
-                const depthIndicator = depth > 0 ? '└ ' : '';
+                const hiddenMarker = (depth > 0 && workspace.hiddenInParent) ? ' <span class="unidex-tab-hidden">👁‍🗨</span>' : '';
+                const depthClass = depth > 0 ? ' unidex-tab-sub unidex-tab-depth-' + Math.min(depth, 4) : '';
+                const hiddenClass = (depth > 0 && workspace.hiddenInParent) ? ' unidex-tab-is-hidden' : '';
 
-                tabHtmlParts.push(`
-                <button type="button"
-                    class="unidex-tab-btn"
+                const btnHtml = `<button type="button"
+                    class="unidex-tab-btn${depthClass}${hiddenClass}"
                     data-text="${safeName.toUpperCase()}"
+                    data-ws-depth="${depth}"
                     onclick="window.UnidexView.switchWorkspaceTab('${encodedId}')"
-                    title="Open ${safeName}"${indent}>
-                    <span class="unidex-tab-main">${depthIndicator}${safeIcon} ${safeName}${hiddenMarker}</span>
+                    title="Open ${safeName}">
+                    <span class="unidex-tab-main">${safeIcon} ${safeName}${hiddenMarker}</span>
                     <span class="unidex-tab-count">${workspaceCount} links</span>
-                </button>
-                `);
+                </button>`;
+
+                if (depth > 0) {
+                    tabHtmlParts.push(`<div class="unidex-tab-row unidex-tab-row-depth-${Math.min(depth, 4)}"><span class="unidex-tab-connector">└</span>${btnHtml}</div>`);
+                } else {
+                    tabHtmlParts.push(btnHtml);
+                }
             }
 
             if (helpers) {

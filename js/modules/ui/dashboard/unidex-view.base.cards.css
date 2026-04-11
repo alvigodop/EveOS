@@ -79,6 +79,117 @@
     opacity: 0.4;
 }
 
+/* --- Unidex Sub-Tab Row Wrapper --- */
+.unidex-tab-row {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.unidex-tab-row .unidex-tab-btn {
+    flex: 1;
+    min-width: 0; /* prevent overflow */
+}
+
+/* Depth-based indent on the row */
+.unidex-tab-row-depth-1 { padding-left: 28px; }
+.unidex-tab-row-depth-2 { padding-left: 56px; }
+.unidex-tab-row-depth-3 { padding-left: 80px; }
+.unidex-tab-row-depth-4 { padding-left: 100px; }
+
+/* Connector arrow (└) */
+.unidex-tab-connector {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    flex-shrink: 0;
+    font-size: 1rem;
+    line-height: 1;
+    color: rgba(168, 130, 255, 0.4);
+    font-family: monospace;
+    user-select: none;
+    padding-bottom: 4px;
+}
+
+.unidex-tab-row-depth-2 .unidex-tab-connector { color: rgba(218, 165, 32, 0.45); }
+.unidex-tab-row-depth-3 .unidex-tab-connector { color: rgba(100, 200, 180, 0.4); }
+.unidex-tab-row-depth-4 .unidex-tab-connector { color: rgba(180, 120, 100, 0.4); }
+
+/* --- Unidex Sub-Tab Button Base --- */
+.unidex-tab-sub {
+    min-height: 62px !important;
+    border-left: 3px solid rgba(168, 130, 255, 0.5);
+    border-radius: 8px;
+    padding: 10px 14px;
+    background: rgba(168, 130, 255, 0.04);
+}
+
+.unidex-tab-sub .unidex-tab-main {
+    font-size: 0.9rem;
+}
+
+.unidex-tab-sub .unidex-tab-count {
+    font-size: 0.74rem;
+    margin-top: 4px;
+}
+
+.unidex-tab-sub::before {
+    font-size: 1.6rem;
+}
+
+/* Depth 1 — direct child */
+.unidex-tab-depth-1 {
+    border-left-color: rgba(168, 130, 255, 0.5);
+    min-height: 62px !important;
+}
+
+/* Depth 2 — grandchild */
+.unidex-tab-depth-2 {
+    border-left-color: rgba(218, 165, 32, 0.5);
+    background: rgba(218, 165, 32, 0.03);
+    min-height: 52px !important;
+}
+
+.unidex-tab-depth-2 .unidex-tab-main { font-size: 0.84rem; }
+.unidex-tab-depth-2::before { font-size: 1.3rem; }
+
+/* Depth 3 */
+.unidex-tab-depth-3 {
+    border-left-color: rgba(100, 200, 180, 0.4);
+    background: rgba(100, 200, 180, 0.03);
+    min-height: 44px !important;
+}
+
+.unidex-tab-depth-3 .unidex-tab-main { font-size: 0.78rem; }
+.unidex-tab-depth-3::before { font-size: 1.1rem; }
+
+/* Depth 4+ */
+.unidex-tab-depth-4 {
+    border-left-color: rgba(180, 120, 100, 0.4);
+    background: rgba(180, 120, 100, 0.03);
+    min-height: 38px !important;
+}
+
+.unidex-tab-depth-4 .unidex-tab-main { font-size: 0.74rem; }
+.unidex-tab-depth-4::before { font-size: 0.9rem; }
+
+/* Hidden sub-tab indicator */
+.unidex-tab-is-hidden {
+    opacity: 0.5;
+    border-style: dashed;
+}
+
+.unidex-tab-hidden {
+    font-size: 0.6em;
+    margin-left: 4px;
+    opacity: 0.6;
+}
+
+
+
 .unidex-cards {
     display: flex !important;
     flex-direction: column !important;
