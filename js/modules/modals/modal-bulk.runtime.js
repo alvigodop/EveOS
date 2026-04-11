@@ -39,14 +39,13 @@ function updateBulkModeUi() {
         text.style.display = 'none';
         if (folderDropZone) {
             folderDropZone.style.display = 'flex';
-            const folderInput = document.getElementById('bulkFolderInput');
             const dropText = document.getElementById('bulkFolderDropText');
-            if (folderInput && folderInput.files && folderInput.files.length > 0) {
-                dropText.textContent = `${folderInput.files.length} file(s) selected from folder`;
+            if (api._accumulatedFolderFiles && api._accumulatedFolderFiles.length > 0) {
+                dropText.textContent = `${api._accumulatedFolderFiles.length} file(s) accumulated from selected folder(s)`;
                 folderDropZone.style.borderColor = '#00a8ff';
                 folderDropZone.style.color = '#fff';
             } else {
-                dropText.textContent = 'Click to select a folder';
+                dropText.textContent = 'Click to select or drag & drop folder(s)';
                 folderDropZone.style.borderColor = '#444';
                 folderDropZone.style.color = '#aaa';
             }
@@ -254,24 +253,174 @@ function initBulkModeUi() {
     const folderInput = document.getElementById('bulkFolderInput');
     const folderDropZone = document.getElementById('bulkFolderDropZone');
 
-    if (folderInput && folderDropZone) {
-        folderInput.addEventListener('change', updateBulkModeUi);
+    api._accumulatedFolderFiles = api._accumulatedFolderFiles || [];
 
-        folderInput.addEventListener('dragenter', () => {
+    async function readAllEntries(dirReader) {
+        let entries = [];
+        let readEntries = await new Promise((resolve, reject) => dirReader.readEntries(resolve, reject));
+        while (readEntries.length > 0) {
+            entries.push(...readEntries);
+            readEntries = await new Promise((resolve, reject) => dirReader.readEntries(resolve, reject));
+        }
+        return entries;
+    }
+
+    async function traverseFileTree(item, path, array) {
+        path = path || "";
+        if (item.isFile) {
+            try {
+                const file = await new Promise((resolve, reject) => {
+                    try {
+                        item.file(resolve, reject);
+                    } catch (e) {
+                        reject(e);
+                    }
+                });
+                Object.defineProperty(file, 'customRelativePath', {
+                    value: path + file.name,
+                    writable: false
+                });
+                array.push(file);
+            } catch (err) {
+                console.warn(`Failed to read file entry: ${item.name}`, err);
+            }
+        } else if (item.isDirectory) {
+            try {
+                const dirReader = item.createReader();
+                const entries = await readAllEntries(dirReader);
+                for (let i = 0; i < entries.length; i++) {
+                    await traverseFileTree(entries[i], path + item.name + "/", array);
+                }
+            } catch (err) {
+                console.warn(`Failed to read directory entry: ${item.name}`, err);
+            }
+        }
+    }
+
+    if (folderInput && folderDropZone) {
+        folderDropZone.addEventListener('click', (e) => {
+            if (e.target !== folderInput) {
+                folderInput.click();
+            }
+        });
+
+        folderInput.addEventListener('change', (e) => {
+            if (folderInput.files && folderInput.files.length > 0) {
+                api._accumulatedFolderFiles = api._accumulatedFolderFiles || [];
+                for (let i = 0; i < folderInput.files.length; i++) {
+                    api._accumulatedFolderFiles.push(folderInput.files[i]);
+                }
+                setTimeout(() => {
+                    if (folderInput) folderInput.value = '';
+                }, 0);
+            }
+            updateBulkModeUi();
+        });
+
+        const preventDefaults = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+        };
+
+        folderDropZone.addEventListener('dragenter', (e) => {
+            preventDefaults(e);
             folderDropZone.style.borderColor = '#00a8ff';
             folderDropZone.style.backgroundColor = '#1a1a1a';
         });
 
-        folderInput.addEventListener('dragleave', () => {
-            if (!folderInput.files || folderInput.files.length === 0) {
+        folderDropZone.addEventListener('dragover', (e) => {
+            preventDefaults(e);
+            folderDropZone.style.borderColor = '#00a8ff';
+            folderDropZone.style.backgroundColor = '#1a1a1a';
+        });
+
+        folderDropZone.addEventListener('dragleave', (e) => {
+            preventDefaults(e);
+            if (!api._accumulatedFolderFiles || api._accumulatedFolderFiles.length === 0) {
                 folderDropZone.style.borderColor = '#444';
                 folderDropZone.style.backgroundColor = '#111';
             }
         });
 
-        folderInput.addEventListener('drop', () => {
+        folderDropZone.addEventListener('drop', async (e) => {
+            preventDefaults(e);
             folderDropZone.style.backgroundColor = '#111';
-            setTimeout(updateBulkModeUi, 50);
+            
+            api._accumulatedFolderFiles = api._accumulatedFolderFiles || [];
+            
+            if (e.dataTransfer && e.dataTransfer.items) {
+                const items = Array.from(e.dataTransfer.items);
+                let useModernApi = false;
+                
+                // Try modern File System Access API first
+                if (items[0] && typeof items[0].getAsFileSystemHandle === 'function') {
+                    try {
+                        const handlePromises = [];
+                        for (const item of items) {
+                            if (item.kind === 'file' || item.kind === 'directory') {
+                                handlePromises.push(item.getAsFileSystemHandle());
+                            }
+                        }
+                        
+                        const handles = (await Promise.all(handlePromises)).filter(Boolean);
+                        
+                        if (handles.length > 0) {
+                            useModernApi = true;
+                            
+                            async function traverseHandle(handle, path, array) {
+                                if (handle.kind === 'file') {
+                                    const file = await handle.getFile();
+                                    Object.defineProperty(file, 'customRelativePath', {
+                                        value: path + file.name,
+                                        writable: false
+                                    });
+                                    array.push(file);
+                                } else if (handle.kind === 'directory') {
+                                    for await (const [name, childHandle] of handle.entries()) {
+                                        await traverseHandle(childHandle, path + handle.name + "/", array);
+                                    }
+                                }
+                            }
+                            
+                            for (const handle of handles) {
+                                await traverseHandle(handle, '', api._accumulatedFolderFiles);
+                            }
+                            updateBulkModeUi();
+                        }
+                    } catch (err) {
+                        console.warn("Modern File System Access API failed, falling back", err);
+                        useModernApi = false;
+                    }
+                }
+                
+                if (!useModernApi) {
+                    const entries = [];
+                    for (const item of items) {
+                        if (item.kind === 'file') {
+                            const entry = item.webkitGetAsEntry();
+                            if (entry) entries.push(entry);
+                        }
+                    }
+                    
+                    (async () => {
+                        for (const entry of entries) {
+                            try {
+                                await traverseFileTree(entry, '', api._accumulatedFolderFiles);
+                            } catch (err) {
+                                console.error("Failed to traverse entry", entry, err);
+                            }
+                        }
+                        updateBulkModeUi();
+                    })();
+                }
+            } else if (e.dataTransfer && e.dataTransfer.files) {
+                 for (let i = 0; i < e.dataTransfer.files.length; i++) {
+                      api._accumulatedFolderFiles.push(e.dataTransfer.files[i]);
+                 }
+                 updateBulkModeUi();
+            } else {
+                setTimeout(updateBulkModeUi, 50);
+            }
         });
     }
 
@@ -291,6 +440,8 @@ function clearBulkInput() {
     if (fileInput) fileInput.value = '';
     const folderInput = document.getElementById('bulkFolderInput');
     if (folderInput) folderInput.value = '';
+    api._accumulatedFolderFiles = [];
+    updateBulkModeUi();
     document.getElementById('bulkText').focus();
 }
 

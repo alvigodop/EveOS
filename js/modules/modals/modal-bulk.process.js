@@ -13,9 +13,9 @@ async function processBulk() {
     let count = 0;
 
     if (mode === 'folder') {
-        const folderInput = document.getElementById('bulkFolderInput');
-        if (!folderInput || !folderInput.files || folderInput.files.length === 0) {
-            return showToast("No folder selected", "warning");
+        const files = api._accumulatedFolderFiles || [];
+        if (files.length === 0) {
+            return showToast("No folder(s) selected", "warning");
         }
 
         const workspaceId = config.activeWorkspace;
@@ -31,9 +31,9 @@ async function processBulk() {
         const dirPaths = new Set();
         const filesToProcess = [];
         
-        for (let i = 0; i < folderInput.files.length; i++) {
-            const file = folderInput.files[i];
-            const relativePath = file.webkitRelativePath || file.name;
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            const relativePath = file.customRelativePath || file.webkitRelativePath || file.name;
             const parts = relativePath.split('/');
             
             if (parts.length > 1) {
@@ -143,7 +143,9 @@ async function processBulk() {
             }
         });
 
+        const folderInput = document.getElementById('bulkFolderInput');
         if (folderInput) folderInput.value = '';
+        api._accumulatedFolderFiles = [];
         saveData();
         if (deferredLibraryPromotions > 0 && window.EveLibrary?.Storage?.saveLibrary) {
             window.EveLibrary.Storage.saveLibrary();

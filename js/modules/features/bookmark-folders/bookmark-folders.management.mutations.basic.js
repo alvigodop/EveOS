@@ -131,24 +131,35 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         const target = nodes.find((node) => node.id === folderId);
         if (!target) return false;
 
-        const nextParentId = normalizeParentId(target.parentId);
-        const filteredNodes = nodes.filter((node) => node.id !== folderId);
-        filteredNodes.forEach((node) => {
-            if (normalizeParentId(node.parentId) === folderId) {
-                node.parentId = nextParentId;
-                node.updatedAt = Date.now();
-            }
-        });
+        const foldersToDelete = new Set([folderId]);
+        let size;
+        do {
+            size = foldersToDelete.size;
+            nodes.forEach(node => {
+                if (foldersToDelete.has(normalizeParentId(node.parentId))) {
+                    foldersToDelete.add(node.id);
+                }
+            });
+        } while (foldersToDelete.size > size);
+
+        const filteredNodes = nodes.filter((node) => !foldersToDelete.has(node.id));
 
         if (Array.isArray(window.eveState?.links)) {
-            window.eveState.links.forEach((link) => {
+            const linksArray = window.eveState.links;
+            for (let i = linksArray.length - 1; i >= 0; i--) {
+                const link = linksArray[i];
                 const sameWorkspace = normalizeWorkspaceId(link?.workspace) === workspaceId;
                 const sameCategory = normalizeCategoryName(link?.category) === categoryName;
-                if (!sameWorkspace || !sameCategory) return;
-                if (normalizeFolderId(link?.folderId) !== folderId) return;
-                if (nextParentId) link.folderId = nextParentId;
-                else delete link.folderId;
-            });
+                if (!sameWorkspace || !sameCategory) continue;
+
+                if (foldersToDelete.has(normalizeFolderId(link?.folderId))) {
+                    const targetId = String(link.id);
+                    linksArray.splice(i, 1);
+                    if (window.EveLibrary?.ConnectionsAPI?.removeByLinkId) {
+                        window.EveLibrary.ConnectionsAPI.removeByLinkId(targetId);
+                    }
+                }
+            }
         }
 
         setScopedNodes(workspaceId, categoryName, filteredNodes, { persist: false });
