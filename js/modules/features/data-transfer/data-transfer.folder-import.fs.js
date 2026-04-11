@@ -43,22 +43,12 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         const file = await fileHandle.getFile();
         const text = await file.text();
         try {
-            return JSON.parse(text);
+            return ns.robustParseJson(text);
         } catch (err) {
-            // Attempt to repair common "dirty" JSON issues
-            try {
-                // 1. Remove trailing commas in arrays/objects
-                let repaired = text.replace(/,(\s*[\]}])/g, '$1');
-                // 2. Handle potential single quotes (not ideal but common in manual edits)
-                // Note: This is risky, only do if simple parse fails
-                return JSON.parse(repaired);
-            } catch (innerErr) {
-                console.warn(`[DataTransfer] Failed to parse JSON from ${fileHandle.name}:`, err.message);
-                throw err;
-            }
+            console.warn(`[DataTransfer] Failed to parse JSON from ${fileHandle.name}:`, err.message);
+            throw err;
         }
     }
-
     async function readJsonFileIfExists(parentHandle, name) {
         const fileHandle = await getFileHandleIfExists(parentHandle, name);
         if (!fileHandle) return null;

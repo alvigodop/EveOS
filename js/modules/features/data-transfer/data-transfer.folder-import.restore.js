@@ -109,16 +109,18 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             }
             let chosen = parsedCards.find((card) => String(card.workspaceId) === selectedWorkspaceId && String(card.categoryName || '').toLowerCase() === String(selectedCategoryName || '').toLowerCase());
             if (!chosen) chosen = parsedCards.find((card) => String(card.workspaceId) === selectedWorkspaceId) || parsedCards[0];
-            const workspaceMeta = ns.getWorkspaceMeta(chosen.workspaceId);
+            const workspaceMeta = typeof ns.getWorkspaceMeta === 'function' ? ns.getWorkspaceMeta(chosen.workspaceId) : { id: chosen.workspaceId, name: chosen.workspaceId, icon: 'folder' };
             const tabLike = { workspaceId: chosen.workspaceId, workspaceName: workspaceMeta.name, workspaceIcon: workspaceMeta.icon, parsedCards: [chosen] };
             const cardState = ns.buildUnifiedStateFromParsed([tabLike], {
                 metadataType: 'card',
                 config: { activeWorkspace: chosen.workspaceId },
                 activeWorkspace: chosen.workspaceId
             });
+            // Ensure metadata is correctly set on the newly built state
             cardState.metadata.workspaceId = chosen.workspaceId;
             cardState.metadata.categoryName = chosen.categoryName;
             cardState.metadata.type = 'card';
+            
             const ok = dataStore.applyCardState(cardState);
             if (!ok) return showToast('Card folder restore could not be applied.', 'error');
             showToast('Card folder restored!', 'success');
@@ -136,12 +138,46 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         if (!dataStore?.applyFolderState) return showToast('Folder restore is unavailable right now.', 'error');
         try {
             const rootHandle = await pickDirectory({ mode: 'read' });
-            if (!(await confirmDialog('Restore folder subtree from selected folder? (Overwrites the matching folder subtree)'))) return;
+            if (!(await confirmDialog('Restore folder subtree from selected folder? (Overwrites matching folder subtree)'))) return;
             const stateRoot = await ns.getDirectoryHandleIfExists(rootHandle, 'state');
-            const folderState = stateRoot ? await ns.readJsonFileIfExists(stateRoot, 'folder-state.json') : null;
+            let folderState = stateRoot ? await ns.readJsonFileIfExists(stateRoot, 'folder-state.json') : null;
+            
             if (!folderState || folderState?.metadata?.type !== 'folder') {
-                throw new Error('No state/folder-state.json file found in the selected folder backup.');
+                // Try parsing folder structure directly from the selected folder (datapack style)
+                const appConfig = typeof ns.getAppConfig === 'function' ? ns.getAppConfig() : {};
+                const selectedWorkspaceId = String(ns.getFolderWorkspaceSelect?.()?.value || appConfig.activeWorkspace || '').trim() || 'main';
+                const selectedCategoryName = String(ns.getFolderCategorySelect?.()?.value || '').trim() || 'Unsorted';
+                const selectedFolderId = String(ns.getFolderSelect?.()?.value || '').trim();
+                
+                // We need to parse this as a card first to extract the folder tree, 
+                // then slice out the subtree if we have a target folder ID.
+                const card = await ns.parseCardFolderHandle(rootHandle, { 
+                    workspaceId: selectedWorkspaceId, 
+                    categoryName: selectedCategoryName 
+                });
+                
+                if (!card.folderTree?.nodes?.length) {
+                    throw new Error('No folder structure found in the selected backup folder.');
+                }
+
+                const workspaceMeta = typeof ns.getWorkspaceMeta === 'function' ? ns.getWorkspaceMeta(card.workspaceId) : { id: card.workspaceId, name: card.workspaceId, icon: 'folder' };
+                const tabLike = { workspaceId: card.workspaceId, workspaceName: workspaceMeta.name, workspaceIcon: workspaceMeta.icon, parsedCards: [card] };
+                const fullCardState = ns.buildUnifiedStateFromParsed([tabLike], {
+                    metadataType: 'folder',
+                    config: { activeWorkspace: card.workspaceId },
+                    activeWorkspace: card.workspaceId
+                });
+
+                // If user selected a specific target folder in UI, we use that as the anchor
+                const targetFolderId = selectedFolderId || card.folderTree.nodes[0].id;
+                
+                folderState = fullCardState;
+                folderState.metadata.type = 'folder';
+                folderState.metadata.folderId = targetFolderId;
+                folderState.metadata.categoryName = card.categoryName;
+                folderState.metadata.workspaceId = card.workspaceId;
             }
+
             const ok = dataStore.applyFolderState(folderState);
             if (!ok) return showToast('Folder subtree restore could not be applied.', 'error');
             showToast('Folder subtree restored!', 'success');
