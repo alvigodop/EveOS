@@ -33,6 +33,14 @@ function toggleCollapse(cat) {
     if (typeof renderDashboard === 'function') renderDashboard();
 }
 
+function toggleFolderCollapse(cat) {
+    if (!config.foldersCollapsed) config.foldersCollapsed = [];
+    if (config.foldersCollapsed.includes(cat)) config.foldersCollapsed = config.foldersCollapsed.filter(c => c !== cat);
+    else config.foldersCollapsed.push(cat);
+    saveConfig();
+    if (typeof renderDashboard === 'function') renderDashboard();
+}
+
 function setFocus(cat) {
     focusCategory = cat;
     if (typeof renderDashboard === 'function') renderDashboard();

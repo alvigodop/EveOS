@@ -38,6 +38,9 @@ window.DashboardCategories = window.DashboardCategories || {};
         if (!isFocusMode && Array.isArray(options.collapsed) && options.collapsed.includes(cat)) {
             card.classList.add('collapsed');
         }
+        if (!isFocusMode && Array.isArray(options.foldersCollapsed) && options.foldersCollapsed.includes(cat)) {
+            card.classList.add('folders-collapsed');
+        }
         var folderTaskApi = window.EveBookmarkFolders;
         var safeCatHtml = escapeCardHtml(cat || 'Unsorted');
         var safeCatJs = escapeCardJs(cat || 'Unsorted');
@@ -134,7 +137,8 @@ window.DashboardCategories = window.DashboardCategories || {};
         var titleControlsHtml = isFocusMode
             ? ''
             : ''
-                + '<span class="collapse-arrow" data-cat="' + safeCatHtml + '" onclick="toggleCollapse(this.dataset.cat)">&#9660;</span>'
+                + '<span class="collapse-arrow" data-cat="' + safeCatHtml + '" onclick="toggleFolderCollapse(this.dataset.cat)" title="Toggle Folders">&#128193;</span>'
+                + '<span class="collapse-arrow" data-cat="' + safeCatHtml + '" onclick="toggleCollapse(this.dataset.cat)" title="Toggle Card">&#9660;</span>'
                 + '<span class="sort-btn" onclick="moveCategory(\'' + safeCatJs + '\', -1)">&#9650;</span>'
                 + '<span class="sort-btn" onclick="moveCategory(\'' + safeCatJs + '\', 1)">&#9660;</span>';
 

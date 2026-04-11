@@ -240,7 +240,21 @@ html[data-native-scheme="light"] {
 .category-card.collapsed ul,
 .category-card.collapsed .bookmark-folder-toolbar,
 .category-card.collapsed .bookmark-folder-sections,
+.category-card.collapsed .v2-folder-root-container,
+.category-card.collapsed .v2-folder-container,
 .category-card.collapsed .category-footer {
+    display: none;
+}
+
+.category-card.folders-collapsed .bookmark-folder-toolbar,
+.category-card.folders-collapsed .bookmark-folder-sections > .bookmark-folder-group,
+.category-card.folders-collapsed .folder-wrap-grid,
+.category-card.folders-collapsed .manhwa-divider {
+    display: none;
+}
+
+/* For v2 folder views, if we are inside a folder, hide the subfolders */
+.category-card.folders-collapsed .v2-folder-container .manhwa-frame > div:first-child {
     display: none;
 }
 
@@ -286,7 +300,12 @@ html[data-native-scheme="light"] {
     padding: 5px;
 }
 
-.category-card.collapsed .collapse-arrow {
+.category-card.collapsed .collapse-arrow[title="Toggle Card"] {
     transform: rotate(-90deg);
+}
+
+.category-card.folders-collapsed .collapse-arrow[title="Toggle Folders"] {
+    opacity: 0.4;
+    filter: grayscale(1);
 }
 
