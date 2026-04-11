@@ -152,12 +152,12 @@ window.EveDataStore = window.EveDataStore || {};
         const incomingFolders = getFolderTreesObject(state.bookmarks?.folders);
         const folderKeys = Object.keys(incomingFolders);
         
-        // Determine the actual incoming folder tree for this card
         let incomingTree = incomingFolders[targetScopedKey];
         if (!incomingTree && folderKeys.length === 1) {
-            // Force remap if exactly one tree exists in backup
             incomingTree = incomingFolders[folderKeys[0]];
         }
+
+        const validFolderIds = new Set(getFolderNodes(incomingTree).map(n => String(n?.id || '').trim()).filter(Boolean));
 
         if (Array.isArray(state.bookmarks?.links)) {
             const remaining = getLinks().filter((entry) => !(entry.workspace === workspaceId && (entry.category || 'Unsorted') === categoryName));
@@ -167,22 +167,25 @@ window.EveDataStore = window.EveDataStore || {};
                     workspace: workspaceId,
                     category: categoryName
                 };
+                // Clean up folderId if it's not in the tree we are applying
+                if (normalized.folderId && !validFolderIds.has(String(normalized.folderId).trim())) {
+                    delete normalized.folderId;
+                }
                 return normalized;
             });
             setLinks(remaining.concat(incoming));
         }
 
-        // Ensure the category is registered in the workspace layout
         if (window.EveCategoryOrder?.ensureCategory) {
             window.EveCategoryOrder.ensureCategory(workspaceId, categoryName);
         }
 
         setConfig({ activeWorkspace: workspaceId });
+        if (typeof saveConfig === 'function') saveConfig();
+
         const existingFolderTrees = getFolderTreesObject(getBookmarkFolders());
         const nextFolderTrees = { ...existingFolderTrees };
         
-        // Always explicitly set or delete the tree for this scoped key to prevent "bleeding" 
-        // from previous states or incorrect keys.
         if (incomingTree) {
             nextFolderTrees[targetScopedKey] = incomingTree;
         } else {
@@ -210,7 +213,7 @@ window.EveDataStore = window.EveDataStore || {};
             const incoming = state.library.connections.map((conn) => ({
                 ...conn,
                 workspace: workspaceId,
-                categoryName: conn.categoryName || categoryName
+                categoryName: categoryName // Force remap connections to the target card
             }));
             const incomingLinkIds = new Set(incoming.map((conn) => conn.linkId).filter(Boolean));
             const filtered = existing.filter((conn) => {

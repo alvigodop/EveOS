@@ -87,9 +87,12 @@
     }
 
     function buildScopedCategoryKey(workspaceId, categoryName) {
+        if (window.EveBookmarkFolders?.buildScopedKey) {
+            return window.EveBookmarkFolders.buildScopedKey(workspaceId, categoryName);
+        }
         const stateModule = window.EveLibrary?.State;
         if (stateModule?.buildScopedCategoryKey) {
-            // Note: EveLibrary.State.buildScopedCategoryKey uses (categoryName, workspaceId)
+            // Correct mapping: library state uses (category, workspace) to return "workspace::category"
             return stateModule.buildScopedCategoryKey(categoryName, workspaceId);
         }
         const ws = String(workspaceId || 'main').trim() || 'main';
