@@ -258,6 +258,13 @@ html[data-native-scheme="light"] {
     display: none;
 }
 
+.category-card.links-collapsed > ul,
+.category-card.links-collapsed .bookmark-folder-root-group,
+.category-card.links-collapsed .v2-folder-root-container > div > ul,
+.category-card.links-collapsed .v2-folder-root-container > .manhwa-divider {
+    display: none;
+}
+
 /* Scrollable Mode */
 .category-scrollable {
     max-height: 400px;
@@ -304,7 +311,8 @@ html[data-native-scheme="light"] {
     transform: rotate(-90deg);
 }
 
-.category-card.folders-collapsed .collapse-arrow[title="Toggle Folders"] {
+.category-card.folders-collapsed .collapse-arrow[title="Toggle Folders"],
+.category-card.links-collapsed .collapse-arrow[title="Toggle Bookmarks"] {
     opacity: 0.4;
     filter: grayscale(1);
 }
