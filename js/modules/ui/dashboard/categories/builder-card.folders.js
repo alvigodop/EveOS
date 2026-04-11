@@ -83,10 +83,17 @@ function buildFolderSectionsHtml(categoryName, linksForCard, options, renderer) 
                 return `draggable="true" ondragstart="if(typeof window.EveFolderViewV2?.handleFolderDragStart==='function') window.EveFolderViewV2.handleFolderDragStart(event, '${escapeCardJs(node.id)}', '${safeCategoryJs}', '${safeWorkspaceJs}')" ondragend="this.classList.remove('is-dragging')"`;
             })();
             const dropTargetAttributes = isGhostNode ? '' : buildDropTargetAttributes(node.id, node.detachedEntryId || '');
+            const isSubfoldersCollapsed = !!(window.eveState?.config?.subfoldersCollapsed || []).includes(node.id);
+            const isSublinksCollapsed = !!(window.eveState?.config?.sublinksCollapsed || []).includes(node.id);
+            const subfoldersCollapsedClass = isSubfoldersCollapsed ? ' subfolders-collapsed' : '';
+            const sublinksCollapsedClass = isSublinksCollapsed ? ' sublinks-collapsed' : '';
+
             const summaryActionsHtml = (isGhostNode || readOnlyFolders || isDetachedParkingCard)
                 ? ''
                 : ''
                     + '<div class="bookmark-folder-summary-actions">'
+                        + `<button type="button" class="bookmark-folder-inline-btn bookmark-folder-summary-edit-toggle${sublinksCollapsedClass ? ' is-collapsed' : ''}" title="Toggle Bookmarks" onclick="event.preventDefault();event.stopPropagation();toggleSublinksCollapse('${escapeCardJs(node.id)}')">&#128216;</button>`
+                        + `<button type="button" class="bookmark-folder-inline-btn bookmark-folder-summary-edit-toggle${subfoldersCollapsedClass ? ' is-collapsed' : ''}" title="Toggle Subfolders" onclick="event.preventDefault();event.stopPropagation();toggleSubfoldersCollapse('${escapeCardJs(node.id)}')">&#128193;</button>`
                         + `<button type="button" class="bookmark-folder-inline-btn bookmark-folder-summary-edit-toggle" aria-expanded="${actionsExpandedAttr}" onclick="event.preventDefault();event.stopPropagation();toggleCategoryCardFolderActions(this, '${safeCategoryJs}', '${escapeCardJs(node.id)}', '${safeWorkspaceJs}')">&#9998;</button>`
                         + `<div class="bookmark-folder-summary-action-list"${actionsHiddenAttr}>`
                             + `<button type="button" class="bookmark-folder-inline-btn bulk-scope-btn" title="Select this folder subtree" onclick="event.preventDefault();event.stopPropagation();bulkToggleFolderScopeSelection('${safeCategoryJs}', '${safeWorkspaceJs}', '${escapeCardJs(node.id)}')">Select</button>`
@@ -103,7 +110,7 @@ function buildFolderSectionsHtml(categoryName, linksForCard, options, renderer) 
                     : '<div class="bookmark-folder-empty">No bookmarks in this folder yet.</div>');
 
             return ''
-                + `<details class="bookmark-folder-group${isGhostNode ? ' is-ghost-folder-group' : ''}" open data-bookmark-folder-target-id="${escapeCardHtml(folderTargetId)}" data-detached-entry-id="${escapeCardHtml(node.detachedEntryId || '')}" ${dropTargetAttributes} ${dragStartAttr}>`
+                + `<details class="bookmark-folder-group${isGhostNode ? ' is-ghost-folder-group' : ''}${subfoldersCollapsedClass}${sublinksCollapsedClass}" open data-bookmark-folder-target-id="${escapeCardHtml(folderTargetId)}" data-detached-entry-id="${escapeCardHtml(node.detachedEntryId || '')}" ${dropTargetAttributes} ${dragStartAttr}>`
 
                     + '<summary class="bookmark-folder-summary">'
                         + '<div class="bookmark-folder-summary-copy">'
@@ -113,8 +120,8 @@ function buildFolderSectionsHtml(categoryName, linksForCard, options, renderer) 
                         + summaryActionsHtml
                     + '</summary>'
                     + '<div class="bookmark-folder-body">'
-                        + bodyContentHtml
-                        + childHtml
+                        + '<div class="bookmark-folder-links">' + bodyContentHtml + '</div>'
+                        + '<div class="bookmark-folder-subfolders">' + childHtml + '</div>'
                     + '</div>'
                 + '</details>';
         }

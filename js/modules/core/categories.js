@@ -49,6 +49,22 @@ function toggleLinksCollapse(cat) {
     if (typeof renderDashboard === 'function') renderDashboard();
 }
 
+function toggleSubfoldersCollapse(folderId) {
+    if (!config.subfoldersCollapsed) config.subfoldersCollapsed = [];
+    if (config.subfoldersCollapsed.includes(folderId)) config.subfoldersCollapsed = config.subfoldersCollapsed.filter(id => id !== folderId);
+    else config.subfoldersCollapsed.push(folderId);
+    saveConfig();
+    if (typeof renderDashboard === 'function') renderDashboard();
+}
+
+function toggleSublinksCollapse(folderId) {
+    if (!config.sublinksCollapsed) config.sublinksCollapsed = [];
+    if (config.sublinksCollapsed.includes(folderId)) config.sublinksCollapsed = config.sublinksCollapsed.filter(id => id !== folderId);
+    else config.sublinksCollapsed.push(folderId);
+    saveConfig();
+    if (typeof renderDashboard === 'function') renderDashboard();
+}
+
 function setFocus(cat) {
     focusCategory = cat;
     if (typeof renderDashboard === 'function') renderDashboard();

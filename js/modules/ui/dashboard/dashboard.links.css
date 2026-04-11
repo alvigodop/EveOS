@@ -226,6 +226,19 @@ li:hover .actions {
     display: none;
 }
 
+.bookmark-folder-group.subfolders-collapsed .bookmark-folder-subfolders {
+    display: none;
+}
+
+.bookmark-folder-group.sublinks-collapsed .bookmark-folder-links {
+    display: none;
+}
+
+.bookmark-folder-summary-edit-toggle.is-collapsed {
+    opacity: 0.4;
+    filter: grayscale(1);
+}
+
 .bookmark-folder-body {
     display: flex;
     flex-direction: column;
