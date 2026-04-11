@@ -49,8 +49,18 @@
         const folderItems = viewModel.folderLinks.get(targetNode.id) || [];
         const headerActionsExpanded = folderId ? window.EveFolderViewV2.isHeaderActionsExpanded(workspaceId, categoryName, folderId) : false;
 
+        const isCardFoldersCollapsed = !!(window.eveState?.config?.foldersCollapsed || []).includes(categoryName);
+        const isCardLinksCollapsed = !!(window.eveState?.config?.linksCollapsed || []).includes(categoryName);
+        const isFolderSubfoldersCollapsed = !!(window.eveState?.config?.subfoldersCollapsed || []).includes(folderId);
+        const isFolderSublinksCollapsed = !!(window.eveState?.config?.sublinksCollapsed || []).includes(folderId);
+
         const folderHeaderActionsHtml = folderId
-            ? `<div class="folder-breadcrumb-actions"><button type="button" class="folder-tile-edit-btn folder-breadcrumb-icon-btn ${headerActionsExpanded ? 'active' : ''}" title="Folder Actions" onclick="event.preventDefault(); event.stopPropagation(); window.EveFolderViewV2.toggleHeaderActions('${escapeCardJs(workspaceId)}', '${escapeCardJs(categoryName)}', '${escapeCardJs(folderId)}');">&#9998;</button><button type="button" class="folder-tile-edit-btn folder-breadcrumb-icon-btn" title="Constellation Map" onclick="event.preventDefault(); event.stopPropagation(); window.EveFolderViewV2.openFolderScopedMap('${escapeCardJs(categoryName)}', '${escapeCardJs(folderId)}', '${escapeCardJs(workspaceId)}');">&#127756;</button></div>`
+            ? `<div class="folder-breadcrumb-actions">`
+                + `<button type="button" class="folder-tile-edit-btn folder-breadcrumb-icon-btn ${isCardLinksCollapsed || isFolderSublinksCollapsed ? 'collapsed' : ''}" title="Toggle Bookmarks" onclick="event.preventDefault(); event.stopPropagation(); toggleSublinksCollapse('${escapeCardJs(folderId)}');">&#128216;</button>`
+                + `<button type="button" class="folder-tile-edit-btn folder-breadcrumb-icon-btn ${isCardFoldersCollapsed || isFolderSubfoldersCollapsed ? 'collapsed' : ''}" title="Toggle Subfolders" onclick="event.preventDefault(); event.stopPropagation(); toggleSubfoldersCollapse('${escapeCardJs(folderId)}');">&#128193;</button>`
+                + `<button type="button" class="folder-tile-edit-btn folder-breadcrumb-icon-btn ${headerActionsExpanded ? 'active' : ''}" title="Folder Actions" onclick="event.preventDefault(); event.stopPropagation(); window.EveFolderViewV2.toggleHeaderActions('${escapeCardJs(workspaceId)}', '${escapeCardJs(categoryName)}', '${escapeCardJs(folderId)}');">&#9998;</button>`
+                + `<button type="button" class="folder-tile-edit-btn folder-breadcrumb-icon-btn" title="Constellation Map" onclick="event.preventDefault(); event.stopPropagation(); window.EveFolderViewV2.openFolderScopedMap('${escapeCardJs(categoryName)}', '${escapeCardJs(folderId)}', '${escapeCardJs(workspaceId)}');">&#127756;</button>`
+                + `</div>`
             : '';
 
         const editFolderButtonHtml = targetNode.isGhost
@@ -76,7 +86,7 @@
 
         let subFoldersHtml = '';
         if (subFolders.length > 0) {
-            subFoldersHtml += `<div class="manhwa-divider">FOLDERS</div><div class="folder-wrap-grid">${subFolders.map((folder) => {
+            subFoldersHtml += `<div class="manhwa-divider folders-divider">FOLDERS</div><div class="folder-wrap-grid">${subFolders.map((folder) => {
                 const isGhost = !!folder.isGhost;
                 const folderDropAttr = isGhost ? '' : `ondragover="if(typeof allowDrop==='function')allowDrop(event)" ondrop="event.currentTarget.classList.remove('folder-tile-drag-hover'); if(typeof window.EveFolderViewV2.handleFolderDrop==='function') window.EveFolderViewV2.handleFolderDrop(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(folder.id)}', '${escapeCardJs(workspaceId)}')" ondragenter="event.currentTarget.classList.add('folder-tile-drag-hover')" ondragleave="event.currentTarget.classList.remove('folder-tile-drag-hover')"`;
                 const dragStartAttr = isGhost ? '' : `draggable="true" ondragstart="if(typeof window.EveFolderViewV2.handleFolderDragStart==='function') window.EveFolderViewV2.handleFolderDragStart(event, '${escapeCardJs(folder.id)}', '${escapeCardJs(categoryName)}', '${escapeCardJs(workspaceId)}')" ondragend="this.classList.remove('is-dragging')"`;
@@ -93,7 +103,7 @@
 
         let itemsHtml = '';
         if (folderItems.length > 0) {
-            if (subFolders.length > 0) itemsHtml += '<div class="manhwa-divider">ITEMS</div>';
+            if (subFolders.length > 0) itemsHtml += '<div class="manhwa-divider items-divider">ITEMS</div>';
             const flatHtml = folderItems.map((link) => {
                 const isTaskEnabled = typeof folderApi?.isTaskEnabledForLink === 'function' ? !!folderApi.isTaskEnabledForLink(link) : true;
                 if (typeof window.DashboardCategories?.buildLinkHtml === 'function') {
@@ -109,7 +119,9 @@
         }
 
         const frameDropAction = `ondragover="if(typeof allowDrop==='function')allowDrop(event)" ondrop="event.currentTarget.classList.remove('active'); if(typeof window.EveFolderViewV2.handleFolderDrop==='function') window.EveFolderViewV2.handleFolderDrop(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(folderId)}', '${escapeCardJs(workspaceId)}')" ondragenter="event.currentTarget.classList.add('active')" ondragleave="event.currentTarget.classList.remove('active')"`;
-        const frameHtml = `${breadcrumbsHtml}<div class="manhwa-frame" ${frameDropAction}><div class="manhwa-frame-top-beam"></div><div class="manhwa-frame-left-glow"></div><div class="manhwa-scan-beam"></div><svg width="10" height="10" style="position: absolute; top: 6px; left: 6px;"><polyline points="8,1 1,1 1,8" fill="none" stroke="var(--accent, #0088ff)" stroke-width="1.5"/></svg><svg width="10" height="10" style="position: absolute; top: 6px; right: 6px;"><polyline points="1,1 8,1 8,8" fill="none" stroke="var(--accent, #0088ff)" stroke-width="1.5"/></svg><svg width="10" height="10" style="position: absolute; bottom: 6px; left: 6px;"><polyline points="1,1 1,8 8,8" fill="none" stroke="var(--accent, #0088ff)" stroke-width="1.5"/></svg><svg width="10" height="10" style="position: absolute; bottom: 6px; right: 6px;"><polyline points="8,1 8,8 1,8" fill="none" stroke="var(--accent, #0088ff)" stroke-width="1.5"/></svg><div style="position: relative; z-index: 1;">${subFoldersHtml}${itemsHtml}</div></div><div style="margin-top: 10px; cursor: pointer; color: rgba(128,128,128,0.6); font-family: 'Share Tech Mono', monospace; font-size: 10px;" onclick="window.EveFolderViewV2.exitFolder(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(workspaceId)}')">â€¹ SYSTEM ROOT</div>`;
+        const subfoldersCollapsedClass = (isCardFoldersCollapsed || isFolderSubfoldersCollapsed) ? ' subfolders-collapsed' : '';
+        const sublinksCollapsedClass = (isCardLinksCollapsed || isFolderSublinksCollapsed) ? ' sublinks-collapsed' : '';
+        const frameHtml = `${breadcrumbsHtml}<div class="manhwa-frame ${subfoldersCollapsedClass}${sublinksCollapsedClass}" ${frameDropAction}><div class="manhwa-frame-top-beam"></div><div class="manhwa-frame-left-glow"></div><div class="manhwa-scan-beam"></div><svg width="10" height="10" style="position: absolute; top: 6px; left: 6px;"><polyline points="8,1 1,1 1,8" fill="none" stroke="var(--accent, #0088ff)" stroke-width="1.5"/></svg><svg width="10" height="10" style="position: absolute; top: 6px; right: 6px;"><polyline points="1,1 8,1 8,8" fill="none" stroke="var(--accent, #0088ff)" stroke-width="1.5"/></svg><svg width="10" height="10" style="position: absolute; bottom: 6px; left: 6px;"><polyline points="1,1 1,8 8,8" fill="none" stroke="var(--accent, #0088ff)" stroke-width="1.5"/></svg><svg width="10" height="10" style="position: absolute; bottom: 6px; right: 6px;"><polyline points="8,1 8,8 1,8" fill="none" stroke="var(--accent, #0088ff)" stroke-width="1.5"/></svg><div style="position: relative; z-index: 1;"><div class="bookmark-folder-subfolders">${subFoldersHtml}</div><div class="bookmark-folder-links">${itemsHtml}</div></div></div><div style="margin-top: 10px; cursor: pointer; color: rgba(128,128,128,0.6); font-family: 'Share Tech Mono', monospace; font-size: 10px;" onclick="window.EveFolderViewV2.exitFolder(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(workspaceId)}')">â€¹ SYSTEM ROOT</div>`;
 
         const listContainer = card.querySelector('.category-scrollable') || card.querySelector('.bookmark-folder-sections') || card.querySelector('.v2-folder-root-container') || card.querySelector('.v2-folder-container');
         if (!listContainer) return;

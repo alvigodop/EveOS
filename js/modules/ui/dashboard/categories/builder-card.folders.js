@@ -140,6 +140,11 @@ function buildFolderSectionsHtml(categoryName, linksForCard, options, renderer) 
                 + `<button type="button" class="bookmark-folder-toolbar-btn" onclick="openBookmarkFolders('${safeCategoryJs}')">Manage Folders</button>`
             + '</div>';
 
+        const isRootSubfoldersCollapsed = !!(window.eveState?.config?.subfoldersCollapsed || []).includes('__root__::' + categoryName);
+        const isRootSublinksCollapsed = !!(window.eveState?.config?.sublinksCollapsed || []).includes('__root__::' + categoryName);
+        const rootSubfoldersCollapsedClass = isRootSubfoldersCollapsed ? ' subfolders-collapsed' : '';
+        const rootSublinksCollapsedClass = isRootSublinksCollapsed ? ' sublinks-collapsed' : '';
+
         if (!hasFolders) {
             return toolbarHtml + renderer(viewModel.rootLinks);
         }
@@ -147,7 +152,7 @@ function buildFolderSectionsHtml(categoryName, linksForCard, options, renderer) 
         return ''
             + toolbarHtml
             + '<div class="bookmark-folder-sections">'
-                + `<div class="bookmark-folder-root-group" ${buildDropTargetAttributes('', '')}>`
+                + `<div class="bookmark-folder-root-group${rootSubfoldersCollapsedClass}${rootSublinksCollapsedClass}" ${buildDropTargetAttributes('', '')}>`
                     + '<div class="bookmark-folder-root-header">'
                         + '<div class="bookmark-folder-root-copy">'
                             + '<span class="bookmark-folder-root-title">Root Bookmarks</span>'
@@ -156,16 +161,22 @@ function buildFolderSectionsHtml(categoryName, linksForCard, options, renderer) 
                         + (readOnlyFolders || isDetachedParkingCard
                             ? ''
                             : '<div class="bookmark-folder-summary-actions">'
+                                + `<button type="button" class="bookmark-folder-inline-btn bookmark-folder-summary-edit-toggle${rootSublinksCollapsedClass ? ' is-collapsed' : ''}" title="Toggle Bookmarks" onclick="event.preventDefault();event.stopPropagation();toggleSublinksCollapse('__root__::${safeCategoryJs}')">&#128216;</button>`
+                                + `<button type="button" class="bookmark-folder-inline-btn bookmark-folder-summary-edit-toggle${rootSubfoldersCollapsedClass ? ' is-collapsed' : ''}" title="Toggle Subfolders" onclick="event.preventDefault();event.stopPropagation();toggleSubfoldersCollapse('__root__::${safeCategoryJs}')">&#128193;</button>`
                                 + `<button type="button" class="bookmark-folder-inline-btn bookmark-folder-summary-edit-toggle" aria-expanded="${rootActionsExpandedAttr}" onclick="event.preventDefault();event.stopPropagation();toggleCategoryCardFolderActions(this, '${safeCategoryJs}', '__root__', '${safeWorkspaceJs}')">&#9998;</button>`
                                 + `<div class="bookmark-folder-summary-action-list"${rootActionsHiddenAttr}>`
-                                    + `<button type="button" class="bookmark-folder-inline-btn bulk-scope-btn" title="Select root bookmarks in this card" onclick="event.preventDefault();event.stopPropagation();bulkToggleFolderScopeSelection('${safeCategoryJs}', '${safeWorkspaceJs}', '')">Select Root</button>`
+                                    + `<button type="button" class="bookmark-folder-inline-btn bulk-scope-btn" title="Select root bookmarks in this card" onclick="event.preventDefault(); event.stopPropagation(); bulkToggleFolderScopeSelection('${safeCategoryJs}', '${safeWorkspaceJs}', '')">Select Root</button>`
                                     + `<button type="button" class="bookmark-folder-inline-btn" onclick="openAddModal('${safeCategoryJs}')">Add Root</button>`
                                 + '</div>'
                             + '</div>')
                     + '</div>'
-                    + (hasRootLinks
-                        ? renderer(viewModel.rootLinks)
-                        : '<div class="bookmark-folder-empty">No root bookmarks in this card.</div>')
+                    + '<div class="bookmark-folder-body">'
+                        + '<div class="bookmark-folder-links">'
+                            + (hasRootLinks
+                                ? renderer(viewModel.rootLinks)
+                                : '<div class="bookmark-folder-empty">No root bookmarks in this card.</div>')
+                        + '</div>'
+                    + '</div>'
                 + '</div>'
                 + topLevelHtml
             + '</div>';

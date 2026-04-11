@@ -243,27 +243,34 @@ html[data-native-scheme="light"] {
 .category-card.collapsed .v2-folder-root-container,
 .category-card.collapsed .v2-folder-container,
 .category-card.collapsed .category-footer {
-    display: none;
+    display: none !important;
 }
 
 .category-card.folders-collapsed .bookmark-folder-toolbar,
 .category-card.folders-collapsed .bookmark-folder-sections > .bookmark-folder-group,
 .category-card.folders-collapsed .folder-wrap-grid,
-.category-card.folders-collapsed .manhwa-divider {
-    display: none;
+.category-card.folders-collapsed .v2-folder-container .manhwa-frame > div:first-child,
+.category-card.folders-collapsed .bookmark-folder-subfolders {
+    display: none !important;
 }
 
-/* For v2 folder views, if we are inside a folder, hide the subfolders */
-.category-card.folders-collapsed .v2-folder-container .manhwa-frame > div:first-child {
-    display: none;
+/* Hide the "FOLDERS" divider specifically when folders are collapsed in V2 */
+.category-card.folders-collapsed .manhwa-divider:not(.items-divider) {
+    /* This assumes we might need a way to distinguish dividers, but for now let's be broad if it's card-level */
 }
 
-.category-card.links-collapsed > ul,
+/* Global Bookmark Hiding for Card */
+.category-card.links-collapsed ul,
 .category-card.links-collapsed .bookmark-folder-root-group,
-.category-card.links-collapsed .v2-folder-root-container > div > ul,
 .category-card.links-collapsed .v2-folder-root-container > .manhwa-divider,
-.category-card.links-collapsed .bookmark-folder-links {
-    display: none;
+.category-card.links-collapsed .bookmark-folder-links,
+.category-card.links-collapsed .manhwa-divider.items-divider {
+    display: none !important;
+}
+
+/* Special case for V2 navigation dividers */
+.category-card.links-collapsed .manhwa-divider:last-of-type {
+    /* If there are two dividers, the last one is usually ITEMS */
 }
 
 /* Scrollable Mode */

@@ -226,15 +226,22 @@ li:hover .actions {
     display: none;
 }
 
-.bookmark-folder-group.subfolders-collapsed .bookmark-folder-subfolders {
+.bookmark-folder-group.subfolders-collapsed .bookmark-folder-subfolders,
+.bookmark-folder-root-group.subfolders-collapsed .bookmark-folder-subfolders,
+.manhwa-frame.subfolders-collapsed .bookmark-folder-subfolders,
+.manhwa-frame.subfolders-collapsed .manhwa-divider.folders-divider {
     display: none !important;
 }
 
-.bookmark-folder-group.sublinks-collapsed .bookmark-folder-links {
+.bookmark-folder-group.sublinks-collapsed .bookmark-folder-links,
+.bookmark-folder-root-group.sublinks-collapsed .bookmark-folder-links,
+.manhwa-frame.sublinks-collapsed .bookmark-folder-links,
+.manhwa-frame.sublinks-collapsed .manhwa-divider.items-divider {
     display: none !important;
 }
 
-.bookmark-folder-summary-edit-toggle.is-collapsed {
+.bookmark-folder-summary-edit-toggle.is-collapsed,
+.folder-breadcrumb-icon-btn.collapsed {
     opacity: 0.4;
     filter: grayscale(1);
 }
