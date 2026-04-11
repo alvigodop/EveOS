@@ -241,13 +241,20 @@ window.EveDataStore = window.EveDataStore || {};
         if (typeof saveData === 'function') saveData();
     }
 
-    function applyLibraryCategories(categories) {
+    function applyLibraryCategories(categories, workspaceId = null) {
         if (!categories || typeof categories !== 'object') return;
         const stateModule = getLibraryStateModule();
         if (!stateModule) return;
+        
+        const targetWorkspace = workspaceId || getConfig()?.activeWorkspace || 'main';
+        
         Object.entries(categories).forEach(([categoryName, data]) => {
             if (typeof data === 'object') {
-                stateModule.setCategoryLibrary(categoryName, data);
+                if (stateModule.setCategoryLibrary.length >= 3) {
+                    stateModule.setCategoryLibrary(categoryName, data, targetWorkspace);
+                } else {
+                    stateModule.setCategoryLibrary(categoryName, data);
+                }
             }
         });
         const storageModule = getLibraryStorageModule();
@@ -258,7 +265,7 @@ window.EveDataStore = window.EveDataStore || {};
         if (!Array.isArray(connections)) return;
         const existing = cloneConnections();
         const linkIds = new Set(connections.map(conn => conn.linkId).filter(Boolean));
-        const filtered = existing.filter(conn => conn.workspace !== workspaceId && !linkIds.has(conn.linkId));
+        const filtered = existing.filter(conn => String(conn.workspace) !== String(workspaceId) && !linkIds.has(conn.linkId));
         const annotated = connections.map(conn => ({ ...conn, workspace: workspaceId }));
         const next = filtered.concat(annotated);
         if (window.EveLibrary?.ConnectionsAPI?.setAll) {

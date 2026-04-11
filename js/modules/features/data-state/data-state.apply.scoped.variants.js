@@ -202,9 +202,10 @@ window.EveDataStore = window.EveDataStore || {};
         if (state.library?.categories && typeof state.library.categories === 'object') {
             const selectedCategory = findCategoryLibraryData(state.library.categories, workspaceId, categoryName);
             if (selectedCategory) {
-                applyLibraryCategories({ [categoryName]: selectedCategory });
+                // Pass the workspaceId to ensure correct scoping
+                applyLibraryCategories({ [categoryName]: selectedCategory }, workspaceId);
             } else {
-                applyLibraryCategories(state.library.categories);
+                applyLibraryCategories(state.library.categories, workspaceId);
             }
         }
 
@@ -218,7 +219,9 @@ window.EveDataStore = window.EveDataStore || {};
             const incomingLinkIds = new Set(incoming.map((conn) => conn.linkId).filter(Boolean));
             const filtered = existing.filter((conn) => {
                 const connCategory = getConnectionCategoryName(conn) || '';
+                // If it's the target workspace and category, we clear it out to make room for incoming
                 if (conn.workspace === workspaceId && connCategory === categoryName) return false;
+                // If the link ID already exists in incoming, we replace it
                 if (incomingLinkIds.has(conn.linkId)) return false;
                 return true;
             });

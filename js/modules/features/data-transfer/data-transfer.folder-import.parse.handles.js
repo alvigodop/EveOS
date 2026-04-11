@@ -110,10 +110,17 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             const folderJson = await readJsonFileIfExists(handle, 'folder.json');
             const node = normalizeFolderNode(folderJson, handle.name, parentId, folderIndex);
             folderTreeNodes.push(node);
+            
+            // Check for entries subdirectory first
             const entriesHandle = await getDirectoryHandleByAliases(handle, ['entries', 'e']);
             if (entriesHandle) {
                 await parseEntriesDirectory(entriesHandle, workspaceId, categoryName, links, connectionMap, categoryEntries, node.id);
+            } else {
+                // Fallback: Check the folder itself for bookmarks if no entries/ dir exists
+                await parseEntriesDirectory(handle, workspaceId, categoryName, links, connectionMap, categoryEntries, node.id);
             }
+
+            // Check for subfolders subdirectory
             const nestedFoldersHandle = await getDirectoryHandleByAliases(handle, ['folders', 'f']);
             if (nestedFoldersHandle) {
                 await parseFolderTree(nestedFoldersHandle, workspaceId, categoryName, links, connectionMap, categoryEntries, folderTreeNodes, node.id);
@@ -133,16 +140,17 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             entriesHandle = await getDirectoryHandleByAliases(cardFolderHandle, ['entries', 'e']);
         }
         if (!entriesHandle) entriesHandle = await getDirectoryHandleByAliases(cardFolderHandle, ['entries', 'e']);
-        if (!entriesHandle) entriesHandle = cardFolderHandle;
-
+        
+        // If we still have no entries handle, we'll parse the card root for entries later
+        
         const links = [];
         const connectionMap = new Map();
         const categoryEntries = [];
         const folderTreeNodes = [];
         const folderTreeSettings = normalizeTreeSettings({ clickBehaviorMode: cardJson?.clickBehaviorMode });
         
-        // 1. Parse root entries
-        await parseEntriesDirectory(entriesHandle, workspaceId, categoryName, links, connectionMap, categoryEntries, null);
+        // 1. Parse root entries (either from entries/ dir or from card root)
+        await parseEntriesDirectory(entriesHandle || cardFolderHandle, workspaceId, categoryName, links, connectionMap, categoryEntries, null);
 
         // 2. Discover and parse folders
         let foldersHandle = await getDirectoryHandleByAliases(cardFolderHandle, ['folders', 'f']);
@@ -153,11 +161,15 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             const allEntries = await listDirectoryEntries(cardFolderHandle);
             for (const { name, handle } of allEntries) {
                 if (handle.kind !== 'directory') continue;
-                if (['entries', 'e', 'folders', 'f', 'state', 'knowledge', '_meta'].includes(name.toLowerCase())) continue;
+                const lowerName = name.toLowerCase();
+                if (['entries', 'e', 'folders', 'f', 'state', 'knowledge', '_meta', '__pycache__', 'node_modules'].includes(lowerName)) continue;
                 
-                // If it contains folder.json or its own folders/entries subdirs, it's likely a bookmark folder
+                // If it contains folder.json or its own folders/entries subdirs, OR it contains bookmark JSONs, it's a folder
+                const subFiles = await listDirectoryEntries(handle);
+                const hasBookmarks = subFiles.some(f => f.handle.kind === 'file' && f.name.toLowerCase().endsWith('.json') && f.name.toLowerCase() !== 'folder.json');
                 const isLikelyFolder = !!(await getFileHandleIfExists(handle, 'folder.json')) 
-                    || !!(await getDirectoryHandleByAliases(handle, ['entries', 'e', 'folders', 'f']));
+                    || !!(await getDirectoryHandleByAliases(handle, ['entries', 'e', 'folders', 'f']))
+                    || hasBookmarks;
                 
                 if (isLikelyFolder) {
                     const folderJson = await readJsonFileIfExists(handle, 'folder.json');
@@ -165,9 +177,9 @@ window.EveDataTransfer = window.EveDataTransfer || {};
                     folderTreeNodes.push(node);
                     
                     const subEntries = await getDirectoryHandleByAliases(handle, ['entries', 'e']);
-                    if (subEntries) {
-                        await parseEntriesDirectory(subEntries, workspaceId, categoryName, links, connectionMap, categoryEntries, node.id);
-                    }
+                    // Parse from entries/ dir if it exists, otherwise parse from the folder handle itself
+                    await parseEntriesDirectory(subEntries || handle, workspaceId, categoryName, links, connectionMap, categoryEntries, node.id);
+                    
                     const subFolders = await getDirectoryHandleByAliases(handle, ['folders', 'f']);
                     if (subFolders) {
                         await parseFolderTree(subFolders, workspaceId, categoryName, links, connectionMap, categoryEntries, folderTreeNodes, node.id);

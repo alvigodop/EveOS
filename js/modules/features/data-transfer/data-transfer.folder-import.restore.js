@@ -153,8 +153,13 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             let chosen = parsedCards.find((card) => String(card.workspaceId) === selectedWorkspaceId && String(card.categoryName || '').toLowerCase() === String(selectedCategoryName || '').toLowerCase());
             if (!chosen) chosen = parsedCards.find((card) => String(card.workspaceId) === selectedWorkspaceId) || parsedCards[0];
             
-            // Force re-mapping to user selection OR backup's identified name
-            const finalCategoryName = selectedCategoryName || chosen.categoryName || 'Unsorted';
+            // Determine final category name:
+            // 1. If user picked one from dropdown (and it's not Unsorted), use it (Overwrite)
+            // 2. Otherwise, use backup's name but make it unique (Create New)
+            let finalCategoryName = selectedCategoryName;
+            if (!finalCategoryName || finalCategoryName === 'Unsorted') {
+                finalCategoryName = ns.getUniqueCategoryName(selectedWorkspaceId, chosen.categoryName || 'Restored Card');
+            }
             
             chosen.workspaceId = selectedWorkspaceId;
             chosen.categoryName = finalCategoryName;
@@ -181,13 +186,16 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             });
             // Ensure metadata is correctly set on the newly built state
             cardState.metadata.workspaceId = chosen.workspaceId;
-            cardState.metadata.categoryName = chosen.categoryName;
+            cardState.metadata.categoryName = finalCategoryName;
             cardState.metadata.type = 'card';
             
             const ok = dataStore.applyCardState(cardState);
             if (!ok) return showToast('Card folder restore could not be applied.', 'error');
-            showToast('Card folder restored!', 'success');
-            setTimeout(() => location.reload(), 500);
+            showToast(`Card "${finalCategoryName}" restored! Syncing...`, 'success');
+            // Use a longer delay and a direct URL refresh to ensure workspace persistence
+            setTimeout(() => { 
+                window.location.href = window.location.pathname + '?ws=' + encodeURIComponent(chosen.workspaceId);
+            }, 1200);
         } catch (error) {
             console.error('[DataTransfer] Card restore failed:', error);
             if (error?.name === 'AbortError') return showToast('Card folder restore canceled.', 'info');

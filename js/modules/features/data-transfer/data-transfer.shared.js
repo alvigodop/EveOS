@@ -193,13 +193,14 @@ window.EveDataTransfer = window.EveDataTransfer || {};
                 )
         )].sort((a, b) => a.localeCompare(b));
 
-        categorySelect.innerHTML = '';
+        categorySelect.innerHTML = '<option value="">(Create New Card)</option>';
         categories.forEach(cat => {
             const option = document.createElement('option');
             option.value = cat;
             option.textContent = cat;
             categorySelect.appendChild(option);
         });
+        categorySelect.value = '';
     }
 
     function refreshBookmarkBackupList() {
@@ -392,6 +393,31 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         }
     }
 
+    function getUniqueCategoryName(workspaceId, baseName) {
+        const wsId = String(workspaceId || 'main').trim() || 'main';
+        const name = String(baseName || 'Restored Card').trim() || 'Restored Card';
+        
+        // Get existing categories from the order system if available
+        const order = window.EveCategoryOrder?.getOrder?.(wsId) || [];
+        if (order.length === 0) {
+            // Fallback: Check links directly
+            const links = window.links || window.eveState?.links || [];
+            links.forEach(l => {
+                if (String(l.workspace) === wsId && l.category && !order.includes(l.category)) {
+                    order.push(l.category);
+                }
+            });
+        }
+
+        if (!order.includes(name)) return name;
+
+        let counter = 1;
+        while (order.includes(`${name} (${counter})`)) {
+            counter++;
+        }
+        return `${name} (${counter})`;
+    }
+
     Object.assign(ns, {
         getDataStore,
         getAppConfig,
@@ -418,7 +444,8 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         refreshBookmarkBackupList,
         refreshFolderBackupList,
         refreshWorkspaceBackupList,
-        robustParseJson
+        robustParseJson,
+        getUniqueCategoryName
     });
     ns.sharedReady = true;
 })();
