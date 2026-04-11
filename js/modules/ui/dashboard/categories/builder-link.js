@@ -183,6 +183,19 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
     let wsBadge = (searchStr && l.workspace !== activeWorkspace)
         ? `<span class="search-badge">${workspaces.find(w => w.id === l.workspace)?.name || "?"}</span>`
         : '';
+
+    // Sub-tab origin badge: shown when this link came from a sub-tab merged into the parent view
+    let subTabBadge = '';
+    if (!searchStr && l.workspace !== activeWorkspace) {
+        const helpers = window.EveWorkspaceHelpers;
+        const subWs = helpers
+            ? helpers.findById(config.workspaces || [], l.workspace)
+            : null;
+        const subTabName = subWs ? subWs.name : null;
+        if (subTabName) {
+            subTabBadge = `<span class="subtab-origin-badge" title="From sub-tab: ${subTabName}">${subWs.icon || '📁'} ${subTabName}</span>`;
+        }
+    }
     const folderBadge = extraOptions.folderLabel
         ? `<span class="bookmark-folder-link-badge">${extraOptions.folderLabel}</span>`
         : '';
@@ -200,7 +213,7 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
 
     return `<li class="${doneClass} ${isLocal ? 'is-local' : ''} ${pClass} ${pinnedClass}" draggable="true" ondragstart="${dragStartHandler}" oncontextmenu="showLinkContextMenu(event, ${jsLinkIdLiteral})" onmouseenter="showBookmarkCoverHover(event, ${jsLinkIdLiteral})" onmousemove="moveBookmarkCoverHover(event)" onmouseleave="hideBookmarkCoverHover()">
                 <input type="checkbox" class="bulk-check" data-bulk-id="${linkId.replace(/&/g, '&amp;').replace(/\"/g, '&quot;')}" onclick="event.preventDefault();event.stopPropagation();toggleSelect(this, ${jsLinkIdLiteral}, event);return false;" ${isChecked}>
-                ${iconHtml} ${wsBadge} ${folderBadge} ${detachedBadge} ${identifierBadges} <a href="${l.url}" target="_blank" rel="noopener noreferrer" onclick='return (typeof openBookmarkFromDashboard==="function") ? openBookmarkFromDashboard(event, decodeURIComponent("${encodedLinkId}")) : true;'>${l.title}</a>
+                ${iconHtml} ${wsBadge} ${subTabBadge} ${folderBadge} ${detachedBadge} ${identifierBadges} <a href="${l.url}" target="_blank" rel="noopener noreferrer" onclick='return (typeof openBookmarkFromDashboard==="function") ? openBookmarkFromDashboard(event, decodeURIComponent("${encodedLinkId}")) : true;'>${l.title}</a>
                 <div class="actions">
                     <span class="icon-btn ${isPinned ? 'pin-active' : ''}" onclick="togglePin(${jsLinkIdLiteral})">${PIN_ICON}</span>
                     ${doneActionHtml}

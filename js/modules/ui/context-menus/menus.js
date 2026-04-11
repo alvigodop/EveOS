@@ -188,6 +188,39 @@ window.showWsContext = function (e, id) {
     const m = document.getElementById('sidebar-context-menu');
     if (!m) return;
 
+    const helpers = window.EveWorkspaceHelpers;
+    const ws = helpers
+        ? helpers.findById(config.workspaces || [], id)
+        : (config.workspaces || []).find(function (w) { return w.id === id; });
+
+    // Update hideSubTabs toggle label dynamically
+    const hideToggle = document.getElementById('ctx-ws-hide-subtabs');
+    if (hideToggle) {
+        const hasSubTabs = ws && Array.isArray(ws.subTabs) && ws.subTabs.length > 0;
+        if (hasSubTabs) {
+            hideToggle.style.display = '';
+            hideToggle.innerHTML = ws.hideSubTabs
+                ? '&#128065; Show Sub-Tab Content'
+                : '&#128065; Hide Sub-Tab Content';
+        } else {
+            hideToggle.style.display = 'none';
+        }
+    }
+
+    // Update hiddenInParent toggle — only for sub-tabs (items with a parent)
+    const hiddenInParentToggle = document.getElementById('ctx-ws-hidden-in-parent');
+    if (hiddenInParentToggle) {
+        const isSubTab = helpers ? !!helpers.findParent(config.workspaces || [], id) : false;
+        if (isSubTab && ws) {
+            hiddenInParentToggle.style.display = '';
+            hiddenInParentToggle.innerHTML = ws.hiddenInParent
+                ? '&#128064; Show in Parent View'
+                : '&#128064; Hide in Parent View';
+        } else {
+            hiddenInParentToggle.style.display = 'none';
+        }
+    }
+
     placeContextMenu(m, e);
 };
 

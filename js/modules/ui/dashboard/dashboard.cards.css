@@ -53,6 +53,35 @@ html[data-native-scheme="light"] {
     flex-grow: 1;
     min-width: 0;
     overflow: visible;
+    flex-wrap: wrap;
+}
+
+.card-subtab-sources {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    width: 100%;
+    order: 10;
+}
+
+.card-subtab-source {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: rgba(168, 130, 255, 0.1);
+    color: #c4a8ff;
+    font-size: 0.65rem;
+    white-space: nowrap;
+    border: 1px solid rgba(168, 130, 255, 0.18);
+    line-height: 1.4;
+}
+
+html[data-native-scheme="light"] .card-subtab-source {
+    background: rgba(120, 80, 220, 0.08);
+    color: #6a42c2;
+    border-color: rgba(120, 80, 220, 0.16);
 }
 
 .category-title-wrap {

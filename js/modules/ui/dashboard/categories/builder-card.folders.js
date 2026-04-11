@@ -26,8 +26,10 @@ function buildFolderSectionsHtml(categoryName, linksForCard, options, renderer) 
             window.EveFolderViewV2.setCachedViewModel(workspaceId, categoryName, viewModel);
         }
 
-        // If Manhwa Mode (Navigation View) is active for this card, use the V2 Root Grid instead of the tree.
-        if (!isDetachedParkingCard && !readOnlyFolders && window.EveFolderViewV2 && window.EveFolderViewV2.isManhwaModeEnabled(workspaceId, categoryName)) {
+        // Skip Manhwa Navigation mode for sub-tab folders in parent view — tree view is used instead
+        // because Manhwa mode's DOM replacement doesn't work when the card has mixed-workspace content.
+        const isSubTabInParentView = !!options?.isSubTabInParentView;
+        if (!isDetachedParkingCard && !readOnlyFolders && !isSubTabInParentView && window.EveFolderViewV2 && window.EveFolderViewV2.isManhwaModeEnabled(workspaceId, categoryName)) {
             return window.EveFolderViewV2.renderRootGrid(workspaceId, categoryName, viewModel, renderer);
         }
 

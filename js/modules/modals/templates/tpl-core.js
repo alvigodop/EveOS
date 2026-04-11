@@ -193,6 +193,7 @@ window.modalTemplate = `
     <div class="modal">
         <h2>Workspace</h2>
         <input type="hidden" id="wsEditId">
+        <input type="hidden" id="wsParentId">
         <input type="text" id="wsName" placeholder="Workspace Name">
         <div style="display:flex; gap:5px;">
             <input type="text" id="wsIcon" placeholder="Icon" style="text-align:center; flex:1;">

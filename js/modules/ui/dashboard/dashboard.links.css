@@ -272,6 +272,27 @@ li:hover .actions {
     white-space: nowrap;
 }
 
+.subtab-origin-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: rgba(168, 130, 255, 0.14);
+    color: #c4a8ff;
+    font-size: 0.68rem;
+    white-space: nowrap;
+    margin-right: 3px;
+    border: 1px solid rgba(168, 130, 255, 0.22);
+    line-height: 1.4;
+}
+
+html[data-native-scheme="light"] .subtab-origin-badge {
+    background: rgba(120, 80, 220, 0.1);
+    color: #6a42c2;
+    border-color: rgba(120, 80, 220, 0.2);
+}
+
 .bookmark-folder-root-group {
     transition: border-color 0.18s ease, background 0.18s ease;
 }

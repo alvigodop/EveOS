@@ -660,6 +660,13 @@ async function loadData() {
         : {};
     if (loadedConfig && typeof loadedConfig === 'object') {
         config = { ...config, ...loadedConfig };
+
+        // --- Migration: ensure recursive subTabs on all workspaces ---
+        const wsHelpers = window.EveWorkspaceHelpers;
+        if (wsHelpers && Array.isArray(config.workspaces) && wsHelpers.needsMigration(config.workspaces)) {
+            config.workspaces = wsHelpers.sanitize(config.workspaces);
+            console.log('[Storage] Migrated workspaces to recursive sub-tab format.');
+        }
     }
     if (storage) {
         storage.syncThemeBootConfig(config);
@@ -669,7 +676,7 @@ async function loadData() {
     if (window.EveLibrary?.Ratings?.ensureConfigDefaults) {
         window.EveLibrary.Ratings.ensureConfigDefaults(config);
     }
-    if (!config.workspaces || config.workspaces.length === 0) config.workspaces = [{ id: 'main', name: 'Main', icon: '\u{1F3E0}' }];
+    if (!config.workspaces || config.workspaces.length === 0) config.workspaces = [{ id: 'main', name: 'Main', icon: '\u{1F3E0}', subTabs: [] }];
     if (!config.activeWorkspace) config.activeWorkspace = 'main';
 
     // Apply settings

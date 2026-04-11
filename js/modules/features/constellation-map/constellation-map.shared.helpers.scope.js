@@ -13,7 +13,10 @@ function getWorkspaceName(workspaceId) {
 
         const workspaces = Array.isArray(config.workspaces) ? config.workspaces : [];
 
-        const match = workspaces.find((workspace) => String(workspace?.id || '') === id);
+        const helpers = window.EveWorkspaceHelpers;
+        const match = helpers
+            ? helpers.findById(workspaces, id)
+            : workspaces.find((workspace) => String(workspace?.id || '') === id);
 
         return text(match?.name, id);
 
@@ -85,7 +88,12 @@ function getAllWorkspaceIds(links) {
 
         const workspaces = Array.isArray(config.workspaces) ? config.workspaces : [];
 
-        workspaces.forEach((workspace) => ids.add(text(workspace?.id, 'main')));
+        const helpers = window.EveWorkspaceHelpers;
+        if (helpers) {
+            helpers.flattenIds(workspaces).forEach((id) => ids.add(id));
+        } else {
+            workspaces.forEach((workspace) => ids.add(text(workspace?.id, 'main')));
+        }
 
         links.forEach((link) => ids.add(text(link?.workspace, 'main')));
 
@@ -109,7 +117,16 @@ function getScopedLinks(scope) {
 
         }
 
-        const workspaceLinks = allLinks.filter((link) => String(link?.workspace || 'main') === String(scope.workspaceId));
+        const helpers = window.EveWorkspaceHelpers;
+        const config = getConfig();
+        const visibleWsIds = new Set([String(scope.workspaceId)]);
+        if (helpers && scope.scope === 'workspace') {
+            const ws = helpers.findById(Array.isArray(config.workspaces) ? config.workspaces : [], scope.workspaceId);
+            if (ws) {
+                helpers.getDescendantIds(ws).forEach(function (id) { visibleWsIds.add(id); });
+            }
+        }
+        const workspaceLinks = allLinks.filter((link) => visibleWsIds.has(String(link?.workspace || 'main')));
 
         if (scope.scope === 'card') {
 

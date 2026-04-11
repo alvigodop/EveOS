@@ -224,8 +224,21 @@ function _renderDashboardCore() {
     if (mainContent) mainContent.classList.toggle('unidex-view-active', isUnidexMode);
 
     const activeWorkspaceId = String(config.activeWorkspace || 'main').trim() || 'main';
+
+    // Build the set of workspace IDs to include in this view
+    const visibleWorkspaceIds = new Set([activeWorkspaceId]);
+    const helpers = window.EveWorkspaceHelpers;
+    if (helpers) {
+        const activeWs = helpers.findById(config.workspaces || [], activeWorkspaceId);
+        if (activeWs && !activeWs.hideSubTabs && Array.isArray(activeWs.subTabs) && activeWs.subTabs.length > 0) {
+            helpers.getVisibleDescendantIds(activeWs).forEach(function (id) { visibleWorkspaceIds.add(id); });
+        }
+    }
+    // Expose for link badge rendering
+    window._eveActiveVisibleWorkspaceIds = visibleWorkspaceIds;
+
     const visibleLinks = links.filter(function (link) {
-        if (String(link?.workspace || 'main').trim() !== activeWorkspaceId) return false;
+        if (!visibleWorkspaceIds.has(String(link?.workspace || 'main').trim())) return false;
         if (!searchStr) return true;
         return String(link?.title || '').toLowerCase().includes(searchStr)
             || String(link?.url || '').toLowerCase().includes(searchStr)

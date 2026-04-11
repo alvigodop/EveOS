@@ -117,3 +117,150 @@
 #sidebar:hover .ws-divider {
     width: 136px;
 }
+
+/* --- Sub-Tab Nesting --- */
+.ws-node-wrapper {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.ws-node-wrapper[style*="--ws-depth"] {
+    padding-left: 0;
+}
+
+#sidebar:hover .ws-node-wrapper.ws-depth-1 { padding-left: 10px; }
+#sidebar:hover .ws-node-wrapper.ws-depth-2 { padding-left: 20px; }
+#sidebar:hover .ws-node-wrapper.ws-depth-3 { padding-left: 28px; }
+#sidebar:hover .ws-node-wrapper.ws-depth-4 { padding-left: 34px; }
+
+/* --- Sub-Tab Collapsed Visual (icon-only mode) --- */
+/* Sub-tabs are smaller and visually subordinate when collapsed */
+.ws-sub-item {
+    width: 28px;
+    height: 28px;
+    font-size: 0.85rem;
+    border-radius: 7px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.ws-sub-item:hover,
+.ws-sub-item.active {
+    background: var(--accent);
+    color: var(--accent-contrast);
+    box-shadow: 0 0 6px rgba(0, 212, 255, 0.35);
+}
+
+/* Tighten gap between collapsed sub-tab icons */
+.ws-node-wrapper.ws-depth-1,
+.ws-node-wrapper.ws-depth-2,
+.ws-node-wrapper.ws-depth-3,
+.ws-node-wrapper.ws-depth-4 {
+    margin-top: -2px;
+}
+
+/* --- Sub-Tab Expanded Visual --- */
+#sidebar:hover .ws-sub-item {
+    width: 128px;
+    height: 32px;
+    font-size: 0.82rem;
+    border-radius: 8px;
+    justify-content: flex-start;
+    padding-left: 10px;
+    border-left: 2px solid rgba(168, 130, 255, 0.4);
+    background: rgba(168, 130, 255, 0.05);
+}
+
+/* Depth-based left border style variations */
+#sidebar:hover .ws-depth-2 > .ws-sub-item { border-left-style: dashed; }
+#sidebar:hover .ws-depth-3 > .ws-sub-item { border-left-style: dotted; }
+#sidebar:hover .ws-depth-4 > .ws-sub-item { border-left-style: dotted; opacity: 0.85; }
+
+/* Tree connector line from parent to sub-tab */
+.ws-node-wrapper.ws-depth-1::before,
+.ws-node-wrapper.ws-depth-2::before,
+.ws-node-wrapper.ws-depth-3::before,
+.ws-node-wrapper.ws-depth-4::before {
+    content: '';
+    display: none;
+    width: 1px;
+    height: 8px;
+    background: rgba(168, 130, 255, 0.25);
+    margin-bottom: -2px;
+}
+
+#sidebar:hover .ws-node-wrapper.ws-depth-1::before,
+#sidebar:hover .ws-node-wrapper.ws-depth-2::before,
+#sidebar:hover .ws-node-wrapper.ws-depth-3::before,
+#sidebar:hover .ws-node-wrapper.ws-depth-4::before {
+    display: block;
+}
+
+/* Sub-tab label styling */
+#sidebar:hover .ws-sub-item .ws-label {
+    font-size: 0.78rem;
+    color: rgba(220, 200, 255, 0.85);
+}
+
+/* Light mode sub-tab label */
+html[data-native-scheme="light"] #sidebar:hover .ws-sub-item .ws-label {
+    color: rgba(80, 50, 160, 0.85);
+}
+
+.ws-toggle {
+    display: none;
+    font-size: 0.55rem;
+    cursor: pointer;
+    opacity: 0.6;
+    margin-right: 4px;
+    transition: opacity 0.15s;
+    flex-shrink: 0;
+    line-height: 1;
+}
+
+.ws-toggle:hover {
+    opacity: 1;
+}
+
+#sidebar:hover .ws-toggle {
+    display: inline-flex;
+    align-items: center;
+}
+
+.ws-spacer {
+    display: none;
+    width: 12px;
+    flex-shrink: 0;
+}
+
+#sidebar:hover .ws-spacer {
+    display: inline-block;
+}
+
+.ws-icon {
+    flex-shrink: 0;
+}
+
+/* Hidden-in-parent sub-tab visual */
+.ws-hidden-in-parent {
+    opacity: 0.45;
+}
+
+.ws-hidden-in-parent:hover {
+    opacity: 0.7;
+}
+
+.ws-hidden-badge {
+    display: none;
+    font-size: 0.6rem;
+    margin-left: auto;
+    opacity: 0.5;
+    flex-shrink: 0;
+}
+
+#sidebar:hover .ws-hidden-badge {
+    display: inline-flex;
+    align-items: center;
+}

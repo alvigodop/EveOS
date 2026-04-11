@@ -123,11 +123,43 @@ window.DashboardCategories = window.DashboardCategories || {};
         var scopedWorkspaceIds = Array.from(new Set(renderedLinks.map(function (link) {
             return String(link?.workspace || options.activeWorkspace || '').trim();
         }).filter(Boolean)));
-        var canRenderCardFolders = scopedWorkspaceIds.length <= 1
-            && scopedWorkspaceIds.every(function (workspaceId) { return workspaceId === String(options.activeWorkspace || '').trim(); });
-        var listHtml = canRenderCardFolders
-            ? buildFolderSectionsHtml(cat, renderedLinks, options, renderLinkCollection)
-            : renderLinkCollection(renderedLinks);
+
+        // Allow folder rendering for cards whose links come from the active workspace or its sub-tabs
+        var activeWsId = String(options.activeWorkspace || '').trim();
+        var visibleSubTabIds = window._eveActiveVisibleWorkspaceIds instanceof Set
+            ? window._eveActiveVisibleWorkspaceIds
+            : new Set([activeWsId]);
+        var canRenderCardFolders = scopedWorkspaceIds.every(function (wsId) {
+            return visibleSubTabIds.has(wsId);
+        });
+
+        // When all links come from a single sub-tab, adopt that workspace for the entire card
+        var effectiveWsId = activeWsId;
+        if (canRenderCardFolders && scopedWorkspaceIds.length === 1 && scopedWorkspaceIds[0] !== activeWsId) {
+            effectiveWsId = scopedWorkspaceIds[0];
+            options = Object.assign({}, options, { activeWorkspace: effectiveWsId });
+        }
+
+        var listHtml;
+        if (canRenderCardFolders && scopedWorkspaceIds.length <= 1) {
+            // Single workspace (main tab or single sub-tab) — standard folder rendering with Manhwa support
+            listHtml = buildFolderSectionsHtml(cat, renderedLinks, options, renderLinkCollection);
+        } else if (canRenderCardFolders && scopedWorkspaceIds.length > 1) {
+            // Multiple workspaces (main + sub-tabs) — render folder views per workspace
+            var combinedHtml = [];
+            scopedWorkspaceIds.forEach(function (wsId) {
+                var wsLinks = renderedLinks.filter(function (link) {
+                    return String(link?.workspace || 'main').trim() === wsId;
+                });
+                if (!wsLinks.length) return;
+                var isSubTab = wsId !== activeWsId;
+                var wsOptions = Object.assign({}, options, { activeWorkspace: wsId, isSubTabInParentView: isSubTab });
+                combinedHtml.push(buildFolderSectionsHtml(cat, wsLinks, wsOptions, renderLinkCollection));
+            });
+            listHtml = combinedHtml.join('');
+        } else {
+            listHtml = renderLinkCollection(renderedLinks);
+        }
 
         var shownSuffix = (isFocusMode && focusedFilterMode !== 'all') ? ' shown' : '';
         var titleMetaText = isTaskMode
@@ -232,6 +264,27 @@ window.DashboardCategories = window.DashboardCategories || {};
                     + nonFocusButtons.join('')
                 + '</div>';
 
+        // Detect sub-tab sources in this card
+        var subTabSourcesHtml = '';
+        if (!isDetachedParkingCard) {
+            var subTabIds = new Set();
+            catLinks.forEach(function (link) {
+                var linkWs = String(link?.workspace || 'main').trim();
+                if (linkWs !== activeWorkspaceId) subTabIds.add(linkWs);
+            });
+            if (subTabIds.size > 0) {
+                var helpers = window.EveWorkspaceHelpers;
+                var badges = [];
+                subTabIds.forEach(function (wsId) {
+                    var subWs = helpers ? helpers.findById(config.workspaces || [], wsId) : null;
+                    var subName = subWs ? escapeCardHtml(subWs.name) : wsId;
+                    var subIcon = subWs ? (subWs.icon || '📁') : '📁';
+                    badges.push('<span class="card-subtab-source">' + subIcon + ' ' + subName + '</span>');
+                });
+                subTabSourcesHtml = '<div class="card-subtab-sources">' + badges.join('') + '</div>';
+            }
+        }
+
         card.innerHTML = ''
             + '<div class="cat-progress-bg"><div class="cat-progress-fill ' + barClass + '" style="width:' + pct + '%"></div></div>'
             + '<div class="category-header" oncontextmenu="showCategoryContextMenu(event, \'' + safeCatJs + '\')">'
@@ -244,6 +297,7 @@ window.DashboardCategories = window.DashboardCategories || {};
                         + ' onmouseleave="hideCardTitleHover()">'
                         + '<div class="category-title">' + safeCatHtml + '</div>'
                     + '</div>'
+                    + subTabSourcesHtml
                     + titleMetaHtml
                 + '</div>'
                 + headerButtonsHtml
@@ -253,7 +307,7 @@ window.DashboardCategories = window.DashboardCategories || {};
             + '<div class="category-footer"><span class="stat-pending">Pending: ' + Math.max(totalVisibleTasks - doneVisible, 0) + '</span><span class="stat-done">Done: ' + doneVisible + '</span></div>';
         card.setAttribute('data-card-target-id', cardTargetId);
         card.setAttribute('data-card-category', String(cat || 'Unsorted'));
-        card.setAttribute('data-card-workspace', activeWorkspaceId);
+        card.setAttribute('data-card-workspace', effectiveWsId || activeWorkspaceId);
         if (isDetachedParkingCard) {
             card.setAttribute('data-detached-parking-card', '1');
         }
@@ -261,7 +315,7 @@ window.DashboardCategories = window.DashboardCategories || {};
         gridContainer.appendChild(card);
 
         if (window.EveFolderViewV2 && window.EveFolderViewV2.restoreActiveFolderState) {
-            window.EveFolderViewV2.restoreActiveFolderState(activeWorkspaceId, cat);
+            window.EveFolderViewV2.restoreActiveFolderState(effectiveWsId || activeWorkspaceId, cat);
         }
     }
 

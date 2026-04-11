@@ -182,8 +182,12 @@ function draw() {
             fillPathsByColor[color].moveTo(node.x + node.radius, node.y);
             fillPathsByColor[color].arc(node.x, node.y, node.radius, 0, Math.PI * 2);
 
-            if (node.kind === 'folder' && node.data && typeof node.data.depth === 'number' && node.data.depth > 0) {
-                const maxRings = Math.min(node.data.depth, 4);
+            const nodeDepthForRings = node.data && typeof node.data.depth === 'number' ? node.data.depth : 0;
+            const wsRingCount = node.kind === 'workspace' ? Math.abs(nodeDepthForRings + 2) : 0;
+            const folderRingCount = node.kind === 'folder' && nodeDepthForRings > 0 ? nodeDepthForRings : 0;
+            const effectiveRingCount = wsRingCount || folderRingCount;
+            if (effectiveRingCount > 0) {
+                const maxRings = Math.min(effectiveRingCount, 4);
                 const gap = Math.max(1.5, node.radius / (maxRings + 1.5));
                 const ringColor = getMapThemeRgba('titleColor', 0.4);
                 if (!strokePathsByColor[ringColor]) strokePathsByColor[ringColor] = new Path2D();
@@ -246,8 +250,12 @@ function draw() {
             ctx.fill();
             ctx.shadowBlur = 0;
 
-            if (node.kind === 'folder' && node.data && typeof node.data.depth === 'number' && node.data.depth > 0) {
-                const maxRings = Math.min(node.data.depth, 4);
+            const hovDepth = node.data && typeof node.data.depth === 'number' ? node.data.depth : 0;
+            const hovWsRings = node.kind === 'workspace' ? Math.abs(hovDepth + 2) : 0;
+            const hovFolderRings = node.kind === 'folder' && hovDepth > 0 ? hovDepth : 0;
+            const hovEffectiveRings = hovWsRings || hovFolderRings;
+            if (hovEffectiveRings > 0) {
+                const maxRings = Math.min(hovEffectiveRings, 4);
                 const gap = Math.max(1.5, node.radius / (maxRings + 1.5));
                 for (let r = 1; r <= maxRings; r++) {
                     const ringRadius = node.radius - (gap * r);

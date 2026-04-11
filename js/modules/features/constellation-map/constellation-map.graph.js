@@ -1,4 +1,4 @@
-﻿window.EveConstellationMap = window.EveConstellationMap || {};
+window.EveConstellationMap = window.EveConstellationMap || {};
 
 (function (ns) {
     const shared = ns._shared || {};
@@ -72,15 +72,26 @@
         }
 
         if (scope.scope === 'all') {
-            const workspaceIds = getAllWorkspaceIds(scopedLinks);
-            workspaceIds.forEach((workspaceId, workspaceIndex) => {
-                const workspaceLinks = scopedLinks.filter((link) => String(link?.workspace || 'main') === String(workspaceId));
-                const workspacePosition = placeOnRing(workspaceIndex, workspaceIds.length, Math.min(width, height) * 0.22, centerX, centerY, 18);
+            const wsHelpers = window.EveWorkspaceHelpers;
+            const configObj = typeof config !== 'undefined' ? config : (window.config || {});
+            const configWorkspaces = Array.isArray(configObj.workspaces) ? configObj.workspaces : [];
+
+            // Recursive workspace node builder for sub-tab hierarchy
+            function addWorkspaceBranch(ws, parentWorkspaceNode, wsIndex, wsSiblingCount, ringRadius, ringCenterX, ringCenterY, wsDepth) {
+                const workspaceId = text(ws?.id, 'main');
+                const workspaceLinks = scopedLinks.filter((link) => String(link?.workspace || 'main') === workspaceId);
+                const workspacePosition = placeOnRing(wsIndex, Math.max(wsSiblingCount, 1), ringRadius, ringCenterX, ringCenterY, 18);
+                const nodeRadius = Math.max(8, 15 - (wsDepth * 2));
+                const isHiddenInParent = !!(ws?.hiddenInParent && wsDepth > 0);
+                const wsLabel = text(ws?.name, workspaceId) + (isHiddenInParent ? ' [hidden]' : '');
+                const wsColor = isHiddenInParent
+                    ? getResolvedMapThemeColorValue('mapAccent') || 'rgba(140,140,140,0.5)'
+                    : getResolvedMapThemeColorValue('workspaceNodeColor');
                 const workspaceNode = addNode(createNode({
                     id: 'workspace_' + workspaceId,
-                    label: getWorkspaceName(workspaceId),
-                    color: getResolvedMapThemeColorValue('workspaceNodeColor'),
-                    radius: 15,
+                    label: wsLabel,
+                    color: wsColor,
+                    radius: nodeRadius,
                     kind: 'workspace',
                     x: workspacePosition.x,
                     y: workspacePosition.y,
@@ -88,15 +99,65 @@
                     data: {
                         workspaceId,
                         coverCandidates: buildCoverCandidates(workspaceLinks),
-                        depth: -2
+                        depth: -2 - wsDepth,
+                        hiddenInParent: isHiddenInParent
                     }
                 }));
+
+                // Connect to parent workspace node
+                if (parentWorkspaceNode) {
+                    addEdge(workspaceNode, parentWorkspaceNode, 'hierarchy');
+                }
+
+                // Add category branches
                 const categories = getCategoryNames(workspaceId, workspaceLinks);
                 categories.forEach((categoryName, categoryIndex) => {
                     const categoryCenter = placeOnRing(categoryIndex, categories.length, 128 + ((categoryIndex % 4) * 12), workspaceNode.x, workspaceNode.y, 10);
                     addCategoryBranch(context, workspaceId, categoryName, categoryCenter, workspaceNode);
                 });
-            });
+
+                // Recurse into sub-tabs
+                const subTabs = Array.isArray(ws?.subTabs) ? ws.subTabs : [];
+                if (subTabs.length > 0) {
+                    const subRadius = Math.max(40, ringRadius * 0.55);
+                    subTabs.forEach((childWs, childIndex) => {
+                        addWorkspaceBranch(childWs, workspaceNode, childIndex, subTabs.length, subRadius, workspaceNode.x, workspaceNode.y, wsDepth + 1);
+                    });
+                }
+            }
+
+            // Build from config tree if available, else fallback to flat IDs
+            if (wsHelpers && configWorkspaces.length > 0) {
+                configWorkspaces.forEach((ws, wsIndex) => {
+                    addWorkspaceBranch(ws, null, wsIndex, configWorkspaces.length, Math.min(width, height) * 0.22, centerX, centerY, 0);
+                });
+            } else {
+                const workspaceIds = getAllWorkspaceIds(scopedLinks);
+                workspaceIds.forEach((workspaceId, workspaceIndex) => {
+                    const workspaceLinks = scopedLinks.filter((link) => String(link?.workspace || 'main') === String(workspaceId));
+                    const workspacePosition = placeOnRing(workspaceIndex, workspaceIds.length, Math.min(width, height) * 0.22, centerX, centerY, 18);
+                    const workspaceNode = addNode(createNode({
+                        id: 'workspace_' + workspaceId,
+                        label: getWorkspaceName(workspaceId),
+                        color: getResolvedMapThemeColorValue('workspaceNodeColor'),
+                        radius: 15,
+                        kind: 'workspace',
+                        x: workspacePosition.x,
+                        y: workspacePosition.y,
+                        meta: workspaceLinks.length + ' bookmark' + (workspaceLinks.length === 1 ? '' : 's'),
+                        data: {
+                            workspaceId,
+                            coverCandidates: buildCoverCandidates(workspaceLinks),
+                            depth: -2
+                        }
+                    }));
+                    const categories = getCategoryNames(workspaceId, workspaceLinks);
+                    categories.forEach((categoryName, categoryIndex) => {
+                        const categoryCenter = placeOnRing(categoryIndex, categories.length, 128 + ((categoryIndex % 4) * 12), workspaceNode.x, workspaceNode.y, 10);
+                        addCategoryBranch(context, workspaceId, categoryName, categoryCenter, workspaceNode);
+                    });
+                });
+            }
         } else if (scope.scope === 'card') {
             addCategoryBranch(context, scope.workspaceId, text(scope.categoryName, 'Unsorted'), { x: centerX, y: centerY }, null);
         } else if (scope.scope === 'folder') {
@@ -143,11 +204,81 @@
                 });
             }
         } else {
-            const categories = getCategoryNames(scope.workspaceId, scopedLinks);
-            categories.forEach((categoryName, categoryIndex) => {
-                const categoryCenter = placeOnRing(categoryIndex, categories.length, Math.min(width, height) * 0.24, centerX, centerY, 16);
+            // Single workspace scope — no root node visible, just categories + sub-tab hierarchy
+            const wsHelpers = window.EveWorkspaceHelpers;
+            const configObj = typeof config !== 'undefined' ? config : (window.config || {});
+            const configWorkspaces = Array.isArray(configObj.workspaces) ? configObj.workspaces : [];
+            const rootWs = wsHelpers ? wsHelpers.findById(configWorkspaces, scope.workspaceId) : null;
+
+            // Root workspace links (only direct, not descendant)
+            const rootWsLinks = scopedLinks.filter((link) => String(link?.workspace || 'main') === String(scope.workspaceId));
+
+            // Add category branches for root workspace — no parent node (original behavior)
+            const rootCategories = getCategoryNames(scope.workspaceId, rootWsLinks);
+            rootCategories.forEach((categoryName, categoryIndex) => {
+                const categoryCenter = placeOnRing(categoryIndex, rootCategories.length, Math.min(width, height) * 0.24, centerX, centerY, 16);
                 addCategoryBranch(context, scope.workspaceId, categoryName, categoryCenter, null);
             });
+
+            // Recursively add sub-tab workspace nodes
+            function addSubTabBranch(ws, parentNode, anchorX, anchorY, wsIndex, wsSiblingCount, ringRadius, wsDepth) {
+                const workspaceId = text(ws?.id, '');
+                if (!workspaceId) return;
+                const wsLinks = scopedLinks.filter((link) => String(link?.workspace || 'main') === workspaceId);
+                const pos = placeOnRing(wsIndex, Math.max(wsSiblingCount, 1), ringRadius, anchorX, anchorY, 18);
+                const nodeRadius = Math.max(7, 12 - ((wsDepth - 1) * 2));
+                const isHiddenInParent = !!ws?.hiddenInParent;
+                const wsLabel = text(ws?.name, workspaceId) + (isHiddenInParent ? ' [hidden]' : '');
+                const wsColor = isHiddenInParent
+                    ? getResolvedMapThemeColorValue('mapAccent') || 'rgba(140,140,140,0.5)'
+                    : getResolvedMapThemeColorValue('workspaceNodeColor');
+
+                const subWsNode = addNode(createNode({
+                    id: 'workspace_' + workspaceId,
+                    label: wsLabel,
+                    color: wsColor,
+                    radius: nodeRadius,
+                    kind: 'workspace',
+                    x: pos.x,
+                    y: pos.y,
+                    meta: wsLinks.length + ' bookmark' + (wsLinks.length === 1 ? '' : 's'),
+                    data: {
+                        workspaceId,
+                        coverCandidates: buildCoverCandidates(wsLinks),
+                        depth: -2 - wsDepth,
+                        hiddenInParent: isHiddenInParent
+                    }
+                }));
+
+                // Connect to parent sub-tab node (not root — root has no node)
+                if (parentNode) {
+                    addEdge(subWsNode, parentNode, 'hierarchy');
+                }
+
+                // Category branches for this sub-tab
+                const subCategories = getCategoryNames(workspaceId, wsLinks);
+                subCategories.forEach((catName, catIndex) => {
+                    const catCenter = placeOnRing(catIndex, subCategories.length, 100 + ((catIndex % 3) * 10), subWsNode.x, subWsNode.y, 10);
+                    addCategoryBranch(context, workspaceId, catName, catCenter, subWsNode);
+                });
+
+                // Recurse deeper
+                const childTabs = Array.isArray(ws?.subTabs) ? ws.subTabs : [];
+                if (childTabs.length > 0) {
+                    const childRadius = Math.max(40, ringRadius * 0.55);
+                    childTabs.forEach((child, childIdx) => {
+                        addSubTabBranch(child, subWsNode, subWsNode.x, subWsNode.y, childIdx, childTabs.length, childRadius, wsDepth + 1);
+                    });
+                }
+            }
+
+            // Add sub-tabs orbiting center (no parent node to connect to)
+            if (rootWs && Array.isArray(rootWs.subTabs) && rootWs.subTabs.length > 0) {
+                const subTabRadius = Math.min(width, height) * 0.18;
+                rootWs.subTabs.forEach((childWs, childIdx) => {
+                    addSubTabBranch(childWs, null, centerX, centerY, childIdx, rootWs.subTabs.length, subTabRadius, 1);
+                });
+            }
         }
 
         addDetachedParking(scope, centerX, centerY, width, height);

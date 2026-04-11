@@ -1,4 +1,4 @@
-﻿window.EveFolderViewV2 = window.EveFolderViewV2 || {};
+window.EveFolderViewV2 = window.EveFolderViewV2 || {};
 
 (function () {
     const shared = window.EveFolderViewV2._shared || {};

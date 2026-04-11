@@ -1,4 +1,4 @@
-﻿window.EveContextMenuActions = window.EveContextMenuActions || {};
+window.EveContextMenuActions = window.EveContextMenuActions || {};
 
 (function () {
     const shared = window.EveContextMenuActions;
@@ -80,13 +80,26 @@
     };
 
     window.ctxWsDelete = async function () {
-        if (config.workspaces.length <= 1) return showToast('Cannot delete last workspace', 'error');
+        const helpers = window.EveWorkspaceHelpers;
+        const allFlat = helpers ? helpers.flatten(config.workspaces) : config.workspaces;
+        if (allFlat.length <= 1) return showToast('Cannot delete last workspace', 'error');
         if (await showConfirm('Delete Workspace? Links move to Main.')) {
-            config.workspaces = config.workspaces.filter((workspace) => workspace.id !== ctxWsId);
+            // Gather all IDs being removed (this workspace + all descendants)
+            const targetWs = helpers ? helpers.findById(config.workspaces, ctxWsId) : null;
+            const removedIds = new Set([ctxWsId]);
+            if (targetWs && helpers) {
+                helpers.getDescendantIds(targetWs).forEach(function (id) { removedIds.add(id); });
+            }
+            // Remove from tree
+            if (helpers) {
+                config.workspaces = helpers.removeById(config.workspaces, ctxWsId);
+            } else {
+                config.workspaces = config.workspaces.filter((workspace) => workspace.id !== ctxWsId);
+            }
             const targetWorkspaceId = config.workspaces[0].id;
             const syncLinked = window.EveLibrary?.ConnectionsAPI?.syncFromLink;
             links.forEach((link) => {
-                if (link.workspace !== ctxWsId) return;
+                if (!removedIds.has(link.workspace)) return;
                 link.workspace = targetWorkspaceId;
                 if (typeof syncLinked === 'function') syncLinked(link.id);
             });
@@ -96,6 +109,45 @@
             saveData();
             renderSidebar();
         }
+    };
+
+    window.ctxWsAddSubTab = function () {
+        if (!ctxWsId) return showToast('No workspace selected', 'error');
+        // Open workspace modal in "create sub-tab" mode
+        if (typeof openWorkspaceModal === 'function') {
+            openWorkspaceModal(null, { parentId: ctxWsId });
+        }
+        if (typeof closeAllMenus === 'function') closeAllMenus();
+    };
+
+    window.ctxWsToggleHideSubTabs = function () {
+        if (!ctxWsId) return showToast('No workspace selected', 'error');
+        const helpers = window.EveWorkspaceHelpers;
+        const ws = helpers
+            ? helpers.findById(config.workspaces, ctxWsId)
+            : config.workspaces.find(function (w) { return w.id === ctxWsId; });
+        if (!ws) return showToast('Workspace not found', 'error');
+        ws.hideSubTabs = !ws.hideSubTabs;
+        saveConfig();
+        if (typeof renderDashboard === 'function') renderDashboard();
+        if (typeof renderSidebar === 'function') renderSidebar();
+        if (typeof closeAllMenus === 'function') closeAllMenus();
+        showToast(ws.hideSubTabs ? 'Sub-tab content hidden from this tab' : 'Sub-tab content visible in this tab', 'info');
+    };
+
+    window.ctxWsToggleHiddenInParent = function () {
+        if (!ctxWsId) return showToast('No workspace selected', 'error');
+        const helpers = window.EveWorkspaceHelpers;
+        const ws = helpers
+            ? helpers.findById(config.workspaces, ctxWsId)
+            : config.workspaces.find(function (w) { return w.id === ctxWsId; });
+        if (!ws) return showToast('Workspace not found', 'error');
+        ws.hiddenInParent = !ws.hiddenInParent;
+        saveConfig();
+        if (typeof renderDashboard === 'function') renderDashboard();
+        if (typeof renderSidebar === 'function') renderSidebar();
+        if (typeof closeAllMenus === 'function') closeAllMenus();
+        showToast(ws.hiddenInParent ? (ws.name + ' hidden from parent view') : (ws.name + ' visible in parent view'), 'info');
     };
 
     shared.categoryReady = true;

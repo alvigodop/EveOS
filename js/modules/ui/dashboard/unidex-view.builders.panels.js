@@ -12,7 +12,11 @@ window.UnidexViewModules = window.UnidexViewModules || {};
         const escapeHtml = deps?.escapeHtml || identity;
 
         function buildTabsHtml() {
-            return (config.workspaces || []).map(function (workspace) {
+            const helpers = window.EveWorkspaceHelpers;
+            const workspaces = config.workspaces || [];
+            const tabHtmlParts = [];
+
+            function buildTab(workspace, depth) {
                 const workspaceCount = getAllLinks().filter(function (link) {
                     return String(link.workspace) === String(workspace.id);
                 }).length;
@@ -20,18 +24,30 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 const encodedId = encodeParam(workspace.id);
                 const safeName = escapeHtml(workspace.name);
                 const safeIcon = escapeHtml(workspace.icon || '');
+                const hiddenMarker = (depth > 0 && workspace.hiddenInParent) ? ' 👁‍🗨' : '';
+                const hiddenStyle = (depth > 0 && workspace.hiddenInParent) ? ' opacity:0.5;' : '';
+                const indent = depth > 0 ? (' style="margin-left:' + (depth * 16) + 'px; font-size:0.92em; opacity:0.92;' + hiddenStyle + '"') : '';
+                const depthIndicator = depth > 0 ? '└ ' : '';
 
-                return `
+                tabHtmlParts.push(`
                 <button type="button"
                     class="unidex-tab-btn"
                     data-text="${safeName.toUpperCase()}"
                     onclick="window.UnidexView.switchWorkspaceTab('${encodedId}')"
-                    title="Open ${safeName}">
-                    <span class="unidex-tab-main">${safeIcon} ${safeName}</span>
+                    title="Open ${safeName}"${indent}>
+                    <span class="unidex-tab-main">${depthIndicator}${safeIcon} ${safeName}${hiddenMarker}</span>
                     <span class="unidex-tab-count">${workspaceCount} links</span>
                 </button>
-            `;
-            }).join('');
+                `);
+            }
+
+            if (helpers) {
+                helpers.walk(workspaces, buildTab);
+            } else {
+                workspaces.forEach(function (ws) { buildTab(ws, 0); });
+            }
+
+            return tabHtmlParts.join('');
         }
 
         function buildCardsHtml(categoryModels) {
