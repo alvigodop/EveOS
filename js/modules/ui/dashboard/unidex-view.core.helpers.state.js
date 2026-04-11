@@ -20,6 +20,10 @@ window.UnidexViewModules = window.UnidexViewModules || {};
         }
 
         function getWorkspaceById(workspaceId) {
+            const helpers = window.EveWorkspaceHelpers;
+            if (helpers && helpers.findById) {
+                return helpers.findById(config.workspaces || [], workspaceId);
+            }
             return (config.workspaces || []).find(function (workspace) {
                 return String(workspace.id) === String(workspaceId);
             }) || null;
@@ -29,6 +33,23 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             return getAllLinks().filter(function (link) {
                 return String(link.workspace) === String(workspaceId) && matchesSearch(link, searchStr);
             });
+        }
+
+        function getWorkspaceAndSubTabLinks(workspaceId, searchStr) {
+            var helpers = window.EveWorkspaceHelpers;
+            var workspace = getWorkspaceById(workspaceId);
+            var visibleIds = new Set([String(workspaceId)]);
+            var subTabIds = new Set();
+            if (workspace && helpers && helpers.getVisibleDescendantIds) {
+                helpers.getVisibleDescendantIds(workspace).forEach(function (id) {
+                    visibleIds.add(id);
+                    subTabIds.add(id);
+                });
+            }
+            var allLinks = getAllLinks().filter(function (link) {
+                return visibleIds.has(String(link.workspace)) && matchesSearch(link, searchStr);
+            });
+            return { links: allLinks, subTabIds: subTabIds };
         }
 
         function getAllWorkspaceLinks(searchStr) {
@@ -158,6 +179,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             getAllLinks,
             getWorkspaceById,
             getWorkspaceLinks,
+            getWorkspaceAndSubTabLinks,
             getAllWorkspaceLinks,
             getWorkspaceLabel,
             getCategoryModels,

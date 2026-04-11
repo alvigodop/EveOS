@@ -32,9 +32,12 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             state.selectedWorkspaceId = workspaceId;
             state.selectedCategory = '';
             state.stage = 'cards';
+            // Switch the active workspace if needed, but stay in Unidex view
             if (String(getActiveWorkspaceId() || '') !== String(workspaceId)) {
-                switchWorkspaceById(workspaceId);
-                return;
+                if (typeof config !== 'undefined') {
+                    config.activeWorkspace = workspaceId;
+                    if (typeof saveConfig === 'function') saveConfig();
+                }
             }
             requestRender();
         }

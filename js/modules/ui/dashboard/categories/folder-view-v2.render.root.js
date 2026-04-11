@@ -1,4 +1,4 @@
-﻿window.EveFolderViewV2 = window.EveFolderViewV2 || {};
+window.EveFolderViewV2 = window.EveFolderViewV2 || {};
 
 (function () {
     const shared = window.EveFolderViewV2._shared || {};
@@ -19,6 +19,16 @@
         let html = toolbarHtml + `<div class="v2-folder-root-container" style="padding: 0 10px 10px;" ${dropTargetAttr}>`;
 
         if (topLevelFolders.length > 0) {
+            // Helper: recursively count all bookmarks nested inside a folder tree
+            function getTotalNestedCount(folderId) {
+                var directCount = (viewModel.folderLinks.get(folderId) || []).length;
+                var children = viewModel.childrenMap.get(folderId) || [];
+                var childTotal = children.reduce(function (sum, child) {
+                    return sum + getTotalNestedCount(child.id);
+                }, 0);
+                return directCount + childTotal;
+            }
+
             html += `<div class="folder-wrap-grid">${topLevelFolders.map((folder) => {
                 const isGhost = !!folder.isGhost;
                 const folderDropAttr = isGhost ? '' : `ondragover="if(typeof allowDrop==='function')allowDrop(event)" ondrop="event.currentTarget.classList.remove('folder-tile-drag-hover'); if(typeof window.EveFolderViewV2.handleFolderDrop==='function') window.EveFolderViewV2.handleFolderDrop(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(folder.id)}', '${escapeCardJs(workspaceId)}')" ondragenter="event.currentTarget.classList.add('folder-tile-drag-hover')" ondragleave="event.currentTarget.classList.remove('folder-tile-drag-hover')"`;

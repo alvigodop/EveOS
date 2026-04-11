@@ -119,10 +119,45 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 return;
             }
 
+            const getWorkspaceAndSubTabLinks = deps?.getWorkspaceAndSubTabLinks;
+            const hasSubTabs = Array.isArray(workspace.subTabs) && workspace.subTabs.length > 0;
+
+            // Get main workspace links
             const workspaceLinks = getWorkspaceLinks(workspace.id, searchStr);
             const categoryModels = getCategoryModels(workspaceLinks);
             const cardsUnifiedMode = getCardsUnifiedMode();
             const layoutMode = getEntriesLayoutMode();
+
+            // Build sub-tab card sections
+            let subTabCardsHtml = '';
+            if (hasSubTabs && !cardsUnifiedMode && getWorkspaceAndSubTabLinks) {
+                const helpers = window.EveWorkspaceHelpers;
+                if (helpers) {
+                    const visibleSubTabs = (workspace.subTabs || []).filter(function (st) {
+                        return st && !st.hiddenInParent;
+                    });
+                    visibleSubTabs.forEach(function (subTab) {
+                        const stLinks = getWorkspaceLinks(subTab.id, searchStr);
+                        if (stLinks.length === 0) return;
+                        const stModels = getCategoryModels(stLinks);
+                        const depth = helpers.getDepth(config.workspaces, subTab.id);
+                        const depthClass = depth > 0 ? ' unidex-subtab-section-depth-' + Math.min(depth, 4) : '';
+                        const safeIcon = escapeHtml(subTab.icon || '📁');
+                        const safeName = escapeHtml(subTab.name || subTab.id);
+                        subTabCardsHtml += `
+                        <div class="unidex-subtab-section${depthClass}">
+                            <div class="unidex-subtab-section-header">
+                                <span class="unidex-subtab-badge">${safeIcon} ${safeName}</span>
+                                <span class="unidex-subtab-count">${stLinks.length} links</span>
+                            </div>
+                            <section class="unidex-cards" aria-label="${safeName} Cards">
+                                ${buildCardsHtml(stModels)}
+                            </section>
+                        </div>`;
+                    });
+                }
+            }
+
             const unifiedToggleHtml = `
             <label class="unidex-switch" title="Show all bookmarks from all cards in this workspace">
                 <input type="checkbox" class="unidex-switch-input" onchange="window.UnidexView.setCardsUnified(this.checked)" ${cardsUnifiedMode ? 'checked' : ''}>
@@ -145,6 +180,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                     <section class="unidex-cards" aria-label="Category Cards">
                         ${buildCardsHtml(categoryModels)}
                     </section>
+                    ${subTabCardsHtml}
                 </section>
             `;
                 return;

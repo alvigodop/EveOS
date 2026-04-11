@@ -188,6 +188,50 @@
     opacity: 0.6;
 }
 
+/* --- Unidex Sub-Tab Card Sections --- */
+.unidex-subtab-section {
+    width: min(100%, 980px);
+    margin: 18px auto 0;
+    padding: 14px 0 0;
+    border-left: 3px solid rgba(168, 130, 255, 0.4);
+    padding-left: 16px;
+}
+
+.unidex-subtab-section-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.unidex-subtab-badge {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: rgba(168, 130, 255, 0.85);
+    padding: 3px 10px;
+    border: 1px solid rgba(168, 130, 255, 0.25);
+    border-radius: 6px;
+    background: rgba(168, 130, 255, 0.06);
+}
+
+.unidex-subtab-count {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    opacity: 0.7;
+}
+
+/* Depth colors for sub-tab sections */
+.unidex-subtab-section-depth-1 { border-left-color: rgba(168, 130, 255, 0.4); }
+.unidex-subtab-section-depth-1 .unidex-subtab-badge { color: rgba(168, 130, 255, 0.85); border-color: rgba(168, 130, 255, 0.25); background: rgba(168, 130, 255, 0.06); }
+
+.unidex-subtab-section-depth-2 { border-left-color: rgba(218, 165, 32, 0.4); }
+.unidex-subtab-section-depth-2 .unidex-subtab-badge { color: rgba(218, 165, 32, 0.85); border-color: rgba(218, 165, 32, 0.25); background: rgba(218, 165, 32, 0.06); }
+
+.unidex-subtab-section-depth-3 { border-left-color: rgba(100, 200, 180, 0.4); }
+.unidex-subtab-section-depth-3 .unidex-subtab-badge { color: rgba(100, 200, 180, 0.85); border-color: rgba(100, 200, 180, 0.25); background: rgba(100, 200, 180, 0.06); }
+
+.unidex-subtab-section-depth-4 { border-left-color: rgba(180, 120, 100, 0.4); }
+.unidex-subtab-section-depth-4 .unidex-subtab-badge { color: rgba(180, 120, 100, 0.85); border-color: rgba(180, 120, 100, 0.25); background: rgba(180, 120, 100, 0.06); }
 
 
 .unidex-cards {

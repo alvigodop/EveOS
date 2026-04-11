@@ -354,3 +354,38 @@ html[data-native-scheme="light"] .card-subtab-source {
     filter: grayscale(1);
 }
 
+/* --- Task Mode Bookmark Numbering --- */
+.category-card.task-mode {
+    counter-reset: bookmark-index;
+}
+
+.category-card.task-mode ul li {
+    counter-increment: bookmark-index;
+    position: relative;
+}
+
+.category-card.task-mode ul li::after {
+    content: "#" counter(bookmark-index);
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.65rem;
+    color: rgba(0, 212, 255, 0.4);
+    background: rgba(0, 212, 255, 0.06);
+    border: 1px solid rgba(0, 212, 255, 0.12);
+    border-radius: 4px;
+    padding: 1px 5px;
+    pointer-events: none;
+    user-select: none;
+    line-height: 1.3;
+    z-index: 1;
+}
+
+.category-card.task-mode ul li.done::after {
+    color: rgba(128, 128, 128, 0.3);
+    background: rgba(128, 128, 128, 0.04);
+    border-color: rgba(128, 128, 128, 0.08);
+    text-decoration: line-through;
+}

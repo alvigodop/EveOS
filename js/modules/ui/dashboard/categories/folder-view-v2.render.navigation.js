@@ -87,13 +87,25 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
 
         let subFoldersHtml = '';
         if (subFolders.length > 0) {
+            // Helper: recursively count all bookmarks nested inside a folder tree
+            function getTotalNestedCount(fId) {
+                var directCount = (viewModel.folderLinks.get(fId) || []).length;
+                var children = viewModel.childrenMap.get(fId) || [];
+                var childTotal = children.reduce(function (sum, child) {
+                    return sum + getTotalNestedCount(child.id);
+                }, 0);
+                return directCount + childTotal;
+            }
+
             subFoldersHtml += `<div class="manhwa-divider folders-divider">FOLDERS</div><div class="folder-wrap-grid">${subFolders.map((folder) => {
                 const isGhost = !!folder.isGhost;
                 const folderDropAttr = isGhost ? '' : `ondragover="if(typeof allowDrop==='function')allowDrop(event)" ondrop="event.currentTarget.classList.remove('folder-tile-drag-hover'); if(typeof window.EveFolderViewV2.handleFolderDrop==='function') window.EveFolderViewV2.handleFolderDrop(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(folder.id)}', '${escapeCardJs(workspaceId)}')" ondragenter="event.currentTarget.classList.add('folder-tile-drag-hover')" ondragleave="event.currentTarget.classList.remove('folder-tile-drag-hover')"`;
                 const dragStartAttr = isGhost ? '' : `draggable="true" ondragstart="if(typeof window.EveFolderViewV2.handleFolderDragStart==='function') window.EveFolderViewV2.handleFolderDragStart(event, '${escapeCardJs(folder.id)}', '${escapeCardJs(categoryName)}', '${escapeCardJs(workspaceId)}')" ondragend="this.classList.remove('is-dragging')"`;
                 const matchCount = viewModel.folderLinks.get(folder.id)?.length || 0;
                 const childCount = (viewModel.childrenMap.get(folder.id) || []).length;
-                const statsLabel = isGhost ? (childCount > 0 ? `${matchCount} matches | ${childCount} views` : `${matchCount} matches`) : (childCount > 0 ? `${matchCount} items | ${childCount} folders` : `${matchCount} items`);
+                const statsLabel = isGhost
+                    ? (childCount > 0 ? `${matchCount} matches | ${childCount} views` : `${matchCount} matches`)
+                    : (childCount > 0 ? `${matchCount} items | ${childCount} folders` : `${matchCount} items`);
                 const contextMenuAttr = isGhost ? '' : `oncontextmenu="if(typeof window.showFolderContextMenu === 'function') window.showFolderContextMenu(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(folder.id)}', '${escapeCardJs(workspaceId)}');"`;
                 const editButtonHtml = isGhost
                     ? `<div class="folder-tile-action-buttons"><button type="button" class="folder-tile-edit-btn bulk-scope-btn" title="Select Matching Bookmarks" onclick="event.preventDefault(); event.stopPropagation(); bulkToggleFolderScopeSelection('${escapeCardJs(categoryName)}', '${escapeCardJs(workspaceId)}', '${escapeCardJs(folder.id)}');">&#9745;</button></div>`

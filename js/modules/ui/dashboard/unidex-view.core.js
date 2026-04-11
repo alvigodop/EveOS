@@ -48,6 +48,7 @@ window.UnidexView = (function () {
         state,
         getWorkspaceById: helpers.getWorkspaceById,
         getWorkspaceLinks: helpers.getWorkspaceLinks,
+        getWorkspaceAndSubTabLinks: helpers.getWorkspaceAndSubTabLinks,
         getAllWorkspaceLinks: helpers.getAllWorkspaceLinks,
         getCategoryModels: helpers.getCategoryModels,
         isTaskModeCategory: helpers.isTaskModeCategory,
