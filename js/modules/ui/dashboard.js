@@ -48,17 +48,41 @@ function refreshDashboardMasonryLayout(grid) {
         rowGap = parseFloat(computedStyle.getPropertyValue('gap')) || 0;
     }
 
-    grid.querySelectorAll('.category-card').forEach(function (card) {
-        card.style.gridRowEnd = 'auto';
-        var cardHeight = card.getBoundingClientRect().height;
-        var span = Math.max(1, Math.ceil((cardHeight + rowGap) / (rowHeight + rowGap)));
-        card.style.gridRowEnd = 'span ' + span;
-    });
+    var cards = grid.querySelectorAll('.category-card');
+
+    // Batch write: reset all spans first
+    for (var i = 0; i < cards.length; i++) {
+        cards[i].style.gridRowEnd = 'auto';
+    }
+
+    // Batch read: measure all heights at once
+    var heights = new Array(cards.length);
+    for (var j = 0; j < cards.length; j++) {
+        heights[j] = cards[j].getBoundingClientRect().height;
+    }
+
+    // Batch write: apply all spans
+    for (var k = 0; k < cards.length; k++) {
+        var span = Math.max(1, Math.ceil((heights[k] + rowGap) / (rowHeight + rowGap)));
+        cards[k].style.gridRowEnd = 'span ' + span;
+    }
 }
 
 function scheduleDashboardMasonryLayout(grid) {
     if (!grid) return;
     dashboardMasonryState.activeGrid = grid;
+
+    // Hard throttle: max once per 200ms
+    var now = Date.now();
+    if (dashboardMasonryState._lastLayout && (now - dashboardMasonryState._lastLayout) < 200) {
+        if (!dashboardMasonryState._throttleTimer) {
+            dashboardMasonryState._throttleTimer = setTimeout(function () {
+                dashboardMasonryState._throttleTimer = 0;
+                scheduleDashboardMasonryLayout(grid);
+            }, 200);
+        }
+        return;
+    }
 
     if (dashboardMasonryState.rafId) {
         window.cancelAnimationFrame(dashboardMasonryState.rafId);
@@ -66,6 +90,7 @@ function scheduleDashboardMasonryLayout(grid) {
 
     dashboardMasonryState.rafId = window.requestAnimationFrame(function () {
         dashboardMasonryState.rafId = window.requestAnimationFrame(function () {
+            dashboardMasonryState._lastLayout = Date.now();
             refreshDashboardMasonryLayout(grid);
         });
     });
@@ -82,10 +107,14 @@ function observeDashboardMasonryLayout(grid) {
         scheduleDashboardMasonryLayout(grid);
     });
 
+    // Only observe the grid container — skip per-card observers when there are many cards
     observer.observe(grid);
-    grid.querySelectorAll('.category-card').forEach(function (card) {
-        observer.observe(card);
-    });
+    var cards = grid.querySelectorAll('.category-card');
+    if (cards.length <= 15) {
+        cards.forEach(function (card) {
+            observer.observe(card);
+        });
+    }
 
     dashboardMasonryState.resizeObserver = observer;
 }
@@ -158,6 +187,16 @@ function restoreDashboardCardScrollState(snapshot) {
 }
 
 function renderDashboard() {
+    // Coalesce rapid-fire render calls into a single frame
+    if (window._eveDashRenderPending) return;
+    window._eveDashRenderPending = true;
+    requestAnimationFrame(function () {
+        window._eveDashRenderPending = false;
+        _renderDashboardImmediate();
+    });
+}
+
+function _renderDashboardImmediate() {
     var cardScrollState = captureDashboardCardScrollState();
 
     // Capture scroll position ONCE per synchronous batch
@@ -271,7 +310,8 @@ function _renderDashboardCore() {
 
     if (typeof window.renderCategories === 'function') {
         window.renderCategories(visibleLinks, grid, focusCategory, searchStr);
-        applyDashboardLayoutMaintenance(grid);
+        // Defer masonry layout to after initial cards have painted
+        setTimeout(function () { applyDashboardLayoutMaintenance(grid); }, 100);
     } else {
         console.error('renderCategories not found');
     }

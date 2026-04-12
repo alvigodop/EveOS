@@ -28,15 +28,47 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         const settings = ui.collectSettings();
         State.updateSettings(settings);
 
+        if (!query) {
+            ui.setMeta('Enter a search query.', true);
+            return;
+        }
+
         try {
             ui.setLoading(true);
-            const data = await Api.runSearch(query, settings);
-            ui.renderResults(data);
+
+            const SearchVectors = window.EveOS.SearchAdvanced.SearchVectors;
+            if (SearchVectors && typeof SearchVectors.runMultiVectorSearch === 'function') {
+                // Multi-vector search path
+                const result = await SearchVectors.runMultiVectorSearch(query, settings);
+                const renderFn = Modules.renderVectorResults;
+                if (typeof renderFn === 'function') {
+                    renderFn(result, byId('esResults'));
+                } else {
+                    // Fallback: render as simple list
+                    const results = byId('esResults');
+                    if (results) {
+                        results.innerHTML = (result.results || []).map(function (r) {
+                            return '<div class="nx-result-item"><a href="' + (r.url || '#') + '" target="_blank">' + (r.title || 'Untitled') + '</a></div>';
+                        }).join('') || '<div class="nx-empty">No results</div>';
+                    }
+                }
+
+                const stats = result.stats || {};
+                const total = (result.results || []).length;
+                ui.setMeta(total + ' results across ' + Object.keys(stats).filter(function (k) { return stats[k] > 0; }).length + ' vectors', false);
+            } else {
+                // Legacy: Google CSE only
+                const data = await Api.runSearch(query, settings);
+                ui.renderResults(data);
+            }
+
+            // Update footer stats
+            if (typeof ui.updateFooterStats === 'function') ui.updateFooterStats();
         } catch (error) {
             const message = error?.message || 'Search failed.';
             ui.setMeta(message, true);
             const results = byId('esResults');
-            if (results) results.innerHTML = `<p class="es-empty es-error">${ui.escapeHtml(message)}</p>`;
+            if (results) results.innerHTML = '<div class="nx-empty" style="color:#ff7b7b">' + (ui.escapeHtml ? ui.escapeHtml(message) : message) + '</div>';
         } finally {
             ui.setLoading(false);
         }
@@ -65,6 +97,9 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
 
         const modal = byId('expandedSearchModal');
         if (modal) modal.style.display = 'flex';
+
+        // Update stats on open
+        if (typeof ui.updateFooterStats === 'function') ui.updateFooterStats();
 
         if (options?.autoSearch) {
             runSearch();

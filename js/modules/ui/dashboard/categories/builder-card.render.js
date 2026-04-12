@@ -124,9 +124,13 @@ window.DashboardCategories = window.DashboardCategories || {};
             if (typeof drop === 'function') drop(event, cat);
         };
 
+        var RENDER_CAP = 50; // Initial render cap per card section
+        var RENDER_BATCH = 50; // Batch size for "Show More"
+
         function renderLinkCollection(linksForRender) {
             if (isFocusMode && typeof window.DashboardCategories.buildFocusedLinkHtml === 'function') {
-                var focusedHtml = linksForRender.map(function (link) {
+                var cappedFocus = linksForRender.slice(0, RENDER_CAP);
+                var focusedHtml = cappedFocus.map(function (link) {
                     return window.DashboardCategories.buildFocusedLinkHtml(link, {
                         taskMode: isTaskEnabledForLink(link),
                         taskEnabled: isTaskEnabledForLink(link)
@@ -139,6 +143,10 @@ window.DashboardCategories = window.DashboardCategories || {};
                         + '<h3>No Entries Found</h3>'
                         + '<p>No bookmarks match this filter.</p>'
                         + '</div>';
+                }
+
+                if (linksForRender.length > RENDER_CAP) {
+                    focusedHtml += buildShowMoreButton(linksForRender, RENDER_CAP, true);
                 }
                 return '<section class="unidex-entries is-row-layout focused-category-entries" aria-label="' + safeCatHtml + ' bookmarks">' + focusedHtml + '</section>';
             }
@@ -162,7 +170,8 @@ window.DashboardCategories = window.DashboardCategories || {};
                 trueValueData = sectionTvData;
             }
 
-            var flatHtml = linksForRender.map(function (link) {
+            var cappedLinks = linksForRender.slice(0, RENDER_CAP);
+            var flatHtml = cappedLinks.map(function (link) {
                 var folderLabel = '';
                 if (options.searchStr && window.EveBookmarkFolders?.buildFolderPathLabel) {
                     folderLabel = window.EveBookmarkFolders.buildFolderPathLabel(link.workspace, link.category, link.folderId);
@@ -177,7 +186,24 @@ window.DashboardCategories = window.DashboardCategories || {};
                     trueValueData: trueValueData
                 });
             }).join('');
+
+            if (linksForRender.length > RENDER_CAP) {
+                flatHtml += buildShowMoreButton(linksForRender, RENDER_CAP, false);
+            }
+
             return '<ul class="' + (options.scrollableCategories ? 'category-scrollable' : '') + '">' + flatHtml + '</ul>';
+        }
+
+        function buildShowMoreButton(allLinks, alreadyRendered, isFocused) {
+            var remaining = allLinks.length - alreadyRendered;
+            var btnId = 'showMore_' + String(cat || '').replace(/[^a-zA-Z0-9]/g, '_') + '_' + alreadyRendered;
+            // Store links reference on window for progressive loading
+            if (!window._eveProgressiveLinks) window._eveProgressiveLinks = {};
+            window._eveProgressiveLinks[btnId] = { links: allLinks, offset: alreadyRendered, focused: isFocused };
+            return '<li class="eve-show-more-item" id="' + btnId + '">'
+                + '<button class="eve-show-more-btn" onclick="window._eveLoadMoreLinks(\'' + btnId + '\')">'
+                + '▾ Show ' + Math.min(remaining, RENDER_BATCH) + ' more (' + remaining + ' remaining)'
+                + '</button></li>';
         }
 
         var scopedWorkspaceIds = Array.from(new Set(renderedLinks.map(function (link) {
@@ -382,3 +408,56 @@ window.DashboardCategories = window.DashboardCategories || {};
 
     Object.assign(api, { renderCard });
 })();
+
+// Progressive link loader — handles "Show More" clicks
+window._eveLoadMoreLinks = function (btnId) {
+    var store = window._eveProgressiveLinks && window._eveProgressiveLinks[btnId];
+    if (!store) return;
+
+    var BATCH = 50;
+    var links = store.links;
+    var offset = store.offset;
+    var end = Math.min(offset + BATCH, links.length);
+    var btnEl = document.getElementById(btnId);
+    if (!btnEl) return;
+
+    var parent = btnEl.parentElement;
+    if (!parent) return;
+
+    // Build next batch HTML
+    var fragment = document.createDocumentFragment();
+    for (var i = offset; i < end; i++) {
+        var link = links[i];
+        if (!link) continue;
+        var html = '';
+        if (store.focused && typeof window.DashboardCategories.buildFocusedLinkHtml === 'function') {
+            html = window.DashboardCategories.buildFocusedLinkHtml(link, {
+                taskMode: true,
+                taskEnabled: true
+            });
+        } else if (typeof window.DashboardCategories.buildLinkHtml === 'function') {
+            html = window.DashboardCategories.buildLinkHtml(link, '', '', [], {});
+        }
+        if (html) {
+            var temp = document.createElement('div');
+            temp.innerHTML = html;
+            while (temp.firstChild) {
+                fragment.appendChild(temp.firstChild);
+            }
+        }
+    }
+
+    // Insert before the button
+    parent.insertBefore(fragment, btnEl);
+
+    // Update or remove button
+    store.offset = end;
+    var remaining = links.length - end;
+    if (remaining > 0) {
+        var nextBatch = Math.min(remaining, BATCH);
+        btnEl.querySelector('button').textContent = '▾ Show ' + nextBatch + ' more (' + remaining + ' remaining)';
+    } else {
+        btnEl.remove();
+        delete window._eveProgressiveLinks[btnId];
+    }
+};

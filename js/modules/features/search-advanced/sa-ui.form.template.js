@@ -8,122 +8,218 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
     window.EveOS.SearchAdvanced.Modules.createUiFormTemplate = function createUiFormTemplate() {
         return `
 <div class="modal-overlay" id="expandedSearchModal">
-    <div class="modal es-modal">
-        <h2>Expanded Search</h2>
-        <div class="es-grid es-grid-main">
-            <label class="es-field es-field-full">Query
-                <input type="text" id="esQuery" placeholder="Search query">
-            </label>
-            <label class="es-field">Google API Key
-                <input type="password" id="esApiKey" placeholder="Google API key">
-            </label>
-            <label class="es-field">Search Engine ID (CX)
-                <input type="text" id="esCx" placeholder="Programmable Search Engine ID">
-            </label>
+    <div class="nx-panel">
+        <!-- RPG Frame Corner Decorations -->
+        <div class="nx-corner nx-corner-tl"></div>
+        <div class="nx-corner nx-corner-tr"></div>
+        <div class="nx-corner nx-corner-bl"></div>
+        <div class="nx-corner nx-corner-br"></div>
+
+        <!-- Header -->
+        <div class="nx-header">
+            <div class="nx-header-title">
+                <span class="nx-header-icon">⚔</span>
+                <span class="nx-header-text">NEXUS SEARCH</span>
+                <span class="nx-header-sub">Unified Knowledge Index</span>
+            </div>
+            <button class="nx-close-btn" onclick="closeModals()" title="Close">✕</button>
         </div>
 
-        <div class="es-grid">
-            <label class="es-field">Sort
-                <select id="esSort">
-                    <option value="">Relevance (Default)</option>
-                    <option value="date">Date</option>
-                </select>
-            </label>
-            <label class="es-field">Site Restrict
-                <input type="text" id="esSite" placeholder="example.com">
-            </label>
-            <label class="es-field">Language
-                <select id="esLanguage">
-                    <option value="">Any</option>
-                    <option value="lang_en">English</option>
-                    <option value="lang_es">Spanish</option>
-                    <option value="lang_fr">French</option>
-                    <option value="lang_de">German</option>
-                    <option value="lang_ja">Japanese</option>
-                    <option value="lang_ko">Korean</option>
-                    <option value="lang_zh-CN">Chinese (Simplified)</option>
-                    <option value="lang_zh-TW">Chinese (Traditional)</option>
-                </select>
-            </label>
-            <label class="es-field">Country
-                <select id="esCountry">
-                    <option value="">Any</option>
-                    <option value="countryUS">United States</option>
-                    <option value="countryCA">Canada</option>
-                    <option value="countryGB">United Kingdom</option>
-                    <option value="countryAU">Australia</option>
-                    <option value="countryDE">Germany</option>
-                    <option value="countryFR">France</option>
-                    <option value="countryJP">Japan</option>
-                </select>
-            </label>
-            <label class="es-field">File Type
-                <select id="esFileType">
-                    <option value="">Any</option>
-                    <option value="pdf">PDF</option>
-                    <option value="doc">DOC</option>
-                    <option value="docx">DOCX</option>
-                    <option value="xls">XLS</option>
-                    <option value="xlsx">XLSX</option>
-                    <option value="ppt">PPT</option>
-                    <option value="pptx">PPTX</option>
-                    <option value="txt">TXT</option>
-                    <option value="jpg">JPG</option>
-                    <option value="png">PNG</option>
-                    <option value="gif">GIF</option>
-                </select>
-            </label>
-            <label class="es-field">Date Range
-                <select id="esDateRestrict">
-                    <option value="">Any Time</option>
-                    <option value="d[1]">Past 24 hours</option>
-                    <option value="w[1]">Past week</option>
-                    <option value="m[1]">Past month</option>
-                    <option value="m[6]">Past 6 months</option>
-                    <option value="y[1]">Past year</option>
-                </select>
-            </label>
-            <label class="es-field">SafeSearch
-                <select id="esSafe">
-                    <option value="">Default</option>
-                    <option value="active">Strict</option>
-                    <option value="off">Off</option>
-                </select>
-            </label>
-            <label class="es-field">Usage Rights
-                <select id="esRights">
-                    <option value="">Any</option>
-                    <option value="cc_publicdomain">Public Domain</option>
-                    <option value="cc_attribute">Attribution</option>
-                    <option value="cc_sharealike">Share Alike</option>
-                    <option value="cc_noncommercial">Non-Commercial</option>
-                    <option value="cc_nonderived">No Derivatives</option>
-                </select>
-            </label>
-            <label class="es-field">Results Per Page
-                <select id="esNum">
-                    <option value="10">10 (Max)</option>
-                    <option value="5">5</option>
-                    <option value="3">3</option>
-                    <option value="1">1</option>
-                </select>
-            </label>
-            <label class="es-field">Exact Phrase
-                <input type="text" id="esExactTerms" placeholder="Exact phrase">
-            </label>
-            <label class="es-field">Exclude Words
-                <input type="text" id="esExcludeTerms" placeholder="Words to exclude">
-            </label>
+        <!-- Main Body: Two Columns -->
+        <div class="nx-body">
+            <!-- Left Column: Controls -->
+            <div class="nx-sidebar" id="nxSidebar">
+                <button type="button" class="nx-sidebar-toggle" id="nxSidebarToggle" title="Collapse sidebar">◀</button>
+                <!-- Search Input -->
+                <div class="nx-section">
+                    <label class="nx-section-label">⌕ QUERY</label>
+                    <input type="text" id="esQuery" class="nx-input nx-query-input" placeholder="Search across all vectors...">
+                </div>
+
+                <!-- Search Vectors (RPG Skill Slots) -->
+                <div class="nx-section">
+                    <label class="nx-section-label">⚡ SEARCH VECTORS</label>
+                    <div class="nx-vector-grid">
+                        <button type="button" class="nx-vector-slot nx-active" id="nxVectorGoogle" data-vector="google" title="Google Custom Search">
+                            <span class="nx-vector-icon">🔍</span>
+                            <span class="nx-vector-name">Google CSE</span>
+                            <span class="nx-vector-glow"></span>
+                        </button>
+                        <button type="button" class="nx-vector-slot nx-active" id="nxVectorCache" data-vector="cachedResults" title="Cached API Results">
+                            <span class="nx-vector-icon">🔮</span>
+                            <span class="nx-vector-name">API Cache</span>
+                            <span class="nx-vector-glow"></span>
+                        </button>
+                        <button type="button" class="nx-vector-slot nx-active" id="nxVectorBookmarks" data-vector="bookmarks" title="Local Bookmarks">
+                            <span class="nx-vector-icon">🔖</span>
+                            <span class="nx-vector-name">Bookmarks</span>
+                            <span class="nx-vector-glow"></span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Google CSE Config (Collapsible) -->
+                <details class="nx-section nx-details" id="nxGoogleConfig">
+                    <summary class="nx-section-label nx-section-toggle">🗝 GOOGLE CSE CONFIG</summary>
+                    <div class="nx-detail-body">
+                        <label class="nx-field">
+                            <span>API Key</span>
+                            <input type="password" id="esApiKey" class="nx-input" placeholder="Google API key">
+                        </label>
+                        <label class="nx-field">
+                            <span>Search Engine ID (CX)</span>
+                            <input type="text" id="esCx" class="nx-input" placeholder="Programmable Search Engine ID">
+                        </label>
+                    </div>
+                </details>
+
+                <!-- Advanced Filters (Collapsible) -->
+                <details class="nx-section nx-details" id="nxFiltersConfig">
+                    <summary class="nx-section-label nx-section-toggle">⚙ ADVANCED FILTERS</summary>
+                    <div class="nx-detail-body nx-filter-grid">
+                        <label class="nx-field">
+                            <span>Sort</span>
+                            <select id="esSort" class="nx-input">
+                                <option value="">Relevance</option>
+                                <option value="date">Date</option>
+                            </select>
+                        </label>
+                        <label class="nx-field">
+                            <span>Site Restrict</span>
+                            <input type="text" id="esSite" class="nx-input" placeholder="example.com">
+                        </label>
+                        <label class="nx-field">
+                            <span>Language</span>
+                            <select id="esLanguage" class="nx-input">
+                                <option value="">Any</option>
+                                <option value="lang_en">English</option>
+                                <option value="lang_es">Spanish</option>
+                                <option value="lang_fr">French</option>
+                                <option value="lang_de">German</option>
+                                <option value="lang_ja">Japanese</option>
+                                <option value="lang_ko">Korean</option>
+                                <option value="lang_zh-CN">Chinese (Simplified)</option>
+                                <option value="lang_zh-TW">Chinese (Traditional)</option>
+                            </select>
+                        </label>
+                        <label class="nx-field">
+                            <span>Country</span>
+                            <select id="esCountry" class="nx-input">
+                                <option value="">Any</option>
+                                <option value="countryUS">United States</option>
+                                <option value="countryCA">Canada</option>
+                                <option value="countryGB">United Kingdom</option>
+                                <option value="countryAU">Australia</option>
+                                <option value="countryDE">Germany</option>
+                                <option value="countryFR">France</option>
+                                <option value="countryJP">Japan</option>
+                            </select>
+                        </label>
+                        <label class="nx-field">
+                            <span>File Type</span>
+                            <select id="esFileType" class="nx-input">
+                                <option value="">Any</option>
+                                <option value="pdf">PDF</option>
+                                <option value="doc">DOC</option>
+                                <option value="docx">DOCX</option>
+                                <option value="xls">XLS</option>
+                                <option value="ppt">PPT</option>
+                                <option value="txt">TXT</option>
+                                <option value="jpg">JPG</option>
+                                <option value="png">PNG</option>
+                            </select>
+                        </label>
+                        <label class="nx-field">
+                            <span>Date Range</span>
+                            <select id="esDateRestrict" class="nx-input">
+                                <option value="">Any Time</option>
+                                <option value="d[1]">Past 24 hours</option>
+                                <option value="w[1]">Past week</option>
+                                <option value="m[1]">Past month</option>
+                                <option value="m[6]">Past 6 months</option>
+                                <option value="y[1]">Past year</option>
+                            </select>
+                        </label>
+                        <label class="nx-field">
+                            <span>SafeSearch</span>
+                            <select id="esSafe" class="nx-input">
+                                <option value="">Default</option>
+                                <option value="active">Strict</option>
+                                <option value="off">Off</option>
+                            </select>
+                        </label>
+                        <label class="nx-field">
+                            <span>Usage Rights</span>
+                            <select id="esRights" class="nx-input">
+                                <option value="">Any</option>
+                                <option value="cc_publicdomain">Public Domain</option>
+                                <option value="cc_attribute">Attribution</option>
+                                <option value="cc_sharealike">Share Alike</option>
+                                <option value="cc_noncommercial">Non-Commercial</option>
+                                <option value="cc_nonderived">No Derivatives</option>
+                            </select>
+                        </label>
+                        <label class="nx-field">
+                            <span>Results Per Page</span>
+                            <select id="esNum" class="nx-input">
+                                <option value="10">10 (Max)</option>
+                                <option value="5">5</option>
+                                <option value="3">3</option>
+                                <option value="1">1</option>
+                            </select>
+                        </label>
+                        <label class="nx-field">
+                            <span>Exact Phrase</span>
+                            <input type="text" id="esExactTerms" class="nx-input" placeholder="Exact phrase">
+                        </label>
+                        <label class="nx-field">
+                            <span>Exclude Words</span>
+                            <input type="text" id="esExcludeTerms" class="nx-input" placeholder="Words to exclude">
+                        </label>
+                    </div>
+                </details>
+
+                <!-- Action Buttons -->
+                <div class="nx-actions">
+                    <button class="nx-btn nx-btn-primary" id="esRunBtn">⚔ Search</button>
+                    <button class="nx-btn nx-btn-secondary" id="esClearBtn">↺ Clear</button>
+                </div>
+            </div>
+
+            <!-- Right Column: Results -->
+            <div class="nx-results-panel">
+                <div class="nx-results-header">
+                    <span class="nx-results-title">RESULTS</span>
+                    <div class="nx-inline-search" id="nxInlineSearch">
+                        <input type="text" id="nxInlineQuery" class="nx-inline-query" placeholder="Search...">
+                        <button type="button" class="nx-inline-search-btn" id="nxInlineSearchBtn">⚔</button>
+                    </div>
+                    <span class="nx-results-meta" id="esMeta">Activate vectors and search.</span>
+                </div>
+                <div class="nx-results-body" id="esResults"></div>
+            </div>
         </div>
 
-        <div class="es-actions">
-            <button class="btn-primary" id="esRunBtn">Search</button>
-            <button id="esClearBtn">Clear Filters</button>
-            <button onclick="closeModals()">Close</button>
+        <!-- Orphan Alert Banner (hidden by default) -->
+        <div class="nx-orphan-banner" id="nxOrphanBanner" style="display:none">
+            <div class="nx-orphan-info">
+                <span class="nx-orphan-icon">⚠</span>
+                <span class="nx-orphan-text" id="nxOrphanText">0 orphaned bookmarks from deleted workspaces</span>
+            </div>
+            <div class="nx-orphan-actions">
+                <button class="nx-orphan-btn nx-orphan-view" id="nxOrphanViewBtn" title="View orphaned bookmarks">View</button>
+                <button class="nx-orphan-btn nx-orphan-rescue" id="nxOrphanRescueBtn" title="Move orphans to active workspace">Rescue</button>
+                <button class="nx-orphan-btn nx-orphan-dismiss" id="nxOrphanDismissBtn" title="Dismiss">✕</button>
+            </div>
         </div>
 
-        <div class="es-meta" id="esMeta">Set API Key + CX, then search.</div>
-        <div class="es-results" id="esResults"></div>
+        <!-- Footer Stat Bar -->
+        <div class="nx-footer" id="nxFooterStats">
+            <div class="nx-stat"><span class="nx-stat-label">Entries</span><span class="nx-stat-value" id="nxStatEntries">—</span></div>
+            <div class="nx-stat"><span class="nx-stat-label">Providers</span><span class="nx-stat-value" id="nxStatProviders">—</span></div>
+            <div class="nx-stat"><span class="nx-stat-label">Cards</span><span class="nx-stat-value" id="nxStatCards">—</span></div>
+            <div class="nx-stat"><span class="nx-stat-label">Vectors</span><span class="nx-stat-value" id="nxStatVectors">—</span></div>
+        </div>
     </div>
 </div>`;
     };

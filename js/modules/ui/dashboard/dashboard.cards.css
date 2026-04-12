@@ -498,3 +498,31 @@ body.bulk-active .category-card.task-mode ul li::after {
 .category-card.true-value-mode.task-mode ul li::after {
     display: none;
 }
+
+/* --- Progressive Loading: Show More Button --- */
+.eve-show-more-item {
+    list-style: none;
+    padding: 6px 0;
+    display: flex;
+    justify-content: center;
+}
+
+.eve-show-more-btn {
+    width: 100%;
+    padding: 8px 16px;
+    background: rgba(0, 212, 255, 0.06);
+    border: 1px dashed rgba(0, 212, 255, 0.2);
+    border-radius: 8px;
+    color: rgba(0, 212, 255, 0.6);
+    font-size: 0.78rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    letter-spacing: 0.3px;
+}
+
+.eve-show-more-btn:hover {
+    background: rgba(0, 212, 255, 0.12);
+    border-color: rgba(0, 212, 255, 0.4);
+    color: rgba(0, 212, 255, 0.9);
+}

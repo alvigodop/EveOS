@@ -34,6 +34,9 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
             if (fields.byId?.('expandedSearchModal')) return;
             document.body.insertAdjacentHTML('beforeend', modalTemplate);
             bindEvents();
+            // Initialize Nexus Search vector toggles and stats
+            if (typeof fields.initVectorToggles === 'function') fields.initVectorToggles();
+            if (typeof fields.updateFooterStats === 'function') fields.updateFooterStats();
         }
 
         return Object.assign({}, fields, {

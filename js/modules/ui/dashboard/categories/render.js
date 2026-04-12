@@ -59,13 +59,25 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
         : null;
     const categories = collectDashboardCategories(visibleLinks, activeWorkspace, workspaceCategoryOrder, detachedModel);
 
+    // Pre-index links by category — O(n) instead of O(n * categories)
+    const linksByCat = new Map();
+    for (var i = 0; i < visibleLinks.length; i++) {
+        var cat = (visibleLinks[i].category || 'Unsorted');
+        if (!linksByCat.has(cat)) linksByCat.set(cat, []);
+        linksByCat.get(cat).push(visibleLinks[i]);
+    }
+
+    var CARD_CAP = 20; // Max cards to render in first frame
+    var renderCount = 0;
+    var deferredCards = [];
+
     categories.forEach(cat => {
         if (focusCategory && cat !== focusCategory) return;
 
         const isDetachedParkingCard = !!detachedModel && cat === detachedModel.categoryName;
         const catLinks = isDetachedParkingCard
             ? detachedModel.links.slice()
-            : visibleLinks.filter(l => (l.category || "Unsorted") === cat);
+            : (linksByCat.get(cat) || []);
         const hasFolderContent = isDetachedParkingCard
             ? !!(detachedModel?.viewModel?.nodes?.length)
             : hasFolderBackedCategory(activeWorkspace, cat);
@@ -86,7 +98,30 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
                 buildConfig.virtualFolderViewModel = detachedModel.viewModel;
                 buildConfig.detachedParkingCard = true;
             }
-            window.DashboardCategories.renderCard(cat, catLinks, gridContainer, buildConfig);
+
+            if (renderCount < CARD_CAP) {
+                window.DashboardCategories.renderCard(cat, catLinks, gridContainer, buildConfig);
+                renderCount++;
+            } else {
+                deferredCards.push({ cat: cat, catLinks: catLinks, buildConfig: buildConfig });
+            }
         }
     });
+
+    // Render remaining cards in batches via setTimeout
+    if (deferredCards.length > 0) {
+        var batchIdx = 0;
+        function renderNextBatch() {
+            var end = Math.min(batchIdx + 5, deferredCards.length);
+            for (var j = batchIdx; j < end; j++) {
+                var d = deferredCards[j];
+                window.DashboardCategories.renderCard(d.cat, d.catLinks, gridContainer, d.buildConfig);
+            }
+            batchIdx = end;
+            if (batchIdx < deferredCards.length) {
+                setTimeout(renderNextBatch, 0);
+            }
+        }
+        setTimeout(renderNextBatch, 0);
+    }
 };

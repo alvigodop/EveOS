@@ -62,24 +62,29 @@
 }
 
 .ws-label {
-    position: absolute;
-    left: 55px;
     font-size: 0.9rem;
     color: var(--text-main);
     opacity: 0;
     transition: 0.2s;
     pointer-events: none;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: none;
+    min-width: 0;
 }
 
 #sidebar:hover .ws-label {
     opacity: 1;
+    display: block;
 }
 
 #sidebar:hover .ws-item {
-    width: 140px;
+    width: 155px;
     justify-content: flex-start;
     padding-left: 12px;
+    gap: 6px;
+    overflow: hidden;
 }
 
 .ws-add {
@@ -165,7 +170,7 @@
 
 /* --- Sub-Tab Expanded Visual --- */
 #sidebar:hover .ws-sub-item {
-    width: 128px;
+    width: 140px;
     height: 32px;
     font-size: 0.82rem;
     border-radius: 8px;
@@ -173,6 +178,8 @@
     padding-left: 10px;
     border-left: 2px solid rgba(168, 130, 255, 0.4);
     background: rgba(168, 130, 255, 0.05);
+    gap: 5px;
+    overflow: hidden;
 }
 
 /* Depth-based left border style and color variations */

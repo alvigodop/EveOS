@@ -15,7 +15,12 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         rights: '',
         num: '10',
         exactTerms: '',
-        excludeTerms: ''
+        excludeTerms: '',
+        activeVectors: {
+            google: true,
+            cachedResults: true,
+            bookmarks: true
+        }
     };
 
     function getFallbackApiKey() {
