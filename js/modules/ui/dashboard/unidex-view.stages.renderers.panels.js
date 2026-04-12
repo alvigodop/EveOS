@@ -25,6 +25,11 @@ window.UnidexViewModules = window.UnidexViewModules || {};
         const applyEntriesViewTransforms = deps?.applyEntriesViewTransforms;
         const buildEntriesControlsHtml = deps?.buildEntriesControlsHtml;
         const mapButtonHtml = '<button type="button" class="unidex-layout-btn unidex-map-btn" onclick="window.UnidexView.openConstellationMap()" title="Open Constellation Map for this layer">Map</button>';
+        const nexusAllTabsBtn = '<button type="button" class="unidex-layout-btn unidex-nexus-btn" onclick="window.UnidexView.openNexusSearch()" title="Search across all tabs (bookmarks + scraper cache)">⚔ Nexus Search</button>';
+        function buildNexusScopedBtn(wsId) {
+            const safeWsId = String(wsId || '').replace(/'/g, "\\'");
+            return '<button type="button" class="unidex-layout-btn unidex-nexus-btn" onclick="window.UnidexView.openNexusSearch(\'' + safeWsId + '\')" title="Search this tab (bookmarks + scraper cache)">⚔ Nexus Search</button>';
+        }
 
         function renderTabsStage(gridContainer, searchStr) {
             const tabsUnifiedMode = getTabsUnifiedMode();
@@ -45,6 +50,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                     </header>
                     <div class="unidex-panel-controls unidex-tabs-controls">
                         ${tabsUnifiedToggleHtml}
+                        ${nexusAllTabsBtn}
                         ${mapButtonHtml}
                     </div>
                     <section class="unidex-tabs" aria-label="Workspace Tabs">
@@ -174,6 +180,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                         <h3 class="unidex-panel-title unidex-echo-title" data-text="${escapeHtml(String(workspace.name || '').toUpperCase())}"><span>${escapeHtml(workspace.name)} Cards</span></h3>
                         <div class="unidex-panel-controls">
                             ${unifiedToggleHtml}
+                            ${buildNexusScopedBtn(state.selectedWorkspaceId)}
                             ${mapButtonHtml}
                         </div>
                     </header>

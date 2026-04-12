@@ -151,6 +151,13 @@ window.UnidexView = (function () {
         }
     }
 
+    function openNexusSearch(workspaceId) {
+        const scope = workspaceId ? { workspaceId: String(workspaceId) } : {};
+        if (typeof window.openExpandedSearchModal === 'function') {
+            window.openExpandedSearchModal({ scope: scope });
+        }
+    }
+
     return {
         render: stages.render,
         switchWorkspaceTab: navigation.switchWorkspaceTab,
@@ -169,6 +176,7 @@ window.UnidexView = (function () {
         openEntry: entryActions.openEntry,
         resetSelection: stages.resetSelection,
         getConstellationScope,
-        openConstellationMap
+        openConstellationMap,
+        openNexusSearch
     };
 })();

@@ -184,12 +184,21 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
                     <button class="nx-btn nx-btn-primary" id="esRunBtn">⚔ Search</button>
                     <button class="nx-btn nx-btn-secondary" id="esClearBtn">↺ Clear</button>
                 </div>
+
+                <!-- Debug Diagnostics (Collapsible) -->
+                <details class="nx-section nx-details" id="nxDebugSection">
+                    <summary class="nx-section-label nx-section-toggle">🔧 DEBUG DIAGNOSTICS</summary>
+                    <div class="nx-detail-body" id="nxDebugContainer">
+                        <div class="nx-debug-placeholder" style="padding:12px; text-align:center; color:rgba(128,128,128,0.6); font-size:0.78rem;">Click to load diagnostics...</div>
+                    </div>
+                </details>
             </div>
 
             <!-- Right Column: Results -->
             <div class="nx-results-panel">
                 <div class="nx-results-header">
                     <span class="nx-results-title">RESULTS</span>
+                    <span class="nx-scope-indicator" id="esScopeIndicator" style="display:none"></span>
                     <div class="nx-inline-search" id="nxInlineSearch">
                         <input type="text" id="nxInlineQuery" class="nx-inline-query" placeholder="Search...">
                         <button type="button" class="nx-inline-search-btn" id="nxInlineSearchBtn">⚔</button>

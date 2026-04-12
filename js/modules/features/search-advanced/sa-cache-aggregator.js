@@ -5,10 +5,46 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     const ns = window.EveOS.SearchAdvanced;
     const Cache = window.EveOS.API?.Cache;
 
-    function getVisibleCategories() {
+    // --- Scope helpers ---
+    // scope = { workspaceId?, categoryName? }
+    // no scope / empty = all tabs, all cards
+    // workspaceId only = all cards in that tab + its sub-tabs
+    // workspaceId + categoryName = single card
+
+    function getWorkspaceIdsInScope(scope) {
+        if (!scope?.workspaceId) return null; // null means "all"
+        const wsId = String(scope.workspaceId).trim();
+        const ids = new Set([wsId]);
+        const helpers = window.EveWorkspaceHelpers;
+        const workspaces = window.eveState?.config?.workspaces
+            || (typeof config !== 'undefined' ? config.workspaces : null)
+            || [];
+        if (helpers?.findById && helpers?.getDescendantIds) {
+            const ws = helpers.findById(workspaces, wsId);
+            if (ws) {
+                helpers.getDescendantIds(ws).forEach(function (id) { ids.add(id); });
+            }
+        }
+        return ids;
+    }
+
+    function getScopedLinks(scope) {
         const links = Array.isArray(window.eveState?.links) ? window.eveState.links : (typeof window.links !== 'undefined' ? window.links : []);
+        const wsIds = getWorkspaceIdsInScope(scope);
+        const catFilter = scope?.categoryName ? String(scope.categoryName).trim() : null;
+
+        return links.filter(function (link) {
+            if (!link) return false;
+            if (wsIds && !wsIds.has(String(link.workspace || 'main').trim())) return false;
+            if (catFilter && String(link.category || 'Unsorted').trim() !== catFilter) return false;
+            return true;
+        });
+    }
+
+    function getVisibleCategories(scope) {
+        const scopedLinks = getScopedLinks(scope);
         const categories = new Set();
-        links.forEach(function (link) {
+        scopedLinks.forEach(function (link) {
             const cat = String(link?.category || 'Unsorted').trim();
             if (cat) categories.add(cat);
         });
@@ -23,12 +59,12 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         ).trim() || 'main';
     }
 
-    async function aggregateAllCaches() {
+    async function aggregateAllCaches(scope) {
         if (!Cache || typeof Cache.loadPool !== 'function') {
             return { entries: [], stats: { totalEntries: 0, totalProviders: 0, cardCount: 0 } };
         }
 
-        const categories = getVisibleCategories();
+        const categories = getVisibleCategories(scope);
         const allEntries = [];
         const providerSet = new Set();
 
@@ -130,14 +166,14 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         return deduped;
     }
 
-    function searchBookmarks(query) {
+    function searchBookmarks(query, scope) {
         const q = String(query || '').trim().toLowerCase();
         if (!q) return [];
 
-        const links = Array.isArray(window.eveState?.links) ? window.eveState.links : (typeof window.links !== 'undefined' ? window.links : []);
+        const scopedLinks = getScopedLinks(scope);
         const matches = [];
 
-        links.forEach(function (link) {
+        scopedLinks.forEach(function (link) {
             if (!link) return;
             const title = String(link.title || link.name || '').toLowerCase();
             const url = String(link.url || '').toLowerCase();
@@ -274,6 +310,19 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         };
     }
 
+    // Convenience: build a scope description string for UI display
+    function describeScopeLabel(scope) {
+        if (!scope || (!scope.workspaceId && !scope.categoryName)) return 'All Tabs';
+        if (scope.categoryName && scope.workspaceId) return scope.categoryName;
+        if (scope.workspaceId) {
+            const helpers = window.EveWorkspaceHelpers;
+            const workspaces = window.eveState?.config?.workspaces || [];
+            const ws = helpers?.findById ? helpers.findById(workspaces, scope.workspaceId) : null;
+            return ws?.name || scope.workspaceId;
+        }
+        return 'Scoped';
+    }
+
     ns.CacheAggregator = {
         getVisibleCategories,
         getActiveWorkspace,
@@ -282,6 +331,9 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         searchAcrossCards,
         searchBookmarks,
         detectOrphanedLinks,
-        rescueOrphanedLinks
+        rescueOrphanedLinks,
+        getScopedLinks,
+        getWorkspaceIdsInScope,
+        describeScopeLabel
     };
 })();

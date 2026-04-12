@@ -28,6 +28,22 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
                     }
                 });
             }
+
+            // Wire debug diagnostics panel — render on first expand
+            const debugSection = fields.byId?.('nxDebugSection');
+            if (debugSection) {
+                debugSection.addEventListener('toggle', function () {
+                    if (!debugSection.open) return;
+                    const container = fields.byId?.('nxDebugContainer');
+                    if (!container) return;
+                    const DebugView = window.EveOS?.SearchAdvanced?.DebugView;
+                    if (DebugView?.renderDebugPanel) {
+                        DebugView.renderDebugPanel(container);
+                    } else {
+                        container.innerHTML = '<div style="padding:12px; color:rgba(255,120,120,0.8); font-size:0.78rem;">Debug module not loaded.</div>';
+                    }
+                });
+            }
         }
 
         function createModalIfNeeded() {

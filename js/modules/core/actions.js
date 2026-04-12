@@ -20,9 +20,18 @@ function switchWorkspace(id, options = {}) {
         focusCategory = null;
     }
 
+    // Clear stale folder view caches from the previous workspace
+    if (window.EveFolderViewV2?._viewModelCache) {
+        window.EveFolderViewV2._viewModelCache = {};
+    }
+
     saveConfig();
     if (typeof renderSidebar === 'function') renderSidebar();
-    if (typeof renderDashboard === 'function') renderDashboard();
+
+    // Yield one frame so the sidebar paints immediately, then render the dashboard
+    requestAnimationFrame(function () {
+        if (typeof renderDashboard === 'function') renderDashboard();
+    });
 }
 
 function togglePin(id) {

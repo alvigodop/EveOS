@@ -28,11 +28,11 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         }
     }
 
-    async function runCacheVector(query) {
+    async function runCacheVector(query, scope) {
         const Agg = ns.CacheAggregator;
         if (!Agg) return [];
         try {
-            const aggregated = await Agg.aggregateAllCaches();
+            const aggregated = await Agg.aggregateAllCaches(scope);
             return Agg.searchAcrossCards(query, aggregated);
         } catch (err) {
             console.warn('[NexusSearch] Cache search error:', err);
@@ -40,18 +40,18 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         }
     }
 
-    function runBookmarkVector(query) {
+    function runBookmarkVector(query, scope) {
         const Agg = ns.CacheAggregator;
         if (!Agg) return [];
         try {
-            return Agg.searchBookmarks(query);
+            return Agg.searchBookmarks(query, scope);
         } catch (err) {
             console.warn('[NexusSearch] Bookmark search error:', err);
             return [];
         }
     }
 
-    async function runMultiVectorSearch(query, settings) {
+    async function runMultiVectorSearch(query, settings, scope) {
         const q = String(query || '').trim();
         if (!q) return { results: [], stats: {} };
 
@@ -70,12 +70,12 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         }
 
         if (vectors.cachedResults) {
-            promises.push(runCacheVector(q));
+            promises.push(runCacheVector(q, scope));
             vectorLabels.push('cached');
         }
 
         if (vectors.bookmarks) {
-            promises.push(runBookmarkVector(q));
+            promises.push(runBookmarkVector(q, scope));
             vectorLabels.push('bookmarks');
         }
 
@@ -100,6 +100,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             results: allResults,
             stats: vectorStats,
             query: q,
+            scope: scope || null,
             timestamp: Date.now()
         };
     }
