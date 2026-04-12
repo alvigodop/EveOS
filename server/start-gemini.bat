@@ -10,8 +10,8 @@ if not exist "%~dp0server-menu.bat" (
 )
 
 if "%~1"=="" (
-    rem Backward-compatible default: run auto-start monitor flow.
-    call "%~dp0server-menu.bat" 10
+    rem Default: start all Gemini backend servers.
+    call "%~dp0server-menu.bat" 6
     exit /b %ERRORLEVEL%
 )
 

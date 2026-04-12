@@ -7,9 +7,10 @@ window.PageInitializationCore = window.PageInitializationCore || {};
 
 function isGeminiConnectionEnabledByPreference() {
     try {
-        return localStorage.getItem('geminiConnectionEnabled') === 'true';
+        // Treat null (never set) as enabled — only explicit 'false' disables
+        return localStorage.getItem('geminiConnectionEnabled') !== 'false';
     } catch (error) {
-        return false;
+        return true;
     }
 }
 

@@ -83,9 +83,9 @@ echo.
 echo [1] Start EveOS instance ^(choose port + data-pack^)
 echo     - Port 3000 uses active modular path; other ports default to per-instance packs.
 echo [2] Open Gemini Backend Console ^(server\server-menu.bat^)
-echo     - Full backend process manager for launcher/main/http Gemini services.
+echo     - Start/stop Launcher ^(9084^) and Main WebSocket ^(9083^) servers.
 echo [3] Run Gemini auto-start helper ^(server\start-gemini.bat^)
-echo     - Compatibility launcher: starts monitor flow via server-menu option 10.
+echo     - Quick launcher: starts both Gemini servers in one step.
 echo [4] Browse and launch any .bat in this EveOS project
 echo     - Shows every local project batch script with purpose notes.
 echo [5] Browser fallback controls
@@ -484,11 +484,11 @@ set "BATCH_NOTE=General batch launcher script."
 set "rel=%~1"
 
 if /I "%rel%"=="server\server-menu.bat" (
-    set "BATCH_NOTE=Gemini backend console (start/stop launcher, main, HTTP, monitor)."
+    set "BATCH_NOTE=Gemini backend console (start/stop Launcher and WebSocket servers)."
     exit /b 0
 )
 if /I "%rel%"=="server\start-gemini.bat" (
-    set "BATCH_NOTE=Gemini compatibility launcher wrapper (delegates to server-menu)."
+    set "BATCH_NOTE=Quick launcher: starts both Gemini backend servers."
     exit /b 0
 )
 if /I "%rel%"=="start-server.bat" (
