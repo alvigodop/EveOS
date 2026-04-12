@@ -92,7 +92,6 @@ function draw() {
         ctx.scale(state.transform.scale, state.transform.scale);
 
         drawPhysicsAuras(ctx);
-        drawPeerAuras(ctx);
         drawBlobLayers(ctx);
 
         const boundsLeft = -state.transform.tx / state.transform.scale - 500;
@@ -295,6 +294,9 @@ function draw() {
                 ctx.stroke();
             }
         }
+
+        // Peer overlap auras — drawn ON TOP of nodes so red is visible
+        drawPeerAuras(ctx);
 
         // Rewire Overlay
         if (state.rewire?.enabled && rewireSourceNode) {

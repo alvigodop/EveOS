@@ -395,7 +395,11 @@ function applyWorkspaceAuraRepulsion(node, workspace, workspaceData) {
     // --- PEER AURA REPULSION: Same-layer root folders + sub-tab nodes ---
 
     function getPeerTerritoryRadius(node) {
-        // Territory is based on folder aura lateral radius scaled down
+        // Link nodes: visible territory
+        if (node.kind === 'link') {
+            return Math.max(30, (node.radius || 4) * 8);
+        }
+        // Folder nodes: territory based on folder aura lateral radius scaled down
         const pId = (node.data && node.data.anchorNodeId) ? node.data.anchorNodeId : '';
         const pNode = pId ? state.nodeIndex.get(pId) : null;
         if (!pNode) return 120;
@@ -405,7 +409,7 @@ function applyWorkspaceAuraRepulsion(node, workspace, workspaceData) {
         const isRoot = (pNode.kind === 'category' || pNode.kind === 'workspace');
         const shape = getFolderAuraShape(node, fdist, isRoot);
         // Peer territory = 60% of lateral radius
-        return Math.max(80, shape.radiusLat * 0.6);
+        return Math.max(40, shape.radiusLat * 0.6);
     }
 
     function applyPeerAuraRepulsion(nodeA, nodeB) {
@@ -462,19 +466,13 @@ function applyWorkspaceAuraRepulsion(node, workspace, workspaceData) {
             state.nodes[i]._peerOverlap = 0;
         }
 
-        // Group root folders and sub-tab nodes by parent
+        // Group ALL same-parent sibling nodes (folders at any depth + links)
         const peerGroups = new Map();
         for (let i = 0; i < state.nodes.length; i++) {
             const node = state.nodes[i];
-            if (node.kind !== 'folder') continue;
+            if (node.kind !== 'folder' && node.kind !== 'link') continue;
             const pId = (node.data && node.data.anchorNodeId) ? node.data.anchorNodeId : '';
-            const pNode = pId ? state.nodeIndex.get(pId) : null;
-            if (!pNode) continue;
-
-            // Only root folders (parent is category/workspace) and sub-tab nodes
-            const isRootFolder = (pNode.kind === 'category' || pNode.kind === 'workspace');
-            const isSubTab = (node.data && node.data.isSubTab);
-            if (!isRootFolder && !isSubTab) continue;
+            if (!pId) continue;
 
             const groupKey = pId + '|' + (node.data?.depth || 0);
             if (!peerGroups.has(groupKey)) peerGroups.set(groupKey, []);
@@ -496,7 +494,8 @@ function applyWorkspaceAuraRepulsion(node, workspace, workspaceData) {
         isNodeMain,
         applyFolderAura,
         applyCardAuraRepulsion,
-        applyWorkspaceAuraRepulsion
+        applyWorkspaceAuraRepulsion,
+        runPeerAuraPass
     });
 
 })(window.EveConstellationMap);

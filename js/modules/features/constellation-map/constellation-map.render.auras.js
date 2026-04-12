@@ -383,18 +383,21 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         const zoomAlpha = Math.min(1.0, state.transform.scale * 3.0);
         const showDetails = state.transform.scale > 0.12;
 
+
         state.nodes.forEach(function (node) {
-            if (!node || node.kind !== 'folder') return;
+            if (!node) return;
+            if (node.kind !== 'folder' && node.kind !== 'link') return;
             const pId = (node.data && node.data.anchorNodeId) ? node.data.anchorNodeId : '';
-            const pNode = pId ? state.nodeIndex.get(pId) : null;
-            if (!pNode) return;
+            if (!pId) return;
 
-            // Only root folders (parent is category/workspace)
-            const isRootFolder = (pNode.kind === 'category' || pNode.kind === 'workspace');
-            if (!isRootFolder) return;
-
-            const radius = node._peerTerritoryRadius || 120;
+            const pNode = state.nodeIndex.get(pId);
+            const isRootFolder = (node.kind === 'folder') && pNode && (pNode.kind === 'category' || pNode.kind === 'workspace');
             const overlap = node._peerOverlap || 0;
+
+            // Non-root nodes (sub-folders + links) only render when actively overlapping
+            if (!isRootFolder && !(overlap > 0.005)) return;
+
+            const radius = node._peerTerritoryRadius || (node.kind === 'link' ? 32 : 120);
 
             // Viewport frustum cull — use correct transform property names
             const pad = radius + 200;

@@ -117,8 +117,8 @@ function buildParentChildren() {
                 const pwDy = parentWorkspaceNode.y - parent.y;
                 const pwDist = Math.sqrt(pwDx * pwDx + pwDy * pwDy);
                 if (pwDist > 0.001) {
-                    // Front points AWAY from parent (back faces parent)
-                    targetAngle = Math.atan2(-pwDy, -pwDx);
+                    // Front points TOWARD parent workspace
+                    targetAngle = Math.atan2(pwDy, pwDx);
                 }
                 // Clear locked angle for sub-tabs so they follow parent freely
                 lockedAngle = null;
