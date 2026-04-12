@@ -38,11 +38,11 @@
     padding: 14px 18px;
 }
 
-/* --- Wide Mode Toggle Button --- */
-.monitor-wide-toggle {
+/* --- Toggle Buttons Shared Styles --- */
+.monitor-wide-toggle,
+.monitor-fullscreen-toggle {
     position: absolute;
     top: 6px;
-    right: 6px;
     z-index: 10;
     width: 26px;
     height: 26px;
@@ -61,21 +61,75 @@
     opacity: 0.6;
 }
 
-.monitor-wide-toggle:hover {
+.monitor-wide-toggle {
+    right: 6px;
+}
+
+.monitor-fullscreen-toggle {
+    right: 36px;
+    font-size: 16px;
+}
+
+.monitor-wide-toggle:hover,
+.monitor-fullscreen-toggle:hover {
     background: rgba(110, 231, 255, 0.14);
     color: rgba(110, 231, 255, 1);
     transform: scale(1.1);
     opacity: 1;
 }
 
-#loadingIndicator.wide-mode .monitor-wide-toggle {
+#loadingIndicator.wide-mode .monitor-wide-toggle,
+#loadingIndicator.fullscreen-mode .monitor-fullscreen-toggle {
     background: rgba(110, 231, 255, 0.16);
     color: rgba(110, 231, 255, 0.85);
 }
 
-/* Hide toggle when compact */
-#loadingIndicator.compact .monitor-wide-toggle {
+/* Hide toggles when compact */
+#loadingIndicator.compact .monitor-wide-toggle,
+#loadingIndicator.compact .monitor-fullscreen-toggle {
     display: none;
+}
+
+/* --- Fullscreen Mode Layout --- */
+#loadingIndicator.fullscreen-mode:not(.compact) {
+    width: 100vw !important;
+    height: 100vh !important;
+    max-width: none !important;
+    right: 0 !important;
+    left: 0 !important;
+    bottom: 0 !important;
+    top: 0 !important;
+    border-radius: 0 !important;
+    border: none !important;
+    z-index: 1000000 !important;
+    backdrop-filter: blur(20px) saturate(200%);
+    background: rgba(5, 8, 12, 0.95);
+    transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+#loadingIndicator.fullscreen-mode:not(.compact) .indicator-content {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 100% !important;
+    flex: 1;
+}
+
+#loadingIndicator.fullscreen-mode:not(.compact) #gemini-placeholder {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+#loadingIndicator.fullscreen-mode:not(.compact) #gemini-ui-root {
+    flex: 1;
+    height: auto !important;
+    min-height: 0;
+    max-height: none !important;
+}
+
+#loadingIndicator.fullscreen-mode:not(.compact) .status-group {
+    margin-top: auto;
 }
 
 /* --- Wide Mode Layout --- */

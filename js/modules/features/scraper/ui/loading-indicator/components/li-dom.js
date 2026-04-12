@@ -129,6 +129,7 @@ window.LoadingIndicatorModules = window.LoadingIndicatorModules || {};
             }
 
             setupEventListeners();
+            ensureWideToggle(indicator);
         }
 
         function ensureTopLevel() {
@@ -182,22 +183,47 @@ window.LoadingIndicatorModules = window.LoadingIndicatorModules || {};
         }
 
         function ensureWideToggle(indicator) {
-            if (indicator.querySelector('.monitor-wide-toggle')) return;
+            if (indicator.dataset.togglesWired) return;
+            indicator.dataset.togglesWired = 'true';
 
-            const btn = document.createElement('button');
-            btn.className = 'monitor-wide-toggle';
-            btn.title = 'Toggle wide view';
-            btn.setAttribute('aria-label', 'Toggle wide view');
-            btn.innerHTML = '⇔';
+            // Wide Mode Toggle
+            let wideBtn = indicator.querySelector('.monitor-wide-toggle');
+            if (!wideBtn) {
+                wideBtn = document.createElement('button');
+                wideBtn.className = 'monitor-wide-toggle';
+                wideBtn.title = 'Toggle wide view';
+                wideBtn.setAttribute('aria-label', 'Toggle wide view');
+                wideBtn.innerHTML = '⇔';
+                indicator.insertBefore(wideBtn, indicator.firstChild);
+            }
 
-            btn.addEventListener('click', (e) => {
+            wideBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const isWide = indicator.classList.toggle('wide-mode');
+                if (isWide) {
+                    indicator.classList.remove('fullscreen-mode');
+                }
                 try { localStorage.setItem('searchMonitorWide', isWide ? 'true' : 'false'); } catch (ex) { /* ignore */ }
             });
 
-            // Insert at the very top of the indicator
-            indicator.insertBefore(btn, indicator.firstChild);
+            // Fullscreen Toggle
+            let fsBtn = indicator.querySelector('.monitor-fullscreen-toggle');
+            if (!fsBtn) {
+                fsBtn = document.createElement('button');
+                fsBtn.className = 'monitor-fullscreen-toggle';
+                fsBtn.title = 'Toggle full screen';
+                fsBtn.setAttribute('aria-label', 'Toggle full screen');
+                fsBtn.innerHTML = '⛶';
+                indicator.insertBefore(fsBtn, indicator.firstChild);
+            }
+
+            fsBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const isFs = indicator.classList.toggle('fullscreen-mode');
+                if (isFs) {
+                    indicator.classList.remove('wide-mode'); // Turn off wide so they don't conflict
+                }
+            });
         }
 
         return {
