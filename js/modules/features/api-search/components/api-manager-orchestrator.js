@@ -108,6 +108,13 @@ window.EveOS.API = window.EveOS.API || {};
 
         const resolvedCategory = ctx.ensureCategoryContext(options.categoryName);
         const providerKey = ctx.isProviderSource(options.providerKey) ? options.providerKey : null;
+
+        // Ensure the IDB cache pool is fully loaded into memory before any
+        // cache lookup or merge. Without this, a fast search can race against
+        // the async IDB read, get an empty pool, and overwrite rich cached data.
+        if (api.Cache && typeof api.Cache.ensurePoolLoaded === 'function') {
+            await api.Cache.ensurePoolLoaded(resolvedCategory);
+        }
         const shouldUseLive = await ctx.resolveLivePreference(resolvedCategory, options.liveResults);
         const shouldUseHybrid = await ctx.resolveHybridPreference(resolvedCategory, options.hybridResults);
         const normalizedQuery = String(query).trim();

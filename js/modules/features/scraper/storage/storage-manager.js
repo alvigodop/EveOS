@@ -153,9 +153,26 @@ StorageManager.saveData = function (key, data, context = null) {
 };
 
 /**
- * Save heavy data to IndexedDB asynchronously, falling back to localStorage
+ * Save heavy data to IndexedDB asynchronously, falling back to localStorage.
+ * Will wait briefly for IDBStore to become available if it hasn't loaded yet.
  */
 StorageManager.saveHeavyData = async function(key, data, context = null) {
+    // Wait for IDBStore deferred script if needed
+    if (!window.IDBStore) {
+        await new Promise(function (resolve) {
+            var elapsed = 0;
+            var interval = 50;
+            var maxWait = 5000;
+            var timer = setInterval(function () {
+                elapsed += interval;
+                if (window.IDBStore || elapsed >= maxWait) {
+                    clearInterval(timer);
+                    resolve();
+                }
+            }, interval);
+        });
+    }
+
     if (window.IDBStore) {
         try {
             const prefixedKey = this._getPrefixedKey(key, context);
@@ -172,9 +189,30 @@ StorageManager.saveHeavyData = async function(key, data, context = null) {
 };
 
 /**
- * Load heavy data from IndexedDB asynchronously, falling back to localStorage
+ * Load heavy data from IndexedDB asynchronously, falling back to localStorage.
+ * Will wait briefly for IDBStore to become available if it hasn't loaded yet,
+ * preventing a race condition where deferred scripts haven't initialized IDB
+ * before the first cache read fires.
  */
 StorageManager.loadHeavyData = async function(key, defaultValue, context = null) {
+    // If IDBStore isn't available yet, wait briefly for deferred script to load.
+    // indexeddb-store.js sets window.IDBStore synchronously when its script runs,
+    // so this typically resolves in < 500ms after page load.
+    if (!window.IDBStore) {
+        await new Promise(function (resolve) {
+            var elapsed = 0;
+            var interval = 50;
+            var maxWait = 5000;
+            var timer = setInterval(function () {
+                elapsed += interval;
+                if (window.IDBStore || elapsed >= maxWait) {
+                    clearInterval(timer);
+                    resolve();
+                }
+            }, interval);
+        });
+    }
+
     if (window.IDBStore) {
         try {
             const val = await window.IDBStore.get(this._getPrefixedKey(key, context));

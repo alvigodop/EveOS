@@ -20,6 +20,13 @@
                 StorageManager.setCategoryContext(categoryName);
             }
 
+            // Eagerly preload API cache pool from IDB so it's warm before
+            // any search fires. Prevents race condition where a fast search
+            // gets an empty pool and overwrites previously cached data.
+            if (window.EveOS?.API?.Cache?.ensurePoolLoaded) {
+                window.EveOS.API.Cache.ensurePoolLoaded(categoryName);
+            }
+
             // Sync WikiManager cache stores with the new context
             if (window.WikiManager && typeof WikiManager.refreshCacheStores === 'function') {
                 await WikiManager.refreshCacheStores();

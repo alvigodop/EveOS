@@ -58,7 +58,31 @@
         return uniqStrings(toArray(source?.synonyms)).join(", ");
     }
 
-    function searchLinkName() {
+    /**
+     * Wait for the scraper storage subsystem (StorageManager + IDBStore) to be
+     * fully loaded and initialized. Both are deferred scripts that may not exist
+     * yet when the user quickly opens a bookmark edit panel after page reload.
+     */
+    function waitForStorageReady(maxMs) {
+        maxMs = maxMs || 8000;
+        return new Promise(function (resolve) {
+            // Fast path: already ready
+            if (window.StorageManager && typeof StorageManager.loadHeavyData === 'function' && window.IDBStore) {
+                return resolve(true);
+            }
+            var elapsed = 0;
+            var interval = 80;
+            var timer = setInterval(function () {
+                elapsed += interval;
+                if ((window.StorageManager && typeof StorageManager.loadHeavyData === 'function' && window.IDBStore) || elapsed >= maxMs) {
+                    clearInterval(timer);
+                    resolve(!!(window.StorageManager && window.IDBStore));
+                }
+            }, interval);
+        });
+    }
+
+    async function searchLinkName() {
         const nameInput = document.getElementById("newTitle");
         const resultsDiv = document.getElementById("edit-link-search-results");
         const categoryInput = document.getElementById("newCategory");
@@ -72,6 +96,15 @@
                 || '';
 
             resultsDiv.style.display = 'block';
+            resultsDiv.innerHTML = '<div style="padding:10px; opacity:0.7;">Waiting for storage subsystem...</div>';
+
+            // Wait for StorageManager + IDBStore deferred scripts to load
+            const storageReady = await waitForStorageReady(8000);
+            if (!storageReady) {
+                console.warn('searchLinkName: StorageManager/IDBStore not available after timeout, proceeding with limited cache');
+            }
+
+            // Now the cache pool can be properly loaded from IDB
             resultsDiv.innerHTML = '<div style="padding:10px; opacity:0.7;">Searching cached sources...</div>';
 
             // Bookmark search should always use cache-first (file:// CORS blocks most live APIs)

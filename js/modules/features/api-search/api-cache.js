@@ -42,6 +42,7 @@ window.EveOS.API = window.EveOS.API || {};
     }
 
     const _memoryPools = {};
+    const _poolLoadPromises = {};
     const _prefsWrites = {};
 
     async function withScopedContext(categoryName, callback) {
@@ -443,11 +444,35 @@ window.EveOS.API = window.EveOS.API || {};
             return pool;
         }
 
-        const pool = ensurePoolShape(await loadScopedValue(CACHE_KEY, { queries: {}, order: [] }, categoryName));
-        prunePool(pool);
-        
-        _memoryPools[normalized] = pool;
-        return pool;
+        // Deduplicate concurrent IDB reads for the same category.
+        // Without this lock, a fast search can get an empty default pool
+        // while IDB is still loading, then storeQuery overwrites the real data.
+        if (!_poolLoadPromises[normalized]) {
+            _poolLoadPromises[normalized] = loadScopedValue(CACHE_KEY, { queries: {}, order: [] }, categoryName)
+                .then(function (raw) {
+                    const pool = ensurePoolShape(raw);
+                    prunePool(pool);
+                    _memoryPools[normalized] = pool;
+                    return pool;
+                })
+                .finally(function () {
+                    delete _poolLoadPromises[normalized];
+                });
+        }
+
+        return await _poolLoadPromises[normalized];
+    }
+
+    /**
+     * Eagerly preload a category's cache pool from IDB into memory.
+     * Call this on page init so that subsequent searches hit the warm memory cache
+     * instead of racing against an async IDB read.
+     */
+    async function ensurePoolLoaded(categoryName) {
+        if (!categoryName) return;
+        const normalized = normalizeCategoryName(categoryName);
+        if (_memoryPools[normalized]) return _memoryPools[normalized];
+        return await loadPool(categoryName);
     }
 
     async function savePool(pool, categoryName) {
@@ -569,7 +594,7 @@ window.EveOS.API = window.EveOS.API || {};
 
         pool.order = [queryKey].concat(pool.order.filter(function (value) { return value !== queryKey; }));
         await savePool(pool, categoryName);
-        _notifyUI(`Saved Cache: ${Object.keys(mergedSources).length} APIs for "${queryLabel}"`, 'success');
+        console.log(`API Cache: Stored query [${queryLabel}] in [${categoryName}] (${Object.keys(mergedSources).length} sources)`);
         return pool.queries[queryKey];
     }
 
@@ -615,6 +640,7 @@ window.EveOS.API = window.EveOS.API || {};
         summarizeSources,
         loadPool,
         savePool,
+        ensurePoolLoaded,
         loadPrefs,
         savePrefs,
         getQuery: getQueryEntry,
