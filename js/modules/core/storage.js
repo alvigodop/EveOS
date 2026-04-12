@@ -679,6 +679,11 @@ async function loadData() {
     if (!config.workspaces || config.workspaces.length === 0) config.workspaces = [{ id: 'main', name: 'Main', icon: '\u{1F3E0}', subTabs: [] }];
     if (!config.activeWorkspace) config.activeWorkspace = 'main';
 
+    // Custom bookmark ordering defaults
+    if (!config.customOrder || typeof config.customOrder !== 'object') config.customOrder = {};
+    if (!Array.isArray(config.customOrderEnabled)) config.customOrderEnabled = [];
+    if (!config.customOrderSort || typeof config.customOrderSort !== 'object') config.customOrderSort = {};
+
     // Apply settings
     if (typeof applySettings === 'function') applySettings();
 

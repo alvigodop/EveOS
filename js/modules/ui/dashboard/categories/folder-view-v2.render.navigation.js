@@ -49,6 +49,23 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         const folderItems = viewModel.folderLinks.get(targetNode.id) || [];
         const headerActionsExpanded = folderId ? window.EveFolderViewV2.isHeaderActionsExpanded(workspaceId, categoryName, folderId) : false;
 
+        // Section stats helper for Manhwa view
+        const isCardTaskMode = !(window.eveState?.config?.hideStats || []).includes(categoryName);
+        function buildSectionStats(sectionLinks) {
+            if (!isCardTaskMode || !sectionLinks.length) return '';
+            var taskLinks = sectionLinks.filter(function (l) {
+                if (typeof folderApi?.isTaskEnabledForLink === 'function') return !!folderApi.isTaskEnabledForLink(l);
+                return isCardTaskMode;
+            });
+            if (!taskLinks.length) return '';
+            var done = taskLinks.filter(function (l) { return !!l.done; }).length;
+            var pending = taskLinks.length - done;
+            return '<div class="bookmark-folder-section-stats">'
+                + '<span class="section-stat-pending">Pending: ' + pending + '</span>'
+                + '<span class="section-stat-done">Done: ' + done + '</span>'
+                + '</div>';
+        }
+
         const isCardFoldersCollapsed = !!(window.eveState?.config?.foldersCollapsed || []).includes(categoryName);
         const isCardLinksCollapsed = !!(window.eveState?.config?.linksCollapsed || []).includes(categoryName);
         const isFolderSubfoldersCollapsed = !!(window.eveState?.config?.subfoldersCollapsed || []).includes(folderId);
@@ -125,7 +142,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                 const jsId = escapeCardJs(String(link.id));
                 return `<div class="item-row" style="display: flex; align-items: center; gap: 12px; padding: 10px 18px; cursor: pointer; border-left: 2px solid rgba(128,128,128,0.2);" onclick="if(typeof window.handleLinkClick === 'function') { window.handleLinkClick(event, '${jsId}', this); } else { window.open('${escapeCardJs(link.url)}', '_blank'); }"><span>${escapeCardHtml(link.icon || '🔗')}</span><span>${escapeCardHtml(link.title)}</span></div>`;
             }).join('');
-            itemsHtml += `<div style="padding: 4px 0;"><ul class="category-scrollable" style="max-height: none; overflow: visible;">${flatHtml}</ul></div>`;
+            itemsHtml += `<div style="padding: 4px 0;"><ul class="category-scrollable" style="max-height: none; overflow: visible;">${flatHtml}</ul>${buildSectionStats(folderItems)}</div>`;
         }
         if (subFolders.length === 0 && folderItems.length === 0) {
             itemsHtml = `<div style="padding: 20px; text-align: center; color: rgba(128,128,128,0.5); font-family: 'Share Tech Mono', monospace; font-size: 11px;">DATA NODE EMPTY</div>`;

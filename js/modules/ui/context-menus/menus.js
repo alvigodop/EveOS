@@ -165,6 +165,13 @@ window.showCategoryContextMenu = function (e, name) {
     }
 
     const safeName = String(name || '').replace(/'/g, "\\'");
+    const customOrderApi = window.EveCustomOrder;
+    const coWsId = String((window.config && window.config.activeWorkspace) || 'main');
+    const coEnabled = customOrderApi ? customOrderApi.isEnabled(coWsId, name) : false;
+    const coSortMode = coEnabled && customOrderApi ? customOrderApi.getSortMode(coWsId, name) : 'none';
+    const coToggleLabel = coEnabled ? '&#128202; Custom Numbering ✓' : '&#128202; Custom Numbering';
+    const coSortLabel = coSortMode === 'asc' ? '&#128260; Sort: Ascending' : (coSortMode === 'desc' ? '&#128261; Sort: Descending' : '&#128256; Sort: None');
+    const coSortDisplay = coEnabled ? '' : ' style="display:none;"';
     m.innerHTML = `
         <div class="ctx-item" onclick="if(window.EveConstellationMap) window.EveConstellationMap.openCardMap(String((window.config && window.config.activeWorkspace) || 'main'), '${safeName}')">&#127756; Constellation Map</div>
         <div class="ctx-item" onclick="openCategorySettings('${safeName}', 'search')">&#128269; Search & Settings</div>
@@ -172,6 +179,8 @@ window.showCategoryContextMenu = function (e, name) {
         <div class="ctx-item" onclick="openBulkTitleModal('${safeName}')">&#129668; Auto-Title Links</div>
         <div class="ctx-item" onclick="ctxCatFocus()">&#127919; Focus</div>
         <div class="ctx-item" onclick="ctxCatToggleTask()">&#128221; Task Mode</div>
+        <div class="ctx-item" onclick="ctxCatToggleCustomOrder()">${coToggleLabel}</div>
+        <div class="ctx-item"${coSortDisplay} onclick="ctxCatCycleSortOrder()">${coSortLabel}</div>
         <div class="ctx-item" onclick="ctxCatSubScan()">&#128269; Sub-Scan (Duplicates)</div>
         <div class="ctx-item" onclick="deleteCategory('${safeName}')" style="color:var(--danger)">&#128465; Delete</div>
     `;

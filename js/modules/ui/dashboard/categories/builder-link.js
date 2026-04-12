@@ -66,17 +66,22 @@ window.DashboardCategories = window.DashboardCategories || {};
         if (!target || !overlay) return;
         const rect = target.getBoundingClientRect();
         const viewportPadding = 10;
-        const gap = 12;
+        const gap = 16;
+        const overlayW = overlay.offsetWidth;
+        const overlayH = overlay.offsetHeight;
+
+        // Horizontal: prefer right of bookmark, then left, then right-align to viewport
         let left = rect.right + gap;
-        if (left + overlay.offsetWidth > window.innerWidth - viewportPadding) {
-            left = rect.left - overlay.offsetWidth - gap;
+        if (left + overlayW > window.innerWidth - viewportPadding) {
+            left = rect.left - overlayW - gap;
         }
         if (left < viewportPadding) {
-            left = Math.max(viewportPadding, window.innerWidth - overlay.offsetWidth - viewportPadding);
+            left = Math.max(viewportPadding, window.innerWidth - overlayW - viewportPadding);
         }
 
-        let top = rect.top + (rect.height / 2) - (overlay.offsetHeight / 2);
-        const maxTop = window.innerHeight - overlay.offsetHeight - viewportPadding;
+        // Vertical: align top of overlay with current bookmark row, bias upward
+        let top = rect.top - (overlayH * 0.3);
+        const maxTop = window.innerHeight - overlayH - viewportPadding;
         if (top > maxTop) top = maxTop;
         if (top < viewportPadding) top = viewportPadding;
 
@@ -211,9 +216,25 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
         ? `<span class="icon-btn" onclick="toggleDone(${jsLinkIdLiteral})">${CHECK_ICON}</span>`
         : '';
 
+    // Custom order badge
+    let customOrderBadge = '';
+    if (extraOptions.customOrderEnabled && window.EveCustomOrder) {
+        const coNum = window.EveCustomOrder.getNumber(
+            extraOptions.customOrderWsId,
+            extraOptions.customOrderCategory,
+            linkId
+        );
+        const safeWsId = String(extraOptions.customOrderWsId || '').replace(/'/g, "\\'");
+        const safeCoCat = String(extraOptions.customOrderCategory || '').replace(/'/g, "\\'");
+        if (typeof coNum === 'number') {
+            customOrderBadge = `<span class="custom-order-badge" title="Click to change order" onclick="event.preventDefault();event.stopPropagation();(function(){var n=prompt('Enter new position number (current: ${coNum}):','${coNum}');if(n!==null&&n!=='')window.EveCustomOrder.setNumber('${safeWsId}','${safeCoCat}',${jsLinkIdLiteral},parseInt(n,10));})()">#${coNum}</span>`;
+        }
+    }
+
     return `<li class="${doneClass} ${isLocal ? 'is-local' : ''} ${pClass} ${pinnedClass}" draggable="true" ondragstart="${dragStartHandler}" oncontextmenu="showLinkContextMenu(event, ${jsLinkIdLiteral})" onmouseenter="showBookmarkCoverHover(event, ${jsLinkIdLiteral})" onmousemove="moveBookmarkCoverHover(event)" onmouseleave="hideBookmarkCoverHover()">
                 <input type="checkbox" class="bulk-check" data-bulk-id="${linkId.replace(/&/g, '&amp;').replace(/\"/g, '&quot;')}" onclick="event.preventDefault();event.stopPropagation();toggleSelect(this, ${jsLinkIdLiteral}, event);return false;" ${isChecked}>
                 ${iconHtml} ${wsBadge} ${subTabBadge} ${folderBadge} ${detachedBadge} ${identifierBadges} <a href="${l.url}" target="_blank" rel="noopener noreferrer" onclick='return (typeof openBookmarkFromDashboard==="function") ? openBookmarkFromDashboard(event, decodeURIComponent("${encodedLinkId}")) : true;'>${l.title}</a>
+                ${customOrderBadge}
                 <div class="actions">
                     <span class="icon-btn ${isPinned ? 'pin-active' : ''}" onclick="togglePin(${jsLinkIdLiteral})">${PIN_ICON}</span>
                     ${doneActionHtml}

@@ -141,8 +141,8 @@ html[data-native-scheme="light"] .card-subtab-source {
 }
 
 .bookmark-cover-hover-overlay.is-visible {
-    opacity: 0.7;
-    transform: translateY(0);
+    opacity: 0.5;
+    transform: translateY(0) scale(0.95);
 }
 
 .bookmark-cover-hover-overlay.is-imageless .bookmark-cover-hover-media {
@@ -354,8 +354,8 @@ html[data-native-scheme="light"] .card-subtab-source {
     filter: grayscale(1);
 }
 
-/* --- Task Mode Bookmark Numbering --- */
-.category-card.task-mode {
+/* --- Task Mode Bookmark Numbering (section-scoped) --- */
+.category-card.task-mode ul {
     counter-reset: bookmark-index;
 }
 
@@ -388,4 +388,64 @@ html[data-native-scheme="light"] .card-subtab-source {
     background: rgba(128, 128, 128, 0.04);
     border-color: rgba(128, 128, 128, 0.08);
     text-decoration: line-through;
+}
+
+/* Hide CSS counter on hover (actions take priority) */
+.category-card.task-mode ul li:hover::after {
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* --- Custom Order Badge (replaces CSS counter when active) --- */
+/* Hide CSS counter when custom order is enabled */
+.category-card.custom-order.task-mode ul li::after {
+    display: none;
+}
+
+.custom-order-badge {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.65rem;
+    color: rgba(0, 230, 180, 0.65);
+    background: rgba(0, 230, 180, 0.08);
+    border: 1px solid rgba(0, 230, 180, 0.2);
+    border-radius: 4px;
+    padding: 1px 6px;
+    line-height: 1.3;
+    z-index: 2;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.15s ease;
+}
+
+.custom-order-badge:hover {
+    color: rgba(0, 230, 180, 0.95);
+    background: rgba(0, 230, 180, 0.16);
+    border-color: rgba(0, 230, 180, 0.45);
+    box-shadow: 0 0 6px rgba(0, 230, 180, 0.2);
+}
+
+.category-card ul li {
+    position: relative;
+}
+
+/* Hide custom order badge on row hover (actions take priority) */
+.category-card ul li:hover .custom-order-badge {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.category-card.custom-order ul li.done .custom-order-badge {
+    color: rgba(128, 128, 128, 0.35);
+    background: rgba(128, 128, 128, 0.05);
+    border-color: rgba(128, 128, 128, 0.1);
+}
+
+/* Hide badges during bulk selection mode */
+body.bulk-active .custom-order-badge,
+body.bulk-active .category-card.task-mode ul li::after {
+    display: none;
 }

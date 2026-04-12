@@ -69,6 +69,16 @@ window.DashboardCategories = window.DashboardCategories || {};
             card.classList.add('task-mode');
         }
         var isTaskMode = hasTaskBookmarks;
+        var customOrderApi = window.EveCustomOrder;
+        var activeWorkspaceId = String(options.activeWorkspace || config.activeWorkspace || 'main');
+        var customOrderEnabled = customOrderApi ? customOrderApi.isEnabled(activeWorkspaceId, cat) : false;
+        if (customOrderEnabled) {
+            card.classList.add('custom-order');
+            // Ensure all links have order numbers
+            customOrderApi.ensureAllLinksHaveNumbers(activeWorkspaceId, cat, renderedLinks);
+            // Apply sorting if mode is set
+            renderedLinks = customOrderApi.applySorting(renderedLinks, activeWorkspaceId, cat);
+        }
         if (isFocusMode) {
             card.classList.add('is-focus-mode');
         }
@@ -114,7 +124,10 @@ window.DashboardCategories = window.DashboardCategories || {};
                 }
                 return window.DashboardCategories.buildLinkHtml(link, options.searchStr, options.activeWorkspace, options.workspaces, {
                     folderLabel: folderLabel,
-                    isTaskEnabled: isTaskEnabledForLink(link)
+                    isTaskEnabled: isTaskEnabledForLink(link),
+                    customOrderEnabled: customOrderEnabled,
+                    customOrderWsId: activeWorkspaceId,
+                    customOrderCategory: cat
                 });
             }).join('');
             return '<ul class="' + (options.scrollableCategories ? 'category-scrollable' : '') + '">' + flatHtml + '</ul>';

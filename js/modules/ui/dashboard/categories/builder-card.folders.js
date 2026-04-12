@@ -59,6 +59,23 @@ function buildFolderSectionsHtml(categoryName, linksForCard, options, renderer) 
                 + ' ondragleave="event.currentTarget.classList.remove(\'bookmark-folder-drop-target\')"';
         }
 
+        // Section-scoped stats helper
+        const isCardTaskMode = !Array.isArray(options.hideStats) || !options.hideStats.includes(categoryName);
+        function buildSectionStats(sectionLinks) {
+            if (!isCardTaskMode || !sectionLinks.length) return '';
+            var taskLinks = sectionLinks.filter(function (l) {
+                if (typeof folderApi?.isTaskEnabledForLink === 'function') return !!folderApi.isTaskEnabledForLink(l);
+                return isCardTaskMode;
+            });
+            if (!taskLinks.length) return '';
+            var done = taskLinks.filter(function (l) { return !!l.done; }).length;
+            var pending = taskLinks.length - done;
+            return '<div class="bookmark-folder-section-stats">'
+                + '<span class="section-stat-pending">Pending: ' + pending + '</span>'
+                + '<span class="section-stat-done">Done: ' + done + '</span>'
+                + '</div>';
+        }
+
         function renderFolderNode(node) {
             const folderLinks = viewModel.folderLinks.get(node.id) || [];
             const childFolders = viewModel.childrenMap.get(node.id) || [];
@@ -124,6 +141,7 @@ function buildFolderSectionsHtml(categoryName, linksForCard, options, renderer) 
                     + '<div class="bookmark-folder-body">'
                         + '<div class="bookmark-folder-links">' + bodyContentHtml + '</div>'
                         + '<div class="bookmark-folder-subfolders">' + childHtml + '</div>'
+                        + buildSectionStats(folderLinks)
                     + '</div>'
                 + '</details>';
         }
@@ -178,6 +196,7 @@ function buildFolderSectionsHtml(categoryName, linksForCard, options, renderer) 
                                 ? renderer(viewModel.rootLinks)
                                 : '<div class="bookmark-folder-empty">No root bookmarks in this card.</div>')
                         + '</div>'
+                        + buildSectionStats(viewModel.rootLinks)
                     + '</div>'
                 + '</div>'
                 + topLevelHtml

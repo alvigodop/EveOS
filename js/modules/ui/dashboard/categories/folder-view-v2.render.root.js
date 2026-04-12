@@ -16,6 +16,24 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
             + '</div>';
 
         const dropTargetAttr = `ondragover="if(typeof allowDrop==='function')allowDrop(event)" ondrop="event.currentTarget.classList.remove('active'); if(typeof window.EveFolderViewV2.handleFolderDrop==='function') window.EveFolderViewV2.handleFolderDrop(event, '${escapeCardJs(categoryName)}', '', '${escapeCardJs(workspaceId)}')" ondragenter="event.currentTarget.classList.add('active')" ondragleave="event.currentTarget.classList.remove('active')"`;
+
+        // Section stats helper
+        const isCardTaskMode = !(window.eveState?.config?.hideStats || []).includes(categoryName);
+        function buildSectionStats(sectionLinks) {
+            if (!isCardTaskMode || !sectionLinks.length) return '';
+            var taskLinks = sectionLinks.filter(function (l) {
+                if (typeof folderApi?.isTaskEnabledForLink === 'function') return !!folderApi.isTaskEnabledForLink(l);
+                return isCardTaskMode;
+            });
+            if (!taskLinks.length) return '';
+            var done = taskLinks.filter(function (l) { return !!l.done; }).length;
+            var pending = taskLinks.length - done;
+            return '<div class="bookmark-folder-section-stats">'
+                + '<span class="section-stat-pending">Pending: ' + pending + '</span>'
+                + '<span class="section-stat-done">Done: ' + done + '</span>'
+                + '</div>';
+        }
+
         let html = toolbarHtml + `<div class="v2-folder-root-container" style="padding: 0 10px 10px;" ${dropTargetAttr}>`;
 
         if (topLevelFolders.length > 0) {
@@ -50,7 +68,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
             html += '<div class="manhwa-divider">ROOT ITEMS</div>';
         }
         if (rootLinks.length > 0) {
-            html += `<div style="padding-top: 4px;">${defaultRenderer(rootLinks)}</div>`;
+            html += `<div style="padding-top: 4px;">${defaultRenderer(rootLinks)}${buildSectionStats(rootLinks)}</div>`;
         }
         if (topLevelFolders.length === 0 && rootLinks.length === 0) {
             html += `<div style="padding: 20px; text-align: center; color: rgba(128,128,128,0.5); font-family: 'Share Tech Mono', monospace; font-size: 11px;">EMPTY SECTOR</div>`;

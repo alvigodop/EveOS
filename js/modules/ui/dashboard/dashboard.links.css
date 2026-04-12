@@ -332,3 +332,25 @@ html[data-native-scheme="light"] .subtab-origin-badge {
         justify-content: flex-start;
     }
 }
+
+/* --- Section-Scoped Stats --- */
+.bookmark-folder-section-stats {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 10px 2px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.68rem;
+    letter-spacing: 0.03em;
+    color: var(--text-muted);
+    opacity: 0.6;
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
+    margin-top: 2px;
+}
+
+.section-stat-pending {
+    color: rgba(0, 212, 255, 0.5);
+}
+
+.section-stat-done {
+    color: rgba(0, 220, 130, 0.5);
+}

@@ -61,6 +61,33 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
         renderDashboard();
     };
 
+    window.ctxCatToggleCustomOrder = function () {
+        const categoryName = shared.getCtxCategoryName?.();
+        if (!categoryName) return showToast('No category selected', 'error');
+        const api = window.EveCustomOrder;
+        if (!api) return showToast('Custom order module not loaded', 'error');
+        const wsId = String(config.activeWorkspace || 'main');
+        // Get current links for this card to initialize numbering
+        var cardLinks = (typeof getModalLinks === 'function' ? getModalLinks() : (window.eveState?.links || []))
+            .filter(function (l) { return String(l.workspace) === wsId && String(l.category || 'Unsorted') === categoryName; });
+        api.toggle(wsId, categoryName, cardLinks);
+        if (typeof closeAllMenus === 'function') closeAllMenus();
+        showToast(api.isEnabled(wsId, categoryName) ? 'Custom numbering enabled' : 'Custom numbering disabled', 'info');
+    };
+
+    window.ctxCatCycleSortOrder = function () {
+        const categoryName = shared.getCtxCategoryName?.();
+        if (!categoryName) return showToast('No category selected', 'error');
+        const api = window.EveCustomOrder;
+        if (!api) return;
+        const wsId = String(config.activeWorkspace || 'main');
+        api.cycleSortMode(wsId, categoryName);
+        if (typeof closeAllMenus === 'function') closeAllMenus();
+        var mode = api.getSortMode(wsId, categoryName);
+        var labels = { none: 'Sort: None (positional)', asc: 'Sort: Ascending', desc: 'Sort: Descending' };
+        showToast(labels[mode] || mode, 'info');
+    };
+
     window.ctxCatFocus = function () {
         const categoryName = shared.getCtxCategoryName?.();
         if (!categoryName) return showToast('No category selected', 'error');
