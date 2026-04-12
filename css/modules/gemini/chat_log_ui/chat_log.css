@@ -1,11 +1,12 @@
 .chat-container {
     display: flex;
     flex-direction: column;
-    gap: 16px;
-    background: white;
-    padding: 16px;
+    gap: 2px;
+    background: var(--bg-primary, rgba(15, 20, 25, 0.9));
+    padding: 10px;
     border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    box-shadow: var(--shadow-sm, 0 2px 8px rgba(0, 0, 0, 0.2));
     height: calc(100vh - 300px);
     /* Constrain height */
     /* max-height removed */
@@ -15,15 +16,13 @@
 }
 
 #main-chat-log-placeholder {
-    flex: 5;
-    height: 0;
-    /* Add strict flex height */
-    min-height: 0;
+    flex: 2;
+    height: auto;
+    min-height: 280px; /* Guarantee chat visibility */
     display: flex;
     flex-direction: column;
     overflow: hidden;
     transition: flex 0.3s ease;
-    /* Smooth transition */
 }
 
 .chat-container.past-chats-visible #main-chat-log-placeholder {
@@ -40,14 +39,15 @@
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    border: 1px solid #e0e0e0;
+    border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 8px;
     padding: 0;
     /* padding moved to inner container */
-    background-color: #fafafa;
+    background-color: var(--bg-secondary, rgba(0, 0, 0, 0.2));
     margin: 0;
     min-height: 0;
     box-sizing: border-box;
+    box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.2);
 }
 
 #pastChatsLog {
@@ -141,16 +141,17 @@
 
 #system-log-display-placeholder {
     flex: 1;
-    min-height: 0;
+    height: auto;
+    min-height: 160px; /* Strong but reasonable presence */
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    margin-top: 8px;
-    /* Move margin here */
+    margin-top: 0;
 }
 
 #systemLog {
     flex: 1;
+    flex-shrink: 0; /* Refuse to be squished */
     /* Fill the placeholder */
     width: 100%;
     /* Increased from 1 */
@@ -158,28 +159,30 @@
     /* No scroll on main box */
     display: flex;
     flex-direction: column;
-    border: 1px solid #3f51b5;
+    border: 1px solid rgba(0, 212, 255, 0.2);
     border-radius: 8px;
     padding: 0;
     margin: 0;
     /* Margin moved to wrapper */
     /* Added extra separation */
-    background-color: #e8eaf6;
+    background-color: var(--bg-secondary, rgba(0, 0, 0, 0.4));
     min-height: 0;
     box-sizing: border-box;
     /* max-height removed */
     position: relative;
+    box-shadow: inset 0 0 15px rgba(0, 212, 255, 0.05);
 }
 
 .system-header {
     position: sticky;
     top: 0;
-    background-color: #3f51b5;
-    color: white;
+    background-color: rgba(0, 212, 255, 0.1);
+    color: var(--accent, #00d4ff);
     padding: 10px 16px;
     font-weight: 500;
     border-top-left-radius: 8px;
     border-top-right-radius: 8px;
+    border-bottom: 1px solid rgba(0, 212, 255, 0.15);
     z-index: 1;
     display: flex;
     justify-content: space-between;
@@ -233,19 +236,19 @@
     /* overflow-y and max-height removed to let parent handle scrolling */
     flex: 1;
     overflow-y: auto;
-    min-height: 0;
+    min-height: 140px; /* Inner constraint */
 }
 
 .system-message {
-    color: #1a237e;
-    background-color: #e8eaf6 !important;
-    font-family: 'Roboto Mono', monospace;
+    color: var(--text-primary, #ffffff);
+    background-color: rgba(255, 255, 255, 0.03) !important;
+    font-family: 'Roboto Mono', 'Consolas', monospace;
     padding: 8px 12px;
     margin: 6px 0;
     border-radius: 6px;
     font-size: 13px;
     line-height: 1.4;
-    border-left: 3px solid #3f51b5;
+    border-left: 3px solid var(--accent, #3f51b5);
 }
 
 .system-message.connection {

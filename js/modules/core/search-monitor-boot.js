@@ -110,6 +110,11 @@
         indicator.addEventListener('click', handleToggle);
         indicator.addEventListener('keydown', function (event) {
             if (event.key !== 'Enter' && event.key !== ' ') return;
+            // Don't intercept keyboard events on interactive children (inputs, textareas, etc.)
+            const tag = event.target && event.target.tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' ||
+                (event.target && event.target.isContentEditable)) return;
+            if (shouldIgnoreToggleEvent(event, indicator)) return;
             event.preventDefault();
             handleToggle(event);
         });

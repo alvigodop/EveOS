@@ -3,9 +3,10 @@
     gap: 12px;
     /* margin-top removed - handled by parent gap */
     padding: 16px;
-    background: white;
+    background: var(--bg-secondary, rgba(0, 0, 0, 0.4));
     border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: var(--shadow-popup, 0 4px 12px rgba(0, 0, 0, 0.3));
     align-items: center;
     /* Vertically center content */
 }
