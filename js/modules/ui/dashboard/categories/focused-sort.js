@@ -3,7 +3,7 @@ window.DashboardCategories = window.DashboardCategories || {};
 (function (DashboardCategories) {
     function normalizeSortBy(rawValue) {
         var value = String(rawValue || 'none');
-        var allowed = ['none', 'active', 'unified', 'personal', 'api_weighted', 'api_average', 'confidence'];
+        var allowed = ['none', 'active', 'unified', 'personal', 'api_weighted', 'api_average', 'confidence', 'truevalue'];
         return allowed.includes(value) ? value : 'none';
     }
 
@@ -80,12 +80,35 @@ window.DashboardCategories = window.DashboardCategories || {};
         if (typeof renderDashboard === 'function') renderDashboard();
     };
 
+    function sortByTrueValue(links, sortOrder) {
+        var tvApi = window.EveTrueValue;
+        if (!tvApi) return links;
+        var wsId = String((window.config && window.config.activeWorkspace) || 'main');
+        var category = String(window.currentCategoryCtx || 'Unsorted');
+
+        // Stamp base positions
+        links.forEach(function (link, idx) {
+            if (typeof link._basePos !== 'number') link._basePos = idx + 1;
+        });
+
+        var tvData = tvApi.computeTrueValues(links, wsId, category, { forceEnabled: true });
+        if (!tvData || !Object.keys(tvData).length) return links;
+
+        return tvApi.applySorting(links, tvData, sortOrder === 'desc' ? 'desc' : 'asc');
+    }
+
     DashboardCategories.sortFocusedLinks = function (links) {
         var input = Array.isArray(links) ? links.slice() : [];
         var sortBy = DashboardCategories.getFocusedEntriesSortBy();
         if (sortBy === 'none') return input;
 
         var sortOrder = DashboardCategories.getFocusedEntriesSortOrder();
+
+        // True Value sort uses its own engine
+        if (sortBy === 'truevalue') {
+            return sortByTrueValue(input, sortOrder);
+        }
+
         var linkedItems = [];
         var linkedIndexById = new Map();
 

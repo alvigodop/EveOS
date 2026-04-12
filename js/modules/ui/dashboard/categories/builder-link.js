@@ -238,9 +238,10 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
         if (tvData) {
             const displayText = window.EveTrueValue.formatTrueValue(tvData, extraOptions.trueValueData);
             const badgeClass = tvData.locked ? 'true-value-badge locked' : 'true-value-badge approx';
+            const direction = tvData.influence > 0 ? '↑' : tvData.influence < 0 ? '↓' : '=';
             const titleText = tvData.locked
-                ? 'True position (locked — no library link)'
-                : 'Base: #' + tvData.basePos + ' → ' + tvData.percent + '% true value (rating: ' + (tvData.rating || '?') + '/10)';
+                ? (tvData.rating === null ? 'Locked — no library link' : 'Locked — no rating data')
+                : 'Base #' + tvData.basePos + ' ' + direction + ' #' + tvData.truePos + ' (rating: ' + (tvData.rating || '?') + ', ' + tvData.percent + '%)';
             trueValueBadge = `<span class="${badgeClass}" title="${titleText}">${displayText}</span>`;
             customOrderBadge = ''; // true value replaces custom order badge
         }

@@ -92,6 +92,38 @@ window.EveLibrary.SearchModules = window.EveLibrary.SearchModules || {};
             ? (document.getElementById(prefix + 'search-rating-scale')?.value || Ratings?.getActiveScale?.(config) || 'hybrid')
             : (Ratings?.getActiveScale?.(config) || 'hybrid');
 
+        // True Value sort — uses the True Value engine for library entries
+        if (sortBy === 'trueValueRating') {
+            var tvApi = window.EveTrueValue;
+            if (!tvApi) return entries;
+            var wsId = String((window.config && window.config.activeWorkspace) || 'main');
+            var cat = categoryName || 'Unsorted';
+
+            // Build pseudo-links from entries for the engine
+            var pseudoLinks = entries.map(function (entry, idx) {
+                return { id: entry.id || entry.title || idx, _basePos: idx + 1, _entry: entry };
+            });
+
+            var tvData = tvApi.computeTrueValues(pseudoLinks, wsId, cat, { forceEnabled: true });
+            if (!tvData || !Object.keys(tvData).length) return entries;
+
+            // Map true values back to entries
+            var entryMap = new Map();
+            pseudoLinks.forEach(function (pl, idx) {
+                var tv = tvData[String(pl.id)];
+                entryMap.set(idx, tv ? tv.truePos : 9999);
+            });
+
+            var indexed = entries.map(function (e, idx) { return { entry: e, idx: idx }; });
+            indexed.sort(function (a, b) {
+                var posA = entryMap.get(a.idx) || 9999;
+                var posB = entryMap.get(b.idx) || 9999;
+                var comparison = posA - posB;
+                return sortOrder === 'desc' ? -comparison : comparison;
+            });
+            return indexed.map(function (item) { return item.entry; });
+        }
+
         return entries.sort((a, b) => {
             if (sortBy === 'dateAdded' || sortBy === 'lastEdited') {
                 const rawA = sortBy === 'lastEdited' ? (a?.lastEdited || a?.dateAdded || '') : (a?.dateAdded || '');

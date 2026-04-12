@@ -74,6 +74,10 @@ window.modalTemplate += `
                             <input type="range" id="trueValueInfluenceSlider" min="0" max="100" step="5" style="flex:1;" oninput="document.getElementById('trueValueInfluenceLabel').textContent = this.value + '%'" onchange="window._tvSettingsOnChange &amp;&amp; window._tvSettingsOnChange()">
                             <span id="trueValueInfluenceLabel" style="font-size:0.78rem; font-family:'Share Tech Mono',monospace; min-width:36px; text-align:right;">50%</span>
                         </div>
+                        <div style="display:flex; align-items:center; gap:8px; margin-top:4px;">
+                            <button type="button" id="trueValueRefreshBtn" onclick="window._tvRefreshScores && window._tvRefreshScores()" style="flex:1; font-size:0.82rem;">&#128260; Refresh Scores from Sources</button>
+                        </div>
+                        <div id="trueValueRefreshStatus" style="font-size:0.76rem; opacity:0.68; margin-top:2px;"></div>
                     </div>
                 </details>
                 <button onclick="closeModals(); ctxCatToggleTask()" style="width:100%;">&#9989; Toggle Task Mode</button>

@@ -100,8 +100,9 @@ window.UnidexViewModules = window.UnidexViewModules || {};
         }
 
         function getEntriesSortBy() {
-            const mode = String(getConfigState().unidexEntriesSortBy || 'none').toLowerCase();
-            return mode === 'confidence' ? 'confidence' : 'none';
+            var mode = String(getConfigState().unidexEntriesSortBy || 'none').toLowerCase();
+            if (mode === 'confidence' || mode === 'truevalue') return mode;
+            return 'none';
         }
 
         function getEntriesSortOrder() {
@@ -109,7 +110,8 @@ window.UnidexViewModules = window.UnidexViewModules || {};
         }
 
         function setEntriesSortBy(sortBy) {
-            const nextSortBy = String(sortBy || '').toLowerCase() === 'confidence' ? 'confidence' : 'none';
+            var raw = String(sortBy || '').toLowerCase();
+            var nextSortBy = (raw === 'confidence' || raw === 'truevalue') ? raw : 'none';
             const currentConfig = getConfigState();
             if (String(currentConfig.unidexEntriesSortBy || 'none') === nextSortBy) return;
             currentConfig.unidexEntriesSortBy = nextSortBy;

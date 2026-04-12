@@ -151,8 +151,6 @@
 
         if (tabName === 'folders') {
 
-            window.renderCategoryFolderManager();
-
             if (modalInner) {
 
                 modalInner.style.width = '620px';
@@ -160,6 +158,23 @@
                 modalInner.style.maxWidth = '94%';
 
             }
+
+            // Show instant skeleton, then defer heavy folder+ghost computation
+            var folderContainer = document.getElementById('category-folder-manager');
+            if (folderContainer) {
+                folderContainer.innerHTML = ''
+                    + '<div style="display:flex; flex-direction:column; gap:10px; padding:12px 0;">'
+                    +   '<div style="height:38px; border-radius:10px; background:rgba(255,255,255,0.04); animation:pulse 1.2s ease-in-out infinite;"></div>'
+                    +   '<div style="height:52px; border-radius:10px; background:rgba(255,255,255,0.03); animation:pulse 1.2s ease-in-out infinite; animation-delay:0.15s;"></div>'
+                    +   '<div style="height:44px; border-radius:10px; background:rgba(255,255,255,0.03); animation:pulse 1.2s ease-in-out infinite; animation-delay:0.3s;"></div>'
+                    + '</div>';
+            }
+
+            requestAnimationFrame(function () {
+                setTimeout(function () {
+                    window.renderCategoryFolderManager();
+                }, 0);
+            });
 
             return;
 
@@ -211,6 +226,31 @@
                     if (slider) config.trueValueSettings[key].influenceWeight = parseInt(slider.value, 10) / 100;
                     saveConfig();
                     if (typeof renderDashboard === 'function') renderDashboard();
+                };
+
+                window._tvRefreshScores = function () {
+                    if (!tvApi || !cat) return;
+                    const statusEl = document.getElementById('trueValueRefreshStatus');
+                    if (statusEl) statusEl.textContent = 'Refreshing scores...';
+
+                    try {
+                        const count = tvApi.refreshScoresForCategory(wsId, cat);
+                        if (statusEl) {
+                            statusEl.textContent = count > 0
+                                ? `Refreshed ${count} linked entries. Dashboard will update.`
+                                : 'No linked entries found to refresh.';
+                        }
+                        if (count > 0) {
+                            // Persist library state
+                            if (window.EveLibrary?.Storage?.saveLibrary) {
+                                window.EveLibrary.Storage.saveLibrary();
+                            }
+                            if (typeof renderDashboard === 'function') renderDashboard();
+                        }
+                    } catch (e) {
+                        console.error('True Value score refresh failed:', e);
+                        if (statusEl) statusEl.textContent = 'Refresh failed: ' + e.message;
+                    }
                 };
             })();
 

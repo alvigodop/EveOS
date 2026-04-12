@@ -31,6 +31,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             <select class="unidex-filter-select" aria-label="Entries sort" onchange="window.UnidexView.setEntriesSortBy(this.value)">
                 <option value="none" ${sortBy === 'none' ? 'selected' : ''}>Sort: Default</option>
                 <option value="confidence" ${sortBy === 'confidence' ? 'selected' : ''}>Sort: Confidence</option>
+                <option value="truevalue" ${sortBy === 'truevalue' ? 'selected' : ''}>Sort: True Value</option>
             </select>
             <select class="unidex-filter-select" aria-label="Sort direction" onchange="window.UnidexView.setEntriesSortOrder(this.value)">
                 <option value="desc" ${sortOrder === 'desc' ? 'selected' : ''}>High -> Low</option>

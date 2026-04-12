@@ -52,6 +52,24 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             return indexed.map(function (item) { return item.link; });
         }
 
+        function sortByTrueValue(links, sortOrder) {
+            var tvApi = window.EveTrueValue;
+            if (!tvApi) return links;
+            var wsId = String((window.config && window.config.activeWorkspace) || 'main');
+            // Unidex has no single category — compute per-link
+            var category = String(window.currentCategoryCtx || 'Unsorted');
+
+            // Stamp base positions
+            links.forEach(function (link, idx) {
+                if (typeof link._basePos !== 'number') link._basePos = idx + 1;
+            });
+
+            var tvData = tvApi.computeTrueValues(links, wsId, category, { forceEnabled: true });
+            if (!tvData || !Object.keys(tvData).length) return links;
+
+            return tvApi.applySorting(links, tvData, sortOrder === 'desc' ? 'desc' : 'asc');
+        }
+
         function applyEntriesViewTransforms(entryLinks, filterMode) {
             const base = Array.isArray(entryLinks) ? entryLinks.slice() : [];
             const minConfidence = getEntriesConfidenceMin();
@@ -62,6 +80,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 return matchesEntriesFilter(link, filterMode)
                     && matchesConfidenceRange(link, minConfidence, maxConfidence);
             });
+            if (sortBy === 'truevalue') return sortByTrueValue(filtered, sortOrder);
             return sortBy === 'confidence' ? sortByConfidence(filtered, sortOrder) : filtered;
         }
 
