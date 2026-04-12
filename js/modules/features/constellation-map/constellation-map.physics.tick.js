@@ -11,6 +11,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     const passes = ns._physicsTickPasses || {};
     const { runPairwisePass, runEdgePass, runHierarchyPass, runIntegrationPass } = passes;
 
+    const auraRepulsion = ns._physicsAuraRepulsion || {};
+    const { runPeerAuraPass } = auraRepulsion;
+
     let polarityDirections = new Float32Array(0);
     let polarityStrengths = new Float32Array(0);
 
@@ -86,6 +89,10 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             if (state.chainHierarchyEnabled) {
                 runHierarchyPass(ctx);
+            }
+
+            if (typeof runPeerAuraPass === 'function') {
+                runPeerAuraPass();
             }
         }
 

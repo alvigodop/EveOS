@@ -35,7 +35,11 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     function isNodeMain(node) {
         if (!node) return false;
         if (node.data?.detached && node.data?.detachedRoot) return true;
-        if (node.kind === 'workspace') return true;
+        if (node.kind === 'workspace') {
+            // Only ROOT workspace nodes are main — sub-tab workspaces have hierarchy edges to a parent workspace
+            const hasParentWorkspace = state.edges.some((edge) => edge.source.id === node.id && edge.type === 'hierarchy' && edge.target?.kind === 'workspace');
+            return !hasParentWorkspace;
+        }
         if (node.kind === 'category' || node.kind === 'folder') {
             const hasParent = state.edges.some((edge) => edge.source.id === node.id && edge.type === 'hierarchy');
             return !hasParent;

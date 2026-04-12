@@ -345,6 +345,8 @@ return pendingRecursions;
 }
 
 function expandDerivedScopesBreadthFirst(initialTasks) {
+// --- Lazy expansion: only expand along the user's preferred chain path + 1 depth ahead ---
+const hasChain = preferredGhostChain.length > 0;
 const seedQueue = Array.isArray(initialTasks) ? initialTasks.slice() : [];
 const deepQueue = [];
 function pushTask(task) {
@@ -383,6 +385,20 @@ task = deepQueue.shift();
 }
 if (!task || !Array.isArray(task.links) || task.links.length < 1) continue;
 if (task.depth >= derivedDepthLimit) continue;
+
+// --- Lazy gate: skip deep expansion for off-path branches ---
+// Depth 0 (root Smart Indexes, root recursive groups) always expands.
+// Depth 1+ only expands if the task's chain overlaps the user's preferred chain
+// or if no chain exists (user at root), only expand depth 0 and 1.
+if (hasChain && task.depth > 0) {
+    const chainScore = getPreferredChainScore(task.chain);
+    // Only expand if this branch is on or adjacent to the user's current path
+    if (chainScore < task.depth) continue;
+} else if (!hasChain && task.depth > 1) {
+    // No navigation chain — user is at root. Only expand depth 0 and 1.
+    continue;
+}
+
 const derivedTasks = addDerivedChildren(task.id, task.links, task.chain, task.depth) || [];
 const shouldAddRecursiveGroups = !(task.depth === 0 && String(task.id || '') === String(ghostCategories.indexes.id) && (!Array.isArray(task.chain) || task.chain.length === 0));
 const recursiveTasks = shouldAddRecursiveGroups ? (addRecursiveGhostGroups(task.id, task.links, task.chain, task.depth) || []) : [];

@@ -377,6 +377,81 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         });
     }
 
+
+    function drawPeerAuras(ctx) {
+        if (!isAuraVisualsEnabled()) return;
+        const zoomAlpha = Math.min(1.0, state.transform.scale * 3.0);
+        const showDetails = state.transform.scale > 0.12;
+
+        state.nodes.forEach(function (node) {
+            if (!node || node.kind !== 'folder') return;
+            const pId = (node.data && node.data.anchorNodeId) ? node.data.anchorNodeId : '';
+            const pNode = pId ? state.nodeIndex.get(pId) : null;
+            if (!pNode) return;
+
+            // Only root folders (parent is category/workspace)
+            const isRootFolder = (pNode.kind === 'category' || pNode.kind === 'workspace');
+            if (!isRootFolder) return;
+
+            const radius = node._peerTerritoryRadius || 120;
+            const overlap = node._peerOverlap || 0;
+
+            // Viewport frustum cull — use correct transform property names
+            const pad = radius + 200;
+            const left = -state.transform.tx / state.transform.scale - pad;
+            const top = -state.transform.ty / state.transform.scale - pad;
+            const right = (ctx.canvas.width - state.transform.tx) / state.transform.scale + pad;
+            const bottom = (ctx.canvas.height - state.transform.ty) / state.transform.scale + pad;
+            if (node.x < left || node.x > right || node.y < top || node.y > bottom) return;
+
+            ctx.save();
+            ctx.translate(node.x, node.y);
+            ctx.setLineDash([]);
+
+            if (overlap > 0.005) {
+                // DANGER: Red gradient fill — intensity scales with overlap
+                var fillAlpha = Math.min(0.28, 0.06 + overlap * 0.55) * zoomAlpha;
+                var gradient = ctx.createRadialGradient(0, 0, radius * 0.1, 0, 0, radius);
+                gradient.addColorStop(0, 'rgba(255, 50, 50, ' + (fillAlpha * 0.9) + ')');
+                gradient.addColorStop(0.45, 'rgba(255, 35, 35, ' + (fillAlpha * 0.55) + ')');
+                gradient.addColorStop(1, 'rgba(255, 20, 20, 0)');
+                ctx.beginPath();
+                ctx.arc(0, 0, radius, 0, Math.PI * 2);
+                ctx.fillStyle = gradient;
+                ctx.fill();
+
+                // Red dashed boundary ring
+                if (showDetails) {
+                    var ringAlpha = Math.min(0.55, 0.2 + overlap * 0.8) * zoomAlpha;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, radius * 0.96, 0, Math.PI * 2);
+                    ctx.setLineDash([10, 18]);
+                    ctx.strokeStyle = 'rgba(255, 55, 55, ' + ringAlpha + ')';
+                    ctx.lineWidth = 2.0 / state.transform.scale;
+                    ctx.stroke();
+                }
+            } else if (showDetails) {
+                // Calm state: faint red territory boundary — always visible
+                var calmGradient = ctx.createRadialGradient(0, 0, radius * 0.5, 0, 0, radius);
+                calmGradient.addColorStop(0, 'rgba(255, 50, 50, ' + (0.012 * zoomAlpha) + ')');
+                calmGradient.addColorStop(1, 'rgba(255, 30, 30, 0)');
+                ctx.beginPath();
+                ctx.arc(0, 0, radius, 0, Math.PI * 2);
+                ctx.fillStyle = calmGradient;
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.arc(0, 0, radius * 0.96, 0, Math.PI * 2);
+                ctx.setLineDash([10, 28]);
+                ctx.strokeStyle = 'rgba(255, 55, 55, ' + (0.09 * zoomAlpha) + ')';
+                ctx.lineWidth = 1.0 / state.transform.scale;
+                ctx.stroke();
+            }
+
+            ctx.restore();
+        });
+    }
+
     const renderAuras = ns._renderAuras = ns._renderAuras || {};
-    Object.assign(renderAuras, { drawPhysicsAuras });
+    Object.assign(renderAuras, { drawPhysicsAuras, drawPeerAuras });
 })(window.EveConstellationMap);

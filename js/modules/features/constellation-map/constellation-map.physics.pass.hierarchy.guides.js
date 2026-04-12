@@ -93,14 +93,35 @@ function buildParentChildren() {
             let frontAngle = -Math.PI / 2;
             let targetAngle = null;
 
+            // Check if this workspace has a parent workspace (i.e. it's a sub-tab)
+            const parentWorkspaceEdge = state.edges.find((edge) => edge.source.id === parent.id && edge.type === 'hierarchy' && edge.target?.kind === 'workspace');
+            const parentWorkspaceNode = parentWorkspaceEdge ? (parentWorkspaceEdge.target || state.nodeIndex.get(parentWorkspaceEdge.target?.id)) : null;
+            const isSubTabWorkspace = !!parentWorkspaceNode;
+
             if (isDraggingRoot) {
                 const dragDx = Number(state.pointer.releaseVx) || 0;
                 const dragDy = Number(state.pointer.releaseVy) || 0;
                 const dragDistSq = (dragDx * dragDx) + (dragDy * dragDy);
                 if (dragDistSq > 0.1) {
                     targetAngle = Math.atan2(dragDy, dragDx);
-                    lockedAngle = targetAngle;
+                    // Only lock angle for root workspaces, not sub-tabs
+                    if (!isSubTabWorkspace) {
+                        lockedAngle = targetAngle;
+                    }
                 }
+            }
+
+            // Sub-tab workspaces: orient toward parent workspace as primary direction
+            if (isSubTabWorkspace && !isDraggingRoot) {
+                const pwDx = parentWorkspaceNode.x - parent.x;
+                const pwDy = parentWorkspaceNode.y - parent.y;
+                const pwDist = Math.sqrt(pwDx * pwDx + pwDy * pwDy);
+                if (pwDist > 0.001) {
+                    // Front points AWAY from parent (back faces parent)
+                    targetAngle = Math.atan2(-pwDy, -pwDx);
+                }
+                // Clear locked angle for sub-tabs so they follow parent freely
+                lockedAngle = null;
             }
 
             if (!Number.isFinite(targetAngle)) {
@@ -159,10 +180,13 @@ function buildParentChildren() {
                 const delta = Math.abs(getAngleDelta(currentAngle, targetAngle));
                 const hasLockedDirection = Number.isFinite(lockedAngle);
 
+                // Sub-tabs get more responsive tracking since they need to follow their parent
+                const subTabBoost = isSubTabWorkspace ? 3.0 : 1.0;
+
                 // DEADZONE: Drastically reduced for high-precision control
                 const deadzone = hasLockedDirection
                     ? (isSingleChild ? 0.12 : childCount <= 3 ? 0.1 : 0.08)
-                    : (isSingleChild ? 0.08 : childCount <= 3 ? 0.06 : 0.04);
+                    : (isSingleChild ? 0.08 / subTabBoost : childCount <= 3 ? 0.06 / subTabBoost : 0.04 / subTabBoost);
 
                 if (delta <= deadzone) {
                     frontAngle = currentAngle;
@@ -170,11 +194,11 @@ function buildParentChildren() {
                     // RESPONSIVENESS: Increased for snappier tracking
                     const responsiveness = hasLockedDirection
                         ? (isDraggingChildCategory ? 0.0008 : isSingleChild ? 0.0018 : childCount <= 3 ? 0.0025 : 0.0035)
-                        : (isDraggingChildCategory ? 0.0035 : isSingleChild ? 0.008 : childCount <= 3 ? 0.012 : 0.018);
+                        : (isDraggingChildCategory ? 0.0035 * subTabBoost : isSingleChild ? 0.008 * subTabBoost : childCount <= 3 ? 0.012 * subTabBoost : 0.018 * subTabBoost);
 
                     const maxStep = hasLockedDirection
                         ? (isDraggingChildCategory ? 0.0012 : isSingleChild ? 0.0024 : childCount <= 3 ? 0.0036 : 0.0048)
-                        : (isDraggingChildCategory ? 0.004 : isSingleChild ? 0.008 : childCount <= 3 ? 0.012 : 0.018);
+                        : (isDraggingChildCategory ? 0.004 * subTabBoost : isSingleChild ? 0.008 * subTabBoost : childCount <= 3 ? 0.012 * subTabBoost : 0.018 * subTabBoost);
 
                     const adjustedTarget = normalizeAngle(currentAngle + Math.sign(getAngleDelta(currentAngle, targetAngle)) * Math.max(0, delta - deadzone));
                     frontAngle = lerpAngle(currentAngle, adjustedTarget, responsiveness);
