@@ -83,9 +83,11 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
             linkHealth: { id: '__ghost_cat_linkHealth__', name: '[ Link Health ]', links: [] },
             domains: { id: '__ghost_cat_domains__', name: '[ Domains ]', links: [] },
             readingStatus: { id: '__ghost_cat_readingStatus__', name: '[ Reading Status ]', links: [] },
+            taskStatus: { id: '__ghost_cat_taskStatus__', name: '[ Task Status ]', links: [] },
             maintenance: { id: '__ghost_cat_maintenance__', name: '[ Maintenance ]', links: [] },
             activity: { id: '__ghost_cat_activity__', name: '[ Activity ]', links: [] },
             insights: { id: '__ghost_cat_insights__', name: '[ Insights ]', links: [] },
+            trueValue: { id: '__ghost_cat_trueValue__', name: '[ True Value ]', links: [] },
             indexes: { id: '__ghost_cat_indexes__', name: '[ Smart Indexes ]', links: [] }
         };
         const activeSubGhosts = [];
@@ -411,6 +413,60 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
 
         topGenres.sort((left, right) => right.links.length - left.links.length);
 
+        // --- Task Status sensors ---
+        const isTaskEnabledFn = typeof window.EveBookmarkFolders?.isTaskEnabledForLink === 'function'
+            ? window.EveBookmarkFolders.isTaskEnabledForLink
+            : null;
+        const doneLinks = isTaskEnabledFn
+            ? activeLinks.filter((link) => isTaskEnabledFn(link) && !!link.done)
+            : [];
+        const pendingLinks = isTaskEnabledFn
+            ? activeLinks.filter((link) => isTaskEnabledFn(link) && !link.done)
+            : [];
+        const notTaskLinks = isTaskEnabledFn
+            ? activeLinks.filter((link) => !isTaskEnabledFn(link))
+            : [];
+
+        // --- True Value sensors ---
+        const tvApi = window.EveTrueValue;
+        let tvLockedLinks = [];
+        let tvAboveTrueLinks = [];
+        let tvNearTrueLinks = [];
+        let tvBelowTrueLinks = [];
+        if (tvApi) {
+            const tvData = tvApi.computeTrueValues(activeLinks, workspaceId, categoryName, { forceEnabled: true });
+            if (tvData && Object.keys(tvData).length) {
+                activeLinks.forEach((link) => {
+                    const tv = tvData[String(link?.id || '')];
+                    if (!tv) return;
+                    if (tv.locked) { tvLockedLinks.push(link); return; }
+                    if (tv.percent > 100) tvAboveTrueLinks.push(link);
+                    else if (tv.percent >= 95) tvNearTrueLinks.push(link);
+                    else tvBelowTrueLinks.push(link);
+                });
+            }
+        }
+
+        // --- Additional Insight sensors ---
+        const linkedLinks = activeLinks.filter((link) => {
+            return typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function'
+                && !!window.EveLibrary.ConnectionsAPI.findConnectionByLinkId(link.id);
+        });
+        const lowConfidenceLinks = activeLinks.filter((link) => {
+            const entry = getCachedEntry(link);
+            if (!entry) return false;
+            const derived = entry.derivedRatings || {};
+            const c = typeof derived.confidence === 'number' ? derived.confidence : null;
+            return Number.isFinite(c) && c < 0.5;
+        });
+        const highConfidenceLinks = activeLinks.filter((link) => {
+            const entry = getCachedEntry(link);
+            if (!entry) return false;
+            const derived = entry.derivedRatings || {};
+            const c = typeof derived.confidence === 'number' ? derived.confidence : null;
+            return Number.isFinite(c) && c >= 0.75;
+        });
+
         return {
             workspaceId,
             categoryName,
@@ -458,7 +514,17 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
             noTitleLinks,
             orphanedLibEntries,
             domainGhosts,
-            topGenres
+            topGenres,
+            doneLinks,
+            pendingLinks,
+            notTaskLinks,
+            tvLockedLinks,
+            tvAboveTrueLinks,
+            tvNearTrueLinks,
+            tvBelowTrueLinks,
+            linkedLinks,
+            lowConfidenceLinks,
+            highConfidenceLinks
         };
 
     }

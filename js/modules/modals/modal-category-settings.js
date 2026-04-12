@@ -1,12 +1,29 @@
 (function () {
 
-    const helpers = window.EveCategorySettingsModalHelpers || {};
+    var helpers = window.EveCategorySettingsModalHelpers || {};
 
-    const renderCategoryHeaderButtonSettings = helpers.renderCategoryHeaderButtonSettings || function () {};
+    var renderCategoryHeaderButtonSettings = helpers.renderCategoryHeaderButtonSettings || function () {};
 
-    const renderCategoryClickBehaviorSettings = helpers.renderCategoryClickBehaviorSettings || function () {};
+    var renderCategoryClickBehaviorSettings = helpers.renderCategoryClickBehaviorSettings || function () {};
 
-    const renderCategoryPinSettings = helpers.renderCategoryPinSettings || function () {};
+    var renderCategoryPinSettings = helpers.renderCategoryPinSettings || function () {};
+
+    // --- Skeleton Loading Utility ---
+    function buildSkeletonHtml(rows) {
+        // rows: array of heights e.g. [38, 52, 44]
+        var lines = (Array.isArray(rows) ? rows : [38, 48, 40]).map(function (h, i) {
+            return '<div style="height:' + h + 'px; border-radius:10px; background:rgba(255,255,255,' + (i % 2 === 0 ? '0.04' : '0.03') + '); animation:pulse 1.2s ease-in-out infinite; animation-delay:' + (i * 0.15) + 's;"></div>';
+        });
+        return '<div style="display:flex; flex-direction:column; gap:10px; padding:12px 0;">' + lines.join('') + '</div>';
+    }
+
+    function showSkeletonThenRender(containerId, rows, renderFn) {
+        var container = typeof containerId === 'string' ? document.getElementById(containerId) : containerId;
+        if (container) container.innerHTML = buildSkeletonHtml(rows);
+        requestAnimationFrame(function () {
+            setTimeout(renderFn, 0);
+        });
+    }
 
     function renderScraperBootState(container, message) {
         if (!container) return;
@@ -184,75 +201,87 @@
 
         if (tabName === 'general') {
 
-            renderCategoryHeaderButtonSettings();
+            // Show skeleton for the settings containers, then defer
+            var generalTab = document.getElementById('cat-tab-general');
+            if (generalTab) {
+                var settingsSlots = generalTab.querySelectorAll('.settings-slot, details');
+                settingsSlots.forEach(function (el) { el.style.opacity = '0.3'; });
+            }
 
-            renderCategoryClickBehaviorSettings();
+            requestAnimationFrame(function () {
+                setTimeout(function () {
+                    renderCategoryHeaderButtonSettings();
+                    renderCategoryClickBehaviorSettings();
+                    renderCategoryPinSettings();
 
-            renderCategoryPinSettings();
-
-            // Populate True Value Sorting controls
-            (function () {
-                const cat = window.currentCategoryCtx;
-                const wsId = String((window.config && window.config.activeWorkspace) || 'main');
-                const tvApi = window.EveTrueValue;
-                const toggle = document.getElementById('trueValueEnabledToggle');
-                const scaleSelect = document.getElementById('trueValueScaleSelect');
-                const slider = document.getElementById('trueValueInfluenceSlider');
-                const label = document.getElementById('trueValueInfluenceLabel');
-
-                if (toggle && tvApi) {
-                    toggle.checked = tvApi.isEnabled(wsId, cat);
-                    const settings = tvApi.getSettings(wsId, cat);
-                    if (scaleSelect) scaleSelect.value = settings.ratingScale;
-                    if (slider) {
-                        slider.value = Math.round(settings.influenceWeight * 100);
-                        if (label) label.textContent = slider.value + '%';
+                    if (settingsSlots) {
+                        settingsSlots.forEach(function (el) {
+                            el.style.opacity = '';
+                            el.style.transition = 'opacity 0.2s ease';
+                        });
                     }
-                }
 
-                window._tvSettingsOnChange = function () {
-                    if (!tvApi || !cat) return;
-                    const key = tvApi.buildScopeKey(wsId, cat);
-                    // Sync enabled state
-                    const isOn = toggle ? toggle.checked : false;
-                    if (!Array.isArray(config.trueValueEnabled)) config.trueValueEnabled = [];
-                    const idx = config.trueValueEnabled.indexOf(key);
-                    if (isOn && idx === -1) config.trueValueEnabled.push(key);
-                    if (!isOn && idx !== -1) config.trueValueEnabled.splice(idx, 1);
-                    // Sync settings
-                    if (!config.trueValueSettings) config.trueValueSettings = {};
-                    if (!config.trueValueSettings[key]) config.trueValueSettings[key] = {};
-                    if (scaleSelect) config.trueValueSettings[key].ratingScale = scaleSelect.value;
-                    if (slider) config.trueValueSettings[key].influenceWeight = parseInt(slider.value, 10) / 100;
-                    saveConfig();
-                    if (typeof renderDashboard === 'function') renderDashboard();
-                };
+                    // Populate True Value Sorting controls
+                    (function () {
+                        const cat = window.currentCategoryCtx;
+                        const wsId = String((window.config && window.config.activeWorkspace) || 'main');
+                        const tvApi = window.EveTrueValue;
+                        const toggle = document.getElementById('trueValueEnabledToggle');
+                        const scaleSelect = document.getElementById('trueValueScaleSelect');
+                        const slider = document.getElementById('trueValueInfluenceSlider');
+                        const label = document.getElementById('trueValueInfluenceLabel');
 
-                window._tvRefreshScores = function () {
-                    if (!tvApi || !cat) return;
-                    const statusEl = document.getElementById('trueValueRefreshStatus');
-                    if (statusEl) statusEl.textContent = 'Refreshing scores...';
-
-                    try {
-                        const count = tvApi.refreshScoresForCategory(wsId, cat);
-                        if (statusEl) {
-                            statusEl.textContent = count > 0
-                                ? `Refreshed ${count} linked entries. Dashboard will update.`
-                                : 'No linked entries found to refresh.';
-                        }
-                        if (count > 0) {
-                            // Persist library state
-                            if (window.EveLibrary?.Storage?.saveLibrary) {
-                                window.EveLibrary.Storage.saveLibrary();
+                        if (toggle && tvApi) {
+                            toggle.checked = tvApi.isEnabled(wsId, cat);
+                            const settings = tvApi.getSettings(wsId, cat);
+                            if (scaleSelect) scaleSelect.value = settings.ratingScale;
+                            if (slider) {
+                                slider.value = Math.round(settings.influenceWeight * 100);
+                                if (label) label.textContent = slider.value + '%';
                             }
-                            if (typeof renderDashboard === 'function') renderDashboard();
                         }
-                    } catch (e) {
-                        console.error('True Value score refresh failed:', e);
-                        if (statusEl) statusEl.textContent = 'Refresh failed: ' + e.message;
-                    }
-                };
-            })();
+
+                        window._tvSettingsOnChange = function () {
+                            if (!tvApi || !cat) return;
+                            const key = tvApi.buildScopeKey(wsId, cat);
+                            const isOn = toggle ? toggle.checked : false;
+                            if (!Array.isArray(config.trueValueEnabled)) config.trueValueEnabled = [];
+                            const idx = config.trueValueEnabled.indexOf(key);
+                            if (isOn && idx === -1) config.trueValueEnabled.push(key);
+                            if (!isOn && idx !== -1) config.trueValueEnabled.splice(idx, 1);
+                            if (!config.trueValueSettings) config.trueValueSettings = {};
+                            if (!config.trueValueSettings[key]) config.trueValueSettings[key] = {};
+                            if (scaleSelect) config.trueValueSettings[key].ratingScale = scaleSelect.value;
+                            if (slider) config.trueValueSettings[key].influenceWeight = parseInt(slider.value, 10) / 100;
+                            saveConfig();
+                            if (typeof renderDashboard === 'function') renderDashboard();
+                        };
+
+                        window._tvRefreshScores = function () {
+                            if (!tvApi || !cat) return;
+                            const statusEl = document.getElementById('trueValueRefreshStatus');
+                            if (statusEl) statusEl.textContent = 'Refreshing scores...';
+                            try {
+                                const count = tvApi.refreshScoresForCategory(wsId, cat);
+                                if (statusEl) {
+                                    statusEl.textContent = count > 0
+                                        ? `Refreshed ${count} linked entries. Dashboard will update.`
+                                        : 'No linked entries found to refresh.';
+                                }
+                                if (count > 0) {
+                                    if (window.EveLibrary?.Storage?.saveLibrary) {
+                                        window.EveLibrary.Storage.saveLibrary();
+                                    }
+                                    if (typeof renderDashboard === 'function') renderDashboard();
+                                }
+                            } catch (e) {
+                                console.error('True Value score refresh failed:', e);
+                                if (statusEl) statusEl.textContent = 'Refresh failed: ' + e.message;
+                            }
+                        };
+                    })();
+                }, 0);
+            });
 
             return;
 
@@ -272,15 +301,18 @@
 
             if (window.EveOS?.API?.Manager) {
 
-                window.EveOS.API.Manager.renderSearchUI(searchCont, resultsCont, window.currentCategoryCtx);
+                // Show skeleton in results area while search UI builds
+                if (resultsCont) resultsCont.innerHTML = buildSkeletonHtml([32, 32, 32, 32]);
 
-                setTimeout(() => {
-
-                    const input = searchCont.querySelector('input');
-
-                    if (input) input.focus();
-
-                }, 100);
+                requestAnimationFrame(function () {
+                    setTimeout(function () {
+                        window.EveOS.API.Manager.renderSearchUI(searchCont, resultsCont, window.currentCategoryCtx);
+                        setTimeout(function () {
+                            var input = searchCont ? searchCont.querySelector('input') : null;
+                            if (input) input.focus();
+                        }, 80);
+                    }, 0);
+                });
 
             }
 

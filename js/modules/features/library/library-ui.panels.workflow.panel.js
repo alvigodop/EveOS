@@ -249,7 +249,21 @@ window.EveLibrary.UIModules = window.EveLibrary.UIModules || {};
                 parentCard.classList.toggle('focus-library-only', isHidden);
             }
             if (isHidden) {
-                initLibraryPanel(categoryName);
+                // Show skeleton while library panel builds
+                panel.innerHTML = ''
+                    + '<div style="display:flex; flex-direction:column; gap:10px; padding:12px;">'
+                    +   '<div style="height:34px; border-radius:8px; background:rgba(255,255,255,0.04); animation:pulse 1.2s ease-in-out infinite;"></div>'
+                    +   '<div style="height:28px; border-radius:8px; background:rgba(255,255,255,0.03); animation:pulse 1.2s ease-in-out infinite; animation-delay:0.12s;"></div>'
+                    +   '<div style="height:60px; border-radius:8px; background:rgba(255,255,255,0.04); animation:pulse 1.2s ease-in-out infinite; animation-delay:0.24s;"></div>'
+                    +   '<div style="height:60px; border-radius:8px; background:rgba(255,255,255,0.03); animation:pulse 1.2s ease-in-out infinite; animation-delay:0.36s;"></div>'
+                    +   '<div style="height:60px; border-radius:8px; background:rgba(255,255,255,0.04); animation:pulse 1.2s ease-in-out infinite; animation-delay:0.48s;"></div>'
+                    + '</div>';
+
+                requestAnimationFrame(function () {
+                    setTimeout(function () {
+                        initLibraryPanel(categoryName);
+                    }, 0);
+                });
             }
         }
 

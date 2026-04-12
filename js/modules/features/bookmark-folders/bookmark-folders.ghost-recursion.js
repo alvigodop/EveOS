@@ -1,4 +1,4 @@
-﻿window.EveBookmarkFolders = window.EveBookmarkFolders || {};
+window.EveBookmarkFolders = window.EveBookmarkFolders || {};
 (function (ns) {
 const shared = ns._shared || {};
 const {
@@ -23,7 +23,10 @@ deadLinks, redirectedLinks, titleDriftLinks, orphanedLibEntries,
 recentLinks, unlinkedLinks, missingIcons, missingCovers, duplicateSuspects,
 untaggedLinks, needsReviewLinks, unreadLinks, readingLinks, completedLinks, onHoldLinks, droppedLinks,
 brokenLinks, missingNotesLinks, topRatedLinks, recentlyVisited, staleLinks, ancientsLinks, noTitleLinks,
-domainGhosts, topGenres
+domainGhosts, topGenres,
+doneLinks, pendingLinks, notTaskLinks,
+tvLockedLinks, tvAboveTrueLinks, tvNearTrueLinks, tvBelowTrueLinks,
+linkedLinks, lowConfidenceLinks, highConfidenceLinks
 } = env;
 
 function getPreferredChainScore(chain) {
@@ -134,6 +137,39 @@ return [
 ];
 }
 
+function buildTaskStatusGhostBuckets(links) {
+const isTaskEnabledFn = typeof window.EveBookmarkFolders?.isTaskEnabledForLink === 'function'
+    ? window.EveBookmarkFolders.isTaskEnabledForLink : null;
+if (!isTaskEnabledFn) return [];
+return [
+{ key: 'done', label: '[ Done ]', links: links.filter((link) => isTaskEnabledFn(link) && !!link.done) },
+{ key: 'pending', label: '[ Pending ]', links: links.filter((link) => isTaskEnabledFn(link) && !link.done) },
+{ key: 'not_task', label: '[ Not Tracked ]', links: links.filter((link) => !isTaskEnabledFn(link)) }
+];
+}
+
+function buildTrueValueGhostBuckets(links) {
+const tvApi = window.EveTrueValue;
+if (!tvApi) return [];
+const tvData = tvApi.computeTrueValues(links, workspaceId, categoryName, { forceEnabled: true });
+if (!tvData || !Object.keys(tvData).length) return [];
+const locked = []; const above = []; const near = []; const below = [];
+links.forEach((link) => {
+    const tv = tvData[String(link?.id || '')];
+    if (!tv) return;
+    if (tv.locked) { locked.push(link); return; }
+    if (tv.percent > 100) above.push(link);
+    else if (tv.percent >= 95) near.push(link);
+    else below.push(link);
+});
+return [
+{ key: 'tv_locked', label: '[ Locked (100%) ]', links: locked },
+{ key: 'tv_above', label: '[ Above True (>100%) ]', links: above },
+{ key: 'tv_near', label: '[ Near True (95–100%) ]', links: near },
+{ key: 'tv_below', label: '[ Below True (<95%) ]', links: below }
+];
+}
+
 function buildActivityGhostBuckets(links) {
 return [
 { key: 'recent', label: '[ Recently Updated ]', links: links.filter((link) => { if (!link?.updatedAt) return false; return Number(new Date(link.updatedAt).getTime()) >= recentTime; }) },
@@ -176,16 +212,54 @@ const derivedDimensionDefinitions = [
 { key: 'last_read_index', label: '[ By Last Read ]', buildBuckets(links) { return buildBucketsFromExtractor(links, (link) => { const bucket = getDerivedTimelineBucket(link); return bucket ? [bucket] : []; }, { order: ['Today', 'This Week', 'This Month', 'This Year', 'Older'] }); } },
 { key: 'progress_index', label: '[ By Progress Units ]', buildBuckets(links) { return buildBucketsFromExtractor(links, (_, entry) => { const progress = getDerivedProgressValue(entry); const bucket = getProgressBucketLabel(progress); return bucket ? [bucket] : []; }, { order: ['500+ Units', '200-499 Units', '100-199 Units', '50-99 Units', '10-49 Units', 'Under 10 Units'] }); } },
 { key: 'demographic_index', label: '[ By Demographic ]', buildBuckets(links) { return buildBucketsFromExtractor(links, (_, entry) => { const value = getDerivedDemographicValue(entry); return value ? [value] : []; }, { normalizeKey: (value) => String(value || '').trim().toLowerCase() }); } },
-{ key: 'publication_index', label: '[ By Publication Era ]', buildBuckets(links) { return buildBucketsFromExtractor(links, (_, entry) => { const year = getDerivedPublicationValue(entry); const bucket = getPublicationBucketLabel(year); return bucket ? [bucket] : []; }); } }
+{ key: 'publication_index', label: '[ By Publication Era ]', buildBuckets(links) { return buildBucketsFromExtractor(links, (_, entry) => { const year = getDerivedPublicationValue(entry); const bucket = getPublicationBucketLabel(year); return bucket ? [bucket] : []; }); } },
+{ key: 'truevalue_index', label: '[ By True Value Bracket ]', buildBuckets(links) {
+    const tvApi = window.EveTrueValue;
+    if (!tvApi) return [];
+    const tvData = tvApi.computeTrueValues(links, workspaceId, categoryName, { forceEnabled: true });
+    if (!tvData || !Object.keys(tvData).length) return [];
+    const bucketMap = new Map([
+        ['locked', { key: 'locked', label: 'Locked (100%)', links: [] }],
+        ['120+', { key: '120+', label: '120%+', links: [] }],
+        ['110-120', { key: '110-120', label: '110\u2013120%', links: [] }],
+        ['100-110', { key: '100-110', label: '100\u2013110%', links: [] }],
+        ['90-100', { key: '90-100', label: '90\u2013100%', links: [] }],
+        ['below-90', { key: 'below-90', label: 'Below 90%', links: [] }]
+    ]);
+    links.forEach((link) => {
+        const tv = tvData[String(link?.id || '')];
+        if (!tv) return;
+        if (tv.locked) { bucketMap.get('locked').links.push(link); return; }
+        const p = tv.percent;
+        if (p >= 120) bucketMap.get('120+').links.push(link);
+        else if (p >= 110) bucketMap.get('110-120').links.push(link);
+        else if (p >= 100) bucketMap.get('100-110').links.push(link);
+        else if (p >= 90) bucketMap.get('90-100').links.push(link);
+        else bucketMap.get('below-90').links.push(link);
+    });
+    return Array.from(bucketMap.values()).filter((b) => b.links.length > 0);
+} },
+{ key: 'task_index', label: '[ By Task Completion ]', buildBuckets(links) {
+    const isTaskEnabledFn = typeof window.EveBookmarkFolders?.isTaskEnabledForLink === 'function'
+        ? window.EveBookmarkFolders.isTaskEnabledForLink : null;
+    if (!isTaskEnabledFn) return [];
+    return [
+        { key: 'done', label: 'Done', links: links.filter((link) => isTaskEnabledFn(link) && !!link.done) },
+        { key: 'pending', label: 'Pending', links: links.filter((link) => isTaskEnabledFn(link) && !link.done) },
+        { key: 'not_tracked', label: 'Not Tracked', links: links.filter((link) => !isTaskEnabledFn(link)) }
+    ].filter((b) => b.links.length > 0);
+} }
 ];
 
 const recursiveGhostGroupDefinitions = [
 { key: 'linkHealth', label: '[ Link Health ]', enabledKey: null, relatedDimensions: ['linkHealth'], buildBuckets: buildLinkHealthGhostBuckets },
 { key: 'domains', label: '[ Domains ]', enabledKey: 'domain_grouping', relatedDimensions: ['domains'], buildBuckets(links) { return buildDomainBuckets(links).map((bucket) => ({ key: bucket.key, label: `[ ${bucket.label} ]`, links: bucket.links })); } },
 { key: 'readingStatus', label: '[ Reading Status ]', enabledKey: null, relatedDimensions: ['readingStatus', 'status_index'], suppressIfRelatedDimensionPresent: true, buildBuckets: buildReadingGhostBuckets },
+{ key: 'taskStatus', label: '[ Task Status ]', enabledKey: null, relatedDimensions: ['taskStatus', 'task_index'], suppressIfRelatedDimensionPresent: true, buildBuckets: buildTaskStatusGhostBuckets },
 { key: 'maintenance', label: '[ Maintenance ]', enabledKey: null, relatedDimensions: ['maintenance'], buildBuckets: buildMaintenanceGhostBuckets },
 { key: 'activity', label: '[ Activity ]', enabledKey: null, relatedDimensions: ['activity'], buildBuckets: buildActivityGhostBuckets },
-{ key: 'insights', label: '[ Insights ]', enabledKey: null, relatedDimensions: ['insights'], buildBuckets: buildInsightsGhostBuckets }
+{ key: 'insights', label: '[ Insights ]', enabledKey: null, relatedDimensions: ['insights'], buildBuckets: buildInsightsGhostBuckets },
+{ key: 'trueValue', label: '[ True Value ]', enabledKey: null, relatedDimensions: ['trueValue', 'truevalue_index'], suppressIfRelatedDimensionPresent: true, buildBuckets: buildTrueValueGhostBuckets }
 ];
 
 function addGhost(catKey, id, name, linksArray, enabledKey, bucketKey) {
@@ -357,6 +431,19 @@ const id = `__ghost_genre_${genreBucket.genre.replace(/[^a-zA-Z0-9]/g, '_')}__`;
 const name = `[ Genre: ${genreBucket.genre} ]`;
 addGhost('insights', id, name, genreBucket.links, 'library_stats', genreBucket.genre);
 });
+
+addGhost('taskStatus', '__ghost_done__', '[ Done ]', doneLinks || [], 'task_done', 'done');
+addGhost('taskStatus', '__ghost_pending__', '[ Pending ]', pendingLinks || [], 'task_pending', 'pending');
+addGhost('taskStatus', '__ghost_not_task__', '[ Not Tracked ]', notTaskLinks || [], 'task_not_tracked', 'not_task');
+
+addGhost('trueValue', '__ghost_tv_locked__', '[ Locked (Unlinked) ]', tvLockedLinks || [], 'tv_locked', 'tv_locked');
+addGhost('trueValue', '__ghost_tv_above__', '[ Above True (>100%) ]', tvAboveTrueLinks || [], 'tv_above', 'tv_above');
+addGhost('trueValue', '__ghost_tv_near__', '[ Near True (95\u2013100%) ]', tvNearTrueLinks || [], 'tv_near', 'tv_near');
+addGhost('trueValue', '__ghost_tv_below__', '[ Below True (<95%) ]', tvBelowTrueLinks || [], 'tv_below', 'tv_below');
+
+addGhost('insights', '__ghost_linked__', '[ Library-Linked ]', linkedLinks || [], 'library_linked', 'library_linked');
+addGhost('insights', '__ghost_low_confidence__', '[ Low Confidence ]', lowConfidenceLinks || [], 'low_confidence', 'low_confidence');
+addGhost('insights', '__ghost_high_confidence__', '[ High Confidence ]', highConfidenceLinks || [], 'high_confidence', 'high_confidence');
 
 const derivedExpansionRoots = [];
 if (derivedDimensionDefinitions.some((definition) => isGhostEnabled(definition.key))) derivedExpansionRoots.push({ id: ghostCategories.indexes.id, links: activeLinks, chain: [], depth: 0 });

@@ -41,6 +41,14 @@
                 ]
             },
             {
+                title: 'Task Status',
+                types: [
+                    { id: 'task_done', label: '[ Done ]' },
+                    { id: 'task_pending', label: '[ Pending ]' },
+                    { id: 'task_not_tracked', label: '[ Not Tracked ]' }
+                ]
+            },
+            {
                 title: 'Maintenance',
                 types: [
                     { id: 'unlinked', label: '[ Unlinked Bookmarks ]' },
@@ -68,7 +76,19 @@
                     { id: 'duplicate_suspects', label: '[ Duplicate Suspects ]' },
                     { id: 'large_folders', label: '[ Large Folders (>15) ]' },
                     { id: 'ancients', label: '[ The Ancients ]' },
-                    { id: 'library_stats', label: '[ Genre Clusters ]' }
+                    { id: 'library_stats', label: '[ Genre Clusters ]' },
+                    { id: 'library_linked', label: '[ Library-Linked ]' },
+                    { id: 'low_confidence', label: '[ Low Confidence ]' },
+                    { id: 'high_confidence', label: '[ High Confidence ]' }
+                ]
+            },
+            {
+                title: 'True Value',
+                types: [
+                    { id: 'tv_locked', label: '[ Locked (Unlinked) ]' },
+                    { id: 'tv_above', label: '[ Above True (>100%) ]' },
+                    { id: 'tv_near', label: '[ Near True (95–100%) ]' },
+                    { id: 'tv_below', label: '[ Below True (<95%) ]' }
                 ]
             },
             {
@@ -85,7 +105,9 @@
                     { id: 'last_read_index', label: '[ By Last Read ]' },
                     { id: 'progress_index', label: '[ By Progress Units ]' },
                     { id: 'demographic_index', label: '[ By Demographic ]' },
-                    { id: 'publication_index', label: '[ By Publication Era ]' }
+                    { id: 'publication_index', label: '[ By Publication Era ]' },
+                    { id: 'truevalue_index', label: '[ By True Value Bracket ]' },
+                    { id: 'task_index', label: '[ By Task Completion ]' }
                 ]
             }
         ];
