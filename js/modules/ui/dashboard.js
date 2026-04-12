@@ -23,6 +23,9 @@ function clearDashboardMasonryCardSpans(grid) {
 
 function shouldUseDashboardMasonry(grid) {
     if (!grid) return false;
+    // Disable masonry in perf mode — the ResizeObserver feedback loop
+    // causes visual jitter when folder content changes card heights
+    if (window._evePerfMode) return false;
     return !grid.classList.contains('list-mode')
         && !grid.classList.contains('focus-mode')
         && !grid.classList.contains('unidex-mode');
