@@ -45,17 +45,13 @@ window.EveLibrary.EntryManagerModules = window.EveLibrary.EntryManagerModules ||
             const author = document.getElementById(prefix + 'author')?.value.trim() || '';
             const authorAltNames = parseUniqueCsvList(document.getElementById(prefix + 'author-alt-names')?.value || '')
                 .filter(name => name.toLowerCase() !== author.toLowerCase());
-            const apiRatingFieldMap = {
-                anilist: prefix + 'api-rating-anilist',
-                myanimelist: prefix + 'api-rating-myanimelist',
-                mangadex: prefix + 'api-rating-mangadex'
-            };
+            const allProviders = (window.EveLibrary?.RatingsEngineFoundation?.PROVIDERS)
+                || ['anilist', 'myanimelist', 'mangadex', 'kitsu', 'tvmaze', 'mangaupdates', 'comick', 'openlibrary', 'wlnupdates', 'itunes'];
+            const apiRatingFieldMap = {};
+            allProviders.forEach(function (p) { apiRatingFieldMap[p] = prefix + 'api-rating-' + p; });
             const apiRatingsProvided = Object.values(apiRatingFieldMap).some(id => !!document.getElementById(id));
-            const rawApiRatings = {
-                anilist: document.getElementById(apiRatingFieldMap.anilist)?.value ?? null,
-                myanimelist: document.getElementById(apiRatingFieldMap.myanimelist)?.value ?? null,
-                mangadex: document.getElementById(apiRatingFieldMap.mangadex)?.value ?? null
-            };
+            const rawApiRatings = {};
+            allProviders.forEach(function (p) { rawApiRatings[p] = document.getElementById(apiRatingFieldMap[p])?.value ?? null; });
             const apiRatings = Ratings?.sanitizeApiRatings ? Ratings.sanitizeApiRatings(rawApiRatings) : rawApiRatings;
             return {
                 title: document.getElementById(prefix + 'title')?.value.trim() || '',

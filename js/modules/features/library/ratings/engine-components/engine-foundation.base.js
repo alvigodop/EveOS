@@ -3,7 +3,11 @@ window.EveLibrary.RatingsEngineFoundationModules = window.EveLibrary.RatingsEngi
 
 (function () {
     window.EveLibrary.RatingsEngineFoundationModules.createBase = function createBase() {
-        const PROVIDERS = ['anilist', 'myanimelist', 'mangadex'];
+        const PROVIDERS = [
+            'anilist', 'myanimelist', 'mangadex',
+            'kitsu', 'tvmaze', 'mangaupdates', 'comick',
+            'openlibrary', 'wlnupdates', 'itunes'
+        ];
         const CONFIDENCE_WEIGHTS = {
             coverage: 0.22,
             agreement: 0.18,
@@ -26,12 +30,26 @@ window.EveLibrary.RatingsEngineFoundationModules = window.EveLibrary.RatingsEngi
             enabledProviders: {
                 anilist: true,
                 myanimelist: true,
-                mangadex: true
+                mangadex: true,
+                kitsu: true,
+                tvmaze: true,
+                mangaupdates: true,
+                comick: true,
+                openlibrary: true,
+                wlnupdates: true,
+                itunes: true
             },
             providerWeights: {
                 anilist: 1,
                 myanimelist: 1,
-                mangadex: 1
+                mangadex: 1,
+                kitsu: 1,
+                tvmaze: 1,
+                mangaupdates: 1,
+                comick: 1,
+                openlibrary: 1,
+                wlnupdates: 1,
+                itunes: 1
             }
         };
 
@@ -57,19 +75,24 @@ window.EveLibrary.RatingsEngineFoundationModules = window.EveLibrary.RatingsEngi
         }
 
         function createEmptyApiRatings() {
-            return {
-                anilist: null,
-                myanimelist: null,
-                mangadex: null
-            };
+            var empty = {};
+            PROVIDERS.forEach(function (p) { empty[p] = null; });
+            return empty;
         }
 
         function sourceNameToProvider(sourceName) {
             const raw = String(sourceName || '').trim().toLowerCase();
             if (!raw) return null;
             if (raw.includes('anilist')) return 'anilist';
-            if (raw.includes('myanimelist') || raw === 'mal') return 'myanimelist';
+            if (raw.includes('myanimelist') || raw === 'mal' || raw.includes('jikan')) return 'myanimelist';
             if (raw.includes('mangadex')) return 'mangadex';
+            if (raw.includes('kitsu')) return 'kitsu';
+            if (raw.includes('tvmaze')) return 'tvmaze';
+            if (raw.includes('mangaupdates') || raw.includes('mangaupdate')) return 'mangaupdates';
+            if (raw.includes('comick')) return 'comick';
+            if (raw.includes('openlibrary') || raw.includes('open library')) return 'openlibrary';
+            if (raw.includes('wlnupdates') || raw.includes('wln')) return 'wlnupdates';
+            if (raw.includes('itunes') || raw.includes('apple')) return 'itunes';
             return null;
         }
 
@@ -78,8 +101,13 @@ window.EveLibrary.RatingsEngineFoundationModules = window.EveLibrary.RatingsEngi
             if (n === null) return null;
 
             let value = n;
-            if (provider === 'anilist' && value > 10) {
+            // AniList & Kitsu use 0-100 scale
+            if ((provider === 'anilist' || provider === 'kitsu') && value > 10) {
                 value = value / 10;
+            }
+            // OpenLibrary uses 0-5 scale
+            if (provider === 'openlibrary' && value <= 5) {
+                value = value * 2;
             }
             if (value <= 0) return null;
             return round(clamp(value, 0, 10), 2);

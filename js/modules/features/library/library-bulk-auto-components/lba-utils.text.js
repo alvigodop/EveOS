@@ -100,10 +100,15 @@ window.EveLibrary.BulkAutoModules = window.EveLibrary.BulkAutoModules || {};
         }
 
         function emptyApiRatings() {
+            // Use Foundation's createEmptyApiRatings if available
+            var Foundation = window.EveLibrary && window.EveLibrary.RatingsEngineFoundation;
+            if (Foundation && Foundation.createEmptyApiRatings) {
+                return Foundation.createEmptyApiRatings();
+            }
             return {
-                anilist: null,
-                myanimelist: null,
-                mangadex: null
+                anilist: null, myanimelist: null, mangadex: null,
+                kitsu: null, tvmaze: null, mangaupdates: null, comick: null,
+                openlibrary: null, wlnupdates: null, itunes: null
             };
         }
 

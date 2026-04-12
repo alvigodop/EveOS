@@ -185,7 +185,12 @@ window.EveOS.API = window.EveOS.API || {};
                 };
             }
 
-            const skipSources = (!shouldUseLive && shouldUseHybrid) ? activeCachedEntry?.sources : null;
+            // When live is on and we have cache, pass cached sources as skip hints so
+            // collectLiveResults can avoid re-fetching providers that already have data.
+            // When hybrid-only (not live), skip sources that already have cache entries.
+            const skipSources = (activeCachedEntry?.sources && cachedVisibleCount > 0)
+                ? activeCachedEntry.sources
+                : null;
 
             if (typeof loadingCallback === 'function') {
                 const label = providerKey ? ctx.getProviderLabel(providerKey) : 'API providers';

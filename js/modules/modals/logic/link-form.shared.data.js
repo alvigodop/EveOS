@@ -154,11 +154,11 @@ window.EveLinkForm = window.EveLinkForm || {};
         const sourceSignals = ratingsApi?.extractSourceSignalsFromSources
             ? ratingsApi.extractSourceSignalsFromSources([source])
             : (ratingsApi?.createEmptySourceSignals ? ratingsApi.createEmptySourceSignals() : null);
-        const apiRatings = {
-            anilist: null,
-            myanimelist: null,
-            mangadex: null
-        };
+        const apiRatings = ratingsApi?.createEmptyApiRatings
+            ? ratingsApi.createEmptyApiRatings()
+            : { anilist: null, myanimelist: null, mangadex: null,
+                kitsu: null, tvmaze: null, mangaupdates: null, comick: null,
+                openlibrary: null, wlnupdates: null, itunes: null };
         if (provider && normalizedScore !== null) {
             apiRatings[provider] = normalizedScore;
         }

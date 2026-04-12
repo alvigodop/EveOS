@@ -15,6 +15,22 @@ window.EveOS.API = window.EveOS.API || {};
         return normalizeText(query).toLowerCase();
     }
 
+    function _notifyUI(msg, type) {
+        if (typeof window.showToast === 'function') {
+            window.showToast(msg, type);
+        } else {
+            console.log(msg);
+        }
+    }
+
+    function _notifyUI(msg, type) {
+        if (typeof window.showToast === 'function') {
+            window.showToast(msg, type);
+        } else {
+            console.log(msg);
+        }
+    }
+
     function normalizeCategoryName(categoryName) {
         return normalizeText(categoryName || window.currentCategoryCtx || window.StorageManager?.categoryContext || 'global')
             .toLowerCase()
@@ -161,11 +177,14 @@ window.EveOS.API = window.EveOS.API || {};
         if (!haystack) return false;
         if (haystack.includes(normalizedQuery)) return true;
 
-        const tokens = normalizedQuery.split(/[^a-z0-9]+/i).filter(Boolean);
+        const tokens = normalizedQuery.split(/[^a-z0-9]+/i).filter(function(t) { return String(t).length > 2; });
         if (!tokens.length) return false;
-        return tokens.every(function (token) {
+        
+        const matchCount = tokens.filter(function (token) {
             return haystack.includes(token);
-        });
+        }).length;
+
+        return matchCount > 0 && (matchCount / tokens.length) >= 0.55;
     }
 
     function getProviderList(sources, providerKey) {
@@ -271,6 +290,7 @@ window.EveOS.API = window.EveOS.API || {};
         }
 
         const pool = await loadPool(categoryName);
+        console.log(`findCachedSourceMatches pool for [${categoryName}] has ${Object.keys(pool.queries || {}).length} queries.`);
         const matchedSources = {};
         const matchedQueryKeys = [];
         const allowedProviders = providerKey ? [providerKey] : getSearchableProviderKeys();
@@ -313,6 +333,7 @@ window.EveOS.API = window.EveOS.API || {};
         });
 
         const summary = summarizeSources(matchedSources);
+        console.log(`findCachedSourceMatches matched items: ${summary.totalResults}`);
         if (!(summary.totalResults > 0)) {
             return null;
         }
@@ -548,7 +569,7 @@ window.EveOS.API = window.EveOS.API || {};
 
         pool.order = [queryKey].concat(pool.order.filter(function (value) { return value !== queryKey; }));
         await savePool(pool, categoryName);
-        console.log(`API Cache: Stored query [${queryLabel}] in context [${categoryName}] (${Object.keys(mergedSources).length} sources)`);
+        _notifyUI(`Saved Cache: ${Object.keys(mergedSources).length} APIs for "${queryLabel}"`, 'success');
         return pool.queries[queryKey];
     }
 
@@ -576,9 +597,11 @@ window.EveOS.API = window.EveOS.API || {};
             });
     }
 
-    function clearAll(categoryName) {
-        deleteScopedValue(CACHE_KEY, categoryName);
-        deleteScopedValue(PREFS_KEY, categoryName);
+    async function clearAll(categoryName) {
+        const normalized = normalizeCategoryName(categoryName);
+        delete _memoryPools[normalized];
+        await deleteScopedValue(CACHE_KEY, categoryName);
+        await deleteScopedValue(PREFS_KEY, categoryName);
         return true;
     }
 

@@ -28,7 +28,7 @@ window.EveOS.API.DisplayInternals = window.EveOS.API.DisplayInternals || {};
             synonyms: internals.limitList(internals.toArray(item.title_suggest), 5),
             description: item.first_sentence ? item.first_sentence.join(" ") : "",
             status: "",
-            score: "N/A",
+            score: item._ratingsAverage ? String(Math.round(item._ratingsAverage * 100) / 100) : "N/A",
             rank: "",
             popularity: "",
             members: "",

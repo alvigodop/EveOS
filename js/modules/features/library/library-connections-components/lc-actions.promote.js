@@ -53,11 +53,11 @@ window.EveLibrary.ConnectionsCoreModules = window.EveLibrary.ConnectionsCoreModu
                 sourceUrl: safeData.sourceUrl || link.url || '',
                 summary: safeData.summary || '',
                 rating: '',
-                apiRatings: {
-                    anilist: null,
-                    myanimelist: null,
-                    mangadex: null
-                },
+                apiRatings: (Ratings?.createEmptyApiRatings
+                    ? Ratings.createEmptyApiRatings()
+                    : { anilist: null, myanimelist: null, mangadex: null,
+                        kitsu: null, tvmaze: null, mangaupdates: null, comick: null,
+                        openlibrary: null, wlnupdates: null, itunes: null }),
                 sourceStatus: '',
                 sourceSignals: Ratings?.createEmptySourceSignals
                     ? Ratings.createEmptySourceSignals()

@@ -3,7 +3,11 @@ window.EveLibrary.BulkAutoModules = window.EveLibrary.BulkAutoModules || {};
 
 (function () {
     window.EveLibrary.BulkAutoModules.createSourceUtils = function createSourceUtils(base) {
-        const PROVIDERS = ['MangaDex', 'MyAnimeList', 'AniList'];
+        const PROVIDERS = [
+            'MangaDex', 'MyAnimeList', 'AniList',
+            'Kitsu', 'TVmaze', 'MangaUpdates', 'ComicK',
+            'OpenLibrary', 'WlnUpdates', 'iTunes'
+        ];
         const uniqStrings = base.uniqStrings;
         const splitPeopleNames = base.splitPeopleNames;
         const normalizeLanguageFromCountryCode = base.normalizeLanguageFromCountryCode;
@@ -114,13 +118,11 @@ window.EveLibrary.BulkAutoModules = window.EveLibrary.BulkAutoModules || {};
                 ? Ratings.mergeSourceSignals(sourceSignals, extractedSignals)
                 : extractedSignals;
             if (!sourceStatus && mergedSignals) {
-                sourceStatus = PROVIDERS
-                    .map(providerName => {
-                        const key = String(providerName || '').toLowerCase();
-                        if (key.includes('anilist')) return mergedSignals.anilist?.status;
-                        if (key.includes('myanimelist')) return mergedSignals.myanimelist?.status;
-                        if (key.includes('mangadex')) return mergedSignals.mangadex?.status;
-                        return '';
+                const Foundation = window.EveLibrary?.RatingsEngineFoundation;
+                const providerKeys = Foundation?.PROVIDERS || ['anilist', 'myanimelist', 'mangadex'];
+                sourceStatus = providerKeys
+                    .map(function (key) {
+                        return mergedSignals[key]?.status;
                     })
                     .find(Boolean) || '';
             }

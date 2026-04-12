@@ -180,7 +180,14 @@
             } else {
                 selectBtn.innerText = "Select";
                 selectBtn.className = "manga-select-btn";
-                selectBtn.onclick = () => onSelect(data);
+                selectBtn.onclick = function () {
+                    onSelect(data);
+                    selectBtn.innerText = "Added";
+                    selectBtn.style.opacity = "0.4";
+                    selectBtn.style.cursor = "default";
+                    selectBtn.disabled = true;
+                    selectBtn.onclick = null;
+                };
             }
             mangaDiv.appendChild(selectBtn);
         }

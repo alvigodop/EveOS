@@ -4,11 +4,15 @@ window.EveBookmarkFocus = window.EveBookmarkFocus || {};
 (function () {
     const ns = window.EveBookmarkFocus;
     if (ns.metadataReady) return;
-    const EMPTY_API_RATINGS = {
-        anilist: null,
-        myanimelist: null,
-        mangadex: null
-    };
+    function getEmptyApiRatings() {
+        var ratingsApi = window.EveLibrary?.Ratings;
+        if (ratingsApi?.createEmptyApiRatings) return ratingsApi.createEmptyApiRatings();
+        return {
+            anilist: null, myanimelist: null, mangadex: null,
+            kitsu: null, tvmaze: null, mangaupdates: null, comick: null,
+            openlibrary: null, wlnupdates: null, itunes: null
+        };
+    }
 
     function parseIntOrZero(value) {
         const parsed = parseInt(value, 10);
@@ -81,7 +85,7 @@ window.EveBookmarkFocus = window.EveBookmarkFocus || {};
             return ratingsApi.sanitizeApiRatings(value);
         }
         return {
-            ...EMPTY_API_RATINGS,
+            ...getEmptyApiRatings(),
             ...(value || {})
         };
     }
@@ -118,7 +122,7 @@ window.EveBookmarkFocus = window.EveBookmarkFocus || {};
             if (!sourceStatus && metadata.status) sourceStatus = String(metadata.status).trim();
 
             if (ratingsApi?.mergeApiRatings) {
-                apiRatings = ratingsApi.mergeApiRatings(apiRatings, metadata.apiRatings || EMPTY_API_RATINGS);
+                apiRatings = ratingsApi.mergeApiRatings(apiRatings, metadata.apiRatings || getEmptyApiRatings());
             }
         });
 

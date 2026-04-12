@@ -23,11 +23,9 @@ window.EveLibrary.RatingsEngineFoundationModules = window.EveLibrary.RatingsEngi
         }
 
         function createEmptySourceSignals() {
-            return {
-                anilist: createEmptySignalProvider(),
-                myanimelist: createEmptySignalProvider(),
-                mangadex: createEmptySignalProvider()
-            };
+            var signals = {};
+            PROVIDERS.forEach(function (p) { signals[p] = createEmptySignalProvider(); });
+            return signals;
         }
 
         function normalizeCountSignal(value) {
@@ -100,11 +98,10 @@ window.EveLibrary.RatingsEngineFoundationModules = window.EveLibrary.RatingsEngi
         }
 
         function extractSourceSignalsFromSources(sources) {
-            const buckets = {
-                anilist: { popularity: [], members: [], favorites: [], rank: [], statuses: [] },
-                myanimelist: { popularity: [], members: [], favorites: [], rank: [], statuses: [] },
-                mangadex: { popularity: [], members: [], favorites: [], rank: [], statuses: [] }
-            };
+            const buckets = {};
+            PROVIDERS.forEach(function (p) {
+                buckets[p] = { popularity: [], members: [], favorites: [], rank: [], statuses: [] };
+            });
 
             (Array.isArray(sources) ? sources : []).forEach(source => {
                 const provider = sourceNameToProvider(source?.source);
@@ -162,11 +159,8 @@ window.EveLibrary.RatingsEngineFoundationModules = window.EveLibrary.RatingsEngi
         }
 
         function extractApiRatingsFromSources(sources) {
-            const map = {
-                anilist: [],
-                myanimelist: [],
-                mangadex: []
-            };
+            const map = {};
+            PROVIDERS.forEach(function (p) { map[p] = []; });
             (Array.isArray(sources) ? sources : []).forEach(source => {
                 const provider = sourceNameToProvider(source?.source);
                 if (!provider) return;

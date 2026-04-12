@@ -120,6 +120,38 @@ window.modalTemplate = `
                             <input type="number" id="libApiRatingMangaDex" min="0" max="10" step="0.01" placeholder="-" style="width:100%; padding:4px 6px;">
                         </div>
                     </div>
+                    <div style="display:flex; gap:5px; margin-bottom:5px;">
+                        <div style="display:flex; flex-direction:column; gap:3px; flex:1;">
+                            <label for="libApiRatingKitsu" style="font-size:0.75rem; opacity:0.8;">Kitsu</label>
+                            <input type="number" id="libApiRatingKitsu" min="0" max="10" step="0.01" placeholder="-" style="width:100%; padding:4px 6px;">
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:3px; flex:1;">
+                            <label for="libApiRatingTVmaze" style="font-size:0.75rem; opacity:0.8;">TVmaze</label>
+                            <input type="number" id="libApiRatingTVmaze" min="0" max="10" step="0.01" placeholder="-" style="width:100%; padding:4px 6px;">
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:3px; flex:1;">
+                            <label for="libApiRatingMU" style="font-size:0.75rem; opacity:0.8;">MangaUpdates</label>
+                            <input type="number" id="libApiRatingMU" min="0" max="10" step="0.01" placeholder="-" style="width:100%; padding:4px 6px;">
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:3px; flex:1;">
+                            <label for="libApiRatingComicK" style="font-size:0.75rem; opacity:0.8;">ComicK</label>
+                            <input type="number" id="libApiRatingComicK" min="0" max="10" step="0.01" placeholder="-" style="width:100%; padding:4px 6px;">
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:5px; margin-bottom:5px;">
+                        <div style="display:flex; flex-direction:column; gap:3px; flex:1;">
+                            <label for="libApiRatingOpenLibrary" style="font-size:0.75rem; opacity:0.8;">OpenLibrary</label>
+                            <input type="number" id="libApiRatingOpenLibrary" min="0" max="10" step="0.01" placeholder="-" style="width:100%; padding:4px 6px;">
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:3px; flex:1;">
+                            <label for="libApiRatingWLN" style="font-size:0.75rem; opacity:0.8;">WlnUpdates</label>
+                            <input type="number" id="libApiRatingWLN" min="0" max="10" step="0.01" placeholder="-" style="width:100%; padding:4px 6px;">
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:3px; flex:1;">
+                            <label for="libApiRatingiTunes" style="font-size:0.75rem; opacity:0.8;">iTunes</label>
+                            <input type="number" id="libApiRatingiTunes" min="0" max="10" step="0.01" placeholder="-" style="width:100%; padding:4px 6px;">
+                        </div>
+                    </div>
                     <div style="display:flex; gap:5px;">
                         <div style="display:flex; flex-direction:column; gap:3px; flex:1;">
                             <label for="libApiRatingAverage" style="font-size:0.75rem; opacity:0.8;">API Average</label>

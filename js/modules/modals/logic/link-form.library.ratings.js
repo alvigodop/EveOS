@@ -23,12 +23,25 @@ window.EveLinkForm = window.EveLinkForm || {};
 
     ns.getRatingsApi = getRatingsApi;
 
+    // Provider key → DOM input ID mapping
+    var PROVIDER_INPUT_MAP = {
+        anilist: 'libApiRatingAniList',
+        myanimelist: 'libApiRatingMAL',
+        mangadex: 'libApiRatingMangaDex',
+        kitsu: 'libApiRatingKitsu',
+        tvmaze: 'libApiRatingTVmaze',
+        mangaupdates: 'libApiRatingMU',
+        comick: 'libApiRatingComicK',
+        openlibrary: 'libApiRatingOpenLibrary',
+        wlnupdates: 'libApiRatingWLN',
+        itunes: 'libApiRatingiTunes'
+    };
+
     ns.readApiRatingsFromInputs = function () {
-        const ratings = {
-            anilist: parseApiRatingInputValue('libApiRatingAniList', 'anilist'),
-            myanimelist: parseApiRatingInputValue('libApiRatingMAL', 'myanimelist'),
-            mangadex: parseApiRatingInputValue('libApiRatingMangaDex', 'mangadex')
-        };
+        const ratings = {};
+        Object.keys(PROVIDER_INPUT_MAP).forEach(function (provider) {
+            ratings[provider] = parseApiRatingInputValue(PROVIDER_INPUT_MAP[provider], provider);
+        });
         const ratingsApi = getRatingsApi();
         return ratingsApi?.sanitizeApiRatings ? ratingsApi.sanitizeApiRatings(ratings) : ratings;
     };
@@ -37,12 +50,10 @@ window.EveLinkForm = window.EveLinkForm || {};
         const ratingsApi = getRatingsApi();
         const safeRatings = ratingsApi?.sanitizeApiRatings ? ratingsApi.sanitizeApiRatings(apiRatings) : (apiRatings || {});
 
-        const anilistInput = document.getElementById('libApiRatingAniList');
-        const malInput = document.getElementById('libApiRatingMAL');
-        const mangadexInput = document.getElementById('libApiRatingMangaDex');
-        if (anilistInput) anilistInput.value = ns.formatRating(safeRatings.anilist);
-        if (malInput) malInput.value = ns.formatRating(safeRatings.myanimelist);
-        if (mangadexInput) mangadexInput.value = ns.formatRating(safeRatings.mangadex);
+        Object.keys(PROVIDER_INPUT_MAP).forEach(function (provider) {
+            const input = document.getElementById(PROVIDER_INPUT_MAP[provider]);
+            if (input) input.value = ns.formatRating(safeRatings[provider]);
+        });
     };
 
     ns.refreshDerivedRatingsPreview = function (entryLike) {

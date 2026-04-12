@@ -61,13 +61,36 @@
     function searchLinkName() {
         const nameInput = document.getElementById("newTitle");
         const resultsDiv = document.getElementById("edit-link-search-results");
+        const categoryInput = document.getElementById("newCategory");
         const query = nameInput.value.trim();
 
         if (!query) return showToast("Enter a name to search", "warning");
 
         if (window.EveOS && window.EveOS.API && window.EveOS.API.Manager) {
+            const categoryName = (categoryInput ? categoryInput.value.trim() : '')
+                || window.currentCategoryCtx
+                || '';
+
+            resultsDiv.style.display = 'block';
+            resultsDiv.innerHTML = '<div style="padding:10px; opacity:0.7;">Searching cached sources...</div>';
+
+            // Bookmark search should always use cache-first (file:// CORS blocks most live APIs)
+            const loadingCallback = window.SearchUIRenderer
+                ? SearchUIRenderer.showLoading.bind(SearchUIRenderer)
+                : null;
+
+            // Notify search monitor that a search is starting
+            if (loadingCallback) {
+                loadingCallback(true, 'edit-link-search-results', `Searching for "${query}"...`, { statusPhase: 'cache' });
+            }
+
             window.EveOS.API.Manager.runSearch(query, resultsDiv, (data) => {
                 return addSource(data);
+            }, {
+                categoryName: categoryName,
+                liveResults: false,
+                hybridResults: true,
+                loadingCallback: loadingCallback
             });
         } else {
             showToast("Search API not ready", "error");

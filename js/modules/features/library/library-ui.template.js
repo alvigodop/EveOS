@@ -63,6 +63,13 @@ window.EveLibrary.UIShared = window.EveLibrary.UIShared || {};
                     <label>AniList (0-10): <input type="number" id="${prefix}api-rating-anilist" min="0" max="10" step="0.01"></label>
                     <label>MyAnimeList (0-10): <input type="number" id="${prefix}api-rating-myanimelist" min="0" max="10" step="0.01"></label>
                     <label>MangaDex (0-10): <input type="number" id="${prefix}api-rating-mangadex" min="0" max="10" step="0.01"></label>
+                    <label>Kitsu (0-10): <input type="number" id="${prefix}api-rating-kitsu" min="0" max="10" step="0.01"></label>
+                    <label>TVmaze (0-10): <input type="number" id="${prefix}api-rating-tvmaze" min="0" max="10" step="0.01"></label>
+                    <label>MangaUpdates (0-10): <input type="number" id="${prefix}api-rating-mangaupdates" min="0" max="10" step="0.01"></label>
+                    <label>ComicK (0-10): <input type="number" id="${prefix}api-rating-comick" min="0" max="10" step="0.01"></label>
+                    <label>OpenLibrary (0-10): <input type="number" id="${prefix}api-rating-openlibrary" min="0" max="10" step="0.01"></label>
+                    <label>WlnUpdates (0-10): <input type="number" id="${prefix}api-rating-wlnupdates" min="0" max="10" step="0.01"></label>
+                    <label>iTunes (0-10): <input type="number" id="${prefix}api-rating-itunes" min="0" max="10" step="0.01"></label>
                     <label>Language: <input type="text" id="${prefix}language"></label>
                     <label>Tags: <input type="text" id="${prefix}tags" placeholder="comma separated"></label>
                     <label>Source URL: <input type="url" id="${prefix}source-url"></label>

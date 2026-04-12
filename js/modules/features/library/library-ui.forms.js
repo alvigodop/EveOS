@@ -52,7 +52,14 @@ window.EveLibrary.UIModules = window.EveLibrary.UIModules || {};
                 'image-url',
                 'api-rating-anilist',
                 'api-rating-myanimelist',
-                'api-rating-mangadex'
+                'api-rating-mangadex',
+                'api-rating-kitsu',
+                'api-rating-tvmaze',
+                'api-rating-mangaupdates',
+                'api-rating-comick',
+                'api-rating-openlibrary',
+                'api-rating-wlnupdates',
+                'api-rating-itunes'
             ].forEach(field => {
                 const element = document.getElementById(prefix + field);
                 if (element) element.value = '';
@@ -105,6 +112,13 @@ window.EveLibrary.UIModules = window.EveLibrary.UIModules || {};
             setValue('api-rating-anilist', formatOptionalScore(entry?.apiRatings?.anilist));
             setValue('api-rating-myanimelist', formatOptionalScore(entry?.apiRatings?.myanimelist));
             setValue('api-rating-mangadex', formatOptionalScore(entry?.apiRatings?.mangadex));
+            setValue('api-rating-kitsu', formatOptionalScore(entry?.apiRatings?.kitsu));
+            setValue('api-rating-tvmaze', formatOptionalScore(entry?.apiRatings?.tvmaze));
+            setValue('api-rating-mangaupdates', formatOptionalScore(entry?.apiRatings?.mangaupdates));
+            setValue('api-rating-comick', formatOptionalScore(entry?.apiRatings?.comick));
+            setValue('api-rating-openlibrary', formatOptionalScore(entry?.apiRatings?.openlibrary));
+            setValue('api-rating-wlnupdates', formatOptionalScore(entry?.apiRatings?.wlnupdates));
+            setValue('api-rating-itunes', formatOptionalScore(entry?.apiRatings?.itunes));
             setValue('status', entry?.status || '');
 
             const dateAddedMeta = document.getElementById(prefix + 'date-added-meta');

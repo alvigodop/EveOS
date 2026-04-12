@@ -90,19 +90,42 @@ window.EveOS.API.DisplayInternals = window.EveOS.API.DisplayInternals || {};
         resultsDiv.innerHTML = "";
         resultsDiv.classList.add("api-search-results-grid");
 
-        appendResults(sources.mangadex?.data, internals.getMangaDexMeta, resultsDiv, onSelect, isCached);
-        appendResults(sources.jikanManga?.data, item => internals.getJikanMeta(item, "Manga"), resultsDiv, onSelect, isCached);
-        appendResults(sources.jikanAnime?.data, item => internals.getJikanMeta(item, "Anime"), resultsDiv, onSelect, isCached);
-        appendResults(sources.anilistManga?.data?.Page?.media, internals.getAniListMeta, resultsDiv, onSelect, isCached);
-        appendResults(sources.anilistAnime?.data?.Page?.media, internals.getAniListMeta, resultsDiv, onSelect, isCached);
-        appendResults(sources.mangaupdates?.results, internals.getMangaUpdatesMeta, resultsDiv, onSelect, isCached);
-        appendResults(sources.kitsuAnime?.data, internals.getKitsuMeta, resultsDiv, onSelect, isCached);
-        appendResults(sources.kitsuManga?.data, internals.getKitsuMeta, resultsDiv, onSelect, isCached);
-        appendResults(sources.tvmaze, internals.getTVmazeMeta, resultsDiv, onSelect, isCached);
-        appendResults(sources.itunes?.results, internals.getiTunesMeta, resultsDiv, onSelect, isCached);
-        appendResults(sources.wlnupdates?.data, internals.getWlnUpdatesMeta, resultsDiv, onSelect, isCached);
-        appendResults(sources.openlibrary?.docs, internals.getOpenLibraryMeta, resultsDiv, onSelect, isCached);
-        appendResults(sources.comick, internals.getComicKMeta, resultsDiv, onSelect, isCached);
+        function appendSection(label, items, transform, isCachedFlag) {
+            if (!items || !internals.toArray(items).length) return;
+            var count = internals.toArray(items).length;
+            var details = document.createElement("details");
+            details.className = "api-provider-section";
+            details.open = true;
+            var summary = document.createElement("summary");
+            summary.className = "api-provider-section-header";
+            summary.innerHTML = '<span class="api-provider-section-label">' + escapeHtml(label)
+                + '</span><span class="api-provider-section-count">' + count + ' result'
+                + (count !== 1 ? 's' : '') + '</span>';
+            details.appendChild(summary);
+            var body = document.createElement("div");
+            body.className = "api-provider-section-body";
+            details.appendChild(body);
+            resultsDiv.appendChild(details);
+            appendResults(items, transform, body, onSelect, isCachedFlag);
+        }
+
+        function escapeHtml(str) {
+            return String(str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+
+        appendSection("MangaDex", sources.mangadex?.data, internals.getMangaDexMeta, isCached);
+        appendSection("Jikan Manga", sources.jikanManga?.data, function (item) { return internals.getJikanMeta(item, "Manga"); }, isCached);
+        appendSection("Jikan Anime", sources.jikanAnime?.data, function (item) { return internals.getJikanMeta(item, "Anime"); }, isCached);
+        appendSection("AniList Manga", sources.anilistManga?.data?.Page?.media, internals.getAniListMeta, isCached);
+        appendSection("AniList Anime", sources.anilistAnime?.data?.Page?.media, internals.getAniListMeta, isCached);
+        appendSection("MangaUpdates", sources.mangaupdates?.results, internals.getMangaUpdatesMeta, isCached);
+        appendSection("Kitsu Anime", sources.kitsuAnime?.data, internals.getKitsuMeta, isCached);
+        appendSection("Kitsu Manga", sources.kitsuManga?.data, internals.getKitsuMeta, isCached);
+        appendSection("TVmaze", sources.tvmaze, internals.getTVmazeMeta, isCached);
+        appendSection("iTunes", sources.itunes?.results, internals.getiTunesMeta, isCached);
+        appendSection("WLNUpdates", sources.wlnupdates?.data, internals.getWlnUpdatesMeta, isCached);
+        appendSection("OpenLibrary", sources.openlibrary?.docs, internals.getOpenLibraryMeta, isCached);
+        appendSection("ComicK", sources.comick, internals.getComicKMeta, isCached);
 
         if (resultsDiv.children.length === 0) {
             resultsDiv.innerHTML = '<div style="padding:10px; opacity:0.7;">No results found from API providers.</div>';

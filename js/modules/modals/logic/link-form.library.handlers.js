@@ -114,7 +114,14 @@ window.EveLinkForm = window.EveLinkForm || {};
                 'libRating',
                 'libApiRatingAniList',
                 'libApiRatingMAL',
-                'libApiRatingMangaDex'
+                'libApiRatingMangaDex',
+                'libApiRatingKitsu',
+                'libApiRatingTVmaze',
+                'libApiRatingMU',
+                'libApiRatingComicK',
+                'libApiRatingOpenLibrary',
+                'libApiRatingWLN',
+                'libApiRatingiTunes'
             ];
             ratingInputs.forEach(function (id) {
                 const element = document.getElementById(id);

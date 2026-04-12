@@ -27,17 +27,15 @@ window.EveLibrary = window.EveLibrary || {};
             ? source.ratingSettings
             : {};
 
-        const enabledProviders = {
-            anilist: current.enabledProviders?.anilist !== false,
-            myanimelist: current.enabledProviders?.myanimelist !== false,
-            mangadex: current.enabledProviders?.mangadex !== false
-        };
+        const enabledProviders = {};
+        PROVIDERS.forEach(function (p) {
+            enabledProviders[p] = current.enabledProviders?.[p] !== false;
+        });
 
-        const providerWeights = {
-            anilist: clamp(current.providerWeights?.anilist ?? DEFAULTS.providerWeights.anilist, 0, 100),
-            myanimelist: clamp(current.providerWeights?.myanimelist ?? DEFAULTS.providerWeights.myanimelist, 0, 100),
-            mangadex: clamp(current.providerWeights?.mangadex ?? DEFAULTS.providerWeights.mangadex, 0, 100)
-        };
+        const providerWeights = {};
+        PROVIDERS.forEach(function (p) {
+            providerWeights[p] = clamp(current.providerWeights?.[p] ?? DEFAULTS.providerWeights[p] ?? 1, 0, 100);
+        });
 
         return {
             activeScale: String(current.activeScale || DEFAULTS.activeScale),

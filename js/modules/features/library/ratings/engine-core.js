@@ -16,6 +16,7 @@ window.EveLibrary = window.EveLibrary || {};
         sourceNameToProvider: Foundation.sourceNameToProvider,
         normalizeProviderScore: Foundation.normalizeProviderScore,
         sanitizeApiRatings: Foundation.sanitizeApiRatings,
+        createEmptyApiRatings: Foundation.createEmptyApiRatings,
         mergeApiRatings: Foundation.mergeApiRatings,
         extractApiRatingsFromSources: Foundation.extractApiRatingsFromSources,
         createEmptySourceSignals: Foundation.createEmptySourceSignals,
