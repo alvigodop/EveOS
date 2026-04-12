@@ -394,8 +394,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             const isRootFolder = (node.kind === 'folder') && pNode && (pNode.kind === 'category' || pNode.kind === 'workspace');
             const overlap = node._peerOverlap || 0;
 
-            // Non-root nodes (sub-folders + links) only render when actively overlapping
-            if (!isRootFolder && !(overlap > 0.005)) return;
+            // ALL nodes only render when actively overlapping
+            if (!(overlap > 0.005)) return;
 
             const radius = node._peerTerritoryRadius || (node.kind === 'link' ? 32 : 120);
 
@@ -411,43 +411,25 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             ctx.translate(node.x, node.y);
             ctx.setLineDash([]);
 
-            if (overlap > 0.005) {
-                // DANGER: Red gradient fill — intensity scales with overlap
-                var fillAlpha = Math.min(0.28, 0.06 + overlap * 0.55) * zoomAlpha;
-                var gradient = ctx.createRadialGradient(0, 0, radius * 0.1, 0, 0, radius);
-                gradient.addColorStop(0, 'rgba(255, 50, 50, ' + (fillAlpha * 0.9) + ')');
-                gradient.addColorStop(0.45, 'rgba(255, 35, 35, ' + (fillAlpha * 0.55) + ')');
-                gradient.addColorStop(1, 'rgba(255, 20, 20, 0)');
-                ctx.beginPath();
-                ctx.arc(0, 0, radius, 0, Math.PI * 2);
-                ctx.fillStyle = gradient;
-                ctx.fill();
+            // Red gradient fill — intensity scales with overlap
+            var fillAlpha = Math.min(0.28, 0.06 + overlap * 0.55) * zoomAlpha;
+            var gradient = ctx.createRadialGradient(0, 0, radius * 0.1, 0, 0, radius);
+            gradient.addColorStop(0, 'rgba(255, 50, 50, ' + (fillAlpha * 0.9) + ')');
+            gradient.addColorStop(0.45, 'rgba(255, 35, 35, ' + (fillAlpha * 0.55) + ')');
+            gradient.addColorStop(1, 'rgba(255, 20, 20, 0)');
+            ctx.beginPath();
+            ctx.arc(0, 0, radius, 0, Math.PI * 2);
+            ctx.fillStyle = gradient;
+            ctx.fill();
 
-                // Red dashed boundary ring
-                if (showDetails) {
-                    var ringAlpha = Math.min(0.55, 0.2 + overlap * 0.8) * zoomAlpha;
-                    ctx.beginPath();
-                    ctx.arc(0, 0, radius * 0.96, 0, Math.PI * 2);
-                    ctx.setLineDash([10, 18]);
-                    ctx.strokeStyle = 'rgba(255, 55, 55, ' + ringAlpha + ')';
-                    ctx.lineWidth = 2.0 / state.transform.scale;
-                    ctx.stroke();
-                }
-            } else if (showDetails) {
-                // Calm state: faint red territory boundary — always visible
-                var calmGradient = ctx.createRadialGradient(0, 0, radius * 0.5, 0, 0, radius);
-                calmGradient.addColorStop(0, 'rgba(255, 50, 50, ' + (0.012 * zoomAlpha) + ')');
-                calmGradient.addColorStop(1, 'rgba(255, 30, 30, 0)');
-                ctx.beginPath();
-                ctx.arc(0, 0, radius, 0, Math.PI * 2);
-                ctx.fillStyle = calmGradient;
-                ctx.fill();
-
+            // Red dashed boundary ring
+            if (showDetails) {
+                var ringAlpha = Math.min(0.55, 0.2 + overlap * 0.8) * zoomAlpha;
                 ctx.beginPath();
                 ctx.arc(0, 0, radius * 0.96, 0, Math.PI * 2);
-                ctx.setLineDash([10, 28]);
-                ctx.strokeStyle = 'rgba(255, 55, 55, ' + (0.09 * zoomAlpha) + ')';
-                ctx.lineWidth = 1.0 / state.transform.scale;
+                ctx.setLineDash([10, 18]);
+                ctx.strokeStyle = 'rgba(255, 55, 55, ' + ringAlpha + ')';
+                ctx.lineWidth = 2.0 / state.transform.scale;
                 ctx.stroke();
             }
 
