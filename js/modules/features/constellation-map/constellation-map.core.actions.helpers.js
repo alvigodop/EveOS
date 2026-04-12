@@ -1,4 +1,4 @@
-﻿window.EveConstellationMap = window.EveConstellationMap || {};
+window.EveConstellationMap = window.EveConstellationMap || {};
 
 (function (ns) {
     const shared = ns._shared || {};
@@ -90,10 +90,16 @@
         return true;
     }
 
-    function promptForNodeName(promptText, fallbackValue) {
+    async function promptForNodeName(promptText, fallbackValue) {
+        if (window.EveInlinePrompt) {
+            const raw = await window.EveInlinePrompt.show({
+                label: text(promptText, 'Name'),
+                value: text(fallbackValue, '')
+            });
+            return String(raw || '').trim();
+        }
         const raw = window.prompt(text(promptText, 'Name'), text(fallbackValue, ''));
-        const value = String(raw || '').trim();
-        return value || '';
+        return String(raw || '').trim();
     }
 
     function refreshGraphAfterMutation(selectionId, options = {}) {

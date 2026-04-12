@@ -7,6 +7,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/weather.js",
     "js/modules/features/timer.js",
     "js/modules/features/custom-order.js",
+    "js/modules/features/true-value-engine.js",
     "js/modules/features/social-manager/social-manager-embedded.js?v=0.1.1",
     "js/modules/features/social-manager/social-manager-modal.js?v=0.1.1"
 ]);

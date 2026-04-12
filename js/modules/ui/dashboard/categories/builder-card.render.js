@@ -76,8 +76,34 @@ window.DashboardCategories = window.DashboardCategories || {};
             card.classList.add('custom-order');
             // Ensure all links have order numbers
             customOrderApi.ensureAllLinksHaveNumbers(activeWorkspaceId, cat, renderedLinks);
-            // Apply sorting if mode is set
+        }
+
+        // Stamp stable base positions BEFORE any sorting
+        // These never change regardless of sort mode
+        renderedLinks.forEach(function (link, index) {
+            var linkId = String(link.id);
+            if (customOrderEnabled && customOrderApi) {
+                var coNum = customOrderApi.getNumber(activeWorkspaceId, cat, linkId);
+                link._basePos = (typeof coNum === 'number') ? coNum : (index + 1);
+            } else {
+                link._basePos = index + 1;
+            }
+        });
+
+        // Apply sorting (works with or without custom numbering)
+        if (customOrderApi) {
             renderedLinks = customOrderApi.applySorting(renderedLinks, activeWorkspaceId, cat);
+        }
+
+        // True Value Approximation
+        var trueValueApi = window.EveTrueValue;
+        var trueValueEnabled = trueValueApi ? trueValueApi.isEnabled(activeWorkspaceId, cat) : false;
+        var trueValueData = null;
+        var currentSortMode = customOrderApi ? customOrderApi.getSortMode(activeWorkspaceId, cat) : 'none';
+        if (trueValueEnabled) {
+            card.classList.add('true-value-mode');
+            trueValueData = trueValueApi.computeTrueValues(renderedLinks, activeWorkspaceId, cat);
+            renderedLinks = trueValueApi.applySorting(renderedLinks, trueValueData, currentSortMode);
         }
         if (isFocusMode) {
             card.classList.add('is-focus-mode');
@@ -117,6 +143,25 @@ window.DashboardCategories = window.DashboardCategories || {};
                 return '<section class="unidex-entries is-row-layout focused-category-entries" aria-label="' + safeCatHtml + ' bookmarks">' + focusedHtml + '</section>';
             }
 
+            // Apply true value sorting per-section (works for both flat and folder views)
+            if (trueValueEnabled && trueValueApi) {
+                // Stamp stable base positions if not already set (for folder sections)
+                linksForRender.forEach(function (link, idx) {
+                    if (typeof link._basePos !== 'number') {
+                        if (customOrderEnabled && customOrderApi) {
+                            var coNum = customOrderApi.getNumber(activeWorkspaceId, cat, String(link.id));
+                            link._basePos = (typeof coNum === 'number') ? coNum : (idx + 1);
+                        } else {
+                            link._basePos = idx + 1;
+                        }
+                    }
+                });
+                var sectionTvData = trueValueApi.computeTrueValues(linksForRender, activeWorkspaceId, cat);
+                linksForRender = trueValueApi.applySorting(linksForRender, sectionTvData, currentSortMode);
+                // Use section-local true value data for badges
+                trueValueData = sectionTvData;
+            }
+
             var flatHtml = linksForRender.map(function (link) {
                 var folderLabel = '';
                 if (options.searchStr && window.EveBookmarkFolders?.buildFolderPathLabel) {
@@ -127,7 +172,9 @@ window.DashboardCategories = window.DashboardCategories || {};
                     isTaskEnabled: isTaskEnabledForLink(link),
                     customOrderEnabled: customOrderEnabled,
                     customOrderWsId: activeWorkspaceId,
-                    customOrderCategory: cat
+                    customOrderCategory: cat,
+                    trueValueEnabled: trueValueEnabled,
+                    trueValueData: trueValueData
                 });
             }).join('');
             return '<ul class="' + (options.scrollableCategories ? 'category-scrollable' : '') + '">' + flatHtml + '</ul>';

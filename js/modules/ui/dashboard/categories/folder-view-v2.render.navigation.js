@@ -134,10 +134,26 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         let itemsHtml = '';
         if (folderItems.length > 0) {
             if (subFolders.length > 0) itemsHtml += '<div class="manhwa-divider items-divider">ITEMS</div>';
+
+            // Resolve true value data for Manhwa folder items
+            const tvApi = window.EveTrueValue;
+            const customOrderApi = window.EveCustomOrder;
+            const tvEnabled = tvApi ? tvApi.isEnabled(workspaceId, categoryName) : false;
+            const coEnabled = customOrderApi ? customOrderApi.isEnabled(workspaceId, categoryName) : false;
+            const tvData = tvEnabled ? tvApi.computeTrueValues(folderItems, workspaceId, categoryName) : null;
+
             const flatHtml = folderItems.map((link) => {
                 const isTaskEnabled = typeof folderApi?.isTaskEnabledForLink === 'function' ? !!folderApi.isTaskEnabledForLink(link) : true;
                 if (typeof window.DashboardCategories?.buildLinkHtml === 'function') {
-                    return window.DashboardCategories.buildLinkHtml(link, '', workspaceId, window.eveState?.config?.workspaces || [], { folderLabel: '', isTaskEnabled });
+                    return window.DashboardCategories.buildLinkHtml(link, '', workspaceId, window.eveState?.config?.workspaces || [], {
+                        folderLabel: '',
+                        isTaskEnabled,
+                        customOrderEnabled: coEnabled,
+                        customOrderWsId: workspaceId,
+                        customOrderCategory: categoryName,
+                        trueValueEnabled: tvEnabled,
+                        trueValueData: tvData
+                    });
                 }
                 const jsId = escapeCardJs(String(link.id));
                 return `<div class="item-row" style="display: flex; align-items: center; gap: 12px; padding: 10px 18px; cursor: pointer; border-left: 2px solid rgba(128,128,128,0.2);" onclick="if(typeof window.handleLinkClick === 'function') { window.handleLinkClick(event, '${jsId}', this); } else { window.open('${escapeCardJs(link.url)}', '_blank'); }"><span>${escapeCardHtml(link.icon || '🔗')}</span><span>${escapeCardHtml(link.title)}</span></div>`;

@@ -432,10 +432,9 @@ html[data-native-scheme="light"] .card-subtab-source {
     position: relative;
 }
 
-/* Hide custom order badge on row hover (actions take priority) */
+/* Shift custom order badge left of actions on row hover */
 .category-card ul li:hover .custom-order-badge {
-    opacity: 0;
-    pointer-events: none;
+    right: 125px;
 }
 
 .category-card.custom-order ul li.done .custom-order-badge {
@@ -446,6 +445,56 @@ html[data-native-scheme="light"] .card-subtab-source {
 
 /* Hide badges during bulk selection mode */
 body.bulk-active .custom-order-badge,
+body.bulk-active .true-value-badge,
 body.bulk-active .category-card.task-mode ul li::after {
+    display: none;
+}
+
+/* --- True Value Badges --- */
+.true-value-badge {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.62rem;
+    border-radius: 4px;
+    padding: 1px 5px;
+    pointer-events: none;
+    user-select: none;
+    line-height: 1.3;
+    z-index: 1;
+    letter-spacing: 0.02em;
+}
+
+/* Locked: solid cyan — true integer positions */
+.true-value-badge.locked {
+    color: rgba(0, 212, 255, 0.55);
+    background: rgba(0, 212, 255, 0.08);
+    border: 1px solid rgba(0, 212, 255, 0.18);
+}
+
+/* Approx: amber tint — rating-influenced positions */
+.true-value-badge.approx {
+    color: rgba(255, 180, 50, 0.65);
+    background: rgba(255, 180, 50, 0.08);
+    border: 1px solid rgba(255, 180, 50, 0.18);
+    box-shadow: 0 0 4px rgba(255, 180, 50, 0.06);
+}
+
+/* Done state — muted */
+.category-card ul li.done .true-value-badge {
+    color: rgba(128, 128, 128, 0.3);
+    background: rgba(128, 128, 128, 0.04);
+    border-color: rgba(128, 128, 128, 0.08);
+}
+
+/* Shift true value badge left of actions on row hover */
+.category-card ul li:hover .true-value-badge {
+    right: 125px;
+}
+
+/* Hide CSS counter when true value mode is active */
+.category-card.true-value-mode.task-mode ul li::after {
     display: none;
 }

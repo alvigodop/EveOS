@@ -684,6 +684,10 @@ async function loadData() {
     if (!Array.isArray(config.customOrderEnabled)) config.customOrderEnabled = [];
     if (!config.customOrderSort || typeof config.customOrderSort !== 'object') config.customOrderSort = {};
 
+    // True value approximation defaults
+    if (!Array.isArray(config.trueValueEnabled)) config.trueValueEnabled = [];
+    if (!config.trueValueSettings || typeof config.trueValueSettings !== 'object') config.trueValueSettings = {};
+
     // Apply settings
     if (typeof applySettings === 'function') applySettings();
 

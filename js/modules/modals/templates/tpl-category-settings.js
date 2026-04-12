@@ -50,6 +50,32 @@ window.modalTemplate += `
                     <div id="categoryHeaderButtonSettings" style="display:flex; flex-direction:column; gap:8px;"></div>
                     </div>
                 </details>
+                <button onclick="closeModals(); ctxCatToggleCustomOrder()" style="width:100%;">&#128202; Toggle Custom Numbering</button>
+                <details class="settings-disclosure">
+                    <summary class="settings-disclosure-summary">📐 True Value Sorting</summary>
+                    <div class="settings-disclosure-body" style="display:flex; flex-direction:column; gap:8px;">
+                        <div style="font-size:0.82rem; opacity:0.76;">Blend library ratings into bookmark positions. Linked bookmarks get fractional approximations; unlinked ones stay locked.</div>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <label style="font-size:0.82rem; flex-shrink:0;">Enabled:</label>
+                            <input type="checkbox" id="trueValueEnabledToggle" onchange="window._tvSettingsOnChange &amp;&amp; window._tvSettingsOnChange()">
+                        </div>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <label for="trueValueScaleSelect" style="font-size:0.82rem; flex-shrink:0;">Rating Scale:</label>
+                            <select id="trueValueScaleSelect" onchange="window._tvSettingsOnChange &amp;&amp; window._tvSettingsOnChange()" style="flex:1;">
+                                <option value="hybrid">Hybrid (Personal + API)</option>
+                                <option value="personal">Personal Only</option>
+                                <option value="api_weighted">API Weighted</option>
+                                <option value="api_average">API Average</option>
+                                <option value="confidence">Confidence</option>
+                            </select>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <label for="trueValueInfluenceSlider" style="font-size:0.82rem; flex-shrink:0;">Influence:</label>
+                            <input type="range" id="trueValueInfluenceSlider" min="0" max="100" step="5" style="flex:1;" oninput="document.getElementById('trueValueInfluenceLabel').textContent = this.value + '%'" onchange="window._tvSettingsOnChange &amp;&amp; window._tvSettingsOnChange()">
+                            <span id="trueValueInfluenceLabel" style="font-size:0.78rem; font-family:'Share Tech Mono',monospace; min-width:36px; text-align:right;">50%</span>
+                        </div>
+                    </div>
+                </details>
                 <button onclick="closeModals(); ctxCatToggleTask()" style="width:100%;">&#9989; Toggle Task Mode</button>
                 <div style="border-top:1px solid #444; margin-top:10px; padding-top:10px;">
                     <button onclick="deleteCategory(window.currentCategoryCtx)" class="btn-danger" style="width:100%;">&#128465; Delete Category</button>

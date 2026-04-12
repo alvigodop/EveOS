@@ -59,6 +59,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/modular-state-sync/modular-state-sync.api.store.js?v=0.3.2",
     "js/modules/features/modular-state-sync/modular-state-sync.api.js?v=0.3.1",
     "js/modules/features/modular-state-sync/modular-state-sync.core.js?v=0.3.0",
+    "js/modules/ui/inline-prompt.js",
     "js/modules/ui/visuals.js?v=0.2.39",
     "js/modules/ui/header.js",
     "js/modules/features/header-controls/hc-state.js",

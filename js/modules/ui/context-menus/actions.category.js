@@ -88,6 +88,18 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
         showToast(labels[mode] || mode, 'info');
     };
 
+    window.ctxCatToggleTrueValue = function () {
+        const categoryName = shared.getCtxCategoryName?.();
+        if (!categoryName) return showToast('No category selected', 'error');
+        const api = window.EveTrueValue;
+        if (!api) return;
+        const wsId = String(config.activeWorkspace || 'main');
+        api.toggle(wsId, categoryName);
+        if (typeof closeAllMenus === 'function') closeAllMenus();
+        var enabled = api.isEnabled(wsId, categoryName);
+        showToast(enabled ? 'True Value Sort enabled' : 'True Value Sort disabled', 'info');
+    };
+
     window.ctxCatFocus = function () {
         const categoryName = shared.getCtxCategoryName?.();
         if (!categoryName) return showToast('No category selected', 'error');

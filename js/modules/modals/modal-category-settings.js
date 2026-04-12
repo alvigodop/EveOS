@@ -175,6 +175,45 @@
 
             renderCategoryPinSettings();
 
+            // Populate True Value Sorting controls
+            (function () {
+                const cat = window.currentCategoryCtx;
+                const wsId = String((window.config && window.config.activeWorkspace) || 'main');
+                const tvApi = window.EveTrueValue;
+                const toggle = document.getElementById('trueValueEnabledToggle');
+                const scaleSelect = document.getElementById('trueValueScaleSelect');
+                const slider = document.getElementById('trueValueInfluenceSlider');
+                const label = document.getElementById('trueValueInfluenceLabel');
+
+                if (toggle && tvApi) {
+                    toggle.checked = tvApi.isEnabled(wsId, cat);
+                    const settings = tvApi.getSettings(wsId, cat);
+                    if (scaleSelect) scaleSelect.value = settings.ratingScale;
+                    if (slider) {
+                        slider.value = Math.round(settings.influenceWeight * 100);
+                        if (label) label.textContent = slider.value + '%';
+                    }
+                }
+
+                window._tvSettingsOnChange = function () {
+                    if (!tvApi || !cat) return;
+                    const key = tvApi.buildScopeKey(wsId, cat);
+                    // Sync enabled state
+                    const isOn = toggle ? toggle.checked : false;
+                    if (!Array.isArray(config.trueValueEnabled)) config.trueValueEnabled = [];
+                    const idx = config.trueValueEnabled.indexOf(key);
+                    if (isOn && idx === -1) config.trueValueEnabled.push(key);
+                    if (!isOn && idx !== -1) config.trueValueEnabled.splice(idx, 1);
+                    // Sync settings
+                    if (!config.trueValueSettings) config.trueValueSettings = {};
+                    if (!config.trueValueSettings[key]) config.trueValueSettings[key] = {};
+                    if (scaleSelect) config.trueValueSettings[key].ratingScale = scaleSelect.value;
+                    if (slider) config.trueValueSettings[key].influenceWeight = parseInt(slider.value, 10) / 100;
+                    saveConfig();
+                    if (typeof renderDashboard === 'function') renderDashboard();
+                };
+            })();
+
             return;
 
         }

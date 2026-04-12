@@ -131,17 +131,27 @@ window.EveCustomOrder = (function () {
     }
 
     function applySorting(links, wsId, category) {
-        if (!isEnabled(wsId, category)) return links;
         var mode = getSortMode(wsId, category);
         if (mode === 'none') return links;
 
-        var map = getOrderMap(wsId, category);
         var sorted = links.slice();
-        sorted.sort(function (a, b) {
-            var na = typeof map[String(a.id)] === 'number' ? map[String(a.id)] : 9999;
-            var nb = typeof map[String(b.id)] === 'number' ? map[String(b.id)] : 9999;
-            return mode === 'asc' ? na - nb : nb - na;
-        });
+
+        if (isEnabled(wsId, category)) {
+            // Sort by custom order numbers
+            var map = getOrderMap(wsId, category);
+            sorted.sort(function (a, b) {
+                var na = typeof map[String(a.id)] === 'number' ? map[String(a.id)] : 9999;
+                var nb = typeof map[String(b.id)] === 'number' ? map[String(b.id)] : 9999;
+                return mode === 'asc' ? na - nb : nb - na;
+            });
+        } else {
+            // Fallback: sort alphabetically by title
+            sorted.sort(function (a, b) {
+                var ta = String(a.title || '').toLowerCase();
+                var tb = String(b.title || '').toLowerCase();
+                return mode === 'asc' ? ta.localeCompare(tb) : tb.localeCompare(ta);
+            });
+        }
         return sorted;
     }
 

@@ -227,14 +227,29 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
         const safeWsId = String(extraOptions.customOrderWsId || '').replace(/'/g, "\\'");
         const safeCoCat = String(extraOptions.customOrderCategory || '').replace(/'/g, "\\'");
         if (typeof coNum === 'number') {
-            customOrderBadge = `<span class="custom-order-badge" title="Click to change order" onclick="event.preventDefault();event.stopPropagation();(function(){var n=prompt('Enter new position number (current: ${coNum}):','${coNum}');if(n!==null&&n!=='')window.EveCustomOrder.setNumber('${safeWsId}','${safeCoCat}',${jsLinkIdLiteral},parseInt(n,10));})()">#${coNum}</span>`;
+            customOrderBadge = `<span class="custom-order-badge" title="Click to change order" onclick="event.preventDefault();event.stopPropagation();window.EveInlinePrompt.show({label:'Position (current: ${coNum})',value:'${coNum}',type:'number',anchor:this}).then(function(n){if(n!==null&&n!=='')window.EveCustomOrder.setNumber('${safeWsId}','${safeCoCat}',${jsLinkIdLiteral},parseInt(n,10))})">#${coNum}</span>`;
+        }
+    }
+
+    // True value badge (overrides custom order badge when active)
+    let trueValueBadge = '';
+    if (extraOptions.trueValueEnabled && extraOptions.trueValueData && window.EveTrueValue) {
+        const tvData = extraOptions.trueValueData[linkId];
+        if (tvData) {
+            const displayText = window.EveTrueValue.formatTrueValue(tvData, extraOptions.trueValueData);
+            const badgeClass = tvData.locked ? 'true-value-badge locked' : 'true-value-badge approx';
+            const titleText = tvData.locked
+                ? 'True position (locked — no library link)'
+                : 'Base: #' + tvData.basePos + ' → ' + tvData.percent + '% true value (rating: ' + (tvData.rating || '?') + '/10)';
+            trueValueBadge = `<span class="${badgeClass}" title="${titleText}">${displayText}</span>`;
+            customOrderBadge = ''; // true value replaces custom order badge
         }
     }
 
     return `<li class="${doneClass} ${isLocal ? 'is-local' : ''} ${pClass} ${pinnedClass}" draggable="true" ondragstart="${dragStartHandler}" oncontextmenu="showLinkContextMenu(event, ${jsLinkIdLiteral})" onmouseenter="showBookmarkCoverHover(event, ${jsLinkIdLiteral})" onmousemove="moveBookmarkCoverHover(event)" onmouseleave="hideBookmarkCoverHover()">
                 <input type="checkbox" class="bulk-check" data-bulk-id="${linkId.replace(/&/g, '&amp;').replace(/\"/g, '&quot;')}" onclick="event.preventDefault();event.stopPropagation();toggleSelect(this, ${jsLinkIdLiteral}, event);return false;" ${isChecked}>
                 ${iconHtml} ${wsBadge} ${subTabBadge} ${folderBadge} ${detachedBadge} ${identifierBadges} <a href="${l.url}" target="_blank" rel="noopener noreferrer" onclick='return (typeof openBookmarkFromDashboard==="function") ? openBookmarkFromDashboard(event, decodeURIComponent("${encodedLinkId}")) : true;'>${l.title}</a>
-                ${customOrderBadge}
+                ${trueValueBadge || customOrderBadge}
                 <div class="actions">
                     <span class="icon-btn ${isPinned ? 'pin-active' : ''}" onclick="togglePin(${jsLinkIdLiteral})">${PIN_ICON}</span>
                     ${doneActionHtml}
