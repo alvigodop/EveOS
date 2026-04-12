@@ -61,29 +61,46 @@ window.showFolderContextMenu = function (e, categoryName, folderId, workspaceId)
     const statsFoldersEl = document.getElementById('ctx-folder-stats-folders');
     const statsItemsEl = document.getElementById('ctx-folder-stats-items');
     
-    if (statsFoldersEl && statsItemsEl && window.EveBookmarkFolders) {
-        const folderLinks = window.getModalLinks ? window.getModalLinks().filter(l => l.workspace === window.ctxWsId && l.category === window.ctxCatName) : [];
-        const viewModel = window.EveBookmarkFolders.buildFolderView(window.ctxWsId, window.ctxCatName, folderLinks);
-        
-        let totalItems = 0;
-        let totalFolders = 0;
-        
-        function recurseCount(fId) {
-            const items = viewModel.folderLinks.get(fId) || [];
-            totalItems += items.length;
-            
-            const children = viewModel.childrenMap.get(fId) || [];
-            totalFolders += children.length;
-            
-            children.forEach(child => {
-                recurseCount(child.id);
-            });
-        }
-        
-        recurseCount(folderId);
-        
-        statsFoldersEl.textContent = `Overall Folders: ${totalFolders}`;
-        statsItemsEl.textContent = `Overall Items: ${totalItems}`;
+    if (statsFoldersEl && statsItemsEl) {
+        // Show placeholder immediately, compute stats after menu paints
+        statsFoldersEl.textContent = 'Overall Folders: …';
+        statsItemsEl.textContent = 'Overall Items: …';
+
+        // setTimeout(50) instead of rAF — ensures menu paints BEFORE stats compute
+        setTimeout(function () {
+            let totalItems = 0;
+            let totalFolders = 0;
+
+            // Fast path: use cached viewModel from the last dashboard render
+            var cachedVM = window.EveFolderViewV2 && window.EveFolderViewV2.getCachedViewModel
+                ? window.EveFolderViewV2.getCachedViewModel(window.ctxWsId, window.ctxCatName)
+                : null;
+
+            if (cachedVM && cachedVM.childrenMap && cachedVM.folderLinks) {
+                // Count from cached viewModel — no link scanning needed
+                (function recurseCount(fId) {
+                    var items = cachedVM.folderLinks.get(fId) || [];
+                    totalItems += items.length;
+                    var children = cachedVM.childrenMap.get(fId) || [];
+                    totalFolders += children.length;
+                    children.forEach(function (child) { recurseCount(child.id); });
+                })(folderId);
+            } else if (window.EveBookmarkFolders) {
+                // Slow fallback: build viewModel (with skipGhosts)
+                var folderLinks = window.getModalLinks ? window.getModalLinks().filter(function (l) { return l.workspace === window.ctxWsId && l.category === window.ctxCatName; }) : [];
+                var viewModel = window.EveBookmarkFolders.buildFolderView(window.ctxWsId, window.ctxCatName, folderLinks, { skipGhosts: true });
+                (function recurseCount(fId) {
+                    var items = viewModel.folderLinks.get(fId) || [];
+                    totalItems += items.length;
+                    var children = viewModel.childrenMap.get(fId) || [];
+                    totalFolders += children.length;
+                    children.forEach(function (child) { recurseCount(child.id); });
+                })(folderId);
+            }
+
+            statsFoldersEl.textContent = 'Overall Folders: ' + totalFolders;
+            statsItemsEl.textContent = 'Overall Items: ' + totalItems;
+        }, 50);
     }
 
     placeContextMenu(m, e);

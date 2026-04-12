@@ -21,7 +21,7 @@ function buildFolderSectionsHtml(categoryName, linksForCard, options, renderer) 
         }
 
         const workspaceId = String(options.activeWorkspace || window.eveState?.config?.activeWorkspace || 'main').trim() || 'main';
-        const viewModel = virtualFolderViewModel || folderApi.buildFolderView(workspaceId, categoryName, linksForCard);
+        const viewModel = virtualFolderViewModel || folderApi.buildFolderView(workspaceId, categoryName, linksForCard, { skipGhosts: !!options?.skipGhosts });
         if (window.EveFolderViewV2?.setCachedViewModel) {
             window.EveFolderViewV2.setCachedViewModel(workspaceId, categoryName, viewModel);
         }

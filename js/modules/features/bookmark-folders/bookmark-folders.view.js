@@ -82,7 +82,7 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
 
 
 
-    function buildFolderView(workspaceId, categoryName, cardLinks) {
+    function buildFolderView(workspaceId, categoryName, cardLinks, options) {
 
         let scopedNodes = getScopedNodes(workspaceId, categoryName);
 
@@ -108,35 +108,45 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
 
                 : null);
 
+        // For mega-cards, skip the expensive ghost sensor system entirely.
+        // Ghost folders (System Views, domains, genres, health, etc.) require 25+
+        // full-array iterations over all links and are not needed for initial paint.
+        var activeLinks;
+        var ghostFolders;
+        if (options && options.skipGhosts) {
+            activeLinks = Array.isArray(cardLinks) ? cardLinks : [];
+            ghostFolders = [];
+        } else {
+
+            const ghostScope = buildGhostAugmentedScope({
+
+                workspaceId,
+
+                categoryName,
+
+                cardLinks,
+
+                scopedNodes,
+
+                scopedCardKey,
+
+                activeRealFolderId,
+
+                realNodeMap,
+
+                realChildrenMap
+
+            });
 
 
-        const ghostScope = buildGhostAugmentedScope({
 
-            workspaceId,
+            scopedNodes = ghostScope.scopedNodes;
 
-            categoryName,
+            activeLinks = ghostScope.activeLinks;
 
-            cardLinks,
+            ghostFolders = ghostScope.ghostFolders;
 
-            scopedNodes,
-
-            scopedCardKey,
-
-            activeRealFolderId,
-
-            realNodeMap,
-
-            realChildrenMap
-
-        });
-
-
-
-        scopedNodes = ghostScope.scopedNodes;
-
-        const activeLinks = ghostScope.activeLinks;
-
-        const ghostFolders = ghostScope.ghostFolders;
+        }
 
 
 

@@ -113,16 +113,19 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
                 .filter((item) => item.dimension && item.valueKey)
             : [];
 
+        const isMegaSensor = activeLinks.length > 500;
         const derivedGhostNodeBudget = {
             count: 0,
-            max: activeLinks.length <= 16
-                ? 12000
-                : activeLinks.length <= 48
-                    ? 10000
-                    : Math.min(12000, Math.max(5000, activeLinks.length * 70))
+            max: isMegaSensor
+                ? 200  // Mega-card: drastically reduce — user sees top-level only
+                : activeLinks.length <= 16
+                    ? 12000
+                    : activeLinks.length <= 48
+                        ? 10000
+                        : Math.min(12000, Math.max(5000, activeLinks.length * 70))
         };
-        const derivedValueLimit = activeLinks.length > 120 ? 8 : 10;
-        const derivedDepthLimit = 4;
+        const derivedValueLimit = isMegaSensor ? 5 : (activeLinks.length > 120 ? 8 : 10);
+        const derivedDepthLimit = isMegaSensor ? 2 : 4;
 
         const sevenDaysAgo = new Date();
 
@@ -433,7 +436,8 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         let tvAboveTrueLinks = [];
         let tvNearTrueLinks = [];
         let tvBelowTrueLinks = [];
-        if (tvApi) {
+        // Skip computeTrueValues for mega-cards — it's O(n) with resolveLibraryEntry per link
+        if (tvApi && !isMegaSensor) {
             const tvData = tvApi.computeTrueValues(activeLinks, workspaceId, categoryName, { forceEnabled: true });
             if (tvData && Object.keys(tvData).length) {
                 activeLinks.forEach((link) => {

@@ -9,6 +9,39 @@ window.EveLibrary.ConnectionsCore = window.EveLibrary.ConnectionsCore || {};
         return;
     }
 
+    // Lazy Map<entryId, {entry, categoryName, workspaceId}> index
+    let _entryIndex = null;
+
+    function invalidateEntryIndex() {
+        _entryIndex = null;
+    }
+
+    function getEntryIndex() {
+        if (_entryIndex) return _entryIndex;
+        const state = window.EveLibrary.State;
+        if (!state) return new Map();
+        _entryIndex = new Map();
+        const libs = state.getAllLibraries();
+        const parseScoped = state.parseScopedCategoryKey;
+        for (const [libKey, lib] of Object.entries(libs)) {
+            const parsed = typeof parseScoped === 'function'
+                ? parseScoped(libKey)
+                : { categoryName: libKey, workspaceId: '', scoped: false };
+            const catName = parsed.categoryName;
+            const wsId = Core.normalizeWorkspaceId(parsed.workspaceId);
+            (lib?.entries || []).forEach(entry => {
+                if (entry && entry.id != null) {
+                    // First-seen wins (matches original priority: scoped > legacy)
+                    const key = String(entry.id);
+                    if (!_entryIndex.has(key)) {
+                        _entryIndex.set(key, { entry, categoryName: catName, workspaceId: wsId });
+                    }
+                }
+            });
+        }
+        return _entryIndex;
+    }
+
     function findEntryAcrossLibraries(entryId) {
         const state = window.EveLibrary.State;
         if (!state || !entryId) return null;
@@ -107,41 +140,18 @@ window.EveLibrary.ConnectionsCore = window.EveLibrary.ConnectionsCore || {};
         if (!conn) return null;
         const scopedWorkspace = Core.normalizeWorkspaceId(conn.workspace);
         const scopedCategory = Core.normalizeCategoryName(conn.categoryName);
-        let entry = findEntry(scopedCategory, conn.libraryEntryId, scopedWorkspace);
-        if (entry) return { entry, categoryName: scopedCategory, workspaceId: scopedWorkspace };
 
+        // Fast path: direct scoped lookup (most common case)
         const state = window.EveLibrary.State;
-        if (!state) return null;
-        const parseScoped = state.parseScopedCategoryKey;
-        const libs = state.getAllLibraries();
-        for (const [libraryKey, lib] of Object.entries(libs)) {
-            const parsed = typeof parseScoped === 'function'
-                ? parseScoped(libraryKey)
-                : { categoryName: libraryKey, workspaceId: '', scoped: false };
-            const keyCategory = parsed.categoryName;
-            const keyWorkspace = Core.normalizeWorkspaceId(parsed.workspaceId || scopedWorkspace);
-            if (keyCategory !== scopedCategory) continue;
-            if (keyWorkspace !== scopedWorkspace) continue;
-
-            const matched = (lib.entries || []).find(item => String(item.id) === String(conn.libraryEntryId));
-            if (matched) return { entry: matched, categoryName: keyCategory, workspaceId: keyWorkspace };
+        if (state) {
+            const lib = state.getCategoryLibrary(scopedCategory, scopedWorkspace);
+            const direct = (lib.entries || []).find(item => String(item.id) === String(conn.libraryEntryId));
+            if (direct) return { entry: direct, categoryName: scopedCategory, workspaceId: scopedWorkspace };
         }
 
-        // Final fallback for legacy data: find by entry id only.
-        for (const [libraryKey, lib] of Object.entries(libs)) {
-            const parsed = typeof parseScoped === 'function'
-                ? parseScoped(libraryKey)
-                : { categoryName: libraryKey, workspaceId: '', scoped: false };
-            if (parsed.workspaceId && Core.normalizeWorkspaceId(parsed.workspaceId) !== scopedWorkspace) continue;
-            const matched = (lib.entries || []).find(item => String(item.id) === String(conn.libraryEntryId));
-            if (matched) {
-                return {
-                    entry: matched,
-                    categoryName: parsed.categoryName,
-                    workspaceId: Core.normalizeWorkspaceId(parsed.workspaceId || scopedWorkspace)
-                };
-            }
-        }
+        // Indexed fallback: O(1) cross-library lookup
+        const indexed = getEntryIndex().get(String(conn.libraryEntryId));
+        if (indexed) return indexed;
 
         return null;
     }
@@ -159,6 +169,7 @@ window.EveLibrary.ConnectionsCore = window.EveLibrary.ConnectionsCore || {};
         repairScopedLibraryEntries,
         findEntry,
         findEntryByConnection,
-        getDefaultStatus
+        getDefaultStatus,
+        invalidateEntryIndex
     });
 })();

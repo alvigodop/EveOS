@@ -19,7 +19,7 @@ window.DashboardCategories = window.DashboardCategories || {};
         // For cards with many links, render a minimal shell immediately and
         // schedule the full build in setTimeout. This prevents the large card
         // from blocking interactions on OTHER cards in the same tab.
-        var HEAVY_CARD_THRESHOLD = 200;
+        var HEAVY_CARD_THRESHOLD = 80;
         if (catLinks.length > HEAVY_CARD_THRESHOLD) {
             var safeCatHtml = escapeCardHtml(cat || 'Unsorted');
             var safeCatJs = escapeCardJs(cat || 'Unsorted');
@@ -46,19 +46,19 @@ window.DashboardCategories = window.DashboardCategories || {};
             shellCard.innerHTML = ''
                 + '<div class="cat-progress-bg"><div class="cat-progress-fill" style="width:0%"></div></div>'
                 + '<div class="category-header" oncontextmenu="showCategoryContextMenu(event, \'' + safeCatJs + '\')">'
-                    + '<div class="cat-title-group">'
-                        + '<span class="collapse-arrow" data-cat="' + safeCatHtml + '" onclick="toggleCollapse(this.dataset.cat)" title="Toggle Card">&#9660;</span>'
-                        + '<div class="category-title-wrap" data-title="' + safeCatHtml + '">'
-                            + '<div class="category-title">' + safeCatHtml + '</div>'
-                        + '</div>'
-                    + '</div>'
+                + '<div class="cat-title-group">'
+                + '<span class="collapse-arrow" data-cat="' + safeCatHtml + '" onclick="toggleCollapse(this.dataset.cat)" title="Toggle Card">&#9660;</span>'
+                + '<div class="category-title-wrap" data-title="' + safeCatHtml + '">'
+                + '<div class="category-title">' + safeCatHtml + '</div>'
+                + '</div>'
+                + '</div>'
                 + '</div>'
                 + '<div id="' + libPanelId + '" class="lib-panel" style="display:none;"></div>'
                 + '<div class="eve-card-deferred-skeleton" style="padding:12px 16px; opacity:0.5;">'
-                    + '<div style="display:flex; align-items:center; gap:8px; color:rgba(180,200,220,0.5); font-size:0.82rem;">'
-                        + '<span class="eve-skeleton-spinner" style="display:inline-block; width:14px; height:14px; border:2px solid rgba(80,200,255,0.15); border-top-color:rgba(80,200,255,0.5); border-radius:50%; animation:spin 0.8s linear infinite;"></span>'
-                        + 'Loading ' + catLinks.length + ' bookmarks\u2026'
-                    + '</div>'
+                + '<div style="display:flex; align-items:center; gap:8px; color:rgba(180,200,220,0.5); font-size:0.82rem;">'
+                + '<span class="eve-skeleton-spinner" style="display:inline-block; width:14px; height:14px; border:2px solid rgba(80,200,255,0.15); border-top-color:rgba(80,200,255,0.5); border-radius:50%; animation:spin 0.8s linear infinite;"></span>'
+                + 'Loading ' + catLinks.length + ' bookmarks\u2026'
+                + '</div>'
                 + '</div>'
                 + '<div class="category-footer"><span class="stat-pending">\u2026</span><span class="stat-done">\u2026</span></div>';
 
@@ -70,28 +70,60 @@ window.DashboardCategories = window.DashboardCategories || {};
                 return;
             }
 
-            // Schedule full render in a background tick
-            setTimeout(function () {
-                if (!shellCard.parentNode) return; // card was removed (e.g. tab switched again)
-                if (shellCard.classList.contains('collapsed')) return; // collapsed while waiting
+            // Two-phase rendering for mega-cards:
+            //   Phase 1: Render card WITHOUT ghost folders (fast initial paint)
+            //   Phase 2: Hydrate ghost folders via chunked deferred callbacks
+            var cardGen = options._renderGen;
+            var MEGA_THRESHOLD = 500;
+            var isMega = catLinks.length > MEGA_THRESHOLD;
 
-                // Run the full renderCard logic into a temp container, then swap
+            function doDeferredBuild() {
+                if (cardGen != null && window._eveDashRenderGen !== cardGen) return;
+                if (!shellCard.parentNode) return;
+                if (shellCard.classList.contains('collapsed')) return;
+
+                // Phase 1: Build card (skip ghosts for mega-cards)
+                var phase1Options = isMega
+                    ? Object.assign({}, configOptions, { _skipGhosts: true })
+                    : configOptions;
                 var tempContainer = document.createDocumentFragment();
-                _renderCardFull(cat, catLinks, tempContainer, configOptions);
+                _renderCardFull(cat, catLinks, tempContainer, phase1Options);
                 var fullCard = tempContainer.firstChild;
                 if (fullCard) {
                     shellCard.replaceWith(fullCard);
-                    // Fade in
                     fullCard.style.opacity = '0';
                     fullCard.style.transition = 'opacity 0.2s ease';
                     requestAnimationFrame(function () { fullCard.style.opacity = '1'; });
-                    // Restore folder state
                     if (window.EveFolderViewV2 && window.EveFolderViewV2.restoreActiveFolderState) {
                         var ws = fullCard.getAttribute('data-card-workspace') || activeWorkspaceId;
                         window.EveFolderViewV2.restoreActiveFolderState(ws, cat);
                     }
+
+                    // Phase 2: Hydrate ghost folders (chunked, yielding between steps)
+                    if (isMega) {
+                        // Use setTimeout(0) so each step yields to pending user events
+                        setTimeout(function ghostHydrationStep() {
+                            if (cardGen != null && window._eveDashRenderGen !== cardGen) return;
+                            if (!fullCard.parentNode) return;
+
+                            var ghostContainer = document.createDocumentFragment();
+                            var phase2Options = Object.assign({}, configOptions, { _skipGhosts: false });
+                            _renderCardFull(cat, catLinks, ghostContainer, phase2Options);
+                            var ghostCard = ghostContainer.firstChild;
+                            if (ghostCard && fullCard.parentNode) {
+                                fullCard.replaceWith(ghostCard);
+                                if (window.EveFolderViewV2 && window.EveFolderViewV2.restoreActiveFolderState) {
+                                    var ws2 = ghostCard.getAttribute('data-card-workspace') || activeWorkspaceId;
+                                    window.EveFolderViewV2.restoreActiveFolderState(ws2, cat);
+                                }
+                            }
+                        }, 300); // Delay Phase 2 significantly to let UI settle first
+                    }
                 }
-            }, 0);
+            }
+
+            // Schedule Phase 1 via setTimeout(0) — yields to pending user events
+            setTimeout(doDeferredBuild, 0);
 
             return;
         }
@@ -122,10 +154,10 @@ window.DashboardCategories = window.DashboardCategories || {};
             ? catLinks.filter(function (link) {
                 return window.DashboardCategories.matchesFocusedEntriesFilter(link, focusedFilterMode);
             })
-            : catLinks.slice();
+            : (catLinks.length > 500 && !isFocusMode ? catLinks : catLinks.slice());
         var renderedLinks = (isFocusMode && typeof window.DashboardCategories.sortFocusedLinks === 'function')
             ? window.DashboardCategories.sortFocusedLinks(visibleLinks)
-            : visibleLinks.slice();
+            : (catLinks.length > 500 && !isFocusMode ? visibleLinks : visibleLinks.slice());
 
         var card = document.createElement('div');
         card.className = 'category-card';
@@ -153,11 +185,31 @@ window.DashboardCategories = window.DashboardCategories || {};
         }
 
         var totalAll = catLinks.length;
-        var totalAllTasks = catLinks.filter(function (link) { return isTaskEnabledForLink(link); }).length;
-        var doneAll = catLinks.filter(function (link) { return isTaskEnabledForLink(link) && !!link.done; }).length;
         var totalVisible = renderedLinks.length;
-        var totalVisibleTasks = renderedLinks.filter(function (link) { return isTaskEnabledForLink(link); }).length;
-        var doneVisible = renderedLinks.filter(function (link) { return isTaskEnabledForLink(link) && !!link.done; }).length;
+
+        // For mega-cards (500+), skip expensive full-array iterations.
+        // RENDER_CAP limits output to 20 links — full stats are invisible anyway.
+        var isMegaCard = catLinks.length > 500;
+
+        var totalAllTasks = 0, doneAll = 0;
+        var totalVisibleTasks = 0, doneVisible = 0;
+
+        if (!isMegaCard) {
+            // Single-pass task stats (replaces 5 separate .filter() calls)
+            for (var _ti = 0; _ti < catLinks.length; _ti++) {
+                if (isTaskEnabledForLink(catLinks[_ti])) {
+                    totalAllTasks++;
+                    if (catLinks[_ti].done) doneAll++;
+                }
+            }
+            for (var _tv = 0; _tv < renderedLinks.length; _tv++) {
+                if (isTaskEnabledForLink(renderedLinks[_tv])) {
+                    totalVisibleTasks++;
+                    if (renderedLinks[_tv].done) doneVisible++;
+                }
+            }
+        }
+
         var hasTaskBookmarks = totalAllTasks > 0;
         if (hasTaskBookmarks) {
             card.classList.add('task-mode');
@@ -165,33 +217,35 @@ window.DashboardCategories = window.DashboardCategories || {};
         var isTaskMode = hasTaskBookmarks;
         var customOrderApi = window.EveCustomOrder;
         var activeWorkspaceId = String(options.activeWorkspace || config.activeWorkspace || 'main');
-        var customOrderEnabled = customOrderApi ? customOrderApi.isEnabled(activeWorkspaceId, cat) : false;
+        var customOrderEnabled = !isMegaCard && customOrderApi ? customOrderApi.isEnabled(activeWorkspaceId, cat) : false;
         if (customOrderEnabled) {
             card.classList.add('custom-order');
             // Ensure all links have order numbers
             customOrderApi.ensureAllLinksHaveNumbers(activeWorkspaceId, cat, renderedLinks);
         }
 
-        // Stamp stable base positions BEFORE any sorting
-        // These never change regardless of sort mode
-        renderedLinks.forEach(function (link, index) {
-            var linkId = String(link.id);
-            if (customOrderEnabled && customOrderApi) {
-                var coNum = customOrderApi.getNumber(activeWorkspaceId, cat, linkId);
-                link._basePos = (typeof coNum === 'number') ? coNum : (index + 1);
-            } else {
-                link._basePos = index + 1;
-            }
-        });
+        if (!isMegaCard) {
+            // Stamp stable base positions BEFORE any sorting
+            // These never change regardless of sort mode
+            renderedLinks.forEach(function (link, index) {
+                var linkId = String(link.id);
+                if (customOrderEnabled && customOrderApi) {
+                    var coNum = customOrderApi.getNumber(activeWorkspaceId, cat, linkId);
+                    link._basePos = (typeof coNum === 'number') ? coNum : (index + 1);
+                } else {
+                    link._basePos = index + 1;
+                }
+            });
 
-        // Apply sorting (works with or without custom numbering)
-        if (customOrderApi) {
-            renderedLinks = customOrderApi.applySorting(renderedLinks, activeWorkspaceId, cat);
+            // Apply sorting (works with or without custom numbering)
+            if (customOrderApi) {
+                renderedLinks = customOrderApi.applySorting(renderedLinks, activeWorkspaceId, cat);
+            }
         }
 
-        // True Value Approximation
+        // True Value Approximation — skip for mega-cards (too expensive for initial paint)
         var trueValueApi = window.EveTrueValue;
-        var trueValueEnabled = trueValueApi ? trueValueApi.isEnabled(activeWorkspaceId, cat) : false;
+        var trueValueEnabled = !isMegaCard && trueValueApi ? trueValueApi.isEnabled(activeWorkspaceId, cat) : false;
         var trueValueData = null;
         var currentSortMode = customOrderApi ? customOrderApi.getSortMode(activeWorkspaceId, cat) : 'none';
         if (trueValueEnabled) {
@@ -300,9 +354,12 @@ window.DashboardCategories = window.DashboardCategories || {};
                 + '</button></li>';
         }
 
-        var scopedWorkspaceIds = Array.from(new Set(renderedLinks.map(function (link) {
-            return String(link?.workspace || options.activeWorkspace || '').trim();
-        }).filter(Boolean)));
+        // For mega-cards, skip iterating all 3551 links just to extract workspace IDs
+        var scopedWorkspaceIds = isMegaCard
+            ? [String(options.activeWorkspace || 'main').trim()]
+            : Array.from(new Set(renderedLinks.map(function (link) {
+                return String(link?.workspace || options.activeWorkspace || '').trim();
+            }).filter(Boolean)));
 
         // Allow folder rendering for cards whose links come from the active workspace or its sub-tabs
         var activeWsId = String(options.activeWorkspace || '').trim();
@@ -322,7 +379,9 @@ window.DashboardCategories = window.DashboardCategories || {};
 
         var listHtml;
         if (canRenderCardFolders && scopedWorkspaceIds.length <= 1) {
-            listHtml = buildFolderSectionsHtml(cat, renderedLinks, options, renderLinkCollection);
+            var shouldSkipGhosts = (options._skipGhosts !== undefined) ? !!options._skipGhosts : isMegaCard;
+            var folderOptions = shouldSkipGhosts ? Object.assign({}, options, { skipGhosts: true }) : options;
+            listHtml = buildFolderSectionsHtml(cat, renderedLinks, folderOptions, renderLinkCollection);
         } else if (canRenderCardFolders && scopedWorkspaceIds.length > 1) {
             var combinedHtml = [];
             scopedWorkspaceIds.forEach(function (wsId) {
@@ -350,11 +409,11 @@ window.DashboardCategories = window.DashboardCategories || {};
         var titleControlsHtml = isFocusMode
             ? ''
             : ''
-                + '<span class="collapse-arrow" data-cat="' + safeCatHtml + '" onclick="toggleLinksCollapse(this.dataset.cat)" title="Toggle Bookmarks">&#128216;</span>'
-                + '<span class="collapse-arrow" data-cat="' + safeCatHtml + '" onclick="toggleFolderCollapse(this.dataset.cat)" title="Toggle Folders">&#128193;</span>'
-                + '<span class="collapse-arrow" data-cat="' + safeCatHtml + '" onclick="toggleCollapse(this.dataset.cat)" title="Toggle Card">&#9660;</span>'
-                + '<span class="sort-btn" onclick="moveCategory(\'' + safeCatJs + '\', -1)">&#9650;</span>'
-                + '<span class="sort-btn" onclick="moveCategory(\'' + safeCatJs + '\', 1)">&#9660;</span>';
+            + '<span class="collapse-arrow" data-cat="' + safeCatHtml + '" onclick="toggleLinksCollapse(this.dataset.cat)" title="Toggle Bookmarks">&#128216;</span>'
+            + '<span class="collapse-arrow" data-cat="' + safeCatHtml + '" onclick="toggleFolderCollapse(this.dataset.cat)" title="Toggle Folders">&#128193;</span>'
+            + '<span class="collapse-arrow" data-cat="' + safeCatHtml + '" onclick="toggleCollapse(this.dataset.cat)" title="Toggle Card">&#9660;</span>'
+            + '<span class="sort-btn" onclick="moveCategory(\'' + safeCatJs + '\', -1)">&#9650;</span>'
+            + '<span class="sort-btn" onclick="moveCategory(\'' + safeCatJs + '\', 1)">&#9660;</span>';
 
         var activeWorkspaceId = String(options.activeWorkspace || window.eveState?.config?.activeWorkspace || 'main').trim() || 'main';
         var cardTargetId = window.EveQuickPins?.buildCardTargetId
@@ -395,53 +454,53 @@ window.DashboardCategories = window.DashboardCategories || {};
 
         var headerButtonsHtml = isFocusMode
             ? ''
-                + '<div class="focus-card-controls">'
-                    + '<button class="category-action-btn bulk-scope-btn" data-scope-category="' + safeCatHtml + '" data-scope-workspace="' + escapeCardJs(activeWorkspaceId) + '" onclick="bulkToggleCardScopeSelection(\'' + safeCatJs + '\', \'' + escapeCardJs(activeWorkspaceId) + '\')" title="Select all bookmarks in this card">&#9744; <span>Select Card</span></button>'
-                    + (!isDetachedParkingCard && visibleHeaderButtons.has('add')
-                        ? '<button class="category-action-btn" onclick="openAddModal(\'' + safeCatJs + '\')" title="Add Bookmark">&#10133; <span>Add</span></button>'
-                        : '')
-                    + (!isDetachedParkingCard && visibleHeaderButtons.has('folders')
-                        ? '<button class="' + folderHeaderBtnClass + '" data-folder-toolbar-toggle="1" onclick="toggleBookmarkFolderToolbar(\'' + safeCatJs + '\', \'' + escapeCardJs(options.activeWorkspace || 'main') + '\')" title="Folders">&#128193; <span>Folders</span></button>'
-                        : '')
-                    + (!isDetachedParkingCard && visibleHeaderButtons.has('library')
-                        ? '<button class="category-action-btn" onclick="toggleCategoryLibrary(\'' + safeCatJs + '\')" title="Library">&#128218; <span>Library</span></button>'
-                        : '')
-                    + (!isDetachedParkingCard && visibleHeaderButtons.has('constellation')
-                        ? '<button class=\"category-action-btn\" onclick=\"if(window.EveConstellationMap) window.EveConstellationMap.openCardMap(\'' + escapeCardJs(activeWorkspaceId) + '\', \'' + safeCatJs + '\')\" title=\"Constellation Map\">&#127756; <span>Map</span></button>'
-                        : '')
-                    + detachedFocusMapButtonHtml
-                    + '<select class="unidex-filter-select focus-filter-select" aria-label="Focused bookmark filter" onchange="window.DashboardCategories.setFocusedEntriesFilterMode(this.value)">'
-                        + '<option value="all"' + (focusedFilterMode === 'all' ? ' selected' : '') + '>All Bookmarks</option>'
-                        + '<option value="linked"' + (focusedFilterMode === 'linked' ? ' selected' : '') + '>Library Linked</option>'
-                        + '<option value="bookmark-only"' + (focusedFilterMode === 'bookmark-only' ? ' selected' : '') + '>Bookmarks Only</option>'
-                    + '</select>'
-                    + '<select class="unidex-filter-select focus-sort-select" aria-label="Focused linked rating sort" onchange="window.DashboardCategories.setFocusedEntriesSortBy(this.value)">'
-                        + '<option value="none"' + (focusedSortBy === 'none' ? ' selected' : '') + '>Sort Off</option>'
-                        + '<option value="active"' + (focusedSortBy === 'active' ? ' selected' : '') + '>Active</option>'
-                        + '<option value="unified"' + (focusedSortBy === 'unified' ? ' selected' : '') + '>Unified</option>'
-                        + '<option value="personal"' + (focusedSortBy === 'personal' ? ' selected' : '') + '>Personal</option>'
-                        + '<option value="api_weighted"' + (focusedSortBy === 'api_weighted' ? ' selected' : '') + '>API Weighted</option>'
-                        + '<option value="api_average"' + (focusedSortBy === 'api_average' ? ' selected' : '') + '>API Average</option>'
-                        + '<option value="confidence"' + (focusedSortBy === 'confidence' ? ' selected' : '') + '>Confidence</option>'
-                        + '<option value="truevalue"' + (focusedSortBy === 'truevalue' ? ' selected' : '') + '>True Value</option>'
-                    + '</select>'
-                    + '<select class="unidex-filter-select focus-sort-order-select" aria-label="Focused linked rating sort order" onchange="window.DashboardCategories.setFocusedEntriesSortOrder(this.value)">'
-                        + '<option value="desc"' + (focusedSortOrder === 'desc' ? ' selected' : '') + '>Desc</option>'
-                        + '<option value="asc"' + (focusedSortOrder === 'asc' ? ' selected' : '') + '>Asc</option>'
-                    + '</select>'
-                    + '<button class="category-action-btn" onclick="clearFocus()" title="Exit Focus">&#127919; <span>Exit Focus</span></button>'
-                    + (!isDetachedParkingCard
-                        ? '<button class="category-action-btn" onclick="openCategorySettings(\'' + safeCatJs + '\')" title="Settings">&#9881; <span>Settings</span></button>'
-                        : '')
-                    + (!isDetachedParkingCard && visibleHeaderButtons.has('launch')
-                        ? '<button class="category-action-btn" data-cat="' + safeCatHtml + '" onclick="launchCategory(this.dataset.cat)" title="Launch">&#128640; <span>Launch</span></button>'
-                        : '')
-                + '</div>'
+            + '<div class="focus-card-controls">'
+            + '<button class="category-action-btn bulk-scope-btn" data-scope-category="' + safeCatHtml + '" data-scope-workspace="' + escapeCardJs(activeWorkspaceId) + '" onclick="bulkToggleCardScopeSelection(\'' + safeCatJs + '\', \'' + escapeCardJs(activeWorkspaceId) + '\')" title="Select all bookmarks in this card">&#9744; <span>Select Card</span></button>'
+            + (!isDetachedParkingCard && visibleHeaderButtons.has('add')
+                ? '<button class="category-action-btn" onclick="openAddModal(\'' + safeCatJs + '\')" title="Add Bookmark">&#10133; <span>Add</span></button>'
+                : '')
+            + (!isDetachedParkingCard && visibleHeaderButtons.has('folders')
+                ? '<button class="' + folderHeaderBtnClass + '" data-folder-toolbar-toggle="1" onclick="toggleBookmarkFolderToolbar(\'' + safeCatJs + '\', \'' + escapeCardJs(options.activeWorkspace || 'main') + '\')" title="Folders">&#128193; <span>Folders</span></button>'
+                : '')
+            + (!isDetachedParkingCard && visibleHeaderButtons.has('library')
+                ? '<button class="category-action-btn" onclick="toggleCategoryLibrary(\'' + safeCatJs + '\')" title="Library">&#128218; <span>Library</span></button>'
+                : '')
+            + (!isDetachedParkingCard && visibleHeaderButtons.has('constellation')
+                ? '<button class=\"category-action-btn\" onclick=\"if(window.EveConstellationMap) window.EveConstellationMap.openCardMap(\'' + escapeCardJs(activeWorkspaceId) + '\', \'' + safeCatJs + '\')\" title=\"Constellation Map\">&#127756; <span>Map</span></button>'
+                : '')
+            + detachedFocusMapButtonHtml
+            + '<select class="unidex-filter-select focus-filter-select" aria-label="Focused bookmark filter" onchange="window.DashboardCategories.setFocusedEntriesFilterMode(this.value)">'
+            + '<option value="all"' + (focusedFilterMode === 'all' ? ' selected' : '') + '>All Bookmarks</option>'
+            + '<option value="linked"' + (focusedFilterMode === 'linked' ? ' selected' : '') + '>Library Linked</option>'
+            + '<option value="bookmark-only"' + (focusedFilterMode === 'bookmark-only' ? ' selected' : '') + '>Bookmarks Only</option>'
+            + '</select>'
+            + '<select class="unidex-filter-select focus-sort-select" aria-label="Focused linked rating sort" onchange="window.DashboardCategories.setFocusedEntriesSortBy(this.value)">'
+            + '<option value="none"' + (focusedSortBy === 'none' ? ' selected' : '') + '>Sort Off</option>'
+            + '<option value="active"' + (focusedSortBy === 'active' ? ' selected' : '') + '>Active</option>'
+            + '<option value="unified"' + (focusedSortBy === 'unified' ? ' selected' : '') + '>Unified</option>'
+            + '<option value="personal"' + (focusedSortBy === 'personal' ? ' selected' : '') + '>Personal</option>'
+            + '<option value="api_weighted"' + (focusedSortBy === 'api_weighted' ? ' selected' : '') + '>API Weighted</option>'
+            + '<option value="api_average"' + (focusedSortBy === 'api_average' ? ' selected' : '') + '>API Average</option>'
+            + '<option value="confidence"' + (focusedSortBy === 'confidence' ? ' selected' : '') + '>Confidence</option>'
+            + '<option value="truevalue"' + (focusedSortBy === 'truevalue' ? ' selected' : '') + '>True Value</option>'
+            + '</select>'
+            + '<select class="unidex-filter-select focus-sort-order-select" aria-label="Focused linked rating sort order" onchange="window.DashboardCategories.setFocusedEntriesSortOrder(this.value)">'
+            + '<option value="desc"' + (focusedSortOrder === 'desc' ? ' selected' : '') + '>Desc</option>'
+            + '<option value="asc"' + (focusedSortOrder === 'asc' ? ' selected' : '') + '>Asc</option>'
+            + '</select>'
+            + '<button class="category-action-btn" onclick="clearFocus()" title="Exit Focus">&#127919; <span>Exit Focus</span></button>'
+            + (!isDetachedParkingCard
+                ? '<button class="category-action-btn" onclick="openCategorySettings(\'' + safeCatJs + '\')" title="Settings">&#9881; <span>Settings</span></button>'
+                : '')
+            + (!isDetachedParkingCard && visibleHeaderButtons.has('launch')
+                ? '<button class="category-action-btn" data-cat="' + safeCatHtml + '" onclick="launchCategory(this.dataset.cat)" title="Launch">&#128640; <span>Launch</span></button>'
+                : '')
+            + '</div>'
             : ''
-                + '<div class="card-header-icon-row" onwheel="handleCardHeaderIconRowWheel(event)">'
-                    + '<button class="card-header-icon-btn bulk-scope-btn" data-scope-category="' + safeCatHtml + '" data-scope-workspace="' + escapeCardJs(activeWorkspaceId) + '" onclick="bulkToggleCardScopeSelection(\'' + safeCatJs + '\', \'' + escapeCardJs(activeWorkspaceId) + '\')" title="Select Card">&#9744;</button>'
-                    + nonFocusButtons.join('')
-                + '</div>';
+            + '<div class="card-header-icon-row" onwheel="handleCardHeaderIconRowWheel(event)">'
+            + '<button class="card-header-icon-btn bulk-scope-btn" data-scope-category="' + safeCatHtml + '" data-scope-workspace="' + escapeCardJs(activeWorkspaceId) + '" onclick="bulkToggleCardScopeSelection(\'' + safeCatJs + '\', \'' + escapeCardJs(activeWorkspaceId) + '\')" title="Select Card">&#9744;</button>'
+            + nonFocusButtons.join('')
+            + '</div>';
 
         // Detect sub-tab sources in this card
         var subTabSourcesHtml = '';
@@ -467,19 +526,19 @@ window.DashboardCategories = window.DashboardCategories || {};
         card.innerHTML = ''
             + '<div class="cat-progress-bg"><div class="cat-progress-fill ' + barClass + '" style="width:' + pct + '%"></div></div>'
             + '<div class="category-header" oncontextmenu="showCategoryContextMenu(event, \'' + safeCatJs + '\')">'
-                + '<div class="cat-title-group">'
-                    + titleControlsHtml
-                    + '<div class="category-title-wrap"'
-                        + ' data-title="' + safeCatHtml + '"'
-                        + ' onmouseenter="showCardTitleHover(event, this.dataset.title)"'
-                        + ' onmousemove="moveCardTitleHover(event)"'
-                        + ' onmouseleave="hideCardTitleHover()">'
-                        + '<div class="category-title">' + safeCatHtml + '</div>'
-                    + '</div>'
-                    + subTabSourcesHtml
-                    + titleMetaHtml
-                + '</div>'
-                + headerButtonsHtml
+            + '<div class="cat-title-group">'
+            + titleControlsHtml
+            + '<div class="category-title-wrap"'
+            + ' data-title="' + safeCatHtml + '"'
+            + ' onmouseenter="showCardTitleHover(event, this.dataset.title)"'
+            + ' onmousemove="moveCardTitleHover(event)"'
+            + ' onmouseleave="hideCardTitleHover()">'
+            + '<div class="category-title">' + safeCatHtml + '</div>'
+            + '</div>'
+            + subTabSourcesHtml
+            + titleMetaHtml
+            + '</div>'
+            + headerButtonsHtml
             + '</div>'
             + '<div id="' + libPanelId + '" class="lib-panel" style="display:none;"></div>'
             + listHtml

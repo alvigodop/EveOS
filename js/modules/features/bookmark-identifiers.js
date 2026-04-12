@@ -119,8 +119,20 @@ window.EveBookmarkIdentifiers = window.EveBookmarkIdentifiers || {};
         return ensureConfigDefaults().map((definition) => ({ ...definition }));
     }
 
+    // Cached definition map — avoids rebuilding a new Map per getBadgeHtmlForLink call
+    let _cachedDefMap = null;
+    let _cachedDefMapSignature = '';
+
     function getDefinitionMap() {
-        return new Map(getDefinitions().map((definition) => [definition.id, definition]));
+        const defs = getDefinitions();
+        // Build a cheap signature from count + first/last IDs
+        const sig = defs.length + ':' + (defs[0]?.id || '') + ':' + (defs[defs.length - 1]?.id || '');
+        if (_cachedDefMap && _cachedDefMapSignature === sig) {
+            return _cachedDefMap;
+        }
+        _cachedDefMap = new Map(defs.map((definition) => [definition.id, definition]));
+        _cachedDefMapSignature = sig;
+        return _cachedDefMap;
     }
 
     function normalizeIdentifierIds(value) {

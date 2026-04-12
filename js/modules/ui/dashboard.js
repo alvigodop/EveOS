@@ -189,6 +189,10 @@ function restoreDashboardCardScrollState(snapshot) {
     });
 }
 
+// Monotonically increasing render generation — all deferred work checks this
+var _eveDashRenderGen = 0;
+window._eveDashRenderGen = 0;
+
 function renderDashboard() {
     // Coalesce rapid-fire render calls into a single frame
     if (window._eveDashRenderPending) return;
@@ -251,6 +255,10 @@ function _renderDashboardCore() {
     const mainContent = document.getElementById('main-content');
 
     if (!grid) return;
+
+    // Bump generation — all in-flight deferred work from previous renders is now stale
+    _eveDashRenderGen++;
+    window._eveDashRenderGen = _eveDashRenderGen;
 
     cleanupDashboardMasonryObserver();
     const searchStr = searchInput ? searchInput.value.toLowerCase() : '';
@@ -315,9 +323,13 @@ function _renderDashboardCore() {
     }
 
     if (typeof window.renderCategories === 'function') {
-        window.renderCategories(visibleLinks, grid, focusCategory, searchStr);
+        window.renderCategories(visibleLinks, grid, focusCategory, searchStr, _eveDashRenderGen);
         // Defer masonry layout to after initial cards have painted
-        setTimeout(function () { applyDashboardLayoutMaintenance(grid); }, 100);
+        var _masonryGen = _eveDashRenderGen;
+        setTimeout(function () {
+            if (_eveDashRenderGen !== _masonryGen) return;
+            applyDashboardLayoutMaintenance(grid);
+        }, 100);
     } else {
         console.error('renderCategories not found');
     }

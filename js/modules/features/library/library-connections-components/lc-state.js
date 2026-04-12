@@ -7,6 +7,25 @@ window.EveLibrary.ConnectionsCore = window.EveLibrary.ConnectionsCore || {
 (function () {
     const Core = window.EveLibrary.ConnectionsCore;
 
+    // Lazy Map<linkId, connection> index — O(1) lookups instead of O(n) scans
+    let _connectionsByLinkId = null;
+
+    function invalidateConnectionIndex() {
+        _connectionsByLinkId = null;
+    }
+
+    function getConnectionIndex() {
+        if (_connectionsByLinkId) return _connectionsByLinkId;
+        _connectionsByLinkId = new Map();
+        for (let i = 0; i < Core.connections.length; i++) {
+            const conn = Core.connections[i];
+            if (conn && conn.linkId != null) {
+                _connectionsByLinkId.set(String(conn.linkId), conn);
+            }
+        }
+        return _connectionsByLinkId;
+    }
+
     function getLinks() {
         if (window.eveState?.links) return window.eveState.links;
         if (typeof links !== 'undefined') return links;
@@ -24,6 +43,7 @@ window.EveLibrary.ConnectionsCore = window.EveLibrary.ConnectionsCore || {
     }
 
     function saveConnections() {
+        invalidateConnectionIndex();
         window.EveLibrary.Connections = Core.connections.map(item => ({ ...item }));
         localStorage.setItem(Core.STORAGE_KEY, JSON.stringify(window.EveLibrary.Connections));
         window.dispatchEvent(new CustomEvent('eve:state-mutated', { detail: { source: 'library-connections-save' } }));
@@ -42,6 +62,7 @@ window.EveLibrary.ConnectionsCore = window.EveLibrary.ConnectionsCore || {
     }
 
     function loadConnections() {
+        invalidateConnectionIndex();
         const stored = localStorage.getItem(Core.STORAGE_KEY);
         if (!stored) {
             Core.connections = [];
@@ -59,6 +80,7 @@ window.EveLibrary.ConnectionsCore = window.EveLibrary.ConnectionsCore || {
     }
 
     function setAll(nextConnections) {
+        invalidateConnectionIndex();
         Core.connections = Array.isArray(nextConnections) ? nextConnections.map(item => ({ ...item })) : [];
         Core.repairScopedLibraryEntries?.();
         saveConnections();
@@ -81,7 +103,7 @@ window.EveLibrary.ConnectionsCore = window.EveLibrary.ConnectionsCore || {
     }
 
     function findConnectionByLinkId(linkId) {
-        return Core.connections.find(item => String(item.linkId) === String(linkId)) || null;
+        return getConnectionIndex().get(String(linkId)) || null;
     }
 
     function findLinkById(linkId) {
@@ -111,6 +133,7 @@ window.EveLibrary.ConnectionsCore = window.EveLibrary.ConnectionsCore || {
         findConnectionByLinkId,
         findLinkById,
         normalizeWorkspaceId,
-        normalizeCategoryName
+        normalizeCategoryName,
+        invalidateConnectionIndex
     });
 })();

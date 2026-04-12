@@ -167,10 +167,10 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
 
     let iconHtml = (l.icon && l.icon !== LINK_ICON)
         ? (/^https?:\/\//i.test(String(l.icon)) || String(l.icon).startsWith('/')
-            ? (perfMode ? `<span style="font-size:1.2rem; margin-right:8px;">${GLOBE_ICON}</span>` : `<img src="${l.icon}" width="16" height="16" style="margin-right:8px;" onerror="this.onerror=null;this.replaceWith('${GLOBE_ICON}');">`)
+            ? (perfMode ? `<span style="font-size:1.2rem; margin-right:8px;">${GLOBE_ICON}</span>` : `<img src="${l.icon}" width="16" height="16" style="margin-right:8px;" loading="lazy" onerror="this.onerror=null;this.replaceWith('${GLOBE_ICON}');">`)
             : `<span style="font-size:1.2rem; margin-right:8px;">${l.icon}</span>`)
         : (useFavicon
-            ? `<img src="https://www.google.com/s2/favicons?domain=${domain}&sz=32" width="16" height="16" style="margin-right:8px;" onerror="this.onerror=null;this.replaceWith('${GLOBE_ICON}');">`
+            ? `<img src="https://www.google.com/s2/favicons?domain=${domain}&sz=32" width="16" height="16" style="margin-right:8px;" loading="lazy" onerror="this.onerror=null;this.replaceWith('${GLOBE_ICON}');">`
             : `<span style="font-size:1.2rem; margin-right:8px;">${GLOBE_ICON}</span>`);
 
     const pClass = l.priority ? `p-${l.priority}` : '';

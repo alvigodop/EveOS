@@ -43,6 +43,10 @@ window.EveLibrary = window.EveLibrary || {};
                 console.error('Failed to load library data:', e);
             }
         }
+        // Invalidate entry index after library data changes
+        if (window.EveLibrary.ConnectionsCore?.invalidateEntryIndex) {
+            window.EveLibrary.ConnectionsCore.invalidateEntryIndex();
+        }
         loadBackups();
     }
 
@@ -50,6 +54,10 @@ window.EveLibrary = window.EveLibrary || {};
         const data = migrateLibraryDataStructure(State.getAllLibraries());
         State.setAllLibraries(data);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        // Invalidate entry index after library data changes
+        if (window.EveLibrary.ConnectionsCore?.invalidateEntryIndex) {
+            window.EveLibrary.ConnectionsCore.invalidateEntryIndex();
+        }
         window.dispatchEvent(new CustomEvent('eve:state-mutated', { detail: { source: 'library-save' } }));
         createBackup();
     }

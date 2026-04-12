@@ -48,7 +48,7 @@ function collectDashboardCategories(visibleLinks, workspaceId, categoryOrder, de
     return ordered;
 }
 
-window.renderCategories = function (visibleLinks, gridContainer, focusCategory, searchStr) {
+window.renderCategories = function (visibleLinks, gridContainer, focusCategory, searchStr, renderGen) {
     if (!gridContainer) return;
     const activeWorkspace = getDashboardActiveWorkspace();
     const workspaceCategoryOrder = window.EveCategoryOrder?.getOrder
@@ -92,7 +92,8 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
                 ...config,
                 searchStr: searchStr,
                 focusMode: !!focusCategory,
-                activeWorkspace: activeWorkspace
+                activeWorkspace: activeWorkspace,
+                _renderGen: renderGen
             };
             if (isDetachedParkingCard) {
                 buildConfig.virtualFolderViewModel = detachedModel.viewModel;
@@ -112,7 +113,10 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
     if (deferredCards.length > 0) {
         var batchIdx = 0;
         var BATCH_SIZE = visibleLinks.length > 500 ? 2 : 4;
+        var capturedGen = renderGen;
         function renderNextBatch() {
+            // Bail if a newer render has started
+            if (window._eveDashRenderGen !== capturedGen) return;
             var end = Math.min(batchIdx + BATCH_SIZE, deferredCards.length);
             for (var j = batchIdx; j < end; j++) {
                 var d = deferredCards[j];
