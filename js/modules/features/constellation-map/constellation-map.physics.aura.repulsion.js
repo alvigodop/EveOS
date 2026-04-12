@@ -408,8 +408,12 @@ function applyWorkspaceAuraRepulsion(node, workspace, workspaceData) {
         const fdist = Math.max(1, Math.sqrt(fdx * fdx + fdy * fdy));
         const isRoot = (pNode.kind === 'category' || pNode.kind === 'workspace');
         const shape = getFolderAuraShape(node, fdist, isRoot);
-        // Peer territory = 60% of lateral radius
-        return Math.max(40, shape.radiusLat * 0.6);
+        if (isRoot) {
+            // Root folders: 60% of lateral radius
+            return Math.max(40, shape.radiusLat * 0.6);
+        }
+        // Sub-folders: tighter territory — 35% of lateral radius
+        return Math.max(24, shape.radiusLat * 0.35);
     }
 
     function applyPeerAuraRepulsion(nodeA, nodeB) {
