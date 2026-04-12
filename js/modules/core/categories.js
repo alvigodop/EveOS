@@ -51,17 +51,52 @@ function toggleLinksCollapse(cat) {
 
 function toggleSubfoldersCollapse(folderId) {
     if (!config.subfoldersCollapsed) config.subfoldersCollapsed = [];
-    if (config.subfoldersCollapsed.includes(folderId)) config.subfoldersCollapsed = config.subfoldersCollapsed.filter(id => id !== folderId);
+    const wasCollapsed = config.subfoldersCollapsed.includes(folderId);
+    if (wasCollapsed) config.subfoldersCollapsed = config.subfoldersCollapsed.filter(id => id !== folderId);
     else config.subfoldersCollapsed.push(folderId);
     saveConfig();
+
+    // Perf mode: patch DOM directly, skip full re-render
+    if (window._evePerfMode) {
+        document.querySelectorAll('.bookmark-folder-group, .bookmark-folder-root-group, .manhwa-frame').forEach(function (el) {
+            if (!wasCollapsed) el.classList.add('subfolders-collapsed');
+            // Check if this element is relevant by seeing if folderId matches
+        });
+        // Re-enter current folder for folder-view cards
+        const activeFolder = window.EveFolderViewV2?._activeFolderStates;
+        if (activeFolder) {
+            for (const [key, state] of Object.entries(activeFolder)) {
+                if (state?.folderId === folderId || state?.folderId) {
+                    const [ws, cat] = key.split('::');
+                    if (ws && cat) window.EveFolderViewV2.enterFolder(null, cat, state.folderId, ws);
+                }
+            }
+        }
+        return;
+    }
     if (typeof renderDashboard === 'function') renderDashboard();
 }
 
 function toggleSublinksCollapse(folderId) {
     if (!config.sublinksCollapsed) config.sublinksCollapsed = [];
-    if (config.sublinksCollapsed.includes(folderId)) config.sublinksCollapsed = config.sublinksCollapsed.filter(id => id !== folderId);
+    const wasCollapsed = config.sublinksCollapsed.includes(folderId);
+    if (wasCollapsed) config.sublinksCollapsed = config.sublinksCollapsed.filter(id => id !== folderId);
     else config.sublinksCollapsed.push(folderId);
     saveConfig();
+
+    // Perf mode: re-enter current folder to re-render with collapse state
+    if (window._evePerfMode) {
+        const activeFolder = window.EveFolderViewV2?._activeFolderStates;
+        if (activeFolder) {
+            for (const [key, state] of Object.entries(activeFolder)) {
+                if (state?.folderId === folderId || state?.folderId) {
+                    const [ws, cat] = key.split('::');
+                    if (ws && cat) window.EveFolderViewV2.enterFolder(null, cat, state.folderId, ws);
+                }
+            }
+        }
+        return;
+    }
     if (typeof renderDashboard === 'function') renderDashboard();
 }
 

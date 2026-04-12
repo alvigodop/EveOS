@@ -603,7 +603,17 @@ function saveData(options = {}) {
     }, 100);
 }
 
+var _saveConfigTimer = 0;
+
 function saveConfig() {
+    if (_saveConfigTimer) clearTimeout(_saveConfigTimer);
+    _saveConfigTimer = setTimeout(function () {
+        _saveConfigTimer = 0;
+        _saveConfigImmediate();
+    }, 150);
+}
+
+function _saveConfigImmediate() {
     if (window.EveCoreStorage) {
         window.EveCoreStorage.syncThemeBootConfig(config);
         void window.EveCoreStorage.saveJson(EVE_CONFIG_KEY, config, {

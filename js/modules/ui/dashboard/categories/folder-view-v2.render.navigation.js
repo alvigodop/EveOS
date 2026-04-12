@@ -24,12 +24,16 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         const folderApi = window.EveBookmarkFolders;
         if (!folderApi?.buildFolderView) return;
 
-        const catLinks = window.getModalLinks
-            ? window.getModalLinks().filter((link) => link.workspace === workspaceId && link.category === categoryName)
-            : [];
-        const viewModel = folderApi.buildFolderView(workspaceId, categoryName, catLinks);
-        viewModel.scopedLinks = catLinks;
-        window.EveFolderViewV2.setCachedViewModel(workspaceId, categoryName, viewModel);
+        // Reuse cached view model if available — avoid re-filtering 3,555 links and rebuilding tree
+        let viewModel = cachedViewModel;
+        if (!viewModel || !viewModel.nodes || !viewModel.childrenMap) {
+            const catLinks = window.getModalLinks
+                ? window.getModalLinks().filter((link) => link.workspace === workspaceId && link.category === categoryName)
+                : [];
+            viewModel = folderApi.buildFolderView(workspaceId, categoryName, catLinks);
+            viewModel.scopedLinks = catLinks;
+            window.EveFolderViewV2.setCachedViewModel(workspaceId, categoryName, viewModel);
+        }
 
         let trail = [{ label: categoryName.toLowerCase(), id: null }];
         let currentNodeId = folderId;
@@ -142,7 +146,10 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
             const coEnabled = customOrderApi ? customOrderApi.isEnabled(workspaceId, categoryName) : false;
             const tvData = tvEnabled ? tvApi.computeTrueValues(folderItems, workspaceId, categoryName) : null;
 
-            const flatHtml = folderItems.map((link) => {
+            const FOLDER_ITEM_CAP = window._evePerfMode ? 50 : folderItems.length;
+            const cappedItems = folderItems.slice(0, FOLDER_ITEM_CAP);
+
+            const flatHtml = cappedItems.map((link) => {
                 const isTaskEnabled = typeof folderApi?.isTaskEnabledForLink === 'function' ? !!folderApi.isTaskEnabledForLink(link) : true;
                 if (typeof window.DashboardCategories?.buildLinkHtml === 'function') {
                     return window.DashboardCategories.buildLinkHtml(link, '', workspaceId, window.eveState?.config?.workspaces || [], {
@@ -158,7 +165,20 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                 const jsId = escapeCardJs(String(link.id));
                 return `<div class="item-row" style="display: flex; align-items: center; gap: 12px; padding: 10px 18px; cursor: pointer; border-left: 2px solid rgba(128,128,128,0.2);" onclick="if(typeof window.handleLinkClick === 'function') { window.handleLinkClick(event, '${jsId}', this); } else { window.open('${escapeCardJs(link.url)}', '_blank'); }"><span>${escapeCardHtml(link.icon || '🔗')}</span><span>${escapeCardHtml(link.title)}</span></div>`;
             }).join('');
-            itemsHtml += `<div style="padding: 4px 0;"><ul class="category-scrollable" style="max-height: none; overflow: visible;">${flatHtml}</ul>${buildSectionStats(folderItems)}</div>`;
+
+            let showMoreHtml = '';
+            if (folderItems.length > FOLDER_ITEM_CAP) {
+                const remaining = folderItems.length - FOLDER_ITEM_CAP;
+                const btnId = 'showMore_folder_' + String(folderId || '').replace(/[^a-zA-Z0-9]/g, '_');
+                if (!window._eveProgressiveLinks) window._eveProgressiveLinks = {};
+                window._eveProgressiveLinks[btnId] = { links: folderItems, offset: FOLDER_ITEM_CAP, focused: false };
+                showMoreHtml = '<li class="eve-show-more-item" id="' + btnId + '">'
+                    + '<button class="eve-show-more-btn" onclick="window._eveLoadMoreLinks(\'' + btnId + '\')">'
+                    + '▾ Show ' + Math.min(remaining, 50) + ' more (' + remaining + ' remaining)'
+                    + '</button></li>';
+            }
+
+            itemsHtml += `<div style="padding: 4px 0;"><ul class="category-scrollable" style="max-height: none; overflow: visible;">${flatHtml}${showMoreHtml}</ul>${buildSectionStats(folderItems)}</div>`;
         }
         if (subFolders.length === 0 && folderItems.length === 0) {
             itemsHtml = `<div style="padding: 20px; text-align: center; color: rgba(128,128,128,0.5); font-family: 'Share Tech Mono', monospace; font-size: 11px;">DATA NODE EMPTY</div>`;
@@ -195,11 +215,11 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
 
         const card = document.querySelector(`.category-card[data-card-category="${escapeCardHtml(categoryName)}"][data-card-workspace="${escapeCardHtml(workspaceId)}"]`);
         if (!card) {
-            if (typeof window.renderDashboard === 'function') window.renderDashboard();
+            if (!window._evePerfMode && typeof window.renderDashboard === 'function') window.renderDashboard();
             return;
         }
         if (!card.dataset.mode1Html) {
-            if (typeof window.renderDashboard === 'function') window.renderDashboard();
+            if (!window._evePerfMode && typeof window.renderDashboard === 'function') window.renderDashboard();
             return;
         }
 
@@ -209,10 +229,13 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
             delete card.dataset.mode1Html;
         }
 
-        const folderApi = window.EveBookmarkFolders;
-        if (folderApi?.buildFolderView) {
-            const catLinks = window.getModalLinks ? window.getModalLinks().filter((link) => link.workspace === workspaceId && link.category === categoryName) : [];
-            window.EveFolderViewV2.setCachedViewModel(workspaceId, categoryName, Object.assign(folderApi.buildFolderView(workspaceId, categoryName, catLinks), { scopedLinks: catLinks }));
+        // Skip expensive cache rebuild in perf mode — cache is still valid from enterFolder
+        if (!window._evePerfMode) {
+            const folderApi = window.EveBookmarkFolders;
+            if (folderApi?.buildFolderView) {
+                const catLinks = window.getModalLinks ? window.getModalLinks().filter((link) => link.workspace === workspaceId && link.category === categoryName) : [];
+                window.EveFolderViewV2.setCachedViewModel(workspaceId, categoryName, Object.assign(folderApi.buildFolderView(workspaceId, categoryName, catLinks), { scopedLinks: catLinks }));
+            }
         }
     };
 })();
