@@ -14,6 +14,100 @@ window.DashboardCategories = window.DashboardCategories || {};
         var options = configOptions || {};
         var isDetachedParkingCard = !!options.detachedParkingCard;
         var isFocusMode = !!options.focusMode;
+
+        // ── EARLY EXIT: Defer entire heavy card processing ──
+        // For cards with many links, render a minimal shell immediately and
+        // schedule the full build in setTimeout. This prevents the large card
+        // from blocking interactions on OTHER cards in the same tab.
+        var HEAVY_CARD_THRESHOLD = 200;
+        if (catLinks.length > HEAVY_CARD_THRESHOLD) {
+            var safeCatHtml = escapeCardHtml(cat || 'Unsorted');
+            var safeCatJs = escapeCardJs(cat || 'Unsorted');
+            var activeWorkspaceId = String(options.activeWorkspace || config.activeWorkspace || 'main');
+            var cardTargetId = window.EveQuickPins?.buildCardTargetId
+                ? window.EveQuickPins.buildCardTargetId(activeWorkspaceId, cat)
+                : buildScopedCategoryKey(activeWorkspaceId, cat);
+            var libPanelId = 'lib-' + String(cat || 'Unsorted').replace(/[^a-zA-Z0-9]/g, '_') + '-panel';
+
+            var shellCard = document.createElement('div');
+            shellCard.className = 'category-card';
+            if (!isFocusMode && Array.isArray(options.collapsed) && options.collapsed.includes(cat)) {
+                shellCard.classList.add('collapsed');
+            }
+            shellCard.setAttribute('data-card-target-id', cardTargetId);
+            shellCard.setAttribute('data-card-category', String(cat || 'Unsorted'));
+            shellCard.setAttribute('data-card-workspace', activeWorkspaceId);
+            shellCard.setAttribute('data-card-deferred', '1');
+            if (isDetachedParkingCard) {
+                shellCard.setAttribute('data-detached-parking-card', '1');
+            }
+
+            // Minimal header — no expensive task counting or button logic
+            shellCard.innerHTML = ''
+                + '<div class="cat-progress-bg"><div class="cat-progress-fill" style="width:0%"></div></div>'
+                + '<div class="category-header" oncontextmenu="showCategoryContextMenu(event, \'' + safeCatJs + '\')">'
+                    + '<div class="cat-title-group">'
+                        + '<span class="collapse-arrow" data-cat="' + safeCatHtml + '" onclick="toggleCollapse(this.dataset.cat)" title="Toggle Card">&#9660;</span>'
+                        + '<div class="category-title-wrap" data-title="' + safeCatHtml + '">'
+                            + '<div class="category-title">' + safeCatHtml + '</div>'
+                        + '</div>'
+                    + '</div>'
+                + '</div>'
+                + '<div id="' + libPanelId + '" class="lib-panel" style="display:none;"></div>'
+                + '<div class="eve-card-deferred-skeleton" style="padding:12px 16px; opacity:0.5;">'
+                    + '<div style="display:flex; align-items:center; gap:8px; color:rgba(180,200,220,0.5); font-size:0.82rem;">'
+                        + '<span class="eve-skeleton-spinner" style="display:inline-block; width:14px; height:14px; border:2px solid rgba(80,200,255,0.15); border-top-color:rgba(80,200,255,0.5); border-radius:50%; animation:spin 0.8s linear infinite;"></span>'
+                        + 'Loading ' + catLinks.length + ' bookmarks\u2026'
+                    + '</div>'
+                + '</div>'
+                + '<div class="category-footer"><span class="stat-pending">\u2026</span><span class="stat-done">\u2026</span></div>';
+
+            gridContainer.appendChild(shellCard);
+
+            // If the card is collapsed, DON'T schedule the heavy build.
+            // The content is invisible anyway. It will build on expand.
+            if (shellCard.classList.contains('collapsed')) {
+                return;
+            }
+
+            // Schedule full render in a background tick
+            setTimeout(function () {
+                if (!shellCard.parentNode) return; // card was removed (e.g. tab switched again)
+                if (shellCard.classList.contains('collapsed')) return; // collapsed while waiting
+
+                // Run the full renderCard logic into a temp container, then swap
+                var tempContainer = document.createDocumentFragment();
+                _renderCardFull(cat, catLinks, tempContainer, configOptions);
+                var fullCard = tempContainer.firstChild;
+                if (fullCard) {
+                    shellCard.replaceWith(fullCard);
+                    // Fade in
+                    fullCard.style.opacity = '0';
+                    fullCard.style.transition = 'opacity 0.2s ease';
+                    requestAnimationFrame(function () { fullCard.style.opacity = '1'; });
+                    // Restore folder state
+                    if (window.EveFolderViewV2 && window.EveFolderViewV2.restoreActiveFolderState) {
+                        var ws = fullCard.getAttribute('data-card-workspace') || activeWorkspaceId;
+                        window.EveFolderViewV2.restoreActiveFolderState(ws, cat);
+                    }
+                }
+            }, 0);
+
+            return;
+        }
+
+        // Normal path for small/medium cards
+        _renderCardFull(cat, catLinks, gridContainer, configOptions);
+    }
+
+    /**
+     * Full card rendering logic — does ALL the expensive work.
+     * Called directly for small cards, and in setTimeout for heavy cards.
+     */
+    function _renderCardFull(cat, catLinks, gridContainer, configOptions) {
+        var options = configOptions || {};
+        var isDetachedParkingCard = !!options.detachedParkingCard;
+        var isFocusMode = !!options.focusMode;
         var focusedFilterMode = (isFocusMode && typeof window.DashboardCategories.getFocusedEntriesFilterMode === 'function')
             ? window.DashboardCategories.getFocusedEntriesFilterMode()
             : 'all';
@@ -228,10 +322,8 @@ window.DashboardCategories = window.DashboardCategories || {};
 
         var listHtml;
         if (canRenderCardFolders && scopedWorkspaceIds.length <= 1) {
-            // Single workspace (main tab or single sub-tab) — standard folder rendering with Manhwa support
             listHtml = buildFolderSectionsHtml(cat, renderedLinks, options, renderLinkCollection);
         } else if (canRenderCardFolders && scopedWorkspaceIds.length > 1) {
-            // Multiple workspaces (main + sub-tabs) — render folder views per workspace
             var combinedHtml = [];
             scopedWorkspaceIds.forEach(function (wsId) {
                 var wsLinks = renderedLinks.filter(function (link) {

@@ -86,18 +86,50 @@ window.bulkLastToggledId = bulkLastToggledId;
         return normalized.length > 0 && normalized.every((id) => selectedIds.has(id));
     }
 
+    // ── Indexed link lookup for fast scope queries ──
+    // Pre-index links by workspace::category to avoid O(n) scans on every button update.
+    let _scopeIndex = null;
+    let _scopeIndexGen = 0;
+
+    function _getScopeIndex() {
+        const currentLinks = getLinks();
+        // Simple generation check — rebuild if links array reference changed
+        if (_scopeIndex && _scopeIndex._ref === currentLinks && _scopeIndex._len === currentLinks.length) {
+            return _scopeIndex;
+        }
+        const index = new Map();
+        for (let i = 0; i < currentLinks.length; i++) {
+            const link = currentLinks[i];
+            const ws = String(link?.workspace || '').trim();
+            const cat = String(link?.category || 'Unsorted').trim();
+            const key = ws + '::' + cat;
+            if (!index.has(key)) index.set(key, []);
+            index.get(key).push(link);
+        }
+        _scopeIndex = index;
+        _scopeIndex._ref = currentLinks;
+        _scopeIndex._len = currentLinks.length;
+        _scopeIndexGen++;
+        return index;
+    }
+
     function getScopeLinkIdsForCard(categoryName, workspaceId) {
-        return getLinks()
-            .filter((link) => String(link?.workspace || '').trim() === String(workspaceId || '').trim())
-            .filter((link) => String(link?.category || 'Unsorted').trim() === String(categoryName || 'Unsorted').trim())
-            .map((link) => String(link.id));
+        const ws = String(workspaceId || '').trim();
+        const cat = String(categoryName || 'Unsorted').trim();
+        const key = ws + '::' + cat;
+        const index = _getScopeIndex();
+        const bucket = index.get(key);
+        return bucket ? bucket.map((link) => String(link.id)) : [];
     }
 
     function getScopeLinkIdsForFolder(categoryName, workspaceId, folderId) {
         if (!folderId) {
-            return getLinks()
-                .filter((link) => String(link?.workspace || '').trim() === String(workspaceId || '').trim())
-                .filter((link) => String(link?.category || 'Unsorted').trim() === String(categoryName || 'Unsorted').trim())
+            const ws = String(workspaceId || '').trim();
+            const cat = String(categoryName || 'Unsorted').trim();
+            const key = ws + '::' + cat;
+            const index = _getScopeIndex();
+            const bucket = index.get(key) || [];
+            return bucket
                 .filter((link) => !String(link?.folderId || '').trim())
                 .map((link) => String(link.id));
         }
@@ -119,7 +151,17 @@ window.bulkLastToggledId = bulkLastToggledId;
         return selectedIds;
     }
 
+    // ── Debounced bulk UI update ──
+    // Coalesce rapid-fire selection changes into a single rAF
+    let _bulkUIRafId = 0;
+
     function updateBulkUI() {
+        if (_bulkUIRafId) return; // already pending
+        _bulkUIRafId = requestAnimationFrame(_updateBulkUIImmediate);
+    }
+
+    function _updateBulkUIImmediate() {
+        _bulkUIRafId = 0;
         const el = document.getElementById('bulk-count');
         if (el) el.innerText = `${selectedIds.size} Selected`;
         
@@ -130,6 +172,9 @@ window.bulkLastToggledId = bulkLastToggledId;
         });
 
         // 2. Update scope toggle buttons (Card/Folder selectors)
+        // Pre-build the scope index once for all buttons
+        _getScopeIndex();
+
         document.querySelectorAll('.bulk-scope-btn[data-scope-category]').forEach((btn) => {
             const cat = btn.getAttribute('data-scope-category');
             const ws = btn.getAttribute('data-scope-workspace');
@@ -144,7 +189,6 @@ window.bulkLastToggledId = bulkLastToggledId;
             
             // Update the symbol part of the button
             if (btn.tagName === 'BUTTON' && btn.childNodes.length > 0) {
-                // If it has text (e.g. "Select Card"), we only update the first text node or the icon part
                 const iconNode = Array.from(btn.childNodes).find(n => n.nodeType === 3 || (n.nodeType === 1 && n.tagName !== 'SPAN'));
                 if (iconNode) {
                     if (iconNode.nodeType === 3) iconNode.textContent = isFullySelected ? '\u2611' : '\u2610';

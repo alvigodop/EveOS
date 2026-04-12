@@ -27,10 +27,22 @@ function moveCategory(cat, direction) {
 
 function toggleCollapse(cat) {
     if (!config.collapsed) config.collapsed = [];
-    if (config.collapsed.includes(cat)) config.collapsed = config.collapsed.filter(c => c !== cat);
+    var wasCollapsed = config.collapsed.includes(cat);
+    if (wasCollapsed) config.collapsed = config.collapsed.filter(c => c !== cat);
     else config.collapsed.push(cat);
     saveConfig();
-    if (typeof renderDashboard === 'function') renderDashboard();
+
+    // Direct DOM toggle — avoid full re-render for a CSS-only change
+    var card = document.querySelector('.category-card[data-card-category="' + CSS.escape(cat) + '"]');
+    if (card) {
+        card.classList.toggle('collapsed', !wasCollapsed);
+        // If expanding a deferred card, trigger its full build
+        if (wasCollapsed && card.getAttribute('data-card-deferred') === '1') {
+            if (typeof renderDashboard === 'function') renderDashboard();
+        }
+    } else {
+        if (typeof renderDashboard === 'function') renderDashboard();
+    }
 }
 
 function toggleFolderCollapse(cat) {
@@ -38,7 +50,14 @@ function toggleFolderCollapse(cat) {
     if (config.foldersCollapsed.includes(cat)) config.foldersCollapsed = config.foldersCollapsed.filter(c => c !== cat);
     else config.foldersCollapsed.push(cat);
     saveConfig();
-    if (typeof renderDashboard === 'function') renderDashboard();
+
+    // Direct DOM toggle — avoid full re-render for a CSS-only change
+    var card = document.querySelector('.category-card[data-card-category="' + CSS.escape(cat) + '"]');
+    if (card) {
+        card.classList.toggle('folders-collapsed', config.foldersCollapsed.includes(cat));
+    } else {
+        if (typeof renderDashboard === 'function') renderDashboard();
+    }
 }
 
 function toggleLinksCollapse(cat) {
@@ -46,7 +65,14 @@ function toggleLinksCollapse(cat) {
     if (config.linksCollapsed.includes(cat)) config.linksCollapsed = config.linksCollapsed.filter(c => c !== cat);
     else config.linksCollapsed.push(cat);
     saveConfig();
-    if (typeof renderDashboard === 'function') renderDashboard();
+
+    // Direct DOM toggle — avoid full re-render for a CSS-only change
+    var card = document.querySelector('.category-card[data-card-category="' + CSS.escape(cat) + '"]');
+    if (card) {
+        card.classList.toggle('links-collapsed', config.linksCollapsed.includes(cat));
+    } else {
+        if (typeof renderDashboard === 'function') renderDashboard();
+    }
 }
 
 function toggleSubfoldersCollapse(folderId) {

@@ -1,4 +1,4 @@
-﻿window.EveConstellationMap = window.EveConstellationMap || {};
+window.EveConstellationMap = window.EveConstellationMap || {};
 
 (function (ns) {
     const shared = ns._shared || {};
@@ -21,9 +21,20 @@
     const MAX_NODE_COVER_CANDIDATES = 96;
 
     function createBuildContext(scope, scopedLinks) {
+        // Pre-index links by workspace::category for O(1) lookups
+        const linksByWsCat = new Map();
+        for (let i = 0; i < scopedLinks.length; i++) {
+            const link = scopedLinks[i];
+            const ws = String(link?.workspace || 'main');
+            const cat = text(link?.category, 'Unsorted');
+            const key = ws + '::' + cat;
+            if (!linksByWsCat.has(key)) linksByWsCat.set(key, []);
+            linksByWsCat.get(key).push(link);
+        }
         return {
             scope,
             scopedLinks,
+            linksByWsCat,
             tagBuckets: new Map(),
             folderSubtreeLinksCache: new Map()
         };
@@ -130,10 +141,9 @@
     }
 
     function addCategoryBranch(context, workspaceId, categoryName, categoryCenter, parentNode) {
-        const categoryLinks = context.scopedLinks.filter((link) => (
-            String(link?.workspace || 'main') === String(workspaceId)
-            && text(link?.category, 'Unsorted') === text(categoryName, 'Unsorted')
-        ));
+        // Use pre-built index for O(1) lookup instead of O(n) filter
+        const indexKey = String(workspaceId) + '::' + text(categoryName, 'Unsorted');
+        const categoryLinks = context.linksByWsCat.get(indexKey) || [];
 
         const categoryNode = addNode(createNode({
             id: 'category_' + workspaceId + '_' + categoryName,
