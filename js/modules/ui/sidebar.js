@@ -202,7 +202,7 @@ function renderSidebar() {
     // --- Add button + root drop zone ---
     const addBtn = document.createElement('div');
     addBtn.className = 'ws-item ws-add';
-    addBtn.innerHTML = '+ <span class="ws-label">Add / Drop here</span>';
+    addBtn.innerHTML = '+ <span class="ws-label">Add / Drop</span>';
     addBtn.onclick = () => openWorkspaceModal(null);
 
     // Root promote drop zone — drop a sub-tab here to make it a root tab

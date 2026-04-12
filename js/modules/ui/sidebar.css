@@ -85,13 +85,8 @@
 .ws-add {
     border: 1px dashed var(--sidebar-divider);
     background: transparent;
-    overflow: hidden;
     box-sizing: border-box;
-    max-width: 40px;
-}
-
-#sidebar:hover .ws-add {
-    max-width: 140px;
+    overflow: hidden;
 }
 
 .ws-add:hover {
