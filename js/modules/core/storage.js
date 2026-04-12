@@ -570,23 +570,37 @@ function persistCoreStateAsync(sanitizedLinks) {
     });
 }
 
+var _saveDataTimer = 0;
+
 function saveData(options = {}) {
     const skipRender = !!options.skipRender;
     const skipSuggestions = !!options.skipSuggestions;
-    const sanitizedLinks = Array.isArray(links)
-        ? links.map((link) => {
-            if (!link || typeof link !== 'object') return link;
-            const nextLink = { ...link };
-            delete nextLink.pinned;
-            return nextLink;
-        })
-        : [];
 
-    persistCoreStateAsync(sanitizedLinks);
-
+    // Immediate: dispatch event for reactive listeners
     window.dispatchEvent(new CustomEvent('eve:state-mutated', { detail: { source: 'saveData' } }));
-    if (!skipRender && typeof renderDashboard === 'function') renderDashboard();
-    if (!skipSuggestions && typeof updateSuggestions === 'function') updateSuggestions();
+
+    // Debounce the expensive work: sanitize + persist + render
+    if (_saveDataTimer) clearTimeout(_saveDataTimer);
+    _saveDataTimer = setTimeout(function () {
+        _saveDataTimer = 0;
+
+        const sanitizedLinks = Array.isArray(links)
+            ? links.map((link) => {
+                if (!link || typeof link !== 'object') return link;
+                const nextLink = { ...link };
+                delete nextLink.pinned;
+                return nextLink;
+            })
+            : [];
+
+        persistCoreStateAsync(sanitizedLinks);
+
+        // In perf mode, skip the full DOM rebuild — actions handle their own UI updates
+        if (window._evePerfMode) return;
+
+        if (!skipRender && typeof renderDashboard === 'function') renderDashboard();
+        if (!skipSuggestions && typeof updateSuggestions === 'function') updateSuggestions();
+    }, 100);
 }
 
 function saveConfig() {

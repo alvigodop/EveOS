@@ -284,6 +284,9 @@ function _renderDashboardCore() {
             || String(link?.category || 'Unsorted').toLowerCase().includes(searchStr);
     });
 
+    // Performance mode: skip expensive per-link operations when workspace is large
+    window._evePerfMode = visibleLinks.length > 200;
+
     if (isUnidexMode) {
         if (focusBanner) focusBanner.style.display = 'none';
         if (dock) dock.classList.add('hidden');

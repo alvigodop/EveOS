@@ -54,6 +54,16 @@ function toggleDone(id) {
             return false;
         }
         l.done = !l.done;
+
+        // Instant DOM patch in perf mode — no re-render needed
+        if (window._evePerfMode) {
+            const bulkCheck = document.querySelector(`.bulk-check[data-bulk-id="${CSS.escape(targetId)}"]`);
+            if (bulkCheck) {
+                const li = bulkCheck.closest('li');
+                if (li) li.classList.toggle('done', l.done);
+            }
+        }
+
         saveData();
         return true;
     }
@@ -63,6 +73,15 @@ function toggleDone(id) {
 async function deleteLink(id) {
     const targetId = String(id);
     if (await showConfirm("Delete?")) {
+        // Instant DOM patch in perf mode
+        if (window._evePerfMode) {
+            const bulkCheck = document.querySelector(`.bulk-check[data-bulk-id="${CSS.escape(targetId)}"]`);
+            if (bulkCheck) {
+                const li = bulkCheck.closest('li');
+                if (li) li.remove();
+            }
+        }
+
         links = links.filter(l => String(l.id) !== targetId);
         if (window.EveLibrary?.ConnectionsAPI?.removeByLinkId) {
             window.EveLibrary.ConnectionsAPI.removeByLinkId(targetId);
