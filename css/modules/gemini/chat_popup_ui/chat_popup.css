@@ -4,7 +4,9 @@
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
     z-index: 1000;
 }
 
@@ -13,71 +15,168 @@
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 80%;
+    width: min(80%, 900px);
     height: 80%;
     display: flex;
     flex-direction: column;
-    background: white;
-    border-radius: 8px;
+    background: linear-gradient(145deg, rgba(12, 17, 24, 0.96), rgba(8, 12, 18, 0.94));
+    border: 1px solid rgba(0, 212, 255, 0.15);
+    border-radius: 18px;
     z-index: 1001;
     overflow: hidden;
+    box-shadow:
+        0 24px 80px rgba(0, 0, 0, 0.6),
+        0 0 0 1px rgba(255, 255, 255, 0.04),
+        inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    color: #e8f7ff;
+
+    /* Force dark palette inside popup */
+    --bg-primary: transparent;
+    --bg-secondary: rgba(255, 255, 255, 0.04);
+    --bg-tertiary: rgba(255, 255, 255, 0.06);
+    --bg-chat: transparent;
+    --bg-chat-log: rgba(0, 0, 0, 0.2);
+    --header-bg: rgba(0, 212, 255, 0.1);
+    --header-text: #ffffff;
+    --text-primary: #f0f0f0;
+    --text-secondary: #b0b0b0;
+    --text-muted: #808080;
+    --border-color: rgba(255, 255, 255, 0.1);
+    --border-accent: rgba(0, 212, 255, 0.4);
+    --user-msg-bg: rgba(0, 212, 255, 0.1);
+    --user-msg-text: #e0f7ff;
+    --gemini-msg-bg: rgba(138, 43, 226, 0.12);
+    --gemini-msg-text: #e8d5f5;
+    --accent-primary: #00d4ff;
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 /* Ensure chat container takes available space and allows internal scrolling */
-/* Ensure chat container takes available space and allows internal scrolling */
 #chatPopup .chat-container {
     flex: 1;
-    /* implies flex: 1 1 0% */
     min-height: 0;
     width: 100%;
     box-sizing: border-box;
     overflow: hidden;
-    /* Important: prevents container scroll, lets flex child scroll */
     padding: 0;
-    /* Remove padding to stretch content */
     margin: 0;
-    /* Remove margins */
     border: none;
-    /* Remove borders */
     background: transparent;
-    /* Remove background if any */
     box-shadow: none;
-    /* remove shadow inside popup */
     display: flex;
-    /* Force flex display */
     flex-direction: column;
+    height: auto;
 }
 
-/* Ensure the log itself can scroll */
 /* Ensure the log itself can scroll */
 #chatPopup #chatLog,
 #chatPopup #main-chat-log-placeholder {
     flex: 1;
-    /* implies flex: 1 1 0% */
     width: 100%;
     box-sizing: border-box;
-    overflow-y: scroll;
-    /* Force scrollbar */
+    overflow-y: auto;
     min-height: 0;
     max-height: none !important;
-    /* Override standard view limit */
     display: flex;
-    /* Ensure container is flex to stretch children */
     flex-direction: column;
+    border: none;
+    background: transparent;
 }
 
 #chatPopup #main-chat-log-placeholder {
     overflow: hidden;
-    /* Placeholder shouldn't scroll, only chatLog */
 }
 
+/* Chat header in popup — dark glass */
+#chatPopup .chat-header,
+#chatPopup .gemini-chat-header {
+    background: linear-gradient(135deg, rgba(0, 212, 255, 0.12), rgba(0, 212, 255, 0.05)) !important;
+    border-bottom: 1px solid rgba(0, 212, 255, 0.15) !important;
+    padding: 12px 16px !important;
+}
+
+#chatPopup .chat-header *,
+#chatPopup .gemini-chat-header * {
+    color: #e8f7ff !important;
+}
+
+/* Messages in popup — dark themed */
+#chatPopup .chat-message {
+    color: #e8f7ff;
+}
+
+#chatPopup .user-message {
+    background: rgba(0, 212, 255, 0.1) !important;
+    color: #e0f7ff !important;
+    border-color: rgba(0, 212, 255, 0.3) !important;
+}
+
+#chatPopup .gemini-message {
+    background: rgba(138, 43, 226, 0.12) !important;
+    color: #e8d5f5 !important;
+    border-color: rgba(138, 43, 226, 0.25) !important;
+}
+
+#chatPopup .message-thinking-block {
+    background: rgba(255, 255, 255, 0.04) !important;
+    border-left-color: #00d4ff !important;
+}
+
+#chatPopup .message-transcription-block {
+    background: rgba(255, 255, 255, 0.04) !important;
+    border-left-color: #00d4ff !important;
+    color: #e8f7ff !important;
+}
+
+#chatPopup .message-timestamp {
+    color: rgba(255, 255, 255, 0.4) !important;
+}
+
+/* Close button */
 #popoutCloseButton {
     align-self: flex-end;
-    margin: 8px;
+    margin: 10px 12px;
     cursor: pointer;
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
 }
 
-/* Hide System Log and other extra components when in popup mode */
+#popoutCloseButton:hover {
+    background: rgba(255, 82, 82, 0.2);
+    border-color: rgba(255, 82, 82, 0.4);
+    color: #ff8a80;
+}
+
+/* Text input in popup */
+#chatPopup .text-input-section {
+    background: rgba(255, 255, 255, 0.03) !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 10px 14px;
+}
+
+#chatPopup .text-input-section input,
+#chatPopup .text-input-section textarea {
+    background: rgba(255, 255, 255, 0.06) !important;
+    color: #e8f7ff !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    border-radius: 12px;
+}
+
+#chatPopup .text-input-section input::placeholder,
+#chatPopup .text-input-section textarea::placeholder {
+    color: rgba(255, 255, 255, 0.3) !important;
+}
+
+/* Hide System Log and extra components in popup mode */
 #chatPopup #systemLog,
 #chatPopup .system-messages-container,
 #chatPopup #system-log-display-placeholder,
@@ -85,4 +184,48 @@
 #chatPopup #previous-conversation-log-wrapper,
 #chatPopup #previous-conversation-log-placeholder {
     display: none !important;
+}
+
+/* Ensure messages scroll inside popup */
+#chatPopup .chat-messages-container {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 16px;
+}
+
+/* Popup scrollbars — dark themed */
+#chatPopup .chat-messages-container::-webkit-scrollbar {
+    width: 6px;
+}
+
+#chatPopup .chat-messages-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#chatPopup .chat-messages-container::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.15);
+    border-radius: 3px;
+}
+
+#chatPopup .chat-messages-container::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(255, 255, 255, 0.3);
+}
+
+/* Send button in popup */
+#chatPopup .gemini-send-btn,
+#chatPopup button[id*="send" i] {
+    background: linear-gradient(135deg, rgba(0, 212, 255, 0.88), rgba(110, 231, 255, 0.72)) !important;
+    color: #041017 !important;
+    border: 1px solid rgba(110, 231, 255, 0.4) !important;
+    border-radius: 12px !important;
+}
+
+/* Popout button styling */
+#chatPopup .gemini-popout-btn,
+#chatPopup button[id*="popout" i] {
+    background: rgba(255, 255, 255, 0.06) !important;
+    color: #d8f7ff !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 10px !important;
 }

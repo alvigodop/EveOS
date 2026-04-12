@@ -27,10 +27,11 @@ window.EveModuleManifestParts.styles = [
         'js/modules/features/api-search/search-results.css?v=0.1.1',
         'js/modules/features/api-search/card-settings.css?v=0.1.7',
         'js/modules/features/sources/sources.css',
-'js/modules/features/library/library.css?v=0.2.18',
-'css/modules/constellation-map.css?v=0.1.3',
+        'js/modules/features/library/library.css?v=0.2.18',
+        'css/modules/constellation-map.css?v=0.1.3',
 
-// --- Scraper Feature Styles (Ported) ---        'js/modules/features/scraper/core/styles/variables.css?v=1.0.1',
+        // --- Scraper Feature Styles (Ported) ---
+        'js/modules/features/scraper/core/styles/variables.css?v=1.0.1',
         'js/modules/features/scraper/core/styles/base.css?v=1.0.2',
         'js/modules/features/scraper/core/styles/dark-mode.css?v=1.0.1',
         'js/modules/features/scraper/ui/styles/shared-highlight.css?v=1.0.1',
@@ -79,8 +80,8 @@ window.EveModuleManifestParts.styles = [
         'js/modules/features/scraper/utils/styles/utility.css?v=1.0.1',
 
         // Modal Modules
-'js/modules/modals/modals.css?v=0.2.14'
-    ,
+        'js/modules/modals/modals.css?v=0.2.14',
+
         // Gemini Integration Styles
         'css/modules/gemini/main_css_files.css',
         'css/modules/gemini/audio_playback_ui/audio_player.css',
@@ -103,5 +104,5 @@ window.EveModuleManifestParts.styles = [
         'css/modules/gemini/video_player_ui/video_player.css',
         'css/modules/gemini/video_player_ui/video_section.css',
         'css/modules/gemini/voice_input_ui/voice_select.css',
+        'css/modules/gemini/gemini_collapsible.css?v=0.1.0',
 ];
-

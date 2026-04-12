@@ -11,8 +11,8 @@ async function loadSystemLogDisplay() {
 
     try {
         const htmlContent = `
-<div id="systemLog" class="mdl-shadow--2dp gemini-system-log">
-    <div class="system-header gemini-system-header">
+<div id="systemLog" class="mdl-shadow--2dp gemini-system-log" data-collapsible-section="telemetry">
+    <div class="system-header gemini-system-header" data-collapsible-header>
         <div class="gemini-system-header-main">
             <div class="gemini-system-kicker">Telemetry Feed</div>
             <span class="gemini-system-title">System Messages</span>
@@ -25,7 +25,7 @@ async function loadSystemLogDisplay() {
             </button>
         </div>
     </div>
-    <div class="system-messages-container gemini-system-messages"></div>
+    <div class="system-messages-container gemini-system-messages" data-collapsible-body></div>
 </div>
 `;
         placeholder.innerHTML = htmlContent;

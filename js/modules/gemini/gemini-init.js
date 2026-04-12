@@ -200,15 +200,15 @@
                 </div>
             </div>
             <div id="gemini-monitor-summary-pane" class="gemini-monitor-summary-pane">
-                <div id="gemini-monitor-summary-card" class="gemini-monitor-card">
-                    <div class="gemini-monitor-head">
+                <div id="gemini-monitor-summary-card" class="gemini-monitor-card" data-collapsible-section="monitor-surface">
+                    <div class="gemini-monitor-head" data-collapsible-header>
                         <div>
                             <div class="gemini-monitor-kicker">Gemini Live Link</div>
                             <h3 class="gemini-monitor-title">Search Monitor Surface</h3>
                         </div>
                         <div class="gemini-monitor-pill">On Demand</div>
                     </div>
-                    <div class="gemini-monitor-body">
+                    <div class="gemini-monitor-body" data-collapsible-body>
                         <div class="gemini-monitor-status-row">
                             <span class="gemini-monitor-status-dot" aria-hidden="true"></span>
                             <span class="gemini-monitor-status-text">Standing by for context relay, prompt assist, and live tool controls.</span>

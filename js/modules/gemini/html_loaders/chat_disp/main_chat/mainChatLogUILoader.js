@@ -14,15 +14,15 @@ async function loadMainChatLog() {
 
     try {
         const htmlContent = `
-<div id="chatLog" class="mdl-shadow--2dp gemini-chat-log">
-    <div class="chat-header gemini-chat-header">
+<div id="chatLog" class="mdl-shadow--2dp gemini-chat-log" data-collapsible-section="conversation">
+    <div class="chat-header gemini-chat-header" data-collapsible-header>
         <div class="gemini-chat-header-copy">
             <div class="gemini-chat-kicker">Conversation Feed</div>
             <span class="gemini-chat-title">Conversations</span>
         </div>
         <div class="gemini-chat-header-pill">Live</div>
     </div>
-    <div class="chat-messages-container gemini-chat-messages"></div>
+    <div class="chat-messages-container gemini-chat-messages" data-collapsible-body></div>
 </div>
 `;
         placeholder.innerHTML = htmlContent;

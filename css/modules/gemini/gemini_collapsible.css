@@ -1,0 +1,86 @@
+/* ============================================================
+   Gemini Section Collapsible — Shared Styles
+   ============================================================
+   Usage: Add these data attributes to any section:
+     data-collapsible-section="<key>"   → on the wrapper
+     data-collapsible-header            → on the clickable header
+     data-collapsible-body              → on the content to collapse
+   ============================================================ */
+
+/* --- Toggle Chevron --- */
+[data-collapsible-header] {
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+}
+
+[data-collapsible-header]::after {
+    content: '▾';
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%) rotate(0deg);
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.25);
+    transition: transform 0.25s ease, color 0.25s ease;
+    pointer-events: none;
+}
+
+[data-collapsible-header]:hover::after {
+    color: var(--accent, #00d4ff);
+}
+
+/* When collapsed, rotate chevron */
+[data-collapsible-section].collapsed [data-collapsible-header]::after {
+    transform: translateY(-50%) rotate(-90deg);
+    color: rgba(255, 255, 255, 0.5);
+}
+
+/* --- Body Transition --- */
+[data-collapsible-body] {
+    overflow: hidden;
+    max-height: 4000px; /* Large enough to never clip */
+    opacity: 1;
+    transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+                opacity 0.25s ease,
+                padding 0.3s ease,
+                margin 0.3s ease;
+}
+
+[data-collapsible-section].collapsed [data-collapsible-body] {
+    max-height: 0 !important;
+    opacity: 0;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+}
+
+/* Keep header looking clean when collapsed */
+[data-collapsible-section].collapsed {
+    padding-bottom: 0;
+}
+
+/* Override min-height constraints when collapsed */
+[data-collapsible-section].collapsed,
+[data-collapsible-section].collapsed [data-collapsible-body] {
+    min-height: 0 !important;
+    height: auto !important;
+}
+
+/* When telemetry/conversation wrappers are collapsed inside the chat-container,
+   neutralize the placeholder min-heights so they don't create dead space */
+#system-log-display-placeholder:has([data-collapsible-section].collapsed) {
+    min-height: 0 !important;
+    flex: 0 0 auto !important;
+}
+
+#main-chat-log-placeholder:has([data-collapsible-section].collapsed) {
+    min-height: 0 !important;
+    flex: 0 0 auto !important;
+}
+
+/* Subtle header highlight on hover */
+[data-collapsible-header]:hover {
+    background-color: rgba(0, 212, 255, 0.04);
+}

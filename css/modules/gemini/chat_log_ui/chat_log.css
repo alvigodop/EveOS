@@ -33,21 +33,27 @@
 #chatLog {
     flex: 1;
     height: 0;
-    /* Add strict flex height */
     width: 100%;
-    /* overflow-y removed */
     overflow: hidden;
     display: flex;
     flex-direction: column;
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 8px;
     padding: 0;
-    /* padding moved to inner container */
     background-color: var(--bg-secondary, rgba(0, 0, 0, 0.2));
     margin: 0;
     min-height: 0;
     box-sizing: border-box;
     box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.2);
+}
+
+/* Messages container must scroll independently */
+.chat-messages-container {
+    flex: 1 1 0;
+    height: 100%;
+    min-height: 0;
+    overflow-y: auto !important;
+    padding: 12px;
 }
 
 #pastChatsLog {
@@ -105,36 +111,30 @@
     background: transparent;
 }
 
-/* Custom Scrollbar Styling */
-/* Custom Scrollbar Styling */
+/* Custom Scrollbar Styling — uses global scrollbar vars */
 .chat-messages-container::-webkit-scrollbar,
 #pastChatsLog::-webkit-scrollbar,
 .system-messages-container::-webkit-scrollbar {
-    width: 8px;
-    /* Thinner */
+    width: 6px;
 }
 
 .chat-messages-container::-webkit-scrollbar-track,
 #pastChatsLog::-webkit-scrollbar-track,
 .system-messages-container::-webkit-scrollbar-track {
     background: transparent;
-    /* Invisible track */
 }
 
 .chat-messages-container::-webkit-scrollbar-thumb,
 #pastChatsLog::-webkit-scrollbar-thumb,
 .system-messages-container::-webkit-scrollbar-thumb {
-    background-color: rgba(0, 0, 0, 0.5);
-    /* Darker grey for visibility */
-    border-radius: 4px;
-    /* Rounded pill shape */
+    background-color: var(--scrollbar-thumb, rgba(255, 255, 255, 0.2));
+    border-radius: 3px;
 }
 
 .chat-messages-container::-webkit-scrollbar-thumb:hover,
 #pastChatsLog::-webkit-scrollbar-thumb:hover,
 .system-messages-container::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(0, 0, 0, 0.7);
-    /* Even darker on hover */
+    background-color: var(--scrollbar-thumb-hover, rgba(255, 255, 255, 0.35));
 }
 
 /* #pastChatsLog definition moved above for clarity */
