@@ -39,6 +39,61 @@
     padding: 14px 18px;
 }
 
+/* --- Wide Mode Toggle Button --- */
+.monitor-wide-toggle {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    z-index: 10;
+    width: 26px;
+    height: 26px;
+    border: none;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.18s ease, color 0.18s ease, transform 0.18s ease;
+    padding: 0;
+}
+
+.monitor-wide-toggle:hover {
+    background: rgba(110, 231, 255, 0.14);
+    color: rgba(110, 231, 255, 0.9);
+    transform: scale(1.12);
+}
+
+#loadingIndicator.wide-mode .monitor-wide-toggle {
+    background: rgba(110, 231, 255, 0.16);
+    color: rgba(110, 231, 255, 0.85);
+}
+
+/* Hide toggle when compact */
+#loadingIndicator.compact .monitor-wide-toggle {
+    display: none;
+}
+
+/* --- Wide Mode Layout --- */
+#loadingIndicator.wide-mode:not(.compact) {
+    width: 92vw !important;
+    max-width: 1400px;
+    right: 4vw;
+    left: auto;
+    bottom: 12px;
+    transition: width 0.32s cubic-bezier(0.4, 0, 0.2, 1),
+                right 0.32s cubic-bezier(0.4, 0, 0.2, 1),
+                transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+#loadingIndicator.wide-mode:not(.compact) .indicator-content {
+    width: 100% !important;
+    max-width: 100% !important;
+}
+
 /* Hover effect - lift and glow */
 #loadingIndicator:hover {
     transform: translateY(-2px);

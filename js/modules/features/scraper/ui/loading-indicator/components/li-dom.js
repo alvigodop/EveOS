@@ -147,6 +147,14 @@ window.LoadingIndicatorModules = window.LoadingIndicatorModules || {};
             indicator.classList.remove('compact');
             indicator.classList.add('visible');
             document.addEventListener('click', state.boundHandleOutsideClick);
+            ensureWideToggle(indicator);
+
+            // Restore wide mode preference
+            try {
+                if (localStorage.getItem('searchMonitorWide') === 'true') {
+                    indicator.classList.add('wide-mode');
+                }
+            } catch (e) { /* ignore */ }
         }
 
         function collapse() {
@@ -171,6 +179,25 @@ window.LoadingIndicatorModules = window.LoadingIndicatorModules || {};
             } else {
                 collapse();
             }
+        }
+
+        function ensureWideToggle(indicator) {
+            if (indicator.querySelector('.monitor-wide-toggle')) return;
+
+            const btn = document.createElement('button');
+            btn.className = 'monitor-wide-toggle';
+            btn.title = 'Toggle wide view';
+            btn.setAttribute('aria-label', 'Toggle wide view');
+            btn.innerHTML = '⇔';
+
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const isWide = indicator.classList.toggle('wide-mode');
+                try { localStorage.setItem('searchMonitorWide', isWide ? 'true' : 'false'); } catch (ex) { /* ignore */ }
+            });
+
+            // Insert at the very top of the indicator
+            indicator.insertBefore(btn, indicator.firstChild);
         }
 
         return {
