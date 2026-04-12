@@ -53,20 +53,27 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
 
     let lastPhysicsTick = 0;
+    let lastDrawTick = 0;
 
     function step(timestamp) {
         if (!state.running) return;
 
         const nodeCount = state.nodes.length;
         const isMassive = nodeCount > 5000;
-        const physicsRate = isMassive ? 33.33 : 16.66; // 30Hz vs 60Hz
+        const isUltraMassive = nodeCount > 10000;
+        const physicsRate = isUltraMassive ? 50 : (isMassive ? 33.33 : 16.66);
+        // Draw less frequently for massive maps — saves GPU
+        const drawRate = isUltraMassive ? 50 : (isMassive ? 33.33 : 0);
 
         if (timestamp - lastPhysicsTick >= physicsRate) {
             tickPhysics();
             lastPhysicsTick = timestamp;
         }
 
-        draw();
+        if (timestamp - lastDrawTick >= drawRate) {
+            draw();
+            lastDrawTick = timestamp;
+        }
 
         state.animationFrameId = window.requestAnimationFrame(step);
     }

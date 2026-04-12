@@ -67,7 +67,7 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
         linksByCat.get(cat).push(visibleLinks[i]);
     }
 
-    var CARD_CAP = 20; // Max cards to render in first frame
+    var CARD_CAP = visibleLinks.length > 500 ? 2 : (visibleLinks.length > 200 ? 3 : 8);
     var renderCount = 0;
     var deferredCards = [];
 
@@ -108,11 +108,12 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
         }
     });
 
-    // Render remaining cards in batches via setTimeout
+    // Render remaining cards in batches via setTimeout to avoid blocking paint
     if (deferredCards.length > 0) {
         var batchIdx = 0;
+        var BATCH_SIZE = visibleLinks.length > 500 ? 2 : 4;
         function renderNextBatch() {
-            var end = Math.min(batchIdx + 5, deferredCards.length);
+            var end = Math.min(batchIdx + BATCH_SIZE, deferredCards.length);
             for (var j = batchIdx; j < end; j++) {
                 var d = deferredCards[j];
                 window.DashboardCategories.renderCard(d.cat, d.catLinks, gridContainer, d.buildConfig);

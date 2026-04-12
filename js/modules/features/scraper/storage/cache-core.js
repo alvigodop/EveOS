@@ -98,8 +98,8 @@
                         JSON.parse(localStorage.getItem(cacheKey));
                     if (!cacheData) return defaultValue;
 
-                    // Check if cache has expired
-                    if (cacheData.expires && cacheData.expires < Date.now()) {
+                    // Check if cache has expired (only if expires is explicitly set and non-zero)
+                    if (cacheData.expires && cacheData.expires > 0 && cacheData.expires < Date.now()) {
                         if (window.StorageManager) {
                             if (typeof StorageManager.deleteHeavyData === 'function') {
                                 await StorageManager.deleteHeavyData(cacheKey);

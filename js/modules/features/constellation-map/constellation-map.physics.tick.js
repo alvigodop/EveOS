@@ -74,7 +74,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         const avgEnergy = lastKineticEnergy / nodeCount;
 
         if (isDragging || avgEnergy > 0.0002) {
-            wakeTicks = 90;
+            wakeTicks = 45;
         } else if (wakeTicks > 0) {
             wakeTicks -= 1;
         }
@@ -84,14 +84,19 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         ctx.tickCounter = tickCounter;
 
         if (!shouldSleep) {
-            runPairwisePass(ctx);
+            // For medium maps, skip pairwise on some frames to reduce O(N²) cost
+            const skipPairwise = nodeCount > 1000 && (tickCounter % 2 !== 0) && !isDragging;
+            if (!skipPairwise) {
+                runPairwisePass(ctx);
+            }
             runEdgePass(ctx);
 
             if (state.chainHierarchyEnabled) {
                 runHierarchyPass(ctx);
             }
 
-            if (typeof runPeerAuraPass === 'function') {
+            // Skip aura pass for very large graphs — minor visual, major perf
+            if (typeof runPeerAuraPass === 'function' && nodeCount < 2000) {
                 runPeerAuraPass();
             }
         }

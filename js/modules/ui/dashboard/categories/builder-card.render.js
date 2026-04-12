@@ -124,7 +124,7 @@ window.DashboardCategories = window.DashboardCategories || {};
             if (typeof drop === 'function') drop(event, cat);
         };
 
-        var RENDER_CAP = 50; // Initial render cap per card section
+        var RENDER_CAP = window._evePerfMode ? 20 : 50; // Fewer in perf mode
         var RENDER_BATCH = 50; // Batch size for "Show More"
 
         function renderLinkCollection(linksForRender) {

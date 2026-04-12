@@ -248,10 +248,12 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
             report.ghostWorkspaces.forEach(function (wsId) {
                 const items = report.orphanedByWorkspace[wsId] || [];
                 html += '<div class="nx-result-group">';
-                html += '<div class="nx-group-header">'
+                html += '<div class="nx-group-header nx-group-toggle" data-nx-collapse-group>'
+                    + '<span class="nx-group-arrow">▾</span>'
                     + '<span class="nx-group-title">👻 Ghost Workspace: "' + wsId + '"</span>'
                     + '<span class="nx-group-count">' + items.length + '</span>'
                     + '</div>';
+                html += '<div class="nx-group-body">';
 
                 items.forEach(function (link) {
                     const title = link.title || link.name || link.url || 'Untitled';
@@ -271,10 +273,19 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
                         + '</article>';
                 });
 
-                html += '</div>';
+                html += '</div>'; // .nx-group-body
+                html += '</div>'; // .nx-result-group
             });
 
             resultsEl.innerHTML = html;
+
+            // Wire collapse toggles
+            resultsEl.querySelectorAll('[data-nx-collapse-group]').forEach(function (header) {
+                header.addEventListener('click', function () {
+                    var group = header.closest('.nx-result-group');
+                    if (group) group.classList.toggle('collapsed');
+                });
+            });
             setMeta(report.totalOrphaned + ' orphaned bookmarks found', false);
         }
 

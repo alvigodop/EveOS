@@ -4,8 +4,9 @@ window.EveOS.API = window.EveOS.API || {};
 (function (api) {
     const CACHE_KEY = 'apiSearchCachePool';
     const PREFS_KEY = 'apiSearchPrefs';
-    const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
-    const MAX_QUERIES = 100; // Increased from 50 since we prioritize IDB now
+    const DEFAULT_TTL_MS = 0; // 0 = no expiration (persistent cache)
+    const FRESHNESS_MS = 24 * 60 * 60 * 1000; // 24h — used to determine if a live re-fetch is beneficial
+    const MAX_QUERIES = 500; // Large cap to ensure long-term persistence
 
     function normalizeText(value) {
         return String(value || '').trim();
@@ -394,6 +395,21 @@ window.EveOS.API = window.EveOS.API || {};
         const nextPool = pool && typeof pool === 'object' ? pool : {};
         nextPool.queries = nextPool.queries && typeof nextPool.queries === 'object' ? nextPool.queries : {};
         nextPool.order = Array.isArray(nextPool.order) ? nextPool.order : [];
+
+        // Migration: convert old TTL-based entries to persistent (expiresAt = 0)
+        // Old entries had expiresAt = createdAt + 24h which may have already passed.
+        // Instead of evicting that data, make it persistent.
+        if (!nextPool._migrated_v2) {
+            const now = Date.now();
+            Object.keys(nextPool.queries).forEach(function (queryKey) {
+                const entry = nextPool.queries[queryKey];
+                if (entry && entry.expiresAt && entry.expiresAt > 0 && entry.expiresAt <= now) {
+                    entry.expiresAt = 0; // Make persistent instead of evicting
+                }
+            });
+            nextPool._migrated_v2 = true;
+        }
+
         return nextPool;
     }
 
@@ -404,7 +420,8 @@ window.EveOS.API = window.EveOS.API || {};
 
         Object.keys(pool.queries).forEach(function (queryKey) {
             const entry = pool.queries[queryKey];
-            if (!entry || (entry.expiresAt && entry.expiresAt <= now)) {
+            // Only expire entries that have an explicit non-zero expiresAt
+            if (!entry || (entry.expiresAt && entry.expiresAt > 0 && entry.expiresAt <= now)) {
                 delete pool.queries[queryKey];
             }
         });
@@ -534,7 +551,8 @@ window.EveOS.API = window.EveOS.API || {};
         const entry = pool.queries[queryKey];
         if (!entry) return null;
 
-        if (entry.expiresAt && entry.expiresAt <= Date.now()) {
+        // Only expire if expiresAt is explicitly set and non-zero
+        if (entry.expiresAt && entry.expiresAt > 0 && entry.expiresAt <= Date.now()) {
             delete pool.queries[queryKey];
             pool.order = pool.order.filter(function (value) { return value !== queryKey; });
             await savePool(pool, categoryName);
@@ -589,7 +607,7 @@ window.EveOS.API = window.EveOS.API || {};
             createdAt: previous.createdAt || now,
             updatedAt: now,
             lastUsedAt: now,
-            expiresAt: now + ttlMs
+            expiresAt: ttlMs > 0 ? (now + ttlMs) : 0 // 0 = never expires (persistent)
         };
 
         pool.order = [queryKey].concat(pool.order.filter(function (value) { return value !== queryKey; }));
@@ -634,6 +652,7 @@ window.EveOS.API = window.EveOS.API || {};
         CACHE_KEY,
         PREFS_KEY,
         DEFAULT_TTL_MS,
+        FRESHNESS_MS,
         MAX_QUERIES,
         normalizeQuery,
         normalizeCategoryName,

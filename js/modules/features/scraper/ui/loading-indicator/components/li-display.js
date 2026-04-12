@@ -7,6 +7,25 @@ window.LoadingIndicatorModules = window.LoadingIndicatorModules || {};
     window.LoadingIndicatorModules.createDisplayHelpers = function createDisplayHelpers(ctx) {
         const api = ctx?.api || {};
 
+        // Safety timeout to auto-dismiss stuck searching state
+        let _searchSafetyTimer = null;
+        const SAFETY_TIMEOUT_MS = 45000;
+
+        function clearSafetyTimer() {
+            if (_searchSafetyTimer) {
+                clearTimeout(_searchSafetyTimer);
+                _searchSafetyTimer = null;
+            }
+        }
+
+        function startSafetyTimer() {
+            clearSafetyTimer();
+            _searchSafetyTimer = setTimeout(function () {
+                console.warn('[LoadingIndicator] Safety timeout — auto-dismissing stuck searching state');
+                updateEnhanced(false, 'Idle');
+            }, SAFETY_TIMEOUT_MS);
+        }
+
         function show(message) {
             api._ensureTopLevel();
             const loading = document.getElementById('loadingIndicator');
@@ -65,9 +84,10 @@ window.LoadingIndicatorModules = window.LoadingIndicatorModules || {};
                 return;
             }
 
-            // If we ARE searching, make sure it is visible
+            // If we ARE searching, make sure it is visible + start safety timer
             indicator.classList.add('visible');
             indicator.style.display = '';
+            startSafetyTimer();
 
             if (isSearching || message === 'Idle') {
                 indicator.classList.remove('error');
@@ -118,12 +138,26 @@ window.LoadingIndicatorModules = window.LoadingIndicatorModules || {};
             updateEnhanced(showIndicator, message);
         }
 
+        function forceReset() {
+            clearSafetyTimer();
+            const indicator = document.getElementById('loadingIndicator');
+            if (!indicator) return;
+            indicator.classList.remove('searching', 'error', 'visible');
+            indicator.style.display = 'none';
+            const statusText = indicator.querySelector('.status-text');
+            if (statusText) statusText.textContent = 'Idle';
+            const dot = indicator.querySelector('.dot');
+            if (dot) dot.style.background = '#e0e0e0';
+            api._loadingIndicatorCompact = true;
+        }
+
         return {
             show,
             hide,
             updateEnhanced,
             showErrorInMonitor,
-            update
+            update,
+            forceReset
         };
     };
 })();

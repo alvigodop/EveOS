@@ -22,7 +22,10 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
                 <span class="nx-header-text">NEXUS SEARCH</span>
                 <span class="nx-header-sub">Unified Knowledge Index</span>
             </div>
-            <button class="nx-close-btn" onclick="closeModals()" title="Close">✕</button>
+            <div class="nx-header-actions">
+                <button type="button" class="nx-gemini-btn" id="nxGeminiLinkBtn" title="Open Gemini AI Link">✦ Gemini</button>
+                <button class="nx-close-btn" onclick="closeModals()" title="Close">✕</button>
+            </div>
         </div>
 
         <!-- Main Body: Two Columns -->

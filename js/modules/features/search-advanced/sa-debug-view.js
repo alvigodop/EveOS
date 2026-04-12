@@ -181,6 +181,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         html += '<div class="nx-debug-actions">';
         html += '<button type="button" class="nx-debug-action-btn" id="nxDebugClearFolderCache">Clear Folder Cache</button>';
         html += '<button type="button" class="nx-debug-action-btn" id="nxDebugForceRender">Force Re-render</button>';
+        html += '<button type="button" class="nx-debug-action-btn" id="nxDebugResetLoading">Reset Loading State</button>';
         html += '<button type="button" class="nx-debug-action-btn" id="nxDebugRefreshDiag">Refresh Diagnostics</button>';
         html += '</div></div>';
 
@@ -214,6 +215,18 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             forceRenderBtn.onclick = function () {
                 if (typeof renderDashboard === 'function') renderDashboard();
                 if (typeof showToast === 'function') showToast('Dashboard re-rendered', 'info');
+            };
+        }
+
+        var resetLoadingBtn = document.getElementById('nxDebugResetLoading');
+        if (resetLoadingBtn) {
+            resetLoadingBtn.onclick = function () {
+                if (window.LoadingIndicator?.forceReset) {
+                    LoadingIndicator.forceReset();
+                    if (typeof showToast === 'function') showToast('Loading state reset', 'info');
+                } else {
+                    if (typeof showToast === 'function') showToast('LoadingIndicator not available', 'warning');
+                }
             };
         }
 

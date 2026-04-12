@@ -107,6 +107,11 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     let gridCols = 0;
     let gridRows = 0;
 
+    // Cursor focus cache — avoids re-iterating all nodes when pointer is idle
+    let _lastCursorX = -1;
+    let _lastCursorY = -1;
+    let _cachedFocusIds = new Set();
+
     function renderLabels(ctx) {
         state.labelHitBoxes = [];
         if (state.labelMode === 'off') return;
@@ -117,7 +122,15 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         const boundsRight = (state.canvas.width - state.transform.tx) / state.transform.scale + margin;
         const boundsBottom = (state.canvas.height - state.transform.ty) / state.transform.scale + margin;
 
-        const focusIds = getCursorFocusIds();
+        // Cache cursor focus IDs — only recalculate when pointer moves
+        const px = Number(state.pointer.canvasX) || 0;
+        const py = Number(state.pointer.canvasY) || 0;
+        if (px !== _lastCursorX || py !== _lastCursorY) {
+            _lastCursorX = px;
+            _lastCursorY = py;
+            _cachedFocusIds = getCursorFocusIds();
+        }
+        const focusIds = _cachedFocusIds;
         const searchMatchIds = new Set((state.searchState.matches || []).map((match) => match.id));
         const autoLinkBudget = getAutoLinkLabelBudget();
 

@@ -5,8 +5,8 @@
     const MAX_BOOTSTRAP_RELOADS = 1;
     const RELOAD_ATTEMPT_KEY = 'eveos.scriptLoader.reloadAttempts';
     const DEFERRED_LOAD_DELAY_MS = 1500;
-    const CRITICAL_BATCH_SIZE = 16;
-    const CRITICAL_BATCH_PAUSE_MS = 10;
+    const CRITICAL_BATCH_SIZE = 12;
+    const CRITICAL_BATCH_PAUSE_MS = 15;
     const LOCALHOST_CRITICAL_BATCH_MIN_SCRIPTS = 80;
     const DEFERRED_IDLE_TIMEOUT_MS = 2500;
     const DEFERRED_BATCH_SIZE = 4;
@@ -74,6 +74,9 @@
         if (!Array.isArray(criticalScripts) || criticalScripts.length < LOCALHOST_CRITICAL_BATCH_MIN_SCRIPTS) {
             return false;
         }
+        // Batch on file:// too — without this, 800+ scripts evaluate in one
+        // synchronous block causing "page isn't responding" dialogs
+        if (window.location.protocol === 'file:') return true;
         const host = String(window.location.hostname || '').toLowerCase();
         return host === 'localhost' || host === '127.0.0.1';
     }

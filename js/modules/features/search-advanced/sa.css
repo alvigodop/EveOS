@@ -149,6 +149,33 @@
     border-color: rgba(255, 80, 80, 0.5);
 }
 
+.nx-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.nx-gemini-btn {
+    background: linear-gradient(135deg, rgba(0, 212, 255, 0.12), rgba(168, 85, 247, 0.12));
+    border: 1px solid rgba(110, 231, 255, 0.22);
+    color: rgba(200, 230, 255, 0.85);
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.76rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    transition: all 0.2s ease;
+    font-family: 'Share Tech Mono', monospace;
+}
+
+.nx-gemini-btn:hover {
+    background: linear-gradient(135deg, rgba(0, 212, 255, 0.22), rgba(168, 85, 247, 0.22));
+    border-color: rgba(110, 231, 255, 0.4);
+    color: #d8f7ff;
+    box-shadow: 0 0 12px rgba(0, 212, 255, 0.15);
+}
+
 /* ── Body Two-Column Layout ── */
 .nx-body {
     display: flex;
@@ -554,11 +581,50 @@
     margin-bottom: 8px;
 }
 
+.nx-group-toggle {
+    cursor: pointer;
+    user-select: none;
+    border-radius: 6px;
+    padding: 8px 8px 6px;
+    transition: background 0.15s;
+}
+
+.nx-group-toggle:hover {
+    background: rgba(80, 200, 255, 0.04);
+}
+
+.nx-group-arrow {
+    font-size: 0.75rem;
+    color: rgba(80, 200, 255, 0.4);
+    margin-right: 6px;
+    transition: transform 0.2s ease;
+    display: inline-block;
+}
+
+.nx-result-group.collapsed .nx-group-arrow {
+    transform: rotate(-90deg);
+}
+
+.nx-group-body {
+    transition: max-height 0.25s ease, opacity 0.2s ease;
+    overflow: hidden;
+}
+
+.nx-result-group.collapsed .nx-group-body {
+    display: none;
+}
+
+.nx-result-group.collapsed .nx-group-header {
+    margin-bottom: 0;
+    border-bottom-color: transparent;
+}
+
 .nx-group-title {
     font-size: 0.78rem;
     font-weight: 600;
     letter-spacing: 1px;
     color: rgba(80, 200, 255, 0.6);
+    flex: 1;
 }
 
 .nx-group-count {
@@ -567,6 +633,8 @@
     background: rgba(80, 200, 255, 0.08);
     border-radius: 10px;
     color: rgba(80, 200, 255, 0.5);
+    margin-left: 8px;
+    flex-shrink: 0;
 }
 
 .nx-result-item {

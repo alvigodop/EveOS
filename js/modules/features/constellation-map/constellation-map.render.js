@@ -91,14 +91,20 @@ function draw() {
         ctx.translate(state.transform.tx, state.transform.ty);
         ctx.scale(state.transform.scale, state.transform.scale);
 
-        drawPhysicsAuras(ctx);
-        drawBlobLayers(ctx);
+        const nodeCount = state.nodes.length;
+
+        // Skip expensive visual layers for large maps
+        if (nodeCount < 1000) {
+            drawPhysicsAuras(ctx);
+            drawBlobLayers(ctx);
+        } else if (nodeCount < 3000 && state.transform.scale > 0.5) {
+            drawBlobLayers(ctx);
+        }
 
         const boundsLeft = -state.transform.tx / state.transform.scale - 500;
         const boundsTop = -state.transform.ty / state.transform.scale - 500;
         const boundsRight = (ctx.canvas.width - state.transform.tx) / state.transform.scale + 500;
         const boundsBottom = (ctx.canvas.height - state.transform.ty) / state.transform.scale + 500;
-        const nodeCount = state.nodes.length;
         const isMassive = nodeCount > 500;
         const isHyperMassive = nodeCount > 5000;
         const isUltraMassive = nodeCount > 10000;
@@ -140,10 +146,10 @@ function draw() {
         }
 
         const rewireSourceNode = text(state.rewire?.sourceNodeId, '')
-            ? state.nodes.find((node) => node.id === state.rewire.sourceNodeId) || null
+            ? (state.nodeIndex.get(state.rewire.sourceNodeId) || null)
             : null;
         const rewireTargetNode = text(state.rewire?.targetNodeId, '')
-            ? state.nodes.find((node) => node.id === state.rewire.targetNodeId) || null
+            ? (state.nodeIndex.get(state.rewire.targetNodeId) || null)
             : null;
         const validRewireTargets = state.rewire?.validTargetIds instanceof Set ? state.rewire.validTargetIds : new Set();
 

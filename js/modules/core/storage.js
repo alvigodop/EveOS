@@ -731,10 +731,18 @@ async function loadData() {
         window.EveQuickPins.migrateLegacyPins();
     }
 
-    // Render
+    // Render — defer heavy dashboard to let browser breathe after 800+ script evaluations
+    // Use setTimeout(0) to push to back of macrotask queue (rAF still competes with paint)
     if (typeof renderSidebar === 'function') renderSidebar();
-    if (typeof renderDashboard === 'function') renderDashboard();
-    if (typeof updateSuggestions === 'function') updateSuggestions();
+
+    setTimeout(function () {
+        if (typeof renderDashboard === 'function') renderDashboard();
+        // Defer suggestions even further — they're not visible initially
+        setTimeout(function () {
+            if (typeof updateSuggestions === 'function') updateSuggestions();
+        }, 100);
+    }, 0);
+
     if (typeof updateTimeAndGreeting === 'function') {
         updateTimeAndGreeting();
         setInterval(updateTimeAndGreeting, 1000);

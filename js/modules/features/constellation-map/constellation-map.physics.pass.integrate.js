@@ -79,7 +79,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         // Viewport center for interaction radius
         const vpcX = -state.transform.tx / state.transform.scale + (state.canvas.width / 2) / state.transform.scale;
         const vpcY = -state.transform.ty / state.transform.scale + (state.canvas.height / 2) / state.transform.scale;
-        const interactionRadiusSq = Math.pow(2000 / state.transform.scale, 2);
+        const interactionRadiusSq = Math.pow((nodeCount > 5000 ? 1200 : 2000) / state.transform.scale, 2);
 
         if (hubs) updateHubGrid(hubs);
 
@@ -155,7 +155,6 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             applyMotionModePositioning(node, anchor, motionProfile);
             applySoftWorldTether(node, motionProfile);
-            stabilizeNodeMotion(node, anchor, motionProfile);
             stabilizeDirectCardBookmarkClearance(node, anchor);
 
             // Hub Exclusion using Spatial Grid

@@ -135,7 +135,9 @@ window.EveOS.API = window.EveOS.API || {};
             const cachedVisibleCount = ctx.countResults(cachedVisibleSources);
 
             if (!shouldUseLive && activeCachedEntry?.sources && cachedVisibleCount > 0) {
-                const isFresh = activeCachedEntry.expiresAt > Date.now();
+                // Freshness: if updated less than 24h ago, it's 'fresh' (even with no expiry)
+                const FRESHNESS_MS = 24 * 60 * 60 * 1000;
+                const isFresh = (activeCachedEntry.updatedAt || activeCachedEntry.createdAt || 0) > (Date.now() - FRESHNESS_MS);
                 // [MOD] If hybridSearch is active, do not return early with cached query.
                 // This ensures we fall through to the merge phase where sources (like Wikipedia) can discover deep results.
                 const isShallow = ctx.isShallowApiCache(activeCachedEntry);

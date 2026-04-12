@@ -44,6 +44,41 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
                     }
                 });
             }
+
+            // Wire Gemini Link button — opens search monitor with Gemini UI
+            const geminiBtn = fields.byId?.('nxGeminiLinkBtn');
+            if (geminiBtn) {
+                geminiBtn.addEventListener('click', function () {
+                    function doExpand() {
+                        if (window.LoadingIndicator && typeof LoadingIndicator.expand === 'function') {
+                            LoadingIndicator.expand();
+                            setTimeout(function () {
+                                const placeholder = document.getElementById('gemini-placeholder');
+                                if (placeholder) placeholder.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            }, 200);
+                            return true;
+                        }
+                        return false;
+                    }
+
+                    if (doExpand()) return;
+
+                    // LoadingIndicator is a deferred script — rush-load it
+                    if (typeof window.__loadDeferredScriptsNow === 'function') {
+                        geminiBtn.disabled = true;
+                        geminiBtn.textContent = '⟳ Loading…';
+                        window.__loadDeferredScriptsNow().then(function () {
+                            geminiBtn.disabled = false;
+                            geminiBtn.textContent = '✦ Gemini';
+                            // Retry after deferred scripts finish
+                            setTimeout(doExpand, 100);
+                        }).catch(function () {
+                            geminiBtn.disabled = false;
+                            geminiBtn.textContent = '✦ Gemini';
+                        });
+                    }
+                });
+            }
         }
 
         function createModalIfNeeded() {
