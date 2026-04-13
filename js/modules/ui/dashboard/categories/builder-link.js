@@ -149,6 +149,7 @@ window.DashboardCategories = window.DashboardCategories || {};
 window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspace, workspaces, options) {
     const extraOptions = options || {};
     const perfMode = !!window._evePerfMode;
+    const megaPerfMode = !!window._eveMegaPerfMode;
     const LINK_ICON = '\u{1F517}';
     const GLOBE_ICON = '\u{1F310}';
     const PIN_ICON = '\u{1F4CC}';
@@ -163,14 +164,19 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
     } catch (e) {
         domain = String(l.url || '').replace(/^https?:\/\//, '').split('/')[0];
     }
-    const useFavicon = !perfMode && !isLocal && domain && domain.includes('.');
+    const useFavicon = !isLocal && domain && domain.includes('.');
+
+    // Use cached favicon data URI when available
+    const faviconSrc = (useFavicon && window.EveFaviconCache)
+        ? window.EveFaviconCache.getSrc(domain, 32)
+        : (useFavicon ? `https://www.google.com/s2/favicons?domain=${domain}&sz=32` : '');
 
     let iconHtml = (l.icon && l.icon !== LINK_ICON)
         ? (/^https?:\/\//i.test(String(l.icon)) || String(l.icon).startsWith('/')
-            ? (perfMode ? `<span style="font-size:1.2rem; margin-right:8px;">${GLOBE_ICON}</span>` : `<img src="${l.icon}" width="16" height="16" style="margin-right:8px;" loading="lazy" onerror="this.onerror=null;this.replaceWith('${GLOBE_ICON}');">`)
+            ? (megaPerfMode ? `<span style="font-size:1.2rem; margin-right:8px;">${GLOBE_ICON}</span>` : `<img src="${l.icon}" width="16" height="16" style="margin-right:8px;" loading="lazy" onerror="this.onerror=null;this.replaceWith('${GLOBE_ICON}');">`)
             : `<span style="font-size:1.2rem; margin-right:8px;">${l.icon}</span>`)
         : (useFavicon
-            ? `<img src="https://www.google.com/s2/favicons?domain=${domain}&sz=32" width="16" height="16" style="margin-right:8px;" loading="lazy" onerror="this.onerror=null;this.replaceWith('${GLOBE_ICON}');">`
+            ? (megaPerfMode ? `<span style="font-size:1.2rem; margin-right:8px;">${GLOBE_ICON}</span>` : `<img src="${faviconSrc}" width="16" height="16" style="margin-right:8px;" loading="lazy" onerror="this.onerror=null;this.replaceWith('${GLOBE_ICON}');">`)
             : `<span style="font-size:1.2rem; margin-right:8px;">${GLOBE_ICON}</span>`);
 
     const pClass = l.priority ? `p-${l.priority}` : '';
@@ -248,7 +254,7 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
         }
     }
 
-    const hoverHandlers = perfMode ? '' : ` onmouseenter="showBookmarkCoverHover(event, ${jsLinkIdLiteral})" onmousemove="moveBookmarkCoverHover(event)" onmouseleave="hideBookmarkCoverHover()"`;
+    const hoverHandlers = megaPerfMode ? '' : ` onmouseenter="showBookmarkCoverHover(event, ${jsLinkIdLiteral})" onmousemove="moveBookmarkCoverHover(event)" onmouseleave="hideBookmarkCoverHover()"`;
     return `<li class="${doneClass} ${isLocal ? 'is-local' : ''} ${pClass} ${pinnedClass}" draggable="true" ondragstart="${dragStartHandler}" oncontextmenu="showLinkContextMenu(event, ${jsLinkIdLiteral})"${hoverHandlers}>
                 <input type="checkbox" class="bulk-check" data-bulk-id="${linkId.replace(/&/g, '&amp;').replace(/\"/g, '&quot;')}" onclick="event.preventDefault();event.stopPropagation();toggleSelect(this, ${jsLinkIdLiteral}, event);return false;" ${isChecked}>
                 ${iconHtml} ${wsBadge} ${subTabBadge} ${folderBadge} ${detachedBadge} ${identifierBadges} <a href="${l.url}" target="_blank" rel="noopener noreferrer" onclick='return (typeof openBookmarkFromDashboard==="function") ? openBookmarkFromDashboard(event, decodeURIComponent("${encodedLinkId}")) : true;'>${l.title}</a>

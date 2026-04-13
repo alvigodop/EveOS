@@ -60,7 +60,7 @@ window.DashboardCategories = window.DashboardCategories || {};
                 + 'Loading ' + catLinks.length + ' bookmarks\u2026'
                 + '</div>'
                 + '</div>'
-                + '<div class="category-footer"><span class="stat-pending">\u2026</span><span class="stat-done">\u2026</span></div>';
+                + '<div class="category-footer"><span class="stat-pending">Tasks: \u2026</span><span class="stat-done">\u2026</span></div>';
 
             gridContainer.appendChild(shellCard);
 
@@ -400,7 +400,7 @@ window.DashboardCategories = window.DashboardCategories || {};
 
         var shownSuffix = (isFocusMode && focusedFilterMode !== 'all') ? ' shown' : '';
         var titleMetaText = isTaskMode
-            ? (totalVisible + ' bookmarks' + shownSuffix + ' &bull; ' + doneVisible + ' done' + ' &bull; ' + Math.max(totalVisibleTasks - doneVisible, 0) + ' pending')
+            ? (totalVisible + ' bookmarks' + shownSuffix + ' &bull; ' + doneVisible + ' done' + ' &bull; ' + Math.max(totalVisibleTasks - doneVisible, 0) + ' to-do')
             : (totalVisible + ' bookmarks' + shownSuffix);
         var titleMetaHtml = isFocusMode
             ? '<div class="cat-focus-meta">' + titleMetaText + '</div>'
@@ -542,7 +542,7 @@ window.DashboardCategories = window.DashboardCategories || {};
             + '</div>'
             + '<div id="' + libPanelId + '" class="lib-panel" style="display:none;"></div>'
             + listHtml
-            + '<div class="category-footer"><span class="stat-pending">Pending: ' + Math.max(totalVisibleTasks - doneVisible, 0) + '</span><span class="stat-done">Done: ' + doneVisible + '</span></div>';
+            + '<div class="category-footer"><span class="stat-pending">Tasks Pending: ' + Math.max(totalVisibleTasks - doneVisible, 0) + '</span><span class="stat-done">Done: ' + doneVisible + '</span></div>';
         card.setAttribute('data-card-target-id', cardTargetId);
         card.setAttribute('data-card-category', String(cat || 'Unsorted'));
         card.setAttribute('data-card-workspace', effectiveWsId || activeWorkspaceId);

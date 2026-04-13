@@ -740,6 +740,10 @@ async function loadData() {
         // Defer suggestions even further — they're not visible initially
         setTimeout(function () {
             if (typeof updateSuggestions === 'function') updateSuggestions();
+            // Warm up favicon cache in background after initial render
+            if (window.EveFaviconCache && typeof window.EveFaviconCache.warmup === 'function') {
+                window.EveFaviconCache.warmup();
+            }
         }, 100);
     }, 0);
 

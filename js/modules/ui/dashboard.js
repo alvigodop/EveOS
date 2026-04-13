@@ -325,7 +325,10 @@ function _renderDashboardCore() {
     });
 
     // Performance mode: skip expensive per-link operations when workspace is large
-    window._evePerfMode = visibleLinks.length > 200;
+    // Level 1: Standard Perf Mode (600+) - degraded animations, basic throttling
+    // Level 2: Mega Perf Mode (1500+) - strip icons, strip hovers, max throttling
+    window._evePerfMode = visibleLinks.length > 600;
+    window._eveMegaPerfMode = visibleLinks.length > 1500;
 
     if (isUnidexMode) {
         if (focusBanner) focusBanner.style.display = 'none';
