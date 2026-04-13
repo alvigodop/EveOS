@@ -39,6 +39,7 @@ function refreshDashboardMasonryLayout(grid) {
 
     if (!enableMasonry) {
         clearDashboardMasonryCardSpans(grid);
+        grid.style.minHeight = '';
         return;
     }
 
@@ -52,6 +53,17 @@ function refreshDashboardMasonryLayout(grid) {
     }
 
     var cards = grid.querySelectorAll('.category-card');
+    if (!cards.length) {
+        grid.style.minHeight = '';
+        return;
+    }
+
+    // Stabilize scroll position: prevent grid height collapse during recalculation
+    var scrollPos = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+    var currentHeight = grid.offsetHeight;
+    if (currentHeight > 100) {
+        grid.style.minHeight = currentHeight + 'px';
+    }
 
     // Batch write: reset all spans first
     for (var i = 0; i < cards.length; i++) {
@@ -69,20 +81,28 @@ function refreshDashboardMasonryLayout(grid) {
         var span = Math.max(1, Math.ceil((heights[k] + rowGap) / (rowHeight + rowGap)));
         cards[k].style.gridRowEnd = 'span ' + span;
     }
+
+    // Reset min-height and affirm scroll
+    requestAnimationFrame(function () {
+        grid.style.minHeight = '';
+        if (Math.abs((window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0) - scrollPos) > 10) {
+            window.scrollTo(0, scrollPos);
+        }
+    });
 }
 
 function scheduleDashboardMasonryLayout(grid) {
     if (!grid) return;
     dashboardMasonryState.activeGrid = grid;
 
-    // Hard throttle: max once per 200ms
+    // Hard throttle: max once per 150ms (reduced from 200ms for responsiveness)
     var now = Date.now();
-    if (dashboardMasonryState._lastLayout && (now - dashboardMasonryState._lastLayout) < 200) {
+    if (dashboardMasonryState._lastLayout && (now - dashboardMasonryState._lastLayout) < 150) {
         if (!dashboardMasonryState._throttleTimer) {
             dashboardMasonryState._throttleTimer = setTimeout(function () {
                 dashboardMasonryState._throttleTimer = 0;
                 scheduleDashboardMasonryLayout(grid);
-            }, 200);
+            }, 150);
         }
         return;
     }
@@ -203,12 +223,21 @@ function renderDashboard() {
     });
 }
 
+function _getRobustScrollTop() {
+    return Math.max(
+        window.pageYOffset || 0,
+        document.documentElement.scrollTop || 0,
+        document.body.scrollTop || 0,
+        window.scrollY || 0
+    );
+}
+
 function _renderDashboardImmediate() {
     var cardScrollState = captureDashboardCardScrollState();
 
     // Capture scroll position ONCE per synchronous batch
     if (_scrollSave < 0) {
-        _scrollSave = document.documentElement.scrollTop || window.pageYOffset || 0;
+        _scrollSave = _getRobustScrollTop();
 
         // Create a proper block-level spacer on the body to physically hold height
         // This is necessary because Masonry layout takes time/frames to expand the grid
@@ -244,7 +273,7 @@ function _renderDashboardImmediate() {
         _scrollSpacer = null;
         _scrollSave = -1;
         _scrollRafId = 0;
-    }, 300);
+    }, 350);
 }
 
 function _renderDashboardCore() {
