@@ -201,14 +201,14 @@ window.EveWorkspaceHelpers = (function () {
      */
     function getPath(workspaces, id, currentPath) {
         if (!Array.isArray(workspaces) || !id) return [];
-        const path = currentPath || [];
-        const targetId = String(id);
-        for (let i = 0; i < workspaces.length; i++) {
-            const ws = workspaces[i];
+        var path = currentPath || [];
+        var targetId = String(id);
+        for (var i = 0; i < workspaces.length; i++) {
+            var ws = workspaces[i];
             if (!ws) continue;
-            if (String(ws.id) === targetId) return [...path, ws];
+            if (String(ws.id) === targetId) return path.concat([ws]);
             if (Array.isArray(ws.subTabs)) {
-                const found = getPath(ws.subTabs, targetId, [...path, ws]);
+                var found = getPath(ws.subTabs, targetId, path.concat([ws]));
                 if (found.length > 0) return found;
             }
         }

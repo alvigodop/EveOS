@@ -78,11 +78,13 @@ function renderCategoryQuickPicker(filterText, pickerId = 'newCategoryQuickPicke
 
     picker.innerHTML = filtered.map(name => {
         const safeLabel = escapeHtml(name);
-        const encoded = encodeURIComponent(name);
         return `
             <button type="button"
                 style="display:block; width:100%; text-align:left; background:transparent; border:0; border-bottom:1px solid rgba(255,255,255,0.08); padding:8px 10px; color:var(--text-main); cursor:pointer;"
-                onmousedown="selectCategoryQuickPicker('${encoded}', '${inputId}', '${pickerId}')"
+                data-name="${safeLabel}"
+                data-input="${inputId}"
+                data-picker="${pickerId}"
+                onmousedown="selectCategoryQuickPicker(this.dataset.name, this.dataset.input, this.dataset.picker)"
                 title="${safeLabel}">
                 ${safeLabel}
             </button>
@@ -133,13 +135,8 @@ window.handleCategoryQuickPickerBlur = function (pickerId = 'newCategoryQuickPic
     }, 120);
 };
 
-window.selectCategoryQuickPicker = function (encodedCategory, inputId = 'newCategory', pickerId = 'newCategoryQuickPicker') {
-    let decoded = '';
-    try {
-        decoded = decodeURIComponent(String(encodedCategory || ''));
-    } catch (error) {
-        decoded = String(encodedCategory || '');
-    }
+window.selectCategoryQuickPicker = function (categoryName, inputId = 'newCategory', pickerId = 'newCategoryQuickPicker') {
+    const decoded = String(categoryName || '');
 
     const input = document.getElementById(inputId);
     if (input) {

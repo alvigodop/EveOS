@@ -428,25 +428,25 @@ window.DashboardCategories = window.DashboardCategories || {};
         var visibleHeaderButtons = new Set(getCardHeaderButtonsForCategory(activeWorkspaceId, cat));
         var nonFocusButtons = [];
         if (!isDetachedParkingCard && visibleHeaderButtons.has('add')) {
-            nonFocusButtons.push('<button class="card-header-icon-btn" onclick="openAddModal(\'' + safeCatJs + '\')" title="Add Bookmark">&#10133;</button>');
+            nonFocusButtons.push('<button class="card-header-icon-btn" data-cat="' + safeCatHtml + '" onclick="openAddModal(this.dataset.cat)" title="Add Bookmark">&#10133;</button>');
         }
         if (!isDetachedParkingCard && visibleHeaderButtons.has('folders')) {
-            nonFocusButtons.push('<button class="' + (folderToolbarExpanded ? 'card-header-icon-btn card-folder-toggle-btn is-active' : 'card-header-icon-btn card-folder-toggle-btn') + '" data-folder-toolbar-toggle="1" onclick="toggleBookmarkFolderToolbar(\'' + safeCatJs + '\', \'' + escapeCardJs(options.activeWorkspace || 'main') + '\')" title="Folders">&#128193;</button>');
+            nonFocusButtons.push('<button class="' + (folderToolbarExpanded ? 'card-header-icon-btn card-folder-toggle-btn is-active' : 'card-header-icon-btn card-folder-toggle-btn') + '" data-folder-toolbar-toggle="1" data-cat="' + safeCatHtml + '" data-ws="' + escapeCardHtml(options.activeWorkspace || 'main') + '" onclick="toggleBookmarkFolderToolbar(this.dataset.cat, this.dataset.ws)" title="Folders">&#128193;</button>');
         }
         if (!isDetachedParkingCard && visibleHeaderButtons.has('library')) {
-            nonFocusButtons.push('<button class="card-header-icon-btn lib-toggle-btn" onclick="toggleCategoryLibrary(\'' + safeCatJs + '\')" title="Library">&#128218;</button>');
+            nonFocusButtons.push('<button class="card-header-icon-btn lib-toggle-btn" data-cat="' + safeCatHtml + '" onclick="toggleCategoryLibrary(this.dataset.cat)" title="Library">&#128218;</button>');
         }
         if (visibleHeaderButtons.has('focus')) {
-            nonFocusButtons.push('<button class="card-header-icon-btn" onclick="setFocus(\'' + safeCatJs + '\')" title="Focus">&#127919;</button>');
+            nonFocusButtons.push('<button class="card-header-icon-btn" data-cat="' + safeCatHtml + '" onclick="setFocus(this.dataset.cat)" title="Focus">&#127919;</button>');
         }
         if (isDetachedParkingCard) {
             nonFocusButtons.push(detachedMapButtonHtml);
         }
         if (!isDetachedParkingCard && visibleHeaderButtons.has('constellation')) {
-            nonFocusButtons.push('<button class="card-header-icon-btn constellation-btn" onclick="if(window.EveConstellationMap) window.EveConstellationMap.openCardMap(\'' + escapeCardJs(activeWorkspaceId) + '\', \'' + safeCatJs + '\')" title="Constellation Map">&#127756;</button>');
+            nonFocusButtons.push('<button class="card-header-icon-btn constellation-btn" data-cat="' + safeCatHtml + '" data-ws="' + escapeCardHtml(activeWorkspaceId) + '" onclick="if(window.EveConstellationMap) window.EveConstellationMap.openCardMap(this.dataset.ws, this.dataset.cat)" title="Constellation Map">&#127756;</button>');
         }
         if (!isDetachedParkingCard) {
-            nonFocusButtons.push('<button class="card-header-icon-btn" onclick="openCategorySettings(\'' + safeCatJs + '\')" title="Settings">&#9881;</button>');
+            nonFocusButtons.push('<button class="card-header-icon-btn" data-cat="' + safeCatHtml + '" onclick="openCategorySettings(this.dataset.cat)" title="Settings">&#9881;</button>');
         }
         if (!isDetachedParkingCard && visibleHeaderButtons.has('launch')) {
             nonFocusButtons.push('<button class="card-header-icon-btn launch-btn" data-cat="' + safeCatHtml + '" onclick="launchCategory(this.dataset.cat)" title="Launch">&#128640;</button>');
@@ -455,18 +455,18 @@ window.DashboardCategories = window.DashboardCategories || {};
         var headerButtonsHtml = isFocusMode
             ? ''
             + '<div class="focus-card-controls">'
-            + '<button class="category-action-btn bulk-scope-btn" data-scope-category="' + safeCatHtml + '" data-scope-workspace="' + escapeCardJs(activeWorkspaceId) + '" onclick="bulkToggleCardScopeSelection(\'' + safeCatJs + '\', \'' + escapeCardJs(activeWorkspaceId) + '\')" title="Select all bookmarks in this card">&#9744; <span>Select Card</span></button>'
+            + '<button class="category-action-btn bulk-scope-btn" data-scope-category="' + safeCatHtml + '" data-scope-workspace="' + escapeCardHtml(activeWorkspaceId) + '" onclick="bulkToggleCardScopeSelection(this.dataset.scopeCategory, this.dataset.scopeWorkspace)" title="Select all bookmarks in this card">&#9744; <span>Select Card</span></button>'
             + (!isDetachedParkingCard && visibleHeaderButtons.has('add')
-                ? '<button class="category-action-btn" onclick="openAddModal(\'' + safeCatJs + '\')" title="Add Bookmark">&#10133; <span>Add</span></button>'
+                ? '<button class="category-action-btn" data-cat="' + safeCatHtml + '" onclick="openAddModal(this.dataset.cat)" title="Add Bookmark">&#10133; <span>Add</span></button>'
                 : '')
             + (!isDetachedParkingCard && visibleHeaderButtons.has('folders')
-                ? '<button class="' + folderHeaderBtnClass + '" data-folder-toolbar-toggle="1" onclick="toggleBookmarkFolderToolbar(\'' + safeCatJs + '\', \'' + escapeCardJs(options.activeWorkspace || 'main') + '\')" title="Folders">&#128193; <span>Folders</span></button>'
+                ? '<button class="' + folderHeaderBtnClass + '" data-folder-toolbar-toggle="1" data-cat="' + safeCatHtml + '" data-ws="' + escapeCardHtml(options.activeWorkspace || 'main') + '" onclick="toggleBookmarkFolderToolbar(this.dataset.cat, this.dataset.ws)" title="Folders">&#128193; <span>Folders</span></button>'
                 : '')
             + (!isDetachedParkingCard && visibleHeaderButtons.has('library')
-                ? '<button class="category-action-btn" onclick="toggleCategoryLibrary(\'' + safeCatJs + '\')" title="Library">&#128218; <span>Library</span></button>'
+                ? '<button class="category-action-btn" data-cat="' + safeCatHtml + '" onclick="toggleCategoryLibrary(this.dataset.cat)" title="Library">&#128218; <span>Library</span></button>'
                 : '')
             + (!isDetachedParkingCard && visibleHeaderButtons.has('constellation')
-                ? '<button class=\"category-action-btn\" onclick=\"if(window.EveConstellationMap) window.EveConstellationMap.openCardMap(\'' + escapeCardJs(activeWorkspaceId) + '\', \'' + safeCatJs + '\')\" title=\"Constellation Map\">&#127756; <span>Map</span></button>'
+                ? '<button class=\"category-action-btn\" data-cat=\"' + safeCatHtml + '\" data-ws=\"' + escapeCardHtml(activeWorkspaceId) + '\" onclick=\"if(window.EveConstellationMap) window.EveConstellationMap.openCardMap(this.dataset.ws, this.dataset.cat)\" title=\"Constellation Map\">&#127756; <span>Map</span></button>'
                 : '')
             + detachedFocusMapButtonHtml
             + '<select class="unidex-filter-select focus-filter-select" aria-label="Focused bookmark filter" onchange="window.DashboardCategories.setFocusedEntriesFilterMode(this.value)">'
@@ -490,7 +490,7 @@ window.DashboardCategories = window.DashboardCategories || {};
             + '</select>'
             + '<button class="category-action-btn" onclick="clearFocus()" title="Exit Focus">&#127919; <span>Exit Focus</span></button>'
             + (!isDetachedParkingCard
-                ? '<button class="category-action-btn" onclick="openCategorySettings(\'' + safeCatJs + '\')" title="Settings">&#9881; <span>Settings</span></button>'
+                ? '<button class="category-action-btn" data-cat="' + safeCatHtml + '" onclick="openCategorySettings(this.dataset.cat)" title="Settings">&#9881; <span>Settings</span></button>'
                 : '')
             + (!isDetachedParkingCard && visibleHeaderButtons.has('launch')
                 ? '<button class="category-action-btn" data-cat="' + safeCatHtml + '" onclick="launchCategory(this.dataset.cat)" title="Launch">&#128640; <span>Launch</span></button>'
@@ -498,7 +498,7 @@ window.DashboardCategories = window.DashboardCategories || {};
             + '</div>'
             : ''
             + '<div class="card-header-icon-row" onwheel="handleCardHeaderIconRowWheel(event)">'
-            + '<button class="card-header-icon-btn bulk-scope-btn" data-scope-category="' + safeCatHtml + '" data-scope-workspace="' + escapeCardJs(activeWorkspaceId) + '" onclick="bulkToggleCardScopeSelection(\'' + safeCatJs + '\', \'' + escapeCardJs(activeWorkspaceId) + '\')" title="Select Card">&#9744;</button>'
+            + '<button class="card-header-icon-btn bulk-scope-btn" data-scope-category="' + safeCatHtml + '" data-scope-workspace="' + escapeCardHtml(activeWorkspaceId) + '" onclick="bulkToggleCardScopeSelection(this.dataset.scopeCategory, this.dataset.scopeWorkspace)" title="Select Card">&#9744;</button>'
             + nonFocusButtons.join('')
             + '</div>';
 
@@ -517,9 +517,10 @@ window.DashboardCategories = window.DashboardCategories || {};
                     var subWs = helpers ? helpers.findById(config.workspaces || [], wsId) : null;
                     var subName = subWs ? escapeCardHtml(subWs.name) : wsId;
                     var subIcon = subWs ? (subWs.icon || '📁') : '📁';
-                    var clickAction = `event.preventDefault(); event.stopPropagation(); if(typeof window.switchWorkspace === 'function') window.switchWorkspace('${escapeCardJs(wsId)}');`;
-                    var peekHandlers = `onmouseenter="if(window.showPathPeek) window.showPathPeek(event, '${escapeCardJs(wsId)}')" onmousemove="if(window.movePathPeek) window.movePathPeek(event)" onmouseleave="if(window.hidePathPeek) window.hidePathPeek()"`;
-                    badges.push(`<span class="card-subtab-source" ${peekHandlers} onclick="${clickAction}">${subIcon} ${subName}</span>`);
+                    var escId = escapeCardJs(wsId);
+                    var clickAction = "event.preventDefault(); event.stopPropagation(); if(typeof window.switchWorkspace === 'function') window.switchWorkspace('" + escId + "');";
+                    var peekHandlers = 'onmouseenter="if(window.showPathPeek) window.showPathPeek(event, \'' + escId + '\')" onmousemove="if(window.movePathPeek) window.movePathPeek(event)" onmouseleave="if(window.hidePathPeek) window.hidePathPeek()"';
+                    badges.push('<span class="card-subtab-source" ' + peekHandlers + ' onclick="' + clickAction + '">' + subIcon + ' ' + subName + '</span>');
                 });
                 subTabSourcesHtml = '<div class="card-subtab-sources">' + badges.join('') + '</div>';
             }

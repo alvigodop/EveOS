@@ -191,18 +191,21 @@ window.showCategoryContextMenu = function (e, name, workspaceId) {
     const tvApi = window.EveTrueValue;
     const tvEnabled = tvApi ? tvApi.isEnabled(coWsId, name) : false;
     const tvToggleLabel = tvEnabled ? '📐 True Value Sort ✓' : '📐 True Value Sort';
+
+    const safeHtmlName = String(name || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    const safeHtmlWs = String(coWsId || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     m.innerHTML = `
-        <div class="ctx-item" onclick="if(window.EveConstellationMap) window.EveConstellationMap.openCardMap('${coWsId}', '${safeName}')">&#127756; Constellation Map</div>
-        <div class="ctx-item" onclick="openCategorySettings('${safeName}', 'search')">&#128269; Search & Settings</div>
-        <div class="ctx-item" onclick="openRenameModal('${safeName}')">&#9998; Rename</div>
-        <div class="ctx-item" onclick="openBulkTitleModal('${safeName}')">&#129668; Auto-Title Links</div>
+        <div class="ctx-item" data-ws="${safeHtmlWs}" data-cat="${safeHtmlName}" onclick="if(window.EveConstellationMap) window.EveConstellationMap.openCardMap(this.dataset.ws, this.dataset.cat)">&#127756; Constellation Map</div>
+        <div class="ctx-item" data-cat="${safeHtmlName}" onclick="openCategorySettings(this.dataset.cat, 'search')">&#128269; Search & Settings</div>
+        <div class="ctx-item" data-cat="${safeHtmlName}" onclick="openRenameModal(this.dataset.cat)">&#9998; Rename</div>
+        <div class="ctx-item" data-cat="${safeHtmlName}" onclick="openBulkTitleModal(this.dataset.cat)">&#129668; Auto-Title Links</div>
         <div class="ctx-item" onclick="ctxCatFocus()">&#127919; Focus</div>
         <div class="ctx-item" onclick="ctxCatToggleTask()">&#128221; Task Mode</div>
         <div class="ctx-item" onclick="ctxCatToggleCustomOrder()">${coToggleLabel}</div>
         <div class="ctx-item" onclick="ctxCatCycleSortOrder()">${coSortLabel}</div>
         <div class="ctx-item" onclick="ctxCatToggleTrueValue()">${tvToggleLabel}</div>
         <div class="ctx-item" onclick="ctxCatSubScan()">&#128269; Sub-Scan (Duplicates)</div>
-        <div class="ctx-item" onclick="deleteCategory('${safeName}')" style="color:var(--danger)">&#128465; Delete</div>
+        <div class="ctx-item" data-cat="${safeHtmlName}" onclick="deleteCategory(this.dataset.cat)" style="color:var(--danger)">&#128465; Delete</div>
     `;
 
     placeContextMenu(m, e);

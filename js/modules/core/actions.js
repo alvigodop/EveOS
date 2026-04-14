@@ -20,22 +20,23 @@ function switchWorkspace(id, options = {}) {
     // Ensure all ancestors are expanded so the new active tab is visible in the hierarchy
     if (window.EveWorkspaceHelpers) {
         if (!Array.isArray(config.collapsedTabs)) config.collapsedTabs = [];
-        const helpers = window.EveWorkspaceHelpers;
-        let parentNode = helpers.findParent(config.workspaces, nextWorkspaceId);
-        let changed = false;
+        var helpers = window.EveWorkspaceHelpers;
+        var parentNode = helpers.findParent(config.workspaces, nextWorkspaceId);
+        var changed = false;
 
         while (parentNode) {
-            const pid = String(parentNode.id);
-            if (config.collapsedTabs.includes(pid)) {
-                config.collapsedTabs = config.collapsedTabs.filter(id => id !== pid);
+            var pid = String(parentNode.id);
+            if (config.collapsedTabs.indexOf(pid) !== -1) {
+                config.collapsedTabs = config.collapsedTabs.filter(function (id) {
+                    return id !== pid;
+                });
                 changed = true;
             }
             parentNode = helpers.findParent(config.workspaces, pid);
         }
 
         if (changed) {
-            // No need to manually call renderSidebar here if it's called below
-            // but we ensure it's saved.
+            // Updated
         }
     }
 
