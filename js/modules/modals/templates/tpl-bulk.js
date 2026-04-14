@@ -3,22 +3,27 @@ window.modalTemplate += `
 <div class="modal-overlay" id="bulkModal">
     <div class="modal">
         <h2>Bulk Import</h2>
-        <div style="display:flex; gap:14px; margin-bottom:10px; align-items:center;">
-            <label style="display:flex; align-items:center; gap:6px; font-size:0.9rem;">
+
+        <div class="bulk-mode-container">
+            <label class="bulk-mode-label">
                 <input type="radio" name="bulkMode" id="bulkModeUrl" value="url" checked>
-                <span>URLs</span>
+                <div class="bulk-mode-tab">🔗 URLs</div>
             </label>
-            <label style="display:flex; align-items:center; gap:6px; font-size:0.9rem;">
+            <label class="bulk-mode-label">
                 <input type="radio" name="bulkMode" id="bulkModeName" value="name">
-                <span>Names Only</span>
+                <div class="bulk-mode-tab">📝 Names Only</div>
             </label>
-            <label style="display:flex; align-items:center; gap:6px; font-size:0.9rem;">
+            <label class="bulk-mode-label">
                 <input type="radio" name="bulkMode" id="bulkModeFile" value="file">
-                <span>Files (Smart Extract)</span>
+                <div class="bulk-mode-tab">📄 Smart Extract</div>
             </label>
-            <label style="display:flex; align-items:center; gap:6px; font-size:0.9rem;">
+            <label class="bulk-mode-label">
                 <input type="radio" name="bulkMode" id="bulkModeFolder" value="folder">
-                <span>Folders</span>
+                <div class="bulk-mode-tab">📂 Folders</div>
+            </label>
+            <label class="bulk-mode-label">
+                <input type="radio" name="bulkMode" id="bulkModeCard" value="card">
+                <div class="bulk-mode-tab">📇 Cards</div>
             </label>
         </div>
         <textarea id="bulkText" style="min-height:150px;" placeholder="One URL per line..."></textarea>
@@ -43,13 +48,18 @@ window.modalTemplate += `
             URL mode: each line should be a URL.
         </div>
 
-        <div style="position:relative; margin-top:10px;">
+        <div id="bulkCategoryWrapper" style="position:relative; margin-top:10px;">
             <input type="text" id="bulkCategory" placeholder="Select or type a card name" autocomplete="off"
                 onfocus="showCategoryQuickPicker('bulkCategoryQuickPicker', 'bulkCategory')"
                 onclick="showCategoryQuickPicker('bulkCategoryQuickPicker', 'bulkCategory')"
                 oninput="filterCategoryQuickPicker(this.value, 'bulkCategoryQuickPicker', 'bulkCategory')"
                 onblur="handleCategoryQuickPickerBlur('bulkCategoryQuickPicker')">
             <div id="bulkCategoryQuickPicker" style="display:none; position:absolute; left:0; right:0; bottom:100%; margin-bottom:4px; max-height:180px; overflow-y:auto; border:1px solid #444; border-radius:8px; background:var(--sidebar-bg, #141414); z-index:3205; box-shadow:0 -8px 24px rgba(0,0,0,0.35);"></div>
+        </div>
+
+        <div id="bulkLatentCardsPanel" style="display:none; flex-direction:column; gap:8px; margin-top:10px; max-height:220px; overflow-y:auto; border:1px solid #444; border-radius:6px; padding:10px; background:#111;">
+            <div style="font-size:0.85rem; color:#aaa; margin-bottom:4px;">Latent Cards (Folders to create)</div>
+            <div id="bulkLatentCardsList" style="display:flex; flex-direction:column; gap:6px;"></div>
         </div>
 
         <div style="display:flex; gap:10px; margin-top:15px;">

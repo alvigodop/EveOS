@@ -12,8 +12,9 @@ async function processBulk() {
     let textToProcess = "";
     let count = 0;
 
-    if (mode === 'folder') {
+    if (mode === 'folder' || mode === 'card') {
         const files = api._accumulatedFolderFiles || [];
+        api._accumulatedFolderFiles = []; // Flush accumulator immediately to prevent double-click race conditions
         if (files.length === 0) {
             return showToast("No folder(s) selected", "warning");
         }
@@ -28,59 +29,82 @@ async function processBulk() {
         const createdFolders = new Map();
 
         // 1) First pass: identify unique directory paths and create them
-        const dirPaths = new Set();
+        const dirPaths = new Map();
         const filesToProcess = [];
         
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
-            const relativePath = file.customRelativePath || file.webkitRelativePath || file.name;
-            const parts = relativePath.split('/');
+            const originalPath = file.customRelativePath || file.webkitRelativePath || file.name;
+            const parts = originalPath.split('/');
             
-            if (parts.length > 1) {
-                let currentPath = '';
-                for (let j = 0; j < parts.length - 1; j++) {
-                    currentPath = currentPath ? currentPath + '/' + parts[j] : parts[j];
-                    dirPaths.add(currentPath);
+            let activeCategory = targetCategory;
+            let activeParts = [...parts];
+            
+            if (mode === 'card') {
+                if (parts.length > 1) {
+                    const rootName = parts[0];
+                    activeCategory = (api._latentCardMap && api._latentCardMap[rootName]) ? api._latentCardMap[rootName] : rootName;
+                    activeParts = parts.slice(1);
+                } else {
+                    activeCategory = "Unsorted";
+                    activeParts = parts;
                 }
             }
-            filesToProcess.push({ file, path: relativePath, parts });
+            
+            if (activeParts.length > 1) {
+                let currentPath = '';
+                for (let j = 0; j < activeParts.length - 1; j++) {
+                    currentPath = currentPath ? currentPath + '/' + activeParts[j] : activeParts[j];
+                    const fullKey = activeCategory + "::" + currentPath;
+                    if (!dirPaths.has(fullKey)) {
+                        dirPaths.set(fullKey, {
+                            cardName: activeCategory,
+                            path: currentPath,
+                            parts: activeParts.slice(0, j + 1),
+                            fullKey: fullKey
+                        });
+                    }
+                }
+            }
+            filesToProcess.push({ file, path: originalPath, parts: activeParts, cardName: activeCategory });
         }
 
         // Sort paths by length so we create parents before children
-        const sortedPaths = Array.from(dirPaths).sort((a, b) => a.split('/').length - b.split('/').length);
+        const sortedPaths = Array.from(dirPaths.values()).sort((a, b) => a.parts.length - b.parts.length);
 
-        for (const dirPath of sortedPaths) {
-            const parts = dirPath.split('/');
-            const folderName = parts[parts.length - 1];
+        for (const meta of sortedPaths) {
+            const folderName = meta.parts[meta.parts.length - 1];
             let parentId = '';
             
-            if (parts.length > 1) {
-                const parentPath = parts.slice(0, parts.length - 1).join('/');
-                parentId = createdFolders.get(parentPath) || '';
+            if (meta.parts.length > 1) {
+                const parentPath = meta.parts.slice(0, meta.parts.length - 1).join('/');
+                const parentKey = meta.cardName + "::" + parentPath;
+                parentId = createdFolders.get(parentKey) || '';
             }
 
             const newFolder = folderManager.createFolder({
                 workspaceId,
-                categoryName: targetCategory,
+                categoryName: meta.cardName,
                 name: folderName,
                 parentId,
                 persist: false
             });
 
             if (newFolder) {
-                createdFolders.set(dirPath, newFolder.id);
+                createdFolders.set(meta.fullKey, newFolder.id);
             }
         }
 
         // 2) Process files and place them in the correct folder
         let deferredLibraryPromotions = 0;
 
-        await runBatched(filesToProcess, async ({ file, path, parts }) => {
+        await runBatched(filesToProcess, async ({ file, path, parts, cardName }) => {
             try {
                 let parentFolderId = '';
                 if (parts.length > 1) {
                     const parentPath = parts.slice(0, parts.length - 1).join('/');
-                    parentFolderId = createdFolders.get(parentPath) || '';
+                    const parentKey = cardName + "::" + parentPath;
+                    parentFolderId = createdFolders.get(parentKey) || '';
                 }
 
                 const content = maybeNormalizeBulkUrlBlob(await file.text());
@@ -88,7 +112,7 @@ async function processBulk() {
                 const isMediaFile = file.name.match(/^(Was\s+|[\{\(]\d+[\}\)])/i);
 
                 if (isStructured || isMediaFile) {
-                    const promoted = processStructuredFile(content, file.name, targetCategory, parentFolderId, {
+                    const promoted = processStructuredFile(content, file.name, cardName, parentFolderId, {
                         deferLibrarySave: true,
                         silent: true
                     });
@@ -97,9 +121,9 @@ async function processBulk() {
                 } else {
                     // Fallback to basic link reading per line
                     const lines = content.split('\n');
-                    lines.forEach(line => {
-                        const raw = line.trim();
-                        if (!raw) return;
+                    for (let i = 0; i < lines.length; i++) {
+                        const raw = lines[i].trim();
+                        if (!raw) continue;
                         
                         let parsedUrl = '';
                         let parsedTitle = '';
@@ -118,6 +142,23 @@ async function processBulk() {
                         }
                         
                         if (!parsedUrl) {
+                            // Check if the next line is purely a URL, so we can pair them up
+                            if (i + 1 < lines.length) {
+                                const nextRaw = lines[i + 1].trim();
+                                if (nextRaw) {
+                                    const nextUrlMatch = nextRaw.match(/^(https?:\/\/[^\s]+)$/i);
+                                    if (nextUrlMatch) {
+                                        parsedUrl = nextUrlMatch[1];
+                                        // Since the current line had no URL, its exact text should be the title
+                                        parsedTitle = raw;
+                                        // Skip parsing the next line as a separate bookmark
+                                        i++;
+                                    }
+                                }
+                            }
+                        }
+
+                        if (!parsedUrl) {
                             parsedUrl = `https://www.google.com/search?q=${encodeURIComponent(raw)}`;
                             // If no URL was found, the whole line is likely the name, so we override the file name title
                             if (parsedTitle === file.name.replace(/\.txt$/i, '').trim()) {
@@ -129,14 +170,14 @@ async function processBulk() {
                             id: Date.now() + Math.random(),
                             title: parsedTitle,
                             url: normalizeUrl(parsedUrl),
-                            category: targetCategory,
+                            category: cardName,
                             workspace: workspaceId,
                             folderId: parentFolderId,
                             icon: '',
                             done: false
                         });
                         count++;
-                    });
+                    }
                 }
             } catch (e) {
                 console.error("Failed to read file in folder", file.name, e);
@@ -157,7 +198,14 @@ async function processBulk() {
         if (window.EveBookmarkFolders?.refreshEditorFolderSelect) {
             window.EveBookmarkFolders.refreshEditorFolderSelect();
         }
-        return showToast(`Imported ${count} items and created folder structure in "${targetCategory}"`, "success");
+        
+        let msg = `Imported ${count} items.`;
+        if (mode === 'card') {
+            msg = `Created Cards from folders and imported ${count} items.`;
+        } else {
+            msg = `Imported ${count} items and created structure in "${targetCategory}".`;
+        }
+        return showToast(msg, "success");
 
     } else if (mode === 'file') {
         const fileInput = document.getElementById('bulkFileInput');
@@ -214,9 +262,9 @@ async function processBulk() {
             effectiveMode = 'smart';
         }
 
-        lines.forEach(line => {
-            const raw = line.trim();
-            if (!raw) return;
+        for (let i = 0; i < lines.length; i++) {
+            const raw = lines[i].trim();
+            if (!raw) continue;
 
             if (effectiveMode === 'name') {
                 const title = raw;
@@ -253,6 +301,21 @@ async function processBulk() {
                 }
 
                 if (!parsedUrl) {
+                    // Check if the next line is purely a URL, so we can pair them up
+                    if (i + 1 < lines.length) {
+                        const nextRaw = lines[i + 1].trim();
+                        if (nextRaw) {
+                            const nextUrlMatch = nextRaw.match(/^(https?:\/\/[^\s]+)$/i);
+                            if (nextUrlMatch) {
+                                parsedUrl = nextUrlMatch[1];
+                                parsedTitle = raw;
+                                i++; // Skip parsing the next line as a separate bookmark
+                            }
+                        }
+                    }
+                }
+
+                if (!parsedUrl) {
                     parsedUrl = `https://www.google.com/search?q=${encodeURIComponent(raw)}`;
                     parsedTitle = raw;
                 } else if (!parsedTitle) {
@@ -270,7 +333,7 @@ async function processBulk() {
                 });
             }
             count++;
-        });
+        }
     }
 
     saveData();

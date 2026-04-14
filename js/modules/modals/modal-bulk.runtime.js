@@ -15,6 +15,7 @@ async function runBatched(items, worker, batchSize = BULK_IMPORT_BATCH_SIZE) {
 }
 
 function getBulkMode() {
+    if (document.getElementById('bulkModeCard')?.checked) return 'card';
     if (document.getElementById('bulkModeFolder')?.checked) return 'folder';
     if (document.getElementById('bulkModeFile')?.checked) return 'file';
     return document.getElementById('bulkModeName')?.checked ? 'name' : 'url';
@@ -28,15 +29,34 @@ function updateBulkModeUi() {
     const hint = document.getElementById('bulkModeHint');
     const autoLineBreakBtn = document.getElementById('bulkAutoLineBreakBtn');
     const textToolsHint = document.getElementById('bulkTextToolsHint');
+    
+    // UI mapping
+    const categoryWrapper = document.getElementById('bulkCategoryWrapper');
+    const latentPanel = document.getElementById('bulkLatentCardsPanel');
+    const latentList = document.getElementById('bulkLatentCardsList');
+
     if (!text || !hint) return;
 
     if (fileDropZone) fileDropZone.style.display = 'none';
     if (folderDropZone) folderDropZone.style.display = 'none';
     if (autoLineBreakBtn) autoLineBreakBtn.style.display = 'none';
     if (textToolsHint) textToolsHint.style.display = 'none';
+    
+    // Visibility resets
+    if (categoryWrapper) categoryWrapper.style.display = 'block';
+    if (latentPanel) latentPanel.style.display = 'none';
 
-    if (mode === 'folder') {
+    if (mode === 'folder' || mode === 'card') {
         text.style.display = 'none';
+        
+        if (mode === 'card') {
+             if (categoryWrapper) categoryWrapper.style.display = 'none';
+             if (latentPanel) latentPanel.style.display = 'flex';
+             hint.textContent = "Cards mode: Upload main folders. The main folders become Cards, internal content maps to them.";
+        } else {
+             hint.textContent = "Folder mode: Upload a folder. Structure will be maintained via bookmark folders within the target Card.";
+        }
+
         if (folderDropZone) {
             folderDropZone.style.display = 'flex';
             const dropText = document.getElementById('bulkFolderDropText');
@@ -44,13 +64,73 @@ function updateBulkModeUi() {
                 dropText.textContent = `${api._accumulatedFolderFiles.length} file(s) accumulated from selected folder(s)`;
                 folderDropZone.style.borderColor = '#00a8ff';
                 folderDropZone.style.color = '#fff';
+                
+                if (mode === 'card' && latentList) {
+                    latentList.innerHTML = '';
+                    const rootFolders = new Set();
+                    
+                    api._accumulatedFolderFiles.forEach(f => {
+                         const relativePath = f.customRelativePath || f.webkitRelativePath || f.name;
+                         const parts = relativePath.split('/');
+                         if (parts.length > 1) { 
+                             rootFolders.add(parts[0]);
+                         }
+                    });
+                    
+                    if (rootFolders.size > 0) {
+                        api._latentCardMap = api._latentCardMap || {};
+                        rootFolders.forEach(rootName => {
+                            if (!api._latentCardMap[rootName]) {
+                                api._latentCardMap[rootName] = rootName;
+                            }
+                            
+                            const div = document.createElement('div');
+                            div.style.display = 'flex';
+                            div.style.alignItems = 'center';
+                            div.style.gap = '8px';
+                            
+                            const icon = document.createElement('span');
+                            icon.textContent = '🗂️';
+                            
+                            const strongTxt = document.createElement('span');
+                            strongTxt.style.fontSize = '0.85rem';
+                            strongTxt.style.flexShrink = '0';
+                            strongTxt.style.maxWidth = '160px';
+                            strongTxt.style.display = 'inline-block';
+                            strongTxt.style.overflow = 'hidden';
+                            strongTxt.style.textOverflow = 'ellipsis';
+                            strongTxt.style.whiteSpace = 'nowrap';
+                            strongTxt.textContent = rootName + " →";
+                            
+                            const input = document.createElement('input');
+                            input.type = 'text';
+                            input.value = api._latentCardMap[rootName];
+                            input.style.flex = '1';
+                            input.style.padding = '6px 8px';
+                            input.style.border = '1px solid #444';
+                            input.style.borderRadius = '4px';
+                            input.style.backgroundColor = '#1a1a1a';
+                            input.style.color = '#fff';
+                            input.oninput = (e) => {
+                                api._latentCardMap[rootName] = e.target.value.trim() || rootName;
+                            };
+                            
+                            div.appendChild(icon);
+                            div.appendChild(strongTxt);
+                            div.appendChild(input);
+                            latentList.appendChild(div);
+                        });
+                    } else {
+                        latentList.innerHTML = '<div style="color:#777; font-size:0.85rem; font-style:italic;">No directories detected. Did you upload flat files?</div>';
+                    }
+                }
             } else {
                 dropText.textContent = 'Click to select or drag & drop folder(s)';
                 folderDropZone.style.borderColor = '#444';
                 folderDropZone.style.color = '#aaa';
+                if (latentList) latentList.innerHTML = '<div style="color:#777; font-size:0.85rem; font-style:italic;">Drop folders above to preview latent cards.</div>';
             }
         }
-        hint.textContent = "Folder mode: Upload a folder. Structure will be maintained via bookmark folders.";
     } else if (mode === 'file') {
         text.style.display = 'none';
         if (fileDropZone) {
@@ -220,10 +300,12 @@ function initBulkModeUi() {
     const name = document.getElementById('bulkModeName');
     const file = document.getElementById('bulkModeFile');
     const folder = document.getElementById('bulkModeFolder');
+    const card = document.getElementById('bulkModeCard');
     if (url) url.onchange = updateBulkModeUi;
     if (name) name.onchange = updateBulkModeUi;
     if (file) file.onchange = updateBulkModeUi;
     if (folder) folder.onchange = updateBulkModeUi;
+    if (card) card.onchange = updateBulkModeUi;
 
     const fileInput = document.getElementById('bulkFileInput');
     const dropZone = document.getElementById('bulkFileDropZone');
@@ -306,7 +388,8 @@ function initBulkModeUi() {
 
         folderInput.addEventListener('change', (e) => {
             if (folderInput.files && folderInput.files.length > 0) {
-                api._accumulatedFolderFiles = api._accumulatedFolderFiles || [];
+                // Clear accumulator to prevent duplication if user selects/drops multiple times before hitting Import
+                api._accumulatedFolderFiles = [];
                 for (let i = 0; i < folderInput.files.length; i++) {
                     api._accumulatedFolderFiles.push(folderInput.files[i]);
                 }
@@ -346,7 +429,8 @@ function initBulkModeUi() {
             preventDefaults(e);
             folderDropZone.style.backgroundColor = '#111';
             
-            api._accumulatedFolderFiles = api._accumulatedFolderFiles || [];
+            // Clear accumulator to prevent duplication if user drops multiple times before hitting Import
+            api._accumulatedFolderFiles = [];
             
             if (e.dataTransfer && e.dataTransfer.items) {
                 const items = Array.from(e.dataTransfer.items);
