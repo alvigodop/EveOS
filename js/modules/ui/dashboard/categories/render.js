@@ -62,7 +62,7 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
     // Pre-index links by category — O(n) instead of O(n * categories)
     const linksByCat = new Map();
     for (var i = 0; i < visibleLinks.length; i++) {
-        var cat = (visibleLinks[i].category || 'Unsorted');
+        var cat = String(visibleLinks[i].category || 'Unsorted').trim() || 'Unsorted';
         if (!linksByCat.has(cat)) linksByCat.set(cat, []);
         linksByCat.get(cat).push(visibleLinks[i]);
     }

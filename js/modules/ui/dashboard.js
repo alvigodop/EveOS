@@ -291,6 +291,7 @@ function _renderDashboardCore() {
 
     cleanupDashboardMasonryObserver();
     const searchStr = searchInput ? searchInput.value.toLowerCase() : '';
+    const searchTerms = searchStr ? searchStr.split(/\s+/).filter(Boolean) : [];
     const isListMode = config.viewMode === 'list';
     const isUnidexMode = config.viewMode === 'unidex';
 
@@ -318,13 +319,17 @@ function _renderDashboardCore() {
 
     const visibleLinks = links.filter(function (link) {
         if (!visibleWorkspaceIds.has(String(link?.workspace || 'main').trim())) return false;
-        if (!searchStr) return true;
-        return String(link?.title || '').toLowerCase().includes(searchStr)
-            || String(link?.url || '').toLowerCase().includes(searchStr)
-            || String(link?.category || 'Unsorted').toLowerCase().includes(searchStr);
+        if (searchTerms.length === 0) return true;
+        
+        const titleStr = String(link?.title || '').toLowerCase();
+        const urlStr = String(link?.url || '').toLowerCase();
+        const catStr = String(link?.category || 'Unsorted').toLowerCase();
+        const folderStr = String(link?.folderId || '').toLowerCase();
+        
+        return searchTerms.every(function (term) {
+            return titleStr.includes(term) || urlStr.includes(term) || catStr.includes(term) || folderStr.includes(term);
+        });
     });
-
-    // Performance mode: skip expensive per-link operations when workspace is large
     // Level 1: Standard Perf Mode (600+) - degraded animations, basic throttling
     // Level 2: Mega Perf Mode (1500+) - strip icons, strip hovers, max throttling
     window._evePerfMode = visibleLinks.length > 600;
