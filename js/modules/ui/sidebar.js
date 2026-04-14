@@ -238,6 +238,7 @@ function renderSidebar() {
 // --- Workspace Popout (Tooltip) Implementation ---
 (function() {
     let popoutEl = null;
+    let hideTimer = null;
 
     function ensurePopout() {
         if (popoutEl) return;
@@ -247,6 +248,7 @@ function renderSidebar() {
     }
 
     window.showWsPopout = function(e, ws) {
+        clearTimeout(hideTimer);
         ensurePopout();
         const item = e.currentTarget;
         const rect = item.getBoundingClientRect();
@@ -260,7 +262,6 @@ function renderSidebar() {
         popoutEl.style.display = 'flex';
         
         // Dynamic positioning: Just to the right of the sidebar
-        // We use the item's rect for Y alignment
         const sidebar = document.getElementById('sidebar');
         const sidebarWidth = sidebar ? sidebar.offsetWidth : 60;
         
@@ -272,14 +273,33 @@ function renderSidebar() {
         });
     };
 
-    window.hideWsPopout = function() {
+    window.hideWsPopout = function(immediate = false) {
         if (!popoutEl) return;
-        popoutEl.classList.remove('active');
-        setTimeout(() => {
-            if (!popoutEl.classList.contains('active')) {
-                popoutEl.style.display = 'none';
-            }
-        }, 150);
+        clearTimeout(hideTimer);
+        
+        const doHide = () => {
+            popoutEl.classList.remove('active');
+            setTimeout(() => {
+                if (!popoutEl.classList.contains('active')) {
+                    popoutEl.style.display = 'none';
+                }
+            }, 150);
+        };
+
+        if (immediate) {
+            doHide();
+        } else {
+            hideTimer = setTimeout(doHide, 150);
+        }
     };
+
+    // Global cleanup: If mouse leaves the sidebar entirely, or on window blur
+    document.addEventListener('DOMContentLoaded', () => {
+        const sidebar = document.getElementById('sidebar');
+        if (sidebar) {
+            sidebar.addEventListener('mouseleave', () => window.hideWsPopout(true));
+        }
+    });
+    window.addEventListener('blur', () => window.hideWsPopout(true));
 })();
 
