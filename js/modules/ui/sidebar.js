@@ -1,9 +1,20 @@
 // --- SIDEBAR UI ---
 
+window.toggleSidebarVisibility = function() {
+    config.sidebarHidden = !config.sidebarHidden;
+    saveConfig();
+    const sb = document.getElementById('sidebar');
+    if (sb) sb.classList.toggle('hidden-completely', !!config.sidebarHidden);
+    if (typeof renderSidebar === 'function') renderSidebar();
+};
+
 function renderSidebar() {
     const sb = document.getElementById('sidebar');
     if (!sb) return;
     sb.innerHTML = '';
+    
+    sb.classList.toggle('ultra-collapsed', !!config.ultraCollapseSidebar);
+    sb.classList.toggle('hidden-completely', !!config.sidebarHidden);
 
     // --- Unidex Button (preserved exactly) ---
     const unidexBtn = document.createElement('div');

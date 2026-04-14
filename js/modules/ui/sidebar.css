@@ -1,4 +1,7 @@
 /* --- SIDEBAR --- */
+#sidebar.hidden-completely {
+    display: none !important;
+}
 #sidebar {
     width: 60px;
     background: var(--sidebar-bg);
@@ -36,6 +39,19 @@
 
 #sidebar:hover {
     width: 180px;
+}
+
+#sidebar.ultra-collapsed:not(:hover) {
+    width: 12px;
+}
+
+#sidebar.ultra-collapsed:not(:hover) > * {
+    opacity: 0;
+    pointer-events: none;
+}
+
+#sidebar.ultra-collapsed:not(:hover)::-webkit-scrollbar {
+    width: 0px;
 }
 
 .ws-item {

@@ -30,7 +30,10 @@
 
         <!-- TOP BAR -->
         <div class="top-bar">
-            <div class="logo">Eve OS</div>
+            <div style="display:flex; align-items:center; gap:12px;">
+                <button class="topbar-primary-btn" id="sidebar-toggle-btn" onclick="toggleSidebarVisibility()" title="Toggle Sidebar Appearance" style="padding:4px 8px; font-size:1rem; cursor:pointer;">&#9776;</button>
+                <div class="logo">Eve OS</div>
+            </div>
             <div class="top-right">
                 <button class="topbar-primary-btn" onclick="toggleBulkMode()" title="Select Multiple (Alt+B)">&#9989; Select</button>
                 <button class="topbar-primary-btn" onclick="toggleView()" title="View">&#128203; View</button>

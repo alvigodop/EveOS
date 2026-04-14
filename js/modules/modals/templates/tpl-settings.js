@@ -13,6 +13,16 @@ window.modalTemplate += `
                     style="width:20px; height:20px;">
                 <span>Limit Category Height (Scrollable)</span>
             </label>
+            <label style="display:flex; gap:10px; align-items:center; margin-bottom:10px;">
+                <input type="checkbox" id="ultraCollapseSidebar" onchange="saveSettingsUltraCollapseSidebar()"
+                    style="width:20px; height:20px;">
+                <span>Ultra-Collapse Sidebar</span>
+            </label>
+            <label style="display:flex; gap:10px; align-items:center; margin-bottom:10px;">
+                <input type="checkbox" id="sidebarHidden" onchange="saveSettingsSidebarHidden()"
+                    style="width:20px; height:20px;">
+                <span>Hide Sidebar Completely</span>
+            </label>
             <input type="text" id="userName" placeholder="Your Name" onchange="saveSettingsName()">
 
             <div>

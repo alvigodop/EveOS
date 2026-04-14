@@ -83,6 +83,17 @@ function openSettings() {
     document.getElementById('bgUrl').value = '';
     document.getElementById('timerToggle').checked = config.timerEnabled;
     document.getElementById('weatherToggle').checked = config.weatherEnabled;
+    
+    // Check for elements existence just in case templates lag
+    const scrollCatsCb = document.getElementById('scrollableCats');
+    if (scrollCatsCb) scrollCatsCb.checked = !!config.scrollableCategories;
+    
+    const ultraColCb = document.getElementById('ultraCollapseSidebar');
+    if (ultraColCb) ultraColCb.checked = !!config.ultraCollapseSidebar;
+    
+    const hiddenColCb = document.getElementById('sidebarHidden');
+    if (hiddenColCb) hiddenColCb.checked = !!config.sidebarHidden;
+
     document.getElementById('userName').value = config.userName || '';
     document.getElementById('accentColor').value = config.accent || '#00d4ff';
     document.getElementById('searchEngineSelect').value = config.searchEngine || 'https://www.google.com/search?q=';
@@ -157,6 +168,8 @@ function openSettings() {
 function saveSettingsTimer() { config.timerEnabled = document.getElementById('timerToggle').checked; saveConfig(); applySettings(); }
 function saveSettingsWeather() { config.weatherEnabled = document.getElementById('weatherToggle').checked; saveConfig(); applySettings(); if (typeof fetchWeather === 'function') fetchWeather(); }
 function saveSettingsScrollable() { config.scrollableCategories = document.getElementById('scrollableCats').checked; saveConfig(); renderDashboard(); }
+function saveSettingsUltraCollapseSidebar() { config.ultraCollapseSidebar = document.getElementById('ultraCollapseSidebar').checked; saveConfig(); if (typeof renderSidebar === 'function') renderSidebar(); }
+function saveSettingsSidebarHidden() { config.sidebarHidden = document.getElementById('sidebarHidden').checked; saveConfig(); if (typeof renderSidebar === 'function') renderSidebar(); }
 function saveSettingsName() { config.userName = document.getElementById('userName').value; saveConfig(); updateTimeAndGreeting(); }
 
 function updateColorInputAvailability() {
