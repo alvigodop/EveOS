@@ -239,6 +239,7 @@ function renderSidebar() {
 (function() {
     let popoutEl = null;
     let hideTimer = null;
+    let displayTimer = null; // Track the "display: none" phase
 
     function ensurePopout() {
         if (popoutEl) return;
@@ -247,8 +248,15 @@ function renderSidebar() {
         document.body.appendChild(popoutEl);
     }
 
+    function clearTimers() {
+        if (hideTimer) clearTimeout(hideTimer);
+        if (displayTimer) clearTimeout(displayTimer);
+        hideTimer = null;
+        displayTimer = null;
+    }
+
     window.showWsPopout = function(e, ws) {
-        clearTimeout(hideTimer);
+        clearTimers();
         ensurePopout();
         const item = e.currentTarget;
         const rect = item.getBoundingClientRect();
@@ -261,12 +269,11 @@ function renderSidebar() {
         
         popoutEl.style.display = 'flex';
         
-        // Dynamic positioning: Just to the right of the sidebar
         const sidebar = document.getElementById('sidebar');
-        const sidebarWidth = sidebar ? sidebar.offsetWidth : 60;
+        const sbRect = sidebar ? sidebar.getBoundingClientRect() : { right: 60 };
         
         popoutEl.style.top = `${rect.top + (rect.height / 2) - 15}px`;
-        popoutEl.style.left = `${sidebarWidth + 10}px`;
+        popoutEl.style.left = `${sbRect.right + 10}px`;
         
         requestAnimationFrame(() => {
             popoutEl.classList.add('active');
@@ -275,11 +282,11 @@ function renderSidebar() {
 
     window.hideWsPopout = function(immediate = false) {
         if (!popoutEl) return;
-        clearTimeout(hideTimer);
+        clearTimers();
         
         const doHide = () => {
             popoutEl.classList.remove('active');
-            setTimeout(() => {
+            displayTimer = setTimeout(() => {
                 if (!popoutEl.classList.contains('active')) {
                     popoutEl.style.display = 'none';
                 }
@@ -293,13 +300,34 @@ function renderSidebar() {
         }
     };
 
-    // Global cleanup: If mouse leaves the sidebar entirely, or on window blur
-    document.addEventListener('DOMContentLoaded', () => {
-        const sidebar = document.getElementById('sidebar');
-        if (sidebar) {
-            sidebar.addEventListener('mouseleave', () => window.hideWsPopout(true));
-        }
-    });
-    window.addEventListener('blur', () => window.hideWsPopout(true));
+    // Emergency Brakes: Global cleanup for any major UI zone
+    function setupEmergencyBrakes() {
+        const zones = ['#main-content', '.top-bar', '.header', '#sidebar'];
+        zones.forEach(selector => {
+            const el = document.querySelector(selector);
+            if (!el) return;
+            
+            // For zones outside the sidebar, hide immediately on entry
+            if (selector !== '#sidebar') {
+                el.addEventListener('mouseenter', () => window.hideWsPopout(true));
+            } else {
+                // For the sidebar itself, hide when exiting the boundary
+                el.addEventListener('mouseleave', () => window.hideWsPopout(true));
+            }
+        });
+        
+        // Final fallback: Hide on window blur or click outside
+        window.addEventListener('blur', () => window.hideWsPopout(true));
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.ws-item')) window.hideWsPopout(true);
+        });
+    }
+
+    // Attach brakes on initialization
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', setupEmergencyBrakes);
+    } else {
+        setupEmergencyBrakes();
+    }
 })();
 
