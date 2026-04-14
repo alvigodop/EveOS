@@ -113,19 +113,20 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
         if (normalizedScope === 'all_tabs') {
             return links.slice();
         }
+        
+        const wsMatch = (l) => String(l?.workspace || 'main').trim().toLowerCase() === normalizedWorkspace.toLowerCase();
+        const catMatch = (l) => String(l?.category || 'Unsorted').trim().toLowerCase() === normalizedCategory.toLowerCase();
+
         if (normalizedScope === 'workspace') {
-            return links.filter((link) => String(link?.workspace || 'main') === normalizedWorkspace);
+            return links.filter(wsMatch);
         }
         if (normalizedScope === 'card') {
-            return links.filter((link) => (
-                String(link?.workspace || 'main') === normalizedWorkspace
-                && String(link?.category || 'Unsorted') === normalizedCategory
-            ));
+            return links.filter((link) => wsMatch(link) && catMatch(link));
         }
 
         return links.filter((link) => (
-            String(link?.workspace || 'main') === normalizedWorkspace
-            && String(link?.category || 'Unsorted') === normalizedCategory
+            wsMatch(link)
+            && catMatch(link)
             && String(link?.folderId || '').trim() === normalizedFolderId
         ));
     }
@@ -158,16 +159,20 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
         if (normalizedScope === 'all_tabs') {
             return allFolders;
         }
+        
+        const wsMatch = (f) => String(f.workspaceId || 'main').trim().toLowerCase() === normalizedWorkspace.toLowerCase();
+        const catMatch = (f) => String(f.categoryName || 'Unsorted').trim().toLowerCase() === normalizedCategory.toLowerCase();
+
         if (normalizedScope === 'workspace') {
-            return allFolders.filter((f) => f.workspaceId === normalizedWorkspace);
+            return allFolders.filter(wsMatch);
         }
         if (normalizedScope === 'card') {
-            return allFolders.filter((f) => f.workspaceId === normalizedWorkspace && f.categoryName === normalizedCategory);
+            return allFolders.filter((f) => wsMatch(f) && catMatch(f));
         }
         
         return allFolders.filter((f) => (
-            f.workspaceId === normalizedWorkspace
-            && f.categoryName === normalizedCategory
+            wsMatch(f)
+            && catMatch(f)
             && String(f.parentId || '').trim() === normalizedFolderId
         ));
     }

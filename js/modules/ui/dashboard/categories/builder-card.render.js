@@ -45,7 +45,7 @@ window.DashboardCategories = window.DashboardCategories || {};
             // Minimal header — no expensive task counting or button logic
             shellCard.innerHTML = ''
                 + '<div class="cat-progress-bg"><div class="cat-progress-fill" style="width:0%"></div></div>'
-                + '<div class="category-header" oncontextmenu="showCategoryContextMenu(event, \'' + safeCatJs + '\')">'
+                + '<div class="category-header" oncontextmenu="showCategoryContextMenu(event, \'' + safeCatJs + '\', \'' + activeWorkspaceId + '\')">'
                 + '<div class="cat-title-group">'
                 + '<span class="collapse-arrow" data-cat="' + safeCatHtml + '" onclick="toggleCollapse(this.dataset.cat)" title="Toggle Card">&#9660;</span>'
                 + '<div class="category-title-wrap" data-title="' + safeCatHtml + '">'
@@ -525,7 +525,7 @@ window.DashboardCategories = window.DashboardCategories || {};
 
         card.innerHTML = ''
             + '<div class="cat-progress-bg"><div class="cat-progress-fill ' + barClass + '" style="width:' + pct + '%"></div></div>'
-            + '<div class="category-header" oncontextmenu="showCategoryContextMenu(event, \'' + safeCatJs + '\')">'
+            + '<div class="category-header" oncontextmenu="showCategoryContextMenu(event, \'' + safeCatJs + '\', \'' + activeWorkspaceId + '\')">'
             + '<div class="cat-title-group">'
             + titleControlsHtml
             + '<div class="category-title-wrap"'

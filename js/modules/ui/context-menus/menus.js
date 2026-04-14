@@ -164,13 +164,13 @@ window.showLinkContextMenu = function (e, id) {
     placeContextMenu(m, e);
 };
 
-window.showCategoryContextMenu = function (e, name) {
+window.showCategoryContextMenu = function (e, name, workspaceId) {
     e.preventDefault();
     e.stopPropagation();
     closeAllMenus();
 
     ctxCatName = name;
-    ctxWsId = String((window.config && window.config.activeWorkspace) || window.ctxWsId || 'main');
+    ctxWsId = String(workspaceId || (window.config && window.config.activeWorkspace) || window.ctxWsId || 'main');
     const m = document.getElementById('cat-context-menu');
     if (!m) return;
 
@@ -192,7 +192,7 @@ window.showCategoryContextMenu = function (e, name) {
     const tvEnabled = tvApi ? tvApi.isEnabled(coWsId, name) : false;
     const tvToggleLabel = tvEnabled ? '📐 True Value Sort ✓' : '📐 True Value Sort';
     m.innerHTML = `
-        <div class="ctx-item" onclick="if(window.EveConstellationMap) window.EveConstellationMap.openCardMap(String((window.config && window.config.activeWorkspace) || 'main'), '${safeName}')">&#127756; Constellation Map</div>
+        <div class="ctx-item" onclick="if(window.EveConstellationMap) window.EveConstellationMap.openCardMap('${coWsId}', '${safeName}')">&#127756; Constellation Map</div>
         <div class="ctx-item" onclick="openCategorySettings('${safeName}', 'search')">&#128269; Search & Settings</div>
         <div class="ctx-item" onclick="openRenameModal('${safeName}')">&#9998; Rename</div>
         <div class="ctx-item" onclick="openBulkTitleModal('${safeName}')">&#129668; Auto-Title Links</div>

@@ -13,7 +13,7 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
         }
 
         const cleaned = title.replace(/[^a-z0-9]/gi, '').toLowerCase();
-        if (!cleaned || cleaned === 'untitled' || cleaned.length < 3) return null;
+        if (!cleaned || cleaned === 'untitled' || cleaned.length < 1) return null;
         return cleaned;
     }
 

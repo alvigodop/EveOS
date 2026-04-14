@@ -99,8 +99,31 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
         const categoryName = window.ctxCatName;
         if (!categoryName) return showToast('No category selected', 'error');
         const workspaceId = getActiveWorkspaceId();
-        const catLinks = window.getModalLinks ? window.getModalLinks().filter((link) => link.workspace === workspaceId && link.category === categoryName) : [];
-        shared.performDuplicateScan?.(catLinks, `Category Sub-Scan (Duplicates) - ${categoryName}`);
+        
+        const sourceLinks = (typeof window.getModalLinks === 'function') 
+            ? window.getModalLinks() 
+            : (window.links || []);
+            
+        // Standardize IDs for filtering
+        const targetWs = String(workspaceId || 'main').trim().toLowerCase();
+        const targetCat = String(categoryName || 'Unsorted').trim().toLowerCase();
+        
+        const catLinks = sourceLinks.filter((link) => {
+            const linkWs = String(link?.workspace || 'main').trim().toLowerCase();
+            const linkCat = String(link?.category || 'Unsorted').trim().toLowerCase();
+            return linkWs === targetWs && linkCat === targetCat;
+        });
+
+        const folderApi = window.EveBookmarkFolders;
+        let folderIds = [];
+        if (folderApi) {
+            // Even if catLinks is empty, we must try to find the folders for this card name
+            const viewModel = folderApi.buildFolderView(workspaceId, categoryName, catLinks);
+            // Collect all folder IDs belonging to this card (real nodes, not ghosts)
+            folderIds = (viewModel.nodes || []).filter(n => n && n.id && !n.isGhost).map(n => n.id);
+        }
+
+        shared.performDuplicateScan?.(catLinks, `Category Sub-Scan (Duplicates) - ${categoryName}`, folderIds);
     };
 
     window.ctxFolderExport = function () {
