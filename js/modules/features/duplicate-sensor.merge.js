@@ -274,7 +274,19 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
             }
         }
 
-        if (typeof window.saveData === 'function') window.saveData();
+        // Standardized sync using the same logic as folder merge
+        const writeStore = (typeof window.EveBookmarkFolders?._shared?.writeStore === 'function')
+            ? window.EveBookmarkFolders._shared.writeStore
+            : (next) => {
+                const folderTrees = runtime.getFolderTrees();
+                if (window.eveState) window.eveState.bookmarkFolders = folderTrees;
+                window.bookmarkFolders = folderTrees;
+                if (typeof bookmarkFolders !== 'undefined') bookmarkFolders = folderTrees;
+                if (typeof window.saveData === 'function') window.saveData();
+            };
+
+        writeStore(runtime.getFolderTrees());
+        
         if (typeof window.renderSidebar === 'function') window.renderSidebar();
         if (typeof window.renderDashboard === 'function') window.renderDashboard();
         if (window.EveLibrary?.UI && typeof window.EveLibrary.UI.renderLibrary === 'function') {
@@ -290,16 +302,21 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
         if (!Array.isArray(folderIds) || folderIds.length < 2) return null;
 
         const folderTrees = runtime.getFolderTrees();
-        const cloneTree = () => JSON.parse(JSON.stringify(folderTrees));
-        const writeTree = (next) => {
-            if (window.eveState) window.eveState.bookmarkFolders = next;
-            if (typeof window.saveData === 'function') window.saveData();
-        };
+        
+        // Use the official writeStore if available, or fallback to the manual sync
+        const writeStore = (typeof window.EveBookmarkFolders?._shared?.writeStore === 'function')
+            ? window.EveBookmarkFolders._shared.writeStore
+            : (next) => {
+                if (window.eveState) window.eveState.bookmarkFolders = next;
+                window.bookmarkFolders = next;
+                if (typeof bookmarkFolders !== 'undefined') bookmarkFolders = next;
+                if (typeof window.saveData === 'function') window.saveData();
+            };
 
         const allNodes = [];
         Object.entries(folderTrees).forEach(([scopedKey, tree]) => {
             const [wsId, ...catParts] = scopedKey.split('::');
-            const catName = catParts.join('::');
+            const catName = catParts.length > 0 ? catParts.join('::') : 'Unsorted';
             const nodes = Array.isArray(tree?.nodes) ? tree.nodes : (Array.isArray(tree) ? tree : []);
             nodes.forEach(node => {
                 if (node && node.id) allNodes.push({ ...node, workspaceId: wsId, categoryName: catName });
@@ -316,6 +333,7 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
             while (current && current.parentId) {
                 depth++;
                 current = lookupMap.get(current.parentId);
+                if (depth > 100) break; // Circular safety
             }
             return depth;
         };
@@ -324,13 +342,14 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
         allNodes.forEach(n => nodeLookup.set(n.id, n));
         
         targetFolders.forEach(f => f._depth = getDepth(f.id, nodeLookup));
-        targetFolders.sort((a, b) => a._depth - b._depth);
+        targetFolders.sort((a, b) => a._depth - b._depth || (a.createdAt || 0) - (b.createdAt || 0));
+        
         const baseFolder = targetFolders[0];
         const removedIds = targetFolders.slice(1).map(f => f.id);
 
-        const nextStore = cloneTree();
+        const nextStore = JSON.parse(JSON.stringify(folderTrees));
         const baseScopedKey = `${baseFolder.workspaceId}::${baseFolder.categoryName}`;
-        if (!nextStore[baseScopedKey]) nextStore[baseScopedKey] = { nodes: [], settings: {} };
+        if (!nextStore[baseScopedKey]) nextStore[baseScopedKey] = { nodes: [], settings: { clickBehaviorMode: 'inherit' } };
 
         // 1. Reparent Links
         const links = runtime.getLinks();
@@ -348,17 +367,28 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
             });
         }
 
-        // 2. Reparent Folders
+        // 2. Helper for recursive subtree migration
+        const collectDescendantIds = (rootId, scopedKey) => {
+            const results = [];
+            const tree = nextStore[scopedKey];
+            const nodes = Array.isArray(tree?.nodes) ? tree.nodes : (Array.isArray(tree) ? tree : []);
+            const children = nodes.filter(n => n && n.parentId === rootId);
+            children.forEach(child => {
+                results.push(child.id);
+                results.push(...collectDescendantIds(child.id, scopedKey));
+            });
+            return results;
+        };
+
+        // 3. Reparent Folders
         Object.entries(nextStore).forEach(([scopedKey, tree]) => {
             const nodes = Array.isArray(tree?.nodes) ? tree.nodes : (Array.isArray(tree) ? tree : []);
             const nodesToKeep = [];
-            const nodesToMove = [];
+            const nodesToMoveWithKeys = []; // Array of {node, originalScopedKey}
             
             nodes.forEach(node => {
                 // If it is one of the duplicated folders themselves, DELETE IT completely.
-                if (removedIds.includes(node.id)) {
-                    return; // Skip keeping it
-                }
+                if (removedIds.includes(node.id)) return;
                 
                 // If its parent is one of the duplicates, it now belongs to the baseFolder
                 const pId = String(node.parentId || '').trim();
@@ -367,7 +397,13 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
                     node.updatedAt = Date.now();
                     
                     if (scopedKey !== baseScopedKey) {
-                        nodesToMove.push(node);
+                        nodesToMoveWithKeys.push({ node, key: scopedKey });
+                        // Also must recursively find all its descendants and tag them for moving!
+                        const descendants = collectDescendantIds(node.id, scopedKey);
+                        descendants.forEach(dId => {
+                            const dNode = nodes.find(n => n.id === dId);
+                            if (dNode) nodesToMoveWithKeys.push({ node: dNode, key: scopedKey });
+                        });
                     } else {
                         nodesToKeep.push(node);
                     }
@@ -376,21 +412,35 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
                 }
             });
             
-            tree.nodes = nodesToKeep;
-            if (nodesToMove.length > 0) {
-                nextStore[baseScopedKey].nodes.push(...nodesToMove);
-            }
+            // Clean up the moved items from this specific tree
+            const movedIds = new Set(nodesToMoveWithKeys.map(m => m.node.id));
+            const finalNodes = nodesToKeep.filter(n => !movedIds.has(n.id));
+
+            if (Array.isArray(tree?.nodes)) tree.nodes = finalNodes;
+            else nextStore[scopedKey] = finalNodes;
+
+            // Perform the global move
+            nodesToMoveWithKeys.forEach(({ node }) => {
+                const targetTree = nextStore[baseScopedKey];
+                const targetNodes = Array.isArray(targetTree?.nodes) ? targetTree.nodes : targetTree;
+                if (Array.isArray(targetNodes)) {
+                     // Ensure no double-add
+                    if (!targetNodes.find(n => n.id === node.id)) targetNodes.push(node);
+                }
+            });
         });
 
-        // Cleanup empty trees if inherit is true
+        // Cleanup empty trees
         Object.keys(nextStore).forEach(key => {
             const tree = nextStore[key];
-            if (tree && Array.isArray(tree.nodes) && tree.nodes.length === 0 && tree.settings?.clickBehaviorMode === 'inherit') {
+            const nodes = Array.isArray(tree?.nodes) ? tree.nodes : tree;
+            const settings = tree?.settings || { clickBehaviorMode: 'inherit' };
+            if (Array.isArray(nodes) && nodes.length === 0 && settings.clickBehaviorMode === 'inherit') {
                 delete nextStore[key];
             }
         });
 
-        writeTree(nextStore);
+        writeStore(nextStore);
 
         if (typeof window.renderSidebar === 'function') window.renderSidebar();
         if (typeof window.renderDashboard === 'function') window.renderDashboard();

@@ -1,4 +1,4 @@
-﻿window.EveDuplicateSensor = window.EveDuplicateSensor || {};
+window.EveDuplicateSensor = window.EveDuplicateSensor || {};
 
 (function () {
     const ns = window.EveDuplicateSensor;
@@ -11,7 +11,8 @@
         normalizeUrl: runtime.normalizeUrl,
         buildScopedKey: runtime.buildScopedKey,
         scan: runtime.scan,
-        mergeDuplicateGroup: runtime.mergeDuplicateGroup
+        mergeDuplicateGroup: runtime.mergeDuplicateGroup,
+        mergeDuplicateFolderGroup: runtime.mergeDuplicateFolderGroup
     });
 
     ns.ready = true;
