@@ -76,7 +76,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
             var done = taskLinks.filter(function (l) { return !!l.done; }).length;
             var pending = taskLinks.length - done;
             return '<div class="bookmark-folder-section-stats">'
-                + '<span class="section-stat-pending">Tasks To-Do: ' + pending + '</span>'
+                + '<span class="section-stat-pending">Pending: ' + pending + '</span>'
                 + '<span class="section-stat-done">Done: ' + done + '</span>'
                 + '</div>';
         }
