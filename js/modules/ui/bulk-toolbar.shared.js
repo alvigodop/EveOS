@@ -254,14 +254,32 @@ window.bulkLastToggledId = bulkLastToggledId;
     }
 
     function getWorkspaceList() {
-        const list = Array.isArray(getConfig()?.workspaces) ? getConfig().workspaces : [];
-        return list
-            .map(workspace => ({
-                id: String(workspace?.id || ''),
-                name: String(workspace?.name || '').trim() || 'Unnamed',
-                icon: String(workspace?.icon || '').trim()
-            }))
-            .filter(workspace => workspace.id);
+        const workspaces = Array.isArray(getConfig()?.workspaces) ? getConfig().workspaces : [];
+        const result = [];
+        
+        function traverse(tabs, prefix = '') {
+            if (!Array.isArray(tabs)) return;
+            for (const tab of tabs) {
+                if (!tab) continue;
+                const id = String(tab.id || '');
+                if (id) {
+                    const rawName = String(tab.name || '').trim() || 'Unnamed';
+                    const displayName = prefix ? `${prefix} > ${rawName}` : rawName;
+                    result.push({
+                        id: id,
+                        name: displayName,
+                        icon: String(tab.icon || '').trim()
+                    });
+                }
+                if (Array.isArray(tab.subTabs)) {
+                    const rawName = String(tab.name || '').trim() || 'Unnamed';
+                    traverse(tab.subTabs, prefix ? `${prefix} > ${rawName}` : rawName);
+                }
+            }
+        }
+        
+        traverse(workspaces);
+        return result;
     }
 
     function getSelectedWorkspaceId() {
