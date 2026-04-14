@@ -108,8 +108,8 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
         reportHtml += `<div style="margin-top: 15px; display: flex; gap: 10px;">
             <button class="btn-primary" onclick="
                 document.getElementById('folderOperationsModal').style.display='none';
-                if (typeof openSettingsModal === 'function') {
-                    openSettingsModal('backup');
+                if (typeof openSettings === 'function') {
+                    openSettings();
                     setTimeout(() => {
                         const modeSelect = document.getElementById('backupSettingsMode');
                         if (modeSelect) {
