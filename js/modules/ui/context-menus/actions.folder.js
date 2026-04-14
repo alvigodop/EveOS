@@ -1,4 +1,4 @@
-﻿window.EveContextMenuActions = window.EveContextMenuActions || {};
+window.EveContextMenuActions = window.EveContextMenuActions || {};
 
 (function () {
     const shared = window.EveContextMenuActions;
@@ -8,9 +8,9 @@
         return window.ctxWsId || ((window.config && window.config.activeWorkspace) || 'main');
     }
 
-    function collectFolderItems(workspaceId, categoryName, folderId) {
+    function collectFolderHierarchy(workspaceId, categoryName, folderId) {
         const folderApi = window.EveBookmarkFolders;
-        if (!folderApi) return [];
+        if (!folderApi) return { items: [], folderIds: [] };
         const folderLinks = window.getModalLinks
             ? window.getModalLinks().filter((link) => link.workspace === workspaceId && link.category === categoryName)
             : [];
@@ -28,10 +28,15 @@
         collectNested(folderId);
 
         let items = [];
-        nestedIds.forEach((id) => {
+        const folderIds = Array.from(nestedIds);
+        folderIds.forEach((id) => {
             items = items.concat(viewModel.folderLinks.get(id) || []);
         });
-        return items;
+        return { items, folderIds };
+    }
+
+    function collectFolderItems(workspaceId, categoryName, folderId) {
+        return collectFolderHierarchy(workspaceId, categoryName, folderId).items;
     }
 
     window.ctxFolderAdd = function () {
@@ -85,7 +90,8 @@
     window.ctxFolderSubScan = function () {
         closeAllMenus();
         if (!(window.ctxCatName && window.ctxFolderId)) return;
-        shared.performDuplicateScan?.(collectFolderItems(getActiveWorkspaceId(), window.ctxCatName, window.ctxFolderId), 'Folder Sub-Scan (Duplicates)');
+        const hierarchy = collectFolderHierarchy(getActiveWorkspaceId(), window.ctxCatName, window.ctxFolderId);
+        shared.performDuplicateScan?.(hierarchy.items, 'Folder Sub-Scan (Duplicates)', hierarchy.folderIds);
     };
 
     window.ctxCatSubScan = function () {
