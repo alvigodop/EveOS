@@ -96,15 +96,47 @@ window.EveSettingsDuplicateSensor = window.EveSettingsDuplicateSensor || {};
         }
         const contextLabel = contextParts.length > 0 ? ` in ${contextParts.join(' / ')}` : '';
 
-        if (!report.duplicateGroups) {
-            summary.textContent = `No duplicates found for ${scopeLabel(report.scope)}${contextLabel}. Scanned ${report.scannedUrls} bookmark URLs.`;
+        if (!report.duplicateGroups && !report.duplicateFolderGroups) {
+            summary.textContent = `No duplicates found for ${scopeLabel(report.scope)}${contextLabel}. Scanned ${report.scannedUrls} URLs and ${report.totalFolders} Folders.`;
             results.innerHTML = '';
             return;
         }
 
-        summary.textContent = `Found ${report.duplicateGroups} duplicate group${report.duplicateGroups === 1 ? '' : 's'} for ${scopeLabel(report.scope)}${contextLabel}. ${report.duplicateBookmarks} extra bookmark${report.duplicateBookmarks === 1 ? '' : 's'} across ${report.scannedUrls} scanned URLs.`;
+        let summaryText = `Found ${report.duplicateGroups} duplicate bookmark group(s) (${report.duplicateBookmarks} extra bookmarks).`;
+        if (report.duplicateFolderGroups) {
+            summaryText += ` Found ${report.duplicateFolderGroups} duplicate folder group(s) (${report.duplicateFolderCount} extra folders).`;
+        }
+        summaryText += ` Scanned ${report.scannedUrls} URLs and ${report.totalFolders} Folders for ${scopeLabel(report.scope)}${contextLabel}.`;
+        summary.textContent = summaryText;
 
-        results.innerHTML = report.groups.map((group) => `
+        let html = '';
+
+        if (report.folderGroups && report.folderGroups.length > 0) {
+            html += `<h4 style="margin: 15px 0 10px 0; color: #ff9800;">Duplicate Folders</h4>`;
+            html += report.folderGroups.map((group) => `
+                <details class="duplicate-sensor-group" open style="border:1px solid #ff9800; border-radius:8px; padding:8px 10px; background:rgba(255,152,0,0.05); margin-bottom: 10px;">
+                    <summary style="cursor:pointer; font-weight:600;">
+                        ${group.count} matches - Folder Name: <code>${escapeHtml(group.normalizedName)}</code>
+                    </summary>
+                    <div style="font-size:0.78rem; opacity:0.72; margin-top:6px;">${group.duplicateCount} extra folders will be consolidated.</div>
+                    <div style="display:flex; flex-direction:column; gap:6px; margin-top:8px;">
+                        ${group.items.map((item) => `
+                            <div style="border-top:1px solid rgba(255,152,0,0.15); padding-top:6px;">
+                                <div><strong>${escapeHtml(item.name)}</strong></div>
+                                <div style="font-size:0.78rem; opacity:0.75;">${escapeHtml(item.workspaceName)} / ${escapeHtml(item.categoryName)} / ${escapeHtml(item.parentLabel || 'Root')}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <div style="margin-top:10px; display:flex; justify-content:flex-end;">
+                        <button class="btn-primary" style="background:#ff9800; color:#000; padding:4px 12px; font-size:0.8rem;" onclick="mergeDuplicateSensorFolderGroup('${escapeHtml(JSON.stringify(group.items.map(i => i.folderId)))}', '${panelKey}')">Consolidate Folders</button>
+                    </div>
+                </details>
+            `).join('');
+        }
+
+        if (report.groups && report.groups.length > 0) {
+            if (html !== '') html += `<h4 style="margin: 15px 0 10px 0; color: #00d4ff;">Duplicate Bookmarks</h4>`;
+            html += report.groups.map((group) => `
             <details class="duplicate-sensor-group" open style="border:1px solid #444; border-radius:8px; padding:8px 10px; background:rgba(255,255,255,0.03);">
                 <summary style="cursor:pointer; font-weight:600;">
                     ${group.count} matches - <code>${escapeHtml(group.normalizedUrl)}</code>
@@ -124,6 +156,9 @@ window.EveSettingsDuplicateSensor = window.EveSettingsDuplicateSensor || {};
                 </div>
             </details>
         `).join('');
+        }
+
+        results.innerHTML = html;
     }
 
     window.mergeDuplicateSensorGroup = function (linkIdsStr, panelKey) {
@@ -152,6 +187,30 @@ window.EveSettingsDuplicateSensor = window.EveSettingsDuplicateSensor || {};
         } catch (error) {
             console.error('Merge failure:', error);
             if (typeof window.showToast === 'function') window.showToast('Failed to merge duplicate group.', 'error');
+        }
+    };
+
+    window.mergeDuplicateSensorFolderGroup = function (folderIdsStr, panelKey) {
+        try {
+            const folderIds = JSON.parse(folderIdsStr.replace(/&quot;/g, '"'));
+            if (!window.EveDuplicateSensor?.mergeDuplicateFolderGroup) return;
+            const result = window.EveDuplicateSensor.mergeDuplicateFolderGroup(folderIds);
+            if (result) {
+                if (typeof window.showToast === 'function') window.showToast(`Consolidated ${result.removedIds.length + 1} folders into 1`, 'success');
+
+                const btnMap = {
+                    full: runDuplicateSensorForFullBackup,
+                    workspace: runDuplicateSensorForWorkspace,
+                    card: runDuplicateSensorForCard,
+                    folder: runDuplicateSensorForFolder
+                };
+                if (btnMap[panelKey]) btnMap[panelKey]();
+            } else {
+                if (typeof window.showToast === 'function') window.showToast('Consolidation failed.', 'error');
+            }
+        } catch (error) {
+            console.error('Folder Merge failure:', error);
+            if (typeof window.showToast === 'function') window.showToast('Failed to consolidate duplicate folder group.', 'error');
         }
     };
 

@@ -31,9 +31,17 @@ async function processBulk() {
         // 1) First pass: identify unique directory paths and create them
         const dirPaths = new Map();
         const filesToProcess = [];
+        const processedFileSignatures = new Set();
+        const sessionUrls = new Set();
         
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
+            
+            // Deduplicate files natively to prevent OS drag-drop bugs providing duplicate system handles
+            const fileSig = `${file.name}-${file.size}-${file.lastModified}`;
+            if (processedFileSignatures.has(fileSig)) continue;
+            processedFileSignatures.add(fileSig);
+
             const originalPath = file.customRelativePath || file.webkitRelativePath || file.name;
             const parts = originalPath.split('/');
             
@@ -165,6 +173,11 @@ async function processBulk() {
                                 parsedTitle = raw;
                             }
                         }
+
+                        // Strictly deduplicate URLs within the same import session loop
+                        const normalizedForSession = normalizeUrl(parsedUrl);
+                        if (sessionUrls.has(normalizedForSession)) continue;
+                        sessionUrls.add(normalizedForSession);
 
                         links.push({
                             id: Date.now() + Math.random(),

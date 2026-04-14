@@ -1,4 +1,4 @@
-﻿window.EveDuplicateSensor = window.EveDuplicateSensor || {};
+window.EveDuplicateSensor = window.EveDuplicateSensor || {};
 
 (function () {
     const ns = window.EveDuplicateSensor;
@@ -130,6 +130,48 @@
         ));
     }
 
+    function getScopedFolders(scope, workspaceId, categoryName, folderId) {
+        const normalizedScope = normalizeScope(scope);
+        const normalizedWorkspace = String(workspaceId || '').trim();
+        const normalizedCategory = String(categoryName || '').trim();
+        const normalizedFolderId = String(folderId || '').trim();
+        const folderTrees = getFolderTrees();
+        
+        const allFolders = [];
+        for (const [scopedKey, tree] of Object.entries(folderTrees)) {
+            const parts = scopedKey.split('::');
+            const wsId = parts[0];
+            const catName = parts.slice(1).join('::');
+            const nodes = Array.isArray(tree?.nodes) ? tree.nodes : (Array.isArray(tree) ? tree : []);
+            
+            nodes.forEach(node => {
+                if (node && node.id) {
+                    allFolders.push({
+                        ...node,
+                        workspaceId: wsId,
+                        categoryName: catName
+                    });
+                }
+            });
+        }
+        
+        if (normalizedScope === 'all_tabs') {
+            return allFolders;
+        }
+        if (normalizedScope === 'workspace') {
+            return allFolders.filter((f) => f.workspaceId === normalizedWorkspace);
+        }
+        if (normalizedScope === 'card') {
+            return allFolders.filter((f) => f.workspaceId === normalizedWorkspace && f.categoryName === normalizedCategory);
+        }
+        
+        return allFolders.filter((f) => (
+            f.workspaceId === normalizedWorkspace
+            && f.categoryName === normalizedCategory
+            && String(f.parentId || '').trim() === normalizedFolderId
+        ));
+    }
+
     Object.assign(runtime, {
         getLinks,
         getConfig,
@@ -139,7 +181,8 @@
         buildScopedKey,
         getWorkspaceName,
         buildFolderLookup,
-        getScopedLinks
+        getScopedLinks,
+        getScopedFolders
     });
 
     runtime.baseLoaded = true;

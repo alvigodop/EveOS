@@ -1,4 +1,4 @@
-﻿window.EveContextMenuActions = window.EveContextMenuActions || {};
+window.EveContextMenuActions = window.EveContextMenuActions || {};
 
 (function () {
     const ns = window.EveContextMenuActions;
@@ -44,9 +44,9 @@
         }
 
         const allItems = window.links || [];
-        const fullReport = window.EveDuplicateSensor.scan(allItems);
+        const fullReport = window.EveDuplicateSensor.scan({ scope: 'all_tabs' });
         const itemIds = new Set(items.map((item) => item.id));
-        const filteredGroups = (fullReport.groups || []).filter((group) => (group.links || group.items || []).some((entry) => itemIds.has(entry.id)));
+        const filteredGroups = (fullReport.groups || []).filter((group) => (group.links || group.items || []).some((entry) => itemIds.has(entry.linkId)));
         const report = { groups: filteredGroups };
 
         if (!report.groups.length) {
@@ -70,7 +70,7 @@
             reportHtml += '<div style="color: #00d4ff; font-weight: bold; margin-bottom: 4px;">Target URL:</div>';
             reportHtml += `<div style="word-break: break-all; font-size: 0.85rem; opacity: 0.8; margin-bottom: 8px;">${escapeHtml(group.url || group.normalizedUrl)}</div>`;
             groupItems.forEach((entry) => {
-                reportHtml += `<div style="font-size: 0.85rem;">- ${escapeHtml(entry.title || 'Untitled')} (Folder: ${escapeHtml(entry.folderId || 'Root')})</div>`;
+                reportHtml += `<div style="font-size: 0.85rem;">- ${escapeHtml(entry.title || 'Untitled')} (Folder: ${escapeHtml(entry.folderLabel || 'Root')})</div>`;
             });
             reportHtml += '</div>';
         });

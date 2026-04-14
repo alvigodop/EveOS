@@ -1,4 +1,4 @@
-﻿window.EveDuplicateSensor = window.EveDuplicateSensor || {};
+window.EveDuplicateSensor = window.EveDuplicateSensor || {};
 
 (function () {
     const ns = window.EveDuplicateSensor;
@@ -286,6 +286,121 @@
         return { mergedId: baseLinkId, removedIds: idsToRemove };
     }
 
-    Object.assign(runtime, { mergeDuplicateGroup });
+    function mergeDuplicateFolderGroup(folderIds) {
+        if (!Array.isArray(folderIds) || folderIds.length < 2) return null;
+
+        const folderTrees = runtime.getFolderTrees();
+        const cloneTree = () => JSON.parse(JSON.stringify(folderTrees));
+        const writeTree = (next) => {
+            if (window.eveState) window.eveState.bookmarkFolders = next;
+            if (typeof window.saveData === 'function') window.saveData();
+        };
+
+        const allNodes = [];
+        Object.entries(folderTrees).forEach(([scopedKey, tree]) => {
+            const [wsId, ...catParts] = scopedKey.split('::');
+            const catName = catParts.join('::');
+            const nodes = Array.isArray(tree?.nodes) ? tree.nodes : (Array.isArray(tree) ? tree : []);
+            nodes.forEach(node => {
+                if (node && node.id) allNodes.push({ ...node, workspaceId: wsId, categoryName: catName });
+            });
+        });
+
+        const targetFolders = allNodes.filter(f => folderIds.includes(f.id));
+        if (targetFolders.length < 2) return null;
+
+        // Base folder priority: shortest path length, else oldest folder
+        const getDepth = (folderId, lookupMap) => {
+            let depth = 0;
+            let current = lookupMap.get(folderId);
+            while (current && current.parentId) {
+                depth++;
+                current = lookupMap.get(current.parentId);
+            }
+            return depth;
+        };
+
+        const nodeLookup = new Map();
+        allNodes.forEach(n => nodeLookup.set(n.id, n));
+        
+        targetFolders.forEach(f => f._depth = getDepth(f.id, nodeLookup));
+        targetFolders.sort((a, b) => a._depth - b._depth);
+        const baseFolder = targetFolders[0];
+        const removedIds = targetFolders.slice(1).map(f => f.id);
+
+        const nextStore = cloneTree();
+        const baseScopedKey = `${baseFolder.workspaceId}::${baseFolder.categoryName}`;
+        if (!nextStore[baseScopedKey]) nextStore[baseScopedKey] = { nodes: [], settings: {} };
+
+        // 1. Reparent Links
+        const links = runtime.getLinks();
+        if (Array.isArray(links)) {
+            links.forEach(link => {
+                const fId = String(link.folderId || '').trim();
+                if (removedIds.includes(fId)) {
+                    link.folderId = baseFolder.id;
+                    link.workspace = baseFolder.workspaceId;
+                    link.category = baseFolder.categoryName;
+                    if (typeof window.EveLibrary?.ConnectionsAPI?.syncFromLink === 'function') {
+                        window.EveLibrary.ConnectionsAPI.syncFromLink(link.id);
+                    }
+                }
+            });
+        }
+
+        // 2. Reparent Folders
+        Object.entries(nextStore).forEach(([scopedKey, tree]) => {
+            const nodes = Array.isArray(tree?.nodes) ? tree.nodes : (Array.isArray(tree) ? tree : []);
+            const nodesToKeep = [];
+            const nodesToMove = [];
+            
+            nodes.forEach(node => {
+                // If it is one of the duplicated folders themselves, DELETE IT completely.
+                if (removedIds.includes(node.id)) {
+                    return; // Skip keeping it
+                }
+                
+                // If its parent is one of the duplicates, it now belongs to the baseFolder
+                const pId = String(node.parentId || '').trim();
+                if (removedIds.includes(pId)) {
+                    node.parentId = baseFolder.id;
+                    node.updatedAt = Date.now();
+                    
+                    if (scopedKey !== baseScopedKey) {
+                        nodesToMove.push(node);
+                    } else {
+                        nodesToKeep.push(node);
+                    }
+                } else {
+                    nodesToKeep.push(node);
+                }
+            });
+            
+            tree.nodes = nodesToKeep;
+            if (nodesToMove.length > 0) {
+                nextStore[baseScopedKey].nodes.push(...nodesToMove);
+            }
+        });
+
+        // Cleanup empty trees if inherit is true
+        Object.keys(nextStore).forEach(key => {
+            const tree = nextStore[key];
+            if (tree && Array.isArray(tree.nodes) && tree.nodes.length === 0 && tree.settings?.clickBehaviorMode === 'inherit') {
+                delete nextStore[key];
+            }
+        });
+
+        writeTree(nextStore);
+
+        if (typeof window.renderSidebar === 'function') window.renderSidebar();
+        if (typeof window.renderDashboard === 'function') window.renderDashboard();
+        if (window.EveBookmarkFolders?.refreshEditorFolderSelect) {
+            window.EveBookmarkFolders.refreshEditorFolderSelect();
+        }
+
+        return { mergedId: baseFolder.id, removedIds };
+    }
+
+    Object.assign(runtime, { mergeDuplicateGroup, mergeDuplicateFolderGroup });
     runtime.mergeLoaded = true;
 })();

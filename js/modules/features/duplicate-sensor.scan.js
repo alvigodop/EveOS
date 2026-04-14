@@ -1,4 +1,4 @@
-﻿window.EveDuplicateSensor = window.EveDuplicateSensor || {};
+window.EveDuplicateSensor = window.EveDuplicateSensor || {};
 
 (function () {
     const ns = window.EveDuplicateSensor;
@@ -23,6 +23,7 @@
         const categoryName = String(options.categoryName || '').trim();
         const folderId = String(options.folderId || '').trim();
         const scopeLinks = runtime.getScopedLinks(scope, workspaceId, categoryName, folderId);
+        const scopeFolders = runtime.getScopedFolders(scope, workspaceId, categoryName, folderId);
         const folderLookupCache = new Map();
         const parent = new Map();
 
@@ -117,6 +118,59 @@
             });
 
         const duplicateBookmarks = groups.reduce((total, group) => total + group.duplicateCount, 0);
+
+        const folderNameMap = new Map();
+        const folderNodes = scopeFolders.map((folder, idx) => {
+            const folderWorkspaceId = String(folder?.workspaceId || 'main').trim();
+            const folderCategoryName = String(folder?.categoryName || 'Unsorted').trim();
+            const cacheKey = runtime.buildScopedKey(folderWorkspaceId, folderCategoryName);
+            if (!folderLookupCache.has(cacheKey)) {
+                folderLookupCache.set(cacheKey, runtime.buildFolderLookup(folderWorkspaceId, folderCategoryName));
+            }
+            const folderLookup = folderLookupCache.get(cacheKey);
+
+            return {
+                idx,
+                folderId: String(folder?.id || '').trim(),
+                name: String(folder?.name || folder?.title || 'Folder').trim(),
+                nName: normalizeTitle(folder?.name || folder?.title),
+                parentId: String(folder?.parentId || '').trim(),
+                parentLabel: folderLookup.getFolderLabel(folder?.parentId),
+                workspaceId: folderWorkspaceId,
+                workspaceName: runtime.getWorkspaceName(folderWorkspaceId),
+                categoryName: folderCategoryName
+            };
+        });
+
+        folderNodes.forEach(node => {
+            if (node.nName) {
+                if (!folderNameMap.has(node.nName)) folderNameMap.set(node.nName, []);
+                folderNameMap.get(node.nName).push(node);
+            }
+        });
+
+        const folderGroups = Array.from(folderNameMap.values())
+            .filter(items => items.length > 1)
+            .map(items => {
+                return {
+                    normalizedName: items[0].name,
+                    count: items.length,
+                    duplicateCount: items.length - 1,
+                    items: items.slice().sort((left, right) => {
+                        if (left.workspaceName !== right.workspaceName) return left.workspaceName.localeCompare(right.workspaceName);
+                        if (left.categoryName !== right.categoryName) return left.categoryName.localeCompare(right.categoryName);
+                        if (left.parentLabel !== right.parentLabel) return left.parentLabel.localeCompare(right.parentLabel);
+                        return left.name.localeCompare(right.name);
+                    })
+                };
+            })
+            .sort((left, right) => {
+                if (right.count !== left.count) return right.count - left.count;
+                return left.normalizedName.localeCompare(right.normalizedName);
+            });
+
+        const duplicateFolderCount = folderGroups.reduce((total, group) => total + group.duplicateCount, 0);
+
         return {
             scope,
             workspaceId,
@@ -126,7 +180,11 @@
             scannedUrls: scopeLinks.length,
             duplicateGroups: groups.length,
             duplicateBookmarks,
-            groups
+            groups,
+            totalFolders: scopeFolders.length,
+            duplicateFolderGroups: folderGroups.length,
+            duplicateFolderCount,
+            folderGroups
         };
     }
 
