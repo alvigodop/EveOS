@@ -317,3 +317,58 @@ html[data-native-scheme="light"] #sidebar:hover .ws-sub-item .ws-label {
 #sidebar.ws-drag-active .ws-item:not(.ws-dragging):not(.ws-drop-target) {
     opacity: 0.7;
 }
+/* --- Workspace Popout (Custom Tooltip) --- */
+#ws-popout {
+    position: fixed;
+    z-index: 10000;
+    pointer-events: none;
+    background: rgba(30, 30, 30, 0.75);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(0, 212, 255, 0.3);
+    border-radius: 8px;
+    padding: 6px 14px;
+    color: var(--text-main);
+    font-size: 0.9rem;
+    font-weight: 500;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4), inset 0 0 0 1px rgba(255,255,255,0.05);
+    opacity: 0;
+    transform: translateX(-10px) scale(0.95);
+    transition: opacity 0.15s ease, transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    white-space: nowrap;
+    display: none;
+    align-items: center;
+    gap: 8px;
+}
+
+#ws-popout.active {
+    display: flex;
+    opacity: 1;
+    transform: translateX(0) scale(1);
+}
+
+#ws-popout .popout-icon {
+    font-size: 1.1rem;
+    opacity: 0.9;
+}
+
+#ws-popout .popout-hint {
+    font-size: 0.65rem;
+    opacity: 0.4;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-left: 4px;
+    padding-left: 8px;
+    border-left: 1px solid rgba(255,255,255,0.1);
+}
+
+html[data-native-scheme="light"] #ws-popout {
+    background: rgba(255, 255, 255, 0.85);
+    border-color: rgba(0, 96, 223, 0.25);
+    color: #111;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+}
+
+html[data-native-scheme="light"] #ws-popout .popout-hint {
+    border-left-color: rgba(0,0,0,0.1);
+}

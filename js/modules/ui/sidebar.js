@@ -188,6 +188,11 @@ function renderSidebar() {
         // Context menu (preserved original)
         item.oncontextmenu = (e) => showWsContext(e, ws.id);
 
+        // --- Workspace Popout (Custom Tooltip) ---
+        item.title = ws.name; // Fallback
+        item.addEventListener('mouseenter', (e) => showWsPopout(e, ws));
+        item.addEventListener('mouseleave', hideWsPopout);
+
         wrapper.appendChild(item);
         container.appendChild(wrapper);
 
@@ -226,6 +231,55 @@ function renderSidebar() {
         promoteToRoot(dragId);
     };
 
+
     sb.appendChild(addBtn);
 }
+
+// --- Workspace Popout (Tooltip) Implementation ---
+(function() {
+    let popoutEl = null;
+
+    function ensurePopout() {
+        if (popoutEl) return;
+        popoutEl = document.createElement('div');
+        popoutEl.id = 'ws-popout';
+        document.body.appendChild(popoutEl);
+    }
+
+    window.showWsPopout = function(e, ws) {
+        ensurePopout();
+        const item = e.currentTarget;
+        const rect = item.getBoundingClientRect();
+        
+        popoutEl.innerHTML = `
+            <span class="popout-icon">${ws.icon || '📁'}</span>
+            <span class="popout-name">${ws.name}</span>
+            <span class="popout-hint">Peek</span>
+        `;
+        
+        popoutEl.style.display = 'flex';
+        
+        // Dynamic positioning: Just to the right of the sidebar
+        // We use the item's rect for Y alignment
+        const sidebar = document.getElementById('sidebar');
+        const sidebarWidth = sidebar ? sidebar.offsetWidth : 60;
+        
+        popoutEl.style.top = `${rect.top + (rect.height / 2) - 15}px`;
+        popoutEl.style.left = `${sidebarWidth + 10}px`;
+        
+        requestAnimationFrame(() => {
+            popoutEl.classList.add('active');
+        });
+    };
+
+    window.hideWsPopout = function() {
+        if (!popoutEl) return;
+        popoutEl.classList.remove('active');
+        setTimeout(() => {
+            if (!popoutEl.classList.contains('active')) {
+                popoutEl.style.display = 'none';
+            }
+        }, 150);
+    };
+})();
 
