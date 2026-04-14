@@ -195,9 +195,30 @@ window.EveWorkspaceHelpers = (function () {
         return result;
     }
 
+    /**
+     * Reconstruct the full path (ancestors) to a given workspace ID.
+     * Returns an array of workspace objects from root down to the target.
+     */
+    function getPath(workspaces, id, currentPath) {
+        if (!Array.isArray(workspaces) || !id) return [];
+        const path = currentPath || [];
+        const targetId = String(id);
+        for (let i = 0; i < workspaces.length; i++) {
+            const ws = workspaces[i];
+            if (!ws) continue;
+            if (String(ws.id) === targetId) return [...path, ws];
+            if (Array.isArray(ws.subTabs)) {
+                const found = getPath(ws.subTabs, targetId, [...path, ws]);
+                if (found.length > 0) return found;
+            }
+        }
+        return [];
+    }
+
     return {
         findById: findById,
         findParent: findParent,
+        getPath: getPath,
         getDepth: getDepth,
         flatten: flatten,
         flattenIds: flattenIds,

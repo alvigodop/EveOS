@@ -517,7 +517,9 @@ window.DashboardCategories = window.DashboardCategories || {};
                     var subWs = helpers ? helpers.findById(config.workspaces || [], wsId) : null;
                     var subName = subWs ? escapeCardHtml(subWs.name) : wsId;
                     var subIcon = subWs ? (subWs.icon || '📁') : '📁';
-                    badges.push('<span class="card-subtab-source">' + subIcon + ' ' + subName + '</span>');
+                    var clickAction = `event.preventDefault(); event.stopPropagation(); if(typeof window.switchWorkspace === 'function') window.switchWorkspace('${escapeCardJs(wsId)}');`;
+                    var peekHandlers = `onmouseenter="if(window.showPathPeek) window.showPathPeek(event, '${escapeCardJs(wsId)}')" onmousemove="if(window.movePathPeek) window.movePathPeek(event)" onmouseleave="if(window.hidePathPeek) window.hidePathPeek()"`;
+                    badges.push(`<span class="card-subtab-source" ${peekHandlers} onclick="${clickAction}">${subIcon} ${subName}</span>`);
                 });
                 subTabSourcesHtml = '<div class="card-subtab-sources">' + badges.join('') + '</div>';
             }

@@ -16,6 +16,29 @@ function switchWorkspace(id, options = {}) {
 
     config.activeWorkspace = nextWorkspaceId;
 
+    // --- AUTO-EXPAND SIDEBAR PATH ---
+    // Ensure all ancestors are expanded so the new active tab is visible in the hierarchy
+    if (window.EveWorkspaceHelpers) {
+        if (!Array.isArray(config.collapsedTabs)) config.collapsedTabs = [];
+        const helpers = window.EveWorkspaceHelpers;
+        let parentNode = helpers.findParent(config.workspaces, nextWorkspaceId);
+        let changed = false;
+
+        while (parentNode) {
+            const pid = String(parentNode.id);
+            if (config.collapsedTabs.includes(pid)) {
+                config.collapsedTabs = config.collapsedTabs.filter(id => id !== pid);
+                changed = true;
+            }
+            parentNode = helpers.findParent(config.workspaces, pid);
+        }
+
+        if (changed) {
+            // No need to manually call renderSidebar here if it's called below
+            // but we ensure it's saved.
+        }
+    }
+
     if (typeof focusCategory !== 'undefined') {
         focusCategory = null;
     }
