@@ -15,7 +15,7 @@ window.EveBulkToolbar = window.EveBulkToolbar || {};
     <button onclick="bulkDelete()" class="btn-danger">Delete</button>
     <button onclick="bulkMove()">Move</button>
     <button onclick="bulkWorkspace()">Tab</button>
-    <button onclick="toggleBulkMode()">Cancel</button>
+    <button onclick="toggleBulkMode()" title="Cancel Select Mode (Alt+B or Esc)">Cancel</button>
 </div>
 `;
 
