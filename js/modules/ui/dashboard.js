@@ -310,8 +310,18 @@ function _renderDashboardCore() {
     const helpers = window.EveWorkspaceHelpers;
     if (helpers) {
         const activeWs = helpers.findById(config.workspaces || [], activeWorkspaceId);
-        if (activeWs && !activeWs.hideSubTabs && Array.isArray(activeWs.subTabs) && activeWs.subTabs.length > 0) {
-            helpers.getVisibleDescendantIds(activeWs).forEach(function (id) { visibleWorkspaceIds.add(id); });
+        
+        let resolvedWs = activeWs;
+        if (activeWs && activeWs.linkedTo) {
+            const targetWs = helpers.findById(config.workspaces || [], activeWs.linkedTo);
+            if (targetWs) {
+                visibleWorkspaceIds.add(targetWs.id);
+                resolvedWs = targetWs;
+            }
+        }
+
+        if (resolvedWs && !resolvedWs.hideSubTabs && Array.isArray(resolvedWs.subTabs) && resolvedWs.subTabs.length > 0) {
+            helpers.getVisibleDescendantIds(resolvedWs).forEach(function (id) { visibleWorkspaceIds.add(id); });
         }
     }
     // Expose for link badge rendering

@@ -198,14 +198,32 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
 
     // Sub-tab origin badge: shown when this link came from a sub-tab merged into the parent view
     let subTabBadge = '';
-    if (!perfMode && !searchStr && l.workspace !== activeWorkspace) {
+    if (!perfMode && !searchStr) {
         const helpers = window.EveWorkspaceHelpers;
-        const subWs = helpers
-            ? helpers.findById(config.workspaces || [], l.workspace)
-            : null;
-        const subTabName = subWs ? subWs.name : null;
-        if (subTabName) {
-            subTabBadge = `<span class="subtab-origin-badge" title="From sub-tab: ${subTabName}">${subWs.icon || '📁'} ${subTabName}</span>`;
+        if (l.workspace !== activeWorkspace) {
+            const subWs = helpers
+                ? helpers.findById(config.workspaces || [], l.workspace)
+                : null;
+            const subTabName = subWs ? subWs.name : null;
+            if (subTabName) {
+                const activeWsObj = helpers ? helpers.findById(config.workspaces, activeWorkspace) : null;
+                const linkedToObj = activeWsObj && activeWsObj.linkedTo ? helpers.findById(config.workspaces, activeWsObj.linkedTo) : null;
+                const isFromLinkedMain = activeWsObj && activeWsObj.linkedTo === l.workspace;
+                const isFromLinkedSub = linkedToObj && helpers.getVisibleDescendantIds(linkedToObj).includes(l.workspace);
+
+                if (isFromLinkedMain) {
+                    subTabBadge = `<span class="subtab-origin-badge" style="background:var(--accent, #0088ff);color:#fff;font-weight:bold;margin-right:6px;border-radius:4px;padding:2px 6px;font-size:0.75em;" title="From main tab: ${subTabName}">⚓ Main Link</span>`;
+                } else if (isFromLinkedSub) {
+                    subTabBadge = `<span class="subtab-origin-badge" style="background:var(--accent, #0088ff);color:#fff;margin-right:6px;border-radius:4px;padding:2px 6px;font-size:0.75em;" title="From main sub-tab: ${subTabName}">⚓ Main Sub-Tab</span>`;
+                } else {
+                    subTabBadge = `<span class="subtab-origin-badge" title="From sub-tab: ${subTabName}">${subWs.icon || '📁'} ${subTabName}</span>`;
+                }
+            }
+        } else {
+            const activeWsObj = helpers ? helpers.findById(config.workspaces, activeWorkspace) : null;
+            if (activeWsObj && activeWsObj.linkedTo) {
+                subTabBadge = `<span class="subtab-origin-badge" style="background:#ff8c00;color:#fff;font-weight:bold;margin-right:6px;border-radius:4px;padding:2px 6px;font-size:0.75em;" title="Added specifically to this shortcut tab">🔗 Shortcut Local</span>`;
+            }
         }
     }
     const folderBadge = extraOptions.folderLabel

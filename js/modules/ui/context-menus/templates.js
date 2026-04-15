@@ -13,6 +13,7 @@ window.ContextMenus.template = `
 <div id="sidebar-context-menu" class="context-menu">
     <div class="ctx-item" onclick="openWorkspaceModal(ctxWsId)">&#9998; Edit</div>
     <div class="ctx-item" onclick="ctxWsAddSubTab()">&#10133; Add Sub-Tab</div>
+    <div class="ctx-item" onclick="ctxWsCreateShortcut()">&#128279; Create Shortcut</div>
     <div class="ctx-item" id="ctx-ws-hide-subtabs" onclick="ctxWsToggleHideSubTabs()">&#128065; Hide Sub-Tab Content</div>
     <div class="ctx-item" id="ctx-ws-hidden-in-parent" onclick="ctxWsToggleHiddenInParent()">&#128064; Hide in Parent View</div>
     <div class="ctx-divider"></div>

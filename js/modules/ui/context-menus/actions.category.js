@@ -159,6 +159,28 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
         if (typeof closeAllMenus === 'function') closeAllMenus();
     };
 
+    window.ctxWsCreateShortcut = function () {
+        if (!ctxWsId) return showToast('No workspace selected', 'error');
+        const helpers = window.EveWorkspaceHelpers;
+        if (!helpers) return;
+        const ws = helpers.findById(config.workspaces, ctxWsId);
+        if (!ws) return showToast('Workspace not found', 'error');
+
+        const newId = 'ws_' + Date.now();
+        const newTab = {
+            id: newId,
+            name: ws.name + ' (Link)',
+            icon: '🔗',
+            linkedTo: ws.id,
+            subTabs: []
+        };
+        config.workspaces.push(newTab);
+        saveConfig();
+        if (typeof renderSidebar === 'function') renderSidebar();
+        showToast('Shortcut Tab Created at Root', 'success');
+        if (typeof closeAllMenus === 'function') closeAllMenus();
+    };
+
     window.ctxWsToggleHideSubTabs = function () {
         if (!ctxWsId) return showToast('No workspace selected', 'error');
         const helpers = window.EveWorkspaceHelpers;
