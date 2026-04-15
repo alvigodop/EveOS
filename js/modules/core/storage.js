@@ -575,6 +575,7 @@ var _saveDataTimer = 0;
 function saveData(options = {}) {
     const skipRender = !!options.skipRender;
     const skipSuggestions = !!options.skipSuggestions;
+    const forceRender = !!options.forceRender;
 
     // Immediate: dispatch event for reactive listeners
     window.dispatchEvent(new CustomEvent('eve:state-mutated', { detail: { source: 'saveData' } }));
@@ -596,7 +597,7 @@ function saveData(options = {}) {
         persistCoreStateAsync(sanitizedLinks);
 
         // In perf mode, skip the full DOM rebuild — actions handle their own UI updates
-        if (window._evePerfMode) return;
+        if (window._evePerfMode && !forceRender) return;
 
         if (!skipRender && typeof renderDashboard === 'function') renderDashboard();
         if (!skipSuggestions && typeof updateSuggestions === 'function') updateSuggestions();

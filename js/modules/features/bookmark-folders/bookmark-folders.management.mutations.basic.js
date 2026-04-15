@@ -163,7 +163,7 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         }
 
         setScopedNodes(workspaceId, categoryName, filteredNodes, { persist: false });
-        if (typeof saveData === 'function') saveData();
+        if (typeof saveData === 'function') saveData({ forceRender: true });
         return true;
     }
 

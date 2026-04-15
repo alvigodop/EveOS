@@ -227,7 +227,7 @@ window.EveLinkForm = window.EveLinkForm || {};
             window.EveBookmarkCovers.clearSelection(targetId);
         }
 
-        saveData();
+        saveData({ forceRender: true });
 
         if (targetId) {
             ns.saveLibraryLinkState(targetId, category, title, url);

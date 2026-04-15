@@ -109,7 +109,7 @@ function drop(ev, newCategory) {
     });
 
     if (movedAny) {
-        if (typeof saveData === 'function') saveData();
+        if (typeof saveData === 'function') saveData({ forceRender: true });
     }
 }
 

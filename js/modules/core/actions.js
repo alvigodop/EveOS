@@ -152,7 +152,7 @@ async function sweepDone() {
         if (window.EveLibrary?.ConnectionsAPI?.removeByLinkId) {
             removedIds.forEach(id => window.EveLibrary.ConnectionsAPI.removeByLinkId(id));
         }
-        saveData();
+        saveData({ forceRender: true });
         showToast("Swept!", "success");
     }
 }

@@ -76,7 +76,8 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         if (movedAny && options.persist !== false && typeof saveData === 'function') {
             saveData({
                 skipRender: !!options.skipRender,
-                skipSuggestions: !!options.skipSuggestions
+                skipSuggestions: !!options.skipSuggestions,
+                forceRender: true
             });
         }
 
