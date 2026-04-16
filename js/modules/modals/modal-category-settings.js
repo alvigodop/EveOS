@@ -88,12 +88,15 @@
 
 
 
-    window.openCategorySettings = function (categoryName, activeTab = 'general') {
+    window.openCategorySettings = function (categoryName, activeTab = 'general', workspaceId = null) {
 
         window.currentCategoryCtx = categoryName;
         // Persist context for reload recovery
         try {
             localStorage.setItem('eve_current_category_context', categoryName);
+            if (workspaceId) {
+                localStorage.setItem('eve_current_category_workspace', workspaceId);
+            }
         } catch (e) {}
 
         window.ctxCatName = categoryName;

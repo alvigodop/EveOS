@@ -1,7 +1,7 @@
 // --- CATEGORIES ---
 
-function moveCategory(cat, direction) {
-    const workspaceId = String(config.activeWorkspace || 'main').trim() || 'main';
+function moveCategory(cat, direction, workspaceId) {
+    workspaceId = String(workspaceId || config.activeWorkspace || 'main').trim() || 'main';
     if (window.EveCategoryOrder?.moveCategory) {
         if (window.EveCategoryOrder.moveCategory(workspaceId, cat, direction)) {
             saveConfig();
@@ -9,7 +9,7 @@ function moveCategory(cat, direction) {
         }
         return;
     }
-    const visibleLinks = links.filter(l => l.workspace === config.activeWorkspace);
+    const visibleLinks = links.filter(l => l.workspace === workspaceId);
     let categories = [...new Set(visibleLinks.map(l => l.category || "Unsorted"))];
     if (!config.categoryOrder || config.categoryOrder.length === 0) config.categoryOrder = categories.sort();
     categories.forEach(c => { if (!config.categoryOrder.includes(c)) config.categoryOrder.push(c); });
@@ -44,15 +44,21 @@ function promptMoveCategory(cat, currentIndex) {
     }
 }
 
-function toggleCollapse(cat) {
+function toggleCollapse(cat, workspaceId) {
     if (!config.collapsed) config.collapsed = [];
-    var wasCollapsed = config.collapsed.includes(cat);
-    if (wasCollapsed) config.collapsed = config.collapsed.filter(c => c !== cat);
-    else config.collapsed.push(cat);
+    const wsId = String(workspaceId || config.activeWorkspace || 'main').trim();
+    const key = `${wsId}::${cat}`;
+    var wasCollapsed = config.collapsed.includes(key) || config.collapsed.includes(cat);
+    if (wasCollapsed) {
+        config.collapsed = config.collapsed.filter(c => c !== key && c !== cat);
+    } else {
+        config.collapsed.push(key);
+    }
     saveConfig();
 
     // Direct DOM toggle — avoid full re-render for a CSS-only change
-    var card = document.querySelector('.category-card[data-card-category="' + CSS.escape(cat) + '"]');
+    var card = document.querySelector('.category-card[data-card-category="' + CSS.escape(cat) + '"][data-card-workspace="' + CSS.escape(wsId) + '"]') 
+            || document.querySelector('.category-card[data-card-category="' + CSS.escape(cat) + '"]');
     if (card) {
         card.classList.toggle('collapsed', !wasCollapsed);
         // If expanding a deferred card, trigger its full build
@@ -64,41 +70,60 @@ function toggleCollapse(cat) {
     }
 }
 
-function toggleFolderCollapse(cat) {
+function toggleFolderCollapse(cat, workspaceId) {
     if (!config.foldersCollapsed) config.foldersCollapsed = [];
-    if (config.foldersCollapsed.includes(cat)) config.foldersCollapsed = config.foldersCollapsed.filter(c => c !== cat);
-    else config.foldersCollapsed.push(cat);
+    const wsId = String(workspaceId || config.activeWorkspace || 'main').trim();
+    const key = `${wsId}::${cat}`;
+    const wasCollapsed = config.foldersCollapsed.includes(key) || config.foldersCollapsed.includes(cat);
+    if (wasCollapsed) {
+        config.foldersCollapsed = config.foldersCollapsed.filter(c => c !== key && c !== cat);
+    } else {
+        config.foldersCollapsed.push(key);
+    }
     saveConfig();
 
     // Direct DOM toggle — avoid full re-render for a CSS-only change
-    var card = document.querySelector('.category-card[data-card-category="' + CSS.escape(cat) + '"]');
+    var card = document.querySelector('.category-card[data-card-category="' + CSS.escape(cat) + '"][data-card-workspace="' + CSS.escape(wsId) + '"]')
+            || document.querySelector('.category-card[data-card-category="' + CSS.escape(cat) + '"]');
     if (card) {
-        card.classList.toggle('folders-collapsed', config.foldersCollapsed.includes(cat));
+        card.classList.toggle('folders-collapsed', !wasCollapsed);
     } else {
         if (typeof renderDashboard === 'function') renderDashboard();
     }
 }
 
-function toggleLinksCollapse(cat) {
+function toggleLinksCollapse(cat, workspaceId) {
     if (!config.linksCollapsed) config.linksCollapsed = [];
-    if (config.linksCollapsed.includes(cat)) config.linksCollapsed = config.linksCollapsed.filter(c => c !== cat);
-    else config.linksCollapsed.push(cat);
+    const wsId = String(workspaceId || config.activeWorkspace || 'main').trim();
+    const key = `${wsId}::${cat}`;
+    const wasCollapsed = config.linksCollapsed.includes(key) || config.linksCollapsed.includes(cat);
+    if (wasCollapsed) {
+        config.linksCollapsed = config.linksCollapsed.filter(c => c !== key && c !== cat);
+    } else {
+        config.linksCollapsed.push(key);
+    }
     saveConfig();
 
     // Direct DOM toggle — avoid full re-render for a CSS-only change
-    var card = document.querySelector('.category-card[data-card-category="' + CSS.escape(cat) + '"]');
+    var card = document.querySelector('.category-card[data-card-category="' + CSS.escape(cat) + '"][data-card-workspace="' + CSS.escape(wsId) + '"]')
+            || document.querySelector('.category-card[data-card-category="' + CSS.escape(cat) + '"]');
     if (card) {
-        card.classList.toggle('links-collapsed', config.linksCollapsed.includes(cat));
+        card.classList.toggle('links-collapsed', !wasCollapsed);
     } else {
         if (typeof renderDashboard === 'function') renderDashboard();
     }
 }
 
-function toggleSubfoldersCollapse(folderId) {
+function toggleSubfoldersCollapse(folderId, workspaceId) {
     if (!config.subfoldersCollapsed) config.subfoldersCollapsed = [];
-    const wasCollapsed = config.subfoldersCollapsed.includes(folderId);
-    if (wasCollapsed) config.subfoldersCollapsed = config.subfoldersCollapsed.filter(id => id !== folderId);
-    else config.subfoldersCollapsed.push(folderId);
+    const wsId = String(workspaceId || config.activeWorkspace || 'main').trim();
+    const key = `${wsId}::${folderId}`;
+    const wasCollapsed = config.subfoldersCollapsed.includes(key) || config.subfoldersCollapsed.includes(folderId);
+    if (wasCollapsed) {
+        config.subfoldersCollapsed = config.subfoldersCollapsed.filter(id => id !== key && id !== folderId);
+    } else {
+        config.subfoldersCollapsed.push(key);
+    }
     saveConfig();
 
     // Perf mode: patch DOM directly, skip full re-render
@@ -122,11 +147,16 @@ function toggleSubfoldersCollapse(folderId) {
     if (typeof renderDashboard === 'function') renderDashboard();
 }
 
-function toggleSublinksCollapse(folderId) {
+function toggleSublinksCollapse(folderId, workspaceId) {
     if (!config.sublinksCollapsed) config.sublinksCollapsed = [];
-    const wasCollapsed = config.sublinksCollapsed.includes(folderId);
-    if (wasCollapsed) config.sublinksCollapsed = config.sublinksCollapsed.filter(id => id !== folderId);
-    else config.sublinksCollapsed.push(folderId);
+    const wsId = String(workspaceId || config.activeWorkspace || 'main').trim();
+    const key = `${wsId}::${folderId}`;
+    const wasCollapsed = config.sublinksCollapsed.includes(key) || config.sublinksCollapsed.includes(folderId);
+    if (wasCollapsed) {
+        config.sublinksCollapsed = config.sublinksCollapsed.filter(id => id !== key && id !== folderId);
+    } else {
+        config.sublinksCollapsed.push(key);
+    }
     saveConfig();
 
     // Perf mode: re-enter current folder to re-render with collapse state

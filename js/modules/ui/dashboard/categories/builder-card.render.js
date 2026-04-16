@@ -10,8 +10,13 @@ window.DashboardCategories = window.DashboardCategories || {};
         buildFolderSectionsHtml
     } = api;
 
-    function renderCard(cat, catLinks, gridContainer, configOptions) {
+    function renderCard(catInput, catLinks, gridContainer, configOptions) {
         var options = configOptions || {};
+        var cat = typeof catInput === 'object' && catInput ? catInput.category : catInput;
+        if (typeof catInput === 'object' && catInput && catInput.workspaceId) {
+            options.activeWorkspace = catInput.workspaceId;
+        }
+
         var isDetachedParkingCard = !!options.detachedParkingCard;
         var isFocusMode = !!options.focusMode;
 
@@ -370,49 +375,10 @@ window.DashboardCategories = window.DashboardCategories || {};
                 + '</button></li>';
         }
 
-        // For mega-cards, skip iterating all 3551 links just to extract workspace IDs
-        var scopedWorkspaceIds = isMegaCard
-            ? [String(options.activeWorkspace || 'main').trim()]
-            : Array.from(new Set(renderedLinks.map(function (link) {
-                return String(link?.workspace || options.activeWorkspace || '').trim();
-            }).filter(Boolean)));
-
-        // Allow folder rendering for cards whose links come from the active workspace or its sub-tabs
         var activeWsId = String(options.activeWorkspace || '').trim();
-        var visibleSubTabIds = window._eveActiveVisibleWorkspaceIds instanceof Set
-            ? window._eveActiveVisibleWorkspaceIds
-            : new Set([activeWsId]);
-        var canRenderCardFolders = scopedWorkspaceIds.every(function (wsId) {
-            return visibleSubTabIds.has(wsId);
-        });
-
-        // When all links come from a single sub-tab, adopt that workspace for the entire card
-        var effectiveWsId = activeWsId;
-        if (canRenderCardFolders && scopedWorkspaceIds.length === 1 && scopedWorkspaceIds[0] !== activeWsId) {
-            effectiveWsId = scopedWorkspaceIds[0];
-            options = Object.assign({}, options, { activeWorkspace: effectiveWsId });
-        }
-
-        var listHtml;
-        if (canRenderCardFolders && scopedWorkspaceIds.length <= 1) {
-            var shouldSkipGhosts = (options._skipGhosts !== undefined) ? !!options._skipGhosts : isMegaCard;
-            var folderOptions = shouldSkipGhosts ? Object.assign({}, options, { skipGhosts: true }) : options;
-            listHtml = buildFolderSectionsHtml(cat, renderedLinks, folderOptions, renderLinkCollection);
-        } else if (canRenderCardFolders && scopedWorkspaceIds.length > 1) {
-            var combinedHtml = [];
-            scopedWorkspaceIds.forEach(function (wsId) {
-                var wsLinks = renderedLinks.filter(function (link) {
-                    return String(link?.workspace || 'main').trim() === wsId;
-                });
-                if (!wsLinks.length) return;
-                var isSubTab = wsId !== activeWsId;
-                var wsOptions = Object.assign({}, options, { activeWorkspace: wsId, isSubTabInParentView: isSubTab });
-                combinedHtml.push(buildFolderSectionsHtml(cat, wsLinks, wsOptions, renderLinkCollection));
-            });
-            listHtml = combinedHtml.join('');
-        } else {
-            listHtml = renderLinkCollection(renderedLinks);
-        }
+        var shouldSkipGhosts = (options._skipGhosts !== undefined) ? !!options._skipGhosts : isMegaCard;
+        var folderOptions = shouldSkipGhosts ? Object.assign({}, options, { skipGhosts: true }) : options;
+        var listHtml = buildFolderSectionsHtml(cat, renderedLinks, folderOptions, renderLinkCollection);
 
         var shownSuffix = (isFocusMode && focusedFilterMode !== 'all') ? ' shown' : '';
         var titleMetaText = isTaskMode
@@ -428,17 +394,17 @@ window.DashboardCategories = window.DashboardCategories || {};
              cardOrderIndex = window.EveCategoryOrder.getOrder(activeWorkspaceId).indexOf(cat);
         }
         var cardOrderHtml = (!isFocusMode && cardOrderIndex >= 0)
-            ? '<div class="card-order-number" onclick="if(window.promptMoveCategory) window.promptMoveCategory(\'' + safeCatJs + '\', ' + cardOrderIndex + ')" title="Card Chronological Position">#' + (cardOrderIndex + 1) + '</div>'
+            ? '<div class="card-order-number" onclick="if(window.promptMoveCategory) window.promptMoveCategory(\'' + safeCatJs + '\', ' + cardOrderIndex + ', \'' + activeWorkspaceId + '\')" title="Card Chronological Position">#' + (cardOrderIndex + 1) + '</div>'
             : '';
 
         var titleControlsHtml = isFocusMode
             ? ''
             : ''
-            + '<span class="collapse-arrow" data-cat="' + safeCatHtml + '" onclick="toggleLinksCollapse(this.dataset.cat)" title="Toggle Bookmarks">&#128216;</span>'
-            + '<span class="collapse-arrow" data-cat="' + safeCatHtml + '" onclick="toggleFolderCollapse(this.dataset.cat)" title="Toggle Folders">&#128193;</span>'
-            + '<span class="collapse-arrow" data-cat="' + safeCatHtml + '" onclick="toggleCollapse(this.dataset.cat)" title="Toggle Card">&#9660;</span>'
-            + '<span class="sort-btn" onclick="moveCategory(\'' + safeCatJs + '\', -1)">&#9650;</span>'
-            + '<span class="sort-btn" onclick="moveCategory(\'' + safeCatJs + '\', 1)">&#9660;</span>'
+            + '<span class="collapse-arrow" data-ws="' + escapeCardHtml(activeWorkspaceId) + '" data-cat="' + safeCatHtml + '" onclick="toggleLinksCollapse(this.dataset.cat, this.dataset.ws)" title="Toggle Bookmarks">&#128216;</span>'
+            + '<span class="collapse-arrow" data-ws="' + escapeCardHtml(activeWorkspaceId) + '" data-cat="' + safeCatHtml + '" onclick="toggleFolderCollapse(this.dataset.cat, this.dataset.ws)" title="Toggle Folders">&#128193;</span>'
+            + '<span class="collapse-arrow" data-ws="' + escapeCardHtml(activeWorkspaceId) + '" data-cat="' + safeCatHtml + '" onclick="toggleCollapse(this.dataset.cat, this.dataset.ws)" title="Toggle Card">&#9660;</span>'
+            + '<span class="sort-btn" onclick="moveCategory(\'' + safeCatJs + '\', -1, \'' + escapeCardJs(activeWorkspaceId) + '\')">&#9650;</span>'
+            + '<span class="sort-btn" onclick="moveCategory(\'' + safeCatJs + '\', 1, \'' + escapeCardJs(activeWorkspaceId) + '\')">&#9660;</span>'
             + cardOrderHtml;
         var cardTargetId = window.EveQuickPins?.buildCardTargetId
             ? window.EveQuickPins.buildCardTargetId(activeWorkspaceId, cat)
@@ -470,7 +436,7 @@ window.DashboardCategories = window.DashboardCategories || {};
             nonFocusButtons.push('<button class="card-header-icon-btn constellation-btn" data-cat="' + safeCatHtml + '" data-ws="' + escapeCardHtml(activeWorkspaceId) + '" onclick="if(window.EveConstellationMap) window.EveConstellationMap.openCardMap(this.dataset.ws, this.dataset.cat)" title="Constellation Map">&#127756;</button>');
         }
         if (!isDetachedParkingCard) {
-            nonFocusButtons.push('<button class="card-header-icon-btn" data-cat="' + safeCatHtml + '" onclick="openCategorySettings(this.dataset.cat)" title="Settings">&#9881;</button>');
+            nonFocusButtons.push('<button class="card-header-icon-btn" data-ws="' + escapeCardHtml(activeWorkspaceId) + '" data-cat="' + safeCatHtml + '" onclick="openCategorySettings(this.dataset.cat, undefined, this.dataset.ws)" title="Settings">&#9881;</button>');
         }
         if (!isDetachedParkingCard && visibleHeaderButtons.has('launch')) {
             nonFocusButtons.push('<button class="card-header-icon-btn launch-btn" data-cat="' + safeCatHtml + '" onclick="launchCategory(this.dataset.cat)" title="Launch">&#128640;</button>');
@@ -514,7 +480,7 @@ window.DashboardCategories = window.DashboardCategories || {};
             + '</select>'
             + '<button class="category-action-btn" onclick="clearFocus()" title="Exit Focus">&#127919; <span>Exit Focus</span></button>'
             + (!isDetachedParkingCard
-                ? '<button class="category-action-btn" data-cat="' + safeCatHtml + '" onclick="openCategorySettings(this.dataset.cat)" title="Settings">&#9881; <span>Settings</span></button>'
+                ? '<button class="category-action-btn" data-ws="' + escapeCardHtml(activeWorkspaceId) + '" data-cat="' + safeCatHtml + '" onclick="openCategorySettings(this.dataset.cat, undefined, this.dataset.ws)" title="Settings">&#9881; <span>Settings</span></button>'
                 : '')
             + (!isDetachedParkingCard && visibleHeaderButtons.has('launch')
                 ? '<button class="category-action-btn" data-cat="' + safeCatHtml + '" onclick="launchCategory(this.dataset.cat)" title="Launch">&#128640; <span>Launch</span></button>'
@@ -526,166 +492,8 @@ window.DashboardCategories = window.DashboardCategories || {};
             + nonFocusButtons.join('')
             + '</div>';
 
-        // Detect sub-tab sources in this card
-        var subTabSourcesHtml = '';
-        if (!isDetachedParkingCard) {
-            var subTabIds = new Set();
-            catLinks.forEach(function (link) {
-                var linkWs = String(link?.workspace || 'main').trim();
-                subTabIds.add(linkWs); // Include activeWsId so native tabs holding their own direct links get a marker
-            });
-            if (subTabIds.size > 0) {
-                var helpers = window.EveWorkspaceHelpers;
-                var ROUTE_COLORS = [
-                    { solid: '#a882ff', bg: 'rgba(168,130,255,0.15)', border: 'rgba(168,130,255,0.3)' },
-                    { solid: '#40e8d0', bg: 'rgba(0,200,180,0.15)', border: 'rgba(0,200,180,0.35)' },
-                    { solid: '#ff8c60', bg: 'rgba(255,140,96,0.15)', border: 'rgba(255,140,96,0.3)' },
-                    { solid: '#60a0ff', bg: 'rgba(96,160,255,0.15)', border: 'rgba(96,160,255,0.3)' },
-                    { solid: '#c8b400', bg: 'rgba(200,180,0,0.15)', border: 'rgba(200,180,0,0.3)' }
-                ];
-
-                // Build map: linkedTo target ID → array of linked tab objects
-                // GUARD: skip linked tabs that are descendants of their own target (self-referencing)
-                // UNLESS the user is actively sitting in the target workspace itself, in which case they explicitly want the marker.
-                var linkedTabsByTarget = {};
-                if (helpers) {
-                    var visWs = window._eveActiveVisibleWorkspaceIds;
-                    if (visWs) {
-                        visWs.forEach(function (vId) {
-                            var vWs = helpers.findById(config.workspaces || [], vId);
-                            if (vWs && vWs.linkedTo) {
-                                var linkedTarget = helpers.findById(config.workspaces || [], vWs.linkedTo);
-                                // No self-reference guard: if a workspace hosts a link to itself, we report it.
-                                if (!linkedTabsByTarget[vWs.linkedTo]) linkedTabsByTarget[vWs.linkedTo] = [];
-                                linkedTabsByTarget[vWs.linkedTo].push(vWs);
-                                // Also map descendants of the linked target
-                                if (linkedTarget && Array.isArray(linkedTarget.subTabs)) {
-                                    helpers.getVisibleDescendantIds(linkedTarget).forEach(function (descId) {
-                                        if (!linkedTabsByTarget[descId]) linkedTabsByTarget[descId] = [];
-                                        linkedTabsByTarget[descId].push(vWs);
-                                    });
-                                }
-                            }
-                        });
-                    }
-                }
-
-                // Build path for a workspace ID
-                function _buildPath(wsId) {
-                    if (!helpers) return [{ id: wsId, name: wsId, icon: '📁' }];
-                    var segs = [];
-                    var ws = helpers.findById(config.workspaces || [], wsId);
-                    if (!ws) return [{ id: wsId, name: wsId, icon: '📁' }];
-                    segs.unshift({ id: ws.id, name: ws.name, icon: ws.icon || '📁' });
-                    var p = helpers.findParent(config.workspaces, ws.id);
-                    while (p) {
-                        segs.unshift({ id: p.id, name: p.name, icon: p.icon || '📁' });
-                        p = helpers.findParent(config.workspaces, p.id);
-                    }
-                    return segs;
-                }
-
-                function _isDirectDescendant(wsId) {
-                    if (!helpers) return false;
-                    var activeWs = helpers.findById(config.workspaces || [], activeWsId);
-                    if (!activeWs) return false;
-                    return helpers.getVisibleDescendantIds(activeWs).indexOf(wsId) !== -1;
-                }
-
-                var badges = [];
-                subTabIds.forEach(function (wsId) {
-                    var routes = [];
-                    var colorIdx = 0;
-
-                    if (wsId === activeWsId) {
-                        routes.push({ type: 'native', color: ROUTE_COLORS[colorIdx++ % ROUTE_COLORS.length], path: _buildPath(wsId) });
-                    } else if (_isDirectDescendant(wsId)) {
-                        routes.push({ type: 'direct', color: ROUTE_COLORS[colorIdx++ % ROUTE_COLORS.length], path: _buildPath(wsId) });
-                    }
-
-                    var linkedTabs = linkedTabsByTarget[wsId] || [];
-                    linkedTabs.forEach(function (lt) {
-                        routes.push({
-                            type: 'linked',
-                            color: ROUTE_COLORS[colorIdx++ % ROUTE_COLORS.length],
-                            linkedTab: { id: lt.id, name: lt.name, icon: lt.icon || '🔗' },
-                            sourcePath: _buildPath(wsId),
-                            linkedPath: _buildPath(lt.id)
-                        });
-                    });
-
-                    // Fallback if no routes detected and it's not the native tab
-                    if (routes.length === 0 && wsId !== activeWsId) {
-                        routes.push({ type: 'direct', color: ROUTE_COLORS[0], path: _buildPath(wsId) });
-                    }
-
-                    // SKIP generating a badge if it's purely native and has no linked routes
-                    if (wsId === activeWsId && routes.length === 1 && routes[0].type === 'native') {
-                        return;
-                    }
-
-                    var subWs = helpers ? helpers.findById(config.workspaces || [], wsId) : null;
-                    var subName = subWs ? escapeCardHtml(subWs.name) : wsId;
-                    var subIcon = subWs ? (subWs.icon || '📁') : '📁';
-                    var escId = escapeCardJs(wsId);
-                    var clickAction = "event.preventDefault(); event.stopPropagation(); if(typeof window.switchWorkspace === 'function') window.switchWorkspace('" + escId + "');";
-
-                    // Generate badge style
-                    var badgeStyle = '';
-                    var badgeClass = 'card-subtab-source';
-                    if (routes.length === 1) {
-                        badgeStyle = 'background:' + routes[0].color.bg + ';border-color:' + routes[0].color.border + ';color:' + routes[0].color.solid + ';';
-                        if (routes[0].type === 'linked') {
-                            badgeClass += ' card-subtab-source--linked';
-                        }
-                    } else {
-                        // Multi-source gradient
-                        var step = 100 / routes.length;
-                        var gradParts = routes.map(function (r, i) {
-                            return r.color.solid + '22 ' + (i * step) + '% ' + ((i + 1) * step) + '%';
-                        });
-                        var borderColor = routes[0].color.border;
-                        badgeStyle = 'background:linear-gradient(90deg,' + gradParts.join(',') + ');'
-                            + 'border-color:' + borderColor + ';'
-                            + 'border-style:dashed;'
-                            + 'color:' + routes[0].color.solid + ';';
-                        badgeClass += ' card-subtab-source--multi';
-                    }
-
-                    // Encode routes for hover popover
-                    var routesData = JSON.stringify(routes.map(function (r) {
-                        return {
-                            type: r.type,
-                            color: r.color.solid,
-                            path: r.path || r.sourcePath,
-                            linkedPath: r.linkedPath || null,
-                            linkedTab: r.linkedTab || null
-                        };
-                    }));
-                    var safeRoutesAttr = routesData.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-
-                    var hoverHandlers = 'onmouseenter="if(window.showSourceRoutePeek)window.showSourceRoutePeek(event,this)" '
-                        + 'onmouseleave="if(window.hideSourceRoutePeek)window.hideSourceRoutePeek()" '
-                        + 'onmousemove="if(window.moveSourceRoutePeek)window.moveSourceRoutePeek(event)"';
-
-                    var displayIcon = routes.some(function (r) { return r.type === 'linked'; }) ? '🔗' : subIcon;
-                    var routeCountBadge = routes.length > 1
-                        ? '<span class="source-route-count">' + routes.length + '</span>'
-                        : '';
-
-                    badges.push('<span class="' + badgeClass + '" style="' + badgeStyle + '" '
-                        + 'data-source-routes="' + safeRoutesAttr + '" '
-                        + hoverHandlers + ' '
-                        + 'onclick="' + clickAction + '">'
-                        + displayIcon + ' ' + subName + routeCountBadge
-                        + '</span>');
-                });
-                
-                if (badges.length > 0) {
-                    subTabSourcesHtml = '<div class="card-subtab-sources">' + badges.join('') + '</div>';
-                }
-            }
-        }
+        // Since categories are now strictly decoupled by workspace, cards will never aggregate sub-tabs.
+        // The sub-tab sources bubble buttons have been removed.
 
         card.innerHTML = ''
             + '<div class="cat-progress-bg"><div class="cat-progress-fill ' + barClass + '" style="width:' + pct + '%"></div></div>'
@@ -699,7 +507,6 @@ window.DashboardCategories = window.DashboardCategories || {};
             + ' onmouseleave="hideCardTitleHover()">'
             + '<div class="category-title">' + safeCatHtml + '</div>'
             + '</div>'
-            + subTabSourcesHtml
             + smartWeightBadgeHtml
             + titleMetaHtml
             + '</div>'
@@ -710,7 +517,7 @@ window.DashboardCategories = window.DashboardCategories || {};
             + '<div class="category-footer"><span class="stat-pending">Pending: ' + Math.max(totalVisibleTasks - doneVisible, 0) + '</span><span class="stat-done">Done: ' + doneVisible + '</span></div>';
         card.setAttribute('data-card-target-id', cardTargetId);
         card.setAttribute('data-card-category', String(cat || 'Unsorted'));
-        card.setAttribute('data-card-workspace', effectiveWsId || activeWorkspaceId);
+        card.setAttribute('data-card-workspace', activeWorkspaceId);
         if (isDetachedParkingCard) {
             card.setAttribute('data-detached-parking-card', '1');
         }
@@ -718,7 +525,7 @@ window.DashboardCategories = window.DashboardCategories || {};
         gridContainer.appendChild(card);
 
         if (window.EveFolderViewV2 && window.EveFolderViewV2.restoreActiveFolderState) {
-            window.EveFolderViewV2.restoreActiveFolderState(effectiveWsId || activeWorkspaceId, cat);
+            window.EveFolderViewV2.restoreActiveFolderState(activeWorkspaceId, cat);
         }
     }
 

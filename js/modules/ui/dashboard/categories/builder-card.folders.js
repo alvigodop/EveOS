@@ -160,8 +160,8 @@ function buildFolderSectionsHtml(categoryName, linksForCard, options, renderer) 
                 + `<button type="button" class="bookmark-folder-toolbar-btn" onclick="openBookmarkFolders('${safeCategoryJs}')">Manage Folders</button>`
             + '</div>';
 
-        const isRootSubfoldersCollapsed = !!(window.eveState?.config?.subfoldersCollapsed || []).includes('__root__::' + categoryName);
-        const isRootSublinksCollapsed = !!(window.eveState?.config?.sublinksCollapsed || []).includes('__root__::' + categoryName);
+        const isRootSubfoldersCollapsed = !!(window.eveState?.config?.subfoldersCollapsed || []).includes(`${safeWorkspaceJs}::__root__::${categoryName}`);
+        const isRootSublinksCollapsed = !!(window.eveState?.config?.sublinksCollapsed || []).includes(`${safeWorkspaceJs}::__root__::${categoryName}`);
         const rootSubfoldersCollapsedClass = isRootSubfoldersCollapsed ? ' subfolders-collapsed' : '';
         const rootSublinksCollapsedClass = isRootSublinksCollapsed ? ' sublinks-collapsed' : '';
 
@@ -181,8 +181,8 @@ function buildFolderSectionsHtml(categoryName, linksForCard, options, renderer) 
                         + (readOnlyFolders || isDetachedParkingCard
                             ? ''
                             : '<div class="bookmark-folder-summary-actions">'
-                                + `<button type="button" class="bookmark-folder-inline-btn bookmark-folder-summary-edit-toggle${rootSublinksCollapsedClass ? ' is-collapsed' : ''}" title="Toggle Bookmarks" onclick="event.preventDefault();event.stopPropagation();toggleSublinksCollapse('__root__::${safeCategoryJs}')">&#128216;</button>`
-                                + `<button type="button" class="bookmark-folder-inline-btn bookmark-folder-summary-edit-toggle${rootSubfoldersCollapsedClass ? ' is-collapsed' : ''}" title="Toggle Subfolders" onclick="event.preventDefault();event.stopPropagation();toggleSubfoldersCollapse('__root__::${safeCategoryJs}')">&#128193;</button>`
+                                + `<button type="button" class="bookmark-folder-inline-btn bookmark-folder-summary-edit-toggle${rootSublinksCollapsedClass ? ' is-collapsed' : ''}" title="Toggle Bookmarks" onclick="event.preventDefault();event.stopPropagation();toggleSublinksCollapse('__root__::${safeCategoryJs}', '${safeWorkspaceJs}')">&#128216;</button>`
+                                + `<button type="button" class="bookmark-folder-inline-btn bookmark-folder-summary-edit-toggle${rootSubfoldersCollapsedClass ? ' is-collapsed' : ''}" title="Toggle Subfolders" onclick="event.preventDefault();event.stopPropagation();toggleSubfoldersCollapse('__root__::${safeCategoryJs}', '${safeWorkspaceJs}')">&#128193;</button>`
                                 + `<button type="button" class="bookmark-folder-inline-btn bookmark-folder-summary-edit-toggle" aria-expanded="${rootActionsExpandedAttr}" onclick="event.preventDefault();event.stopPropagation();toggleCategoryCardFolderActions(this, '${safeCategoryJs}', '__root__', '${safeWorkspaceJs}')">&#9998;</button>`
                                 + `<div class="bookmark-folder-summary-action-list"${rootActionsHiddenAttr}>`
                                     + `<button type="button" class="bookmark-folder-inline-btn bulk-scope-btn" data-scope-category="${escapeCardHtml(categoryName)}" data-scope-workspace="${escapeCardHtml(workspaceId)}" data-scope-folder-id="" title="Select root bookmarks in this card" onclick="event.preventDefault(); event.stopPropagation(); bulkToggleFolderScopeSelection('${safeCategoryJs}', '${safeWorkspaceJs}', '')">Select Root</button>`

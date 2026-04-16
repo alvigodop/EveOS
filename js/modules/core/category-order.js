@@ -92,31 +92,10 @@ window.EveCategoryOrder = window.EveCategoryOrder || {};
     }
 
     function syncLegacyCategoryOrder() {
-        const config = getConfig();
-        const store = getWorkspaceOrderStore();
-        const merged = [];
-        const seen = new Set();
-
-        Object.keys(store)
-            .sort(function (left, right) {
-                return left.localeCompare(right, undefined, { sensitivity: 'base' });
-            })
-            .forEach(function (workspaceId) {
-                dedupeNormalizedCategoryList(store[workspaceId]).forEach(function (categoryName) {
-                    if (seen.has(categoryName)) return;
-                    seen.add(categoryName);
-                    merged.push(categoryName);
-                });
-            });
-
-        dedupeNormalizedCategoryList(config.categoryOrder).forEach(function (categoryName) {
-            if (seen.has(categoryName)) return;
-            seen.add(categoryName);
-            merged.push(categoryName);
-        });
-
-        config.categoryOrder = merged;
-        return merged;
+        // Disabled to prevent cross-workspace category bleeding.
+        // Legacy syncing caused newly created categories in one workspace
+        // to appear as empty placeholder cards in unrelated workspaces.
+        return [];
     }
 
     function getOrder(workspaceId, options = {}) {

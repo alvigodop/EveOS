@@ -45,7 +45,10 @@ window.categoryFolderActionExpansion = window.categoryFolderActionExpansion || {
 
     function getCategorySettingsWorkspaceId() {
 
-        return String(window.eveState?.config?.activeWorkspace || (typeof config !== 'undefined' ? config?.activeWorkspace : '') || 'main').trim() || 'main';
+        let explicitWsId = null;
+        try { explicitWsId = localStorage.getItem('eve_current_category_workspace'); } catch (e) {}
+
+        return String(explicitWsId || window.eveState?.config?.activeWorkspace || (typeof config !== 'undefined' ? config?.activeWorkspace : '') || 'main').trim() || 'main';
 
     }
 

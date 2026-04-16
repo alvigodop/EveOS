@@ -25,24 +25,29 @@ function hasFolderBackedCategory(workspaceId, categoryName) {
     return !!(tree && Array.isArray(tree.nodes) && tree.nodes.length);
 }
 
-function collectDashboardCategories(visibleLinks, workspaceId, categoryOrder, detachedModel) {
+function collectDashboardCategories(visibleLinks, activeWorkspaceId, categoryOrder, detachedModel) {
     const linkedCategories = window.DashboardCategories.sort(visibleLinks, categoryOrder);
-    const folderCategories = getFolderBackedCategories(workspaceId);
+    const folderCategories = getFolderBackedCategories(activeWorkspaceId); 
     const ordered = [];
     const seen = new Set();
 
-    function addCategory(name) {
-        const normalized = String(name || 'Unsorted').trim() || 'Unsorted';
-        if (seen.has(normalized)) return;
-        seen.add(normalized);
-        ordered.push(normalized);
+    function addCategory(catObj) {
+        const normalizedCat = String(catObj.category || 'Unsorted').trim() || 'Unsorted';
+        const wsId = String(catObj.workspaceId || 'main').trim();
+        const key = `${wsId}::${normalizedCat}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        ordered.push({ category: normalizedCat, workspaceId: wsId });
     }
 
-    (Array.isArray(categoryOrder) ? categoryOrder : []).forEach(addCategory);
     linkedCategories.forEach(addCategory);
-    folderCategories.forEach(addCategory);
+    
+    folderCategories.forEach(cat => {
+        addCategory({ category: cat, workspaceId: activeWorkspaceId });
+    });
+    
     if (detachedModel?.links?.length || detachedModel?.viewModel?.nodes?.length) {
-        addCategory(detachedModel.categoryName);
+        addCategory({ category: detachedModel.categoryName, workspaceId: activeWorkspaceId });
     }
 
     return ordered;
@@ -59,28 +64,35 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
         : null;
     const categories = collectDashboardCategories(visibleLinks, activeWorkspace, workspaceCategoryOrder, detachedModel);
 
-    // Pre-index links by category — O(n) instead of O(n * categories)
-    const linksByCat = new Map();
+    // Pre-index links by (workspaceId::category) — O(n) instead of O(n * categories)
+    const linksByCatWs = new Map();
     for (var i = 0; i < visibleLinks.length; i++) {
         var cat = String(visibleLinks[i].category || 'Unsorted').trim() || 'Unsorted';
-        if (!linksByCat.has(cat)) linksByCat.set(cat, []);
-        linksByCat.get(cat).push(visibleLinks[i]);
+        var ws = String(visibleLinks[i].workspace || 'main').trim() || 'main';
+        var key = `${ws}::${cat}`;
+        if (!linksByCatWs.has(key)) linksByCatWs.set(key, []);
+        linksByCatWs.get(key).push(visibleLinks[i]);
     }
 
     var CARD_CAP = visibleLinks.length > 500 ? 2 : (visibleLinks.length > 200 ? 3 : 8);
     var renderCount = 0;
     var deferredCards = [];
 
-    categories.forEach(cat => {
+    categories.forEach(catObj => {
+        const cat = catObj.category;
+        const catWsId = catObj.workspaceId;
+
         if (focusCategory && cat !== focusCategory) return;
 
         const isDetachedParkingCard = !!detachedModel && cat === detachedModel.categoryName;
-        const catLinks = isDetachedParkingCard
-            ? detachedModel.links.slice()
-            : (linksByCat.get(cat) || []);
+        // The empty empty-shortcut cards (not tied to content) will still map to activeWorkspace context
+        const catLinks = isDetachedParkingCard 
+            ? detachedModel.links.slice() 
+            : (linksByCatWs.get(`${catWsId}::${cat}`) || []);
+        
         const hasFolderContent = isDetachedParkingCard
             ? !!(detachedModel?.viewModel?.nodes?.length)
-            : hasFolderBackedCategory(activeWorkspace, cat);
+            : hasFolderBackedCategory(catWsId, cat);
         const shouldRenderEmptyCard = !searchStr && (
             window.EveCategoryOrder?.hasCategory
                 ? window.EveCategoryOrder.hasCategory(activeWorkspace, cat)
@@ -92,7 +104,7 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
                 ...config,
                 searchStr: searchStr,
                 focusMode: !!focusCategory,
-                activeWorkspace: activeWorkspace,
+                activeWorkspace: activeWorkspace, // Global active WS
                 _renderGen: renderGen
             };
             if (isDetachedParkingCard) {
@@ -101,10 +113,10 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
             }
 
             if (renderCount < CARD_CAP) {
-                window.DashboardCategories.renderCard(cat, catLinks, gridContainer, buildConfig);
+                window.DashboardCategories.renderCard(catObj, catLinks, gridContainer, buildConfig);
                 renderCount++;
             } else {
-                deferredCards.push({ cat: cat, catLinks: catLinks, buildConfig: buildConfig });
+                deferredCards.push({ cat: catObj, catLinks: catLinks, buildConfig: buildConfig });
             }
         }
     });
