@@ -262,10 +262,12 @@
         var routes;
         try { routes = JSON.parse(routesStr); } catch (e) { return; }
 
-        var html = routes.map(function (r) {
-            // "no words of what source was just the nav bar for the main card, with now the path to the linked tab if there is one"
+        var html = routes.map(function (r, index) {
+            // "yes this is better, now add small light dividers for them, no need to text explaining."
             var activePath = (r.type === 'linked' && r.linkedPath) ? r.linkedPath : r.path;
-            return '<div class="source-route-path" style="padding: 2px 0;">' + _pathHtml(activePath) + '</div>';
+            var isLast = index === routes.length - 1;
+            var borderStyle = isLast ? '' : 'border-bottom: 1px solid rgba(255, 255, 255, 0.05); margin-bottom: 4px; padding-bottom: 6px;';
+            return '<div class="source-route-path" style="padding: 2px 0; ' + borderStyle + '">' + _pathHtml(activePath) + '</div>';
         }).join('');
 
         peek.innerHTML = html;

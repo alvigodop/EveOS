@@ -531,10 +531,7 @@ window.DashboardCategories = window.DashboardCategories || {};
                             var vWs = helpers.findById(config.workspaces || [], vId);
                             if (vWs && vWs.linkedTo) {
                                 var linkedTarget = helpers.findById(config.workspaces || [], vWs.linkedTo);
-                                if (linkedTarget && activeWsId !== linkedTarget.id) {
-                                    var targetDescIds = helpers.getVisibleDescendantIds(linkedTarget);
-                                    if (targetDescIds.indexOf(vWs.id) !== -1) return; // self-ref via proxy, skip
-                                }
+                                // No self-reference guard: if a workspace hosts a link to itself, we report it.
                                 if (!linkedTabsByTarget[vWs.linkedTo]) linkedTabsByTarget[vWs.linkedTo] = [];
                                 linkedTabsByTarget[vWs.linkedTo].push(vWs);
                                 // Also map descendants of the linked target
