@@ -508,41 +508,161 @@ window.DashboardCategories = window.DashboardCategories || {};
             var subTabIds = new Set();
             catLinks.forEach(function (link) {
                 var linkWs = String(link?.workspace || 'main').trim();
-                if (linkWs !== activeWsId) subTabIds.add(linkWs);
+                subTabIds.add(linkWs); // Include activeWsId so native tabs holding their own direct links get a marker
             });
             if (subTabIds.size > 0) {
                 var helpers = window.EveWorkspaceHelpers;
-                // Build a set of workspace IDs that are linked-to targets from visible linked tabs
-                var linkedTargetIds = new Set();
+                var ROUTE_COLORS = [
+                    { solid: '#a882ff', bg: 'rgba(168,130,255,0.15)', border: 'rgba(168,130,255,0.3)' },
+                    { solid: '#40e8d0', bg: 'rgba(0,200,180,0.15)', border: 'rgba(0,200,180,0.35)' },
+                    { solid: '#ff8c60', bg: 'rgba(255,140,96,0.15)', border: 'rgba(255,140,96,0.3)' },
+                    { solid: '#60a0ff', bg: 'rgba(96,160,255,0.15)', border: 'rgba(96,160,255,0.3)' },
+                    { solid: '#c8b400', bg: 'rgba(200,180,0,0.15)', border: 'rgba(200,180,0,0.3)' }
+                ];
+
+                // Build map: linkedTo target ID → array of linked tab objects
+                // GUARD: skip linked tabs that are descendants of their own target (self-referencing)
+                // UNLESS the user is actively sitting in the target workspace itself, in which case they explicitly want the marker.
+                var linkedTabsByTarget = {};
                 if (helpers) {
                     var visWs = window._eveActiveVisibleWorkspaceIds;
                     if (visWs) {
                         visWs.forEach(function (vId) {
                             var vWs = helpers.findById(config.workspaces || [], vId);
-                            if (vWs && vWs.linkedTo) linkedTargetIds.add(vWs.linkedTo);
+                            if (vWs && vWs.linkedTo) {
+                                var linkedTarget = helpers.findById(config.workspaces || [], vWs.linkedTo);
+                                if (linkedTarget && activeWsId !== linkedTarget.id) {
+                                    var targetDescIds = helpers.getVisibleDescendantIds(linkedTarget);
+                                    if (targetDescIds.indexOf(vWs.id) !== -1) return; // self-ref via proxy, skip
+                                }
+                                if (!linkedTabsByTarget[vWs.linkedTo]) linkedTabsByTarget[vWs.linkedTo] = [];
+                                linkedTabsByTarget[vWs.linkedTo].push(vWs);
+                                // Also map descendants of the linked target
+                                if (linkedTarget && Array.isArray(linkedTarget.subTabs)) {
+                                    helpers.getVisibleDescendantIds(linkedTarget).forEach(function (descId) {
+                                        if (!linkedTabsByTarget[descId]) linkedTabsByTarget[descId] = [];
+                                        linkedTabsByTarget[descId].push(vWs);
+                                    });
+                                }
+                            }
                         });
                     }
                 }
+
+                // Build path for a workspace ID
+                function _buildPath(wsId) {
+                    if (!helpers) return [{ id: wsId, name: wsId, icon: '📁' }];
+                    var segs = [];
+                    var ws = helpers.findById(config.workspaces || [], wsId);
+                    if (!ws) return [{ id: wsId, name: wsId, icon: '📁' }];
+                    segs.unshift({ id: ws.id, name: ws.name, icon: ws.icon || '📁' });
+                    var p = helpers.findParent(config.workspaces, ws.id);
+                    while (p) {
+                        segs.unshift({ id: p.id, name: p.name, icon: p.icon || '📁' });
+                        p = helpers.findParent(config.workspaces, p.id);
+                    }
+                    return segs;
+                }
+
+                function _isDirectDescendant(wsId) {
+                    if (!helpers) return false;
+                    var activeWs = helpers.findById(config.workspaces || [], activeWsId);
+                    if (!activeWs) return false;
+                    return helpers.getVisibleDescendantIds(activeWs).indexOf(wsId) !== -1;
+                }
+
                 var badges = [];
                 subTabIds.forEach(function (wsId) {
+                    var routes = [];
+                    var colorIdx = 0;
+
+                    if (wsId === activeWsId) {
+                        routes.push({ type: 'native', color: ROUTE_COLORS[colorIdx++ % ROUTE_COLORS.length], path: _buildPath(wsId) });
+                    } else if (_isDirectDescendant(wsId)) {
+                        routes.push({ type: 'direct', color: ROUTE_COLORS[colorIdx++ % ROUTE_COLORS.length], path: _buildPath(wsId) });
+                    }
+
+                    var linkedTabs = linkedTabsByTarget[wsId] || [];
+                    linkedTabs.forEach(function (lt) {
+                        routes.push({
+                            type: 'linked',
+                            color: ROUTE_COLORS[colorIdx++ % ROUTE_COLORS.length],
+                            linkedTab: { id: lt.id, name: lt.name, icon: lt.icon || '🔗' },
+                            sourcePath: _buildPath(wsId),
+                            linkedPath: _buildPath(lt.id)
+                        });
+                    });
+
+                    // Fallback if no routes detected and it's not the native tab
+                    if (routes.length === 0 && wsId !== activeWsId) {
+                        routes.push({ type: 'direct', color: ROUTE_COLORS[0], path: _buildPath(wsId) });
+                    }
+
+                    // SKIP generating a badge if it's purely native and has no linked routes
+                    if (wsId === activeWsId && routes.length === 1 && routes[0].type === 'native') {
+                        return;
+                    }
+
                     var subWs = helpers ? helpers.findById(config.workspaces || [], wsId) : null;
                     var subName = subWs ? escapeCardHtml(subWs.name) : wsId;
                     var subIcon = subWs ? (subWs.icon || '📁') : '📁';
                     var escId = escapeCardJs(wsId);
                     var clickAction = "event.preventDefault(); event.stopPropagation(); if(typeof window.switchWorkspace === 'function') window.switchWorkspace('" + escId + "');";
-                    var peekHandlers = 'onmouseenter="if(window.showPathPeek) window.showPathPeek(event, \'' + escId + '\')" onmousemove="if(window.movePathPeek) window.movePathPeek(event)" onmouseleave="if(window.hidePathPeek) window.hidePathPeek()"';
-                    // Check if this source is flowing through a linked tab
-                    var isLinkedSource = linkedTargetIds.has(wsId);
-                    if (isLinkedSource) {
-                        // Also check if source's descendants are linked
-                    } else if (subWs && subWs.linkedTo) {
-                        isLinkedSource = true;
+
+                    // Generate badge style
+                    var badgeStyle = '';
+                    var badgeClass = 'card-subtab-source';
+                    if (routes.length === 1) {
+                        badgeStyle = 'background:' + routes[0].color.bg + ';border-color:' + routes[0].color.border + ';color:' + routes[0].color.solid + ';';
+                        if (routes[0].type === 'linked') {
+                            badgeClass += ' card-subtab-source--linked';
+                        }
+                    } else {
+                        // Multi-source gradient
+                        var step = 100 / routes.length;
+                        var gradParts = routes.map(function (r, i) {
+                            return r.color.solid + '22 ' + (i * step) + '% ' + ((i + 1) * step) + '%';
+                        });
+                        var borderColor = routes[0].color.border;
+                        badgeStyle = 'background:linear-gradient(90deg,' + gradParts.join(',') + ');'
+                            + 'border-color:' + borderColor + ';'
+                            + 'border-style:dashed;'
+                            + 'color:' + routes[0].color.solid + ';';
+                        badgeClass += ' card-subtab-source--multi';
                     }
-                    var badgeClass = isLinkedSource ? 'card-subtab-source card-subtab-source--linked' : 'card-subtab-source';
-                    var displayIcon = isLinkedSource ? '🔗' : subIcon;
-                    badges.push('<span class="' + badgeClass + '" ' + peekHandlers + ' onclick="' + clickAction + '">' + displayIcon + ' ' + subName + '</span>');
+
+                    // Encode routes for hover popover
+                    var routesData = JSON.stringify(routes.map(function (r) {
+                        return {
+                            type: r.type,
+                            color: r.color.solid,
+                            path: r.path || r.sourcePath,
+                            linkedPath: r.linkedPath || null,
+                            linkedTab: r.linkedTab || null
+                        };
+                    }));
+                    var safeRoutesAttr = routesData.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+                    var hoverHandlers = 'onmouseenter="if(window.showSourceRoutePeek)window.showSourceRoutePeek(event,this)" '
+                        + 'onmouseleave="if(window.hideSourceRoutePeek)window.hideSourceRoutePeek()" '
+                        + 'onmousemove="if(window.moveSourceRoutePeek)window.moveSourceRoutePeek(event)"';
+
+                    var displayIcon = routes.some(function (r) { return r.type === 'linked'; }) ? '🔗' : subIcon;
+                    var routeCountBadge = routes.length > 1
+                        ? '<span class="source-route-count">' + routes.length + '</span>'
+                        : '';
+
+                    badges.push('<span class="' + badgeClass + '" style="' + badgeStyle + '" '
+                        + 'data-source-routes="' + safeRoutesAttr + '" '
+                        + hoverHandlers + ' '
+                        + 'onclick="' + clickAction + '">'
+                        + displayIcon + ' ' + subName + routeCountBadge
+                        + '</span>');
                 });
-                subTabSourcesHtml = '<div class="card-subtab-sources">' + badges.join('') + '</div>';
+                
+                if (badges.length > 0) {
+                    subTabSourcesHtml = '<div class="card-subtab-sources">' + badges.join('') + '</div>';
+                }
             }
         }
 

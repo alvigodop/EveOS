@@ -218,11 +218,75 @@
         attachToButton();
     }
 
-    // Defer init until DOM + app ready
     if (document.readyState === 'complete') {
         setTimeout(init, 100);
     } else {
         window.addEventListener('load', function () { setTimeout(init, 100); });
+    }
+
+    // ─── Source Route Peek (card badge hover) ─────────────
+    var routePeekEl = null;
+    var _routePeekHideTimeout = null;
+
+    function ensureRoutePeek() {
+        if (routePeekEl) return routePeekEl;
+        routePeekEl = document.createElement('div');
+        routePeekEl.className = 'source-route-peek';
+        document.body.appendChild(routePeekEl);
+        routePeekEl.addEventListener('mouseenter', function () { clearTimeout(_routePeekHideTimeout); });
+        routePeekEl.addEventListener('mouseleave', function () { _scheduleRouteHide(); });
+        return routePeekEl;
+    }
+
+    function _escR(str) {
+        var d = document.createElement('div');
+        d.textContent = str;
+        return d.innerHTML;
+    }
+
+    function _pathHtml(segs) {
+        return segs.map(function (seg, i) {
+            var isLast = i === segs.length - 1;
+            var html = '<button class="source-route-seg" onclick="event.stopPropagation();if(window.switchWorkspace)window.switchWorkspace(\'' + _escR(seg.id) + '\')">'
+                + _escR(seg.icon) + ' ' + _escR(seg.name) + '</button>';
+            if (!isLast) html += '<span class="source-route-sep">›</span>';
+            return html;
+        }).join('');
+    }
+
+    window.showSourceRoutePeek = function (event, badgeEl) {
+        clearTimeout(_routePeekHideTimeout);
+        var peek = ensureRoutePeek();
+        var routesStr = badgeEl.getAttribute('data-source-routes');
+        if (!routesStr) return;
+        var routes;
+        try { routes = JSON.parse(routesStr); } catch (e) { return; }
+
+        var html = routes.map(function (r) {
+            // "no words of what source was just the nav bar for the main card, with now the path to the linked tab if there is one"
+            var activePath = (r.type === 'linked' && r.linkedPath) ? r.linkedPath : r.path;
+            return '<div class="source-route-path" style="padding: 2px 0;">' + _pathHtml(activePath) + '</div>';
+        }).join('');
+
+        peek.innerHTML = html;
+
+        var rect = badgeEl.getBoundingClientRect();
+        peek.style.top = (rect.bottom + 6) + 'px';
+        peek.style.left = Math.max(8, rect.left) + 'px';
+        peek.classList.add('active');
+    };
+
+    window.moveSourceRoutePeek = function () {};
+
+    window.hideSourceRoutePeek = function () {
+        _scheduleRouteHide();
+    };
+
+    function _scheduleRouteHide(delay) {
+        clearTimeout(_routePeekHideTimeout);
+        _routePeekHideTimeout = setTimeout(function () {
+            if (routePeekEl) routePeekEl.classList.remove('active');
+        }, delay || 300);
     }
 
     // Expose for external use
