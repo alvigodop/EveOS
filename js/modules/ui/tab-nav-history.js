@@ -262,12 +262,34 @@
         var routes;
         try { routes = JSON.parse(routesStr); } catch (e) { return; }
 
-        var html = routes.map(function (r, index) {
-            // "yes this is better, now add small light dividers for them, no need to text explaining."
-            var activePath = (r.type === 'linked' && r.linkedPath) ? r.linkedPath : r.path;
-            var isLast = index === routes.length - 1;
+        var pathsToRender = [];
+        var uniquePaths = new Set();
+        
+        routes.forEach(function (r) {
+            // Include main/source path
+            var mainPath = r.sourcePath || r.path;
+            if (mainPath && mainPath.length > 0) {
+                var mId = JSON.stringify(mainPath.map(function(s) { return s.id; }));
+                if (!uniquePaths.has(mId)) {
+                    uniquePaths.add(mId);
+                    pathsToRender.push(mainPath);
+                }
+            }
+            
+            // Include linked path correctly
+            if (r.type === 'linked' && r.linkedPath && r.linkedPath.length > 0) {
+                var lId = JSON.stringify(r.linkedPath.map(function(s) { return s.id; }));
+                if (!uniquePaths.has(lId)) {
+                    uniquePaths.add(lId);
+                    pathsToRender.push(r.linkedPath);
+                }
+            }
+        });
+
+        var html = pathsToRender.map(function (pathArr, index) {
+            var isLast = index === pathsToRender.length - 1;
             var borderStyle = isLast ? '' : 'border-bottom: 1px solid rgba(255, 255, 255, 0.05); margin-bottom: 4px; padding-bottom: 6px;';
-            return '<div class="source-route-path" style="padding: 2px 0; ' + borderStyle + '">' + _pathHtml(activePath) + '</div>';
+            return '<div class="source-route-path" style="padding: 2px 0; ' + borderStyle + '">' + _pathHtml(pathArr) + '</div>';
         }).join('');
 
         peek.innerHTML = html;
