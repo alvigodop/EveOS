@@ -253,6 +253,22 @@ window.DashboardCategories = window.DashboardCategories || {};
             trueValueData = trueValueApi.computeTrueValues(renderedLinks, activeWorkspaceId, cat);
             renderedLinks = trueValueApi.applySorting(renderedLinks, trueValueData, currentSortMode);
         }
+        
+        var smartWeightBadgeHtml = '';
+        var isSmartBadgeEnabled = Array.isArray(window.eveState?.config?.smartCardWeights) && window.eveState.config.smartCardWeights.includes(activeWorkspaceId + '::' + cat);
+        if (isSmartBadgeEnabled && trueValueApi && !isMegaCard) {
+            var tvMath = trueValueData || trueValueApi.computeTrueValues(renderedLinks, activeWorkspaceId, cat, { forceEnabled: true });
+            var sum = 0, count = 0;
+            Object.keys(tvMath).forEach(function(k) {
+                var r = tvMath[k].rating;
+                if (typeof r === 'number') { sum += r; count++; }
+            });
+            if (count >= 1) {
+                var avg = sum / count;
+                smartWeightBadgeHtml = '<div class="card-smart-weight-badge" title="Average smart rating based on ' + count + ' weighted bookmarks.">[ &#10024; ' + avg.toFixed(1) + ' ]</div>';
+            }
+        }
+
         if (isFocusMode) {
             card.classList.add('is-focus-mode');
         }
@@ -406,6 +422,15 @@ window.DashboardCategories = window.DashboardCategories || {};
             ? '<div class="cat-focus-meta">' + titleMetaText + '</div>'
             : '';
 
+        var activeWorkspaceId = String(options.activeWorkspace || window.eveState?.config?.activeWorkspace || 'main').trim() || 'main';
+        var cardOrderIndex = -1;
+        if (window.EveCategoryOrder && window.EveCategoryOrder.getOrder) {
+             cardOrderIndex = window.EveCategoryOrder.getOrder(activeWorkspaceId).indexOf(cat);
+        }
+        var cardOrderHtml = (!isFocusMode && cardOrderIndex >= 0)
+            ? '<div class="card-order-number" onclick="if(window.promptMoveCategory) window.promptMoveCategory(\'' + safeCatJs + '\', ' + cardOrderIndex + ')" title="Card Chronological Position">#' + (cardOrderIndex + 1) + '</div>'
+            : '';
+
         var titleControlsHtml = isFocusMode
             ? ''
             : ''
@@ -413,9 +438,8 @@ window.DashboardCategories = window.DashboardCategories || {};
             + '<span class="collapse-arrow" data-cat="' + safeCatHtml + '" onclick="toggleFolderCollapse(this.dataset.cat)" title="Toggle Folders">&#128193;</span>'
             + '<span class="collapse-arrow" data-cat="' + safeCatHtml + '" onclick="toggleCollapse(this.dataset.cat)" title="Toggle Card">&#9660;</span>'
             + '<span class="sort-btn" onclick="moveCategory(\'' + safeCatJs + '\', -1)">&#9650;</span>'
-            + '<span class="sort-btn" onclick="moveCategory(\'' + safeCatJs + '\', 1)">&#9660;</span>';
-
-        var activeWorkspaceId = String(options.activeWorkspace || window.eveState?.config?.activeWorkspace || 'main').trim() || 'main';
+            + '<span class="sort-btn" onclick="moveCategory(\'' + safeCatJs + '\', 1)">&#9660;</span>'
+            + cardOrderHtml;
         var cardTargetId = window.EveQuickPins?.buildCardTargetId
             ? window.EveQuickPins.buildCardTargetId(activeWorkspaceId, cat)
             : buildScopedCategoryKey(activeWorkspaceId, cat);
@@ -676,6 +700,7 @@ window.DashboardCategories = window.DashboardCategories || {};
             + '<div class="category-title">' + safeCatHtml + '</div>'
             + '</div>'
             + subTabSourcesHtml
+            + smartWeightBadgeHtml
             + titleMetaHtml
             + '</div>'
             + headerButtonsHtml

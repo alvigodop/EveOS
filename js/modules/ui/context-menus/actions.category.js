@@ -61,6 +61,28 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
         renderDashboard();
     };
 
+    window.ctxCatToggleSmartBadge = function () {
+        const categoryName = shared.getCtxCategoryName?.();
+        if (!categoryName) return showToast('No category selected', 'error');
+        
+        const wsId = String(config.activeWorkspace || 'main');
+        // Scoped key combining workspace and category name
+        const scopedKey = wsId + '::' + categoryName;
+        
+        if (!Array.isArray(config.smartCardWeights)) config.smartCardWeights = [];
+        
+        if (config.smartCardWeights.includes(scopedKey)) {
+            config.smartCardWeights = config.smartCardWeights.filter((entry) => entry !== scopedKey);
+            showToast('Smart Average Badge Disabled', 'info');
+        } else {
+            config.smartCardWeights.push(scopedKey);
+            showToast('Smart Average Badge Enabled', 'info');
+        }
+
+        saveConfig();
+        if (typeof renderDashboard === 'function') renderDashboard();
+    };
+
     window.ctxCatToggleCustomOrder = function () {
         const categoryName = shared.getCtxCategoryName?.();
         if (!categoryName) return showToast('No category selected', 'error');

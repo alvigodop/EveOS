@@ -25,6 +25,25 @@ function moveCategory(cat, direction) {
     }
 }
 
+function promptMoveCategory(cat, currentIndex) {
+    var workspaceId = String(config.activeWorkspace || 'main').trim() || 'main';
+    var totalCards = window.EveCategoryOrder && window.EveCategoryOrder.getOrder ? window.EveCategoryOrder.getOrder(workspaceId).length : 0;
+    if (totalCards === 0) return;
+    
+    var newPos = prompt("Enter new absolute physical position for card (1 to " + totalCards + "):", (currentIndex + 1));
+    if (!newPos) return;
+    
+    var parsed = parseInt(newPos, 10);
+    if (!isNaN(parsed) && parsed >= 1) {
+        if (window.EveCategoryOrder && window.EveCategoryOrder.moveCategoryToPosition) {
+            if (window.EveCategoryOrder.moveCategoryToPosition(workspaceId, cat, parsed)) {
+                saveConfig();
+                if (typeof renderDashboard === 'function') renderDashboard();
+            }
+        }
+    }
+}
+
 function toggleCollapse(cat) {
     if (!config.collapsed) config.collapsed = [];
     var wasCollapsed = config.collapsed.includes(cat);

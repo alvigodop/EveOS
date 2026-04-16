@@ -231,6 +231,31 @@ window.EveCategoryOrder = window.EveCategoryOrder || {};
         return true;
     }
 
+    function moveCategoryToPosition(workspaceId, categoryName, absolutePosition) {
+        const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId);
+        const normalizedCategoryName = normalizeCategoryName(categoryName);
+        const store = getWorkspaceOrderStore();
+        const order = getOrder(normalizedWorkspaceId, { persist: true });
+        
+        const index = order.indexOf(normalizedCategoryName);
+        if (index === -1) return false;
+        
+        let targetIndex = Math.max(0, absolutePosition - 1);
+        if (targetIndex >= order.length) {
+            targetIndex = order.length - 1;
+        }
+        
+        if (index === targetIndex) return false;
+        
+        const nextOrder = order.slice();
+        nextOrder.splice(index, 1);
+        nextOrder.splice(targetIndex, 0, normalizedCategoryName);
+        
+        store[normalizedWorkspaceId] = nextOrder;
+        syncLegacyCategoryOrder();
+        return true;
+    }
+
     Object.assign(ns, {
         normalizeWorkspaceId,
         normalizeCategoryName,
@@ -242,6 +267,7 @@ window.EveCategoryOrder = window.EveCategoryOrder || {};
         removeCategoryEverywhere,
         renameCategory,
         renameCategoryEverywhere,
-        moveCategory
+        moveCategory,
+        moveCategoryToPosition
     });
 })(window.EveCategoryOrder);

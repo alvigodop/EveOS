@@ -249,6 +249,42 @@ html[data-native-scheme="light"] .source-route-sep {
     text-overflow: ellipsis;
 }
 
+.card-order-number {
+    font-size: 0.72rem;
+    color: var(--text-muted, #a0a0a0);
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+    padding: 1px 5px;
+    margin-right: 6px;
+    cursor: pointer;
+    font-family: 'Share Tech Mono', monospace;
+    display: inline-flex;
+    align-items: center;
+    user-select: none;
+    transition: all 0.15s ease;
+}
+.card-order-number:hover {
+    background: rgba(255,255,255,0.15);
+    color: var(--accent);
+}
+
+.card-smart-weight-badge {
+    display: inline-flex;
+    align-items: center;
+    background: rgba(255, 215, 0, 0.1);
+    color: #ffda6a;
+    border: 1px solid rgba(255, 215, 0, 0.2);
+    border-radius: 6px;
+    padding: 2px 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-left: 6px;
+    white-space: nowrap;
+    user-select: none;
+    box-shadow: 0 2px 8px rgba(255, 215, 0, 0.05);
+}
+
 .category-title-hover-overlay {
     position: fixed;
     z-index: 4000;

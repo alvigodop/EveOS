@@ -81,6 +81,7 @@ window.modalTemplate += `
                     </div>
                 </details>
                 <button onclick="closeModals(); ctxCatToggleTask()" style="width:100%;">&#9989; Toggle Task Mode</button>
+                <button onclick="closeModals(); ctxCatToggleSmartBadge()" style="width:100%;">&#10024; Toggle Average Weight Badge</button>
                 <div style="border-top:1px solid #444; margin-top:10px; padding-top:10px;">
                     <button onclick="deleteCategory(window.currentCategoryCtx)" class="btn-danger" style="width:100%;">&#128465; Delete Category</button>
                 </div>
