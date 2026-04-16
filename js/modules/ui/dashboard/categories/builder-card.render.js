@@ -14,6 +14,8 @@ window.DashboardCategories = window.DashboardCategories || {};
         var options = configOptions || {};
         var cat = typeof catInput === 'object' && catInput ? catInput.category : catInput;
         if (typeof catInput === 'object' && catInput && catInput.workspaceId) {
+            // Preserve the parent dashboard workspace for marker badge comparison
+            options._parentDashboardWorkspace = options.activeWorkspace || 'main';
             options.activeWorkspace = catInput.workspaceId;
         }
 
@@ -25,13 +27,15 @@ window.DashboardCategories = window.DashboardCategories || {};
         // schedule the full build in setTimeout. This prevents the large card
         // from blocking interactions on OTHER cards in the same tab.
         var HEAVY_CARD_THRESHOLD = 80;
+        var cat = typeof catInput === 'object' && catInput ? catInput.category : catInput;
+        var cardWsId = typeof catInput === 'object' && catInput ? (catInput.workspaceId || options.activeWorkspace || 'main') : (options.activeWorkspace || 'main');
+
         if (catLinks.length > HEAVY_CARD_THRESHOLD) {
             var safeCatHtml = escapeCardHtml(cat || 'Unsorted');
             var safeCatJs = escapeCardJs(cat || 'Unsorted');
-            var activeWorkspaceId = String(options.activeWorkspace || config.activeWorkspace || 'main');
             var cardTargetId = window.EveQuickPins?.buildCardTargetId
-                ? window.EveQuickPins.buildCardTargetId(activeWorkspaceId, cat)
-                : buildScopedCategoryKey(activeWorkspaceId, cat);
+                ? window.EveQuickPins.buildCardTargetId(cardWsId, cat)
+                : buildScopedCategoryKey(cardWsId, cat);
             var libPanelId = 'lib-' + String(cat || 'Unsorted').replace(/[^a-zA-Z0-9]/g, '_') + '-panel';
 
             var shellCard = document.createElement('div');
@@ -41,7 +45,7 @@ window.DashboardCategories = window.DashboardCategories || {};
             }
             shellCard.setAttribute('data-card-target-id', cardTargetId);
             shellCard.setAttribute('data-card-category', String(cat || 'Unsorted'));
-            shellCard.setAttribute('data-card-workspace', activeWorkspaceId);
+            shellCard.setAttribute('data-card-workspace', cardWsId);
             shellCard.setAttribute('data-card-deferred', '1');
             if (isDetachedParkingCard) {
                 shellCard.setAttribute('data-detached-parking-card', '1');
@@ -50,7 +54,7 @@ window.DashboardCategories = window.DashboardCategories || {};
             // Minimal header — no expensive task counting or button logic
             shellCard.innerHTML = ''
                 + '<div class="cat-progress-bg"><div class="cat-progress-fill" style="width:0%"></div></div>'
-                + '<div class="category-header" oncontextmenu="showCategoryContextMenu(event, \'' + safeCatJs + '\', \'' + activeWorkspaceId + '\')">'
+                + '<div class="category-header" oncontextmenu="showCategoryContextMenu(event, \'' + safeCatJs + '\', \'' + escapeCardJs(cardWsId) + '\')">'
                 + '<div class="cat-title-group">'
                 + '<span class="collapse-arrow" data-cat="' + safeCatHtml + '" onclick="toggleCollapse(this.dataset.cat)" title="Toggle Card">&#9660;</span>'
                 + '<div class="category-title-wrap" data-title="' + safeCatHtml + '">'
@@ -100,7 +104,7 @@ window.DashboardCategories = window.DashboardCategories || {};
                     fullCard.style.transition = 'opacity 0.2s ease';
                     requestAnimationFrame(function () { fullCard.style.opacity = '1'; });
                     if (window.EveFolderViewV2 && window.EveFolderViewV2.restoreActiveFolderState) {
-                        var ws = fullCard.getAttribute('data-card-workspace') || activeWorkspaceId;
+                        var ws = fullCard.getAttribute('data-card-workspace') || cardWsId;
                         window.EveFolderViewV2.restoreActiveFolderState(ws, cat);
                     }
 
@@ -118,7 +122,7 @@ window.DashboardCategories = window.DashboardCategories || {};
                             if (ghostCard && fullCard.parentNode) {
                                 fullCard.replaceWith(ghostCard);
                                 if (window.EveFolderViewV2 && window.EveFolderViewV2.restoreActiveFolderState) {
-                                    var ws2 = ghostCard.getAttribute('data-card-workspace') || activeWorkspaceId;
+                                    var ws2 = ghostCard.getAttribute('data-card-workspace') || cardWsId;
                                     window.EveFolderViewV2.restoreActiveFolderState(ws2, cat);
                                 }
                             }
@@ -134,15 +138,17 @@ window.DashboardCategories = window.DashboardCategories || {};
         }
 
         // Normal path for small/medium cards
-        _renderCardFull(cat, catLinks, gridContainer, configOptions);
+        _renderCardFull(catInput, catLinks, gridContainer, configOptions);
     }
 
     /**
      * Full card rendering logic — does ALL the expensive work.
      * Called directly for small cards, and in setTimeout for heavy cards.
      */
-    function _renderCardFull(cat, catLinks, gridContainer, configOptions) {
+    function _renderCardFull(catInput, catLinks, gridContainer, configOptions) {
         var options = configOptions || {};
+        var cat = typeof catInput === 'object' && catInput ? catInput.category : catInput;
+        var cardWsId = typeof catInput === 'object' && catInput ? (catInput.workspaceId || options.activeWorkspace || 'main') : (options.activeWorkspace || 'main');
         var isDetachedParkingCard = !!options.detachedParkingCard;
         var isFocusMode = !!options.focusMode;
         var focusedFilterMode = (isFocusMode && typeof window.DashboardCategories.getFocusedEntriesFilterMode === 'function')
@@ -388,13 +394,15 @@ window.DashboardCategories = window.DashboardCategories || {};
             ? '<div class="cat-focus-meta">' + titleMetaText + '</div>'
             : '';
 
-        var activeWorkspaceId = String(options.activeWorkspace || window.eveState?.config?.activeWorkspace || 'main').trim() || 'main';
+        // Use cardWsId universally for local buttons / toggles.
+        var activeWorkspaceId = String(cardWsId || window.eveState?.config?.activeWorkspace || 'main').trim() || 'main';
         var cardOrderIndex = -1;
         if (window.EveCategoryOrder && window.EveCategoryOrder.getOrder) {
              cardOrderIndex = window.EveCategoryOrder.getOrder(activeWorkspaceId).indexOf(cat);
         }
-        var cardOrderHtml = (!isFocusMode && cardOrderIndex >= 0)
-            ? '<div class="card-order-number" onclick="if(window.promptMoveCategory) window.promptMoveCategory(\'' + safeCatJs + '\', ' + cardOrderIndex + ', \'' + activeWorkspaceId + '\')" title="Card Chronological Position">#' + (cardOrderIndex + 1) + '</div>'
+        var cardOrderDisplay = cardOrderIndex >= 0 ? (cardOrderIndex + 1) : '-';
+        var cardOrderHtml = (!isFocusMode)
+            ? '<div class="card-order-number" onclick="if(window.promptMoveCategory) window.promptMoveCategory(\'' + safeCatJs + '\', ' + cardOrderIndex + ', \'' + escapeCardJs(activeWorkspaceId) + '\')" title="Card Chronological Position">#' + cardOrderDisplay + '</div>'
             : '';
 
         var titleControlsHtml = isFocusMode
@@ -492,8 +500,158 @@ window.DashboardCategories = window.DashboardCategories || {};
             + nonFocusButtons.join('')
             + '</div>';
 
-        // Since categories are now strictly decoupled by workspace, cards will never aggregate sub-tabs.
-        // The sub-tab sources bubble buttons have been removed.
+        // Restored marker badge logic for decoupled sub-tabs
+        var activeWsId = String(options._parentDashboardWorkspace || options.activeWorkspace || '').trim();
+        var subTabSourcesHtml = '';
+        if (!isDetachedParkingCard) {
+            var subTabIds = new Set();
+            catLinks.forEach(function (link) {
+                var linkWs = String(link?.workspace || 'main').trim();
+                subTabIds.add(linkWs); // Include activeWsId so native tabs holding their own direct links get a marker
+            });
+            subTabIds.add(cardWsId); // Enforce decoupled card ID so it always creates a bubble!
+            if (subTabIds.size > 0) {
+                var helpers = window.EveWorkspaceHelpers;
+                var ROUTE_COLORS = [
+                    { solid: '#a882ff', bg: 'rgba(168,130,255,0.15)', border: 'rgba(168,130,255,0.3)' },
+                    { solid: '#40e8d0', bg: 'rgba(0,200,180,0.15)', border: 'rgba(0,200,180,0.35)' },
+                    { solid: '#ff8c60', bg: 'rgba(255,140,96,0.15)', border: 'rgba(255,140,96,0.3)' },
+                    { solid: '#60a0ff', bg: 'rgba(96,160,255,0.15)', border: 'rgba(96,160,255,0.3)' },
+                    { solid: '#c8b400', bg: 'rgba(200,180,0,0.15)', border: 'rgba(200,180,0,0.3)' }
+                ];
+
+                var linkedTabsByTarget = {};
+                if (helpers) {
+                    var visWs = window._eveActiveVisibleWorkspaceIds;
+                    if (visWs) {
+                        visWs.forEach(function (vId) {
+                            var vWs = helpers.findById(config.workspaces || [], vId);
+                            if (vWs && vWs.linkedTo) {
+                                var linkedTarget = helpers.findById(config.workspaces || [], vWs.linkedTo);
+                                if (!linkedTabsByTarget[vWs.linkedTo]) linkedTabsByTarget[vWs.linkedTo] = [];
+                                linkedTabsByTarget[vWs.linkedTo].push(vWs);
+                                if (linkedTarget && Array.isArray(linkedTarget.subTabs)) {
+                                    helpers.getVisibleDescendantIds(linkedTarget).forEach(function (descId) {
+                                        if (!linkedTabsByTarget[descId]) linkedTabsByTarget[descId] = [];
+                                        linkedTabsByTarget[descId].push(vWs);
+                                    });
+                                }
+                            }
+                        });
+                    }
+                }
+
+                function _buildPath(wsId) {
+                    if (!helpers) return [{ id: wsId, name: wsId, icon: '📁' }];
+                    var segs = [];
+                    var ws = helpers.findById(config.workspaces || [], wsId);
+                    if (!ws) return [{ id: wsId, name: wsId, icon: '📁' }];
+                    segs.unshift({ id: ws.id, name: ws.name, icon: ws.icon || '📁' });
+                    var p = helpers.findParent(config.workspaces, ws.id);
+                    while (p) {
+                        segs.unshift({ id: p.id, name: p.name, icon: p.icon || '📁' });
+                        p = helpers.findParent(config.workspaces, p.id);
+                    }
+                    return segs;
+                }
+
+                function _isDirectDescendant(wsId) {
+                    if (!helpers) return false;
+                    var activeWs = helpers.findById(config.workspaces || [], activeWsId);
+                    if (!activeWs) return false;
+                    return helpers.getVisibleDescendantIds(activeWs).indexOf(wsId) !== -1;
+                }
+
+                var badges = [];
+                subTabIds.forEach(function (wsId) {
+                    var routes = [];
+                    var colorIdx = 0;
+
+                    if (wsId === activeWsId) {
+                        routes.push({ type: 'native', color: ROUTE_COLORS[colorIdx++ % ROUTE_COLORS.length], path: _buildPath(wsId) });
+                    } else if (_isDirectDescendant(wsId)) {
+                        routes.push({ type: 'direct', color: ROUTE_COLORS[colorIdx++ % ROUTE_COLORS.length], path: _buildPath(wsId) });
+                    }
+
+                    var linkedTabs = linkedTabsByTarget[wsId] || [];
+                    linkedTabs.forEach(function (lt) {
+                        routes.push({
+                            type: 'linked',
+                            color: ROUTE_COLORS[colorIdx++ % ROUTE_COLORS.length],
+                            linkedTab: { id: lt.id, name: lt.name, icon: lt.icon || '🔗' },
+                            sourcePath: _buildPath(wsId),
+                            linkedPath: _buildPath(lt.id)
+                        });
+                    });
+
+                    if (routes.length === 0 && wsId !== activeWsId) {
+                        routes.push({ type: 'direct', color: ROUTE_COLORS[0], path: _buildPath(wsId) });
+                    }
+
+                    // Hide badge if the card is purely native to the workspace currently being viewed
+                    if (wsId === activeWsId && routes.length === 1 && routes[0].type === 'native') {
+                        return;
+                    }
+
+                    var subWs = helpers ? helpers.findById(config.workspaces || [], wsId) : null;
+                    var subName = subWs ? escapeCardHtml(subWs.name) : wsId;
+                    var subIcon = subWs ? (subWs.icon || '📁') : '📁';
+                    var escId = escapeCardJs(wsId);
+                    var clickAction = "event.preventDefault(); event.stopPropagation(); if(typeof window.switchWorkspace === 'function') window.switchWorkspace('" + escId + "');";
+
+                    var badgeStyle = '';
+                    var badgeClass = 'card-subtab-source';
+                    if (routes.length === 1) {
+                        badgeStyle = 'background:' + routes[0].color.bg + ';border-color:' + routes[0].color.border + ';color:' + routes[0].color.solid + ';';
+                        if (routes[0].type === 'linked') {
+                            badgeClass += ' card-subtab-source--linked';
+                        }
+                    } else {
+                        var step = 100 / routes.length;
+                        var gradParts = routes.map(function (r, i) {
+                            return r.color.solid + '22 ' + (i * step) + '% ' + ((i + 1) * step) + '%';
+                        });
+                        var borderColor = routes[0].color.border;
+                        badgeStyle = 'background:linear-gradient(90deg,' + gradParts.join(',') + ');'
+                            + 'border-color:' + borderColor + ';'
+                            + 'border-style:dashed;'
+                            + 'color:' + routes[0].color.solid + ';';
+                        badgeClass += ' card-subtab-source--multi';
+                    }
+
+                    var routesData = JSON.stringify(routes.map(function (r) {
+                        return {
+                            type: r.type,
+                            color: r.color.solid,
+                            path: r.path || r.sourcePath,
+                            linkedPath: r.linkedPath || null,
+                            linkedTab: r.linkedTab || null
+                        };
+                    }));
+                    var safeRoutesAttr = routesData.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+                    var hoverHandlers = 'onmouseenter="if(window.showSourceRoutePeek)window.showSourceRoutePeek(event,this)" '
+                        + 'onmouseleave="if(window.hideSourceRoutePeek)window.hideSourceRoutePeek()" '
+                        + 'onmousemove="if(window.moveSourceRoutePeek)window.moveSourceRoutePeek(event)"';
+
+                    var displayIcon = routes.some(function (r) { return r.type === 'linked'; }) ? '🔗' : subIcon;
+                    var routeCountBadge = routes.length > 1
+                        ? '<span class="source-route-count">' + routes.length + '</span>'
+                        : '';
+
+                    badges.push('<span class="' + badgeClass + '" style="' + badgeStyle + '" '
+                        + 'data-source-routes="' + safeRoutesAttr + '" '
+                        + hoverHandlers + ' '
+                        + 'onclick="' + clickAction + '">'
+                        + displayIcon + ' ' + subName + routeCountBadge
+                        + '</span>');
+                });
+                
+                if (badges.length > 0) {
+                    subTabSourcesHtml = '<div class="card-subtab-sources">' + badges.join('') + '</div>';
+                }
+            }
+        }
 
         card.innerHTML = ''
             + '<div class="cat-progress-bg"><div class="cat-progress-fill ' + barClass + '" style="width:' + pct + '%"></div></div>'
@@ -507,6 +665,7 @@ window.DashboardCategories = window.DashboardCategories || {};
             + ' onmouseleave="hideCardTitleHover()">'
             + '<div class="category-title">' + safeCatHtml + '</div>'
             + '</div>'
+            + subTabSourcesHtml
             + smartWeightBadgeHtml
             + titleMetaHtml
             + '</div>'
