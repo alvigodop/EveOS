@@ -512,6 +512,17 @@ window.DashboardCategories = window.DashboardCategories || {};
             });
             if (subTabIds.size > 0) {
                 var helpers = window.EveWorkspaceHelpers;
+                // Build a set of workspace IDs that are linked-to targets from visible linked tabs
+                var linkedTargetIds = new Set();
+                if (helpers) {
+                    var visWs = window._eveActiveVisibleWorkspaceIds;
+                    if (visWs) {
+                        visWs.forEach(function (vId) {
+                            var vWs = helpers.findById(config.workspaces || [], vId);
+                            if (vWs && vWs.linkedTo) linkedTargetIds.add(vWs.linkedTo);
+                        });
+                    }
+                }
                 var badges = [];
                 subTabIds.forEach(function (wsId) {
                     var subWs = helpers ? helpers.findById(config.workspaces || [], wsId) : null;
@@ -520,7 +531,16 @@ window.DashboardCategories = window.DashboardCategories || {};
                     var escId = escapeCardJs(wsId);
                     var clickAction = "event.preventDefault(); event.stopPropagation(); if(typeof window.switchWorkspace === 'function') window.switchWorkspace('" + escId + "');";
                     var peekHandlers = 'onmouseenter="if(window.showPathPeek) window.showPathPeek(event, \'' + escId + '\')" onmousemove="if(window.movePathPeek) window.movePathPeek(event)" onmouseleave="if(window.hidePathPeek) window.hidePathPeek()"';
-                    badges.push('<span class="card-subtab-source" ' + peekHandlers + ' onclick="' + clickAction + '">' + subIcon + ' ' + subName + '</span>');
+                    // Check if this source is flowing through a linked tab
+                    var isLinkedSource = linkedTargetIds.has(wsId);
+                    if (isLinkedSource) {
+                        // Also check if source's descendants are linked
+                    } else if (subWs && subWs.linkedTo) {
+                        isLinkedSource = true;
+                    }
+                    var badgeClass = isLinkedSource ? 'card-subtab-source card-subtab-source--linked' : 'card-subtab-source';
+                    var displayIcon = isLinkedSource ? '🔗' : subIcon;
+                    badges.push('<span class="' + badgeClass + '" ' + peekHandlers + ' onclick="' + clickAction + '">' + displayIcon + ' ' + subName + '</span>');
                 });
                 subTabSourcesHtml = '<div class="card-subtab-sources">' + badges.join('') + '</div>';
             }

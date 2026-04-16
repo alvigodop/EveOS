@@ -211,10 +211,31 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
                 const isFromLinkedMain = activeWsObj && activeWsObj.linkedTo === l.workspace;
                 const isFromLinkedSub = linkedToObj && helpers.getVisibleDescendantIds(linkedToObj).includes(l.workspace);
 
+                // Check if this link comes through a nested linked sub-tab (parent has a sub-tab with linkedTo targeting this workspace)
+                let isFromNestedLink = false;
+                if (!isFromLinkedMain && !isFromLinkedSub && activeWsObj) {
+                    const visWs = window._eveActiveVisibleWorkspaceIds;
+                    if (visWs) {
+                        visWs.forEach(function (vId) {
+                            if (vId === activeWorkspace) return;
+                            const vWs = helpers.findById(config.workspaces || [], vId);
+                            if (vWs && vWs.linkedTo) {
+                                if (vWs.linkedTo === l.workspace) isFromNestedLink = true;
+                                else {
+                                    const linkedTarget = helpers.findById(config.workspaces || [], vWs.linkedTo);
+                                    if (linkedTarget && helpers.getVisibleDescendantIds(linkedTarget).includes(l.workspace)) isFromNestedLink = true;
+                                }
+                            }
+                        });
+                    }
+                }
+
                 if (isFromLinkedMain) {
                     subTabBadge = `<span class="subtab-origin-badge" style="background:var(--accent, #0088ff);color:#fff;font-weight:bold;margin-right:6px;border-radius:4px;padding:2px 6px;font-size:0.75em;" title="From main tab: ${subTabName}">⚓ Main Link</span>`;
                 } else if (isFromLinkedSub) {
                     subTabBadge = `<span class="subtab-origin-badge" style="background:var(--accent, #0088ff);color:#fff;margin-right:6px;border-radius:4px;padding:2px 6px;font-size:0.75em;" title="From main sub-tab: ${subTabName}">⚓ Main Sub-Tab</span>`;
+                } else if (isFromNestedLink) {
+                    subTabBadge = `<span class="subtab-origin-badge" style="background:rgba(0,200,180,0.2);color:#40e8d0;font-weight:bold;margin-right:6px;border-radius:4px;padding:2px 6px;font-size:0.75em;border:1px dashed rgba(0,200,180,0.4);" title="Via linked tab → ${subTabName}">🔗 ${subTabName}</span>`;
                 } else {
                     subTabBadge = `<span class="subtab-origin-badge" title="From sub-tab: ${subTabName}">${subWs.icon || '📁'} ${subTabName}</span>`;
                 }

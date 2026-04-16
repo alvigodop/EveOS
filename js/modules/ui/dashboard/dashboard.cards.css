@@ -94,10 +94,30 @@ html[data-native-scheme="light"] {
     filter: brightness(0.9);
 }
 
+/* Linked tab source badge — teal chain-link style */
+.card-subtab-source--linked {
+    background: rgba(0, 200, 180, 0.1);
+    color: #40e8d0;
+    border: 1px dashed rgba(0, 200, 180, 0.3);
+}
+
+.card-subtab-source--linked:hover {
+    background: rgba(0, 200, 180, 0.22);
+    border-color: rgba(0, 200, 180, 0.55);
+    color: #7ef5e5;
+    box-shadow: 0 4px 12px rgba(0, 200, 180, 0.15);
+}
+
 html[data-native-scheme="light"] .card-subtab-source {
     background: rgba(120, 80, 220, 0.08);
     color: #6a42c2;
     border-color: rgba(120, 80, 220, 0.16);
+}
+
+html[data-native-scheme="light"] .card-subtab-source--linked {
+    background: rgba(0, 160, 140, 0.08);
+    color: #0a8a76;
+    border-color: rgba(0, 160, 140, 0.2);
 }
 
 .category-title-wrap {

@@ -227,6 +227,48 @@ async function runSmoke(page) {
 
   if (!sidebarEntry) throw new Error('TEST 6 FAILED: Linked tab not found in sidebar');
   console.log(`  [6] PASS — Sidebar entry: ${sidebarEntry.icon} ${sidebarEntry.label}`);
+
+  // ──────────────────────────────────────────────
+  // TEST 7: Nested linked tab — moving linked tab as sub-tab of another workspace
+  //         Parent view should still show the linked content
+  // ──────────────────────────────────────────────
+  console.log('  [7] Nesting linked tab under "alt" workspace...');
+  await page.evaluate((linkId) => {
+    const helpers = window.EveWorkspaceHelpers;
+    // Move the linked tab from root to be a sub-tab of 'alt'
+    const linkedWs = helpers.findById(config.workspaces, linkId);
+    if (!linkedWs) throw new Error('Linked workspace not found');
+    // Remove from root
+    config.workspaces = config.workspaces.filter(ws => ws.id !== linkId);
+    // Add as sub-tab of 'alt'
+    const altWs = helpers.findById(config.workspaces, 'alt');
+    if (!altWs) throw new Error('Alt workspace not found');
+    if (!Array.isArray(altWs.subTabs)) altWs.subTabs = [];
+    altWs.subTabs.push(linkedWs);
+    if (window.eveState) window.eveState.config = config;
+    window.renderSidebar();
+  }, linkedTab.id);
+
+  // Switch to 'alt' parent workspace
+  await page.evaluate(() => window.switchWorkspace('alt'));
+  await page.waitForTimeout(1000);
+
+  const nestedVisibleCards = await page.evaluate(() => {
+    const linkItems = document.querySelectorAll('.category-card li');
+    return {
+      linkCount: linkItems.length,
+      linkTitles: Array.from(linkItems).map(li => {
+        const a = li.querySelector('a');
+        return a ? a.textContent.trim() : '';
+      }).filter(Boolean)
+    };
+  });
+
+  // The linked tab links to 'main', which has bookmarks. Those should be visible in 'alt' now.
+  const hasInheritedContent = nestedVisibleCards.linkTitles.includes('Main Bookmark A')
+    || nestedVisibleCards.linkTitles.includes('Main Bookmark B');
+  if (!hasInheritedContent) throw new Error('TEST 7 FAILED: Nested linked tab content not visible in parent. Titles: [' + nestedVisibleCards.linkTitles.join(', ') + ']');
+  console.log(`  [7] PASS — Nested linked tab resolved: ${nestedVisibleCards.linkCount} items visible in parent`);
 }
 
 (async () => {

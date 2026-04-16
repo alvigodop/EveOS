@@ -323,6 +323,27 @@ function _renderDashboardCore() {
         if (resolvedWs && !resolvedWs.hideSubTabs && Array.isArray(resolvedWs.subTabs) && resolvedWs.subTabs.length > 0) {
             helpers.getVisibleDescendantIds(resolvedWs).forEach(function (id) { visibleWorkspaceIds.add(id); });
         }
+
+        // Second pass: resolve linkedTo for any sub-tab that is itself a linked tab.
+        // This ensures nested linked tabs contribute their target's content to the parent view.
+        var resolvedLinkedIds = new Set();
+        visibleWorkspaceIds.forEach(function (wsId) {
+            if (wsId === activeWorkspaceId) return; // already resolved above
+            var ws = helpers.findById(config.workspaces || [], wsId);
+            if (ws && ws.linkedTo && !resolvedLinkedIds.has(ws.linkedTo)) {
+                resolvedLinkedIds.add(ws.linkedTo);
+                var linkedTarget = helpers.findById(config.workspaces || [], ws.linkedTo);
+                if (linkedTarget) {
+                    visibleWorkspaceIds.add(linkedTarget.id);
+                    // Also include the linked target's visible descendants
+                    if (!linkedTarget.hideSubTabs && Array.isArray(linkedTarget.subTabs) && linkedTarget.subTabs.length > 0) {
+                        helpers.getVisibleDescendantIds(linkedTarget).forEach(function (descId) {
+                            visibleWorkspaceIds.add(descId);
+                        });
+                    }
+                }
+            }
+        });
     }
     // Expose for link badge rendering
     window._eveActiveVisibleWorkspaceIds = visibleWorkspaceIds;
