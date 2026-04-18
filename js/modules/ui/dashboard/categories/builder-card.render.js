@@ -14,8 +14,17 @@ window.DashboardCategories = window.DashboardCategories || {};
         var options = configOptions || {};
         var cat = typeof catInput === 'object' && catInput ? catInput.category : catInput;
         if (typeof catInput === 'object' && catInput && catInput.workspaceId) {
-            // Preserve the parent dashboard workspace for marker badge comparison
+            // Preserve the parent dashboard workspace for marker badge comparison.
+            // In group overview mode, route badges should anchor to the owning group root
+            // instead of whichever tab happened to be active when overview was entered.
             options._parentDashboardWorkspace = options.activeWorkspace || 'main';
+            var overviewRootMap = window._eveGroupOverviewRootMap;
+            var markerRouteWorkspace = overviewRootMap
+                ? String(overviewRootMap.get(String(catInput.workspaceId || '')) || '').trim()
+                : '';
+            if (markerRouteWorkspace) {
+                options._markerRouteWorkspace = markerRouteWorkspace;
+            }
             options.activeWorkspace = catInput.workspaceId;
         }
 
@@ -500,8 +509,15 @@ window.DashboardCategories = window.DashboardCategories || {};
             + nonFocusButtons.join('')
             + '</div>';
 
-        // Restored marker badge logic for decoupled sub-tabs
-        var activeWsId = String(options._parentDashboardWorkspace || options.activeWorkspace || '').trim();
+        // Restored marker badge logic for decoupled sub-tabs.
+        // In group overview mode, compare against the card's owning overview root.
+        var activeWsId = String(
+            options._markerRouteWorkspace
+            || options._parentDashboardWorkspace
+            || options.activeWorkspace
+            || cardWsId
+            || ''
+        ).trim();
         var subTabSourcesHtml = '';
         if (!isDetachedParkingCard) {
             var subTabIds = new Set();
