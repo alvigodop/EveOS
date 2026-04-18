@@ -193,10 +193,17 @@
     }
 
     function updateGroup(groupId, updates, configRef) {
-        var group = findGroupById(groupId, configRef);
-        if (!group) return null;
+        var cfg = ensureConfigDefaults(configRef);
+        if (!cfg) return null;
+        var targetId = normalizeGroupId(groupId);
+        var groups = cfg.sidebarGroups;
+        var index = groups.findIndex(function (entry) {
+            return String(entry.id) === targetId;
+        });
+        if (index === -1) return null;
+
+        var group = groups[index];
         var next = updates && typeof updates === 'object' ? updates : {};
-        var index = getGroups(configRef).findIndex(function (entry) { return entry.id === group.id; });
         group.name = String(next.name != null ? next.name : group.name).trim() || group.name;
         group.color = normalizeColor(next.color != null ? next.color : group.color, Math.max(index, 0));
         if (Object.prototype.hasOwnProperty.call(next, 'collapsed')) group.collapsed = !!next.collapsed;

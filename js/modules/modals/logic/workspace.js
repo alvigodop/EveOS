@@ -8,7 +8,7 @@ function populateWorkspaceGroupSelect(selectedGroupId) {
 
     const groupsApi = getSidebarGroupsApi();
     if (!groupsApi) {
-        select.innerHTML = '<option value="">Ungrouped</option>';
+        select.innerHTML = '<option value="">No Group</option>';
         return;
     }
 
@@ -16,7 +16,7 @@ function populateWorkspaceGroupSelect(selectedGroupId) {
     const groups = groupsApi.getGroups(config);
     const activeGroupId = String(selectedGroupId || '').trim();
 
-    select.innerHTML = '<option value="">Ungrouped</option>';
+    select.innerHTML = '<option value="">No Group</option>';
     groups.forEach(function (group) {
         const option = document.createElement('option');
         option.value = group.id;
@@ -150,7 +150,7 @@ window.openSidebarGroupModal = function (groupId) {
     modal.style.display = 'flex';
 };
 
-window.saveSidebarGroup = function () {
+window.saveSidebarGroup = async function () {
     const groupsApi = getSidebarGroupsApi();
     if (!groupsApi) return;
 
@@ -167,10 +167,17 @@ window.saveSidebarGroup = function () {
         groupsApi.createGroup({ name: name, color: color }, config);
     }
 
-    saveConfig();
+    let persisted = true;
+    if (typeof saveConfig === 'function') {
+        persisted = await Promise.resolve(saveConfig({ immediate: true }));
+    }
     if (typeof renderSidebar === 'function') renderSidebar();
     if (typeof closeAllMenus === 'function') closeAllMenus();
-    if (typeof showToast === 'function') {
+    if (persisted === false) {
+        if (typeof showToast === 'function') {
+            showToast('Sidebar group updated, but config persistence failed', 'error');
+        }
+    } else if (typeof showToast === 'function') {
         showToast(editId ? 'Sidebar group updated' : 'Sidebar group created', 'success');
     }
     closeModals();

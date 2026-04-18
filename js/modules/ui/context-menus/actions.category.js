@@ -269,14 +269,14 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
         if (!ctxWsId) return showToast('No workspace selected', 'error');
         const groupsApi = getSidebarGroupsApi();
         if (!groupsApi || !groupsApi.isRootWorkspace(ctxWsId, config)) {
-            return showToast('Only root tabs can be ungrouped', 'error');
+            return showToast('Only root tabs can be removed from a group', 'error');
         }
 
         const moved = groupsApi.moveRootWorkspaceToGroup(ctxWsId, '', config);
         if (!moved) return showToast('Could not remove tab from group', 'error');
 
         saveAndRefreshSidebar(false);
-        showToast('Tab moved to ungrouped', 'info');
+        showToast('Tab removed from group', 'info');
     };
 
     window.ctxSidebarGroupCreateWorkspace = function () {
@@ -313,7 +313,7 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
         }
 
         saveAndRefreshSidebar(false);
-        showToast(groupId ? 'Tabs collapsed for group' : 'Ungrouped tabs collapsed', 'info');
+        showToast(groupId ? 'Tabs collapsed for group' : 'Root tabs collapsed', 'info');
     };
 
     window.ctxSidebarGroupExpandTabs = function () {
@@ -326,7 +326,7 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
         }
 
         saveAndRefreshSidebar(false);
-        showToast(groupId ? 'Tabs expanded for group' : 'Ungrouped tabs expanded', 'info');
+        showToast(groupId ? 'Tabs expanded for group' : 'Root tabs expanded', 'info');
     };
 
     window.ctxSidebarGroupToggleHidden = function () {
@@ -346,7 +346,7 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
         const groupsApi = getSidebarGroupsApi();
         if (!groupsApi) return;
 
-        if (!(await showConfirm('Delete group? Tabs will stay as ungrouped root tabs.'))) return;
+        if (!(await showConfirm('Delete group? Tabs will stay as normal root tabs.'))) return;
 
         const deleted = groupsApi.deleteGroup(window.ctxSidebarGroupId, config);
         if (!deleted) return showToast('Group not found', 'error');

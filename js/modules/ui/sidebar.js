@@ -288,26 +288,22 @@ function renderSidebar() {
 
     function buildGroupSection(group, workspaces) {
         const groupId = group ? String(group.id || '').trim() : '';
-        const isUngrouped = !groupId;
+        const groupColor = group ? (group.color || '#00d4ff') : '#7a7f91';
         const isCollapsed = !!(group && group.collapsed);
         const section = document.createElement('div');
         section.className = 'ws-group-section';
+        section.style.setProperty('--ws-group-color', groupColor);
         if (group && group.hidden) section.classList.add('ws-group-section--hidden');
         if (isCollapsed) section.classList.add('ws-group-section--collapsed');
-        if (isUngrouped) section.classList.add('ws-group-section--ungrouped');
 
         const header = document.createElement('div');
         header.className = 'ws-group-header';
-        header.title = group
-            ? (group.hidden ? group.name + ' (Hidden)' : group.name)
-            : 'Ungrouped Tabs';
+        header.title = group.hidden ? group.name + ' (Hidden)' : group.name;
 
-        if (group) {
-            header.onclick = function () {
-                groupsApi.setGroupCollapsed(groupId, undefined, config);
-                saveAndRefresh(false);
-            };
-        }
+        header.onclick = function () {
+            groupsApi.setGroupCollapsed(groupId, undefined, config);
+            saveAndRefresh(false);
+        };
 
         header.oncontextmenu = function (e) {
             if (typeof showSidebarGroupContext === 'function') {
@@ -317,18 +313,17 @@ function renderSidebar() {
 
         const toggle = document.createElement('span');
         toggle.className = 'ws-group-toggle';
-        toggle.textContent = isUngrouped ? '\u2022' : (isCollapsed ? '\u25B6' : '\u25BC');
+        toggle.textContent = isCollapsed ? '\u25B6' : '\u25BC';
         header.appendChild(toggle);
 
         const swatch = document.createElement('span');
         swatch.className = 'ws-group-swatch';
-        swatch.style.setProperty('--ws-group-color', group ? (group.color || '#00d4ff') : '#7a7f91');
-        swatch.textContent = group ? String(group.name || '?').slice(0, 1).toUpperCase() : 'U';
+        swatch.textContent = String(group.name || '?').slice(0, 1).toUpperCase();
         header.appendChild(swatch);
 
         const title = document.createElement('span');
         title.className = 'ws-group-title';
-        title.textContent = group ? group.name : 'Ungrouped';
+        title.textContent = group.name;
         header.appendChild(title);
 
         const count = document.createElement('span');
@@ -336,7 +331,7 @@ function renderSidebar() {
         count.textContent = String((Array.isArray(workspaces) ? workspaces.length : 0) || 0);
         header.appendChild(count);
 
-        if (group && group.hidden) {
+        if (group.hidden) {
             const hiddenBadge = document.createElement('span');
             hiddenBadge.className = 'ws-group-hidden-badge';
             hiddenBadge.textContent = 'Hidden';
@@ -354,7 +349,7 @@ function renderSidebar() {
         if (!isCollapsed) {
             if (Array.isArray(workspaces) && workspaces.length > 0) {
                 renderWorkspaceList(workspaces, body);
-            } else if (group) {
+            } else {
                 const empty = document.createElement('div');
                 empty.className = 'ws-group-empty';
                 empty.textContent = 'No tabs in this group';
@@ -379,7 +374,7 @@ function renderSidebar() {
             sb.appendChild(buildGroupSection(bucket.group, bucket.workspaces));
         });
         if (Array.isArray(buckets.ungroupedWorkspaces) && buckets.ungroupedWorkspaces.length > 0) {
-            sb.appendChild(buildGroupSection(null, buckets.ungroupedWorkspaces));
+            renderWorkspaceList(buckets.ungroupedWorkspaces, sb);
         }
     } else {
         renderWorkspaceList(config.workspaces, sb);

@@ -606,18 +606,27 @@ function saveData(options = {}) {
 
 var _saveConfigTimer = 0;
 
-function saveConfig() {
-    if (_saveConfigTimer) clearTimeout(_saveConfigTimer);
+function saveConfig(options) {
+    var opts = options && typeof options === 'object' ? options : {};
+    if (_saveConfigTimer) {
+        clearTimeout(_saveConfigTimer);
+        _saveConfigTimer = 0;
+    }
+    if (opts.immediate) {
+        return _saveConfigImmediate();
+    }
     _saveConfigTimer = setTimeout(function () {
         _saveConfigTimer = 0;
         _saveConfigImmediate();
     }, 150);
+    return null;
 }
 
 function _saveConfigImmediate() {
+    var persistPromise = Promise.resolve(true);
     if (window.EveCoreStorage) {
         window.EveCoreStorage.syncThemeBootConfig(config);
-        void window.EveCoreStorage.saveJson(EVE_CONFIG_KEY, config, {
+        persistPromise = window.EveCoreStorage.saveJson(EVE_CONFIG_KEY, config, {
             localFallbackKey: EVE_CONFIG_KEY,
             cleanupLocalKeys: [EVE_CONFIG_KEY],
             mirrorLocalKey: EVE_THEME_BOOT_KEY,
@@ -625,6 +634,7 @@ function _saveConfigImmediate() {
             mirrorPruneRatio: 0.05
         }).catch((error) => {
             console.error('Core Storage: Failed to persist config', error);
+            return false;
         });
     } else {
         try {
@@ -641,6 +651,7 @@ function _saveConfigImmediate() {
         }
     }
     window.dispatchEvent(new CustomEvent('eve:state-mutated', { detail: { source: 'saveConfig' } }));
+    return persistPromise;
 }
 
 // Add save functions to global state object
