@@ -721,7 +721,16 @@ async function loadData() {
     config.sidebarOrderMode = String(config.sidebarOrderMode || '').trim().toLowerCase() === 'manual'
         ? 'manual'
         : 'auto';
-    if (!Array.isArray(config.sidebarManualOrder)) config.sidebarManualOrder = [];
+    if (Array.isArray(config.sidebarManualOrder)) {
+        config.sidebarManualOrder = { root: config.sidebarManualOrder.slice(), parents: {} };
+    } else if (!config.sidebarManualOrder || typeof config.sidebarManualOrder !== 'object') {
+        config.sidebarManualOrder = { root: [], parents: {} };
+    } else {
+        if (!Array.isArray(config.sidebarManualOrder.root)) config.sidebarManualOrder.root = [];
+        if (!config.sidebarManualOrder.parents || typeof config.sidebarManualOrder.parents !== 'object') {
+            config.sidebarManualOrder.parents = {};
+        }
+    }
     config.sidebarFocusedGroupId = String(config.sidebarFocusedGroupId || '').trim();
     if (typeof config.showHiddenSidebarGroups !== 'boolean') config.showHiddenSidebarGroups = false;
     if (typeof config.showInactiveTabs !== 'boolean') config.showInactiveTabs = false;

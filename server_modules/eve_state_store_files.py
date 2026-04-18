@@ -182,19 +182,41 @@ def build_library_index(categories):
 def build_workspaces(config):
     workspaces = list((config or {}).get("workspaces") or [])
     if not workspaces:
-        workspaces = [{"id": "main", "name": "Main", "icon": "\U0001F3E0"}]
+        workspaces = [{"id": "main", "name": "Main", "icon": "\U0001F3E0", "subTabs": []}]
+
+    def normalize_workspace_node(node, seen_ids):
+        if isinstance(node, str):
+            node = {"id": node, "name": node, "icon": "\U0001F4C1", "subTabs": []}
+        if not isinstance(node, dict):
+            return None
+
+        ws_id = str(node.get("id") or "").strip() or "main"
+        if ws_id in seen_ids:
+            return None
+        seen_ids.add(ws_id)
+
+        normalized_node = dict(node)
+        normalized_node["id"] = ws_id
+        normalized_node["name"] = node.get("name") or ws_id
+        normalized_node["icon"] = node.get("icon") or "\U0001F4C1"
+        normalized_node["subTabs"] = []
+
+        for child in node.get("subTabs") or []:
+            normalized_child = normalize_workspace_node(child, seen_ids)
+            if normalized_child:
+                normalized_node["subTabs"].append(normalized_child)
+
+        return normalized_node
+
     normalized = []
     seen = set()
     for ws in workspaces:
-        ws_id = str((ws or {}).get("id") or "").strip() or "main"
-        if ws_id in seen:
-            continue
-        seen.add(ws_id)
-        normalized.append({
-            "id": ws_id,
-            "name": (ws or {}).get("name") or ws_id,
-            "icon": (ws or {}).get("icon") or "\U0001F4C1"
-        })
+        normalized_workspace = normalize_workspace_node(ws, seen)
+        if normalized_workspace:
+            normalized.append(normalized_workspace)
+
+    if not normalized:
+        normalized = [{"id": "main", "name": "Main", "icon": "\U0001F3E0", "subTabs": []}]
     return normalized
 
 

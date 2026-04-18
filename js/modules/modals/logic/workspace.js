@@ -109,6 +109,10 @@ window.saveWorkspace = function () {
 
             const isRootWorkspace = !(helpers && typeof helpers.findParent === 'function' && helpers.findParent(config.workspaces, id));
             if (isRootWorkspace) {
+                if (resolvedGroupId && groupsApi && typeof groupsApi.canGroupWorkspaceInGroup === 'function'
+                    && !groupsApi.canGroupWorkspaceInGroup(id, resolvedGroupId, config)) {
+                    return alert('This group is nested inside that tab branch, so assigning the tab to it would create a recursive sidebar layout.');
+                }
                 if (resolvedGroupId) ws.groupId = resolvedGroupId;
                 else delete ws.groupId;
                 if (groupsApi && typeof groupsApi.syncWorkspaceOrderEntry === 'function') {

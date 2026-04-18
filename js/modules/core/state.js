@@ -39,7 +39,10 @@ let config = {
     workspaces: [{ id: "main", name: "Main", icon: "\u{1F3E0}" }],
     sidebarGroups: [],
     sidebarOrderMode: "auto",
-    sidebarManualOrder: [],
+    sidebarManualOrder: {
+        root: [],
+        parents: {}
+    },
     sidebarFocusedGroupId: "",
     showHiddenSidebarGroups: false,
     showInactiveTabs: false,

@@ -183,6 +183,14 @@
     justify-content: flex-start;
 }
 
+#sidebar:hover .ws-group-section--nested .ws-group-header {
+    width: 140px;
+    min-height: 32px;
+    padding-left: 10px;
+    border-left: 2px solid color-mix(in srgb, var(--ws-group-color) 50%, rgba(255, 255, 255, 0.14));
+    background: color-mix(in srgb, var(--ws-group-color) 8%, rgba(255, 255, 255, 0.03));
+}
+
 .ws-group-toggle {
     display: none;
     font-size: 0.55rem;
@@ -287,6 +295,10 @@
     padding: 8px 0 10px;
 }
 
+#sidebar:hover .ws-group-section--nested .ws-group-body {
+    width: calc(100% - 20px);
+}
+
 .ws-group-section .ws-group-body .ws-item:not(:hover):not(.active) {
     background: color-mix(in srgb, var(--ws-group-color) 10%, var(--sidebar-item-bg));
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ws-group-color) 18%, rgba(255, 255, 255, 0.05));
@@ -308,6 +320,10 @@
     font-size: 0.72rem;
     padding: 0 10px;
     box-sizing: border-box;
+}
+
+#sidebar:hover .ws-group-section--nested .ws-group-empty {
+    width: 124px;
 }
 
 .ws-group-section--hidden .ws-group-header {
@@ -413,6 +429,20 @@
     opacity: 0.85;
 }
 
+#sidebar:hover .ws-group-member-item {
+    border-left-style: solid;
+    border-left-color: color-mix(in srgb, var(--ws-group-color) 74%, rgba(255, 255, 255, 0.34));
+    background: color-mix(in srgb, var(--ws-group-color) 10%, rgba(255, 255, 255, 0.04));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ws-group-color) 18%, rgba(255, 255, 255, 0.05));
+}
+
+.ws-group-member-wrapper.ws-depth-1::before,
+.ws-group-member-wrapper.ws-depth-2::before,
+.ws-group-member-wrapper.ws-depth-3::before,
+.ws-group-member-wrapper.ws-depth-4::before {
+    background: color-mix(in srgb, var(--ws-group-color) 42%, rgba(255, 255, 255, 0.14));
+}
+
 /* Tree connector line from parent to sub-tab */
 .ws-node-wrapper.ws-depth-1::before,
 .ws-node-wrapper.ws-depth-2::before,
@@ -443,9 +473,28 @@
     color: rgba(220, 200, 255, 0.85);
 }
 
+#sidebar:hover .ws-group-member-item .ws-label {
+    color: color-mix(in srgb, var(--ws-group-color) 48%, rgba(255, 255, 255, 0.88));
+}
+
 /* Light mode sub-tab label */
 html[data-native-scheme="light"] #sidebar:hover .ws-sub-item .ws-label {
     color: rgba(80, 50, 160, 0.85);
+}
+
+html[data-native-scheme="light"] #sidebar:hover .ws-group-section--nested .ws-group-header {
+    border-left-color: color-mix(in srgb, var(--ws-group-color) 36%, rgba(0, 0, 0, 0.14));
+    background: color-mix(in srgb, var(--ws-group-color) 10%, rgba(255, 255, 255, 0.78));
+}
+
+html[data-native-scheme="light"] #sidebar:hover .ws-group-member-item {
+    border-left-color: color-mix(in srgb, var(--ws-group-color) 68%, rgba(0, 0, 0, 0.22));
+    background: color-mix(in srgb, var(--ws-group-color) 8%, rgba(255, 255, 255, 0.92));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ws-group-color) 16%, rgba(0, 0, 0, 0.06));
+}
+
+html[data-native-scheme="light"] #sidebar:hover .ws-group-member-item .ws-label {
+    color: color-mix(in srgb, var(--ws-group-color) 58%, rgba(20, 20, 20, 0.88));
 }
 
 .ws-toggle {

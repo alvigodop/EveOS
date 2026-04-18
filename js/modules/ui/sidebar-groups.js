@@ -19,7 +19,15 @@
         return window.config || null;
     }
 
+    function getHelpers() {
+        return window.EveWorkspaceHelpers || null;
+    }
+
     function normalizeGroupId(value) {
+        return String(value || '').trim();
+    }
+
+    function normalizeWorkspaceId(value) {
         return String(value || '').trim();
     }
 
@@ -38,7 +46,8 @@
             name: name,
             color: normalizeColor(group.color, index),
             collapsed: !!group.collapsed,
-            hidden: !!group.hidden
+            hidden: !!group.hidden,
+            parentWorkspaceId: normalizeWorkspaceId(group.parentWorkspaceId)
         };
     }
 
@@ -66,13 +75,92 @@
         return { type: type, id: id };
     }
 
+    function normalizeManualOrderShape(value) {
+        if (Array.isArray(value)) {
+            return {
+                root: value.slice(),
+                parents: {}
+            };
+        }
+
+        var next = value && typeof value === 'object' ? value : {};
+        var root = Array.isArray(next.root) ? next.root.slice() : [];
+        var parents = {};
+        var sourceParents = next.parents && typeof next.parents === 'object' ? next.parents : {};
+
+        Object.keys(sourceParents).forEach(function (parentId) {
+            if (!Array.isArray(sourceParents[parentId])) return;
+            parents[String(parentId).trim()] = sourceParents[parentId].slice();
+        });
+
+        return {
+            root: root,
+            parents: parents
+        };
+    }
+
+    function getManualOrderState(configRef) {
+        var cfg = configRef || getConfigRef();
+        if (!cfg) return normalizeManualOrderShape(null);
+        cfg.sidebarManualOrder = normalizeManualOrderShape(cfg.sidebarManualOrder);
+        return cfg.sidebarManualOrder;
+    }
+
+    function getManualOrderKey(parentWorkspaceId) {
+        var parentId = normalizeWorkspaceId(parentWorkspaceId);
+        return parentId || 'root';
+    }
+
     function getRootWorkspaces(configRef) {
         var cfg = configRef || getConfigRef();
         return Array.isArray(cfg && cfg.workspaces) ? cfg.workspaces.filter(Boolean) : [];
     }
 
+    function getWorkspaceById(workspaceId, configRef) {
+        var targetId = normalizeWorkspaceId(workspaceId);
+        if (!targetId) return null;
+        var cfg = configRef || getConfigRef();
+        var helpers = getHelpers();
+        if (helpers && typeof helpers.findById === 'function') {
+            return helpers.findById((cfg && cfg.workspaces) || [], targetId);
+        }
+        var roots = getRootWorkspaces(cfg);
+        for (var i = 0; i < roots.length; i += 1) {
+            if (String(roots[i].id) === targetId) return roots[i];
+        }
+        return null;
+    }
+
+    function getWorkspaceParentId(workspaceId, configRef) {
+        var targetId = normalizeWorkspaceId(workspaceId);
+        if (!targetId) return '';
+        var cfg = configRef || getConfigRef();
+        var helpers = getHelpers();
+        if (!helpers || typeof helpers.findParent !== 'function') return '';
+        var parent = helpers.findParent((cfg && cfg.workspaces) || [], targetId);
+        return parent && parent.id ? String(parent.id) : '';
+    }
+
+    function getWorkspaceRoot(workspaceOrId, configRef) {
+        var cfg = configRef || getConfigRef();
+        if (!cfg) return null;
+
+        var targetId = workspaceOrId && typeof workspaceOrId === 'object'
+            ? normalizeWorkspaceId(workspaceOrId.id)
+            : normalizeWorkspaceId(workspaceOrId);
+        if (!targetId) return null;
+
+        var helpers = getHelpers();
+        if (helpers && typeof helpers.getPath === 'function') {
+            var path = helpers.getPath(cfg.workspaces || [], targetId);
+            return path.length ? path[0] : null;
+        }
+
+        return getRootWorkspaceById(targetId, cfg);
+    }
+
     function getRootWorkspaceById(workspaceId, configRef) {
-        var targetId = String(workspaceId || '').trim();
+        var targetId = normalizeWorkspaceId(workspaceId);
         if (!targetId) return null;
         var roots = getRootWorkspaces(configRef);
         for (var i = 0; i < roots.length; i += 1) {
@@ -86,7 +174,10 @@
         var workspace = workspaceOrId && typeof workspaceOrId === 'object'
             ? workspaceOrId
             : getRootWorkspaceById(workspaceOrId, cfg);
-        if (!workspace) return '';
+        if (!workspace || !workspace.id) return '';
+
+        if (getWorkspaceParentId(workspace.id, cfg)) return '';
+
         var groupId = normalizeGroupId(workspace.groupId);
         var groups = Array.isArray(cfg.sidebarGroups) ? cfg.sidebarGroups : [];
         for (var i = 0; i < groups.length; i += 1) {
@@ -95,19 +186,51 @@
         return '';
     }
 
+    function getWorkspaceGroupId(workspaceOrId, configRef) {
+        var cfg = ensureConfigDefaults(configRef);
+        return getWorkspaceGroupIdFromConfig(workspaceOrId, cfg);
+    }
+
+    function getGroupsRaw(cfg) {
+        return Array.isArray(cfg && cfg.sidebarGroups) ? cfg.sidebarGroups : [];
+    }
+
+    function findGroupByIdInConfig(groupId, cfg) {
+        var targetId = normalizeGroupId(groupId);
+        if (!targetId || !cfg) return null;
+        var groups = getGroupsRaw(cfg);
+        for (var i = 0; i < groups.length; i += 1) {
+            if (String(groups[i].id) === targetId) return groups[i];
+        }
+        return null;
+    }
+
+    function getGroupRootsInConfig(groupId, cfg) {
+        var targetId = normalizeGroupId(groupId);
+        return getRootWorkspaces(cfg).filter(function (workspace) {
+            return getWorkspaceGroupIdFromConfig(workspace, cfg) === targetId;
+        });
+    }
+
+    function getGroupRoots(groupId, configRef) {
+        var cfg = ensureConfigDefaults(configRef);
+        return getGroupRootsInConfig(groupId, cfg);
+    }
+
+    function isRootWorkspace(workspaceId, configRef) {
+        var targetId = normalizeWorkspaceId(workspaceId);
+        if (!targetId) return false;
+        return !getWorkspaceParentId(targetId, configRef) && !!getWorkspaceById(targetId, configRef);
+    }
+
     function getGroups(configRef) {
         var cfg = ensureConfigDefaults(configRef);
         return cfg ? cfg.sidebarGroups : [];
     }
 
     function findGroupById(groupId, configRef) {
-        var targetId = normalizeGroupId(groupId);
-        if (!targetId) return null;
-        var groups = getGroups(configRef);
-        for (var i = 0; i < groups.length; i += 1) {
-            if (String(groups[i].id) === targetId) return groups[i];
-        }
-        return null;
+        var cfg = ensureConfigDefaults(configRef);
+        return findGroupByIdInConfig(groupId, cfg);
     }
 
     function getGroupMap(configRef) {
@@ -118,48 +241,88 @@
         return map;
     }
 
-    function getWorkspaceGroupId(workspaceOrId, configRef) {
+    function getGroupParentWorkspaceId(groupId, configRef) {
         var cfg = ensureConfigDefaults(configRef);
-        return getWorkspaceGroupIdFromConfig(workspaceOrId, cfg);
+        var group = findGroupByIdInConfig(groupId, cfg);
+        return group ? normalizeWorkspaceId(group.parentWorkspaceId) : '';
     }
 
-    function getGroupRoots(groupId, configRef) {
-        var targetId = normalizeGroupId(groupId);
-        return getRootWorkspaces(configRef).filter(function (workspace) {
-            return getWorkspaceGroupId(workspace, configRef) === targetId;
+    function canPlaceGroupUnderWorkspaceInConfig(groupId, parentWorkspaceId, cfg) {
+        var targetParentId = normalizeWorkspaceId(parentWorkspaceId);
+        if (!targetParentId) return true;
+
+        var group = findGroupByIdInConfig(groupId, cfg);
+        if (!group) return false;
+
+        var parentWorkspace = getWorkspaceById(targetParentId, cfg);
+        if (!parentWorkspace) return false;
+
+        var parentRoot = getWorkspaceRoot(targetParentId, cfg);
+        if (parentRoot && getWorkspaceGroupIdFromConfig(parentRoot, cfg) === normalizeGroupId(group.id)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    function canPlaceGroupUnderWorkspace(groupId, parentWorkspaceId, configRef) {
+        var cfg = ensureConfigDefaults(configRef);
+        if (!cfg) return false;
+        return canPlaceGroupUnderWorkspaceInConfig(groupId, parentWorkspaceId, cfg);
+    }
+
+    function normalizeGroupParentWorkspaceId(parentWorkspaceId, groupId, configRef) {
+        var targetParentId = normalizeWorkspaceId(parentWorkspaceId);
+        if (!targetParentId) return '';
+        return canPlaceGroupUnderWorkspaceInConfig(groupId, targetParentId, configRef || getConfigRef()) ? targetParentId : '';
+    }
+
+    function getGroupsForParentInConfig(parentWorkspaceId, cfg) {
+        var targetParentId = normalizeWorkspaceId(parentWorkspaceId);
+        return getGroupsRaw(cfg).filter(function (group) {
+            return normalizeWorkspaceId(group.parentWorkspaceId) === targetParentId;
         });
     }
 
-    function buildAutomaticEntries(cfg) {
-        var groups = Array.isArray(cfg && cfg.sidebarGroups) ? cfg.sidebarGroups : [];
-        var groupedRoots = new Map();
-        groups.forEach(function (group) {
-            groupedRoots.set(String(group.id), []);
-        });
+    function getGroupsForParent(parentWorkspaceId, configRef) {
+        var cfg = ensureConfigDefaults(configRef);
+        return getGroupsForParentInConfig(parentWorkspaceId, cfg);
+    }
 
-        var ungroupedWorkspaces = [];
-        getRootWorkspaces(cfg).forEach(function (workspace) {
-            var groupId = getWorkspaceGroupIdFromConfig(workspace, cfg);
-            if (groupId && groupedRoots.has(groupId)) groupedRoots.get(groupId).push(workspace);
-            else ungroupedWorkspaces.push(workspace);
-        });
+    function getWorkspaceChildren(parentWorkspaceId, configRef) {
+        var targetParentId = normalizeWorkspaceId(parentWorkspaceId);
+        if (!targetParentId) {
+            return getRootWorkspaces(configRef).filter(function (workspace) {
+                return !getWorkspaceGroupIdFromConfig(workspace, configRef);
+            });
+        }
+        var parentWorkspace = getWorkspaceById(targetParentId, configRef);
+        return parentWorkspace && Array.isArray(parentWorkspace.subTabs)
+            ? parentWorkspace.subTabs.filter(Boolean)
+            : [];
+    }
 
+    function buildAutomaticEntriesForParent(parentWorkspaceId, cfg) {
         var entries = [];
-        groups.forEach(function (group) {
+        getGroupsForParentInConfig(parentWorkspaceId, cfg).forEach(function (group) {
             entries.push({
                 kind: 'group',
                 id: String(group.id),
+                parentWorkspaceId: normalizeWorkspaceId(parentWorkspaceId),
                 group: group,
-                workspaces: groupedRoots.get(String(group.id)) || []
+                workspaces: getGroupRootsInConfig(group.id, cfg)
             });
         });
-        ungroupedWorkspaces.forEach(function (workspace) {
+
+        getWorkspaceChildren(parentWorkspaceId, cfg).forEach(function (workspace) {
             entries.push({
                 kind: 'workspace',
                 id: String(workspace.id),
+                parentWorkspaceId: normalizeWorkspaceId(parentWorkspaceId),
                 workspace: workspace
             });
         });
+
         return entries;
     }
 
@@ -168,8 +331,8 @@
         return makeOrderToken(entry.kind, entry.id);
     }
 
-    function normalizeManualOrderTokens(tokens, cfg) {
-        var automaticEntries = buildAutomaticEntries(cfg || {});
+    function normalizeManualOrderTokens(tokens, cfg, parentWorkspaceId) {
+        var automaticEntries = buildAutomaticEntriesForParent(parentWorkspaceId, cfg || {});
         var actualTokens = automaticEntries.map(entryToToken).filter(Boolean);
         var actualSet = new Set(actualTokens);
         var used = new Set();
@@ -192,16 +355,47 @@
         return normalized;
     }
 
+    function getManualOrderTokensForParent(parentWorkspaceId, configRef) {
+        var cfg = ensureConfigDefaults(configRef);
+        if (!cfg) return [];
+
+        var state = getManualOrderState(cfg);
+        var key = getManualOrderKey(parentWorkspaceId);
+        var sourceTokens = key === 'root' ? state.root : state.parents[key];
+        var normalized = normalizeManualOrderTokens(sourceTokens, cfg, parentWorkspaceId);
+
+        if (key === 'root') state.root = normalized;
+        else if (normalized.length) state.parents[key] = normalized;
+        else delete state.parents[key];
+
+        return normalized.slice();
+    }
+
+    function setManualOrderTokensForParent(parentWorkspaceId, tokens, configRef) {
+        var cfg = ensureConfigDefaults(configRef);
+        if (!cfg) return [];
+
+        var state = getManualOrderState(cfg);
+        var key = getManualOrderKey(parentWorkspaceId);
+        var normalized = normalizeManualOrderTokens(tokens, cfg, parentWorkspaceId);
+
+        if (key === 'root') state.root = normalized;
+        else if (normalized.length) state.parents[key] = normalized;
+        else delete state.parents[key];
+
+        return normalized.slice();
+    }
+
     function ensureConfigDefaults(configRef) {
         var cfg = configRef || getConfigRef();
         if (!cfg) return null;
+
         if (!Array.isArray(cfg.sidebarGroups)) cfg.sidebarGroups = [];
         if (typeof cfg.showHiddenSidebarGroups !== 'boolean') cfg.showHiddenSidebarGroups = false;
         if (typeof cfg.showInactiveTabs !== 'boolean') cfg.showInactiveTabs = false;
         if (typeof cfg.sidebarFocusedGroupId !== 'string') cfg.sidebarFocusedGroupId = '';
         cfg.sidebarFocusedGroupId = normalizeGroupId(cfg.sidebarFocusedGroupId);
         cfg.sidebarOrderMode = normalizeOrderMode(cfg.sidebarOrderMode);
-        if (!Array.isArray(cfg.sidebarManualOrder)) cfg.sidebarManualOrder = [];
 
         var seen = new Set();
         cfg.sidebarGroups = cfg.sidebarGroups
@@ -213,24 +407,42 @@
                 return true;
             });
 
-        cfg.sidebarManualOrder = normalizeManualOrderTokens(cfg.sidebarManualOrder, cfg);
+        cfg.sidebarGroups.forEach(function (group) {
+            group.parentWorkspaceId = normalizeGroupParentWorkspaceId(group.parentWorkspaceId, group.id, cfg);
+        });
+
+        var manualState = getManualOrderState(cfg);
+        manualState.root = normalizeManualOrderTokens(manualState.root, cfg, '');
+
+        var validParentIds = new Set();
+        var helpers = getHelpers();
+        if (helpers && typeof helpers.flattenIds === 'function') {
+            helpers.flattenIds(cfg.workspaces || []).forEach(function (workspaceId) {
+                validParentIds.add(String(workspaceId));
+            });
+        } else {
+            getRootWorkspaces(cfg).forEach(function (workspace) {
+                if (workspace && workspace.id) validParentIds.add(String(workspace.id));
+            });
+        }
+
+        Object.keys(manualState.parents).forEach(function (parentId) {
+            if (!validParentIds.has(parentId)) {
+                delete manualState.parents[parentId];
+                return;
+            }
+            var normalized = normalizeManualOrderTokens(manualState.parents[parentId], cfg, parentId);
+            if (normalized.length) manualState.parents[parentId] = normalized;
+            else delete manualState.parents[parentId];
+        });
+
         if (cfg.sidebarFocusedGroupId && !cfg.sidebarGroups.some(function (group) {
             return String(group.id) === cfg.sidebarFocusedGroupId;
         })) {
             cfg.sidebarFocusedGroupId = '';
         }
-        return cfg;
-    }
 
-    function isRootWorkspace(workspaceId, configRef) {
-        var cfg = ensureConfigDefaults(configRef);
-        if (!cfg) return false;
-        var helpers = window.EveWorkspaceHelpers;
-        if (!helpers || typeof helpers.findParent !== 'function') return false;
-        var targetId = String(workspaceId || '').trim();
-        if (!targetId) return false;
-        return helpers.findParent(cfg.workspaces || [], targetId) == null
-            && !!helpers.findById(cfg.workspaces || [], targetId);
+        return cfg;
     }
 
     function getVisibleBuckets(configRef) {
@@ -244,34 +456,27 @@
             };
         }
 
-        var groups = getGroups(cfg);
-        var groupedRoots = new Map();
-        groups.forEach(function (group) {
-            groupedRoots.set(String(group.id), []);
-        });
-
+        var rootEntries = buildAutomaticEntriesForParent('', cfg);
+        var visibleGroups = [];
+        var hiddenGroups = [];
         var ungroupedWorkspaces = [];
-        getRootWorkspaces(cfg).forEach(function (workspace) {
-            var groupId = getWorkspaceGroupId(workspace, cfg);
-            if (groupId && groupedRoots.has(groupId)) groupedRoots.get(groupId).push(workspace);
-            else ungroupedWorkspaces.push(workspace);
+
+        rootEntries.forEach(function (entry) {
+            if (entry.kind === 'group') {
+                if (entry.group.hidden) hiddenGroups.push(entry.group);
+                if (!entry.group.hidden || cfg.showHiddenSidebarGroups) {
+                    visibleGroups.push({
+                        group: entry.group,
+                        workspaces: entry.workspaces
+                    });
+                }
+                return;
+            }
+            if (entry.workspace) ungroupedWorkspaces.push(entry.workspace);
         });
-
-        var visibleGroups = groups
-            .filter(function (group) {
-                return !group.hidden || cfg.showHiddenSidebarGroups;
-            })
-            .map(function (group) {
-                return {
-                    group: group,
-                    workspaces: groupedRoots.get(String(group.id)) || []
-                };
-            });
-
-        var hiddenGroups = groups.filter(function (group) { return !!group.hidden; });
 
         return {
-            hasGroups: groups.length > 0,
+            hasGroups: visibleGroups.length > 0 || hiddenGroups.length > 0,
             visibleGroups: visibleGroups,
             hiddenGroups: hiddenGroups,
             ungroupedWorkspaces: ungroupedWorkspaces
@@ -288,7 +493,7 @@
         if (!cfg) return ORDER_MODE_AUTO;
         cfg.sidebarOrderMode = normalizeOrderMode(nextMode);
         if (cfg.sidebarOrderMode === ORDER_MODE_MANUAL) {
-            cfg.sidebarManualOrder = normalizeManualOrderTokens(cfg.sidebarManualOrder, cfg);
+            getManualOrderTokensForParent('', cfg);
         }
         return cfg.sidebarOrderMode;
     }
@@ -296,26 +501,28 @@
     function resetManualOrder(configRef) {
         var cfg = ensureConfigDefaults(configRef);
         if (!cfg) return [];
-        cfg.sidebarManualOrder = buildAutomaticEntries(cfg).map(entryToToken).filter(Boolean);
-        return cfg.sidebarManualOrder.slice();
+        cfg.sidebarManualOrder = {
+            root: buildAutomaticEntriesForParent('', cfg).map(entryToToken).filter(Boolean),
+            parents: {}
+        };
+        return cfg.sidebarManualOrder.root.slice();
     }
 
-    function getOrderedRootEntries(configRef, options) {
+    function getOrderedEntries(parentWorkspaceId, configRef, options) {
         var cfg = ensureConfigDefaults(configRef);
         if (!cfg) return [];
 
         var opts = options && typeof options === 'object' ? options : {};
         var includeHidden = !!opts.includeHidden;
-        var automaticEntries = buildAutomaticEntries(cfg);
+        var automaticEntries = buildAutomaticEntriesForParent(parentWorkspaceId, cfg);
         var orderedEntries = automaticEntries;
 
         if (cfg.sidebarOrderMode === ORDER_MODE_MANUAL) {
-            cfg.sidebarManualOrder = normalizeManualOrderTokens(cfg.sidebarManualOrder, cfg);
             var entryMap = new Map();
             automaticEntries.forEach(function (entry) {
                 entryMap.set(entryToToken(entry), entry);
             });
-            orderedEntries = cfg.sidebarManualOrder
+            orderedEntries = getManualOrderTokensForParent(parentWorkspaceId, cfg)
                 .map(function (token) { return entryMap.get(token); })
                 .filter(Boolean);
         }
@@ -326,12 +533,51 @@
         });
     }
 
-    function getManualOrderEntries(configRef) {
-        var cfg = ensureConfigDefaults(configRef);
-        return cfg ? cfg.sidebarManualOrder.slice() : [];
+    function getOrderedRootEntries(configRef, options) {
+        return getOrderedEntries('', configRef, options);
     }
 
-    function placeManualOrderEntry(entryType, entryId, beforeEntryType, beforeEntryId, configRef) {
+    function getManualOrderEntries(configRef, parentWorkspaceId) {
+        return getManualOrderTokensForParent(parentWorkspaceId || '', configRef);
+    }
+
+    function removeManualOrderEntry(entryType, entryId, configRef, parentWorkspaceId) {
+        var cfg = ensureConfigDefaults(configRef);
+        if (!cfg) return false;
+
+        var sourceToken = makeOrderToken(entryType, entryId);
+        if (!sourceToken) return false;
+
+        var state = getManualOrderState(cfg);
+        var changed = false;
+
+        function removeFromParent(parentId) {
+            var key = getManualOrderKey(parentId);
+            var tokens = key === 'root'
+                ? state.root.slice()
+                : Array.isArray(state.parents[key]) ? state.parents[key].slice() : [];
+            var nextTokens = tokens.filter(function (token) { return token !== sourceToken; });
+            if (nextTokens.length === tokens.length) return;
+            changed = true;
+            if (key === 'root') state.root = nextTokens;
+            else if (nextTokens.length) state.parents[key] = nextTokens;
+            else delete state.parents[key];
+        }
+
+        var explicitParentId = normalizeWorkspaceId(parentWorkspaceId);
+        if (explicitParentId || parentWorkspaceId === '') {
+            removeFromParent(explicitParentId);
+            return changed;
+        }
+
+        removeFromParent('');
+        Object.keys(state.parents).forEach(function (key) {
+            removeFromParent(key);
+        });
+        return changed;
+    }
+
+    function placeManualOrderEntry(entryType, entryId, beforeEntryType, beforeEntryId, configRef, parentWorkspaceId) {
         var cfg = ensureConfigDefaults(configRef);
         if (!cfg) return false;
 
@@ -339,21 +585,23 @@
         var sourceToken = makeOrderToken(entryType, entryId);
         if (!sourceToken) return false;
 
-        var actualTokens = new Set(buildAutomaticEntries(cfg).map(entryToToken).filter(Boolean));
+        var targetParentId = normalizeWorkspaceId(parentWorkspaceId);
+        var actualTokens = new Set(buildAutomaticEntriesForParent(targetParentId, cfg).map(entryToToken).filter(Boolean));
         if (!actualTokens.has(sourceToken)) return false;
 
-        var nextTokens = normalizeManualOrderTokens(cfg.sidebarManualOrder, cfg).filter(function (token) {
+        removeManualOrderEntry(entryType, entryId, cfg);
+        var nextTokens = getManualOrderTokensForParent(targetParentId, cfg).filter(function (token) {
             return token !== sourceToken;
         });
         var beforeToken = makeOrderToken(beforeEntryType, beforeEntryId);
         var insertIndex = beforeToken ? nextTokens.indexOf(beforeToken) : -1;
         if (insertIndex === -1) insertIndex = nextTokens.length;
         nextTokens.splice(insertIndex, 0, sourceToken);
-        cfg.sidebarManualOrder = normalizeManualOrderTokens(nextTokens, cfg);
+        setManualOrderTokensForParent(targetParentId, nextTokens, cfg);
         return true;
     }
 
-    function placeManualOrderEntryAfter(entryType, entryId, afterEntryType, afterEntryId, configRef) {
+    function placeManualOrderEntryAfter(entryType, entryId, afterEntryType, afterEntryId, configRef, parentWorkspaceId) {
         var cfg = ensureConfigDefaults(configRef);
         if (!cfg) return false;
 
@@ -361,36 +609,26 @@
         var sourceToken = makeOrderToken(entryType, entryId);
         if (!sourceToken) return false;
 
-        var actualTokens = new Set(buildAutomaticEntries(cfg).map(entryToToken).filter(Boolean));
+        var targetParentId = normalizeWorkspaceId(parentWorkspaceId);
+        var actualTokens = new Set(buildAutomaticEntriesForParent(targetParentId, cfg).map(entryToToken).filter(Boolean));
         if (!actualTokens.has(sourceToken)) return false;
 
-        var nextTokens = normalizeManualOrderTokens(cfg.sidebarManualOrder, cfg).filter(function (token) {
+        removeManualOrderEntry(entryType, entryId, cfg);
+        var nextTokens = getManualOrderTokensForParent(targetParentId, cfg).filter(function (token) {
             return token !== sourceToken;
         });
         var afterToken = makeOrderToken(afterEntryType, afterEntryId);
         var insertIndex = afterToken ? nextTokens.indexOf(afterToken) + 1 : -1;
         if (insertIndex <= 0) insertIndex = nextTokens.length;
         nextTokens.splice(insertIndex, 0, sourceToken);
-        cfg.sidebarManualOrder = normalizeManualOrderTokens(nextTokens, cfg);
+        setManualOrderTokensForParent(targetParentId, nextTokens, cfg);
         return true;
-    }
-
-    function removeManualOrderEntry(entryType, entryId, configRef) {
-        var cfg = ensureConfigDefaults(configRef);
-        if (!cfg) return false;
-        var sourceToken = makeOrderToken(entryType, entryId);
-        if (!sourceToken) return false;
-        var nextTokens = normalizeManualOrderTokens(cfg.sidebarManualOrder, cfg).filter(function (token) {
-            return token !== sourceToken;
-        });
-        var changed = nextTokens.length !== cfg.sidebarManualOrder.length;
-        cfg.sidebarManualOrder = nextTokens;
-        return changed;
     }
 
     function createGroup(options, configRef) {
         var cfg = ensureConfigDefaults(configRef);
         if (!cfg) return null;
+
         var opts = options && typeof options === 'object' ? options : {};
         var groups = getGroups(cfg);
         var nextGroup = sanitizeGroup({
@@ -398,22 +636,25 @@
             name: opts.name,
             color: opts.color,
             collapsed: opts.collapsed,
-            hidden: opts.hidden
+            hidden: opts.hidden,
+            parentWorkspaceId: opts.parentWorkspaceId
         }, groups.length);
+        nextGroup.parentWorkspaceId = normalizeGroupParentWorkspaceId(nextGroup.parentWorkspaceId, nextGroup.id, cfg);
+
         groups.push(nextGroup);
         cfg.sidebarGroups = groups;
+
         if (cfg.sidebarOrderMode === ORDER_MODE_MANUAL) {
-            cfg.sidebarManualOrder = normalizeManualOrderTokens(
-                cfg.sidebarManualOrder.concat([makeOrderToken('group', nextGroup.id)]),
-                cfg
-            );
+            placeManualOrderEntry('group', nextGroup.id, '', '', cfg, nextGroup.parentWorkspaceId);
         }
+
         return nextGroup;
     }
 
     function updateGroup(groupId, updates, configRef) {
         var cfg = ensureConfigDefaults(configRef);
         if (!cfg) return null;
+
         var targetId = normalizeGroupId(groupId);
         var groups = cfg.sidebarGroups;
         var index = groups.findIndex(function (entry) {
@@ -423,10 +664,20 @@
 
         var group = groups[index];
         var next = updates && typeof updates === 'object' ? updates : {};
+        var previousParentId = normalizeWorkspaceId(group.parentWorkspaceId);
+
         group.name = String(next.name != null ? next.name : group.name).trim() || group.name;
         group.color = normalizeColor(next.color != null ? next.color : group.color, Math.max(index, 0));
         if (Object.prototype.hasOwnProperty.call(next, 'collapsed')) group.collapsed = !!next.collapsed;
         if (Object.prototype.hasOwnProperty.call(next, 'hidden')) group.hidden = !!next.hidden;
+        if (Object.prototype.hasOwnProperty.call(next, 'parentWorkspaceId')) {
+            group.parentWorkspaceId = normalizeGroupParentWorkspaceId(next.parentWorkspaceId, group.id, cfg);
+        }
+
+        if (cfg.sidebarOrderMode === ORDER_MODE_MANUAL && previousParentId !== normalizeWorkspaceId(group.parentWorkspaceId)) {
+            placeManualOrderEntry('group', group.id, '', '', cfg, group.parentWorkspaceId);
+        }
+
         return group;
     }
 
@@ -435,35 +686,38 @@
         var targetId = normalizeGroupId(groupId);
         if (!cfg || !targetId) return false;
 
+        var group = findGroupById(targetId, cfg);
+        if (!group) return false;
+
+        var rootTokenIndex = getManualOrderTokensForParent('', cfg).indexOf(makeOrderToken('group', targetId));
         var groupRoots = getGroupRoots(targetId, cfg).map(function (workspace) {
             return String(workspace.id);
         });
-        var manualTokensBefore = normalizeManualOrderTokens(cfg.sidebarManualOrder, cfg);
-        var groupToken = makeOrderToken('group', targetId);
-        var groupTokenIndex = manualTokensBefore.indexOf(groupToken);
+        var wasRootGroup = !normalizeWorkspaceId(group.parentWorkspaceId);
         var beforeCount = getGroups(cfg).length;
 
-        cfg.sidebarGroups = getGroups(cfg).filter(function (group) {
-            return String(group.id) !== targetId;
+        cfg.sidebarGroups = getGroups(cfg).filter(function (entry) {
+            return String(entry.id) !== targetId;
         });
         if (cfg.sidebarGroups.length === beforeCount) return false;
+
         if (cfg.sidebarFocusedGroupId === targetId) cfg.sidebarFocusedGroupId = '';
 
         getRootWorkspaces(cfg).forEach(function (workspace) {
-            if (normalizeGroupId(workspace.groupId) === targetId) {
-                delete workspace.groupId;
-            }
+            if (normalizeGroupId(workspace.groupId) === targetId) delete workspace.groupId;
         });
 
-        if (cfg.sidebarOrderMode === ORDER_MODE_MANUAL) {
-            var nextTokens = manualTokensBefore.filter(function (token) {
-                return token !== groupToken;
-            });
-            var insertIndex = groupTokenIndex >= 0 ? groupTokenIndex : nextTokens.length;
+        removeManualOrderEntry('group', targetId, cfg);
+
+        if (cfg.sidebarOrderMode === ORDER_MODE_MANUAL && wasRootGroup && groupRoots.length) {
+            var rootTokens = getManualOrderTokensForParent('', cfg).slice();
+            var insertIndex = rootTokenIndex >= 0 ? Math.min(rootTokenIndex, rootTokens.length) : rootTokens.length;
             groupRoots.forEach(function (workspaceId, offset) {
-                nextTokens.splice(insertIndex + offset, 0, makeOrderToken('workspace', workspaceId));
+                var token = makeOrderToken('workspace', workspaceId);
+                if (rootTokens.indexOf(token) !== -1) return;
+                rootTokens.splice(insertIndex + offset, 0, token);
             });
-            cfg.sidebarManualOrder = normalizeManualOrderTokens(nextTokens, cfg);
+            setManualOrderTokensForParent('', rootTokens, cfg);
         }
 
         return true;
@@ -508,23 +762,6 @@
         return cfg.sidebarFocusedGroupId;
     }
 
-    function getWorkspaceRoot(workspaceOrId, configRef) {
-        var cfg = ensureConfigDefaults(configRef);
-        if (!cfg) return null;
-        var targetId = workspaceOrId && typeof workspaceOrId === 'object'
-            ? String(workspaceOrId.id || '').trim()
-            : String(workspaceOrId || '').trim();
-        if (!targetId) return null;
-
-        var helpers = window.EveWorkspaceHelpers;
-        if (helpers && typeof helpers.getPath === 'function') {
-            var path = helpers.getPath(cfg.workspaces || [], targetId);
-            return path.length ? path[0] : null;
-        }
-
-        return getRootWorkspaceById(targetId, cfg);
-    }
-
     function isWorkspaceInFocusedGroup(workspaceOrId, configRef) {
         var cfg = ensureConfigDefaults(configRef);
         if (!cfg) return true;
@@ -538,20 +775,13 @@
     function isWorkspaceEffectivelyInactive(workspaceOrId, configRef) {
         var cfg = ensureConfigDefaults(configRef);
         if (!cfg) return false;
+
         var focusedGroupId = getFocusedGroupId(cfg);
-        if (focusedGroupId) {
-            return !isWorkspaceInFocusedGroup(workspaceOrId, cfg);
-        }
+        if (focusedGroupId) return !isWorkspaceInFocusedGroup(workspaceOrId, cfg);
 
         var workspace = workspaceOrId && typeof workspaceOrId === 'object'
             ? workspaceOrId
-            : null;
-        if (!workspace) {
-            var helpers = window.EveWorkspaceHelpers;
-            if (helpers && typeof helpers.findById === 'function') {
-                workspace = helpers.findById(cfg.workspaces || [], workspaceOrId);
-            }
-        }
+            : getWorkspaceById(workspaceOrId, cfg);
         return !!(workspace && workspace.inactive);
     }
 
@@ -565,8 +795,9 @@
         var cfg = ensureConfigDefaults(configRef);
         if (!cfg) return [];
         if (!Array.isArray(cfg.collapsedTabs)) cfg.collapsedTabs = [];
-        var helpers = window.EveWorkspaceHelpers;
+        var helpers = getHelpers();
         var collapsedIds = new Set(cfg.collapsedTabs.map(String));
+
         getGroupRoots(groupId, cfg).forEach(function (workspace) {
             if (helpers && typeof helpers.walk === 'function') {
                 helpers.walk([workspace], function (node) {
@@ -578,6 +809,7 @@
                 collapsedIds.add(String(workspace.id));
             }
         });
+
         cfg.collapsedTabs = Array.from(collapsedIds);
         return cfg.collapsedTabs;
     }
@@ -586,8 +818,9 @@
         var cfg = ensureConfigDefaults(configRef);
         if (!cfg) return [];
         if (!Array.isArray(cfg.collapsedTabs)) cfg.collapsedTabs = [];
-        var helpers = window.EveWorkspaceHelpers;
+        var helpers = getHelpers();
         var removableIds = new Set();
+
         getGroupRoots(groupId, cfg).forEach(function (workspace) {
             if (helpers && typeof helpers.walk === 'function') {
                 helpers.walk([workspace], function (node) {
@@ -599,6 +832,7 @@
                 removableIds.add(String(workspace.id));
             }
         });
+
         cfg.collapsedTabs = cfg.collapsedTabs.filter(function (id) {
             return !removableIds.has(String(id));
         });
@@ -619,11 +853,29 @@
         return getGroups(configRef);
     }
 
+    function canGroupWorkspaceInGroup(workspaceId, groupId, configRef) {
+        var cfg = ensureConfigDefaults(configRef);
+        if (!cfg || !isRootWorkspace(workspaceId, cfg)) return false;
+
+        var group = findGroupById(groupId, cfg);
+        if (!group) return false;
+
+        var groupParentId = getGroupParentWorkspaceId(group.id, cfg);
+        if (!groupParentId) return true;
+        if (groupParentId === normalizeWorkspaceId(workspaceId)) return false;
+
+        var helpers = getHelpers();
+        var rootWorkspace = getRootWorkspaceById(workspaceId, cfg);
+        if (!helpers || !rootWorkspace || typeof helpers.getPath !== 'function') return true;
+        return helpers.getPath([rootWorkspace], groupParentId).length === 0;
+    }
+
     function moveRootWorkspaceToGroup(workspaceId, groupId, configRef) {
         var cfg = ensureConfigDefaults(configRef);
         var targetId = normalizeGroupId(groupId);
         if (!cfg || !isRootWorkspace(workspaceId, cfg)) return false;
         if (targetId && !findGroupById(targetId, cfg)) return false;
+        if (targetId && !canGroupWorkspaceInGroup(workspaceId, targetId, cfg)) return false;
 
         var roots = getRootWorkspaces(cfg).slice();
         var dragIndex = roots.findIndex(function (workspace) {
@@ -636,16 +888,23 @@
         if (targetId) dragged.groupId = targetId;
         else delete dragged.groupId;
 
-        roots.push(dragged);
+        var insertIndex = roots.length;
+        if (targetId) {
+            var lastIndex = roots.reduce(function (acc, workspace, index) {
+                return getWorkspaceGroupId(workspace, cfg) === targetId ? index : acc;
+            }, -1);
+            insertIndex = lastIndex === -1 ? roots.length : lastIndex + 1;
+        }
+        roots.splice(insertIndex, 0, dragged);
         cfg.workspaces = roots;
 
         if (cfg.sidebarOrderMode === ORDER_MODE_MANUAL) {
             if (targetId) {
                 removeManualOrderEntry('workspace', workspaceId, cfg);
             } else if (previousGroupId) {
-                placeManualOrderEntryAfter('workspace', workspaceId, 'group', previousGroupId, cfg);
+                placeManualOrderEntryAfter('workspace', workspaceId, 'group', previousGroupId, cfg, '');
             } else {
-                placeManualOrderEntry('workspace', workspaceId, '', '', cfg);
+                placeManualOrderEntry('workspace', workspaceId, '', '', cfg, '');
             }
         }
 
@@ -669,9 +928,29 @@
             return true;
         }
         if (prevGroup) {
-            return placeManualOrderEntryAfter('workspace', workspaceId, 'group', prevGroup, cfg);
+            return placeManualOrderEntryAfter('workspace', workspaceId, 'group', prevGroup, cfg, '');
         }
-        return placeManualOrderEntry('workspace', workspaceId, '', '', cfg);
+        return placeManualOrderEntry('workspace', workspaceId, '', '', cfg, '');
+    }
+
+    function setGroupParentWorkspaceId(groupId, parentWorkspaceId, configRef) {
+        var cfg = ensureConfigDefaults(configRef);
+        if (!cfg) return false;
+
+        var group = findGroupById(groupId, cfg);
+        if (!group) return false;
+
+        var nextParentId = normalizeGroupParentWorkspaceId(parentWorkspaceId, group.id, cfg);
+        var previousParentId = normalizeWorkspaceId(group.parentWorkspaceId);
+        if (previousParentId === nextParentId) return true;
+
+        group.parentWorkspaceId = nextParentId;
+
+        if (cfg.sidebarOrderMode === ORDER_MODE_MANUAL) {
+            placeManualOrderEntry('group', group.id, '', '', cfg, nextParentId);
+        }
+
+        return true;
     }
 
     window.EveSidebarGroups = {
@@ -682,6 +961,9 @@
         getRootWorkspaces: getRootWorkspaces,
         getWorkspaceGroupId: getWorkspaceGroupId,
         getGroupRoots: getGroupRoots,
+        getGroupParentWorkspaceId: getGroupParentWorkspaceId,
+        setGroupParentWorkspaceId: setGroupParentWorkspaceId,
+        getGroupsForParent: getGroupsForParent,
         getVisibleBuckets: getVisibleBuckets,
         getFocusedGroupId: getFocusedGroupId,
         setFocusedGroup: setFocusedGroup,
@@ -690,6 +972,7 @@
         isGroupEffectivelyInactive: isGroupEffectivelyInactive,
         getSidebarOrderMode: getSidebarOrderMode,
         setSidebarOrderMode: setSidebarOrderMode,
+        getOrderedEntries: getOrderedEntries,
         getOrderedRootEntries: getOrderedRootEntries,
         getManualOrderEntries: getManualOrderEntries,
         resetManualOrder: resetManualOrder,
@@ -708,6 +991,8 @@
         expandTabsForGroup: expandTabsForGroup,
         collapseAllGroups: collapseAllGroups,
         expandAllGroups: expandAllGroups,
+        canGroupWorkspaceInGroup: canGroupWorkspaceInGroup,
+        canPlaceGroupUnderWorkspace: canPlaceGroupUnderWorkspace,
         moveRootWorkspaceToGroup: moveRootWorkspaceToGroup
     };
 })();
