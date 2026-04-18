@@ -154,6 +154,7 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
     // Group overview mode: each link is rendered relative to its owning group root,
     // so "main vs shortcut" badge logic works per-tab instead of against a single active tab.
     const overviewRootMap = window._eveGroupOverviewRootMap;
+    const isGroupOverviewMode = !!overviewRootMap;
     if (overviewRootMap) {
         const mapped = overviewRootMap.get(String(l.workspace || ''));
         if (mapped) activeWorkspace = mapped;
@@ -206,7 +207,7 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
 
     // Sub-tab origin badge: shown when this link came from a sub-tab merged into the parent view
     let subTabBadge = '';
-    if (!perfMode && !searchStr) {
+    if (!perfMode && !searchStr && !isGroupOverviewMode) {
         const helpers = window.EveWorkspaceHelpers;
         if (l.workspace !== activeWorkspace) {
             const subWs = helpers
