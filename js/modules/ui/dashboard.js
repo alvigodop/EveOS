@@ -347,18 +347,34 @@ function _renderDashboardCore() {
     }
     // Expose for link badge rendering
     window._eveActiveVisibleWorkspaceIds = visibleWorkspaceIds;
+    const folderPathLabelBuilder = window.EveBookmarkFolders?.buildFolderPathLabel;
 
     const visibleLinks = links.filter(function (link) {
         if (!visibleWorkspaceIds.has(String(link?.workspace || 'main').trim())) return false;
         if (searchTerms.length === 0) return true;
-        
-        const titleStr = String(link?.title || '').toLowerCase();
+
+        const titleStr = String(link?.title || link?.name || '').toLowerCase();
+        const nameStr = String(link?.name || '').toLowerCase();
         const urlStr = String(link?.url || '').toLowerCase();
         const catStr = String(link?.category || 'Unsorted').toLowerCase();
         const folderStr = String(link?.folderId || '').toLowerCase();
-        
+        const folderLabelStr = typeof folderPathLabelBuilder === 'function'
+            ? String(folderPathLabelBuilder(link?.workspace, link?.category, link?.folderId) || '').toLowerCase()
+            : '';
+        const notesStr = String(link?.notes || '').toLowerCase();
+        const tagsStr = Array.isArray(link?.tags)
+            ? link.tags.map(function (tag) { return String(tag || '').trim(); }).filter(Boolean).join(' ').toLowerCase()
+            : '';
+
         return searchTerms.every(function (term) {
-            return titleStr.includes(term) || urlStr.includes(term) || catStr.includes(term) || folderStr.includes(term);
+            return titleStr.includes(term)
+                || nameStr.includes(term)
+                || urlStr.includes(term)
+                || catStr.includes(term)
+                || folderStr.includes(term)
+                || folderLabelStr.includes(term)
+                || notesStr.includes(term)
+                || tagsStr.includes(term);
         });
     });
     // Level 1: Standard Perf Mode (600+) - degraded animations, basic throttling

@@ -25,6 +25,7 @@ window.ContextMenus.template = `
 <div id="sidebar-group-context-menu" class="context-menu">
     <div class="ctx-item" onclick="ctxSidebarGroupCreateWorkspace()">&#10133; New Tab In Group</div>
     <div class="ctx-item" id="ctx-sidebar-group-edit" onclick="ctxSidebarGroupEdit()">&#9998; Edit Group</div>
+    <div class="ctx-item" id="ctx-sidebar-group-focus" onclick="ctxSidebarGroupToggleFocus()">&#127919; Focus Group</div>
     <div class="ctx-item" id="ctx-sidebar-group-toggle-collapsed" onclick="ctxSidebarGroupToggleCollapsed()">&#9660; Collapse Group</div>
     <div class="ctx-item" onclick="ctxSidebarGroupCollapseTabs()">&#9660; Collapse Tabs In Group</div>
     <div class="ctx-item" onclick="ctxSidebarGroupExpandTabs()">&#9650; Expand Tabs In Group</div>

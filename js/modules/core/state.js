@@ -40,6 +40,7 @@ let config = {
     sidebarGroups: [],
     sidebarOrderMode: "auto",
     sidebarManualOrder: [],
+    sidebarFocusedGroupId: "",
     showHiddenSidebarGroups: false,
     showInactiveTabs: false,
     activeWorkspace: "main",

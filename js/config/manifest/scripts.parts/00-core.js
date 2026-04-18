@@ -4,13 +4,13 @@ window.EveModuleManifestScriptChunks = window.EveModuleManifestScriptChunks || [
 
 window.EveModuleManifestScriptChunks.push([
     // Core Modules (Ordered by Dependency)
-    "js/modules/core/state.js?v=0.2.7",
+    "js/modules/core/state.js?v=0.2.8",
     "js/modules/core/workspace-helpers.js?v=0.1.1",
     "js/modules/core/category-order.js?v=0.1.0",
     "js/modules/core/utils.js?v=0.2.1",
     "js/modules/core/search-monitor-boot.js?v=0.1.1",
     "js/modules/core/indexeddb-store.js",
-    "js/modules/core/storage.js?v=0.2.4",
+    "js/modules/core/storage.js?v=0.2.5",
     "js/modules/features/semantic-drift.js?v=0.1.1",
     "js/modules/features/bookmark-folders/bookmark-folders.shared.store.js?v=0.1.1",
     "js/modules/features/bookmark-folders/bookmark-folders.shared.library.js?v=0.1.0",
@@ -160,6 +160,6 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/quick-pins/quick-pins.main.collection.js?v=0.1.0",
     "js/modules/features/quick-pins/quick-pins.main.js?v=0.4.0",
     "js/modules/core/actions.js?v=0.2.6",
-    "js/modules/ui/tab-nav-history.js?v=0.4.4",
+    "js/modules/ui/tab-nav-history.js?v=0.4.5",
     "js/modules/core/categories.js?v=0.1.0"
 ]);

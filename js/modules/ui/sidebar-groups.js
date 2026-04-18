@@ -198,6 +198,8 @@
         if (!Array.isArray(cfg.sidebarGroups)) cfg.sidebarGroups = [];
         if (typeof cfg.showHiddenSidebarGroups !== 'boolean') cfg.showHiddenSidebarGroups = false;
         if (typeof cfg.showInactiveTabs !== 'boolean') cfg.showInactiveTabs = false;
+        if (typeof cfg.sidebarFocusedGroupId !== 'string') cfg.sidebarFocusedGroupId = '';
+        cfg.sidebarFocusedGroupId = normalizeGroupId(cfg.sidebarFocusedGroupId);
         cfg.sidebarOrderMode = normalizeOrderMode(cfg.sidebarOrderMode);
         if (!Array.isArray(cfg.sidebarManualOrder)) cfg.sidebarManualOrder = [];
 
@@ -212,6 +214,11 @@
             });
 
         cfg.sidebarManualOrder = normalizeManualOrderTokens(cfg.sidebarManualOrder, cfg);
+        if (cfg.sidebarFocusedGroupId && !cfg.sidebarGroups.some(function (group) {
+            return String(group.id) === cfg.sidebarFocusedGroupId;
+        })) {
+            cfg.sidebarFocusedGroupId = '';
+        }
         return cfg;
     }
 
@@ -440,6 +447,7 @@
             return String(group.id) !== targetId;
         });
         if (cfg.sidebarGroups.length === beforeCount) return false;
+        if (cfg.sidebarFocusedGroupId === targetId) cfg.sidebarFocusedGroupId = '';
 
         getRootWorkspaces(cfg).forEach(function (workspace) {
             if (normalizeGroupId(workspace.groupId) === targetId) {
@@ -483,6 +491,74 @@
             ? nextValue
             : !cfg.showHiddenSidebarGroups;
         return cfg.showHiddenSidebarGroups;
+    }
+
+    function getFocusedGroupId(configRef) {
+        var cfg = ensureConfigDefaults(configRef);
+        if (!cfg) return '';
+        return normalizeGroupId(cfg.sidebarFocusedGroupId);
+    }
+
+    function setFocusedGroup(groupId, configRef) {
+        var cfg = ensureConfigDefaults(configRef);
+        if (!cfg) return '';
+        var targetId = normalizeGroupId(groupId);
+        if (targetId && !findGroupById(targetId, cfg)) return getFocusedGroupId(cfg);
+        cfg.sidebarFocusedGroupId = targetId;
+        return cfg.sidebarFocusedGroupId;
+    }
+
+    function getWorkspaceRoot(workspaceOrId, configRef) {
+        var cfg = ensureConfigDefaults(configRef);
+        if (!cfg) return null;
+        var targetId = workspaceOrId && typeof workspaceOrId === 'object'
+            ? String(workspaceOrId.id || '').trim()
+            : String(workspaceOrId || '').trim();
+        if (!targetId) return null;
+
+        var helpers = window.EveWorkspaceHelpers;
+        if (helpers && typeof helpers.getPath === 'function') {
+            var path = helpers.getPath(cfg.workspaces || [], targetId);
+            return path.length ? path[0] : null;
+        }
+
+        return getRootWorkspaceById(targetId, cfg);
+    }
+
+    function isWorkspaceInFocusedGroup(workspaceOrId, configRef) {
+        var cfg = ensureConfigDefaults(configRef);
+        if (!cfg) return true;
+        var focusedGroupId = getFocusedGroupId(cfg);
+        if (!focusedGroupId) return true;
+        var rootWorkspace = getWorkspaceRoot(workspaceOrId, cfg);
+        if (!rootWorkspace) return false;
+        return getWorkspaceGroupId(rootWorkspace, cfg) === focusedGroupId;
+    }
+
+    function isWorkspaceEffectivelyInactive(workspaceOrId, configRef) {
+        var cfg = ensureConfigDefaults(configRef);
+        if (!cfg) return false;
+        var focusedGroupId = getFocusedGroupId(cfg);
+        if (focusedGroupId) {
+            return !isWorkspaceInFocusedGroup(workspaceOrId, cfg);
+        }
+
+        var workspace = workspaceOrId && typeof workspaceOrId === 'object'
+            ? workspaceOrId
+            : null;
+        if (!workspace) {
+            var helpers = window.EveWorkspaceHelpers;
+            if (helpers && typeof helpers.findById === 'function') {
+                workspace = helpers.findById(cfg.workspaces || [], workspaceOrId);
+            }
+        }
+        return !!(workspace && workspace.inactive);
+    }
+
+    function isGroupEffectivelyInactive(groupId, configRef) {
+        var focusedGroupId = getFocusedGroupId(configRef);
+        var targetId = normalizeGroupId(groupId);
+        return !!focusedGroupId && !!targetId && focusedGroupId !== targetId;
     }
 
     function collapseTabsForGroup(groupId, configRef) {
@@ -607,6 +683,11 @@
         getWorkspaceGroupId: getWorkspaceGroupId,
         getGroupRoots: getGroupRoots,
         getVisibleBuckets: getVisibleBuckets,
+        getFocusedGroupId: getFocusedGroupId,
+        setFocusedGroup: setFocusedGroup,
+        isWorkspaceInFocusedGroup: isWorkspaceInFocusedGroup,
+        isWorkspaceEffectivelyInactive: isWorkspaceEffectivelyInactive,
+        isGroupEffectivelyInactive: isGroupEffectivelyInactive,
         getSidebarOrderMode: getSidebarOrderMode,
         setSidebarOrderMode: setSidebarOrderMode,
         getOrderedRootEntries: getOrderedRootEntries,

@@ -212,13 +212,15 @@
 
 .ws-group-title,
 .ws-group-count,
-.ws-group-hidden-badge {
+.ws-group-hidden-badge,
+.ws-group-focus-badge {
     display: none;
 }
 
 #sidebar:hover .ws-group-title,
 #sidebar:hover .ws-group-count,
-#sidebar:hover .ws-group-hidden-badge {
+#sidebar:hover .ws-group-hidden-badge,
+#sidebar:hover .ws-group-focus-badge {
     display: inline-flex;
     align-items: center;
 }
@@ -245,6 +247,13 @@
     padding-left: 6px;
     border-left: 1px solid rgba(255, 255, 255, 0.08);
     color: rgba(255, 255, 255, 0.58);
+}
+
+.ws-group-focus-badge {
+    font-size: 0.62rem;
+    padding-left: 6px;
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
+    color: color-mix(in srgb, var(--ws-group-color) 76%, rgba(255, 255, 255, 0.72));
 }
 
 .ws-group-body {
@@ -304,6 +313,17 @@
 .ws-group-section--hidden .ws-group-header {
     opacity: 0.58;
     border-style: dashed;
+}
+
+.ws-group-section--focused .ws-group-header {
+    border-color: color-mix(in srgb, var(--ws-group-color) 54%, rgba(255, 255, 255, 0.18));
+    background: color-mix(in srgb, var(--ws-group-color) 20%, rgba(255, 255, 255, 0.06));
+    box-shadow: 0 0 16px color-mix(in srgb, var(--ws-group-color) 18%, transparent);
+}
+
+.ws-group-section--inactive .ws-group-header,
+.ws-group-section--inactive .ws-group-body {
+    opacity: 0.42;
 }
 
 .ws-group-section--hidden .ws-group-body {
@@ -692,9 +712,20 @@ html[data-native-scheme="light"] .ws-group-hidden-badge {
     color: rgba(0, 0, 0, 0.45);
 }
 
+html[data-native-scheme="light"] .ws-group-focus-badge {
+    border-left-color: rgba(0, 0, 0, 0.08);
+    color: color-mix(in srgb, var(--ws-group-color) 66%, rgba(0, 0, 0, 0.54));
+}
+
 html[data-native-scheme="light"] #sidebar:hover .ws-group-empty {
     border-color: rgba(0, 0, 0, 0.08);
     color: rgba(0, 0, 0, 0.45);
+}
+
+html[data-native-scheme="light"] .ws-group-section--focused .ws-group-header {
+    border-color: color-mix(in srgb, var(--ws-group-color) 36%, rgba(0, 0, 0, 0.12));
+    background: color-mix(in srgb, var(--ws-group-color) 14%, rgba(255, 255, 255, 0.76));
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
 }
 
 html[data-native-scheme="light"] .ws-group-section .ws-group-body {

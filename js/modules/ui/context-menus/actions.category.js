@@ -226,6 +226,34 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
         });
     }
 
+    function getFirstWorkspaceId(workspaces) {
+        const helpers = window.EveWorkspaceHelpers;
+        const list = Array.isArray(workspaces) ? workspaces : [];
+        let firstId = '';
+
+        if (helpers && typeof helpers.walk === 'function') {
+            helpers.walk(list, function (workspace) {
+                if (!firstId && workspace && workspace.id) {
+                    firstId = String(workspace.id);
+                }
+            });
+            return firstId;
+        }
+
+        (function walk(nodes) {
+            if (firstId || !Array.isArray(nodes)) return;
+            nodes.forEach(function (workspace) {
+                if (firstId || !workspace) return;
+                firstId = String(workspace.id || '').trim();
+                if (!firstId && Array.isArray(workspace.subTabs) && workspace.subTabs.length > 0) {
+                    walk(workspace.subTabs);
+                }
+            });
+        })(list);
+
+        return firstId;
+    }
+
     function applyCollapseToWorkspaceList(workspaces, shouldCollapse) {
         const helpers = window.EveWorkspaceHelpers;
         const collapsedIds = new Set(Array.isArray(config.collapsedTabs) ? config.collapsedTabs.map(String) : []);
@@ -300,6 +328,50 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
         if (typeof closeAllMenus === 'function') closeAllMenus();
     };
 
+    window.ctxSidebarGroupToggleFocus = function () {
+        if (!window.ctxSidebarGroupId) return;
+        const groupsApi = getSidebarGroupsApi();
+        if (!groupsApi || typeof groupsApi.setFocusedGroup !== 'function') return;
+
+        const targetGroupId = String(window.ctxSidebarGroupId || '').trim();
+        const currentFocusedGroupId = typeof groupsApi.getFocusedGroupId === 'function'
+            ? groupsApi.getFocusedGroupId(config)
+            : '';
+        const nextFocusedGroupId = currentFocusedGroupId === targetGroupId ? '' : targetGroupId;
+
+        if (nextFocusedGroupId) {
+            const roots = groupsApi.getGroupRoots(nextFocusedGroupId, config);
+            if (!roots.length) return showToast('Group has no tabs to focus', 'error');
+        }
+
+        groupsApi.setFocusedGroup(nextFocusedGroupId, config);
+
+        let nextWorkspaceId = '';
+        if (nextFocusedGroupId && typeof groupsApi.isWorkspaceInFocusedGroup === 'function') {
+            const activeWorkspaceId = String(config.activeWorkspace || '').trim();
+            if (!groupsApi.isWorkspaceInFocusedGroup(activeWorkspaceId, config)) {
+                nextWorkspaceId = getFirstWorkspaceId(groupsApi.getGroupRoots(nextFocusedGroupId, config));
+                if (nextWorkspaceId) config.activeWorkspace = nextWorkspaceId;
+            }
+        }
+
+        if (typeof closeAllMenus === 'function') closeAllMenus();
+        if (nextWorkspaceId && typeof switchWorkspace === 'function') {
+            switchWorkspace(nextWorkspaceId, { forceRender: true });
+        } else {
+            saveConfig();
+            if (typeof renderSidebar === 'function') renderSidebar();
+        }
+
+        const targetGroup = groupsApi.findGroupById(targetGroupId, config);
+        showToast(
+            nextFocusedGroupId
+                ? ('Focused group: ' + String(targetGroup?.name || 'Group'))
+                : 'Group focus cleared',
+            'info'
+        );
+    };
+
     window.ctxSidebarGroupToggleCollapsed = function () {
         if (!window.ctxSidebarGroupId) return;
         const groupsApi = getSidebarGroupsApi();
@@ -341,6 +413,11 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
         if (!groupsApi) return;
 
         const updatedGroup = groupsApi.setGroupHidden(window.ctxSidebarGroupId, undefined, config);
+        if (updatedGroup && updatedGroup.hidden && typeof groupsApi.getFocusedGroupId === 'function'
+            && groupsApi.getFocusedGroupId(config) === String(updatedGroup.id)
+            && typeof groupsApi.setFocusedGroup === 'function') {
+            groupsApi.setFocusedGroup('', config);
+        }
         saveAndRefreshSidebar(false);
         if (updatedGroup) {
             showToast(updatedGroup.hidden ? 'Group hidden from sidebar' : 'Group visible in sidebar', 'info');
@@ -354,8 +431,14 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
 
         if (!(await showConfirm('Delete group? Tabs will stay as normal root tabs.'))) return;
 
-        const deleted = groupsApi.deleteGroup(window.ctxSidebarGroupId, config);
+        const targetGroupId = String(window.ctxSidebarGroupId || '').trim();
+        const wasFocused = typeof groupsApi.getFocusedGroupId === 'function'
+            && groupsApi.getFocusedGroupId(config) === targetGroupId;
+        const deleted = groupsApi.deleteGroup(targetGroupId, config);
         if (!deleted) return showToast('Group not found', 'error');
+        if (wasFocused && typeof groupsApi.setFocusedGroup === 'function') {
+            groupsApi.setFocusedGroup('', config);
+        }
 
         saveAndRefreshSidebar(false);
         showToast('Group deleted', 'info');

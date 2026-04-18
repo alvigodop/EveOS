@@ -322,10 +322,11 @@
             ? groupsApi.getGroupMap(configRef)
             : new Map();
 
-        walkWorkspaces(function (ws, depth) {
+        walkWorkspaces(function (ws) {
             if (!ws || !ws.id) return;
 
             var path = buildBreadcrumbPath(ws.id);
+            var depthValue = Math.max(0, path.length - 1);
             var pathNames = path.map(function (segment) {
                 return String(segment?.name || '').trim();
             }).filter(Boolean);
@@ -343,9 +344,11 @@
                 id: String(ws.id || ''),
                 name: String(ws.name || ws.id || 'Untitled'),
                 icon: ws.icon || DEFAULT_ICON,
-                depth: typeof depth === 'number' ? depth : 0,
-                depthLabelText: getWorkspaceDepthLabelText(depth),
-                inactive: !!ws.inactive,
+                depth: depthValue,
+                depthLabelText: getWorkspaceDepthLabelText(depthValue),
+                inactive: groupsApi && typeof groupsApi.isWorkspaceEffectivelyInactive === 'function'
+                    ? groupsApi.isWorkspaceEffectivelyInactive(ws, configRef)
+                    : !!ws.inactive,
                 pathText: pathText,
                 pathLower: pathText.toLowerCase(),
                 nameLower: String(ws.name || ws.id || '').toLowerCase(),

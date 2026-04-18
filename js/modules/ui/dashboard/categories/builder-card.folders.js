@@ -16,6 +16,9 @@ function buildFolderSectionsHtml(categoryName, linksForCard, options, renderer) 
         const isDetachedParkingCard = !!options?.detachedParkingCard;
         const readOnlyFolders = !!options?.readOnlyFolders && !isDetachedParkingCard;
         const virtualFolderViewModel = options?.virtualFolderViewModel || null;
+        if (options?.searchStr) {
+            return renderer(linksForCard);
+        }
         if (!virtualFolderViewModel && !folderApi?.buildFolderView) {
             return renderer(linksForCard);
         }

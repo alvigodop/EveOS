@@ -722,6 +722,7 @@ async function loadData() {
         ? 'manual'
         : 'auto';
     if (!Array.isArray(config.sidebarManualOrder)) config.sidebarManualOrder = [];
+    config.sidebarFocusedGroupId = String(config.sidebarFocusedGroupId || '').trim();
     if (typeof config.showHiddenSidebarGroups !== 'boolean') config.showHiddenSidebarGroups = false;
     if (typeof config.showInactiveTabs !== 'boolean') config.showInactiveTabs = false;
 

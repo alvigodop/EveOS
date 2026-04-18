@@ -92,6 +92,83 @@ function renderSidebar() {
             && groupsApi.getSidebarOrderMode(config) === 'manual');
     }
 
+    function getFocusedGroupId() {
+        return groupsApi && typeof groupsApi.getFocusedGroupId === 'function'
+            ? groupsApi.getFocusedGroupId(config)
+            : '';
+    }
+
+    function isWorkspaceEffectivelyInactive(ws) {
+        if (!ws) return true;
+        if (groupsApi && typeof groupsApi.isWorkspaceEffectivelyInactive === 'function') {
+            return groupsApi.isWorkspaceEffectivelyInactive(ws, config);
+        }
+        return !!ws.inactive;
+    }
+
+    function shouldRenderWorkspace(ws) {
+        return !!ws && (!isWorkspaceEffectivelyInactive(ws) || !!config.showInactiveTabs);
+    }
+
+    function getRenderableWorkspaces(workspaces) {
+        return Array.isArray(workspaces)
+            ? workspaces.filter(function (workspace) { return shouldRenderWorkspace(workspace); })
+            : [];
+    }
+
+    function isGroupEffectivelyInactive(groupId) {
+        return !!(groupsApi && typeof groupsApi.isGroupEffectivelyInactive === 'function'
+            && groupsApi.isGroupEffectivelyInactive(groupId, config));
+    }
+
+    function shouldRenderGroup(group, workspaces) {
+        if (!group) return false;
+        if (config.showInactiveTabs) return true;
+        if (isGroupEffectivelyInactive(group.id)) return false;
+        return getRenderableWorkspaces(workspaces).length > 0;
+    }
+
+    function findFirstWorkspaceId(workspaces) {
+        const list = Array.isArray(workspaces) ? workspaces : [];
+        let firstId = '';
+
+        if (helpers && typeof helpers.walk === 'function') {
+            helpers.walk(list, function (workspace) {
+                if (!firstId && workspace && workspace.id) {
+                    firstId = String(workspace.id);
+                }
+            });
+            return firstId;
+        }
+
+        (function walk(nodes) {
+            if (firstId || !Array.isArray(nodes)) return;
+            nodes.forEach(function (workspace) {
+                if (firstId || !workspace) return;
+                firstId = String(workspace.id || '').trim();
+                if (!firstId && Array.isArray(workspace.subTabs) && workspace.subTabs.length > 0) {
+                    walk(workspace.subTabs);
+                }
+            });
+        })(list);
+
+        return firstId;
+    }
+
+    const focusedGroupId = getFocusedGroupId();
+    if (focusedGroupId && groupsApi && typeof groupsApi.isWorkspaceInFocusedGroup === 'function'
+        && !groupsApi.isWorkspaceInFocusedGroup(String(config.activeWorkspace || '').trim(), config)) {
+        const focusedRoots = groupsApi.getGroupRoots(focusedGroupId, config);
+        const fallbackWorkspaceId = findFirstWorkspaceId(focusedRoots);
+        if (fallbackWorkspaceId) {
+            config.activeWorkspace = fallbackWorkspaceId;
+            saveConfig({ immediate: true });
+        } else if (typeof groupsApi.setFocusedGroup === 'function') {
+            groupsApi.setFocusedGroup('', config);
+            saveConfig({ immediate: true });
+        }
+    }
+
     function isDescendantOf(targetId, maybeDescendantId) {
         if (!helpers) return false;
         const target = helpers.findById(config.workspaces, targetId);
@@ -221,11 +298,19 @@ function renderSidebar() {
     }
 
     function getTopLevelEntries(includeHidden) {
+        let entries;
         if (groupsApi && typeof groupsApi.getOrderedRootEntries === 'function') {
-            return groupsApi.getOrderedRootEntries(config, { includeHidden: !!includeHidden });
+            entries = groupsApi.getOrderedRootEntries(config, { includeHidden: !!includeHidden });
+        } else {
+            entries = (Array.isArray(config.workspaces) ? config.workspaces : []).map(function (workspace) {
+                return { kind: 'workspace', id: String(workspace.id), workspace: workspace };
+            });
         }
-        return (Array.isArray(config.workspaces) ? config.workspaces : []).map(function (workspace) {
-            return { kind: 'workspace', id: String(workspace.id), workspace: workspace };
+
+        return entries.filter(function (entry) {
+            if (!entry) return false;
+            if (entry.kind === 'group') return shouldRenderGroup(entry.group, entry.workspaces);
+            return shouldRenderWorkspace(entry.workspace);
         });
     }
 
@@ -326,9 +411,14 @@ function renderSidebar() {
         block.appendChild(buildTopLevelOrderSlot(entry, orderedEntries, entryIndex));
 
         if (entry.kind === 'group') {
-            block.appendChild(buildGroupSection(entry.group, entry.workspaces));
+            const section = buildGroupSection(entry.group, entry.workspaces);
+            if (!section) return null;
+            block.appendChild(section);
         } else if (entry.workspace) {
+            if (!shouldRenderWorkspace(entry.workspace)) return null;
             renderWorkspaceItem(entry.workspace, block, 0, { manualSlots: true });
+        } else {
+            return null;
         }
 
         return block;
@@ -399,7 +489,7 @@ function renderSidebar() {
     }
 
     function renderWorkspaceCollection(workspaces, container, options) {
-        const list = Array.isArray(workspaces) ? workspaces.filter(Boolean) : [];
+        const list = getRenderableWorkspaces(workspaces);
         const opts = options && typeof options === 'object' ? options : {};
 
         list.forEach(function (workspace) {
@@ -430,7 +520,7 @@ function renderSidebar() {
         const hasChildren = Array.isArray(ws.subTabs) && ws.subTabs.length > 0;
         const isCollapsed = (Array.isArray(config.collapsedTabs) ? config.collapsedTabs : []).map(String).includes(String(ws.id));
         const isWorkspaceActive = config.viewMode !== 'unidex' && config.activeWorkspace === ws.id;
-        const isInactive = !!ws.inactive;
+        const isInactive = isWorkspaceEffectivelyInactive(ws);
 
         if (isInactive && !config.showInactiveTabs) return;
 
@@ -462,11 +552,13 @@ function renderSidebar() {
         }
 
         item.ondragover = function (e) {
+            if (isInactive) return;
             if (!getDraggedWorkspaceId()) return;
             e.preventDefault();
             e.dataTransfer.dropEffect = 'move';
         };
         item.ondragenter = function (e) {
+            if (isInactive) return;
             if (!getDraggedWorkspaceId()) return;
             e.preventDefault();
             item.classList.add('ws-drop-target');
@@ -475,6 +567,7 @@ function renderSidebar() {
             item.classList.remove('ws-drop-target');
         };
         item.ondrop = function (e) {
+            if (isInactive) return;
             e.preventDefault();
             e.stopPropagation();
             item.classList.remove('ws-drop-target');
@@ -563,30 +656,42 @@ function renderSidebar() {
     function buildGroupSection(group, workspaces) {
         const groupId = group ? String(group.id || '').trim() : '';
         const groupColor = group ? (group.color || '#00d4ff') : '#7a7f91';
+        const currentFocusedGroupId = getFocusedGroupId();
+        const isFocusedGroup = !!currentFocusedGroupId && currentFocusedGroupId === groupId;
+        const isInactiveGroup = isGroupEffectivelyInactive(groupId);
+        const visibleWorkspaces = getRenderableWorkspaces(workspaces);
         const isCollapsed = !!(group && group.collapsed);
         const manualMode = isManualSidebarOrder();
+        if (isInactiveGroup && !config.showInactiveTabs) return null;
+        if (!config.showInactiveTabs && visibleWorkspaces.length === 0 && Array.isArray(workspaces) && workspaces.length > 0) return null;
         const section = document.createElement('div');
         section.className = 'ws-group-section';
         section.style.setProperty('--ws-group-color', groupColor);
         if (group && group.hidden) section.classList.add('ws-group-section--hidden');
         if (isCollapsed) section.classList.add('ws-group-section--collapsed');
+        if (isFocusedGroup) section.classList.add('ws-group-section--focused');
+        if (isInactiveGroup) section.classList.add('ws-group-section--inactive');
 
         const header = document.createElement('div');
         header.className = 'ws-group-header';
         header.title = group.hidden ? group.name + ' (Hidden)' : group.name;
+        if (isFocusedGroup) header.title += ' (Focused)';
+        else if (isInactiveGroup) header.title += ' (Inactive)';
 
         header.onclick = function () {
+            if (isInactiveGroup) return;
             groupsApi.setGroupCollapsed(groupId, undefined, config);
             saveAndRefresh(false);
         };
 
         header.oncontextmenu = function (e) {
+            if (isInactiveGroup) return;
             if (typeof showSidebarGroupContext === 'function') {
                 showSidebarGroupContext(e, groupId);
             }
         };
-        header.draggable = manualMode;
-        if (manualMode) {
+        header.draggable = manualMode && !isInactiveGroup;
+        if (manualMode && !isInactiveGroup) {
             header.ondragstart = function (e) {
                 setDragState('group', groupId);
                 e.dataTransfer.setData('text/plain', groupId);
@@ -619,6 +724,13 @@ function renderSidebar() {
         count.textContent = String((Array.isArray(workspaces) ? workspaces.length : 0) || 0);
         header.appendChild(count);
 
+        if (isFocusedGroup) {
+            const focusedBadge = document.createElement('span');
+            focusedBadge.className = 'ws-group-focus-badge';
+            focusedBadge.textContent = 'Focused';
+            header.appendChild(focusedBadge);
+        }
+
         if (group.hidden) {
             const hiddenBadge = document.createElement('span');
             hiddenBadge.className = 'ws-group-hidden-badge';
@@ -626,17 +738,17 @@ function renderSidebar() {
             header.appendChild(hiddenBadge);
         }
 
-        attachGroupDropTarget(header, groupId);
+        if (!isInactiveGroup) attachGroupDropTarget(header, groupId);
         section.appendChild(header);
 
         const body = document.createElement('div');
         body.className = 'ws-group-body';
         if (isCollapsed) body.style.display = 'none';
-        attachGroupDropTarget(body, groupId);
+        if (!isInactiveGroup) attachGroupDropTarget(body, groupId);
 
         if (!isCollapsed) {
-            if (Array.isArray(workspaces) && workspaces.length > 0) {
-                renderWorkspaceCollection(workspaces, body, {
+            if (visibleWorkspaces.length > 0) {
+                renderWorkspaceCollection(visibleWorkspaces, body, {
                     parentId: '',
                     groupId: groupId,
                     depth: 0,
@@ -659,7 +771,8 @@ function renderSidebar() {
         const treeHost = document.createElement('div');
         treeHost.className = 'ws-tree-host';
         orderedEntries.forEach(function (entry, index) {
-            treeHost.appendChild(buildTopLevelOrderBlock(entry, orderedEntries, index));
+            const block = buildTopLevelOrderBlock(entry, orderedEntries, index);
+            if (block) treeHost.appendChild(block);
         });
         const tailBlock = document.createElement('div');
         tailBlock.className = 'ws-top-order-block ws-top-order-block--tail';
@@ -668,8 +781,12 @@ function renderSidebar() {
         sb.appendChild(treeHost);
     } else {
         orderedEntries.forEach(function (entry) {
-            if (entry.kind === 'group') sb.appendChild(buildGroupSection(entry.group, entry.workspaces));
-            else if (entry.workspace) renderWorkspaceItem(entry.workspace, sb, 0, { manualSlots: false });
+            if (entry.kind === 'group') {
+                const section = buildGroupSection(entry.group, entry.workspaces);
+                if (section) sb.appendChild(section);
+            } else if (entry.workspace && shouldRenderWorkspace(entry.workspace)) {
+                renderWorkspaceItem(entry.workspace, sb, 0, { manualSlots: false });
+            }
         });
     }
 

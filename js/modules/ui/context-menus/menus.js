@@ -304,6 +304,16 @@ window.showSidebarGroupContext = function (e, groupId) {
     const editAction = document.getElementById('ctx-sidebar-group-edit');
     if (editAction) editAction.style.display = isUngrouped ? 'none' : '';
 
+    const focusAction = document.getElementById('ctx-sidebar-group-focus');
+    if (focusAction) {
+        focusAction.style.display = isUngrouped ? 'none' : '';
+        if (group && groupsApi && typeof groupsApi.getFocusedGroupId === 'function') {
+            focusAction.innerHTML = groupsApi.getFocusedGroupId(config) === String(group.id)
+                ? '&#10006; Clear Group Focus'
+                : '&#127919; Focus Group';
+        }
+    }
+
     const toggleCollapsedAction = document.getElementById('ctx-sidebar-group-toggle-collapsed');
     if (toggleCollapsedAction) {
         toggleCollapsedAction.style.display = isUngrouped ? 'none' : '';
