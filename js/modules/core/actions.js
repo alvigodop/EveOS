@@ -10,9 +10,13 @@ function switchWorkspace(id, options = {}) {
         window.EveConstellationMap.closeMap();
     }
 
-    if (currentWorkspaceId === nextWorkspaceId && !hadFocusCategory && !forceRender) {
+    const wasInGroupOverview = !!String(config.groupOverviewId || '').trim();
+
+    if (currentWorkspaceId === nextWorkspaceId && !hadFocusCategory && !forceRender && !wasInGroupOverview) {
         return;
     }
+
+    if (wasInGroupOverview) config.groupOverviewId = '';
 
     config.activeWorkspace = nextWorkspaceId;
 

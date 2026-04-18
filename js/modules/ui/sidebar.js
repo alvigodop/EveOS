@@ -716,6 +716,26 @@ function renderSidebar() {
         if (isCollapsed) body.style.display = 'none';
         if (!isInactiveGroup) attachGroupMemberDropTarget(body, groupId);
 
+        if (!isInactiveGroup) {
+            body.onclick = function (e) {
+                if (e.target.closest('.ws-item') || e.target.closest('.ws-order-slot') || e.target.closest('.ws-group-empty')) return;
+                e.stopPropagation();
+
+                var current = String(config.groupOverviewId || '').trim();
+                var next = current === groupId ? '' : groupId;
+                config.groupOverviewId = next;
+                saveAndRefresh(true);
+
+                if (typeof window.showToast === 'function') {
+                    var groupLabel = group.name || 'Group';
+                    window.showToast(
+                        next ? 'Group overview: ' + groupLabel : 'Exited group overview',
+                        'info'
+                    );
+                }
+            };
+        }
+
         if (!isCollapsed) {
             if (visibleWorkspaces.length > 0) {
                 renderGroupMembers(visibleWorkspaces, body, {
@@ -744,7 +764,8 @@ function renderSidebar() {
         const childEntriesAll = getRawParentEntries(ws.id, true);
         const hasChildren = childEntriesAll.length > 0;
         const isCollapsed = (Array.isArray(config.collapsedTabs) ? config.collapsedTabs : []).map(String).includes(String(ws.id));
-        const isWorkspaceActive = config.viewMode !== 'unidex' && config.activeWorkspace === ws.id;
+        const isGroupOverviewActive = !!String(config.groupOverviewId || '').trim();
+        const isWorkspaceActive = config.viewMode !== 'unidex' && config.activeWorkspace === ws.id && !isGroupOverviewActive;
         const isInactive = isWorkspaceEffectivelyInactive(ws);
 
         if (isInactive && !config.showInactiveTabs) return;

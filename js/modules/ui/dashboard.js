@@ -308,9 +308,22 @@ function _renderDashboardCore() {
     // Build the set of workspace IDs to include in this view
     const visibleWorkspaceIds = new Set([activeWorkspaceId]);
     const helpers = window.EveWorkspaceHelpers;
+    const groupsApi = window.EveSidebarGroups || null;
+    const overviewGroupId = String(config.groupOverviewId || '').trim();
+
+    if (overviewGroupId && groupsApi && typeof groupsApi.getGroupRoots === 'function' && helpers) {
+        groupsApi.getGroupRoots(overviewGroupId, config).forEach(function (rootWs) {
+            if (!rootWs || !rootWs.id) return;
+            visibleWorkspaceIds.add(String(rootWs.id));
+            if (!rootWs.hideSubTabs && Array.isArray(rootWs.subTabs) && rootWs.subTabs.length > 0) {
+                helpers.getVisibleDescendantIds(rootWs).forEach(function (id) { visibleWorkspaceIds.add(id); });
+            }
+        });
+    }
+
     if (helpers) {
         const activeWs = helpers.findById(config.workspaces || [], activeWorkspaceId);
-        
+
         let resolvedWs = activeWs;
         if (activeWs && activeWs.linkedTo) {
             const targetWs = helpers.findById(config.workspaces || [], activeWs.linkedTo);
