@@ -136,6 +136,10 @@
     padding-top: 8px;
 }
 
+.tab-nav-sidebar-tools + .tab-nav-sidebar-tools {
+    margin-top: 2px;
+}
+
 .tab-nav-sidebar-tools-label {
     font-size: 0.64rem;
     font-weight: 600;

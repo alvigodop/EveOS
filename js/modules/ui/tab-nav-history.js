@@ -84,6 +84,10 @@
         return window.config || null;
     }
 
+    function getSidebarGroupsApi() {
+        return window.EveSidebarGroups || null;
+    }
+
     function buildBreadcrumbPath(wsId) {
         var helpers = getWorkspaceHelpers();
         if (!helpers) return [{ id: wsId, name: wsId, icon: DEFAULT_ICON }];
@@ -159,15 +163,75 @@
         updatePopoverState();
     }
 
+    function createSidebarGroup() {
+        if (typeof window.openSidebarGroupModal === 'function') {
+            window.openSidebarGroupModal();
+        }
+        scheduleHide(120);
+    }
+
+    function collapseAllGroups() {
+        var configRef = getConfigRef();
+        var groupsApi = getSidebarGroupsApi();
+        if (!configRef || !groupsApi) return;
+        groupsApi.ensureConfigDefaults(configRef);
+        if (!groupsApi.getGroups(configRef).length) {
+            if (typeof window.showToast === 'function') window.showToast('No groups to collapse', 'info');
+            return;
+        }
+        groupsApi.collapseAllGroups(configRef);
+        saveAndRefreshSidebar();
+        if (typeof window.showToast === 'function') window.showToast('All groups collapsed', 'info');
+        updatePopoverState();
+    }
+
+    function expandAllGroups() {
+        var configRef = getConfigRef();
+        var groupsApi = getSidebarGroupsApi();
+        if (!configRef || !groupsApi) return;
+        groupsApi.ensureConfigDefaults(configRef);
+        if (!groupsApi.getGroups(configRef).length) {
+            if (typeof window.showToast === 'function') window.showToast('No groups to expand', 'info');
+            return;
+        }
+        groupsApi.expandAllGroups(configRef);
+        saveAndRefreshSidebar();
+        if (typeof window.showToast === 'function') window.showToast('All groups expanded', 'info');
+        updatePopoverState();
+    }
+
+    function toggleShowHiddenGroups() {
+        var configRef = getConfigRef();
+        var groupsApi = getSidebarGroupsApi();
+        if (!configRef || !groupsApi) return;
+        groupsApi.ensureConfigDefaults(configRef);
+        groupsApi.setShowHiddenGroups(undefined, configRef);
+        saveAndRefreshSidebar();
+        if (typeof window.showToast === 'function') {
+            window.showToast(configRef.showHiddenSidebarGroups ? 'Showing hidden groups' : 'Hiding hidden groups', 'info');
+        }
+        updatePopoverState();
+    }
+
     function updateSidebarActionLabels(pop) {
         if (!pop) return;
         var configRef = getConfigRef();
+        var groupsApi = getSidebarGroupsApi();
         var inactiveBtn = pop.querySelector('[data-tab-nav-action="toggle-inactive"]');
         if (inactiveBtn) {
             inactiveBtn.innerHTML = configRef?.showInactiveTabs
                 ? '&#128065; Hide Inactive Tabs'
                 : '&#128065; Show Inactive Tabs';
         }
+
+        var hiddenGroupsBtn = pop.querySelector('[data-tab-nav-action="toggle-hidden-groups"]');
+        if (hiddenGroupsBtn) {
+            hiddenGroupsBtn.innerHTML = configRef?.showHiddenSidebarGroups
+                ? '&#128065; Hide Hidden Groups'
+                : '&#128065; Show Hidden Groups';
+        }
+
+        if (groupsApi && configRef) groupsApi.ensureConfigDefaults(configRef);
     }
 
     function ensurePopover() {
@@ -188,6 +252,15 @@
             +       '<button class="tab-nav-sidebar-tool-btn" type="button" data-tab-nav-action="collapse-all">&#9660; Collapse All Tabs</button>'
             +       '<button class="tab-nav-sidebar-tool-btn" type="button" data-tab-nav-action="expand-all">&#9650; Expand All Tabs</button>'
             +       '<button class="tab-nav-sidebar-tool-btn" type="button" data-tab-nav-action="toggle-inactive"></button>'
+            +   '</div>'
+            + '</div>'
+            + '<div class="tab-nav-sidebar-tools tab-nav-sidebar-tools--groups">'
+            +   '<div class="tab-nav-sidebar-tools-label">Groups</div>'
+            +   '<div class="tab-nav-sidebar-tools-grid">'
+            +       '<button class="tab-nav-sidebar-tool-btn" type="button" data-tab-nav-action="create-group">&#10133; Create Group</button>'
+            +       '<button class="tab-nav-sidebar-tool-btn" type="button" data-tab-nav-action="collapse-groups">&#9660; Collapse All Groups</button>'
+            +       '<button class="tab-nav-sidebar-tool-btn" type="button" data-tab-nav-action="expand-groups">&#9650; Expand All Groups</button>'
+            +       '<button class="tab-nav-sidebar-tool-btn" type="button" data-tab-nav-action="toggle-hidden-groups"></button>'
             +   '</div>'
             + '</div>';
         document.body.appendChild(popoverEl);
@@ -212,6 +285,14 @@
                 expandAllTabs();
             } else if (action === 'toggle-inactive') {
                 toggleShowInactiveTabs();
+            } else if (action === 'create-group') {
+                createSidebarGroup();
+            } else if (action === 'collapse-groups') {
+                collapseAllGroups();
+            } else if (action === 'expand-groups') {
+                expandAllGroups();
+            } else if (action === 'toggle-hidden-groups') {
+                toggleShowHiddenGroups();
             }
         });
         popoverEl.addEventListener('mouseenter', function () {

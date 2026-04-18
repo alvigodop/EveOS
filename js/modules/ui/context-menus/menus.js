@@ -8,6 +8,7 @@ window.initContextMenus = function () {
 window.ctxLinkId = null;
 window.ctxCatName = null;
 window.ctxWsId = null;
+window.ctxSidebarGroupId = '';
 window.ctxFolderId = null;
 
 window.closeAllMenus = function () {
@@ -221,9 +222,17 @@ window.showWsContext = function (e, id) {
     if (!m) return;
 
     const helpers = window.EveWorkspaceHelpers;
+    const groupsApi = window.EveSidebarGroups || null;
+    const groupCount = groupsApi && typeof groupsApi.getGroups === 'function'
+        ? groupsApi.getGroups(config).length
+        : 0;
     const ws = helpers
         ? helpers.findById(config.workspaces || [], id)
         : (config.workspaces || []).find(function (w) { return w.id === id; });
+    const isRootWorkspace = helpers ? !helpers.findParent(config.workspaces || [], id) : true;
+    const currentGroupId = isRootWorkspace && groupsApi && typeof groupsApi.getWorkspaceGroupId === 'function'
+        ? groupsApi.getWorkspaceGroupId(id, config)
+        : '';
 
     // Update hideSubTabs toggle label dynamically
     const hideToggle = document.getElementById('ctx-ws-hide-subtabs');
@@ -259,6 +268,64 @@ window.showWsContext = function (e, id) {
             ? '&#9989; Reactivate Tab'
             : '&#128683; Make Inactive';
     }
+
+    const editGroupAction = document.getElementById('ctx-ws-edit-group');
+    if (editGroupAction) {
+        editGroupAction.style.display = isRootWorkspace && groupCount > 0 ? '' : 'none';
+        editGroupAction.innerHTML = currentGroupId
+            ? '&#128450; Change Group'
+            : '&#128450; Move To Group';
+    }
+
+    const clearGroupAction = document.getElementById('ctx-ws-clear-group');
+    if (clearGroupAction) {
+        clearGroupAction.style.display = isRootWorkspace && currentGroupId ? '' : 'none';
+    }
+
+    placeContextMenu(m, e);
+};
+
+window.showSidebarGroupContext = function (e, groupId) {
+    e.preventDefault();
+    e.stopPropagation();
+    closeAllMenus();
+
+    window.ctxSidebarGroupId = String(groupId || '').trim();
+
+    const m = document.getElementById('sidebar-group-context-menu');
+    if (!m) return;
+
+    const groupsApi = window.EveSidebarGroups || null;
+    const group = groupsApi && window.ctxSidebarGroupId
+        ? groupsApi.findGroupById(window.ctxSidebarGroupId, config)
+        : null;
+    const isUngrouped = !window.ctxSidebarGroupId;
+
+    const editAction = document.getElementById('ctx-sidebar-group-edit');
+    if (editAction) editAction.style.display = isUngrouped ? 'none' : '';
+
+    const toggleCollapsedAction = document.getElementById('ctx-sidebar-group-toggle-collapsed');
+    if (toggleCollapsedAction) {
+        toggleCollapsedAction.style.display = isUngrouped ? 'none' : '';
+        if (group) {
+            toggleCollapsedAction.innerHTML = group.collapsed
+                ? '&#9650; Expand Group'
+                : '&#9660; Collapse Group';
+        }
+    }
+
+    const toggleHiddenAction = document.getElementById('ctx-sidebar-group-toggle-hidden');
+    if (toggleHiddenAction) {
+        toggleHiddenAction.style.display = isUngrouped ? 'none' : '';
+        if (group) {
+            toggleHiddenAction.innerHTML = group.hidden
+                ? '&#128065; Show Group'
+                : '&#128065; Hide Group';
+        }
+    }
+
+    const deleteAction = document.getElementById('ctx-sidebar-group-delete');
+    if (deleteAction) deleteAction.style.display = isUngrouped ? 'none' : '';
 
     placeContextMenu(m, e);
 };

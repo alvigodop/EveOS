@@ -231,7 +231,26 @@ window.modalTemplate = `
             <input type="text" id="wsIcon" placeholder="Icon" style="text-align:center; flex:1;">
             <button onclick="openEmojiPicker('wsIcon')">😊</button>
         </div>
+        <div id="wsGroupRow" style="display:none; margin-top:10px;">
+            <select id="wsGroupId" style="width:100%;">
+                <option value="">Ungrouped</option>
+            </select>
+        </div>
         <button class="btn-primary" onclick="saveWorkspace()">Save</button>
+        <button onclick="closeModals()">Cancel</button>
+    </div>
+</div>
+
+<div class="modal-overlay" id="sidebarGroupModal">
+    <div class="modal">
+        <h2 id="sidebarGroupModalTitle">Sidebar Group</h2>
+        <input type="hidden" id="sgEditId">
+        <input type="text" id="sgName" placeholder="Group Name">
+        <div style="display:flex; gap:8px; margin-top:10px; align-items:center;">
+            <label for="sgColor" style="font-size:0.85rem; opacity:0.8;">Color</label>
+            <input type="color" id="sgColor" value="#00d4ff" style="width:100%; min-height:40px;">
+        </div>
+        <button class="btn-primary" onclick="saveSidebarGroup()">Save</button>
         <button onclick="closeModals()">Cancel</button>
     </div>
 </div>

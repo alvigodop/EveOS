@@ -12,6 +12,8 @@ window.ContextMenus.template = `
 </div>
 <div id="sidebar-context-menu" class="context-menu">
     <div class="ctx-item" onclick="openWorkspaceModal(ctxWsId)">&#9998; Edit</div>
+    <div class="ctx-item" id="ctx-ws-edit-group" onclick="ctxWsEditGroup()">&#128450; Move To Group</div>
+    <div class="ctx-item" id="ctx-ws-clear-group" onclick="ctxWsClearGroup()">&#128228; Remove From Group</div>
     <div class="ctx-item" onclick="ctxWsAddSubTab()">&#10133; Add Sub-Tab</div>
     <div class="ctx-item" onclick="ctxWsCreateShortcut()">&#128279; Create Shortcut</div>
     <div class="ctx-item" id="ctx-ws-hide-subtabs" onclick="ctxWsToggleHideSubTabs()">&#128065; Hide Sub-Tab Content</div>
@@ -19,6 +21,16 @@ window.ContextMenus.template = `
     <div class="ctx-item" id="ctx-ws-toggle-inactive" onclick="ctxWsToggleInactive()">&#128683; Make Inactive</div>
     <div class="ctx-divider"></div>
     <div class="ctx-item ctx-item--danger" onclick="ctxWsDelete()">&#128465; Delete</div>
+</div>
+<div id="sidebar-group-context-menu" class="context-menu">
+    <div class="ctx-item" onclick="ctxSidebarGroupCreateWorkspace()">&#10133; New Tab In Group</div>
+    <div class="ctx-item" id="ctx-sidebar-group-edit" onclick="ctxSidebarGroupEdit()">&#9998; Edit Group</div>
+    <div class="ctx-item" id="ctx-sidebar-group-toggle-collapsed" onclick="ctxSidebarGroupToggleCollapsed()">&#9660; Collapse Group</div>
+    <div class="ctx-item" onclick="ctxSidebarGroupCollapseTabs()">&#9660; Collapse Tabs In Group</div>
+    <div class="ctx-item" onclick="ctxSidebarGroupExpandTabs()">&#9650; Expand Tabs In Group</div>
+    <div class="ctx-item" id="ctx-sidebar-group-toggle-hidden" onclick="ctxSidebarGroupToggleHidden()">&#128065; Hide Group</div>
+    <div class="ctx-divider"></div>
+    <div class="ctx-item ctx-item--danger" id="ctx-sidebar-group-delete" onclick="ctxSidebarGroupDelete()">&#128465; Delete Group</div>
 </div>
 <div id="link-context-menu" class="context-menu">
     <div class="ctx-item" onclick="ctxEdit()">&#9998; Edit</div>

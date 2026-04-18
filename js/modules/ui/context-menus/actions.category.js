@@ -203,6 +203,158 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
         if (typeof closeAllMenus === 'function') closeAllMenus();
     };
 
+    function getSidebarGroupsApi() {
+        return window.EveSidebarGroups || null;
+    }
+
+    function getSidebarGroupRoots(groupId) {
+        const groupsApi = getSidebarGroupsApi();
+        if (!groupsApi) return [];
+
+        groupsApi.ensureConfigDefaults(config);
+        const targetId = String(groupId || '').trim();
+        if (targetId) return groupsApi.getGroupRoots(targetId, config);
+
+        return groupsApi.getRootWorkspaces(config).filter(function (workspace) {
+            return !groupsApi.getWorkspaceGroupId(workspace, config);
+        });
+    }
+
+    function applyCollapseToWorkspaceList(workspaces, shouldCollapse) {
+        const helpers = window.EveWorkspaceHelpers;
+        const collapsedIds = new Set(Array.isArray(config.collapsedTabs) ? config.collapsedTabs.map(String) : []);
+        const removableIds = new Set();
+        const list = Array.isArray(workspaces) ? workspaces : [];
+
+        list.forEach(function (workspace) {
+            if (!workspace) return;
+            if (helpers && typeof helpers.walk === 'function') {
+                helpers.walk([workspace], function (node) {
+                    if (node && Array.isArray(node.subTabs) && node.subTabs.length > 0) {
+                        const nodeId = String(node.id);
+                        if (shouldCollapse) collapsedIds.add(nodeId);
+                        else removableIds.add(nodeId);
+                    }
+                });
+            } else if (Array.isArray(workspace.subTabs) && workspace.subTabs.length > 0) {
+                const nodeId = String(workspace.id);
+                if (shouldCollapse) collapsedIds.add(nodeId);
+                else removableIds.add(nodeId);
+            }
+        });
+
+        config.collapsedTabs = shouldCollapse
+            ? Array.from(collapsedIds)
+            : (Array.isArray(config.collapsedTabs) ? config.collapsedTabs : []).filter(function (id) {
+                return !removableIds.has(String(id));
+            });
+    }
+
+    function saveAndRefreshSidebar(showDashboard) {
+        saveConfig();
+        if (typeof renderSidebar === 'function') renderSidebar();
+        if (showDashboard && typeof renderDashboard === 'function') renderDashboard();
+        if (typeof closeAllMenus === 'function') closeAllMenus();
+    }
+
+    window.ctxWsEditGroup = function () {
+        if (!ctxWsId) return showToast('No workspace selected', 'error');
+        if (typeof openWorkspaceModal === 'function') {
+            openWorkspaceModal(ctxWsId);
+        }
+        if (typeof closeAllMenus === 'function') closeAllMenus();
+    };
+
+    window.ctxWsClearGroup = function () {
+        if (!ctxWsId) return showToast('No workspace selected', 'error');
+        const groupsApi = getSidebarGroupsApi();
+        if (!groupsApi || !groupsApi.isRootWorkspace(ctxWsId, config)) {
+            return showToast('Only root tabs can be ungrouped', 'error');
+        }
+
+        const moved = groupsApi.moveRootWorkspaceToGroup(ctxWsId, '', config);
+        if (!moved) return showToast('Could not remove tab from group', 'error');
+
+        saveAndRefreshSidebar(false);
+        showToast('Tab moved to ungrouped', 'info');
+    };
+
+    window.ctxSidebarGroupCreateWorkspace = function () {
+        if (typeof openWorkspaceModal === 'function') {
+            openWorkspaceModal(null, { groupId: window.ctxSidebarGroupId || '' });
+        }
+        if (typeof closeAllMenus === 'function') closeAllMenus();
+    };
+
+    window.ctxSidebarGroupEdit = function () {
+        if (!window.ctxSidebarGroupId) return;
+        if (typeof openSidebarGroupModal === 'function') {
+            openSidebarGroupModal(window.ctxSidebarGroupId);
+        }
+        if (typeof closeAllMenus === 'function') closeAllMenus();
+    };
+
+    window.ctxSidebarGroupToggleCollapsed = function () {
+        if (!window.ctxSidebarGroupId) return;
+        const groupsApi = getSidebarGroupsApi();
+        if (!groupsApi) return;
+
+        groupsApi.setGroupCollapsed(window.ctxSidebarGroupId, undefined, config);
+        saveAndRefreshSidebar(false);
+    };
+
+    window.ctxSidebarGroupCollapseTabs = function () {
+        const groupId = window.ctxSidebarGroupId || '';
+        const groupsApi = getSidebarGroupsApi();
+        if (groupId && groupsApi) {
+            groupsApi.collapseTabsForGroup(groupId, config);
+        } else {
+            applyCollapseToWorkspaceList(getSidebarGroupRoots(''), true);
+        }
+
+        saveAndRefreshSidebar(false);
+        showToast(groupId ? 'Tabs collapsed for group' : 'Ungrouped tabs collapsed', 'info');
+    };
+
+    window.ctxSidebarGroupExpandTabs = function () {
+        const groupId = window.ctxSidebarGroupId || '';
+        const groupsApi = getSidebarGroupsApi();
+        if (groupId && groupsApi) {
+            groupsApi.expandTabsForGroup(groupId, config);
+        } else {
+            applyCollapseToWorkspaceList(getSidebarGroupRoots(''), false);
+        }
+
+        saveAndRefreshSidebar(false);
+        showToast(groupId ? 'Tabs expanded for group' : 'Ungrouped tabs expanded', 'info');
+    };
+
+    window.ctxSidebarGroupToggleHidden = function () {
+        if (!window.ctxSidebarGroupId) return;
+        const groupsApi = getSidebarGroupsApi();
+        if (!groupsApi) return;
+
+        const updatedGroup = groupsApi.setGroupHidden(window.ctxSidebarGroupId, undefined, config);
+        saveAndRefreshSidebar(false);
+        if (updatedGroup) {
+            showToast(updatedGroup.hidden ? 'Group hidden from sidebar' : 'Group visible in sidebar', 'info');
+        }
+    };
+
+    window.ctxSidebarGroupDelete = async function () {
+        if (!window.ctxSidebarGroupId) return;
+        const groupsApi = getSidebarGroupsApi();
+        if (!groupsApi) return;
+
+        if (!(await showConfirm('Delete group? Tabs will stay as ungrouped root tabs.'))) return;
+
+        const deleted = groupsApi.deleteGroup(window.ctxSidebarGroupId, config);
+        if (!deleted) return showToast('Group not found', 'error');
+
+        saveAndRefreshSidebar(false);
+        showToast('Group deleted', 'info');
+    };
+
     window.ctxWsToggleHideSubTabs = function () {
         if (!ctxWsId) return showToast('No workspace selected', 'error');
         const helpers = window.EveWorkspaceHelpers;
@@ -246,6 +398,18 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
             collapsedIds.add(String(ws.id));
         }
         config.collapsedTabs = Array.from(collapsedIds);
+    }
+
+    function setWorkspaceBranchInactive(ws, nextInactive, helpers) {
+        if (!ws) return;
+        const branchInactive = !!nextInactive;
+        if (helpers && typeof helpers.walk === 'function') {
+            helpers.walk([ws], function (node) {
+                if (node) node.inactive = branchInactive;
+            });
+            return;
+        }
+        ws.inactive = branchInactive;
     }
 
     function findFallbackWorkspaceId(excludedIds) {
@@ -293,10 +457,11 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
             : config.workspaces.find(function (w) { return w.id === ctxWsId; });
         if (!ws) return showToast('Workspace not found', 'error');
 
-        ws.inactive = !ws.inactive;
+        const nextInactive = !ws.inactive;
+        setWorkspaceBranchInactive(ws, nextInactive, helpers);
 
         let nextWorkspaceId = '';
-        if (ws.inactive) {
+        if (nextInactive) {
             collapseWorkspaceBranch(ws, helpers);
 
             const hiddenBranchIds = new Set([String(ws.id)]);
@@ -323,7 +488,7 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
             if (typeof renderSidebar === 'function') renderSidebar();
             if (typeof renderDashboard === 'function') renderDashboard();
         }
-        showToast(ws.inactive ? (ws.name + ' is now inactive') : (ws.name + ' reactivated'), 'info');
+        showToast(nextInactive ? (ws.name + ' and its sub-tabs are now inactive') : (ws.name + ' and its sub-tabs were reactivated'), 'info');
     };
 
     shared.categoryReady = true;

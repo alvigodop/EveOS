@@ -1,68 +1,177 @@
+function getSidebarGroupsApi() {
+    return window.EveSidebarGroups || null;
+}
+
+function populateWorkspaceGroupSelect(selectedGroupId) {
+    const select = document.getElementById('wsGroupId');
+    if (!select) return;
+
+    const groupsApi = getSidebarGroupsApi();
+    if (!groupsApi) {
+        select.innerHTML = '<option value="">Ungrouped</option>';
+        return;
+    }
+
+    groupsApi.ensureConfigDefaults(config);
+    const groups = groupsApi.getGroups(config);
+    const activeGroupId = String(selectedGroupId || '').trim();
+
+    select.innerHTML = '<option value="">Ungrouped</option>';
+    groups.forEach(function (group) {
+        const option = document.createElement('option');
+        option.value = group.id;
+        option.textContent = group.name;
+        option.selected = group.id === activeGroupId;
+        select.appendChild(option);
+    });
+    select.value = activeGroupId;
+}
+
+function setWorkspaceGroupRowVisible(isVisible, selectedGroupId) {
+    const row = document.getElementById('wsGroupRow');
+    const select = document.getElementById('wsGroupId');
+    if (!row || !select) return;
+
+    const groupsApi = getSidebarGroupsApi();
+    const hasGroups = groupsApi ? groupsApi.getGroups(config).length > 0 : false;
+    const shouldShow = !!isVisible && (hasGroups || !!String(selectedGroupId || '').trim());
+
+    row.style.display = shouldShow ? 'block' : 'none';
+    if (shouldShow) {
+        populateWorkspaceGroupSelect(selectedGroupId);
+    } else {
+        select.value = '';
+    }
+}
+
 window.openWorkspaceModal = function (id, options) {
     const modal = document.getElementById('wsModal');
     if (!modal) return;
+
     const opts = options && typeof options === 'object' ? options : {};
+    const helpers = window.EveWorkspaceHelpers;
     const parentIdInput = document.getElementById('wsParentId');
 
     if (id) {
-        // Edit mode: find workspace recursively
-        const helpers = window.EveWorkspaceHelpers;
         const ws = helpers
             ? helpers.findById(config.workspaces, id)
-            : config.workspaces.find(w => w.id === id);
+            : config.workspaces.find(function (workspace) { return workspace.id === id; });
         if (!ws) return;
-        document.getElementById('wsName').value = ws.name;
-        document.getElementById('wsIcon').value = ws.icon;
+
+        const parent = helpers && typeof helpers.findParent === 'function'
+            ? helpers.findParent(config.workspaces, id)
+            : null;
+        const isRootWorkspace = !parent;
+
+        document.getElementById('wsName').value = ws.name || '';
+        document.getElementById('wsIcon').value = ws.icon || '\u{1F4C1}';
         document.getElementById('wsEditId').value = id;
         if (parentIdInput) parentIdInput.value = '';
+        setWorkspaceGroupRowVisible(isRootWorkspace, ws.groupId || '');
     } else {
-        // Create mode
-        document.getElementById('wsName').value = "";
-        document.getElementById('wsIcon').value = "📁";
-        document.getElementById('wsEditId').value = "";
+        document.getElementById('wsName').value = '';
+        document.getElementById('wsIcon').value = '\u{1F4C1}';
+        document.getElementById('wsEditId').value = '';
         if (parentIdInput) parentIdInput.value = opts.parentId || '';
+        setWorkspaceGroupRowVisible(!opts.parentId, opts.groupId || '');
     }
+
     modal.style.display = 'flex';
 };
 
 window.saveWorkspace = function () {
     const id = document.getElementById('wsEditId').value;
-    const name = document.getElementById('wsName').value;
-    const icon = document.getElementById('wsIcon').value;
+    const name = document.getElementById('wsName').value.trim();
+    const icon = document.getElementById('wsIcon').value || '\u{1F4C1}';
     const parentIdInput = document.getElementById('wsParentId');
     const parentId = parentIdInput ? parentIdInput.value : '';
-
-    if (!name) return alert("Name required");
-
+    const groupSelect = document.getElementById('wsGroupId');
+    const rawGroupId = groupSelect ? String(groupSelect.value || '').trim() : '';
     const helpers = window.EveWorkspaceHelpers;
+    const groupsApi = getSidebarGroupsApi();
+
+    if (!name) return alert('Name required');
+
+    const resolvedGroupId = groupsApi && rawGroupId && groupsApi.findGroupById(rawGroupId, config)
+        ? rawGroupId
+        : '';
 
     if (id) {
-        // Edit existing — recursive lookup
         const ws = helpers
             ? helpers.findById(config.workspaces, id)
-            : config.workspaces.find(w => w.id === id);
+            : config.workspaces.find(function (workspace) { return workspace.id === id; });
         if (ws) {
             ws.name = name;
             ws.icon = icon;
+
+            const isRootWorkspace = !(helpers && typeof helpers.findParent === 'function' && helpers.findParent(config.workspaces, id));
+            if (isRootWorkspace) {
+                if (resolvedGroupId) ws.groupId = resolvedGroupId;
+                else delete ws.groupId;
+            } else {
+                delete ws.groupId;
+            }
         }
     } else {
-        // Create new
         const newId = 'ws_' + Date.now();
-        const newTab = { id: newId, name, icon, subTabs: [] };
+        const newTab = { id: newId, name: name, icon: icon, subTabs: [] };
 
         if (parentId && helpers) {
-            // Create as sub-tab
             const added = helpers.addSubTab(config.workspaces, parentId, newTab);
             if (!added) {
-                // Fallback: add to root if parent not found
+                if (resolvedGroupId) newTab.groupId = resolvedGroupId;
                 config.workspaces.push(newTab);
             }
         } else {
+            if (resolvedGroupId) newTab.groupId = resolvedGroupId;
             config.workspaces.push(newTab);
         }
         switchWorkspace(newId);
     }
+
     saveConfig();
     if (typeof renderSidebar === 'function') renderSidebar();
+    closeModals();
+};
+
+window.openSidebarGroupModal = function (groupId) {
+    const modal = document.getElementById('sidebarGroupModal');
+    if (!modal) return;
+
+    const groupsApi = getSidebarGroupsApi();
+    if (!groupsApi) return;
+    groupsApi.ensureConfigDefaults(config);
+
+    const existing = groupId ? groupsApi.findGroupById(groupId, config) : null;
+    document.getElementById('sidebarGroupModalTitle').textContent = existing ? 'Edit Sidebar Group' : 'Create Sidebar Group';
+    document.getElementById('sgEditId').value = existing ? existing.id : '';
+    document.getElementById('sgName').value = existing ? (existing.name || '') : '';
+    document.getElementById('sgColor').value = existing ? (existing.color || '#00d4ff') : '#00d4ff';
+    modal.style.display = 'flex';
+};
+
+window.saveSidebarGroup = function () {
+    const groupsApi = getSidebarGroupsApi();
+    if (!groupsApi) return;
+
+    const editId = String(document.getElementById('sgEditId').value || '').trim();
+    const name = document.getElementById('sgName').value.trim();
+    const color = document.getElementById('sgColor').value || '#00d4ff';
+
+    if (!name) return alert('Group name required');
+
+    groupsApi.ensureConfigDefaults(config);
+    if (editId) {
+        groupsApi.updateGroup(editId, { name: name, color: color }, config);
+    } else {
+        groupsApi.createGroup({ name: name, color: color }, config);
+    }
+
+    saveConfig();
+    if (typeof renderSidebar === 'function') renderSidebar();
+    if (typeof closeAllMenus === 'function') closeAllMenus();
+    if (typeof showToast === 'function') {
+        showToast(editId ? 'Sidebar group updated' : 'Sidebar group created', 'success');
+    }
     closeModals();
 };

@@ -703,6 +703,12 @@ async function loadData() {
     }
     if (!config.workspaces || config.workspaces.length === 0) config.workspaces = [{ id: 'main', name: 'Main', icon: '\u{1F3E0}', subTabs: [] }];
     if (!config.activeWorkspace) config.activeWorkspace = 'main';
+    if (!Array.isArray(config.collapsedTabs)) {
+        config.collapsedTabs = Array.isArray(config.collapsed) ? config.collapsed.slice() : [];
+    }
+    if (!Array.isArray(config.sidebarGroups)) config.sidebarGroups = [];
+    if (typeof config.showHiddenSidebarGroups !== 'boolean') config.showHiddenSidebarGroups = false;
+    if (typeof config.showInactiveTabs !== 'boolean') config.showInactiveTabs = false;
 
     // Custom bookmark ordering defaults
     if (!config.customOrder || typeof config.customOrder !== 'object') config.customOrder = {};
