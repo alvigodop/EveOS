@@ -435,6 +435,21 @@ def _write_state_to_root(state, root_path, progress_callback=None):
         return _write_modular_state_full(state, progress_callback=progress_callback)
 
 
+def _iter_tab_folders_recursive(tabs_root):
+    root = Path(tabs_root).resolve()
+    if not root.exists() or not root.is_dir():
+        return
+
+    for entry in sorted(root.iterdir()):
+        if not entry.is_dir():
+            continue
+        if _looks_like_tab_folder(entry):
+            yield entry
+            nested_tabs_root = entry / "tabs"
+            if nested_tabs_root.exists() and nested_tabs_root.is_dir():
+                yield from _iter_tab_folders_recursive(nested_tabs_root)
+
+
 def _write_card_layer_backup_to_root(state, root_path, progress_callback=None):
     """
     Write a card-layer backup with structure starting at:
@@ -466,9 +481,7 @@ def _write_card_layer_backup_to_root(state, root_path, progress_callback=None):
         if src_knowledge_root.exists() and src_knowledge_root.is_dir():
             shutil.copytree(src_knowledge_root, target_root / "knowledge", dirs_exist_ok=True)
         if tabs_root.exists():
-            for workspace_folder in sorted(tabs_root.iterdir()):
-                if not workspace_folder.is_dir():
-                    continue
+            for workspace_folder in _iter_tab_folders_recursive(tabs_root):
                 src_cards_root = workspace_folder / "cards"
                 if not src_cards_root.exists() or not src_cards_root.is_dir():
                     continue
@@ -536,9 +549,7 @@ def _write_folder_layer_backup_to_root(state, root_path, progress_callback=None)
         if src_knowledge_root.exists() and src_knowledge_root.is_dir():
             shutil.copytree(src_knowledge_root, target_root / "knowledge", dirs_exist_ok=True)
         if tabs_root.exists():
-            for workspace_folder in sorted(tabs_root.iterdir()):
-                if not workspace_folder.is_dir():
-                    continue
+            for workspace_folder in _iter_tab_folders_recursive(tabs_root):
                 src_cards_root = workspace_folder / "cards"
                 if not src_cards_root.exists() or not src_cards_root.is_dir():
                     continue

@@ -67,6 +67,24 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         return entries;
     }
 
+    async function collectTabFoldersRecursive(tabsRoot, bucket = []) {
+        if (!tabsRoot) return bucket;
+        const entries = await listDirectoryEntries(tabsRoot);
+        for (const { handle } of entries) {
+            if (handle.kind !== 'directory') continue;
+            const hasTabJson = !!(await getFileHandleIfExists(handle, 'tab.json'));
+            const hasCardsDir = !!(await getDirectoryHandleByAliases(handle, ['cards', 'c']));
+            const nestedTabsHandle = await getDirectoryHandleByAliases(handle, ['tabs', 't']);
+            if (hasTabJson || hasCardsDir || nestedTabsHandle) {
+                bucket.push(handle);
+            }
+            if (nestedTabsHandle) {
+                await collectTabFoldersRecursive(nestedTabsHandle, bucket);
+            }
+        }
+        return bucket;
+    }
+
     async function resolveCardFoldersFromRoot(rootHandle) {
         const cardsRoot = await getDirectoryHandleByAliases(rootHandle, ['cards', 'c']);
         if (cardsRoot) {
@@ -115,9 +133,8 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         if (!tabsRoot) return [];
 
         const fromTabs = [];
-        const tabEntries = await listDirectoryEntries(tabsRoot);
-        for (const { handle: tabHandle } of tabEntries) {
-            if (tabHandle.kind !== 'directory') continue;
+        const tabFolders = await collectTabFoldersRecursive(tabsRoot);
+        for (const tabHandle of tabFolders) {
             const tabCardsRoot = await getDirectoryHandleByAliases(tabHandle, ['cards', 'c']);
             if (!tabCardsRoot) continue;
             const cardEntries = await listDirectoryEntries(tabCardsRoot);
@@ -131,12 +148,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
     async function resolveTabFoldersFromRoot(rootHandle) {
         const tabsRoot = await getDirectoryHandleByAliases(rootHandle, ['tabs', 't']);
         if (tabsRoot) {
-            const tabFolders = [];
-            const entries = await listDirectoryEntries(tabsRoot);
-            entries.forEach(({ handle }) => {
-                if (handle.kind === 'directory') tabFolders.push(handle);
-            });
-            return tabFolders;
+            return collectTabFoldersRecursive(tabsRoot, []);
         }
 
         const hasTabJson = !!(await getFileHandleIfExists(rootHandle, 'tab.json'));
@@ -165,6 +177,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         readJsonFromFileHandle,
         readJsonFileIfExists,
         listDirectoryEntries,
+        collectTabFoldersRecursive,
         resolveCardFoldersFromRoot,
         resolveTabFoldersFromRoot
     });

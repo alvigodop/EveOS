@@ -20,10 +20,88 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         return `${ws}::${cat}`;
     }
 
-    function addWorkspaceRecord(workspaceMap, workspaceId, workspaceName, workspaceIcon) {
-        const id = String(workspaceId || '').trim();
-        if (!id) return;
-        workspaceMap.set(id, { id, name: String(workspaceName || id).trim() || id, icon: workspaceIcon || 'folder' });
+    function normalizeWorkspaceNode(rawWorkspace, seenIds) {
+        let workspace = rawWorkspace;
+        if (typeof workspace === 'string') {
+            workspace = { id: workspace, name: workspace, icon: 'folder', subTabs: [] };
+        }
+        if (!workspace || typeof workspace !== 'object') return null;
+
+        const id = String(workspace.id || '').trim() || 'main';
+        if (seenIds.has(id)) return null;
+        seenIds.add(id);
+
+        const normalized = {
+            ...workspace,
+            id,
+            name: String(workspace.name || id).trim() || id,
+            icon: workspace.icon || 'folder',
+            subTabs: []
+        };
+
+        (Array.isArray(workspace.subTabs) ? workspace.subTabs : []).forEach((child) => {
+            const normalizedChild = normalizeWorkspaceNode(child, seenIds);
+            if (normalizedChild) normalized.subTabs.push(normalizedChild);
+        });
+
+        return normalized;
+    }
+
+    function normalizeWorkspaceTree(workspaces) {
+        const seenIds = new Set();
+        const normalized = [];
+        (Array.isArray(workspaces) ? workspaces : []).forEach((workspace) => {
+            const normalizedWorkspace = normalizeWorkspaceNode(workspace, seenIds);
+            if (normalizedWorkspace) normalized.push(normalizedWorkspace);
+        });
+        return normalized;
+    }
+
+    function walkWorkspaceTree(workspaces, visit) {
+        (Array.isArray(workspaces) ? workspaces : []).forEach((workspace) => {
+            if (!workspace || typeof workspace !== 'object') return;
+            if (typeof visit === 'function') visit(workspace);
+            walkWorkspaceTree(workspace.subTabs, visit);
+        });
+    }
+
+    function mergeParsedTabsIntoWorkspaceTree(configWorkspaces, parsedTabs) {
+        const merged = normalizeWorkspaceTree(configWorkspaces);
+        const nodeById = new Map();
+        walkWorkspaceTree(merged, (workspace) => {
+            nodeById.set(String(workspace?.id || '').trim(), workspace);
+        });
+
+        (Array.isArray(parsedTabs) ? parsedTabs : []).forEach((tab) => {
+            const workspaceId = String(tab?.workspaceId || '').trim() || 'main';
+            const parentWorkspaceId = String(tab?.parentWorkspaceId || '').trim();
+            const existing = nodeById.get(workspaceId);
+            if (existing) {
+                existing.name = String(tab?.workspaceName || existing.name || workspaceId).trim() || workspaceId;
+                existing.icon = tab?.workspaceIcon || existing.icon || 'folder';
+                if (!Array.isArray(existing.subTabs)) existing.subTabs = [];
+                return;
+            }
+
+            const nextNode = {
+                id: workspaceId,
+                name: String(tab?.workspaceName || workspaceId).trim() || workspaceId,
+                icon: tab?.workspaceIcon || 'folder',
+                subTabs: []
+            };
+            const parentNode = parentWorkspaceId ? nodeById.get(parentWorkspaceId) : null;
+            if (parentNode) {
+                if (!Array.isArray(parentNode.subTabs)) parentNode.subTabs = [];
+                parentNode.subTabs.push(nextNode);
+            } else {
+                merged.push(nextNode);
+            }
+            nodeById.set(workspaceId, nextNode);
+        });
+
+        return merged.length > 0
+            ? merged
+            : [{ id: 'main', name: 'Main', icon: 'folder', subTabs: [] }];
     }
 
     function normalizeFolderView(folderView) {
@@ -183,14 +261,12 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         const metadataType = options.metadataType || 'store';
         const inputConfig = options.config && typeof options.config === 'object' ? options.config : {};
         const activeWorkspaceFallback = options.activeWorkspace || parsedTabs[0]?.workspaceId || 'main';
-        const workspaceMap = new Map();
         const linkMap = new Map();
         const connectionMap = new Map();
         const categoriesMap = new Map();
         const folderMap = new Map();
 
         parsedTabs.forEach((tab) => {
-            addWorkspaceRecord(workspaceMap, tab.workspaceId, tab.workspaceName, tab.workspaceIcon);
             (Array.isArray(tab.parsedCards) ? tab.parsedCards : []).forEach((card) => {
                 (Array.isArray(card.links) ? card.links : []).forEach((link) => {
                     const normalized = { ...link, workspace: card.workspaceId, category: card.categoryName };
@@ -221,7 +297,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             });
         });
 
-        const workspaces = workspaceMap.size > 0 ? Array.from(workspaceMap.values()) : [{ id: 'main', name: 'Main', icon: 'folder' }];
+        const workspaces = mergeParsedTabsIntoWorkspaceTree(inputConfig.workspaces, parsedTabs);
         const activeWorkspace = String(inputConfig.activeWorkspace || activeWorkspaceFallback || workspaces[0].id).trim() || workspaces[0].id;
         const config = { ...inputConfig, workspaces, activeWorkspace };
         const links = Array.from(linkMap.values());

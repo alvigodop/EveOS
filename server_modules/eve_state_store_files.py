@@ -238,6 +238,29 @@ def find_workspace_node(workspaces, workspace_id):
     return None
 
 
+def iter_workspace_folder_paths(workspaces, parent_parts=()):
+    for workspace in workspaces or []:
+        if not isinstance(workspace, dict):
+            continue
+        workspace_id = str((workspace or {}).get("id") or "").strip() or "main"
+        workspace_name = str((workspace or {}).get("name") or workspace_id).strip() or workspace_id
+        folder = folder_name(f"{workspace_id}-{workspace_name}", workspace_id)
+        current_parts = tuple(parent_parts) + (folder,)
+        yield workspace, current_parts
+        child_parts = current_parts + ("tabs",)
+        yield from iter_workspace_folder_paths(workspace.get("subTabs") or [], child_parts)
+
+
+def build_workspace_folder_parts(workspaces, workspace_id):
+    target_id = str(workspace_id or "").strip()
+    if not target_id:
+        return ()
+    for workspace, parts in iter_workspace_folder_paths(workspaces):
+        if str((workspace or {}).get("id") or "").strip() == target_id:
+            return tuple(parts)
+    return ()
+
+
 def prepare_workspace_map(links, workspaces, categories=None, folder_trees=None):
     by_workspace = {}
     for ws in iter_workspace_nodes(workspaces):

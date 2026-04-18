@@ -219,13 +219,14 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         const workspaceId = String(tabJson?.id || defaults.workspaceId || inferWorkspaceIdFromFolderName(tabFolderHandle.name, 'main')).trim() || 'main';
         const workspaceName = String(tabJson?.name || defaults.workspaceName || workspaceId).trim() || workspaceId;
         const workspaceIcon = tabJson?.icon || defaults.workspaceIcon || 'folder';
+        const parentWorkspaceId = String(defaults.parentWorkspaceId || '').trim();
         const cardsRoot = await getDirectoryHandleByAliases(tabFolderHandle, ['cards', 'c']);
         const cardFolders = cardsRoot ? (await listDirectoryEntries(cardsRoot)).filter((entry) => entry.handle.kind === 'directory').map((entry) => entry.handle) : [];
         const parsedCards = [];
         for (const cardFolder of cardFolders) {
             parsedCards.push(await parseCardFolderHandle(cardFolder, { workspaceId, workspaceFolderName: tabFolderHandle.name }));
         }
-        return { workspaceId, workspaceName, workspaceIcon, parsedCards };
+        return { workspaceId, workspaceName, workspaceIcon, parentWorkspaceId, parsedCards };
     }
 
     Object.assign(ns, { parseTabFolderHandle, parseCardFolderHandle });

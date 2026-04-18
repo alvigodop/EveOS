@@ -15,6 +15,8 @@ window.EveDataTransfer = window.EveDataTransfer || {};
     const getDirectoryHandleIfExists = ns.getDirectoryHandleIfExists;
     const getDirectoryHandleByAliases = ns.getDirectoryHandleByAliases;
     const readJsonFileIfExists = ns.readJsonFileIfExists;
+    const collectTabFoldersRecursive = ns.collectTabFoldersRecursive;
+    const listDirectoryEntries = ns.listDirectoryEntries;
     const resolveTabFoldersFromRoot = ns.resolveTabFoldersFromRoot;
     const resolveCardFoldersFromRoot = ns.resolveCardFoldersFromRoot;
     const parseTabFolderHandle = ns.parseTabFolderHandle;
@@ -51,13 +53,40 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         const metaRoot = await getDirectoryHandleByAliases(rootHandle, ['_meta', 'm']);
         const configPayload = metaRoot ? await readJsonFileIfExists(metaRoot, 'config.json') : null;
         const pinsPayload = metaRoot ? await readJsonFileIfExists(metaRoot, 'pins.json') : null;
-        const tabFolders = await resolveTabFoldersFromRoot(rootHandle);
+        const tabsRoot = await getDirectoryHandleByAliases(rootHandle, ['tabs', 't']);
+        const tabFolders = tabsRoot ? await collectTabFoldersRecursive(tabsRoot, []) : await resolveTabFoldersFromRoot(rootHandle);
         if (!tabFolders.length) {
             throw new Error('No tab folders found. Expected tabs/<tab>/cards/... structure.');
         }
+
         const parsedTabs = [];
-        for (const tabFolder of tabFolders) {
-            parsedTabs.push(await parseTabFolderHandle(tabFolder));
+        if (tabsRoot) {
+            const rootTabFolders = (await listDirectoryEntries(tabsRoot))
+                .filter((entry) => entry.handle.kind === 'directory')
+                .map((entry) => entry.handle);
+
+            const visitTabTree = async (tabFolderHandle, parentWorkspaceId = '') => {
+                const parsedTab = await parseTabFolderHandle(tabFolderHandle, { parentWorkspaceId });
+                parsedTabs.push(parsedTab);
+                const nestedTabsHandle = await getDirectoryHandleByAliases(tabFolderHandle, ['tabs', 't']);
+                if (!nestedTabsHandle) return;
+                const directChildren = [];
+                const nestedEntries = await listDirectoryEntries(nestedTabsHandle);
+                nestedEntries.forEach(({ handle }) => {
+                    if (handle.kind === 'directory') directChildren.push(handle);
+                });
+                for (const childHandle of directChildren) {
+                    await visitTabTree(childHandle, parsedTab.workspaceId);
+                }
+            };
+
+            for (const rootTabFolder of rootTabFolders) {
+                await visitTabTree(rootTabFolder);
+            }
+        } else {
+            for (const tabFolder of tabFolders) {
+                parsedTabs.push(await parseTabFolderHandle(tabFolder));
+            }
         }
         const nextState = buildUnifiedStateFromParsed(parsedTabs, {
             metadataType: 'store',

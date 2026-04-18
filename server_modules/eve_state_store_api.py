@@ -4,6 +4,7 @@ from pathlib import Path
 from http import HTTPStatus
 
 from server_modules.eve_state_store_files import (
+    build_workspace_folder_parts,
     build_bookmark_filename,
     build_bookmark_folder_dirname,
     find_workspace_node,
@@ -99,10 +100,17 @@ def _build_layer_preview_path(active_root, unified_state, *, layer, workspace_id
     if workspace_meta:
         workspace_name = str((workspace_meta or {}).get("name") or resolved_workspace_id).strip() or resolved_workspace_id
 
-    current_path = current_path / "tabs" / folder_name(
-        f"{resolved_workspace_id}-{workspace_name}",
-        resolved_workspace_id
+    workspace_parts = build_workspace_folder_parts(
+        list(config.get("workspaces") or []),
+        resolved_workspace_id,
     )
+    if workspace_parts:
+        current_path = current_path / "tabs" / Path(*workspace_parts)
+    else:
+        current_path = current_path / "tabs" / folder_name(
+            f"{resolved_workspace_id}-{workspace_name}",
+            resolved_workspace_id
+        )
     if scope == "tab":
         return str(current_path)
 

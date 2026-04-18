@@ -395,165 +395,195 @@ def write_modular_state_full(
 
     emit_progress("preparing", "Preparing modular data-pack save")
 
-    for workspace_id, ws_data in workspace_map.items():
-        ws_meta = ws_data["meta"]
-        workspace_folder = tabs_dir / folder_name(
-            f"{workspace_id}-{ws_meta.get('name', workspace_id)}", workspace_id
-        )
-        cards_root = workspace_folder / "cards"
-        cards_root.mkdir(parents=True, exist_ok=True)
+    written_workspace_ids = set()
 
-        tab_payload = _normalize_workspace_meta_record(
-            ws_meta,
-            fallback_id=workspace_id,
-            fallback_name=ws_meta.get("name") or workspace_id,
-            fallback_icon=ws_meta.get("icon") or "folder",
-        )
-        tab_payload.update({
-            "schema": "eveos.tab.v1",
-            "bookmarkCount": len(ws_data["links"]),
-            "cardCount": len(ws_data["categories"]),
-        })
-        (workspace_folder / "tab.json").write_text(
-            json.dumps(tab_payload, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
-        tab_count += 1
-        emit_progress(
-            "writing",
-            f"Writing tab {ws_meta.get('name') or workspace_id}",
-            workspace_id=workspace_id,
-            current_item=ws_meta.get("name") or workspace_id,
-        )
+    def write_workspace_branch(workspace_nodes, parent_tabs_dir):
+        nonlocal tab_count, card_count, bookmark_count
+        for workspace_node in workspace_nodes or []:
+            if not isinstance(workspace_node, dict):
+                continue
 
-        for category_name, category_links in ws_data["categories"].items():
-            card_folder_name = folder_name(category_name, "card")
-            card_folder = cards_root / card_folder_name
-            card_folder.mkdir(parents=True, exist_ok=True)
-
-            bookmark_folder_name = "entries"
-            bookmark_folder = card_folder / bookmark_folder_name
-            bookmark_folder.mkdir(parents=True, exist_ok=True)
-
-            scoped = scoped_key(workspace_id, category_name)
-            scoped_library = library_index.get(scoped, {})
-            data_type = scoped_library.get("data_type") or "graphicNovels"
-            folder_tree = bookmark_folders.get(scoped) or {"nodes": []}
-            folder_nodes = list(folder_tree.get("nodes") or [])
-            folder_settings = normalize_bookmark_folder_tree_settings(folder_tree.get("settings"))
-            folder_lookup = {
-                str((node or {}).get("id") or "").strip(): normalize_bookmark_folder_node(node)
-                for node in folder_nodes
-                if str((node or {}).get("id") or "").strip()
+            workspace_id = str((workspace_node or {}).get("id") or "").strip() or "main"
+            ws_data = workspace_map.get(workspace_id) or {
+                "meta": workspace_node,
+                "links": [],
+                "categories": {},
             }
-            folder_links = {}
-            root_links = []
-            for raw_link in category_links:
-                link = dict(raw_link or {})
-                folder_id = str(link.get("folderId") or "").strip()
-                if folder_id and folder_id in folder_lookup:
-                    folder_links.setdefault(folder_id, []).append(link)
-                else:
-                    link.pop("folderId", None)
-                    root_links.append(link)
-            children_by_parent = {}
-            for node in folder_lookup.values():
-                parent_id = str(node.get("parentId") or "").strip() or None
-                if parent_id and parent_id not in folder_lookup:
-                    parent_id = None
-                    node["parentId"] = None
-                children_by_parent.setdefault(parent_id, []).append(node)
-            for child_list in children_by_parent.values():
-                child_list.sort(
-                    key=lambda item: (
-                        int(item.get("order") or 0),
-                        str(item.get("name") or "").lower(),
-                        str(item.get("id") or ""),
-                    )
-                )
-
-            card_payload = {
-                "schema": "eveos.card.v2",
-                "workspaceId": workspace_id,
-                "categoryName": category_name,
-                "title": category_name,
-                "dataType": data_type,
-                "libraryFolderView": normalize_library_folder_view(scoped_library.get("folder_view") or {}),
-                "clickBehaviorMode": normalize_click_behavior_mode(folder_settings.get("clickBehaviorMode")),
-                "bookmarkFolder": bookmark_folder_name,
-                "bookmarkCount": len(category_links),
-                "folderRoot": "folders",
-                "folderCount": len(folder_lookup),
-            }
-            (card_folder / "card.json").write_text(
-                json.dumps(card_payload, ensure_ascii=False, indent=2), encoding="utf-8"
+            ws_meta = ws_data["meta"]
+            workspace_folder = parent_tabs_dir / folder_name(
+                f"{workspace_id}-{ws_meta.get('name', workspace_id)}", workspace_id
             )
-            card_count += 1
+            cards_root = workspace_folder / "cards"
+            cards_root.mkdir(parents=True, exist_ok=True)
+
+            tab_payload = _normalize_workspace_meta_record(
+                ws_meta,
+                fallback_id=workspace_id,
+                fallback_name=ws_meta.get("name") or workspace_id,
+                fallback_icon=ws_meta.get("icon") or "folder",
+            )
+            tab_payload.update({
+                "schema": "eveos.tab.v1",
+                "bookmarkCount": len(ws_data["links"]),
+                "cardCount": len(ws_data["categories"]),
+            })
+            (workspace_folder / "tab.json").write_text(
+                json.dumps(tab_payload, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+            written_workspace_ids.add(workspace_id)
+            tab_count += 1
             emit_progress(
                 "writing",
-                f"Writing card {category_name}",
+                f"Writing tab {ws_meta.get('name') or workspace_id}",
                 workspace_id=workspace_id,
-                category_name=category_name,
-                current_item=category_name,
+                current_item=ws_meta.get("name") or workspace_id,
             )
 
-            used_entry_ids = set()
+            for category_name, category_links in ws_data["categories"].items():
+                card_folder_name = folder_name(category_name, "card")
+                card_folder = cards_root / card_folder_name
+                card_folder.mkdir(parents=True, exist_ok=True)
 
-            for link in root_links:
-                link_id = str(link.get("id") or "").strip()
-                conn = connections_by_link.get(link_id)
-                linked_entry = None
-                linked = False
+                bookmark_folder_name = "entries"
+                bookmark_folder = card_folder / bookmark_folder_name
+                bookmark_folder.mkdir(parents=True, exist_ok=True)
 
-                if conn:
-                    entry_id = str(connection_entry_id(conn) or "").strip()
-                    if entry_id:
-                        used_entry_ids.add(entry_id)
-                        linked_entry = (scoped_library.get("entries") or {}).get(entry_id)
-                        if not linked_entry:
-                            for candidate in library_index.values():
-                                entry_map = candidate.get("entries") or {}
-                                if entry_id in entry_map:
-                                    linked_entry = entry_map[entry_id]
-                                    break
-                        linked = linked_entry is not None
+                scoped = scoped_key(workspace_id, category_name)
+                scoped_library = library_index.get(scoped, {})
+                data_type = scoped_library.get("data_type") or "graphicNovels"
+                folder_tree = bookmark_folders.get(scoped) or {"nodes": []}
+                folder_nodes = list(folder_tree.get("nodes") or [])
+                folder_settings = normalize_bookmark_folder_tree_settings(folder_tree.get("settings"))
+                folder_lookup = {
+                    str((node or {}).get("id") or "").strip(): normalize_bookmark_folder_node(node)
+                    for node in folder_nodes
+                    if str((node or {}).get("id") or "").strip()
+                }
+                folder_links = {}
+                root_links = []
+                for raw_link in category_links:
+                    link = dict(raw_link or {})
+                    folder_id = str(link.get("folderId") or "").strip()
+                    if folder_id and folder_id in folder_lookup:
+                        folder_links.setdefault(folder_id, []).append(link)
+                    else:
+                        link.pop("folderId", None)
+                        root_links.append(link)
+                children_by_parent = {}
+                for node in folder_lookup.values():
+                    parent_id = str(node.get("parentId") or "").strip() or None
+                    if parent_id and parent_id not in folder_lookup:
+                        parent_id = None
+                        node["parentId"] = None
+                    children_by_parent.setdefault(parent_id, []).append(node)
+                for child_list in children_by_parent.values():
+                    child_list.sort(
+                        key=lambda item: (
+                            int(item.get("order") or 0),
+                            str(item.get("name") or "").lower(),
+                            str(item.get("id") or ""),
+                        )
+                    )
 
-                _write_bookmark_payload(bookmark_folder, link, category_name, conn, linked_entry)
-                record_bookmark_written(
-                    workspace_id=workspace_id,
-                    category_name=category_name,
-                    link=link,
-                )
-
-            _write_bookmark_folder_branch(
-                card_folder,
-                children_by_parent,
-                folder_links,
-                workspace_id=workspace_id,
-                category_name=category_name,
-                connections_by_link=connections_by_link,
-                scoped_library=scoped_library,
-                library_index_values=library_index_values,
-                used_entry_ids=used_entry_ids,
-                bookmark_written_callback=record_bookmark_written,
-            )
-
-            unlinked_entries = []
-            for entry_id, entry in (scoped_library.get("entries") or {}).items():
-                if entry_id in used_entry_ids or entry_id in connected_entry_ids:
-                    continue
-                unlinked_entries.append(entry)
-
-            if unlinked_entries:
-                unlinked_payload = {
-                    "schema": "eveos.card-library-unlinked.v1",
+                card_payload = {
+                    "schema": "eveos.card.v2",
                     "workspaceId": workspace_id,
                     "categoryName": category_name,
-                    "entries": unlinked_entries,
+                    "title": category_name,
+                    "dataType": data_type,
+                    "libraryFolderView": normalize_library_folder_view(scoped_library.get("folder_view") or {}),
+                    "clickBehaviorMode": normalize_click_behavior_mode(folder_settings.get("clickBehaviorMode")),
+                    "bookmarkFolder": bookmark_folder_name,
+                    "bookmarkCount": len(category_links),
+                    "folderRoot": "folders",
+                    "folderCount": len(folder_lookup),
                 }
-                (card_folder / "_library-unlinked.json").write_text(
-                    json.dumps(unlinked_payload, ensure_ascii=False, indent=2), encoding="utf-8"
+                (card_folder / "card.json").write_text(
+                    json.dumps(card_payload, ensure_ascii=False, indent=2), encoding="utf-8"
+                )
+                card_count += 1
+                emit_progress(
+                    "writing",
+                    f"Writing card {category_name}",
+                    workspace_id=workspace_id,
+                    category_name=category_name,
+                    current_item=category_name,
                 )
 
+                used_entry_ids = set()
+
+                for link in root_links:
+                    link_id = str(link.get("id") or "").strip()
+                    conn = connections_by_link.get(link_id)
+                    linked_entry = None
+
+                    if conn:
+                        entry_id = str(connection_entry_id(conn) or "").strip()
+                        if entry_id:
+                            used_entry_ids.add(entry_id)
+                            linked_entry = (scoped_library.get("entries") or {}).get(entry_id)
+                            if not linked_entry:
+                                for candidate in library_index_values:
+                                    entry_map = candidate.get("entries") or {}
+                                    if entry_id in entry_map:
+                                        linked_entry = entry_map[entry_id]
+                                        break
+
+                    _write_bookmark_payload(bookmark_folder, link, category_name, conn, linked_entry)
+                    record_bookmark_written(
+                        workspace_id=workspace_id,
+                        category_name=category_name,
+                        link=link,
+                    )
+
+                _write_bookmark_folder_branch(
+                    card_folder,
+                    children_by_parent,
+                    folder_links,
+                    workspace_id=workspace_id,
+                    category_name=category_name,
+                    connections_by_link=connections_by_link,
+                    scoped_library=scoped_library,
+                    library_index_values=library_index_values,
+                    used_entry_ids=used_entry_ids,
+                    bookmark_written_callback=record_bookmark_written,
+                )
+
+                unlinked_entries = []
+                for entry_id, entry in (scoped_library.get("entries") or {}).items():
+                    if entry_id in used_entry_ids or entry_id in connected_entry_ids:
+                        continue
+                    unlinked_entries.append(entry)
+
+                if unlinked_entries:
+                    unlinked_payload = {
+                        "schema": "eveos.card-library-unlinked.v1",
+                        "workspaceId": workspace_id,
+                        "categoryName": category_name,
+                        "entries": unlinked_entries,
+                    }
+                    (card_folder / "_library-unlinked.json").write_text(
+                        json.dumps(unlinked_payload, ensure_ascii=False, indent=2), encoding="utf-8"
+                    )
+
+            child_tabs = list(workspace_node.get("subTabs") or [])
+            if child_tabs:
+                child_tabs_root = workspace_folder / "tabs"
+                child_tabs_root.mkdir(parents=True, exist_ok=True)
+                write_workspace_branch(child_tabs, child_tabs_root)
+
+    write_workspace_branch(workspaces, tabs_dir)
+
+    orphan_workspace_ids = [
+        workspace_id
+        for workspace_id in workspace_map.keys()
+        if workspace_id not in written_workspace_ids
+    ]
+    for workspace_id in sorted(orphan_workspace_ids):
+        write_workspace_branch(
+            [workspace_map.get(workspace_id, {}).get("meta") or {"id": workspace_id, "name": workspace_id, "icon": "folder", "subTabs": []}],
+            tabs_dir,
+        )
     emit_progress("finalizing", "Finalizing modular data-pack save")
     status = collect_status()
     return {
@@ -686,40 +716,57 @@ def read_modular_state_raw(*, store_root, meta_dir, tabs_dir, format_version):
         if str((workspace or {}).get("id") or "").strip()
     }
 
+    discovered_workspace_meta = {}
+    discovered_workspace_parents = {}
+    discovered_workspace_order = []
+
+    def ingest_workspace_folder(ws_folder, parent_workspace_id=""):
+        if not ws_folder.exists() or not ws_folder.is_dir():
+            return
+
+        tab_file = ws_folder / "tab.json"
+        tab_data = {}
+        if tab_file.exists():
+            try:
+                tab_data = json.loads(tab_file.read_text(encoding="utf-8"))
+            except Exception:
+                tab_data = {}
+
+        workspace_id = str(tab_data.get("id") or "").strip() or ws_folder.name
+        workspace_name = tab_data.get("name") or workspace_id
+        workspace_icon = tab_data.get("icon") or "folder"
+        workspace_meta = _normalize_workspace_meta_record(
+            {
+                **dict(configured_workspace_meta.get(workspace_id) or {}),
+                **dict(tab_data or {}),
+            },
+            fallback_id=workspace_id,
+            fallback_name=workspace_name,
+            fallback_icon=workspace_icon,
+        )
+
+        if workspace_id not in discovered_workspace_meta:
+            discovered_workspace_order.append(workspace_id)
+        discovered_workspace_meta[workspace_id] = workspace_meta
+        discovered_workspace_parents[workspace_id] = str(parent_workspace_id or "").strip()
+
+        cards_root = ws_folder / "cards"
+        ingest_cards_root(
+            cards_root, workspace_id, categories, entry_ids_by_scope, bookmark_records, bookmark_folders
+        )
+
+        nested_tabs_root = ws_folder / "tabs"
+        if nested_tabs_root.exists() and nested_tabs_root.is_dir():
+            for child_folder in sorted(nested_tabs_root.iterdir()):
+                if not child_folder.is_dir():
+                    continue
+                ingest_workspace_folder(child_folder, workspace_id)
+
     if tabs_dir.exists():
-        for ws_folder in sorted(tabs_dir.iterdir()):
-            if not ws_folder.is_dir():
+        for workspace_folder in sorted(tabs_dir.iterdir()):
+            if not workspace_folder.is_dir():
                 continue
-
-            tab_file = ws_folder / "tab.json"
-            tab_data = {}
-            if tab_file.exists():
-                try:
-                    tab_data = json.loads(tab_file.read_text(encoding="utf-8"))
-                except Exception:
-                    tab_data = {}
-
-            workspace_id = str(tab_data.get("id") or "").strip() or ws_folder.name
-            workspace_name = tab_data.get("name") or workspace_id
-            workspace_icon = tab_data.get("icon") or "folder"
-            workspace_meta = _normalize_workspace_meta_record(
-                {
-                    **dict(configured_workspace_meta.get(workspace_id) or {}),
-                    **dict(tab_data or {}),
-                },
-                fallback_id=workspace_id,
-                fallback_name=workspace_name,
-                fallback_icon=workspace_icon,
-            )
-
-            if workspace_id not in seen_workspace_ids:
-                seen_workspace_ids.add(workspace_id)
-                workspaces.append(workspace_meta)
-
-            cards_root = ws_folder / "cards"
-            ingest_cards_root(
-                cards_root, workspace_id, categories, entry_ids_by_scope, bookmark_records, bookmark_folders
-            )
+            ingest_workspace_folder(workspace_folder)
     else:
         direct_cards_root = store_root / "cards"
         if direct_cards_root.exists() and direct_cards_root.is_dir():
@@ -827,6 +874,42 @@ def read_modular_state_raw(*, store_root, meta_dir, tabs_dir, format_version):
         if entry_id not in entry_ids_by_scope[scoped]:
             categories[scoped]["entries"].append(entry)
             entry_ids_by_scope[scoped].add(entry_id)
+
+    if discovered_workspace_meta:
+        merged_workspaces = build_workspaces(config)
+        merged_workspace_index = {
+            str((workspace or {}).get("id") or "").strip(): workspace
+            for workspace in iter_workspace_nodes(merged_workspaces)
+            if str((workspace or {}).get("id") or "").strip()
+        }
+
+        for workspace_id in discovered_workspace_order:
+            discovered_meta = dict(discovered_workspace_meta.get(workspace_id) or {})
+            if workspace_id in merged_workspace_index:
+                existing_workspace = merged_workspace_index[workspace_id]
+                existing_workspace["name"] = discovered_meta.get("name") or existing_workspace.get("name") or workspace_id
+                existing_workspace["icon"] = discovered_meta.get("icon") or existing_workspace.get("icon") or "folder"
+                if not isinstance(existing_workspace.get("subTabs"), list):
+                    existing_workspace["subTabs"] = []
+                continue
+
+            next_workspace = _normalize_workspace_meta_record(
+                discovered_meta,
+                fallback_id=workspace_id,
+                fallback_name=discovered_meta.get("name") or workspace_id,
+                fallback_icon=discovered_meta.get("icon") or "folder",
+            )
+            parent_workspace_id = str(discovered_workspace_parents.get(workspace_id) or "").strip()
+            parent_workspace = merged_workspace_index.get(parent_workspace_id)
+            if parent_workspace is not None:
+                if not isinstance(parent_workspace.get("subTabs"), list):
+                    parent_workspace["subTabs"] = []
+                parent_workspace["subTabs"].append(next_workspace)
+            else:
+                merged_workspaces.append(next_workspace)
+            merged_workspace_index[workspace_id] = next_workspace
+
+        workspaces = merged_workspaces
 
     if not quick_pins:
         quick_pins = derive_quick_pins_from_links(links)

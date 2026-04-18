@@ -125,6 +125,30 @@ def find_workspace_node(workspaces, workspace_id):
     return None
 
 
+def collect_tab_records(tabs_root, records=None, parent_chain=None):
+    bucket = records if isinstance(records, list) else []
+    chain = list(parent_chain or [])
+    for workspace_folder in sorted(tabs_root.iterdir()):
+        if not workspace_folder.is_dir():
+            continue
+        tab_file = workspace_folder / "tab.json"
+        if not tab_file.is_file():
+            continue
+        tab_payload = json.loads(tab_file.read_text(encoding="utf-8"))
+        entry = {
+            "folder": workspace_folder.name,
+            "id": tab_payload.get("id"),
+            "name": tab_payload.get("name"),
+            "path": str(workspace_folder),
+            "parentChain": chain,
+        }
+        bucket.append(entry)
+        nested_tabs_root = workspace_folder / "tabs"
+        if nested_tabs_root.exists() and nested_tabs_root.is_dir():
+            collect_tab_records(nested_tabs_root, bucket, chain + [str(tab_payload.get("id") or workspace_folder.name)])
+    return bucket
+
+
 def main():
     modular_root = tempfile.mkdtemp(prefix="eve-nested-workspace-store-")
     server = subprocess.Popen(
@@ -186,22 +210,15 @@ def main():
         assert str(nested_workspace.get("name") or "") == "Travel Local", nested_workspace
 
         tabs_root = Path(modular_root) / "tabs"
-        tab_records = []
-        for workspace_folder in sorted(tabs_root.iterdir()):
-            tab_file = workspace_folder / "tab.json"
-            if not tab_file.is_file():
-                continue
-            tab_payload = json.loads(tab_file.read_text(encoding="utf-8"))
-            tab_records.append({
-                "folder": workspace_folder.name,
-                "id": tab_payload.get("id"),
-                "name": tab_payload.get("name"),
-            })
+        tab_records = collect_tab_records(tabs_root)
 
         nested_record = next((item for item in tab_records if item.get("id") == "nestedspace"), None)
         assert nested_record is not None, tab_records
         assert nested_record.get("name") == "Travel Local", nested_record
         assert "travel" in str(nested_record.get("folder") or "").lower(), nested_record
+        assert nested_record.get("parentChain") == ["group-root"], nested_record
+        assert Path(nested_record.get("path") or "").parent.name == "tabs", nested_record
+        assert "projects" in Path(nested_record.get("path") or "").parent.parent.name, nested_record
 
         completed_progress = request_json("/api/eve-state/modular/progress", timeout=5).get("progress") or {}
         assert completed_progress.get("active") is False, completed_progress

@@ -159,7 +159,83 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
 
             let tabCount = 0;
             let cardCount = 0;
-            let bookmarkCount = 0;
+            let bookmarkCount = 0;
+
+            const writeWorkspaceBranch = async function (workspaceNodes, parentTabsPath) {
+
+                for (const workspace of Array.isArray(workspaceNodes) ? workspaceNodes : []) {
+
+                    const workspaceId = String(workspace?.id || '').trim() || 'main';
+
+                    const workspaceFolder = buildWorkspaceFolderName(workspaceId, workspace?.name || workspaceId);
+
+                    const tabRootPath = `${parentTabsPath}/${workspaceFolder}`;
+
+                    const categoryMap = linksByWorkspace.get(workspaceId) || new Map();
+
+                    const cardEntries = buildWorkspaceCardEntries(workspaceId, categoryMap, categories, folderTrees);
+
+                    await writeJsonFileToFolder(rootHandle, `${tabRootPath}/tab.json`, {
+
+                        schema: 'eveos.tab.v1',
+
+                        id: workspaceId,
+
+                        name: workspace?.name || workspaceId,
+
+                        icon: workspace?.icon || 'folder',
+
+                        bookmarkCount: Array.from(categoryMap.values()).reduce((sum, list) => sum + list.length, 0),
+
+                        cardCount: cardEntries.length
+
+                    });
+
+                    tabCount += 1;
+
+                    for (const [categoryName, categoryLinks] of cardEntries) {
+
+                        const cardFolder = buildCardFolderName(categoryName);
+
+                        const cardRootPath = `${tabRootPath}/${BACKUP_DIRS.cards}/${cardFolder}`;
+
+                        const written = await writeScopedCardFolder(
+
+                            rootHandle,
+
+                            cardRootPath,
+
+                            workspaceId,
+
+                            categoryName,
+
+                            categoryLinks,
+
+                            categories,
+
+                            connectionMap,
+
+                            folderTrees
+
+                        );
+
+                        cardCount += 1;
+
+                        bookmarkCount += written;
+
+                    }
+
+                    const childTabs = Array.isArray(workspace?.subTabs) ? workspace.subTabs : [];
+                    if (childTabs.length > 0) {
+                        await writeWorkspaceBranch(childTabs, `${tabRootPath}/${BACKUP_DIRS.tabs}`);
+                    }
+
+                }
+
+            };
+
+            await writeWorkspaceBranch(workspaceTree, BACKUP_DIRS.tabs);
+            workspaces.length = 0;
 
             for (const workspace of workspaces) {
                 const workspaceId = String(workspace?.id || '').trim() || 'main';

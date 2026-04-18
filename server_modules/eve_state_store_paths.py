@@ -111,6 +111,17 @@ def looks_like_tab_folder(path_obj):
         return False
 
 
+def _store_root_from_tab_folder(tab_folder):
+    current = Path(tab_folder).resolve()
+    guard = 0
+    while current.parent.name.lower() == "tabs" and guard < 64:
+        current = current.parent.parent.resolve()
+        guard += 1
+    if looks_like_store_root(current):
+        return current
+    return current.parent.resolve()
+
+
 def looks_like_card_folder(path_obj):
     try:
         if not path_obj.is_dir():
@@ -150,9 +161,7 @@ def coerce_store_root(path_obj, depth=0):
     if candidate.name.lower() == "cards":
         tab_folder = candidate.parent
         if looks_like_tab_folder(tab_folder):
-            if tab_folder.parent.name.lower() == "tabs":
-                return tab_folder.parent.parent.resolve()
-            return tab_folder.parent.resolve()
+            return _store_root_from_tab_folder(tab_folder)
         if candidate.is_dir():
             try:
                 if any(child.is_dir() for child in candidate.iterdir()):
@@ -164,17 +173,13 @@ def coerce_store_root(path_obj, depth=0):
         return coerce_store_root(candidate.parent, depth + 1)
 
     if looks_like_tab_folder(candidate):
-        if candidate.parent.name.lower() == "tabs":
-            return candidate.parent.parent.resolve()
-        return candidate.parent.resolve()
+        return _store_root_from_tab_folder(candidate)
 
     if looks_like_card_folder(candidate):
         if candidate.parent.name.lower() == "cards":
             tab_folder = candidate.parent.parent
             if looks_like_tab_folder(tab_folder):
-                if tab_folder.parent.name.lower() == "tabs":
-                    return tab_folder.parent.parent.resolve()
-                return tab_folder.parent.resolve()
+                return _store_root_from_tab_folder(tab_folder)
             return candidate.parent.parent.resolve()
 
     try:
