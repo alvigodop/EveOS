@@ -9,7 +9,9 @@ from server_modules.eve_state_store_files import (
     build_workspaces,
     connection_entry_id,
     derive_quick_pins_from_links,
+    find_workspace_node,
     folder_name,
+    iter_workspace_nodes,
     load_json_file,
     normalize_quick_pins,
     normalize_bookmark_folder_tree_settings,
@@ -103,6 +105,7 @@ def _write_bookmark_folder_branch(
     library_index_values,
     used_entry_ids,
     parent_id=None,
+    bookmark_written_callback=None,
 ):
     child_nodes = list((children_by_parent or {}).get(parent_id, []))
     if not child_nodes:
@@ -145,6 +148,12 @@ def _write_bookmark_folder_branch(
                                 break
             _write_bookmark_payload(entries_dir, link, category_name, conn, linked_entry)
             written += 1
+            if callable(bookmark_written_callback):
+                bookmark_written_callback(
+                    workspace_id=workspace_id,
+                    category_name=category_name,
+                    link=link,
+                )
 
         written += _write_bookmark_folder_branch(
             folder_dir,
@@ -157,6 +166,7 @@ def _write_bookmark_folder_branch(
             library_index_values=library_index_values,
             used_entry_ids=used_entry_ids,
             parent_id=normalized_node["id"],
+            bookmark_written_callback=bookmark_written_callback,
         )
 
     return written
@@ -278,6 +288,7 @@ def write_modular_state_full(
     format_version,
     ensure_clean_store,
     collect_status,
+    progress_callback=None,
 ):
     if not isinstance(state, dict):
         raise ValueError("State payload must be a JSON object.")
@@ -341,9 +352,48 @@ def write_modular_state_full(
         encoding="utf-8"
     )
 
+    tab_count_total = len(workspace_map)
+    card_count_total = sum(len((ws_data or {}).get("categories") or {}) for ws_data in workspace_map.values())
+    bookmark_count_total = sum(len((ws_data or {}).get("links") or []) for ws_data in workspace_map.values())
+    total_units = tab_count_total + card_count_total + bookmark_count_total
+
     bookmark_count = 0
     tab_count = 0
     card_count = 0
+
+    def emit_progress(phase, message, *, workspace_id="", category_name="", current_item=""):
+        if not callable(progress_callback):
+            return
+        progress_callback({
+            "phase": str(phase or "writing").strip() or "writing",
+            "message": str(message or "").strip(),
+            "workspaceId": str(workspace_id or "").strip(),
+            "categoryName": str(category_name or "").strip(),
+            "currentItem": str(current_item or "").strip(),
+            "tabsCompleted": tab_count,
+            "tabsTotal": tab_count_total,
+            "cardsCompleted": card_count,
+            "cardsTotal": card_count_total,
+            "bookmarksCompleted": bookmark_count,
+            "bookmarksTotal": bookmark_count_total,
+            "unitsCompleted": tab_count + card_count + bookmark_count,
+            "unitsTotal": total_units,
+        })
+
+    def record_bookmark_written(*, workspace_id="", category_name="", link=None):
+        nonlocal bookmark_count
+        bookmark_count += 1
+        link_title = str((link or {}).get("title") or "").strip()
+        current_item = link_title or str((link or {}).get("id") or "").strip()
+        emit_progress(
+            "writing",
+            f"Writing bookmarks for {category_name or 'Unsorted'}",
+            workspace_id=workspace_id,
+            category_name=category_name,
+            current_item=current_item,
+        )
+
+    emit_progress("preparing", "Preparing modular data-pack save")
 
     for workspace_id, ws_data in workspace_map.items():
         ws_meta = ws_data["meta"]
@@ -368,6 +418,12 @@ def write_modular_state_full(
             json.dumps(tab_payload, ensure_ascii=False, indent=2), encoding="utf-8"
         )
         tab_count += 1
+        emit_progress(
+            "writing",
+            f"Writing tab {ws_meta.get('name') or workspace_id}",
+            workspace_id=workspace_id,
+            current_item=ws_meta.get("name") or workspace_id,
+        )
 
         for category_name, category_links in ws_data["categories"].items():
             card_folder_name = folder_name(category_name, "card")
@@ -432,6 +488,13 @@ def write_modular_state_full(
                 json.dumps(card_payload, ensure_ascii=False, indent=2), encoding="utf-8"
             )
             card_count += 1
+            emit_progress(
+                "writing",
+                f"Writing card {category_name}",
+                workspace_id=workspace_id,
+                category_name=category_name,
+                current_item=category_name,
+            )
 
             used_entry_ids = set()
 
@@ -455,9 +518,13 @@ def write_modular_state_full(
                         linked = linked_entry is not None
 
                 _write_bookmark_payload(bookmark_folder, link, category_name, conn, linked_entry)
-                bookmark_count += 1
+                record_bookmark_written(
+                    workspace_id=workspace_id,
+                    category_name=category_name,
+                    link=link,
+                )
 
-            bookmark_count += _write_bookmark_folder_branch(
+            _write_bookmark_folder_branch(
                 card_folder,
                 children_by_parent,
                 folder_links,
@@ -467,6 +534,7 @@ def write_modular_state_full(
                 scoped_library=scoped_library,
                 library_index_values=library_index_values,
                 used_entry_ids=used_entry_ids,
+                bookmark_written_callback=record_bookmark_written,
             )
 
             unlinked_entries = []
@@ -486,6 +554,7 @@ def write_modular_state_full(
                     json.dumps(unlinked_payload, ensure_ascii=False, indent=2), encoding="utf-8"
                 )
 
+    emit_progress("finalizing", "Finalizing modular data-pack save")
     status = collect_status()
     return {
         "ok": True,
@@ -610,9 +679,10 @@ def read_modular_state_raw(*, store_root, meta_dir, tabs_dir, format_version):
     bookmark_records = []
     bookmark_folders = {}
     entry_ids_by_scope = {}
+    configured_workspaces = build_workspaces(config)
     configured_workspace_meta = {
         str((workspace or {}).get("id") or "").strip(): dict(workspace or {})
-        for workspace in build_workspaces(config)
+        for workspace in iter_workspace_nodes(configured_workspaces)
         if str((workspace or {}).get("id") or "").strip()
     }
 
@@ -656,14 +726,7 @@ def read_modular_state_raw(*, store_root, meta_dir, tabs_dir, format_version):
             workspace_id = infer_workspace_from_cards_root(
                 direct_cards_root, config=config, store_meta=store_meta
             )
-            workspace_meta = next(
-                (
-                    ws
-                    for ws in build_workspaces(config)
-                    if str((ws or {}).get("id") or "").strip() == workspace_id
-                ),
-                None,
-            )
+            workspace_meta = find_workspace_node(configured_workspaces, workspace_id)
             workspace_name = (workspace_meta or {}).get("name") or workspace_id
             workspace_icon = (workspace_meta or {}).get("icon") or "folder"
             normalized_workspace_meta = _normalize_workspace_meta_record(

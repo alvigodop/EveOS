@@ -56,10 +56,75 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
             return next;
         }
 
-        function buildWorkspaceListForFullBackup(state) {
+        function walkWorkspaceNodes(workspaces, visit) {
+            (Array.isArray(workspaces) ? workspaces : []).forEach((workspace) => {
+                if (typeof workspace === 'string') {
+                    if (typeof visit === 'function') {
+                        visit({ id: workspace, name: workspace, icon: 'folder', subTabs: [] });
+                    }
+                    return;
+                }
+                if (!workspace || typeof workspace !== 'object') return;
+                if (typeof visit === 'function') visit(workspace);
+                walkWorkspaceNodes(workspace.subTabs, visit);
+            });
+        }
+
+        function normalizeWorkspaceNode(workspace, seenIds) {
+            if (typeof workspace === 'string') {
+                workspace = { id: workspace, name: workspace, icon: 'folder', subTabs: [] };
+            }
+            if (!workspace || typeof workspace !== 'object') return null;
+
+            const id = String(workspace.id || '').trim() || 'main';
+            if (seenIds.has(id)) return null;
+            seenIds.add(id);
+
+            const normalized = {
+                ...workspace,
+                id,
+                name: workspace.name || id,
+                icon: workspace.icon || 'folder',
+                subTabs: []
+            };
+
+            (Array.isArray(workspace.subTabs) ? workspace.subTabs : []).forEach((child) => {
+                const normalizedChild = normalizeWorkspaceNode(child, seenIds);
+                if (normalizedChild) normalized.subTabs.push(normalizedChild);
+            });
+
+            return normalized;
+        }
+
+        function buildWorkspaceTreeForFullBackup(state) {
             const config = state?.bookmarks?.config || {};
             const links = Array.isArray(state?.bookmarks?.links) ? state.bookmarks.links : [];
-            const activeWorkspace = String(config.activeWorkspace || '').trim();
+            const seenIds = new Set();
+            const normalized = [];
+
+            (Array.isArray(config.workspaces) ? config.workspaces : []).forEach((workspace) => {
+                const normalizedWorkspace = normalizeWorkspaceNode(workspace, seenIds);
+                if (normalizedWorkspace) normalized.push(normalizedWorkspace);
+            });
+
+            const ensureWorkspace = (workspaceId) => {
+                const id = String(workspaceId || '').trim() || 'main';
+                if (!id || seenIds.has(id)) return;
+                seenIds.add(id);
+                normalized.push({ id, name: id, icon: 'folder', subTabs: [] });
+            };
+
+            links.forEach((link) => ensureWorkspace(link?.workspace || 'main'));
+            ensureWorkspace(config.activeWorkspace || '');
+
+            if (normalized.length === 0) {
+                normalized.push({ id: 'main', name: 'Main', icon: 'folder', subTabs: [] });
+            }
+
+            return normalized;
+        }
+
+        function buildWorkspaceListForFullBackup(state) {
             const byId = new Map();
 
             const addWorkspace = function (workspace) {
@@ -74,22 +139,7 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
                 });
             };
 
-            const configured = Array.isArray(config.workspaces) ? config.workspaces : [];
-            configured.forEach(addWorkspace);
-
-            // Only add placeholders for workspaces found in links that AREN'T in the formal config
-            links.forEach(link => {
-                const id = String(link?.workspace || 'main').trim() || 'main';
-                if (!byId.has(id)) {
-                    byId.set(id, { id, name: id, icon: 'folder' });
-                }
-            });
-            if (activeWorkspace && !byId.has(activeWorkspace)) {
-                byId.set(activeWorkspace, { id: activeWorkspace, name: activeWorkspace, icon: 'folder' });
-            }
-            if (byId.size === 0) {
-                byId.set('main', { id: 'main', name: 'Main', icon: 'folder' });
-            }
+            walkWorkspaceNodes(buildWorkspaceTreeForFullBackup(state), addWorkspace);
             return Array.from(byId.values());
         }
 
@@ -194,7 +244,13 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
         function getWorkspaceMeta(workspaceId, configOverride) {
             const appConfig = configOverride && typeof configOverride === 'object' ? configOverride : getAppConfig();
             const workspaces = Array.isArray(appConfig.workspaces) ? appConfig.workspaces : [];
-            const match = workspaces.find(ws => String(ws?.id) === String(workspaceId));
+            let match = null;
+            walkWorkspaceNodes(workspaces, (workspace) => {
+                if (match) return;
+                if (String(workspace?.id || '') === String(workspaceId)) {
+                    match = workspace;
+                }
+            });
             return {
                 id: workspaceId,
                 name: match?.name || workspaceId,
@@ -207,6 +263,7 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
             buildCardPayload,
             isLocalhostHost,
             buildFallbackConfig,
+            buildWorkspaceTreeForFullBackup,
             buildWorkspaceListForFullBackup,
             groupLinksByWorkspaceAndCategory,
             getConnectionCategoryName,

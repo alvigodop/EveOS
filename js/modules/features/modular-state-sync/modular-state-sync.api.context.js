@@ -11,7 +11,36 @@ window.EveDataStore = window.EveDataStore || {};
 
     async function syncNow(force = true) {
         if (!ns.isHttpContext()) return false;
-        return ns.pushLocalState(!!force, '', { ignoreEnabled: true });
+        const store = ns.getStore();
+        if (!store?.captureState) return false;
+
+        const currentState = store.captureState();
+        const stateHash = ns.hashState(currentState);
+        if (!force && (stateHash === ns.state.lastUploadedHash || stateHash === ns.state.lastSyncedLocalHash)) {
+            return false;
+        }
+
+        return ns.withOperationMonitor(async () => {
+            const { ok, payload } = await ns.requestJson('/api/eve-state/modular/save', {
+                method: 'POST',
+                body: JSON.stringify(currentState)
+            });
+            if (!ok || !payload?.ok) {
+                return { ok: false, error: payload?.error || 'Failed to save modular state.' };
+            }
+
+            ns.state.lastUploadedHash = stateHash;
+            ns.state.lastSyncedLocalHash = stateHash;
+            ns.state.remoteSignature = payload?.status?.signature || ns.state.remoteSignature;
+            return {
+                ok: true,
+                summary: payload.summary || {},
+                status: payload.status || null
+            };
+        }, {
+            kind: 'save',
+            startMessage: 'Preparing modular save'
+        });
     }
 
     async function pullNow(force = true) {

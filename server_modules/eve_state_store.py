@@ -5,6 +5,7 @@ import os
 import shutil
 import threading
 import tempfile
+import time
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -86,6 +87,7 @@ TABS_DIR = STORE_ROOT / "tabs"
 FORMAT_VERSION = 1
 STORE_SETTINGS_VERSION = 1
 _STATE_LOCK = threading.RLock()
+_PROGRESS_LOCK = threading.RLock()
 ACTIVE_STORE_SELECTION = {
     "layer": "store",
     "workspaceId": "",
@@ -93,6 +95,31 @@ ACTIVE_STORE_SELECTION = {
     "folderId": "",
     "bookmarkId": "",
     "requestedPath": str(DEFAULT_STORE_ROOT.resolve())
+}
+_OPERATION_PROGRESS = {
+    "active": False,
+    "kind": "",
+    "layer": "",
+    "phase": "idle",
+    "message": "",
+    "error": "",
+    "ok": None,
+    "workspaceId": "",
+    "categoryName": "",
+    "currentItem": "",
+    "destinationPath": "",
+    "summary": {},
+    "tabsCompleted": 0,
+    "tabsTotal": 0,
+    "cardsCompleted": 0,
+    "cardsTotal": 0,
+    "bookmarksCompleted": 0,
+    "bookmarksTotal": 0,
+    "unitsCompleted": 0,
+    "unitsTotal": 0,
+    "startedAt": 0,
+    "updatedAt": 0,
+    "endedAt": 0,
 }
 
 
@@ -215,12 +242,110 @@ def _collect_status():
     }
 
 
+def _now_ms():
+    return int(time.time() * 1000)
+
+
+def _reset_operation_progress():
+    return {
+        "active": False,
+        "kind": "",
+        "layer": "",
+        "phase": "idle",
+        "message": "",
+        "error": "",
+        "ok": None,
+        "workspaceId": "",
+        "categoryName": "",
+        "currentItem": "",
+        "destinationPath": "",
+        "summary": {},
+        "tabsCompleted": 0,
+        "tabsTotal": 0,
+        "cardsCompleted": 0,
+        "cardsTotal": 0,
+        "bookmarksCompleted": 0,
+        "bookmarksTotal": 0,
+        "unitsCompleted": 0,
+        "unitsTotal": 0,
+        "startedAt": 0,
+        "updatedAt": 0,
+        "endedAt": 0,
+    }
+
+
+def _begin_operation_progress(*, kind="", phase="preparing", message="", **fields):
+    now = _now_ms()
+    progress = _reset_operation_progress()
+    progress.update({
+        "active": True,
+        "kind": str(kind or "").strip(),
+        "phase": str(phase or "preparing").strip() or "preparing",
+        "message": str(message or "").strip(),
+        "startedAt": now,
+        "updatedAt": now,
+    })
+    progress.update({key: value for key, value in fields.items() if value is not None})
+    with _PROGRESS_LOCK:
+        _OPERATION_PROGRESS.clear()
+        _OPERATION_PROGRESS.update(progress)
+        return dict(_OPERATION_PROGRESS)
+
+
+def _update_operation_progress(fields=None, **extra_fields):
+    payload = {}
+    if isinstance(fields, dict):
+        payload.update(fields)
+    payload.update(extra_fields)
+    if not payload:
+        return
+    with _PROGRESS_LOCK:
+        if not _OPERATION_PROGRESS.get("active") and "active" not in payload:
+            payload["active"] = True
+        _OPERATION_PROGRESS.update({key: value for key, value in payload.items() if value is not None})
+        _OPERATION_PROGRESS["updatedAt"] = _now_ms()
+
+
+def _finish_operation_progress(*, ok=True, kind="", phase="complete", message="", **fields):
+    now = _now_ms()
+    payload = {
+        "active": False,
+        "ok": bool(ok),
+        "kind": str(kind or "").strip(),
+        "phase": str(phase or ("complete" if ok else "error")).strip() or ("complete" if ok else "error"),
+        "message": str(message or "").strip(),
+        "endedAt": now,
+        "updatedAt": now,
+    }
+    payload.update({key: value for key, value in fields.items() if value is not None})
+    with _PROGRESS_LOCK:
+        _OPERATION_PROGRESS.update(payload)
+        return dict(_OPERATION_PROGRESS)
+
+
+def _get_operation_progress():
+    with _PROGRESS_LOCK:
+        return dict(_OPERATION_PROGRESS)
+
+
+def _make_progress_callback(*, kind=""):
+    base_kind = str(kind or "").strip()
+
+    def callback(progress):
+        payload = dict(progress or {}) if isinstance(progress, dict) else {}
+        if base_kind and not payload.get("kind"):
+            payload["kind"] = base_kind
+        _update_operation_progress(payload)
+
+    return callback
+
+
 def build_gemini_context(mode="summary", sample_limit=25):
     state = read_modular_state()
     return _build_gemini_context_from_state(state, mode=mode, sample_limit=sample_limit)
 
 
-def _write_modular_state_full(state):
+def _write_modular_state_full(state, progress_callback=None):
     return _write_modular_state_full_io(
         state,
         store_root=STORE_ROOT,
@@ -229,17 +354,18 @@ def _write_modular_state_full(state):
         format_version=FORMAT_VERSION,
         ensure_clean_store=_ensure_clean_store,
         collect_status=_collect_status,
+        progress_callback=progress_callback,
     )
 
 
-def write_modular_state(state):
+def write_modular_state(state, progress_callback=None):
     if not isinstance(state, dict):
         raise ValueError("State payload must be a JSON object.")
 
     selection = get_active_store_selection()
     layer = str(selection.get("layer") or "store").strip().lower()
     if layer not in {"tab", "card", "folder", "bookmark"}:
-        return _write_modular_state_full(state)
+        return _write_modular_state_full(state, progress_callback=progress_callback)
 
     try:
         base_state = read_modular_state(apply_selection=False)
@@ -255,7 +381,7 @@ def write_modular_state(state):
         folder_id=str(selection.get("folderId") or "").strip(),
         bookmark_id=str(selection.get("bookmarkId") or "").strip()
     )
-    return _write_modular_state_full(merged_state)
+    return _write_modular_state_full(merged_state, progress_callback=progress_callback)
 
 
 def read_modular_state(apply_selection=True):
@@ -302,14 +428,14 @@ def _read_state_from_root(root_path):
         return read_modular_state(apply_selection=False)
 
 
-def _write_state_to_root(state, root_path):
+def _write_state_to_root(state, root_path, progress_callback=None):
     with _temporary_store_root(root_path):
         # Backups must write the provided snapshot as-is into the destination
         # root, independent of the currently active scoped selection.
-        return _write_modular_state_full(state)
+        return _write_modular_state_full(state, progress_callback=progress_callback)
 
 
-def _write_card_layer_backup_to_root(state, root_path):
+def _write_card_layer_backup_to_root(state, root_path, progress_callback=None):
     """
     Write a card-layer backup with structure starting at:
       <root>/cards/<card>/...
@@ -318,14 +444,24 @@ def _write_card_layer_backup_to_root(state, root_path):
     target_root = Path(root_path).resolve()
     temp_root = Path(tempfile.mkdtemp(prefix="eveos-card-layer-"))
     try:
+        if callable(progress_callback):
+            progress_callback({
+                "phase": "preparing",
+                "message": "Preparing card backup snapshot",
+            })
         with _temporary_store_root(temp_root):
-            _write_modular_state_full(state)
+            _write_modular_state_full(state, progress_callback=progress_callback)
 
         copied_scopes = 0
         copied_cards = 0
         tabs_root = temp_root / "tabs"
         dst_cards_root = target_root / "cards"
         dst_cards_root.mkdir(parents=True, exist_ok=True)
+        if callable(progress_callback):
+            progress_callback({
+                "phase": "copying",
+                "message": "Copying card backup to destination",
+            })
         src_knowledge_root = temp_root / "knowledge"
         if src_knowledge_root.exists() and src_knowledge_root.is_dir():
             shutil.copytree(src_knowledge_root, target_root / "knowledge", dirs_exist_ok=True)
@@ -361,7 +497,7 @@ def _write_card_layer_backup_to_root(state, root_path):
         shutil.rmtree(temp_root, ignore_errors=True)
 
 
-def _write_folder_layer_backup_to_root(state, root_path):
+def _write_folder_layer_backup_to_root(state, root_path, progress_callback=None):
     """
     Write a folder-layer backup with structure starting at:
       <root>/cards/<card>/...
@@ -371,8 +507,13 @@ def _write_folder_layer_backup_to_root(state, root_path):
     target_root = Path(root_path).resolve()
     temp_root = Path(tempfile.mkdtemp(prefix="eveos-folder-layer-"))
     try:
+        if callable(progress_callback):
+            progress_callback({
+                "phase": "preparing",
+                "message": "Preparing folder backup snapshot",
+            })
         with _temporary_store_root(temp_root):
-            _write_modular_state_full(state)
+            _write_modular_state_full(state, progress_callback=progress_callback)
 
         state_root = target_root / "state"
         state_root.mkdir(parents=True, exist_ok=True)
@@ -386,6 +527,11 @@ def _write_folder_layer_backup_to_root(state, root_path):
         tabs_root = temp_root / "tabs"
         dst_cards_root = target_root / "cards"
         dst_cards_root.mkdir(parents=True, exist_ok=True)
+        if callable(progress_callback):
+            progress_callback({
+                "phase": "copying",
+                "message": "Copying folder backup to destination",
+            })
         src_knowledge_root = temp_root / "knowledge"
         if src_knowledge_root.exists() and src_knowledge_root.is_dir():
             shutil.copytree(src_knowledge_root, target_root / "knowledge", dirs_exist_ok=True)
@@ -422,15 +568,19 @@ def _write_folder_layer_backup_to_root(state, root_path):
 
 def _build_api_deps():
     return {
+        "begin_operation_progress": _begin_operation_progress,
         "collect_status": _collect_status,
         "build_gemini_context": build_gemini_context,
         "default_store_root": DEFAULT_STORE_ROOT,
         "empty_unified_state": _empty_unified_state,
         "ensure_destination_ready": _ensure_destination_ready,
         "extract_layer_state": _extract_layer_state,
+        "finish_operation_progress": _finish_operation_progress,
         "get_active_store_root": get_active_store_root,
         "get_active_store_selection": get_active_store_selection,
+        "get_operation_progress": _get_operation_progress,
         "logger": logger,
+        "make_progress_callback": _make_progress_callback,
         "merge_layer_state": _merge_layer_state,
         "normalize_modular_bookmark_filenames": normalize_modular_bookmark_filenames,
         "pick_folder_path_native": _pick_folder_path_native,
@@ -449,6 +599,8 @@ def _build_api_deps():
 
 
 def handle_get_request(handler, path, query):
+    if path == "/api/eve-state/modular/progress":
+        return _handle_get_request_api(handler, path, query, _build_api_deps())
     with _STATE_LOCK:
         return _handle_get_request_api(handler, path, query, _build_api_deps())
 

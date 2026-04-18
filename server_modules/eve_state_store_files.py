@@ -220,9 +220,27 @@ def build_workspaces(config):
     return normalized
 
 
+def iter_workspace_nodes(workspaces):
+    for workspace in workspaces or []:
+        if not isinstance(workspace, dict):
+            continue
+        yield workspace
+        yield from iter_workspace_nodes(workspace.get("subTabs") or [])
+
+
+def find_workspace_node(workspaces, workspace_id):
+    target_id = str(workspace_id or "").strip()
+    if not target_id:
+        return None
+    for workspace in iter_workspace_nodes(workspaces):
+        if str((workspace or {}).get("id") or "").strip() == target_id:
+            return workspace
+    return None
+
+
 def prepare_workspace_map(links, workspaces, categories=None, folder_trees=None):
     by_workspace = {}
-    for ws in workspaces:
+    for ws in iter_workspace_nodes(workspaces):
         by_workspace[ws["id"]] = {
             "meta": ws,
             "links": [],

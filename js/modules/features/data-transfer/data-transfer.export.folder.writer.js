@@ -18,13 +18,14 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         return;
     }
 
-    const deps = {
-        sanitizePathSegment: ns.sanitizePathSegment,
-        buildWorkspaceFolderName: ns.buildWorkspaceFolderName,
-        buildCardFolderName: ns.buildCardFolderName,
-        buildFallbackConfig: ns.buildFallbackConfig,
-        buildWorkspaceListForFullBackup: ns.buildWorkspaceListForFullBackup,
-        groupLinksByWorkspaceAndCategory: ns.groupLinksByWorkspaceAndCategory,
+    const deps = {
+        sanitizePathSegment: ns.sanitizePathSegment,
+        buildWorkspaceFolderName: ns.buildWorkspaceFolderName,
+        buildCardFolderName: ns.buildCardFolderName,
+        buildFallbackConfig: ns.buildFallbackConfig,
+        buildWorkspaceTreeForFullBackup: ns.buildWorkspaceTreeForFullBackup,
+        buildWorkspaceListForFullBackup: ns.buildWorkspaceListForFullBackup,
+        groupLinksByWorkspaceAndCategory: ns.groupLinksByWorkspaceAndCategory,
         getConnectionEntryId: ns.getConnectionEntryId,
         findScopedCategoryData: ns.findScopedCategoryData,
         findLibraryEntryById: ns.findLibraryEntryById,
@@ -56,6 +57,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         writeKnowledgeSnapshot: cardHelpers.writeKnowledgeSnapshot,
         filterKnowledgeState: cardHelpers.filterKnowledgeState,
         buildFallbackConfig: ns.buildFallbackConfig,
+        buildWorkspaceTreeForFullBackup: ns.buildWorkspaceTreeForFullBackup,
         sortLinksForExport: ns.sortLinksForExport,
         buildConnectionMap: ns.buildConnectionMap,
         getConnectionEntryId: ns.getConnectionEntryId,

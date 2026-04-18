@@ -34,6 +34,9 @@ window.EveDataTransfer = window.EveDataTransfer || {};
     const buildBookmarkBackupJsonName = ns.buildBookmarkBackupJsonName;
     const requireLayerDestinationPath = ns.requireLayerDestinationPath;
     const persistLayerDestinationPath = ns.persistLayerDestinationPath;
+    const canUseServerFolderBackups = typeof ns.canUseServerFolderBackups === 'function'
+        ? ns.canUseServerFolderBackups
+        : (modularSync) => /^https?:$/i.test(window.location?.protocol || '') && typeof modularSync?.backupLayer === 'function';
 
     function downloadWorkspaceBackupJson(workspaceId, workspaceName, exportState) {
         const blob = new Blob([JSON.stringify(exportState, null, 2)], { type: 'application/json' });
@@ -76,7 +79,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             ? dataStore.captureWorkspace(workspaceId)
             : buildWorkspacePayload(workspaceId);
 
-        if (modularSync?.backupLayer) {
+        if (canUseServerFolderBackups(modularSync)) {
             const destinationPath = await requireLayerDestinationPath();
             if (!destinationPath) return;
             try {
@@ -135,7 +138,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             ? dataStore.captureCard(workspaceId, categoryName)
             : buildCardPayload(workspaceId, categoryName);
 
-        if (modularSync?.backupLayer) {
+        if (canUseServerFolderBackups(modularSync)) {
             const destinationPath = await requireLayerDestinationPath();
             if (!destinationPath) return;
             try {
@@ -235,7 +238,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             return showToast('Could not build folder backup payload.', 'error');
         }
 
-        if (modularSync?.backupLayer) {
+        if (canUseServerFolderBackups(modularSync)) {
             const destinationPath = await requireLayerDestinationPath();
             if (!destinationPath) return;
             try {

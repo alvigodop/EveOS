@@ -10,6 +10,21 @@ window.LoadingIndicatorModules = window.LoadingIndicatorModules || {};
         // Safety timeout to auto-dismiss stuck searching state
         let _searchSafetyTimer = null;
         const SAFETY_TIMEOUT_MS = 45000;
+        const DEFAULT_MONITOR_LABELS = Object.freeze({
+            status: 'Status',
+            progress: 'Wikis Searched',
+            results: 'Results Found'
+        });
+
+        function applyMonitorLabels(indicator, labels = {}) {
+            if (!indicator) return;
+            const statusLabel = indicator.querySelector('#searchStatusLabel');
+            const progressLabel = indicator.querySelector('#wikisSearchedLabel');
+            const resultsLabel = indicator.querySelector('#resultsFoundLabel');
+            if (statusLabel) statusLabel.textContent = `${labels.status || DEFAULT_MONITOR_LABELS.status}:`;
+            if (progressLabel) progressLabel.textContent = `${labels.progress || DEFAULT_MONITOR_LABELS.progress}:`;
+            if (resultsLabel) resultsLabel.textContent = `${labels.results || DEFAULT_MONITOR_LABELS.results}:`;
+        }
 
         function clearSafetyTimer() {
             if (_searchSafetyTimer) {
@@ -59,12 +74,14 @@ window.LoadingIndicatorModules = window.LoadingIndicatorModules || {};
             const wikisSearched = indicator.querySelector('#wikisSearched');
             const resultsFound = indicator.querySelector('#resultsFound');
             const dot = indicator.querySelector('.dot');
+            const monitorLabels = stats.monitorLabels || {};
 
             indicator.classList.toggle('searching', isSearching);
 
             if (!isSearching) {
                 // If not searching, we should hide the overall overlay but maybe keep "Idle" if not specifically hidden
                 indicator.classList.remove('searching');
+                applyMonitorLabels(indicator, DEFAULT_MONITOR_LABELS);
                 if (statusText) statusText.textContent = 'Idle';
                 if (searchStatus) searchStatus.textContent = 'Idle';
                 if (wikisSearched) wikisSearched.textContent = '0/0';
@@ -88,6 +105,7 @@ window.LoadingIndicatorModules = window.LoadingIndicatorModules || {};
             indicator.classList.add('visible');
             indicator.style.display = '';
             startSafetyTimer();
+            applyMonitorLabels(indicator, monitorLabels);
 
             if (isSearching || message === 'Idle') {
                 indicator.classList.remove('error');
@@ -96,25 +114,43 @@ window.LoadingIndicatorModules = window.LoadingIndicatorModules || {};
             if (statusText) {
                 const phase = stats.statusPhase || 'search';
                 const title = stats.currentResult;
-                if (window.LIStats) {
+                if (typeof stats.statusText === 'string' && stats.statusText.trim()) {
+                    statusText.textContent = stats.statusText;
+                } else if (window.LIStats) {
                     statusText.textContent = LIStats.getStatusText(phase, title, message);
                 } else {
                     statusText.textContent = title ? `-> ${title}` : message;
                 }
             }
 
-            if (searchStatus) searchStatus.textContent = message;
-            if (stats.wikisSearched !== undefined && wikisSearched) {
-                if (window.LIStats) {
-                    wikisSearched.textContent = LIStats.formatWikiProgress(stats.wikisSearched, stats.totalWikis);
-                } else {
-                    wikisSearched.textContent = `${stats.wikisSearched}/${stats.totalWikis || 0}`;
+            if (searchStatus) {
+                searchStatus.textContent = stats.searchStatusText !== undefined
+                    ? String(stats.searchStatusText)
+                    : message;
+            }
+            if (wikisSearched) {
+                if (stats.wikisSearchedDisplay !== undefined) {
+                    wikisSearched.textContent = String(stats.wikisSearchedDisplay);
+                } else if (stats.wikisSearched !== undefined) {
+                    if (window.LIStats) {
+                        wikisSearched.textContent = LIStats.formatWikiProgress(stats.wikisSearched, stats.totalWikis);
+                    } else {
+                        wikisSearched.textContent = `${stats.wikisSearched}/${stats.totalWikis || 0}`;
+                    }
                 }
             }
-            if (stats.resultsFound !== undefined && resultsFound) {
-                resultsFound.textContent = stats.resultsFound;
+            if (resultsFound) {
+                if (stats.resultsFoundDisplay !== undefined) {
+                    resultsFound.textContent = String(stats.resultsFoundDisplay);
+                } else if (stats.resultsFound !== undefined) {
+                    resultsFound.textContent = stats.resultsFound;
+                }
             }
-            if (dot) dot.style.background = '#9e9e9e';
+            if (stats.dotColor && dot) {
+                dot.style.background = String(stats.dotColor);
+            } else if (dot) {
+                dot.style.background = '#9e9e9e';
+            }
         }
 
         function showErrorInMonitor(message) {
@@ -128,6 +164,7 @@ window.LoadingIndicatorModules = window.LoadingIndicatorModules || {};
             indicator.classList.remove('compact');
             indicator.classList.remove('searching');
             indicator.classList.add('error');
+            applyMonitorLabels(indicator, DEFAULT_MONITOR_LABELS);
 
             if (statusText) statusText.textContent = 'Error';
             if (searchStatus) searchStatus.textContent = message;
@@ -144,6 +181,7 @@ window.LoadingIndicatorModules = window.LoadingIndicatorModules || {};
             if (!indicator) return;
             indicator.classList.remove('searching', 'error', 'visible');
             indicator.style.display = 'none';
+            applyMonitorLabels(indicator, DEFAULT_MONITOR_LABELS);
             const statusText = indicator.querySelector('.status-text');
             if (statusText) statusText.textContent = 'Idle';
             const dot = indicator.querySelector('.dot');

@@ -101,6 +101,42 @@ def _build_workspaces(config):
     return normalized
 
 
+def _iter_workspace_nodes(workspaces):
+    for workspace in workspaces or []:
+        if not isinstance(workspace, dict):
+            continue
+        yield workspace
+        yield from _iter_workspace_nodes(workspace.get("subTabs") or [])
+
+
+def _find_workspace_node(workspaces, workspace_id):
+    target_id = str(workspace_id or "").strip()
+    if not target_id:
+        return None
+    for workspace in _iter_workspace_nodes(workspaces):
+        if str((workspace or {}).get("id") or "").strip() == target_id:
+            return workspace
+    return None
+
+
+def _clone_workspace_node(node):
+    workspace = dict(node or {})
+    workspace["subTabs"] = [
+        _clone_workspace_node(child)
+        for child in (node or {}).get("subTabs") or []
+        if isinstance(child, dict)
+    ]
+    return workspace
+
+
+def _workspace_config_entries(config, workspace_id):
+    match = _find_workspace_node(_build_workspaces(config), workspace_id)
+    if match:
+        return [_clone_workspace_node(match)]
+    ws_id = str(workspace_id or "").strip() or "main"
+    return [{"id": ws_id, "name": ws_id, "icon": "\U0001F4C1", "subTabs": []}]
+
+
 def _normalize_link_record(link, fallback_workspace="", fallback_category=""):
     item = dict(link or {})
     link_id = str(item.get("id") or "").strip()
@@ -668,6 +704,23 @@ def _ensure_workspace_config_entry(config, workspace_id, incoming_config=None):
     config["workspaces"] = workspaces
 
 
+def _ensure_workspace_config_entry_recursive(config, workspace_id, incoming_config=None):
+    ws_id = str(workspace_id or "").strip() or "main"
+    workspaces = _build_workspaces(config)
+    if _find_workspace_node(workspaces, ws_id):
+        config["workspaces"] = workspaces
+        return
+
+    incoming_workspaces = _build_workspaces(incoming_config or {})
+    match = _find_workspace_node(incoming_workspaces, ws_id)
+    workspaces.append(
+        _clone_workspace_node(match)
+        if match
+        else {"id": ws_id, "name": ws_id, "icon": "\U0001F4C1", "subTabs": []}
+    )
+    config["workspaces"] = workspaces
+
+
 def _build_layer_state(
     links,
     config,
@@ -888,11 +941,12 @@ def extract_layer_state(state, layer, workspace_id="", category_name="", folder_
         ]
         scoped_category_names = [parsed.get("category_name") for parsed in map(_parse_scoped_category_key, scoped_categories.keys())]
         tab_config = dict(config)
-        _ensure_workspace_config_entry(tab_config, ws_id, incoming_config=config)
+        _ensure_workspace_config_entry_recursive(tab_config, ws_id, incoming_config=config)
         tab_config["workspaces"] = [
             ws for ws in _build_workspaces(tab_config)
             if str(ws.get("id")) == ws_id
         ] or [{"id": ws_id, "name": ws_id, "icon": "📁"}]
+        tab_config["workspaces"] = _workspace_config_entries(tab_config, ws_id)
         return _build_layer_state(
             scoped_links,
             tab_config,
@@ -931,11 +985,12 @@ def extract_layer_state(state, layer, workspace_id="", category_name="", folder_
             if _pin_matches_card_scope(pin, ws_id, cat_name, links=links)
         ]
         card_config = dict(config)
-        _ensure_workspace_config_entry(card_config, ws_id, incoming_config=config)
+        _ensure_workspace_config_entry_recursive(card_config, ws_id, incoming_config=config)
         card_config["workspaces"] = [
             ws for ws in _build_workspaces(card_config)
             if str(ws.get("id")) == ws_id
         ] or [{"id": ws_id, "name": ws_id, "icon": "📁"}]
+        card_config["workspaces"] = _workspace_config_entries(card_config, ws_id)
         return _build_layer_state(
             scoped_links,
             card_config,
@@ -999,11 +1054,12 @@ def extract_layer_state(state, layer, workspace_id="", category_name="", folder_
         ]
 
         folder_config = dict(config)
-        _ensure_workspace_config_entry(folder_config, ws_id, incoming_config=config)
+        _ensure_workspace_config_entry_recursive(folder_config, ws_id, incoming_config=config)
         folder_config["workspaces"] = [
             ws for ws in _build_workspaces(folder_config)
             if str(ws.get("id")) == ws_id
         ] or [{"id": ws_id, "name": ws_id, "icon": "ðŸ“"}]
+        folder_config["workspaces"] = _workspace_config_entries(folder_config, ws_id)
         return _build_layer_state(
             scoped_links,
             folder_config,
@@ -1055,11 +1111,12 @@ def extract_layer_state(state, layer, workspace_id="", category_name="", folder_
     ]
 
     bookmark_config = dict(config)
-    _ensure_workspace_config_entry(bookmark_config, ws_from_link, incoming_config=config)
+    _ensure_workspace_config_entry_recursive(bookmark_config, ws_from_link, incoming_config=config)
     bookmark_config["workspaces"] = [
         ws for ws in _build_workspaces(bookmark_config)
         if str(ws.get("id")) == ws_from_link
     ] or [{"id": ws_from_link, "name": ws_from_link, "icon": "📁"}]
+    bookmark_config["workspaces"] = _workspace_config_entries(bookmark_config, ws_from_link)
     return _build_layer_state(
         [matched_link],
         bookmark_config,
@@ -1159,7 +1216,7 @@ def merge_layer_state(base_state, incoming_state, layer, workspace_id="", catego
             for parsed in map(_parse_scoped_category_key, import_categories.keys())
         ]
         base_knowledge = _replace_knowledge_contexts(base_knowledge, incoming_knowledge, tab_category_names)
-        _ensure_workspace_config_entry(base_config, ws_id, incoming_config=incoming_config)
+        _ensure_workspace_config_entry_recursive(base_config, ws_id, incoming_config=incoming_config)
         base_config["activeWorkspace"] = ws_id
         return _build_layer_state(
             base_links,
@@ -1226,7 +1283,7 @@ def merge_layer_state(base_state, incoming_state, layer, workspace_id="", catego
             if _pin_matches_card_scope(pin, ws_id, cat_name, links=incoming_links_for_pins)
         ]
         base_knowledge = _replace_knowledge_contexts(base_knowledge, incoming_knowledge, [cat_name])
-        _ensure_workspace_config_entry(base_config, ws_id, incoming_config=incoming_config)
+        _ensure_workspace_config_entry_recursive(base_config, ws_id, incoming_config=incoming_config)
         base_config["activeWorkspace"] = ws_id
         return _build_layer_state(
             base_links,
@@ -1317,7 +1374,7 @@ def merge_layer_state(base_state, incoming_state, layer, workspace_id="", catego
             "folderView": dict(existing_category.get("folderView") or incoming_category.get("folderView") or {}),
         }
 
-        _ensure_workspace_config_entry(base_config, ws_id, incoming_config=incoming_config)
+        _ensure_workspace_config_entry_recursive(base_config, ws_id, incoming_config=incoming_config)
         base_config["activeWorkspace"] = ws_id
         return _build_layer_state(
             base_links,
@@ -1382,7 +1439,7 @@ def merge_layer_state(base_state, incoming_state, layer, workspace_id="", catego
     ]
     base_knowledge = _replace_knowledge_contexts(base_knowledge, incoming_knowledge, [cat_from_link])
 
-    _ensure_workspace_config_entry(base_config, ws_from_link, incoming_config=incoming_config)
+    _ensure_workspace_config_entry_recursive(base_config, ws_from_link, incoming_config=incoming_config)
     base_config["activeWorkspace"] = ws_from_link
     return _build_layer_state(
         base_links,

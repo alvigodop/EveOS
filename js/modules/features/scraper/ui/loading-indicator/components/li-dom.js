@@ -64,9 +64,9 @@ window.LoadingIndicatorModules = window.LoadingIndicatorModules || {};
                 const expanded = document.createElement('div');
                 expanded.className = 'expanded-content';
                 expanded.innerHTML = `
-                    <div class="stats-row"><span class="stats-label">Status:</span><span class="stats-value" id="searchStatus">Idle</span></div>
-                    <div class="stats-row"><span class="stats-label">Wikis Searched:</span><span class="stats-value" id="wikisSearched">0/0</span></div>
-                    <div class="stats-row"><span class="stats-label">Results Found:</span><span class="stats-value" id="resultsFound">0</span></div>
+                    <div class="stats-row"><span class="stats-label" id="searchStatusLabel">Status:</span><span class="stats-value" id="searchStatus">Idle</span></div>
+                    <div class="stats-row"><span class="stats-label" id="wikisSearchedLabel">Wikis Searched:</span><span class="stats-value" id="wikisSearched">0/0</span></div>
+                    <div class="stats-row"><span class="stats-label" id="resultsFoundLabel">Results Found:</span><span class="stats-value" id="resultsFound">0</span></div>
                 `;
                 content.appendChild(expanded);
             }
@@ -103,15 +103,15 @@ window.LoadingIndicatorModules = window.LoadingIndicatorModules || {};
                         </div>
                         <div class="expanded-content">
                             <div class="stats-row">
-                                <span class="stats-label">Status:</span>
+                                <span class="stats-label" id="searchStatusLabel">Status:</span>
                                 <span class="stats-value" id="searchStatus">Idle</span>
                             </div>
                             <div class="stats-row">
-                                <span class="stats-label">Wikis Searched:</span>
+                                <span class="stats-label" id="wikisSearchedLabel">Wikis Searched:</span>
                                 <span class="stats-value" id="wikisSearched">0/0</span>
                             </div>
                             <div class="stats-row">
-                                <span class="stats-label">Results Found:</span>
+                                <span class="stats-label" id="resultsFoundLabel">Results Found:</span>
                                 <span class="stats-value" id="resultsFound">0</span>
                             </div>
                         </div>

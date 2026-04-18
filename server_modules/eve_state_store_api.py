@@ -6,6 +6,7 @@ from http import HTTPStatus
 from server_modules.eve_state_store_files import (
     build_bookmark_filename,
     build_bookmark_folder_dirname,
+    find_workspace_node,
     folder_name,
     normalize_bookmark_folder_tree,
     scoped_key,
@@ -94,11 +95,9 @@ def _build_layer_preview_path(active_root, unified_state, *, layer, workspace_id
 
     resolved_workspace_id = str(workspace_id or config.get("activeWorkspace") or "main").strip() or "main"
     workspace_name = resolved_workspace_id
-    for workspace in list(config.get("workspaces") or []):
-        candidate_id = str((workspace or {}).get("id") or "").strip()
-        if candidate_id == resolved_workspace_id:
-            workspace_name = str((workspace or {}).get("name") or candidate_id).strip() or candidate_id
-            break
+    workspace_meta = find_workspace_node(list(config.get("workspaces") or []), resolved_workspace_id)
+    if workspace_meta:
+        workspace_name = str((workspace_meta or {}).get("name") or resolved_workspace_id).strip() or resolved_workspace_id
 
     current_path = current_path / "tabs" / folder_name(
         f"{resolved_workspace_id}-{workspace_name}",
@@ -153,6 +152,7 @@ def handle_get_request(handler, path, query, deps):
     default_store_root = deps["default_store_root"]
     get_active_store_root = deps["get_active_store_root"]
     get_active_store_selection = deps["get_active_store_selection"]
+    get_operation_progress = deps.get("get_operation_progress")
     logger = deps["logger"]
     read_modular_state = deps["read_modular_state"]
     settings_file = deps["settings_file"]
@@ -160,6 +160,11 @@ def handle_get_request(handler, path, query, deps):
     if path == "/api/eve-state/modular/status":
         status = collect_status()
         send_json(handler, HTTPStatus.OK, {"ok": True, **status})
+        return True
+
+    if path == "/api/eve-state/modular/progress":
+        progress = get_operation_progress() if callable(get_operation_progress) else {"active": False}
+        send_json(handler, HTTPStatus.OK, {"ok": True, "progress": progress})
         return True
 
     if path == "/api/eve-state/modular/path":
@@ -251,14 +256,17 @@ def handle_get_request(handler, path, query, deps):
 
 
 def handle_post_request(handler, path, deps):
+    begin_operation_progress = deps.get("begin_operation_progress")
     collect_status = deps["collect_status"]
     default_store_root = deps["default_store_root"]
     empty_unified_state = deps["empty_unified_state"]
     ensure_destination_ready = deps["ensure_destination_ready"]
     extract_layer_state = deps["extract_layer_state"]
+    finish_operation_progress = deps.get("finish_operation_progress")
     get_active_store_root = deps["get_active_store_root"]
     get_active_store_selection = deps["get_active_store_selection"]
     logger = deps["logger"]
+    make_progress_callback = deps.get("make_progress_callback")
     merge_layer_state = deps["merge_layer_state"]
     normalize_modular_bookmark_filenames = deps["normalize_modular_bookmark_filenames"]
     pick_folder_path_native = deps["pick_folder_path_native"]
@@ -371,8 +379,16 @@ def handle_post_request(handler, path, deps):
         destination_path = payload.get("destinationPath")
         overwrite = bool(payload.get("overwrite"))
         destination_root = None
+        progress_callback = make_progress_callback(kind="backup") if callable(make_progress_callback) else None
 
         try:
+            if callable(begin_operation_progress):
+                begin_operation_progress(
+                    kind="backup",
+                    phase="preparing",
+                    message=f"Preparing {layer or 'store'} backup",
+                    layer=layer,
+                )
             source_state = read_modular_state()
             layer_state = extract_layer_state(
                 source_state,
@@ -385,11 +401,33 @@ def handle_post_request(handler, path, deps):
             destination_root = resolve_destination_path(destination_path)
             destination_root = ensure_destination_ready(destination_root, overwrite=overwrite, layer=layer)
             if layer == "card":
-                result = write_card_layer_backup_to_root(layer_state, destination_root)
+                result = write_card_layer_backup_to_root(
+                    layer_state,
+                    destination_root,
+                    progress_callback=progress_callback,
+                )
             elif layer == "folder":
-                result = write_folder_layer_backup_to_root(layer_state, destination_root)
+                result = write_folder_layer_backup_to_root(
+                    layer_state,
+                    destination_root,
+                    progress_callback=progress_callback,
+                )
             else:
-                result = write_state_to_root(layer_state, destination_root)
+                result = write_state_to_root(
+                    layer_state,
+                    destination_root,
+                    progress_callback=progress_callback,
+                )
+            if callable(finish_operation_progress):
+                finish_operation_progress(
+                    ok=True,
+                    kind="backup",
+                    phase="complete",
+                    message=f"{layer or 'store'} backup complete",
+                    layer=layer,
+                    destinationPath=str(destination_root),
+                    summary=result.get("summary") or {},
+                )
             send_json(handler, HTTPStatus.OK, {
                 "ok": True,
                 "layer": layer,
@@ -405,6 +443,15 @@ def handle_post_request(handler, path, deps):
                         shutil.rmtree(destination_root)
                 except Exception:
                     logger.warning("Failed to remove partial layer backup folder after error: %s", destination_root)
+            if callable(finish_operation_progress):
+                finish_operation_progress(
+                    ok=False,
+                    kind="backup",
+                    phase="error",
+                    message=f"{layer or 'store'} backup failed",
+                    layer=layer,
+                    error=str(exc),
+                )
             logger.exception("Failed to backup modular layer")
             send_json(handler, HTTPStatus.BAD_REQUEST, {
                 "ok": False,
@@ -506,13 +553,39 @@ def handle_post_request(handler, path, deps):
         return True
 
     try:
-        result = write_modular_state(payload)
+        if callable(begin_operation_progress):
+            begin_operation_progress(
+                kind="save",
+                phase="preparing",
+                message="Preparing modular save",
+                layer="store",
+            )
+        progress_callback = make_progress_callback(kind="save") if callable(make_progress_callback) else None
+        result = write_modular_state(payload, progress_callback=progress_callback)
+        if callable(finish_operation_progress):
+            finish_operation_progress(
+                ok=True,
+                kind="save",
+                phase="complete",
+                message="Modular save complete",
+                layer="store",
+                summary=result.get("summary") or {},
+            )
         send_json(handler, HTTPStatus.OK, {
             "ok": True,
             "summary": result.get("summary") or {},
             "status": result.get("status") or collect_status(),
         })
     except Exception as exc:
+        if callable(finish_operation_progress):
+            finish_operation_progress(
+                ok=False,
+                kind="save",
+                phase="error",
+                message="Modular save failed",
+                layer="store",
+                error=str(exc),
+            )
         logger.exception("Failed to save modular state")
         send_json(handler, HTTPStatus.INTERNAL_SERVER_ERROR, {
             "ok": False,

@@ -64,6 +64,14 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         return document.getElementById('modularLayerPathInput');
     }
 
+    function isHttpContext() {
+        return /^https?:$/i.test(window.location.protocol || '');
+    }
+
+    function canUseServerFolderBackups(modularSync = window.EveDataStore?.ModularSync) {
+        return isHttpContext() && typeof modularSync?.backupLayer === 'function';
+    }
+
     function buildBookmarkLocationValue(folderId) {
         const normalizedFolderId = String(folderId || '').trim();
         return normalizedFolderId ? `folder:${normalizedFolderId}` : 'root';
@@ -433,6 +441,8 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         getFolderCategorySelect,
         getFolderSelect,
         getLayerPathInput,
+        isHttpContext,
+        canUseServerFolderBackups,
         buildBookmarkLocationValue,
         parseBookmarkLocationValue,
         getBookmarkFolderNodesForScope,

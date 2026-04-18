@@ -14,6 +14,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         getLayerPathInput: ns.getLayerPathInput,
         getSuggestedBackupFolderName: ns.getSuggestedBackupFolderName,
         buildScopedBackupFolderName: ns.buildScopedBackupFolderName,
+        buildWorkspaceTreeForFullBackup: ns.buildWorkspaceTreeForFullBackup,
         getWorkspaceMeta: ns.getWorkspaceMeta,
         buildFallbackConfig: ns.buildFallbackConfig,
         writeJsonFileToFolder: ns.writeJsonFileToFolder,

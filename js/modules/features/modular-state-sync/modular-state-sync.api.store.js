@@ -125,20 +125,25 @@ window.EveDataStore = window.EveDataStore || {};
             destinationPath: String(options.destinationPath || '').trim(),
             overwrite: !!options.overwrite
         };
-        const { ok, payload } = await ns.requestJson('/api/eve-state/modular/backup-layer', {
-            method: 'POST',
-            body: JSON.stringify(body)
+        return ns.withOperationMonitor(async () => {
+            const { ok, payload } = await ns.requestJson('/api/eve-state/modular/backup-layer', {
+                method: 'POST',
+                body: JSON.stringify(body)
+            });
+            if (!ok || !payload?.ok) {
+                return { ok: false, error: payload?.error || 'Failed to backup modular layer.' };
+            }
+            return {
+                ok: true,
+                layer: payload.layer,
+                destinationPath: payload.destinationPath || '',
+                summary: payload.summary || {},
+                status: payload.status || null
+            };
+        }, {
+            kind: 'backup',
+            startMessage: `Preparing ${body.layer || 'store'} backup`
         });
-        if (!ok || !payload?.ok) {
-            return { ok: false, error: payload?.error || 'Failed to backup modular layer.' };
-        }
-        return {
-            ok: true,
-            layer: payload.layer,
-            destinationPath: payload.destinationPath || '',
-            summary: payload.summary || {},
-            status: payload.status || null
-        };
     }
 
     async function importLayer(options = {}) {

@@ -146,6 +146,106 @@ window.EveDataStore = window.EveDataStore || {};
         return payload;
     }
 
+    async function getOperationProgress() {
+        const { ok, payload } = await requestJson('/api/eve-state/modular/progress');
+        if (!ok || !payload?.ok) return null;
+        return payload.progress || null;
+    }
+
+    function formatOperationProgress(progress) {
+        const item = progress && typeof progress === 'object' ? progress : {};
+        const unitsCompleted = Number(item.unitsCompleted || 0);
+        const unitsTotal = Number(item.unitsTotal || 0);
+        const percent = unitsTotal > 0
+            ? Math.max(0, Math.min(100, Math.round((unitsCompleted / unitsTotal) * 100)))
+            : 0;
+        const action = String(item.kind || '').trim().toLowerCase() === 'backup' ? 'Backup' : 'Save';
+        const phase = String(item.phase || 'working').trim() || 'working';
+        const message = String(item.message || `${action} in progress`).trim() || `${action} in progress`;
+        const currentItem = String(item.currentItem || '').trim();
+
+        return {
+            statusText: currentItem ? `${message} -> ${currentItem}` : message,
+            searchStatusText: `${action} ${phase}${item.active ? '...' : ''}`,
+            progressText: `${unitsCompleted} / ${unitsTotal || 0} (${percent}%)`,
+            itemsText: `Tabs ${Number(item.tabsCompleted || 0)}/${Number(item.tabsTotal || 0)} · Cards ${Number(item.cardsCompleted || 0)}/${Number(item.cardsTotal || 0)} · Bookmarks ${Number(item.bookmarksCompleted || 0)}/${Number(item.bookmarksTotal || 0)}`,
+            monitorLabels: {
+                status: 'Phase',
+                progress: 'Progress',
+                results: 'Items'
+            }
+        };
+    }
+
+    async function withOperationMonitor(operation, options = {}) {
+        if (typeof operation !== 'function') return null;
+
+        const pollIntervalMs = Math.max(150, Number(options.pollIntervalMs) || 250);
+        const startKind = String(options.kind || '').trim().toLowerCase();
+        const startVerb = startKind === 'backup' ? 'Backup' : 'Save';
+        const startMessage = String(options.startMessage || `${startVerb} in progress`).trim() || `${startVerb} in progress`;
+        let intervalId = null;
+        let completed = false;
+        let failedMessage = '';
+
+        const renderProgress = (progress) => {
+            if (!window.LoadingIndicator) return;
+            const formatted = formatOperationProgress({
+                kind: startKind,
+                active: true,
+                phase: 'preparing',
+                message: startMessage,
+                ...(progress || {})
+            });
+            window.LoadingIndicator.updateEnhanced(true, formatted.searchStatusText, {
+                statusText: formatted.statusText,
+                searchStatusText: formatted.searchStatusText,
+                wikisSearchedDisplay: formatted.progressText,
+                resultsFoundDisplay: formatted.itemsText,
+                monitorLabels: formatted.monitorLabels,
+                statusPhase: 'process'
+            });
+        };
+
+        const pollOnce = async () => {
+            const progress = await getOperationProgress().catch(() => null);
+            if (progress?.active) renderProgress(progress);
+        };
+
+        renderProgress({ kind: startKind, active: true, phase: 'preparing', message: startMessage });
+        intervalId = window.setInterval(() => {
+            if (completed) return;
+            void pollOnce();
+        }, pollIntervalMs);
+
+        try {
+            await pollOnce();
+            const result = await operation();
+            await pollOnce();
+            if (result && result.ok === false && result.error) {
+                failedMessage = String(result.error);
+                if (window.LoadingIndicator) {
+                    window.LoadingIndicator.showErrorInMonitor(failedMessage);
+                }
+            }
+            return result;
+        } catch (error) {
+            failedMessage = String(error?.message || `${startVerb} failed`);
+            if (window.LoadingIndicator) {
+                window.LoadingIndicator.showErrorInMonitor(failedMessage);
+            }
+            throw error;
+        } finally {
+            completed = true;
+            if (intervalId) {
+                window.clearInterval(intervalId);
+            }
+            if (!failedMessage && window.LoadingIndicator) {
+                window.LoadingIndicator.updateEnhanced(false, 'Idle');
+            }
+        }
+    }
+
     function isLocalDirty(currentHash = '') {
         if (!currentHash) return false;
         const baseline = state.lastUploadedHash || state.lastSyncedLocalHash;
@@ -171,6 +271,8 @@ window.EveDataStore = window.EveDataStore || {};
         refreshUiAfterRemoteApply,
         requestJson,
         getRemoteStatus,
+        getOperationProgress,
+        withOperationMonitor,
         isLocalDirty
     });
 

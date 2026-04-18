@@ -122,13 +122,13 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
                 const categories = workspaceState?.library?.categories || {};
                 const connections = workspaceState?.library?.connections || [];
                 const folderTrees = workspaceState?.bookmarks?.folders || {};
-                const knowledgeState = filterKnowledgeState(workspaceState?.knowledge, cardEntries.map(([categoryName]) => categoryName));
                 const connectionMap = buildConnectionMap(connections);
                 const workspaceMeta = getWorkspaceMeta(workspaceId, workspaceState?.bookmarks?.config);
                 const scopedConfig = buildFallbackConfig(workspaceState?.bookmarks?.config, workspaceMeta);
                 const workspaceFolder = buildWorkspaceFolderName(workspaceId, workspaceMeta.name);
                 const tabRootPath = `${backupDirs.tabs}/${workspaceFolder}`;
                 const cardEntries = buildWorkspaceCardEntries(workspaceId, links, categories, folderTrees);
+                const knowledgeState = filterKnowledgeState(workspaceState?.knowledge, cardEntries.map(([categoryName]) => categoryName));
 
                 await writeJsonFileToFolder(rootHandle, `${backupDirs.state}/workspace-state.json`, workspaceState || {});
                 await writeFallbackMetaFiles(rootHandle, scopedConfig, workspaceMeta);
