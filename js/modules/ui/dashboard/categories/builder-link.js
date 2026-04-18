@@ -150,6 +150,14 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
     const extraOptions = options || {};
     const perfMode = !!window._evePerfMode;
     const megaPerfMode = !!window._eveMegaPerfMode;
+
+    // Group overview mode: each link is rendered relative to its owning group root,
+    // so "main vs shortcut" badge logic works per-tab instead of against a single active tab.
+    const overviewRootMap = window._eveGroupOverviewRootMap;
+    if (overviewRootMap) {
+        const mapped = overviewRootMap.get(String(l.workspace || ''));
+        if (mapped) activeWorkspace = mapped;
+    }
     const LINK_ICON = '\u{1F517}';
     const GLOBE_ICON = '\u{1F310}';
     const PIN_ICON = '\u{1F4CC}';

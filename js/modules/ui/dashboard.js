@@ -306,60 +306,103 @@ function _renderDashboardCore() {
     const activeWorkspaceId = String(config.activeWorkspace || 'main').trim() || 'main';
 
     // Build the set of workspace IDs to include in this view
-    const visibleWorkspaceIds = new Set([activeWorkspaceId]);
+    const visibleWorkspaceIds = new Set();
     const helpers = window.EveWorkspaceHelpers;
     const groupsApi = window.EveSidebarGroups || null;
     const overviewGroupId = String(config.groupOverviewId || '').trim();
+    const groupOverviewRootMap = new Map();
+
+    function addDescendantsToRoot(rootNode, ownerRootId) {
+        if (!rootNode || !helpers) return;
+        if (!rootNode.hideSubTabs && Array.isArray(rootNode.subTabs) && rootNode.subTabs.length > 0) {
+            helpers.getVisibleDescendantIds(rootNode).forEach(function (id) {
+                visibleWorkspaceIds.add(id);
+                if (ownerRootId && !groupOverviewRootMap.has(String(id))) {
+                    groupOverviewRootMap.set(String(id), ownerRootId);
+                }
+            });
+        }
+    }
 
     if (overviewGroupId && groupsApi && typeof groupsApi.getGroupRoots === 'function' && helpers) {
         groupsApi.getGroupRoots(overviewGroupId, config).forEach(function (rootWs) {
             if (!rootWs || !rootWs.id) return;
-            visibleWorkspaceIds.add(String(rootWs.id));
-            if (!rootWs.hideSubTabs && Array.isArray(rootWs.subTabs) && rootWs.subTabs.length > 0) {
-                helpers.getVisibleDescendantIds(rootWs).forEach(function (id) { visibleWorkspaceIds.add(id); });
-            }
-        });
-    }
+            const rootId = String(rootWs.id);
+            visibleWorkspaceIds.add(rootId);
+            groupOverviewRootMap.set(rootId, rootId);
 
-    if (helpers) {
-        const activeWs = helpers.findById(config.workspaces || [], activeWorkspaceId);
-
-        let resolvedWs = activeWs;
-        if (activeWs && activeWs.linkedTo) {
-            const targetWs = helpers.findById(config.workspaces || [], activeWs.linkedTo);
-            if (targetWs) {
-                visibleWorkspaceIds.add(targetWs.id);
-                resolvedWs = targetWs;
-            }
-        }
-
-        if (resolvedWs && !resolvedWs.hideSubTabs && Array.isArray(resolvedWs.subTabs) && resolvedWs.subTabs.length > 0) {
-            helpers.getVisibleDescendantIds(resolvedWs).forEach(function (id) { visibleWorkspaceIds.add(id); });
-        }
-
-        // Second pass: resolve linkedTo for any sub-tab that is itself a linked tab.
-        // This ensures nested linked tabs contribute their target's content to the parent view.
-        var resolvedLinkedIds = new Set();
-        visibleWorkspaceIds.forEach(function (wsId) {
-            if (wsId === activeWorkspaceId) return; // already resolved above
-            var ws = helpers.findById(config.workspaces || [], wsId);
-            if (ws && ws.linkedTo && !resolvedLinkedIds.has(ws.linkedTo)) {
-                resolvedLinkedIds.add(ws.linkedTo);
-                var linkedTarget = helpers.findById(config.workspaces || [], ws.linkedTo);
+            let resolvedRoot = rootWs;
+            if (rootWs.linkedTo) {
+                const linkedTarget = helpers.findById(config.workspaces || [], rootWs.linkedTo);
                 if (linkedTarget) {
-                    visibleWorkspaceIds.add(linkedTarget.id);
-                    // Also include the linked target's visible descendants
-                    if (!linkedTarget.hideSubTabs && Array.isArray(linkedTarget.subTabs) && linkedTarget.subTabs.length > 0) {
-                        helpers.getVisibleDescendantIds(linkedTarget).forEach(function (descId) {
-                            visibleWorkspaceIds.add(descId);
-                        });
+                    visibleWorkspaceIds.add(String(linkedTarget.id));
+                    // Don't overwrite — if the linkedTo target is itself a group root, it owns its own cards.
+                    if (!groupOverviewRootMap.has(String(linkedTarget.id))) {
+                        groupOverviewRootMap.set(String(linkedTarget.id), rootId);
                     }
+                    resolvedRoot = linkedTarget;
                 }
             }
+            addDescendantsToRoot(resolvedRoot, rootId);
         });
+
+        const resolvedLinkedIds = new Set();
+        Array.from(visibleWorkspaceIds).forEach(function (wsId) {
+            const ws = helpers.findById(config.workspaces || [], wsId);
+            if (!ws || !ws.linkedTo || resolvedLinkedIds.has(ws.linkedTo)) return;
+            resolvedLinkedIds.add(ws.linkedTo);
+            const linkedTarget = helpers.findById(config.workspaces || [], ws.linkedTo);
+            if (!linkedTarget) return;
+            const ownerRoot = groupOverviewRootMap.get(String(wsId)) || '';
+            visibleWorkspaceIds.add(linkedTarget.id);
+            if (ownerRoot && !groupOverviewRootMap.has(String(linkedTarget.id))) {
+                groupOverviewRootMap.set(String(linkedTarget.id), ownerRoot);
+            }
+            addDescendantsToRoot(linkedTarget, ownerRoot);
+        });
+    } else {
+        visibleWorkspaceIds.add(activeWorkspaceId);
+        if (helpers) {
+            const activeWs = helpers.findById(config.workspaces || [], activeWorkspaceId);
+
+            let resolvedWs = activeWs;
+            if (activeWs && activeWs.linkedTo) {
+                const targetWs = helpers.findById(config.workspaces || [], activeWs.linkedTo);
+                if (targetWs) {
+                    visibleWorkspaceIds.add(targetWs.id);
+                    resolvedWs = targetWs;
+                }
+            }
+
+            if (resolvedWs && !resolvedWs.hideSubTabs && Array.isArray(resolvedWs.subTabs) && resolvedWs.subTabs.length > 0) {
+                helpers.getVisibleDescendantIds(resolvedWs).forEach(function (id) { visibleWorkspaceIds.add(id); });
+            }
+
+            // Second pass: resolve linkedTo for any sub-tab that is itself a linked tab.
+            // This ensures nested linked tabs contribute their target's content to the parent view.
+            var resolvedLinkedIds = new Set();
+            visibleWorkspaceIds.forEach(function (wsId) {
+                if (wsId === activeWorkspaceId) return; // already resolved above
+                var ws = helpers.findById(config.workspaces || [], wsId);
+                if (ws && ws.linkedTo && !resolvedLinkedIds.has(ws.linkedTo)) {
+                    resolvedLinkedIds.add(ws.linkedTo);
+                    var linkedTarget = helpers.findById(config.workspaces || [], ws.linkedTo);
+                    if (linkedTarget) {
+                        visibleWorkspaceIds.add(linkedTarget.id);
+                        // Also include the linked target's visible descendants
+                        if (!linkedTarget.hideSubTabs && Array.isArray(linkedTarget.subTabs) && linkedTarget.subTabs.length > 0) {
+                            helpers.getVisibleDescendantIds(linkedTarget).forEach(function (descId) {
+                                visibleWorkspaceIds.add(descId);
+                            });
+                        }
+                    }
+                }
+            });
+        }
     }
     // Expose for link badge rendering
     window._eveActiveVisibleWorkspaceIds = visibleWorkspaceIds;
+    window._eveGroupOverviewRootMap = (overviewGroupId && groupOverviewRootMap.size) ? groupOverviewRootMap : null;
     const folderPathLabelBuilder = window.EveBookmarkFolders?.buildFolderPathLabel;
 
     const visibleLinks = links.filter(function (link) {

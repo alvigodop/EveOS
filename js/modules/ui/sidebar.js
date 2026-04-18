@@ -629,6 +629,9 @@ function renderSidebar() {
         if (isCollapsed) section.classList.add('ws-group-section--collapsed');
         if (isFocusedGroup) section.classList.add('ws-group-section--focused');
         if (isInactiveGroup) section.classList.add('ws-group-section--inactive');
+        if (groupId && String(config.groupOverviewId || '').trim() === groupId) {
+            section.classList.add('ws-group-section--overview');
+        }
 
         const header = document.createElement('div');
         header.className = 'ws-group-header';

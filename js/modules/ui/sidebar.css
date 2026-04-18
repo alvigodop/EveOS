@@ -337,6 +337,23 @@
     box-shadow: 0 0 16px color-mix(in srgb, var(--ws-group-color) 18%, transparent);
 }
 
+#sidebar:hover .ws-group-section--overview .ws-group-title {
+    background: color-mix(in srgb, var(--ws-group-color) 38%, rgba(255, 255, 255, 0.06));
+    color: color-mix(in srgb, var(--ws-group-color) 30%, #ffffff);
+    padding: 2px 8px;
+    border-radius: 5px;
+    box-shadow: 0 0 10px color-mix(in srgb, var(--ws-group-color) 45%, transparent);
+}
+
+.ws-group-section--overview .ws-group-swatch {
+    box-shadow: 0 0 8px color-mix(in srgb, var(--ws-group-color) 60%, transparent);
+}
+
+html[data-native-scheme="light"] #sidebar:hover .ws-group-section--overview .ws-group-title {
+    background: color-mix(in srgb, var(--ws-group-color) 28%, rgba(255, 255, 255, 0.85));
+    color: color-mix(in srgb, var(--ws-group-color) 72%, rgba(20, 20, 20, 0.88));
+}
+
 .ws-group-section--inactive .ws-group-header,
 .ws-group-section--inactive .ws-group-body {
     opacity: 0.42;
