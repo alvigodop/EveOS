@@ -79,6 +79,11 @@
         return window.EveWorkspaceHelpers || null;
     }
 
+    function getConfigRef() {
+        if (typeof config !== 'undefined' && config) return config;
+        return window.config || null;
+    }
+
     function buildBreadcrumbPath(wsId) {
         var helpers = getWorkspaceHelpers();
         if (!helpers) return [{ id: wsId, name: wsId, icon: DEFAULT_ICON }];
@@ -120,42 +125,46 @@
     }
 
     function collapseAllTabs() {
-        if (!window.config) return;
-        var collapsedIds = new Set(Array.isArray(window.config.collapsedTabs) ? window.config.collapsedTabs.map(String) : []);
+        var configRef = getConfigRef();
+        if (!configRef) return;
+        var collapsedIds = new Set(Array.isArray(configRef.collapsedTabs) ? configRef.collapsedTabs.map(String) : []);
         walkWorkspaces(function (ws) {
             if (Array.isArray(ws.subTabs) && ws.subTabs.length > 0) {
                 collapsedIds.add(String(ws.id));
             }
         });
-        window.config.collapsedTabs = Array.from(collapsedIds);
+        configRef.collapsedTabs = Array.from(collapsedIds);
         saveAndRefreshSidebar();
         if (typeof window.showToast === 'function') window.showToast('All tabs collapsed', 'info');
         updatePopoverState();
     }
 
     function expandAllTabs() {
-        if (!window.config) return;
-        window.config.collapsedTabs = [];
+        var configRef = getConfigRef();
+        if (!configRef) return;
+        configRef.collapsedTabs = [];
         saveAndRefreshSidebar();
         if (typeof window.showToast === 'function') window.showToast('All tabs expanded', 'info');
         updatePopoverState();
     }
 
     function toggleShowInactiveTabs() {
-        if (!window.config) return;
-        window.config.showInactiveTabs = !window.config.showInactiveTabs;
+        var configRef = getConfigRef();
+        if (!configRef) return;
+        configRef.showInactiveTabs = !configRef.showInactiveTabs;
         saveAndRefreshSidebar();
         if (typeof window.showToast === 'function') {
-            window.showToast(window.config.showInactiveTabs ? 'Showing inactive tabs' : 'Hiding inactive tabs', 'info');
+            window.showToast(configRef.showInactiveTabs ? 'Showing inactive tabs' : 'Hiding inactive tabs', 'info');
         }
         updatePopoverState();
     }
 
     function updateSidebarActionLabels(pop) {
         if (!pop) return;
+        var configRef = getConfigRef();
         var inactiveBtn = pop.querySelector('[data-tab-nav-action="toggle-inactive"]');
         if (inactiveBtn) {
-            inactiveBtn.innerHTML = window.config?.showInactiveTabs
+            inactiveBtn.innerHTML = configRef?.showInactiveTabs
                 ? '&#128065; Hide Inactive Tabs'
                 : '&#128065; Show Inactive Tabs';
         }
