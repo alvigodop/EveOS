@@ -23,7 +23,7 @@ function renderEmojiTabs() {
     const tabsContainer = document.getElementById('emoji-tabs');
     if (!tabsContainer) return;
     tabsContainer.innerHTML = '';
-    
+
     Object.keys(emojiCategories).forEach(cat => {
         const btn = document.createElement('button');
         btn.className = 'emoji-tab' + (cat === currentEmojiCategory ? ' active' : '');
@@ -35,6 +35,44 @@ function renderEmojiTabs() {
         };
         tabsContainer.appendChild(btn);
     });
+
+    wireEmojiTabsScrolling(tabsContainer);
+    updateEmojiTabsArrows();
+}
+
+function wireEmojiTabsScrolling(tabsContainer) {
+    if (tabsContainer.dataset.scrollWired === '1') return;
+    tabsContainer.dataset.scrollWired = '1';
+
+    tabsContainer.addEventListener('wheel', (e) => {
+        const delta = Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+        if (!delta) return;
+        e.preventDefault();
+        tabsContainer.scrollLeft += delta;
+    }, { passive: false });
+
+    tabsContainer.addEventListener('scroll', updateEmojiTabsArrows);
+    window.addEventListener('resize', updateEmojiTabsArrows);
+}
+
+function updateEmojiTabsArrows() {
+    const tabsContainer = document.getElementById('emoji-tabs');
+    if (!tabsContainer) return;
+    const leftBtn = document.querySelector('.emoji-tabs-arrow-left');
+    const rightBtn = document.querySelector('.emoji-tabs-arrow-right');
+    const maxScroll = tabsContainer.scrollWidth - tabsContainer.clientWidth;
+    const atStart = tabsContainer.scrollLeft <= 1;
+    const atEnd = tabsContainer.scrollLeft >= maxScroll - 1;
+    const overflows = maxScroll > 1;
+    if (leftBtn) leftBtn.classList.toggle('disabled', !overflows || atStart);
+    if (rightBtn) rightBtn.classList.toggle('disabled', !overflows || atEnd);
+}
+
+function scrollEmojiTabs(direction) {
+    const tabsContainer = document.getElementById('emoji-tabs');
+    if (!tabsContainer) return;
+    const step = Math.max(120, Math.floor(tabsContainer.clientWidth * 0.6));
+    tabsContainer.scrollBy({ left: direction * step, behavior: 'smooth' });
 }
 
 function renderEmojiGrid() {
@@ -65,8 +103,9 @@ function openEmojiPicker(inputId) {
 
     renderEmojiTabs();
     renderEmojiGrid();
-    
+
     container.style.display = 'flex';
+    requestAnimationFrame(updateEmojiTabsArrows);
 }
 
 function closeEmojiModal() {

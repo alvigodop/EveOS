@@ -6,7 +6,6 @@ function handleOmniboxKey(e) {
         }
         else performWebSearch();
     }
-    else if (typeof renderDashboard === 'function') renderDashboard();
 }
 
 function hardenSearchInputAutofill() {
@@ -23,6 +22,10 @@ function hardenSearchInputAutofill() {
     input.addEventListener('input', function markUserInput() {
         input.dataset.userEdited = '1';
     }, { once: true });
+
+    input.addEventListener('input', function reRenderOnInput() {
+        if (typeof renderDashboard === 'function') renderDashboard();
+    });
 
     function clearIfAutoFilled() {
         if (!input.dataset.userEdited && input.value) {
