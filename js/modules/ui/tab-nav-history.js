@@ -13,6 +13,7 @@
     var hideTimeout = null;
     var routePeekEl = null;
     var routePeekHideTimeout = null;
+    var searchResultsCache = [];
 
     function pushHistory(wsId) {
         if (suppressPush) return;
@@ -86,6 +87,33 @@
 
     function getSidebarGroupsApi() {
         return window.EveSidebarGroups || null;
+    }
+
+    function toSuperscriptNumber(value) {
+        var digits = String(Math.max(0, Number(value) || 0));
+        var superscriptMap = {
+            '0': '\u2070',
+            '1': '\u00B9',
+            '2': '\u00B2',
+            '3': '\u00B3',
+            '4': '\u2074',
+            '5': '\u2075',
+            '6': '\u2076',
+            '7': '\u2077',
+            '8': '\u2078',
+            '9': '\u2079'
+        };
+
+        return digits.split('').map(function (digit) {
+            return superscriptMap[digit] || digit;
+        }).join('');
+    }
+
+    function getWorkspaceDepthLabelText(depth) {
+        var level = Math.max(0, Number(depth) || 0);
+        if (level === 0) return 'Tab';
+        if (level === 1) return 'Sub-tab';
+        return 'Sub' + toSuperscriptNumber(level) + '-tab';
     }
 
     function buildBreadcrumbPath(wsId) {
@@ -234,6 +262,128 @@
         if (groupsApi && configRef) groupsApi.ensureConfigDefaults(configRef);
     }
 
+    function getWorkspaceSearchItems() {
+        var items = [];
+        var configRef = getConfigRef();
+        if (!configRef) return items;
+
+        var helpers = getWorkspaceHelpers();
+        var groupsApi = getSidebarGroupsApi();
+        var groupMap = groupsApi && typeof groupsApi.getGroupMap === 'function'
+            ? groupsApi.getGroupMap(configRef)
+            : new Map();
+
+        walkWorkspaces(function (ws, depth) {
+            if (!ws || !ws.id) return;
+
+            var path = buildBreadcrumbPath(ws.id);
+            var pathNames = path.map(function (segment) {
+                return String(segment?.name || '').trim();
+            }).filter(Boolean);
+            var pathText = pathNames.join(' > ');
+            var rootId = path.length ? String(path[0].id || '') : String(ws.id || '');
+            var rootWorkspace = helpers && typeof helpers.findById === 'function'
+                ? helpers.findById(configRef.workspaces || [], rootId)
+                : null;
+            var groupId = rootWorkspace ? String(rootWorkspace.groupId || '').trim() : '';
+            var groupName = groupId && groupMap.has(groupId)
+                ? String(groupMap.get(groupId).name || '').trim()
+                : '';
+
+            items.push({
+                id: String(ws.id || ''),
+                name: String(ws.name || ws.id || 'Untitled'),
+                icon: ws.icon || DEFAULT_ICON,
+                depth: typeof depth === 'number' ? depth : 0,
+                depthLabelText: getWorkspaceDepthLabelText(depth),
+                inactive: !!ws.inactive,
+                pathText: pathText,
+                pathLower: pathText.toLowerCase(),
+                nameLower: String(ws.name || ws.id || '').toLowerCase(),
+                groupName: groupName,
+                groupLower: groupName.toLowerCase()
+            });
+        });
+
+        return items;
+    }
+
+    function getWorkspaceSearchResults(query) {
+        var normalizedQuery = String(query || '').trim().toLowerCase();
+        if (!normalizedQuery) return [];
+
+        return getWorkspaceSearchItems()
+            .map(function (item) {
+                var score = 0;
+                if (item.nameLower === normalizedQuery) score += 120;
+                else if (item.nameLower.indexOf(normalizedQuery) === 0) score += 80;
+                else if (item.nameLower.indexOf(normalizedQuery) !== -1) score += 50;
+
+                if (item.pathLower.indexOf(normalizedQuery) !== -1) score += 24;
+                if (item.groupLower && item.groupLower.indexOf(normalizedQuery) !== -1) score += 12;
+                if (!score) return null;
+
+                return Object.assign({}, item, { score: score });
+            })
+            .filter(Boolean)
+            .sort(function (a, b) {
+                if (b.score !== a.score) return b.score - a.score;
+                if (a.inactive !== b.inactive) return a.inactive ? 1 : -1;
+                if (a.depth !== b.depth) return a.depth - b.depth;
+                return a.name.localeCompare(b.name);
+            })
+            .slice(0, 9);
+    }
+
+    function renderWorkspaceSearchResults(pop) {
+        if (!pop) return;
+
+        var searchInput = pop.querySelector('#tab-nav-search-input');
+        var resultsEl = pop.querySelector('#tab-nav-search-results');
+        if (!searchInput || !resultsEl) return;
+
+        var query = String(searchInput.value || '').trim();
+        searchResultsCache = getWorkspaceSearchResults(query);
+
+        if (!query) {
+            resultsEl.innerHTML = '<div class="tab-nav-search-empty">Type to search tabs and sub-tabs</div>';
+            return;
+        }
+
+        if (!searchResultsCache.length) {
+            resultsEl.innerHTML = '<div class="tab-nav-search-empty">No matching tabs</div>';
+            return;
+        }
+
+        resultsEl.innerHTML = searchResultsCache.map(function (item) {
+            var depthMeta = '<span class="tab-nav-search-result-meta" aria-label="' + escHtml(item.depthLabelText) + '">' + escHtml(item.depthLabelText) + '</span>';
+            var inactiveMeta = item.inactive
+                ? '<span class="tab-nav-search-result-badge">Inactive</span>'
+                : '';
+            var groupTag = item.groupName
+                ? '<span class="tab-nav-search-result-group">' + escHtml(item.groupName) + '</span>'
+                : '';
+            var disabledAttr = item.inactive ? ' disabled' : '';
+            var disabledClass = item.inactive ? ' tab-nav-search-result--inactive' : '';
+            return ''
+                + '<button class="tab-nav-search-result' + disabledClass + '" type="button" data-tab-nav-search-ws-id="' + escHtml(item.id) + '" data-tab-nav-search-depth="' + String(item.depth) + '" style="--tab-nav-search-depth:' + String(item.depth) + ';"' + disabledAttr + '>'
+                +   '<span class="tab-nav-search-result-main">'
+                +       '<span class="tab-nav-search-result-branch" aria-hidden="true"></span>'
+                +       '<span class="tab-nav-search-result-icon">' + escHtml(item.icon || DEFAULT_ICON) + '</span>'
+                +       '<span class="tab-nav-search-result-copy">'
+                +           '<span class="tab-nav-search-result-name">' + escHtml(item.name) + '</span>'
+                +           '<span class="tab-nav-search-result-path">' + escHtml(item.pathText) + '</span>'
+                +       '</span>'
+                +   '</span>'
+                +   '<span class="tab-nav-search-result-side">'
+                +       groupTag
+                +       depthMeta
+                +       inactiveMeta
+                +   '</span>'
+                + '</button>';
+        }).join('');
+    }
+
     function ensurePopover() {
         if (popoverEl) return popoverEl;
 
@@ -241,6 +391,14 @@
         popoverEl.className = 'tab-nav-popover';
         popoverEl.innerHTML = ''
             + '<div class="tab-nav-breadcrumb" id="tab-nav-breadcrumb"></div>'
+            + '<div class="tab-nav-search">'
+            +   '<div class="tab-nav-sidebar-tools-label">Tab Search</div>'
+            +   '<div class="tab-nav-search-shell">'
+            +       '<span class="tab-nav-search-icon">&#128269;</span>'
+            +       '<input class="tab-nav-search-input" id="tab-nav-search-input" type="text" autocomplete="off" spellcheck="false" placeholder="Search tabs and sub-tabs">'
+            +   '</div>'
+            +   '<div class="tab-nav-search-results" id="tab-nav-search-results"></div>'
+            + '</div>'
             + '<div class="tab-nav-controls">'
             +   '<button class="tab-nav-btn" id="tab-nav-back" title="Go back (Alt+Left)" disabled>&#9664;</button>'
             +   '<button class="tab-nav-btn" id="tab-nav-forward" title="Go forward (Alt+Right)" disabled>&#9654;</button>'
@@ -273,7 +431,43 @@
             e.stopPropagation();
             goForward();
         });
+        popoverEl.querySelector('#tab-nav-search-input').addEventListener('input', function () {
+            renderWorkspaceSearchResults(popoverEl);
+        });
+        popoverEl.querySelector('#tab-nav-search-input').addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') {
+                e.stopPropagation();
+                e.preventDefault();
+                e.currentTarget.value = '';
+                renderWorkspaceSearchResults(popoverEl);
+                return;
+            }
+
+            if (e.key !== 'Enter') return;
+            var firstInteractiveResult = popoverEl.querySelector('.tab-nav-search-result:not([disabled])');
+            if (!firstInteractiveResult) return;
+            e.preventDefault();
+            firstInteractiveResult.click();
+        });
         popoverEl.addEventListener('click', function (e) {
+            var resultBtn = e.target.closest('[data-tab-nav-search-ws-id]');
+            if (resultBtn) {
+                e.preventDefault();
+                e.stopPropagation();
+                if (resultBtn.disabled) return;
+                var resultWsId = String(resultBtn.getAttribute('data-tab-nav-search-ws-id') || '').trim();
+                var searchInput = popoverEl ? popoverEl.querySelector('#tab-nav-search-input') : null;
+                if (searchInput) {
+                    searchInput.value = '';
+                    renderWorkspaceSearchResults(popoverEl);
+                }
+                if (resultWsId && typeof window.switchWorkspace === 'function') {
+                    window.switchWorkspace(resultWsId);
+                    if (popoverEl) popoverEl.classList.remove('is-visible');
+                }
+                return;
+            }
+
             var actionBtn = e.target.closest('[data-tab-nav-action]');
             if (!actionBtn) return;
             e.preventDefault();
@@ -328,6 +522,7 @@
         }).join('');
 
         updateSidebarActionLabels(pop);
+        renderWorkspaceSearchResults(pop);
 
         breadcrumb.querySelectorAll('.tab-nav-crumb').forEach(function (btn) {
             btn.addEventListener('click', function (e) {
