@@ -31,6 +31,23 @@ from server_modules.eve_state_store_paths import infer_workspace_from_cards_root
 logger = logging.getLogger("FandomDiscoveryServer")
 
 
+def _normalize_workspace_meta_record(raw_workspace, *, fallback_id="main", fallback_name=None, fallback_icon="folder"):
+    workspace_meta = dict(raw_workspace or {}) if isinstance(raw_workspace, dict) else {}
+
+    workspace_id = str(workspace_meta.get("id") or fallback_id or "").strip() or "main"
+    workspace_meta["id"] = workspace_id
+    workspace_meta["name"] = workspace_meta.get("name") or fallback_name or workspace_id
+    workspace_meta["icon"] = workspace_meta.get("icon") or fallback_icon or "folder"
+
+    if not isinstance(workspace_meta.get("subTabs"), list):
+        workspace_meta["subTabs"] = []
+
+    workspace_meta.pop("schema", None)
+    workspace_meta.pop("bookmarkCount", None)
+    workspace_meta.pop("cardCount", None)
+    return workspace_meta
+
+
 def _normalize_bookmark_folders_map(raw_folders):
     normalized = {}
     for key, tree in (raw_folders or {}).items():
@@ -336,14 +353,17 @@ def write_modular_state_full(
         cards_root = workspace_folder / "cards"
         cards_root.mkdir(parents=True, exist_ok=True)
 
-        tab_payload = {
+        tab_payload = _normalize_workspace_meta_record(
+            ws_meta,
+            fallback_id=workspace_id,
+            fallback_name=ws_meta.get("name") or workspace_id,
+            fallback_icon=ws_meta.get("icon") or "folder",
+        )
+        tab_payload.update({
             "schema": "eveos.tab.v1",
-            "id": workspace_id,
-            "name": ws_meta.get("name") or workspace_id,
-            "icon": ws_meta.get("icon") or "folder",
             "bookmarkCount": len(ws_data["links"]),
             "cardCount": len(ws_data["categories"]),
-        }
+        })
         (workspace_folder / "tab.json").write_text(
             json.dumps(tab_payload, ensure_ascii=False, indent=2), encoding="utf-8"
         )
@@ -590,6 +610,11 @@ def read_modular_state_raw(*, store_root, meta_dir, tabs_dir, format_version):
     bookmark_records = []
     bookmark_folders = {}
     entry_ids_by_scope = {}
+    configured_workspace_meta = {
+        str((workspace or {}).get("id") or "").strip(): dict(workspace or {})
+        for workspace in build_workspaces(config)
+        if str((workspace or {}).get("id") or "").strip()
+    }
 
     if tabs_dir.exists():
         for ws_folder in sorted(tabs_dir.iterdir()):
@@ -607,16 +632,19 @@ def read_modular_state_raw(*, store_root, meta_dir, tabs_dir, format_version):
             workspace_id = str(tab_data.get("id") or "").strip() or ws_folder.name
             workspace_name = tab_data.get("name") or workspace_id
             workspace_icon = tab_data.get("icon") or "folder"
+            workspace_meta = _normalize_workspace_meta_record(
+                {
+                    **dict(configured_workspace_meta.get(workspace_id) or {}),
+                    **dict(tab_data or {}),
+                },
+                fallback_id=workspace_id,
+                fallback_name=workspace_name,
+                fallback_icon=workspace_icon,
+            )
 
             if workspace_id not in seen_workspace_ids:
                 seen_workspace_ids.add(workspace_id)
-                workspaces.append(
-                    {
-                        "id": workspace_id,
-                        "name": workspace_name,
-                        "icon": workspace_icon,
-                    }
-                )
+                workspaces.append(workspace_meta)
 
             cards_root = ws_folder / "cards"
             ingest_cards_root(
@@ -638,16 +666,16 @@ def read_modular_state_raw(*, store_root, meta_dir, tabs_dir, format_version):
             )
             workspace_name = (workspace_meta or {}).get("name") or workspace_id
             workspace_icon = (workspace_meta or {}).get("icon") or "folder"
+            normalized_workspace_meta = _normalize_workspace_meta_record(
+                workspace_meta,
+                fallback_id=workspace_id,
+                fallback_name=workspace_name,
+                fallback_icon=workspace_icon,
+            )
 
             if workspace_id not in seen_workspace_ids:
                 seen_workspace_ids.add(workspace_id)
-                workspaces.append(
-                    {
-                        "id": workspace_id,
-                        "name": workspace_name,
-                        "icon": workspace_icon,
-                    }
-                )
+                workspaces.append(normalized_workspace_meta)
 
             ingest_cards_root(
                 direct_cards_root,
