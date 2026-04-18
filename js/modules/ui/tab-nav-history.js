@@ -152,7 +152,7 @@
     }
 
     function saveAndRefreshSidebar() {
-        if (typeof window.saveConfig === 'function') window.saveConfig();
+        if (typeof window.saveConfig === 'function') window.saveConfig({ immediate: true });
         if (typeof window.renderSidebar === 'function') window.renderSidebar();
     }
 
@@ -241,6 +241,39 @@
         updatePopoverState();
     }
 
+    function toggleSidebarOrderMode() {
+        var configRef = getConfigRef();
+        var groupsApi = getSidebarGroupsApi();
+        if (!configRef || !groupsApi) return;
+        groupsApi.ensureConfigDefaults(configRef);
+        var nextMode = groupsApi.getSidebarOrderMode(configRef) === 'manual' ? 'auto' : 'manual';
+        groupsApi.setSidebarOrderMode(nextMode, configRef);
+        saveAndRefreshSidebar();
+        if (typeof window.showToast === 'function') {
+            window.showToast(
+                nextMode === 'manual'
+                    ? 'Manual sidebar order enabled. Drag groups, tabs, and sub-tabs to reposition them.'
+                    : 'Sidebar order returned to automatic mode',
+                'info'
+            );
+        }
+        updatePopoverState();
+    }
+
+    function resetManualSidebarOrder() {
+        var configRef = getConfigRef();
+        var groupsApi = getSidebarGroupsApi();
+        if (!configRef || !groupsApi) return;
+        groupsApi.ensureConfigDefaults(configRef);
+        groupsApi.setSidebarOrderMode('manual', configRef);
+        groupsApi.resetManualOrder(configRef);
+        saveAndRefreshSidebar();
+        if (typeof window.showToast === 'function') {
+            window.showToast('Manual sidebar layout reset to the automatic baseline', 'info');
+        }
+        updatePopoverState();
+    }
+
     function updateSidebarActionLabels(pop) {
         if (!pop) return;
         var configRef = getConfigRef();
@@ -259,7 +292,23 @@
                 : '&#128065; Show Hidden Groups';
         }
 
-        if (groupsApi && configRef) groupsApi.ensureConfigDefaults(configRef);
+        if (groupsApi && configRef) {
+            groupsApi.ensureConfigDefaults(configRef);
+
+            var orderMode = groupsApi.getSidebarOrderMode(configRef);
+            var orderModeBtn = pop.querySelector('[data-tab-nav-action="toggle-order-mode"]');
+            if (orderModeBtn) {
+                orderModeBtn.innerHTML = orderMode === 'manual'
+                    ? '&#8645; Use Automatic Order'
+                    : '&#8645; Enable Manual Order';
+            }
+
+            var resetOrderBtn = pop.querySelector('[data-tab-nav-action="reset-order"]');
+            if (resetOrderBtn) {
+                resetOrderBtn.style.display = orderMode === 'manual' ? '' : 'none';
+                resetOrderBtn.innerHTML = '&#8635; Reset Manual Layout';
+            }
+        }
     }
 
     function getWorkspaceSearchItems() {
@@ -420,6 +469,13 @@
             +       '<button class="tab-nav-sidebar-tool-btn" type="button" data-tab-nav-action="expand-groups">&#9650; Expand All Groups</button>'
             +       '<button class="tab-nav-sidebar-tool-btn" type="button" data-tab-nav-action="toggle-hidden-groups"></button>'
             +   '</div>'
+            + '</div>'
+            + '<div class="tab-nav-sidebar-tools tab-nav-sidebar-tools--order">'
+            +   '<div class="tab-nav-sidebar-tools-label">Ordering</div>'
+            +   '<div class="tab-nav-sidebar-tools-grid">'
+            +       '<button class="tab-nav-sidebar-tool-btn" type="button" data-tab-nav-action="toggle-order-mode"></button>'
+            +       '<button class="tab-nav-sidebar-tool-btn" type="button" data-tab-nav-action="reset-order"></button>'
+            +   '</div>'
             + '</div>';
         document.body.appendChild(popoverEl);
 
@@ -487,6 +543,10 @@
                 expandAllGroups();
             } else if (action === 'toggle-hidden-groups') {
                 toggleShowHiddenGroups();
+            } else if (action === 'toggle-order-mode') {
+                toggleSidebarOrderMode();
+            } else if (action === 'reset-order') {
+                resetManualSidebarOrder();
             }
         });
         popoverEl.addEventListener('mouseenter', function () {

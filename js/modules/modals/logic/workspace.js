@@ -101,6 +101,9 @@ window.saveWorkspace = function () {
             ? helpers.findById(config.workspaces, id)
             : config.workspaces.find(function (workspace) { return workspace.id === id; });
         if (ws) {
+            const previousGroupId = groupsApi && typeof groupsApi.getWorkspaceGroupId === 'function'
+                ? groupsApi.getWorkspaceGroupId(id, config)
+                : String(ws.groupId || '').trim();
             ws.name = name;
             ws.icon = icon;
 
@@ -108,8 +111,14 @@ window.saveWorkspace = function () {
             if (isRootWorkspace) {
                 if (resolvedGroupId) ws.groupId = resolvedGroupId;
                 else delete ws.groupId;
+                if (groupsApi && typeof groupsApi.syncWorkspaceOrderEntry === 'function') {
+                    groupsApi.syncWorkspaceOrderEntry(id, previousGroupId, resolvedGroupId, config);
+                }
             } else {
                 delete ws.groupId;
+                if (groupsApi && typeof groupsApi.removeManualOrderEntry === 'function') {
+                    groupsApi.removeManualOrderEntry('workspace', id, config);
+                }
             }
         }
     } else {
@@ -125,6 +134,9 @@ window.saveWorkspace = function () {
         } else {
             if (resolvedGroupId) newTab.groupId = resolvedGroupId;
             config.workspaces.push(newTab);
+        }
+        if (!parentId && groupsApi && typeof groupsApi.syncWorkspaceOrderEntry === 'function') {
+            groupsApi.syncWorkspaceOrderEntry(newId, '', resolvedGroupId, config);
         }
         switchWorkspace(newId);
     }

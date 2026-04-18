@@ -484,10 +484,88 @@ html[data-native-scheme="light"] #sidebar:hover .ws-sub-item .ws-label {
     align-items: center;
 }
 
+.ws-order-slot {
+    width: 100%;
+    height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    opacity: 0;
+    transition: height 0.14s ease, opacity 0.14s ease, transform 0.14s ease;
+}
+
+.ws-order-slot::before {
+    content: '';
+    width: 28px;
+    height: 2px;
+    border-radius: 999px;
+    background: rgba(168, 130, 255, 0.18);
+    transition: width 0.14s ease, height 0.14s ease, background 0.14s ease, box-shadow 0.14s ease;
+}
+
+.ws-order-slot--nested {
+    padding-left: calc(min(var(--ws-depth, 0), 4) * 10px);
+}
+
+.ws-order-slot--top::before {
+    width: 34px;
+}
+
+#sidebar .ws-tree-host {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+}
+
+.ws-top-order-block {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+}
+
+.ws-top-order-block--tail {
+    margin-top: -15px;
+}
+
+#sidebar.ws-drag-active .ws-order-slot {
+    height: 6px;
+    opacity: 0.9;
+}
+
+#sidebar:hover.ws-drag-active .ws-order-slot::before {
+    width: 136px;
+}
+
+#sidebar:hover.ws-drag-active .ws-order-slot--nested::before {
+    width: calc(136px - min(var(--ws-depth, 0), 4) * 10px);
+}
+
+.ws-order-slot.ws-drop-target {
+    outline: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+.ws-order-slot.ws-drop-target::before {
+    height: 4px;
+    background: rgba(168, 130, 255, 0.9);
+    box-shadow: 0 0 10px rgba(168, 130, 255, 0.45);
+}
+
 /* --- Drag-and-Drop Feedback --- */
 .ws-dragging {
     opacity: 0.35;
     transform: scale(0.92);
+}
+
+.ws-group-header--dragging {
+    opacity: 0.5;
+    transform: scale(0.97);
 }
 
 .ws-drop-target {

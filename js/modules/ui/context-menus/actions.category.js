@@ -157,6 +157,12 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
             } else {
                 config.workspaces = config.workspaces.filter((workspace) => workspace.id !== ctxWsId);
             }
+            const groupsApi = window.EveSidebarGroups || null;
+            if (groupsApi && typeof groupsApi.removeManualOrderEntry === 'function') {
+                removedIds.forEach(function (workspaceId) {
+                    groupsApi.removeManualOrderEntry('workspace', workspaceId, config);
+                });
+            }
             const targetWorkspaceId = config.workspaces[0].id;
             const syncLinked = window.EveLibrary?.ConnectionsAPI?.syncFromLink;
             links.forEach((link) => {

@@ -38,6 +38,8 @@ let config = {
     hideStats: [],
     workspaces: [{ id: "main", name: "Main", icon: "\u{1F3E0}" }],
     sidebarGroups: [],
+    sidebarOrderMode: "auto",
+    sidebarManualOrder: [],
     showHiddenSidebarGroups: false,
     showInactiveTabs: false,
     activeWorkspace: "main",

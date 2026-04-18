@@ -21,5 +21,5 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/modals/logic/link-form.modal.js?v=0.1.1",
     "js/modules/modals/logic/link-form.js?v=0.3.0",
     "js/modules/modals/logic/category-rename.js?v=0.1.0",
-    "js/modules/modals/logic/workspace.js?v=0.3.0"
+    "js/modules/modals/logic/workspace.js?v=0.3.1"
 ]);

@@ -718,6 +718,10 @@ async function loadData() {
         config.collapsedTabs = Array.isArray(config.collapsed) ? config.collapsed.slice() : [];
     }
     if (!Array.isArray(config.sidebarGroups)) config.sidebarGroups = [];
+    config.sidebarOrderMode = String(config.sidebarOrderMode || '').trim().toLowerCase() === 'manual'
+        ? 'manual'
+        : 'auto';
+    if (!Array.isArray(config.sidebarManualOrder)) config.sidebarManualOrder = [];
     if (typeof config.showHiddenSidebarGroups !== 'boolean') config.showHiddenSidebarGroups = false;
     if (typeof config.showInactiveTabs !== 'boolean') config.showInactiveTabs = false;
 
