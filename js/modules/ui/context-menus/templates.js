@@ -16,6 +16,7 @@ window.ContextMenus.template = `
     <div class="ctx-item" onclick="ctxWsCreateShortcut()">&#128279; Create Shortcut</div>
     <div class="ctx-item" id="ctx-ws-hide-subtabs" onclick="ctxWsToggleHideSubTabs()">&#128065; Hide Sub-Tab Content</div>
     <div class="ctx-item" id="ctx-ws-hidden-in-parent" onclick="ctxWsToggleHiddenInParent()">&#128064; Hide in Parent View</div>
+    <div class="ctx-item" id="ctx-ws-toggle-inactive" onclick="ctxWsToggleInactive()">&#128683; Make Inactive</div>
     <div class="ctx-divider"></div>
     <div class="ctx-item ctx-item--danger" onclick="ctxWsDelete()">&#128465; Delete</div>
 </div>

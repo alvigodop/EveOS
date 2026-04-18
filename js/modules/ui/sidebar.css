@@ -388,3 +388,29 @@ html[data-native-scheme="light"] #ws-popout {
 html[data-native-scheme="light"] #ws-popout .popout-hint {
     border-left-color: rgba(0,0,0,0.1);
 }
+
+/* --- Inactive Tab Styling --- */
+.ws-item.ws-inactive {
+    opacity: 0.12;
+    filter: grayscale(0.8);
+    cursor: default;
+    transition: opacity 0.4s ease, filter 0.4s ease;
+}
+
+.ws-item.ws-inactive:hover {
+    opacity: 0.25;
+    filter: grayscale(0.5);
+}
+
+/* Inactive tabs won't glow or animate on hover */
+.ws-item.ws-inactive:hover,
+.ws-item.ws-inactive.active {
+    background: var(--sidebar-item-bg);
+    color: var(--sidebar-item-text);
+    box-shadow: none;
+}
+
+html[data-native-scheme="light"] .ws-item.ws-inactive {
+    opacity: 0.15;
+    filter: grayscale(0.7);
+}

@@ -85,8 +85,12 @@ function renderSidebar() {
     function renderWorkspaceItem(ws, container, depth) {
         const currentDepth = typeof depth === 'number' ? depth : 0;
         const hasChildren = Array.isArray(ws.subTabs) && ws.subTabs.length > 0;
-        const isCollapsed = config.collapsedTabs.includes(ws.id);
+        const isCollapsed = (Array.isArray(config.collapsedTabs) ? config.collapsedTabs : []).includes(ws.id);
         const isWorkspaceActive = config.viewMode !== 'unidex' && config.activeWorkspace === ws.id;
+        const isInactive = !!ws.inactive;
+
+        // Skip inactive tabs when showInactiveTabs is off
+        if (isInactive && !config.showInactiveTabs) return;
 
         const wrapper = document.createElement('div');
         wrapper.className = 'ws-node-wrapper';
@@ -98,23 +102,26 @@ function renderSidebar() {
         const item = document.createElement('div');
         item.className = `ws-item ${isWorkspaceActive ? 'active' : ''}`;
         if (currentDepth > 0) item.classList.add('ws-sub-item');
+        if (isInactive) item.classList.add('ws-inactive');
 
-        // --- Drag source ---
-        item.draggable = true;
+        // --- Drag source --- (disabled for inactive)
+        item.draggable = !isInactive;
         item.dataset.wsId = ws.id;
-        item.ondragstart = (e) => {
-            e.dataTransfer.setData('text/plain', ws.id);
-            e.dataTransfer.effectAllowed = 'move';
-            item.classList.add('ws-dragging');
-            // Mark sidebar as in-drag so we can style globally
-            sb.classList.add('ws-drag-active');
-        };
-        item.ondragend = () => {
-            item.classList.remove('ws-dragging');
-            sb.classList.remove('ws-drag-active');
-            // Clean up any lingering indicators
-            sb.querySelectorAll('.ws-drop-target').forEach(el => el.classList.remove('ws-drop-target'));
-        };
+        if (!isInactive) {
+            item.ondragstart = (e) => {
+                e.dataTransfer.setData('text/plain', ws.id);
+                e.dataTransfer.effectAllowed = 'move';
+                item.classList.add('ws-dragging');
+                // Mark sidebar as in-drag so we can style globally
+                sb.classList.add('ws-drag-active');
+            };
+            item.ondragend = () => {
+                item.classList.remove('ws-dragging');
+                sb.classList.remove('ws-drag-active');
+                // Clean up any lingering indicators
+                sb.querySelectorAll('.ws-drop-target').forEach(el => el.classList.remove('ws-drop-target'));
+            };
+        }
 
         // --- Drop target ---
         item.ondragover = (e) => {
@@ -183,26 +190,30 @@ function renderSidebar() {
             item.appendChild(hiddenBadge);
         }
 
-        // Click handler (preserved original logic exactly)
-        item.onclick = () => {
-            const exitingUnidex = config.viewMode === 'unidex';
-            if (exitingUnidex) {
-                if (window.UnidexView && typeof window.UnidexView.resetSelection === 'function') {
-                    window.UnidexView.resetSelection();
+        // Click handler — disabled for inactive tabs
+        if (!isInactive) {
+            item.onclick = () => {
+                const exitingUnidex = config.viewMode === 'unidex';
+                if (exitingUnidex) {
+                    if (window.UnidexView && typeof window.UnidexView.resetSelection === 'function') {
+                        window.UnidexView.resetSelection();
+                    }
+                    config.viewMode = 'grid';
+                    saveConfig();
                 }
-                config.viewMode = 'grid';
-                saveConfig();
-            }
-            switchWorkspace(ws.id, { forceRender: exitingUnidex });
-        };
+                switchWorkspace(ws.id, { forceRender: exitingUnidex });
+            };
+        }
 
-        // Context menu (preserved original)
+        // Context menu — always enabled (so inactive tabs can be reactivated)
         item.oncontextmenu = (e) => showWsContext(e, ws.id);
 
-        // --- Workspace Popout (Custom Tooltip) ---
-        item.title = ws.name; // Fallback
-        item.addEventListener('mouseenter', (e) => showWsPopout(e, ws));
-        item.addEventListener('mouseleave', hideWsPopout);
+        // --- Workspace Popout (Custom Tooltip) --- skip for inactive
+        item.title = isInactive ? (ws.name + ' (Inactive)') : ws.name;
+        if (!isInactive) {
+            item.addEventListener('mouseenter', (e) => showWsPopout(e, ws));
+            item.addEventListener('mouseleave', hideWsPopout);
+        }
 
         wrapper.appendChild(item);
         container.appendChild(wrapper);

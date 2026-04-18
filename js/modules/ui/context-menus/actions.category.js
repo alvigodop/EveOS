@@ -233,5 +233,98 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
         showToast(ws.hiddenInParent ? (ws.name + ' hidden from parent view') : (ws.name + ' visible in parent view'), 'info');
     };
 
+    function collapseWorkspaceBranch(ws, helpers) {
+        if (!ws) return;
+        const collapsedIds = new Set(Array.isArray(config.collapsedTabs) ? config.collapsedTabs.map(String) : []);
+        if (helpers && typeof helpers.walk === 'function') {
+            helpers.walk([ws], function (node) {
+                if (node && Array.isArray(node.subTabs) && node.subTabs.length > 0) {
+                    collapsedIds.add(String(node.id));
+                }
+            });
+        } else if (ws.id) {
+            collapsedIds.add(String(ws.id));
+        }
+        config.collapsedTabs = Array.from(collapsedIds);
+    }
+
+    function findFallbackWorkspaceId(excludedIds) {
+        const helpers = window.EveWorkspaceHelpers;
+        const workspaces = Array.isArray(config.workspaces) ? config.workspaces : [];
+        const blocked = excludedIds instanceof Set ? excludedIds : new Set();
+        let fallbackId = '';
+
+        function isInteractiveWorkspace(candidate) {
+            if (!candidate || !candidate.id) return false;
+            const candidateId = String(candidate.id);
+            if (blocked.has(candidateId)) return false;
+            if (helpers && typeof helpers.getPath === 'function') {
+                const path = helpers.getPath(workspaces, candidateId);
+                if (!path.length) return false;
+                return !path.some(function (segment) {
+                    return !!segment?.inactive || blocked.has(String(segment?.id || ''));
+                });
+            }
+            return !candidate.inactive;
+        }
+
+        if (helpers && typeof helpers.walk === 'function') {
+            helpers.walk(workspaces, function (candidate) {
+                if (!fallbackId && isInteractiveWorkspace(candidate)) {
+                    fallbackId = String(candidate.id);
+                }
+            });
+            return fallbackId;
+        }
+
+        for (let i = 0; i < workspaces.length; i += 1) {
+            if (isInteractiveWorkspace(workspaces[i])) {
+                return String(workspaces[i].id);
+            }
+        }
+        return '';
+    }
+
+    window.ctxWsToggleInactive = function () {
+        if (!ctxWsId) return showToast('No workspace selected', 'error');
+        const helpers = window.EveWorkspaceHelpers;
+        const ws = helpers
+            ? helpers.findById(config.workspaces, ctxWsId)
+            : config.workspaces.find(function (w) { return w.id === ctxWsId; });
+        if (!ws) return showToast('Workspace not found', 'error');
+
+        ws.inactive = !ws.inactive;
+
+        let nextWorkspaceId = '';
+        if (ws.inactive) {
+            collapseWorkspaceBranch(ws, helpers);
+
+            const hiddenBranchIds = new Set([String(ws.id)]);
+            if (helpers && typeof helpers.getDescendantIds === 'function') {
+                helpers.getDescendantIds(ws).forEach(function (id) {
+                    hiddenBranchIds.add(String(id));
+                });
+            }
+
+            const activeWorkspaceId = String(config.activeWorkspace || '').trim();
+            if (activeWorkspaceId && hiddenBranchIds.has(activeWorkspaceId)) {
+                nextWorkspaceId = findFallbackWorkspaceId(hiddenBranchIds);
+                if (nextWorkspaceId) {
+                    config.activeWorkspace = nextWorkspaceId;
+                }
+            }
+        }
+
+        if (typeof closeAllMenus === 'function') closeAllMenus();
+        if (nextWorkspaceId && typeof switchWorkspace === 'function') {
+            switchWorkspace(nextWorkspaceId, { forceRender: true });
+        } else {
+            saveConfig();
+            if (typeof renderSidebar === 'function') renderSidebar();
+            if (typeof renderDashboard === 'function') renderDashboard();
+        }
+        showToast(ws.inactive ? (ws.name + ' is now inactive') : (ws.name + ' reactivated'), 'info');
+    };
+
     shared.categoryReady = true;
 })();

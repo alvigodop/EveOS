@@ -52,7 +52,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/ui/context-menus/templates.js?v=0.2.45",
     "js/modules/ui/context-menus/actions.shared.js?v=0.1.0",
     "js/modules/ui/context-menus/actions.link.js?v=0.1.0",
-    "js/modules/ui/context-menus/actions.category.js?v=0.1.0",
+    "js/modules/ui/context-menus/actions.category.js?v=0.1.1",
     "js/modules/ui/context-menus/actions.folder.js?v=0.1.0",
     "js/modules/ui/context-menus/actions.js?v=0.3.0",
     "js/modules/ui/context-menus/menus.js?v=0.2.45",

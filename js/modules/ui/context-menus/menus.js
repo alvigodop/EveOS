@@ -252,6 +252,13 @@ window.showWsContext = function (e, id) {
             hiddenInParentToggle.style.display = 'none';
         }
     }
+    // Update inactive toggle — show for all tabs
+    const inactiveToggle = document.getElementById('ctx-ws-toggle-inactive');
+    if (inactiveToggle && ws) {
+        inactiveToggle.innerHTML = ws.inactive
+            ? '&#9989; Reactivate Tab'
+            : '&#128683; Make Inactive';
+    }
 
     placeContextMenu(m, e);
 };
