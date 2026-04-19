@@ -53,6 +53,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         const metaRoot = await getDirectoryHandleByAliases(rootHandle, ['_meta', 'm']);
         const configPayload = metaRoot ? await readJsonFileIfExists(metaRoot, 'config.json') : null;
         const pinsPayload = metaRoot ? await readJsonFileIfExists(metaRoot, 'pins.json') : null;
+        const groupsSummary = metaRoot ? await readJsonFileIfExists(metaRoot, 'groups.json') : null;
         const tabsRoot = await getDirectoryHandleByAliases(rootHandle, ['tabs', 't']);
         const tabFolders = tabsRoot ? await collectTabFoldersRecursive(tabsRoot, []) : await resolveTabFoldersFromRoot(rootHandle);
         if (!tabFolders.length) {
@@ -60,13 +61,16 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         }
 
         const parsedTabs = [];
+        const discoveredGroups = [];
+
         if (tabsRoot) {
             const rootTabFolders = (await listDirectoryEntries(tabsRoot))
                 .filter((entry) => entry.handle.kind === 'directory')
                 .map((entry) => entry.handle);
 
-            const visitTabTree = async (tabFolderHandle, parentWorkspaceId = '') => {
+            const visitTabTree = async (tabFolderHandle, parentWorkspaceId = '', groupId = '') => {
                 const parsedTab = await parseTabFolderHandle(tabFolderHandle, { parentWorkspaceId });
+                if (groupId) parsedTab.groupId = groupId;
                 parsedTabs.push(parsedTab);
                 const nestedTabsHandle = await getDirectoryHandleByAliases(tabFolderHandle, ['tabs', 't']);
                 if (!nestedTabsHandle) return;
@@ -76,11 +80,31 @@ window.EveDataTransfer = window.EveDataTransfer || {};
                     if (handle.kind === 'directory') directChildren.push(handle);
                 });
                 for (const childHandle of directChildren) {
-                    await visitTabTree(childHandle, parsedTab.workspaceId);
+                    await visitTabTree(childHandle, parsedTab.workspaceId, groupId);
                 }
             };
 
             for (const rootTabFolder of rootTabFolders) {
+                // Detect group folders — they contain group.json instead of tab.json
+                const groupJson = await readJsonFileIfExists(rootTabFolder, 'group.json');
+                if (groupJson && groupJson.id) {
+                    discoveredGroups.push({
+                        id: String(groupJson.id).trim(),
+                        name: String(groupJson.name || 'Group').trim(),
+                        color: groupJson.color || '#00d4ff',
+                        collapsed: !!groupJson.collapsed,
+                        hidden: !!groupJson.hidden,
+                        parentWorkspaceId: String(groupJson.parentWorkspaceId || '').trim()
+                    });
+                    // Process children of the group folder as grouped workspaces
+                    const groupChildEntries = await listDirectoryEntries(rootTabFolder);
+                    for (const entry of groupChildEntries) {
+                        if (entry.handle.kind === 'directory') {
+                            await visitTabTree(entry.handle, '', groupJson.id);
+                        }
+                    }
+                    continue;
+                }
                 await visitTabTree(rootTabFolder);
             }
         } else {
@@ -88,11 +112,25 @@ window.EveDataTransfer = window.EveDataTransfer || {};
                 parsedTabs.push(await parseTabFolderHandle(tabFolder));
             }
         }
+
+        // Merge discovered groups into config
+        const mergedConfig = configPayload || {};
+        const allGroups = Array.isArray(groupsSummary?.groups) ? groupsSummary.groups : discoveredGroups;
+        if (allGroups.length > 0) {
+            mergedConfig.sidebarGroups = allGroups;
+        }
+        if (groupsSummary?.sidebarOrderMode) {
+            mergedConfig.sidebarOrderMode = groupsSummary.sidebarOrderMode;
+        }
+        if (groupsSummary?.sidebarManualOrder) {
+            mergedConfig.sidebarManualOrder = groupsSummary.sidebarManualOrder;
+        }
+
         const nextState = buildUnifiedStateFromParsed(parsedTabs, {
             metadataType: 'store',
-            config: configPayload || {},
+            config: mergedConfig,
             quickPins: Array.isArray(pinsPayload?.pins) ? pinsPayload.pins : [],
-            activeWorkspace: configPayload?.activeWorkspace || parsedTabs[0]?.workspaceId || 'main'
+            activeWorkspace: mergedConfig.activeWorkspace || parsedTabs[0]?.workspaceId || 'main'
         });
         const knowledgeState = await tryReadKnowledgeStateFromFolder(rootHandle);
         if (knowledgeState) nextState.knowledge = knowledgeState;

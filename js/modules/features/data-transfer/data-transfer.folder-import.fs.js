@@ -72,6 +72,12 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         const entries = await listDirectoryEntries(tabsRoot);
         for (const { handle } of entries) {
             if (handle.kind !== 'directory') continue;
+            // Group folders contain group.json — recurse into their children
+            const hasGroupJson = !!(await getFileHandleIfExists(handle, 'group.json'));
+            if (hasGroupJson) {
+                await collectTabFoldersRecursive(handle, bucket);
+                continue;
+            }
             const hasTabJson = !!(await getFileHandleIfExists(handle, 'tab.json'));
             const hasCardsDir = !!(await getDirectoryHandleByAliases(handle, ['cards', 'c']));
             const nestedTabsHandle = await getDirectoryHandleByAliases(handle, ['tabs', 't']);

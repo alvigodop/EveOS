@@ -79,6 +79,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             if (existing) {
                 existing.name = String(tab?.workspaceName || existing.name || workspaceId).trim() || workspaceId;
                 existing.icon = tab?.workspaceIcon || existing.icon || 'folder';
+                if (tab?.groupId) existing.groupId = tab.groupId;
                 if (!Array.isArray(existing.subTabs)) existing.subTabs = [];
                 return;
             }
@@ -87,6 +88,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
                 id: workspaceId,
                 name: String(tab?.workspaceName || workspaceId).trim() || workspaceId,
                 icon: tab?.workspaceIcon || 'folder',
+                groupId: tab?.groupId || undefined,
                 subTabs: []
             };
             const parentNode = parentWorkspaceId ? nodeById.get(parentWorkspaceId) : null;
