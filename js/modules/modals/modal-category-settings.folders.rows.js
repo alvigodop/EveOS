@@ -64,8 +64,8 @@
                                 + `<button type="button" onclick="pinCategoryFolderBookmarks('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">Pin Subtree</button>`
                                 + `<button type="button" onclick="unpinCategoryFolderBookmarks('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">Unpin Subtree</button>`
                                 + `<button type="button" onclick="openFolderCreator('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">Subfolder</button>`
-                                + `<button type="button" onclick="promptRenameBookmarkFolder('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">Rename</button>`
-                                + `<button type="button" onclick="deleteBookmarkFolderPrompt('${safeCategoryJs}', '${safeFolderJs}')" style="padding:5px 8px; font-size:0.78rem;">Delete</button>`
+                                + `<button type="button" onclick="promptRenameBookmarkFolder('${safeCategoryJs}', '${safeFolderJs}', '${escapeCategorySettingsJs(workspaceId)}')" style="padding:5px 8px; font-size:0.78rem;">Rename</button>`
+                                + `<button type="button" onclick="deleteBookmarkFolderPrompt('${safeCategoryJs}', '${safeFolderJs}', '${escapeCategorySettingsJs(workspaceId)}')" style="padding:5px 8px; font-size:0.78rem;">Delete</button>`
                             + '</div>'
                         + '</div>'
                     + '</div>'

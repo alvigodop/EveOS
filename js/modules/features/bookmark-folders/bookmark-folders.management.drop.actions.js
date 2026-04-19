@@ -94,16 +94,17 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         toggleToolbarExpanded(workspaceId, getActiveCategoryContext(categoryName));
     };
 
-    window.deleteBookmarkFolderPrompt = async function (categoryName, folderId) {
+    window.deleteBookmarkFolderPrompt = async function (categoryName, folderId, workspaceId) {
         const resolvedCategory = getActiveCategoryContext(categoryName);
-        const target = getFolderById(normalizeWorkspaceId(), resolvedCategory, folderId);
+        const resolvedWorkspace = normalizeWorkspaceId(workspaceId);
+        const target = getFolderById(resolvedWorkspace, resolvedCategory, folderId);
         if (!target) return;
         const confirmed = typeof showConfirm === 'function'
             ? await showConfirm(`Delete "${target.name}"? Bookmarks move to the parent/root and subfolders move up one level.`)
             : window.confirm(`Delete "${target.name}"? Bookmarks move to the parent/root and subfolders move up one level.`);
         if (!confirmed) return;
         if (!deleteFolder({
-            workspaceId: normalizeWorkspaceId(),
+            workspaceId: resolvedWorkspace,
             categoryName: resolvedCategory,
             folderId
         })) return;
@@ -113,26 +114,27 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         }
     };
 
-    window.openAddModalForFolder = function (categoryName, folderId) {
+    window.openAddModalForFolder = function (categoryName, folderId, workspaceId) {
         if (typeof openAddModal === 'function') {
             openAddModal({
                 category: getActiveCategoryContext(categoryName),
-                folderId: normalizeFolderId(folderId)
+                folderId: normalizeFolderId(folderId),
+                workspaceId: workspaceId ? String(workspaceId).trim() : ''
             });
         }
     };
 
-    window.promptCreateBookmarkFolder = function (categoryName, parentId) {
+    window.promptCreateBookmarkFolder = function (categoryName, parentId, workspaceId) {
         const resolvedCategory = getActiveCategoryContext(categoryName);
         if (typeof window.openFolderCreator === 'function') {
-            window.openFolderCreator(resolvedCategory, parentId);
+            window.openFolderCreator(resolvedCategory, parentId, workspaceId);
         }
     };
 
-    window.promptRenameBookmarkFolder = function (categoryName, folderId) {
+    window.promptRenameBookmarkFolder = function (categoryName, folderId, workspaceId) {
         const resolvedCategory = getActiveCategoryContext(categoryName);
         if (typeof window.openFolderRenamer === 'function') {
-            window.openFolderRenamer(resolvedCategory, folderId);
+            window.openFolderRenamer(resolvedCategory, folderId, workspaceId);
         }
     };
 

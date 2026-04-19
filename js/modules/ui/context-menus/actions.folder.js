@@ -42,27 +42,29 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
     window.ctxFolderAdd = function () {
         closeAllMenus();
         if (window.ctxCatName && window.ctxFolderId && typeof openAddModalForFolder === 'function') {
-            openAddModalForFolder(window.ctxCatName, window.ctxFolderId);
+            openAddModalForFolder(window.ctxCatName, window.ctxFolderId, getActiveWorkspaceId());
         }
     };
 
     window.ctxFolderSubfolder = function () {
         closeAllMenus();
         if (!(window.ctxCatName && window.ctxFolderId)) return;
+        var wsId = getActiveWorkspaceId();
         if (typeof promptCreateBookmarkFolder === 'function') {
-            promptCreateBookmarkFolder(window.ctxCatName, window.ctxFolderId);
+            promptCreateBookmarkFolder(window.ctxCatName, window.ctxFolderId, wsId);
         } else if (typeof openFolderCreator === 'function') {
-            openFolderCreator(window.ctxCatName, window.ctxFolderId);
+            openFolderCreator(window.ctxCatName, window.ctxFolderId, wsId);
         }
     };
 
     window.ctxFolderRename = function () {
         closeAllMenus();
         if (!(window.ctxCatName && window.ctxFolderId)) return;
+        var wsId = getActiveWorkspaceId();
         if (typeof promptRenameBookmarkFolder === 'function') {
-            promptRenameBookmarkFolder(window.ctxCatName, window.ctxFolderId);
+            promptRenameBookmarkFolder(window.ctxCatName, window.ctxFolderId, wsId);
         } else if (typeof openFolderRenamer === 'function') {
-            openFolderRenamer(window.ctxCatName, window.ctxFolderId);
+            openFolderRenamer(window.ctxCatName, window.ctxFolderId, wsId);
         }
     };
 
@@ -273,7 +275,7 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
     window.ctxFolderDelete = function () {
         closeAllMenus();
         if (window.ctxCatName && window.ctxFolderId && typeof deleteBookmarkFolderPrompt === 'function') {
-            deleteBookmarkFolderPrompt(window.ctxCatName, window.ctxFolderId);
+            deleteBookmarkFolderPrompt(window.ctxCatName, window.ctxFolderId, getActiveWorkspaceId());
         }
     };
 

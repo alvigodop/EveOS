@@ -1,7 +1,18 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python *)"
+      "Bash(python *)",
+      "Bash(node tools/smoke/api_search_bridge_off_smoke.js)",
+      "Bash(echo \"EXIT=$?\")",
+      "Bash(node tools/smoke/api_search_stale_results_smoke.js)",
+      "Bash(node tools/smoke/api_live_provider_acceptance_smoke.js)",
+      "Bash(node tools/smoke/api_provider_matrix_live_smoke.js)",
+      "Bash(node tools/smoke/card_folder_rename_repro.js)",
+      "Bash(node -c js/modules/ui/dashboard/categories/builder-card.header.js)",
+      "Bash(node -c js/modules/ui/dashboard/categories/builder-card.folders.js)",
+      "Bash(node -c js/modules/features/bookmark-folders/bookmark-folders.management.drop.actions.js)",
+      "Bash(node -c js/modules/modals/modal-category-settings.core.js)",
+      "Bash(node -c js/modules/modals/modal-category-settings.folders.form.js)"
     ]
   }
 }

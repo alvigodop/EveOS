@@ -85,10 +85,11 @@ var DEFAULT_CARD_HEADER_BUTTONS = ['add', 'folders', 'library', 'focus', 'launch
         event.stopPropagation();
     }
 
-    function buildFolderAction(categoryName, folderId, action) {
+    function buildFolderAction(categoryName, folderId, action, workspaceId) {
         const safeCategory = escapeCardJs(categoryName);
         const safeFolderId = escapeCardJs(folderId);
-        return `event.preventDefault();event.stopPropagation();${action}('${safeCategory}', '${safeFolderId}')`;
+        const safeWorkspace = escapeCardJs(workspaceId || '');
+        return `event.preventDefault();event.stopPropagation();${action}('${safeCategory}', '${safeFolderId}', '${safeWorkspace}')`;
     }
 
     function getFolderActionExpansionStore() {

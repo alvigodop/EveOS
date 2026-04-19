@@ -3,6 +3,7 @@ window.currentCategoryCtx = null;
 window.categoryFolderCreateDraft = window.categoryFolderCreateDraft || {
     mode: 'create',
     categoryName: '',
+    workspaceId: '',
     parentId: '',
     folderId: '',
     initialName: ''
@@ -128,6 +129,8 @@ window.categoryFolderActionExpansion = window.categoryFolderActionExpansion || {
 
                 categoryName: '',
 
+                workspaceId: '',
+
                 parentId: '',
 
                 folderId: '',
@@ -151,6 +154,8 @@ window.categoryFolderActionExpansion = window.categoryFolderActionExpansion || {
             mode: String(nextDraft?.mode || 'create').trim() || 'create',
 
             categoryName: String(nextDraft?.categoryName || '').trim(),
+
+            workspaceId: String(nextDraft?.workspaceId || '').trim(),
 
             parentId: String(nextDraft?.parentId || '').trim(),
 
