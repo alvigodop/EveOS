@@ -151,12 +151,44 @@
         return rt.getWorkspaceGroupId(rootWorkspace, cfg) === focusedGroupId;
     }
 
+    function getFocusedGroupAncestorIds(cfg) {
+        var focusedGroupId = getFocusedGroupId(cfg);
+        if (!focusedGroupId) return null;
+        var group = rt.findGroupById(focusedGroupId, cfg);
+        if (!group) return null;
+        var parentWorkspaceId = rt.normalizeWorkspaceId(group.parentWorkspaceId);
+        if (!parentWorkspaceId) return new Set();
+        var helpers = rt.getHelpers();
+        var ids = new Set();
+        if (helpers && typeof helpers.getPath === 'function') {
+            var path = helpers.getPath((cfg && cfg.workspaces) || [], parentWorkspaceId);
+            path.forEach(function (node) {
+                if (node && node.id) ids.add(String(node.id));
+            });
+        }
+        ids.add(parentWorkspaceId);
+        return ids;
+    }
+
+    function isWorkspaceOnPathToFocusedGroup(workspaceOrId, cfg) {
+        var pathIds = getFocusedGroupAncestorIds(cfg);
+        if (!pathIds || pathIds.size === 0) return false;
+        var targetId = workspaceOrId && typeof workspaceOrId === 'object'
+            ? rt.normalizeWorkspaceId(workspaceOrId.id)
+            : rt.normalizeWorkspaceId(workspaceOrId);
+        return !!targetId && pathIds.has(targetId);
+    }
+
     function isWorkspaceEffectivelyInactive(workspaceOrId, configRef) {
         var cfg = rt.ensureConfigDefaults(configRef);
         if (!cfg) return false;
 
         var focusedGroupId = getFocusedGroupId(cfg);
-        if (focusedGroupId) return !isWorkspaceInFocusedGroup(workspaceOrId, cfg);
+        if (focusedGroupId) {
+            if (isWorkspaceInFocusedGroup(workspaceOrId, cfg)) return false;
+            if (isWorkspaceOnPathToFocusedGroup(workspaceOrId, cfg)) return false;
+            return true;
+        }
 
         var workspace = workspaceOrId && typeof workspaceOrId === 'object'
             ? workspaceOrId
@@ -256,6 +288,11 @@
         if (targetId && !rt.findGroupById(targetId, cfg)) return false;
         if (targetId && !canGroupWorkspaceInGroup(workspaceId, targetId, cfg)) return false;
 
+        // Skip if already in the target group (or already ungrouped when removing)
+        var currentGroupId = rt.getWorkspaceGroupId(workspaceId, cfg);
+        if (currentGroupId === targetId) return true;
+
+        var previousWorkspaces = cfg.workspaces;
         var roots = rt.getRootWorkspaces(cfg).slice();
         var dragIndex = roots.findIndex(function (workspace) {
             return String(workspace.id) === String(workspaceId);
@@ -263,7 +300,7 @@
         if (dragIndex === -1) return false;
 
         var dragged = roots.splice(dragIndex, 1)[0];
-        var previousGroupId = rt.getWorkspaceGroupId(dragged, cfg);
+        var previousGroupId = currentGroupId;
         if (targetId) dragged.groupId = targetId;
         else delete dragged.groupId;
 
@@ -275,6 +312,17 @@
             insertIndex = lastIndex === -1 ? roots.length : lastIndex + 1;
         }
         roots.splice(insertIndex, 0, dragged);
+
+        // Verify the dragged workspace survived the splice operations
+        var survived = roots.some(function (workspace) {
+            return workspace && String(workspace.id) === String(workspaceId);
+        });
+        if (!survived) {
+            // Restore original array on failure to prevent data loss
+            cfg.workspaces = previousWorkspaces;
+            return false;
+        }
+
         cfg.workspaces = roots;
 
         if (cfg.sidebarOrderMode === rt.ORDER_MODE_MANUAL) {

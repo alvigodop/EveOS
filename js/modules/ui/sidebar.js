@@ -240,15 +240,24 @@ function renderSidebar() {
         const dragNode = helpers.findById(config.workspaces, dragId);
         if (!dragNode) return false;
 
+        // Already an ungrouped root workspace — nothing to promote
+        const currentGroupId = groupsApi && typeof groupsApi.getWorkspaceGroupId === 'function'
+            ? groupsApi.getWorkspaceGroupId(dragId, config)
+            : String(dragNode.groupId || '').trim();
+        if (!currentGroupId && groupsApi && groupsApi.isRootWorkspace(dragId, config)) return true;
+
         const targetIndex = resolveWorkspaceInsertIndex('', beforeEntry, orderedEntries || [], typeof entryIndex === 'number' ? entryIndex : 0);
+        const previousWorkspaces = config.workspaces;
         config.workspaces = helpers.moveToPosition(config.workspaces, dragId, '', targetIndex);
 
         const movedNode = helpers.findById(config.workspaces, dragId);
-        if (!movedNode) return false;
+        if (!movedNode) {
+            // Restore original array on failure to prevent data loss
+            config.workspaces = previousWorkspaces;
+            return false;
+        }
 
-        const previousGroupId = groupsApi && typeof groupsApi.getWorkspaceGroupId === 'function'
-            ? groupsApi.getWorkspaceGroupId(dragId, config)
-            : String(movedNode.groupId || '').trim();
+        const previousGroupId = currentGroupId;
         delete movedNode.groupId;
 
         if (groupsApi && typeof groupsApi.placeManualOrderEntry === 'function') {
@@ -279,10 +288,15 @@ function renderSidebar() {
         if (!targetParentId) return promoteToRoot(dragId, beforeEntry, orderedEntries, entryIndex);
 
         const targetIndex = resolveWorkspaceInsertIndex(targetParentId, beforeEntry, orderedEntries || [], typeof entryIndex === 'number' ? entryIndex : 0);
+        const previousWorkspaces = config.workspaces;
         config.workspaces = helpers.moveToPosition(config.workspaces, dragId, targetParentId, targetIndex);
 
         const movedNode = helpers.findById(config.workspaces, dragId);
-        if (!movedNode) return false;
+        if (!movedNode) {
+            // Restore original array on failure to prevent data loss
+            config.workspaces = previousWorkspaces;
+            return false;
+        }
         delete movedNode.groupId;
 
         if (groupsApi && typeof groupsApi.removeManualOrderEntry === 'function') {
@@ -306,6 +320,11 @@ function renderSidebar() {
         if (!helpers || !groupsApi || typeof helpers.moveToPosition !== 'function') return false;
         const targetGroupId = String(groupId || '').trim();
         if (!targetGroupId || !groupsApi.findGroupById(targetGroupId, config)) return false;
+
+        // Skip if the workspace is already a root member of this group
+        const existingGroupId = groupsApi.getWorkspaceGroupId(dragId, config);
+        if (existingGroupId === targetGroupId && groupsApi.isRootWorkspace(dragId, config)) return true;
+
         if (groupsApi.isRootWorkspace(dragId, config)
             && typeof groupsApi.canGroupWorkspaceInGroup === 'function'
             && !groupsApi.canGroupWorkspaceInGroup(dragId, targetGroupId, config)) {
@@ -324,9 +343,14 @@ function renderSidebar() {
             targetIndex = lastIndex === -1 ? roots.length : lastIndex + 1;
         }
 
+        const previousWorkspaces = config.workspaces;
         config.workspaces = helpers.moveToPosition(config.workspaces, dragId, '', targetIndex);
         const movedNode = helpers.findById(config.workspaces, dragId);
-        if (!movedNode) return false;
+        if (!movedNode) {
+            // Restore original array on failure to prevent data loss
+            config.workspaces = previousWorkspaces;
+            return false;
+        }
         movedNode.groupId = targetGroupId;
         if (typeof groupsApi.removeManualOrderEntry === 'function') {
             groupsApi.removeManualOrderEntry('workspace', dragId, config);
