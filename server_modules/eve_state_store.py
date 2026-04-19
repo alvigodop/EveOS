@@ -9,6 +9,12 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
+from server_modules.eve_state_store_backup import (
+    read_state_from_root as _read_state_from_root_backup,
+    write_card_layer_backup_to_root as _write_card_layer_backup_to_root_backup,
+    write_folder_layer_backup_to_root as _write_folder_layer_backup_to_root_backup,
+    write_state_to_root as _write_state_to_root_backup,
+)
 from server_modules.eve_state_store_api import (
     handle_get_request as _handle_get_request_api,
     handle_post_request as _handle_post_request_api,
@@ -424,158 +430,49 @@ def normalize_modular_bookmark_filenames():
 
 
 def _read_state_from_root(root_path):
-    with _temporary_store_root(root_path):
-        return read_modular_state(apply_selection=False)
+    return _read_state_from_root_backup(
+        root_path,
+        temporary_store_root=_temporary_store_root,
+        read_modular_state=read_modular_state,
+    )
 
 
 def _write_state_to_root(state, root_path, progress_callback=None):
-    with _temporary_store_root(root_path):
-        # Backups must write the provided snapshot as-is into the destination
-        # root, independent of the currently active scoped selection.
-        return _write_modular_state_full(state, progress_callback=progress_callback)
-
-
-def _iter_tab_folders_recursive(tabs_root):
-    root = Path(tabs_root).resolve()
-    if not root.exists() or not root.is_dir():
-        return
-
-    for entry in sorted(root.iterdir()):
-        if not entry.is_dir():
-            continue
-        if _looks_like_tab_folder(entry):
-            yield entry
-            nested_tabs_root = entry / "tabs"
-            if nested_tabs_root.exists() and nested_tabs_root.is_dir():
-                yield from _iter_tab_folders_recursive(nested_tabs_root)
+    # Backups must write the provided snapshot as-is into the destination
+    # root, independent of the currently active scoped selection.
+    return _write_state_to_root_backup(
+        state,
+        root_path,
+        temporary_store_root=_temporary_store_root,
+        write_modular_state_full=lambda snapshot: _write_modular_state_full(
+            snapshot,
+            progress_callback=progress_callback,
+        ),
+    )
 
 
 def _write_card_layer_backup_to_root(state, root_path, progress_callback=None):
-    """
-    Write a card-layer backup with structure starting at:
-      <root>/cards/<card>/...
-    (without tab-level wrappers).
-    """
-    target_root = Path(root_path).resolve()
-    temp_root = Path(tempfile.mkdtemp(prefix="eveos-card-layer-"))
-    try:
-        if callable(progress_callback):
-            progress_callback({
-                "phase": "preparing",
-                "message": "Preparing card backup snapshot",
-            })
-        with _temporary_store_root(temp_root):
-            _write_modular_state_full(state, progress_callback=progress_callback)
-
-        copied_scopes = 0
-        copied_cards = 0
-        tabs_root = temp_root / "tabs"
-        dst_cards_root = target_root / "cards"
-        dst_cards_root.mkdir(parents=True, exist_ok=True)
-        if callable(progress_callback):
-            progress_callback({
-                "phase": "copying",
-                "message": "Copying card backup to destination",
-            })
-        src_knowledge_root = temp_root / "knowledge"
-        if src_knowledge_root.exists() and src_knowledge_root.is_dir():
-            shutil.copytree(src_knowledge_root, target_root / "knowledge", dirs_exist_ok=True)
-        if tabs_root.exists():
-            for workspace_folder in _iter_tab_folders_recursive(tabs_root):
-                src_cards_root = workspace_folder / "cards"
-                if not src_cards_root.exists() or not src_cards_root.is_dir():
-                    continue
-                copied_scopes += 1
-                for card_dir in sorted(src_cards_root.iterdir()):
-                    if not card_dir.is_dir():
-                        continue
-                    target_card_dir = dst_cards_root / card_dir.name
-                    if target_card_dir.exists():
-                        scoped_name = _safe_filename(f"{workspace_folder.name}--{card_dir.name}", card_dir.name)
-                        target_card_dir = dst_cards_root / scoped_name
-                    shutil.copytree(card_dir, target_card_dir, dirs_exist_ok=True)
-                    copied_cards += 1
-
-        bookmark_count = len(list((state.get("bookmarks") or {}).get("links") or []))
-        return {
-            "ok": True,
-            "summary": {
-                "tabs": copied_scopes,
-                "cards": copied_cards,
-                "bookmarks": bookmark_count
-            },
-            "status": {}
-        }
-    finally:
-        shutil.rmtree(temp_root, ignore_errors=True)
+    return _write_card_layer_backup_to_root_backup(
+        state,
+        root_path,
+        progress_callback=progress_callback,
+        temporary_store_root=_temporary_store_root,
+        write_modular_state_full=_write_modular_state_full,
+        looks_like_tab_folder=_looks_like_tab_folder,
+        safe_filename=_safe_filename,
+    )
 
 
 def _write_folder_layer_backup_to_root(state, root_path, progress_callback=None):
-    """
-    Write a folder-layer backup with structure starting at:
-      <root>/cards/<card>/...
-    and include a folder-scoped restore snapshot at:
-      <root>/state/folder-state.json
-    """
-    target_root = Path(root_path).resolve()
-    temp_root = Path(tempfile.mkdtemp(prefix="eveos-folder-layer-"))
-    try:
-        if callable(progress_callback):
-            progress_callback({
-                "phase": "preparing",
-                "message": "Preparing folder backup snapshot",
-            })
-        with _temporary_store_root(temp_root):
-            _write_modular_state_full(state, progress_callback=progress_callback)
-
-        state_root = target_root / "state"
-        state_root.mkdir(parents=True, exist_ok=True)
-        (state_root / "folder-state.json").write_text(
-            json.dumps(state, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
-
-        copied_scopes = 0
-        copied_cards = 0
-        tabs_root = temp_root / "tabs"
-        dst_cards_root = target_root / "cards"
-        dst_cards_root.mkdir(parents=True, exist_ok=True)
-        if callable(progress_callback):
-            progress_callback({
-                "phase": "copying",
-                "message": "Copying folder backup to destination",
-            })
-        src_knowledge_root = temp_root / "knowledge"
-        if src_knowledge_root.exists() and src_knowledge_root.is_dir():
-            shutil.copytree(src_knowledge_root, target_root / "knowledge", dirs_exist_ok=True)
-        if tabs_root.exists():
-            for workspace_folder in _iter_tab_folders_recursive(tabs_root):
-                src_cards_root = workspace_folder / "cards"
-                if not src_cards_root.exists() or not src_cards_root.is_dir():
-                    continue
-                copied_scopes += 1
-                for card_dir in sorted(src_cards_root.iterdir()):
-                    if not card_dir.is_dir():
-                        continue
-                    target_card_dir = dst_cards_root / card_dir.name
-                    if target_card_dir.exists():
-                        scoped_name = _safe_filename(f"{workspace_folder.name}--{card_dir.name}", card_dir.name)
-                        target_card_dir = dst_cards_root / scoped_name
-                    shutil.copytree(card_dir, target_card_dir, dirs_exist_ok=True)
-                    copied_cards += 1
-
-        bookmark_count = len(list((state.get("bookmarks") or {}).get("links") or []))
-        return {
-            "ok": True,
-            "summary": {
-                "tabs": copied_scopes,
-                "cards": copied_cards,
-                "bookmarks": bookmark_count
-            },
-            "status": {}
-        }
-    finally:
-        shutil.rmtree(temp_root, ignore_errors=True)
+    return _write_folder_layer_backup_to_root_backup(
+        state,
+        root_path,
+        progress_callback=progress_callback,
+        temporary_store_root=_temporary_store_root,
+        write_modular_state_full=_write_modular_state_full,
+        looks_like_tab_folder=_looks_like_tab_folder,
+        safe_filename=_safe_filename,
+    )
 
 def _build_api_deps():
     return {
