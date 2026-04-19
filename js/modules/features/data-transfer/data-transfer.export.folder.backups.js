@@ -41,6 +41,24 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
             return typeof JSZip === 'function' && !!getZipHelpers();
         }
 
+        // JSZip is loaded as a deferred CDN script — it may not be available
+        // yet when the user triggers a backup. Force-load deferred scripts
+        // and poll for JSZip availability.
+        async function ensureZipReady() {
+            if (canUseZip()) return true;
+            // Kick deferred script loading if the loader exposes the API
+            if (typeof window.__loadDeferredScriptsNow === 'function') {
+                try { await window.__loadDeferredScriptsNow(); } catch (e) { /* ignore */ }
+            }
+            if (canUseZip()) return true;
+            // Poll briefly in case the script is mid-load
+            for (let attempt = 0; attempt < 20; attempt++) {
+                await new Promise((resolve) => setTimeout(resolve, 500));
+                if (canUseZip()) return true;
+            }
+            return false;
+        }
+
         function parseScopedCategoryKey(scopedKey) {
             const raw = String(scopedKey || '').trim();
             if (!raw) return { workspaceId: 'main', categoryName: 'Unsorted' };
@@ -84,7 +102,7 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
         // --- Full backup ---
         async function exportFullBackupAsFolder(exportState) {
             // Try ZIP first (works everywhere)
-            if (canUseZip()) {
+            if (await ensureZipReady()) {
                 const zipHelpers = getZipHelpers();
                 const zipHandle = zipHelpers.createZipRootHandle();
                 const storeSummary = await writeFullStoreFolderBackup(zipHandle, exportState);
@@ -160,7 +178,7 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
 
         // --- Workspace (tab) backup ---
         async function exportWorkspaceFolderFallback(workspaceState, workspaceId, workspaceName) {
-            if (canUseZip()) {
+            if (await ensureZipReady()) {
                 const zipHelpers = getZipHelpers();
                 const zipHandle = zipHelpers.createZipRootHandle();
                 const links = sortLinksForExport(workspaceState?.bookmarks?.links || []);
@@ -267,7 +285,7 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
 
         // --- Card backup ---
         async function exportCardFolderFallback(cardState, workspaceId, categoryName, workspaceName) {
-            if (canUseZip()) {
+            if (await ensureZipReady()) {
                 const zipHelpers = getZipHelpers();
                 const zipHandle = zipHelpers.createZipRootHandle();
                 const links = sortLinksForExport(cardState?.bookmarks?.links || []);
@@ -342,7 +360,7 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
 
         // --- Folder backup ---
         async function exportFolderFolderFallback(folderState, workspaceId, categoryName, workspaceName) {
-            if (canUseZip()) {
+            if (await ensureZipReady()) {
                 const zipHelpers = getZipHelpers();
                 const zipHandle = zipHelpers.createZipRootHandle();
                 const links = sortLinksForExport(folderState?.bookmarks?.links || []);

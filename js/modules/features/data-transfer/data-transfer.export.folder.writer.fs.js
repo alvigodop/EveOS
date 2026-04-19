@@ -100,12 +100,16 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
                 workspaces: workspaceTree,
                 activeWorkspace
             };
+            const sidebarGroups = Array.isArray(scopedConfig?.sidebarGroups) ? scopedConfig.sidebarGroups : [];
             await writeJsonFileToFolder(rootHandle, `${BACKUP_DIRS.meta}/store.json`, {
                 format: 'eveos.modular-state.v1',
                 version: 1,
                 updatedAt: new Date().toISOString(),
                 activeWorkspace,
-                workspaces: workspaceTree
+                workspaces: workspaceTree,
+                sidebarGroups,
+                sidebarOrderMode: scopedConfig?.sidebarOrderMode || 'auto',
+                sidebarManualOrder: scopedConfig?.sidebarManualOrder || null
             });
             await writeJsonFileToFolder(rootHandle, `${BACKUP_DIRS.meta}/config.json`, normalizedConfig);
             return normalizedConfig;
