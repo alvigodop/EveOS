@@ -33,6 +33,7 @@ async function waitForApp(page) {
     typeof window.renderDashboard === 'function'
     && typeof window.renderSidebar === 'function'
     && typeof window.switchWorkspace === 'function'
+    && typeof window.ctxWsCreateShortcut === 'function'
     && !!window.EveWorkspaceHelpers?.findById
   ), undefined, { timeout: 120000 });
 }
