@@ -12,7 +12,10 @@
       "Bash(node -c js/modules/ui/dashboard/categories/builder-card.folders.js)",
       "Bash(node -c js/modules/features/bookmark-folders/bookmark-folders.management.drop.actions.js)",
       "Bash(node -c js/modules/modals/modal-category-settings.core.js)",
-      "Bash(node -c js/modules/modals/modal-category-settings.folders.form.js)"
+      "Bash(node -c js/modules/modals/modal-category-settings.folders.form.js)",
+      "Bash(grep -viE '\\\\.\\(png|jpg|jpeg|gif|webp|ico|svg|pdf|zip|woff2?|ttf|eot|mp4|mp3|wav|db|sqlite\\)$')",
+      "Bash(xargs -d '\\\\n' wc -l)",
+      "Bash(grep -v ' total$')"
     ]
   }
 }

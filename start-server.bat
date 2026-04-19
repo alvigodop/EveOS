@@ -4,6 +4,9 @@ setlocal EnableExtensions EnableDelayedExpansion
 cd /d "%~dp0"
 set "PROJECT_ROOT=%CD%"
 set "SELF_PATH=%~f0"
+set "START_SERVER_BROWSE_BAT=%PROJECT_ROOT%\tools\windows\start-server.browse.bat"
+set "START_SERVER_PATHS_BAT=%PROJECT_ROOT%\tools\windows\start-server.paths.bat"
+set "START_SERVER_BROWSER_BAT=%PROJECT_ROOT%\tools\windows\start-server.browser.bat"
 
 set "GEMINI_MENU_BAT=%PROJECT_ROOT%\server\server-menu.bat"
 set "GEMINI_AUTOSTART_BAT=%PROJECT_ROOT%\server\start-gemini.bat"
@@ -260,94 +263,20 @@ call :LaunchEveInstance "%INSTANCE_PORT%" "%INSTANCE_PACK_PATH%" "%INSTANCE_KIND
 exit /b %ERRORLEVEL%
 
 :ResolveMainDataPackPath
-set "MAIN_DATA_PACK=%PROJECT_ROOT%\data\modular-state"
-set "SETTINGS_FILE=%PROJECT_ROOT%\data\modular-store-settings.json"
-if exist "%SETTINGS_FILE%" (
-    for /f "usebackq delims=" %%P in (`powershell -NoProfile -Command "$p = '%SETTINGS_FILE%'; try { $j = Get-Content -LiteralPath $p -Raw | ConvertFrom-Json; if ($j.activePath) { [Console]::WriteLine($j.activePath) } } catch { }"`) do (
-        if not "%%P"=="" set "MAIN_DATA_PACK=%%P"
-    )
-)
-call :ResolveAbsolutePath "%MAIN_DATA_PACK%" MAIN_DATA_PACK
-exit /b 0
+call "%START_SERVER_PATHS_BAT%" :ResolveMainDataPackPath
+exit /b %ERRORLEVEL%
 
 :LoadLastUsedPackPath
-set "LAST_USED_PACK_PATH="
-if exist "%LAST_USED_PACK_FILE%" (
-    for /f "usebackq delims=" %%P in ("%LAST_USED_PACK_FILE%") do (
-        if not "%%P"=="" (
-            set "LAST_USED_PACK_PATH=%%P"
-            goto :LoadLastUsedPackPathDone
-        )
-    )
-)
-:LoadLastUsedPackPathDone
-if defined LAST_USED_PACK_PATH call :ResolveAbsolutePath "%LAST_USED_PACK_PATH%" LAST_USED_PACK_PATH
-exit /b 0
+call "%START_SERVER_PATHS_BAT%" :LoadLastUsedPackPath
+exit /b %ERRORLEVEL%
 
 :PersistLastUsedPackPath
-set "SAVE_PACK_PATH=%~1"
-if "%SAVE_PACK_PATH%"=="" exit /b 0
-if not exist "%PROJECT_ROOT%\data" mkdir "%PROJECT_ROOT%\data" >nul 2>nul
-> "%LAST_USED_PACK_FILE%" (
-    echo %SAVE_PACK_PATH%
-)
-exit /b 0
+call "%START_SERVER_PATHS_BAT%" :PersistLastUsedPackPath %*
+exit /b %ERRORLEVEL%
 
 :PromptDataPackPath
-setlocal EnableDelayedExpansion
-set "DEFAULT_PACK_PATH=%~1"
-set "SELECTED_PACK_PATH="
-
-if not defined DEFAULT_PACK_PATH set "DEFAULT_PACK_PATH=%PROJECT_ROOT%\data\modular-state"
-call :ResolveAbsolutePath "!DEFAULT_PACK_PATH!" DEFAULT_PACK_PATH
-if defined LAST_USED_PACK_PATH call :ResolveAbsolutePath "!LAST_USED_PACK_PATH!" LAST_USED_PACK_PATH
-
-echo.
-echo Data-pack selection:
-echo   [1] Default path
-echo       !DEFAULT_PACK_PATH!
-if defined LAST_USED_PACK_PATH (
-    echo   [2] Last used path
-    echo       !LAST_USED_PACK_PATH!
-) else (
-    echo   [2] Last used path
-    echo       ^(not set yet^)
-)
-echo   [3] New custom path
-echo.
-set /p "PACK_PICK=Choose data-pack option (default 1): "
-if not defined PACK_PICK set "PACK_PICK=1"
-
-if "!PACK_PICK!"=="1" (
-    set "SELECTED_PACK_PATH=!DEFAULT_PACK_PATH!"
-    goto :PromptDataPackPathDone
-)
-if "!PACK_PICK!"=="2" (
-    if defined LAST_USED_PACK_PATH (
-        set "SELECTED_PACK_PATH=!LAST_USED_PACK_PATH!"
-    ) else (
-        echo [WARN] No last used path found. Using default.
-        set "SELECTED_PACK_PATH=!DEFAULT_PACK_PATH!"
-    )
-    goto :PromptDataPackPathDone
-)
-if "!PACK_PICK!"=="3" (
-    set "CUSTOM_PACK_PATH="
-    set /p "CUSTOM_PACK_PATH=Enter custom data-pack folder path: "
-    if not defined CUSTOM_PACK_PATH (
-        echo [WARN] Empty custom path. Using default.
-        set "SELECTED_PACK_PATH=!DEFAULT_PACK_PATH!"
-    ) else (
-        call :ResolveAbsolutePath "!CUSTOM_PACK_PATH!" SELECTED_PACK_PATH
-    )
-    goto :PromptDataPackPathDone
-)
-
-echo [WARN] Invalid option. Using default.
-set "SELECTED_PACK_PATH=!DEFAULT_PACK_PATH!"
-
-:PromptDataPackPathDone
-endlocal & set "%~2=%SELECTED_PACK_PATH%" & exit /b 0
+call "%START_SERVER_PATHS_BAT%" :PromptDataPackPath %*
+exit /b %ERRORLEVEL%
 
 :LaunchEveInstance
 set "INSTANCE_PORT=%~1"
@@ -405,287 +334,77 @@ call :TrackInstance "%INSTANCE_PORT%" "%INSTANCE_PACK_PATH%" "%INSTANCE_KIND%"
 exit /b 0
 
 :LaunchBatch
-set "targetBat=%~1"
-if not exist "%targetBat%" (
-    echo.
-    echo [ERROR] Script not found:
-    echo         %targetBat%
-    echo.
-    pause
-    exit /b 1
-)
-echo.
-echo [OK] Launching:
-echo      %targetBat%
-set "targetDir=%~dp1"
-set "targetName=%~nx1"
-if "%targetDir%"=="" set "targetDir=%PROJECT_ROOT%"
-start "EveOS - %targetName%" cmd /k "cd /d ""%targetDir%"" && call ""%targetBat%"""
-exit /b 0
+call "%START_SERVER_BROWSE_BAT%" :LaunchBatch %*
+exit /b %ERRORLEVEL%
 
 :BrowseProjectBatchFiles
-call :IndexProjectBatchFiles
-if "!BAT_COUNT!"=="0" (
-    echo.
-    echo [INFO] No additional .bat files found in project.
-    echo.
-    pause
-    exit /b 0
-)
-
-echo.
-echo Available .bat scripts:
-for /L %%I in (1,1,!BAT_COUNT!) do (
-    call set "relLabel=%%BAT_LABEL_%%I%%"
-    call :GetBatchNote "!relLabel!"
-    call echo [%%I] %%BAT_LABEL_%%I%% - !BATCH_NOTE!
-)
-echo.
-echo Enter a number to launch, or press Enter to return.
-set /p "pick=Select script: "
-if "%pick%"=="" exit /b 0
-
-echo %pick% | findstr /r "^[0-9][0-9]*$" >nul
-if %ERRORLEVEL% NEQ 0 (
-    echo [ERROR] Invalid number.
-    timeout /t 1 /nobreak >nul
-    exit /b 1
-)
-
-call set "pickedPath=%%BAT_PATH_%pick%%%"
-if not defined pickedPath (
-    echo [ERROR] Number out of range.
-    timeout /t 1 /nobreak >nul
-    exit /b 1
-)
-
-echo.
-call :LaunchBatch "%pickedPath%"
+call "%START_SERVER_BROWSE_BAT%" :BrowseProjectBatchFiles
 exit /b %ERRORLEVEL%
 
 :IndexProjectBatchFiles
-for /f "tokens=1 delims==" %%V in ('set BAT_PATH_ 2^>nul') do set "%%V="
-for /f "tokens=1 delims==" %%V in ('set BAT_LABEL_ 2^>nul') do set "%%V="
-set "BAT_COUNT=0"
-
-for /R "%PROJECT_ROOT%" %%F in (*.bat) do (
-    if /I not "%%~fF"=="%SELF_PATH%" (
-        set /a BAT_COUNT+=1
-        set "BAT_PATH_!BAT_COUNT!=%%~fF"
-        set "relPath=%%~fF"
-        set "relPath=!relPath:%PROJECT_ROOT%\=!"
-        set "BAT_LABEL_!BAT_COUNT!=!relPath!"
-    )
-)
-exit /b 0
+call "%START_SERVER_BROWSE_BAT%" :IndexProjectBatchFiles
+exit /b %ERRORLEVEL%
 
 :GetBatchNote
-set "BATCH_NOTE=General batch launcher script."
-set "rel=%~1"
-
-if /I "%rel%"=="server\server-menu.bat" (
-    set "BATCH_NOTE=Gemini backend console (start/stop Launcher and WebSocket servers)."
-    exit /b 0
-)
-if /I "%rel%"=="server\start-gemini.bat" (
-    set "BATCH_NOTE=Quick launcher: starts both Gemini backend servers."
-    exit /b 0
-)
-if /I "%rel%"=="start-server.bat" (
-    set "BATCH_NOTE=Master EveOS launcher menu (this script)."
-    exit /b 0
-)
-if /I "%rel%"=="start-lightpanda-bridge.bat" (
-    set "BATCH_NOTE=Standalone Lightpanda controller for manual start/stop."
-    exit /b 0
-)
-if /I "%rel%"=="start-camofox-bridge.bat" (
-    set "BATCH_NOTE=Standalone Camofox controller for manual start/stop."
-    exit /b 0
-)
-if /I "%rel%"=="start-wikimedia-bridge.bat" (
-    set "BATCH_NOTE=Legacy Wikimedia-only controller. The Popup bridge now covers Wikimedia fetches too."
-    exit /b 0
-)
-if /I "%rel%"=="start-popup-bridge.bat" (
-    set "BATCH_NOTE=Standalone Popup+Wikimedia bridge controller for in-site popups and compliant Wikipedia fetches."
-    exit /b 0
-)
-set "BATCH_NOTE=Project-specific batch script."
-exit /b 0
+call "%START_SERVER_BROWSE_BAT%" :GetBatchNote %*
+exit /b %ERRORLEVEL%
 
 :NormalizePortInput
-setlocal EnableDelayedExpansion
-set "raw=%~1"
-set "defaultPort=%~2"
-
-for /f "tokens=* delims= " %%A in ("!raw!") do set "raw=%%~A"
-if not defined raw set "raw=!defaultPort!"
-
-set "bad="
-for /f "delims=0123456789" %%A in ("!raw!") do set "bad=%%A"
-if defined bad (
-    endlocal
-    exit /b 1
-)
-
-set /a portValue=!raw!+0 >nul 2>&1
-if errorlevel 1 (
-    endlocal
-    exit /b 1
-)
-
-if !portValue! LSS 1 (
-    endlocal
-    exit /b 1
-)
-if !portValue! GTR 65535 (
-    endlocal
-    exit /b 1
-)
-
-endlocal & set "%~3=%raw%" & exit /b 0
+call "%START_SERVER_PATHS_BAT%" :NormalizePortInput %*
+exit /b %ERRORLEVEL%
 
 :ResolveAbsolutePath
-setlocal EnableDelayedExpansion
-set "raw=%~1"
-set "resolved="
-
-if not defined raw (
-    set "resolved=%PROJECT_ROOT%"
-) else (
-    if /I "!raw:~0,2!"=="\\" (
-        set "resolved=!raw!"
-    ) else (
-        if /I "!raw:~1,1!"==":" (
-            set "resolved=!raw!"
-        ) else (
-            set "resolved=%PROJECT_ROOT%\!raw!"
-        )
-    )
-)
-
-endlocal & set "%~2=%resolved%" & exit /b 0
+call "%START_SERVER_PATHS_BAT%" :ResolveAbsolutePath %*
+exit /b %ERRORLEVEL%
 
 :TrackInstance
-set "trackPort=%~1"
-set "trackPath=%~2"
-set "trackKind=%~3"
-set "newPortList="
-for %%P in (%ACTIVE_INSTANCE_PORTS%) do (
-    if /I not "%%P"=="%trackPort%" set "newPortList=!newPortList! %%P"
-)
-set "ACTIVE_INSTANCE_PORTS=%trackPort% %newPortList%"
-for /f "tokens=1,2,3,4,5" %%A in ("%ACTIVE_INSTANCE_PORTS%") do set "ACTIVE_INSTANCE_PORTS=%%A %%B %%C %%D %%E"
-set "INSTANCE_DATA_%trackPort%=%trackPath%"
-set "INSTANCE_KIND_%trackPort%=%trackKind%"
-set "LAST_USED_PACK_PATH=%trackPath%"
-call :PersistLastUsedPackPath "%trackPath%"
-exit /b 0
+call "%START_SERVER_PATHS_BAT%" :TrackInstance %*
+exit /b %ERRORLEVEL%
 
 :ShowTrackedInstances
-echo Tracked data-packs in this launcher session ^(up to 5^):
-if "%ACTIVE_INSTANCE_PORTS%"=="" (
-    echo   - none yet
-    exit /b 0
-)
-
-for %%P in (%ACTIVE_INSTANCE_PORTS%) do (
-    call set "entryPath=%%INSTANCE_DATA_%%P%%"
-    call set "entryKind=%%INSTANCE_KIND_%%P%%"
-    if defined entryPath (
-        echo   - Port %%P ^| !entryKind! ^| !entryPath!
-    )
-)
-exit /b 0
+call "%START_SERVER_PATHS_BAT%" :ShowTrackedInstances
+exit /b %ERRORLEVEL%
 
 :RefreshBrowserFallbackStatus
-set "LP_READY="
-if exist "%PROJECT_ROOT%\bin\lightpanda" (
-    set "LP_READY=1"
-)
-call :CheckStandaloneLightpanda
-call :CheckCamofoxRuntime
-call :CheckStandaloneCamofox
-call :CheckStandaloneWikimedia
-call :CheckStandalonePopup
-exit /b 0
+call "%START_SERVER_BROWSER_BAT%" :RefreshBrowserFallbackStatus
+exit /b %ERRORLEVEL%
 
 :RefreshLightpandaStatus
-call :RefreshBrowserFallbackStatus
-exit /b 0
+call "%START_SERVER_BROWSER_BAT%" :RefreshLightpandaStatus
+exit /b %ERRORLEVEL%
 
 :CheckStandaloneLightpanda
-set "LP_STANDALONE_PID="
-for /f "tokens=5" %%P in ('netstat -aon ^| findstr /r /c:":%LIGHTPANDA_BRIDGE_PORT% .*LISTENING"') do (
-    set "LP_STANDALONE_PID=%%P"
-    goto :CheckStandaloneLightpandaDone
-)
-:CheckStandaloneLightpandaDone
-exit /b 0
+call "%START_SERVER_BROWSER_BAT%" :CheckStandaloneLightpanda
+exit /b %ERRORLEVEL%
 
 :CheckCamofoxRuntime
-set "CF_READY="
-if exist "%CAMOFOX_RUNTIME_SERVER%" (
-    set "CF_READY=1"
-)
-exit /b 0
+call "%START_SERVER_BROWSER_BAT%" :CheckCamofoxRuntime
+exit /b %ERRORLEVEL%
 
 :CheckStandaloneCamofox
-set "CF_STANDALONE_PID="
-for /f "tokens=5" %%P in ('netstat -aon ^| findstr /r /c:":%CAMOFOX_BRIDGE_PORT% .*LISTENING"') do (
-    set "CF_STANDALONE_PID=%%P"
-    goto :CheckStandaloneCamofoxDone
-)
-:CheckStandaloneCamofoxDone
-exit /b 0
+call "%START_SERVER_BROWSER_BAT%" :CheckStandaloneCamofox
+exit /b %ERRORLEVEL%
 
 :CheckStandaloneWikimedia
-set "WMF_STANDALONE_PID="
-for /f "tokens=5" %%P in ('netstat -aon ^| findstr /r /c:":%WIKIMEDIA_BRIDGE_PORT% .*LISTENING"') do (
-    set "WMF_STANDALONE_PID=%%P"
-    goto :CheckStandaloneWikimediaDone
-)
-:CheckStandaloneWikimediaDone
-exit /b 0
+call "%START_SERVER_BROWSER_BAT%" :CheckStandaloneWikimedia
+exit /b %ERRORLEVEL%
 
 :CheckStandalonePopup
-set "POPUP_STANDALONE_PID="
-for /f "tokens=5" %%P in ('netstat -aon ^| findstr /r /c:":%POPUP_BRIDGE_PORT% .*LISTENING"') do (
-    set "POPUP_STANDALONE_PID=%%P"
-    goto :CheckStandalonePopupDone
-)
-:CheckStandalonePopupDone
-exit /b 0
+call "%START_SERVER_BROWSER_BAT%" :CheckStandalonePopup
+exit /b %ERRORLEVEL%
 
 :EnsureLightpandaMonitor
-if not exist "%PROJECT_ROOT%\bin" mkdir "%PROJECT_ROOT%\bin" >nul 2>nul
-if not exist "%LIGHTPANDA_ACTIVITY_LOG%" type nul > "%LIGHTPANDA_ACTIVITY_LOG%"
-tasklist /v /fi "imagename eq cmd.exe" | findstr /i /c:"%LIGHTPANDA_MONITOR_TITLE%" >nul
-if %ERRORLEVEL% EQU 0 exit /b 0
-start "%LIGHTPANDA_MONITOR_TITLE%" cmd /k "echo ======================================== && echo   %LIGHTPANDA_MONITOR_TITLE% && echo ======================================== && echo. && powershell -NoProfile -Command ""Get-Content -Path '%LIGHTPANDA_ACTIVITY_LOG%' -Wait -Tail 20"""
-exit /b 0
+call "%START_SERVER_BROWSER_BAT%" :EnsureLightpandaMonitor
+exit /b %ERRORLEVEL%
 
 :EnsureCamofoxMonitor
-if not exist "%PROJECT_ROOT%\bin" mkdir "%PROJECT_ROOT%\bin" >nul 2>nul
-if not exist "%CAMOFOX_ACTIVITY_LOG%" type nul > "%CAMOFOX_ACTIVITY_LOG%"
-tasklist /v /fi "imagename eq cmd.exe" | findstr /i /c:"%CAMOFOX_MONITOR_TITLE%" >nul
-if %ERRORLEVEL% EQU 0 exit /b 0
-start "%CAMOFOX_MONITOR_TITLE%" cmd /k "echo ======================================== && echo   %CAMOFOX_MONITOR_TITLE% && echo ======================================== && echo. && powershell -NoProfile -Command ""Get-Content -Path '%CAMOFOX_ACTIVITY_LOG%' -Wait -Tail 20"""
-exit /b 0
+call "%START_SERVER_BROWSER_BAT%" :EnsureCamofoxMonitor
+exit /b %ERRORLEVEL%
 
 :EnsureWikimediaMonitor
-if not exist "%PROJECT_ROOT%\bin" mkdir "%PROJECT_ROOT%\bin" >nul 2>nul
-if not exist "%WIKIMEDIA_ACTIVITY_LOG%" type nul > "%WIKIMEDIA_ACTIVITY_LOG%"
-tasklist /v /fi "imagename eq cmd.exe" | findstr /i /c:"%WIKIMEDIA_MONITOR_TITLE%" >nul
-if %ERRORLEVEL% EQU 0 exit /b 0
-start "%WIKIMEDIA_MONITOR_TITLE%" cmd /k "echo ======================================== && echo   %WIKIMEDIA_MONITOR_TITLE% && echo ======================================== && echo. && powershell -NoProfile -Command ""Get-Content -Path '%WIKIMEDIA_ACTIVITY_LOG%' -Wait -Tail 20"""
-exit /b 0
+call "%START_SERVER_BROWSER_BAT%" :EnsureWikimediaMonitor
+exit /b %ERRORLEVEL%
 
 :EnsurePopupMonitor
-if not exist "%PROJECT_ROOT%\bin" mkdir "%PROJECT_ROOT%\bin" >nul 2>nul
-if not exist "%POPUP_ACTIVITY_LOG%" type nul > "%POPUP_ACTIVITY_LOG%"
-tasklist /v /fi "imagename eq cmd.exe" | findstr /i /c:"%POPUP_MONITOR_TITLE%" >nul
-if %ERRORLEVEL% EQU 0 exit /b 0
-start "%POPUP_MONITOR_TITLE%" cmd /k "echo ======================================== && echo   %POPUP_MONITOR_TITLE% && echo ======================================== && echo. && powershell -NoProfile -Command ""Get-Content -Path '%POPUP_ACTIVITY_LOG%' -Wait -Tail 20"""
-exit /b 0
+call "%START_SERVER_BROWSER_BAT%" :EnsurePopupMonitor
+exit /b %ERRORLEVEL%
