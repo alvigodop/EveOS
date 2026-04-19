@@ -150,6 +150,8 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
     const extraOptions = options || {};
     const perfMode = !!window._evePerfMode;
     const megaPerfMode = !!window._eveMegaPerfMode;
+    const badgeWorkspaceId = String(extraOptions.dashboardWorkspaceId || activeWorkspace || '').trim()
+        || String(activeWorkspace || '').trim();
 
     // Group overview mode: each link is rendered relative to its owning group root,
     // so "main vs shortcut" badge logic works per-tab instead of against a single active tab.
@@ -201,7 +203,7 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
         ? `if(window.EveConstellationMap&&window.EveConstellationMap._detached&&typeof window.EveConstellationMap._detached.handleDetachedLinkDragStart==='function') window.EveConstellationMap._detached.handleDetachedLinkDragStart(event, ${jsDetachedEntryIdLiteral}, ${jsLinkIdLiteral});`
         : `drag(event, ${jsLinkIdLiteral})`;
 
-    let wsBadge = (searchStr && l.workspace !== activeWorkspace)
+    let wsBadge = (searchStr && l.workspace !== badgeWorkspaceId)
         ? `<span class="search-badge">${workspaces.find(w => w.id === l.workspace)?.name || "?"}</span>`
         : '';
 
@@ -209,13 +211,13 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
     let subTabBadge = '';
     if (!perfMode && !searchStr && !isGroupOverviewMode) {
         const helpers = window.EveWorkspaceHelpers;
-        if (l.workspace !== activeWorkspace) {
+        if (l.workspace !== badgeWorkspaceId) {
             const subWs = helpers
                 ? helpers.findById(config.workspaces || [], l.workspace)
                 : null;
             const subTabName = subWs ? subWs.name : null;
             if (subTabName) {
-                const activeWsObj = helpers ? helpers.findById(config.workspaces, activeWorkspace) : null;
+                const activeWsObj = helpers ? helpers.findById(config.workspaces, badgeWorkspaceId) : null;
                 const linkedToObj = activeWsObj && activeWsObj.linkedTo ? helpers.findById(config.workspaces, activeWsObj.linkedTo) : null;
                 const isFromLinkedMain = activeWsObj && activeWsObj.linkedTo === l.workspace;
                 const isFromLinkedSub = linkedToObj && helpers.getVisibleDescendantIds(linkedToObj).includes(l.workspace);
@@ -226,7 +228,7 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
                     const visWs = window._eveActiveVisibleWorkspaceIds;
                     if (visWs) {
                         visWs.forEach(function (vId) {
-                            if (vId === activeWorkspace) return;
+                            if (vId === badgeWorkspaceId) return;
                             const vWs = helpers.findById(config.workspaces || [], vId);
                             if (vWs && vWs.linkedTo) {
                                 if (vWs.linkedTo === l.workspace) isFromNestedLink = true;
@@ -250,7 +252,7 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
                 }
             }
         } else {
-            const activeWsObj = helpers ? helpers.findById(config.workspaces, activeWorkspace) : null;
+            const activeWsObj = helpers ? helpers.findById(config.workspaces, badgeWorkspaceId) : null;
             if (activeWsObj && activeWsObj.linkedTo) {
                 subTabBadge = `<span class="subtab-origin-badge" style="background:#ff8c00;color:#fff;font-weight:bold;margin-right:6px;border-radius:4px;padding:2px 6px;font-size:0.75em;" title="Added specifically to this shortcut tab">🔗 Shortcut Local</span>`;
             }

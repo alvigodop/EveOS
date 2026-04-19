@@ -77,6 +77,31 @@ window.bulkLastToggledId = bulkLastToggledId;
         return bulkLastToggledId ? toBulkId(bulkLastToggledId) : '';
     }
 
+    function applyRangeSelection(targetId, shouldSelect) {
+        const lastId = getLastToggledId();
+        const normalizedTargetId = toBulkId(targetId);
+        if (!lastId || !normalizedTargetId || lastId === normalizedTargetId) return false;
+
+        const orderedIds = Array.from(document.querySelectorAll('.bulk-check[data-bulk-id]'))
+            .filter((checkbox) => checkbox && (checkbox.offsetParent !== null || checkbox.getClientRects().length > 0))
+            .map((checkbox) => toBulkId(checkbox.getAttribute('data-bulk-id')))
+            .filter(Boolean);
+
+        const startIndex = orderedIds.indexOf(lastId);
+        const endIndex = orderedIds.indexOf(normalizedTargetId);
+        if (startIndex === -1 || endIndex === -1) return false;
+
+        const rangeIds = orderedIds.slice(
+            Math.min(startIndex, endIndex),
+            Math.max(startIndex, endIndex) + 1
+        );
+        if (!rangeIds.length) return false;
+
+        if (shouldSelect) addSelectedIds(rangeIds);
+        else removeSelectedIds(rangeIds);
+        return true;
+    }
+
     function getSelectedLinks() {
         return getLinks().filter(link => selectedIds.has(toBulkId(link?.id)));
     }
@@ -302,6 +327,7 @@ window.bulkLastToggledId = bulkLastToggledId;
         toggleScopeSelection,
         areAllIdsSelected,
         getSelectedLinks,
+        applyRangeSelection,
         setLastToggledId,
         getLastToggledId,
         updateBulkUI,

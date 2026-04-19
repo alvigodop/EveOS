@@ -21,6 +21,7 @@ window.EveBulkToolbar = window.EveBulkToolbar || {};
     const addSelectedIds = ns.addSelectedIds;
     const removeSelectedIds = ns.removeSelectedIds;
     const toggleScopeSelection = ns.toggleScopeSelection;
+    const applyRangeSelection = ns.applyRangeSelection;
     const setLastToggledId = ns.setLastToggledId;
     const getLastToggledId = ns.getLastToggledId;
     const updateBulkUI = ns.updateBulkUI;
@@ -56,7 +57,9 @@ window.EveBulkToolbar = window.EveBulkToolbar || {};
         if (!selectedId) return;
 
         const shouldSelect = checkbox ? !!checkbox.checked : !getSelectedIds().has(selectedId);
-        const rangeApplied = !!event?.shiftKey && applyRangeSelection(selectedId, shouldSelect);
+        const rangeApplied = !!event?.shiftKey
+            && typeof applyRangeSelection === 'function'
+            && applyRangeSelection(selectedId, shouldSelect);
         if (!rangeApplied) {
             if (shouldSelect) addSelectedIds([selectedId]);
             else removeSelectedIds([selectedId]);

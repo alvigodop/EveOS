@@ -361,6 +361,7 @@ window.DashboardCategories = window.DashboardCategories || {};
                     folderLabel = window.EveBookmarkFolders.buildFolderPathLabel(link.workspace, link.category, link.folderId);
                 }
                 return window.DashboardCategories.buildLinkHtml(link, options.searchStr, options.activeWorkspace, options.workspaces, {
+                    dashboardWorkspaceId: options._parentDashboardWorkspace || options.activeWorkspace,
                     folderLabel: folderLabel,
                     isTaskEnabled: isTaskEnabledForLink(link),
                     customOrderEnabled: customOrderEnabled,

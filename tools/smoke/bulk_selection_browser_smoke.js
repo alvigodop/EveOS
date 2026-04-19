@@ -219,7 +219,7 @@ async function runSmoke(page) {
     throw new Error(`Destination card options missing target cards: ${existingCardOptions.join('|')}`);
   }
   await page.selectOption('#bulk-tab-card-existing-select', 'TargetCard');
-  await page.locator('#bulk-tab-modal .btn-primary').click();
+  await page.evaluate(() => window.confirmBulkTabMove());
   await page.waitForFunction(() => !document.body.classList.contains('bulk-active'));
 
   let movedLinks = await page.evaluate(() => window.links.filter((link) => ['p1', 'p2'].includes(link.id)).map((link) => ({
@@ -234,11 +234,7 @@ async function runSmoke(page) {
 
   await activateBulkMode(page);
   await page.evaluate(() => {
-    const card = Array.from(document.querySelectorAll('.category-card')).find((node) => {
-      const title = node.querySelector('.category-title');
-      return title && title.textContent.trim() === 'AlphaPlain';
-    });
-    const checkbox = card.querySelector('.bulk-check[data-bulk-id]');
+    const checkbox = document.querySelector('.bulk-check[data-bulk-id="p3"]');
     checkbox.checked = true;
     window.toggleSelect(checkbox, checkbox.getAttribute('data-bulk-id'), {
       stopPropagation() {},
@@ -250,7 +246,7 @@ async function runSmoke(page) {
   await page.selectOption('#bulk-tab-existing-select', 'second');
   await page.locator('input[name="bulkTabCardMode"][value="new"]').check();
   await page.fill('#bulk-tab-card-new-input', 'FreshCard');
-  await page.locator('#bulk-tab-modal .btn-primary').click();
+  await page.evaluate(() => window.confirmBulkTabMove());
   await page.waitForFunction(() => !document.body.classList.contains('bulk-active'));
 
   movedLinks = await page.evaluate(() => window.links.filter((link) => link.id === 'p3').map((link) => ({

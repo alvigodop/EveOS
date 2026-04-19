@@ -218,6 +218,14 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
                     syncLinked(link.id);
                 }
             });
+
+            if (window.eveState) {
+                window.eveState.links = allLinks;
+            }
+            if (typeof links !== 'undefined') {
+                links = allLinks;
+            }
+            window.links = allLinks;
             return true;
         }
         function confirmBulkTabMove() {

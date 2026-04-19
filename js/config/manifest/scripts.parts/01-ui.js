@@ -70,7 +70,10 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/header-controls/hc-state.js",
     "js/modules/features/header-controls/hc-ui.form.js",
     "js/modules/features/header-controls/hc-ui.js",
-    "js/modules/ui/sidebar-groups.js?v=0.1.3",
+    "js/modules/ui/sidebar-groups.shared.js?v=0.1.0",
+    "js/modules/ui/sidebar-groups.order.js?v=0.1.0",
+    "js/modules/ui/sidebar-groups.mutations.js?v=0.1.0",
+    "js/modules/ui/sidebar-groups.js?v=0.1.4",
     "js/modules/ui/sidebar.js?v=0.3.4",
     "js/modules/ui/dashboard/dashboard-dock.js?v=0.2.4"
 ]);
