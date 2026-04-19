@@ -1,86 +1,9 @@
-const fs = require('fs');
-const path = require('path');
-const vm = require('vm');
-
-const repoRoot = path.resolve(__dirname, '..', '..');
-
-function assert(condition, message) {
-    if (!condition) {
-        throw new Error(message);
-    }
-}
-
-function readModule(relativePath) {
-    return fs.readFileSync(path.join(repoRoot, relativePath), 'utf8');
-}
-
-function createContext(overrides = {}) {
-    const context = {
-        console,
-        Map,
-        Set,
-        Date,
-        JSON,
-        Math,
-        Object,
-        Array,
-        String,
-        Number,
-        Boolean,
-        RegExp,
-        Promise,
-        setTimeout,
-        clearTimeout
-    };
-
-    context.window = {
-        console,
-        location: {
-            reload() {}
-        },
-        addEventListener() {},
-        open() {}
-    };
-    context.document = {
-        getElementById() { return null; },
-        querySelectorAll() { return []; }
-    };
-    context.location = context.window.location;
-    context.config = {};
-    context.saveConfig = function () {};
-    context.renderDashboard = function () {};
-    context.normalizeUrl = function (url) { return url; };
-    context.showToast = function () {};
-    context.showConfirm = async function () { return true; };
-    context.confirm = function () { return true; };
-
-    Object.assign(context, overrides);
-
-    context.window.window = context.window;
-    context.window.document = context.document;
-    context.window.location = context.location;
-    context.window.addEventListener = context.window.addEventListener || function () {};
-    context.window.open = context.window.open || function () {};
-    context.window.eveState = context.eveState || context.window.eveState || null;
-    context.window.links = context.links || context.window.links || [];
-    context.window.showDirectoryPicker = context.showDirectoryPicker || context.window.showDirectoryPicker;
-    context.window.EveSettingsModularBrowserHelpers = context.window.EveSettingsModularBrowserHelpers || {};
-    context.self = context.window;
-    context.globalThis = context;
-
-    return vm.createContext(context);
-}
-
-function loadModules(context, modules) {
-    modules.forEach((modulePath) => {
-        vm.runInContext(readModule(modulePath), context, { filename: modulePath });
-    });
-}
-
-async function runTest(name, fn) {
-    await fn();
-    console.log(`PASS ${name}`);
-}
+const {
+    assert,
+    createContext,
+    loadModules,
+    runTest
+} = require('./non_scraper_facades.shared');
 
 async function testUnidexControlsState() {
     const metrics = {
@@ -138,7 +61,6 @@ async function testUnidexCoreAdapters() {
     };
     const metrics = {
         renders: 0,
-        switched: [],
         opened: [],
         dashboardOpenCalls: 0,
         resets: 0
@@ -162,15 +84,14 @@ async function testUnidexCoreAdapters() {
             resetSelection: () => { metrics.resets += 1; }
         },
         getActiveWorkspaceId: () => context.config.activeWorkspace,
-        switchWorkspaceById: (workspaceId) => metrics.switched.push(workspaceId),
         requestRender: () => { metrics.renders += 1; }
     });
 
     navigation.switchWorkspaceTab('alt');
-    assert(metrics.switched[0] === 'alt', 'navigation should use injected workspace switcher');
+    assert(context.config.activeWorkspace === 'alt', 'navigation should update the active workspace');
     context.config.activeWorkspace = 'alt';
     navigation.switchWorkspaceTab('alt');
-    assert(metrics.renders === 1, 'navigation should render when already on active workspace');
+    assert(metrics.renders === 2, 'navigation should render for both workspace tab selections');
     navigation.selectCategory('media');
     navigation.backToCards();
     navigation.backToTabs();
