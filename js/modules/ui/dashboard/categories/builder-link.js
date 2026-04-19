@@ -152,6 +152,15 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
     const megaPerfMode = !!window._eveMegaPerfMode;
     const badgeWorkspaceId = String(extraOptions.dashboardWorkspaceId || activeWorkspace || '').trim()
         || String(activeWorkspace || '').trim();
+    const cardWorkspaceId = String(extraOptions.cardWorkspaceId || activeWorkspace || '').trim()
+        || String(activeWorkspace || '').trim();
+    const linkWorkspaceId = String(l?.workspace || '').trim();
+    const suppressCardWorkspaceSubtabBadge = !!extraOptions.suppressCardWorkspaceSubtabBadge
+        && !!linkWorkspaceId
+        && !!cardWorkspaceId
+        && !!badgeWorkspaceId
+        && cardWorkspaceId !== badgeWorkspaceId
+        && linkWorkspaceId === cardWorkspaceId;
 
     // Group overview mode: each link is rendered relative to its owning group root,
     // so "main vs shortcut" badge logic works per-tab instead of against a single active tab.
@@ -209,7 +218,7 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
 
     // Sub-tab origin badge: shown when this link came from a sub-tab merged into the parent view
     let subTabBadge = '';
-    if (!perfMode && !searchStr && !isGroupOverviewMode) {
+    if (!perfMode && !searchStr && !isGroupOverviewMode && !suppressCardWorkspaceSubtabBadge) {
         const helpers = window.EveWorkspaceHelpers;
         if (l.workspace !== badgeWorkspaceId) {
             const subWs = helpers

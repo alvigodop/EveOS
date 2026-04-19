@@ -104,14 +104,32 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
         if (!groupsApi) return;
         const targetGroupId = String(window.ctxSidebarGroupId || '').trim();
         const wasOverviewGroup = String(config.groupOverviewId || '').trim() === targetGroupId;
+        const activeWorkspaceId = String(config.activeWorkspace || '').trim();
+        const activeGroupId = typeof groupsApi.getWorkspaceGroupId === 'function'
+            ? groupsApi.getWorkspaceGroupId(activeWorkspaceId, config)
+            : '';
 
         const updatedGroup = groupsApi.setGroupHidden(targetGroupId, undefined, config);
+        let nextWorkspaceId = '';
         if (updatedGroup && updatedGroup.hidden && typeof groupsApi.getFocusedGroupId === 'function'
             && groupsApi.getFocusedGroupId(config) === String(updatedGroup.id)
             && typeof groupsApi.setFocusedGroup === 'function') {
             groupsApi.setFocusedGroup('', config);
         }
-        ns.saveAndRefreshSidebar?.(wasOverviewGroup);
+        if (updatedGroup && updatedGroup.hidden && activeGroupId === targetGroupId) {
+            const candidateRoots = typeof groupsApi.getRootWorkspaces === 'function'
+                ? groupsApi.getRootWorkspaces(config).filter(function (workspace) {
+                    return !groupsApi.isWorkspaceEffectivelyInactive(workspace, config);
+                })
+                : [];
+            nextWorkspaceId = ns.getFirstWorkspaceId?.(candidateRoots) || '';
+        }
+
+        if (nextWorkspaceId && typeof switchWorkspace === 'function') {
+            switchWorkspace(nextWorkspaceId, { forceRender: true });
+        } else {
+            ns.saveAndRefreshSidebar?.(wasOverviewGroup);
+        }
         if (updatedGroup) {
             showToast(updatedGroup.hidden ? 'Group hidden from sidebar' : 'Group visible in sidebar', 'info');
         }

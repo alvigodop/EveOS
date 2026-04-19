@@ -190,6 +190,13 @@
     function isWorkspaceEffectivelyInactive(workspaceOrId, configRef) {
         var cfg = rt.ensureConfigDefaults(configRef);
         if (!cfg) return false;
+        var rootWorkspace = rt.getWorkspaceRoot(workspaceOrId, cfg);
+        var rootGroupId = rootWorkspace ? rt.getWorkspaceGroupId(rootWorkspace, cfg) : '';
+        var rootGroup = rootGroupId ? rt.findGroupById(rootGroupId, cfg) : null;
+
+        if (rootGroup && rootGroup.hidden) {
+            return true;
+        }
 
         var focusedGroupId = getFocusedGroupId(cfg);
         if (focusedGroupId) {

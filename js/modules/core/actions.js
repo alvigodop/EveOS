@@ -5,6 +5,33 @@ function switchWorkspace(id, options = {}) {
     const currentWorkspaceId = String(config.activeWorkspace || '').trim() || String(config.workspaces?.[0]?.id || 'main');
     const hadFocusCategory = typeof focusCategory !== 'undefined' && !!focusCategory;
     const forceRender = !!options.forceRender;
+    const groupsApi = window.EveSidebarGroups || null;
+    const workspaceHelpers = window.EveWorkspaceHelpers || null;
+    const nextWorkspace = workspaceHelpers && typeof workspaceHelpers.findById === 'function'
+        ? workspaceHelpers.findById(config.workspaces || [], nextWorkspaceId)
+        : null;
+    const isUnavailableWorkspace = groupsApi && typeof groupsApi.isWorkspaceEffectivelyInactive === 'function'
+        ? groupsApi.isWorkspaceEffectivelyInactive(nextWorkspaceId, config)
+        : !!(nextWorkspace && nextWorkspace.inactive);
+
+    if (nextWorkspaceId !== currentWorkspaceId && isUnavailableWorkspace) {
+        if (typeof showToast === 'function') {
+            const workspaceName = String(nextWorkspace?.name || 'That tab').trim() || 'That tab';
+            const targetGroupId = groupsApi && typeof groupsApi.getWorkspaceGroupId === 'function'
+                ? groupsApi.getWorkspaceGroupId(nextWorkspaceId, config)
+                : '';
+            const targetGroup = targetGroupId && typeof groupsApi?.findGroupById === 'function'
+                ? groupsApi.findGroupById(targetGroupId, config)
+                : null;
+            showToast(
+                targetGroup?.hidden
+                    ? (workspaceName + ' is in a hidden group and cannot be opened.')
+                    : (workspaceName + ' is inactive and cannot be opened.'),
+                'warning'
+            );
+        }
+        return;
+    }
 
     if (window.EveConstellationMap?.closeMap) {
         window.EveConstellationMap.closeMap();

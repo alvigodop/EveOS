@@ -565,13 +565,14 @@ function renderSidebar() {
             const section = buildGroupSection(entry.group, entry.workspaces, {
                 depth: depth,
                 manualSlots: !!(options && options.manualSlots),
-                parentWorkspaceId: entry.parentWorkspaceId || ''
+                parentWorkspaceId: entry.parentWorkspaceId || '',
+                renderInactive: !!(options && options.renderInactive)
             });
             if (section) container.appendChild(section);
             return;
         }
 
-        if (entry.workspace && shouldRenderWorkspace(entry.workspace)) {
+        if (entry.workspace && (shouldRenderWorkspace(entry.workspace) || !!(options && options.renderInactive))) {
             renderWorkspaceItem(entry.workspace, container, depth, options);
         }
     }
@@ -593,7 +594,13 @@ function renderSidebar() {
 
     function renderParentEntries(parentWorkspaceId, container, depth, options) {
         const opts = options && typeof options === 'object' ? options : {};
-        const orderedEntries = getVisibleParentEntries(parentWorkspaceId);
+        const orderedEntries = opts.renderInactive
+            ? getRawParentEntries(parentWorkspaceId, false).filter(function (entry) {
+                if (!entry) return false;
+                if (entry.kind === 'group') return true;
+                return !!entry.workspace;
+            })
+            : getVisibleParentEntries(parentWorkspaceId);
 
         if (opts.rootBlocks) {
             orderedEntries.forEach(function (entry, index) {
@@ -640,7 +647,9 @@ function renderSidebar() {
 
     function renderGroupMembers(workspaces, container, options) {
         const opts = options && typeof options === 'object' ? options : {};
-        const visibleWorkspaces = getRenderableWorkspaces(workspaces);
+        const visibleWorkspaces = opts.renderInactive
+            ? (Array.isArray(workspaces) ? workspaces.filter(Boolean) : [])
+            : getRenderableWorkspaces(workspaces);
 
         visibleWorkspaces.forEach(function (workspace) {
             if (opts.manualSlots) {
@@ -654,7 +663,8 @@ function renderSidebar() {
                 manualSlots: !!opts.manualSlots,
                 groupPreview: true,
                 groupColor: opts.groupColor,
-                groupPreviewBaseDepth: opts.depth
+                groupPreviewBaseDepth: opts.depth,
+                renderInactive: !!opts.renderInactive
             });
         });
 
@@ -675,7 +685,10 @@ function renderSidebar() {
         const currentFocusedGroupId = getFocusedGroupId();
         const isFocusedGroup = !!currentFocusedGroupId && currentFocusedGroupId === groupId;
         const isInactiveGroup = isGroupEffectivelyInactive(groupId);
-        const visibleWorkspaces = getRenderableWorkspaces(workspaces);
+        const isHiddenGroup = !!(group && group.hidden);
+        const visibleWorkspaces = isHiddenGroup
+            ? (Array.isArray(workspaces) ? workspaces.filter(Boolean) : [])
+            : getRenderableWorkspaces(workspaces);
         const totalWorkspaces = Array.isArray(workspaces) ? workspaces.length : 0;
         const isCollapsed = !!(group && group.collapsed);
         const manualMode = isManualSidebarOrder();
@@ -813,7 +826,8 @@ function renderSidebar() {
                     groupId: groupId,
                     depth: currentDepth + 1,
                     manualSlots: manualMode,
-                    groupColor: groupColor
+                    groupColor: groupColor,
+                    renderInactive: isHiddenGroup
                 });
             } else {
                 const empty = document.createElement('div');
@@ -841,7 +855,7 @@ function renderSidebar() {
         const isWorkspaceActive = config.viewMode !== 'unidex' && config.activeWorkspace === ws.id && !isGroupOverviewActive;
         const isInactive = isWorkspaceEffectivelyInactive(ws);
 
-        if (isInactive && !config.showInactiveTabs) return;
+        if (isInactive && !config.showInactiveTabs && !renderOptions.renderInactive) return;
 
         const wrapper = document.createElement('div');
         wrapper.className = 'ws-node-wrapper';
@@ -991,7 +1005,8 @@ function renderSidebar() {
 
         if (hasChildren && !isCollapsed) {
             renderParentEntries(ws.id, container, currentDepth + 1, {
-                manualSlots: !!renderOptions.manualSlots
+                manualSlots: !!renderOptions.manualSlots,
+                renderInactive: !!renderOptions.renderInactive
             });
         }
     }

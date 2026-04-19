@@ -355,13 +355,31 @@ window.DashboardCategories = window.DashboardCategories || {};
             }
 
             var cappedLinks = linksForRender.slice(0, RENDER_CAP);
+            var dashboardWorkspaceId = options._parentDashboardWorkspace || options.activeWorkspace;
+            var cardWorkspaceId = String(options.activeWorkspace || cardWsId || '').trim() || 'main';
+            var suppressCardWorkspaceSubtabBadge = false;
+            if (dashboardWorkspaceId && cardWorkspaceId && String(dashboardWorkspaceId).trim() !== cardWorkspaceId) {
+                var helpersForBadgeSuppression = window.EveWorkspaceHelpers;
+                if (helpersForBadgeSuppression && typeof helpersForBadgeSuppression.findParent === 'function') {
+                    var ancestor = helpersForBadgeSuppression.findParent(config.workspaces || [], cardWorkspaceId);
+                    while (ancestor) {
+                        if (String(ancestor.id || '').trim() === String(dashboardWorkspaceId).trim()) {
+                            suppressCardWorkspaceSubtabBadge = true;
+                            break;
+                        }
+                        ancestor = helpersForBadgeSuppression.findParent(config.workspaces || [], ancestor.id);
+                    }
+                }
+            }
             var flatHtml = cappedLinks.map(function (link) {
                 var folderLabel = '';
                 if (options.searchStr && window.EveBookmarkFolders?.buildFolderPathLabel) {
                     folderLabel = window.EveBookmarkFolders.buildFolderPathLabel(link.workspace, link.category, link.folderId);
                 }
                 return window.DashboardCategories.buildLinkHtml(link, options.searchStr, options.activeWorkspace, options.workspaces, {
-                    dashboardWorkspaceId: options._parentDashboardWorkspace || options.activeWorkspace,
+                    dashboardWorkspaceId: dashboardWorkspaceId,
+                    cardWorkspaceId: cardWorkspaceId,
+                    suppressCardWorkspaceSubtabBadge: suppressCardWorkspaceSubtabBadge,
                     folderLabel: folderLabel,
                     isTaskEnabled: isTaskEnabledForLink(link),
                     customOrderEnabled: customOrderEnabled,
