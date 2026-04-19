@@ -93,7 +93,12 @@ function loadScript(relPath) {
 }
 
 (async () => {
-    loadScript('js/modules/features/api-search/api-core.js');
+    [
+        'js/modules/features/api-search/api-core.shared.js',
+        'js/modules/features/api-search/api-core.fetch.js',
+        'js/modules/features/api-search/api-core.wikimedia.js',
+        'js/modules/features/api-search/api-core.js'
+    ].forEach(loadScript);
 
     const Core = context.window.EveOS.API.Core;
     await Core.ensureLocalServicesProbed();

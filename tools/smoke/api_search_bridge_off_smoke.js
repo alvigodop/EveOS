@@ -367,7 +367,12 @@ function loadScript(relPath) {
 }
 
 (async () => {
-    loadScript('js/modules/features/api-search/api-core.js');
+    [
+        'js/modules/features/api-search/api-core.shared.js',
+        'js/modules/features/api-search/api-core.fetch.js',
+        'js/modules/features/api-search/api-core.wikimedia.js',
+        'js/modules/features/api-search/api-core.js'
+    ].forEach(loadScript);
 
     const Core = context.window.EveOS.API.Core;
     await Core.ensureLocalServicesProbed();
@@ -383,8 +388,10 @@ function loadScript(relPath) {
         || call.url === 'http://127.0.0.1:3037/api/status'
         || call.url === 'http://127.0.0.1:3038/api/status'
         || call.url === 'http://127.0.0.1:3039/api/status'
+        || call.url === 'http://127.0.0.1:3040/api/status'
     );
-    assert(localStatusProbes.length === 4, 'Initial status probes should hit all four local services');
+    const localStatusProbeUrls = new Set(localStatusProbes.map((call) => call.url));
+    assert(localStatusProbeUrls.size === 5, 'Initial status probes should cover the server plus all four local bridge services');
 
     loadScript('js/modules/features/api-search/anilist.js');
     const aniResult = await context.window.EveOS.API.AniList.searchAniListManga('naruto');

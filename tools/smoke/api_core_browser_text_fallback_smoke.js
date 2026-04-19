@@ -72,9 +72,17 @@ context.window.window = context.window;
 context.globalThis = context;
 
 const vmContext = vm.createContext(context);
+function loadScript(relPath) {
+    const code = fs.readFileSync(path.join(repoRoot, relPath), 'utf8');
+    vm.runInContext(code, vmContext, { filename: relPath });
+}
 
-const code = fs.readFileSync(path.join(repoRoot, 'js/modules/features/api-search/api-core.js'), 'utf8');
-vm.runInContext(code, vmContext);
+[
+    'js/modules/features/api-search/api-core.shared.js',
+    'js/modules/features/api-search/api-core.fetch.js',
+    'js/modules/features/api-search/api-core.wikimedia.js',
+    'js/modules/features/api-search/api-core.js'
+].forEach(loadScript);
 
 (async () => {
     const Core = context.window.EveOS.API.Core;

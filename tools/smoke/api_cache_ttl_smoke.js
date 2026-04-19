@@ -67,7 +67,12 @@ function loadScript(relPath) {
     vm.runInContext(code, vmContext, { filename: relPath });
 }
 
-loadScript('js/modules/features/api-search/api-cache.js');
+[
+    'js/modules/features/api-search/api-cache.shared.js',
+    'js/modules/features/api-search/api-cache.storage.js',
+    'js/modules/features/api-search/api-cache.query.js',
+    'js/modules/features/api-search/api-cache.js'
+].forEach(loadScript);
 
 (async () => {
     const cache = context.window.EveOS.API.Cache;

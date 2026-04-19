@@ -64,11 +64,27 @@ async function main() {
         await page.setContent('<!doctype html><html><body><div id="resultCount"></div></body></html>');
 
         const minimalApiScripts = [
-            `/js/modules/features/api-search/api-cache.js?v=0.1.0`,
-            `/js/modules/features/api-search/api-core.js?v=0.2.5`,
+            `/js/modules/features/api-search/api-cache.shared.js?v=0.1.0`,
+            `/js/modules/features/api-search/api-cache.storage.js?v=0.1.0`,
+            `/js/modules/features/api-search/api-cache.query.js?v=0.1.0`,
+            `/js/modules/features/api-search/api-cache.js?v=0.1.2`,
+            `/js/modules/features/api-search/api-core.shared.js?v=0.1.0`,
+            `/js/modules/features/api-search/api-core.fetch.js?v=0.1.0`,
+            `/js/modules/features/api-search/api-core.wikimedia.js?v=0.1.0`,
+            `/js/modules/features/api-search/api-core.js?v=0.3.0`,
             `/js/modules/features/api-search/openlibrary.js`,
             `/js/modules/features/api-search/tvmaze.js`,
-            `/js/modules/features/api-search/index.js?v=0.4.0`
+            `/js/modules/features/api-search/components/api-manager-utils.js?v=0.4.9`,
+            `/js/modules/features/api-search/components/api-manager-prefs.js?v=0.4.9`,
+            `/js/modules/features/api-search/components/api-manager-providers.js?v=0.5.0`,
+            `/js/modules/features/api-search/components/api-manager-ui-core.js?v=0.5.1`,
+            `/js/modules/features/api-search/components/api-manager-ui-unidex.results.js?v=0.1.0`,
+            `/js/modules/features/api-search/components/api-manager-orchestrator.shared.js?v=0.1.0`,
+            `/js/modules/features/api-search/components/api-manager-orchestrator.api.js?v=0.1.0`,
+            `/js/modules/features/api-search/components/api-manager-orchestrator.knowledge.js?v=0.1.0`,
+            `/js/modules/features/api-search/components/api-manager-orchestrator.run.js?v=0.1.0`,
+            `/js/modules/features/api-search/components/api-manager-orchestrator.js?v=0.5.0`,
+            `/js/modules/features/api-search/index.js?v=0.4.9`
         ];
 
         for (const scriptPath of minimalApiScripts) {
@@ -120,7 +136,7 @@ async function main() {
                 ttlMs: 60 * 60 * 1000
             });
 
-            const openlibraryCache = window.EveOS.API.Cache.getQuery('hobbit', 'Live Acceptance');
+            const openlibraryCache = await window.EveOS.API.Cache.getQuery('hobbit', 'Live Acceptance');
             const openlibraryCount = Number(openlibraryCache?.summary?.perSource?.openlibrary || 0);
 
             const tvmaze = await window.EveOS.API.Manager.runSearch('friends', resultsContainer, null, {
@@ -131,7 +147,7 @@ async function main() {
                 ttlMs: 60 * 60 * 1000
             });
 
-            const tvmazeCache = window.EveOS.API.Cache.getQuery('friends', 'Live Acceptance');
+            const tvmazeCache = await window.EveOS.API.Cache.getQuery('friends', 'Live Acceptance');
             const tvmazeCount = Number(tvmazeCache?.summary?.perSource?.tvmaze || 0);
 
             return {

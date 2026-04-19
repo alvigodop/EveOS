@@ -88,8 +88,14 @@ async function main() {
         await page.setContent('<!doctype html><html><body><div id="resultCount"></div><div id="results"></div></body></html>');
 
         const scripts = [
-            '/js/modules/features/api-search/api-cache.js?v=0.1.0',
-            '/js/modules/features/api-search/api-core.js?v=0.2.5',
+            '/js/modules/features/api-search/api-cache.shared.js?v=0.1.0',
+            '/js/modules/features/api-search/api-cache.storage.js?v=0.1.0',
+            '/js/modules/features/api-search/api-cache.query.js?v=0.1.0',
+            '/js/modules/features/api-search/api-cache.js?v=0.1.2',
+            '/js/modules/features/api-search/api-core.shared.js?v=0.1.0',
+            '/js/modules/features/api-search/api-core.fetch.js?v=0.1.0',
+            '/js/modules/features/api-search/api-core.wikimedia.js?v=0.1.0',
+            '/js/modules/features/api-search/api-core.js?v=0.3.0',
             '/js/modules/features/api-search/mangadex.js?v=0.2.1',
             '/js/modules/features/api-search/jikan.js',
             '/js/modules/features/api-search/anilist.js?v=0.2.1',
@@ -100,7 +106,17 @@ async function main() {
             '/js/modules/features/api-search/wlnupdates.js?v=0.2.1',
             '/js/modules/features/api-search/openlibrary.js',
             '/js/modules/features/api-search/comick.js?v=0.2.7',
-            '/js/modules/features/api-search/index.js?v=0.4.3'
+            '/js/modules/features/api-search/components/api-manager-utils.js?v=0.4.9',
+            '/js/modules/features/api-search/components/api-manager-prefs.js?v=0.4.9',
+            '/js/modules/features/api-search/components/api-manager-providers.js?v=0.5.0',
+            '/js/modules/features/api-search/components/api-manager-ui-core.js?v=0.5.1',
+            '/js/modules/features/api-search/components/api-manager-ui-unidex.results.js?v=0.1.0',
+            '/js/modules/features/api-search/components/api-manager-orchestrator.shared.js?v=0.1.0',
+            '/js/modules/features/api-search/components/api-manager-orchestrator.api.js?v=0.1.0',
+            '/js/modules/features/api-search/components/api-manager-orchestrator.knowledge.js?v=0.1.0',
+            '/js/modules/features/api-search/components/api-manager-orchestrator.run.js?v=0.1.0',
+            '/js/modules/features/api-search/components/api-manager-orchestrator.js?v=0.5.0',
+            '/js/modules/features/api-search/index.js?v=0.4.9'
         ];
 
         for (const scriptPath of scripts) {
@@ -127,7 +143,7 @@ async function main() {
                     ttlMs: 60 * 60 * 1000
                 });
                 const liveCount = Number(live?.meta?.summary?.perSource?.[provider.key] || 0);
-                const cachedEntry = window.EveOS.API.Cache.getQuery(provider.query, categoryName);
+                const cachedEntry = await window.EveOS.API.Cache.getQuery(provider.query, categoryName);
                 const cachedCount = Number(cachedEntry?.summary?.perSource?.[provider.key] || 0);
                 const cacheOnly = await window.EveOS.API.Manager.runSearch(provider.query, resultsContainer, null, {
                     categoryName,
@@ -150,8 +166,8 @@ async function main() {
 
             return {
                 rows,
-                cachePoolOrder: Array.isArray(window.EveOS.API.Cache.loadPool(categoryName).order)
-                    ? window.EveOS.API.Cache.loadPool(categoryName).order.slice()
+                cachePoolOrder: Array.isArray((await window.EveOS.API.Cache.loadPool(categoryName))?.order)
+                    ? (await window.EveOS.API.Cache.loadPool(categoryName)).order.slice()
                     : []
             };
         }, PROVIDERS);

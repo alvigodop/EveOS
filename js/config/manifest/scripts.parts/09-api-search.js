@@ -4,8 +4,14 @@ window.EveModuleManifestScriptChunks = window.EveModuleManifestScriptChunks || [
 
 window.EveModuleManifestScriptChunks.push([
     // API Search
-    "js/modules/features/api-search/api-cache.js?v=0.1.1",
-    "js/modules/features/api-search/api-core.js?v=0.2.9",
+    "js/modules/features/api-search/api-cache.shared.js?v=0.1.0",
+    "js/modules/features/api-search/api-cache.storage.js?v=0.1.0",
+    "js/modules/features/api-search/api-cache.query.js?v=0.1.0",
+    "js/modules/features/api-search/api-cache.js?v=0.1.2",
+    "js/modules/features/api-search/api-core.shared.js?v=0.1.0",
+    "js/modules/features/api-search/api-core.fetch.js?v=0.1.0",
+    "js/modules/features/api-search/api-core.wikimedia.js?v=0.1.0",
+    "js/modules/features/api-search/api-core.js?v=0.3.0",
     "js/modules/features/api-search/card-ui.js?v=0.1.2",
     "js/modules/features/api-search/mangadex.js?v=0.2.1",
     "js/modules/features/api-search/jikan.js",
@@ -40,7 +46,11 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/api-search/components/api-manager-ui-unidex.js?v=0.5.1",
     "js/modules/features/api-search/components/api-manager-ui-panels.js?v=0.5.0",
     "js/modules/features/api-search/components/api-manager-providers.js?v=0.5.0",
-    "js/modules/features/api-search/components/api-manager-orchestrator.js?v=0.4.9",
+    "js/modules/features/api-search/components/api-manager-orchestrator.shared.js?v=0.1.0",
+    "js/modules/features/api-search/components/api-manager-orchestrator.api.js?v=0.1.0",
+    "js/modules/features/api-search/components/api-manager-orchestrator.knowledge.js?v=0.1.0",
+    "js/modules/features/api-search/components/api-manager-orchestrator.run.js?v=0.1.0",
+    "js/modules/features/api-search/components/api-manager-orchestrator.js?v=0.5.0",
     "js/modules/features/api-search/index.js?v=0.4.9",
     "js/modules/features/sources/source-manager.js"
 ]);

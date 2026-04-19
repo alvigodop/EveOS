@@ -3,8 +3,12 @@ const path = require('path');
 const vm = require('vm');
 
 const repoRoot = path.resolve(__dirname, '..', '..');
-const scriptPath = path.join(repoRoot, 'js/modules/features/api-search/api-core.js');
-const scriptCode = fs.readFileSync(scriptPath, 'utf8');
+const scriptPaths = [
+    'js/modules/features/api-search/api-core.shared.js',
+    'js/modules/features/api-search/api-core.fetch.js',
+    'js/modules/features/api-search/api-core.wikimedia.js',
+    'js/modules/features/api-search/api-core.js'
+];
 
 function assert(condition, message) {
     if (!condition) {
@@ -56,7 +60,10 @@ async function runScenario(protocol, statusMap, targetUrl) {
     context.globalThis = context;
 
     const vmContext = vm.createContext(context);
-    vm.runInContext(scriptCode, vmContext);
+    scriptPaths.forEach((relPath) => {
+        const scriptCode = fs.readFileSync(path.join(repoRoot, relPath), 'utf8');
+        vm.runInContext(scriptCode, vmContext, { filename: relPath });
+    });
 
     const Core = context.window.EveOS.API.Core;
     await Core.ensureLocalServicesProbed();

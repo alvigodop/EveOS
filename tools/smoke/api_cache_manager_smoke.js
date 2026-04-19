@@ -165,7 +165,22 @@ function loadScript(relPath) {
     vm.runInContext(code, vmContext, { filename: relPath });
 }
 
-loadScript('js/modules/features/api-search/api-cache.js');
+[
+    'js/modules/features/api-search/api-cache.shared.js',
+    'js/modules/features/api-search/api-cache.storage.js',
+    'js/modules/features/api-search/api-cache.query.js',
+    'js/modules/features/api-search/api-cache.js',
+    'js/modules/features/api-search/components/api-manager-utils.js',
+    'js/modules/features/api-search/components/api-manager-prefs.js',
+    'js/modules/features/api-search/components/api-manager-providers.js',
+    'js/modules/features/api-search/components/api-manager-ui-core.js',
+    'js/modules/features/api-search/components/api-manager-ui-unidex.results.js',
+    'js/modules/features/api-search/components/api-manager-orchestrator.shared.js',
+    'js/modules/features/api-search/components/api-manager-orchestrator.api.js',
+    'js/modules/features/api-search/components/api-manager-orchestrator.knowledge.js',
+    'js/modules/features/api-search/components/api-manager-orchestrator.run.js'
+].forEach(loadScript);
+loadScript('js/modules/features/api-search/components/api-manager-orchestrator.js');
 loadScript('js/modules/features/api-search/index.js');
 
 (async () => {
