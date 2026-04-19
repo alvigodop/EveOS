@@ -47,35 +47,32 @@ window.EveDataTransfer = window.EveDataTransfer || {};
                     showToast(`Data-pack folder backup created (${dataPackSummary}).`, 'success');
                     return;
                 }
-                console.warn('[DataTransfer] Full pack backup failed in server mode, trying browser folder fallback:', result?.error);
+                console.warn('[DataTransfer] Full pack backup failed in server mode, trying fallback:', result?.error);
             } catch (error) {
-                console.warn('[DataTransfer] Full pack backup failed in server mode, trying browser folder fallback:', error);
+                console.warn('[DataTransfer] Full pack backup failed in server mode, trying fallback:', error);
             }
         }
 
-        const canAttemptFolderExport = typeof window.showDirectoryPicker === 'function';
-        if (canAttemptFolderExport) {
-            try {
-                const folderResult = await exportFullBackupAsFolder(exportState);
-                if (folderResult?.ok) {
-                    const tabsCount = Number(folderResult.tabsCount || 0);
-                    const cardsCount = Number(folderResult.cardsCount || 0);
-                    const bookmarksCount = Number(folderResult.bookmarksCount || 0);
-                    const dataPackSummary = `${tabsCount} tabs, ${cardsCount} cards, ${bookmarksCount} bookmarks`;
-                    showToast(`Folder backup created (${dataPackSummary}).`, 'success');
-                    return;
-                }
-                if (folderResult?.error) {
-                    showToast(`${folderResult.error} Falling back to JSON download.`, 'info');
-                }
-            } catch (error) {
-                if (error?.name === 'AbortError') {
-                    showToast('Folder backup canceled.', 'info');
-                    return;
-                }
-                console.warn('[DataTransfer] Folder backup export failed, using JSON fallback:', error);
-                showToast('Folder backup failed. Downloading JSON backup instead.', 'warning');
+        try {
+            const folderResult = await exportFullBackupAsFolder(exportState);
+            if (folderResult?.ok) {
+                const tabsCount = Number(folderResult.tabsCount || 0);
+                const cardsCount = Number(folderResult.cardsCount || 0);
+                const bookmarksCount = Number(folderResult.bookmarksCount || 0);
+                const dataPackSummary = `${tabsCount} tabs, ${cardsCount} cards, ${bookmarksCount} bookmarks`;
+                showToast(`Backup created (${dataPackSummary}).`, 'success');
+                return;
             }
+            if (folderResult?.error) {
+                showToast(`${folderResult.error} Falling back to JSON download.`, 'info');
+            }
+        } catch (error) {
+            if (error?.name === 'AbortError') {
+                showToast('Backup canceled.', 'info');
+                return;
+            }
+            console.warn('[DataTransfer] Backup export failed, using JSON fallback:', error);
+            showToast('Backup failed. Downloading JSON backup instead.', 'warning');
         }
 
         const blob = new Blob([JSON.stringify(exportState, null, 2)], { type: 'application/json' });

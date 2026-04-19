@@ -1,39 +1,55 @@
-// --- Data Transfer Export Folder Writer File Helpers ---
-window.EveDataTransfer = window.EveDataTransfer || {};
-window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {};
-
-(function () {
-    window.EveDataTransfer.ExportModules.createFolderWriterFsHelpers = function createFolderWriterFsHelpers(deps) {
-        const sanitizePathSegment = deps.sanitizePathSegment;
-        const BACKUP_DIRS = deps.BACKUP_DIRS;
-
-        async function writeTextFileToFolder(rootHandle, relativePath, content) {
-            const segments = String(relativePath || '')
-                .replace(/\\/g, '/')
-                .split('/')
-                .map((segment) => segment.trim())
-                .filter(Boolean);
-            if (!segments.length) return;
-
-            try {
-                let currentHandle = rootHandle;
-                for (let i = 0; i < segments.length - 1; i += 1) {
-                    const dirName = sanitizePathSegment(segments[i], 'folder', 40);
-                    currentHandle = await currentHandle.getDirectoryHandle(dirName, { create: true });
-                }
-
-                const fileName = sanitizePathSegment(segments[segments.length - 1], 'file.txt', 64);
-                const fileHandle = await currentHandle.getFileHandle(fileName, { create: true });
-                const writable = await fileHandle.createWritable();
-                await writable.write(content);
-                await writable.close();
-            } catch (error) {
-                const detail = error?.message ? ` ${error.message}` : '';
-                throw new Error(`Failed to write backup file "${segments.join('/')}".${detail ? detail : ''
-                    }`);
-            }
-        }
-
+// --- Data Transfer Export Folder Writer File Helpers ---
+window.EveDataTransfer = window.EveDataTransfer || {};
+window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {};
+
+(function () {
+    window.EveDataTransfer.ExportModules.createFolderWriterFsHelpers = function createFolderWriterFsHelpers(deps) {
+        const sanitizePathSegment = deps.sanitizePathSegment;
+        const BACKUP_DIRS = deps.BACKUP_DIRS;
+
+        async function writeTextFileToFolder(rootHandle, relativePath, content) {
+            // ZIP path — delegate to the zip writer
+            if (rootHandle && rootHandle._zipInstance) {
+                rootHandle.writeTextFile(relativePath, content);
+                return;
+            }
+
+            const segments = String(relativePath || '')
+                .replace(/\\/g, '/')
+                .split('/')
+                .map((segment) => segment.trim())
+                .filter(Boolean);
+            if (!segments.length) return;
+
+            const sanitizedSegments = segments.map((segment, index) => (
+                index === segments.length - 1
+                    ? sanitizePathSegment(segment, 'file.txt', 64)
+                    : sanitizePathSegment(segment, 'folder', 40)
+            ));
+            const sanitizedPath = sanitizedSegments.join('/');
+
+            try {
+                let currentHandle = rootHandle;
+                for (let i = 0; i < sanitizedSegments.length - 1; i += 1) {
+                    currentHandle = await currentHandle.getDirectoryHandle(sanitizedSegments[i], { create: true });
+                }
+
+                const fileName = sanitizedSegments[sanitizedSegments.length - 1];
+                const fileHandle = await currentHandle.getFileHandle(fileName, { create: true });
+                const writable = await fileHandle.createWritable();
+                await writable.write(content);
+                await writable.close();
+            } catch (error) {
+                const isLongPathSuspect = error?.name === 'NotFoundError'
+                    || /could not be found at the time/i.test(String(error?.message || ''));
+                const baseDetail = error?.message ? ` ${error.message}` : '';
+                const lengthHint = isLongPathSuspect
+                    ? ` (likely Windows MAX_PATH=260 exceeded — relative path is ${sanitizedPath.length} chars; pick a shallower parent folder)`
+                    : '';
+                throw new Error(`Failed to write backup file "${sanitizedPath}".${baseDetail}${lengthHint}`);
+            }
+        }
+
         async function writeJsonFileToFolder(rootHandle, relativePath, payload) {
             await writeTextFileToFolder(rootHandle, relativePath, JSON.stringify(payload, null, 2));
         }
@@ -94,17 +110,17 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
             await writeJsonFileToFolder(rootHandle, `${BACKUP_DIRS.meta}/config.json`, normalizedConfig);
             return normalizedConfig;
         }
-
-        async function writeFallbackMetaFiles(rootHandle, scopedConfig, workspaceMeta) {
-            return writeStoreMetaFiles(rootHandle, scopedConfig, [workspaceMeta], workspaceMeta.id);
-        }
-
-        return {
-            writeTextFileToFolder,
-            writeJsonFileToFolder,
-            writeStoreMetaFiles,
-            writeFallbackMetaFiles,
-            BACKUP_DIRS
-        };
-    };
-})();
+
+        async function writeFallbackMetaFiles(rootHandle, scopedConfig, workspaceMeta) {
+            return writeStoreMetaFiles(rootHandle, scopedConfig, [workspaceMeta], workspaceMeta.id);
+        }
+
+        return {
+            writeTextFileToFolder,
+            writeJsonFileToFolder,
+            writeStoreMetaFiles,
+            writeFallbackMetaFiles,
+            BACKUP_DIRS
+        };
+    };
+})();

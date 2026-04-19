@@ -210,11 +210,11 @@ async function main() {
     const summary = await api.writeFullStoreFolderBackup(rootHandle, buildState());
     const files = collectFiles(rootHandle).sort();
 
-    const nestedTabPath = files.find((file) => /tabs\/[^/]+\/tabs\/[^/]+\/tab\.json$/i.test(file));
+    const nestedTabPath = files.find((file) => /(?:tabs|t)\/[^/]+\/(?:tabs|t)\/[^/]+\/tab\.json$/i.test(file));
     if (!nestedTabPath) {
         throw new Error(`Expected nested tab path in backup, saw ${JSON.stringify(files)}`);
     }
-    if (files.some((file) => /^tabs\/travel-local-[^/]+\/tab\.json$/i.test(file))) {
+    if (files.some((file) => /^(?:tabs|t)\/travel-local-[^/]+\/tab\.json$/i.test(file))) {
         throw new Error(`Nested workspace should not be written at tabs root: ${JSON.stringify(files)}`);
     }
 

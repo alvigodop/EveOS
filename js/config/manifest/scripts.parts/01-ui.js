@@ -25,16 +25,18 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/data-transfer/data-transfer.export.naming.js?v=0.2.1",
     "js/modules/features/data-transfer/data-transfer.export.library.js",
     "js/modules/features/data-transfer/data-transfer.export.utils.js",
-    "js/modules/features/data-transfer/data-transfer.export.folder.writer.fs.js?v=0.1.0",
+    "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js",
+    "js/modules/features/data-transfer/data-transfer.export.zip.writer.js?v=0.1.0",
+    "js/modules/features/data-transfer/data-transfer.export.folder.writer.fs.js?v=0.2.0",
     "js/modules/features/data-transfer/data-transfer.export.folder.writer.tree.js?v=0.1.1",
     "js/modules/features/data-transfer/data-transfer.export.folder.writer.bookmarks.js?v=0.1.0",
     "js/modules/features/data-transfer/data-transfer.export.folder.writer.backups.js?v=0.1.1",
     "js/modules/features/data-transfer/data-transfer.export.folder.writer.cards.js?v=0.2.0",
     "js/modules/features/data-transfer/data-transfer.export.folder.writer.js?v=0.3.1",
-    "js/modules/features/data-transfer/data-transfer.export.folder.backups.js?v=0.2.3",
+    "js/modules/features/data-transfer/data-transfer.export.folder.backups.js?v=0.3.0",
     "js/modules/features/data-transfer/data-transfer.export.folder.paths.js",
     "js/modules/features/data-transfer/data-transfer.export.folder.js?v=0.2.1",
-    "js/modules/features/data-transfer/data-transfer.export.js?v=0.2.2",
+    "js/modules/features/data-transfer/data-transfer.export.js?v=0.3.0",
     "js/modules/features/data-transfer/data-transfer.folder-import.fs.js?v=0.2.1",
     "js/modules/features/data-transfer/data-transfer.folder-import.state.infer.js?v=0.2.1",
     "js/modules/features/data-transfer/data-transfer.folder-import.state.build.js?v=0.2.5",
@@ -69,5 +71,3 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/ui/sidebar.js?v=0.3.4",
     "js/modules/ui/dashboard/dashboard-dock.js?v=0.2.4"
 ]);
-
-

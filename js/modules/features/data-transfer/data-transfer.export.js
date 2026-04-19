@@ -98,28 +98,26 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             }
         }
 
-        if (typeof window.showDirectoryPicker === 'function') {
-            try {
-                const folderResult = await exportWorkspaceFolderFallback(workspaceState, workspaceId, workspaceName);
-                if (folderResult?.ok) {
-                    return showToast(
-                        `Tab folder backup created (${folderResult.cards} cards, ${folderResult.bookmarks} bookmarks).`,
-                        'success'
-                    );
-                }
-                if (folderResult?.error) {
-                    showToast(`${folderResult.error} Falling back to JSON download.`, 'info');
-                }
-            } catch (error) {
-                if (error?.name === 'AbortError') {
-                    return showToast('Tab folder backup canceled.', 'info');
-                }
-                console.warn('[DataTransfer] Browser tab folder backup failed, falling back to JSON:', error);
+        try {
+            const folderResult = await exportWorkspaceFolderFallback(workspaceState, workspaceId, workspaceName);
+            if (folderResult?.ok) {
+                return showToast(
+                    `Tab backup created (${folderResult.cards} cards, ${folderResult.bookmarks} bookmarks).`,
+                    'success'
+                );
             }
+            if (folderResult?.error) {
+                showToast(`${folderResult.error} Falling back to JSON download.`, 'info');
+            }
+        } catch (error) {
+            if (error?.name === 'AbortError') {
+                return showToast('Tab backup canceled.', 'info');
+            }
+            console.warn('[DataTransfer] Tab backup failed, falling back to JSON:', error);
         }
 
         downloadWorkspaceBackupJson(workspaceId, workspaceName, workspaceState);
-        showToast('Tab folder export not available. Downloaded tab JSON instead.', 'info');
+        showToast('Tab backup downloaded as JSON.', 'info');
     };
 
     window.exportCardBackup = async function () {
@@ -158,25 +156,23 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             }
         }
 
-        if (typeof window.showDirectoryPicker === 'function') {
-            try {
-                const folderResult = await exportCardFolderFallback(cardState, workspaceId, categoryName, workspaceName);
-                if (folderResult?.ok) {
-                    return showToast(`Card folder backup created (${folderResult.bookmarks} bookmarks).`, 'success');
-                }
-                if (folderResult?.error) {
-                    showToast(`${folderResult.error} Falling back to JSON download.`, 'info');
-                }
-            } catch (error) {
-                if (error?.name === 'AbortError') {
-                    return showToast('Card folder backup canceled.', 'info');
-                }
-                console.warn('[DataTransfer] Browser card folder backup failed, falling back to JSON:', error);
+        try {
+            const folderResult = await exportCardFolderFallback(cardState, workspaceId, categoryName, workspaceName);
+            if (folderResult?.ok) {
+                return showToast(`Card backup created (${folderResult.bookmarks} bookmarks).`, 'success');
             }
+            if (folderResult?.error) {
+                showToast(`${folderResult.error} Falling back to JSON download.`, 'info');
+            }
+        } catch (error) {
+            if (error?.name === 'AbortError') {
+                return showToast('Card backup canceled.', 'info');
+            }
+            console.warn('[DataTransfer] Card backup failed, falling back to JSON:', error);
         }
 
         downloadCardBackupJson(workspaceId, workspaceName, categoryName, cardState);
-        showToast('Card folder export not available. Downloaded card JSON instead.', 'info');
+        showToast('Card backup downloaded as JSON.', 'info');
     };
 
     window.exportBookmarkBackup = function () {
@@ -259,25 +255,23 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             }
         }
 
-        if (typeof window.showDirectoryPicker === 'function') {
-            try {
-                const folderResult = await exportFolderFolderFallback(exportState, workspaceId, categoryName, workspaceName);
-                if (folderResult?.ok) {
-                    return showToast(`Folder subtree backup created (${folderResult.bookmarks} bookmarks).`, 'success');
-                }
-                if (folderResult?.error) {
-                    showToast(`${folderResult.error} Falling back to JSON download.`, 'info');
-                }
-            } catch (error) {
-                if (error?.name === 'AbortError') {
-                    return showToast('Folder subtree backup canceled.', 'info');
-                }
-                console.warn('[DataTransfer] Browser folder subtree backup failed, falling back to JSON:', error);
+        try {
+            const folderResult = await exportFolderFolderFallback(exportState, workspaceId, categoryName, workspaceName);
+            if (folderResult?.ok) {
+                return showToast(`Folder subtree backup created (${folderResult.bookmarks} bookmarks).`, 'success');
             }
+            if (folderResult?.error) {
+                showToast(`${folderResult.error} Falling back to JSON download.`, 'info');
+            }
+        } catch (error) {
+            if (error?.name === 'AbortError') {
+                return showToast('Folder subtree backup canceled.', 'info');
+            }
+            console.warn('[DataTransfer] Folder subtree backup failed, falling back to JSON:', error);
         }
 
         downloadFolderBackupJson(workspaceId, workspaceName, categoryName, folderNode, exportState);
-        showToast('Folder export downloaded as JSON.', 'info');
+        showToast('Folder backup downloaded as JSON.', 'info');
     };
 
     ns.exportReady = true;

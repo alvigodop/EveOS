@@ -315,12 +315,13 @@ async function main() {
         walk(result.backupDestinationPath);
 
         const hasFolderJson = exportedFiles.includes('folders/main-folder/folder.json')
+            || exportedFiles.includes('f/main-folder/folder.json')
             || exportedFiles.some((file) => /\/folder\.json$/i.test(file));
         if (!hasFolderJson) {
             throw new Error(`Expected folder.json in exported folder subtree. Files: ${exportedFiles.join(', ')}`);
         }
 
-        if (!exportedFiles.some((file) => /entries\/.+\.json$/i.test(file))) {
+        if (!exportedFiles.some((file) => /(?:entries|e)\/.+\.json$/i.test(file))) {
             throw new Error(`Expected bookmark entry JSON files in exported subtree. Files: ${exportedFiles.join(', ')}`);
         }
         if (!exportedFiles.includes('knowledge/scoped-storage.json')) {
