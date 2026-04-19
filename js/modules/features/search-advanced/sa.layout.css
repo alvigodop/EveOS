@@ -1,0 +1,273 @@
+/* ═══════════════════════════════════════════════════════════════
+   NEXUS SEARCH — Isekai Status Window Aesthetic
+   ═══════════════════════════════════════════════════════════════ */
+
+.search-advanced-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 1.05rem;
+    cursor: pointer;
+    padding: 0 6px;
+}
+
+.search-advanced-btn:hover {
+    color: var(--accent);
+}
+
+/* ── Custom Scrollbar (matches site theme) ── */
+.nx-sidebar::-webkit-scrollbar,
+.nx-results-body::-webkit-scrollbar {
+    width: 6px;
+}
+
+.nx-sidebar::-webkit-scrollbar-track,
+.nx-results-body::-webkit-scrollbar-track {
+    background: var(--scrollbar-track, rgba(255, 255, 255, 0.04));
+    border-radius: 3px;
+}
+
+.nx-sidebar::-webkit-scrollbar-thumb,
+.nx-results-body::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb, rgba(80, 200, 255, 0.2));
+    border-radius: 3px;
+}
+
+.nx-sidebar::-webkit-scrollbar-thumb:hover,
+.nx-results-body::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover, rgba(80, 200, 255, 0.35));
+}
+
+.nx-sidebar,
+.nx-results-body {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb, rgba(80, 200, 255, 0.2)) var(--scrollbar-track, rgba(255, 255, 255, 0.04));
+}
+/* ── Panel Frame ── */
+.nx-panel {
+    position: relative;
+    width: min(94vw, 1280px);
+    max-height: 92vh;
+    display: flex;
+    flex-direction: column;
+    background: linear-gradient(165deg, rgba(12, 16, 28, 0.97) 0%, rgba(8, 12, 22, 0.98) 100%);
+    border: 1px solid rgba(80, 200, 255, 0.18);
+    border-radius: 12px;
+    box-shadow:
+        0 0 80px rgba(0, 180, 255, 0.06),
+        0 0 1px rgba(80, 200, 255, 0.4),
+        inset 0 0 60px rgba(0, 120, 200, 0.03);
+    overflow: hidden;
+    font-family: 'Segoe UI', 'Inter', system-ui, sans-serif;
+}
+
+/* ── Corner Decorations ── */
+.nx-corner {
+    position: absolute;
+    width: 24px;
+    height: 24px;
+    pointer-events: none;
+    z-index: 2;
+}
+
+.nx-corner::before,
+.nx-corner::after {
+    content: '';
+    position: absolute;
+    background: linear-gradient(90deg, rgba(80, 220, 255, 0.5), rgba(180, 140, 255, 0.3));
+}
+
+.nx-corner-tl { top: 0; left: 0; }
+.nx-corner-tl::before { width: 24px; height: 1px; top: 0; left: 0; }
+.nx-corner-tl::after { width: 1px; height: 24px; top: 0; left: 0; }
+
+.nx-corner-tr { top: 0; right: 0; }
+.nx-corner-tr::before { width: 24px; height: 1px; top: 0; right: 0; }
+.nx-corner-tr::after { width: 1px; height: 24px; top: 0; right: 0; }
+
+.nx-corner-bl { bottom: 0; left: 0; }
+.nx-corner-bl::before { width: 24px; height: 1px; bottom: 0; left: 0; }
+.nx-corner-bl::after { width: 1px; height: 24px; bottom: 0; left: 0; }
+
+.nx-corner-br { bottom: 0; right: 0; }
+.nx-corner-br::before { width: 24px; height: 1px; bottom: 0; right: 0; }
+.nx-corner-br::after { width: 1px; height: 24px; bottom: 0; right: 0; }
+
+/* ── Header ── */
+.nx-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    border-bottom: 1px solid rgba(80, 200, 255, 0.12);
+    background: linear-gradient(90deg, rgba(20, 30, 50, 0.8), rgba(10, 15, 30, 0.6));
+}
+
+.nx-header-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.nx-header-icon {
+    font-size: 1.5rem;
+    filter: drop-shadow(0 0 6px rgba(255, 180, 60, 0.6));
+}
+
+.nx-header-text {
+    font-size: 1.3rem;
+    font-weight: 700;
+    letter-spacing: 3px;
+    background: linear-gradient(135deg, #50dcff, #b48cff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.nx-header-sub {
+    font-size: 0.72rem;
+    color: rgba(130, 180, 220, 0.5);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+.nx-close-btn {
+    background: rgba(255, 60, 60, 0.08);
+    border: 1px solid rgba(255, 80, 80, 0.2);
+    color: rgba(255, 120, 120, 0.7);
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.95rem;
+    transition: all 0.2s ease;
+}
+
+.nx-close-btn:hover {
+    background: rgba(255, 60, 60, 0.2);
+    color: #ff8888;
+    border-color: rgba(255, 80, 80, 0.5);
+}
+
+.nx-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.nx-gemini-btn {
+    background: linear-gradient(135deg, rgba(0, 212, 255, 0.12), rgba(168, 85, 247, 0.12));
+    border: 1px solid rgba(110, 231, 255, 0.22);
+    color: rgba(200, 230, 255, 0.85);
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.76rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    transition: all 0.2s ease;
+    font-family: 'Share Tech Mono', monospace;
+}
+
+.nx-gemini-btn:hover {
+    background: linear-gradient(135deg, rgba(0, 212, 255, 0.22), rgba(168, 85, 247, 0.22));
+    border-color: rgba(110, 231, 255, 0.4);
+    color: #d8f7ff;
+    box-shadow: 0 0 12px rgba(0, 212, 255, 0.15);
+}
+
+/* ── Body Two-Column Layout ── */
+.nx-body {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.nx-sidebar {
+    position: relative;
+    width: 320px;
+    min-width: 280px;
+    padding: 16px;
+    border-right: 1px solid rgba(80, 200, 255, 0.08);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    background: rgba(8, 12, 24, 0.4);
+    transition: width 0.25s ease, min-width 0.25s ease, padding 0.25s ease;
+}
+
+.nx-sidebar-toggle {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 26px;
+    height: 26px;
+    background: rgba(40, 55, 80, 0.5);
+    border: 1px solid rgba(80, 200, 255, 0.15);
+    border-radius: 5px;
+    color: rgba(80, 200, 255, 0.5);
+    cursor: pointer;
+    font-size: 0.7rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 3;
+    transition: all 0.2s ease;
+}
+
+.nx-sidebar-toggle:hover {
+    background: rgba(50, 70, 100, 0.6);
+    color: rgba(80, 200, 255, 0.9);
+    border-color: rgba(80, 200, 255, 0.35);
+}
+
+/* Collapsed sidebar */
+.nx-sidebar.nx-collapsed {
+    width: 44px;
+    min-width: 44px;
+    padding: 8px 6px;
+    overflow: hidden;
+}
+
+.nx-sidebar.nx-collapsed > *:not(.nx-sidebar-toggle) {
+    opacity: 0;
+    pointer-events: none;
+    height: 0;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    gap: 0;
+    transition: opacity 0.15s ease;
+}
+
+.nx-sidebar.nx-collapsed .nx-sidebar-toggle {
+    position: static;
+    margin: 0 auto;
+}
+
+.nx-results-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+}
+
+/* ── Section Labels ── */
+.nx-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.nx-section-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: rgba(80, 200, 255, 0.6);
+    padding-bottom: 4px;
+    border-bottom: 1px solid rgba(80, 200, 255, 0.06);
+}

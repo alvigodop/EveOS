@@ -1,0 +1,353 @@
+#gemini-ui-root .gemini-command-bar {
+    display: grid;
+    gap: 12px;
+    padding: 16px;
+    border-radius: 20px;
+    background:
+        radial-gradient(circle at top right, rgba(110, 231, 255, 0.1), transparent 34%),
+        linear-gradient(145deg, rgba(13, 18, 28, 0.96), rgba(8, 12, 18, 0.93));
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.04),
+        0 18px 34px rgba(0, 0, 0, 0.16);
+}
+
+#gemini-ui-root .gemini-command-icon-row,
+#gemini-ui-root .gemini-command-action-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+}
+
+#gemini-ui-root .gemini-command-icon-btn {
+    width: 42px;
+    height: 42px;
+    min-width: 42px;
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: linear-gradient(145deg, rgba(33, 42, 58, 0.92), rgba(16, 22, 31, 0.92));
+    color: #d8f7ff;
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.16);
+}
+
+#gemini-ui-root .gemini-command-icon-btn .material-icons {
+    font-size: 20px;
+}
+
+#gemini-ui-root .gemini-command-icon-btn--voice {
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.24), rgba(6, 182, 212, 0.18));
+}
+
+#gemini-ui-root .gemini-command-icon-btn--muted {
+    background: linear-gradient(135deg, rgba(249, 115, 22, 0.18), rgba(239, 68, 68, 0.18));
+}
+
+#gemini-ui-root .gemini-command-icon-btn--screen {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.22), rgba(14, 165, 233, 0.16));
+}
+
+#gemini-ui-root .gemini-command-icon-btn--model {
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.22), rgba(236, 72, 153, 0.16));
+}
+
+#gemini-ui-root .gemini-command-icon-btn--compose,
+#gemini-ui-root .gemini-command-icon-btn--history {
+    background: linear-gradient(135deg, rgba(14, 165, 233, 0.22), rgba(0, 212, 255, 0.16));
+}
+
+#gemini-ui-root .gemini-command-action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 0 14px;
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: linear-gradient(145deg, rgba(27, 34, 49, 0.96), rgba(15, 20, 29, 0.94));
+    color: #e8f7ff;
+    box-shadow: 0 14px 28px rgba(0, 0, 0, 0.14);
+}
+
+#gemini-ui-root .gemini-command-action-btn .material-icons {
+    font-size: 18px;
+}
+
+#gemini-ui-root .gemini-command-action-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+}
+
+#gemini-ui-root .gemini-command-action-btn--history {
+    background: linear-gradient(135deg, rgba(14, 165, 233, 0.24), rgba(0, 212, 255, 0.16));
+}
+
+#gemini-ui-root .gemini-command-action-btn--danger {
+    background: linear-gradient(135deg, rgba(249, 115, 22, 0.24), rgba(239, 68, 68, 0.18));
+}
+
+#gemini-ui-root .gemini-command-action-btn--warning {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.22), rgba(249, 115, 22, 0.18));
+}
+
+#gemini-ui-root .gemini-command-action-btn--secondary {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.22), rgba(168, 85, 247, 0.16));
+}
+
+#gemini-ui-root .gemini-command-switch {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 42px;
+    padding: 8px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    color: #e8f7ff;
+    margin: 0;
+}
+
+#gemini-ui-root .gemini-command-switch-input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+#gemini-ui-root .gemini-command-switch-track {
+    position: relative;
+    width: 42px;
+    height: 24px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    flex: 0 0 auto;
+    transition: background 0.18s ease, border-color 0.18s ease;
+}
+
+#gemini-ui-root .gemini-command-switch-thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    background: #eff8ff;
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+    transition: transform 0.18s ease;
+}
+
+#gemini-ui-root .gemini-command-switch-input:checked + .gemini-command-switch-track {
+    background: linear-gradient(135deg, rgba(0, 212, 255, 0.68), rgba(110, 231, 255, 0.5));
+    border-color: rgba(110, 231, 255, 0.4);
+}
+
+#gemini-ui-root .gemini-command-switch-input:checked + .gemini-command-switch-track .gemini-command-switch-thumb {
+    transform: translateX(18px);
+}
+
+#gemini-ui-root .gemini-command-switch-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+#gemini-ui-root .gemini-command-switch-kicker {
+    font-size: 0.62rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(232, 247, 255, 0.48);
+}
+
+#gemini-ui-root .gemini-command-switch-label {
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: rgba(232, 247, 255, 0.78);
+}
+
+
+#gemini-ui-root .gemini-command-action-row > div:empty {
+    display: none;
+}
+
+#gemini-ui-root .gemini-chat-log,
+#gemini-ui-root .gemini-history-log,
+#gemini-ui-root .gemini-system-log,
+#gemini-ui-root .gemini-text-input-shell {
+    background:
+        radial-gradient(circle at top right, rgba(110, 231, 255, 0.1), transparent 36%),
+        linear-gradient(145deg, rgba(13, 18, 28, 0.96), rgba(8, 12, 18, 0.93)) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    border-radius: 20px !important;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.04),
+        0 18px 34px rgba(0, 0, 0, 0.16) !important;
+    color: #e8f7ff;
+}
+
+#gemini-ui-root .gemini-chat-header,
+#gemini-ui-root .gemini-history-header,
+#gemini-ui-root .gemini-system-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 16px;
+    background: linear-gradient(145deg, rgba(19, 27, 40, 0.94), rgba(10, 15, 23, 0.92)) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+#gemini-ui-root .gemini-chat-header-copy,
+#gemini-ui-root .gemini-history-header-copy,
+#gemini-ui-root .gemini-system-header-main {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+#gemini-ui-root .gemini-chat-kicker,
+#gemini-ui-root .gemini-history-kicker,
+#gemini-ui-root .gemini-system-kicker {
+    font-size: 0.66rem;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(232, 247, 255, 0.46);
+}
+
+#gemini-ui-root .gemini-chat-title,
+#gemini-ui-root .gemini-history-title,
+#gemini-ui-root .gemini-system-title {
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: #f4fbff;
+}
+
+#gemini-ui-root .gemini-system-header-copy {
+    font-size: 0.76rem;
+    line-height: 1.45;
+    color: rgba(232, 247, 255, 0.56);
+}
+
+#gemini-ui-root .gemini-chat-header-pill {
+    flex: 0 0 auto;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(110, 231, 255, 0.12);
+    border: 1px solid rgba(110, 231, 255, 0.18);
+    color: #d8f7ff;
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+#gemini-ui-root .gemini-history-actions,
+#gemini-ui-root .gemini-system-header-actions,
+#gemini-ui-root .gemini-input-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+#gemini-ui-root .gemini-history-btn,
+#gemini-ui-root .gemini-popout-btn {
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #d8f7ff;
+}
+
+#gemini-ui-root .gemini-history-btn--danger {
+    color: #ffb7b7;
+}
+
+#gemini-ui-root .gemini-history-content {
+    padding: 0 16px 16px;
+}
+
+#gemini-ui-root .gemini-chat-messages,
+#gemini-ui-root .gemini-system-messages,
+#gemini-ui-root #pastChatsLog,
+#gemini-ui-root #previousConversationContent {
+    background: transparent !important;
+}
+
+#gemini-ui-root .chat-messages-container,
+#gemini-ui-root .system-messages-container,
+#gemini-ui-root #pastChatsLog {
+    padding: 16px;
+}
+
+#gemini-ui-root #chatLog,
+#gemini-ui-root #pastChatsLog {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+#gemini-ui-root #systemLog {
+    padding: 0;
+}
+
+#gemini-ui-root .system-message,
+#gemini-ui-root .previous-system-message {
+    color: #dfefff !important;
+    background: rgba(255, 255, 255, 0.05) !important;
+    border-left: 3px solid rgba(110, 231, 255, 0.5) !important;
+    border-radius: 12px;
+    padding: 10px 12px;
+}
+
+#gemini-ui-root .system-message.connection {
+    border-left-color: rgba(249, 115, 22, 0.72) !important;
+}
+
+#gemini-ui-root .system-message.voice {
+    border-left-color: rgba(34, 197, 94, 0.72) !important;
+}
+
+#gemini-ui-root .system-message.status {
+    border-left-color: rgba(0, 212, 255, 0.72) !important;
+}
+
+#gemini-ui-root .gemini-text-input-shell {
+    display: flex;
+    gap: 12px;
+    align-items: flex-end;
+    padding: 14px 16px;
+}
+
+#gemini-ui-root .gemini-text-input-field-slot {
+    flex: 1;
+    min-width: 0;
+}
+
+#gemini-ui-root .gemini-text-input-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+#gemini-ui-root .gemini-text-input {
+    width: 100%;
+    min-height: 48px;
+    padding: 12px 14px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
+    color: #f4fbff;
+    font: inherit;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+#gemini-ui-root .gemini-text-input::placeholder {
+    color: rgba(232, 247, 255, 0.46);
+}

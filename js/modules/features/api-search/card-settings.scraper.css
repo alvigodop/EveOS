@@ -1,0 +1,158 @@
+.api-scraper-hero {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 4px 2px 0;
+}
+
+.api-scraper-kicker {
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.46);
+    margin-bottom: 6px;
+}
+
+.api-scraper-provider-title {
+    font-size: 1.06rem;
+    font-weight: 800;
+    color: #f8fdff;
+    margin-bottom: 4px;
+}
+
+.api-scraper-provider-meta {
+    font-size: 0.82rem;
+    color: rgba(255, 255, 255, 0.62);
+    line-height: 1.45;
+}
+
+.api-scraper-focus-pill {
+    flex: 0 0 auto;
+    padding: 8px 11px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, rgba(90, 184, 255, 0.16), rgba(0, 212, 255, 0.1));
+    border: 1px solid rgba(90, 184, 255, 0.2);
+    color: #e4f5ff;
+    font-size: 0.74rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.api-unidex-results-shell {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 12px;
+}
+
+.api-unidex-results-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.unidex-search-section-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.api-unidex-provider-sections {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.api-unidex-provider-section {
+    background:
+        radial-gradient(circle at top right, rgba(90, 184, 255, 0.08), transparent 32%),
+        rgba(255, 255, 255, 0.025);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.api-unidex-provider-results {
+    display: block;
+}
+
+.unidex-search-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+    border-radius: 16px;
+    background:
+        radial-gradient(circle at top right, rgba(90, 184, 255, 0.08), transparent 28%),
+        rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.unidex-search-card-header {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.unidex-search-card-kicker {
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(144, 224, 255, 0.72);
+}
+
+.unidex-search-card-title {
+    color: #f8fdff;
+    font-size: 0.96rem;
+    font-weight: 800;
+    text-decoration: none;
+}
+
+.unidex-search-card-title:hover {
+    color: #90e0ff;
+}
+
+.unidex-search-card-meta,
+.unidex-search-card-snippet,
+.unidex-search-empty {
+    font-size: 0.8rem;
+    line-height: 1.45;
+    color: rgba(255, 255, 255, 0.64);
+}
+
+.unidex-search-card-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.unidex-search-empty {
+    padding: 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.028);
+    border: 1px dashed rgba(255, 255, 255, 0.08);
+}
+
+@media (max-width: 960px) {
+    .api-cache-entry-header,
+    .api-scraper-hero,
+    .unidex-api-provider-row {
+        flex-direction: column;
+    }
+
+    .api-cache-actions,
+    .unidex-lane-actions,
+    .unidex-api-provider-actions {
+        justify-content: flex-start;
+    }
+
+    .api-search-box,
+    .api-preferences-row {
+        padding: 6px;
+    }
+}

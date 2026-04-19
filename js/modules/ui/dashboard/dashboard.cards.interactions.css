@@ -1,0 +1,300 @@
+.category-scrollable {
+    max-height: 400px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+.category-scrollable::-webkit-scrollbar {
+    width: 6px;
+}
+
+.category-scrollable::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+}
+
+.category-scrollable::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 3px;
+}
+
+.category-scrollable::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+}
+
+.category-card.collapsed {
+    height: auto;
+}
+
+.category-card.collapsed .category-header {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.collapse-arrow {
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: 0.2s;
+    color: var(--text-muted);
+    padding: 5px;
+}
+
+.category-card.collapsed .collapse-arrow[title="Toggle Card"] {
+    transform: rotate(-90deg);
+}
+
+.category-card.folders-collapsed .collapse-arrow[title="Toggle Folders"],
+.category-card.links-collapsed .collapse-arrow[title="Toggle Bookmarks"] {
+    opacity: 0.4;
+    filter: grayscale(1);
+}
+
+/* --- Task Mode Bookmark Numbering (section-scoped) --- */
+.category-card.task-mode ul {
+    counter-reset: bookmark-index;
+}
+
+.category-card.task-mode ul li {
+    counter-increment: bookmark-index;
+    position: relative;
+}
+
+.category-card.task-mode ul li::after {
+    content: "#" counter(bookmark-index);
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.65rem;
+    color: rgba(0, 212, 255, 0.4);
+    background: rgba(0, 212, 255, 0.06);
+    border: 1px solid rgba(0, 212, 255, 0.12);
+    border-radius: 4px;
+    padding: 1px 5px;
+    pointer-events: none;
+    user-select: none;
+    line-height: 1.3;
+    z-index: 1;
+}
+
+.category-card.task-mode ul li.done::after {
+    color: rgba(128, 128, 128, 0.3);
+    background: rgba(128, 128, 128, 0.04);
+    border-color: rgba(128, 128, 128, 0.08);
+    text-decoration: line-through;
+}
+
+/* Hide CSS counter on hover (actions take priority) */
+.category-card.task-mode ul li:hover::after {
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* --- Custom Order Badge (replaces CSS counter when active) --- */
+/* Hide CSS counter when custom order is enabled */
+.category-card.custom-order.task-mode ul li::after {
+    display: none;
+}
+
+.custom-order-badge {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.65rem;
+    color: rgba(0, 230, 180, 0.65);
+    background: rgba(0, 230, 180, 0.08);
+    border: 1px solid rgba(0, 230, 180, 0.2);
+    border-radius: 4px;
+    padding: 1px 6px;
+    line-height: 1.3;
+    z-index: 2;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.15s ease;
+}
+
+.custom-order-badge:hover {
+    color: rgba(0, 230, 180, 0.95);
+    background: rgba(0, 230, 180, 0.16);
+    border-color: rgba(0, 230, 180, 0.45);
+    box-shadow: 0 0 6px rgba(0, 230, 180, 0.2);
+}
+
+.category-card ul li {
+    position: relative;
+}
+
+/* Shift custom order badge left of actions on row hover */
+.category-card ul li:hover .custom-order-badge {
+    right: 125px;
+}
+
+.category-card.custom-order ul li.done .custom-order-badge {
+    color: rgba(128, 128, 128, 0.35);
+    background: rgba(128, 128, 128, 0.05);
+    border-color: rgba(128, 128, 128, 0.1);
+}
+
+/* Hide badges during bulk selection mode */
+body.bulk-active .custom-order-badge,
+body.bulk-active .true-value-badge,
+body.bulk-active .category-card.task-mode ul li::after {
+    display: none;
+}
+
+/* --- True Value Badges --- */
+.true-value-badge {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.62rem;
+    border-radius: 4px;
+    padding: 1px 5px;
+    pointer-events: none;
+    user-select: none;
+    line-height: 1.3;
+    z-index: 1;
+    letter-spacing: 0.02em;
+}
+
+/* Locked: solid cyan — true integer positions */
+.true-value-badge.locked {
+    color: rgba(0, 212, 255, 0.55);
+    background: rgba(0, 212, 255, 0.08);
+    border: 1px solid rgba(0, 212, 255, 0.18);
+}
+
+/* Approx: amber tint — rating-influenced positions */
+.true-value-badge.approx {
+    color: rgba(255, 180, 50, 0.65);
+    background: rgba(255, 180, 50, 0.08);
+    border: 1px solid rgba(255, 180, 50, 0.18);
+    box-shadow: 0 0 4px rgba(255, 180, 50, 0.06);
+}
+
+/* Done state — muted */
+.category-card ul li.done .true-value-badge {
+    color: rgba(128, 128, 128, 0.3);
+    background: rgba(128, 128, 128, 0.04);
+    border-color: rgba(128, 128, 128, 0.08);
+}
+
+/* Shift true value badge left of actions on row hover */
+.category-card ul li:hover .true-value-badge {
+    right: 125px;
+}
+
+/* Hide CSS counter when true value mode is active */
+.category-card.true-value-mode.task-mode ul li::after {
+    display: none;
+}
+
+/* --- Progressive Loading: Show More Button --- */
+.eve-show-more-item {
+    list-style: none;
+    padding: 6px 0;
+    display: flex;
+    justify-content: center;
+}
+
+.eve-show-more-btn {
+    width: 100%;
+    padding: 8px 16px;
+    background: rgba(0, 212, 255, 0.06);
+    border: 1px dashed rgba(0, 212, 255, 0.2);
+    border-radius: 8px;
+    color: rgba(0, 212, 255, 0.6);
+    font-size: 0.78rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    letter-spacing: 0.3px;
+}
+
+.eve-show-more-btn:hover {
+    background: rgba(0, 212, 255, 0.12);
+    border-color: rgba(0, 212, 255, 0.4);
+    color: rgba(0, 212, 255, 0.9);
+}
+
+/* --- Interactive Path Peek --- */
+.ws-path-peek {
+    position: fixed;
+    z-index: 5000;
+    display: none;
+    align-items: center;
+    gap: 0;
+    padding: 4px 8px;
+    background: rgba(30, 30, 30, 0.7);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4), inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+    opacity: 0;
+    transform: translateY(10px) scale(0.95);
+    transition: opacity 0.15s ease, transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    pointer-events: auto;
+}
+
+.ws-path-peek.active {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+}
+
+.path-segment {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-family: inherit;
+    font-weight: 500;
+    padding: 4px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.path-segment:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--accent);
+}
+
+.path-segment:last-child {
+    color: var(--accent);
+    font-weight: 600;
+}
+
+.path-separator {
+    color: rgba(255, 255, 255, 0.2);
+    font-size: 0.8rem;
+    user-select: none;
+    padding: 0 2px;
+}
+
+html[data-native-scheme="light"] .ws-path-peek {
+    background: rgba(255, 255, 255, 0.82);
+    border-color: rgba(0, 0, 0, 0.1);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+html[data-native-scheme="light"] .path-segment {
+    color: #555;
+}
+
+html[data-native-scheme="light"] .path-segment:hover {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+html[data-native-scheme="light"] .path-segment:last-child {
+    color: var(--accent);
+}

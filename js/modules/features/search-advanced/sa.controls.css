@@ -1,0 +1,212 @@
+/* ── Inputs ── */
+.nx-input {
+    width: 100%;
+    padding: 8px 12px;
+    background: rgba(20, 28, 45, 0.7);
+    border: 1px solid rgba(80, 200, 255, 0.12);
+    border-radius: 6px;
+    color: #d0d8e8;
+    font-size: 0.88rem;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    box-sizing: border-box;
+}
+
+.nx-input:focus {
+    border-color: rgba(80, 200, 255, 0.4);
+    box-shadow: 0 0 12px rgba(80, 200, 255, 0.08);
+}
+
+.nx-input::placeholder {
+    color: rgba(130, 160, 200, 0.35);
+}
+
+.nx-query-input {
+    font-size: 1rem;
+    padding: 10px 14px;
+}
+
+/* ── Vector Skill Slots ── */
+.nx-vector-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.nx-vector-slot {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: rgba(20, 28, 45, 0.5);
+    border: 1px solid rgba(80, 120, 180, 0.12);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    overflow: hidden;
+    color: rgba(150, 170, 200, 0.6);
+    text-align: left;
+}
+
+.nx-vector-slot:hover {
+    border-color: rgba(80, 200, 255, 0.25);
+    background: rgba(25, 35, 55, 0.6);
+}
+
+.nx-vector-slot.nx-active {
+    border-color: rgba(80, 220, 255, 0.35);
+    background: rgba(20, 40, 65, 0.6);
+    color: #c8e0f0;
+}
+
+.nx-vector-icon {
+    font-size: 1.15rem;
+    width: 28px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.nx-vector-name {
+    font-size: 0.82rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+.nx-vector-glow {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 20% 50%, rgba(80, 220, 255, 0.06) 0%, transparent 70%);
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+}
+
+.nx-vector-slot.nx-active .nx-vector-glow {
+    opacity: 1;
+}
+
+.nx-vector-slot.nx-active::after {
+    content: '●';
+    position: absolute;
+    right: 12px;
+    font-size: 0.5rem;
+    color: rgba(80, 255, 160, 0.7);
+}
+
+/* Pulse animation on toggle */
+@keyframes nx-slot-pulse {
+    0% { box-shadow: 0 0 0 0 rgba(80, 220, 255, 0.3); }
+    70% { box-shadow: 0 0 0 8px rgba(80, 220, 255, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(80, 220, 255, 0); }
+}
+
+.nx-vector-slot.nx-pulse {
+    animation: nx-slot-pulse 0.5s ease-out;
+}
+
+/* ── Collapsible Details ── */
+.nx-details {
+    border: 1px solid rgba(80, 200, 255, 0.06);
+    border-radius: 8px;
+    background: rgba(12, 18, 32, 0.3);
+}
+
+.nx-section-toggle {
+    cursor: pointer;
+    padding: 10px 14px;
+    list-style: none;
+    border-bottom: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: color 0.2s;
+}
+
+.nx-section-toggle::-webkit-details-marker {
+    display: none;
+}
+
+.nx-section-toggle::after {
+    content: '▸';
+    font-size: 0.7rem;
+    color: rgba(80, 200, 255, 0.4);
+    transition: transform 0.2s;
+}
+
+.nx-details[open] .nx-section-toggle::after {
+    transform: rotate(90deg);
+}
+
+.nx-section-toggle:hover {
+    color: rgba(80, 200, 255, 0.9);
+}
+
+.nx-detail-body {
+    padding: 10px 14px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.nx-filter-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.nx-field {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    font-size: 0.75rem;
+    color: rgba(130, 160, 200, 0.6);
+}
+
+.nx-field select {
+    width: 100%;
+}
+
+/* ── Action Buttons ── */
+.nx-actions {
+    display: flex;
+    gap: 8px;
+    padding-top: 4px;
+}
+
+.nx-btn {
+    flex: 1;
+    padding: 10px 16px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    transition: all 0.2s ease;
+}
+
+.nx-btn-primary {
+    background: linear-gradient(135deg, rgba(80, 200, 255, 0.2), rgba(120, 100, 255, 0.15));
+    border-color: rgba(80, 200, 255, 0.3);
+    color: #a0d8f0;
+}
+
+.nx-btn-primary:hover {
+    background: linear-gradient(135deg, rgba(80, 200, 255, 0.3), rgba(120, 100, 255, 0.25));
+    border-color: rgba(80, 200, 255, 0.5);
+    box-shadow: 0 0 20px rgba(80, 200, 255, 0.1);
+    color: #c0e8ff;
+}
+
+.nx-btn-secondary {
+    background: rgba(40, 50, 70, 0.4);
+    border-color: rgba(100, 120, 150, 0.2);
+    color: rgba(160, 180, 210, 0.7);
+}
+
+.nx-btn-secondary:hover {
+    background: rgba(50, 60, 80, 0.5);
+    border-color: rgba(100, 120, 150, 0.35);
+    color: rgba(180, 200, 230, 0.9);
+}
