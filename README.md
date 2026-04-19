@@ -445,6 +445,9 @@ Primary scripts:
 - `tools/smoke/folder_layer_backup_browser_smoke.js`
 - `tools/smoke/full_backup_path_budget_browser_smoke.js`
 - `tools/smoke/folder_layer_api_roundtrip.py`
+- `tools/smoke/backup_restore_target_remap_browser_smoke.js`
+- `tools/smoke/backup_restore_reload_persistence_browser_smoke.js`
+- `tools/windows/run-backup-restore-smokes.ps1`
 
 Use when touching:
 
@@ -456,10 +459,13 @@ Use when touching:
 Recommended command set:
 
 ```bash
+powershell -ExecutionPolicy Bypass -File tools\\windows\\run-backup-restore-smokes.ps1
 node tools\\smoke\\folder_layer_backup_browser_smoke.js
 node tools\\smoke\\full_backup_path_budget_browser_smoke.js
 python tools\\smoke\\folder_layer_api_roundtrip.py
 ```
+
+The PowerShell runner executes the two restore-specific browser regressions in sequence.
 
 #### Dashboard, workspace, quick pins, and shared UI facades
 
