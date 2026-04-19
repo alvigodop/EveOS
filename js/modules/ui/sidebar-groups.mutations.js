@@ -81,6 +81,7 @@
         if (cfg.sidebarGroups.length === beforeCount) return false;
 
         if (cfg.sidebarFocusedGroupId === targetId) cfg.sidebarFocusedGroupId = '';
+        if (rt.normalizeGroupId(cfg.groupOverviewId) === targetId) cfg.groupOverviewId = '';
 
         rt.getRootWorkspaces(cfg).forEach(function (workspace) {
             if (rt.normalizeGroupId(workspace.groupId) === targetId) delete workspace.groupId;
@@ -110,10 +111,17 @@
     }
 
     function setGroupHidden(groupId, nextValue, configRef) {
-        var group = rt.findGroupById(groupId, configRef);
+        var cfg = rt.ensureConfigDefaults(configRef);
+        if (!cfg) return null;
+
+        var group = rt.findGroupById(groupId, cfg);
         if (!group) return null;
         group.hidden = typeof nextValue === 'boolean' ? nextValue : !group.hidden;
-        if (group.hidden) group.collapsed = true;
+        if (group.hidden) {
+            group.collapsed = true;
+            if (getFocusedGroupId(cfg) === String(group.id)) cfg.sidebarFocusedGroupId = '';
+            if (rt.normalizeGroupId(cfg.groupOverviewId) === String(group.id)) cfg.groupOverviewId = '';
+        }
         return group;
     }
 

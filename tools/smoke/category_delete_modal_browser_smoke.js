@@ -19,7 +19,7 @@ async function main() {
         await page.goto(FILE_URL, { waitUntil: 'load', timeout: 180000 });
         await waitForApp(page);
 
-        const result = await page.evaluate(async () => {
+        await page.evaluate(async () => {
             const seed = {
                 links: [
                     { id: 'alpha-root', title: 'Alpha Root', url: 'https://alpha.example.com/root', workspace: 'main', category: 'Alpha', done: false }
@@ -44,8 +44,17 @@ async function main() {
 
             window.EveConstellationMap.openWorkspaceMap('main');
             window.openCategorySettings('Alpha');
+        });
 
+        await page.waitForFunction(() => {
             const categoryModal = document.getElementById('categorySettingsModal');
+            if (!categoryModal) return false;
+            return Array.from(categoryModal.querySelectorAll('button')).some((button) => String(button.textContent || '').includes('Delete Category'));
+        }, undefined, { timeout: 5000 });
+
+        const result = await page.evaluate(() => {
+            const categoryModal = document.getElementById('categorySettingsModal');
+            if (!categoryModal) throw new Error('Category settings modal not found');
             const deleteButton = Array.from(categoryModal.querySelectorAll('button')).find((button) => String(button.textContent || '').includes('Delete Category'));
             if (!deleteButton) throw new Error('Delete category button not found');
             deleteButton.click();

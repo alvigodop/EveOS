@@ -14,7 +14,7 @@ function renderSidebar() {
 
     const helpers = window.EveWorkspaceHelpers;
     const groupsApi = window.EveSidebarGroups || null;
-    let dragState = { type: '', id: '' };
+    let dragState = { type: '', id: '', hoverWorkspaceId: '', didApply: false };
 
     if (groupsApi && typeof groupsApi.ensureConfigDefaults === 'function') {
         groupsApi.ensureConfigDefaults(config);
@@ -68,15 +68,28 @@ function renderSidebar() {
     function setDragState(type, id) {
         dragState = {
             type: String(type || '').trim(),
-            id: String(id || '').trim()
+            id: String(id || '').trim(),
+            hoverWorkspaceId: '',
+            didApply: false
         };
         sb.classList.add('ws-drag-active');
     }
 
     function clearDragState() {
-        dragState = { type: '', id: '' };
+        dragState = { type: '', id: '', hoverWorkspaceId: '', didApply: false };
         sb.classList.remove('ws-drag-active');
         clearDragTargets();
+    }
+
+    function resolveEventTargetElement(event) {
+        if (!event) return null;
+        if (typeof document.elementFromPoint === 'function'
+            && Number.isFinite(event.clientX)
+            && Number.isFinite(event.clientY)) {
+            const pointTarget = document.elementFromPoint(event.clientX, event.clientY);
+            if (pointTarget) return pointTarget;
+        }
+        return event.target instanceof Element ? event.target : null;
     }
 
     function getDraggedWorkspaceId() {
@@ -85,6 +98,35 @@ function renderSidebar() {
 
     function getDraggedGroupId() {
         return dragState.type === 'group' ? String(dragState.id || '').trim() : '';
+    }
+
+    function setHoveredWorkspaceTarget(workspaceId) {
+        if (dragState.type !== 'workspace') return;
+        dragState.hoverWorkspaceId = String(workspaceId || '').trim();
+    }
+
+    function markWorkspaceDropApplied() {
+        if (dragState.type !== 'workspace') return;
+        dragState.didApply = true;
+    }
+
+    function resolveWorkspaceDropTargetId(targetElement, dragId) {
+        if (!(targetElement instanceof Element)) return '';
+        const workspaceTarget = targetElement.closest('.ws-item[data-ws-id]');
+        const targetWorkspaceId = workspaceTarget ? String(workspaceTarget.dataset.wsId || '').trim() : '';
+        if (!targetWorkspaceId || targetWorkspaceId === dragId) return '';
+        if (isWorkspaceEffectivelyInactive(targetWorkspaceId)) return '';
+        return targetWorkspaceId;
+    }
+
+    function resolveWorkspaceFallbackTargetId(event, dragId) {
+        const eventTargetId = resolveWorkspaceDropTargetId(resolveEventTargetElement(event), dragId);
+        if (eventTargetId) return eventTargetId;
+        const hoveredTargetId = String(dragState.hoverWorkspaceId || '').trim();
+        if (hoveredTargetId && hoveredTargetId !== dragId && !isWorkspaceEffectivelyInactive(hoveredTargetId)) {
+            return hoveredTargetId;
+        }
+        return '';
     }
 
     function isManualSidebarOrder() {
@@ -121,11 +163,10 @@ function renderSidebar() {
             && groupsApi.isGroupEffectivelyInactive(groupId, config));
     }
 
-    function shouldRenderGroup(group, workspaces) {
+    function shouldRenderGroup(group) {
         if (!group) return false;
         if (config.showInactiveTabs) return true;
-        if (isGroupEffectivelyInactive(group.id)) return false;
-        return getRenderableWorkspaces(workspaces).length > 0;
+        return !isGroupEffectivelyInactive(group.id);
     }
 
     function findFirstWorkspaceId(workspaces) {
@@ -273,6 +314,7 @@ function renderSidebar() {
             groupsApi.syncWorkspaceOrderEntry(dragId, previousGroupId, '', config);
         }
 
+        markWorkspaceDropApplied();
         return true;
     }
 
@@ -302,6 +344,7 @@ function renderSidebar() {
         if (groupsApi && typeof groupsApi.removeManualOrderEntry === 'function') {
             groupsApi.removeManualOrderEntry('workspace', dragId, config);
         }
+        markWorkspaceDropApplied();
         return true;
     }
 
@@ -355,6 +398,7 @@ function renderSidebar() {
         if (typeof groupsApi.removeManualOrderEntry === 'function') {
             groupsApi.removeManualOrderEntry('workspace', dragId, config);
         }
+        markWorkspaceDropApplied();
         return true;
     }
 
@@ -632,11 +676,11 @@ function renderSidebar() {
         const isFocusedGroup = !!currentFocusedGroupId && currentFocusedGroupId === groupId;
         const isInactiveGroup = isGroupEffectivelyInactive(groupId);
         const visibleWorkspaces = getRenderableWorkspaces(workspaces);
+        const totalWorkspaces = Array.isArray(workspaces) ? workspaces.length : 0;
         const isCollapsed = !!(group && group.collapsed);
         const manualMode = isManualSidebarOrder();
 
         if (isInactiveGroup && !config.showInactiveTabs) return null;
-        if (!config.showInactiveTabs && visibleWorkspaces.length === 0 && Array.isArray(workspaces) && workspaces.length > 0) return null;
 
         const wrapper = document.createElement('div');
         wrapper.className = 'ws-node-wrapper ws-group-node-wrapper';
@@ -774,7 +818,9 @@ function renderSidebar() {
             } else {
                 const empty = document.createElement('div');
                 empty.className = 'ws-group-empty';
-                empty.textContent = 'No tabs in this group';
+                empty.textContent = totalWorkspaces > 0
+                    ? 'No visible tabs in this group'
+                    : 'No tabs in this group';
                 body.appendChild(empty);
             }
         }
@@ -826,8 +872,17 @@ function renderSidebar() {
                 e.dataTransfer.effectAllowed = 'move';
                 item.classList.add('ws-dragging');
             };
-            item.ondragend = function () {
+            item.ondragend = function (e) {
                 item.classList.remove('ws-dragging');
+                const dragId = getDraggedWorkspaceId();
+                const fallbackTargetId = dragId && !dragState.didApply
+                    ? resolveWorkspaceFallbackTargetId(e, dragId)
+                    : '';
+                if (dragId && fallbackTargetId && handleSidebarWorkspaceDrop(dragId, fallbackTargetId)) {
+                    clearDragState();
+                    saveAndRefresh(true);
+                    return;
+                }
                 clearDragState();
             };
         }
@@ -836,15 +891,20 @@ function renderSidebar() {
             if (isInactive) return;
             if (!getDraggedWorkspaceId() && !canDropGroupIntoWorkspace(ws.id)) return;
             e.preventDefault();
+            if (getDraggedWorkspaceId()) setHoveredWorkspaceTarget(ws.id);
             e.dataTransfer.dropEffect = 'move';
         };
         item.ondragenter = function (e) {
             if (isInactive) return;
             if (!getDraggedWorkspaceId() && !canDropGroupIntoWorkspace(ws.id)) return;
             e.preventDefault();
+            if (getDraggedWorkspaceId()) setHoveredWorkspaceTarget(ws.id);
             item.classList.add('ws-drop-target');
         };
         item.ondragleave = function () {
+            if (String(dragState.hoverWorkspaceId || '').trim() === String(ws.id)) {
+                setHoveredWorkspaceTarget('');
+            }
             item.classList.remove('ws-drop-target');
         };
         item.ondrop = function (e) {
@@ -935,6 +995,42 @@ function renderSidebar() {
             });
         }
     }
+
+    function handleSidebarWorkspaceDrop(dragId, targetWorkspaceId) {
+        const targetId = String(targetWorkspaceId || '').trim();
+        if (!dragId || !targetId || dragId === targetId) return false;
+        if (isWorkspaceEffectivelyInactive(targetId)) return false;
+        const targetEntries = getVisibleParentEntries(targetId);
+        return moveWorkspaceToParentContext(dragId, targetId, null, targetEntries, targetEntries.length);
+    }
+
+    sb.ondragover = function (e) {
+        const dragId = getDraggedWorkspaceId();
+        if (!dragId) return;
+
+        const targetElement = resolveEventTargetElement(e);
+        const targetWorkspaceId = resolveWorkspaceDropTargetId(targetElement, dragId);
+        if (!targetWorkspaceId) return;
+
+        setHoveredWorkspaceTarget(targetWorkspaceId);
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+    };
+
+    sb.ondrop = function (e) {
+        const dragId = String(getDraggedWorkspaceId() || e.dataTransfer.getData('text/plain') || '').trim();
+        if (!dragId) return;
+
+        const targetElement = resolveEventTargetElement(e);
+        const targetWorkspaceId = resolveWorkspaceDropTargetId(targetElement, dragId);
+        if (!targetWorkspaceId || dragId === targetWorkspaceId) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+        if (handleSidebarWorkspaceDrop(dragId, targetWorkspaceId)) {
+            saveAndRefresh(true);
+        }
+    };
 
     const orderedEntries = getVisibleParentEntries('');
     if (isManualSidebarOrder()) {

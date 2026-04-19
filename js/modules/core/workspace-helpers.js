@@ -238,7 +238,7 @@ window.EveWorkspaceHelpers = (function () {
                     const childResult = walkList(ws.subTabs);
                     if (childResult.inserted) {
                         inserted = true;
-                        return Object.assign({}, ws, { subTabs: childResult.list });
+                        return Object.assign({}, ws, { subTabs: childResult.workspaces });
                     }
                 }
 
