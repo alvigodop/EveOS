@@ -430,7 +430,7 @@ window.DashboardCategories = window.DashboardCategories || {};
         }
         var cardOrderDisplay = cardOrderIndex >= 0 ? (cardOrderIndex + 1) : '-';
         var cardOrderHtml = (!isFocusMode)
-            ? '<div class="card-order-number" onclick="if(window.promptMoveCategory) window.promptMoveCategory(\'' + safeCatJs + '\', ' + cardOrderIndex + ', \'' + escapeCardJs(activeWorkspaceId) + '\')" title="Card Chronological Position">#' + cardOrderDisplay + '</div>'
+            ? '<div class="card-order-number" onclick="if(window.promptMoveCategory) window.promptMoveCategory(\'' + safeCatJs + '\', ' + cardOrderIndex + ', \'' + escapeCardJs(activeWorkspaceId) + '\', this)" title="Move card to a specific position">#' + cardOrderDisplay + '</div>'
             : '';
 
         var titleControlsHtml = isFocusMode

@@ -25,21 +25,55 @@ function moveCategory(cat, direction, workspaceId) {
     }
 }
 
-function promptMoveCategory(cat, currentIndex) {
-    var workspaceId = String(config.activeWorkspace || 'main').trim() || 'main';
-    var totalCards = window.EveCategoryOrder && window.EveCategoryOrder.getOrder ? window.EveCategoryOrder.getOrder(workspaceId).length : 0;
+async function promptMoveCategory(cat, currentIndex, workspaceId, anchorEl) {
+    workspaceId = String(workspaceId || config.activeWorkspace || 'main').trim() || 'main';
+    var order = window.EveCategoryOrder && window.EveCategoryOrder.getOrder
+        ? window.EveCategoryOrder.getOrder(workspaceId)
+        : [];
+    var totalCards = Array.isArray(order) ? order.length : 0;
     if (totalCards === 0) return;
-    
-    var newPos = prompt("Enter new absolute physical position for card (1 to " + totalCards + "):", (currentIndex + 1));
-    if (!newPos) return;
-    
-    var parsed = parseInt(newPos, 10);
-    if (!isNaN(parsed) && parsed >= 1) {
-        if (window.EveCategoryOrder && window.EveCategoryOrder.moveCategoryToPosition) {
-            if (window.EveCategoryOrder.moveCategoryToPosition(workspaceId, cat, parsed)) {
-                saveConfig();
-                if (typeof renderDashboard === 'function') renderDashboard();
-            }
+
+    var resolvedIndex = Array.isArray(order) ? order.indexOf(String(cat || '').trim()) : -1;
+    var fallbackIndex = parseInt(currentIndex, 10);
+    var currentPosition = resolvedIndex >= 0
+        ? (resolvedIndex + 1)
+        : (!isNaN(fallbackIndex) && fallbackIndex >= 0 ? (fallbackIndex + 1) : 1);
+
+    var promptLabel = "Move card to position (1 to " + totalCards + "):";
+    var rawValue = null;
+    if (window.EveInlinePrompt && typeof window.EveInlinePrompt.show === 'function') {
+        rawValue = await window.EveInlinePrompt.show({
+            label: promptLabel,
+            value: String(currentPosition),
+            type: 'number',
+            min: 1,
+            max: totalCards,
+            step: 1,
+            inputMode: 'numeric',
+            anchor: anchorEl || null
+        });
+    } else if (typeof window.showPrompt === 'function') {
+        rawValue = await window.showPrompt(promptLabel, String(currentPosition));
+    } else {
+        rawValue = prompt(promptLabel, String(currentPosition));
+    }
+
+    if (rawValue === null || rawValue === undefined) return;
+    var nextValue = String(rawValue).trim();
+    if (!nextValue) return;
+
+    var parsed = parseInt(nextValue, 10);
+    if (isNaN(parsed) || parsed < 1 || parsed > totalCards) {
+        if (typeof window.showToast === 'function') {
+            window.showToast("Enter a card position between 1 and " + totalCards + ".", 'warning');
+        }
+        return;
+    }
+
+    if (window.EveCategoryOrder && window.EveCategoryOrder.moveCategoryToPosition) {
+        if (window.EveCategoryOrder.moveCategoryToPosition(workspaceId, cat, parsed)) {
+            saveConfig();
+            if (typeof renderDashboard === 'function') renderDashboard();
         }
     }
 }

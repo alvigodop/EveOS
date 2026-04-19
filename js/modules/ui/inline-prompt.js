@@ -63,6 +63,15 @@ window.EveInlinePrompt = (function () {
         if (input) {
             input.type = opts.type || 'text';
             input.value = opts.value || '';
+            input.placeholder = opts.placeholder || '';
+            if (opts.min !== undefined && opts.min !== null && opts.min !== '') input.min = String(opts.min);
+            else input.removeAttribute('min');
+            if (opts.max !== undefined && opts.max !== null && opts.max !== '') input.max = String(opts.max);
+            else input.removeAttribute('max');
+            if (opts.step !== undefined && opts.step !== null && opts.step !== '') input.step = String(opts.step);
+            else input.removeAttribute('step');
+            if (opts.inputMode) input.setAttribute('inputmode', String(opts.inputMode));
+            else input.removeAttribute('inputmode');
         }
 
         // Position near anchor if provided
