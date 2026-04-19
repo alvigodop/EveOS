@@ -534,9 +534,9 @@ const EveCoreStorage = {
 window.EveCoreStorage = EveCoreStorage;
 
 function persistCoreStateAsync(sanitizedLinks) {
-    if (!window.EveCoreStorage) return;
+    if (!window.EveCoreStorage) return Promise.resolve(false);
 
-    void Promise.all([
+    return Promise.all([
         window.EveCoreStorage.saveJson(EVE_LINKS_KEY, sanitizedLinks, {
             localFallbackKey: EVE_LINKS_KEY,
             cleanupLocalKeys: [EVE_LINKS_KEY]
@@ -565,23 +565,54 @@ function persistCoreStateAsync(sanitizedLinks) {
             localFallbackKey: EVE_CONSTELLATION_DETACHED_KEY,
             cleanupLocalKeys: [EVE_CONSTELLATION_DETACHED_KEY]
         })
-    ]).catch((error) => {
+    ]).then(() => true).catch((error) => {
         console.error('Core Storage: Failed to persist heavy core state', error);
+        return false;
     });
 }
 
 var _saveDataTimer = 0;
 
-function saveData(options = {}) {
+function _saveDataImmediate(options = {}) {
     const skipRender = !!options.skipRender;
     const skipSuggestions = !!options.skipSuggestions;
     const forceRender = !!options.forceRender;
 
+    const sanitizedLinks = Array.isArray(links)
+        ? links.map((link) => {
+            if (!link || typeof link !== 'object') return link;
+            const nextLink = { ...link };
+            delete nextLink.pinned;
+            return nextLink;
+        })
+        : [];
+
+    const persistPromise = persistCoreStateAsync(sanitizedLinks);
+
+    // In perf mode, skip the full DOM rebuild â€” actions handle their own UI updates
+    if (window._evePerfMode && !forceRender) return persistPromise;
+
+    if (!skipRender && typeof renderDashboard === 'function') renderDashboard();
+    if (!skipSuggestions && typeof updateSuggestions === 'function') updateSuggestions();
+    return persistPromise;
+}
+
+function saveData(options = {}) {
+    const skipRender = !!options.skipRender;
+    const skipSuggestions = !!options.skipSuggestions;
+    const forceRender = !!options.forceRender;
+    const immediate = !!options.immediate;
+
     // Immediate: dispatch event for reactive listeners
     window.dispatchEvent(new CustomEvent('eve:state-mutated', { detail: { source: 'saveData' } }));
 
-    // Debounce the expensive work: sanitize + persist + render
     if (_saveDataTimer) clearTimeout(_saveDataTimer);
+    if (immediate) {
+        _saveDataTimer = 0;
+        return _saveDataImmediate({ skipRender, skipSuggestions, forceRender });
+    }
+
+    // Debounce the expensive work: sanitize + persist + render
     _saveDataTimer = setTimeout(function () {
         _saveDataTimer = 0;
 

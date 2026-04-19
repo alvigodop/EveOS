@@ -28,8 +28,13 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             const state = await ns.parseFullStateFromFolder(rootHandle);
             const ok = dataStore.applyState(state);
             if (!ok) return showToast('Folder restore could not be applied.', 'error');
-            showToast('Folder backup restored!', 'success');
-            location.reload();
+            showToast('Folder backup restored! Saving...', 'success');
+            const persisted = typeof ns.persistAndReloadAfterRestore === 'function'
+                ? await ns.persistAndReloadAfterRestore()
+                : { ok: true };
+            if (persisted?.ok === false) {
+                showToast(`Folder restore applied but failed to persist: ${persisted.error || 'unknown error'}`, 'error');
+            }
         } catch (error) {
             if (error?.name === 'AbortError') return showToast('Folder restore canceled.', 'info');
             showToast(`Folder restore failed: ${error.message || error}`, 'error');
@@ -51,15 +56,18 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             const stateRoot = await ns.getDirectoryHandleIfExists(rootHandle, 'state');
             const directWorkspaceState = stateRoot ? await ns.readJsonFileIfExists(stateRoot, 'workspace-state.json') : null;
             if (directWorkspaceState?.metadata?.type === 'workspace') {
-                // Ensure we honor the selected workspace even for direct state files
-                directWorkspaceState.metadata.workspaceId = selectedWorkspaceId;
-                if (Array.isArray(directWorkspaceState.bookmarks?.links)) {
-                    directWorkspaceState.bookmarks.links.forEach(l => l.workspace = selectedWorkspaceId);
-                }
-                const ok = dataStore.applyWorkspaceState(directWorkspaceState);
+                const remappedState = typeof ns.remapWorkspaceStateForRestore === 'function'
+                    ? ns.remapWorkspaceStateForRestore(directWorkspaceState, selectedWorkspaceId)
+                    : directWorkspaceState;
+                const ok = dataStore.applyWorkspaceState(remappedState);
                 if (!ok) return showToast('Tab folder restore could not be applied.', 'error');
-                showToast('Tab folder restored!', 'success');
-                setTimeout(() => location.reload(), 500);
+                showToast('Tab folder restored! Saving...', 'success');
+                const persisted = typeof ns.persistAndReloadAfterRestore === 'function'
+                    ? await ns.persistAndReloadAfterRestore()
+                    : { ok: true };
+                if (persisted?.ok === false) {
+                    showToast(`Tab folder restore applied but failed to persist: ${persisted.error || 'unknown error'}`, 'error');
+                }
                 return;
             }
 
@@ -92,8 +100,13 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             workspaceState.metadata.type = 'workspace';
             const ok = dataStore.applyWorkspaceState(workspaceState);
             if (!ok) return showToast('Tab folder restore could not be applied.', 'error');
-            showToast('Tab folder restored!', 'success');
-            setTimeout(() => location.reload(), 500);
+            showToast('Tab folder restored! Saving...', 'success');
+            const persisted = typeof ns.persistAndReloadAfterRestore === 'function'
+                ? await ns.persistAndReloadAfterRestore()
+                : { ok: true };
+            if (persisted?.ok === false) {
+                showToast(`Tab folder restore applied but failed to persist: ${persisted.error || 'unknown error'}`, 'error');
+            }
         } catch (error) {
             console.error('[DataTransfer] Workspace restore failed:', error);
             if (error?.name === 'AbortError') return showToast('Tab folder restore canceled.', 'info');
@@ -117,30 +130,24 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             const stateRoot = await ns.getDirectoryHandleIfExists(rootHandle, 'state');
             const directCardState = stateRoot ? await ns.readJsonFileIfExists(stateRoot, 'card-state.json') : null;
             if (directCardState?.metadata?.type === 'card') {
-                // Ensure we honor the selected workspace/category even for direct state files
-                const targetWorkspaceId = selectedWorkspaceId;
-                const targetCategoryName = selectedCategoryName || directCardState.metadata.categoryName || 'Unsorted';
-                
-                directCardState.metadata.workspaceId = targetWorkspaceId;
-                directCardState.metadata.categoryName = targetCategoryName;
-                
-                if (Array.isArray(directCardState.bookmarks?.links)) {
-                    directCardState.bookmarks.links.forEach(l => {
-                        l.workspace = targetWorkspaceId;
-                        l.category = targetCategoryName;
-                    });
-                }
-                if (Array.isArray(directCardState.library?.connections)) {
-                    directCardState.library.connections.forEach(c => {
-                        c.workspace = targetWorkspaceId;
-                        c.categoryName = targetCategoryName;
-                    });
-                }
-                
-                const ok = dataStore.applyCardState(directCardState);
+                const remappedState = typeof ns.remapCardStateForRestore === 'function'
+                    ? ns.remapCardStateForRestore(directCardState, {
+                        workspaceId: selectedWorkspaceId,
+                        categoryName: selectedCategoryName,
+                        createUniqueCategory: true
+                    })
+                    : directCardState;
+                const ok = dataStore.applyCardState(remappedState);
                 if (!ok) return showToast('Card folder restore could not be applied.', 'error');
-                showToast('Card folder restored!', 'success');
-                setTimeout(() => location.reload(), 500);
+                showToast('Card folder restored! Saving...', 'success');
+                const persisted = typeof ns.persistAndReloadAfterRestore === 'function'
+                    ? await ns.persistAndReloadAfterRestore({
+                        reloadUrl: window.location.pathname + '?ws=' + encodeURIComponent(remappedState?.metadata?.workspaceId || selectedWorkspaceId)
+                    })
+                    : { ok: true };
+                if (persisted?.ok === false) {
+                    showToast(`Card folder restore applied but failed to persist: ${persisted.error || 'unknown error'}`, 'error');
+                }
                 return;
             }
 
@@ -191,11 +198,15 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             
             const ok = dataStore.applyCardState(cardState);
             if (!ok) return showToast('Card folder restore could not be applied.', 'error');
-            showToast(`Card "${finalCategoryName}" restored! Syncing...`, 'success');
-            // Use a longer delay and a direct URL refresh to ensure workspace persistence
-            setTimeout(() => { 
-                window.location.href = window.location.pathname + '?ws=' + encodeURIComponent(chosen.workspaceId);
-            }, 1200);
+            showToast(`Card "${finalCategoryName}" restored! Saving...`, 'success');
+            const persisted = typeof ns.persistAndReloadAfterRestore === 'function'
+                ? await ns.persistAndReloadAfterRestore({
+                    reloadUrl: window.location.pathname + '?ws=' + encodeURIComponent(chosen.workspaceId)
+                })
+                : { ok: true };
+            if (persisted?.ok === false) {
+                showToast(`Card folder restore applied but failed to persist: ${persisted.error || 'unknown error'}`, 'error');
+            }
         } catch (error) {
             console.error('[DataTransfer] Card restore failed:', error);
             if (error?.name === 'AbortError') return showToast('Card folder restore canceled.', 'info');
@@ -211,17 +222,22 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         try {
             const rootHandle = await pickDirectory({ mode: 'read' });
             if (!(await confirmDialog('Restore folder subtree from selected folder? (Overwrites the matching folder subtree)'))) return;
-            
+            const appConfig = typeof ns.getAppConfig === 'function' ? ns.getAppConfig() : {};
+            const selectedWorkspaceId = String(ns.getFolderWorkspaceSelect?.()?.value || appConfig.activeWorkspace || '').trim() || 'main';
+            const selectedCategoryName = String(ns.getFolderCategorySelect?.()?.value || '').trim() || 'Unsorted';
+            const selectedFolderId = String(ns.getFolderSelect?.()?.value || '').trim();
             const stateRoot = await ns.getDirectoryHandleIfExists(rootHandle, 'state');
             let folderState = stateRoot ? await ns.readJsonFileIfExists(stateRoot, 'folder-state.json') : null;
-            
-            if (!folderState || folderState?.metadata?.type !== 'folder') {
-                // Datapack style backup
-                const appConfig = typeof ns.getAppConfig === 'function' ? ns.getAppConfig() : {};
-                const selectedWorkspaceId = String(ns.getFolderWorkspaceSelect?.()?.value || appConfig.activeWorkspace || '').trim() || 'main';
-                const selectedCategoryName = String(ns.getFolderCategorySelect?.()?.value || '').trim() || 'Unsorted';
-                const selectedFolderId = String(ns.getFolderSelect?.()?.value || '').trim();
-                
+
+            if (folderState?.metadata?.type === 'folder') {
+                folderState = typeof ns.remapFolderStateForRestore === 'function'
+                    ? ns.remapFolderStateForRestore(folderState, {
+                        workspaceId: selectedWorkspaceId,
+                        categoryName: selectedCategoryName,
+                        folderId: selectedFolderId
+                    })
+                    : folderState;
+            } else {
                 const card = await ns.parseCardFolderHandle(rootHandle, { 
                     workspaceId: selectedWorkspaceId, 
                     categoryName: selectedCategoryName 
@@ -238,34 +254,30 @@ window.EveDataTransfer = window.EveDataTransfer || {};
                     config: { activeWorkspace: card.workspaceId },
                     activeWorkspace: card.workspaceId
                 });
-
-                // If user selected a specific target folder in UI, we use that as the anchor.
-                // Otherwise, we take the first top-level folder found in the backup.
-                const targetFolderId = selectedFolderId || card.folderTree.nodes.find(n => !n.parentId)?.id || card.folderTree.nodes[0].id;
-                
-                // CRITICAL: Filter links to ONLY those within the target subtree to prevent bleeding to root
-                const subtreeIds = new Set([targetFolderId]);
-                let size;
-                do {
-                    size = subtreeIds.size;
-                    card.folderTree.nodes.forEach(node => {
-                        if (node.parentId && subtreeIds.has(node.parentId)) subtreeIds.add(node.id);
-                    });
-                } while (subtreeIds.size > size);
-
-                fullCardState.bookmarks.links = fullCardState.bookmarks.links.filter(l => l.folderId && subtreeIds.has(l.folderId));
-                
-                folderState = fullCardState;
-                folderState.metadata.type = 'folder';
-                folderState.metadata.folderId = targetFolderId;
-                folderState.metadata.categoryName = card.categoryName;
-                folderState.metadata.workspaceId = card.workspaceId;
+                fullCardState.metadata = {
+                    ...(fullCardState.metadata || {}),
+                    type: 'folder',
+                    categoryName: card.categoryName,
+                    workspaceId: card.workspaceId
+                };
+                folderState = typeof ns.remapFolderStateForRestore === 'function'
+                    ? ns.remapFolderStateForRestore(fullCardState, {
+                        workspaceId: selectedWorkspaceId,
+                        categoryName: selectedCategoryName,
+                        folderId: selectedFolderId
+                    })
+                    : fullCardState;
             }
 
             const ok = dataStore.applyFolderState(folderState);
             if (!ok) return showToast('Folder subtree restore could not be applied.', 'error');
-            showToast('Folder subtree restored!', 'success');
-            location.reload();
+            showToast('Folder subtree restored! Saving...', 'success');
+            const persisted = typeof ns.persistAndReloadAfterRestore === 'function'
+                ? await ns.persistAndReloadAfterRestore()
+                : { ok: true };
+            if (persisted?.ok === false) {
+                showToast(`Folder subtree restore applied but failed to persist: ${persisted.error || 'unknown error'}`, 'error');
+            }
         } catch (error) {
             if (error?.name === 'AbortError') return showToast('Folder subtree restore canceled.', 'info');
             showToast(`Folder subtree restore failed: ${error.message || error}`, 'error');
