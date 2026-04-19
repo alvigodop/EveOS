@@ -14,6 +14,20 @@ async function waitForApp(page) {
     await page.waitForTimeout(1500);
 }
 
+async function waitForIndexedDbKeys(page, requiredKeys, timeoutMs = 30000) {
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < timeoutMs) {
+        const ready = await page.evaluate(async (keys) => {
+            if (!window.IDBStore || typeof window.IDBStore.get !== 'function') return false;
+            const values = await Promise.all(keys.map((key) => window.IDBStore.get(key)));
+            return values.every((value) => value !== undefined);
+        }, requiredKeys);
+        if (ready) return;
+        await page.waitForTimeout(200);
+    }
+    throw new Error(`Timed out waiting for IndexedDB keys: ${JSON.stringify(requiredKeys)}`);
+}
+
 async function runIndexedDbScenario(browser) {
     const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
     const page = await context.newPage();
@@ -71,19 +85,14 @@ async function runIndexedDbScenario(browser) {
         saveNotes();
     });
 
-    await page.waitForFunction(async () => {
-        const keys = [
-            'core_eveV22Data',
-            'core_eveV22BookmarkFolders',
-            'core_eveV22QuickPins',
-            'core_eveV22ConstellationDetached',
-            'core_eveV22Config',
-            'core_eveV22Notes'
-        ];
-        if (!window.IDBStore || typeof window.IDBStore.get !== 'function') return false;
-        const results = await Promise.all(keys.map((key) => window.IDBStore.get(key)));
-        return results.every((value) => value !== undefined);
-    }, undefined, { timeout: 30000 });
+    await waitForIndexedDbKeys(page, [
+        'core_eveV22Data',
+        'core_eveV22BookmarkFolders',
+        'core_eveV22QuickPins',
+        'core_eveV22ConstellationDetached',
+        'core_eveV22Config',
+        'core_eveV22Notes'
+    ]);
 
     const beforeReload = await page.evaluate(async () => {
         const snapshotSaved = await window.EveChronosEngine.captureSnapshot();

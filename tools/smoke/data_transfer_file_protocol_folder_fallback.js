@@ -227,6 +227,21 @@ async function main() {
     const { context, metrics } = createContext();
 
     vm.runInContext(
+        readModule('js/modules/features/data-transfer/data-transfer.shared.core.js'),
+        context,
+        { filename: 'js/modules/features/data-transfer/data-transfer.shared.core.js' }
+    );
+    vm.runInContext(
+        readModule('js/modules/features/data-transfer/data-transfer.shared.restore.js'),
+        context,
+        { filename: 'js/modules/features/data-transfer/data-transfer.shared.restore.js' }
+    );
+    vm.runInContext(
+        readModule('js/modules/features/data-transfer/data-transfer.shared.remap.js'),
+        context,
+        { filename: 'js/modules/features/data-transfer/data-transfer.shared.remap.js' }
+    );
+    vm.runInContext(
         readModule('js/modules/features/data-transfer/data-transfer.shared.js'),
         context,
         { filename: 'js/modules/features/data-transfer/data-transfer.shared.js' }

@@ -192,6 +192,9 @@ function createContext() {
 async function main() {
     const context = createContext();
     [
+        'js/modules/features/data-transfer/data-transfer.shared.core.js',
+        'js/modules/features/data-transfer/data-transfer.shared.restore.js',
+        'js/modules/features/data-transfer/data-transfer.shared.remap.js',
         'js/modules/features/data-transfer/data-transfer.shared.js',
         'js/modules/features/data-transfer/data-transfer.export.naming.js',
         'js/modules/features/data-transfer/data-transfer.export.library.js',
