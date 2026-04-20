@@ -27,6 +27,7 @@
             setText('#searchStatus', 'Ready');
             setText('#wikisSearched', '0');
             setText('#resultsFound', '0');
+            setText('#nexusTrace', '—');
         }
         const query = document.getElementById('search')?.value || '';
         if (typeof window.openExpandedSearchModal === 'function') {
@@ -38,6 +39,17 @@
             return true;
         }
         return false;
+    }
+
+    function ensureTraceRow(indicator) {
+        if (!indicator) return;
+        const expanded = indicator.querySelector('.expanded-content');
+        if (!expanded || expanded.querySelector('#nexusTraceRow')) return;
+        const row = document.createElement('div');
+        row.className = 'stats-row';
+        row.id = 'nexusTraceRow';
+        row.innerHTML = '<span class="stats-label" id="nexusTraceLabel">Trace:</span><span class="stats-value" id="nexusTrace">—</span>';
+        expanded.appendChild(row);
     }
 
     function ensureNexusLauncher(indicator) {
@@ -158,6 +170,7 @@
         indicator.tabIndex = indicator.tabIndex >= 0 ? indicator.tabIndex : 0;
         indicator.setAttribute('role', 'button');
         indicator.setAttribute('aria-label', 'Toggle Search Monitor');
+        ensureTraceRow(indicator);
         ensureNexusLauncher(indicator);
 
         indicator.addEventListener('click', handleToggle);
@@ -189,9 +202,49 @@
     window.SearchMonitorBoot = {
         bind,
         handleToggle,
+        _nexusSessions: [],
+        recordNexusTrace: function (trace) {
+            const indicator = getIndicator();
+            if (!indicator || !trace?.id) return;
+            ensureTraceRow(indicator);
+            const summary = trace.summary
+                || ('total ' + Number(trace.totalMs || 0) + 'ms');
+            const textNode = indicator.querySelector('#nexusTrace');
+            if (textNode) textNode.textContent = trace.id + ' · ' + summary;
+            indicator.dataset.lastNexusTraceId = String(trace.id);
+
+            const sessions = window.SearchMonitorBoot._nexusSessions || [];
+            sessions.unshift(trace);
+            window.SearchMonitorBoot._nexusSessions = sessions.slice(0, 20);
+        },
+        getLatestNexusTrace: function () {
+            return (window.SearchMonitorBoot._nexusSessions || [])[0] || null;
+        },
+        showNexusTrace: function (traceId) {
+            const indicator = getIndicator();
+            if (!indicator) return;
+            ensureTraceRow(indicator);
+            const sessions = window.SearchMonitorBoot._nexusSessions || [];
+            const targetTrace = sessions.find(function (trace) {
+                return String(trace?.id || '') === String(traceId || '');
+            }) || sessions[0];
+            if (targetTrace) {
+                const textNode = indicator.querySelector('#nexusTrace');
+                if (textNode) {
+                    const summary = targetTrace.summary || ('total ' + Number(targetTrace.totalMs || 0) + 'ms');
+                    textNode.textContent = targetTrace.id + ' · ' + summary;
+                }
+            }
+            if (window.LoadingIndicator && typeof window.LoadingIndicator.expand === 'function') {
+                window.LoadingIndicator.expand();
+                return;
+            }
+            expandFallback(indicator);
+        },
         expand: function () {
             const indicator = getIndicator();
             if (!indicator) return;
+            ensureTraceRow(indicator);
             if (window.LoadingIndicator && typeof window.LoadingIndicator.expand === 'function') {
                 window.LoadingIndicator.expand();
                 return;

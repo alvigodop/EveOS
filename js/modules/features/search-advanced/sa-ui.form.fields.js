@@ -48,8 +48,14 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
                 num: byId('esNum')?.value || '10',
                 exactTerms: getFieldValue('esExactTerms'),
                 excludeTerms: getFieldValue('esExcludeTerms'),
+                resultsMode: collectResultsMode(),
                 activeVectors: collectVectorStates()
             };
+        }
+
+        function collectResultsMode() {
+            const activeButton = document.querySelector('.nx-mode-btn.nx-mode-btn-active[data-results-mode]');
+            return activeButton?.getAttribute('data-results-mode') || 'segmented';
         }
 
         function collectVectorStates() {
@@ -64,6 +70,31 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
                 return { google: true, knowledge: true, cachedResults: true, bookmarks: true };
             }
             return vectors;
+        }
+
+        function applyResultsMode(mode) {
+            const normalizedMode = mode === 'merged' ? 'merged' : 'segmented';
+            document.querySelectorAll('.nx-mode-btn[data-results-mode]').forEach(function (button) {
+                button.classList.toggle('nx-mode-btn-active', button.getAttribute('data-results-mode') === normalizedMode);
+            });
+        }
+
+        function initResultsModeToggle() {
+            document.querySelectorAll('.nx-mode-btn[data-results-mode]').forEach(function (button) {
+                button.addEventListener('click', function () {
+                    const mode = button.getAttribute('data-results-mode') || 'segmented';
+                    applyResultsMode(mode);
+                    if (window.EveOS?.SearchAdvanced?.State?.updateSettings) {
+                        window.EveOS.SearchAdvanced.State.updateSettings({ resultsMode: mode });
+                    }
+                    const results = byId('esResults');
+                    const lastSearchResult = results?._nxLastSearchResult;
+                    const renderVectorResults = window.EveOS?.SearchAdvanced?.Modules?.renderVectorResults;
+                    if (results && lastSearchResult && typeof renderVectorResults === 'function') {
+                        renderVectorResults(Object.assign({}, lastSearchResult, { mode: mode }), results);
+                    }
+                });
+            });
         }
 
         function initVectorToggles() {
@@ -119,6 +150,8 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
                     if (searchBtn) searchBtn.click();
                 });
             }
+
+            initResultsModeToggle();
         }
 
         function applyVectorStates(vectors) {
@@ -148,6 +181,7 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
             if (byId('esExcludeTerms')) byId('esExcludeTerms').value = current.excludeTerms || '';
             if (byId('esQuery') && typeof query === 'string') byId('esQuery').value = query;
             applyVectorStates(current.activeVectors);
+            applyResultsMode(current.resultsMode || 'segmented');
         }
 
         function resetFilters() {
@@ -165,23 +199,27 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
         }
 
         async function updateFooterStats() {
-            const Agg = window.EveOS.SearchAdvanced?.CacheAggregator;
-            if (!Agg) return;
             try {
-                const data = await Agg.aggregateAllCaches();
-                const stats = data.stats;
+                const indexApi = window.EveOS.SearchAdvanced?.Index;
+                const Agg = window.EveOS.SearchAdvanced?.CacheAggregator;
+                const snapshot = indexApi?.ensureFresh ? await indexApi.ensureFresh() : null;
+                const stats = snapshot?.stats || (Agg ? (await Agg.aggregateAllCaches()).stats : null);
+                if (!stats) return;
                 const entryEl = byId('nxStatEntries');
                 const provEl = byId('nxStatProviders');
                 const cardEl = byId('nxStatCards');
                 const vecEl = byId('nxStatVectors');
-                if (entryEl) entryEl.textContent = String(stats.totalEntries || 0) + ' entries';
-                if (provEl) provEl.textContent = String(stats.totalProviders || 0) + ' providers';
-                if (cardEl) cardEl.textContent = String(stats.cardCount || 0) + ' cards';
+                const entryCount = stats.totalRecords ?? stats.totalEntries ?? 0;
+                const providerCount = stats.providerCount ?? stats.totalProviders ?? 0;
+                const cardCount = stats.cardCount ?? 0;
+                if (entryEl) entryEl.textContent = String(entryCount) + ' indexed';
+                if (provEl) provEl.textContent = String(providerCount) + ' providers';
+                if (cardEl) cardEl.textContent = String(cardCount) + ' cards';
                 const activeVectors = document.querySelectorAll('.nx-vector-slot.nx-active').length;
                 if (vecEl) vecEl.textContent = String(activeVectors) + ' active';
 
                 // Orphan detection
-                if (typeof Agg.detectOrphanedLinks === 'function') {
+                if (Agg && typeof Agg.detectOrphanedLinks === 'function') {
                     const orphanReport = Agg.detectOrphanedLinks();
                     updateOrphanBanner(orphanReport);
                 }
@@ -297,9 +335,12 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
             applySettingsToForm,
             resetFilters,
             initVectorToggles,
+            applyResultsMode,
+            collectResultsMode,
             applyVectorStates,
             collectVectorStates,
-            updateFooterStats
+            updateFooterStats,
+            renderOrphanList
         };
     };
 })();

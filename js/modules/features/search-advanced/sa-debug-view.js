@@ -105,6 +105,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     }
 
     function collectPerformanceInfo() {
+        const indexStats = window.EveOS?.SearchAdvanced?.Index?.getStats?.() || {};
         return {
             perfMode: !!window._evePerfMode,
             masonryDisabled: !!window._evePerfMode,
@@ -115,7 +116,10 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             linkItemCap: window._evePerfMode ? 50 : 'unlimited',
             memoryUsage: (performance?.memory?.usedJSHeapSize)
                 ? (performance.memory.usedJSHeapSize / 1048576).toFixed(1) + ' MB'
-                : 'N/A'
+                : 'N/A',
+            nexusIndexedRecords: indexStats.totalRecords || 0,
+            nexusIndexedCards: indexStats.cardCount || 0,
+            nexusIndexedProviders: indexStats.providerCount || 0
         };
     }
 
@@ -159,6 +163,9 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         html += '<tr><td>Folder Cache Entries</td><td>' + overview.folderViewCacheSize + '</td></tr>';
         html += '<tr><td>Link Render Cap</td><td>' + perf.linkItemCap + '</td></tr>';
         html += '<tr><td>JS Heap</td><td>' + perf.memoryUsage + '</td></tr>';
+        html += '<tr><td>Nexus Indexed Records</td><td>' + perf.nexusIndexedRecords + '</td></tr>';
+        html += '<tr><td>Nexus Indexed Cards</td><td>' + perf.nexusIndexedCards + '</td></tr>';
+        html += '<tr><td>Nexus Indexed Providers</td><td>' + perf.nexusIndexedProviders + '</td></tr>';
         html += '</table></div>';
 
         // Workspace Breakdown
@@ -182,6 +189,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         html += '<button type="button" class="nx-debug-action-btn" id="nxDebugClearFolderCache">Clear Folder Cache</button>';
         html += '<button type="button" class="nx-debug-action-btn" id="nxDebugForceRender">Force Re-render</button>';
         html += '<button type="button" class="nx-debug-action-btn" id="nxDebugResetLoading">Reset Loading State</button>';
+        html += '<button type="button" class="nx-debug-action-btn" id="nxDebugReindexNexus">Reindex Nexus</button>';
         html += '<button type="button" class="nx-debug-action-btn" id="nxDebugRefreshDiag">Refresh Diagnostics</button>';
         html += '</div></div>';
 
@@ -233,6 +241,15 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         var refreshBtn = document.getElementById('nxDebugRefreshDiag');
         if (refreshBtn) {
             refreshBtn.onclick = function () { renderDebugPanel(container); };
+        }
+
+        var reindexBtn = document.getElementById('nxDebugReindexNexus');
+        if (reindexBtn) {
+            reindexBtn.onclick = async function () {
+                await window.EveOS?.SearchAdvanced?.Index?.rebuild?.({ reason: 'debug-panel', force: true });
+                if (typeof showToast === 'function') showToast('Nexus index rebuilt', 'info');
+                renderDebugPanel(container);
+            };
         }
     }
 

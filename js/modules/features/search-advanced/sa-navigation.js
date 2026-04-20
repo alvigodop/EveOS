@@ -59,6 +59,18 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         return true;
     }
 
+    function openCard(result) {
+        const path = result?.path;
+        if (!path?.workspaceId || !path?.categoryName) return false;
+        ensureGridMode();
+        return scrollFolderIntoView({
+            workspaceId: path.workspaceId,
+            categoryName: path.categoryName,
+            folderId: '',
+            linkId: ''
+        });
+    }
+
     function openInUnidex(result) {
         const path = result?.path;
         if (!path?.workspaceId) return false;
@@ -125,11 +137,36 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         return lines;
     }
 
+    function describeVisibility(result) {
+        const lines = [];
+        const visibility = result?.visibility;
+        const health = result?.health;
+        const freshness = result?.freshness;
+
+        if (visibility?.label) lines.push('Visibility: ' + visibility.label);
+        if (Array.isArray(visibility?.reasons)) {
+            visibility.reasons.forEach(function (reason) {
+                if (reason) lines.push(reason);
+            });
+        }
+        if (health?.label) lines.push('Health: ' + health.label);
+        if (Array.isArray(health?.reasons)) {
+            health.reasons.forEach(function (reason) {
+                if (reason && !(visibility?.reasons || []).includes(reason)) lines.push(reason);
+            });
+        }
+        if (freshness?.label) lines.push('Freshness: ' + freshness.label);
+
+        return lines;
+    }
+
     ns.Navigation = {
         goToPath,
+        openCard,
         openInUnidex,
         focusBookmark,
         describePath,
-        describeProvenance
+        describeProvenance,
+        describeVisibility
     };
 })();

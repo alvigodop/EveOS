@@ -16,6 +16,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         num: '10',
         exactTerms: '',
         excludeTerms: '',
+        resultsMode: 'segmented',
         activeVectors: {
             google: true,
             knowledge: true,

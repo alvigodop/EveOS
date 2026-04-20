@@ -207,6 +207,10 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
                 <div class="nx-results-header">
                     <span class="nx-results-title">RESULTS</span>
                     <span class="nx-scope-indicator" id="esScopeIndicator" style="display:none"></span>
+                    <div class="nx-results-mode" id="nxResultsModeToggle" role="group" aria-label="Result display mode">
+                        <button type="button" class="nx-mode-btn nx-mode-btn-active" data-results-mode="segmented">Segmented</button>
+                        <button type="button" class="nx-mode-btn" data-results-mode="merged">Merged</button>
+                    </div>
                     <div class="nx-inline-search" id="nxInlineSearch">
                         <input type="text" id="nxInlineQuery" class="nx-inline-query" placeholder="Search...">
                         <button type="button" class="nx-inline-search-btn" id="nxInlineSearchBtn">⚔</button>

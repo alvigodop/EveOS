@@ -8,6 +8,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/search-advanced/sa-state.js?v=0.3.0",
     "js/modules/features/search-advanced/sa-api.js",
     "js/modules/features/search-advanced/sa-locators.js?v=0.1.0",
+    "js/modules/features/search-advanced/sa-index.js?v=0.1.0",
     "js/modules/features/search-advanced/sa-cache-aggregator.js?v=0.2.0",
     "js/modules/features/search-advanced/sa-search-vectors.js?v=0.2.0",
     "js/modules/features/search-advanced/sa-navigation.js?v=0.1.0",

@@ -67,8 +67,16 @@ window.LoadingIndicatorModules = window.LoadingIndicatorModules || {};
                     <div class="stats-row"><span class="stats-label" id="searchStatusLabel">Status:</span><span class="stats-value" id="searchStatus">Idle</span></div>
                     <div class="stats-row"><span class="stats-label" id="wikisSearchedLabel">Wikis Searched:</span><span class="stats-value" id="wikisSearched">0/0</span></div>
                     <div class="stats-row"><span class="stats-label" id="resultsFoundLabel">Results Found:</span><span class="stats-value" id="resultsFound">0</span></div>
+                    <div class="stats-row" id="nexusTraceRow"><span class="stats-label" id="nexusTraceLabel">Trace:</span><span class="stats-value" id="nexusTrace">—</span></div>
                 `;
                 content.appendChild(expanded);
+            } else if (!indicator.querySelector('#nexusTraceRow')) {
+                const expanded = indicator.querySelector('.expanded-content');
+                const traceRow = document.createElement('div');
+                traceRow.className = 'stats-row';
+                traceRow.id = 'nexusTraceRow';
+                traceRow.innerHTML = '<span class="stats-label" id="nexusTraceLabel">Trace:</span><span class="stats-value" id="nexusTrace">—</span>';
+                expanded.appendChild(traceRow);
             }
         }
 
@@ -113,6 +121,10 @@ window.LoadingIndicatorModules = window.LoadingIndicatorModules || {};
                             <div class="stats-row">
                                 <span class="stats-label" id="resultsFoundLabel">Results Found:</span>
                                 <span class="stats-value" id="resultsFound">0</span>
+                            </div>
+                            <div class="stats-row" id="nexusTraceRow">
+                                <span class="stats-label" id="nexusTraceLabel">Trace:</span>
+                                <span class="stats-value" id="nexusTrace">—</span>
                             </div>
                         </div>
                     </div>
