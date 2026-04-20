@@ -12,7 +12,7 @@ html[data-native-scheme="light"] {
 }
 
 #dock-container {
-    margin: 0 auto 30px auto;
+    margin: 0 auto;
     background: var(--dock-bg);
     border: 1px solid var(--border);
     border-radius: 16px;
@@ -21,12 +21,20 @@ html[data-native-scheme="light"] {
     flex-wrap: wrap;
     gap: 15px;
     justify-content: center;
+    box-sizing: border-box;
+    width: min(90%, 1440px);
+    flex: 0 0 auto;
     min-height: 60px;
-    max-width: 90%;
+    position: relative;
+    z-index: 2;
 }
 
 #dock-container.hidden {
     display: none;
+}
+
+#dock-container:not(.hidden) + #dashboard-grid {
+    margin-top: 30px;
 }
 
 .dock-item {

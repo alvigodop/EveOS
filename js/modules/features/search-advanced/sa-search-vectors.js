@@ -33,9 +33,20 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         if (!Agg) return [];
         try {
             const aggregated = await Agg.aggregateAllCaches(scope);
-            return Agg.searchAcrossCards(query, aggregated);
+            return Agg.searchAcrossCards(query, aggregated, scope);
         } catch (err) {
             console.warn('[NexusSearch] Cache search error:', err);
+            return [];
+        }
+    }
+
+    async function runKnowledgeVector(query, scope) {
+        const Locators = ns.Locators;
+        if (!Locators?.searchKnowledgeSources) return [];
+        try {
+            return await Locators.searchKnowledgeSources(query, scope);
+        } catch (err) {
+            console.warn('[NexusSearch] Knowledge search error:', err);
             return [];
         }
     }
@@ -57,6 +68,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
 
         const vectors = settings?.activeVectors || {
             google: true,
+            knowledge: true,
             cachedResults: true,
             bookmarks: true
         };
@@ -67,6 +79,11 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         if (vectors.google && settings?.apiKey && settings?.cx) {
             promises.push(runGoogleVector(q, settings));
             vectorLabels.push('google');
+        }
+
+        if (vectors.knowledge) {
+            promises.push(runKnowledgeVector(q, scope));
+            vectorLabels.push('knowledge');
         }
 
         if (vectors.cachedResults) {
@@ -93,8 +110,19 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             }
         });
 
-        // Sort: Google first (score 5), then by individual score
-        allResults.sort(function (a, b) { return (b.score || 0) - (a.score || 0); });
+        const typePriority = {
+            bookmark: 400,
+            knowledge: 360,
+            cached: 320,
+            google: 120
+        };
+        allResults.sort(function (left, right) {
+            const leftRank = Number(typePriority[left?.type] || 0) + (Number(left?.score || 0) * 10);
+            const rightRank = Number(typePriority[right?.type] || 0) + (Number(right?.score || 0) * 10);
+            return rightRank - leftRank
+                || Number(right?.updatedAt || 0) - Number(left?.updatedAt || 0)
+                || String(left?.title || '').localeCompare(String(right?.title || ''));
+        });
 
         return {
             results: allResults,
@@ -108,6 +136,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     ns.SearchVectors = {
         runMultiVectorSearch,
         runGoogleVector,
+        runKnowledgeVector,
         runCacheVector,
         runBookmarkVector
     };

@@ -45,6 +45,31 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         return { workspaceId: activeWorkspace };
     }
 
+    function syncSearchMonitor(state) {
+        const indicator = document.getElementById('loadingIndicator');
+        if (!indicator || indicator.classList.contains('compact')) return;
+
+        const setText = function (selector, value) {
+            const node = indicator.querySelector(selector);
+            if (node) node.textContent = String(value || '');
+        };
+
+        indicator.classList.toggle('searching', !!state?.isSearching);
+        indicator.classList.remove('error');
+        setText('#searchStatusLabel', 'Nexus:');
+        setText('#wikisSearchedLabel', 'Vectors:');
+        setText('#resultsFoundLabel', 'Results:');
+        setText('.status-text', state?.statusText || 'Nexus Search');
+        setText('#searchStatus', state?.scopeLabel || 'Scoped');
+        setText('#wikisSearched', state?.vectorStatus || '0');
+        setText('#resultsFound', state?.resultsFound || '0');
+
+        const dot = indicator.querySelector('.dot');
+        if (dot) {
+            dot.style.background = state?.isSearching ? '#6ee7ff' : '#9fd7e6';
+        }
+    }
+
     async function runSearch() {
         const ui = getUiHelpers();
         const query = (byId('esQuery')?.value || '').trim();
@@ -64,11 +89,21 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             // Update scope indicator in the UI
             const Agg = window.EveOS.SearchAdvanced.CacheAggregator;
             const scopeLabel = Agg?.describeScopeLabel ? Agg.describeScopeLabel(scope) : 'Scoped';
+            const activeVectorCount = Object.keys(settings.activeVectors || {}).filter(function (key) {
+                return !!settings.activeVectors[key];
+            }).length;
             const scopeIndicator = byId('esScopeIndicator');
             if (scopeIndicator) {
                 scopeIndicator.textContent = 'Scope: ' + scopeLabel;
                 scopeIndicator.style.display = '';
             }
+            syncSearchMonitor({
+                isSearching: true,
+                statusText: 'Nexus search running',
+                scopeLabel: scopeLabel,
+                vectorStatus: '0/' + activeVectorCount,
+                resultsFound: '0'
+            });
 
             const SearchVectors = window.EveOS.SearchAdvanced.SearchVectors;
             if (SearchVectors && typeof SearchVectors.runMultiVectorSearch === 'function') {
@@ -90,10 +125,24 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 const stats = result.stats || {};
                 const total = (result.results || []).length;
                 ui.setMeta(total + ' results across ' + Object.keys(stats).filter(function (k) { return stats[k] > 0; }).length + ' vectors (' + scopeLabel + ')', false);
+                syncSearchMonitor({
+                    isSearching: false,
+                    statusText: 'Nexus ready',
+                    scopeLabel: scopeLabel,
+                    vectorStatus: Object.keys(stats).filter(function (key) { return stats[key] > 0; }).length + '/' + activeVectorCount,
+                    resultsFound: String(total)
+                });
             } else {
                 // Legacy: Google CSE only
                 const data = await Api.runSearch(query, settings);
                 ui.renderResults(data);
+                syncSearchMonitor({
+                    isSearching: false,
+                    statusText: 'Nexus ready',
+                    scopeLabel: scopeLabel,
+                    vectorStatus: '1/' + activeVectorCount,
+                    resultsFound: String(Array.isArray(data?.items) ? data.items.length : 0)
+                });
             }
 
             // Update footer stats
@@ -103,6 +152,13 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             ui.setMeta(message, true);
             const results = byId('esResults');
             if (results) results.innerHTML = '<div class="nx-empty" style="color:#ff7b7b">' + (ui.escapeHtml ? ui.escapeHtml(message) : message) + '</div>';
+            syncSearchMonitor({
+                isSearching: false,
+                statusText: 'Nexus error',
+                scopeLabel: 'Error',
+                vectorStatus: '0',
+                resultsFound: '0'
+            });
         } finally {
             ui.setLoading(false);
         }

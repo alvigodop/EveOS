@@ -13,6 +13,58 @@
         indicator.style.display = '';
     }
 
+    function openNexusSearch() {
+        const indicator = getIndicator();
+        if (indicator) {
+            const setText = function (selector, value) {
+                const node = indicator.querySelector(selector);
+                if (node) node.textContent = String(value || '');
+            };
+            setText('#searchStatusLabel', 'Nexus:');
+            setText('#wikisSearchedLabel', 'Vectors:');
+            setText('#resultsFoundLabel', 'Results:');
+            setText('.status-text', 'Nexus Search');
+            setText('#searchStatus', 'Ready');
+            setText('#wikisSearched', '0');
+            setText('#resultsFound', '0');
+        }
+        const query = document.getElementById('search')?.value || '';
+        if (typeof window.openExpandedSearchModal === 'function') {
+            window.openExpandedSearchModal({ query: query });
+            return true;
+        }
+        if (typeof window.openExpandedSearchFromMain === 'function') {
+            window.openExpandedSearchFromMain(!!String(query || '').trim());
+            return true;
+        }
+        return false;
+    }
+
+    function ensureNexusLauncher(indicator) {
+        if (!indicator || indicator.querySelector('.monitor-nexus-toggle')) return;
+        const content = indicator.querySelector('.indicator-content');
+        const title = indicator.querySelector('.indicator-title');
+        if (!content || !title) return;
+
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'monitor-nexus-toggle';
+        button.setAttribute('aria-label', 'Open Nexus Search');
+        button.title = 'Open Nexus Search';
+        button.textContent = 'Nexus';
+        button.addEventListener('click', function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+            openNexusSearch();
+        });
+
+        if (title.nextSibling) {
+            content.insertBefore(button, title.nextSibling);
+        } else {
+            content.appendChild(button);
+        }
+    }
+
     function shouldIgnoreToggleEvent(event, indicator) {
         if (!event || !indicator) return false;
         const target = event.target;
@@ -106,6 +158,7 @@
         indicator.tabIndex = indicator.tabIndex >= 0 ? indicator.tabIndex : 0;
         indicator.setAttribute('role', 'button');
         indicator.setAttribute('aria-label', 'Toggle Search Monitor');
+        ensureNexusLauncher(indicator);
 
         indicator.addEventListener('click', handleToggle);
         indicator.addEventListener('keydown', function (event) {
@@ -118,6 +171,19 @@
             event.preventDefault();
             handleToggle(event);
         });
+
+        if (!window.__nexusShortcutBound) {
+            window.__nexusShortcutBound = true;
+            document.addEventListener('keydown', function (event) {
+                const isShortcut = (event.ctrlKey || event.metaKey) && event.shiftKey && String(event.key || '').toLowerCase() === 'k';
+                if (!isShortcut) return;
+                const target = event.target;
+                const tag = target?.tagName;
+                if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable) return;
+                event.preventDefault();
+                openNexusSearch();
+            });
+        }
     }
 
     window.SearchMonitorBoot = {

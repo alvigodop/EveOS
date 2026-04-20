@@ -18,6 +18,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         excludeTerms: '',
         activeVectors: {
             google: true,
+            knowledge: true,
             cachedResults: true,
             bookmarks: true
         }

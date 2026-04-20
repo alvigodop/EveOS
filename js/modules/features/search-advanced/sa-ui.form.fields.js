@@ -61,7 +61,7 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
             });
             // Defaults if DOM not ready
             if (!Object.keys(vectors).length) {
-                return { google: true, cachedResults: true, bookmarks: true };
+                return { google: true, knowledge: true, cachedResults: true, bookmarks: true };
             }
             return vectors;
         }

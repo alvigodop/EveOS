@@ -107,20 +107,22 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         };
     }
 
-    function searchAcrossCards(query, aggregatedData) {
+    function searchAcrossCards(query, aggregatedData, scope) {
         if (!query || !aggregatedData?.entries?.length) return [];
 
         const q = String(query).trim().toLowerCase();
         if (!q) return [];
 
         const matches = [];
+        const locators = ns.Locators || null;
 
         aggregatedData.entries.forEach(function (entry) {
-            // Check if the cached query matches
             const entryQuery = String(entry.query || '').toLowerCase();
             const queryMatch = entryQuery.includes(q) || q.includes(entryQuery);
+            const path = locators?.resolveCategoryPath
+                ? locators.resolveCategoryPath(entry.categoryName, scope)
+                : null;
 
-            // Check individual results
             const results = Array.isArray(entry.results) ? entry.results : [];
             results.forEach(function (result) {
                 if (!result) return;
@@ -138,25 +140,37 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                         type: 'cached',
                         title: result.title || result.name || 'Untitled',
                         url: result.url || result.link || '',
+                        displayUrl: result.displayUrl || result.formattedUrl || result.url || result.link || '',
                         description: result.description || result.snippet || '',
                         provider: result.source || result.provider || 'unknown',
                         sourceCard: entry.categoryName,
                         sourceQuery: entry.query,
                         updatedAt: entry.updatedAt,
+                        path: path,
+                        provenance: {
+                            kind: 'cached',
+                            sourceQuery: entry.query,
+                            provider: result.source || result.provider || 'unknown',
+                            perSource: entry.perSource || {}
+                        },
                         score: (title.includes(q) ? 3 : 0)
                             + (queryMatch ? 2 : 0)
                             + (url.includes(q) ? 1 : 0)
+                            + (path?.ambiguousWorkspace ? 0 : 1)
                     });
                 }
             });
         });
 
-        // Deduplicate by URL
         const seen = new Set();
         const deduped = [];
         matches.sort(function (a, b) { return b.score - a.score; });
         matches.forEach(function (m) {
-            const key = String(m.url || m.title || '').toLowerCase();
+            const key = [
+                String(m.url || m.title || '').toLowerCase(),
+                String(m.path?.workspaceId || '').toLowerCase(),
+                String(m.sourceCard || '').toLowerCase()
+            ].join('::');
             if (!seen.has(key)) {
                 seen.add(key);
                 deduped.push(m);
@@ -172,25 +186,40 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
 
         const scopedLinks = getScopedLinks(scope);
         const matches = [];
+        const knownWorkspaces = getKnownWorkspaceIds();
+        const locators = ns.Locators || null;
 
         scopedLinks.forEach(function (link) {
             if (!link) return;
             const title = String(link.title || link.name || '').toLowerCase();
             const url = String(link.url || '').toLowerCase();
             const category = String(link.category || 'Unsorted');
+            const notes = String(link.notes || '');
+            const path = locators?.buildBookmarkPath ? locators.buildBookmarkPath(link) : null;
 
-            const isMatch = title.includes(q) || url.includes(q);
+            const isMatch = title.includes(q) || url.includes(q) || notes.toLowerCase().includes(q);
             if (isMatch) {
                 matches.push({
                     type: 'bookmark',
                     title: link.title || link.name || link.url || 'Untitled',
                     url: link.url || '',
-                    description: '',
+                    displayUrl: link.url || '',
+                    description: notes,
                     provider: 'bookmark',
                     sourceCard: category,
                     sourceQuery: '',
                     updatedAt: 0,
-                    score: (title.includes(q) ? 3 : 0) + (url.includes(q) ? 1 : 0)
+                    path: path,
+                    provenance: {
+                        kind: 'bookmark',
+                        linkId: String(link.id || '').trim(),
+                        done: !!link.done,
+                        orphaned: !knownWorkspaces.has(String(link.workspace || 'main').trim() || 'main'),
+                        tags: Array.isArray(link.tags)
+                            ? link.tags.map(function (tag) { return String(tag || '').trim(); }).filter(Boolean)
+                            : []
+                    },
+                    score: (title.includes(q) ? 3 : 0) + (url.includes(q) ? 1 : 0) + (notes.toLowerCase().includes(q) ? 1 : 0)
                 });
             }
         });

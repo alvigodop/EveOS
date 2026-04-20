@@ -48,6 +48,11 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
                             <span class="nx-vector-name">Google CSE</span>
                             <span class="nx-vector-glow"></span>
                         </button>
+                        <button type="button" class="nx-vector-slot nx-active" id="nxVectorKnowledge" data-vector="knowledge" title="Saved source graph and knowledge caches">
+                            <span class="nx-vector-icon">🧭</span>
+                            <span class="nx-vector-name">Source Graph</span>
+                            <span class="nx-vector-glow"></span>
+                        </button>
                         <button type="button" class="nx-vector-slot nx-active" id="nxVectorCache" data-vector="cachedResults" title="Cached API Results">
                             <span class="nx-vector-icon">🔮</span>
                             <span class="nx-vector-name">API Cache</span>
