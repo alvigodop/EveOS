@@ -13,6 +13,12 @@
 
     function buildGhostFolderSections(workspaceId, categoryName, safeCategoryJs) {
         if (!window.EveFolderViewV2) return '';
+        const driftCanScanLive = !window.EveSemanticDrift || typeof window.EveSemanticDrift.canScanLive !== 'function'
+            ? true
+            : window.EveSemanticDrift.canScanLive();
+        const driftDisabledNote = driftCanScanLive
+            ? ''
+            : '<div style="font-size:0.76rem; opacity:0.68;">Live drift scans are disabled on file:// to avoid CORS noise.</div>';
 
         const sections = [
             {
@@ -119,8 +125,9 @@
                         <div style="display:flex; flex-direction:column; gap:4px;">
                             <div style="font-weight:600;">Smart Ghost Folders</div>
                             <div style="font-size:0.84rem; opacity:0.76;">Toggle which auto-generated views appear inside [ System Views ].</div>
+                            ${driftDisabledNote}
                         </div>
-                        <button class="btn-primary" onclick="if(window.EveSemanticDrift) { window.EveSemanticDrift.forceRefreshScan(); }" style="font-size: 0.7rem; padding: 4px 8px;">Refresh Drift Scan</button>
+                        <button class="btn-primary" onclick="if(window.EveSemanticDrift) { window.EveSemanticDrift.forceRefreshScan(); }" ${driftCanScanLive ? '' : 'disabled title="Semantic Drift live scans are disabled on file://."'} style="font-size: 0.7rem; padding: 4px 8px; ${driftCanScanLive ? '' : 'opacity:0.55; cursor:not-allowed;'}">Refresh Drift Scan</button>
                     </div>
         `;
 

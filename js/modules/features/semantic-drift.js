@@ -29,6 +29,26 @@ window.EveSemanticDrift = window.EveSemanticDrift || {};
         console.log.apply(console, arguments);
     }
 
+    function isLocalContext() {
+        try {
+            return window.location && window.location.protocol === 'file:';
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function isHttpUrl(url) {
+        return /^https?:\/\//i.test(String(url || ''));
+    }
+
+    function canRunLiveScan() {
+        return !isLocalContext();
+    }
+
+    function canScanUrl(url) {
+        return canRunLiveScan() && isHttpUrl(url);
+    }
+
     function noteUserInteraction() {
         lastUserInteractionAt = Date.now();
     }
@@ -107,6 +127,7 @@ window.EveSemanticDrift = window.EveSemanticDrift || {};
 
     async function checkLink(link) {
         if (!link || !link.url || link.url.startsWith('javascript:') || link.url === '#') return;
+        if (!canScanUrl(link.url)) return;
 
         const cache = getCache();
         if (cache[link.url] && isFresh(cache[link.url])) {
@@ -219,6 +240,7 @@ window.EveSemanticDrift = window.EveSemanticDrift || {};
         const cache = getCache();
         return links.filter((link) => {
             if (!link || !link.url || link.url.startsWith('javascript:') || link.url === '#') return false;
+            if (!canScanUrl(link.url)) return false;
             if (forceRefresh) return true;
             return !(cache[link.url] && isFresh(cache[link.url]));
         });
@@ -262,6 +284,10 @@ window.EveSemanticDrift = window.EveSemanticDrift || {};
 
     ns.startEngine = function() {
         if (engineScheduled || engineRunning) return;
+        if (!canRunLiveScan()) {
+            debugLog('[SemanticDrift] Live scans disabled for file:// context.');
+            return;
+        }
         engineScheduled = true;
 
         setTimeout(() => {
@@ -273,6 +299,12 @@ window.EveSemanticDrift = window.EveSemanticDrift || {};
     };
 
     ns.forceRefreshScan = function() {
+        if (!canRunLiveScan()) {
+            if (typeof showToast === 'function') {
+                showToast('Semantic Drift live scans are disabled in file:// mode.', 'info');
+            }
+            return;
+        }
         driftCache = {};
         engineScheduled = false;
         try {
@@ -288,6 +320,10 @@ window.EveSemanticDrift = window.EveSemanticDrift || {};
     ns.getHealthInfo = function(url) {
         const cache = getCache();
         return cache[url] || null;
+    };
+
+    ns.canScanLive = function() {
+        return canRunLiveScan();
     };
 
     // Auto-start on load if EveOS is ready
