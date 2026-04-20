@@ -6,7 +6,8 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     const shared = ns.IndexShared;
     const sources = ns.IndexRecordBuildersSources;
     const runtimeIntegrity = ns.IndexRuntimeIntegrity;
-    if (!shared || !sources || !runtimeIntegrity) return;
+    const runtimeSummary = ns.IndexRuntimeSummary;
+    if (!shared || !sources || !runtimeIntegrity || !runtimeSummary) return;
 
     const {
         STORAGE_KEY,
@@ -27,6 +28,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         computeHealth,
         buildIntegrityReportSync
     } = runtimeIntegrity;
+    const { buildStructureSummary } = runtimeSummary;
 
     async function loadPersistedSnapshot() {
         if (state.loaded) return state.snapshot;
@@ -373,6 +375,28 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         return state.snapshot || null;
     }
 
+    function getStructureSummary() {
+        return buildStructureSummary(state.snapshot);
+    }
+
+    function getWorkspaceSummary(workspaceId) {
+        const key = text(workspaceId, '');
+        if (!key) return null;
+        return getStructureSummary().workspaces[key] || null;
+    }
+
+    function getCardSummary(workspaceId, categoryName) {
+        const key = text(workspaceId, '') + '::' + text(categoryName, '');
+        if (!key || key === '::') return null;
+        return getStructureSummary().cards[key] || null;
+    }
+
+    function getGroupSummary(groupId) {
+        const key = text(groupId, '');
+        if (!key) return null;
+        return getStructureSummary().groups[key] || null;
+    }
+
     window.addEventListener('eve:state-mutated', function (event) {
         markDirty(event?.detail?.source || 'state-mutated');
     });
@@ -389,6 +413,10 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         search,
         getStats,
         getSnapshot,
+        getStructureSummary,
+        getWorkspaceSummary,
+        getCardSummary,
+        getGroupSummary,
         getIntegrityReport,
         buildGraphProjection,
         markDirty,

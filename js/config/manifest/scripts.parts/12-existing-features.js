@@ -12,6 +12,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/search-advanced/sa-index.records.local.js?v=0.1.0",
     "js/modules/features/search-advanced/sa-index.records.sources.js?v=0.1.0",
     "js/modules/features/search-advanced/sa-index.runtime.integrity.js?v=0.1.0",
+    "js/modules/features/search-advanced/sa-index.runtime.summary.js?v=0.1.0",
     "js/modules/features/search-advanced/sa-index.js?v=0.3.0",
     "js/modules/features/search-advanced/sa-cache-aggregator.js?v=0.2.0",
     "js/modules/features/search-advanced/sa-search-vectors.js?v=0.2.0",

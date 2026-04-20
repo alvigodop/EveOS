@@ -12,6 +12,33 @@ window.DashboardCategories = window.DashboardCategories || {};
         isCardBookmarkProgressiveRevealEnabled,
         buildFolderSectionsHtml
     } = api;
+    var cardSummaryWarmPromise = null;
+
+    function queueCardSummaryWarmup() {
+        var indexApi = window.EveOS?.SearchAdvanced?.Index;
+        if (!indexApi || typeof indexApi.ensureFresh !== 'function') return;
+        if (cardSummaryWarmPromise) return;
+
+        cardSummaryWarmPromise = Promise.resolve(indexApi.ensureFresh({ reason: 'dashboard-card-summary' }))
+            .then(function () {
+                if (typeof renderDashboard === 'function') renderDashboard();
+            })
+            .catch(function () {
+                // Ignore warmup failures and render without datapack summary chips.
+            })
+            .finally(function () {
+                cardSummaryWarmPromise = null;
+            });
+    }
+
+    function getCardDatapackSummary(workspaceId, categoryName) {
+        var indexApi = window.EveOS?.SearchAdvanced?.Index;
+        if (!indexApi || typeof indexApi.getCardSummary !== 'function') return null;
+        var summary = indexApi.getCardSummary(workspaceId, categoryName);
+        if (summary) return summary;
+        queueCardSummaryWarmup();
+        return null;
+    }
 
     function renderCardFull(catInput, catLinks, gridContainer, configOptions) {
         var options = configOptions || {};
@@ -69,6 +96,8 @@ window.DashboardCategories = window.DashboardCategories || {};
         var totalAll = catLinks.length;
         var totalVisible = renderedLinks.length;
         var isMegaCard = catLinks.length > 500;
+        var summaryWorkspaceId = String(cardWorkspaceId || options.activeWorkspace || config.activeWorkspace || 'main').trim() || 'main';
+        var datapackSummary = getCardDatapackSummary(summaryWorkspaceId, cat);
 
         var totalAllTasks = 0;
         var doneAll = 0;
@@ -267,9 +296,29 @@ window.DashboardCategories = window.DashboardCategories || {};
         var titleMetaText = isTaskMode
             ? (totalVisible + ' bookmarks' + shownSuffix + ' &bull; ' + doneVisible + ' done' + ' &bull; ' + Math.max(totalVisibleTasks - doneVisible, 0) + ' to-do')
             : (totalVisible + ' bookmarks' + shownSuffix);
-        var titleMetaHtml = isFocusMode
-            ? '<div class="cat-focus-meta">' + titleMetaText + '</div>'
-            : '';
+        if (datapackSummary) {
+            var datapackBits = [];
+            var sourceCount = Number(datapackSummary.knowledgeCount || 0) + Number(datapackSummary.cachedCount || 0);
+            if (Number(datapackSummary.libraryCount || 0) > 0) {
+                datapackBits.push(String(Number(datapackSummary.libraryCount || 0)) + ' library');
+            }
+            if (sourceCount > 0) {
+                datapackBits.push(String(sourceCount) + ' source');
+            }
+            if (Number(datapackSummary.hiddenCount || 0) > 0) {
+                datapackBits.push(String(Number(datapackSummary.hiddenCount || 0)) + ' hidden');
+            }
+            var issueCount = Number(datapackSummary.brokenCount || 0)
+                + Number(datapackSummary.orphanedCount || 0)
+                + Number(datapackSummary.staleCount || 0);
+            if (issueCount > 0) {
+                datapackBits.push(String(issueCount) + ' issues');
+            }
+            if (datapackBits.length) {
+                titleMetaText += ' &bull; ' + datapackBits.join(' &bull; ');
+            }
+        }
+        var titleMetaHtml = '<div class="' + (isFocusMode ? 'cat-focus-meta' : 'cat-card-meta') + '">' + titleMetaText + '</div>';
 
         activeWorkspaceId = String(cardWorkspaceId || window.eveState?.config?.activeWorkspace || 'main').trim() || 'main';
         var cardOrderIndex = -1;

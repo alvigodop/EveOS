@@ -199,14 +199,16 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
     const safeFaviconSrc = escapeAttr(faviconSrc);
     const safeFaviconFallbackSrc = escapeAttr(faviconFallbackSrc);
     const fallbackAttr = safeFaviconFallbackSrc ? ` data-fallback-src="${safeFaviconFallbackSrc}"` : '';
-    const fallbackOnError = `const fallback=this.dataset.fallbackSrc||'';if(this.dataset.fallbackApplied==='1'||!fallback){this.onerror=null;this.replaceWith('${GLOBE_ICON}');return;}this.dataset.fallbackApplied='1';this.src=fallback;`;
+    const faviconDomainAttr = domain ? ` data-favicon-domain="${escapeAttr(domain)}"` : '';
+    const faviconSizeAttr = ' data-favicon-size="32"';
+    const fallbackOnError = `if(window.EveFaviconUtils&&typeof window.EveFaviconUtils.handleImageError==='function'){window.EveFaviconUtils.handleImageError(this);return;}this.onerror=null;this.replaceWith('${GLOBE_ICON}');`;
 
     let iconHtml = (l.icon && l.icon !== LINK_ICON)
         ? (/^(?:https?:\/\/|data:)/i.test(String(l.icon)) || String(l.icon).startsWith('/')
-            ? (megaPerfMode ? `<span style="font-size:1.2rem; margin-right:8px;">${GLOBE_ICON}</span>` : `<img src="${escapeAttr(l.icon)}"${fallbackAttr} width="16" height="16" style="margin-right:8px;" loading="lazy" referrerpolicy="no-referrer" onerror="${fallbackOnError}">`)
+            ? (megaPerfMode ? `<span style="font-size:1.2rem; margin-right:8px;">${GLOBE_ICON}</span>` : `<img src="${escapeAttr(l.icon)}"${fallbackAttr}${faviconDomainAttr}${faviconSizeAttr} width="16" height="16" style="margin-right:8px;" loading="lazy" referrerpolicy="no-referrer" onerror="${fallbackOnError}">`)
             : `<span style="font-size:1.2rem; margin-right:8px;">${l.icon}</span>`)
         : (useFavicon
-            ? (megaPerfMode ? `<span style="font-size:1.2rem; margin-right:8px;">${GLOBE_ICON}</span>` : `<img src="${safeFaviconSrc}"${fallbackAttr} width="16" height="16" style="margin-right:8px;" loading="lazy" referrerpolicy="no-referrer" onerror="${fallbackOnError}">`)
+            ? (megaPerfMode ? `<span style="font-size:1.2rem; margin-right:8px;">${GLOBE_ICON}</span>` : `<img src="${safeFaviconSrc}"${fallbackAttr}${faviconDomainAttr}${faviconSizeAttr} width="16" height="16" style="margin-right:8px;" loading="lazy" referrerpolicy="no-referrer" onerror="${fallbackOnError}">`)
             : `<span style="font-size:1.2rem; margin-right:8px;">${GLOBE_ICON}</span>`);
 
     const pClass = l.priority ? `p-${l.priority}` : '';

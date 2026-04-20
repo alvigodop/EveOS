@@ -80,6 +80,14 @@ window.EveOS.API = window.EveOS.API || {};
         }
     }
 
+    function shouldAutoProbeLocalServices() {
+        try {
+            return !(window.location && window.location.protocol === 'file:');
+        } catch (error) {
+            return true;
+        }
+    }
+
     async function probeLocalServices(force = false) {
         if (rt._serviceProbePromise && !force) return rt._serviceProbePromise;
 
@@ -175,6 +183,7 @@ window.EveOS.API = window.EveOS.API || {};
 
     Object.assign(rt, {
         probeStatus,
+        shouldAutoProbeLocalServices,
         probeLocalServices,
         isLikelyApiUrl,
         looksBlockedTextResponse,
@@ -184,6 +193,8 @@ window.EveOS.API = window.EveOS.API || {};
         parseRetryAfterMs
     });
 
-    rt.probeLocalServices();
+    if (shouldAutoProbeLocalServices()) {
+        rt.probeLocalServices();
+    }
     rt.sharedReady = true;
 })(window.EveOS.API);

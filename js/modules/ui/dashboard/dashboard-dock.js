@@ -46,10 +46,12 @@ window.renderDock = function (_visibleLinks, dockContainer, focusCategory) {
                 img.height = 24;
                 img.style.borderRadius = '4px';
                 img.referrerPolicy = 'no-referrer';
+                if (domain) img.dataset.faviconDomain = domain;
+                img.dataset.faviconSize = '64';
+                if (fallbackSrc) img.dataset.fallbackSrc = fallbackSrc;
                 img.addEventListener('error', function () {
-                    if (!this.dataset.fallbackApplied && fallbackSrc) {
-                        this.dataset.fallbackApplied = '1';
-                        this.src = fallbackSrc;
+                    if (faviconUtils && typeof faviconUtils.handleImageError === 'function') {
+                        faviconUtils.handleImageError(this);
                         return;
                     }
                     this.replaceWith(document.createTextNode(String.fromCodePoint(0x1F310)));
@@ -77,10 +79,12 @@ window.renderDock = function (_visibleLinks, dockContainer, focusCategory) {
             img.width = 24;
             img.height = 24;
             img.referrerPolicy = 'no-referrer';
+            img.dataset.faviconDomain = domain;
+            img.dataset.faviconSize = '64';
+            if (fallbackSrc) img.dataset.fallbackSrc = fallbackSrc;
             img.addEventListener('error', function () {
-                if (!this.dataset.fallbackApplied && fallbackSrc) {
-                    this.dataset.fallbackApplied = '1';
-                    this.src = fallbackSrc;
+                if (faviconUtils && typeof faviconUtils.handleImageError === 'function') {
+                    faviconUtils.handleImageError(this);
                     return;
                 }
                 const fallback = document.createElement('span');

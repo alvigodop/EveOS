@@ -217,6 +217,31 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         label.textContent = ws.name;
         item.appendChild(label);
 
+        var workspaceSummary = ctx.getWorkspaceSummary(String(ws.id || ''));
+        if (workspaceSummary) {
+            var summary = document.createElement('span');
+            summary.className = 'ws-summary';
+
+            var bookmarkChip = document.createElement('span');
+            bookmarkChip.className = 'ws-summary-chip';
+            bookmarkChip.textContent = String(Number(workspaceSummary.bookmarkCount || 0)) + 'B';
+            bookmarkChip.title = String(Number(workspaceSummary.bookmarkCount || 0)) + ' bookmarks in this tab';
+            summary.appendChild(bookmarkChip);
+
+            var issueCount = Number(workspaceSummary.brokenCount || 0)
+                + Number(workspaceSummary.orphanedCount || 0)
+                + Number(workspaceSummary.staleCount || 0);
+            if (issueCount > 0) {
+                var issueChip = document.createElement('span');
+                issueChip.className = 'ws-summary-chip ws-summary-chip--alert';
+                issueChip.textContent = String(issueCount) + '!';
+                issueChip.title = issueCount + ' datapack issues in this tab';
+                summary.appendChild(issueChip);
+            }
+
+            item.appendChild(summary);
+        }
+
         if (ws.hiddenInParent && currentDepth > 0) {
             item.classList.add('ws-hidden-in-parent');
             var hiddenBadge = document.createElement('span');

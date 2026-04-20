@@ -20,6 +20,27 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         return !!previewState.hoverRevealActive;
     }
 
+    function getDatapackIndexApi() {
+        return window.EveOS?.SearchAdvanced?.Index || null;
+    }
+
+    function queueStructureSummaryWarmup(reason, rerender) {
+        var indexApi = getDatapackIndexApi();
+        if (!indexApi || typeof indexApi.ensureFresh !== 'function') return;
+        if (rt._structureSummaryWarmPromise) return;
+
+        rt._structureSummaryWarmPromise = Promise.resolve(indexApi.ensureFresh({ reason: String(reason || 'sidebar-structure-summary') }))
+            .then(function () {
+                if (typeof rerender === 'function') rerender();
+            })
+            .catch(function () {
+                // Ignore warmup failures and continue rendering without summaries.
+            })
+            .finally(function () {
+                rt._structureSummaryWarmPromise = null;
+            });
+    }
+
     function createRenderContext(sb) {
         var helpers = window.EveWorkspaceHelpers;
         var groupsApi = window.EveSidebarGroups || null;
@@ -42,6 +63,28 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             saveConfig({ immediate: true });
             if (typeof window.renderSidebar === 'function') window.renderSidebar();
             if (shouldRenderDashboard && typeof renderDashboard === 'function') renderDashboard();
+        };
+
+        ctx.getStructureSummary = function () {
+            var indexApi = getDatapackIndexApi();
+            var summary = indexApi && typeof indexApi.getStructureSummary === 'function'
+                ? indexApi.getStructureSummary()
+                : null;
+            if (summary && Number(summary.builtAt || 0) > 0) return summary;
+            queueStructureSummaryWarmup('sidebar-structure-summary', window.renderSidebar);
+            return null;
+        };
+
+        ctx.getWorkspaceSummary = function (workspaceId) {
+            var summary = ctx.getStructureSummary();
+            var key = String(workspaceId || '').trim();
+            return summary && key ? (summary.workspaces[key] || null) : null;
+        };
+
+        ctx.getGroupSummary = function (groupId) {
+            var summary = ctx.getStructureSummary();
+            var key = String(groupId || '').trim();
+            return summary && key ? (summary.groups[key] || null) : null;
         };
 
         ctx.clearDragTargets = function () {

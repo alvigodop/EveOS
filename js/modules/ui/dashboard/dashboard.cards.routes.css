@@ -106,6 +106,16 @@ html[data-native-scheme="light"] .source-route-sep {
     text-overflow: ellipsis;
 }
 
+.cat-card-meta {
+    width: 100%;
+    margin-top: 4px;
+    font-size: 0.72rem;
+    line-height: 1.35;
+    color: var(--text-muted, #a0a0a0);
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
 .card-order-number {
     font-size: 0.72rem;
     color: var(--text-muted, #a0a0a0);

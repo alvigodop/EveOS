@@ -82,12 +82,14 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 : '';
             const safeFallbackSrc = escapeHtml(fallbackSrc);
             const fallbackAttr = safeFallbackSrc ? ` data-fallback-src="${safeFallbackSrc}"` : '';
-            const fallbackOnError = `const fallback=this.dataset.fallbackSrc||'';if(this.dataset.fallbackApplied==='1'||!fallback){this.onerror=null;this.replaceWith(document.createTextNode(String.fromCodePoint(0x1F310)));return;}this.dataset.fallbackApplied='1';this.src=fallback;`;
+            const faviconDomainAttr = fallbackDomain ? ` data-favicon-domain="${escapeHtml(fallbackDomain)}"` : '';
+            const faviconSizeAttr = ' data-favicon-size="64"';
+            const fallbackOnError = `if(window.EveFaviconUtils&&typeof window.EveFaviconUtils.handleImageError==='function'){window.EveFaviconUtils.handleImageError(this);return;}this.onerror=null;this.replaceWith(document.createTextNode(String.fromCodePoint(0x1F310)));`;
 
             if (hasCustomIcon) {
                 if (/^(?:https?:\/\/|data:)/i.test(iconRaw) || iconRaw.startsWith('/')) {
                     const safeIconUrl = escapeHtml(iconRaw);
-                    return `<img class="unidex-entry-bookmark-icon-img" src="${safeIconUrl}" alt="${safeTitle} icon"${fallbackAttr} loading="lazy" referrerpolicy="no-referrer" onerror="${fallbackOnError}">`;
+                    return `<img class="unidex-entry-bookmark-icon-img" src="${safeIconUrl}" alt="${safeTitle} icon"${fallbackAttr}${faviconDomainAttr}${faviconSizeAttr} loading="lazy" referrerpolicy="no-referrer" onerror="${fallbackOnError}">`;
                 }
                 return `<span class="unidex-entry-bookmark-icon-emoji">${escapeHtml(iconRaw)}</span>`;
             }
@@ -100,7 +102,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 const cachedSrc = faviconUtils && typeof faviconUtils.getBestEffortSrc === 'function'
                     ? faviconUtils.getBestEffortSrc(domain, 64)
                     : '';
-                return `<img class="unidex-entry-bookmark-icon-img" src="${escapeHtml(cachedSrc)}" alt="${safeTitle} icon"${fallbackAttr} loading="lazy" referrerpolicy="no-referrer" onerror="${fallbackOnError}">`;
+                return `<img class="unidex-entry-bookmark-icon-img" src="${escapeHtml(cachedSrc)}" alt="${safeTitle} icon"${fallbackAttr}${faviconDomainAttr}${faviconSizeAttr} loading="lazy" referrerpolicy="no-referrer" onerror="${fallbackOnError}">`;
             }
 
             return '<span class="unidex-entry-bookmark-icon-fallback">&#128279;</span>';
