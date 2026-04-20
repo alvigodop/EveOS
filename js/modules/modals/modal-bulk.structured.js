@@ -3,11 +3,97 @@ window.EveBulkImport = window.EveBulkImport || {};
 (function () {
     const api = window.EveBulkImport._api = window.EveBulkImport._api || {};
 
+    function isBareNumericValue(value) {
+        return /^\d+(?:\.\d+)?$/.test(String(value || '').trim());
+    }
+
+    function isUnlabeledProgressToken(value) {
+        const text = String(value || '').trim();
+        if (!text) return false;
+        return /^(?:[\[\(\{]\s*)?\d+(?:\.\d+)?(?:\s*[\]\)\}])?$/.test(text);
+    }
+
+    function looksLikeUrlValue(value) {
+        const rawVal = String(value || '').trim();
+        const lowerVal = rawVal.toLowerCase();
+        if (!rawVal) return false;
+        return lowerVal.includes('http')
+            || lowerVal.includes('www.')
+            || lowerVal.includes('://')
+            || (!lowerVal.includes(' ') && (lowerVal.includes('.') || lowerVal.includes('/')));
+    }
+
+    function isStandaloneUrlLine(value) {
+        return /^(?:https?:\/\/|www\.)[^\s]+$/i.test(String(value || '').trim());
+    }
+
+    function normalizeStandaloneUrl(value) {
+        const rawVal = String(value || '').trim();
+        if (!rawVal) return '';
+        return /^www\./i.test(rawVal) ? `https://${rawVal}` : rawVal;
+    }
+
+    function normalizeImportedFileTitle(fileName) {
+        let title = String(fileName || '')
+            .replace(/_\d{6}_\d{6}\.txt$/i, '')
+            .replace(/\.txt$/i, '')
+            .trim();
+
+        if (title.toLowerCase().startsWith('was ')) {
+            title = title.substring(4).trim();
+        }
+        title = title.replace(/^[\{\(\[]\d+[\}\)\]]\s*/, '').trim();
+        return title;
+    }
+
+    function isStandaloneTitleCandidate(value) {
+        const text = String(value || '').trim();
+        if (!text) return false;
+        if (isUnlabeledProgressToken(text)) return false;
+        if (looksLikeUrlValue(text)) return false;
+        if (/^(?:title|name|url|link|read site|site|to watch site|type|category|status|state|notes|summary)[\s:-]+/i.test(text)) return false;
+        if (/^(?:last\s+)?(?:finished ep|going to ep|ep|episode|ch|chapter)[\s:\-#]*\d+/i.test(text)) return false;
+        return true;
+    }
+
+    function hasStructuredFieldLine(value) {
+        const text = String(value || '').trim();
+        return /^(?:title|name|url|link|read site|site|to watch site|type|category|status|state|notes|summary|finished ep|going to ep|ep|episode|ch|chapter)[\s:-]+/i.test(text);
+    }
+
+    function looksLikeStructuredFileContent(content, fileName = '') {
+        const text = String(content || '');
+        const fileLabel = String(fileName || '').trim();
+        const normalizedFileTitle = normalizeImportedFileTitle(fileName);
+        const nonEmptyLines = text
+            .split('\n')
+            .map((line) => line.trim())
+            .filter(Boolean);
+
+        if (nonEmptyLines.length === 0) return false;
+        if (/^(?:Was\s+|[\{\(]\d+[\}\)])/i.test(fileLabel)) return true;
+        if (nonEmptyLines.some(hasStructuredFieldLine)) return true;
+
+        const standaloneUrlLines = nonEmptyLines.filter(isStandaloneUrlLine);
+        const bareNumericLines = nonEmptyLines.filter(isUnlabeledProgressToken);
+
+        if (nonEmptyLines.length === 1
+            && bareNumericLines.length === 1
+            && normalizedFileTitle
+            && !isUnlabeledProgressToken(normalizedFileTitle)) {
+            return true;
+        }
+        if (standaloneUrlLines.length === 1 && nonEmptyLines.length <= 8) return true;
+        if (bareNumericLines.length > 0 && standaloneUrlLines.length === 1 && nonEmptyLines.length <= 8) return true;
+
+        return false;
+    }
+
 function processStructuredFile(content, fileName, targetCategory, folderId = '', options = {}) {
     const lines = content.split('\n');
 
     // Clean filename: remove things like "_260228_000943.txt" and ".txt"
-    let title = fileName.replace(/_\d{6}_\d{6}\.txt$/i, '').replace(/\.txt$/i, '').trim();
+    let title = normalizeImportedFileTitle(fileName);
     let url = '';
     let episode = 0;
     let chapter = 0;
@@ -15,13 +101,10 @@ function processStructuredFile(content, fileName, targetCategory, folderId = '',
     let type = '';
     let status = '';
     let notesArr = [];
+    let explicitTitleAssigned = false;
+    let bodyTitleAssigned = false;
 
     // Clean legacy organizational prefixes from filename (e.g., "Was ", "{1}", "(24)")
-    if (title.toLowerCase().startsWith('was ')) {
-        title = title.substring(4).trim();
-    }
-    title = title.replace(/^[\{\(]\d+[\}\)]\s*/, '').trim();
-
     lines.forEach(line => {
         const trimmed = line.trim();
         if (!trimmed) return;
@@ -34,7 +117,12 @@ function processStructuredFile(content, fileName, targetCategory, folderId = '',
             const val = trimmed.slice(colonIdx + 1).trim();
 
             if (key === 'title' || key === 'name') {
-                title = val;
+                if (isStandaloneTitleCandidate(val)) {
+                    title = val;
+                    explicitTitleAssigned = true;
+                } else if (val) {
+                    notesArr.push(`${key}: ${val}`);
+                }
                 processedAsCoreKey = true;
             } else if (key === 'url' || key === 'link' || key === 'read site' || key === 'site' || key === 'to watch site') {
                 const rawVal = val.trim();
@@ -79,6 +167,19 @@ function processStructuredFile(content, fileName, targetCategory, folderId = '',
         }
 
         if (!processedAsCoreKey) {
+            if (isStandaloneUrlLine(trimmed)) {
+                if (!url) {
+                    url = normalizeStandaloneUrl(trimmed);
+                    return;
+                }
+                notesArr.push(trimmed);
+                return;
+            }
+            if (!explicitTitleAssigned && !bodyTitleAssigned && (!title || isUnlabeledProgressToken(title)) && isStandaloneTitleCandidate(trimmed)) {
+                title = trimmed;
+                bodyTitleAssigned = true;
+                return;
+            }
             notesArr.push(trimmed);
         }
     });
@@ -97,6 +198,10 @@ function processStructuredFile(content, fileName, targetCategory, folderId = '',
         }
 
         title = title.substring(0, seasonMatch.index).trim();
+    }
+
+    if (!title) {
+        title = 'Untitled';
     }
 
     if (!url) {
@@ -184,5 +289,8 @@ function processStructuredFile(content, fileName, targetCategory, folderId = '',
     return newBookmark;
 }
 
-    Object.assign(api, { processStructuredFile });
+    Object.assign(api, {
+        processStructuredFile,
+        looksLikeStructuredFileContent
+    });
 })();

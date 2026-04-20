@@ -2,7 +2,13 @@ window.EveBulkImport = window.EveBulkImport || {};
 
 (function () {
     const api = window.EveBulkImport._api = window.EveBulkImport._api || {};
-    const { getBulkMode, runBatched, processStructuredFile, maybeNormalizeBulkUrlBlob } = api;
+    const { getBulkMode, runBatched, processStructuredFile, maybeNormalizeBulkUrlBlob, looksLikeStructuredFileContent } = api;
+
+    function isUnlabeledProgressToken(value) {
+        const text = String(value || '').trim();
+        if (!text) return false;
+        return /^(?:[\[\(\{]\s*)?\d+(?:\.\d+)?(?:\s*[\]\)\}])?$/.test(text);
+    }
 
 async function processBulk() {
     const catInput = document.getElementById('bulkCategory');
@@ -116,8 +122,10 @@ async function processBulk() {
                 }
 
                 const content = maybeNormalizeBulkUrlBlob(await file.text());
-                const isStructured = content.match(/^(Title|URL|Episode|Ep|Chapter|Ch|Type|Notes|Finished Ep|Going To Ep)[\s:-]+/mi);
-                const isMediaFile = file.name.match(/^(Was\s+|[\{\(]\d+[\}\)])/i);
+                const isStructured = typeof looksLikeStructuredFileContent === 'function'
+                    ? looksLikeStructuredFileContent(content, file.name)
+                    : content.match(/^(Title|URL|Episode|Ep|Chapter|Ch|Type|Notes|Finished Ep|Going To Ep)[\s:-]+/mi);
+                const isMediaFile = file.name.match(/^(Was\s+|[\[\{\(]\d+[\]\}\)])/i);
 
                 if (isStructured || isMediaFile) {
                     const promoted = processStructuredFile(content, file.name, cardName, parentFolderId, {
@@ -159,6 +167,10 @@ async function processBulk() {
                                         parsedUrl = nextUrlMatch[1];
                                         // Since the current line had no URL, its exact text should be the title
                                         parsedTitle = raw;
+                                        const fallbackFileTitle = file.name.replace(/\.txt$/i, '').trim();
+                                        if (isUnlabeledProgressToken(parsedTitle) && !isUnlabeledProgressToken(fallbackFileTitle)) {
+                                            parsedTitle = fallbackFileTitle;
+                                        }
                                         // Skip parsing the next line as a separate bookmark
                                         i++;
                                     }
@@ -234,8 +246,10 @@ async function processBulk() {
             try {
                 const content = maybeNormalizeBulkUrlBlob(await file.text());
                 // Check if the file contains structured library data fields, shorthands, or if the filename specifies a media entry
-                const isStructured = content.match(/^(Title|URL|Episode|Ep|Chapter|Ch|Type|Notes|Finished Ep|Going To Ep)[\s:-]+/mi);
-                const isMediaFile = file.name.match(/^(Was\s+|[\{\(]\d+[\}\)])/i);
+                const isStructured = typeof looksLikeStructuredFileContent === 'function'
+                    ? looksLikeStructuredFileContent(content, file.name)
+                    : content.match(/^(Title|URL|Episode|Ep|Chapter|Ch|Type|Notes|Finished Ep|Going To Ep)[\s:-]+/mi);
+                const isMediaFile = file.name.match(/^(Was\s+|[\[\{\(]\d+[\]\}\)])/i);
 
                 if (isStructured || isMediaFile) {
                     const promoted = processStructuredFile(content, file.name, targetCategory, '', {

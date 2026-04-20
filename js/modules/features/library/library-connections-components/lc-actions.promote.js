@@ -75,6 +75,7 @@ window.EveLibrary.ConnectionsCoreModules = window.EveLibrary.ConnectionsCoreModu
             }
 
             lib.entries.push(newEntry);
+            Core.invalidateEntryIndex?.();
             if (!deferSave) {
                 storage.saveLibrary();
             }
@@ -89,6 +90,7 @@ window.EveLibrary.ConnectionsCoreModules = window.EveLibrary.ConnectionsCoreModu
             };
 
             Core.connections.push(connection);
+            Core.invalidateConnectionIndex?.();
             if (!deferSave) {
                 Core.saveConnections();
             }
