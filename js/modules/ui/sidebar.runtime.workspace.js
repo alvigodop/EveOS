@@ -103,7 +103,7 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         var isWorkspaceActive = config.viewMode !== 'unidex' && config.activeWorkspace === ws.id && !isGroupOverviewActive;
         var isInactive = ctx.isWorkspaceEffectivelyInactive(ws);
 
-        if (isInactive && !config.showInactiveTabs && !renderOptions.renderInactive) return;
+        if (isInactive && !ctx.shouldShowInactiveTabs() && !renderOptions.renderInactive) return;
 
         var wrapper = document.createElement('div');
         wrapper.className = 'ws-node-wrapper';

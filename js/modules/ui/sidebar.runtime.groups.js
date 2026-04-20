@@ -54,7 +54,7 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         var isCollapsed = !!(group && group.collapsed);
         var manualMode = ctx.isManualSidebarOrder();
 
-        if (isInactiveGroup && !config.showInactiveTabs) return null;
+        if (isInactiveGroup && !ctx.shouldShowInactiveTabs()) return null;
 
         var wrapper = document.createElement('div');
         wrapper.className = 'ws-node-wrapper ws-group-node-wrapper';

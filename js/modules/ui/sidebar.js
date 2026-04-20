@@ -71,6 +71,40 @@
         return addBtn;
     }
 
+    function queueHoverRevealDeactivation() {
+        var previewState = rt.previewState || (rt.previewState = {});
+        window.clearTimeout(previewState.hideTimer || 0);
+        previewState.hideTimer = window.setTimeout(function () {
+            var hoveredPreview = document.querySelector('#sidebar .ws-hover-reveal:hover');
+            if (hoveredPreview) return;
+            if (!rt.isHoverRevealActive || !rt.isHoverRevealActive()) return;
+            rt.setHoverRevealActive(false);
+            if (typeof window.renderSidebar === 'function') window.renderSidebar();
+        }, 0);
+    }
+
+    function buildHoverRevealButton() {
+        var previewBtn = document.createElement('div');
+        previewBtn.className = 'ws-item ws-hover-reveal' + ((rt.isHoverRevealActive && rt.isHoverRevealActive()) ? ' active' : '');
+        previewBtn.innerHTML = '<span class="ws-hover-reveal-icon">\u{1F441}</span><span class="ws-label">Hover: Show All Hidden</span>';
+        previewBtn.title = 'Hover to temporarily show hidden tabs, inactive tabs, and hidden groups';
+        previewBtn.setAttribute('aria-hidden', 'true');
+        previewBtn.onclick = function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        };
+        previewBtn.onmouseenter = function () {
+            if (!rt.setHoverRevealActive) return;
+            if (rt.isHoverRevealActive && rt.isHoverRevealActive()) return;
+            rt.setHoverRevealActive(true);
+            if (typeof window.renderSidebar === 'function') window.renderSidebar();
+        };
+        previewBtn.onmouseleave = function () {
+            queueHoverRevealDeactivation();
+        };
+        return previewBtn;
+    }
+
     window.toggleSidebarVisibility = function () {
         config.sidebarHidden = !config.sidebarHidden;
         saveConfig();
@@ -88,6 +122,7 @@
         sb.innerHTML = '';
         sb.classList.toggle('ultra-collapsed', !!config.ultraCollapseSidebar);
         sb.classList.toggle('hidden-completely', !!config.sidebarHidden);
+        sb.classList.toggle('ws-hover-reveal-active', !!(rt.isHoverRevealActive && rt.isHoverRevealActive()));
 
         sb.appendChild(buildUnidexButton());
 
@@ -127,6 +162,7 @@
 
         rt.renderRootTree(ctx);
         sb.appendChild(buildAddButton(ctx));
+        sb.appendChild(buildHoverRevealButton());
     };
 
     rt.ready = true;

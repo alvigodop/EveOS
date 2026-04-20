@@ -6,6 +6,20 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
     var rt = window.EveSidebarRuntime;
     if (rt.sharedReady) return;
 
+    var previewState = rt.previewState || (rt.previewState = {
+        hoverRevealActive: false,
+        hideTimer: 0
+    });
+
+    function setHoverRevealActive(nextValue) {
+        previewState.hoverRevealActive = !!nextValue;
+        return previewState.hoverRevealActive;
+    }
+
+    function isHoverRevealActive() {
+        return !!previewState.hoverRevealActive;
+    }
+
     function createRenderContext(sb) {
         var helpers = window.EveWorkspaceHelpers;
         var groupsApi = window.EveSidebarGroups || null;
@@ -127,8 +141,16 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             return !!ws.inactive;
         };
 
+        ctx.shouldShowInactiveTabs = function () {
+            return !!config.showInactiveTabs || isHoverRevealActive();
+        };
+
+        ctx.shouldShowHiddenGroups = function () {
+            return !!config.showHiddenSidebarGroups || isHoverRevealActive();
+        };
+
         ctx.shouldRenderWorkspace = function (ws) {
-            return !!ws && (!ctx.isWorkspaceEffectivelyInactive(ws) || !!config.showInactiveTabs);
+            return !!ws && (!ctx.isWorkspaceEffectivelyInactive(ws) || ctx.shouldShowInactiveTabs());
         };
 
         ctx.getRenderableWorkspaces = function (workspaces) {
@@ -144,7 +166,7 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
 
         ctx.shouldRenderGroup = function (group) {
             if (!group) return false;
-            if (config.showInactiveTabs) return true;
+            if (ctx.shouldShowInactiveTabs()) return true;
             return !ctx.isGroupEffectivelyInactive(group.id);
         };
 
@@ -194,7 +216,9 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             var entries;
 
             if (groupsApi && typeof groupsApi.getOrderedEntries === 'function') {
-                entries = groupsApi.getOrderedEntries(targetParentId, config, { includeHidden: !!includeHidden });
+                entries = groupsApi.getOrderedEntries(targetParentId, config, {
+                    includeHidden: !!includeHidden || ctx.shouldShowHiddenGroups()
+                });
             } else if (!targetParentId) {
                 entries = (Array.isArray(config.workspaces) ? config.workspaces : []).map(function (workspace) {
                     return { kind: 'workspace', id: String(workspace.id), workspace: workspace };
@@ -226,6 +250,8 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         return ctx;
     }
 
+    rt.setHoverRevealActive = setHoverRevealActive;
+    rt.isHoverRevealActive = isHoverRevealActive;
     rt.createRenderContext = createRenderContext;
     rt.sharedReady = true;
 })();
