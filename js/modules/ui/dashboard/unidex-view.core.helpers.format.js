@@ -69,31 +69,38 @@ window.UnidexViewModules = window.UnidexViewModules || {};
         }
 
         function buildBookmarkIconHtml(link, safeTitle) {
+            const faviconUtils = window.EveFaviconUtils || null;
             const iconRaw = String(link?.icon || '').trim();
             const iconNormalized = iconRaw.replace(/\uFE0F/g, '');
             const isLegacyLinkIcon = iconNormalized === '\u{1F517}';
             const hasCustomIcon = !!iconNormalized && !isLegacyLinkIcon;
+            const fallbackDomain = faviconUtils && typeof faviconUtils.getDomainFromUrl === 'function'
+                ? faviconUtils.getDomainFromUrl(link?.url)
+                : getDomain(link?.url);
+            const fallbackSrc = faviconUtils && typeof faviconUtils.getFallbackSrc === 'function'
+                ? faviconUtils.getFallbackSrc(fallbackDomain, 64)
+                : '';
+            const safeFallbackSrc = escapeHtml(fallbackSrc);
+            const fallbackAttr = safeFallbackSrc ? ` data-fallback-src="${safeFallbackSrc}"` : '';
+            const fallbackOnError = `const fallback=this.dataset.fallbackSrc||'';if(this.dataset.fallbackApplied==='1'||!fallback){this.onerror=null;this.replaceWith(document.createTextNode(String.fromCodePoint(0x1F310)));return;}this.dataset.fallbackApplied='1';this.src=fallback;`;
 
             if (hasCustomIcon) {
-                if (/^https?:\/\//i.test(iconRaw) || iconRaw.startsWith('/')) {
+                if (/^(?:https?:\/\/|data:)/i.test(iconRaw) || iconRaw.startsWith('/')) {
                     const safeIconUrl = escapeHtml(iconRaw);
-                    const faviconFallback = window.EveFaviconUtils && typeof window.EveFaviconUtils.getBestEffortSrc === 'function'
-                        ? window.EveFaviconUtils.getBestEffortSrc(getDomain(link.url), 64)
-                        : '';
-                    return `<img class="unidex-entry-bookmark-icon-img" src="${safeIconUrl}" alt="${safeTitle} icon" loading="lazy" referrerpolicy="no-referrer" onerror="if(window.setupProxiedImage){window.setupProxiedImage(this,'${safeIconUrl.replace(/'/g, "\\'")}','${faviconFallback}')}else{this.onerror=null;this.src='${faviconFallback}'}">`;
+                    return `<img class="unidex-entry-bookmark-icon-img" src="${safeIconUrl}" alt="${safeTitle} icon"${fallbackAttr} loading="lazy" referrerpolicy="no-referrer" onerror="${fallbackOnError}">`;
                 }
                 return `<span class="unidex-entry-bookmark-icon-emoji">${escapeHtml(iconRaw)}</span>`;
             }
 
             const sourceUrl = String(link?.url || '').trim();
             const isLocal = sourceUrl.startsWith('file://');
-            const domain = getDomain(sourceUrl);
-            const hasDomain = !isLocal && domain.includes('.');
+            const domain = fallbackDomain;
+            const hasDomain = !isLocal && !!domain;
             if (hasDomain) {
-                const cachedSrc = window.EveFaviconUtils && typeof window.EveFaviconUtils.getBestEffortSrc === 'function'
-                    ? window.EveFaviconUtils.getBestEffortSrc(domain, 64)
+                const cachedSrc = faviconUtils && typeof faviconUtils.getBestEffortSrc === 'function'
+                    ? faviconUtils.getBestEffortSrc(domain, 64)
                     : '';
-                return `<img class="unidex-entry-bookmark-icon-img" src="${escapeHtml(cachedSrc)}" alt="${safeTitle} icon" loading="lazy" referrerpolicy="no-referrer">`;
+                return `<img class="unidex-entry-bookmark-icon-img" src="${escapeHtml(cachedSrc)}" alt="${safeTitle} icon"${fallbackAttr} loading="lazy" referrerpolicy="no-referrer" onerror="${fallbackOnError}">`;
             }
 
             return '<span class="unidex-entry-bookmark-icon-fallback">&#128279;</span>';

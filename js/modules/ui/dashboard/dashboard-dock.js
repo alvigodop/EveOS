@@ -29,23 +29,30 @@ window.renderDock = function (_visibleLinks, dockContainer, focusCategory) {
         const link = pinApi.getLinkById?.(pin.targetId);
         const rawUrl = String(link?.url || '');
         const isLocal = rawUrl.startsWith('file://');
-        let domain = '';
-        try {
-            domain = new URL(rawUrl).hostname || '';
-        } catch (error) {
-            domain = '';
-        }
+        const faviconUtils = window.EveFaviconUtils || null;
+        const domain = faviconUtils && typeof faviconUtils.getDomainFromUrl === 'function'
+            ? faviconUtils.getDomainFromUrl(rawUrl)
+            : '';
+        const fallbackSrc = domain && faviconUtils && typeof faviconUtils.getFallbackSrc === 'function'
+            ? faviconUtils.getFallbackSrc(domain, 64)
+            : '';
 
         const manualIcon = String(pin.icon || '').trim();
         if (manualIcon && manualIcon !== '\u{1F517}') {
-            if (manualIcon.startsWith('http')) {
+            if (/^(?:https?:\/\/|data:)/i.test(manualIcon) || manualIcon.startsWith('/')) {
                 const img = document.createElement('img');
                 img.src = manualIcon;
                 img.width = 24;
                 img.height = 24;
                 img.style.borderRadius = '4px';
+                img.referrerPolicy = 'no-referrer';
                 img.addEventListener('error', function () {
-                    this.replaceWith(document.createTextNode('\u{1F310}'));
+                    if (!this.dataset.fallbackApplied && fallbackSrc) {
+                        this.dataset.fallbackApplied = '1';
+                        this.src = fallbackSrc;
+                        return;
+                    }
+                    this.replaceWith(document.createTextNode(String.fromCodePoint(0x1F310)));
                 });
                 return img;
             }
@@ -64,15 +71,21 @@ window.renderDock = function (_visibleLinks, dockContainer, focusCategory) {
 
         if (domain) {
             const img = document.createElement('img');
-            img.src = window.EveFaviconUtils && typeof window.EveFaviconUtils.getBestEffortSrc === 'function'
-                ? window.EveFaviconUtils.getBestEffortSrc(domain, 64)
+            img.src = faviconUtils && typeof faviconUtils.getBestEffortSrc === 'function'
+                ? faviconUtils.getBestEffortSrc(domain, 64)
                 : '';
             img.width = 24;
             img.height = 24;
+            img.referrerPolicy = 'no-referrer';
             img.addEventListener('error', function () {
+                if (!this.dataset.fallbackApplied && fallbackSrc) {
+                    this.dataset.fallbackApplied = '1';
+                    this.src = fallbackSrc;
+                    return;
+                }
                 const fallback = document.createElement('span');
                 fallback.style.fontSize = '1.25rem';
-                fallback.textContent = '\u{1F310}';
+                fallback.textContent = String.fromCodePoint(0x1F310);
                 this.replaceWith(fallback);
             });
             return img;

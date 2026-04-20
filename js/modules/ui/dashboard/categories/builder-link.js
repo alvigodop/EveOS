@@ -150,6 +150,12 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
     const extraOptions = options || {};
     const perfMode = !!window._evePerfMode;
     const megaPerfMode = !!window._eveMegaPerfMode;
+    const faviconUtils = window.EveFaviconUtils || null;
+    const escapeAttr = (value) => String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
     const badgeWorkspaceId = String(extraOptions.dashboardWorkspaceId || activeWorkspace || '').trim()
         || String(activeWorkspace || '').trim();
     const cardWorkspaceId = String(extraOptions.cardWorkspaceId || activeWorkspace || '').trim()
@@ -178,25 +184,29 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
     const DELETE_ICON = '\u2716';
 
     const isLocal = String(l.url || '').startsWith('file://');
-    let domain = '';
-    try {
-        domain = new URL(l.url).hostname;
-    } catch (e) {
-        domain = String(l.url || '').replace(/^https?:\/\//, '').split('/')[0];
-    }
-    const useFavicon = !isLocal && domain && domain.includes('.');
+    const domain = faviconUtils && typeof faviconUtils.getDomainFromUrl === 'function'
+        ? faviconUtils.getDomainFromUrl(l.url)
+        : '';
+    const useFavicon = !isLocal && !!domain;
 
     // Use cached favicon data URI when available
-    const faviconSrc = useFavicon && window.EveFaviconUtils && typeof window.EveFaviconUtils.getBestEffortSrc === 'function'
-        ? window.EveFaviconUtils.getBestEffortSrc(domain, 32)
+    const faviconSrc = useFavicon && faviconUtils && typeof faviconUtils.getBestEffortSrc === 'function'
+        ? faviconUtils.getBestEffortSrc(domain, 32)
         : '';
+    const faviconFallbackSrc = useFavicon && faviconUtils && typeof faviconUtils.getFallbackSrc === 'function'
+        ? faviconUtils.getFallbackSrc(domain, 32)
+        : '';
+    const safeFaviconSrc = escapeAttr(faviconSrc);
+    const safeFaviconFallbackSrc = escapeAttr(faviconFallbackSrc);
+    const fallbackAttr = safeFaviconFallbackSrc ? ` data-fallback-src="${safeFaviconFallbackSrc}"` : '';
+    const fallbackOnError = `const fallback=this.dataset.fallbackSrc||'';if(this.dataset.fallbackApplied==='1'||!fallback){this.onerror=null;this.replaceWith('${GLOBE_ICON}');return;}this.dataset.fallbackApplied='1';this.src=fallback;`;
 
     let iconHtml = (l.icon && l.icon !== LINK_ICON)
-        ? (/^https?:\/\//i.test(String(l.icon)) || String(l.icon).startsWith('/')
-            ? (megaPerfMode ? `<span style="font-size:1.2rem; margin-right:8px;">${GLOBE_ICON}</span>` : `<img src="${l.icon}" width="16" height="16" style="margin-right:8px;" loading="lazy" onerror="this.onerror=null;this.replaceWith('${GLOBE_ICON}');">`)
+        ? (/^(?:https?:\/\/|data:)/i.test(String(l.icon)) || String(l.icon).startsWith('/')
+            ? (megaPerfMode ? `<span style="font-size:1.2rem; margin-right:8px;">${GLOBE_ICON}</span>` : `<img src="${escapeAttr(l.icon)}"${fallbackAttr} width="16" height="16" style="margin-right:8px;" loading="lazy" referrerpolicy="no-referrer" onerror="${fallbackOnError}">`)
             : `<span style="font-size:1.2rem; margin-right:8px;">${l.icon}</span>`)
         : (useFavicon
-            ? (megaPerfMode ? `<span style="font-size:1.2rem; margin-right:8px;">${GLOBE_ICON}</span>` : `<img src="${faviconSrc}" width="16" height="16" style="margin-right:8px;" loading="lazy" onerror="this.onerror=null;this.replaceWith('${GLOBE_ICON}');">`)
+            ? (megaPerfMode ? `<span style="font-size:1.2rem; margin-right:8px;">${GLOBE_ICON}</span>` : `<img src="${safeFaviconSrc}"${fallbackAttr} width="16" height="16" style="margin-right:8px;" loading="lazy" referrerpolicy="no-referrer" onerror="${fallbackOnError}">`)
             : `<span style="font-size:1.2rem; margin-right:8px;">${GLOBE_ICON}</span>`);
 
     const pClass = l.priority ? `p-${l.priority}` : '';

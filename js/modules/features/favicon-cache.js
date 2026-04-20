@@ -85,6 +85,34 @@
         return String(domain || '').toLowerCase().replace(/^www\./, '');
     }
 
+    function getDomainFromUrl(rawUrl) {
+        const text = String(rawUrl || '').trim();
+        if (!text) return '';
+
+        try {
+            return normalizeDomain(new URL(text).hostname || '');
+        } catch (error) {
+            // Fall through to scheme-less / malformed URL recovery.
+        }
+
+        try {
+            if (!/^[a-z][a-z0-9+.-]*:/i.test(text)) {
+                return normalizeDomain(new URL(`https://${text}`).hostname || '');
+            }
+        } catch (error) {
+            // Fall through to plain-text extraction.
+        }
+
+        const candidate = text
+            .replace(/^[a-z][a-z0-9+.-]*:\/\//i, '')
+            .split(/[/?#]/)[0]
+            .split('@')
+            .pop()
+            .replace(/:\d+$/, '');
+
+        return normalizeDomain(candidate);
+    }
+
     function isLocalContext() {
         try {
             return window.location && window.location.protocol === 'file:';
@@ -155,6 +183,11 @@
         return dataUri;
     }
 
+    function getFallbackSrc(domain, size) {
+        const key = normalizeDomain(domain) || 'bookmark';
+        return getPlaceholderFavicon(key, size || 32);
+    }
+
     function fetchFaviconDataUri(domain, size) {
         const sz = size || 32;
         const url = `${GOOGLE_FAVICON_BASE}?domain=${encodeURIComponent(domain)}&sz=${sz}`;
@@ -185,6 +218,12 @@
 
             img.src = url;
         });
+    }
+
+    function buildRemoteUrl(domain, size) {
+        const key = normalizeDomain(domain);
+        if (!key) return '';
+        return `${GOOGLE_FAVICON_BASE}?domain=${encodeURIComponent(key)}&sz=${size || 32}`;
     }
 
     // ── Public API ──
@@ -224,13 +263,13 @@
         const cached = getCachedIcon(key);
         if (cached) return cached;
 
-        if (!canFetchRemoteFavicons()) return getPlaceholderFavicon(key, sz);
+        if (!canFetchRemoteFavicons()) return buildRemoteUrl(key, sz);
 
         // Schedule background cache
         fetchAndCache(key, sz);
 
         // Return live URL as temporary fallback (will be cached for next render)
-        return `${GOOGLE_FAVICON_BASE}?domain=${encodeURIComponent(key)}&sz=${sz}`;
+        return buildRemoteUrl(key, sz);
     }
 
     /**
@@ -386,14 +425,12 @@
 
     if (!window.EveFaviconUtils) {
         window.EveFaviconUtils = {
+            getDomainFromUrl,
             getSrc,
             getBestEffortSrc: getSrc,
+            getFallbackSrc,
             buildPlaceholderSrc: getPlaceholderFavicon,
-            buildRemoteUrl: function (domain, size) {
-                const key = normalizeDomain(domain);
-                if (!key) return '';
-                return `${GOOGLE_FAVICON_BASE}?domain=${encodeURIComponent(key)}&sz=${size || 32}`;
-            },
+            buildRemoteUrl,
             isLocalContext
         };
     }

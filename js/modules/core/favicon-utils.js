@@ -8,6 +8,34 @@
         return String(domain || '').toLowerCase().replace(/^www\./, '');
     }
 
+    function getDomainFromUrl(rawUrl) {
+        const text = String(rawUrl || '').trim();
+        if (!text) return '';
+
+        try {
+            return normalizeDomain(new URL(text).hostname || '');
+        } catch (error) {
+            // Fall through to scheme-less / malformed URL recovery.
+        }
+
+        try {
+            if (!/^[a-z][a-z0-9+.-]*:/i.test(text)) {
+                return normalizeDomain(new URL(`https://${text}`).hostname || '');
+            }
+        } catch (error) {
+            // Fall through to plain-text extraction.
+        }
+
+        const candidate = text
+            .replace(/^[a-z][a-z0-9+.-]*:\/\//i, '')
+            .split(/[/?#]/)[0]
+            .split('@')
+            .pop()
+            .replace(/:\d+$/, '');
+
+        return normalizeDomain(candidate);
+    }
+
     function isLocalContext() {
         try {
             return window.location && window.location.protocol === 'file:';
@@ -64,6 +92,11 @@
         return dataUri;
     }
 
+    function getFallbackSrc(domain, size) {
+        const normalized = normalizeDomain(domain) || 'bookmark';
+        return buildPlaceholderSrc(normalized, size || 32);
+    }
+
     function getSrc(domain, size) {
         const normalized = normalizeDomain(domain);
         if (!normalized) return '';
@@ -72,7 +105,7 @@
             return window.EveFaviconCache.getSrc(normalized, size || 32);
         }
 
-        if (isLocalContext()) return buildPlaceholderSrc(normalized, size || 32);
+        if (isLocalContext()) return buildRemoteUrl(normalized, size || 32);
         return buildRemoteUrl(normalized, size || 32);
     }
 
@@ -87,8 +120,10 @@
     }
 
     window.EveFaviconUtils = {
+        getDomainFromUrl,
         getSrc,
         getBestEffortSrc,
+        getFallbackSrc,
         buildPlaceholderSrc,
         buildRemoteUrl,
         isLocalContext
