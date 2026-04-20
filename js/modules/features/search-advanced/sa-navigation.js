@@ -91,6 +91,25 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         return true;
     }
 
+    function openMap(result) {
+        const path = result?.path;
+        const mapApi = window.EveConstellationMap;
+        if (!path?.workspaceId || !mapApi) return false;
+        if (path.folderId && typeof mapApi.openFolderMap === 'function') {
+            mapApi.openFolderMap(path.workspaceId, path.categoryName, path.folderId, path.folderLabel || '');
+            return true;
+        }
+        if (path.categoryName && typeof mapApi.openCardMap === 'function') {
+            mapApi.openCardMap(path.workspaceId, path.categoryName);
+            return true;
+        }
+        if (typeof mapApi.openWorkspaceMap === 'function') {
+            mapApi.openWorkspaceMap(path.workspaceId);
+            return true;
+        }
+        return false;
+    }
+
     function describePath(path) {
         if (!path) return '';
         const parts = [];
@@ -164,6 +183,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         goToPath,
         openCard,
         openInUnidex,
+        openMap,
         focusBookmark,
         describePath,
         describeProvenance,

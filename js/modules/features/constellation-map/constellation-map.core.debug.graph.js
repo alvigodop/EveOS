@@ -30,6 +30,26 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         serializePolaritySummary
     } = helpers;
 
+    function text(value, fallback) {
+        const normalized = String(value == null ? '' : value).trim();
+        if (normalized) return normalized;
+        return String(fallback == null ? '' : fallback).trim();
+    }
+
+    function toNexusScope(scopeModel) {
+        if (!scopeModel || scopeModel.scope === 'all') return {};
+        if (scopeModel.scope === 'workspace') {
+            return { workspaceId: text(scopeModel.workspaceId, 'main') };
+        }
+        if (scopeModel.scope === 'card' || scopeModel.scope === 'folder' || scopeModel.scope === 'derived') {
+            return {
+                workspaceId: text(scopeModel.workspaceId, 'main'),
+                categoryName: text(scopeModel.categoryName, 'Unsorted')
+            };
+        }
+        return {};
+    }
+
     function __debugGetGraphStats() {
         const viewport = getDebugViewport(state, getViewportSize);
         const visibleWorldBounds = getVisibleWorldBounds(state, viewport, MAP_PADDING);
@@ -63,8 +83,35 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         };
     }
 
+    async function __debugGetNexusProjectionStats(scopeOverride) {
+        const indexApi = window.EveOS?.SearchAdvanced?.Index;
+        if (!indexApi?.getIntegrityReport || !indexApi?.buildGraphProjection) return null;
+
+        const nexusScope = toNexusScope(scopeOverride || state.scope);
+        const [integrity, projection] = await Promise.all([
+            indexApi.getIntegrityReport({ scope: nexusScope }),
+            indexApi.buildGraphProjection({ scope: nexusScope })
+        ]);
+        const kinds = (projection?.nodes || []).reduce((acc, node) => {
+            const key = text(node?.kind, 'node');
+            acc[key] = (acc[key] || 0) + 1;
+            return acc;
+        }, {});
+
+        return {
+            scope: nexusScope,
+            integrity,
+            projection: {
+                nodeCount: projection?.nodes?.length || 0,
+                edgeCount: projection?.edges?.length || 0,
+                kinds
+            }
+        };
+    }
+
     const coreDebugGraph = ns._coreDebugGraph = ns._coreDebugGraph || {};
     Object.assign(coreDebugGraph, {
-        __debugGetGraphStats
+        __debugGetGraphStats,
+        __debugGetNexusProjectionStats
     });
 })(window.EveConstellationMap);

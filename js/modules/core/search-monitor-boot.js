@@ -13,7 +13,8 @@
         indicator.style.display = '';
     }
 
-    function openNexusSearch() {
+    function openNexusSearch(options) {
+        const scopeMode = options?.scopeMode === 'all' ? 'all' : 'current';
         const indicator = getIndicator();
         if (indicator) {
             const setText = function (selector, value) {
@@ -31,7 +32,11 @@
         }
         const query = document.getElementById('search')?.value || '';
         if (typeof window.openExpandedSearchModal === 'function') {
-            window.openExpandedSearchModal({ query: query });
+            window.openExpandedSearchModal({
+                query: query,
+                scopeMode: scopeMode,
+                scope: scopeMode === 'all' ? {} : null
+            });
             return true;
         }
         if (typeof window.openExpandedSearchFromMain === 'function') {
@@ -67,7 +72,7 @@
         button.addEventListener('click', function (event) {
             event.preventDefault();
             event.stopPropagation();
-            openNexusSearch();
+            openNexusSearch({ scopeMode: 'current' });
         });
 
         if (title.nextSibling) {
@@ -188,13 +193,14 @@
         if (!window.__nexusShortcutBound) {
             window.__nexusShortcutBound = true;
             document.addEventListener('keydown', function (event) {
-                const isShortcut = (event.ctrlKey || event.metaKey) && event.shiftKey && String(event.key || '').toLowerCase() === 'k';
-                if (!isShortcut) return;
+                const isCurrentShortcut = (event.ctrlKey || event.metaKey) && event.shiftKey && !event.altKey && String(event.key || '').toLowerCase() === 'k';
+                const isAllTabsShortcut = (event.ctrlKey || event.metaKey) && event.shiftKey && event.altKey && String(event.key || '').toLowerCase() === 'k';
+                if (!isCurrentShortcut && !isAllTabsShortcut) return;
                 const target = event.target;
                 const tag = target?.tagName;
                 if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable) return;
                 event.preventDefault();
-                openNexusSearch();
+                openNexusSearch({ scopeMode: isAllTabsShortcut ? 'all' : 'current' });
             });
         }
     }
@@ -202,6 +208,12 @@
     window.SearchMonitorBoot = {
         bind,
         handleToggle,
+        openNexusSearch: function () {
+            return openNexusSearch({ scopeMode: 'current' });
+        },
+        openNexusAllTabs: function () {
+            return openNexusSearch({ scopeMode: 'all' });
+        },
         _nexusSessions: [],
         recordNexusTrace: function (trace) {
             const indicator = getIndicator();

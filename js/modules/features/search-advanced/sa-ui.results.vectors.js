@@ -37,7 +37,7 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
         return '<span class="nx-path-tag ' + className + '">' + escapeHtml(label) + '</span>';
     }
 
-    function renderStats(searchResult) {
+    function renderStats(searchResult, displayedCount) {
         const stats = searchResult?.stats || {};
         const parts = [];
         if (stats.cards) parts.push('Cards: ' + stats.cards);
@@ -53,37 +53,145 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
             : '';
 
         return parts.length
-            ? '<div class="nx-results-stats">' + parts.join(' &middot; ') + ' &mdash; ' + (searchResult?.results?.length || 0) + ' total' + traceButton + '</div>'
+            ? '<div class="nx-results-stats">' + parts.join(' &middot; ') + ' &mdash; ' + displayedCount + ' shown'
+                + (displayedCount !== (searchResult?.results?.length || 0) ? ' / ' + (searchResult?.results?.length || 0) + ' total' : '')
+                + traceButton + '</div>'
             : '';
     }
 
-    function renderFacetSummary(searchResult) {
-        const facets = searchResult?.facets || {};
-        const sections = [];
+    function getFacetValues(item, key) {
+        switch (key) {
+            case 'tabs':
+                return [String(item?.path?.workspaceLabel || item?.workspaceId || '').trim()].filter(Boolean);
+            case 'cards':
+                return [String(item?.categoryName || '').trim()].filter(Boolean);
+            case 'sourceTypes':
+                return [String(item?.type || '').trim()].filter(Boolean);
+            case 'providers':
+                return [String(item?.provider || '').trim()].filter(Boolean);
+            case 'freshness':
+                return [String(item?.freshness?.label || '').trim()].filter(Boolean);
+            case 'visibility':
+                return [String(item?.visibility?.label || '').trim()].filter(Boolean);
+            case 'health':
+                return [String(item?.health?.label || '').trim()].filter(Boolean);
+            case 'flags': {
+                const values = [];
+                if (item?.provenance?.orphaned) values.push('Orphaned');
+                if (item?.health?.state === 'broken' || item?.visibility?.state === 'broken') values.push('Broken Path');
+                return values;
+            }
+            default:
+                return [];
+        }
+    }
 
-        function summarizeMap(label, map) {
-            const entries = Object.entries(map || {}).sort(function (left, right) {
-                return Number(right[1] || 0) - Number(left[1] || 0);
-            }).slice(0, 4);
+    function normalizeFacetFilters(filters) {
+        const next = {};
+        Object.keys(filters || {}).forEach(function (key) {
+            const values = Array.isArray(filters[key]) ? filters[key].map(function (value) {
+                return String(value || '').trim();
+            }).filter(Boolean) : [];
+            if (values.length) next[key] = values;
+        });
+        return next;
+    }
+
+    function matchesFacetFilters(item, filters, ignoredKey) {
+        const activeFilters = normalizeFacetFilters(filters);
+        const keys = Object.keys(activeFilters);
+        if (!keys.length) return true;
+        return keys.every(function (key) {
+            if (ignoredKey && key === ignoredKey) return true;
+            const selected = activeFilters[key] || [];
+            if (!selected.length) return true;
+            const values = getFacetValues(item, key);
+            return selected.some(function (value) { return values.includes(value); });
+        });
+    }
+
+    function buildFacetMap(results, filters, ignoredKey) {
+        const keys = ['tabs', 'cards', 'sourceTypes', 'providers', 'freshness', 'visibility', 'health', 'flags'];
+        const facets = {};
+        keys.forEach(function (key) { facets[key] = {}; });
+
+        results.forEach(function (item) {
+            if (!matchesFacetFilters(item, filters, ignoredKey)) return;
+            keys.forEach(function (key) {
+                getFacetValues(item, key).forEach(function (value) {
+                    facets[key][value] = (facets[key][value] || 0) + 1;
+                });
+            });
+        });
+
+        return facets;
+    }
+
+    function renderFacetSummary(searchResult, activeFilters) {
+        const results = Array.isArray(searchResult?.results) ? searchResult.results : [];
+        const sections = [];
+        const filterState = normalizeFacetFilters(activeFilters);
+        const hasActiveFilters = Object.keys(filterState).length > 0;
+
+        function summarizeMap(key, label, limit) {
+            const facetMap = buildFacetMap(results, filterState, key)[key] || {};
+            const activeValues = filterState[key] || [];
+            const sortedEntries = Object.entries(facetMap).sort(function (left, right) {
+                return Number(right[1] || 0) - Number(left[1] || 0) || String(left[0]).localeCompare(String(right[0]));
+            });
+            const includedValues = new Set();
+            const entries = [];
+
+            activeValues.forEach(function (value) {
+                includedValues.add(value);
+                entries.push([value, facetMap[value] || 0, true]);
+            });
+
+            sortedEntries.forEach(function (entry) {
+                if (includedValues.has(entry[0])) return;
+                if (entries.length >= limit) return;
+                entries.push([entry[0], entry[1], false]);
+                includedValues.add(entry[0]);
+            });
+
             if (!entries.length) return '';
             return '<div class="nx-facet-chip-group"><span class="nx-facet-chip-label">' + escapeHtml(label) + ':</span> '
                 + entries.map(function (entry) {
-                    return '<span class="nx-facet-chip">' + escapeHtml(entry[0]) + ' (' + entry[1] + ')</span>';
+                    return '<button type="button" class="nx-facet-chip'
+                        + (entry[2] ? ' nx-facet-chip-active' : '')
+                        + '" data-nx-facet-key="' + escapeHtml(key)
+                        + '" data-nx-facet-value="' + escapeHtml(entry[0]) + '">'
+                        + escapeHtml(entry[0]) + ' (' + entry[1] + ')</button>';
                 }).join(' ')
                 + '</div>';
         }
 
-        const tabs = summarizeMap('Tabs', facets.tabs);
-        const cards = summarizeMap('Cards', facets.cards);
-        const types = summarizeMap('Types', facets.sourceTypes);
-        const visibility = summarizeMap('Visibility', facets.visibility);
+        const tabs = summarizeMap('tabs', 'Tabs', 6);
+        const cards = summarizeMap('cards', 'Cards', 6);
+        const types = summarizeMap('sourceTypes', 'Types', 6);
+        const providers = summarizeMap('providers', 'Providers', 6);
+        const freshness = summarizeMap('freshness', 'Freshness', 4);
+        const visibility = summarizeMap('visibility', 'Visibility', 4);
+        const health = summarizeMap('health', 'Health', 4);
+        const flags = summarizeMap('flags', 'Flags', 4);
 
         if (tabs) sections.push(tabs);
         if (cards) sections.push(cards);
         if (types) sections.push(types);
+        if (providers) sections.push(providers);
+        if (freshness) sections.push(freshness);
         if (visibility) sections.push(visibility);
+        if (health) sections.push(health);
+        if (flags) sections.push(flags);
 
-        return sections.length ? '<div class="nx-facet-summary">' + sections.join('') + '</div>' : '';
+        if (!sections.length && !hasActiveFilters) return '';
+
+        return '<div class="nx-facet-summary">'
+            + (hasActiveFilters
+                ? '<div class="nx-facet-actions"><button type="button" class="nx-facet-clear" data-nx-action="clear-facets">Clear Filters</button></div>'
+                : '')
+            + sections.join('')
+            + '</div>';
     }
 
     function renderPathMeta(item) {
@@ -161,6 +269,7 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
             actions.push('<button type="button" class="nx-action-btn" data-nx-action="opencard" data-nx-id="' + escapeHtml(resultId) + '">Open Card</button>');
             actions.push('<button type="button" class="nx-action-btn nx-action-btn-primary" data-nx-action="path" data-nx-id="' + escapeHtml(resultId) + '">Go To Path</button>');
             actions.push('<button type="button" class="nx-action-btn" data-nx-action="unidex" data-nx-id="' + escapeHtml(resultId) + '">Reveal in Unidex</button>');
+            actions.push('<button type="button" class="nx-action-btn" data-nx-action="map" data-nx-id="' + escapeHtml(resultId) + '">Map</button>');
         }
         if (item?.type === 'bookmark' && item?.path?.linkId) {
             actions.push('<button type="button" class="nx-action-btn" data-nx-action="focus" data-nx-id="' + escapeHtml(resultId) + '">Focus</button>');
@@ -226,6 +335,12 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
                 event.preventDefault();
                 event.stopPropagation();
 
+                if (actionButton.getAttribute('data-nx-action') === 'clear-facets') {
+                    container._nxFacetFilters = {};
+                    if (container._nxLastSearchResult) renderVectorResults(container._nxLastSearchResult, container);
+                    return;
+                }
+
                 const resultId = String(actionButton.getAttribute('data-nx-id') || '').trim();
                 const action = String(actionButton.getAttribute('data-nx-action') || '').trim();
                 const result = container._nxResultMap?.get(resultId);
@@ -252,6 +367,10 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
                     navigation.openInUnidex(result);
                     return;
                 }
+                if (action === 'map' && navigation?.openMap) {
+                    navigation.openMap(result);
+                    return;
+                }
                 if (action === 'focus' && navigation?.focusBookmark) {
                     navigation.focusBookmark(result);
                     return;
@@ -261,6 +380,24 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
                     const panel = article?.querySelector('[data-nx-panel="' + action + '"][data-nx-owner="' + resultId + '"]');
                     if (panel) panel.hidden = !panel.hidden;
                 }
+                return;
+            }
+
+            const facetButton = event.target.closest('[data-nx-facet-key][data-nx-facet-value]');
+            if (facetButton && container.contains(facetButton)) {
+                event.preventDefault();
+                event.stopPropagation();
+                const key = String(facetButton.getAttribute('data-nx-facet-key') || '').trim();
+                const value = String(facetButton.getAttribute('data-nx-facet-value') || '').trim();
+                if (!key || !value) return;
+                const filters = normalizeFacetFilters(container._nxFacetFilters || {});
+                const next = new Set(filters[key] || []);
+                if (next.has(value)) next.delete(value);
+                else next.add(value);
+                filters[key] = Array.from(next);
+                if (!filters[key].length) delete filters[key];
+                container._nxFacetFilters = filters;
+                if (container._nxLastSearchResult) renderVectorResults(container._nxLastSearchResult, container);
                 return;
             }
 
@@ -331,8 +468,18 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
 
     function renderVectorResults(searchResult, container) {
         if (!container) return;
+        const previousQuery = container._nxLastSearchQuery || '';
+        const nextQuery = String(searchResult?.query || '');
+        if (previousQuery !== nextQuery) {
+            container._nxFacetFilters = {};
+        }
+        container._nxLastSearchQuery = nextQuery;
         container._nxLastSearchResult = searchResult || null;
         const results = Array.isArray(searchResult?.results) ? searchResult.results : [];
+        const facetFilters = normalizeFacetFilters(container._nxFacetFilters || {});
+        const filteredResults = results.filter(function (item) {
+            return matchesFacetFilters(item, facetFilters);
+        });
         if (!results.length) {
             container.innerHTML = '<div class="nx-empty">No results found across any vector.</div>';
             container._nxResultMap = new Map();
@@ -341,11 +488,16 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
         }
 
         const resultMap = new Map();
-        let html = renderStats(searchResult);
-        html += renderFacetSummary(searchResult);
-        html += searchResult?.mode === 'merged'
-            ? renderMergedResults(results, resultMap)
-            : renderSegmentedResults(searchResult, resultMap);
+        let html = renderStats(searchResult, filteredResults.length);
+        html += renderFacetSummary(searchResult, facetFilters);
+        if (!filteredResults.length) {
+            html += '<div class="nx-empty">No results match the active Nexus facets.</div>';
+        } else {
+            const renderResult = Object.assign({}, searchResult, { results: filteredResults });
+            html += searchResult?.mode === 'merged'
+                ? renderMergedResults(filteredResults, resultMap)
+                : renderSegmentedResults(renderResult, resultMap);
+        }
 
         container.innerHTML = html;
         container._nxResultMap = resultMap;

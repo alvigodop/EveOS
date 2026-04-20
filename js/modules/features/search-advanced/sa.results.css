@@ -71,6 +71,14 @@
     margin-left: auto;
 }
 
+.nx-scope-mode {
+    margin-left: auto;
+}
+
+#nxResultsModeToggle {
+    margin-left: 0;
+}
+
 .nx-mode-btn {
     border: 1px solid rgba(80, 200, 255, 0.12);
     background: rgba(20, 28, 45, 0.45);
@@ -441,6 +449,12 @@
     margin: -2px 0 12px;
 }
 
+.nx-facet-actions {
+    display: flex;
+    align-items: center;
+    margin-left: auto;
+}
+
 .nx-facet-chip-group {
     display: flex;
     flex-wrap: wrap;
@@ -459,4 +473,34 @@
     border-radius: 999px;
     background: rgba(70, 96, 140, 0.18);
     color: rgba(188, 214, 242, 0.82);
+    border: 1px solid rgba(80, 200, 255, 0.08);
+    cursor: pointer;
+    transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+}
+
+.nx-facet-chip:hover {
+    background: rgba(80, 200, 255, 0.16);
+    border-color: rgba(80, 200, 255, 0.18);
+    color: rgba(222, 239, 255, 0.96);
+}
+
+.nx-facet-chip-active {
+    background: rgba(80, 200, 255, 0.24);
+    border-color: rgba(80, 200, 255, 0.28);
+    color: rgba(232, 244, 255, 0.98);
+}
+
+.nx-facet-clear {
+    border: 1px solid rgba(80, 200, 255, 0.12);
+    background: rgba(18, 28, 44, 0.46);
+    color: rgba(192, 221, 244, 0.88);
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 0.64rem;
+    cursor: pointer;
+}
+
+.nx-facet-clear:hover {
+    border-color: rgba(80, 200, 255, 0.22);
+    color: rgba(228, 242, 255, 0.98);
 }

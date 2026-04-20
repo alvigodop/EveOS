@@ -14,6 +14,28 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             : Date.now();
     }
 
+    function buildTraceSummary(trace) {
+        const order = ['bookmarks', 'knowledge', 'cached', 'google'];
+        const labels = {
+            bookmarks: 'B',
+            knowledge: 'K',
+            cached: 'C',
+            google: 'G'
+        };
+
+        const parts = order.map(function (key) {
+            const vector = trace?.vectors?.[key];
+            if (!vector) return '';
+            if (vector.status === 'error') return labels[key] + ' err';
+            if (vector.status === 'disabled') return '';
+            if (vector.status === 'skipped') return labels[key] + ' skip';
+            return labels[key] + (Number(vector.resultCount || 0)) + ' ' + Number(vector.durationMs || 0) + 'ms';
+        }).filter(Boolean);
+
+        parts.push('T ' + Number(trace?.totalMs || 0) + 'ms');
+        return parts.join(' · ');
+    }
+
     async function runGoogleVector(query, settings) {
         const Api = ns.Api;
         if (!Api || typeof Api.runSearch !== 'function') return [];
@@ -240,6 +262,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
 
         trace.endedAt = Date.now();
         trace.totalMs = Math.round(((trace.endedAt - trace.startedAt)) * 100) / 100;
+        trace.summary = buildTraceSummary(trace);
 
         const stats = {
             cards: cardRecords.length,

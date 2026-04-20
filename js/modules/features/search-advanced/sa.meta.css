@@ -288,6 +288,23 @@
     letter-spacing: 0.04em;
 }
 
+.nx-debug-mini-list {
+    margin-top: 10px;
+    display: grid;
+    gap: 4px;
+}
+
+.nx-debug-mini-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 4px 6px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.03);
+    font-size: 0.72rem;
+}
+
 .nx-debug-actions {
     display: flex;
     flex-wrap: wrap;

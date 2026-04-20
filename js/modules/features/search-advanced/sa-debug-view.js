@@ -4,12 +4,17 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
 (function () {
     const ns = window.EveOS.SearchAdvanced;
 
-    function escHtml(v) {
-        return String(v || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    function escHtml(value) {
+        return String(value || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
     }
 
     function getAllLinks() {
-        return Array.isArray(window.eveState?.links) ? window.eveState.links : (typeof window.links !== 'undefined' ? window.links : []);
+        return Array.isArray(window.eveState?.links)
+            ? window.eveState.links
+            : (typeof window.links !== 'undefined' ? window.links : []);
     }
 
     function getConfig() {
@@ -20,28 +25,33 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         return getConfig().workspaces || [];
     }
 
-    // --- Diagnostic Data Collectors ---
-
     function collectOverview() {
         const links = getAllLinks();
         const cfg = getConfig();
         const workspaces = getWorkspaces();
         const helpers = window.EveWorkspaceHelpers;
-        const allWsIds = helpers?.flattenIds ? new Set(helpers.flattenIds(workspaces)) : new Set(workspaces.map(w => w?.id).filter(Boolean));
+        const allWsIds = helpers?.flattenIds
+            ? new Set(helpers.flattenIds(workspaces))
+            : new Set(workspaces.map(function (workspace) { return workspace?.id; }).filter(Boolean));
         if (allWsIds.size === 0) allWsIds.add('main');
 
-        const orphanCount = links.filter(l => l && !allWsIds.has(String(l.workspace || 'main').trim())).length;
+        const orphanCount = links.filter(function (link) {
+            return link && !allWsIds.has(String(link.workspace || 'main').trim());
+        }).length;
         const categorySet = new Set();
         const workspaceLinkCounts = {};
-        links.forEach(function (l) {
-            if (!l) return;
-            const ws = String(l.workspace || 'main').trim();
-            const cat = String(l.category || 'Unsorted').trim();
+
+        links.forEach(function (link) {
+            if (!link) return;
+            const ws = String(link.workspace || 'main').trim();
+            const cat = String(link.category || 'Unsorted').trim();
             categorySet.add(cat);
             workspaceLinkCounts[ws] = (workspaceLinkCounts[ws] || 0) + 1;
         });
 
-        const largestWs = Object.entries(workspaceLinkCounts).sort((a, b) => b[1] - a[1])[0];
+        const largestWs = Object.entries(workspaceLinkCounts).sort(function (left, right) {
+            return Number(right[1] || 0) - Number(left[1] || 0);
+        })[0];
 
         return {
             totalLinks: links.length,
@@ -63,37 +73,34 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         const helpers = window.EveWorkspaceHelpers;
         const allWsIds = helpers?.flattenIds ? new Set(helpers.flattenIds(workspaces)) : new Set();
         const rows = [];
-
-        // Count links per workspace
         const counts = {};
-        links.forEach(function (l) {
-            if (!l) return;
-            const ws = String(l.workspace || 'main').trim();
+
+        links.forEach(function (link) {
+            if (!link) return;
+            const ws = String(link.workspace || 'main').trim();
             counts[ws] = (counts[ws] || 0) + 1;
         });
 
-        // Known workspaces
         const flat = helpers?.flatten ? helpers.flatten(workspaces) : workspaces;
-        flat.forEach(function (ws) {
-            if (!ws) return;
-            const id = String(ws.id);
+        flat.forEach(function (workspace) {
+            if (!workspace) return;
+            const id = String(workspace.id);
             rows.push({
                 id: id,
-                name: ws.name || id,
-                icon: ws.icon || '📁',
+                name: workspace.name || id,
+                icon: workspace.icon || 'folder',
                 linkCount: counts[id] || 0,
                 status: 'active',
                 depth: helpers?.getDepth ? helpers.getDepth(workspaces, id) : 0
             });
         });
 
-        // Ghost workspaces (orphaned)
         Object.keys(counts).forEach(function (wsId) {
-            if (!allWsIds.has(wsId) && !rows.some(r => r.id === wsId)) {
+            if (!allWsIds.has(wsId) && !rows.some(function (row) { return row.id === wsId; })) {
                 rows.push({
                     id: wsId,
                     name: wsId,
-                    icon: '👻',
+                    icon: 'ghost',
                     linkCount: counts[wsId],
                     status: 'orphaned',
                     depth: 0
@@ -101,7 +108,9 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             }
         });
 
-        return rows.sort((a, b) => b.linkCount - a.linkCount);
+        return rows.sort(function (left, right) {
+            return Number(right.linkCount || 0) - Number(left.linkCount || 0);
+        });
     }
 
     function collectPerformanceInfo() {
@@ -123,17 +132,96 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         };
     }
 
-    // --- Render ---
+    async function collectDatapackSpineInfo() {
+        const scopeApi = window.EveOS?.SearchAdvanced?.UI;
+        const indexApi = window.EveOS?.SearchAdvanced?.Index;
+        const scopeMode = scopeApi?.getCurrentScopeMode?.() || 'current';
+        const scope = scopeApi?.getResolvedScope?.(scopeMode) || null;
+        const scopeLabel = scopeApi?.getScopeLabel?.(scopeMode) || (scopeMode === 'all' ? 'All Tabs' : 'Current Scope');
 
-    function renderDebugPanel(container) {
+        if (!indexApi?.ensureFresh) {
+            return {
+                scopeMode,
+                scope,
+                scopeLabel,
+                integrity: null,
+                graph: null,
+                topWorkspaces: []
+            };
+        }
+
+        const snapshot = await indexApi.ensureFresh();
+        const integrity = indexApi.getIntegrityReport
+            ? await indexApi.getIntegrityReport({ snapshot, scope })
+            : null;
+        const projection = indexApi.buildGraphProjection
+            ? await indexApi.buildGraphProjection({ snapshot, scope })
+            : null;
+        const kindCounts = (projection?.nodes || []).reduce(function (acc, node) {
+            const key = String(node?.kind || 'node');
+            acc[key] = (acc[key] || 0) + 1;
+            return acc;
+        }, {});
+        const topWorkspaces = Object.entries(integrity?.byWorkspace || {})
+            .sort(function (left, right) {
+                return Number(right[1] || 0) - Number(left[1] || 0) || String(left[0]).localeCompare(String(right[0]));
+            })
+            .slice(0, 5);
+
+        return {
+            scopeMode,
+            scope,
+            scopeLabel,
+            integrity,
+            graph: {
+                nodeCount: projection?.nodes?.length || 0,
+                edgeCount: projection?.edges?.length || 0,
+                kindCounts
+            },
+            topWorkspaces
+        };
+    }
+
+    function openScopeMap(scope) {
+        const mapApi = window.EveConstellationMap;
+        if (!mapApi) return false;
+        if (!scope || (!scope.workspaceId && !scope.categoryName)) {
+            if (typeof mapApi.openAllMap === 'function') {
+                mapApi.openAllMap();
+                return true;
+            }
+            return false;
+        }
+        if (scope.workspaceId && scope.categoryName && typeof mapApi.openCardMap === 'function') {
+            mapApi.openCardMap(scope.workspaceId, scope.categoryName);
+            return true;
+        }
+        if (scope.workspaceId && typeof mapApi.openWorkspaceMap === 'function') {
+            mapApi.openWorkspaceMap(scope.workspaceId);
+            return true;
+        }
+        return false;
+    }
+
+    function renderMiniList(entries) {
+        if (!entries.length) return '';
+        return '<div class="nx-debug-mini-list">' + entries.map(function (entry) {
+            return '<div class="nx-debug-mini-row"><span>' + escHtml(entry[0]) + '</span><span>' + entry[1] + '</span></div>';
+        }).join('') + '</div>';
+    }
+
+    async function renderDebugPanel(container) {
+        if (!container) return;
+        container.innerHTML = '<div class="nx-debug-placeholder" style="padding:12px; text-align:center; color:rgba(128,128,128,0.6); font-size:0.78rem;">Loading diagnostics...</div>';
+
         const overview = collectOverview();
         const wsBreakdown = collectWorkspaceBreakdown();
         const perf = collectPerformanceInfo();
+        const spine = await collectDatapackSpineInfo();
 
         let html = '<div class="nx-debug-panel">';
 
-        // Overview
-        html += '<div class="nx-debug-section"><div class="nx-debug-section-title">📊 DATA OVERVIEW</div>';
+        html += '<div class="nx-debug-section"><div class="nx-debug-section-title">DATA OVERVIEW</div>';
         html += '<table class="nx-debug-table">';
         html += '<tr><td>Total Links</td><td>' + overview.totalLinks + '</td></tr>';
         html += '<tr><td>Total Workspaces (Tabs)</td><td>' + overview.totalWorkspaces + '</td></tr>';
@@ -146,17 +234,15 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         }
         html += '</table></div>';
 
-        // Orphan Alert
         if (overview.orphanedLinks > 0) {
             html += '<div class="nx-debug-section nx-debug-alert">';
-            html += '<div class="nx-debug-section-title">⚠ ORPHANED BOOKMARKS</div>';
+            html += '<div class="nx-debug-section-title">ORPHANED BOOKMARKS</div>';
             html += '<p>' + overview.orphanedLinks + ' link(s) reference deleted workspaces.</p>';
-            html += '<button type="button" class="nx-debug-action-btn" id="nxDebugRescueBtn">🔄 Rescue Orphans</button>';
+            html += '<button type="button" class="nx-debug-action-btn" id="nxDebugRescueBtn">Rescue Orphans</button>';
             html += '</div>';
         }
 
-        // Performance
-        html += '<div class="nx-debug-section"><div class="nx-debug-section-title">⚡ PERFORMANCE</div>';
+        html += '<div class="nx-debug-section"><div class="nx-debug-section-title">PERFORMANCE</div>';
         html += '<table class="nx-debug-table">';
         html += '<tr><td>Perf Mode</td><td class="' + (perf.perfMode ? 'nx-debug-on' : 'nx-debug-off') + '">' + (perf.perfMode ? 'ACTIVE' : 'OFF') + '</td></tr>';
         html += '<tr><td>Masonry Layout</td><td>' + (perf.masonryDisabled ? 'Disabled (perf)' : 'Active') + '</td></tr>';
@@ -168,48 +254,67 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         html += '<tr><td>Nexus Indexed Providers</td><td>' + perf.nexusIndexedProviders + '</td></tr>';
         html += '</table></div>';
 
-        // Workspace Breakdown
-        html += '<div class="nx-debug-section"><div class="nx-debug-section-title">🗂 WORKSPACE BREAKDOWN</div>';
+        html += '<div class="nx-debug-section"><div class="nx-debug-section-title">DATAPACK SPINE</div>';
+        if (spine.integrity) {
+            html += '<table class="nx-debug-table">';
+            html += '<tr><td>Nexus Scope</td><td>' + escHtml(spine.scopeLabel) + '</td></tr>';
+            html += '<tr><td>Records In Scope</td><td>' + spine.integrity.totalRecords + '</td></tr>';
+            html += '<tr><td>Hidden / Indirect</td><td>' + spine.integrity.hiddenRecords + ' / ' + spine.integrity.indirectRecords + '</td></tr>';
+            html += '<tr><td>Broken / Orphaned</td><td>' + spine.integrity.brokenRecords + ' / ' + spine.integrity.orphanedRecords + '</td></tr>';
+            html += '<tr><td>Stale / Aging</td><td>' + spine.integrity.staleRecords + ' / ' + spine.integrity.agingRecords + '</td></tr>';
+            html += '<tr><td>Linked Library / Done</td><td>' + spine.integrity.linkedLibraryRecords + ' / ' + spine.integrity.doneRecords + '</td></tr>';
+            html += '<tr><td>Graph Nodes / Edges</td><td>' + spine.graph.nodeCount + ' / ' + spine.graph.edgeCount + '</td></tr>';
+            html += '<tr><td>Graph Kinds</td><td>' + Object.entries(spine.graph.kindCounts).map(function (entry) {
+                return escHtml(entry[0]) + ':' + entry[1];
+            }).join(' · ') + '</td></tr>';
+            html += '</table>';
+            html += renderMiniList(spine.topWorkspaces);
+        } else {
+            html += '<div style="font-size:0.74rem; color:rgba(140,170,205,0.7);">Nexus index is unavailable.</div>';
+        }
+        html += '</div>';
+
+        html += '<div class="nx-debug-section"><div class="nx-debug-section-title">WORKSPACE BREAKDOWN</div>';
         html += '<div class="nx-debug-ws-list">';
-        wsBreakdown.forEach(function (ws) {
-            const depthPad = ws.depth > 0 ? 'style="padding-left:' + (ws.depth * 12) + 'px"' : '';
-            const statusClass = ws.status === 'orphaned' ? ' nx-debug-orphan' : '';
-            html += '<div class="nx-debug-ws-row' + statusClass + '" ' + depthPad + '>';
-            html += '<span class="nx-debug-ws-icon">' + escHtml(ws.icon) + '</span>';
-            html += '<span class="nx-debug-ws-name">' + escHtml(ws.name) + '</span>';
-            html += '<span class="nx-debug-ws-count">' + ws.linkCount + '</span>';
-            if (ws.status === 'orphaned') html += '<span class="nx-debug-ws-badge">ghost</span>';
+        wsBreakdown.forEach(function (workspace) {
+            const depthPad = workspace.depth > 0 ? ' style="padding-left:' + (workspace.depth * 12) + 'px"' : '';
+            const statusClass = workspace.status === 'orphaned' ? ' nx-debug-orphan' : '';
+            html += '<div class="nx-debug-ws-row' + statusClass + '"' + depthPad + '>';
+            html += '<span class="nx-debug-ws-icon">' + escHtml(workspace.icon) + '</span>';
+            html += '<span class="nx-debug-ws-name">' + escHtml(workspace.name) + '</span>';
+            html += '<span class="nx-debug-ws-count">' + workspace.linkCount + '</span>';
+            if (workspace.status === 'orphaned') html += '<span class="nx-debug-ws-badge">ghost</span>';
             html += '</div>';
         });
         html += '</div></div>';
 
-        // Actions
-        html += '<div class="nx-debug-section"><div class="nx-debug-section-title">🛠 ACTIONS</div>';
+        html += '<div class="nx-debug-section"><div class="nx-debug-section-title">ACTIONS</div>';
         html += '<div class="nx-debug-actions">';
         html += '<button type="button" class="nx-debug-action-btn" id="nxDebugClearFolderCache">Clear Folder Cache</button>';
         html += '<button type="button" class="nx-debug-action-btn" id="nxDebugForceRender">Force Re-render</button>';
         html += '<button type="button" class="nx-debug-action-btn" id="nxDebugResetLoading">Reset Loading State</button>';
         html += '<button type="button" class="nx-debug-action-btn" id="nxDebugReindexNexus">Reindex Nexus</button>';
+        html += '<button type="button" class="nx-debug-action-btn" id="nxDebugOpenScopeMap">Open Scope Map</button>';
         html += '<button type="button" class="nx-debug-action-btn" id="nxDebugRefreshDiag">Refresh Diagnostics</button>';
         html += '</div></div>';
 
         html += '</div>';
         container.innerHTML = html;
 
-        // Wire up action buttons
-        var rescueBtn = document.getElementById('nxDebugRescueBtn');
+        const rescueBtn = document.getElementById('nxDebugRescueBtn');
         if (rescueBtn) {
             rescueBtn.onclick = function () {
-                var Agg = ns.CacheAggregator;
-                if (Agg?.rescueOrphanedLinks) {
-                    var result = Agg.rescueOrphanedLinks();
-                    if (typeof showToast === 'function') showToast('Rescued ' + result.rescued + ' links into ' + result.restoredTabs.length + ' tab(s)', 'success');
-                    renderDebugPanel(container);
+                const Agg = ns.CacheAggregator;
+                if (!Agg?.rescueOrphanedLinks) return;
+                const result = Agg.rescueOrphanedLinks();
+                if (typeof showToast === 'function') {
+                    showToast('Rescued ' + result.rescued + ' links into ' + result.restoredTabs.length + ' tab(s)', 'success');
                 }
+                renderDebugPanel(container);
             };
         }
 
-        var clearCacheBtn = document.getElementById('nxDebugClearFolderCache');
+        const clearCacheBtn = document.getElementById('nxDebugClearFolderCache');
         if (clearCacheBtn) {
             clearCacheBtn.onclick = function () {
                 if (window.EveFolderViewV2?._viewModelCache) window.EveFolderViewV2._viewModelCache = {};
@@ -218,7 +323,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             };
         }
 
-        var forceRenderBtn = document.getElementById('nxDebugForceRender');
+        const forceRenderBtn = document.getElementById('nxDebugForceRender');
         if (forceRenderBtn) {
             forceRenderBtn.onclick = function () {
                 if (typeof renderDashboard === 'function') renderDashboard();
@@ -226,24 +331,37 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             };
         }
 
-        var resetLoadingBtn = document.getElementById('nxDebugResetLoading');
+        const resetLoadingBtn = document.getElementById('nxDebugResetLoading');
         if (resetLoadingBtn) {
             resetLoadingBtn.onclick = function () {
                 if (window.LoadingIndicator?.forceReset) {
-                    LoadingIndicator.forceReset();
+                    window.LoadingIndicator.forceReset();
                     if (typeof showToast === 'function') showToast('Loading state reset', 'info');
-                } else {
-                    if (typeof showToast === 'function') showToast('LoadingIndicator not available', 'warning');
+                } else if (typeof showToast === 'function') {
+                    showToast('LoadingIndicator not available', 'warning');
                 }
             };
         }
 
-        var refreshBtn = document.getElementById('nxDebugRefreshDiag');
+        const refreshBtn = document.getElementById('nxDebugRefreshDiag');
         if (refreshBtn) {
-            refreshBtn.onclick = function () { renderDebugPanel(container); };
+            refreshBtn.onclick = function () {
+                renderDebugPanel(container);
+            };
         }
 
-        var reindexBtn = document.getElementById('nxDebugReindexNexus');
+        const openScopeMapBtn = document.getElementById('nxDebugOpenScopeMap');
+        if (openScopeMapBtn) {
+            openScopeMapBtn.onclick = function () {
+                if (openScopeMap(spine.scope)) {
+                    if (typeof showToast === 'function') showToast('Opened Constellation Map for ' + spine.scopeLabel, 'info');
+                } else if (typeof showToast === 'function') {
+                    showToast('Constellation Map is not available', 'warning');
+                }
+            };
+        }
+
+        const reindexBtn = document.getElementById('nxDebugReindexNexus');
         if (reindexBtn) {
             reindexBtn.onclick = async function () {
                 await window.EveOS?.SearchAdvanced?.Index?.rebuild?.({ reason: 'debug-panel', force: true });
@@ -257,6 +375,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         collectOverview,
         collectWorkspaceBreakdown,
         collectPerformanceInfo,
+        collectDatapackSpineInfo,
         renderDebugPanel
     };
 })();

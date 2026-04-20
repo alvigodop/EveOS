@@ -125,15 +125,12 @@ async function seedState(page, seed) {
   }, seed);
 }
 
-async function openAllTabsNexus(page) {
+async function openNexusFromMonitor(page) {
   await page.locator('#loadingIndicator .monitor-nexus-toggle').click();
   await page.waitForFunction(() => {
     const modal = document.getElementById('expandedSearchModal');
     return !!modal && modal.style.display === 'flex';
   }, undefined, { timeout: 10000 });
-  await page.evaluate(() => {
-    window.openExpandedSearchModal({ scope: {} });
-  });
 }
 
 async function runSearch(page, query) {
@@ -163,19 +160,30 @@ async function runSmoke(page) {
     throw new Error('Search Monitor Nexus launcher missing or mislabeled');
   }
 
-  await openAllTabsNexus(page);
+  await openNexusFromMonitor(page);
 
   const modeState = await page.evaluate(() => ({
     segmentedActive: !!document.querySelector('.nx-mode-btn[data-results-mode="segmented"]')?.classList.contains('nx-mode-btn-active'),
     mergedActive: !!document.querySelector('.nx-mode-btn[data-results-mode="merged"]')?.classList.contains('nx-mode-btn-active'),
+    currentScopeActive: !!document.querySelector('.nx-mode-btn[data-scope-mode="current"]')?.classList.contains('nx-mode-btn-active'),
+    allScopeActive: !!document.querySelector('.nx-mode-btn[data-scope-mode="all"]')?.classList.contains('nx-mode-btn-active'),
     scopeText: document.getElementById('esScopeIndicator')?.textContent || ''
   }));
   if (!modeState.segmentedActive || modeState.mergedActive) {
     throw new Error('Segmented mode should be the default results mode');
   }
-  if (!String(modeState.scopeText).includes('All Tabs')) {
-    throw new Error('All-tabs scope indicator missing: ' + JSON.stringify(modeState));
+  if (!modeState.currentScopeActive || modeState.allScopeActive) {
+    throw new Error('Current scope should be the default Nexus scope: ' + JSON.stringify(modeState));
   }
+  if (String(modeState.scopeText).includes('All Tabs')) {
+    throw new Error('Search Monitor launcher should open Nexus in current scope first: ' + JSON.stringify(modeState));
+  }
+
+  await page.locator('.nx-mode-btn[data-scope-mode="all"]').click();
+  await page.waitForFunction(() => {
+    return !!document.querySelector('.nx-mode-btn[data-scope-mode="all"]')?.classList.contains('nx-mode-btn-active')
+      && String(document.getElementById('esScopeIndicator')?.textContent || '').includes('All Tabs');
+  }, undefined, { timeout: 10000 });
 
   await runSearch(page, 'Alpha');
   await waitForText(page, '#esResults .nx-result-item', 'Alpha Test Bookmark');
@@ -282,6 +290,13 @@ async function runSmoke(page) {
     const modal = document.getElementById('expandedSearchModal');
     return !!modal && modal.style.display === 'flex';
   }, undefined, { timeout: 10000 });
+  const reopenedScopeState = await page.evaluate(() => ({
+    currentScopeActive: !!document.querySelector('.nx-mode-btn[data-scope-mode="current"]')?.classList.contains('nx-mode-btn-active'),
+    scopeText: document.getElementById('esScopeIndicator')?.textContent || ''
+  }));
+  if (!reopenedScopeState.currentScopeActive || String(reopenedScopeState.scopeText).includes('All Tabs')) {
+    throw new Error('Ctrl+Shift+K should reopen Nexus in current scope: ' + JSON.stringify(reopenedScopeState));
+  }
 }
 
 (async () => {

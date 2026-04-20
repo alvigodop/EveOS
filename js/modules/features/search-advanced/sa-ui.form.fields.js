@@ -48,9 +48,15 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
                 num: byId('esNum')?.value || '10',
                 exactTerms: getFieldValue('esExactTerms'),
                 excludeTerms: getFieldValue('esExcludeTerms'),
+                scopeMode: collectScopeMode(),
                 resultsMode: collectResultsMode(),
                 activeVectors: collectVectorStates()
             };
+        }
+
+        function collectScopeMode() {
+            const activeButton = document.querySelector('.nx-mode-btn.nx-mode-btn-active[data-scope-mode]');
+            return activeButton?.getAttribute('data-scope-mode') === 'all' ? 'all' : 'current';
         }
 
         function collectResultsMode() {
@@ -72,10 +78,30 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
             return vectors;
         }
 
+        function applyScopeMode(mode) {
+            const normalizedMode = mode === 'all' ? 'all' : 'current';
+            document.querySelectorAll('.nx-mode-btn[data-scope-mode]').forEach(function (button) {
+                button.classList.toggle('nx-mode-btn-active', button.getAttribute('data-scope-mode') === normalizedMode);
+            });
+        }
+
         function applyResultsMode(mode) {
             const normalizedMode = mode === 'merged' ? 'merged' : 'segmented';
             document.querySelectorAll('.nx-mode-btn[data-results-mode]').forEach(function (button) {
                 button.classList.toggle('nx-mode-btn-active', button.getAttribute('data-results-mode') === normalizedMode);
+            });
+        }
+
+        function initScopeModeToggle() {
+            document.querySelectorAll('.nx-mode-btn[data-scope-mode]').forEach(function (button) {
+                button.addEventListener('click', function () {
+                    const mode = button.getAttribute('data-scope-mode') === 'all' ? 'all' : 'current';
+                    applyScopeMode(mode);
+                    if (window.EveOS?.SearchAdvanced?.State?.updateSettings) {
+                        window.EveOS.SearchAdvanced.State.updateSettings({ scopeMode: mode });
+                    }
+                    window.EveOS?.SearchAdvanced?.UI?.refreshScopeIndicator?.();
+                });
             });
         }
 
@@ -151,6 +177,7 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
                 });
             }
 
+            initScopeModeToggle();
             initResultsModeToggle();
         }
 
@@ -181,6 +208,7 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
             if (byId('esExcludeTerms')) byId('esExcludeTerms').value = current.excludeTerms || '';
             if (byId('esQuery') && typeof query === 'string') byId('esQuery').value = query;
             applyVectorStates(current.activeVectors);
+            applyScopeMode(current.scopeMode || 'current');
             applyResultsMode(current.resultsMode || 'segmented');
         }
 

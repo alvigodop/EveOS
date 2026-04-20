@@ -23,8 +23,18 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         return getUiHelpers().byId(id);
     }
 
-    function resolveCurrentScope() {
-        if (activeScope) return activeScope;
+    function getCurrentScopeMode() {
+        const selected = document.querySelector('.nx-mode-btn.nx-mode-btn-active[data-scope-mode]');
+        if (selected) {
+            return selected.getAttribute('data-scope-mode') === 'all' ? 'all' : 'current';
+        }
+        return State?.getSettings?.()?.scopeMode === 'all' ? 'all' : 'current';
+    }
+
+    function resolveCurrentScope(scopeMode) {
+        const mode = scopeMode === 'all' ? 'all' : getCurrentScopeMode();
+        if (mode === 'all') return {};
+        if (activeScope && (activeScope.workspaceId || activeScope.categoryName)) return activeScope;
 
         const grid = document.getElementById('dashboard-grid');
         const isUnidexMode = grid && grid.classList.contains('unidex-mode');
@@ -37,6 +47,23 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         ).trim() || 'main';
 
         return { workspaceId: activeWorkspace };
+    }
+
+    function buildScopeLabel(scopeMode, scope) {
+        const Agg = window.EveOS.SearchAdvanced.CacheAggregator;
+        const resolvedScope = scope || resolveCurrentScope(scopeMode);
+        return Agg?.describeScopeLabel ? Agg.describeScopeLabel(resolvedScope) : (scopeMode === 'all' ? 'All Tabs' : 'Scoped');
+    }
+
+    function refreshScopeIndicator() {
+        const scopeMode = getCurrentScopeMode();
+        const scope = resolveCurrentScope(scopeMode);
+        const scopeIndicator = byId('esScopeIndicator');
+        if (scopeIndicator) {
+            scopeIndicator.textContent = 'Scope: ' + buildScopeLabel(scopeMode, scope);
+            scopeIndicator.style.display = '';
+        }
+        return { scopeMode, scope };
     }
 
     function syncSearchMonitor(state) {
@@ -221,6 +248,49 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             return true;
         }
 
+        if (command.startsWith('open map ') || command.startsWith('map ')) {
+            const mapQuery = command.startsWith('open map ')
+                ? command.replace(/^open map\s+/, '').trim()
+                : command.replace(/^map\s+/, '').trim();
+            if (!mapQuery) return false;
+            const local = await window.EveOS.SearchAdvanced?.Index?.search?.(mapQuery, scope, {
+                activeVectors: { google: false, knowledge: true, cachedResults: true, bookmarks: true }
+            });
+            const target = (local?.records || [])[0];
+            if (target && window.EveOS.SearchAdvanced?.Navigation?.openMap) {
+                window.EveOS.SearchAdvanced.Navigation.openMap(target);
+                renderCommandMessage(results, 'Opened Constellation Map', target.title || 'Top matching result');
+                const trace = buildCommandTrace(command, 'constellation map');
+                syncSearchMonitor({
+                    isSearching: false,
+                    statusText: 'Nexus command',
+                    scopeLabel: 'Command',
+                    vectorStatus: 'cmd',
+                    resultsFound: '1',
+                    traceId: trace.id,
+                    traceSummary: trace.summary,
+                    trace: trace
+                });
+                ui.setMeta('Opened Constellation Map for "' + (target.title || 'match') + '".', false);
+                return true;
+            }
+
+            renderCommandMessage(results, 'No map target', 'No matching local result was found for "' + mapQuery + '".');
+            const trace = buildCommandTrace(command, 'constellation map miss');
+            syncSearchMonitor({
+                isSearching: false,
+                statusText: 'Nexus command',
+                scopeLabel: 'Command',
+                vectorStatus: 'cmd',
+                resultsFound: '0',
+                traceId: trace.id,
+                traceSummary: trace.summary,
+                trace: trace
+            });
+            ui.setMeta('No matching local result found for map view.', false);
+            return true;
+        }
+
         if (command.startsWith('inspect source ')) {
             const sourceQuery = command.replace(/^inspect source\s+/, '').trim();
             if (!sourceQuery) return false;
@@ -281,21 +351,17 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             return;
         }
 
-        const scope = resolveCurrentScope();
+        const scopeMode = settings.scopeMode === 'all' ? 'all' : getCurrentScopeMode();
+        const scope = resolveCurrentScope(scopeMode);
 
         try {
             ui.setLoading(true);
 
-            const Agg = window.EveOS.SearchAdvanced.CacheAggregator;
-            const scopeLabel = Agg?.describeScopeLabel ? Agg.describeScopeLabel(scope) : 'Scoped';
+            const scopeLabel = buildScopeLabel(scopeMode, scope);
             const activeVectorCount = Object.keys(settings.activeVectors || {}).filter(function (key) {
                 return !!settings.activeVectors[key];
             }).length;
-            const scopeIndicator = byId('esScopeIndicator');
-            if (scopeIndicator) {
-                scopeIndicator.textContent = 'Scope: ' + scopeLabel;
-                scopeIndicator.style.display = '';
-            }
+            refreshScopeIndicator();
 
             syncSearchMonitor({
                 isSearching: true,
@@ -337,7 +403,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                     vectorStatus: satisfiedVectors + '/' + activeVectorCount,
                     resultsFound: String(total),
                     traceId: result?.trace?.id || '',
-                    traceSummary: result?.trace ? ('total ' + result.trace.totalMs + 'ms') : '',
+                    traceSummary: result?.trace?.summary || (result?.trace ? ('total ' + result.trace.totalMs + 'ms') : ''),
                     trace: result?.trace || null
                 });
             } else {
@@ -386,25 +452,28 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     function openExpandedSearchModal(options) {
         const ui = getUiHelpers();
         ui.createModalIfNeeded();
-        activeScope = options?.scope || null;
+        activeScope = (options?.scope && (options.scope.workspaceId || options.scope.categoryName))
+            ? options.scope
+            : null;
 
         const settings = State.getSettings();
+        const scopeModeOverride = options?.scopeMode
+            || (options?.scope && !options.scope.workspaceId && !options.scope.categoryName ? 'all' : '');
         const queryFromOptions = typeof options?.query === 'string'
             ? options.query
             : (byId('search')?.value || '');
-        ui.applySettingsToForm(settings, queryFromOptions);
+        const effectiveSettings = scopeModeOverride
+            ? Object.assign({}, settings, { scopeMode: scopeModeOverride })
+            : settings;
+        ui.applySettingsToForm(effectiveSettings, queryFromOptions);
+        if (scopeModeOverride) {
+            State.updateSettings({ scopeMode: scopeModeOverride });
+        }
 
         const modal = byId('expandedSearchModal');
         if (modal) modal.style.display = 'flex';
 
-        const scope = resolveCurrentScope();
-        const Agg = window.EveOS.SearchAdvanced.CacheAggregator;
-        const scopeLabel = Agg?.describeScopeLabel ? Agg.describeScopeLabel(scope) : '';
-        const scopeIndicator = byId('esScopeIndicator');
-        if (scopeIndicator) {
-            scopeIndicator.textContent = 'Scope: ' + scopeLabel;
-            scopeIndicator.style.display = '';
-        }
+        refreshScopeIndicator();
 
         if (typeof ui.updateFooterStats === 'function') ui.updateFooterStats();
 
@@ -419,6 +488,14 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     window.openExpandedSearchModal = openExpandedSearchModal;
     window.EveOS.SearchAdvanced.UI = {
         openExpandedSearchModal,
-        runSearch
+        runSearch,
+        refreshScopeIndicator,
+        getCurrentScopeMode,
+        getResolvedScope: function (scopeMode) {
+            return resolveCurrentScope(scopeMode);
+        },
+        getScopeLabel: function (scopeMode) {
+            return buildScopeLabel(scopeMode || getCurrentScopeMode());
+        }
     };
 })();
