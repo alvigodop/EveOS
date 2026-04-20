@@ -59,7 +59,9 @@
                         (result.url.replace(/^https?:\/\//i, '').length > 50 ? '...' : '');
 
                     // Create favicon element
-                    const faviconUrl = `https://www.google.com/s2/favicons?domain=${result.domain}&sz=32`;
+                    const faviconUrl = window.EveFaviconUtils && typeof window.EveFaviconUtils.getBestEffortSrc === 'function'
+                        ? window.EveFaviconUtils.getBestEffortSrc(result.domain, 32)
+                        : '';
 
                     // HTML for the result
                     resultElement.innerHTML = `

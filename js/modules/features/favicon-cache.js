@@ -383,4 +383,18 @@
         getStats,
         canFetchRemote: canFetchRemoteFavicons
     };
+
+    if (!window.EveFaviconUtils) {
+        window.EveFaviconUtils = {
+            getSrc,
+            getBestEffortSrc: getSrc,
+            buildPlaceholderSrc: getPlaceholderFavicon,
+            buildRemoteUrl: function (domain, size) {
+                const key = normalizeDomain(domain);
+                if (!key) return '';
+                return `${GOOGLE_FAVICON_BASE}?domain=${encodeURIComponent(key)}&sz=${size || 32}`;
+            },
+            isLocalContext
+        };
+    }
 })();

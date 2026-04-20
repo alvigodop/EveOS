@@ -187,9 +187,9 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
     const useFavicon = !isLocal && domain && domain.includes('.');
 
     // Use cached favicon data URI when available
-    const faviconSrc = (useFavicon && window.EveFaviconCache)
-        ? window.EveFaviconCache.getSrc(domain, 32)
-        : (useFavicon ? `https://www.google.com/s2/favicons?domain=${domain}&sz=32` : '');
+    const faviconSrc = useFavicon && window.EveFaviconUtils && typeof window.EveFaviconUtils.getBestEffortSrc === 'function'
+        ? window.EveFaviconUtils.getBestEffortSrc(domain, 32)
+        : '';
 
     let iconHtml = (l.icon && l.icon !== LINK_ICON)
         ? (/^https?:\/\//i.test(String(l.icon)) || String(l.icon).startsWith('/')

@@ -118,7 +118,9 @@
 
             if (!imageUrl && domain) {
                 // Google Favicon fallback
-                imageUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
+                imageUrl = window.EveFaviconUtils && typeof window.EveFaviconUtils.getBestEffortSrc === 'function'
+                    ? window.EveFaviconUtils.getBestEffortSrc(domain, 64)
+                    : '';
             }
 
             if (imageUrl) {

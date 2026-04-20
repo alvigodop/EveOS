@@ -63,7 +63,9 @@
             // FORCE GOOGLE FAVICON: Ignore stored imageUrl (which might be broken Site-logo.png)
             // This ensures the sidebar is always consistent with search results and flicker-free.
             img.dataset.fallbackStage = '0';
-            img.src = `https://www.google.com/s2/favicons?domain=${wiki.domain}&sz=64`;
+            img.src = window.EveFaviconUtils && typeof window.EveFaviconUtils.getBestEffortSrc === 'function'
+                ? window.EveFaviconUtils.getBestEffortSrc(wiki.domain, 64)
+                : '';
 
             infoDiv.appendChild(img);
 

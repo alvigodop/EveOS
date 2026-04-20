@@ -77,7 +77,9 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             if (hasCustomIcon) {
                 if (/^https?:\/\//i.test(iconRaw) || iconRaw.startsWith('/')) {
                     const safeIconUrl = escapeHtml(iconRaw);
-                    const faviconFallback = (window.EveFaviconCache) ? window.EveFaviconCache.getSrc(getDomain(link.url), 64) : `https://www.google.com/s2/favicons?domain=${encodeParam(getDomain(link.url))}&sz=64`;
+                    const faviconFallback = window.EveFaviconUtils && typeof window.EveFaviconUtils.getBestEffortSrc === 'function'
+                        ? window.EveFaviconUtils.getBestEffortSrc(getDomain(link.url), 64)
+                        : '';
                     return `<img class="unidex-entry-bookmark-icon-img" src="${safeIconUrl}" alt="${safeTitle} icon" loading="lazy" referrerpolicy="no-referrer" onerror="if(window.setupProxiedImage){window.setupProxiedImage(this,'${safeIconUrl.replace(/'/g, "\\'")}','${faviconFallback}')}else{this.onerror=null;this.src='${faviconFallback}'}">`;
                 }
                 return `<span class="unidex-entry-bookmark-icon-emoji">${escapeHtml(iconRaw)}</span>`;
@@ -88,7 +90,9 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             const domain = getDomain(sourceUrl);
             const hasDomain = !isLocal && domain.includes('.');
             if (hasDomain) {
-                const cachedSrc = (window.EveFaviconCache) ? window.EveFaviconCache.getSrc(domain, 64) : `https://www.google.com/s2/favicons?domain=${escapeHtml(domain)}&sz=64`;
+                const cachedSrc = window.EveFaviconUtils && typeof window.EveFaviconUtils.getBestEffortSrc === 'function'
+                    ? window.EveFaviconUtils.getBestEffortSrc(domain, 64)
+                    : '';
                 return `<img class="unidex-entry-bookmark-icon-img" src="${escapeHtml(cachedSrc)}" alt="${safeTitle} icon" loading="lazy" referrerpolicy="no-referrer">`;
             }
 

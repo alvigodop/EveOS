@@ -6,14 +6,55 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
 
     const {
         normalizeFolderId,
-        getLibraryEntryForLink,
-        getNormalizedDuplicateUrl,
-        hasMeaningfulIcon,
-        hasBookmarkTags,
-        hasLibraryTaxonomy,
-        hasMeaningfulCover,
-        isAutoSourceSummary
+        getLibraryEntryForLink
     } = shared;
+
+    const ghostSensorHelpers = ns._ghostSensorsHelpers || {};
+    const getEmptyGhostDerivedState = () => ({
+        recentTime: 0,
+        nowMs: Date.now(),
+        staleMs: 90 * 24 * 60 * 60 * 1000,
+        recentVisMs: 7 * 24 * 60 * 60 * 1000,
+        ancientsMs: 2 * 365 * 24 * 60 * 60 * 1000,
+        recentLinks: [],
+        unlinkedLinks: [],
+        missingIcons: [],
+        missingCovers: [],
+        duplicateSuspects: [],
+        untaggedLinks: [],
+        needsReviewLinks: [],
+        unreadLinks: [],
+        readingLinks: [],
+        completedLinks: [],
+        onHoldLinks: [],
+        droppedLinks: [],
+        brokenLinks: [],
+        missingNotesLinks: [],
+        topRatedLinks: [],
+        deadLinks: [],
+        redirectedLinks: [],
+        titleDriftLinks: [],
+        recentlyVisited: [],
+        staleLinks: [],
+        ancientsLinks: [],
+        noTitleLinks: [],
+        orphanedLibEntries: [],
+        domainGhosts: [],
+        topGenres: [],
+        doneLinks: [],
+        pendingLinks: [],
+        notTaskLinks: [],
+        tvLockedLinks: [],
+        tvAboveTrueLinks: [],
+        tvNearTrueLinks: [],
+        tvBelowTrueLinks: [],
+        linkedLinks: [],
+        lowConfidenceLinks: [],
+        highConfidenceLinks: []
+    });
+    const computeGhostDerivedState = typeof ghostSensorHelpers.computeGhostDerivedState === 'function'
+        ? ghostSensorHelpers.computeGhostDerivedState
+        : getEmptyGhostDerivedState;
 
     function collectFolderScopeIds(rootFolderId, realNodeMap, realChildrenMap) {
 
@@ -117,7 +158,7 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         const derivedGhostNodeBudget = {
             count: 0,
             max: isMegaSensor
-                ? 200  // Mega-card: drastically reduce — user sees top-level only
+                ? 200
                 : activeLinks.length <= 16
                     ? 12000
                     : activeLinks.length <= 48
@@ -126,349 +167,13 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         };
         const derivedValueLimit = isMegaSensor ? 5 : (activeLinks.length > 120 ? 8 : 10);
         const derivedDepthLimit = isMegaSensor ? 2 : 4;
-
-        const sevenDaysAgo = new Date();
-
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-        const recentTime = sevenDaysAgo.getTime();
-        const nowMs = Date.now();
-        const staleMs = 90 * 24 * 60 * 60 * 1000;
-        const recentVisMs = 7 * 24 * 60 * 60 * 1000;
-        const ancientsMs = 2 * 365 * 24 * 60 * 60 * 1000;
-
-        const recentLinks = activeLinks.filter((link) => {
-
-            if (!link?.updatedAt) return false;
-
-            const updatedTime = Number(new Date(link.updatedAt).getTime());
-
-            return Number.isFinite(updatedTime) && updatedTime >= recentTime;
-
-        });
-
-        const unlinkedLinks = activeLinks.filter((link) => {
-
-            const isUnlinked = typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function'
-                && !window.EveLibrary.ConnectionsAPI.findConnectionByLinkId(link.id);
-
-            if (!isUnlinked) return false;
-
-            try {
-
-                const urlObj = new URL(String(link?.url || ''));
-                const isRootPath = urlObj.pathname === '/' || urlObj.pathname === '';
-                const domain = urlObj.hostname.toLowerCase().replace('www.', '');
-                const genericDomains = ['google.com', 'bing.com', 'yahoo.com', 'duckduckgo.com', 'youtube.com', 'reddit.com', 'wikipedia.org'];
-
-                if (genericDomains.includes(domain) && isRootPath) return false;
-                if (link?.title && String(link.title).toLowerCase() === domain) return false;
-                if (domain.includes('putlocker')) return false;
-
-            } catch (error) {}
-
-            return true;
-
-        });
-
-        const missingIcons = activeLinks.filter((link) => !hasMeaningfulIcon(link));
-        const missingCovers = activeLinks.filter((link) => !hasMeaningfulCover(workspaceId, categoryName, link));
-
-        const urlCounts = {};
-
-        activeLinks.forEach((link) => {
-
-            const normalized = getNormalizedDuplicateUrl(link);
-
-            if (!normalized) return;
-
-            urlCounts[normalized] = (urlCounts[normalized] || 0) + 1;
-
-        });
-
-        const duplicateSuspects = activeLinks.filter((link) => {
-
-            const normalized = getNormalizedDuplicateUrl(link);
-
-            return !!normalized && urlCounts[normalized] > 1;
-
-        });
-
-        const untaggedLinks = activeLinks.filter((link) => {
-
-            if (hasBookmarkTags(link)) return false;
-
-            const entry = getCachedEntry(link);
-
-            if (entry && hasLibraryTaxonomy(entry)) return false;
-
-            return true;
-
-        });
-
-        const needsReviewLinks = activeLinks.filter((link) => {
-
-            const entry = getCachedEntry(link);
-
-            if (!entry) return false;
-
-            if (entry.confidence && entry.confidence < 5) return true;
-
-            return !entry.derivedRatings || entry.derivedRatings.activeValue === undefined || entry.derivedRatings.activeValue === null;
-
-        });
-
-        const unreadLinks = activeLinks.filter((link) => {
-
-            const entry = getCachedEntry(link);
-
-            if (!entry) return false;
-
-            return entry?.progress === 0 || entry?.libraryStatus?.id === 'plan_to_read';
-
-        });
-
-        const readingLinks = activeLinks.filter((link) => getCachedEntry(link)?.libraryStatus?.id === 'reading');
-        const completedLinks = activeLinks.filter((link) => getCachedEntry(link)?.libraryStatus?.id === 'completed');
-        const onHoldLinks = activeLinks.filter((link) => getCachedEntry(link)?.libraryStatus?.id === 'on_hold');
-        const droppedLinks = activeLinks.filter((link) => getCachedEntry(link)?.libraryStatus?.id === 'dropped');
-
-        const brokenLinks = activeLinks.filter((link) => {
-
-            if (!link?.url || typeof link.url !== 'string') return true;
-
-            const normalized = link.url.trim().toLowerCase();
-
-            return normalized === '' || normalized === '#' || normalized.startsWith('javascript:');
-
-        });
-
-        const missingNotesLinks = activeLinks.filter((link) => {
-
-            const entry = getCachedEntry(link);
-
-            if (!entry) return false;
-
-            const hasBookmarkNote = typeof link?.notes === 'string' && link.notes.trim().length > 0;
-
-            if (hasBookmarkNote) return false;
-
-            const hasLibraryNotes = [entry.summary, entry.notes, entry.description].some((value) => {
-
-                if (typeof value !== 'string') return false;
-
-                const trimmed = value.trim();
-
-                if (!trimmed) return false;
-                if (isAutoSourceSummary(trimmed)) return false;
-
-                return true;
-
-            });
-
-            return !hasLibraryNotes;
-
-        });
-
-        const topRatedLinks = activeLinks.filter((link) => {
-
-            if (link?.priority === 'high') return true;
-
-            const entry = getCachedEntry(link);
-
-            if (!entry) return false;
-            if (entry.rating === '5' || entry.rating === '10' || entry.rating === '9') return true;
-
-            return !!(entry.derivedRatings && entry.derivedRatings.activeValue >= 8);
-
-        });
-
-        const deadLinks = [];
-        const redirectedLinks = [];
-        const titleDriftLinks = [];
-        const recentlyVisited = [];
-        const staleLinks = [];
-        const ancientsLinks = [];
-        const noTitleLinks = [];
-        const orphanedLibEntries = [];
-
-        if (window.EveSemanticDrift) {
-
-            activeLinks.forEach((link) => {
-
-                const health = window.EveSemanticDrift.getHealthInfo(link.url);
-
-                if (health) {
-
-                    if (health.status === 'dead') deadLinks.push(link);
-                    if (health.status === 'redirected') redirectedLinks.push(link);
-                    if (health.hasTitleDrift) titleDriftLinks.push(link);
-
-                }
-
-                const isLinked = typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function'
-                    && window.EveLibrary.ConnectionsAPI.findConnectionByLinkId(link.id);
-
-                if (isLinked && health?.status === 'dead') {
-
-                    orphanedLibEntries.push(link);
-
-                }
-
-            });
-
-        }
-
-        activeLinks.forEach((link) => {
-
-            const value = link?.lastVisited || link?.updatedAt || link?.createdAt || 0;
-            const lastVisited = Number(new Date(value).getTime());
-
-            if (Number.isFinite(lastVisited) && lastVisited > 0) {
-
-                const age = nowMs - lastVisited;
-
-                if (age < recentVisMs) recentlyVisited.push(link);
-                if (age > staleMs) staleLinks.push(link);
-
-            }
-
-            const createdAt = Number(new Date(link?.createdAt).getTime());
-
-            if (Number.isFinite(createdAt) && createdAt > 0 && (nowMs - createdAt) > ancientsMs) {
-
-                ancientsLinks.push(link);
-
-            }
-
-            const title = String(link?.title || '').trim().toLowerCase();
-            const url = String(link?.url || '').trim().toLowerCase();
-
-            if (!title || title === 'untitled' || title === url) {
-
-                noTitleLinks.push(link);
-
-            }
-
-        });
-
-        const domainMap = new Map();
-
-        activeLinks.forEach((link) => {
-
-            try {
-
-                const domain = new URL(String(link?.url || '')).hostname.toLowerCase().replace(/^www\./, '');
-
-                if (!domain || !domain.includes('.')) return;
-
-                if (!domainMap.has(domain)) domainMap.set(domain, []);
-
-                domainMap.get(domain).push(link);
-
-            } catch (error) {}
-
-        });
-
-        const domainGhosts = [];
-
-        domainMap.forEach((links, domain) => {
-
-            if (links.length >= 3 && isGhostEnabled('domain_grouping')) {
-
-                domainGhosts.push({ domain, links });
-
-            }
-
-        });
-
-        domainGhosts.sort((left, right) => right.links.length - left.links.length);
-
-        const genreMap = new Map();
-
-        activeLinks.forEach((link) => {
-
-            const entry = getCachedEntry(link);
-
-            if (!entry?.genre) return;
-
-            String(entry.genre).split(/[|,;]/).map((value) => value.trim()).filter(Boolean).forEach((genre) => {
-
-                if (!genreMap.has(genre)) genreMap.set(genre, []);
-
-                genreMap.get(genre).push(link);
-
-            });
-
-        });
-
-        const topGenres = [];
-
-        genreMap.forEach((links, genre) => {
-
-            if (links.length >= 2 && isGhostEnabled('library_stats')) {
-
-                topGenres.push({ genre, links });
-
-            }
-
-        });
-
-        topGenres.sort((left, right) => right.links.length - left.links.length);
-
-        // --- Task Status sensors ---
-        const isTaskEnabledFn = typeof window.EveBookmarkFolders?.isTaskEnabledForLink === 'function'
-            ? window.EveBookmarkFolders.isTaskEnabledForLink
-            : null;
-        const doneLinks = isTaskEnabledFn
-            ? activeLinks.filter((link) => isTaskEnabledFn(link) && !!link.done)
-            : [];
-        const pendingLinks = isTaskEnabledFn
-            ? activeLinks.filter((link) => isTaskEnabledFn(link) && !link.done)
-            : [];
-        const notTaskLinks = isTaskEnabledFn
-            ? activeLinks.filter((link) => !isTaskEnabledFn(link))
-            : [];
-
-        // --- True Value sensors ---
-        const tvApi = window.EveTrueValue;
-        let tvLockedLinks = [];
-        let tvAboveTrueLinks = [];
-        let tvNearTrueLinks = [];
-        let tvBelowTrueLinks = [];
-        // Skip computeTrueValues for mega-cards — it's O(n) with resolveLibraryEntry per link
-        if (tvApi && !isMegaSensor) {
-            const tvData = tvApi.computeTrueValues(activeLinks, workspaceId, categoryName, { forceEnabled: true });
-            if (tvData && Object.keys(tvData).length) {
-                activeLinks.forEach((link) => {
-                    const tv = tvData[String(link?.id || '')];
-                    if (!tv) return;
-                    if (tv.locked) { tvLockedLinks.push(link); return; }
-                    if (tv.percent > 100) tvAboveTrueLinks.push(link);
-                    else if (tv.percent >= 95) tvNearTrueLinks.push(link);
-                    else tvBelowTrueLinks.push(link);
-                });
-            }
-        }
-
-        // --- Additional Insight sensors ---
-        const linkedLinks = activeLinks.filter((link) => {
-            return typeof window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId === 'function'
-                && !!window.EveLibrary.ConnectionsAPI.findConnectionByLinkId(link.id);
-        });
-        const lowConfidenceLinks = activeLinks.filter((link) => {
-            const entry = getCachedEntry(link);
-            if (!entry) return false;
-            const derived = entry.derivedRatings || {};
-            const c = typeof derived.confidence === 'number' ? derived.confidence : null;
-            return Number.isFinite(c) && c < 0.5;
-        });
-        const highConfidenceLinks = activeLinks.filter((link) => {
-            const entry = getCachedEntry(link);
-            if (!entry) return false;
-            const derived = entry.derivedRatings || {};
-            const c = typeof derived.confidence === 'number' ? derived.confidence : null;
-            return Number.isFinite(c) && c >= 0.75;
+        const derivedState = computeGhostDerivedState({
+            activeLinks,
+            isGhostEnabled,
+            getCachedEntry,
+            workspaceId,
+            categoryName,
+            isMegaSensor
         });
 
         return {
@@ -477,11 +182,6 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
             activeRealFolderId,
             scopedNodes,
             activeLinks,
-            recentTime,
-            nowMs,
-            staleMs,
-            recentVisMs,
-            ancientsMs,
             isGhostEnabled,
             ghostFolders,
             masterGhostId,
@@ -494,41 +194,7 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
             derivedGhostNodeBudget,
             derivedValueLimit,
             derivedDepthLimit,
-            recentLinks,
-            unlinkedLinks,
-            missingIcons,
-            missingCovers,
-            duplicateSuspects,
-            untaggedLinks,
-            needsReviewLinks,
-            unreadLinks,
-            readingLinks,
-            completedLinks,
-            onHoldLinks,
-            droppedLinks,
-            brokenLinks,
-            missingNotesLinks,
-            topRatedLinks,
-            deadLinks,
-            redirectedLinks,
-            titleDriftLinks,
-            recentlyVisited,
-            staleLinks,
-            ancientsLinks,
-            noTitleLinks,
-            orphanedLibEntries,
-            domainGhosts,
-            topGenres,
-            doneLinks,
-            pendingLinks,
-            notTaskLinks,
-            tvLockedLinks,
-            tvAboveTrueLinks,
-            tvNearTrueLinks,
-            tvBelowTrueLinks,
-            linkedLinks,
-            lowConfidenceLinks,
-            highConfidenceLinks
+            ...derivedState
         };
 
     }

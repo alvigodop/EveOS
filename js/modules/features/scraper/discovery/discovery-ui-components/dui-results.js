@@ -56,7 +56,7 @@ DUIResults.renderGoogleSearchResults = function (results, container, searchTerm)
         const urlLine = document.createElement('div');
         urlLine.className = 'google-result-url';
         urlLine.innerHTML = `
-            <img src="https://www.google.com/s2/favicons?domain=${hostname}" class="google-result-favicon" onerror="this.style.display='none'">
+            <img src="${window.EveFaviconUtils && typeof window.EveFaviconUtils.getBestEffortSrc === 'function' ? window.EveFaviconUtils.getBestEffortSrc(hostname, 32) : ''}" class="google-result-favicon" onerror="this.style.display='none'">
             <span class="google-site-url">${hostname}</span>
             <span class="google-url-path">${pathDisplay}</span>
         `;

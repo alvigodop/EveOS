@@ -22,14 +22,18 @@ const FandomDomainsAPI = {
         console.log(`Fetching data for Fandom: ${domain}`);
         try {
             // Primary: Use Google Favicon Service (Reliable, Stable)
-            let logoUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
+            let logoUrl = window.EveFaviconUtils && typeof window.EveFaviconUtils.getBestEffortSrc === 'function'
+                ? window.EveFaviconUtils.getBestEffortSrc(domain, 64)
+                : '';
             let siteName = null;
             let logoWorks = true;
 
             if (!logoWorks) {
                 // Special:FilePath failed, try API approach
                 console.log(`Special:FilePath failed for ${domain}, trying API...`);
-                logoUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=64`; // Reliable fallback
+                logoUrl = window.EveFaviconUtils && typeof window.EveFaviconUtils.getBestEffortSrc === 'function'
+                    ? window.EveFaviconUtils.getBestEffortSrc(domain, 64)
+                    : '';
 
                 try {
                     const apiUrl = `https://${domain}/api.php?action=query&meta=siteinfo&siprop=general&format=json&origin=*`;

@@ -64,7 +64,9 @@ window.renderDock = function (_visibleLinks, dockContainer, focusCategory) {
 
         if (domain) {
             const img = document.createElement('img');
-            img.src = (window.EveFaviconCache) ? window.EveFaviconCache.getSrc(domain, 64) : `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=64`;
+            img.src = window.EveFaviconUtils && typeof window.EveFaviconUtils.getBestEffortSrc === 'function'
+                ? window.EveFaviconUtils.getBestEffortSrc(domain, 64)
+                : '';
             img.width = 24;
             img.height = 24;
             img.addEventListener('error', function () {
