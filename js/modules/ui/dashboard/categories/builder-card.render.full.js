@@ -9,6 +9,7 @@ window.DashboardCategories = window.DashboardCategories || {};
         escapeCardJs,
         buildScopedCategoryKey,
         getCardHeaderButtonsForCategory,
+        isCardBookmarkProgressiveRevealEnabled,
         buildFolderSectionsHtml
     } = api;
 
@@ -96,6 +97,9 @@ window.DashboardCategories = window.DashboardCategories || {};
         var isTaskMode = hasTaskBookmarks;
         var customOrderApi = window.EveCustomOrder;
         var activeWorkspaceId = String(options.activeWorkspace || config.activeWorkspace || 'main');
+        var progressiveBookmarkRevealEnabled = typeof isCardBookmarkProgressiveRevealEnabled === 'function'
+            ? isCardBookmarkProgressiveRevealEnabled(activeWorkspaceId, cat)
+            : true;
         var customOrderEnabled = !isMegaCard && customOrderApi ? customOrderApi.isEnabled(activeWorkspaceId, cat) : false;
         if (customOrderEnabled) {
             card.classList.add('custom-order');
@@ -167,7 +171,9 @@ window.DashboardCategories = window.DashboardCategories || {};
             if (typeof drop === 'function') drop(event, cat);
         };
 
-        var RENDER_CAP = window._evePerfMode ? 20 : 50;
+        var RENDER_CAP = progressiveBookmarkRevealEnabled
+            ? (window._evePerfMode ? 20 : 50)
+            : Number.MAX_SAFE_INTEGER;
 
         function renderLinkCollection(linksForRender) {
             if (isFocusMode && typeof window.DashboardCategories.buildFocusedLinkHtml === 'function') {
@@ -187,7 +193,7 @@ window.DashboardCategories = window.DashboardCategories || {};
                         + '</div>';
                 }
 
-                if (linksForRender.length > RENDER_CAP) {
+                if (progressiveBookmarkRevealEnabled && linksForRender.length > RENDER_CAP) {
                     focusedHtml += api.buildShowMoreButton(cat, linksForRender, RENDER_CAP, true);
                 }
                 return '<section class="unidex-entries is-row-layout focused-category-entries" aria-label="' + safeCatHtml + ' bookmarks">' + focusedHtml + '</section>';
@@ -246,7 +252,7 @@ window.DashboardCategories = window.DashboardCategories || {};
                 });
             }).join('');
 
-            if (linksForRender.length > RENDER_CAP) {
+            if (progressiveBookmarkRevealEnabled && linksForRender.length > RENDER_CAP) {
                 flatHtml += api.buildShowMoreButton(cat, linksForRender, RENDER_CAP, false);
             }
 

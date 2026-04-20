@@ -27,6 +27,16 @@ window.modalTemplate += `
                     </div>
                 </details>
                 <details class="settings-disclosure">
+                    <summary class="settings-disclosure-summary">&#128065; Bookmark Display</summary>
+                    <div class="settings-disclosure-body" style="display:flex; flex-direction:column; gap:8px;">
+                        <label style="display:flex; align-items:center; gap:10px;">
+                            <input type="checkbox" id="categoryBookmarkProgressiveRevealToggle" onchange="saveCategoryBookmarkProgressiveRevealSetting(this.checked)">
+                            <span>Use "Show more" bookmark reveal for this card</span>
+                        </label>
+                        <div id="categoryBookmarkProgressiveRevealHint" style="font-size:0.78rem; opacity:0.72;"></div>
+                    </div>
+                </details>
+                <details class="settings-disclosure">
                     <summary class="settings-disclosure-summary">&#128736; Card Actions</summary>
                     <div class="settings-disclosure-body" style="display:flex; gap:8px; flex-wrap:wrap;">
                         <button onclick="closeModals(); openAddModal(window.currentCategoryCtx)" style="flex:1 1 180px;">&#10133; Add Bookmark</button>

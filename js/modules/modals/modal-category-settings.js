@@ -4,6 +4,8 @@
 
     var renderCategoryHeaderButtonSettings = helpers.renderCategoryHeaderButtonSettings || function () {};
 
+    var renderCategoryBookmarkProgressiveSettings = helpers.renderCategoryBookmarkProgressiveSettings || function () {};
+
     var renderCategoryClickBehaviorSettings = helpers.renderCategoryClickBehaviorSettings || function () {};
 
     var renderCategoryPinSettings = helpers.renderCategoryPinSettings || function () {};
@@ -214,6 +216,7 @@
             requestAnimationFrame(function () {
                 setTimeout(function () {
                     renderCategoryHeaderButtonSettings();
+                    renderCategoryBookmarkProgressiveSettings();
                     renderCategoryClickBehaviorSettings();
                     renderCategoryPinSettings();
 

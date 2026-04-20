@@ -5,6 +5,7 @@ window.DashboardCategories = window.DashboardCategories || {};
 
 var DEFAULT_CARD_HEADER_BUTTONS = ['add', 'folders', 'library', 'focus', 'launch'];
     var ALL_CARD_HEADER_BUTTONS = ['add', 'folders', 'library', 'focus', 'launch', 'constellation'];
+    var DEFAULT_PROGRESSIVE_BOOKMARK_REVEAL = true;
     window.categoryCardFolderActionExpansion = window.categoryCardFolderActionExpansion || {};
 
     function escapeCardHtml(value) {
@@ -128,6 +129,14 @@ var DEFAULT_CARD_HEADER_BUTTONS = ['add', 'folders', 'library', 'focus', 'launch
         return window.eveState.config.cardHeaderButtonsVisible;
     }
 
+    function getCardBookmarkRevealStore() {
+        if (!window.eveState?.config) return {};
+        if (!window.eveState.config.cardBookmarkProgressiveReveal || typeof window.eveState.config.cardBookmarkProgressiveReveal !== 'object' || Array.isArray(window.eveState.config.cardBookmarkProgressiveReveal)) {
+            window.eveState.config.cardBookmarkProgressiveReveal = {};
+        }
+        return window.eveState.config.cardBookmarkProgressiveReveal;
+    }
+
     function normalizeHeaderButtons(buttonIds) {
         var allowed = new Set(ALL_CARD_HEADER_BUTTONS);
         return Array.from(new Set((Array.isArray(buttonIds) ? buttonIds : []).map(function (entry) {
@@ -160,11 +169,35 @@ var DEFAULT_CARD_HEADER_BUTTONS = ['add', 'folders', 'library', 'focus', 'launch
         return getCardHeaderButtonsForCategory(workspaceId, categoryName);
     }
 
+    function isCardBookmarkProgressiveRevealEnabled(workspaceId, categoryName) {
+        var scopedKey = buildScopedCategoryKey(workspaceId, categoryName);
+        var store = getCardBookmarkRevealStore();
+        if (!Object.prototype.hasOwnProperty.call(store, scopedKey)) {
+            return DEFAULT_PROGRESSIVE_BOOKMARK_REVEAL;
+        }
+        return !!store[scopedKey];
+    }
+
+    function setCardBookmarkProgressiveRevealEnabled(workspaceId, categoryName, enabled) {
+        var scopedKey = buildScopedCategoryKey(workspaceId, categoryName);
+        var store = getCardBookmarkRevealStore();
+        var normalizedEnabled = !!enabled;
+        if (normalizedEnabled === DEFAULT_PROGRESSIVE_BOOKMARK_REVEAL) {
+            delete store[scopedKey];
+        } else {
+            store[scopedKey] = normalizedEnabled;
+        }
+        if (typeof saveConfig === 'function') saveConfig();
+        if (typeof renderDashboard === 'function') renderDashboard();
+        return isCardBookmarkProgressiveRevealEnabled(workspaceId, categoryName);
+    }
+
     
 
     Object.assign(api, {
         DEFAULT_CARD_HEADER_BUTTONS,
         ALL_CARD_HEADER_BUTTONS,
+        DEFAULT_PROGRESSIVE_BOOKMARK_REVEAL,
         escapeCardHtml,
         escapeCardJs,
         ensureCardTitleHoverOverlay,
@@ -179,8 +212,11 @@ var DEFAULT_CARD_HEADER_BUTTONS = ['add', 'folders', 'library', 'focus', 'launch
         isFolderActionExpanded,
         buildScopedCategoryKey,
         getCardHeaderButtonStore,
+        getCardBookmarkRevealStore,
         normalizeHeaderButtons,
         getCardHeaderButtonsForCategory,
-        setCardHeaderButtonsForCategory
+        setCardHeaderButtonsForCategory,
+        isCardBookmarkProgressiveRevealEnabled,
+        setCardBookmarkProgressiveRevealEnabled
     });
 })();

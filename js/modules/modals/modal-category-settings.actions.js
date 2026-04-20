@@ -4,6 +4,7 @@
         getCategorySettingsWorkspaceId,
         getFolderApi,
         getHeaderButtonApi,
+        getBookmarkProgressiveRevealApi,
         getClickBehaviorApi,
         getPinApi,
         getFolderActionExpansionStore,
@@ -13,6 +14,7 @@
         isCategorySettingsVisibleFor,
         refreshCategoryPinViews,
         renderCategoryHeaderButtonSettings,
+        renderCategoryBookmarkProgressiveSettings,
         renderCategoryClickBehaviorSettings,
         renderCategoryPinSettings
     } = core;
@@ -62,6 +64,26 @@
         renderCategoryClickBehaviorSettings();
 
         showToast('Card click behavior updated', 'success');
+
+    };
+
+
+
+    window.saveCategoryBookmarkProgressiveRevealSetting = function (enabled) {
+
+        const progressiveApi = getBookmarkProgressiveRevealApi();
+
+        if (!progressiveApi?.setCardBookmarkProgressiveRevealEnabled) return;
+
+        const categoryName = String(window.currentCategoryCtx || '').trim() || 'Unsorted';
+
+        const workspaceId = getCategorySettingsWorkspaceId();
+
+        progressiveApi.setCardBookmarkProgressiveRevealEnabled(workspaceId, categoryName, !!enabled);
+
+        renderCategoryBookmarkProgressiveSettings();
+
+        showToast(enabled ? 'Card bookmark reveal limit enabled' : 'Card bookmark reveal limit disabled', 'success');
 
     };
 

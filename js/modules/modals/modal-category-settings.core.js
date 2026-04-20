@@ -193,6 +193,14 @@ window.categoryFolderActionExpansion = window.categoryFolderActionExpansion || {
 
 
 
+    function getBookmarkProgressiveRevealApi() {
+
+        return window.DashboardCategories || null;
+
+    }
+
+
+
     function getClickBehaviorApi() {
 
         return window.EveBookmarkClickBehavior || null;
@@ -347,6 +355,40 @@ window.categoryFolderActionExpansion = window.categoryFolderActionExpansion || {
 
 
 
+    function renderCategoryBookmarkProgressiveSettings() {
+
+        const toggle = document.getElementById('categoryBookmarkProgressiveRevealToggle');
+
+        const hint = document.getElementById('categoryBookmarkProgressiveRevealHint');
+
+        const progressiveApi = getBookmarkProgressiveRevealApi();
+
+        if (!toggle || !progressiveApi?.isCardBookmarkProgressiveRevealEnabled) return;
+
+
+
+        const categoryName = String(window.currentCategoryCtx || '').trim() || 'Unsorted';
+
+        const workspaceId = getCategorySettingsWorkspaceId();
+
+        const enabled = !!progressiveApi.isCardBookmarkProgressiveRevealEnabled(workspaceId, categoryName);
+
+        toggle.checked = enabled;
+
+        if (hint) {
+
+            hint.textContent = enabled
+
+                ? 'This card initially shows a capped bookmark list and adds the "Show more" control when needed.'
+
+                : 'This card renders all bookmarks immediately with no "Show more" control.';
+
+        }
+
+    }
+
+
+
     function refreshCategoryPinViews(categoryName) {
 
         if (!isCategorySettingsVisibleFor(categoryName)) return;
@@ -373,10 +415,12 @@ window.categoryFolderActionExpansion = window.categoryFolderActionExpansion || {
         getFolderDraftCategoryName,
         getFolderDraftMode,
         getHeaderButtonApi,
+        getBookmarkProgressiveRevealApi,
         getClickBehaviorApi,
         getPinApi,
         isCategorySettingsVisibleFor,
         renderCategoryHeaderButtonSettings,
+        renderCategoryBookmarkProgressiveSettings,
         renderCategoryClickBehaviorSettings,
         renderCategoryPinSettings,
         refreshCategoryPinViews

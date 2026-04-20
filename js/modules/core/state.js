@@ -49,6 +49,7 @@ let config = {
     activeWorkspace: "main",
     bookmarkFolderToolbarExpanded: [],
     cardHeaderButtonsVisible: {},
+    cardBookmarkProgressiveReveal: {},
     scrollableCategories: false,
     unidexCardsUnified: false,
     unidexTabsUnified: false,
