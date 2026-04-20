@@ -1,11 +1,8 @@
-import hashlib
 import json
 import logging
 import os
-import shutil
 import threading
 import tempfile
-import time
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -80,6 +77,18 @@ from server_modules.eve_state_store_session import (
     resolve_active_store_change as _resolve_active_store_change,
     save_store_settings as _save_store_settings_raw,
 )
+from server_modules.eve_state_store_progress import (
+    begin_operation_progress as _begin_operation_progress_impl,
+    build_empty_progress as _build_empty_progress,
+    finish_operation_progress as _finish_operation_progress_impl,
+    get_operation_progress as _get_operation_progress_impl,
+    make_progress_callback as _make_progress_callback_impl,
+    update_operation_progress as _update_operation_progress_impl,
+)
+from server_modules.eve_state_store_runtime import (
+    collect_status as _collect_status_impl,
+    ensure_clean_store as _ensure_clean_store_impl,
+)
 
 logger = logging.getLogger("FandomDiscoveryServer")
 
@@ -102,31 +111,7 @@ ACTIVE_STORE_SELECTION = {
     "bookmarkId": "",
     "requestedPath": str(DEFAULT_STORE_ROOT.resolve())
 }
-_OPERATION_PROGRESS = {
-    "active": False,
-    "kind": "",
-    "layer": "",
-    "phase": "idle",
-    "message": "",
-    "error": "",
-    "ok": None,
-    "workspaceId": "",
-    "categoryName": "",
-    "currentItem": "",
-    "destinationPath": "",
-    "summary": {},
-    "tabsCompleted": 0,
-    "tabsTotal": 0,
-    "cardsCompleted": 0,
-    "cardsTotal": 0,
-    "bookmarksCompleted": 0,
-    "bookmarksTotal": 0,
-    "unitsCompleted": 0,
-    "unitsTotal": 0,
-    "startedAt": 0,
-    "updatedAt": 0,
-    "endedAt": 0,
-}
+_OPERATION_PROGRESS = _build_empty_progress()
 
 
 def _pick_folder_path_native(initial_path=""):
@@ -209,141 +194,51 @@ except Exception as exc:
 
 
 def _ensure_clean_store():
-    if STORE_ROOT.exists():
-        shutil.rmtree(STORE_ROOT)
-    META_DIR.mkdir(parents=True, exist_ok=True)
-    TABS_DIR.mkdir(parents=True, exist_ok=True)
+    _ensure_clean_store_impl(STORE_ROOT, META_DIR, TABS_DIR)
 
 
 def _collect_status():
-    if not STORE_ROOT.exists():
-        return {
-            "exists": False,
-            "signature": "",
-            "fileCount": 0,
-            "lastModified": 0,
-            "path": str(STORE_ROOT)
-        }
-
-    parts = []
-    file_count = 0
-    last_modified = 0
-
-    for path in sorted(STORE_ROOT.rglob("*")):
-        if not path.is_file():
-            continue
-        stat = path.stat()
-        file_count += 1
-        last_modified = max(last_modified, int(stat.st_mtime))
-        rel = str(path.relative_to(STORE_ROOT)).replace("\\", "/")
-        parts.append(f"{rel}:{stat.st_size}:{stat.st_mtime_ns}")
-
-    signature = hashlib.sha1("\n".join(parts).encode("utf-8")).hexdigest() if parts else ""
-    return {
-        "exists": True,
-        "signature": signature,
-        "fileCount": file_count,
-        "lastModified": last_modified,
-        "path": str(STORE_ROOT)
-    }
-
-
-def _now_ms():
-    return int(time.time() * 1000)
-
-
-def _reset_operation_progress():
-    return {
-        "active": False,
-        "kind": "",
-        "layer": "",
-        "phase": "idle",
-        "message": "",
-        "error": "",
-        "ok": None,
-        "workspaceId": "",
-        "categoryName": "",
-        "currentItem": "",
-        "destinationPath": "",
-        "summary": {},
-        "tabsCompleted": 0,
-        "tabsTotal": 0,
-        "cardsCompleted": 0,
-        "cardsTotal": 0,
-        "bookmarksCompleted": 0,
-        "bookmarksTotal": 0,
-        "unitsCompleted": 0,
-        "unitsTotal": 0,
-        "startedAt": 0,
-        "updatedAt": 0,
-        "endedAt": 0,
-    }
+    return _collect_status_impl(STORE_ROOT)
 
 
 def _begin_operation_progress(*, kind="", phase="preparing", message="", **fields):
-    now = _now_ms()
-    progress = _reset_operation_progress()
-    progress.update({
-        "active": True,
-        "kind": str(kind or "").strip(),
-        "phase": str(phase or "preparing").strip() or "preparing",
-        "message": str(message or "").strip(),
-        "startedAt": now,
-        "updatedAt": now,
-    })
-    progress.update({key: value for key, value in fields.items() if value is not None})
-    with _PROGRESS_LOCK:
-        _OPERATION_PROGRESS.clear()
-        _OPERATION_PROGRESS.update(progress)
-        return dict(_OPERATION_PROGRESS)
+    return _begin_operation_progress_impl(
+        _PROGRESS_LOCK,
+        _OPERATION_PROGRESS,
+        kind=kind,
+        phase=phase,
+        message=message,
+        **fields,
+    )
 
 
 def _update_operation_progress(fields=None, **extra_fields):
-    payload = {}
-    if isinstance(fields, dict):
-        payload.update(fields)
-    payload.update(extra_fields)
-    if not payload:
-        return
-    with _PROGRESS_LOCK:
-        if not _OPERATION_PROGRESS.get("active") and "active" not in payload:
-            payload["active"] = True
-        _OPERATION_PROGRESS.update({key: value for key, value in payload.items() if value is not None})
-        _OPERATION_PROGRESS["updatedAt"] = _now_ms()
+    return _update_operation_progress_impl(
+        _PROGRESS_LOCK,
+        _OPERATION_PROGRESS,
+        fields=fields,
+        **extra_fields,
+    )
 
 
 def _finish_operation_progress(*, ok=True, kind="", phase="complete", message="", **fields):
-    now = _now_ms()
-    payload = {
-        "active": False,
-        "ok": bool(ok),
-        "kind": str(kind or "").strip(),
-        "phase": str(phase or ("complete" if ok else "error")).strip() or ("complete" if ok else "error"),
-        "message": str(message or "").strip(),
-        "endedAt": now,
-        "updatedAt": now,
-    }
-    payload.update({key: value for key, value in fields.items() if value is not None})
-    with _PROGRESS_LOCK:
-        _OPERATION_PROGRESS.update(payload)
-        return dict(_OPERATION_PROGRESS)
+    return _finish_operation_progress_impl(
+        _PROGRESS_LOCK,
+        _OPERATION_PROGRESS,
+        ok=ok,
+        kind=kind,
+        phase=phase,
+        message=message,
+        **fields,
+    )
 
 
 def _get_operation_progress():
-    with _PROGRESS_LOCK:
-        return dict(_OPERATION_PROGRESS)
+    return _get_operation_progress_impl(_PROGRESS_LOCK, _OPERATION_PROGRESS)
 
 
 def _make_progress_callback(*, kind=""):
-    base_kind = str(kind or "").strip()
-
-    def callback(progress):
-        payload = dict(progress or {}) if isinstance(progress, dict) else {}
-        if base_kind and not payload.get("kind"):
-            payload["kind"] = base_kind
-        _update_operation_progress(payload)
-
-    return callback
+    return _make_progress_callback_impl(_update_operation_progress, kind=kind)
 
 
 def build_gemini_context(mode="summary", sample_limit=25):

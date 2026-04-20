@@ -4,6 +4,13 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
     const ns = window.EveDuplicateSensor;
     const runtime = ns._runtime = ns._runtime || {};
     if (runtime.mergeLoaded) return;
+    const mergeHelpers = ns._mergeHelpers || {};
+    const buildStoreWriter = mergeHelpers.buildStoreWriter;
+    const collectDescendantIds = mergeHelpers.collectDescendantIds;
+    const getFolderDepth = mergeHelpers.getFolderDepth;
+    const isRawUrl = mergeHelpers.isRawTitle;
+    const isSearch = mergeHelpers.isSearchUrl;
+    const parseNum = mergeHelpers.parseNum;
 
     function mergeDuplicateGroup(linkIds) {
         if (!Array.isArray(linkIds) || linkIds.length < 2) return null;
@@ -11,19 +18,6 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
         const links = runtime.getLinks();
         const targetLinks = links.filter((link) => linkIds.includes(String(link.id)));
         if (targetLinks.length < 2) return null;
-
-        const isSearch = (url) => {
-            const lower = String(url || '').toLowerCase();
-            return lower.includes('google.com/search') || lower.includes('duckduckgo.com/?q=') || lower.includes('bing.com/search');
-        };
-        const isRawUrl = (title) => {
-            const lower = String(title || '').toLowerCase().trim();
-            return lower.startsWith('http://') || lower.startsWith('https://') || lower.startsWith('www.');
-        };
-        const parseNum = (value) => {
-            const number = Number.parseInt(value, 10);
-            return Number.isNaN(number) ? null : number;
-        };
 
         const nonSearchLinks = targetLinks.filter((link) => !isSearch(link.url));
         const bestUrlLink = (nonSearchLinks.length > 0 ? nonSearchLinks : targetLinks)
@@ -275,15 +269,7 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
         }
 
         // Standardized sync using the same logic as folder merge
-        const writeStore = (typeof window.EveBookmarkFolders?._shared?.writeStore === 'function')
-            ? window.EveBookmarkFolders._shared.writeStore
-            : (next) => {
-                const folderTrees = runtime.getFolderTrees();
-                if (window.eveState) window.eveState.bookmarkFolders = folderTrees;
-                window.bookmarkFolders = folderTrees;
-                if (typeof bookmarkFolders !== 'undefined') bookmarkFolders = folderTrees;
-                if (typeof window.saveData === 'function') window.saveData();
-            };
+        const writeStore = buildStoreWriter(runtime);
 
         writeStore(runtime.getFolderTrees());
         
@@ -304,14 +290,7 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
         const folderTrees = runtime.getFolderTrees();
         
         // Use the official writeStore if available, or fallback to the manual sync
-        const writeStore = (typeof window.EveBookmarkFolders?._shared?.writeStore === 'function')
-            ? window.EveBookmarkFolders._shared.writeStore
-            : (next) => {
-                if (window.eveState) window.eveState.bookmarkFolders = next;
-                window.bookmarkFolders = next;
-                if (typeof bookmarkFolders !== 'undefined') bookmarkFolders = next;
-                if (typeof window.saveData === 'function') window.saveData();
-            };
+        const writeStore = buildStoreWriter(runtime);
 
         const allNodes = [];
         Object.entries(folderTrees).forEach(([scopedKey, tree]) => {
@@ -327,21 +306,10 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
         if (targetFolders.length < 2) return null;
 
         // Base folder priority: shortest path length, else oldest folder
-        const getDepth = (folderId, lookupMap) => {
-            let depth = 0;
-            let current = lookupMap.get(folderId);
-            while (current && current.parentId) {
-                depth++;
-                current = lookupMap.get(current.parentId);
-                if (depth > 100) break; // Circular safety
-            }
-            return depth;
-        };
-
         const nodeLookup = new Map();
         allNodes.forEach(n => nodeLookup.set(n.id, n));
         
-        targetFolders.forEach(f => f._depth = getDepth(f.id, nodeLookup));
+        targetFolders.forEach(f => f._depth = getFolderDepth(f.id, nodeLookup));
         targetFolders.sort((a, b) => a._depth - b._depth || (a.createdAt || 0) - (b.createdAt || 0));
         
         const baseFolder = targetFolders[0];
@@ -368,18 +336,6 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
         }
 
         // 2. Helper for recursive subtree migration
-        const collectDescendantIds = (rootId, scopedKey) => {
-            const results = [];
-            const tree = nextStore[scopedKey];
-            const nodes = Array.isArray(tree?.nodes) ? tree.nodes : (Array.isArray(tree) ? tree : []);
-            const children = nodes.filter(n => n && n.parentId === rootId);
-            children.forEach(child => {
-                results.push(child.id);
-                results.push(...collectDescendantIds(child.id, scopedKey));
-            });
-            return results;
-        };
-
         // 3. Reparent Folders
         Object.entries(nextStore).forEach(([scopedKey, tree]) => {
             const nodes = Array.isArray(tree?.nodes) ? tree.nodes : (Array.isArray(tree) ? tree : []);
@@ -399,7 +355,7 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
                     if (scopedKey !== baseScopedKey) {
                         nodesToMoveWithKeys.push({ node, key: scopedKey });
                         // Also must recursively find all its descendants and tag them for moving!
-                        const descendants = collectDescendantIds(node.id, scopedKey);
+                        const descendants = collectDescendantIds(nextStore, node.id, scopedKey);
                         descendants.forEach(dId => {
                             const dNode = nodes.find(n => n.id === dId);
                             if (dNode) nodesToMoveWithKeys.push({ node: dNode, key: scopedKey });

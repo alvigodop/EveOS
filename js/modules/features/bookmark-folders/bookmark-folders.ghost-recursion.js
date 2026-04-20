@@ -12,6 +12,9 @@ getDerivedProgressValue, getProgressBucketLabel,
 getDerivedDemographicValue, getDerivedPublicationValue, getPublicationBucketLabel,
 getTitleInitial, getCoarseTitleBucket, getDerivedTimelineBucket
 } = shared;
+const recursionHelpers = ns._ghostRecursionHelpers || {};
+const sortBuckets = recursionHelpers.sortBuckets;
+const buildDerivedGhostId = recursionHelpers.buildDerivedGhostId;
 
 function populateGhostHierarchy(env) {
 const {
@@ -42,18 +45,6 @@ if (String(left.valueKey || '') !== String(right.valueKey || '').toLowerCase()) 
 score += 1;
 }
 return score;
-}
-
-function sortBuckets(buckets, preferredOrder) {
-const orderMap = new Map();
-(Array.isArray(preferredOrder) ? preferredOrder : []).forEach((value, index) => orderMap.set(String(value), index));
-return buckets.sort((left, right) => {
-const leftOrder = orderMap.has(left.label) ? orderMap.get(left.label) : Number.MAX_SAFE_INTEGER;
-const rightOrder = orderMap.has(right.label) ? orderMap.get(right.label) : Number.MAX_SAFE_INTEGER;
-if (leftOrder !== rightOrder) return leftOrder - rightOrder;
-if (right.links.length !== left.links.length) return right.links.length - left.links.length;
-return left.label.localeCompare(right.label, undefined, { sensitivity: 'base' });
-});
 }
 
 function buildBucketsFromExtractor(links, extractor, options = {}) {
@@ -270,20 +261,6 @@ rootRecursiveTasks.push({ id, links: linksArray, chain: [{ dimension: catKey, va
 }
 }
 
-function buildDerivedGhostId(prefix, parts) {
-return `__ghost_${prefix}_${parts.map((part) => String(part || '').replace(/[^a-zA-Z0-9]+/g, '_')).join('_')}__`;
-}
-
-function filterDerivedBuckets(definition, links, chain) {
-const usedValues = new Set((Array.isArray(chain) ? chain : []).filter((item) => item?.dimension === definition.key).map((item) => String(item.valueKey || '').trim().toLowerCase()).filter(Boolean));
-return definition.buildBuckets(links).filter((bucket) => {
-const bucketKey = String(bucket?.key || '').trim().toLowerCase();
-if (!bucketKey) return false;
-if (usedValues.has(bucketKey)) return false;
-return Array.isArray(bucket?.links) && bucket.links.length > 0;
-}).slice(0, derivedValueLimit);
-}
-
 function addRecursiveGhostGroups(parentId, links, chain, depth) {
 if (!Array.isArray(links) || links.length < 1) return [];
 if (depth >= derivedDepthLimit) return [];
@@ -326,7 +303,7 @@ const pendingRecursions = [];
 derivedDimensionDefinitions.forEach((definition) => {
 if (!isGhostEnabled(definition.key)) return;
 if (derivedGhostNodeBudget.count >= derivedGhostNodeBudget.max) return;
-const buckets = filterDerivedBuckets(definition, links, chain);
+const buckets = recursionHelpers.filterDerivedBuckets(definition, links, chain, derivedValueLimit);
 if (!buckets.length) return;
 const groupId = buildDerivedGhostId('index_group', [parentId, definition.key, depth]);
 activeSubGhosts.push({ id: groupId, name: definition.label, parentId, isGhost: true, isGhostDerivedGroup: true, isGhostDerivedValue: false, _ghostLinks: [], _ghostFilterChain: Array.isArray(chain) ? chain.slice() : [], _ghostScopeCount: links.length, _ghostScopeRootId: activeRealFolderId || null });

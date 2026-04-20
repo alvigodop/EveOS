@@ -1,4 +1,4 @@
-// --- DASHBOARD CORE ---
+﻿// --- DASHBOARD CORE ---
 
 var dashboardMasonryState = window.__dashboardMasonryState || {
     activeGrid: null,
@@ -6,147 +6,14 @@ var dashboardMasonryState = window.__dashboardMasonryState || {
     rafId: 0
 };
 window.__dashboardMasonryState = dashboardMasonryState;
-
-function cleanupDashboardMasonryObserver() {
-    if (dashboardMasonryState.resizeObserver) {
-        dashboardMasonryState.resizeObserver.disconnect();
-        dashboardMasonryState.resizeObserver = null;
-    }
-}
-
-function clearDashboardMasonryCardSpans(grid) {
-    if (!grid) return;
-    grid.querySelectorAll('.category-card').forEach(function (card) {
-        card.style.gridRowEnd = '';
-    });
-}
-
-function shouldUseDashboardMasonry(grid) {
-    if (!grid) return false;
-    // Disable masonry in perf mode — the ResizeObserver feedback loop
-    // causes visual jitter when folder content changes card heights
-    if (window._evePerfMode) return false;
-    return !grid.classList.contains('list-mode')
-        && !grid.classList.contains('focus-mode')
-        && !grid.classList.contains('unidex-mode');
-}
-
-function refreshDashboardMasonryLayout(grid) {
-    if (!grid) return;
-
-    var enableMasonry = shouldUseDashboardMasonry(grid);
-    grid.classList.toggle('masonry-layout', enableMasonry);
-
-    if (!enableMasonry) {
-        clearDashboardMasonryCardSpans(grid);
-        grid.style.minHeight = '';
-        return;
-    }
-
-    var computedStyle = window.getComputedStyle(grid);
-    var rowHeight = parseFloat(computedStyle.getPropertyValue('grid-auto-rows'));
-    var rowGap = parseFloat(computedStyle.getPropertyValue('row-gap'));
-
-    if (!rowHeight || Number.isNaN(rowHeight)) return;
-    if (!rowGap || Number.isNaN(rowGap)) {
-        rowGap = parseFloat(computedStyle.getPropertyValue('gap')) || 0;
-    }
-
-    var cards = grid.querySelectorAll('.category-card');
-    if (!cards.length) {
-        grid.style.minHeight = '';
-        return;
-    }
-
-    // Stabilize scroll position: prevent grid height collapse during recalculation
-    var scrollPos = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
-    var currentHeight = grid.offsetHeight;
-    if (currentHeight > 100) {
-        grid.style.minHeight = currentHeight + 'px';
-    }
-
-    // Batch write: reset all spans first
-    for (var i = 0; i < cards.length; i++) {
-        cards[i].style.gridRowEnd = 'auto';
-    }
-
-    // Batch read: measure all heights at once
-    var heights = new Array(cards.length);
-    for (var j = 0; j < cards.length; j++) {
-        heights[j] = cards[j].getBoundingClientRect().height;
-    }
-
-    // Batch write: apply all spans
-    for (var k = 0; k < cards.length; k++) {
-        var span = Math.max(1, Math.ceil((heights[k] + rowGap) / (rowHeight + rowGap)));
-        cards[k].style.gridRowEnd = 'span ' + span;
-    }
-
-    // Reset min-height and affirm scroll
-    requestAnimationFrame(function () {
-        grid.style.minHeight = '';
-        if (Math.abs((window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0) - scrollPos) > 10) {
-            window.scrollTo(0, scrollPos);
-        }
-    });
-}
-
-function scheduleDashboardMasonryLayout(grid) {
-    if (!grid) return;
-    dashboardMasonryState.activeGrid = grid;
-
-    // Hard throttle: max once per 150ms (reduced from 200ms for responsiveness)
-    var now = Date.now();
-    if (dashboardMasonryState._lastLayout && (now - dashboardMasonryState._lastLayout) < 150) {
-        if (!dashboardMasonryState._throttleTimer) {
-            dashboardMasonryState._throttleTimer = setTimeout(function () {
-                dashboardMasonryState._throttleTimer = 0;
-                scheduleDashboardMasonryLayout(grid);
-            }, 150);
-        }
-        return;
-    }
-
-    if (dashboardMasonryState.rafId) {
-        window.cancelAnimationFrame(dashboardMasonryState.rafId);
-    }
-
-    dashboardMasonryState.rafId = window.requestAnimationFrame(function () {
-        dashboardMasonryState.rafId = window.requestAnimationFrame(function () {
-            dashboardMasonryState._lastLayout = Date.now();
-            refreshDashboardMasonryLayout(grid);
-        });
-    });
-}
-
-function observeDashboardMasonryLayout(grid) {
-    cleanupDashboardMasonryObserver();
-
-    if (!shouldUseDashboardMasonry(grid) || typeof ResizeObserver !== 'function') {
-        return;
-    }
-
-    var observer = new ResizeObserver(function () {
-        scheduleDashboardMasonryLayout(grid);
-    });
-
-    // Only observe the grid container — skip per-card observers when there are many cards
-    observer.observe(grid);
-    var cards = grid.querySelectorAll('.category-card');
-    if (cards.length <= 15) {
-        cards.forEach(function (card) {
-            observer.observe(card);
-        });
-    }
-
-    dashboardMasonryState.resizeObserver = observer;
-}
-
-function applyDashboardLayoutMaintenance(grid) {
-    scheduleDashboardMasonryLayout(grid);
-    observeDashboardMasonryLayout(grid);
-}
-
+var dashboardMasonryHelpers = window.EveDashboardMasonryHelpers || {};
+var cleanupDashboardMasonryObserver = dashboardMasonryHelpers.cleanupDashboardMasonryObserver;
+var clearDashboardMasonryCardSpans = dashboardMasonryHelpers.clearDashboardMasonryCardSpans;
+var shouldUseDashboardMasonry = dashboardMasonryHelpers.shouldUseDashboardMasonry;
+var refreshDashboardMasonryLayout = dashboardMasonryHelpers.refreshDashboardMasonryLayout;
+var scheduleDashboardMasonryLayout = dashboardMasonryHelpers.scheduleDashboardMasonryLayout;
+var observeDashboardMasonryLayout = dashboardMasonryHelpers.observeDashboardMasonryLayout;
+var applyDashboardLayoutMaintenance = dashboardMasonryHelpers.applyDashboardLayoutMaintenance;
 if (!window.__dashboardMasonryResizeBound) {
     window.__dashboardMasonryResizeBound = true;
     window.addEventListener('resize', function () {
@@ -209,7 +76,7 @@ function restoreDashboardCardScrollState(snapshot) {
     });
 }
 
-// Monotonically increasing render generation — all deferred work checks this
+// Monotonically increasing render generation â€” all deferred work checks this
 var _eveDashRenderGen = 0;
 window._eveDashRenderGen = 0;
 
@@ -254,7 +121,7 @@ function _renderDashboardImmediate() {
         _scrollRafId = 0;
     }
 
-    // Run render synchronously — DOM is rebuilt immediately but Masonry takes later frames
+    // Run render synchronously â€” DOM is rebuilt immediately but Masonry takes later frames
     _renderDashboardCore();
 
     // Restore scroll position immediately
@@ -285,7 +152,7 @@ function _renderDashboardCore() {
 
     if (!grid) return;
 
-    // Bump generation — all in-flight deferred work from previous renders is now stale
+    // Bump generation â€” all in-flight deferred work from previous renders is now stale
     _eveDashRenderGen++;
     window._eveDashRenderGen = _eveDashRenderGen;
 
@@ -336,7 +203,7 @@ function _renderDashboardCore() {
                 const linkedTarget = helpers.findById(config.workspaces || [], rootWs.linkedTo);
                 if (linkedTarget) {
                     visibleWorkspaceIds.add(String(linkedTarget.id));
-                    // Don't overwrite — if the linkedTo target is itself a group root, it owns its own cards.
+                    // Don't overwrite â€” if the linkedTo target is itself a group root, it owns its own cards.
                     if (!groupOverviewRootMap.has(String(linkedTarget.id))) {
                         groupOverviewRootMap.set(String(linkedTarget.id), rootId);
                     }
