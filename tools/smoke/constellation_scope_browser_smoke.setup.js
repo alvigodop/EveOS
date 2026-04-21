@@ -98,6 +98,24 @@ async function runConstellationSetup(page) {
         throw new Error(`Expected default motion mode to be free, got ${cardStats.motionMode}`);
     }
 
+    await page.waitForFunction(() => {
+        const state = window.EveConstellationMap?._shared?.state;
+        const categoryNode = state?.nodes?.find((node) => node.kind === 'category');
+        return !!categoryNode?.chainId && (state?.auraRoots instanceof Map ? state.auraRoots.size > 0 : false);
+    }, null, { timeout: 2000 });
+
+    const categoryAuraState = await page.evaluate(() => {
+        const state = window.EveConstellationMap?._shared?.state;
+        const categoryNode = state?.nodes?.find((node) => node.kind === 'category') || null;
+        return {
+            chainId: categoryNode?.chainId || '',
+            auraRootsSize: state?.auraRoots instanceof Map ? state.auraRoots.size : 0
+        };
+    });
+    if (!categoryAuraState.chainId || categoryAuraState.auraRootsSize < 1) {
+        throw new Error(`Expected card scope category aura root to be active, got ${JSON.stringify(categoryAuraState)}`);
+    }
+
     const folderAuraWidthStats = await page.evaluate(() => {
         const shared = window.EveConstellationMap?._shared;
         const state = shared?.state;

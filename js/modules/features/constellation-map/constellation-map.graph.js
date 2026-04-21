@@ -66,6 +66,15 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         return 'nexus_' + safeSourceId;
     }
 
+    function getProjectionNodeChainId(node, mapKind) {
+        const workspaceId = text(node?.workspaceId, 'main');
+        const categoryName = text(node?.categoryName, 'Unsorted');
+        if (mapKind === 'category' || mapKind === 'folder' || mapKind === 'link') {
+            return 'chain_' + workspaceId + '_' + categoryName;
+        }
+        return '';
+    }
+
     function getProjectionNodeRadius(mapKind, node, depth) {
         if (mapKind === 'workspace') {
             return Math.max(8, 15 - (Math.max(depth, 0) * 2));
@@ -256,9 +265,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             const metaInfo = buildProjectionNodeMeta(projectionNode, mapKind, scopedLinks, linkById, viewCache, context);
             const mapNode = addNode(createNode({
                 id: mapNodeId,
-                chainId: mapKind === 'link'
-                    ? ('chain_' + text(projectionNode?.workspaceId, 'main') + '_' + text(projectionNode?.categoryName, 'Unsorted'))
-                    : '',
+                chainId: getProjectionNodeChainId(projectionNode, mapKind),
                 label: mapKind === 'workspace' && projectionNode?.hiddenInParent
                     ? (label + ' [hidden]')
                     : label,
@@ -346,6 +353,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         const scope = normalizeScope(scopeOption);
         const preserveLocks = options?.preserveLocks === true;
         const scopedLinks = getScopedLinks(scope);
+        const scopedWorkspaceIds = Array.isArray(scope.workspaceIds) && scope.workspaceIds.length
+            ? new Set(scope.workspaceIds.map(function (value) { return text(value, ''); }).filter(Boolean))
+            : null;
         const { width, height } = getViewportSize();
         const centerX = width / 2;
         const centerY = height / 2;
@@ -384,6 +394,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             // Recursive workspace node builder for sub-tab hierarchy
             function addWorkspaceBranch(ws, parentWorkspaceNode, wsIndex, wsSiblingCount, ringRadius, ringCenterX, ringCenterY, wsDepth) {
                 const workspaceId = text(ws?.id, 'main');
+                if (scopedWorkspaceIds && !scopedWorkspaceIds.has(workspaceId)) return;
                 const workspaceLinks = scopedLinks.filter((link) => String(link?.workspace || 'main') === workspaceId);
                 const workspacePosition = placeOnRing(wsIndex, Math.max(wsSiblingCount, 1), ringRadius, ringCenterX, ringCenterY, 18);
                 const nodeRadius = Math.max(8, 15 - (wsDepth * 2));
@@ -422,7 +433,11 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 });
 
                 // Recurse into sub-tabs
-                const subTabs = Array.isArray(ws?.subTabs) ? ws.subTabs : [];
+                const subTabs = Array.isArray(ws?.subTabs)
+                    ? ws.subTabs.filter(function (childWorkspace) {
+                        return !scopedWorkspaceIds || scopedWorkspaceIds.has(text(childWorkspace?.id, ''));
+                    })
+                    : [];
                 if (subTabs.length > 0) {
                     const subRadius = Math.max(40, ringRadius * 0.55);
                     subTabs.forEach((childWs, childIndex) => {
@@ -433,11 +448,18 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             // Build from config tree if available, else fallback to flat IDs
             if (wsHelpers && configWorkspaces.length > 0) {
-                configWorkspaces.forEach((ws, wsIndex) => {
-                    addWorkspaceBranch(ws, null, wsIndex, configWorkspaces.length, Math.min(width, height) * 0.22, centerX, centerY, 0);
+                const rootWorkspaces = scopedWorkspaceIds
+                    ? configWorkspaces.filter(function (workspace) {
+                        return scopedWorkspaceIds.has(text(workspace?.id, ''));
+                    })
+                    : configWorkspaces;
+                rootWorkspaces.forEach((ws, wsIndex) => {
+                    addWorkspaceBranch(ws, null, wsIndex, rootWorkspaces.length, Math.min(width, height) * 0.22, centerX, centerY, 0);
                 });
             } else {
-                const workspaceIds = getAllWorkspaceIds(scopedLinks);
+                const workspaceIds = scopedWorkspaceIds && scopedWorkspaceIds.size
+                    ? Array.from(scopedWorkspaceIds)
+                    : getAllWorkspaceIds(scopedLinks);
                 workspaceIds.forEach((workspaceId, workspaceIndex) => {
                     const workspaceLinks = scopedLinks.filter((link) => String(link?.workspace || 'main') === String(workspaceId));
                     const workspacePosition = placeOnRing(workspaceIndex, workspaceIds.length, Math.min(width, height) * 0.22, centerX, centerY, 18);

@@ -66,6 +66,12 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     }
 
     function getWorkspaceIdsInScope(scope) {
+        const explicitWorkspaceIds = toArray(scope?.workspaceIds)
+            .map(function (value) { return text(value, ''); })
+            .filter(Boolean);
+        if (explicitWorkspaceIds.length) {
+            return new Set(explicitWorkspaceIds);
+        }
         if (!scope?.workspaceId) return null;
         const wsId = text(scope.workspaceId, 'main');
         const ids = new Set([wsId]);

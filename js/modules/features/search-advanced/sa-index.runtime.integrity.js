@@ -18,7 +18,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
 
     function matchesScope(record, scope) {
         if (!record) return false;
-        if (!scope || (!scope.workspaceId && !scope.categoryName)) return true;
+        if (!scope || (!scope.workspaceId && !scope.categoryName && !toArray(scope?.workspaceIds).length)) return true;
         const workspaceIds = getWorkspaceIdsInScope(scope);
         const recordWorkspaceIds = toArray(record.workspaceIds).length
             ? toArray(record.workspaceIds).map(function (value) { return text(value, ''); })
@@ -89,7 +89,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
 
     function buildScopeRecordMatcher(snapshot, scope) {
         const records = toArray(snapshot?.records);
-        if (!scope || (!scope.workspaceId && !scope.categoryName && !scope.folderId && !toArray(scope.linkIds).length)) {
+        if (!scope || (!scope.workspaceId && !scope.categoryName && !scope.folderId && !toArray(scope.linkIds).length && !toArray(scope.workspaceIds).length)) {
             return function (record) { return matchesScope(record, scope); };
         }
 

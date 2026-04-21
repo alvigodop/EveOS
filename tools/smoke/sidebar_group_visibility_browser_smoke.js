@@ -10,6 +10,7 @@ async function waitForApp(page) {
         && typeof window.renderDashboard === 'function'
         && typeof window.ctxSidebarGroupToggleHidden === 'function'
         && !!window.EveSidebarGroups
+        && !!window.EveConstellationMap?.openCurrentViewMap
     ), undefined, { timeout: 180000 });
 }
 
@@ -19,8 +20,9 @@ async function seedState(page) {
             activeWorkspace: 'main',
             viewMode: 'grid',
             workspaces: [
-                { id: 'main', name: 'Main', icon: '🏠', subTabs: [] },
-                { id: 'grpws', name: 'Grouped', icon: '📁', subTabs: [] }
+                { id: 'main', name: 'Main', icon: 'home', subTabs: [] },
+                { id: 'grpws', name: 'Grouped', icon: 'folder', subTabs: [] },
+                { id: 'grpws2', name: 'Grouped Two', icon: 'folder', subTabs: [] }
             ],
             categoryOrder: ['Alpha'],
             sidebarGroups: [],
@@ -30,9 +32,16 @@ async function seedState(page) {
             collapsedTabs: []
         };
         links = window.links = [
-            { id: 'group-link', title: 'Group Link', url: 'https://example.com/group', workspace: 'grpws', category: 'Alpha', done: false }
+            { id: 'group-link', title: 'Group Link', url: 'https://example.com/group', workspace: 'grpws', category: 'Alpha', done: false, folderId: 'folder-one' },
+            { id: 'group-link-2', title: 'Group Link Two', url: 'https://example.com/group-two', workspace: 'grpws2', category: 'Alpha', done: false }
         ];
-        bookmarkFolders = window.bookmarkFolders = {};
+        bookmarkFolders = window.bookmarkFolders = {
+            'grpws::Alpha': {
+                nodes: [
+                    { id: 'folder-one', name: 'Folder One', parentId: null, order: 1 }
+                ]
+            }
+        };
 
         if (window.eveState) {
             window.eveState.config = config;
@@ -75,7 +84,9 @@ async function runSmoke(page) {
         const groupsApi = window.EveSidebarGroups;
         const group = groupsApi.createGroup({ name: 'Overview Group', color: '#ffb84d' }, config);
         const groupedWorkspace = config.workspaces.find((ws) => ws.id === 'grpws');
+        const groupedWorkspaceTwo = config.workspaces.find((ws) => ws.id === 'grpws2');
         groupedWorkspace.groupId = group.id;
+        groupedWorkspaceTwo.groupId = group.id;
 
         config.groupOverviewId = group.id;
         window.renderSidebar();
@@ -85,16 +96,45 @@ async function runSmoke(page) {
 
     await page.waitForSelector('.category-card[data-card-category="Alpha"]', { timeout: 10000 });
 
+    await page.locator('.topbar-map-btn').click();
+    await page.waitForFunction(() => {
+        const overlay = document.getElementById('constellation-map-overlay');
+        return overlay && overlay.style.display !== 'none' && !!window.EveConstellationMap?.__debugGetGraphStats?.().visible;
+    }, undefined, { timeout: 15000 });
+    await page.waitForTimeout(250);
+
+    const groupOverviewMapStats = await page.evaluate(() => {
+        const stats = window.EveConstellationMap.__debugGetGraphStats();
+        return {
+            scope: stats.scope,
+            kinds: stats.kinds
+        };
+    });
+
+    if (groupOverviewMapStats.scope.scope !== 'all' || !Array.isArray(groupOverviewMapStats.scope.workspaceIds) || groupOverviewMapStats.scope.workspaceIds.length !== 2) {
+        throw new Error(`Expected grouped overview map scope with two workspace IDs, got ${JSON.stringify(groupOverviewMapStats)}`);
+    }
+    if ((groupOverviewMapStats.kinds.workspace || 0) < 2 || (groupOverviewMapStats.kinds.category || 0) < 2 || (groupOverviewMapStats.kinds.folder || 0) < 1) {
+        throw new Error(`Expected grouped overview map to include grouped tabs, cards, and folders, got ${JSON.stringify(groupOverviewMapStats)}`);
+    }
+
+    await page.click('[data-map-toolbar="close"]');
+    await page.waitForFunction(() => {
+        const overlay = document.getElementById('constellation-map-overlay');
+        return !overlay || overlay.style.display === 'none';
+    }, undefined, { timeout: 10000 });
+
     const hiddenOverviewResult = await page.evaluate(async (groupId) => {
         const groupsApi = window.EveSidebarGroups;
         const beforeCards = document.querySelectorAll('.category-card').length;
         window.ctxSidebarGroupId = groupId;
         window.ctxSidebarGroupToggleHidden();
+        const persistedGroup = (Array.isArray(config.sidebarGroups) ? config.sidebarGroups : []).find((group) => String(group?.id || '') === String(groupId));
         await new Promise((resolve) => setTimeout(resolve, 150));
         return {
             beforeCards,
             groupOverviewId: String(config.groupOverviewId || '').trim(),
-            hiddenState: groupsApi.findGroupById(groupId, config)?.hidden === true,
+            hiddenState: persistedGroup?.hidden === true,
             renderedTitles: Array.from(document.querySelectorAll('#sidebar .ws-group-title')).map((el) => el.textContent.trim())
         };
     }, overviewGroupId);

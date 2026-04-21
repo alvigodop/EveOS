@@ -32,7 +32,11 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         getViewportSize,
 
-        clearInspectorCoverRotation
+        clearInspectorCoverRotation,
+
+        getGroupOverviewWorkspaceIds,
+
+        text
 
     } = shared;
 
@@ -356,6 +360,8 @@ function releaseTransientMapState() {
         const mainContent = document.getElementById('main-content');
 
         const isUnidexActive = !!mainContent?.classList?.contains('unidex-view-active');
+        const cfg = getConfig();
+        const overviewGroupId = text(cfg?.groupOverviewId, '');
 
         const unidex = window.UnidexView;
 
@@ -367,7 +373,21 @@ function releaseTransientMapState() {
 
         }
 
-        ns.openWorkspaceMap(getConfig().activeWorkspace || 'main');
+        if (overviewGroupId && typeof getGroupOverviewWorkspaceIds === 'function') {
+            const workspaceIds = getGroupOverviewWorkspaceIds(overviewGroupId, cfg);
+            if (workspaceIds.length) {
+                const groupsApi = window.EveSidebarGroups || window.EveSidebarGroupsRuntime || null;
+                const group = groupsApi?.findGroupById ? groupsApi.findGroupById(overviewGroupId, cfg) : null;
+                ns.openMap({
+                    scope: 'all',
+                    workspaceIds: workspaceIds,
+                    scopeLabel: text(group?.name, 'Group Overview')
+                });
+                return;
+            }
+        }
+
+        ns.openWorkspaceMap(cfg.activeWorkspace || 'main');
 
     };
 

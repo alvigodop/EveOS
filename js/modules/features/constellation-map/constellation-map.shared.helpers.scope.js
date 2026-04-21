@@ -26,7 +26,12 @@ function getScopeText(scope) {
 
         if (!scope) return 'Unknown Scope';
 
-        if (scope.scope === 'all') return 'All Tabs / Whole Data Pack';
+        if (scope.scope === 'all') {
+            if (Array.isArray(scope.workspaceIds) && scope.workspaceIds.length) {
+                return text(scope.scopeLabel, 'Grouped Tabs Overview');
+            }
+            return 'All Tabs / Whole Data Pack';
+        }
 
         if (scope.scope === 'card') return getWorkspaceName(scope.workspaceId) + ' / ' + text(scope.categoryName, 'Card');
 
@@ -62,6 +67,10 @@ function normalizeScope(scopeOption) {
 
             workspaceId: text(scope.workspaceId, config.activeWorkspace || 'main'),
 
+            workspaceIds: Array.isArray(scope.workspaceIds)
+                ? Array.from(new Set(scope.workspaceIds.map(function (value) { return text(value, ''); }).filter(Boolean)))
+                : [],
+
             categoryName: text(scope.categoryName, ''),
 
             folderId: text(scope.folderId, ''),
@@ -77,6 +86,53 @@ function normalizeScope(scopeOption) {
                 : []
 
         };
+
+    }
+
+function getGroupOverviewWorkspaceIds(groupId, configRef) {
+
+        const cfg = configRef || getConfig();
+        const targetGroupId = text(groupId, '');
+        const groupsApi = window.EveSidebarGroups || window.EveSidebarGroupsRuntime || null;
+        const helpers = window.EveWorkspaceHelpers;
+        const workspaces = Array.isArray(cfg?.workspaces) ? cfg.workspaces : [];
+        const visibleWorkspaceIds = new Set();
+
+        if (!targetGroupId || !groupsApi || typeof groupsApi.getGroupRoots !== 'function') {
+            return [];
+        }
+
+        function addWorkspaceTree(rootNode) {
+            if (!rootNode || !rootNode.id) return;
+            visibleWorkspaceIds.add(String(rootNode.id));
+            if (helpers?.getVisibleDescendantIds) {
+                helpers.getVisibleDescendantIds(rootNode).forEach(function (id) {
+                    visibleWorkspaceIds.add(String(id));
+                });
+            }
+        }
+
+        groupsApi.getGroupRoots(targetGroupId, cfg).forEach(function (rootWorkspace) {
+            if (!rootWorkspace || !rootWorkspace.id) return;
+            addWorkspaceTree(rootWorkspace);
+            if (rootWorkspace.linkedTo && helpers?.findById) {
+                const linkedTarget = helpers.findById(workspaces, rootWorkspace.linkedTo);
+                if (linkedTarget) addWorkspaceTree(linkedTarget);
+            }
+        });
+
+        if (helpers?.findById) {
+            const resolvedLinkedIds = new Set();
+            Array.from(visibleWorkspaceIds).forEach(function (workspaceId) {
+                const workspace = helpers.findById(workspaces, workspaceId);
+                if (!workspace || !workspace.linkedTo || resolvedLinkedIds.has(workspace.linkedTo)) return;
+                resolvedLinkedIds.add(workspace.linkedTo);
+                const linkedTarget = helpers.findById(workspaces, workspace.linkedTo);
+                if (linkedTarget) addWorkspaceTree(linkedTarget);
+            });
+        }
+
+        return Array.from(visibleWorkspaceIds);
 
     }
 
@@ -106,8 +162,18 @@ function getAllWorkspaceIds(links) {
 function getScopedLinks(scope) {
 
         const allLinks = getAllLinks();
+        const explicitWorkspaceIds = Array.isArray(scope?.workspaceIds)
+            ? new Set(scope.workspaceIds.map(function (value) { return text(value, ''); }).filter(Boolean))
+            : null;
 
-        if (scope.scope === 'all') return allLinks.slice();
+        if (scope.scope === 'all') {
+            if (explicitWorkspaceIds && explicitWorkspaceIds.size) {
+                return allLinks.filter(function (link) {
+                    return explicitWorkspaceIds.has(String(link?.workspace || 'main'));
+                });
+            }
+            return allLinks.slice();
+        }
 
         if (scope.scope === 'derived') {
 
@@ -119,7 +185,9 @@ function getScopedLinks(scope) {
 
         const helpers = window.EveWorkspaceHelpers;
         const config = getConfig();
-        const visibleWsIds = new Set([String(scope.workspaceId)]);
+        const visibleWsIds = explicitWorkspaceIds && explicitWorkspaceIds.size
+            ? new Set(explicitWorkspaceIds)
+            : new Set([String(scope.workspaceId)]);
         if (helpers && scope.scope === 'workspace') {
             const ws = helpers.findById(Array.isArray(config.workspaces) ? config.workspaces : [], scope.workspaceId);
             if (ws) {
@@ -204,6 +272,7 @@ function getCategoryNames(workspaceId, links) {
         getWorkspaceName,
         getScopeText,
         normalizeScope,
+        getGroupOverviewWorkspaceIds,
         getAllWorkspaceIds,
         getScopedLinks,
         getCategoryNames
