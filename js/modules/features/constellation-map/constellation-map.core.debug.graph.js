@@ -39,13 +39,28 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     function toNexusScope(scopeModel) {
         if (!scopeModel || scopeModel.scope === 'all') return {};
         if (scopeModel.scope === 'workspace') {
-            return { workspaceId: text(scopeModel.workspaceId, 'main') };
+            return {
+                scope: 'workspace',
+                workspaceId: text(scopeModel.workspaceId, 'main')
+            };
         }
         if (scopeModel.scope === 'card' || scopeModel.scope === 'folder' || scopeModel.scope === 'derived') {
-            return {
+            const base = {
+                scope: text(scopeModel.scope, 'card'),
                 workspaceId: text(scopeModel.workspaceId, 'main'),
                 categoryName: text(scopeModel.categoryName, 'Unsorted')
             };
+            if (scopeModel.scope === 'folder') {
+                base.folderId = text(scopeModel.folderId, '');
+                base.folderLabel = text(scopeModel.folderLabel, '');
+            }
+            if (scopeModel.scope === 'derived') {
+                base.scopeLabel = text(scopeModel.scopeLabel, '');
+                base.linkIds = Array.isArray(scopeModel.linkIds)
+                    ? scopeModel.linkIds.map(function (value) { return text(value, ''); }).filter(Boolean)
+                    : [];
+            }
+            return base;
         }
         return {};
     }
@@ -84,7 +99,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     }
 
     async function __debugGetNexusProjectionStats(scopeOverride) {
-        const indexApi = window.EveOS?.SearchAdvanced?.Index;
+        const indexApi = window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index;
         if (!indexApi?.getIntegrityReport || !indexApi?.buildGraphProjection) return null;
 
         const nexusScope = toNexusScope(scopeOverride || state.scope);

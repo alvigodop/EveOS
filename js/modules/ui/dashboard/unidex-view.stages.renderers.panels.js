@@ -6,8 +6,12 @@ window.UnidexViewModules = window.UnidexViewModules || {};
         const state = deps?.state || {};
         const getWorkspaceById = deps?.getWorkspaceById;
         const getWorkspaceLinks = deps?.getWorkspaceLinks;
+        const getWorkspaceBookmarkCount = deps?.getWorkspaceBookmarkCount;
         const getAllWorkspaceLinks = deps?.getAllWorkspaceLinks;
         const getCategoryModels = deps?.getCategoryModels;
+        const getCategoryModelsForWorkspace = deps?.getCategoryModelsForWorkspace || function (workspaceId, searchStr, workspaceLinks) {
+            return getCategoryModels(Array.isArray(workspaceLinks) ? workspaceLinks : getWorkspaceLinks(workspaceId, searchStr));
+        };
         const isTaskModeCategory = deps?.isTaskModeCategory;
         const getWorkspaceLabel = deps?.getWorkspaceLabel;
         const escapeHtml = deps?.escapeHtml;
@@ -130,7 +134,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
 
             // Get main workspace links
             const workspaceLinks = getWorkspaceLinks(workspace.id, searchStr);
-            const categoryModels = getCategoryModels(workspaceLinks);
+            const categoryModels = getCategoryModelsForWorkspace(workspace.id, searchStr, workspaceLinks);
             const cardsUnifiedMode = getCardsUnifiedMode();
             const layoutMode = getEntriesLayoutMode();
 
@@ -144,8 +148,11 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                     });
                     visibleSubTabs.forEach(function (subTab) {
                         const stLinks = getWorkspaceLinks(subTab.id, searchStr);
-                        if (stLinks.length === 0) return;
-                        const stModels = getCategoryModels(stLinks);
+                        const stCount = typeof getWorkspaceBookmarkCount === 'function'
+                            ? getWorkspaceBookmarkCount(subTab.id, searchStr, stLinks)
+                            : stLinks.length;
+                        if (stCount === 0) return;
+                        const stModels = getCategoryModelsForWorkspace(subTab.id, searchStr, stLinks);
                         const depth = helpers.getDepth(config.workspaces, subTab.id);
                         const depthClass = depth > 0 ? ' unidex-subtab-section-depth-' + Math.min(depth, 4) : '';
                         const safeIcon = escapeHtml(subTab.icon || '📁');
@@ -154,7 +161,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                         <div class="unidex-subtab-section${depthClass}">
                             <div class="unidex-subtab-section-header">
                                 <span class="unidex-subtab-badge">${safeIcon} ${safeName}</span>
-                                <span class="unidex-subtab-count">${stLinks.length} links</span>
+                                <span class="unidex-subtab-count">${stCount} links</span>
                             </div>
                             <section class="unidex-cards" aria-label="${safeName} Cards">
                                 ${buildCardsHtml(stModels)}

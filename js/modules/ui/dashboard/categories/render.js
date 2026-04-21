@@ -10,6 +10,70 @@ function getDashboardActiveWorkspace() {
     return String(config?.activeWorkspace || window.eveState?.config?.activeWorkspace || 'main').trim() || 'main';
 }
 
+var dashboardCategorySummaryWarmPromise = null;
+
+function getDashboardDatapackIndexApi() {
+    return window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
+}
+
+function queueDashboardCategorySummaryWarmup() {
+    var indexApi = getDashboardDatapackIndexApi();
+    if (!indexApi || typeof indexApi.ensureFresh !== 'function') return;
+    if (dashboardCategorySummaryWarmPromise) return;
+
+    dashboardCategorySummaryWarmPromise = Promise.resolve(indexApi.ensureFresh({ reason: 'dashboard-categories' }))
+        .then(function () {
+            if (typeof renderDashboard === 'function') renderDashboard();
+        })
+        .catch(function () {
+            // Raw-link fallback remains active when the datapack spine is cold.
+        })
+        .finally(function () {
+            dashboardCategorySummaryWarmPromise = null;
+        });
+}
+
+function getDashboardStructureSummary() {
+    var indexApi = getDashboardDatapackIndexApi();
+    if (!indexApi || typeof indexApi.getStructureSummary !== 'function') return null;
+    var summary = indexApi.getStructureSummary();
+    if (summary?.builtAt) return summary;
+    queueDashboardCategorySummaryWarmup();
+    return null;
+}
+
+function getVisibleDashboardWorkspaceIds(activeWorkspaceId) {
+    var workspaceSet = window._eveActiveVisibleWorkspaceIds;
+    if (workspaceSet instanceof Set && workspaceSet.size) {
+        return Array.from(workspaceSet).map(function (workspaceId) {
+            return String(workspaceId || '').trim();
+        }).filter(Boolean);
+    }
+    return [String(activeWorkspaceId || 'main').trim() || 'main'];
+}
+
+function collectIndexedDashboardLinkedCategories(activeWorkspaceId, categoryOrder) {
+    var summary = getDashboardStructureSummary();
+    if (!summary?.cards) return null;
+
+    var visibleWorkspaceIds = new Set(getVisibleDashboardWorkspaceIds(activeWorkspaceId));
+    var fauxLinks = Object.keys(summary.cards)
+        .map(function (key) { return summary.cards[key]; })
+        .filter(function (bucket) {
+            return !!bucket
+                && visibleWorkspaceIds.has(String(bucket.workspaceId || '').trim())
+                && Number(bucket.bookmarkCount || 0) > 0;
+        })
+        .map(function (bucket) {
+            return {
+                category: String(bucket.categoryName || 'Unsorted').trim() || 'Unsorted',
+                workspace: String(bucket.workspaceId || 'main').trim() || 'main'
+            };
+        });
+
+    return window.DashboardCategories.sort(fauxLinks, categoryOrder);
+}
+
 function getFolderBackedCategories(workspaceId) {
     const scopedPrefix = String(workspaceId || 'main') + '::';
     const store = getDashboardFolderStore();
@@ -25,8 +89,11 @@ function hasFolderBackedCategory(workspaceId, categoryName) {
     return !!(tree && Array.isArray(tree.nodes) && tree.nodes.length);
 }
 
-function collectDashboardCategories(visibleLinks, activeWorkspaceId, categoryOrder, detachedModel) {
-    const linkedCategories = window.DashboardCategories.sort(visibleLinks, categoryOrder);
+function collectDashboardCategories(visibleLinks, activeWorkspaceId, categoryOrder, detachedModel, searchStr) {
+    const linkedCategories = !searchStr
+        ? (collectIndexedDashboardLinkedCategories(activeWorkspaceId, categoryOrder)
+            || window.DashboardCategories.sort(visibleLinks, categoryOrder))
+        : window.DashboardCategories.sort(visibleLinks, categoryOrder);
     const folderCategories = getFolderBackedCategories(activeWorkspaceId); 
     const ordered = [];
     const seen = new Set();
@@ -62,7 +129,7 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
     const detachedModel = window.EveDetachedDashboardCard?.buildDetachedDashboardModel
         ? window.EveDetachedDashboardCard.buildDetachedDashboardModel(activeWorkspace)
         : null;
-    const categories = collectDashboardCategories(visibleLinks, activeWorkspace, workspaceCategoryOrder, detachedModel);
+    const categories = collectDashboardCategories(visibleLinks, activeWorkspace, workspaceCategoryOrder, detachedModel, searchStr);
 
     // Pre-index links by (workspaceId::category) — O(n) instead of O(n * categories)
     const linksByCatWs = new Map();

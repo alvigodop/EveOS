@@ -8,6 +8,11 @@ window.UnidexViewModules = window.UnidexViewModules || {};
 
     window.UnidexViewModules.createPanelBuilders = function createPanelBuilders(deps) {
         const getAllLinks = deps?.getAllLinks || (() => []);
+        const getWorkspaceBookmarkCount = deps?.getWorkspaceBookmarkCount || function (workspaceId) {
+            return getAllLinks().filter(function (link) {
+                return String(link.workspace) === String(workspaceId);
+            }).length;
+        };
         const encodeParam = deps?.encodeParam || identity;
         const escapeHtml = deps?.escapeHtml || identity;
 
@@ -17,9 +22,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             const tabHtmlParts = [];
 
             function buildTab(workspace, depth) {
-                const workspaceCount = getAllLinks().filter(function (link) {
-                    return String(link.workspace) === String(workspace.id);
-                }).length;
+                const workspaceCount = getWorkspaceBookmarkCount(workspace.id);
 
                 const encodedId = encodeParam(workspace.id);
                 const safeName = escapeHtml(workspace.name);

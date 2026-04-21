@@ -33,7 +33,7 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
     }
 
     function getDatapackIndexApi() {
-        return window.EveOS?.SearchAdvanced?.Index || null;
+        return window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
     }
 
     function queueStructureSummaryWarmup(reason, rerender) {

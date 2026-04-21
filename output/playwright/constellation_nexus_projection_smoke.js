@@ -161,7 +161,99 @@ async function runSmoke(page) {
     throw new Error('Projection stats did not report Nexus graph nodes: ' + JSON.stringify(result));
   }
 
-  return result;
+  await page.evaluate(async () => {
+    await window.EveConstellationMap.openFolderMap('main', 'Alpha', 'alpha-folder', 'Research');
+  });
+  await page.waitForFunction(() => {
+    const state = window.EveConstellationMap?._shared?.state;
+    return !!state
+      && state.scope?.scope === 'folder'
+      && state.nodes.some((node) => node.kind === 'folder' && String(node.data?.folderId || '') === 'alpha-folder');
+  }, undefined, { timeout: 15000 });
+
+  const folderScope = await page.evaluate(async () => {
+    const state = window.EveConstellationMap._shared.state;
+    const projectionStats = await window.EveConstellationMap._coreDebugGraph.__debugGetNexusProjectionStats({
+      scope: 'folder',
+      workspaceId: 'main',
+      categoryName: 'Alpha',
+      folderId: 'alpha-folder',
+      folderLabel: 'Research'
+    });
+    const kinds = state.nodes.reduce((acc, node) => {
+      acc[node.kind] = (acc[node.kind] || 0) + 1;
+      return acc;
+    }, {});
+    return {
+      kinds,
+      labels: state.nodes.map((node) => String(node.label || '')),
+      hasAlphaRootBookmark: state.nodes.some((node) => String(node.label || '') === 'Alpha Root Bookmark'),
+      hasNestedBookmark: state.nodes.some((node) => String(node.label || '') === 'Alpha Nested Bookmark'),
+      hasFolderRoot: state.nodes.some((node) => node.kind === 'folder' && String(node.data?.folderId || '') === 'alpha-folder'),
+      projectionStats
+    };
+  });
+
+  if (folderScope.hasAlphaRootBookmark) {
+    throw new Error('Folder scope should not include bookmarks outside the selected subtree: ' + JSON.stringify(folderScope));
+  }
+  if (!folderScope.hasNestedBookmark || !folderScope.hasFolderRoot) {
+    throw new Error('Folder scope projection did not keep the folder subtree intact: ' + JSON.stringify(folderScope));
+  }
+  if ((folderScope.projectionStats?.projection?.kinds?.folder || 0) < 1) {
+    throw new Error('Folder scope projection stats did not include folder nodes: ' + JSON.stringify(folderScope));
+  }
+
+  await page.evaluate(async () => {
+    await window.EveConstellationMap.openDerivedMap({
+      workspaceId: 'main',
+      categoryName: 'Alpha',
+      linkIds: ['alpha-folder', 'alpha-subfolder'],
+      scopeLabel: 'Alpha Branch Slice'
+    });
+  });
+  await page.waitForFunction(() => {
+    const state = window.EveConstellationMap?._shared?.state;
+    return !!state
+      && state.scope?.scope === 'derived'
+      && state.nodes.some((node) => node.kind === 'category' && String(node.data?.categoryName || '') === 'Alpha');
+  }, undefined, { timeout: 15000 });
+
+  const derivedScope = await page.evaluate(async () => {
+    const state = window.EveConstellationMap._shared.state;
+    const projectionStats = await window.EveConstellationMap._coreDebugGraph.__debugGetNexusProjectionStats({
+      scope: 'derived',
+      workspaceId: 'main',
+      categoryName: 'Alpha',
+      linkIds: ['alpha-folder', 'alpha-subfolder'],
+      scopeLabel: 'Alpha Branch Slice'
+    });
+    return {
+      labels: state.nodes.map((node) => String(node.label || '')),
+      hasCategoryRoot: state.nodes.some((node) => node.kind === 'category' && String(node.data?.categoryName || '') === 'Alpha'),
+      hasAlphaRootBookmark: state.nodes.some((node) => String(node.label || '') === 'Alpha Root Bookmark'),
+      hasAlphaFolderBookmark: state.nodes.some((node) => String(node.label || '') === 'Alpha Folder Bookmark'),
+      hasNestedBookmark: state.nodes.some((node) => String(node.label || '') === 'Alpha Nested Bookmark'),
+      hasAncestorFolder: state.nodes.some((node) => node.kind === 'folder' && String(node.data?.folderId || '') === 'alpha-folder'),
+      projectionStats
+    };
+  });
+
+  if (derivedScope.hasAlphaRootBookmark) {
+    throw new Error('Derived scope should not include unselected root bookmarks: ' + JSON.stringify(derivedScope));
+  }
+  if (!derivedScope.hasCategoryRoot || !derivedScope.hasAlphaFolderBookmark || !derivedScope.hasNestedBookmark || !derivedScope.hasAncestorFolder) {
+    throw new Error('Derived scope projection did not preserve card/folder/bookmark context: ' + JSON.stringify(derivedScope));
+  }
+  if ((derivedScope.projectionStats?.projection?.kinds?.bookmark || 0) !== 2) {
+    throw new Error('Derived scope projection should only include the selected bookmark set: ' + JSON.stringify(derivedScope));
+  }
+
+  return {
+    allScope: result,
+    folderScope,
+    derivedScope
+  };
 }
 
 async function main() {

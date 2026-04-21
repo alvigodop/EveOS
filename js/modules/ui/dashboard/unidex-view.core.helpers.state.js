@@ -4,6 +4,36 @@ window.UnidexViewModules = window.UnidexViewModules || {};
     window.UnidexViewModules.createCoreHelperState = function createCoreHelperState(deps) {
         const state = deps.state;
 
+        function getDatapackIndexApi() {
+            return window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
+        }
+
+        function warmDatapackIndex() {
+            const indexApi = getDatapackIndexApi();
+            if (!indexApi || typeof indexApi.ensureFresh !== 'function') return;
+            if (state.datapackIndexWarmPromise) return;
+
+            state.datapackIndexWarmPromise = Promise.resolve(indexApi.ensureFresh({ reason: 'unidex-summary' }))
+                .then(function () {
+                    if (typeof renderDashboard === 'function') renderDashboard();
+                })
+                .catch(function () {
+                    // Keep raw-link fallback active if the datapack spine is not ready.
+                })
+                .finally(function () {
+                    state.datapackIndexWarmPromise = null;
+                });
+        }
+
+        function getDatapackStructureSummary() {
+            const indexApi = getDatapackIndexApi();
+            if (!indexApi || typeof indexApi.getStructureSummary !== 'function') return null;
+            const summary = indexApi.getStructureSummary();
+            if (summary?.builtAt) return summary;
+            warmDatapackIndex();
+            return null;
+        }
+
         function getAllLinks() {
             if (window.eveState?.links) return window.eveState.links;
             if (typeof links !== 'undefined' && Array.isArray(links)) return links;
@@ -70,18 +100,33 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             return !hidden.includes(categoryName);
         }
 
-        function getSortedCategories(workspaceLinks) {
-            const workspaceId = String(workspaceLinks[0]?.workspace || config.activeWorkspace || 'main').trim() || 'main';
-            const workspaceCategoryOrder = window.EveCategoryOrder?.getOrder
+        function getWorkspaceCategoryOrder(workspaceId) {
+            return window.EveCategoryOrder?.getOrder
                 ? window.EveCategoryOrder.getOrder(workspaceId)
                 : (config.categoryOrder || []);
-            if (window.DashboardCategories && typeof window.DashboardCategories.sort === 'function') {
-                return window.DashboardCategories.sort(workspaceLinks, workspaceCategoryOrder);
-            }
-            const unique = new Set(workspaceLinks.map(function (link) {
-                return link.category || 'Unsorted';
+        }
+
+        function sortCategoryNames(categoryNames, workspaceId) {
+            const unique = Array.from(new Set((Array.isArray(categoryNames) ? categoryNames : [])
+                .map(function (category) { return category || 'Unsorted'; })));
+            const order = getWorkspaceCategoryOrder(workspaceId);
+            const orderIndex = new Map(order.map(function (category, index) {
+                return [String(category || 'Unsorted'), index];
             }));
-            return Array.from(unique).sort();
+
+            return unique.sort(function (left, right) {
+                const leftIndex = orderIndex.has(left) ? orderIndex.get(left) : Number.POSITIVE_INFINITY;
+                const rightIndex = orderIndex.has(right) ? orderIndex.get(right) : Number.POSITIVE_INFINITY;
+                if (leftIndex !== rightIndex) return leftIndex - rightIndex;
+                return String(left).localeCompare(String(right));
+            });
+        }
+
+        function getSortedCategories(workspaceLinks) {
+            const workspaceId = String(workspaceLinks[0]?.workspace || config.activeWorkspace || 'main').trim() || 'main';
+            return sortCategoryNames(workspaceLinks.map(function (link) {
+                return link.category || 'Unsorted';
+            }), workspaceId);
         }
 
         function getCategoryModels(workspaceLinks) {
@@ -99,6 +144,56 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                     taskMode: isTaskModeCategory(category)
                 };
             });
+        }
+
+        function getWorkspaceBookmarkCount(workspaceId, searchStr, workspaceLinks) {
+            const search = String(searchStr || '').trim();
+            if (Array.isArray(workspaceLinks)) return workspaceLinks.length;
+
+            if (!search) {
+                const summary = getDatapackStructureSummary();
+                const bucket = summary?.workspaces?.[String(workspaceId || '')];
+                if (bucket && Number.isFinite(Number(bucket.bookmarkCount))) {
+                    return Number(bucket.bookmarkCount || 0);
+                }
+            }
+
+            return getWorkspaceLinks(workspaceId, searchStr).length;
+        }
+
+        function getCategoryModelsForWorkspace(workspaceId, searchStr, workspaceLinks) {
+            const search = String(searchStr || '').trim();
+            if (!search) {
+                const summary = getDatapackStructureSummary();
+                const prefix = String(workspaceId || '') + '::';
+                const cardBuckets = summary?.cards
+                    ? Object.keys(summary.cards)
+                        .filter(function (key) { return key.indexOf(prefix) === 0; })
+                        .map(function (key) { return summary.cards[key]; })
+                        .filter(function (bucket) { return Number(bucket?.bookmarkCount || 0) > 0; })
+                    : null;
+
+                if (cardBuckets) {
+                    const bucketsByCategory = new Map(cardBuckets.map(function (bucket) {
+                        return [String(bucket.categoryName || 'Unsorted'), bucket];
+                    }));
+                    return sortCategoryNames(Array.from(bucketsByCategory.keys()), workspaceId).map(function (category) {
+                        const bucket = bucketsByCategory.get(String(category || 'Unsorted')) || {};
+                        const total = Number(bucket.bookmarkCount || 0);
+                        const done = Math.min(Number(bucket.doneBookmarkCount || 0), total);
+                        return {
+                            category: category,
+                            total: total,
+                            done: done,
+                            pending: Math.max(total - done, 0),
+                            taskMode: isTaskModeCategory(category)
+                        };
+                    });
+                }
+            }
+
+            const sourceLinks = Array.isArray(workspaceLinks) ? workspaceLinks : getWorkspaceLinks(workspaceId, searchStr);
+            return getCategoryModels(sourceLinks);
         }
 
         function getLinkedRecord(linkId) {
@@ -181,8 +276,10 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             getWorkspaceLinks,
             getWorkspaceAndSubTabLinks,
             getAllWorkspaceLinks,
+            getWorkspaceBookmarkCount,
             getWorkspaceLabel,
             getCategoryModels,
+            getCategoryModelsForWorkspace,
             isTaskModeCategory,
             getLinkedLibraryEntry,
             getEntryConfidence,

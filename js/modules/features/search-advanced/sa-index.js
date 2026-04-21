@@ -26,6 +26,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     const { buildSnapshot } = sources;
     const {
         matchesScope,
+        buildScopeRecordMatcher,
         computeVisibility,
         computeHealth,
         buildIntegrityReportSync
@@ -334,8 +335,11 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     async function buildGraphProjection(options) {
         const snapshot = options?.snapshot || await ensureFresh();
         const scope = options?.scope || null;
+        const inScope = typeof buildScopeRecordMatcher === 'function'
+            ? buildScopeRecordMatcher(snapshot, scope)
+            : function (record) { return matchesScope(record, scope); };
         const records = toArray(snapshot?.records).filter(function (record) {
-            return matchesScope(record, scope);
+            return inScope(record);
         });
         const nodes = [];
         const edges = [];
@@ -528,11 +532,41 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             addEdge(parentNodeId, record.id, 'membership');
         });
 
+        let preferredRootIds = [];
+        const scopeType = text(scope?.scope, '');
+        const scopeWorkspaceId = text(scope?.workspaceId, '');
+        const scopeCategoryName = text(scope?.categoryName, '');
+        const scopeFolderId = text(scope?.folderId, '');
+
+        function uniqueRootIds(ids) {
+            return Array.from(new Set(toArray(ids).map(function (value) { return text(value, ''); }).filter(Boolean)));
+        }
+
+        if (scopeType === 'workspace' && scopeWorkspaceId) {
+            const workspaceNodeId = getWorkspaceNodeId(scopeWorkspaceId);
+            preferredRootIds = edges
+                .filter(function (edge) { return edge.source === workspaceNodeId; })
+                .map(function (edge) { return edge.target; });
+            if (!preferredRootIds.length && nodeById.has(workspaceNodeId)) preferredRootIds = [workspaceNodeId];
+        } else if (scopeType === 'card' && scopeWorkspaceId && scopeCategoryName) {
+            const cardNodeId = getCardNodeId(scopeWorkspaceId, scopeCategoryName);
+            if (nodeById.has(cardNodeId)) preferredRootIds = [cardNodeId];
+        } else if (scopeType === 'folder' && scopeWorkspaceId && scopeCategoryName && scopeFolderId) {
+            const folderNodeId = getFolderNodeId(scopeWorkspaceId, scopeCategoryName, scopeFolderId);
+            if (nodeById.has(folderNodeId)) preferredRootIds = [folderNodeId];
+        } else if (scopeType === 'derived' && scopeWorkspaceId && scopeCategoryName) {
+            const cardNodeId = getCardNodeId(scopeWorkspaceId, scopeCategoryName);
+            if (nodeById.has(cardNodeId)) preferredRootIds = [cardNodeId];
+        }
+
+        preferredRootIds = uniqueRootIds(preferredRootIds);
+
         return {
             builtAt: snapshot?.builtAt || 0,
             scope: scope || null,
             nodes: nodes,
-            edges: edges
+            edges: edges,
+            preferredRootIds: preferredRootIds
         };
     }
 
@@ -582,7 +616,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     window.addEventListener('eve:storage-backend', installMutationHooks);
     installMutationHooks();
 
-    ns.Index = {
+    const datapackIndexApi = {
         ensureFresh,
         rebuild,
         search,
@@ -599,6 +633,21 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         computeVisibility,
         computeHealth
     };
+    ns.Index = datapackIndexApi;
+
+    window.EveOS = window.EveOS || {};
+    window.EveOS.DatapackIndex = datapackIndexApi;
+    window.EveOS.DatapackGraph = Object.assign(window.EveOS.DatapackGraph || {}, {
+        getProjection: function (scope) {
+            return datapackIndexApi.buildGraphProjection({ scope: scope || null });
+        },
+        getStructureSummary: function () {
+            return datapackIndexApi.getStructureSummary();
+        },
+        getIntegrityReport: function (scope) {
+            return datapackIndexApi.getIntegrityReport({ scope: scope || null });
+        }
+    });
 
     window.EveConstellationMap = window.EveConstellationMap || {};
     window.EveConstellationMap.getNexusGraphProjection = function (scope) {

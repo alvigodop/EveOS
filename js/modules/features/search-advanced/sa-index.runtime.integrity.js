@@ -33,6 +33,114 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         return true;
     }
 
+    function getRecordFolderId(record) {
+        return text(record?.path?.folderId || record?.parentFolderId || record?.provenance?.parentFolderId, '');
+    }
+
+    function getRecordLinkId(record) {
+        return text(record?.path?.linkId || record?.provenance?.linkId, '');
+    }
+
+    function buildFolderHierarchy(records) {
+        const childrenByFolderId = new Map();
+        const parentByFolderId = new Map();
+
+        toArray(records).forEach(function (record) {
+            if (text(record?.type, '') !== 'folder') return;
+            const folderId = text(record?.path?.folderId, '');
+            if (!folderId) return;
+            const parentFolderId = text(record?.parentFolderId || record?.provenance?.parentFolderId, '');
+            parentByFolderId.set(folderId, parentFolderId);
+            if (!childrenByFolderId.has(parentFolderId)) childrenByFolderId.set(parentFolderId, []);
+            childrenByFolderId.get(parentFolderId).push(folderId);
+        });
+
+        return {
+            childrenByFolderId: childrenByFolderId,
+            parentByFolderId: parentByFolderId
+        };
+    }
+
+    function collectFolderSubtree(folderId, hierarchy) {
+        const targetId = text(folderId, '');
+        const subtree = new Set();
+        if (!targetId) return subtree;
+        const queue = [targetId];
+        while (queue.length) {
+            const currentId = queue.shift();
+            if (!currentId || subtree.has(currentId)) continue;
+            subtree.add(currentId);
+            toArray(hierarchy?.childrenByFolderId?.get(currentId)).forEach(function (childId) {
+                if (!subtree.has(childId)) queue.push(childId);
+            });
+        }
+        return subtree;
+    }
+
+    function collectFolderAncestors(folderId, hierarchy) {
+        const ancestors = new Set();
+        let currentId = text(folderId, '');
+        while (currentId) {
+            ancestors.add(currentId);
+            currentId = text(hierarchy?.parentByFolderId?.get(currentId), '');
+        }
+        return ancestors;
+    }
+
+    function buildScopeRecordMatcher(snapshot, scope) {
+        const records = toArray(snapshot?.records);
+        if (!scope || (!scope.workspaceId && !scope.categoryName && !scope.folderId && !toArray(scope.linkIds).length)) {
+            return function (record) { return matchesScope(record, scope); };
+        }
+
+        const scopedCategoryRecords = records.filter(function (record) {
+            return matchesScope(record, {
+                workspaceId: scope.workspaceId,
+                categoryName: scope.categoryName
+            });
+        });
+
+        if (text(scope?.scope, '') === 'folder' && text(scope?.folderId, '')) {
+            const hierarchy = buildFolderHierarchy(scopedCategoryRecords);
+            const subtreeIds = collectFolderSubtree(scope.folderId, hierarchy);
+            return function (record) {
+                if (!matchesScope(record, { workspaceId: scope.workspaceId, categoryName: scope.categoryName })) return false;
+                if (text(record?.type, '') === 'card') return true;
+                const folderId = getRecordFolderId(record);
+                return !!folderId && subtreeIds.has(folderId);
+            };
+        }
+
+        if (text(scope?.scope, '') === 'derived' && toArray(scope?.linkIds).length) {
+            const selectedLinkIds = new Set(toArray(scope.linkIds).map(function (value) { return text(value, ''); }).filter(Boolean));
+            const hierarchy = buildFolderHierarchy(scopedCategoryRecords);
+            const selectedFolderIds = new Set();
+            scopedCategoryRecords.forEach(function (record) {
+                if (text(record?.type, '') !== 'bookmark') return;
+                if (!selectedLinkIds.has(getRecordLinkId(record))) return;
+                const folderId = getRecordFolderId(record);
+                if (folderId) {
+                    collectFolderAncestors(folderId, hierarchy).forEach(function (ancestorId) {
+                        selectedFolderIds.add(ancestorId);
+                    });
+                }
+            });
+
+            return function (record) {
+                if (!matchesScope(record, { workspaceId: scope.workspaceId, categoryName: scope.categoryName })) return false;
+                const recordType = text(record?.type, '');
+                if (recordType === 'card') return true;
+                if (recordType === 'folder') return selectedFolderIds.has(text(record?.path?.folderId, ''));
+                if (recordType === 'bookmark') return selectedLinkIds.has(getRecordLinkId(record));
+                return false;
+            };
+        }
+
+        return function (record) {
+            return matchesScope(record, scope);
+        };
+    }
+
     function isCollapsedCategory(configRef, workspaceId, categoryName, key) {
         const items = toArray(configRef?.[key]);
         const scopedKey = getScopedKey(workspaceId, categoryName);
@@ -135,9 +243,10 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             byType: {},
             byWorkspace: {}
         };
+        const inScope = buildScopeRecordMatcher(snapshot, scope);
 
         toArray(snapshot?.records).forEach(function (record) {
-            if (!matchesScope(record, scope)) return;
+            if (!inScope(record)) return;
             report.totalRecords += 1;
             const typeKey = text(record?.type, 'result');
             const workspaceKey = text(record?.path?.workspaceLabel, record?.workspaceId || 'main');
@@ -163,6 +272,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
 
     ns.IndexRuntimeIntegrity = {
         matchesScope,
+        buildScopeRecordMatcher,
         computeVisibility,
         computeHealth,
         buildIntegrityReportSync

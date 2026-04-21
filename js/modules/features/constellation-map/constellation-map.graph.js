@@ -165,13 +165,13 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     }
 
     async function tryBuildGraphDataFromNexusProjection(scope, scopedLinks, context, centerX, centerY, width, height) {
-        if (scope.scope === 'folder' || scope.scope === 'derived') return false;
-
         const projectionLoader = typeof ns.getNexusGraphProjection === 'function'
             ? ns.getNexusGraphProjection.bind(ns)
-            : (window.EveOS?.SearchAdvanced?.Index?.buildGraphProjection
-                ? function (inputScope) { return window.EveOS.SearchAdvanced.Index.buildGraphProjection({ scope: inputScope || null }); }
-                : null);
+            : (window.EveOS?.DatapackIndex?.buildGraphProjection
+                ? function (inputScope) { return window.EveOS.DatapackIndex.buildGraphProjection({ scope: inputScope || null }); }
+                : (window.EveOS?.SearchAdvanced?.Index?.buildGraphProjection
+                    ? function (inputScope) { return window.EveOS.SearchAdvanced.Index.buildGraphProjection({ scope: inputScope || null }); }
+                    : null));
         if (!projectionLoader) return false;
 
         let projection = null;
@@ -213,6 +213,14 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             return projectionNodes.filter(function (node) {
                 return !parentByProjectionId.has(text(node?.id, ''));
             });
+        }
+
+        function getPreferredRootNodes() {
+            const preferredIds = Array.isArray(projection?.preferredRootIds) ? projection.preferredRootIds : [];
+            if (!preferredIds.length) return [];
+            return preferredIds.map(function (nodeId) {
+                return nodeByProjectionId.get(text(nodeId, ''));
+            }).filter(Boolean);
         }
 
         function getChildRadius(parentKind, childKind) {
@@ -313,7 +321,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             });
         }
 
-        const rootNodes = sortProjectionChildren(getRootNodes());
+        const rootNodes = sortProjectionChildren(getPreferredRootNodes().length ? getPreferredRootNodes() : getRootNodes());
         rootNodes.forEach(function (rootNode, rootIndex) {
             addProjectionNode(rootNode, null, rootIndex, rootNodes.length, 0);
         });

@@ -27,6 +27,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             cardCount: 0,
             folderCount: 0,
             bookmarkCount: 0,
+            doneBookmarkCount: 0,
             libraryCount: 0,
             knowledgeCount: 0,
             cachedCount: 0,
@@ -45,6 +46,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         if (record?.type === 'card') bucket.cardCount += 1;
         if (record?.type === 'folder') bucket.folderCount += 1;
         if (record?.type === 'bookmark') bucket.bookmarkCount += 1;
+        if (record?.type === 'bookmark' && record?.provenance?.done) bucket.doneBookmarkCount += 1;
         if (record?.type === 'library') bucket.libraryCount += 1;
         if (record?.type === 'knowledge') bucket.knowledgeCount += 1;
         if (record?.type === 'cached') bucket.cachedCount += 1;
