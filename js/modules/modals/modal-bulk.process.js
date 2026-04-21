@@ -19,19 +19,36 @@ window.EveBulkImport = window.EveBulkImport || {};
         return /^(?:[\[\(\{]\s*)?\d+(?:\.\d+)?(?:\s*[\]\)\}])?$/.test(text);
     }
 
-    function pushBulkLink(categoryName, title, rawUrl) {
-        links.push({
+    function getLiveLinks() {
+        if (typeof window.getLiveLinks === 'function') return window.getLiveLinks();
+        if (Array.isArray(window.eveState?.links)) return window.eveState.links;
+        if (Array.isArray(window.links)) return window.links;
+        if (typeof links !== 'undefined' && Array.isArray(links)) return links;
+        return [];
+    }
+
+    function setLiveLinks(nextLinks) {
+        if (typeof window.setLiveLinks === 'function') return window.setLiveLinks(nextLinks);
+        if (window.eveState) window.eveState.links = nextLinks;
+        window.links = nextLinks;
+        if (typeof links !== 'undefined') links = nextLinks;
+        return nextLinks;
+    }
+
+    function pushBulkLink(liveLinks, categoryName, title, rawUrl, folderId = '') {
+        liveLinks.push({
             id: Date.now() + Math.random(),
             title: title,
             url: normalizeUrl(rawUrl),
             category: categoryName,
             workspace: config.activeWorkspace,
+            folderId: folderId || undefined,
             icon: '',
             done: false
         });
     }
 
-    function processSmartTextBlock(textToProcess, targetCategory) {
+    function processSmartTextBlock(textToProcess, targetCategory, liveLinks, folderId = '') {
         const lines = String(textToProcess || '').split('\n');
         let addedCount = 0;
 
@@ -70,7 +87,7 @@ window.EveBulkImport = window.EveBulkImport || {};
                 parsedTitle = parsedUrl;
             }
 
-            pushBulkLink(targetCategory, parsedTitle, parsedUrl);
+            pushBulkLink(liveLinks, targetCategory, parsedTitle, parsedUrl, folderId);
             addedCount++;
         }
 
@@ -118,6 +135,7 @@ async function processBulk() {
     let count = 0;
     let shouldPersistLibrary = false;
     let shouldPersistConnections = false;
+    const liveLinks = getLiveLinks();
 
     if (mode === 'folder' || mode === 'card') {
         const files = api._accumulatedFolderFiles || [];
@@ -233,7 +251,8 @@ async function processBulk() {
                 if (isStructured || isMediaFile || isSingleEntryFile) {
                     const promoted = processStructuredFile(content, file.name, cardName, parentFolderId, {
                         deferLibrarySave: true,
-                        silent: true
+                        silent: true,
+                        liveLinks
                     });
                     if (promoted) deferredLibraryPromotions++;
                     count++;
@@ -295,7 +314,7 @@ async function processBulk() {
                         if (fileUrls.has(normalizedForSession)) continue;
                         fileUrls.add(normalizedForSession);
 
-                        links.push({
+                        liveLinks.push({
                             id: Date.now() + Math.random(),
                             title: parsedTitle,
                             url: normalizeUrl(parsedUrl),
@@ -316,6 +335,7 @@ async function processBulk() {
         const folderInput = document.getElementById('bulkFolderInput');
         if (folderInput) folderInput.value = '';
         api._accumulatedFolderFiles = [];
+        setLiveLinks(liveLinks);
         saveData();
         shouldPersistLibrary = deferredLibraryPromotions > 0;
         shouldPersistConnections = deferredLibraryPromotions > 0;
@@ -377,13 +397,14 @@ async function processBulk() {
                 if (isStructured || isMediaFile || isSingleEntryFile) {
                     const promoted = processStructuredFile(content, file.name, fileCategory, '', {
                         deferLibrarySave: true,
-                        silent: true
+                        silent: true,
+                        liveLinks
                     });
                     if (promoted) deferredLibraryPromotions++;
                     cardNamesUsed.add(fileCategory);
                     count++;
                 } else if (smartExtractImportMode === 'card-per-file') {
-                    count += processSmartTextBlock(content, fileCategory);
+                    count += processSmartTextBlock(content, fileCategory, liveLinks);
                     cardNamesUsed.add(fileCategory);
                 } else {
                     // Not structured, append to generic text processor
@@ -405,6 +426,7 @@ async function processBulk() {
             if (count === 0) {
                 return showToast("No entries found", "warning");
             }
+            setLiveLinks(liveLinks);
             saveData();
             closeModals();
             persistBulkLibraryState({
@@ -428,7 +450,7 @@ async function processBulk() {
         }
 
         if (effectiveMode === 'smart') {
-            count += processSmartTextBlock(textToProcess, targetCategory);
+            count += processSmartTextBlock(textToProcess, targetCategory, liveLinks);
             textToProcess = '';
         }
 
@@ -441,7 +463,7 @@ async function processBulk() {
             if (effectiveMode === 'name') {
                 const title = raw;
                 const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(title)}`;
-                links.push({
+                liveLinks.push({
                     id: Date.now() + Math.random(),
                     title,
                     url: searchUrl,
@@ -452,7 +474,7 @@ async function processBulk() {
                 });
             } else if (effectiveMode === 'url') {
                 const url = raw;
-                links.push({
+                liveLinks.push({
                     id: Date.now() + Math.random(),
                     title: url,
                     url: normalizeUrl(url),
@@ -466,6 +488,7 @@ async function processBulk() {
         }
     }
 
+    setLiveLinks(liveLinks);
     saveData();
     closeModals();
     persistBulkLibraryState({

@@ -220,13 +220,7 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
                 }
             });
 
-            if (typeof setLinks === 'function') {
-                setLinks(allLinks);
-            } else {
-                if (window.eveState) window.eveState.links = allLinks;
-                window.links = allLinks;
-                if (typeof links !== 'undefined') links = allLinks;
-            }
+            setLinks(allLinks);
             return true;
         }
         function confirmBulkTabMove() {

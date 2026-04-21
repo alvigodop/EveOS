@@ -293,34 +293,25 @@ window.bulkLastToggledId = bulkLastToggledId;
         const scopedWorkspaceId = String(workspaceId || '').trim();
         const indexApi = getDatapackIndexApi();
         const structureSummary = getDatapackStructureSummary(indexApi);
+        const names = new Set();
         if (structureSummary?.cards) {
-            const namesFromSummary = [...new Set(
-                Object.keys(structureSummary.cards).map(function (key) {
-                    return structureSummary.cards[key];
-                }).filter(function (cardSummary) {
-                    if (!cardSummary) return false;
-                    if (!scopedWorkspaceId) return true;
-                    return String(cardSummary.workspaceId || '').trim() === scopedWorkspaceId;
-                }).map(function (cardSummary) {
-                    return String(cardSummary.categoryName || 'Unsorted').trim() || 'Unsorted';
-                }).filter(Boolean)
-            )];
-            if (!namesFromSummary.includes('Unsorted')) namesFromSummary.push('Unsorted');
-            return namesFromSummary.sort((a, b) => a.localeCompare(b));
+            Object.keys(structureSummary.cards).forEach(function (key) {
+                const cardSummary = structureSummary.cards[key];
+                if (!cardSummary) return;
+                if (scopedWorkspaceId && String(cardSummary.workspaceId || '').trim() !== scopedWorkspaceId) return;
+                const categoryName = String(cardSummary.categoryName || 'Unsorted').trim() || 'Unsorted';
+                if (categoryName) names.add(categoryName);
+            });
         }
-
         const scopedLinks = scopedWorkspaceId
             ? getLinks().filter(link => String(link.workspace || '').trim() === scopedWorkspaceId)
             : getLinks();
-
-        const names = [...new Set(
-            scopedLinks
-                .map(link => String(link.category || 'Unsorted').trim())
-                .filter(Boolean)
-        )];
-
-        if (!names.includes('Unsorted')) names.push('Unsorted');
-        return names.sort((a, b) => a.localeCompare(b));
+        scopedLinks.forEach(function (link) {
+            const categoryName = String(link.category || 'Unsorted').trim() || 'Unsorted';
+            if (categoryName) names.add(categoryName);
+        });
+        names.add('Unsorted');
+        return Array.from(names).sort((a, b) => a.localeCompare(b));
     }
 
     function getVisibleDashboardCategoryNames() {

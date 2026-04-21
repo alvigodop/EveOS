@@ -14,6 +14,9 @@ function setLiveLinks(nextLinks) {
     return nextLinks;
 }
 
+window.getLiveLinks = getLiveLinks;
+window.setLiveLinks = setLiveLinks;
+
 function switchWorkspace(id, options = {}) {
     const nextWorkspaceId = String(id || '').trim() || String(config.workspaces?.[0]?.id || 'main');
     const currentWorkspaceId = String(config.activeWorkspace || '').trim() || String(config.workspaces?.[0]?.id || 'main');

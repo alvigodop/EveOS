@@ -15,6 +15,35 @@ window.EveLinkForm = window.EveLinkForm || {};
         resetCoverImageCandidateEditor
     } = ns;
 
+    function getLiveLinks() {
+        if (typeof window.getLiveLinks === 'function') return window.getLiveLinks();
+        if (Array.isArray(window.eveState?.links)) return window.eveState.links;
+        if (Array.isArray(window.links)) return window.links;
+        if (typeof links !== 'undefined' && Array.isArray(links)) return links;
+        return [];
+    }
+
+    function setLiveLinks(nextLinks) {
+        if (typeof window.setLiveLinks === 'function') return window.setLiveLinks(nextLinks);
+        if (window.eveState) window.eveState.links = nextLinks;
+        window.links = nextLinks;
+        if (typeof links !== 'undefined') links = nextLinks;
+        return nextLinks;
+    }
+
+    function renderAttachedSources() {
+        if (typeof window.renderSourcesList === 'function') {
+            window.renderSourcesList();
+            return;
+        }
+        const container = document.getElementById('link-sources-container');
+        if (!container) return;
+        const sourceCount = Array.isArray(window.tempSources) ? window.tempSources.length : 0;
+        container.innerHTML = sourceCount
+            ? `<div style="opacity:0.6; font-size:0.9rem;">${sourceCount} source${sourceCount === 1 ? '' : 's'} attached.</div>`
+            : '<div style="opacity:0.5; font-size:0.9rem;">No sources attached.</div>';
+    }
+
     function ensureAddModalElements() {
         if (!document.getElementById('addModal') && typeof initModals === 'function') {
             initModals();
@@ -101,7 +130,7 @@ window.EveLinkForm = window.EveLinkForm || {};
         bindCoverImagesInputs();
 
         window.tempSources = [];
-        renderSourcesList();
+        renderAttachedSources();
         modal.searchResults.style.display = 'none';
 
         ns.setupLibraryToggleHandlers();
@@ -119,7 +148,7 @@ window.EveLinkForm = window.EveLinkForm || {};
 
     window.openEdit = function (id) {
         const targetId = String(id);
-        const link = links.find((item) => String(item?.id) === targetId);
+        const link = getLiveLinks().find((item) => String(item?.id) === targetId);
         if (!link) return;
         const modal = ensureAddModalElements();
         if (!modal) return;
@@ -147,7 +176,7 @@ window.EveLinkForm = window.EveLinkForm || {};
         bindCoverImagesInputs();
 
         window.tempSources = link.sources ? [...link.sources] : [];
-        renderSourcesList();
+        renderAttachedSources();
         modal.searchResults.style.display = 'none';
 
         ns.setupLibraryToggleHandlers();
@@ -181,30 +210,31 @@ window.EveLinkForm = window.EveLinkForm || {};
 
         let targetId = null;
         const editId = modal.editId.value;
+        const liveLinks = getLiveLinks();
         if (editId) {
-            const index = links.findIndex((item) => item.id == editId);
+            const index = liveLinks.findIndex((item) => item.id == editId);
             if (index > -1) {
-                links[index].title = title;
-                links[index].url = url;
-                links[index].category = category;
-                if (folderId) links[index].folderId = folderId;
-                else delete links[index].folderId;
-                if (coverImage) links[index].coverImage = coverImage;
-                else delete links[index].coverImage;
-                if (coverImages.length) links[index].coverImages = coverImages;
-                else delete links[index].coverImages;
-                if (fixedCoverImage) links[index].fixedCoverImage = fixedCoverImage;
-                else delete links[index].fixedCoverImage;
-                if (identifiers.length) links[index].identifiers = identifiers;
-                else delete links[index].identifiers;
-                links[index].priority = priority;
-                links[index].icon = icon;
-                links[index].sources = [...window.tempSources];
-                targetId = links[index].id;
+                liveLinks[index].title = title;
+                liveLinks[index].url = url;
+                liveLinks[index].category = category;
+                if (folderId) liveLinks[index].folderId = folderId;
+                else delete liveLinks[index].folderId;
+                if (coverImage) liveLinks[index].coverImage = coverImage;
+                else delete liveLinks[index].coverImage;
+                if (coverImages.length) liveLinks[index].coverImages = coverImages;
+                else delete liveLinks[index].coverImages;
+                if (fixedCoverImage) liveLinks[index].fixedCoverImage = fixedCoverImage;
+                else delete liveLinks[index].fixedCoverImage;
+                if (identifiers.length) liveLinks[index].identifiers = identifiers;
+                else delete liveLinks[index].identifiers;
+                liveLinks[index].priority = priority;
+                liveLinks[index].icon = icon;
+                liveLinks[index].sources = [...window.tempSources];
+                targetId = liveLinks[index].id;
             }
         } else {
             const newId = Date.now();
-            links.push({
+            liveLinks.push({
                 id: newId,
                 title,
                 url,
@@ -221,6 +251,10 @@ window.EveLinkForm = window.EveLinkForm || {};
                 sources: [...window.tempSources]
             });
             targetId = newId;
+        }
+
+        if (targetId) {
+            setLiveLinks(liveLinks);
         }
 
         if (window.EveBookmarkCovers?.clearSelection && targetId) {

@@ -5,11 +5,27 @@ window.openRenameModal = function (oldName) {
     document.getElementById('renameInput').focus();
 };
 
+function getRenameLiveLinks() {
+    if (typeof window.getLiveLinks === 'function') return window.getLiveLinks();
+    if (Array.isArray(window.eveState?.links)) return window.eveState.links;
+    if (Array.isArray(window.links)) return window.links;
+    if (typeof links !== 'undefined' && Array.isArray(links)) return links;
+    return [];
+}
+
+function setRenameLiveLinks(nextLinks) {
+    if (typeof window.setLiveLinks === 'function') return window.setLiveLinks(nextLinks);
+    if (window.eveState) window.eveState.links = nextLinks;
+    window.links = nextLinks;
+    if (typeof links !== 'undefined') links = nextLinks;
+    return nextLinks;
+}
+
 function categoryExistsOutsideWorkspace(categoryName, workspaceId) {
     const normalizedCategory = String(categoryName || 'Unsorted').trim() || 'Unsorted';
     const normalizedWorkspace = String(workspaceId || 'main').trim() || 'main';
 
-    const hasLinkOutsideWorkspace = (Array.isArray(window.links) ? window.links : []).some(function (link) {
+    const hasLinkOutsideWorkspace = getRenameLiveLinks().some(function (link) {
         return String(link?.workspace || 'main').trim() !== normalizedWorkspace
             && String(link?.category || 'Unsorted').trim() === normalizedCategory;
     });
@@ -30,12 +46,14 @@ window.confirmRename = function () {
     const workspaceId = String(window.ctxWsId || config?.activeWorkspace || 'main').trim() || 'main';
     if (!name) return showToast("Name required", "warning");
     if (name && name !== o) {
-        links.forEach(l => {
+        const liveLinks = getRenameLiveLinks();
+        liveLinks.forEach(l => {
             if (String(l?.workspace || 'main').trim() !== workspaceId) return;
             if (String(l?.category || 'Unsorted').trim() !== String(o || 'Unsorted').trim()) return;
             l.category = name;
             window.EveLibrary?.ConnectionsAPI?.syncFromLink?.(l.id);
         });
+        setRenameLiveLinks(liveLinks);
         if (window.EveBookmarkFolders?.renameCategoryScope) {
             window.EveBookmarkFolders.renameCategoryScope(workspaceId, o, name);
         } else {
