@@ -705,6 +705,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     }
 
     function getLiveLinks() {
+        if (typeof window.getLiveLinks === 'function') return window.getLiveLinks();
         if (Array.isArray(window.eveState?.links)) return window.eveState.links;
         if (typeof window.links !== 'undefined' && Array.isArray(window.links)) return window.links;
         return [];

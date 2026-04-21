@@ -9,9 +9,23 @@ window.EveCategoryOrder = window.EveCategoryOrder || {};
     }
 
     function getLinksSource() {
+        if (typeof window.getLiveLinks === 'function') return window.getLiveLinks();
         if (Array.isArray(window.links)) return window.links;
         if (Array.isArray(window.eveState?.links)) return window.eveState.links;
         return [];
+    }
+
+    function getDatapackIndexApi() {
+        return window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
+    }
+
+    function getDatapackStructureSummary() {
+        var indexApi = getDatapackIndexApi();
+        if (!indexApi || typeof indexApi.getStructureSummary !== 'function') return null;
+        if (typeof indexApi.hasUsableSnapshot === 'function' && !indexApi.hasUsableSnapshot()) return null;
+        var buildState = typeof indexApi.getBuildState === 'function' ? indexApi.getBuildState() : null;
+        if (!indexApi.hasUsableSnapshot && Number(buildState?.builtAt || 0) <= 0) return null;
+        return indexApi.getStructureSummary();
     }
 
     function getFolderStore() {
@@ -51,6 +65,15 @@ window.EveCategoryOrder = window.EveCategoryOrder || {};
     function getKnownCategories(workspaceId) {
         const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId);
         const names = new Set();
+        const summary = getDatapackStructureSummary();
+
+        if (summary?.cards && typeof summary.cards === 'object') {
+            Object.keys(summary.cards).forEach(function (cardKey) {
+                if (String(cardKey || '').indexOf(normalizedWorkspaceId + '::') !== 0) return;
+                const categoryName = normalizeCategoryName(String(cardKey).slice((normalizedWorkspaceId + '::').length));
+                if (categoryName) names.add(categoryName);
+            });
+        }
 
         getLinksSource().forEach(function (link) {
             if (normalizeWorkspaceId(link?.workspace) !== normalizedWorkspaceId) return;

@@ -12,6 +12,9 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     }
 
     function getAllLinks() {
+        if (typeof window.getLiveLinks === 'function') {
+            return window.getLiveLinks();
+        }
         return Array.isArray(window.eveState?.links)
             ? window.eveState.links
             : (typeof window.links !== 'undefined' ? window.links : []);

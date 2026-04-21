@@ -46,6 +46,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     }
 
     function getLiveLinks() {
+        if (typeof window.getLiveLinks === 'function') return window.getLiveLinks();
         if (Array.isArray(window.eveState?.links)) return window.eveState.links;
         if (Array.isArray(window.links)) return window.links;
         if (typeof links !== 'undefined' && Array.isArray(links)) return links;
@@ -405,7 +406,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     }
 
     function rescueOrphanedLinks() {
-        const links = Array.isArray(window.eveState?.links) ? window.eveState.links : [];
+        const links = getLiveLinks();
         const knownIds = getKnownWorkspaceIds();
         const workspaces = (typeof config !== 'undefined' ? config.workspaces : null)
             || window.eveState?.config?.workspaces
