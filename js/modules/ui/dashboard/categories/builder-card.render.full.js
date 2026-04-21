@@ -16,24 +16,30 @@ window.DashboardCategories = window.DashboardCategories || {};
 
     function queueCardSummaryWarmup() {
         var indexApi = window.EveOS?.SearchAdvanced?.Index;
-        if (!indexApi || typeof indexApi.ensureFresh !== 'function') return;
+        if (!indexApi || typeof indexApi.rebuild !== 'function') return;
         if (cardSummaryWarmPromise) return;
 
-        cardSummaryWarmPromise = Promise.resolve(indexApi.ensureFresh({ reason: 'dashboard-card-summary' }))
-            .then(function () {
-                if (typeof renderDashboard === 'function') renderDashboard();
-            })
+        cardSummaryWarmPromise = Promise.resolve(indexApi.rebuild({ reason: 'dashboard-card-summary' }))
             .catch(function () {
                 // Ignore warmup failures and render without datapack summary chips.
             })
             .finally(function () {
                 cardSummaryWarmPromise = null;
+                if (typeof renderDashboard === 'function') renderDashboard();
             });
     }
 
     function getCardDatapackSummary(workspaceId, categoryName) {
         var indexApi = window.EveOS?.SearchAdvanced?.Index;
         if (!indexApi || typeof indexApi.getCardSummary !== 'function') return null;
+        var buildState = typeof indexApi.getBuildState === 'function' ? indexApi.getBuildState() : null;
+        var hasUsableSnapshot = typeof indexApi.hasUsableSnapshot === 'function'
+            ? indexApi.hasUsableSnapshot()
+            : (!buildState?.dirty && Number(buildState?.builtAt || 0) > 0);
+        if (!hasUsableSnapshot) {
+            queueCardSummaryWarmup();
+            return null;
+        }
         var summary = indexApi.getCardSummary(workspaceId, categoryName);
         if (summary) return summary;
         queueCardSummaryWarmup();

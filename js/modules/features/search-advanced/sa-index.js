@@ -86,6 +86,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     }
 
     function markDirty(reason) {
+        state.revision = Number(state.revision || 0) + 1;
         state.dirty = true;
         state.lastReason = text(reason, 'state-mutated');
     }
@@ -158,16 +159,26 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     async function rebuild(options) {
         if (state.buildPromise) return state.buildPromise;
         const reason = text(options?.reason || state.lastReason, 'manual');
+        const startRevision = Number(state.revision || 0);
         state.buildPromise = buildSnapshot(reason)
             .then(async function (snapshot) {
                 state.snapshot = snapshot;
-                state.dirty = false;
-                state.lastReason = reason;
+                if (Number(state.revision || 0) === startRevision) {
+                    state.dirty = false;
+                    state.lastReason = reason;
+                }
                 await persistSnapshot(snapshot);
                 return snapshot;
             })
             .finally(function () {
                 state.buildPromise = null;
+                if (state.dirty) {
+                    setTimeout(function () {
+                        if (!state.buildPromise && state.dirty) {
+                            rebuild({ reason: state.lastReason });
+                        }
+                    }, 0);
+                }
             });
         return state.buildPromise;
     }
@@ -584,6 +595,21 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         return state.snapshot || null;
     }
 
+    function getBuildState() {
+        return {
+            loaded: !!state.loaded,
+            dirty: !!state.dirty,
+            building: !!state.buildPromise,
+            builtAt: Number(state.snapshot?.builtAt || 0),
+            revision: Number(state.revision || 0),
+            lastReason: text(state.lastReason, '')
+        };
+    }
+
+    function hasUsableSnapshot() {
+        return !!state.snapshot && !state.dirty && Number(state.snapshot?.builtAt || 0) > 0;
+    }
+
     function getStructureSummary() {
         return buildStructureSummary(state.snapshot);
     }
@@ -622,6 +648,8 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         search,
         getStats,
         getSnapshot,
+        getBuildState,
+        hasUsableSnapshot,
         getStructureSummary,
         getWorkspaceSummary,
         getCardSummary,

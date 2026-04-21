@@ -38,18 +38,16 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
 
     function queueStructureSummaryWarmup(reason, rerender) {
         var indexApi = getDatapackIndexApi();
-        if (!indexApi || typeof indexApi.ensureFresh !== 'function') return;
+        if (!indexApi || typeof indexApi.rebuild !== 'function') return;
         if (rt._structureSummaryWarmPromise) return;
 
-        rt._structureSummaryWarmPromise = Promise.resolve(indexApi.ensureFresh({ reason: String(reason || 'sidebar-structure-summary') }))
-            .then(function () {
-                if (typeof rerender === 'function') rerender();
-            })
+        rt._structureSummaryWarmPromise = Promise.resolve(indexApi.rebuild({ reason: String(reason || 'sidebar-structure-summary') }))
             .catch(function () {
                 // Ignore warmup failures and continue rendering without summaries.
             })
             .finally(function () {
                 rt._structureSummaryWarmPromise = null;
+                if (typeof rerender === 'function') rerender();
             });
     }
 
@@ -79,9 +77,16 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
 
         ctx.getStructureSummary = function () {
             var indexApi = getDatapackIndexApi();
-            var summary = indexApi && typeof indexApi.getStructureSummary === 'function'
-                ? indexApi.getStructureSummary()
-                : null;
+            if (!indexApi || typeof indexApi.getStructureSummary !== 'function') return null;
+            var buildState = typeof indexApi.getBuildState === 'function' ? indexApi.getBuildState() : null;
+            var hasUsableSnapshot = typeof indexApi.hasUsableSnapshot === 'function'
+                ? indexApi.hasUsableSnapshot()
+                : (!buildState?.dirty && Number(buildState?.builtAt || 0) > 0);
+            if (!hasUsableSnapshot) {
+                queueStructureSummaryWarmup('sidebar-structure-summary', window.renderSidebar);
+                return null;
+            }
+            var summary = indexApi.getStructureSummary();
             if (summary && Number(summary.builtAt || 0) > 0) return summary;
             queueStructureSummaryWarmup('sidebar-structure-summary', window.renderSidebar);
             return null;

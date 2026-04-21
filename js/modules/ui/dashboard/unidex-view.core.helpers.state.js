@@ -10,24 +10,30 @@ window.UnidexViewModules = window.UnidexViewModules || {};
 
         function warmDatapackIndex() {
             const indexApi = getDatapackIndexApi();
-            if (!indexApi || typeof indexApi.ensureFresh !== 'function') return;
+            if (!indexApi || typeof indexApi.rebuild !== 'function') return;
             if (state.datapackIndexWarmPromise) return;
 
-            state.datapackIndexWarmPromise = Promise.resolve(indexApi.ensureFresh({ reason: 'unidex-summary' }))
-                .then(function () {
-                    if (typeof renderDashboard === 'function') renderDashboard();
-                })
+            state.datapackIndexWarmPromise = Promise.resolve(indexApi.rebuild({ reason: 'unidex-summary' }))
                 .catch(function () {
                     // Keep raw-link fallback active if the datapack spine is not ready.
                 })
                 .finally(function () {
                     state.datapackIndexWarmPromise = null;
+                    if (typeof renderDashboard === 'function') renderDashboard();
                 });
         }
 
         function getDatapackStructureSummary() {
             const indexApi = getDatapackIndexApi();
             if (!indexApi || typeof indexApi.getStructureSummary !== 'function') return null;
+            const buildState = typeof indexApi.getBuildState === 'function' ? indexApi.getBuildState() : null;
+            const hasUsableSnapshot = typeof indexApi.hasUsableSnapshot === 'function'
+                ? indexApi.hasUsableSnapshot()
+                : (!buildState?.dirty && Number(buildState?.builtAt || 0) > 0);
+            if (!hasUsableSnapshot) {
+                warmDatapackIndex();
+                return null;
+            }
             const summary = indexApi.getStructureSummary();
             if (summary?.builtAt) return summary;
             warmDatapackIndex();

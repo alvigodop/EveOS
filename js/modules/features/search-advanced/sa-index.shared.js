@@ -17,7 +17,8 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         buildPromise: null,
         dirty: true,
         loaded: false,
-        lastReason: 'startup'
+        lastReason: 'startup',
+        revision: 0
     };
 
     function now() {

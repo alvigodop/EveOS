@@ -18,24 +18,30 @@ function getDashboardDatapackIndexApi() {
 
 function queueDashboardCategorySummaryWarmup() {
     var indexApi = getDashboardDatapackIndexApi();
-    if (!indexApi || typeof indexApi.ensureFresh !== 'function') return;
+    if (!indexApi || typeof indexApi.rebuild !== 'function') return;
     if (dashboardCategorySummaryWarmPromise) return;
 
-    dashboardCategorySummaryWarmPromise = Promise.resolve(indexApi.ensureFresh({ reason: 'dashboard-categories' }))
-        .then(function () {
-            if (typeof renderDashboard === 'function') renderDashboard();
-        })
+    dashboardCategorySummaryWarmPromise = Promise.resolve(indexApi.rebuild({ reason: 'dashboard-categories' }))
         .catch(function () {
             // Raw-link fallback remains active when the datapack spine is cold.
         })
         .finally(function () {
             dashboardCategorySummaryWarmPromise = null;
+            if (typeof renderDashboard === 'function') renderDashboard();
         });
 }
 
 function getDashboardStructureSummary() {
     var indexApi = getDashboardDatapackIndexApi();
     if (!indexApi || typeof indexApi.getStructureSummary !== 'function') return null;
+    var buildState = typeof indexApi.getBuildState === 'function' ? indexApi.getBuildState() : null;
+    var hasUsableSnapshot = typeof indexApi.hasUsableSnapshot === 'function'
+        ? indexApi.hasUsableSnapshot()
+        : (!buildState?.dirty && Number(buildState?.builtAt || 0) > 0);
+    if (!hasUsableSnapshot) {
+        queueDashboardCategorySummaryWarmup();
+        return null;
+    }
     var summary = indexApi.getStructureSummary();
     if (summary?.builtAt) return summary;
     queueDashboardCategorySummaryWarmup();

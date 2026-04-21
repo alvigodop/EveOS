@@ -75,7 +75,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         }
 
         const builtAt = Number(snapshot.builtAt || 0);
-        if (cache && cache.builtAt === builtAt) return cache.summary;
+        if (cache && cache.snapshot === snapshot) return cache.summary;
 
         const summary = {
             builtAt: builtAt,
@@ -140,6 +140,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         });
 
         cache = {
+            snapshot: snapshot,
             builtAt: builtAt,
             summary: summary
         };
