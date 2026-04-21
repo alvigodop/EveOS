@@ -25,12 +25,42 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         return { targetNode, links: scopedLinks };
     }
 
-    function getCategoryLinks(workspaceId, categoryName) {
-        const sourceLinks = typeof window.getModalLinks === 'function'
+    function getSourceLinks() {
+        return typeof window.getModalLinks === 'function'
             ? window.getModalLinks()
             : (Array.isArray(window.eveState?.links)
                 ? window.eveState.links
                 : (Array.isArray(window.links) ? window.links : []));
+    }
+
+    function getDatapackIndexApi() {
+        return window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
+    }
+
+    function filterLinksByIds(sourceLinks, linkIds) {
+        if (!Array.isArray(sourceLinks) || !Array.isArray(linkIds)) return [];
+        const idSet = new Set(linkIds.map((value) => String(value || '').trim()).filter(Boolean));
+        if (!idSet.size) return [];
+        return sourceLinks.filter((link) => idSet.has(String(link?.id || '').trim()));
+    }
+
+    function getIndexedScopedLinks(scope, sourceLinks) {
+        const indexApi = getDatapackIndexApi();
+        if (!indexApi || typeof indexApi.getScopedBookmarkLinkIds !== 'function') return null;
+        const hasUsableSnapshot = typeof indexApi.hasUsableSnapshot === 'function'
+            ? indexApi.hasUsableSnapshot()
+            : !!indexApi.getSnapshot?.();
+        if (!hasUsableSnapshot) return null;
+        return filterLinksByIds(sourceLinks, indexApi.getScopedBookmarkLinkIds(scope || null));
+    }
+
+    function getCategoryLinks(workspaceId, categoryName) {
+        const sourceLinks = getSourceLinks();
+        const indexedLinks = getIndexedScopedLinks({
+            workspaceId: workspaceId,
+            categoryName: categoryName
+        }, sourceLinks);
+        if (indexedLinks) return indexedLinks;
         return sourceLinks.filter((link) => link.workspace === workspaceId && link.category === categoryName);
     }
 
@@ -59,11 +89,15 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
     function getRealFolderScope(workspaceId, categoryName, folderId) {
         const normalizedFolderId = String(folderId || '').trim();
         const folderApi = window.EveBookmarkFolders;
-        if (!normalizedFolderId || !folderApi?.getScopedNodes) {
+        const folderStoreApi = folderApi?._shared || folderApi;
+        const getScopedNodes = typeof folderStoreApi?.getScopedNodes === 'function'
+            ? folderStoreApi.getScopedNodes
+            : null;
+        if (!normalizedFolderId || !getScopedNodes) {
             return { targetNode: null, links: [] };
         }
 
-        const nodes = folderApi.getScopedNodes(workspaceId, categoryName);
+        const nodes = getScopedNodes(workspaceId, categoryName);
         if (!Array.isArray(nodes) || !nodes.length) {
             return { targetNode: null, links: [] };
         }
@@ -82,6 +116,17 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         const targetNode = nodeMap.get(normalizedFolderId) || null;
         if (!targetNode) {
             return { targetNode: null, links: [] };
+        }
+
+        const sourceLinks = getSourceLinks();
+        const indexedLinks = getIndexedScopedLinks({
+            scope: 'folder',
+            workspaceId: workspaceId,
+            categoryName: categoryName,
+            folderId: normalizedFolderId
+        }, sourceLinks);
+        if (indexedLinks) {
+            return { targetNode, links: indexedLinks };
         }
 
         const allowedFolderIds = new Set();

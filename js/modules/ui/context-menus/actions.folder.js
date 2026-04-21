@@ -8,12 +8,20 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
         return window.ctxWsId || ((window.config && window.config.activeWorkspace) || 'main');
     }
 
+    function getCategoryLinks(workspaceId, categoryName) {
+        const folderScopeShared = window.EveFolderViewV2?._shared || {};
+        if (typeof folderScopeShared.getCategoryLinks === 'function') {
+            return folderScopeShared.getCategoryLinks(workspaceId, categoryName);
+        }
+        return window.getModalLinks
+            ? window.getModalLinks().filter((link) => link.workspace === workspaceId && link.category === categoryName)
+            : [];
+    }
+
     function collectFolderHierarchy(workspaceId, categoryName, folderId) {
         const folderApi = window.EveBookmarkFolders;
         if (!folderApi) return { items: [], folderIds: [] };
-        const folderLinks = window.getModalLinks
-            ? window.getModalLinks().filter((link) => link.workspace === workspaceId && link.category === categoryName)
-            : [];
+        const folderLinks = getCategoryLinks(workspaceId, categoryName);
         const viewModel = folderApi.buildFolderView(workspaceId, categoryName, folderLinks);
         const nestedIds = new Set([folderId]);
         function collectNested(parentId) {
@@ -102,19 +110,7 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
         if (!categoryName) return showToast('No category selected', 'error');
         const workspaceId = getActiveWorkspaceId();
         
-        const sourceLinks = (typeof window.getModalLinks === 'function') 
-            ? window.getModalLinks() 
-            : (window.links || []);
-            
-        // Standardize IDs for filtering
-        const targetWs = String(workspaceId || 'main').trim().toLowerCase();
-        const targetCat = String(categoryName || 'Unsorted').trim().toLowerCase();
-        
-        const catLinks = sourceLinks.filter((link) => {
-            const linkWs = String(link?.workspace || 'main').trim().toLowerCase();
-            const linkCat = String(link?.category || 'Unsorted').trim().toLowerCase();
-            return linkWs === targetWs && linkCat === targetCat;
-        });
+        const catLinks = getCategoryLinks(workspaceId, categoryName);
 
         const folderApi = window.EveBookmarkFolders;
         let folderIds = [];
@@ -235,7 +231,10 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
                         const newStatus = document.getElementById('bulkPatchStatusSelect').value;
                         const folderApi = window.EveBookmarkFolders;
                         if(folderApi && window.EveLibrary && window.EveLibrary.ConnectionsAPI && window.EveLibrary.EntriesAPI) {
-                            const allLinks = window.getModalLinks ? window.getModalLinks().filter(l => l.workspace === window._ctxTempWs && l.category === window._ctxTempCat) : [];
+                            const scopeShared = window.EveFolderViewV2&&window.EveFolderViewV2._shared ? window.EveFolderViewV2._shared : {};
+                            const allLinks = typeof scopeShared.getCategoryLinks === 'function'
+                                ? scopeShared.getCategoryLinks(window._ctxTempWs, window._ctxTempCat)
+                                : (window.getModalLinks ? window.getModalLinks().filter(l => l.workspace === window._ctxTempWs && l.category === window._ctxTempCat) : []);
                             const view = folderApi.buildFolderView(window._ctxTempWs, window._ctxTempCat, allLinks);
                             const folderItems = view.folderLinks.get(window._ctxTempFolderId) || [];
                             let patched = 0;

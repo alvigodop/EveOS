@@ -4,6 +4,16 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
     const shared = window.EveFolderViewV2._shared || {};
     const { escapeCardHtml, escapeCardJs, cloneGhostFilterChain } = shared;
 
+    function getCategoryLinks(workspaceId, categoryName) {
+        const scopeShared = window.EveFolderViewV2._shared || {};
+        if (typeof scopeShared.getCategoryLinks === 'function') {
+            return scopeShared.getCategoryLinks(workspaceId, categoryName);
+        }
+        return window.getModalLinks
+            ? window.getModalLinks().filter((link) => link.workspace === workspaceId && link.category === categoryName)
+            : [];
+    }
+
     window.EveFolderViewV2.enterFolder = function (event, categoryName, folderId, workspaceId) {
         if (event) {
             event.preventDefault();
@@ -38,9 +48,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         // Reuse cached view model if available
         let viewModel = cachedViewModel;
         if (!viewModel || !viewModel.nodes || !viewModel.childrenMap) {
-            const catLinks = window.getModalLinks
-                ? window.getModalLinks().filter((link) => link.workspace === resolvedWorkspaceId && link.category === resolvedCategoryName)
-                : [];
+            const catLinks = getCategoryLinks(resolvedWorkspaceId, resolvedCategoryName);
             viewModel = folderApi.buildFolderView(resolvedWorkspaceId, resolvedCategoryName, catLinks);
             viewModel.scopedLinks = catLinks;
             window.EveFolderViewV2.setCachedViewModel(resolvedWorkspaceId, resolvedCategoryName, viewModel);
@@ -247,7 +255,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         if (!window._evePerfMode) {
             const folderApi = window.EveBookmarkFolders;
             if (folderApi?.buildFolderView) {
-                const catLinks = window.getModalLinks ? window.getModalLinks().filter((link) => link.workspace === resolvedWorkspaceId && link.category === resolvedCategoryName) : [];
+                const catLinks = getCategoryLinks(resolvedWorkspaceId, resolvedCategoryName);
                 window.EveFolderViewV2.setCachedViewModel(resolvedWorkspaceId, resolvedCategoryName, Object.assign(folderApi.buildFolderView(resolvedWorkspaceId, resolvedCategoryName, catLinks), { scopedLinks: catLinks }));
             }
         }

@@ -80,6 +80,32 @@ function collectIndexedDashboardLinkedCategories(activeWorkspaceId, categoryOrde
     return window.DashboardCategories.sort(fauxLinks, categoryOrder);
 }
 
+function buildDashboardLinkIdMap(visibleLinks) {
+    var map = new Map();
+    (Array.isArray(visibleLinks) ? visibleLinks : []).forEach(function (link) {
+        var linkId = String(link?.id || '').trim();
+        if (linkId) map.set(linkId, link);
+    });
+    return map;
+}
+
+function collectIndexedDashboardCardLinks(visibleLinkIdMap, workspaceId, categoryName) {
+    var indexApi = getDashboardDatapackIndexApi();
+    if (!indexApi || typeof indexApi.getScopedBookmarkLinkIds !== 'function') return null;
+    var buildState = typeof indexApi.getBuildState === 'function' ? indexApi.getBuildState() : null;
+    var hasUsableSnapshot = typeof indexApi.hasUsableSnapshot === 'function'
+        ? indexApi.hasUsableSnapshot()
+        : (!buildState?.dirty && Number(buildState?.builtAt || 0) > 0);
+    if (!hasUsableSnapshot) return null;
+
+    return indexApi.getScopedBookmarkLinkIds({
+        workspaceId: workspaceId,
+        categoryName: categoryName
+    }).map(function (linkId) {
+        return visibleLinkIdMap.get(String(linkId || '').trim()) || null;
+    }).filter(Boolean);
+}
+
 function getFolderBackedCategories(workspaceId) {
     const scopedPrefix = String(workspaceId || 'main') + '::';
     const store = getDashboardFolderStore();
@@ -139,6 +165,7 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
 
     // Pre-index links by (workspaceId::category) — O(n) instead of O(n * categories)
     const linksByCatWs = new Map();
+    const visibleLinkIdMap = buildDashboardLinkIdMap(visibleLinks);
     for (var i = 0; i < visibleLinks.length; i++) {
         var cat = String(visibleLinks[i].category || 'Unsorted').trim() || 'Unsorted';
         var ws = String(visibleLinks[i].workspace || 'main').trim() || 'main';
@@ -158,10 +185,13 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
         if (focusCategory && cat !== focusCategory) return;
 
         const isDetachedParkingCard = !!detachedModel && cat === detachedModel.categoryName;
+        const indexedCardLinks = (!searchStr && !isDetachedParkingCard)
+            ? collectIndexedDashboardCardLinks(visibleLinkIdMap, catWsId, cat)
+            : null;
         // The empty empty-shortcut cards (not tied to content) will still map to activeWorkspace context
         const catLinks = isDetachedParkingCard 
             ? detachedModel.links.slice() 
-            : (linksByCatWs.get(`${catWsId}::${cat}`) || []);
+            : (indexedCardLinks || linksByCatWs.get(`${catWsId}::${cat}`) || []);
         
         const hasFolderContent = isDetachedParkingCard
             ? !!(detachedModel?.viewModel?.nodes?.length)

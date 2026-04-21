@@ -595,6 +595,27 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         return state.snapshot || null;
     }
 
+    function getScopedBookmarkLinkIds(scope) {
+        const snapshot = state.snapshot;
+        if (!snapshot || !hasUsableSnapshot()) return [];
+
+        const inScope = typeof buildScopeRecordMatcher === 'function'
+            ? buildScopeRecordMatcher(snapshot, scope || null)
+            : function (record) { return matchesScope(record, scope || null); };
+        const linkIds = [];
+        const seen = new Set();
+
+        toArray(snapshot.records).forEach(function (record) {
+            if (text(record?.type, '') !== 'bookmark' || !inScope(record)) return;
+            const linkId = text(record?.path?.linkId || record?.provenance?.linkId || record?.sourceIdentity?.linkId, '');
+            if (!linkId || seen.has(linkId)) return;
+            seen.add(linkId);
+            linkIds.push(linkId);
+        });
+
+        return linkIds;
+    }
+
     function getBuildState() {
         return {
             loaded: !!state.loaded,
@@ -648,6 +669,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         search,
         getStats,
         getSnapshot,
+        getScopedBookmarkLinkIds,
         getBuildState,
         hasUsableSnapshot,
         getStructureSummary,

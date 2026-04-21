@@ -88,7 +88,10 @@ window.showFolderContextMenu = function (e, categoryName, folderId, workspaceId)
                 })(folderId);
             } else if (window.EveBookmarkFolders) {
                 // Slow fallback: build viewModel (with skipGhosts)
-                var folderLinks = window.getModalLinks ? window.getModalLinks().filter(function (l) { return l.workspace === window.ctxWsId && l.category === window.ctxCatName; }) : [];
+                var folderScopeShared = window.EveFolderViewV2 && window.EveFolderViewV2._shared ? window.EveFolderViewV2._shared : {};
+                var folderLinks = typeof folderScopeShared.getCategoryLinks === 'function'
+                    ? folderScopeShared.getCategoryLinks(window.ctxWsId, window.ctxCatName)
+                    : (window.getModalLinks ? window.getModalLinks().filter(function (l) { return l.workspace === window.ctxWsId && l.category === window.ctxCatName; }) : []);
                 var viewModel = window.EveBookmarkFolders.buildFolderView(window.ctxWsId, window.ctxCatName, folderLinks, { skipGhosts: true });
                 (function recurseCount(fId) {
                     var items = viewModel.folderLinks.get(fId) || [];
