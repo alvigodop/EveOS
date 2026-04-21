@@ -122,7 +122,7 @@ window.EveLibrary.ConnectionsCore = window.EveLibrary.ConnectionsCore || {};
 
         if (changedConnections) {
             window.EveLibrary.Connections = Core.connections.map(item => ({ ...item }));
-            localStorage.setItem(Core.STORAGE_KEY, JSON.stringify(window.EveLibrary.Connections));
+            Core.saveConnections?.();
         }
         if (changedLibraries) {
             window.EveLibrary.Storage?.saveLibrary?.();

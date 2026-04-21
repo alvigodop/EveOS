@@ -54,9 +54,11 @@ window.EveLibrary.ConnectionsCore = window.EveLibrary.ConnectionsCore || {
 
     // Lazy Map<linkId, connection> index — O(1) lookups instead of O(n) scans
     let _connectionsByLinkId = null;
+    let _connectionsByLibraryEntryId = null;
 
     function invalidateConnectionIndex() {
         _connectionsByLinkId = null;
+        _connectionsByLibraryEntryId = null;
     }
 
     function getConnectionIndex() {
@@ -69,6 +71,18 @@ window.EveLibrary.ConnectionsCore = window.EveLibrary.ConnectionsCore || {
             }
         }
         return _connectionsByLinkId;
+    }
+
+    function getLibraryEntryConnectionIndex() {
+        if (_connectionsByLibraryEntryId) return _connectionsByLibraryEntryId;
+        _connectionsByLibraryEntryId = new Map();
+        for (let i = 0; i < Core.connections.length; i++) {
+            const conn = Core.connections[i];
+            if (conn && conn.libraryEntryId != null) {
+                _connectionsByLibraryEntryId.set(String(conn.libraryEntryId), conn);
+            }
+        }
+        return _connectionsByLibraryEntryId;
     }
 
     function getLinks() {
@@ -148,6 +162,10 @@ window.EveLibrary.ConnectionsCore = window.EveLibrary.ConnectionsCore || {
         return getConnectionIndex().get(String(linkId)) || null;
     }
 
+    function findConnectionByLibraryEntryId(libraryEntryId) {
+        return getLibraryEntryConnectionIndex().get(String(libraryEntryId)) || null;
+    }
+
     function findLinkById(linkId) {
         return getLinks().find(item => String(item.id) === String(linkId)) || null;
     }
@@ -173,6 +191,7 @@ window.EveLibrary.ConnectionsCore = window.EveLibrary.ConnectionsCore || {
         deepClone,
         generateId,
         findConnectionByLinkId,
+        findConnectionByLibraryEntryId,
         findLinkById,
         normalizeWorkspaceId,
         normalizeCategoryName,

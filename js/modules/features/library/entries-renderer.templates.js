@@ -16,6 +16,23 @@ window.EveLibrary.Modules = window.EveLibrary.Modules || {};
         const renderTypeFields = helpers.renderTypeFields || (() => '');
         const renderDerivedRatings = helpers.renderDerivedRatings || (() => '');
 
+        function getDatapackIndexApi() {
+            return window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
+        }
+
+        function resolveLinkedBookmark(conn) {
+            if (!conn?.linkId) return null;
+            const datapackIndex = getDatapackIndexApi();
+            if (datapackIndex && typeof datapackIndex.resolveBookmarkLink === 'function') {
+                const resolved = datapackIndex.resolveBookmarkLink(conn.linkId);
+                if (resolved) return resolved;
+            }
+            const linksList = window.eveState?.links || (typeof links !== 'undefined' ? links : []);
+            return Array.isArray(linksList)
+                ? linksList.find(l => String(l?.id) === String(conn.linkId)) || null
+                : null;
+        }
+
         function createEntryHtml(entry, displayNumber, dataType, categoryName) {
             const safeCat = categoryName.replace(/'/g, "\\'");
             const safeId = entry.id;
@@ -43,16 +60,14 @@ window.EveLibrary.Modules = window.EveLibrary.Modules || {};
 
             let identifierTagsHtml = '';
             if (window.EveLibrary?.ConnectionsAPI && window.EveBookmarkIdentifiers?.getBadgeHtmlForLink) {
-                const conns = window.EveLibrary.ConnectionsAPI.getAll() || [];
-                const conn = conns.find(c => String(c.libraryEntryId) === String(safeId));
-                if (conn && conn.linkId) {
-                    const linksList = window.eveState?.links || (typeof links !== 'undefined' ? links : []);
-                    const link = linksList.find(l => String(l.id) === String(conn.linkId));
-                    if (link) {
-                        const badges = window.EveBookmarkIdentifiers.getBadgeHtmlForLink(link);
-                        if (badges) {
-                            identifierTagsHtml = '<div class="lib-entry-identifiers" style="margin-top:4px; margin-bottom:8px;">' + badges + '</div>';
-                        }
+                const conn = window.EveLibrary.ConnectionsCore?.findConnectionByLibraryEntryId
+                    ? window.EveLibrary.ConnectionsCore.findConnectionByLibraryEntryId(safeId)
+                    : (window.EveLibrary.ConnectionsAPI.getAll() || []).find(c => String(c.libraryEntryId) === String(safeId));
+                const link = resolveLinkedBookmark(conn);
+                if (link) {
+                    const badges = window.EveBookmarkIdentifiers.getBadgeHtmlForLink(link);
+                    if (badges) {
+                        identifierTagsHtml = '<div class="lib-entry-identifiers" style="margin-top:4px; margin-bottom:8px;">' + badges + '</div>';
                     }
                 }
             }

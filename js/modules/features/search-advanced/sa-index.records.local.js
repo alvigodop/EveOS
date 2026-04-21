@@ -193,6 +193,10 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                     done: !!link.done,
                     orphaned: !knownWorkspaceIds.has(path.workspaceId),
                     tags: tags,
+                    identifiers: toArray(link.identifiers).map(function (value) { return text(value, ''); }).filter(Boolean),
+                    icon: text(link.icon, ''),
+                    coverImage: text(link.coverImage, ''),
+                    priority: text(link.priority, ''),
                     libraryLinked: !!library.linked,
                     libraryEntryId: library.entryId
                 },

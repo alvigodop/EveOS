@@ -171,6 +171,22 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
     function getKnownCardTaskScopeKeys() {
 
         const scopedKeys = new Set();
+        const indexApi = window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
+        const structureSummary = indexApi && typeof indexApi.getStructureSummary === 'function'
+            ? indexApi.getStructureSummary()
+            : null;
+        const hasUsableSnapshot = indexApi && typeof indexApi.hasUsableSnapshot === 'function'
+            ? indexApi.hasUsableSnapshot()
+            : !!structureSummary?.builtAt;
+
+        if (hasUsableSnapshot && structureSummary?.cards) {
+            Object.keys(structureSummary.cards).forEach((scopedKey) => {
+                const parts = String(scopedKey || '').split('::');
+                const summaryWorkspace = parts.shift();
+                const summaryCategory = parts.join('::');
+                scopedKeys.add(buildCardTaskScopeKey(summaryWorkspace, summaryCategory));
+            });
+        }
 
         const sourceLinks = Array.isArray(window.eveState?.links)
 
@@ -391,6 +407,12 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         const targetId = String(linkId || '').trim();
 
         if (!targetId) return null;
+
+        const indexApi = window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
+        if (indexApi && typeof indexApi.resolveBookmarkLink === 'function') {
+            const resolved = indexApi.resolveBookmarkLink(targetId);
+            if (resolved) return resolved;
+        }
 
         const source = Array.isArray(window.eveState?.links)
 

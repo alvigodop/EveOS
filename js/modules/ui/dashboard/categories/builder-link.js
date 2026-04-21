@@ -6,8 +6,18 @@ window.DashboardCategories = window.DashboardCategories || {};
         return String(value);
     }
 
+    function getDatapackIndexApi() {
+        return window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
+    }
+
     function findLinkById(linkId) {
         const targetId = toLinkId(linkId);
+        if (!targetId) return null;
+        const indexApi = getDatapackIndexApi();
+        if (indexApi && typeof indexApi.resolveBookmarkLink === 'function') {
+            const resolved = indexApi.resolveBookmarkLink(targetId);
+            if (resolved) return resolved;
+        }
         const linkList = window.eveState?.links || (typeof links !== 'undefined' ? links : []);
         return Array.isArray(linkList)
             ? linkList.find((entry) => toLinkId(entry?.id) === targetId) || null

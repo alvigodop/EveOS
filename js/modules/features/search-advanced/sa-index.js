@@ -720,7 +720,12 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             workspace: text(record?.workspaceId, ''),
             done: !!record?.provenance?.done,
             folderId: text(record?.path?.folderId, ''),
-            notes: text(record?.description, '')
+            notes: text(record?.description, ''),
+            tags: toArray(record?.provenance?.tags),
+            identifiers: toArray(record?.provenance?.identifiers),
+            icon: text(record?.provenance?.icon, ''),
+            coverImage: text(record?.provenance?.coverImage, ''),
+            priority: text(record?.provenance?.priority, '')
         };
     }
 
