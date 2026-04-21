@@ -171,6 +171,10 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         auraControls: {
             visualsEnabled: true,
             effectsEnabled: true,
+            views: {
+                nodeVolumes: true,
+                overlapVolumes: true
+            },
             emitters: {
                 workspace: true,
                 category: true,

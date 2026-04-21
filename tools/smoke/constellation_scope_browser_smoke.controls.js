@@ -70,6 +70,93 @@ async function runConstellationControls(page, { canvasBox, categorySeed }) {
         throw new Error(`Expected motion mode to cycle back to smooth, got ${resetMotionStats.motionMode}`);
     }
 
+    const stabilityButtonBefore = await page.locator('[data-map-toolbar="stability"]').first().textContent();
+    if (!/Hold Main Nodes: ON/i.test(stabilityButtonBefore || '')) {
+        throw new Error(`Expected Hold Main Nodes button to start on, got ${stabilityButtonBefore}`);
+    }
+    await clickToolbarControl(page, '[data-map-toolbar="stability"]');
+    await page.waitForTimeout(180);
+    const stabilityOffState = await page.evaluate(() => ({
+        stableMainNodes: !!window.EveConstellationMap?._shared?.state?.stableMainNodes,
+        label: document.querySelector('[data-map-toolbar="stability"]')?.textContent || ''
+    }));
+    if (stabilityOffState.stableMainNodes || !/Hold Main Nodes: OFF/i.test(stabilityOffState.label)) {
+        throw new Error(`Expected Hold Main Nodes button/state to flip off, got ${JSON.stringify(stabilityOffState)}`);
+    }
+    await clickToolbarControl(page, '[data-map-toolbar="stability"]');
+    await page.waitForTimeout(180);
+    const stabilityOnState = await page.evaluate(() => ({
+        stableMainNodes: !!window.EveConstellationMap?._shared?.state?.stableMainNodes,
+        label: document.querySelector('[data-map-toolbar="stability"]')?.textContent || ''
+    }));
+    if (!stabilityOnState.stableMainNodes || !/Hold Main Nodes: ON/i.test(stabilityOnState.label)) {
+        throw new Error(`Expected Hold Main Nodes button/state to flip back on, got ${JSON.stringify(stabilityOnState)}`);
+    }
+
+    const auraViewLabels = await page.evaluate(() => ({
+        nodes: document.querySelector('[data-map-aura-view="nodes"]')?.textContent || '',
+        overlaps: document.querySelector('[data-map-aura-view="overlaps"]')?.textContent || ''
+    }));
+    if (!/Node Aura View: ON/i.test(auraViewLabels.nodes) || !/Red Aura View: ON/i.test(auraViewLabels.overlaps)) {
+        throw new Error(`Expected aura view buttons to exist and start on, got ${JSON.stringify(auraViewLabels)}`);
+    }
+
+    await clickToolbarControl(page, '[data-map-aura-view="nodes"]');
+    await page.waitForTimeout(140);
+    const nodeAuraViewOff = await page.evaluate(() => ({
+        controls: window.EveConstellationMap?._shared?.state?.auraControls || null,
+        label: document.querySelector('[data-map-aura-view="nodes"]')?.textContent || ''
+    }));
+    if (nodeAuraViewOff?.controls?.views?.nodeVolumes !== false || !/Node Aura View: OFF/i.test(nodeAuraViewOff.label)) {
+        throw new Error(`Expected node aura view to toggle off, got ${JSON.stringify(nodeAuraViewOff)}`);
+    }
+    await clickToolbarControl(page, '[data-map-aura-view="nodes"]');
+    await page.waitForTimeout(140);
+
+    await clickToolbarControl(page, '[data-map-aura-view="overlaps"]');
+    await page.waitForTimeout(140);
+    const overlapAuraViewOff = await page.evaluate(() => ({
+        controls: window.EveConstellationMap?._shared?.state?.auraControls || null,
+        label: document.querySelector('[data-map-aura-view="overlaps"]')?.textContent || ''
+    }));
+    if (overlapAuraViewOff?.controls?.views?.overlapVolumes !== false || !/Red Aura View: OFF/i.test(overlapAuraViewOff.label)) {
+        throw new Error(`Expected overlap aura view to toggle off, got ${JSON.stringify(overlapAuraViewOff)}`);
+    }
+    await clickToolbarControl(page, '[data-map-aura-view="overlaps"]');
+    await page.waitForTimeout(140);
+
+    await clickToolbarControl(page, '[data-map-aura-toggle="visuals"]');
+    await page.waitForTimeout(140);
+    const auraMasterOff = await page.evaluate(() => {
+        const nodeButton = document.querySelector('[data-map-aura-view="nodes"]');
+        const overlapButton = document.querySelector('[data-map-aura-view="overlaps"]');
+        return {
+            controls: window.EveConstellationMap?._shared?.state?.auraControls || null,
+            nodeDisabled: !!nodeButton?.disabled,
+            overlapDisabled: !!overlapButton?.disabled
+        };
+    });
+    if (auraMasterOff?.controls?.visualsEnabled !== false || !auraMasterOff.nodeDisabled || !auraMasterOff.overlapDisabled) {
+        throw new Error(`Expected master aura visuals toggle to disable view-only buttons, got ${JSON.stringify(auraMasterOff)}`);
+    }
+    await clickToolbarControl(page, '[data-map-aura-toggle="visuals"]');
+    await page.waitForTimeout(140);
+    const auraMasterOn = await page.evaluate(() => ({
+        controls: window.EveConstellationMap?._shared?.state?.auraControls || null,
+        nodeDisabled: !!document.querySelector('[data-map-aura-view="nodes"]')?.disabled,
+        overlapDisabled: !!document.querySelector('[data-map-aura-view="overlaps"]')?.disabled
+    }));
+    if (auraMasterOn?.controls?.visualsEnabled === false || auraMasterOn.nodeDisabled || auraMasterOn.overlapDisabled) {
+        throw new Error(`Expected master aura visuals toggle to restore view-only buttons, got ${JSON.stringify(auraMasterOn)}`);
+    }
+
+    await page.evaluate((categoryId) => {
+        if (!window.EveConstellationMap.__debugSelectNode(categoryId)) {
+            throw new Error('Failed to restore selected category node after control toggles');
+        }
+    }, categorySeed.id);
+    await page.waitForTimeout(140);
+
     await clickToolbarControl(page, '[data-map-toolbar="polarity-kind"]');
     await page.waitForTimeout(140);
     const categoryPullStats = await getStats(page);

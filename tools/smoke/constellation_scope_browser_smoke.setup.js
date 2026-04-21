@@ -245,6 +245,63 @@ async function runConstellationSetup(page) {
 
     await ensureControlsExpanded(page);
 
+    const followThemeShellStats = await page.evaluate(() => {
+        const root = document.documentElement;
+        const overlay = document.getElementById('constellation-map-overlay');
+        const themeShared = window.EveConstellationMap?._sharedTheme;
+        const applyMapTheme = themeShared?.applyMapTheme;
+        if (!overlay || typeof applyMapTheme !== 'function') {
+            throw new Error('Constellation theme helpers unavailable for follow-theme shell test');
+        }
+
+        const trackedVars = ['--bg-primary', '--card-bg', '--modal-bg', '--input-bg', '--modal-border'];
+        const backup = {
+            nativeScheme: root.getAttribute('data-native-scheme'),
+            hadLightThemeClass: root.classList.contains('light-theme'),
+            vars: Object.fromEntries(trackedVars.map((key) => [key, root.style.getPropertyValue(key)]))
+        };
+
+        root.setAttribute('data-native-scheme', 'dark');
+        root.classList.remove('light-theme');
+        root.style.setProperty('--bg-primary', '#f5f5f5');
+        root.style.setProperty('--card-bg', '#ffffff');
+        root.style.setProperty('--modal-bg', '#ffffff');
+        root.style.setProperty('--input-bg', '#ffffff');
+        root.style.setProperty('--modal-border', '#d0d7e2');
+        applyMapTheme(overlay);
+
+        const darkStyles = window.getComputedStyle(overlay);
+        const result = {
+            backgroundA: darkStyles.getPropertyValue('--map-theme-bg-a').trim(),
+            backgroundB: darkStyles.getPropertyValue('--map-theme-bg-b').trim(),
+            panelBase: darkStyles.getPropertyValue('--map-theme-panel-base').trim(),
+            text: darkStyles.getPropertyValue('--map-theme-text').trim()
+        };
+
+        if (backup.nativeScheme == null) root.removeAttribute('data-native-scheme');
+        else root.setAttribute('data-native-scheme', backup.nativeScheme);
+        if (backup.hadLightThemeClass) root.classList.add('light-theme');
+        else root.classList.remove('light-theme');
+        trackedVars.forEach((key) => {
+            const value = backup.vars[key];
+            if (value) root.style.setProperty(key, value);
+            else root.style.removeProperty(key);
+        });
+        applyMapTheme(overlay);
+
+        return result;
+    });
+
+    if (followThemeShellStats.backgroundA.includes('#f5f5f5') || !followThemeShellStats.backgroundA.includes('#07101d')) {
+        throw new Error(`Expected dark follow-theme shell background, got ${JSON.stringify(followThemeShellStats)}`);
+    }
+    if (followThemeShellStats.panelBase.includes('#ffffff') || !followThemeShellStats.panelBase.includes('#111a28')) {
+        throw new Error(`Expected dark follow-theme panel shell, got ${JSON.stringify(followThemeShellStats)}`);
+    }
+    if (followThemeShellStats.text !== '#e2edf9') {
+        throw new Error(`Expected dark follow-theme text color, got ${JSON.stringify(followThemeShellStats)}`);
+    }
+
     return {
         canvasBox,
         cardStats,

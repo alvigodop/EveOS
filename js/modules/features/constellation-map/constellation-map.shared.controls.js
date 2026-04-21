@@ -205,6 +205,9 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         const controls = state.auraControls;
         controls.visualsEnabled = controls.visualsEnabled !== false;
         controls.effectsEnabled = controls.effectsEnabled !== false;
+        controls.views = controls.views && typeof controls.views === 'object' ? controls.views : {};
+        controls.views.nodeVolumes = controls.views.nodeVolumes !== false;
+        controls.views.overlapVolumes = controls.views.overlapVolumes !== false;
         controls.emitters = controls.emitters && typeof controls.emitters === 'object' ? controls.emitters : {};
         controls.emitters.workspace = controls.emitters.workspace !== false;
         controls.emitters.category = controls.emitters.category !== false;
@@ -227,6 +230,16 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
     function isAuraVisualsEnabled() {
         return ensureAuraControls().visualsEnabled !== false;
+    }
+
+    function isAuraNodeVisualsEnabled() {
+        const controls = ensureAuraControls();
+        return controls.visualsEnabled !== false && controls.views?.nodeVolumes !== false;
+    }
+
+    function isAuraOverlapVisualsEnabled() {
+        const controls = ensureAuraControls();
+        return controls.visualsEnabled !== false && controls.views?.overlapVolumes !== false;
     }
 
     function isAuraEffectsEnabled() {
@@ -254,6 +267,18 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         return controls.effectsEnabled;
     }
 
+    function toggleAuraNodeVisuals() {
+        const controls = ensureAuraControls();
+        controls.views.nodeVolumes = controls.views.nodeVolumes === false;
+        return controls.views.nodeVolumes;
+    }
+
+    function toggleAuraOverlapVisuals() {
+        const controls = ensureAuraControls();
+        controls.views.overlapVolumes = controls.views.overlapVolumes === false;
+        return controls.views.overlapVolumes;
+    }
+
     function toggleAuraEmitterKind(kind) {
         const controls = ensureAuraControls();
         const normalizedKind = String(kind || '').trim();
@@ -275,6 +300,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         const controls = ensureAuraControls();
         controls.visualsEnabled = true;
         controls.effectsEnabled = true;
+        controls.views.nodeVolumes = true;
+        controls.views.overlapVolumes = true;
         controls.emitters.workspace = true;
         controls.emitters.category = true;
         controls.emitters.folder = true;
@@ -362,10 +389,14 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         ensureAuraControls,
         getAuraDepthBucket,
         isAuraVisualsEnabled,
+        isAuraNodeVisualsEnabled,
+        isAuraOverlapVisualsEnabled,
         isAuraEffectsEnabled,
         isAuraEmitterEnabled,
         toggleAuraVisuals,
         toggleAuraEffects,
+        toggleAuraNodeVisuals,
+        toggleAuraOverlapVisuals,
         toggleAuraEmitterKind,
         toggleAuraDepth,
         resetAuraControls,

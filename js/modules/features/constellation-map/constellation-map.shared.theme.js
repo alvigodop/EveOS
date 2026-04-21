@@ -156,6 +156,11 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         const controls = ensureMapThemeControls();
         const followSiteTheme = controls.followSiteTheme !== false;
+        const siteThemeMode = followSiteTheme ? getCurrentSiteThemeMode() : 'dark';
+        const sitePalette = followSiteTheme
+            ? (MAP_THEME_SITE_COLOR_PALETTES[siteThemeMode] || MAP_THEME_SITE_COLOR_PALETTES.dark)
+            : null;
+        const siteIsLight = siteThemeMode === 'light';
         const panelTint = getResolvedMapThemeColorValue('panelTint');
         const panelEdge = getResolvedMapThemeColorValue('panelEdge');
         const mapAccent = getResolvedMapThemeColorValue('mapAccent');
@@ -176,35 +181,54 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         const bookmarkDoneColor = getResolvedMapThemeColorValue('bookmarkDoneColor');
         const titleColor = getResolvedMapThemeColorValue('titleColor');
         const dangerAccent = getResolvedMapThemeColorValue('dangerAccent');
+        const followTextColor = siteIsLight ? '#18314d' : '#e2edf9';
+        const followMutedTextColor = siteIsLight ? '#61758e' : '#9eb2c8';
+        const followTitleColor = siteIsLight
+            ? `color-mix(in srgb, ${titleColor} 84%, #0f2a45 16%)`
+            : `color-mix(in srgb, ${titleColor} 82%, #ffffff 18%)`;
         const panelFill = Math.round(getMapThemeTuningValue('panelFill') * 100) + '%';
         const buttonFill = Math.round(getMapThemeTuningValue('buttonFill') * 100) + '%';
         const backgroundFill = Math.round(getMapThemeTuningValue('backgroundFill') * 100) + '%';
         const blurValue = Math.round(getMapThemeTuningValue('blur')) + 'px';
 
         setVar('--map-theme-bg-a', followSiteTheme
-            ? `color-mix(in srgb, var(--bg-primary) 72%, ${panelTint} 28%)`
+            ? (siteIsLight
+                ? `color-mix(in srgb, #f8fbff 82%, ${sitePalette?.panelTint || panelTint} 18%)`
+                : `color-mix(in srgb, #07101d 84%, ${sitePalette?.panelTint || panelTint} 16%)`)
             : `color-mix(in srgb, ${panelTint} 80%, #040913 20%)`);
         setVar('--map-theme-bg-b', followSiteTheme
-            ? `color-mix(in srgb, var(--bg-primary) 38%, ${panelTint} 62%)`
+            ? (siteIsLight
+                ? `color-mix(in srgb, #dde9f7 74%, ${sitePalette?.panelTint || panelTint} 26%)`
+                : `color-mix(in srgb, #030711 78%, ${sitePalette?.panelTint || panelTint} 22%)`)
             : `color-mix(in srgb, ${panelTint} 54%, #02060c 46%)`);
         setVar('--map-theme-panel-base', followSiteTheme
-            ? `color-mix(in srgb, var(--card-bg) 72%, ${panelTint} 28%)`
+            ? (siteIsLight
+                ? `color-mix(in srgb, #ffffff 86%, ${sitePalette?.panelTint || panelTint} 14%)`
+                : `color-mix(in srgb, #111a28 70%, ${sitePalette?.panelTint || panelTint} 30%)`)
             : `color-mix(in srgb, ${panelTint} 84%, #06101b 16%)`);
         setVar('--map-theme-panel-strong-base', followSiteTheme
-            ? `color-mix(in srgb, var(--modal-bg) 66%, ${panelTint} 34%)`
+            ? (siteIsLight
+                ? `color-mix(in srgb, #f4f8ff 82%, ${sitePalette?.panelTint || panelTint} 18%)`
+                : `color-mix(in srgb, #09111d 76%, ${sitePalette?.panelTint || panelTint} 24%)`)
             : `color-mix(in srgb, ${panelTint} 76%, #030811 24%)`);
         setVar('--map-theme-input-base', followSiteTheme
-            ? `color-mix(in srgb, var(--input-bg) 80%, ${panelTint} 20%)`
+            ? (siteIsLight
+                ? `color-mix(in srgb, #ffffff 90%, ${sitePalette?.panelTint || panelTint} 10%)`
+                : `color-mix(in srgb, #0f1826 66%, ${sitePalette?.panelTint || panelTint} 34%)`)
             : `color-mix(in srgb, ${panelTint} 78%, #04101b 22%)`);
         setVar('--map-theme-button-base', followSiteTheme
-            ? `color-mix(in srgb, var(--input-bg) 64%, ${panelTint} 36%)`
+            ? (siteIsLight
+                ? `color-mix(in srgb, #edf5ff 80%, ${sitePalette?.panelTint || panelTint} 20%)`
+                : `color-mix(in srgb, #101927 58%, ${sitePalette?.panelTint || panelTint} 42%)`)
             : `color-mix(in srgb, ${panelTint} 70%, #04101a 30%)`);
         setVar('--map-theme-border-base', followSiteTheme
-            ? `color-mix(in srgb, var(--modal-border) 58%, ${panelEdge} 42%)`
+            ? (siteIsLight
+                ? `color-mix(in srgb, #c8d7ec 60%, ${sitePalette?.panelEdge || panelEdge} 40%)`
+                : `color-mix(in srgb, #32455f 52%, ${sitePalette?.panelEdge || panelEdge} 48%)`)
             : `color-mix(in srgb, ${panelEdge} 74%, rgba(255,255,255,0.14) 26%)`);
-        setVar('--map-theme-text', 'var(--text-main)');
-        setVar('--map-theme-text-muted', 'var(--text-muted)');
-        setVar('--map-theme-title', titleColor);
+        setVar('--map-theme-text', followSiteTheme ? followTextColor : 'var(--text-main)');
+        setVar('--map-theme-text-muted', followSiteTheme ? followMutedTextColor : 'var(--text-muted)');
+        setVar('--map-theme-title', followSiteTheme ? followTitleColor : titleColor);
         setVar('--map-theme-accent', followSiteTheme
             ? `color-mix(in srgb, var(--accent) 68%, ${mapAccent} 32%)`
             : mapAccent);

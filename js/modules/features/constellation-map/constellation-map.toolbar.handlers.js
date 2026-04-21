@@ -10,7 +10,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     const toolbarMarkup = ns._toolbarMarkup || {};
 
     const {
-        state, LABEL_MODE_ORDER, MOTION_MODE_ORDER, cycleNodePolarity, toggleKindPolarity, setPolarityStrengthValue, setFxTuningValue, setMotionTuningValue, resetMotionTuning, resetFxControls, clearPolarityOverrides, toggleStaticForNode, toggleStaticForKind, toggleStaticBranch, clearStaticLocks, setAuraTuningValue, resetAuraControls, applyAuraPreset, toggleAuraVisuals, toggleAuraEffects, toggleAuraEmitterKind, toggleAuraDepth, setMapThemeColor, setMapThemeTuningValue, resetMapThemeControls, toggleMapThemeFollowSite, resetConstellationControls, ensureMapThemeControls, toggleFxControl, toggleBlobVisuals, cycleBlobMode, toggleBlobRootShells, toggleBlobLayers, resetBlobControls, setBlobTuningValue
+        state, LABEL_MODE_ORDER, MOTION_MODE_ORDER, cycleNodePolarity, toggleKindPolarity, setPolarityStrengthValue, setFxTuningValue, setMotionTuningValue, resetMotionTuning, resetFxControls, clearPolarityOverrides, toggleStaticForNode, toggleStaticForKind, toggleStaticBranch, clearStaticLocks, setAuraTuningValue, resetAuraControls, applyAuraPreset, toggleAuraVisuals, toggleAuraEffects, toggleAuraNodeVisuals, toggleAuraOverlapVisuals, toggleAuraEmitterKind, toggleAuraDepth, setMapThemeColor, setMapThemeTuningValue, resetMapThemeControls, toggleMapThemeFollowSite, resetConstellationControls, ensureMapThemeControls, toggleFxControl, toggleBlobVisuals, cycleBlobMode, toggleBlobRootShells, toggleBlobLayers, resetBlobControls, setBlobTuningValue
     } = shared;
     const { buildGraphData } = graph;
     const { requestDraw, renderHeader, renderInspector, renderToolbarState } = render;
@@ -66,6 +66,15 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             if (auraToggleEl) {
                 if (auraToggleEl.dataset.mapAuraToggle === 'effects') toggleAuraEffects();
                 else toggleAuraVisuals();
+                renderToolbarState();
+                requestDraw();
+                return;
+            }
+
+            const auraViewEl = event.target.closest('[data-map-aura-view]');
+            if (auraViewEl) {
+                if (auraViewEl.dataset.mapAuraView === 'overlaps') toggleAuraOverlapVisuals();
+                else toggleAuraNodeVisuals();
                 renderToolbarState();
                 requestDraw();
                 return;
@@ -246,6 +255,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 state.stableMainNodes = !state.stableMainNodes;
                 buildGraphData(state.scope);
                 renderHeader();
+                renderToolbarState();
                 requestDraw();
             } else if (toolbarAction === 'chain-internal') {
                 state.chainInternalForcesEnabled = !state.chainInternalForcesEnabled;

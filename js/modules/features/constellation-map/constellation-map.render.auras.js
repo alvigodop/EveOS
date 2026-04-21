@@ -5,7 +5,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     const {
         state,
         text,
-        isAuraVisualsEnabled,
+        isAuraNodeVisualsEnabled,
+        isAuraOverlapVisualsEnabled,
         isAuraEmitterEnabled,
         getMapThemeRgba,
         getCardAuraShape,
@@ -27,7 +28,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     }
 
     function drawPhysicsAuras(ctx) {
-        if (!isAuraVisualsEnabled()) return;
+        if (!isAuraNodeVisualsEnabled()) return;
 
         const auraRoots = new Map();
         const storedAuraRoots = state.auraRoots instanceof Map ? state.auraRoots : new Map();
@@ -379,7 +380,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
 
     function drawPeerAuras(ctx) {
-        if (!isAuraVisualsEnabled()) return;
+        if (!isAuraOverlapVisualsEnabled()) return;
         const zoomAlpha = Math.min(1.0, state.transform.scale * 3.0);
         const showDetails = state.transform.scale > 0.12;
 
@@ -411,24 +412,24 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             ctx.translate(node.x, node.y);
             ctx.setLineDash([]);
 
-            // Red gradient fill — intensity scales with overlap
+            // Overlap gradient fill intensity scales with overlap.
             var fillAlpha = Math.min(0.28, 0.06 + overlap * 0.55) * zoomAlpha;
             var gradient = ctx.createRadialGradient(0, 0, radius * 0.1, 0, 0, radius);
-            gradient.addColorStop(0, 'rgba(255, 50, 50, ' + (fillAlpha * 0.9) + ')');
-            gradient.addColorStop(0.45, 'rgba(255, 35, 35, ' + (fillAlpha * 0.55) + ')');
-            gradient.addColorStop(1, 'rgba(255, 20, 20, 0)');
+            gradient.addColorStop(0, getMapThemeRgba('dangerAccent', fillAlpha * 0.9));
+            gradient.addColorStop(0.45, getMapThemeRgba('dangerAccent', fillAlpha * 0.55));
+            gradient.addColorStop(1, getMapThemeRgba('dangerAccent', 0));
             ctx.beginPath();
             ctx.arc(0, 0, radius, 0, Math.PI * 2);
             ctx.fillStyle = gradient;
             ctx.fill();
 
-            // Red dashed boundary ring
+            // Overlap dashed boundary ring.
             if (showDetails) {
                 var ringAlpha = Math.min(0.55, 0.2 + overlap * 0.8) * zoomAlpha;
                 ctx.beginPath();
                 ctx.arc(0, 0, radius * 0.96, 0, Math.PI * 2);
                 ctx.setLineDash([10, 18]);
-                ctx.strokeStyle = 'rgba(255, 55, 55, ' + ringAlpha + ')';
+                ctx.strokeStyle = getMapThemeRgba('dangerAccent', ringAlpha);
                 ctx.lineWidth = 2.0 / state.transform.scale;
                 ctx.stroke();
             }

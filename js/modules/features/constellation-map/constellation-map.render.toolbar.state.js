@@ -36,6 +36,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         getMapThemeColorValue,
         getMapThemeSummaryText,
         applyMapTheme,
+        isAuraNodeVisualsEnabled,
+        isAuraOverlapVisualsEnabled,
         text,
         getStaticStateForNode,
         isStaticBranchRoot,
@@ -210,6 +212,27 @@ function renderToolbarState() {
                 activeShadow: '0 0 0 1px color-mix(in srgb, var(--map-theme-aura) 18%, transparent), 0 0 30px color-mix(in srgb, var(--map-theme-aura) 20%, transparent)',
                 activeTextShadow: '0 0 14px color-mix(in srgb, var(--map-theme-aura) 28%, transparent)'
             });
+        });
+
+        queryAll('[data-map-aura-view]').forEach((button) => {
+            const mode = button.dataset.mapAuraView;
+            const active = mode === 'overlaps'
+                ? !!isAuraOverlapVisualsEnabled()
+                : !!isAuraNodeVisualsEnabled();
+            const label = mode === 'overlaps' ? 'Red Aura View' : 'Node Aura View';
+            button.textContent = label + ': ' + (active ? 'ON' : 'OFF');
+            setButtonActive(button, active, {
+                activeBorder: mode === 'overlaps'
+                    ? 'color-mix(in srgb, var(--map-theme-danger) 52%, transparent)'
+                    : 'color-mix(in srgb, var(--map-theme-aura) 52%, transparent)',
+                activeBackground: mode === 'overlaps'
+                    ? 'color-mix(in srgb, var(--map-theme-danger) 14%, transparent)'
+                    : 'color-mix(in srgb, var(--map-theme-aura) 14%, transparent)',
+                activeShadow: mode === 'overlaps'
+                    ? '0 0 0 1px color-mix(in srgb, var(--map-theme-danger) 14%, transparent), 0 0 24px color-mix(in srgb, var(--map-theme-danger) 14%, transparent)'
+                    : '0 0 0 1px color-mix(in srgb, var(--map-theme-aura) 16%, transparent), 0 0 24px color-mix(in srgb, var(--map-theme-aura) 16%, transparent)'
+            });
+            setButtonEnabled(button, controls.visualsEnabled !== false);
         });
 
         queryAll('[data-map-aura-emitter]').forEach((button) => {
