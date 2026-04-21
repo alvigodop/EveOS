@@ -32,6 +32,7 @@ window.EveBulkImport = window.EveBulkImport || {};
         const fileDropZone = document.getElementById('bulkFileDropZone');
         const folderDropZone = document.getElementById('bulkFolderDropZone');
         const smartExtractOptions = document.getElementById('bulkSmartExtractOptions');
+        const smartExtractCardsPanel = document.getElementById('bulkSmartExtractCardsPanel');
         const hint = document.getElementById('bulkModeHint');
         const autoLineBreakBtn = document.getElementById('bulkAutoLineBreakBtn');
         const textToolsHint = document.getElementById('bulkTextToolsHint');
@@ -44,6 +45,7 @@ window.EveBulkImport = window.EveBulkImport || {};
         if (fileDropZone) fileDropZone.style.display = 'none';
         if (folderDropZone) folderDropZone.style.display = 'none';
         if (smartExtractOptions) smartExtractOptions.style.display = 'none';
+        if (smartExtractCardsPanel) smartExtractCardsPanel.style.display = 'none';
         if (autoLineBreakBtn) autoLineBreakBtn.style.display = 'none';
         if (textToolsHint) textToolsHint.style.display = 'none';
         if (categoryWrapper) categoryWrapper.style.display = 'block';
@@ -160,6 +162,10 @@ window.EveBulkImport = window.EveBulkImport || {};
             }
             if (categoryWrapper) {
                 categoryWrapper.style.display = smartExtractMode === 'card-per-file' ? 'none' : 'block';
+            }
+            if (smartExtractMode === 'card-per-file' && typeof api.syncSmartExtractCardPerFileEditors === 'function') {
+                const fileInput = document.getElementById('bulkFileInput');
+                api.syncSmartExtractCardPerFileEditors(fileInput && fileInput.files ? fileInput.files : []);
             }
             hint.textContent = smartExtractMode === 'card-per-file'
                 ? 'Smart Extract mode: Upload .txt files. Each file becomes its own card using the file title, and bookmarks inside stay grouped there.'

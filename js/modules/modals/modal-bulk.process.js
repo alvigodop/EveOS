@@ -316,9 +316,16 @@ async function processBulk() {
             try {
                 const content = maybeNormalizeBulkUrlBlob(await file.text());
                 const fileCategory = smartExtractImportMode === 'card-per-file'
-                    ? (typeof normalizeImportedFileTitle === 'function'
-                        ? (normalizeImportedFileTitle(file.name) || targetCategory)
-                        : (String(file.name || '').replace(/\.txt$/i, '').trim() || targetCategory))
+                    ? (typeof api.resolveSmartExtractCardTitle === 'function'
+                        ? api.resolveSmartExtractCardTitle(
+                            file,
+                            typeof normalizeImportedFileTitle === 'function'
+                                ? (normalizeImportedFileTitle(file.name) || targetCategory)
+                                : (String(file.name || '').replace(/\.txt$/i, '').trim() || targetCategory)
+                        )
+                        : (typeof normalizeImportedFileTitle === 'function'
+                            ? (normalizeImportedFileTitle(file.name) || targetCategory)
+                            : (String(file.name || '').replace(/\.txt$/i, '').trim() || targetCategory)))
                     : targetCategory;
                 // Check if the file contains structured library data fields, shorthands, or if the filename specifies a media entry
                 const isStructured = typeof looksLikeStructuredFileContent === 'function'

@@ -48,6 +48,11 @@ window.modalTemplate += `
             </label>
         </div>
 
+        <div id="bulkSmartExtractCardsPanel" style="display:none; flex-direction:column; gap:8px; margin-top:10px; max-height:220px; overflow-y:auto; border:1px solid #444; border-radius:6px; padding:10px; background:#111;">
+            <div style="font-size:0.85rem; color:#aaa; margin-bottom:4px;">Per-File Cards</div>
+            <div id="bulkSmartExtractCardsList" style="display:flex; flex-direction:column; gap:6px;"></div>
+        </div>
+
         <div id="bulkFolderDropZone" style="display:none; min-height:150px; background:#111; border:2px dashed #444; border-radius:6px; flex-direction:column; align-items:center; justify-content:center; color:#aaa; cursor:pointer; position:relative; text-align:center; padding: 20px; transition: border-color 0.2s, background-color 0.2s;">
             <div style="font-size:2.5rem; margin-bottom:10px; pointer-events:none;">📁</div>
             <div id="bulkFolderDropText" style="pointer-events:none; font-size:0.95rem;">Click to select a folder</div>

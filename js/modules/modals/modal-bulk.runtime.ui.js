@@ -16,6 +16,98 @@ window.EveBulkImport = window.EveBulkImport || {};
         return normalizeTitle(files[0].name);
     }
 
+    function getSmartExtractFileKey(file) {
+        if (!file) return '';
+        return [
+            String(file.name || '').trim(),
+            Number(file.size || 0),
+            Number(file.lastModified || 0)
+        ].join('::');
+    }
+
+    function resolveSmartExtractCardTitle(file, fallbackTitle) {
+        const normalizedFallback = String(fallbackTitle || '').trim();
+        const nextFallback = normalizedFallback || deriveSmartExtractCategoryTitle([file]) || 'Unsorted';
+        const fileKey = getSmartExtractFileKey(file);
+        if (!fileKey) return nextFallback;
+
+        api._smartExtractCardPerFileMap = api._smartExtractCardPerFileMap || {};
+        const stored = String(api._smartExtractCardPerFileMap[fileKey] || '').trim();
+        if (stored) return stored;
+
+        api._smartExtractCardPerFileMap[fileKey] = nextFallback;
+        return nextFallback;
+    }
+
+    function syncSmartExtractCardPerFileEditors(fileList) {
+        const panel = document.getElementById('bulkSmartExtractCardsPanel');
+        const list = document.getElementById('bulkSmartExtractCardsList');
+        if (!panel || !list) return;
+
+        const files = Array.from(fileList || [])
+            .filter((file) => file && /\.txt$/i.test(String(file.name || '').trim()));
+        if (files.length === 0) {
+            panel.style.display = 'none';
+            list.innerHTML = '';
+            return;
+        }
+
+        api._smartExtractCardPerFileMap = api._smartExtractCardPerFileMap || {};
+        const activeKeys = new Set();
+        list.innerHTML = '';
+
+        files.forEach((file) => {
+            const fileKey = getSmartExtractFileKey(file);
+            if (!fileKey) return;
+            activeKeys.add(fileKey);
+
+            const fallbackTitle = deriveSmartExtractCategoryTitle([file]) || 'Unsorted';
+            const currentTitle = resolveSmartExtractCardTitle(file, fallbackTitle);
+
+            const row = document.createElement('div');
+            row.style.display = 'flex';
+            row.style.alignItems = 'center';
+            row.style.gap = '8px';
+
+            const icon = document.createElement('span');
+            icon.textContent = '\u{1F4C4}';
+
+            const label = document.createElement('span');
+            label.style.fontSize = '0.85rem';
+            label.style.flexShrink = '0';
+            label.style.maxWidth = '180px';
+            label.style.display = 'inline-block';
+            label.style.overflow = 'hidden';
+            label.style.textOverflow = 'ellipsis';
+            label.style.whiteSpace = 'nowrap';
+            label.textContent = String(file.name || '').trim() + ' ->';
+
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = currentTitle;
+            input.style.flex = '1';
+            input.style.padding = '6px 8px';
+            input.style.border = '1px solid #444';
+            input.style.borderRadius = '4px';
+            input.style.backgroundColor = '#1a1a1a';
+            input.style.color = '#fff';
+            input.oninput = (event) => {
+                api._smartExtractCardPerFileMap[fileKey] = event.target.value.trim() || fallbackTitle;
+            };
+
+            row.appendChild(icon);
+            row.appendChild(label);
+            row.appendChild(input);
+            list.appendChild(row);
+        });
+
+        Object.keys(api._smartExtractCardPerFileMap).forEach((key) => {
+            if (!activeKeys.has(key)) delete api._smartExtractCardPerFileMap[key];
+        });
+
+        panel.style.display = 'flex';
+    }
+
     function maybeAutofillSmartExtractCategory(fileList) {
         const categoryInput = document.getElementById('bulkCategory');
         if (!categoryInput) return;
@@ -272,12 +364,17 @@ window.EveBulkImport = window.EveBulkImport || {};
         const folderInput = document.getElementById('bulkFolderInput');
         if (folderInput) folderInput.value = '';
         api._accumulatedFolderFiles = [];
+        api._smartExtractAutoCategory = '';
+        api._smartExtractCardPerFileMap = {};
         api.updateBulkModeUi();
         document.getElementById('bulkText').focus();
     }
 
     Object.assign(api, {
         deriveSmartExtractCategoryTitle,
+        getSmartExtractFileKey,
+        resolveSmartExtractCardTitle,
+        syncSmartExtractCardPerFileEditors,
         maybeAutofillSmartExtractCategory,
         readAllEntries,
         traverseFileTree,

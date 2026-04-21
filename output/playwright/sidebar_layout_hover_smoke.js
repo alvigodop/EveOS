@@ -16,7 +16,6 @@ const path = require('path');
   const repoRoot = path.resolve(__dirname, '..', '..');
   const fileUrl = pathToFileURL(path.join(repoRoot, 'EveOS.html')).toString();
   const targetUrl = `${fileUrl}?ws=ws_sidebar_layout_hover_${Date.now()}`;
-  const screenshotPath = path.join(repoRoot, 'output', 'playwright', 'sidebar_layout_hover_smoke.png');
 
   try {
     await page.goto(targetUrl, { waitUntil: 'load', timeout: 30000 });
@@ -31,6 +30,7 @@ const path = require('path');
     const initialSummary = await page.evaluate(() => {
       const sidebarEl = document.getElementById('sidebar');
       const button = sidebarEl ? sidebarEl.querySelector('.ws-hover-reveal') : null;
+      const content = sidebarEl ? sidebarEl.querySelector('.ws-sidebar-content') : null;
       const rows = sidebarEl
         ? Array.from(sidebarEl.querySelectorAll('.ws-item, .ws-group-header, .ws-group-empty'))
         : [];
@@ -50,6 +50,7 @@ const path = require('path');
       return {
         hasSidebar: !!sidebarEl,
         hasButton: !!button,
+        hasContent: !!content,
         sidebarClassName: sidebarEl ? sidebarEl.className : '',
         buttonClassName: button ? button.className : '',
         overflowCount,
@@ -64,9 +65,25 @@ const path = require('path');
       const sidebarEl = document.getElementById('sidebar');
       const button = sidebarEl ? sidebarEl.querySelector('.ws-hover-reveal') : null;
       const footer = sidebarEl ? sidebarEl.querySelector('.ws-sidebar-footer') : null;
+      const content = sidebarEl ? sidebarEl.querySelector('.ws-sidebar-content') : null;
       const buttonRect = button ? button.getBoundingClientRect() : null;
       const sidebarRect = sidebarEl ? sidebarEl.getBoundingClientRect() : null;
       const footerRect = footer ? footer.getBoundingClientRect() : null;
+
+      if (content) {
+        const spacer = document.createElement('div');
+        spacer.dataset.smokeSpacer = 'true';
+        spacer.style.width = '100%';
+        spacer.style.height = '1600px';
+        spacer.style.pointerEvents = 'none';
+        content.appendChild(spacer);
+        content.scrollTop = content.scrollHeight;
+      }
+
+      const scrolledButtonRect = button ? button.getBoundingClientRect() : null;
+      const scrolledFooterRect = footer ? footer.getBoundingClientRect() : null;
+      const contentScrollTop = content ? content.scrollTop : 0;
+      const contentCanScroll = content ? content.scrollHeight > content.clientHeight : false;
 
       return {
         hasButton: !!button,
@@ -75,11 +92,13 @@ const path = require('path');
         buttonInFooter: !!(footer && button && button.parentElement === footer),
         buttonRect,
         sidebarRect,
-        footerRect
+        footerRect,
+        scrolledButtonRect,
+        scrolledFooterRect,
+        contentScrollTop,
+        contentCanScroll
       };
     });
-
-    await page.screenshot({ path: screenshotPath, fullPage: true });
 
     const uniqueRowWidths = Array.from(new Set(initialSummary.rowWidths || []));
     const summary = {
@@ -87,8 +106,7 @@ const path = require('path');
       ...hoverSummary,
       uniqueRowWidths,
       pageErrors,
-      consoleErrors,
-      screenshotPath
+      consoleErrors
     };
 
     console.log(JSON.stringify(summary, null, 2));
@@ -98,7 +116,10 @@ const path = require('path');
       && summary.overflowCount === 0
       && summary.buttonInFooter
       && summary.sidebarActive
-      && summary.buttonActive;
+      && summary.buttonActive
+      && (!summary.contentCanScroll || (summary.contentScrollTop > 0
+        && Math.abs(summary.scrolledFooterRect.bottom - summary.sidebarRect.bottom) <= 1
+        && Math.abs(summary.scrolledButtonRect.bottom - summary.scrolledFooterRect.bottom) <= 12));
 
     if (!layoutOk || pageErrors.length > 0) process.exitCode = 1;
   } finally {
