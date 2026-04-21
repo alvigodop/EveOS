@@ -46,6 +46,70 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             return [];
         }
 
+        function resolveLinkById(linkId) {
+            const normalizedId = String(linkId || '').trim();
+            if (!normalizedId) return null;
+            const indexApi = getDatapackIndexApi();
+            if (indexApi && typeof indexApi.resolveBookmarkLink === 'function') {
+                const resolved = indexApi.resolveBookmarkLink(normalizedId);
+                if (resolved) return resolved;
+            }
+            return getAllLinks().find(function (link) {
+                return String(link?.id || '').trim() === normalizedId;
+            }) || null;
+        }
+
+        function buildLinkIdMap(sourceLinks) {
+            const map = new Map();
+            (Array.isArray(sourceLinks) ? sourceLinks : []).forEach(function (link) {
+                const linkId = String(link?.id || '').trim();
+                if (linkId) map.set(linkId, link);
+            });
+            return map;
+        }
+
+        function collectIndexedLinks(getIds, sourceLinks) {
+            if (typeof getIds !== 'function') return null;
+            const linkIds = getIds();
+            if (!Array.isArray(linkIds)) return null;
+            const linkIdMap = buildLinkIdMap(sourceLinks);
+            return linkIds.map(function (linkId) {
+                return linkIdMap.get(String(linkId || '').trim()) || null;
+            }).filter(Boolean);
+        }
+
+        function getIndexedWorkspaceLinks(workspaceId) {
+            const indexApi = getDatapackIndexApi();
+            if (!indexApi || typeof indexApi.getExactBookmarkLinkIds !== 'function') return null;
+            const buildState = typeof indexApi.getBuildState === 'function' ? indexApi.getBuildState() : null;
+            const hasUsableSnapshot = typeof indexApi.hasUsableSnapshot === 'function'
+                ? indexApi.hasUsableSnapshot()
+                : (!buildState?.dirty && Number(buildState?.builtAt || 0) > 0);
+            if (!hasUsableSnapshot) {
+                warmDatapackIndex();
+                return null;
+            }
+            return collectIndexedLinks(function () {
+                return indexApi.getExactBookmarkLinkIds({ workspaceId: workspaceId });
+            }, getAllLinks());
+        }
+
+        function getIndexedAllWorkspaceLinks() {
+            const indexApi = getDatapackIndexApi();
+            if (!indexApi || typeof indexApi.getScopedBookmarkLinkIds !== 'function') return null;
+            const buildState = typeof indexApi.getBuildState === 'function' ? indexApi.getBuildState() : null;
+            const hasUsableSnapshot = typeof indexApi.hasUsableSnapshot === 'function'
+                ? indexApi.hasUsableSnapshot()
+                : (!buildState?.dirty && Number(buildState?.builtAt || 0) > 0);
+            if (!hasUsableSnapshot) {
+                warmDatapackIndex();
+                return null;
+            }
+            return collectIndexedLinks(function () {
+                return indexApi.getScopedBookmarkLinkIds(null);
+            }, getAllLinks());
+        }
+
         function matchesSearch(link, search) {
             if (!search) return true;
             const query = search.toLowerCase();
@@ -66,6 +130,10 @@ window.UnidexViewModules = window.UnidexViewModules || {};
         }
 
         function getWorkspaceLinks(workspaceId, searchStr) {
+            if (!String(searchStr || '').trim()) {
+                const indexedLinks = getIndexedWorkspaceLinks(workspaceId);
+                if (Array.isArray(indexedLinks)) return indexedLinks;
+            }
             return getAllLinks().filter(function (link) {
                 return String(link.workspace) === String(workspaceId) && matchesSearch(link, searchStr);
             });
@@ -89,6 +157,15 @@ window.UnidexViewModules = window.UnidexViewModules || {};
         }
 
         function getAllWorkspaceLinks(searchStr) {
+            if (!String(searchStr || '').trim()) {
+                const indexedLinks = getIndexedAllWorkspaceLinks();
+                if (Array.isArray(indexedLinks)) {
+                    return indexedLinks.filter(function (link) {
+                        const hasWorkspace = getWorkspaceById(link.workspace);
+                        return !!hasWorkspace;
+                    });
+                }
+            }
             return getAllLinks().filter(function (link) {
                 const hasWorkspace = getWorkspaceById(link.workspace);
                 return !!hasWorkspace && matchesSearch(link, searchStr);
@@ -278,6 +355,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
 
         return {
             getAllLinks,
+            resolveLinkById,
             getWorkspaceById,
             getWorkspaceLinks,
             getWorkspaceAndSubTabLinks,

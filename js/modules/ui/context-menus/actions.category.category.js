@@ -4,6 +4,20 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
     const ns = window.EveContextMenuActions;
     if (ns.categoryCardActionsReady) return;
 
+    function getScopedCategoryLinks(workspaceId, categoryName) {
+        const folderScopeShared = window.EveFolderViewV2?._shared || null;
+        if (folderScopeShared && typeof folderScopeShared.getCategoryLinks === 'function') {
+            return folderScopeShared.getCategoryLinks(workspaceId, categoryName);
+        }
+        const sourceLinks = typeof getModalLinks === 'function'
+            ? getModalLinks()
+            : (Array.isArray(window.eveState?.links) ? window.eveState.links : []);
+        return sourceLinks.filter(function (link) {
+            return String(link?.workspace || '') === String(workspaceId || '')
+                && String(link?.category || 'Unsorted') === String(categoryName || 'Unsorted');
+        });
+    }
+
     window.deleteCategory = async function (name) {
         try {
             const workspaceId = String(window.config?.activeWorkspace || window.ctxWsId || 'main').trim() || 'main';
@@ -88,8 +102,7 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
         const api = window.EveCustomOrder;
         if (!api) return showToast('Custom order module not loaded', 'error');
         const wsId = String(config.activeWorkspace || 'main');
-        var cardLinks = (typeof getModalLinks === 'function' ? getModalLinks() : (window.eveState?.links || []))
-            .filter(function (l) { return String(l.workspace) === wsId && String(l.category || 'Unsorted') === categoryName; });
+        var cardLinks = getScopedCategoryLinks(wsId, categoryName);
         api.toggle(wsId, categoryName, cardLinks);
         if (typeof closeAllMenus === 'function') closeAllMenus();
         showToast(api.isEnabled(wsId, categoryName) ? 'Custom numbering enabled' : 'Custom numbering disabled', 'info');

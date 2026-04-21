@@ -74,7 +74,7 @@
     window.ctxNeuralEcho = function () {
         closeAllMenus();
         if (!window.ctxLinkId) return;
-        const link = window.links ? window.links.find((entry) => String(entry.id) === String(window.ctxLinkId)) : null;
+        const link = shared.getCtxLink?.();
         if (link?.url) {
             const waybackUrl = `https://web.archive.org/web/*/${encodeURI(link.url)}`;
             window.open(waybackUrl, '_blank');

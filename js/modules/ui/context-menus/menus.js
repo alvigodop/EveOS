@@ -128,7 +128,10 @@ window.showLinkContextMenu = function (e, id) {
     const pinScopeCard = m.querySelector('#ctx-pin-scope-card');
     const pinScopeFolder = m.querySelector('#ctx-pin-scope-folder');
     const doneAction = m.querySelector('#ctx-toggle-done-action');
-    const link = links.find(item => String(item?.id ?? '') === normalizedId) || null;
+    const link = window.EveContextMenuActions?.getCtxLink?.()
+        || (typeof links !== 'undefined' && Array.isArray(links)
+            ? links.find(function (item) { return String(item?.id ?? '') === normalizedId; }) || null
+            : null);
     const linked = !!window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId?.(normalizedId);
     const pinApi = window.EveQuickPins;
     const isPinned = !!pinApi?.isBookmarkPinned?.(normalizedId);

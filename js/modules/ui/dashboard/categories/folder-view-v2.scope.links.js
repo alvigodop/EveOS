@@ -46,12 +46,12 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
 
     function getIndexedScopedLinks(scope, sourceLinks) {
         const indexApi = getDatapackIndexApi();
-        if (!indexApi || typeof indexApi.getScopedBookmarkLinkIds !== 'function') return null;
+        if (!indexApi || typeof indexApi.getExactBookmarkLinkIds !== 'function') return null;
         const hasUsableSnapshot = typeof indexApi.hasUsableSnapshot === 'function'
             ? indexApi.hasUsableSnapshot()
             : !!indexApi.getSnapshot?.();
         if (!hasUsableSnapshot) return null;
-        return filterLinksByIds(sourceLinks, indexApi.getScopedBookmarkLinkIds(scope || null));
+        return filterLinksByIds(sourceLinks, indexApi.getExactBookmarkLinkIds(scope || null));
     }
 
     function getCategoryLinks(workspaceId, categoryName) {

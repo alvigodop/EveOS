@@ -24,7 +24,15 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
     function getCtxLink() {
         const targetId = getCtxLinkId();
         if (!targetId) return null;
-        return links.find((entry) => String(entry?.id) === targetId) || null;
+        const indexApi = window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
+        if (indexApi && typeof indexApi.resolveBookmarkLink === 'function') {
+            const resolved = indexApi.resolveBookmarkLink(targetId);
+            if (resolved) return resolved;
+        }
+        const sourceLinks = Array.isArray(window.eveState?.links)
+            ? window.eveState.links
+            : (typeof links !== 'undefined' && Array.isArray(links) ? links : []);
+        return sourceLinks.find((entry) => String(entry?.id) === targetId) || null;
     }
 
     function performDuplicateScan(items, modalTitleStr, scopeFolderIds = []) {

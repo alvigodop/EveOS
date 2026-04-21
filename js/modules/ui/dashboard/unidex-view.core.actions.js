@@ -28,9 +28,11 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             if (openFromDashboard) {
                 return openFromDashboard(event, linkId);
             }
-            const link = helpers.getAllLinks().find(function (item) {
-                return String(item.id) === String(linkId);
-            });
+            const link = typeof helpers.resolveLinkById === 'function'
+                ? helpers.resolveLinkById(linkId)
+                : helpers.getAllLinks().find(function (item) {
+                    return String(item.id) === String(linkId);
+                });
             if (link?.url) {
                 openUrl(normalizeEntryUrl(link.url));
             }
@@ -42,9 +44,11 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             if (event?.stopPropagation) event.stopPropagation();
             const linkId = helpers.decodeParam(linkIdParam);
             if (!linkId) return false;
-            const link = helpers.getAllLinks().find(function (item) {
-                return String(item.id) === String(linkId);
-            });
+            const link = typeof helpers.resolveLinkById === 'function'
+                ? helpers.resolveLinkById(linkId)
+                : helpers.getAllLinks().find(function (item) {
+                    return String(item.id) === String(linkId);
+                });
             if (!link?.url) return false;
             openUrl(normalizeEntryUrl(link.url));
             return false;

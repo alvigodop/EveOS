@@ -595,6 +595,47 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         return state.snapshot || null;
     }
 
+    function getExactRecordFolderId(record) {
+        return text(record?.path?.folderId || record?.parentFolderId || record?.provenance?.parentFolderId, '');
+    }
+
+    function getExactRecordLinkId(record) {
+        return text(record?.path?.linkId || record?.provenance?.linkId || record?.sourceIdentity?.linkId, '');
+    }
+
+    function buildExactFolderHierarchy(records) {
+        const childrenByFolderId = new Map();
+
+        toArray(records).forEach(function (record) {
+            if (text(record?.type, '') !== 'folder') return;
+            const folderId = text(record?.path?.folderId, '');
+            if (!folderId) return;
+            const parentFolderId = text(record?.parentFolderId || record?.provenance?.parentFolderId, '');
+            if (!childrenByFolderId.has(parentFolderId)) childrenByFolderId.set(parentFolderId, []);
+            childrenByFolderId.get(parentFolderId).push(folderId);
+        });
+
+        return {
+            childrenByFolderId: childrenByFolderId
+        };
+    }
+
+    function collectExactFolderSubtree(folderId, hierarchy) {
+        const subtree = new Set();
+        const rootId = text(folderId, '');
+        if (!rootId) return subtree;
+        const queue = [rootId];
+        while (queue.length) {
+            const currentId = text(queue.shift(), '');
+            if (!currentId || subtree.has(currentId)) continue;
+            subtree.add(currentId);
+            toArray(hierarchy?.childrenByFolderId?.get(currentId)).forEach(function (childId) {
+                if (!subtree.has(childId)) queue.push(childId);
+            });
+        }
+        return subtree;
+    }
+
     function getScopedBookmarkLinkIds(scope) {
         const snapshot = state.snapshot;
         if (!snapshot || !hasUsableSnapshot()) return [];
@@ -614,6 +655,85 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         });
 
         return linkIds;
+    }
+
+    function getExactBookmarkLinkIds(scope) {
+        const snapshot = state.snapshot;
+        if (!snapshot || !hasUsableSnapshot()) return [];
+
+        const workspaceId = text(scope?.workspaceId, '');
+        const categoryName = text(scope?.categoryName, '');
+        const folderId = text(scope?.folderId, '');
+        const exactRecords = toArray(snapshot.records).filter(function (record) {
+            if (text(record?.type, '') !== 'bookmark' && text(record?.type, '') !== 'folder') return false;
+            if (workspaceId && text(record?.workspaceId, '') !== workspaceId) return false;
+            if (categoryName && text(record?.categoryName, '') !== categoryName) return false;
+            return true;
+        });
+
+        let allowedFolderIds = null;
+        if (folderId) {
+            allowedFolderIds = collectExactFolderSubtree(folderId, buildExactFolderHierarchy(exactRecords));
+            if (!allowedFolderIds.size) return [];
+        }
+
+        const linkIds = [];
+        const seen = new Set();
+        exactRecords.forEach(function (record) {
+            if (text(record?.type, '') !== 'bookmark') return;
+            if (allowedFolderIds && !allowedFolderIds.has(getExactRecordFolderId(record))) return;
+            const linkId = getExactRecordLinkId(record);
+            if (!linkId || seen.has(linkId)) return;
+            seen.add(linkId);
+            linkIds.push(linkId);
+        });
+
+        return linkIds;
+    }
+
+    function getIndexedBookmarkRecordByLinkId(linkId) {
+        const snapshot = state.snapshot;
+        if (!snapshot || !hasUsableSnapshot()) return null;
+
+        const normalizedLinkId = text(linkId, '');
+        if (!normalizedLinkId) return null;
+
+        return toArray(snapshot.records).find(function (record) {
+            return text(record?.type, '') === 'bookmark'
+                && getExactRecordLinkId(record) === normalizedLinkId;
+        }) || null;
+    }
+
+    function getLiveLinks() {
+        if (Array.isArray(window.eveState?.links)) return window.eveState.links;
+        if (typeof window.links !== 'undefined' && Array.isArray(window.links)) return window.links;
+        return [];
+    }
+
+    function buildBookmarkLinkFallback(record, linkId) {
+        if (!record) return null;
+        return {
+            id: text(linkId, ''),
+            title: text(record?.title, 'Untitled'),
+            url: text(record?.url, ''),
+            category: text(record?.categoryName, ''),
+            workspace: text(record?.workspaceId, ''),
+            done: !!record?.provenance?.done,
+            folderId: text(record?.path?.folderId, ''),
+            notes: text(record?.description, '')
+        };
+    }
+
+    function resolveBookmarkLink(linkId) {
+        const normalizedLinkId = text(linkId, '');
+        if (!normalizedLinkId) return null;
+
+        const liveLink = getLiveLinks().find(function (link) {
+            return text(link?.id, '') === normalizedLinkId;
+        }) || null;
+        if (liveLink) return liveLink;
+
+        return buildBookmarkLinkFallback(getIndexedBookmarkRecordByLinkId(normalizedLinkId), normalizedLinkId);
     }
 
     function getBuildState() {
@@ -670,6 +790,9 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         getStats,
         getSnapshot,
         getScopedBookmarkLinkIds,
+        getExactBookmarkLinkIds,
+        getIndexedBookmarkRecordByLinkId,
+        resolveBookmarkLink,
         getBuildState,
         hasUsableSnapshot,
         getStructureSummary,

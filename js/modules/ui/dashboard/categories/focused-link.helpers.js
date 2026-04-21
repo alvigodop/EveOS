@@ -3,6 +3,10 @@ window.DashboardCategoriesModules = window.DashboardCategoriesModules || {};
 (function (modules) {
     if (modules.focusedLinkHelpers) return;
 
+    function getDatapackIndexApi() {
+        return window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
+    }
+
     function getAllLinks() {
         if (window.eveState?.links) return window.eveState.links;
         if (Array.isArray(window.links)) return window.links;
@@ -46,6 +50,11 @@ window.DashboardCategoriesModules = window.DashboardCategoriesModules || {};
     function getLinkById(linkId) {
         const normalized = normalizeId(linkId);
         if (!normalized) return null;
+        const indexApi = getDatapackIndexApi();
+        if (indexApi && typeof indexApi.resolveBookmarkLink === 'function') {
+            const resolved = indexApi.resolveBookmarkLink(normalized);
+            if (resolved) return resolved;
+        }
         return getAllLinks().find(item => normalizeId(item?.id) === normalized) || null;
     }
 

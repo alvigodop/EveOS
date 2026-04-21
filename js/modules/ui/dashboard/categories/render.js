@@ -91,14 +91,14 @@ function buildDashboardLinkIdMap(visibleLinks) {
 
 function collectIndexedDashboardCardLinks(visibleLinkIdMap, workspaceId, categoryName) {
     var indexApi = getDashboardDatapackIndexApi();
-    if (!indexApi || typeof indexApi.getScopedBookmarkLinkIds !== 'function') return null;
+    if (!indexApi || typeof indexApi.getExactBookmarkLinkIds !== 'function') return null;
     var buildState = typeof indexApi.getBuildState === 'function' ? indexApi.getBuildState() : null;
     var hasUsableSnapshot = typeof indexApi.hasUsableSnapshot === 'function'
         ? indexApi.hasUsableSnapshot()
         : (!buildState?.dirty && Number(buildState?.builtAt || 0) > 0);
     if (!hasUsableSnapshot) return null;
 
-    return indexApi.getScopedBookmarkLinkIds({
+    return indexApi.getExactBookmarkLinkIds({
         workspaceId: workspaceId,
         categoryName: categoryName
     }).map(function (linkId) {
