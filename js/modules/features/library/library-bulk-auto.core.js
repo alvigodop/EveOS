@@ -115,7 +115,9 @@
 
         for (const checkbox of selected) {
             const id = checkbox.getAttribute('data-id');
-            const link = links.find(item => String(item.id) === String(id));
+            const link = typeof Patch.getLinkById === 'function'
+                ? Patch.getLinkById(id)
+                : links.find(item => String(item.id) === String(id));
             const status = document.getElementById(`bulk-lib-status-${id}`);
             if (!link) {
                 failed++;

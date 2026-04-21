@@ -7,10 +7,56 @@ window.EveLibrary = window.EveLibrary || {};
         return;
     }
 
+    function getDatapackIndexApi() {
+        return window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
+    }
+
+    function getActiveWorkspaceId() {
+        return String(window.eveState?.config?.activeWorkspace || window.config?.activeWorkspace || 'main').trim() || 'main';
+    }
+
+    function getLiveLinks() {
+        if (Array.isArray(window.eveState?.links)) return window.eveState.links;
+        if (typeof links !== 'undefined' && Array.isArray(links)) return links;
+        if (Array.isArray(window.links)) return window.links;
+        return [];
+    }
+
+    function getLinkById(linkId) {
+        const normalizedId = String(linkId || '').trim();
+        if (!normalizedId) return null;
+
+        const liveLink = getLiveLinks().find((link) => String(link?.id || '').trim() === normalizedId) || null;
+        if (liveLink) return liveLink;
+
+        const indexApi = getDatapackIndexApi();
+        if (indexApi && typeof indexApi.resolveBookmarkLink === 'function') {
+            return indexApi.resolveBookmarkLink(normalizedId) || null;
+        }
+
+        return null;
+    }
+
     function getCategoryLinks(categoryName) {
-        return links.filter(link =>
-            (link.category || 'Unsorted') === categoryName
-            && link.workspace === config.activeWorkspace
+        const normalizedCategory = String(categoryName || 'Unsorted').trim() || 'Unsorted';
+        const workspaceId = getActiveWorkspaceId();
+        const indexApi = getDatapackIndexApi();
+        if (indexApi && typeof indexApi.getExactBookmarkLinkIds === 'function' && typeof indexApi.resolveBookmarkLink === 'function') {
+            const buildState = typeof indexApi.getBuildState === 'function' ? indexApi.getBuildState() : null;
+            const hasUsableSnapshot = typeof indexApi.hasUsableSnapshot === 'function'
+                ? indexApi.hasUsableSnapshot()
+                : (!buildState?.dirty && Number(buildState?.builtAt || 0) > 0);
+            if (hasUsableSnapshot) {
+                return indexApi.getExactBookmarkLinkIds({
+                    workspaceId,
+                    categoryName: normalizedCategory
+                }).map((linkId) => indexApi.resolveBookmarkLink(linkId)).filter(Boolean);
+            }
+        }
+
+        return getLiveLinks().filter(link =>
+            String(link?.category || 'Unsorted').trim() === normalizedCategory
+            && String(link?.workspace || 'main').trim() === workspaceId
         );
     }
 
@@ -90,6 +136,7 @@ window.EveLibrary = window.EveLibrary || {};
 
     window.EveLibrary.BulkAutoPatch = {
         getCategoryLinks,
+        getLinkById,
         buildLibraryPatch
     };
 })();

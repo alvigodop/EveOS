@@ -167,7 +167,17 @@ window.EveLibrary.ConnectionsCore = window.EveLibrary.ConnectionsCore || {
     }
 
     function findLinkById(linkId) {
-        return getLinks().find(item => String(item.id) === String(linkId)) || null;
+        const normalizedId = String(linkId || '').trim();
+        if (!normalizedId) return null;
+        const liveLink = getLinks().find(item => String(item?.id) === normalizedId) || null;
+        if (liveLink) return liveLink;
+
+        const indexApi = window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
+        if (indexApi && typeof indexApi.resolveBookmarkLink === 'function') {
+            return indexApi.resolveBookmarkLink(normalizedId) || null;
+        }
+
+        return null;
     }
 
     function normalizeWorkspaceId(value) {

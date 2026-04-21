@@ -38,9 +38,33 @@ window.EveLibrary.SearchModules = window.EveLibrary.SearchModules || {};
     }
 
     function getBookmarkLinks() {
+        const indexApi = window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
+        if (indexApi && typeof indexApi.getScopedBookmarkLinkIds === 'function' && typeof indexApi.resolveBookmarkLink === 'function') {
+            const buildState = typeof indexApi.getBuildState === 'function' ? indexApi.getBuildState() : null;
+            const hasUsableSnapshot = typeof indexApi.hasUsableSnapshot === 'function'
+                ? indexApi.hasUsableSnapshot()
+                : (!buildState?.dirty && Number(buildState?.builtAt || 0) > 0);
+            if (hasUsableSnapshot) {
+                return indexApi.getScopedBookmarkLinkIds(null)
+                    .map((linkId) => indexApi.resolveBookmarkLink(linkId))
+                    .filter(Boolean);
+            }
+        }
         if (window.eveState?.links) return window.eveState.links;
         if (typeof links !== 'undefined') return links;
         return [];
+    }
+
+    function getBookmarkLinkById(linkId) {
+        const normalizedId = String(linkId || '').trim();
+        if (!normalizedId) return null;
+        const indexApi = window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
+        if (indexApi && typeof indexApi.resolveBookmarkLink === 'function') {
+            const resolved = indexApi.resolveBookmarkLink(normalizedId);
+            if (resolved) return resolved;
+        }
+        const scopedLinks = getBookmarkLinks();
+        return scopedLinks.find((link) => String(link?.id || '').trim() === normalizedId) || null;
     }
 
     function getScopedConnections(categoryName, workspaceId, entryId) {
@@ -168,19 +192,11 @@ window.EveLibrary.SearchModules = window.EveLibrary.SearchModules || {};
         const entryId = String(entry?.id || '').trim();
         if (!entryId) return false;
 
-        const scopedLinks = getBookmarkLinks();
-        const linkMap = new Map();
-        (Array.isArray(scopedLinks) ? scopedLinks : []).forEach((link) => {
-            const linkId = String(link?.id || '').trim();
-            if (!linkId) return;
-            linkMap.set(linkId, link);
-        });
-
         const connections = getScopedConnections(categoryName, selection.workspaceId, entryId);
         if (!connections.length) return false;
 
         return connections.some((conn) => {
-            const link = linkMap.get(String(conn?.linkId || '').trim());
+            const link = getBookmarkLinkById(conn?.linkId);
             if (!link) return false;
             if (String(link?.workspace || '').trim() !== String(selection.workspaceId || '').trim()) return false;
             if (String(link?.category || 'Unsorted').trim() !== String(categoryName || 'Unsorted').trim()) return false;
@@ -203,6 +219,7 @@ window.EveLibrary.SearchModules = window.EveLibrary.SearchModules || {};
         isEntryVisibleForDataType,
         getTypeScopedEntries,
         getFolderScopedEntries,
+        getBookmarkLinkById,
         resolveFolderSelection,
         buildFolderIndexes,
         collectDescendantFolderIds,
