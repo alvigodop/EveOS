@@ -154,9 +154,12 @@
 
     async function captureSnapshot() {
         const timestamp = Date.now();
+        const liveLinks = typeof window.getLiveLinks === 'function'
+            ? window.getLiveLinks()
+            : (window.links || []);
         let state = {
             timestamp: timestamp,
-            links: window.links || [],
+            links: liveLinks,
             config: window.config || {},
             eveState: window.eveState || {}
         };

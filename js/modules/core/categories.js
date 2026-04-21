@@ -8,6 +8,15 @@ function getCategoryLiveLinks() {
     return [];
 }
 
+function getCategoryStructureSummary() {
+    const indexApi = window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
+    if (!indexApi || typeof indexApi.getStructureSummary !== 'function') return null;
+    if (typeof indexApi.hasUsableSnapshot === 'function' && !indexApi.hasUsableSnapshot()) return null;
+    const buildState = typeof indexApi.getBuildState === 'function' ? indexApi.getBuildState() : null;
+    if (typeof indexApi.hasUsableSnapshot !== 'function' && Number(buildState?.builtAt || 0) <= 0) return null;
+    return indexApi.getStructureSummary();
+}
+
 function moveCategory(cat, direction, workspaceId) {
     workspaceId = String(workspaceId || config.activeWorkspace || 'main').trim() || 'main';
     if (window.EveCategoryOrder?.moveCategory) {
@@ -18,7 +27,15 @@ function moveCategory(cat, direction, workspaceId) {
         return;
     }
     const visibleLinks = getCategoryLiveLinks().filter(l => l.workspace === workspaceId);
-    let categories = [...new Set(visibleLinks.map(l => l.category || "Unsorted"))];
+    const summary = getCategoryStructureSummary();
+    let categories = summary?.cards
+        ? Object.keys(summary.cards)
+            .filter(key => String(key || '').indexOf(workspaceId + '::') === 0)
+            .map(key => String(key).slice((workspaceId + '::').length).trim() || 'Unsorted')
+        : [];
+    if (!categories.length) {
+        categories = [...new Set(visibleLinks.map(l => l.category || "Unsorted"))];
+    }
     if (!config.categoryOrder || config.categoryOrder.length === 0) config.categoryOrder = categories.sort();
     categories.forEach(c => { if (!config.categoryOrder.includes(c)) config.categoryOrder.push(c); });
     const idx = config.categoryOrder.indexOf(cat);

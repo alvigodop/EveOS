@@ -291,7 +291,9 @@ window.EveSemanticDrift = window.EveSemanticDrift || {};
         engineScheduled = true;
 
         setTimeout(() => {
-            const allLinks = Array.isArray(window.eveState?.links) ? window.eveState.links : [];
+            const allLinks = typeof window.getLiveLinks === 'function'
+                ? window.getLiveLinks()
+                : (Array.isArray(window.eveState?.links) ? window.eveState.links : []);
             runBackgroundScan(allLinks).finally(() => {
                 engineScheduled = false;
             });
@@ -312,7 +314,9 @@ window.EveSemanticDrift = window.EveSemanticDrift || {};
         } catch (e) {
             // ignore storage restrictions here; scan can still proceed in-memory
         }
-        const allLinks = Array.isArray(window.eveState?.links) ? window.eveState.links : [];
+        const allLinks = typeof window.getLiveLinks === 'function'
+            ? window.getLiveLinks()
+            : (Array.isArray(window.eveState?.links) ? window.eveState.links : []);
         runBackgroundScan(allLinks, { forceRefresh: true });
         if (typeof showToast === 'function') showToast('Semantic Drift Scan restarting...', 'info');
     };

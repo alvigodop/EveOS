@@ -345,7 +345,9 @@
         setTimeout(async function () {
             await loadDiskCache();
 
-            const allLinks = window.eveState?.links || (typeof links !== 'undefined' ? links : []);
+            const allLinks = typeof window.getLiveLinks === 'function'
+                ? window.getLiveLinks()
+                : (window.eveState?.links || (typeof links !== 'undefined' ? links : []));
             if (!Array.isArray(allLinks)) return;
 
             // Collect unique domains that need caching

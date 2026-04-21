@@ -274,7 +274,7 @@ window.EveBookmarkIdentifiers = window.EveBookmarkIdentifiers || {};
     }
 
     function persistConfigAndRefresh() {
-        if (typeof saveConfig === 'function') saveConfig();
+        if (typeof saveConfig === 'function') saveConfig({ immediate: true });
         renderSettingsManager();
         rerenderActiveModalEditor();
         if (typeof renderDashboard === 'function') renderDashboard();
@@ -352,8 +352,8 @@ window.EveBookmarkIdentifiers = window.EveBookmarkIdentifiers || {};
             else delete link.identifiers;
         });
 
-        if (typeof saveData === 'function') saveData({ skipSuggestions: true });
-        if (typeof saveConfig === 'function') saveConfig();
+        if (typeof saveData === 'function') saveData({ skipSuggestions: true, immediate: true });
+        if (typeof saveConfig === 'function') saveConfig({ immediate: true });
         clearSettingsForm();
         renderSettingsManager();
         rerenderActiveModalEditor();
@@ -389,7 +389,7 @@ window.EveBookmarkIdentifiers = window.EveBookmarkIdentifiers || {};
         cfg.bookmarkIdentifiers = [...current, normalized];
         
         // Persist only the config (no dashboard re-render)
-        if (typeof saveConfig === 'function') saveConfig();
+        if (typeof saveConfig === 'function') saveConfig({ immediate: true });
         renderSettingsManager();
         
         // Add new ID to selection and re-render the specific editor container

@@ -124,7 +124,9 @@ window.EveTrueValue = (function () {
     }
 
     function getCategoryLinks(wsId, category) {
-        var allLinks = (window.eveState && window.eveState.links) || (typeof links !== 'undefined' ? links : []);
+        var allLinks = typeof window.getLiveLinks === 'function'
+            ? window.getLiveLinks()
+            : ((window.eveState && window.eveState.links) || (typeof links !== 'undefined' ? links : []));
         var targetWs = String(wsId || 'main').trim();
         var targetCat = String(category || 'Unsorted').trim();
         return (Array.isArray(allLinks) ? allLinks : []).filter(function (link) {

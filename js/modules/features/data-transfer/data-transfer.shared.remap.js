@@ -288,7 +288,9 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         const name = String(baseName || 'Restored Card').trim() || 'Restored Card';
         const order = window.EveCategoryOrder?.getOrder?.(wsId) || [];
         if (order.length === 0) {
-            const links = window.links || window.eveState?.links || [];
+            const links = typeof window.getLiveLinks === 'function'
+                ? window.getLiveLinks()
+                : (window.links || window.eveState?.links || []);
             links.forEach((link) => {
                 if (String(link.workspace) === wsId && link.category && !order.includes(link.category)) {
                     order.push(link.category);

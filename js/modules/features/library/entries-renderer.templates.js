@@ -27,7 +27,9 @@ window.EveLibrary.Modules = window.EveLibrary.Modules || {};
                 const resolved = datapackIndex.resolveBookmarkLink(conn.linkId);
                 if (resolved) return resolved;
             }
-            const linksList = window.eveState?.links || (typeof links !== 'undefined' ? links : []);
+            const linksList = typeof window.getLiveLinks === 'function'
+                ? window.getLiveLinks()
+                : (window.eveState?.links || (typeof links !== 'undefined' ? links : []));
             return Array.isArray(linksList)
                 ? linksList.find(l => String(l?.id) === String(conn.linkId)) || null
                 : null;

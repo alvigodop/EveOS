@@ -26,6 +26,7 @@ window.EveDataStore.CaptureModules = window.EveDataStore.CaptureModules || {};
         }
 
         function getLinks() {
+            if (typeof window.getLiveLinks === 'function') return window.getLiveLinks();
             return window.eveState?.links || window.links || [];
         }
 
