@@ -38,6 +38,16 @@ window.modalTemplate += `
             <input type="file" id="bulkFileInput" multiple accept=".txt" style="position:absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer;">
         </div>
 
+        <div id="bulkSmartExtractOptions" style="display:none; margin-top:10px; padding:10px 12px; border:1px solid rgba(255,255,255,0.08); border-radius:10px; background:rgba(255,255,255,0.03);">
+            <label style="display:flex; align-items:flex-start; gap:10px; cursor:pointer;">
+                <input type="checkbox" id="bulkSmartExtractCardPerFile" style="margin-top:3px;">
+                <div style="display:flex; flex-direction:column; gap:3px;">
+                    <span style="font-size:0.86rem; font-weight:600;">Create Card Per File</span>
+                    <span style="font-size:0.76rem; opacity:0.72;">Each uploaded .txt file becomes its own card using the file title, and bookmarks inside that file stay grouped there.</span>
+                </div>
+            </label>
+        </div>
+
         <div id="bulkFolderDropZone" style="display:none; min-height:150px; background:#111; border:2px dashed #444; border-radius:6px; flex-direction:column; align-items:center; justify-content:center; color:#aaa; cursor:pointer; position:relative; text-align:center; padding: 20px; transition: border-color 0.2s, background-color 0.2s;">
             <div style="font-size:2.5rem; margin-bottom:10px; pointer-events:none;">📁</div>
             <div id="bulkFolderDropText" style="pointer-events:none; font-size:0.95rem;">Click to select a folder</div>

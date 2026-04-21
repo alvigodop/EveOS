@@ -4,6 +4,8 @@
     display: flex;
     flex-direction: column;
     align-items: center;
+    box-sizing: border-box;
+    max-width: 100%;
 }
 
 .ws-node-wrapper[style*="--ws-depth"] {
@@ -43,7 +45,8 @@
 
 /* --- Sub-Tab Expanded Visual --- */
 #sidebar:hover .ws-sub-item {
-    width: 150px;
+    width: var(--ws-expanded-row-width);
+    max-width: var(--ws-expanded-row-width);
     height: 32px;
     font-size: 0.82rem;
     border-radius: 8px;
@@ -235,6 +238,8 @@ html[data-native-scheme="light"] #sidebar:hover .ws-group-member-item .ws-label 
     flex-direction: column;
     align-items: center;
     gap: 15px;
+    box-sizing: border-box;
+    max-width: 100%;
 }
 
 .ws-top-order-block {
@@ -243,6 +248,8 @@ html[data-native-scheme="light"] #sidebar:hover .ws-group-member-item .ws-label 
     flex-direction: column;
     align-items: center;
     gap: 0;
+    box-sizing: border-box;
+    max-width: 100%;
 }
 
 .ws-top-order-block--tail {

@@ -116,6 +116,7 @@ window.EveBulkImport = window.EveBulkImport || {};
 
         const fileInput = document.getElementById('bulkFileInput');
         const fileDropZone = document.getElementById('bulkFileDropZone');
+        const smartExtractModeToggle = document.getElementById('bulkSmartExtractCardPerFile');
         if (fileInput && fileDropZone) {
             fileInput.addEventListener('change', api.updateBulkModeUi);
             fileInput.addEventListener('dragenter', () => {
@@ -132,6 +133,9 @@ window.EveBulkImport = window.EveBulkImport || {};
                 fileDropZone.style.backgroundColor = '#111';
                 setTimeout(api.updateBulkModeUi, 50);
             });
+        }
+        if (smartExtractModeToggle) {
+            smartExtractModeToggle.addEventListener('change', api.updateBulkModeUi);
         }
 
         const folderInput = document.getElementById('bulkFolderInput');

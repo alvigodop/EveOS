@@ -105,6 +105,38 @@
         return previewBtn;
     }
 
+    function ensureSidebarScaffold(sb) {
+        var contentHost = sb.querySelector('.ws-sidebar-content');
+        if (!contentHost) {
+            contentHost = document.createElement('div');
+            contentHost.className = 'ws-sidebar-content';
+            sb.appendChild(contentHost);
+        }
+
+        var footerHost = sb.querySelector('.ws-sidebar-footer');
+        if (!footerHost) {
+            footerHost = document.createElement('div');
+            footerHost.className = 'ws-sidebar-footer';
+            sb.appendChild(footerHost);
+        } else if (footerHost.parentNode !== sb) {
+            sb.appendChild(footerHost);
+        }
+
+        var previewBtn = footerHost.querySelector('.ws-hover-reveal');
+        if (!previewBtn) {
+            previewBtn = buildHoverRevealButton();
+            footerHost.appendChild(previewBtn);
+        }
+
+        if (typeof rt.syncHoverRevealUiState === 'function') rt.syncHoverRevealUiState();
+
+        return {
+            contentHost: contentHost,
+            footerHost: footerHost,
+            previewBtn: previewBtn
+        };
+    }
+
     window.toggleSidebarVisibility = function () {
         config.sidebarHidden = !config.sidebarHidden;
         saveConfig();
@@ -117,18 +149,19 @@
         var sb = document.getElementById('sidebar');
         if (!sb) return;
 
+        var scaffold = ensureSidebarScaffold(sb);
         var ctx = rt.createRenderContext(sb);
 
-        sb.innerHTML = '';
+        scaffold.contentHost.innerHTML = '';
         sb.classList.toggle('ultra-collapsed', !!config.ultraCollapseSidebar);
         sb.classList.toggle('hidden-completely', !!config.sidebarHidden);
         sb.classList.toggle('ws-hover-reveal-active', !!(rt.isHoverRevealActive && rt.isHoverRevealActive()));
 
-        sb.appendChild(buildUnidexButton());
+        scaffold.contentHost.appendChild(buildUnidexButton());
 
         var divider = document.createElement('div');
         divider.className = 'ws-divider';
-        sb.appendChild(divider);
+        scaffold.contentHost.appendChild(divider);
 
         ctx.syncFocusedGroupState();
 
@@ -160,9 +193,13 @@
             }
         };
 
+        var originalHost = ctx.sb;
+        ctx.sb = scaffold.contentHost;
         rt.renderRootTree(ctx);
-        sb.appendChild(buildAddButton(ctx));
-        sb.appendChild(buildHoverRevealButton());
+        ctx.sb.appendChild(buildAddButton(ctx));
+        ctx.sb = originalHost;
+
+        if (typeof rt.syncHoverRevealUiState === 'function') rt.syncHoverRevealUiState();
     };
 
     rt.ready = true;

@@ -2,12 +2,78 @@ window.EveBulkImport = window.EveBulkImport || {};
 
 (function () {
     const api = window.EveBulkImport._api = window.EveBulkImport._api || {};
-    const { getBulkMode, runBatched, processStructuredFile, maybeNormalizeBulkUrlBlob, looksLikeStructuredFileContent } = api;
+    const {
+        getBulkMode,
+        getSmartExtractImportMode,
+        runBatched,
+        processStructuredFile,
+        maybeNormalizeBulkUrlBlob,
+        looksLikeStructuredFileContent,
+        normalizeImportedFileTitle
+    } = api;
 
     function isUnlabeledProgressToken(value) {
         const text = String(value || '').trim();
         if (!text) return false;
         return /^(?:[\[\(\{]\s*)?\d+(?:\.\d+)?(?:\s*[\]\)\}])?$/.test(text);
+    }
+
+    function pushBulkLink(categoryName, title, rawUrl) {
+        links.push({
+            id: Date.now() + Math.random(),
+            title: title,
+            url: normalizeUrl(rawUrl),
+            category: categoryName,
+            workspace: config.activeWorkspace,
+            icon: '',
+            done: false
+        });
+    }
+
+    function processSmartTextBlock(textToProcess, targetCategory) {
+        const lines = String(textToProcess || '').split('\n');
+        let addedCount = 0;
+
+        for (let i = 0; i < lines.length; i++) {
+            const raw = lines[i].trim();
+            if (!raw) continue;
+
+            let parsedUrl = '';
+            let parsedTitle = '';
+
+            const urlMatch = raw.match(/(https?:\/\/[^\s]+)/i);
+            if (urlMatch) {
+                parsedUrl = urlMatch[1];
+                parsedTitle = raw.replace(parsedUrl, '').trim();
+                parsedTitle = parsedTitle.replace(/^[\-\|:;\s]+|[\-\|:;\s]+$/g, '').trim();
+            }
+
+            if (!parsedUrl) {
+                if (i + 1 < lines.length) {
+                    const nextRaw = lines[i + 1].trim();
+                    if (nextRaw) {
+                        const nextUrlMatch = nextRaw.match(/^(https?:\/\/[^\s]+)$/i);
+                        if (nextUrlMatch) {
+                            parsedUrl = nextUrlMatch[1];
+                            parsedTitle = raw;
+                            i++;
+                        }
+                    }
+                }
+            }
+
+            if (!parsedUrl) {
+                parsedUrl = `https://www.google.com/search?q=${encodeURIComponent(raw)}`;
+                parsedTitle = raw;
+            } else if (!parsedTitle) {
+                parsedTitle = parsedUrl;
+            }
+
+            pushBulkLink(targetCategory, parsedTitle, parsedUrl);
+            addedCount++;
+        }
+
+        return addedCount;
     }
 
 async function processBulk() {
@@ -240,11 +306,20 @@ async function processBulk() {
 
         let deferredLibraryPromotions = 0;
         const selectedFiles = Array.from(fileInput.files || []);
+        const smartExtractImportMode = typeof getSmartExtractImportMode === 'function'
+            ? getSmartExtractImportMode()
+            : 'single-card';
         const fallbackTexts = new Array(selectedFiles.length);
+        const cardNamesUsed = new Set();
 
         await runBatched(selectedFiles, async (file, index) => {
             try {
                 const content = maybeNormalizeBulkUrlBlob(await file.text());
+                const fileCategory = smartExtractImportMode === 'card-per-file'
+                    ? (typeof normalizeImportedFileTitle === 'function'
+                        ? (normalizeImportedFileTitle(file.name) || targetCategory)
+                        : (String(file.name || '').replace(/\.txt$/i, '').trim() || targetCategory))
+                    : targetCategory;
                 // Check if the file contains structured library data fields, shorthands, or if the filename specifies a media entry
                 const isStructured = typeof looksLikeStructuredFileContent === 'function'
                     ? looksLikeStructuredFileContent(content, file.name)
@@ -252,12 +327,16 @@ async function processBulk() {
                 const isMediaFile = file.name.match(/^(Was\s+|[\[\{\(]\d+[\]\}\)])/i);
 
                 if (isStructured || isMediaFile) {
-                    const promoted = processStructuredFile(content, file.name, targetCategory, '', {
+                    const promoted = processStructuredFile(content, file.name, fileCategory, '', {
                         deferLibrarySave: true,
                         silent: true
                     });
                     if (promoted) deferredLibraryPromotions++;
+                    cardNamesUsed.add(fileCategory);
                     count++;
+                } else if (smartExtractImportMode === 'card-per-file') {
+                    count += processSmartTextBlock(content, fileCategory);
+                    cardNamesUsed.add(fileCategory);
                 } else {
                     // Not structured, append to generic text processor
                     fallbackTexts[index] = content;
@@ -266,13 +345,27 @@ async function processBulk() {
                 console.error("Failed to read file", file.name, e);
             }
         });
-        textToProcess += fallbackTexts.filter(Boolean).join("\n");
+        if (smartExtractImportMode === 'card-per-file') {
+            textToProcess = '';
+        } else {
+            textToProcess += fallbackTexts.filter(Boolean).join("\n");
+        }
         if (fileInput) fileInput.value = '';
         if (deferredLibraryPromotions > 0 && window.EveLibrary?.Storage?.saveLibrary) {
             window.EveLibrary.Storage.saveLibrary();
         }
         if (deferredLibraryPromotions > 0 && window.EveLibrary?.ConnectionsCore?.saveConnections) {
             window.EveLibrary.ConnectionsCore.saveConnections();
+        }
+        if (smartExtractImportMode === 'card-per-file') {
+            if (count === 0) {
+                return showToast("No entries found", "warning");
+            }
+            saveData();
+            closeModals();
+            const cardCount = cardNamesUsed.size;
+            const cardLabel = cardCount === 1 ? 'card' : 'cards';
+            return showToast(`Imported ${count} items into ${cardCount} ${cardLabel}.`, "success");
         }
     } else {
         textToProcess = document.getElementById('bulkText').value;
@@ -281,13 +374,17 @@ async function processBulk() {
     if (!textToProcess && count === 0) return showToast("No entries found", "warning");
 
     if (textToProcess) {
-        const lines = textToProcess.split('\n');
-
-        // Auto-detect mode if file content is loaded without structured key-value pairs
         let effectiveMode = mode;
         if (mode === 'file') {
             effectiveMode = 'smart';
         }
+
+        if (effectiveMode === 'smart') {
+            count += processSmartTextBlock(textToProcess, targetCategory);
+            textToProcess = '';
+        }
+
+        const lines = textToProcess.split('\n');
 
         for (let i = 0; i < lines.length; i++) {
             const raw = lines[i].trim();
@@ -311,48 +408,6 @@ async function processBulk() {
                     id: Date.now() + Math.random(),
                     title: url,
                     url: normalizeUrl(url),
-                    category: targetCategory,
-                    workspace: config.activeWorkspace,
-                    icon: '',
-                    done: false
-                });
-            } else { // smart mode
-                let parsedUrl = '';
-                let parsedTitle = '';
-
-                const urlMatch = raw.match(/(https?:\/\/[^\s]+)/i);
-                if (urlMatch) {
-                    parsedUrl = urlMatch[1];
-                    parsedTitle = raw.replace(parsedUrl, '').trim();
-                    parsedTitle = parsedTitle.replace(/^[\-\|:;\s]+|[\-\|:;\s]+$/g, '').trim();
-                }
-
-                if (!parsedUrl) {
-                    // Check if the next line is purely a URL, so we can pair them up
-                    if (i + 1 < lines.length) {
-                        const nextRaw = lines[i + 1].trim();
-                        if (nextRaw) {
-                            const nextUrlMatch = nextRaw.match(/^(https?:\/\/[^\s]+)$/i);
-                            if (nextUrlMatch) {
-                                parsedUrl = nextUrlMatch[1];
-                                parsedTitle = raw;
-                                i++; // Skip parsing the next line as a separate bookmark
-                            }
-                        }
-                    }
-                }
-
-                if (!parsedUrl) {
-                    parsedUrl = `https://www.google.com/search?q=${encodeURIComponent(raw)}`;
-                    parsedTitle = raw;
-                } else if (!parsedTitle) {
-                    parsedTitle = parsedUrl;
-                }
-
-                links.push({
-                    id: Date.now() + Math.random(),
-                    title: parsedTitle,
-                    url: normalizeUrl(parsedUrl),
                     category: targetCategory,
                     workspace: config.activeWorkspace,
                     icon: '',

@@ -22,11 +22,16 @@ window.EveBulkImport = window.EveBulkImport || {};
         return document.getElementById('bulkModeName')?.checked ? 'name' : 'url';
     }
 
+    function getSmartExtractImportMode() {
+        return document.getElementById('bulkSmartExtractCardPerFile')?.checked ? 'card-per-file' : 'single-card';
+    }
+
     function updateBulkModeUi() {
         const mode = getBulkMode();
         const text = document.getElementById('bulkText');
         const fileDropZone = document.getElementById('bulkFileDropZone');
         const folderDropZone = document.getElementById('bulkFolderDropZone');
+        const smartExtractOptions = document.getElementById('bulkSmartExtractOptions');
         const hint = document.getElementById('bulkModeHint');
         const autoLineBreakBtn = document.getElementById('bulkAutoLineBreakBtn');
         const textToolsHint = document.getElementById('bulkTextToolsHint');
@@ -38,6 +43,7 @@ window.EveBulkImport = window.EveBulkImport || {};
 
         if (fileDropZone) fileDropZone.style.display = 'none';
         if (folderDropZone) folderDropZone.style.display = 'none';
+        if (smartExtractOptions) smartExtractOptions.style.display = 'none';
         if (autoLineBreakBtn) autoLineBreakBtn.style.display = 'none';
         if (textToolsHint) textToolsHint.style.display = 'none';
         if (categoryWrapper) categoryWrapper.style.display = 'block';
@@ -133,12 +139,14 @@ window.EveBulkImport = window.EveBulkImport || {};
 
         if (mode === 'file') {
             text.style.display = 'none';
+            if (smartExtractOptions) smartExtractOptions.style.display = 'block';
+            const smartExtractMode = getSmartExtractImportMode();
             if (fileDropZone) {
                 fileDropZone.style.display = 'flex';
                 const fileInput = document.getElementById('bulkFileInput');
                 const dropText = document.getElementById('bulkFileDropText');
                 if (fileInput && fileInput.files && fileInput.files.length > 0) {
-                    if (typeof api.maybeAutofillSmartExtractCategory === 'function') {
+                    if (smartExtractMode !== 'card-per-file' && typeof api.maybeAutofillSmartExtractCategory === 'function') {
                         api.maybeAutofillSmartExtractCategory(fileInput.files);
                     }
                     dropText.textContent = `${fileInput.files.length} file(s) selected`;
@@ -150,7 +158,12 @@ window.EveBulkImport = window.EveBulkImport || {};
                     fileDropZone.style.color = '#aaa';
                 }
             }
-            hint.textContent = 'Smart Extract mode: Upload .txt files. It auto-detects URLs, Names, or Library data.';
+            if (categoryWrapper) {
+                categoryWrapper.style.display = smartExtractMode === 'card-per-file' ? 'none' : 'block';
+            }
+            hint.textContent = smartExtractMode === 'card-per-file'
+                ? 'Smart Extract mode: Upload .txt files. Each file becomes its own card using the file title, and bookmarks inside stay grouped there.'
+                : 'Smart Extract mode: Upload .txt files. It auto-detects URLs, Names, or Library data.';
             return;
         }
 
@@ -305,6 +318,7 @@ window.EveBulkImport = window.EveBulkImport || {};
         BULK_URL_MATCH_REGEX,
         runBatched,
         getBulkMode,
+        getSmartExtractImportMode,
         updateBulkModeUi,
         splitBulkUrlsToLines,
         maybeNormalizeBulkUrlBlob,

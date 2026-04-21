@@ -11,8 +11,20 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         hideTimer: 0
     });
 
+    function syncHoverRevealUiState() {
+        var sb = document.getElementById('sidebar');
+        if (!sb) return;
+
+        var isActive = !!previewState.hoverRevealActive;
+        sb.classList.toggle('ws-hover-reveal-active', isActive);
+
+        var previewButton = sb.querySelector('.ws-hover-reveal');
+        if (previewButton) previewButton.classList.toggle('active', isActive);
+    }
+
     function setHoverRevealActive(nextValue) {
         previewState.hoverRevealActive = !!nextValue;
+        syncHoverRevealUiState();
         return previewState.hoverRevealActive;
     }
 
@@ -297,6 +309,7 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         return ctx;
     }
 
+    rt.syncHoverRevealUiState = syncHoverRevealUiState;
     rt.setHoverRevealActive = setHoverRevealActive;
     rt.isHoverRevealActive = isHoverRevealActive;
     rt.createRenderContext = createRenderContext;
