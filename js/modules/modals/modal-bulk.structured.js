@@ -46,6 +46,12 @@ window.EveBulkImport = window.EveBulkImport || {};
         return title;
     }
 
+    function isGenericImportFileTitle(value) {
+        const normalized = String(value || '').trim().toLowerCase();
+        if (!normalized) return true;
+        return /^(?:untitled|new text document|notes?|urls?|links?|list|data|import|imports|bookmark(?:s)?|bulk|text)$/i.test(normalized);
+    }
+
     function isStandaloneTitleCandidate(value) {
         const text = String(value || '').trim();
         if (!text) return false;
@@ -87,6 +93,52 @@ window.EveBulkImport = window.EveBulkImport || {};
         if (bareNumericLines.length > 0 && standaloneUrlLines.length === 1 && nonEmptyLines.length <= 8) return true;
 
         return false;
+    }
+
+    function looksLikeSingleEntryBulkFile(content, fileName = '') {
+        const normalizedFileTitle = normalizeImportedFileTitle(fileName);
+        const nonEmptyLines = String(content || '')
+            .split('\n')
+            .map((line) => line.trim())
+            .filter(Boolean);
+
+        if (nonEmptyLines.length === 0) return false;
+        if (!normalizedFileTitle || isGenericImportFileTitle(normalizedFileTitle)) return false;
+
+        const standaloneUrlLines = nonEmptyLines.filter(isStandaloneUrlLine);
+        if (standaloneUrlLines.length > 1) return false;
+
+        const allListLikeTitles = nonEmptyLines.length > 1
+            && standaloneUrlLines.length === 0
+            && nonEmptyLines.every((line) => {
+                if (!isStandaloneTitleCandidate(line)) return false;
+                const wordCount = String(line || '').trim().split(/\s+/).filter(Boolean).length;
+                return wordCount <= 6 && line.length <= 40 && !/[.!?]$/.test(line);
+            });
+        if (allListLikeTitles) return false;
+
+        const progressLines = nonEmptyLines.filter(isUnlabeledProgressToken);
+        if (progressLines.length > 0) return true;
+
+        const longNoteLines = nonEmptyLines.filter((line) => !looksLikeUrlValue(line) && String(line || '').trim().length >= 28);
+        if (longNoteLines.length > 0 && nonEmptyLines.length <= 12) return true;
+
+        const firstLine = nonEmptyLines[0] || '';
+        const firstMatchesFileTitle = normalizeImportedFileTitle(firstLine).toLowerCase() === normalizedFileTitle.toLowerCase();
+        const remainingLines = nonEmptyLines.slice(1);
+        const noteLikeRemainder = remainingLines.some((line) => {
+            const text = String(line || '').trim();
+            if (!text) return false;
+            if (isUnlabeledProgressToken(text)) return true;
+            if (isStandaloneUrlLine(text)) return true;
+            if (text.length >= 18) return true;
+            return /[.!?]$/.test(text) || /^[\-\*\u2022]/.test(text);
+        });
+        if (firstMatchesFileTitle && remainingLines.length > 0 && noteLikeRemainder && nonEmptyLines.length <= 10) {
+            return true;
+        }
+
+        return nonEmptyLines.length <= 3;
     }
 
 function processStructuredFile(content, fileName, targetCategory, folderId = '', options = {}) {
@@ -292,6 +344,7 @@ function processStructuredFile(content, fileName, targetCategory, folderId = '',
     Object.assign(api, {
         normalizeImportedFileTitle,
         processStructuredFile,
-        looksLikeStructuredFileContent
+        looksLikeStructuredFileContent,
+        looksLikeSingleEntryBulkFile
     });
 })();

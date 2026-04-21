@@ -9,6 +9,7 @@ window.EveBulkImport = window.EveBulkImport || {};
         processStructuredFile,
         maybeNormalizeBulkUrlBlob,
         looksLikeStructuredFileContent,
+        looksLikeSingleEntryBulkFile,
         normalizeImportedFileTitle
     } = api;
 
@@ -76,6 +77,38 @@ window.EveBulkImport = window.EveBulkImport || {};
         return addedCount;
     }
 
+    function persistBulkLibraryState(options = {}) {
+        const shouldSaveLibrary = !!options.saveLibrary;
+        const shouldSaveConnections = !!options.saveConnections;
+        if (!shouldSaveLibrary && !shouldSaveConnections) return true;
+
+        let succeeded = true;
+
+        if (shouldSaveLibrary && window.EveLibrary?.Storage?.saveLibrary) {
+            try {
+                window.EveLibrary.Storage.saveLibrary();
+            } catch (error) {
+                succeeded = false;
+                console.error('Bulk import: failed to persist library state', error);
+            }
+        }
+
+        if (shouldSaveConnections && window.EveLibrary?.ConnectionsCore?.saveConnections) {
+            try {
+                window.EveLibrary.ConnectionsCore.saveConnections();
+            } catch (error) {
+                succeeded = false;
+                console.error('Bulk import: failed to persist library connections', error);
+            }
+        }
+
+        if (!succeeded) {
+            showToast('Imported items, but some library links could not be fully persisted.', 'warning');
+        }
+
+        return succeeded;
+    }
+
 async function processBulk() {
     const catInput = document.getElementById('bulkCategory');
     const targetCategory = (catInput && catInput.value.trim()) ? catInput.value.trim() : "Unsorted";
@@ -83,6 +116,8 @@ async function processBulk() {
 
     let textToProcess = "";
     let count = 0;
+    let shouldPersistLibrary = false;
+    let shouldPersistConnections = false;
 
     if (mode === 'folder' || mode === 'card') {
         const files = api._accumulatedFolderFiles || [];
@@ -104,17 +139,16 @@ async function processBulk() {
         const dirPaths = new Map();
         const filesToProcess = [];
         const processedFileSignatures = new Set();
-        const sessionUrls = new Set();
         
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
+            const originalPath = file.customRelativePath || file.webkitRelativePath || file.name;
             
             // Deduplicate files natively to prevent OS drag-drop bugs providing duplicate system handles
-            const fileSig = `${file.name}-${file.size}-${file.lastModified}`;
+            const fileSig = `${originalPath}-${file.name}-${file.size}-${file.lastModified}`;
             if (processedFileSignatures.has(fileSig)) continue;
             processedFileSignatures.add(fileSig);
 
-            const originalPath = file.customRelativePath || file.webkitRelativePath || file.name;
             const parts = originalPath.split('/');
             
             let activeCategory = targetCategory;
@@ -191,9 +225,12 @@ async function processBulk() {
                 const isStructured = typeof looksLikeStructuredFileContent === 'function'
                     ? looksLikeStructuredFileContent(content, file.name)
                     : content.match(/^(Title|URL|Episode|Ep|Chapter|Ch|Type|Notes|Finished Ep|Going To Ep)[\s:-]+/mi);
+                const isSingleEntryFile = typeof looksLikeSingleEntryBulkFile === 'function'
+                    ? looksLikeSingleEntryBulkFile(content, file.name)
+                    : false;
                 const isMediaFile = file.name.match(/^(Was\s+|[\[\{\(]\d+[\]\}\)])/i);
 
-                if (isStructured || isMediaFile) {
+                if (isStructured || isMediaFile || isSingleEntryFile) {
                     const promoted = processStructuredFile(content, file.name, cardName, parentFolderId, {
                         deferLibrarySave: true,
                         silent: true
@@ -202,6 +239,7 @@ async function processBulk() {
                     count++;
                 } else {
                     // Fallback to basic link reading per line
+                    const fileUrls = new Set();
                     const lines = content.split('\n');
                     for (let i = 0; i < lines.length; i++) {
                         const raw = lines[i].trim();
@@ -254,8 +292,8 @@ async function processBulk() {
 
                         // Strictly deduplicate URLs within the same import session loop
                         const normalizedForSession = normalizeUrl(parsedUrl);
-                        if (sessionUrls.has(normalizedForSession)) continue;
-                        sessionUrls.add(normalizedForSession);
+                        if (fileUrls.has(normalizedForSession)) continue;
+                        fileUrls.add(normalizedForSession);
 
                         links.push({
                             id: Date.now() + Math.random(),
@@ -279,13 +317,13 @@ async function processBulk() {
         if (folderInput) folderInput.value = '';
         api._accumulatedFolderFiles = [];
         saveData();
-        if (deferredLibraryPromotions > 0 && window.EveLibrary?.Storage?.saveLibrary) {
-            window.EveLibrary.Storage.saveLibrary();
-        }
-        if (deferredLibraryPromotions > 0 && window.EveLibrary?.ConnectionsCore?.saveConnections) {
-            window.EveLibrary.ConnectionsCore.saveConnections();
-        }
+        shouldPersistLibrary = deferredLibraryPromotions > 0;
+        shouldPersistConnections = deferredLibraryPromotions > 0;
         closeModals();
+        persistBulkLibraryState({
+            saveLibrary: shouldPersistLibrary,
+            saveConnections: shouldPersistConnections
+        });
         if (window.EveBookmarkFolders?.refreshEditorFolderSelect) {
             window.EveBookmarkFolders.refreshEditorFolderSelect();
         }
@@ -331,9 +369,12 @@ async function processBulk() {
                 const isStructured = typeof looksLikeStructuredFileContent === 'function'
                     ? looksLikeStructuredFileContent(content, file.name)
                     : content.match(/^(Title|URL|Episode|Ep|Chapter|Ch|Type|Notes|Finished Ep|Going To Ep)[\s:-]+/mi);
+                const isSingleEntryFile = typeof looksLikeSingleEntryBulkFile === 'function'
+                    ? looksLikeSingleEntryBulkFile(content, file.name)
+                    : false;
                 const isMediaFile = file.name.match(/^(Was\s+|[\[\{\(]\d+[\]\}\)])/i);
 
-                if (isStructured || isMediaFile) {
+                if (isStructured || isMediaFile || isSingleEntryFile) {
                     const promoted = processStructuredFile(content, file.name, fileCategory, '', {
                         deferLibrarySave: true,
                         silent: true
@@ -358,18 +399,18 @@ async function processBulk() {
             textToProcess += fallbackTexts.filter(Boolean).join("\n");
         }
         if (fileInput) fileInput.value = '';
-        if (deferredLibraryPromotions > 0 && window.EveLibrary?.Storage?.saveLibrary) {
-            window.EveLibrary.Storage.saveLibrary();
-        }
-        if (deferredLibraryPromotions > 0 && window.EveLibrary?.ConnectionsCore?.saveConnections) {
-            window.EveLibrary.ConnectionsCore.saveConnections();
-        }
+        shouldPersistLibrary = deferredLibraryPromotions > 0;
+        shouldPersistConnections = deferredLibraryPromotions > 0;
         if (smartExtractImportMode === 'card-per-file') {
             if (count === 0) {
                 return showToast("No entries found", "warning");
             }
             saveData();
             closeModals();
+            persistBulkLibraryState({
+                saveLibrary: shouldPersistLibrary,
+                saveConnections: shouldPersistConnections
+            });
             const cardCount = cardNamesUsed.size;
             const cardLabel = cardCount === 1 ? 'card' : 'cards';
             return showToast(`Imported ${count} items into ${cardCount} ${cardLabel}.`, "success");
@@ -426,10 +467,11 @@ async function processBulk() {
     }
 
     saveData();
-    if (window.EveLibrary?.Storage?.saveLibrary) {
-        window.EveLibrary.Storage.saveLibrary();
-    }
     closeModals();
+    persistBulkLibraryState({
+        saveLibrary: shouldPersistLibrary,
+        saveConnections: shouldPersistConnections
+    });
     showToast(`Imported ${count} items to "${targetCategory}"`, "success");
 }
 

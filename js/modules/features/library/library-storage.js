@@ -14,6 +14,61 @@ window.EveLibrary = window.EveLibrary || {};
 
     let backups = [];
 
+    function getCoreStorage() {
+        return window.EveCoreStorage || window.EveStorageRuntime?.coreStorage || null;
+    }
+
+    function readLegacyJson(key, fallback) {
+        try {
+            const stored = localStorage.getItem(key);
+            if (!stored) return fallback;
+            return JSON.parse(stored);
+        } catch (error) {
+            return fallback;
+        }
+    }
+
+    function persistJson(key, value, options = {}) {
+        const storage = getCoreStorage();
+        if (storage && typeof storage.saveJson === 'function') {
+            return storage.saveJson(key, value, {
+                localFallbackKey: key,
+                cleanupLocalKeys: [key],
+                ...options
+            }).catch((error) => {
+                console.error(`Failed to persist ${key}:`, error);
+                return false;
+            });
+        }
+
+        try {
+            localStorage.setItem(key, JSON.stringify(value));
+            return Promise.resolve(true);
+        } catch (error) {
+            console.error(`Failed to persist ${key}:`, error);
+            return Promise.resolve(false);
+        }
+    }
+
+    function hydrateJson(key, fallback, applyValue) {
+        const storage = getCoreStorage();
+        if (!storage || typeof storage.loadJson !== 'function') {
+            return Promise.resolve(fallback);
+        }
+
+        return storage.loadJson(key, fallback, { legacyKeys: [key] })
+            .then((value) => {
+                if (typeof applyValue === 'function') {
+                    applyValue(value);
+                }
+                return value;
+            })
+            .catch((error) => {
+                console.error(`Failed to hydrate ${key}:`, error);
+                return fallback;
+            });
+    }
+
     function migrateLibraryDataStructure(rawData) {
         if (!rawData || typeof rawData !== 'object') return {};
         const migrated = JSON.parse(JSON.stringify(rawData));
@@ -33,60 +88,67 @@ window.EveLibrary = window.EveLibrary || {};
         return migrated;
     }
 
-    function loadLibrary() {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored) {
-            try {
-                const data = migrateLibraryDataStructure(JSON.parse(stored));
-                State.setAllLibraries(data);
-            } catch (e) {
-                console.error('Failed to load library data:', e);
-            }
-        }
+    function applyLibraryData(rawData) {
+        const data = migrateLibraryDataStructure(rawData);
+        State.setAllLibraries(data);
         // Invalidate entry index after library data changes
         if (window.EveLibrary.ConnectionsCore?.invalidateEntryIndex) {
             window.EveLibrary.ConnectionsCore.invalidateEntryIndex();
         }
-        loadBackups();
+        return data;
+    }
+
+    function loadLibrary() {
+        const legacyData = readLegacyJson(STORAGE_KEY, {});
+        if (legacyData && typeof legacyData === 'object') {
+            try {
+                applyLibraryData(legacyData);
+            } catch (e) {
+                console.error('Failed to load legacy library data:', e);
+            }
+        }
+        void hydrateJson(STORAGE_KEY, legacyData, (persistedData) => {
+            if (!persistedData || typeof persistedData !== 'object') return;
+            applyLibraryData(persistedData);
+        });
+        void loadBackups();
     }
 
     function saveLibrary() {
         const data = migrateLibraryDataStructure(State.getAllLibraries());
         State.setAllLibraries(data);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
         // Invalidate entry index after library data changes
         if (window.EveLibrary.ConnectionsCore?.invalidateEntryIndex) {
             window.EveLibrary.ConnectionsCore.invalidateEntryIndex();
         }
         window.dispatchEvent(new CustomEvent('eve:state-mutated', { detail: { source: 'library-save' } }));
-        createBackup();
+        void persistJson(STORAGE_KEY, data);
+        createBackup(data);
+        return true;
     }
 
     function loadBackups() {
-        const stored = localStorage.getItem(BACKUP_KEY);
-        if (stored) {
-            try {
-                backups = JSON.parse(stored);
-            } catch (e) {
-                backups = [];
-            }
-        }
+        const legacyBackups = readLegacyJson(BACKUP_KEY, []);
+        backups = Array.isArray(legacyBackups) ? legacyBackups : [];
+        return hydrateJson(BACKUP_KEY, backups, (persistedBackups) => {
+            backups = Array.isArray(persistedBackups) ? persistedBackups : [];
+        });
     }
 
     function saveBackups() {
-        localStorage.setItem(BACKUP_KEY, JSON.stringify(backups));
+        return persistJson(BACKUP_KEY, backups);
     }
 
-    function createBackup() {
+    function createBackup(sourceData) {
         const backup = {
             timestamp: new Date().toISOString(),
-            data: JSON.stringify(State.getAllLibraries())
+            data: JSON.stringify(sourceData || State.getAllLibraries())
         };
         backups.push(backup);
         if (backups.length > maxBackups) {
             backups.shift();
         }
-        saveBackups();
+        void saveBackups();
     }
 
     function getBackups() { return backups; }

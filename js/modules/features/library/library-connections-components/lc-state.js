@@ -7,6 +7,51 @@ window.EveLibrary.ConnectionsCore = window.EveLibrary.ConnectionsCore || {
 (function () {
     const Core = window.EveLibrary.ConnectionsCore;
 
+    function getCoreStorage() {
+        return window.EveCoreStorage || window.EveStorageRuntime?.coreStorage || null;
+    }
+
+    function readLegacyConnections() {
+        try {
+            const stored = localStorage.getItem(Core.STORAGE_KEY);
+            if (!stored) return [];
+            const parsed = JSON.parse(stored);
+            return Array.isArray(parsed) ? parsed : [];
+        } catch (error) {
+            return [];
+        }
+    }
+
+    function persistConnections(nextConnections) {
+        const payload = Array.isArray(nextConnections) ? nextConnections.map(item => ({ ...item })) : [];
+        const storage = getCoreStorage();
+        if (storage && typeof storage.saveJson === 'function') {
+            return storage.saveJson(Core.STORAGE_KEY, payload, {
+                localFallbackKey: Core.STORAGE_KEY,
+                cleanupLocalKeys: [Core.STORAGE_KEY]
+            }).catch((error) => {
+                console.error('Failed to persist library connections:', error);
+                return false;
+            });
+        }
+
+        try {
+            localStorage.setItem(Core.STORAGE_KEY, JSON.stringify(payload));
+            return Promise.resolve(true);
+        } catch (error) {
+            console.error('Failed to persist library connections:', error);
+            return Promise.resolve(false);
+        }
+    }
+
+    function applyConnections(nextConnections) {
+        invalidateConnectionIndex();
+        Core.connections = Array.isArray(nextConnections) ? nextConnections : [];
+        Core.repairScopedLibraryEntries?.();
+        window.EveLibrary.Connections = Core.connections.map(item => ({ ...item }));
+        return Core.connections;
+    }
+
     // Lazy Map<linkId, connection> index — O(1) lookups instead of O(n) scans
     let _connectionsByLinkId = null;
 
@@ -45,8 +90,9 @@ window.EveLibrary.ConnectionsCore = window.EveLibrary.ConnectionsCore || {
     function saveConnections() {
         invalidateConnectionIndex();
         window.EveLibrary.Connections = Core.connections.map(item => ({ ...item }));
-        localStorage.setItem(Core.STORAGE_KEY, JSON.stringify(window.EveLibrary.Connections));
+        void persistConnections(window.EveLibrary.Connections);
         window.dispatchEvent(new CustomEvent('eve:state-mutated', { detail: { source: 'library-connections-save' } }));
+        return true;
     }
 
     function emitLinkedEntryUpdated(linkId, categoryName, entry, workspaceId) {
@@ -62,27 +108,23 @@ window.EveLibrary.ConnectionsCore = window.EveLibrary.ConnectionsCore || {
     }
 
     function loadConnections() {
-        invalidateConnectionIndex();
-        const stored = localStorage.getItem(Core.STORAGE_KEY);
-        if (!stored) {
-            Core.connections = [];
-            window.EveLibrary.Connections = [];
-            return;
+        const legacyConnections = readLegacyConnections();
+        applyConnections(legacyConnections);
+
+        const storage = getCoreStorage();
+        if (storage && typeof storage.loadJson === 'function') {
+            void storage.loadJson(Core.STORAGE_KEY, legacyConnections, { legacyKeys: [Core.STORAGE_KEY] })
+                .then((persistedConnections) => {
+                    applyConnections(Array.isArray(persistedConnections) ? persistedConnections : []);
+                })
+                .catch((error) => {
+                    console.error('Failed to hydrate library connections:', error);
+                });
         }
-        try {
-            const parsed = JSON.parse(stored);
-            Core.connections = Array.isArray(parsed) ? parsed : [];
-        } catch (e) {
-            Core.connections = [];
-        }
-        Core.repairScopedLibraryEntries?.();
-        window.EveLibrary.Connections = Core.connections.map(item => ({ ...item }));
     }
 
     function setAll(nextConnections) {
-        invalidateConnectionIndex();
-        Core.connections = Array.isArray(nextConnections) ? nextConnections.map(item => ({ ...item })) : [];
-        Core.repairScopedLibraryEntries?.();
+        applyConnections(Array.isArray(nextConnections) ? nextConnections.map(item => ({ ...item })) : []);
         saveConnections();
     }
 
