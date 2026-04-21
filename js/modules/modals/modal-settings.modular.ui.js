@@ -3,8 +3,10 @@
 let modularLayerPathPreviewRequestId = 0;
 
 function getAllLinksForSettings() {
-    if (window.eveState?.links) return window.eveState.links;
-    if (typeof links !== 'undefined') return links;
+    if (typeof window.getLiveLinks === 'function') return window.getLiveLinks();
+    if (Array.isArray(window.eveState?.links)) return window.eveState.links;
+    if (Array.isArray(window.links)) return window.links;
+    if (typeof links !== 'undefined' && Array.isArray(links)) return links;
     return [];
 }
 

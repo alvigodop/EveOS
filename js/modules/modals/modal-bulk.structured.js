@@ -47,7 +47,12 @@ window.EveBulkImport = window.EveBulkImport || {};
     }
 
     function isGenericImportFileTitle(value) {
-        const normalized = String(value || '').trim().toLowerCase();
+        const normalized = String(value || '')
+            .trim()
+            .toLowerCase()
+            // Treat copied generic files like "bookmark (2)" the same as "bookmark"
+            .replace(/\s*\(\d+\)\s*$/i, '')
+            .trim();
         if (!normalized) return true;
         return /^(?:untitled|new text document|notes?|urls?|links?|list|data|import|imports|bookmark(?:s)?|bulk|text)$/i.test(normalized);
     }
