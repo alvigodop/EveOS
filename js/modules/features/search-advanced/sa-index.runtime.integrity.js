@@ -71,14 +71,14 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             reasons.push('Current card focus is "' + focus + '".');
         }
 
-        if (record?.type === 'bookmark' || record?.type === 'card' || record?.type === 'library') {
+        if (record?.type === 'bookmark' || record?.type === 'card' || record?.type === 'folder' || record?.type === 'library') {
             if (isCollapsedCategory(cfg, text(record.workspaceId, 'main'), text(record.categoryName, 'Unsorted'), 'collapsed')) {
                 stateLabel = stateLabel === 'broken' ? stateLabel : 'hidden';
                 reasons.push('Card is collapsed.');
             }
         }
 
-        if (record?.type === 'bookmark') {
+        if (record?.type === 'bookmark' || record?.type === 'folder') {
             if (isCollapsedCategory(cfg, text(record.workspaceId, 'main'), text(record.categoryName, 'Unsorted'), 'linksCollapsed')) {
                 stateLabel = stateLabel === 'broken' ? stateLabel : 'hidden';
                 reasons.push('Bookmark list is collapsed for this card.');

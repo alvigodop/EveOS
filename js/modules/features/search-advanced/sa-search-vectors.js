@@ -85,7 +85,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             })
         });
         return result.records.filter(function (record) {
-            return record.type === 'bookmark' || record.type === 'card' || record.type === 'library';
+            return record.type === 'bookmark' || record.type === 'card' || record.type === 'folder' || record.type === 'library';
         });
     }
 
@@ -177,6 +177,9 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         const cardRecords = localSearchResult.records.filter(function (record) {
             return record.type === 'card';
         });
+        const folderRecords = localSearchResult.records.filter(function (record) {
+            return record.type === 'folder';
+        });
         const knowledgeRecords = localSearchResult.records.filter(function (record) {
             return record.type === 'knowledge';
         });
@@ -195,7 +198,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         trace.vectors.bookmarks = {
             status: vectors.bookmarks ? 'ok' : 'disabled',
             durationMs: vectors.bookmarks ? localDurationMs : 0,
-            resultCount: vectors.bookmarks ? bookmarkRecords.length + libraryRecords.length + cardRecords.length : 0
+            resultCount: vectors.bookmarks ? bookmarkRecords.length + libraryRecords.length + cardRecords.length + folderRecords.length : 0
         };
         trace.vectors.knowledge = {
             status: vectors.knowledge ? 'ok' : 'disabled',
@@ -237,6 +240,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
 
         const allResults = []
             .concat(cardRecords)
+            .concat(folderRecords)
             .concat(bookmarkRecords)
             .concat(libraryRecords)
             .concat(knowledgeRecords)
@@ -245,6 +249,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
 
         const typePriority = {
             card: 440,
+            folder: 420,
             bookmark: 400,
             library: 388,
             knowledge: 360,
@@ -266,6 +271,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
 
         const stats = {
             cards: cardRecords.length,
+            folders: folderRecords.length,
             bookmarks: bookmarkRecords.length,
             library: libraryRecords.length,
             knowledge: knowledgeRecords.length,

@@ -25,6 +25,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         return Object.assign({
             recordCount: 0,
             cardCount: 0,
+            folderCount: 0,
             bookmarkCount: 0,
             libraryCount: 0,
             knowledgeCount: 0,
@@ -42,6 +43,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     function accumulateStructureBucket(bucket, record, visibility, health, freshness) {
         bucket.recordCount += 1;
         if (record?.type === 'card') bucket.cardCount += 1;
+        if (record?.type === 'folder') bucket.folderCount += 1;
         if (record?.type === 'bookmark') bucket.bookmarkCount += 1;
         if (record?.type === 'library') bucket.libraryCount += 1;
         if (record?.type === 'knowledge') bucket.knowledgeCount += 1;
@@ -52,7 +54,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         else if (health?.state === 'warning') bucket.warningCount += 1;
         if (freshness?.state === 'stale') bucket.staleCount += 1;
         if (record?.provenance?.orphaned) bucket.orphanedCount += 1;
-        if ((record?.type === 'card' || record?.type === 'bookmark' || record?.type === 'library')
+        if ((record?.type === 'card' || record?.type === 'folder' || record?.type === 'bookmark' || record?.type === 'library')
             && (health?.state === 'broken' || visibility?.state === 'broken' || record?.provenance?.orphaned)) {
             bucket.localIssueCount += 1;
         }

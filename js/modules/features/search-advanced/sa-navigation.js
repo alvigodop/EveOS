@@ -136,6 +136,13 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 lines.push('Tags: ' + provenance.tags.join(', '));
             }
         }
+        if (provenance.kind === 'folder') {
+            if (provenance.folderId) lines.push('Folder ID: ' + provenance.folderId);
+            if (provenance.parentFolderId) lines.push('Parent Folder ID: ' + provenance.parentFolderId);
+            if (Number.isFinite(provenance.bookmarkCount)) lines.push('Bookmarks in branch: ' + provenance.bookmarkCount);
+            if (Number.isFinite(provenance.totalChildFolderCount)) lines.push('Child folders in branch: ' + provenance.totalChildFolderCount);
+            if (provenance.orphaned) lines.push('State: orphaned workspace reference');
+        }
         if (provenance.kind === 'cached') {
             if (provenance.sourceQuery) lines.push('Cached query: ' + provenance.sourceQuery);
             if (provenance.provider) lines.push('Provider: ' + provenance.provider);

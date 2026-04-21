@@ -15,6 +15,7 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
     function getVectorBadge(type) {
         switch (type) {
             case 'card': return '<span class="nx-badge nx-badge-card">Card</span>';
+            case 'folder': return '<span class="nx-badge nx-badge-default">Folder</span>';
             case 'library': return '<span class="nx-badge nx-badge-library">Library</span>';
             case 'google': return '<span class="nx-badge nx-badge-google">Google</span>';
             case 'knowledge': return '<span class="nx-badge nx-badge-knowledge">Source Graph</span>';
@@ -26,7 +27,7 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
     }
 
     function getProviderBadge(provider) {
-        if (!provider || provider === 'google' || provider === 'bookmark' || provider === 'knowledge' || provider === 'card' || provider === 'library') return '';
+        if (!provider || provider === 'google' || provider === 'bookmark' || provider === 'knowledge' || provider === 'card' || provider === 'folder' || provider === 'library') return '';
         const labels = window.EveOS?.API?.SearchInternals?.PROVIDER_LABELS || {};
         const label = labels[provider] || provider;
         return '<span class="nx-provider-tag">' + escapeHtml(label) + '</span>';
@@ -41,6 +42,7 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
         const stats = searchResult?.stats || {};
         const parts = [];
         if (stats.cards) parts.push('Cards: ' + stats.cards);
+        if (stats.folders) parts.push('Folders: ' + stats.folders);
         if (stats.bookmarks) parts.push('Bookmarks: ' + stats.bookmarks);
         if (stats.library) parts.push('Library: ' + stats.library);
         if (stats.knowledge) parts.push('Source Graph: ' + stats.knowledge);
@@ -424,7 +426,7 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
     }
 
     function renderSegmentedResults(searchResult, resultMap) {
-        const groups = { card: [], bookmark: [], library: [], knowledge: [], cached: [], google: [], diagnostic: [] };
+        const groups = { card: [], folder: [], bookmark: [], library: [], knowledge: [], cached: [], google: [], diagnostic: [] };
         searchResult.results.forEach(function (result) {
             const key = String(result?.type || 'cached').trim() || 'cached';
             if (!groups[key]) groups[key] = [];
@@ -433,6 +435,7 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
 
         const orderedGroups = [
             { key: 'card', label: 'Cards' },
+            { key: 'folder', label: 'Folders' },
             { key: 'bookmark', label: 'Bookmarks' },
             { key: 'library', label: 'Library Entries' },
             { key: 'knowledge', label: 'Knowledge & Source Graph' },

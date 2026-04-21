@@ -5,11 +5,11 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     const ns = window.EveOS.SearchAdvanced;
     if (ns.IndexShared) return;
 
-    const INDEX_VERSION = 1;
-    const STORAGE_KEY = 'eve.nexusIndex.v1';
-    const STORAGE_MANAGER_KEY = 'nexusIndex';
+    const INDEX_VERSION = 2;
+    const STORAGE_KEY = 'eve.nexusIndex.v2';
+    const STORAGE_MANAGER_KEY = 'nexusIndexV2';
     const SNAPSHOT_MAX_AGE_MS = 15 * 60 * 1000;
-    const LOCAL_TYPES = new Set(['bookmark', 'card', 'library', 'knowledge', 'cached']);
+    const LOCAL_TYPES = new Set(['bookmark', 'card', 'folder', 'library', 'knowledge', 'cached']);
     const SEARCH_STORAGE_KEYS = new Set(['wikiEntries', 'fandomDomains', 'wikiCacheStore', 'wikiDataStore', 'fandomCacheIndex', 'wikiCategories']);
 
     const state = {

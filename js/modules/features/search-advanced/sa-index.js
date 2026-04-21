@@ -19,7 +19,9 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         text,
         normalizeText,
         toArray,
-        computeFreshness
+        computeFreshness,
+        readConfig,
+        buildFolderPathLabel
     } = shared;
     const { buildSnapshot } = sources;
     const {
@@ -213,6 +215,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         if (scope?.workspaceId && matchesScope(record, { workspaceId: scope.workspaceId })) score += 14;
         if (scope?.categoryName && text(record?.categoryName, '') === text(scope.categoryName, '')) score += 18;
         if (record?.type === 'card') score += 22;
+        if (record?.type === 'folder') score += 18;
         if (record?.type === 'bookmark') score += 16;
         if (record?.type === 'library') score += 14;
         if (record?.library?.linked) score += 8;
@@ -269,6 +272,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         if (vectors.bookmarks) {
             allowedTypes.add('bookmark');
             allowedTypes.add('card');
+            allowedTypes.add('folder');
             allowedTypes.add('library');
         }
         if (vectors.knowledge) allowedTypes.add('knowledge');
@@ -307,6 +311,26 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         };
     }
 
+    function findWorkspaceMeta(workspaceId, fallbackLabel, fallbackFullLabel) {
+        const workspaces = toArray(readConfig().workspaces);
+        const helpers = window.EveWorkspaceHelpers;
+        const match = helpers?.findById
+            ? helpers.findById(workspaces, workspaceId)
+            : workspaces.find(function (workspace) {
+                return text(workspace?.id, '') === text(workspaceId, '');
+            }) || null;
+        const parent = helpers?.findParent
+            ? helpers.findParent(workspaces, workspaceId)
+            : null;
+
+        return {
+            label: text(match?.name, fallbackLabel || workspaceId),
+            fullLabel: text(fallbackFullLabel, text(match?.name, fallbackLabel || workspaceId)),
+            parentWorkspaceId: text(parent?.id, ''),
+            hiddenInParent: !!match?.hiddenInParent
+        };
+    }
+
     async function buildGraphProjection(options) {
         const snapshot = options?.snapshot || await ensureFresh();
         const scope = options?.scope || null;
@@ -316,47 +340,192 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         const nodes = [];
         const edges = [];
         const nodeById = new Map();
+        const edgeKeys = new Set();
+        const folderNodeMeta = new Map();
+        const workspaceNodeMeta = new Map();
 
         function ensureNode(id, payload) {
-            if (nodeById.has(id)) return nodeById.get(id);
-            const node = Object.assign({ id: id }, payload || {});
+            const normalizedPayload = {};
+            Object.keys(payload || {}).forEach(function (key) {
+                if (typeof payload[key] !== 'undefined') normalizedPayload[key] = payload[key];
+            });
+            if (nodeById.has(id)) {
+                const existing = nodeById.get(id);
+                Object.assign(existing, normalizedPayload);
+                return existing;
+            }
+            const node = Object.assign({ id: id }, normalizedPayload);
             nodeById.set(id, node);
             nodes.push(node);
             return node;
+        }
+
+        function addEdge(sourceId, targetId, type) {
+            const source = text(sourceId, '');
+            const target = text(targetId, '');
+            if (!source || !target || source === target) return;
+            const edgeType = text(type, 'hierarchy');
+            const key = source + '::' + target + '::' + edgeType;
+            if (edgeKeys.has(key)) return;
+            edgeKeys.add(key);
+            edges.push({ source: source, target: target, type: edgeType });
+        }
+
+        function getWorkspaceNodeId(workspaceId) {
+            return 'workspace::' + text(workspaceId, 'main');
+        }
+
+        function getCardNodeId(workspaceId, categoryName) {
+            return 'card::' + text(workspaceId, 'main') + '::' + text(categoryName, 'Unsorted');
+        }
+
+        function getFolderNodeId(workspaceId, categoryName, folderId) {
+            return 'folder::' + text(workspaceId, 'main') + '::' + text(categoryName, 'Unsorted') + '::' + text(folderId, '');
         }
 
         records.forEach(function (record) {
             const workspaceId = text(record?.workspaceId, '');
             const categoryName = text(record?.categoryName, '');
             if (!workspaceId || !categoryName) return;
+            const visibility = computeVisibility(record);
+            const health = computeHealth(record);
+            const freshness = computeFreshness(record.updatedAt);
+            const workspaceMeta = findWorkspaceMeta(
+                workspaceId,
+                record?.path?.workspaceTrail?.slice?.(-1)?.[0]?.name,
+                record?.path?.workspaceLabel
+            );
 
-            const workspaceNode = ensureNode('workspace::' + workspaceId, {
+            const workspaceNodeId = getWorkspaceNodeId(workspaceId);
+            const cardNodeId = getCardNodeId(workspaceId, categoryName);
+
+            workspaceNodeMeta.set(workspaceNodeId, workspaceMeta);
+            ensureNode(workspaceNodeId, {
                 kind: 'workspace',
-                label: text(record?.path?.workspaceLabel, workspaceId),
-                workspaceId: workspaceId
+                label: workspaceMeta.label,
+                workspaceId: workspaceId,
+                workspaceLabel: workspaceMeta.fullLabel,
+                hiddenInParent: workspaceMeta.hiddenInParent
             });
-            const cardNode = ensureNode('card::' + workspaceId + '::' + categoryName, {
+            ensureNode(cardNodeId, {
                 kind: 'card',
                 label: categoryName,
                 workspaceId: workspaceId,
-                categoryName: categoryName
+                categoryName: categoryName,
+                pathLabel: text(record?.path?.pathLabel, categoryName),
+                visibilityState: record?.type === 'card' ? visibility.state : undefined,
+                healthState: record?.type === 'card' ? health.state : undefined,
+                orphaned: !!record?.provenance?.orphaned
             });
 
-            edges.push({ source: workspaceNode.id, target: cardNode.id, type: 'hierarchy' });
+            if (record.type === 'folder' && text(record?.path?.folderId, '')) {
+                const folderId = text(record.path.folderId, '');
+                const folderNodeId = getFolderNodeId(workspaceId, categoryName, folderId);
+                folderNodeMeta.set(folderNodeId, {
+                    workspaceId: workspaceId,
+                    categoryName: categoryName,
+                    folderId: folderId,
+                    parentFolderId: text(record?.parentFolderId || record?.provenance?.parentFolderId, ''),
+                    label: text(record.title, record?.path?.folderLabel || buildFolderPathLabel(workspaceId, categoryName, folderId) || folderId)
+                });
+                ensureNode(folderNodeId, {
+                    kind: 'folder',
+                    label: text(record.title, record?.path?.folderLabel || 'Folder'),
+                    workspaceId: workspaceId,
+                    categoryName: categoryName,
+                    folderId: folderId,
+                    pathLabel: text(record?.path?.pathLabel, ''),
+                    visibilityState: visibility.state,
+                    healthState: health.state,
+                    freshnessState: freshness.state,
+                    orphaned: !!record?.provenance?.orphaned
+                });
+                return;
+            }
+
+            if (text(record?.path?.folderId, '')) {
+                const folderId = text(record.path.folderId, '');
+                const folderNodeId = getFolderNodeId(workspaceId, categoryName, folderId);
+                ensureNode(folderNodeId, {
+                    kind: 'folder',
+                    label: text(record?.path?.folderLabel, buildFolderPathLabel(workspaceId, categoryName, folderId) || 'Folder'),
+                    workspaceId: workspaceId,
+                    categoryName: categoryName,
+                    folderId: folderId
+                });
+            }
 
             if (record.type === 'card') return;
 
-            const detailNode = ensureNode(record.id, {
+            ensureNode(record.id, {
                 kind: record.type,
+                sourceType: record.type,
                 label: text(record.title, 'Untitled'),
                 workspaceId: workspaceId,
                 categoryName: categoryName,
                 folderId: text(record?.path?.folderId, ''),
+                linkId: text(record?.path?.linkId || record?.provenance?.linkId, ''),
+                url: text(record?.url, ''),
                 healthState: text(record?.healthState || record?.baseHealth?.state, 'healthy'),
-                visibilityState: text(record?.visibilityState, 'visible'),
-                orphaned: !!record?.provenance?.orphaned
+                visibilityState: text(record?.visibilityState || visibility.state, 'visible'),
+                freshnessState: freshness.state,
+                orphaned: !!record?.provenance?.orphaned,
+                pathLabel: text(record?.path?.pathLabel, ''),
+                meta: text(record?.description, '')
             });
-            edges.push({ source: cardNode.id, target: detailNode.id, type: 'membership' });
+        });
+
+        workspaceNodeMeta.forEach(function (meta, workspaceNodeId) {
+            const workspaceId = text(nodeById.get(workspaceNodeId)?.workspaceId, '');
+            if (!workspaceId) return;
+            if (meta.parentWorkspaceId) {
+                const parentWorkspaceMeta = findWorkspaceMeta(meta.parentWorkspaceId, meta.parentWorkspaceId, meta.parentWorkspaceId);
+                const parentWorkspaceNodeId = getWorkspaceNodeId(meta.parentWorkspaceId);
+                ensureNode(parentWorkspaceNodeId, {
+                    kind: 'workspace',
+                    label: parentWorkspaceMeta.label,
+                    workspaceId: meta.parentWorkspaceId,
+                    workspaceLabel: parentWorkspaceMeta.fullLabel,
+                    hiddenInParent: parentWorkspaceMeta.hiddenInParent
+                });
+                addEdge(parentWorkspaceNodeId, workspaceNodeId, 'hierarchy');
+            }
+        });
+
+        records.forEach(function (record) {
+            const workspaceId = text(record?.workspaceId, '');
+            const categoryName = text(record?.categoryName, '');
+            if (!workspaceId || !categoryName) return;
+            addEdge(getWorkspaceNodeId(workspaceId), getCardNodeId(workspaceId, categoryName), 'hierarchy');
+        });
+
+        folderNodeMeta.forEach(function (meta, folderNodeId) {
+            const parentFolderId = text(meta.parentFolderId, '');
+            const parentNodeId = parentFolderId
+                ? getFolderNodeId(meta.workspaceId, meta.categoryName, parentFolderId)
+                : getCardNodeId(meta.workspaceId, meta.categoryName);
+
+            if (parentFolderId) {
+                ensureNode(parentNodeId, {
+                    kind: 'folder',
+                    label: buildFolderPathLabel(meta.workspaceId, meta.categoryName, parentFolderId) || parentFolderId,
+                    workspaceId: meta.workspaceId,
+                    categoryName: meta.categoryName,
+                    folderId: parentFolderId
+                });
+            }
+            addEdge(parentNodeId, folderNodeId, 'hierarchy');
+        });
+
+        records.forEach(function (record) {
+            const workspaceId = text(record?.workspaceId, '');
+            const categoryName = text(record?.categoryName, '');
+            if (!workspaceId || !categoryName || record.type === 'card' || record.type === 'folder') return;
+            const folderId = text(record?.path?.folderId, '');
+            const parentNodeId = folderId
+                ? getFolderNodeId(workspaceId, categoryName, folderId)
+                : getCardNodeId(workspaceId, categoryName);
+            addEdge(parentNodeId, record.id, 'membership');
         });
 
         return {

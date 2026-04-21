@@ -97,6 +97,7 @@ async function seedState(page, seed) {
 
     try {
       localStorage.removeItem('eve.nexusIndex.v1');
+      localStorage.removeItem('eve.nexusIndex.v2');
       localStorage.setItem('eveV22Data', JSON.stringify(links));
       localStorage.setItem('eveV22Config', JSON.stringify(config));
       localStorage.setItem('eveV22BookmarkFolders', JSON.stringify(bookmarkFolders));
@@ -213,6 +214,16 @@ async function runSmoke(page) {
   if (!String(alphaSummary.trace).includes('NX-')) {
     throw new Error('Search Monitor trace did not update for Nexus search: ' + alphaSummary.trace);
   }
+
+  await page.locator('#esResults [data-nx-action="trace"]').first().click();
+  await page.waitForFunction(() => {
+    const details = document.querySelector('#loadingIndicator #nexusTraceDetails');
+    return !!details
+      && !details.hasAttribute('hidden')
+      && String(details.textContent || '').includes('Scope')
+      && String(details.textContent || '').includes('Local');
+  }, undefined, { timeout: 10000 });
+  await page.evaluate(() => window.SearchMonitorBoot.collapse());
 
   await page.locator('.nx-mode-btn[data-results-mode="merged"]').click();
   await page.waitForFunction(() => {

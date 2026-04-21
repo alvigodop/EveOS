@@ -98,6 +98,99 @@
     color: rgba(220, 245, 255, 0.96);
 }
 
+.nexus-trace-details {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    display: grid;
+    gap: 8px;
+}
+
+.nexus-trace-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.nexus-trace-summary-cell,
+.nexus-trace-query-row {
+    display: grid;
+    gap: 2px;
+}
+
+.nexus-trace-summary-label {
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(190, 220, 235, 0.6);
+}
+
+.nexus-trace-summary-value {
+    font-size: 12px;
+    color: rgba(235, 247, 255, 0.92);
+    word-break: break-word;
+}
+
+.nexus-trace-vectors {
+    display: grid;
+    gap: 6px;
+}
+
+.nexus-trace-vector-row {
+    display: grid;
+    grid-template-columns: minmax(0, 72px) auto auto;
+    gap: 8px;
+    align-items: center;
+}
+
+.nexus-trace-vector-label {
+    font-size: 11px;
+    color: rgba(220, 238, 246, 0.88);
+}
+
+.nexus-trace-vector-metrics {
+    font-size: 11px;
+    color: rgba(180, 214, 229, 0.78);
+}
+
+.nexus-trace-vector-error {
+    grid-column: 1 / -1;
+    font-size: 10px;
+    color: rgba(255, 176, 176, 0.88);
+}
+
+.nexus-trace-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    line-height: 1.2;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.nexus-trace-chip-ok {
+    background: rgba(70, 190, 120, 0.16);
+    color: rgba(160, 245, 188, 0.92);
+}
+
+.nexus-trace-chip-warn {
+    background: rgba(255, 191, 73, 0.16);
+    color: rgba(255, 220, 148, 0.92);
+}
+
+.nexus-trace-chip-error {
+    background: rgba(255, 96, 96, 0.16);
+    color: rgba(255, 174, 174, 0.92);
+}
+
+.nexus-trace-chip-disabled {
+    background: rgba(166, 180, 193, 0.12);
+    color: rgba(196, 207, 217, 0.8);
+}
+
 #loadingIndicator.wide-mode .monitor-wide-toggle,
 #loadingIndicator.fullscreen-mode .monitor-fullscreen-toggle {
     background: rgba(110, 231, 255, 0.16);

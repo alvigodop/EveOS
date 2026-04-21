@@ -25,6 +25,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         buildCategoryMap,
         buildCardRecords,
         buildBookmarkRecords,
+        buildFolderRecords,
         buildLibraryRecords
     } = local;
 
@@ -275,6 +276,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         const categoryMap = buildCategoryMap(links);
         const records = []
             .concat(buildCardRecords(categoryMap))
+            .concat(buildFolderRecords(links, categoryMap))
             .concat(buildBookmarkRecords(links))
             .concat(buildLibraryRecords())
             .concat(await buildKnowledgeRecords(categoryMap))
@@ -295,6 +297,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             stats: {
                 totalRecords: records.length,
                 cardCount: records.filter(function (record) { return record.type === 'card'; }).length,
+                folderCount: records.filter(function (record) { return record.type === 'folder'; }).length,
                 bookmarkCount: records.filter(function (record) { return record.type === 'bookmark'; }).length,
                 libraryCount: records.filter(function (record) { return record.type === 'library'; }).length,
                 knowledgeCount: records.filter(function (record) { return record.type === 'knowledge'; }).length,

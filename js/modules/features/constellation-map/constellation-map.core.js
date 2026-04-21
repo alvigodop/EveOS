@@ -287,7 +287,7 @@ function releaseTransientMapState() {
 
 
 
-    ns.openMap = function openMap(scopeOption) {
+    ns.openMap = async function openMap(scopeOption) {
 
         console.log('[ConstellationMap] openMap called', scopeOption);
 
@@ -297,7 +297,7 @@ function releaseTransientMapState() {
 
         console.log('[ConstellationMap] after ensureContainer', Date.now() - startTime, 'ms');
 
-        buildGraphData(scopeOption);
+        await buildGraphData(scopeOption);
 
         console.log('[ConstellationMap] after buildGraphData', Date.now() - startTime, 'ms');
 
