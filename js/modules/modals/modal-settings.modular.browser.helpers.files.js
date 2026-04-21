@@ -68,11 +68,17 @@ window.EveSettingsModularBrowserHelpers = window.EveSettingsModularBrowserHelper
         }
     }
 
+    function getSettingsBrowserLiveLinks() {
+        if (typeof window.getLiveLinks === 'function') return window.getLiveLinks();
+        if (Array.isArray(window.eveState?.links)) return window.eveState.links;
+        if (Array.isArray(window.links)) return window.links;
+        if (typeof links !== 'undefined' && Array.isArray(links)) return links;
+        return [];
+    }
+
     function buildLiveBookmarkMap() {
         const map = new Map();
-        const liveLinks = Array.isArray(window.eveState?.links)
-            ? window.eveState.links
-            : (Array.isArray(window.links) ? window.links : []);
+        const liveLinks = getSettingsBrowserLiveLinks();
         liveLinks.forEach((link) => {
             const id = String(link?.id || '').trim();
             if (!id) return;
@@ -147,6 +153,7 @@ window.EveSettingsModularBrowserHelpers = window.EveSettingsModularBrowserHelper
         readJsonFromFileHandle,
         fileHandleExists,
         readBookmarkIdFromHandle,
+        getSettingsBrowserLiveLinks,
         buildLiveBookmarkMap,
         applyLiveBookmarkToPayload,
         pickUniqueBookmarkName

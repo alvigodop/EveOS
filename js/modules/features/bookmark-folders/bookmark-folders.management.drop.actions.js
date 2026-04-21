@@ -9,7 +9,8 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         normalizeWorkspaceId,
         normalizeCategoryName,
         normalizeFolderId,
-        getLiveLinks
+        getLiveLinks,
+        setLiveLinks
     } = shared;
     const {
         getFolderById,
@@ -19,7 +20,7 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         toggleToolbarExpanded
     } = api;
 
-    if (!normalizeWorkspaceId || !normalizeCategoryName || !normalizeFolderId || !moveFolder || !transferFolderToCategory) {
+    if (!normalizeWorkspaceId || !normalizeCategoryName || !normalizeFolderId || !getLiveLinks || !setLiveLinks || !moveFolder || !transferFolderToCategory) {
         console.warn('[EveBookmarkFolders] Drop helpers missing; drop actions not initialized.');
         return;
     }
@@ -52,8 +53,8 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
             ? normalizedFolderId
             : '';
 
-        const liveLinks = typeof getLiveLinks === 'function' ? getLiveLinks() : [];
-        if (!Array.isArray(liveLinks) || !linkIds.length) return false;
+        const liveLinks = getLiveLinks();
+        if (!linkIds.length) return false;
         let movedAny = false;
         const syncLinked = window.EveLibrary?.ConnectionsAPI?.syncFromLink;
 
@@ -75,6 +76,9 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
             movedAny = true;
         });
 
+        if (movedAny) {
+            setLiveLinks(liveLinks);
+        }
         if (movedAny && options.persist !== false && typeof saveData === 'function') {
             saveData({
                 skipRender: !!options.skipRender,

@@ -26,16 +26,10 @@ window.EveDataTransfer = window.EveDataTransfer || {};
     }
 
     function setLegacyLinks(nextLinks) {
-        if (typeof window.setLiveLinks === 'function') {
-            window.setLiveLinks(nextLinks);
-            return;
-        }
+        if (typeof window.setLiveLinks === 'function') return window.setLiveLinks(nextLinks);
         if (window.eveState) window.eveState.links = nextLinks;
-        if (typeof links !== 'undefined') {
-            links = nextLinks;
-        } else {
-            window.links = nextLinks;
-        }
+        window.links = nextLinks;
+        if (typeof links !== 'undefined') links = nextLinks;
     }
 
     function setLegacyConfig(nextConfig) {

@@ -17,6 +17,14 @@ window.closeAllMenus = function () {
 
 const ICON_LIBRARY_HTML = '&#128218;';
 
+function getContextMenuLiveLinks() {
+    if (typeof window.getLiveLinks === 'function') return window.getLiveLinks();
+    if (Array.isArray(window.eveState?.links)) return window.eveState.links;
+    if (Array.isArray(window.links)) return window.links;
+    if (typeof links !== 'undefined' && Array.isArray(links)) return links;
+    return [];
+}
+
 function placeContextMenu(menuElement, event) {
     if (!menuElement || !event) return;
 
@@ -127,11 +135,7 @@ window.showLinkContextMenu = function (e, id) {
     const pinScopeCard = m.querySelector('#ctx-pin-scope-card');
     const pinScopeFolder = m.querySelector('#ctx-pin-scope-folder');
     const doneAction = m.querySelector('#ctx-toggle-done-action');
-    const linkSource = typeof window.getLiveLinks === 'function'
-        ? window.getLiveLinks()
-        : (Array.isArray(window.links)
-            ? window.links
-            : (typeof links !== 'undefined' && Array.isArray(links) ? links : []));
+    const linkSource = getContextMenuLiveLinks();
     const link = window.EveContextMenuActions?.getCtxLink?.()
         || linkSource.find(function (item) { return String(item?.id ?? '') === normalizedId; })
         || null;

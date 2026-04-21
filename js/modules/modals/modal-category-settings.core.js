@@ -53,6 +53,44 @@ window.categoryFolderActionExpansion = window.categoryFolderActionExpansion || {
 
     }
 
+    function getCategorySettingsLiveLinks() {
+
+        if (typeof window.getLiveLinks === 'function') return window.getLiveLinks();
+
+        if (Array.isArray(window.eveState?.links)) return window.eveState.links;
+
+        if (Array.isArray(window.links)) return window.links;
+
+        if (typeof links !== 'undefined' && Array.isArray(links)) return links;
+
+        return [];
+
+    }
+
+    function getCategorySettingsScopedLinks(workspaceId, categoryName) {
+
+        const resolvedWorkspaceId = String(workspaceId || getCategorySettingsWorkspaceId()).trim() || 'main';
+
+        const resolvedCategoryName = String(categoryName || window.currentCategoryCtx || 'Unsorted').trim() || 'Unsorted';
+
+        const folderScopeShared = window.EveFolderViewV2?._shared || null;
+
+        if (folderScopeShared && typeof folderScopeShared.getCategoryLinks === 'function') {
+
+            return folderScopeShared.getCategoryLinks(resolvedWorkspaceId, resolvedCategoryName);
+
+        }
+
+        return getCategorySettingsLiveLinks().filter((link) => {
+
+            return String(link?.workspace || 'main').trim() === resolvedWorkspaceId
+
+                && String(link?.category || 'Unsorted').trim() === resolvedCategoryName;
+
+        });
+
+    }
+
 
 
     function getFolderApi() {
@@ -405,6 +443,8 @@ window.categoryFolderActionExpansion = window.categoryFolderActionExpansion || {
         escapeCategorySettingsHtml,
         escapeCategorySettingsJs,
         getCategorySettingsWorkspaceId,
+        getCategorySettingsLiveLinks,
+        getCategorySettingsScopedLinks,
         getFolderApi,
         getFolderActionExpansionStore,
         folderActionExpansionKey,

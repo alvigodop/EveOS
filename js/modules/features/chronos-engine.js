@@ -235,9 +235,8 @@
             if (state.config) window.config = state.config;
             if (state.eveState) window.eveState = state.eveState;
             if (state.links) {
-                if (typeof window.setLiveLinks === 'function') {
-                    window.setLiveLinks(state.links);
-                } else {
+                if (typeof window.setLiveLinks === 'function') window.setLiveLinks(state.links);
+                else {
                     if (window.eveState) window.eveState.links = state.links;
                     window.links = state.links;
                     if (typeof links !== 'undefined') links = state.links;

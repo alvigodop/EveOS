@@ -18,7 +18,7 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         getExactScopedLinkIds
     } = shared;
 
-    if (!normalizeWorkspaceId || !normalizeCategoryName || !normalizeFolderId || !normalizeParentId || !getScopedNodes || !setScopedNodes) {
+    if (!normalizeWorkspaceId || !normalizeCategoryName || !normalizeFolderId || !normalizeParentId || !getScopedNodes || !setScopedNodes || !getLiveLinks || !setLiveLinks) {
         console.warn('[EveBookmarkFolders] Mutation helpers missing; basic mutations not initialized.');
         return;
     }
@@ -157,32 +157,23 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
             : new Set();
         const removedLinkIds = new Set();
         const removeLinked = window.EveLibrary?.ConnectionsAPI?.removeByLinkId;
-        const linksArray = typeof getLiveLinks === 'function' ? getLiveLinks() : [];
-        if (Array.isArray(linksArray)) {
-            for (let i = linksArray.length - 1; i >= 0; i--) {
-                const link = linksArray[i];
-                const sameWorkspace = normalizeWorkspaceId(link?.workspace) === workspaceId;
-                const sameCategory = normalizeCategoryName(link?.category) === categoryName;
-                if (!sameWorkspace || !sameCategory) continue;
+        const linksArray = getLiveLinks();
+        for (let i = linksArray.length - 1; i >= 0; i--) {
+            const link = linksArray[i];
+            const sameWorkspace = normalizeWorkspaceId(link?.workspace) === workspaceId;
+            const sameCategory = normalizeCategoryName(link?.category) === categoryName;
+            if (!sameWorkspace || !sameCategory) continue;
 
-                if (foldersToDelete.has(normalizeFolderId(link?.folderId))) {
-                    const targetId = String(link.id);
-                    linksArray.splice(i, 1);
-                    removedLinkIds.add(targetId);
-                    if (typeof removeLinked === 'function') {
-                        removeLinked(targetId);
-                    }
+            if (foldersToDelete.has(normalizeFolderId(link?.folderId))) {
+                const targetId = String(link.id);
+                linksArray.splice(i, 1);
+                removedLinkIds.add(targetId);
+                if (typeof removeLinked === 'function') {
+                    removeLinked(targetId);
                 }
             }
-
-            if (typeof setLiveLinks === 'function') {
-                setLiveLinks(linksArray);
-            } else {
-                if (window.eveState) window.eveState.links = linksArray;
-                window.links = linksArray;
-                if (typeof links !== 'undefined') links = linksArray;
-            }
         }
+        setLiveLinks(linksArray);
 
         if (typeof removeLinked === 'function') {
             indexedLinkIds.forEach((linkId) => {

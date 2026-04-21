@@ -113,8 +113,8 @@ function drop(ev, newCategory) {
         if (rawJson) dragIds = [String(rawJson)];
     }
 
+    const targetLinks = getDropTargetLinks();
     dragIds.forEach((id) => {
-        const targetLinks = getDropTargetLinks();
         const idx = targetLinks.findIndex(l => String(l.id) === String(id));
         if (idx < 0) return;
         if (targetLinks[idx].category === newCategory) return;
@@ -125,7 +125,7 @@ function drop(ev, newCategory) {
     });
 
     if (movedAny) {
-        setDropTargetLinks(getDropTargetLinks());
+        setDropTargetLinks(targetLinks);
         if (typeof saveData === 'function') saveData({ forceRender: true });
     }
 }

@@ -3,15 +3,22 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
 (function () {
     const shared = window.EveFolderViewV2._shared || {};
     const { escapeCardHtml, escapeCardJs, cloneGhostFilterChain } = shared;
+    let pendingFolderEntryRetryKey = '';
 
     function getCategoryLinks(workspaceId, categoryName) {
         const scopeShared = window.EveFolderViewV2._shared || {};
         if (typeof scopeShared.getCategoryLinks === 'function') {
             return scopeShared.getCategoryLinks(workspaceId, categoryName);
         }
-        return window.getModalLinks
-            ? window.getModalLinks().filter((link) => link.workspace === workspaceId && link.category === categoryName)
-            : [];
+        const sourceLinks = typeof window.getLiveLinks === 'function'
+            ? window.getLiveLinks()
+            : (window.getModalLinks
+                ? window.getModalLinks()
+                : []);
+        return (Array.isArray(sourceLinks) ? sourceLinks : []).filter((link) => (
+            String(link?.workspace || 'main').trim() === String(workspaceId || 'main').trim()
+            && String(link?.category || 'Unsorted').trim() === String(categoryName || 'Unsorted').trim()
+        ));
     }
 
     window.EveFolderViewV2.enterFolder = function (event, categoryName, folderId, workspaceId) {
@@ -25,12 +32,24 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         const card = document.querySelector(`.category-card[data-card-category="${CSS.escape(resolvedCategoryName)}"][data-card-workspace="${CSS.escape(resolvedWorkspaceId)}"]`);
         
         if (!card) {
-            // Fallback: If card not found (e.g. deferred render not finished), try full render
+            // If the card is mid-rerender, retry once after forcing a fresh dashboard pass.
             if (!event && !window._evePerfMode && typeof window.renderDashboard === 'function') {
+                const retryKey = `${resolvedWorkspaceId}::${resolvedCategoryName}::${String(folderId || '').trim()}`;
+                if (pendingFolderEntryRetryKey !== retryKey) {
+                    pendingFolderEntryRetryKey = retryKey;
+                    window.renderDashboard();
+                    window.setTimeout(function () {
+                        if (pendingFolderEntryRetryKey !== retryKey) return;
+                        pendingFolderEntryRetryKey = '';
+                        window.EveFolderViewV2.enterFolder(null, resolvedCategoryName, folderId, resolvedWorkspaceId);
+                    }, 80);
+                    return;
+                }
                 window.renderDashboard();
             }
             return;
         }
+        pendingFolderEntryRetryKey = '';
 
         const scrollBefore = window.pageYOffset || document.documentElement.scrollTop;
 

@@ -12,6 +12,7 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         normalizeTaskMode,
         getScopedNodes,
         getScopedTree,
+        getLiveLinks,
         setScopedTree,
         setScopedNodes,
         buildNodeMap
@@ -188,11 +189,7 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
             });
         }
 
-        const sourceLinks = Array.isArray(window.eveState?.links)
-
-            ? window.eveState.links
-
-            : (typeof links !== 'undefined' && Array.isArray(links) ? links : []);
+        const sourceLinks = typeof getLiveLinks === 'function' ? getLiveLinks() : [];
 
         sourceLinks.forEach((link) => {
 
@@ -414,11 +411,7 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
             if (resolved) return resolved;
         }
 
-        const source = Array.isArray(window.eveState?.links)
-
-            ? window.eveState.links
-
-            : (typeof links !== 'undefined' && Array.isArray(links) ? links : []);
+        const source = typeof getLiveLinks === 'function' ? getLiveLinks() : [];
 
         return source.find((link) => String(link?.id || '').trim() === targetId) || null;
 

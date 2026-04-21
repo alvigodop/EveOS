@@ -62,18 +62,69 @@ async function seedState(page, payload) {
     if (typeof window.renderSidebar === 'function') window.renderSidebar();
     if (typeof window.renderDashboard === 'function') window.renderDashboard();
   }, payload);
+
+  const targetCategory = String(payload?.config?.categoryOrder?.[0] || 'Alpha');
+  const targetWorkspace = String(payload?.config?.activeWorkspace || 'main');
+
+  try {
+    await page.waitForFunction(({ categoryName, workspaceId }) => {
+      const card = document.querySelector(`.category-card[data-card-category="${categoryName}"][data-card-workspace="${workspaceId}"]`);
+      const liveLinks = typeof window.getLiveLinks === 'function' ? window.getLiveLinks() : (Array.isArray(window.links) ? window.links : []);
+      return !!card && Array.isArray(liveLinks) && liveLinks.some((link) => String(link?.category || '') === categoryName && String(link?.workspace || '') === workspaceId);
+    }, { categoryName: targetCategory, workspaceId: targetWorkspace }, { timeout: 1500 });
+  } catch (error) {
+    await page.evaluate((seed) => {
+      config = JSON.parse(JSON.stringify(seed.config));
+      links = JSON.parse(JSON.stringify(seed.links));
+      bookmarkFolders = JSON.parse(JSON.stringify(seed.bookmarkFolders || {}));
+      window.config = config;
+      window.links = links;
+      window.bookmarkFolders = bookmarkFolders;
+      if (window.eveState) {
+        window.eveState.links = links;
+        window.eveState.config = config;
+        window.eveState.bookmarkFolders = bookmarkFolders;
+      }
+      if (typeof window.renderSidebar === 'function') window.renderSidebar();
+      if (typeof window.renderDashboard === 'function') window.renderDashboard();
+    }, payload);
+    await page.waitForFunction(({ categoryName, workspaceId }) => {
+      const card = document.querySelector(`.category-card[data-card-category="${categoryName}"][data-card-workspace="${workspaceId}"]`);
+      const liveLinks = typeof window.getLiveLinks === 'function' ? window.getLiveLinks() : (Array.isArray(window.links) ? window.links : []);
+      return !!card && Array.isArray(liveLinks) && liveLinks.some((link) => String(link?.category || '') === categoryName && String(link?.workspace || '') === workspaceId);
+    }, { categoryName: targetCategory, workspaceId: targetWorkspace }, { timeout: 3000 });
+  }
 }
 
-async function runSmoke(page) {
-  await page.evaluate(() => {
-    if (typeof window.renderDashboard === 'function') window.renderDashboard();
-  });
-  await page.waitForTimeout(600);
-  await page.evaluate(() => {
-    window.EveFolderViewV2.enterFolder(null, 'Alpha', 'f-parent', 'main');
-  });
+async function enterScopedFolder(page, payload, folderId) {
+  const ensureAlphaCard = async () => {
+    try {
+      await page.waitForSelector('.category-card[data-card-category="Alpha"][data-card-workspace="main"]', { timeout: 1500 });
+    } catch (error) {
+      await seedState(page, payload);
+      await page.waitForSelector('.category-card[data-card-category="Alpha"][data-card-workspace="main"]', { timeout: 5000 });
+    }
+  };
 
-  await page.waitForSelector('.folder-breadcrumb-actions', { timeout: 10000 });
+  const enter = async () => {
+    await ensureAlphaCard();
+    await page.evaluate((targetFolderId) => {
+      window.EveFolderViewV2.enterFolder(null, 'Alpha', targetFolderId, 'main');
+    }, folderId);
+  };
+
+  await enter();
+  try {
+    await page.waitForSelector('.folder-breadcrumb-actions', { timeout: 2500 });
+  } catch (error) {
+    await seedState(page, payload);
+    await enter();
+    await page.waitForSelector('.folder-breadcrumb-actions', { timeout: 10000 });
+  }
+}
+
+async function runSmoke(page, payload) {
+  await enterScopedFolder(page, payload, 'f-parent');
 
   const breadcrumbLayout = await page.evaluate(() => {
     const trail = document.querySelector('.folder-breadcrumb-trail');
@@ -96,10 +147,7 @@ async function runSmoke(page) {
     throw new Error(`Breadcrumb actions overflowed the viewport: ${JSON.stringify(breadcrumbLayout)}`);
   }
 
-  await page.evaluate(() => {
-    window.EveFolderViewV2.enterFolder(null, 'Alpha', 'f-child', 'main');
-  });
-  await page.waitForSelector('.folder-breadcrumb-actions', { timeout: 10000 });
+  await enterScopedFolder(page, payload, 'f-child');
   const nestedBreadcrumbLayout = await page.evaluate(() => {
     const trail = document.querySelector('.folder-breadcrumb-trail');
     const actions = document.querySelector('.folder-breadcrumb-actions');
@@ -125,21 +173,20 @@ async function runSmoke(page) {
     throw new Error(`Nested breadcrumb trail missing expected labels: ${JSON.stringify(nestedBreadcrumbLayout)}`);
   }
 
-  await page.evaluate(() => {
-    window.EveFolderViewV2.enterFolder(null, 'Alpha', 'f-parent', 'main');
-  });
-  await page.waitForSelector('.folder-breadcrumb-actions', { timeout: 10000 });
+  await enterScopedFolder(page, payload, 'f-parent');
 
-  const menuLabels = await page.evaluate(() => Array.from(document.querySelectorAll('.folder-breadcrumb-actions button')).map((node) => node.textContent.trim()));
+  const headerTitles = await page.evaluate(() => Array.from(document.querySelectorAll('.folder-breadcrumb-actions button')).map((node) => node.getAttribute('title') || node.textContent.trim()));
   const iconCount = await page.locator('.folder-breadcrumb-actions .folder-breadcrumb-icon-btn').count();
-  if (iconCount < 2) {
-    throw new Error(`Expected pen and map icon buttons, got ${iconCount}`);
+  if (iconCount < 5) {
+    throw new Error(`Expected full folder breadcrumb control set, got ${iconCount}`);
   }
-  if (menuLabels.length !== 2) {
-    throw new Error(`Expected only pen and map buttons in breadcrumb header, got ${menuLabels.join(' | ')}`);
-  }
+  ['Toggle Bookmarks', 'Toggle Subfolders', 'Select Folder Subtree', 'Folder Actions', 'Constellation Map'].forEach((label) => {
+    if (!headerTitles.some((value) => value.includes(label))) {
+      throw new Error(`Missing folder breadcrumb control: ${label} :: ${headerTitles.join(' | ')}`);
+    }
+  });
 
-  await page.locator('.folder-breadcrumb-actions .folder-breadcrumb-icon-btn').first().click();
+  await page.locator('.folder-breadcrumb-actions .folder-breadcrumb-icon-btn[title="Folder Actions"]').click();
   await page.waitForSelector('.folder-breadcrumb-action-tray', { timeout: 5000 });
   const trayLabels = await page.evaluate(() => Array.from(document.querySelectorAll('.folder-breadcrumb-action-tray button')).map((node) => node.textContent.trim()));
   ['Edit Folder', 'Auto-Title', 'Auto-Library'].forEach((label) => {
@@ -210,11 +257,11 @@ async function runSmoke(page) {
 
   await page.waitForSelector('.folder-breadcrumb-actions', { timeout: 5000 });
   const ghostIconCount = await page.locator('.folder-breadcrumb-actions .folder-breadcrumb-icon-btn').count();
-  if (ghostIconCount < 2) {
-    throw new Error(`Expected ghost breadcrumb pen and map buttons, got ${ghostIconCount}`);
+  if (ghostIconCount < 4) {
+    throw new Error(`Expected ghost breadcrumb controls, got ${ghostIconCount}`);
   }
 
-  await page.locator('.folder-breadcrumb-actions .folder-breadcrumb-icon-btn').first().click();
+  await page.locator('.folder-breadcrumb-actions .folder-breadcrumb-icon-btn[title="Folder Actions"]').click();
   await page.waitForSelector('.folder-breadcrumb-action-tray', { timeout: 5000 });
   const ghostTrayLabels = await page.evaluate(() => Array.from(document.querySelectorAll('.folder-breadcrumb-action-tray button')).map((node) => node.textContent.trim()));
   if (ghostTrayLabels.some((value) => value.includes('Edit Folder'))) {
@@ -253,7 +300,9 @@ async function runSmoke(page) {
     await page.goto(FILE_URL, { waitUntil: 'domcontentloaded', timeout: 120000 });
     await waitForApp(page);
     await seedState(page, buildSeedPayload());
-    await runSmoke(page);
+    const payload = buildSeedPayload();
+    await seedState(page, payload);
+    await runSmoke(page, payload);
     console.log('FOLDER_SCOPED_ACTIONS_BROWSER_SMOKE_OK');
   } finally {
     await browser.close();

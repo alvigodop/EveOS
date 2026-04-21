@@ -21,7 +21,7 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
     } = shared;
     const { moveFolder } = api;
 
-    if (!buildScopedKey || !normalizeWorkspaceId || !normalizeCategoryName || !normalizeFolderId || !normalizeParentId || !cloneStore || !writeStore || !buildChildrenMap) {
+    if (!buildScopedKey || !normalizeWorkspaceId || !normalizeCategoryName || !normalizeFolderId || !normalizeParentId || !cloneStore || !writeStore || !buildChildrenMap || !getLiveLinks || !setLiveLinks) {
         console.warn('[EveBookmarkFolders] Cross-scope mutation helpers missing; cross-scope mutations not initialized.');
         return;
     }
@@ -89,25 +89,17 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
                 nextStore[sourceKey] = sourceTree;
             }
 
-            const liveLinks = typeof getLiveLinks === 'function' ? getLiveLinks() : [];
-            if (Array.isArray(liveLinks)) {
-                liveLinks.forEach((link) => {
-                    if (toMoveIds.has(normalizeFolderId(link.folderId))) {
-                        link.workspace = tWs;
-                        link.category = tCat;
-                        if (typeof window.EveLibrary?.ConnectionsAPI?.syncFromLink === 'function') {
-                            window.EveLibrary.ConnectionsAPI.syncFromLink(link.id);
-                        }
+            const liveLinks = getLiveLinks();
+            liveLinks.forEach((link) => {
+                if (toMoveIds.has(normalizeFolderId(link.folderId))) {
+                    link.workspace = tWs;
+                    link.category = tCat;
+                    if (typeof window.EveLibrary?.ConnectionsAPI?.syncFromLink === 'function') {
+                        window.EveLibrary.ConnectionsAPI.syncFromLink(link.id);
                     }
-                });
-                if (typeof setLiveLinks === 'function') {
-                    setLiveLinks(liveLinks);
-                } else {
-                    if (window.eveState) window.eveState.links = liveLinks;
-                    window.links = liveLinks;
-                    if (typeof links !== 'undefined') links = liveLinks;
                 }
-            }
+            });
+            setLiveLinks(liveLinks);
 
             writeStore(nextStore, true);
             return true;

@@ -21,6 +21,14 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
         return '';
     }
 
+    function getContextMenuLiveLinks() {
+        if (typeof window.getLiveLinks === 'function') return window.getLiveLinks();
+        if (Array.isArray(window.eveState?.links)) return window.eveState.links;
+        if (Array.isArray(window.links)) return window.links;
+        if (typeof links !== 'undefined' && Array.isArray(links)) return links;
+        return [];
+    }
+
     function getCtxLink() {
         const targetId = getCtxLinkId();
         if (!targetId) return null;
@@ -29,13 +37,7 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
             const resolved = indexApi.resolveBookmarkLink(targetId);
             if (resolved) return resolved;
         }
-        const sourceLinks = typeof window.getLiveLinks === 'function'
-            ? window.getLiveLinks()
-            : (Array.isArray(window.eveState?.links)
-                ? window.eveState.links
-                : (Array.isArray(window.links)
-                    ? window.links
-                    : (typeof links !== 'undefined' && Array.isArray(links) ? links : [])));
+        const sourceLinks = getContextMenuLiveLinks();
         return sourceLinks.find((entry) => String(entry?.id) === targetId) || null;
     }
 

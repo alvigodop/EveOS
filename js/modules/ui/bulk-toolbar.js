@@ -32,11 +32,7 @@ window.EveBulkToolbar = window.EveBulkToolbar || {};
     const attachOverlayDismissHandlers = ns.attachOverlayDismissHandlers;
 
     function replaceLinks(nextLinks) {
-        if (typeof setLinks === 'function') return setLinks(nextLinks);
-        if (window.eveState) window.eveState.links = nextLinks;
-        window.links = nextLinks;
-        if (typeof links !== 'undefined') links = nextLinks;
-        return nextLinks;
+        return setLinks(nextLinks);
     }
 
     function toggleBulkModeAction() {

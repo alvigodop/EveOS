@@ -3,6 +3,7 @@
     const {
         escapeCategorySettingsJs,
         getCategorySettingsWorkspaceId,
+        getCategorySettingsScopedLinks,
         getFolderApi
     } = core;
 
@@ -167,11 +168,8 @@
             return;
         }
 
-        const scopedLinks = Array.isArray(window.eveState?.links)
-            ? window.eveState.links.filter((link) =>
-                String(link?.workspace || '') === workspaceId
-                && String(link?.category || 'Unsorted') === categoryName
-            )
+        const scopedLinks = typeof getCategorySettingsScopedLinks === 'function'
+            ? getCategorySettingsScopedLinks(workspaceId, categoryName)
             : [];
         const viewModel = folderApi.buildFolderView(workspaceId, categoryName, scopedLinks);
         const renderState = buildFolderManagerRenderState(categoryName, workspaceId, viewModel, scopedLinks);

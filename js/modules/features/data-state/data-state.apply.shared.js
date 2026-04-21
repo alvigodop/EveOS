@@ -196,15 +196,11 @@ window.EveDataStore = window.EveDataStore || {};
 
     function setLinks(newLinks) {
         const sanitized = newLinks.map(entry => ({ ...entry }));
-        if (typeof window.setLiveLinks === 'function') {
-            window.setLiveLinks(sanitized);
-        } else {
+        if (typeof window.setLiveLinks === 'function') window.setLiveLinks(sanitized);
+        else {
             if (window.eveState) window.eveState.links = sanitized;
-            if (typeof links !== 'undefined') {
-                links = sanitized;
-            } else {
-                window.links = sanitized;
-            }
+            window.links = sanitized;
+            if (typeof links !== 'undefined') links = sanitized;
         }
         if (typeof saveData === 'function') saveData();
     }
