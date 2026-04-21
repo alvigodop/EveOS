@@ -79,6 +79,7 @@
             +       '<button class="tab-nav-sidebar-tool-btn" type="button" data-tab-nav-action="collapse-all">&#9660; Collapse All Tabs</button>'
             +       '<button class="tab-nav-sidebar-tool-btn" type="button" data-tab-nav-action="expand-all">&#9650; Expand All Tabs</button>'
             +       '<button class="tab-nav-sidebar-tool-btn" type="button" data-tab-nav-action="toggle-inactive"></button>'
+            +       '<button class="tab-nav-sidebar-tool-btn" type="button" data-tab-nav-action="toggle-datapack-badges"></button>'
             +   '</div>'
             + '</div>'
             + '<div class="tab-nav-sidebar-tools tab-nav-sidebar-tools--groups">'
@@ -155,6 +156,8 @@
                 rt.expandAllTabs();
             } else if (action === 'toggle-inactive') {
                 rt.toggleShowInactiveTabs();
+            } else if (action === 'toggle-datapack-badges') {
+                rt.toggleShowSidebarDatapackBadges();
             } else if (action === 'create-group') {
                 rt.createSidebarGroup();
             } else if (action === 'collapse-groups') {

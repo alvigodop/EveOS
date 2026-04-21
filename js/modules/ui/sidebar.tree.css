@@ -43,12 +43,13 @@
 
 /* --- Sub-Tab Expanded Visual --- */
 #sidebar:hover .ws-sub-item {
-    width: 140px;
+    width: 150px;
     height: 32px;
     font-size: 0.82rem;
     border-radius: 8px;
     justify-content: flex-start;
     padding-left: 10px;
+    padding-right: 8px;
     border-left: 2px solid rgba(168, 130, 255, 0.4);
     background: rgba(168, 130, 255, 0.05);
     gap: 5px;

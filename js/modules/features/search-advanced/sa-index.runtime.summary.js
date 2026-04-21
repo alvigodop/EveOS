@@ -34,6 +34,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             warningCount: 0,
             staleCount: 0,
             orphanedCount: 0,
+            localIssueCount: 0,
             doneCount: 0
         }, seed || {});
     }
@@ -51,6 +52,10 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         else if (health?.state === 'warning') bucket.warningCount += 1;
         if (freshness?.state === 'stale') bucket.staleCount += 1;
         if (record?.provenance?.orphaned) bucket.orphanedCount += 1;
+        if ((record?.type === 'card' || record?.type === 'bookmark' || record?.type === 'library')
+            && (health?.state === 'broken' || visibility?.state === 'broken' || record?.provenance?.orphaned)) {
+            bucket.localIssueCount += 1;
+        }
         if (record?.provenance?.done) bucket.doneCount += 1;
     }
 

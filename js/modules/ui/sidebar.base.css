@@ -75,6 +75,7 @@
     transition: 0.2s;
     position: relative;
     flex-shrink: 0;
+    min-width: 0;
 }
 
 .ws-item:hover,
@@ -85,6 +86,7 @@
 }
 
 .ws-label {
+    flex: 1 1 auto;
     font-size: 0.9rem;
     color: var(--text-main);
     opacity: 0;
@@ -108,6 +110,7 @@
     align-items: center;
     gap: 4px;
     min-width: 0;
+    flex: 0 0 auto;
 }
 
 #sidebar:hover .ws-summary {
@@ -138,9 +141,10 @@
 }
 
 #sidebar:hover .ws-item {
-    width: 155px;
+    width: 166px;
     justify-content: flex-start;
     padding-left: 12px;
+    padding-right: 8px;
     gap: 6px;
     overflow: hidden;
 }
@@ -267,6 +271,7 @@
     transition: 0.2s;
     box-sizing: border-box;
     overflow: hidden;
+    min-width: 0;
 }
 
 .ws-group-header:hover {
@@ -280,14 +285,16 @@
 }
 
 #sidebar:hover .ws-group-header {
-    width: 155px;
+    width: 166px;
     justify-content: flex-start;
+    padding-right: 8px;
 }
 
 #sidebar:hover .ws-group-section--nested .ws-group-header {
-    width: 140px;
+    width: 150px;
     min-height: 32px;
     padding-left: 10px;
+    padding-right: 8px;
     border-left: 2px solid color-mix(in srgb, var(--ws-group-color) 50%, rgba(255, 255, 255, 0.14));
     background: color-mix(in srgb, var(--ws-group-color) 8%, rgba(255, 255, 255, 0.03));
 }
@@ -337,6 +344,7 @@
 }
 
 .ws-group-title {
+    flex: 1 1 auto;
     min-width: 0;
     font-size: 0.76rem;
     font-weight: 600;
@@ -351,12 +359,14 @@
     font-size: 0.68rem;
     color: var(--text-muted, rgba(255, 255, 255, 0.68));
     opacity: 0.8;
+    flex: 0 0 auto;
 }
 
 .ws-group-summary {
     align-items: center;
     gap: 4px;
     margin-left: 6px;
+    flex: 0 0 auto;
 }
 
 .ws-group-hidden-badge {
@@ -364,6 +374,7 @@
     padding-left: 6px;
     border-left: 1px solid rgba(255, 255, 255, 0.08);
     color: rgba(255, 255, 255, 0.58);
+    flex: 0 0 auto;
 }
 
 .ws-group-focus-badge {
@@ -371,6 +382,7 @@
     padding-left: 6px;
     border-left: 1px solid rgba(255, 255, 255, 0.08);
     color: color-mix(in srgb, var(--ws-group-color) 76%, rgba(255, 255, 255, 0.72));
+    flex: 0 0 auto;
 }
 
 .ws-group-body {

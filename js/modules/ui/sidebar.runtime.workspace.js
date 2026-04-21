@@ -217,7 +217,9 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         label.textContent = ws.name;
         item.appendChild(label);
 
-        var workspaceSummary = ctx.getWorkspaceSummary(String(ws.id || ''));
+        var workspaceSummary = ctx.shouldShowDatapackBadges()
+            ? ctx.getWorkspaceSummary(String(ws.id || ''))
+            : null;
         if (workspaceSummary) {
             var summary = document.createElement('span');
             summary.className = 'ws-summary';
@@ -228,14 +230,12 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             bookmarkChip.title = String(Number(workspaceSummary.bookmarkCount || 0)) + ' bookmarks in this tab';
             summary.appendChild(bookmarkChip);
 
-            var issueCount = Number(workspaceSummary.brokenCount || 0)
-                + Number(workspaceSummary.orphanedCount || 0)
-                + Number(workspaceSummary.staleCount || 0);
+            var issueCount = Number(workspaceSummary.localIssueCount || 0);
             if (issueCount > 0) {
                 var issueChip = document.createElement('span');
                 issueChip.className = 'ws-summary-chip ws-summary-chip--alert';
                 issueChip.textContent = String(issueCount) + '!';
-                issueChip.title = issueCount + ' datapack issues in this tab';
+                issueChip.title = issueCount + ' datapack issue' + (issueCount === 1 ? '' : 's') + ' in this tab';
                 summary.appendChild(issueChip);
             }
 

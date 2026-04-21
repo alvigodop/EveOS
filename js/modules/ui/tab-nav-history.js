@@ -17,6 +17,7 @@
         collapseAllTabs: rt.collapseAllTabs,
         expandAllTabs: rt.expandAllTabs,
         toggleShowInactiveTabs: rt.toggleShowInactiveTabs,
+        toggleShowSidebarDatapackBadges: rt.toggleShowSidebarDatapackBadges,
         refreshPopover: rt.updatePopoverState,
         getHistory: function () {
             return { stack: rt.state.history.slice(), index: rt.state.historyIndex };

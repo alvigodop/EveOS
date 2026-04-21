@@ -308,9 +308,7 @@ window.DashboardCategories = window.DashboardCategories || {};
             if (Number(datapackSummary.hiddenCount || 0) > 0) {
                 datapackBits.push(String(Number(datapackSummary.hiddenCount || 0)) + ' hidden');
             }
-            var issueCount = Number(datapackSummary.brokenCount || 0)
-                + Number(datapackSummary.orphanedCount || 0)
-                + Number(datapackSummary.staleCount || 0);
+            var issueCount = Number(datapackSummary.localIssueCount || 0);
             if (issueCount > 0) {
                 datapackBits.push(String(issueCount) + ' issues');
             }

@@ -199,6 +199,24 @@
         updatePopover();
     }
 
+    function toggleShowSidebarDatapackBadges() {
+        var configRef = getConfigRef();
+        var groupsApi = getSidebarGroupsApi();
+        if (!configRef) return;
+        if (groupsApi && typeof groupsApi.ensureConfigDefaults === 'function') {
+            groupsApi.ensureConfigDefaults(configRef);
+        }
+        configRef.showSidebarDatapackBadges = configRef.showSidebarDatapackBadges === false;
+        saveAndRefreshSidebar();
+        if (typeof window.showToast === 'function') {
+            window.showToast(
+                configRef.showSidebarDatapackBadges ? 'Showing sidebar datapack badges' : 'Hiding sidebar datapack badges',
+                'info'
+            );
+        }
+        updatePopover();
+    }
+
     function createSidebarGroup() {
         if (typeof window.openSidebarGroupModal === 'function') {
             window.openSidebarGroupModal();
@@ -291,6 +309,13 @@
             inactiveBtn.innerHTML = configRef?.showInactiveTabs
                 ? '&#128065; Hide Inactive Tabs'
                 : '&#128065; Show Inactive Tabs';
+        }
+
+        var datapackBadgesBtn = pop.querySelector('[data-tab-nav-action="toggle-datapack-badges"]');
+        if (datapackBadgesBtn) {
+            datapackBadgesBtn.innerHTML = configRef?.showSidebarDatapackBadges === false
+                ? '&#128202; Show Tab Badges'
+                : '&#128202; Hide Tab Badges';
         }
 
         var hiddenGroupsBtn = pop.querySelector('[data-tab-nav-action="toggle-hidden-groups"]');
@@ -418,6 +443,7 @@
         collapseAllTabs: collapseAllTabs,
         expandAllTabs: expandAllTabs,
         toggleShowInactiveTabs: toggleShowInactiveTabs,
+        toggleShowSidebarDatapackBadges: toggleShowSidebarDatapackBadges,
         createSidebarGroup: createSidebarGroup,
         collapseAllGroups: collapseAllGroups,
         expandAllGroups: expandAllGroups,

@@ -192,6 +192,10 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             return !!config.showHiddenSidebarGroups || isHoverRevealActive();
         };
 
+        ctx.shouldShowDatapackBadges = function () {
+            return config.showSidebarDatapackBadges !== false;
+        };
+
         ctx.shouldRenderWorkspace = function (ws) {
             return !!ws && (!ctx.isWorkspaceEffectivelyInactive(ws) || ctx.shouldShowInactiveTabs());
         };

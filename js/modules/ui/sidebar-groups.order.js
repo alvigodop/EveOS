@@ -95,6 +95,7 @@
         if (!Array.isArray(cfg.sidebarGroups)) cfg.sidebarGroups = [];
         if (typeof cfg.showHiddenSidebarGroups !== 'boolean') cfg.showHiddenSidebarGroups = false;
         if (typeof cfg.showInactiveTabs !== 'boolean') cfg.showInactiveTabs = false;
+        if (typeof cfg.showSidebarDatapackBadges !== 'boolean') cfg.showSidebarDatapackBadges = true;
         if (typeof cfg.sidebarFocusedGroupId !== 'string') cfg.sidebarFocusedGroupId = '';
         cfg.sidebarFocusedGroupId = rt.normalizeGroupId(cfg.sidebarFocusedGroupId);
         cfg.sidebarOrderMode = rt.normalizeOrderMode(cfg.sidebarOrderMode);
