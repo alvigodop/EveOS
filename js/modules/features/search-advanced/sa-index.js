@@ -61,18 +61,24 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     }
 
     async function persistSnapshot(snapshot) {
+        let savedToPrimaryStorage = false;
         try {
             if (window.StorageManager?.saveDataAsync) {
                 await window.StorageManager.saveDataAsync(STORAGE_MANAGER_KEY, snapshot, null);
+                savedToPrimaryStorage = true;
             }
         } catch (error) {
             console.warn('[NexusIndex] StorageManager save failed:', error);
         }
 
+        if (savedToPrimaryStorage) return;
+
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
         } catch (error) {
-            console.warn('[NexusIndex] localStorage save failed:', error);
+            if (!(error && error.name === 'QuotaExceededError')) {
+                console.warn('[NexusIndex] localStorage save failed:', error);
+            }
         }
     }
 

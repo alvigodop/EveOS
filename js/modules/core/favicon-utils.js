@@ -1,8 +1,8 @@
 (function () {
     'use strict';
 
-    const GOOGLE_FAVICON_BASE = 'https://www.google.com/s2/favicons';
-    const FAILURE_STORAGE_KEY = 'eveFaviconFailureCacheV1';
+    const FAVICON_PROVIDER_BASE = 'https://icons.duckduckgo.com/ip3';
+    const FAILURE_STORAGE_KEY = 'eveFaviconFailureCacheV2';
     const FAILURE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
     const placeholderCache = new Map();
     const failureCache = new Map();
@@ -51,7 +51,7 @@
     function buildRemoteUrl(domain, size) {
         const normalized = normalizeDomain(domain);
         if (!normalized) return '';
-        return `${GOOGLE_FAVICON_BASE}?domain=${encodeURIComponent(normalized)}&sz=${size || 32}`;
+        return `${FAVICON_PROVIDER_BASE}/${encodeURIComponent(normalized)}.ico`;
     }
 
     function loadFailureCache() {
@@ -128,7 +128,9 @@
 
     function isRemoteFaviconUrl(value) {
         const text = String(value || '').toLowerCase();
-        return text.includes('google.com/s2/favicons') || text.includes('gstatic.com/faviconv2');
+        return text.includes('google.com/s2/favicons')
+            || text.includes('gstatic.com/faviconv2')
+            || text.includes('icons.duckduckgo.com/ip3/');
     }
 
     function isLocalRenderableIcon(value) {

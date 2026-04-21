@@ -4,6 +4,33 @@ window.EveBulkImport = window.EveBulkImport || {};
     const api = window.EveBulkImport._api = window.EveBulkImport._api || {};
     if (api.runtimeUiReady || !api.runtimeSharedReady) return;
 
+    function deriveSmartExtractCategoryTitle(fileList) {
+        const files = Array.from(fileList || [])
+            .filter((file) => file && /\.txt$/i.test(String(file.name || '').trim()));
+        if (files.length !== 1) return '';
+
+        const normalizeTitle = typeof api.normalizeImportedFileTitle === 'function'
+            ? api.normalizeImportedFileTitle
+            : (fileName) => String(fileName || '').replace(/\.txt$/i, '').trim();
+
+        return normalizeTitle(files[0].name);
+    }
+
+    function maybeAutofillSmartExtractCategory(fileList) {
+        const categoryInput = document.getElementById('bulkCategory');
+        if (!categoryInput) return;
+
+        const nextTitle = deriveSmartExtractCategoryTitle(fileList);
+        if (!nextTitle) return;
+
+        const currentValue = String(categoryInput.value || '').trim();
+        const previousAutoValue = String(api._smartExtractAutoCategory || '').trim();
+        if (currentValue && currentValue !== previousAutoValue) return;
+
+        categoryInput.value = nextTitle;
+        api._smartExtractAutoCategory = nextTitle;
+    }
+
     async function readAllEntries(dirReader) {
         let entries = [];
         let readEntries = await new Promise((resolve, reject) => dirReader.readEntries(resolve, reject));
@@ -246,6 +273,8 @@ window.EveBulkImport = window.EveBulkImport || {};
     }
 
     Object.assign(api, {
+        deriveSmartExtractCategoryTitle,
+        maybeAutofillSmartExtractCategory,
         readAllEntries,
         traverseFileTree,
         traverseHandle,

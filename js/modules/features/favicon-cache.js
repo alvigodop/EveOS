@@ -4,7 +4,7 @@
 
     const IDB_KEY = 'eveFaviconCache';
     const TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
-    const GOOGLE_FAVICON_BASE = 'https://www.google.com/s2/favicons';
+    const FAVICON_PROVIDER_BASE = 'https://icons.duckduckgo.com/ip3';
     const MAX_MEMORY = 500; // In-memory LRU cap
     const placeholderCache = new Map();
 
@@ -122,17 +122,21 @@
     }
 
     function canFetchRemoteFavicons() {
-        return !isLocalContext();
+        return true;
     }
 
     function isRemoteIconUrl(value) {
         return /^https?:\/\//i.test(String(value || ''));
     }
 
+    function isSupportedRemoteIconUrl(value) {
+        return String(value || '').toLowerCase().includes('icons.duckduckgo.com/ip3/');
+    }
+
     function isUsableCachedIcon(value) {
         if (!value) return false;
-        if (canFetchRemoteFavicons()) return true;
-        return !isRemoteIconUrl(value);
+        if (!isRemoteIconUrl(value)) return true;
+        return isSupportedRemoteIconUrl(value);
     }
 
     function getCachedIcon(key) {
@@ -190,11 +194,10 @@
 
     function fetchFaviconDataUri(domain, size) {
         const sz = size || 32;
-        const url = `${GOOGLE_FAVICON_BASE}?domain=${encodeURIComponent(domain)}&sz=${sz}`;
+        const url = buildRemoteUrl(domain, sz);
 
         return new Promise(function (resolve) {
             const img = new Image();
-            img.crossOrigin = 'anonymous';
             img.referrerPolicy = 'no-referrer';
 
             img.onload = function () {
@@ -223,7 +226,7 @@
     function buildRemoteUrl(domain, size) {
         const key = normalizeDomain(domain);
         if (!key) return '';
-        return `${GOOGLE_FAVICON_BASE}?domain=${encodeURIComponent(key)}&sz=${size || 32}`;
+        return `${FAVICON_PROVIDER_BASE}/${encodeURIComponent(key)}.ico`;
     }
 
     // ── Public API ──
@@ -263,12 +266,10 @@
         const cached = getCachedIcon(key);
         if (cached) return cached;
 
-        if (!canFetchRemoteFavicons()) return buildRemoteUrl(key, sz);
-
         // Schedule background cache
         fetchAndCache(key, sz);
 
-        // Return live URL as temporary fallback (will be cached for next render)
+        // Return provider URL as temporary fallback (browser cache will help after first hit)
         return buildRemoteUrl(key, sz);
     }
 
@@ -283,8 +284,6 @@
         const cached = getCachedIcon(key);
         if (cached) return cached;
         if (_inFlight.has(key)) return _inFlight.get(key);
-        if (!canFetchRemoteFavicons()) return getPlaceholderFavicon(key, size || 32);
-
         const promise = (async () => {
             // Wait for disk cache to be ready
             await loadDiskCache();

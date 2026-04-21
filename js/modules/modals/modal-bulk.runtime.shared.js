@@ -138,6 +138,9 @@ window.EveBulkImport = window.EveBulkImport || {};
                 const fileInput = document.getElementById('bulkFileInput');
                 const dropText = document.getElementById('bulkFileDropText');
                 if (fileInput && fileInput.files && fileInput.files.length > 0) {
+                    if (typeof api.maybeAutofillSmartExtractCategory === 'function') {
+                        api.maybeAutofillSmartExtractCategory(fileInput.files);
+                    }
                     dropText.textContent = `${fileInput.files.length} file(s) selected`;
                     fileDropZone.style.borderColor = '#00a8ff';
                     fileDropZone.style.color = '#fff';

@@ -290,6 +290,7 @@ function processStructuredFile(content, fileName, targetCategory, folderId = '',
 }
 
     Object.assign(api, {
+        normalizeImportedFileTitle,
         processStructuredFile,
         looksLikeStructuredFileContent
     });
