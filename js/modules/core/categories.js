@@ -1,5 +1,12 @@
 // --- CATEGORIES ---
 
+function getCategoryLiveLinks() {
+    if (Array.isArray(window.eveState?.links)) return window.eveState.links;
+    if (Array.isArray(window.links)) return window.links;
+    if (typeof links !== 'undefined' && Array.isArray(links)) return links;
+    return [];
+}
+
 function moveCategory(cat, direction, workspaceId) {
     workspaceId = String(workspaceId || config.activeWorkspace || 'main').trim() || 'main';
     if (window.EveCategoryOrder?.moveCategory) {
@@ -9,7 +16,7 @@ function moveCategory(cat, direction, workspaceId) {
         }
         return;
     }
-    const visibleLinks = links.filter(l => l.workspace === workspaceId);
+    const visibleLinks = getCategoryLiveLinks().filter(l => l.workspace === workspaceId);
     let categories = [...new Set(visibleLinks.map(l => l.category || "Unsorted"))];
     if (!config.categoryOrder || config.categoryOrder.length === 0) config.categoryOrder = categories.sort();
     categories.forEach(c => { if (!config.categoryOrder.includes(c)) config.categoryOrder.push(c); });
@@ -220,7 +227,9 @@ function clearFocus() {
 }
 
 async function launchCategory(catName) {
-    const urls = links.filter(l => l.category === catName && !l.done && l.workspace === config.activeWorkspace).map(l => l.url);
+    const urls = getCategoryLiveLinks()
+        .filter(l => l.category === catName && !l.done && l.workspace === config.activeWorkspace)
+        .map(l => l.url);
     if (urls.length === 0) return;
 
     // Safety check for many tabs

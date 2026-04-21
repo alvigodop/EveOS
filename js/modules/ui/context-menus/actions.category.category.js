@@ -8,14 +8,66 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
         return String(window.ctxWsId || config?.activeWorkspace || 'main').trim() || 'main';
     }
 
+    function getDatapackIndexApi() {
+        return window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
+    }
+
+    function getLiveLinks() {
+        if (Array.isArray(window.eveState?.links)) return window.eveState.links;
+        if (Array.isArray(window.links)) return window.links;
+        return [];
+    }
+
+    function getExactCategoryLinkIds(workspaceId, categoryName) {
+        const indexApi = getDatapackIndexApi();
+        if (!indexApi || typeof indexApi.getExactBookmarkLinkIds !== 'function') return null;
+        const hasUsableSnapshot = typeof indexApi.hasUsableSnapshot === 'function'
+            ? indexApi.hasUsableSnapshot()
+            : !!indexApi.getSnapshot?.();
+        if (!hasUsableSnapshot) return null;
+        return indexApi.getExactBookmarkLinkIds({
+            workspaceId: workspaceId,
+            categoryName: categoryName
+        }) || [];
+    }
+
+    function getScopedCategoryLinkIds(workspaceId, categoryName) {
+        const scopedIds = new Set();
+        getLiveScopedCategoryLinks(workspaceId, categoryName).forEach(function (link) {
+            const linkId = String(link?.id || '').trim();
+            if (linkId) scopedIds.add(linkId);
+        });
+        (getExactCategoryLinkIds(workspaceId, categoryName) || []).forEach(function (linkId) {
+            const normalizedId = String(linkId || '').trim();
+            if (normalizedId) scopedIds.add(normalizedId);
+        });
+        return Array.from(scopedIds);
+    }
+
     function getScopedCategoryLinks(workspaceId, categoryName) {
+        const indexApi = getDatapackIndexApi();
+        const exactIds = getExactCategoryLinkIds(workspaceId, categoryName);
+        if (exactIds && indexApi && typeof indexApi.resolveBookmarkLink === 'function') {
+            const resolvedById = new Map();
+            exactIds.forEach(function (linkId) {
+                const normalizedId = String(linkId || '').trim();
+                if (!normalizedId) return;
+                const resolved = indexApi.resolveBookmarkLink(normalizedId);
+                if (resolved) resolvedById.set(normalizedId, resolved);
+            });
+            getLiveScopedCategoryLinks(workspaceId, categoryName).forEach(function (link) {
+                const normalizedId = String(link?.id || '').trim();
+                if (!normalizedId || resolvedById.has(normalizedId)) return;
+                resolvedById.set(normalizedId, link);
+            });
+            return Array.from(resolvedById.values());
+        }
+
         const folderScopeShared = window.EveFolderViewV2?._shared || null;
         if (folderScopeShared && typeof folderScopeShared.getCategoryLinks === 'function') {
             return folderScopeShared.getCategoryLinks(workspaceId, categoryName);
         }
-        const sourceLinks = typeof getModalLinks === 'function'
-            ? getModalLinks()
-            : (Array.isArray(window.eveState?.links) ? window.eveState.links : []);
+        const sourceLinks = typeof getModalLinks === 'function' ? getModalLinks() : getLiveLinks();
         return sourceLinks.filter(function (link) {
             return String(link?.workspace || '') === String(workspaceId || '')
                 && String(link?.category || 'Unsorted') === String(categoryName || 'Unsorted');
@@ -23,9 +75,7 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
     }
 
     function getLiveScopedCategoryLinks(workspaceId, categoryName) {
-        const sourceLinks = Array.isArray(window.eveState?.links)
-            ? window.eveState.links
-            : (Array.isArray(window.links) ? window.links : []);
+        const sourceLinks = getLiveLinks();
         return sourceLinks.filter(function (link) {
             return String(link?.workspace || 'main').trim() === String(workspaceId || 'main').trim()
                 && String(link?.category || 'Unsorted').trim() === String(categoryName || 'Unsorted').trim();
@@ -46,17 +96,17 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
 
             if (!(await showConfirm('Delete Category?'))) return;
 
-            const removedIds = getLiveScopedCategoryLinks(workspaceId, name).map((entry) => entry.id);
-            const nextLinks = (Array.isArray(window.eveState?.links)
-                ? window.eveState.links
-                : (Array.isArray(window.links) ? window.links : []))
+            const removedIds = getScopedCategoryLinkIds(workspaceId, name);
+            const nextLinks = getLiveLinks()
                 .filter((entry) => !(
                     String(entry?.workspace || 'main').trim() === workspaceId
                     && String(entry?.category || 'Unsorted').trim() === String(name || 'Unsorted').trim()
                 ));
-            links = nextLinks;
             if (window.eveState) window.eveState.links = nextLinks;
             window.links = nextLinks;
+            if (typeof links !== 'undefined' && Array.isArray(nextLinks)) {
+                links = nextLinks;
+            }
 
             if (window.EveBookmarkFolders?.deleteCategoryScope) {
                 window.EveBookmarkFolders.deleteCategoryScope(workspaceId, name);

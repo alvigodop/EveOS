@@ -8,7 +8,8 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
     const {
         normalizeWorkspaceId,
         normalizeCategoryName,
-        normalizeFolderId
+        normalizeFolderId,
+        getLiveLinks
     } = shared;
     const {
         getFolderById,
@@ -51,11 +52,12 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
             ? normalizedFolderId
             : '';
 
-        if (!Array.isArray(window.eveState?.links) || !linkIds.length) return false;
+        const liveLinks = typeof getLiveLinks === 'function' ? getLiveLinks() : [];
+        if (!Array.isArray(liveLinks) || !linkIds.length) return false;
         let movedAny = false;
         const syncLinked = window.EveLibrary?.ConnectionsAPI?.syncFromLink;
 
-        window.eveState.links.forEach((link) => {
+        liveLinks.forEach((link) => {
             if (!linkIds.includes(String(link?.id))) return;
             const nextWorkspaceId = targetWorkspaceId;
             const nextCategoryName = targetCategoryName;

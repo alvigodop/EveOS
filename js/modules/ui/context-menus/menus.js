@@ -88,10 +88,9 @@ window.showFolderContextMenu = function (e, categoryName, folderId, workspaceId)
                 })(folderId);
             } else if (window.EveBookmarkFolders) {
                 // Slow fallback: build viewModel (with skipGhosts)
-                var folderScopeShared = window.EveFolderViewV2 && window.EveFolderViewV2._shared ? window.EveFolderViewV2._shared : {};
-                var folderLinks = typeof folderScopeShared.getCategoryLinks === 'function'
-                    ? folderScopeShared.getCategoryLinks(window.ctxWsId, window.ctxCatName)
-                    : (window.getModalLinks ? window.getModalLinks().filter(function (l) { return l.workspace === window.ctxWsId && l.category === window.ctxCatName; }) : []);
+                var folderLinks = typeof window.EveContextMenuActions?.getFolderCategoryLinks === 'function'
+                    ? window.EveContextMenuActions.getFolderCategoryLinks(window.ctxWsId, window.ctxCatName)
+                    : [];
                 var viewModel = window.EveBookmarkFolders.buildFolderView(window.ctxWsId, window.ctxCatName, folderLinks, { skipGhosts: true });
                 (function recurseCount(fId) {
                     var items = viewModel.folderLinks.get(fId) || [];
@@ -128,10 +127,12 @@ window.showLinkContextMenu = function (e, id) {
     const pinScopeCard = m.querySelector('#ctx-pin-scope-card');
     const pinScopeFolder = m.querySelector('#ctx-pin-scope-folder');
     const doneAction = m.querySelector('#ctx-toggle-done-action');
+    const linkSource = Array.isArray(window.links)
+        ? window.links
+        : (typeof links !== 'undefined' && Array.isArray(links) ? links : []);
     const link = window.EveContextMenuActions?.getCtxLink?.()
-        || (typeof links !== 'undefined' && Array.isArray(links)
-            ? links.find(function (item) { return String(item?.id ?? '') === normalizedId; }) || null
-            : null);
+        || linkSource.find(function (item) { return String(item?.id ?? '') === normalizedId; })
+        || null;
     const linked = !!window.EveLibrary?.ConnectionsAPI?.findConnectionByLinkId?.(normalizedId);
     const pinApi = window.EveQuickPins;
     const isPinned = !!pinApi?.isBookmarkPinned?.(normalizedId);

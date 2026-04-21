@@ -9,7 +9,8 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         normalizeFolderId,
         buildChildrenMap,
         buildNodeMap,
-        getScopedNodes
+        getScopedNodes,
+        resolveLinkById
     } = shared;
 
 function getFolderById(workspaceId, categoryName, folderId) {
@@ -156,9 +157,9 @@ function getFolderById(workspaceId, categoryName, folderId) {
 
         const editId = String(document.getElementById('editId')?.value || '').trim();
 
-        if (editId && Array.isArray(window.eveState?.links)) {
+        if (editId && typeof resolveLinkById === 'function') {
 
-            const match = window.eveState.links.find((link) => String(link?.id) === editId);
+            const match = resolveLinkById(editId);
 
             if (match?.workspace) return String(match.workspace);
 

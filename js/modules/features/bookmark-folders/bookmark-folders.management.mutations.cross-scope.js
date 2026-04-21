@@ -15,7 +15,8 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         normalizeTreeSettings,
         cloneStore,
         writeStore,
-        buildChildrenMap
+        buildChildrenMap,
+        getLiveLinks
     } = shared;
     const { moveFolder } = api;
 
@@ -87,8 +88,9 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
                 nextStore[sourceKey] = sourceTree;
             }
 
-            if (Array.isArray(window.eveState?.links)) {
-                window.eveState.links.forEach((link) => {
+            const liveLinks = typeof getLiveLinks === 'function' ? getLiveLinks() : [];
+            if (Array.isArray(liveLinks)) {
+                liveLinks.forEach((link) => {
                     if (toMoveIds.has(normalizeFolderId(link.folderId))) {
                         link.workspace = tWs;
                         link.category = tCat;
@@ -97,6 +99,11 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
                         }
                     }
                 });
+                if (window.eveState) window.eveState.links = liveLinks;
+                window.links = liveLinks;
+                if (typeof links !== 'undefined') {
+                    links = liveLinks;
+                }
             }
 
             writeStore(nextStore, true);

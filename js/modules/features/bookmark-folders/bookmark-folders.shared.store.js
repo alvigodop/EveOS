@@ -237,6 +237,128 @@ const CLICK_BEHAVIOR_MODES = new Set(['inherit', 'invert', 'focus_only', 'intern
 
 
 
+    function getDatapackIndexApi() {
+
+        return window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
+
+    }
+
+
+
+    function getLiveLinks() {
+
+        if (Array.isArray(window.eveState?.links)) return window.eveState.links;
+
+        if (Array.isArray(window.links)) return window.links;
+
+        if (typeof links !== 'undefined' && Array.isArray(links)) return links;
+
+        return [];
+
+    }
+
+
+
+    function getExactScopedLinkIds(scope) {
+
+        const indexApi = getDatapackIndexApi();
+
+        if (!indexApi || typeof indexApi.getExactBookmarkLinkIds !== 'function') return null;
+
+        const hasUsableSnapshot = typeof indexApi.hasUsableSnapshot === 'function'
+
+            ? indexApi.hasUsableSnapshot()
+
+            : !!indexApi.getSnapshot?.();
+
+        if (!hasUsableSnapshot) return null;
+
+        return indexApi.getExactBookmarkLinkIds(scope || null);
+
+    }
+
+
+
+    function buildIndexedLinkFallback(indexApi, linkId) {
+
+        const snapshot = typeof indexApi?.getSnapshot === 'function' ? indexApi.getSnapshot() : null;
+
+        const normalizedId = String(linkId || '').trim();
+
+        if (!snapshot || !Array.isArray(snapshot.records) || !normalizedId) return null;
+
+        const record = snapshot.records.find((entry) => {
+
+            if (String(entry?.type || '').trim() !== 'bookmark') return false;
+
+            return String(
+
+                entry?.path?.linkId
+
+                || entry?.provenance?.linkId
+
+                || entry?.sourceIdentity?.linkId
+
+                || ''
+
+            ).trim() === normalizedId;
+
+        }) || null;
+
+        if (!record) return null;
+
+        return {
+
+            id: normalizedId,
+
+            title: String(record?.title || 'Untitled').trim() || 'Untitled',
+
+            url: String(record?.url || '').trim(),
+
+            category: String(record?.categoryName || '').trim(),
+
+            workspace: String(record?.workspaceId || '').trim(),
+
+            done: !!record?.provenance?.done,
+
+            folderId: String(record?.path?.folderId || '').trim(),
+
+            notes: String(record?.description || '').trim(),
+
+            tags: Array.isArray(record?.provenance?.tags) ? record.provenance.tags.slice() : []
+
+        };
+
+    }
+
+
+
+    function resolveLinkById(linkId) {
+
+        const normalizedId = String(linkId || '').trim();
+
+        if (!normalizedId) return null;
+
+        const indexApi = getDatapackIndexApi();
+
+        if (indexApi && typeof indexApi.resolveBookmarkLink === 'function') {
+
+            const resolved = indexApi.resolveBookmarkLink(normalizedId);
+
+            if (resolved) return resolved;
+
+        }
+
+        const indexedFallback = buildIndexedLinkFallback(indexApi, normalizedId);
+
+        if (indexedFallback) return indexedFallback;
+
+        return getLiveLinks().find((link) => String(link?.id || '').trim() === normalizedId) || null;
+
+    }
+
+
+
     function cloneStore() {
 
         const store = getFolderStore();
@@ -416,6 +538,10 @@ const CLICK_BEHAVIOR_MODES = new Set(['inherit', 'invert', 'focus_only', 'intern
         dedupeNodes,
         treeHasMeaningfulState,
         getScopedNodes,
+        getDatapackIndexApi,
+        getLiveLinks,
+        getExactScopedLinkIds,
+        resolveLinkById,
         cloneStore,
         writeStore,
         setScopedTree,

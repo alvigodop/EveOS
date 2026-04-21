@@ -4,6 +4,20 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
     const ns = window.EveContextMenuActions;
     if (ns.categoryWorkspaceActionsReady) return;
 
+    function getLiveLinks() {
+        if (Array.isArray(window.eveState?.links)) return window.eveState.links;
+        if (Array.isArray(window.links)) return window.links;
+        if (typeof links !== 'undefined' && Array.isArray(links)) return links;
+        return [];
+    }
+
+    function setLiveLinks(nextLinks) {
+        if (window.eveState) window.eveState.links = nextLinks;
+        window.links = nextLinks;
+        if (typeof links !== 'undefined') links = nextLinks;
+        return nextLinks;
+    }
+
     window.ctxWsDelete = async function () {
         const helpers = window.EveWorkspaceHelpers;
         const allFlat = helpers ? helpers.flatten(config.workspaces) : config.workspaces;
@@ -27,11 +41,13 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
             }
             const targetWorkspaceId = config.workspaces[0].id;
             const syncLinked = window.EveLibrary?.ConnectionsAPI?.syncFromLink;
-            links.forEach((link) => {
+            const liveLinks = getLiveLinks();
+            liveLinks.forEach((link) => {
                 if (!removedIds.has(link.workspace)) return;
                 link.workspace = targetWorkspaceId;
                 if (typeof syncLinked === 'function') syncLinked(link.id);
             });
+            setLiveLinks(liveLinks);
             window.EveBookmarkFolders?.moveWorkspaceTrees?.(ctxWsId, targetWorkspaceId);
             config.activeWorkspace = config.workspaces[0].id;
             saveConfig();

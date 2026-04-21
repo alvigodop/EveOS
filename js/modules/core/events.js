@@ -11,6 +11,20 @@ const SITE_KEYBOARD_SHORTCUTS = Object.freeze([
 window.EveKeyboardShortcuts = window.EveKeyboardShortcuts || {};
 window.EveKeyboardShortcuts.list = SITE_KEYBOARD_SHORTCUTS.map((entry) => ({ ...entry }));
 
+function getDropTargetLinks() {
+    if (Array.isArray(window.eveState?.links)) return window.eveState.links;
+    if (Array.isArray(window.links)) return window.links;
+    if (typeof links !== 'undefined' && Array.isArray(links)) return links;
+    return [];
+}
+
+function setDropTargetLinks(nextLinks) {
+    if (window.eveState) window.eveState.links = nextLinks;
+    window.links = nextLinks;
+    if (typeof links !== 'undefined') links = nextLinks;
+    return nextLinks;
+}
+
 // --- DRAG & DROP ---
 function allowDrop(ev) {
     ev.preventDefault();
@@ -98,7 +112,7 @@ function drop(ev, newCategory) {
     }
 
     dragIds.forEach((id) => {
-        const targetLinks = window.eveState?.links || (typeof links !== 'undefined' ? links : []);
+        const targetLinks = getDropTargetLinks();
         const idx = targetLinks.findIndex(l => String(l.id) === String(id));
         if (idx < 0) return;
         if (targetLinks[idx].category === newCategory) return;
@@ -109,6 +123,7 @@ function drop(ev, newCategory) {
     });
 
     if (movedAny) {
+        setDropTargetLinks(getDropTargetLinks());
         if (typeof saveData === 'function') saveData({ forceRender: true });
     }
 }

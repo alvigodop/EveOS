@@ -31,7 +31,9 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
         }
         const sourceLinks = Array.isArray(window.eveState?.links)
             ? window.eveState.links
-            : (typeof links !== 'undefined' && Array.isArray(links) ? links : []);
+            : (Array.isArray(window.links)
+                ? window.links
+                : (typeof links !== 'undefined' && Array.isArray(links) ? links : []));
         return sourceLinks.find((entry) => String(entry?.id) === targetId) || null;
     }
 

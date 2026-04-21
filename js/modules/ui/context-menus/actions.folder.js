@@ -4,6 +4,13 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
     const shared = window.EveContextMenuActions;
     if (shared.folderReady) return;
 
+    function getLiveLinks() {
+        if (Array.isArray(window.eveState?.links)) return window.eveState.links;
+        if (Array.isArray(window.links)) return window.links;
+        if (typeof links !== 'undefined' && Array.isArray(links)) return links;
+        return [];
+    }
+
     function getActiveWorkspaceId() {
         return window.ctxWsId || ((window.config && window.config.activeWorkspace) || 'main');
     }
@@ -13,9 +20,8 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
         if (typeof folderScopeShared.getCategoryLinks === 'function') {
             return folderScopeShared.getCategoryLinks(workspaceId, categoryName);
         }
-        return window.getModalLinks
-            ? window.getModalLinks().filter((link) => link.workspace === workspaceId && link.category === categoryName)
-            : [];
+        const sourceLinks = typeof window.getModalLinks === 'function' ? window.getModalLinks() : getLiveLinks();
+        return sourceLinks.filter((link) => link.workspace === workspaceId && link.category === categoryName);
     }
 
     function collectFolderHierarchy(workspaceId, categoryName, folderId) {
@@ -231,10 +237,9 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
                         const newStatus = document.getElementById('bulkPatchStatusSelect').value;
                         const folderApi = window.EveBookmarkFolders;
                         if(folderApi && window.EveLibrary && window.EveLibrary.ConnectionsAPI && window.EveLibrary.EntriesAPI) {
-                            const scopeShared = window.EveFolderViewV2&&window.EveFolderViewV2._shared ? window.EveFolderViewV2._shared : {};
-                            const allLinks = typeof scopeShared.getCategoryLinks === 'function'
-                                ? scopeShared.getCategoryLinks(window._ctxTempWs, window._ctxTempCat)
-                                : (window.getModalLinks ? window.getModalLinks().filter(l => l.workspace === window._ctxTempWs && l.category === window._ctxTempCat) : []);
+                            const allLinks = typeof window.EveContextMenuActions.getFolderCategoryLinks === 'function'
+                                ? window.EveContextMenuActions.getFolderCategoryLinks(window._ctxTempWs, window._ctxTempCat)
+                                : [];
                             const view = folderApi.buildFolderView(window._ctxTempWs, window._ctxTempCat, allLinks);
                             const folderItems = view.folderLinks.get(window._ctxTempFolderId) || [];
                             let patched = 0;
@@ -277,6 +282,8 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
             deleteBookmarkFolderPrompt(window.ctxCatName, window.ctxFolderId, getActiveWorkspaceId());
         }
     };
+
+    shared.getFolderCategoryLinks = getCategoryLinks;
 
     shared.folderReady = true;
 })();
