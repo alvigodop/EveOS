@@ -297,7 +297,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 }
             }));
 
-            if (!parentMapNode && state.stableMainNodes && mapKind !== 'workspace') {
+            if (!parentMapNode && state.stableMainNodes && mapKind !== 'link') {
                 mapNode.manualAnchor = createManualAnchor(mapNode);
             }
             if (parentMapNode) {
@@ -416,9 +416,13 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                         workspaceId,
                         coverCandidates: buildCoverCandidates(workspaceLinks),
                         depth: -2 - wsDepth,
+                        anchorNodeId: parentWorkspaceNode?.id || '',
                         hiddenInParent: isHiddenInParent
                     }
                 }));
+                if (!parentWorkspaceNode && state.stableMainNodes) {
+                    workspaceNode.manualAnchor = createManualAnchor(workspaceNode);
+                }
 
                 // Connect to parent workspace node
                 if (parentWorkspaceNode) {
@@ -475,9 +479,13 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                         data: {
                             workspaceId,
                             coverCandidates: buildCoverCandidates(workspaceLinks),
+                            anchorNodeId: '',
                             depth: -2
                         }
                     }));
+                    if (state.stableMainNodes) {
+                        workspaceNode.manualAnchor = createManualAnchor(workspaceNode);
+                    }
                     const categories = getCategoryNames(workspaceId, workspaceLinks);
                     categories.forEach((categoryName, categoryIndex) => {
                         const categoryCenter = placeOnRing(categoryIndex, categories.length, 128 + ((categoryIndex % 4) * 12), workspaceNode.x, workspaceNode.y, 10);
@@ -572,10 +580,14 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                     data: {
                         workspaceId,
                         coverCandidates: buildCoverCandidates(wsLinks),
+                        anchorNodeId: parentNode?.id || '',
                         depth: -2 - wsDepth,
                         hiddenInParent: isHiddenInParent
                     }
                 }));
+                if (!parentNode && state.stableMainNodes) {
+                    subWsNode.manualAnchor = createManualAnchor(subWsNode);
+                }
 
                 // Connect to parent sub-tab node (not root — root has no node)
                 if (parentNode) {

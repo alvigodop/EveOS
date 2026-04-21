@@ -55,6 +55,40 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         }
     }
 
+    function stabilizeWorkspaceBranch(node, parentNode, anchor, motionProfile) {
+        if (!node || node.kind !== 'workspace' || !parentNode || parentNode.kind !== 'workspace' || !anchor) return;
+
+        const mode = motionProfile?.mode || 'web';
+        const extraPull = mode === 'web' ? 0.028 : 0.014;
+        const orbitDamping = mode === 'web' ? 0.82 : 0.58;
+        const radialClamp = mode === 'web' ? 0.04 : 0.018;
+
+        node.vx += (anchor.x - node.x) * extraPull;
+        node.vy += (anchor.y - node.y) * extraPull;
+
+        const dx = node.x - parentNode.x;
+        const dy = node.y - parentNode.y;
+        const distSq = (dx * dx) + (dy * dy);
+        const dist = Math.max(1, Math.sqrt(distSq));
+        const tx = -dy / dist;
+        const ty = dx / dist;
+        const tangentialVelocity = (node.vx * tx) + (node.vy * ty);
+
+        node.vx -= tx * tangentialVelocity * orbitDamping;
+        node.vy -= ty * tangentialVelocity * orbitDamping;
+
+        const targetDx = anchor.x - parentNode.x;
+        const targetDy = anchor.y - parentNode.y;
+        const targetDist = Math.sqrt((targetDx * targetDx) + (targetDy * targetDy));
+        if (Number.isFinite(targetDist) && targetDist > 1) {
+            const radialDelta = dist - targetDist;
+            const nx = dx / dist;
+            const ny = dy / dist;
+            node.vx -= nx * radialDelta * radialClamp;
+            node.vy -= ny * radialDelta * radialClamp;
+        }
+    }
+
     const HUB_GRID_SIZE = 250;
     const hubGrid = new Map();
 
@@ -126,9 +160,17 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                     node.vx += (hierAnchor.x - node.x) * anchorPull * 0.6;
                     node.vy += (hierAnchor.y - node.y) * anchorPull * 0.6;
                 }
+            } else if (node.kind === 'workspace' && pNode?.kind === 'workspace') {
+                const hierAnchor = state.hierarchyAnchors?.get(node.id) || anchor;
+                if (hierAnchor) {
+                    node.vx += (hierAnchor.x - node.x) * anchorPull * 1.08;
+                    node.vy += (hierAnchor.y - node.y) * anchorPull * 1.08;
+                }
             }
 
-            if (node.kind === 'category') {
+            if (node.kind === 'workspace') {
+                stabilizeWorkspaceBranch(node, pNode, state.hierarchyAnchors?.get(node.id) || anchor, motionProfile);
+            } else if (node.kind === 'category') {
                 stabilizeWorkspaceCategory(node, pNode, anchor, motionProfile);
             } else if (node.kind === 'folder') {
                 applyFolderRecovery(node, pNode, anchor, motionProfile);
@@ -152,6 +194,17 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             node.x += node.vx;
             node.y += node.vy;
+
+            if (node.kind === 'workspace' && pNode?.kind === 'workspace') {
+                const hierAnchor = state.hierarchyAnchors?.get(node.id) || anchor;
+                if (hierAnchor) {
+                    const settle = motionProfile?.mode === 'web' ? 0.18 : 0.1;
+                    node.x += (hierAnchor.x - node.x) * settle;
+                    node.y += (hierAnchor.y - node.y) * settle;
+                    node.vx *= 0.72;
+                    node.vy *= 0.72;
+                }
+            }
 
             applyMotionModePositioning(node, anchor, motionProfile);
             applySoftWorldTether(node, motionProfile);

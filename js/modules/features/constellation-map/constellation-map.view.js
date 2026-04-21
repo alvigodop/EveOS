@@ -51,7 +51,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
         if (!node) return false;
 
-        return isNodeMain(node);
+        return !!state.stableMainNodes && isNodeMain(node);
 
     }
 

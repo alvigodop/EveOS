@@ -33,6 +33,10 @@ window.EveConstellationMap = window.EveConstellationMap || {};
 
             let desired = edgeType === 'tag' ? 120 : 100;
 
+            if (isHierarchy && sourceKind === 'workspace' && targetKind === 'workspace') {
+                desired = 210;
+            }
+
             if (isHierarchy && sourceKind === 'folder') {
                 desired = 140;
             }

@@ -79,10 +79,13 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 frontY = dragDy / dragDist;
                 frontAngle = Math.atan2(frontY, frontX);
                 lockedAngle = frontAngle;
+            } else if (Number.isFinite(workspaceParentAngle)) {
+                frontAngle = workspaceParentAngle;
+                frontX = Math.cos(frontAngle);
+                frontY = Math.sin(frontAngle);
+                lockedAngle = null;
             } else if (hasWorkspaceParentAura) {
-                frontAngle = Number.isFinite(workspaceParentAngle)
-                    ? workspaceParentAngle
-                    : workspaceAuraData.frontAngle;
+                frontAngle = workspaceAuraData.frontAngle;
                 frontX = Math.cos(frontAngle);
                 frontY = Math.sin(frontAngle);
             } else if (directFolders.length > 0) {
@@ -104,10 +107,16 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                 }
             }
 
-            if (!isDraggingRoot && hasWorkspaceParentAura && previousRoot) {
-                const targetAngle = Number.isFinite(workspaceParentAngle)
-                    ? workspaceParentAngle
-                    : workspaceAuraData.frontAngle;
+            if (!isDraggingRoot && Number.isFinite(workspaceParentAngle) && previousRoot) {
+                const targetAngle = workspaceParentAngle;
+                const currentAngle = Number.isFinite(previousRoot.frontAngle)
+                    ? previousRoot.frontAngle
+                    : targetAngle;
+                frontAngle = stepAngleToward(currentAngle, targetAngle, 0.42, 0.24);
+                frontX = Math.cos(frontAngle);
+                frontY = Math.sin(frontAngle);
+            } else if (!isDraggingRoot && hasWorkspaceParentAura && previousRoot) {
+                const targetAngle = workspaceAuraData.frontAngle;
                 const currentAngle = Number.isFinite(previousRoot.frontAngle)
                     ? previousRoot.frontAngle
                     : targetAngle;

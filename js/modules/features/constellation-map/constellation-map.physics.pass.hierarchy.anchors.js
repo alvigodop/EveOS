@@ -56,6 +56,42 @@ function buildHierarchyAnchors(parentChildren, frontierReach, rootChildGuides, w
                 }
             }
 
+            if (node.kind === 'workspace' && parent.kind === 'workspace' && workspaceGuide) {
+                const workspaceSiblings = (parentChildren.get(parentId) || [])
+                    .filter((candidate) => candidate?.kind === 'workspace')
+                    .slice()
+                    .sort(compareNodeOrder);
+                const workspaceIndex = workspaceSiblings.findIndex((entry) => entry.id === node.id);
+                if (workspaceIndex >= 0) {
+                    const maxPerBand = workspaceSiblings.length >= 12
+                        ? 5
+                        : workspaceSiblings.length >= 8
+                            ? 4
+                            : workspaceSiblings.length >= 5
+                                ? 3
+                                : 2;
+                    const band = Math.floor(workspaceIndex / maxPerBand);
+                    const bandStart = band * maxPerBand;
+                    const bandSize = Math.min(maxPerBand, workspaceSiblings.length - bandStart);
+                    const slot = workspaceIndex - bandStart;
+                    const halfSpan = Math.max(120, 90 + ((bandSize - 1) * 58 * 0.5));
+                    const backOffset = 205 + (band * 96);
+                    const localX = bandSize > 1
+                        ? ((slot / (bandSize - 1)) - 0.5) * halfSpan * 2
+                        : 0;
+                    const localY = backOffset;
+                    const jitterSeed = node.id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+                    const lateralJitter = (((jitterSeed >> 1) % 5) - 2) * 3.2;
+                    const depthJitter = ((jitterSeed % 5) - 2) * 2.4;
+
+                    state.hierarchyAnchors.set(node.id, {
+                        x: parent.x + (workspaceGuide.latX * (localX + lateralJitter)) + (workspaceGuide.backX * (localY + depthJitter)),
+                        y: parent.y + (workspaceGuide.latY * (localX + lateralJitter)) + (workspaceGuide.backY * (localY + depthJitter))
+                    });
+                    return;
+                }
+            }
+
             if (node.kind === 'link' && isRootChild && rootGuide?.rootLinks?.length) {
                 const rootLinks = rootGuide.rootLinks;
                 const rootIndex = rootLinks.findIndex((entry) => entry.id === node.id);
@@ -296,7 +332,7 @@ function buildHierarchyAnchors(parentChildren, frontierReach, rootChildGuides, w
 
             if (workspaceAncestor) {
                 const workspaceData = workspaceAuraRoots.get(workspaceAncestor.id);
-                if (workspaceData) {
+                if (workspaceData && node.kind !== 'workspace') {
                     applyWorkspaceAuraRepulsion(node, workspaceAncestor, workspaceData);
                 }
             }
