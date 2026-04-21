@@ -247,6 +247,8 @@ const CLICK_BEHAVIOR_MODES = new Set(['inherit', 'invert', 'focus_only', 'intern
 
     function getLiveLinks() {
 
+        if (typeof window.getLiveLinks === 'function') return window.getLiveLinks();
+
         if (Array.isArray(window.eveState?.links)) return window.eveState.links;
 
         if (Array.isArray(window.links)) return window.links;
@@ -254,6 +256,22 @@ const CLICK_BEHAVIOR_MODES = new Set(['inherit', 'invert', 'focus_only', 'intern
         if (typeof links !== 'undefined' && Array.isArray(links)) return links;
 
         return [];
+
+    }
+
+
+
+    function setLiveLinks(nextLinks) {
+
+        if (typeof window.setLiveLinks === 'function') return window.setLiveLinks(nextLinks);
+
+        if (window.eveState) window.eveState.links = nextLinks;
+
+        window.links = nextLinks;
+
+        if (typeof links !== 'undefined') links = nextLinks;
+
+        return nextLinks;
 
     }
 
@@ -540,6 +558,7 @@ const CLICK_BEHAVIOR_MODES = new Set(['inherit', 'invert', 'focus_only', 'intern
         getScopedNodes,
         getDatapackIndexApi,
         getLiveLinks,
+        setLiveLinks,
         getExactScopedLinkIds,
         resolveLinkById,
         cloneStore,

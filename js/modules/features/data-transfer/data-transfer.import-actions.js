@@ -26,6 +26,11 @@ window.EveDataTransfer = window.EveDataTransfer || {};
     }
 
     function setLegacyLinks(nextLinks) {
+        if (typeof window.setLiveLinks === 'function') {
+            window.setLiveLinks(nextLinks);
+            return;
+        }
+        if (window.eveState) window.eveState.links = nextLinks;
         if (typeof links !== 'undefined') {
             links = nextLinks;
         } else {

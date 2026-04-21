@@ -29,11 +29,13 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
             const resolved = indexApi.resolveBookmarkLink(targetId);
             if (resolved) return resolved;
         }
-        const sourceLinks = Array.isArray(window.eveState?.links)
-            ? window.eveState.links
-            : (Array.isArray(window.links)
-                ? window.links
-                : (typeof links !== 'undefined' && Array.isArray(links) ? links : []));
+        const sourceLinks = typeof window.getLiveLinks === 'function'
+            ? window.getLiveLinks()
+            : (Array.isArray(window.eveState?.links)
+                ? window.eveState.links
+                : (Array.isArray(window.links)
+                    ? window.links
+                    : (typeof links !== 'undefined' && Array.isArray(links) ? links : [])));
         return sourceLinks.find((entry) => String(entry?.id) === targetId) || null;
     }
 

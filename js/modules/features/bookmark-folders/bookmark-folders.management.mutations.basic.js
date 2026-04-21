@@ -14,6 +14,7 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         getScopedNodes,
         setScopedNodes,
         getLiveLinks,
+        setLiveLinks,
         getExactScopedLinkIds
     } = shared;
 
@@ -174,10 +175,12 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
                 }
             }
 
-            if (window.eveState) window.eveState.links = linksArray;
-            window.links = linksArray;
-            if (typeof links !== 'undefined') {
-                links = linksArray;
+            if (typeof setLiveLinks === 'function') {
+                setLiveLinks(linksArray);
+            } else {
+                if (window.eveState) window.eveState.links = linksArray;
+                window.links = linksArray;
+                if (typeof links !== 'undefined') links = linksArray;
             }
         }
 

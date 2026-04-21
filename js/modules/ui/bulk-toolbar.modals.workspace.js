@@ -5,6 +5,7 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
 (function () {
     window.EveBulkToolbar.ModalModules.createWorkspaceModalHelpers = function createWorkspaceModalHelpers(deps) {
         const getLinks = deps.getLinks;
+        const setLinks = deps.setLinks;
         const getConfig = deps.getConfig;
         const getSelectedIds = deps.getSelectedIds;
         const toBulkId = deps.toBulkId;
@@ -219,13 +220,13 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
                 }
             });
 
-            if (window.eveState) {
-                window.eveState.links = allLinks;
+            if (typeof setLinks === 'function') {
+                setLinks(allLinks);
+            } else {
+                if (window.eveState) window.eveState.links = allLinks;
+                window.links = allLinks;
+                if (typeof links !== 'undefined') links = allLinks;
             }
-            if (typeof links !== 'undefined') {
-                links = allLinks;
-            }
-            window.links = allLinks;
             return true;
         }
         function confirmBulkTabMove() {

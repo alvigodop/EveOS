@@ -16,7 +16,8 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         cloneStore,
         writeStore,
         buildChildrenMap,
-        getLiveLinks
+        getLiveLinks,
+        setLiveLinks
     } = shared;
     const { moveFolder } = api;
 
@@ -99,10 +100,12 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
                         }
                     }
                 });
-                if (window.eveState) window.eveState.links = liveLinks;
-                window.links = liveLinks;
-                if (typeof links !== 'undefined') {
-                    links = liveLinks;
+                if (typeof setLiveLinks === 'function') {
+                    setLiveLinks(liveLinks);
+                } else {
+                    if (window.eveState) window.eveState.links = liveLinks;
+                    window.links = liveLinks;
+                    if (typeof links !== 'undefined') links = liveLinks;
                 }
             }
 

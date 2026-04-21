@@ -10,6 +10,14 @@ window.DashboardCategories = window.DashboardCategories || {};
         return window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
     }
 
+    function getLiveLinks() {
+        if (typeof window.getLiveLinks === 'function') return window.getLiveLinks();
+        if (Array.isArray(window.eveState?.links)) return window.eveState.links;
+        if (Array.isArray(window.links)) return window.links;
+        if (typeof links !== 'undefined' && Array.isArray(links)) return links;
+        return [];
+    }
+
     function findLinkById(linkId) {
         const targetId = toLinkId(linkId);
         if (!targetId) return null;
@@ -18,7 +26,7 @@ window.DashboardCategories = window.DashboardCategories || {};
             const resolved = indexApi.resolveBookmarkLink(targetId);
             if (resolved) return resolved;
         }
-        const linkList = window.eveState?.links || (typeof links !== 'undefined' ? links : []);
+        const linkList = getLiveLinks();
         return Array.isArray(linkList)
             ? linkList.find((entry) => toLinkId(entry?.id) === targetId) || null
             : null;

@@ -15,6 +15,7 @@ window.EveBulkToolbar = window.EveBulkToolbar || {};
     const getSelectedIds = ns.getSelectedIds;
     const getSelectedLinks = ns.getSelectedLinks;
     const getLinks = ns.getLinks;
+    const setLinks = ns.setLinks;
     const toBulkId = ns.toBulkId;
     const clearSelection = ns.clearSelection;
     const toggleSelectedId = ns.toggleSelectedId;
@@ -31,10 +32,11 @@ window.EveBulkToolbar = window.EveBulkToolbar || {};
     const attachOverlayDismissHandlers = ns.attachOverlayDismissHandlers;
 
     function replaceLinks(nextLinks) {
-        if (window.eveState?.links) window.eveState.links = nextLinks;
-        if (typeof links !== 'undefined') {
-            links = nextLinks;
-        }
+        if (typeof setLinks === 'function') return setLinks(nextLinks);
+        if (window.eveState) window.eveState.links = nextLinks;
+        window.links = nextLinks;
+        if (typeof links !== 'undefined') links = nextLinks;
+        return nextLinks;
     }
 
     function toggleBulkModeAction() {

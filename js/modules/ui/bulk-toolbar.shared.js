@@ -18,9 +18,19 @@ window.bulkLastToggledId = bulkLastToggledId;
     }
 
     function getLinks() {
-        if (window.eveState?.links) return window.eveState.links;
+        if (typeof window.getLiveLinks === 'function') return window.getLiveLinks();
+        if (Array.isArray(window.eveState?.links)) return window.eveState.links;
+        if (Array.isArray(window.links)) return window.links;
         if (typeof links !== 'undefined' && Array.isArray(links)) return links;
         return [];
+    }
+
+    function setLinks(nextLinks) {
+        if (typeof window.setLiveLinks === 'function') return window.setLiveLinks(nextLinks);
+        if (window.eveState) window.eveState.links = nextLinks;
+        window.links = nextLinks;
+        if (typeof links !== 'undefined') links = nextLinks;
+        return nextLinks;
     }
 
     function getConfig() {
@@ -31,6 +41,41 @@ window.bulkLastToggledId = bulkLastToggledId;
 
     function toBulkId(value) {
         return String(value);
+    }
+
+    function getDatapackIndexApi() {
+        return window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
+    }
+
+    function hasUsableDatapackSnapshot(indexApi) {
+        if (!indexApi) return false;
+        const buildState = typeof indexApi.getBuildState === 'function' ? indexApi.getBuildState() : null;
+        return typeof indexApi.hasUsableSnapshot === 'function'
+            ? indexApi.hasUsableSnapshot()
+            : (!buildState?.dirty && Number(buildState?.builtAt || 0) > 0);
+    }
+
+    function getDatapackSnapshot(indexApi) {
+        if (!hasUsableDatapackSnapshot(indexApi) || typeof indexApi?.getSnapshot !== 'function') return null;
+        return indexApi.getSnapshot();
+    }
+
+    function getDatapackStructureSummary(indexApi) {
+        if (!hasUsableDatapackSnapshot(indexApi) || typeof indexApi?.getStructureSummary !== 'function') return null;
+        return indexApi.getStructureSummary();
+    }
+
+    function getIndexedRootLinkIds(indexApi, workspaceId, categoryName) {
+        const snapshot = getDatapackSnapshot(indexApi);
+        if (!Array.isArray(snapshot?.records)) return null;
+        return snapshot.records.filter(function (record) {
+            if (String(record?.type || '').trim() !== 'bookmark') return false;
+            if (String(record?.workspaceId || '').trim() !== String(workspaceId || '').trim()) return false;
+            if (String(record?.categoryName || 'Unsorted').trim() !== String(categoryName || 'Unsorted').trim()) return false;
+            return !String(record?.path?.folderId || '').trim();
+        }).map(function (record) {
+            return toBulkId(record?.path?.linkId || record?.provenance?.linkId || '');
+        }).filter(Boolean);
     }
 
     function clearSelection() {
@@ -139,6 +184,14 @@ window.bulkLastToggledId = bulkLastToggledId;
     }
 
     function getScopeLinkIdsForCard(categoryName, workspaceId) {
+        const indexApi = getDatapackIndexApi();
+        if (hasUsableDatapackSnapshot(indexApi) && typeof indexApi.getExactBookmarkLinkIds === 'function') {
+            return indexApi.getExactBookmarkLinkIds({
+                workspaceId: workspaceId,
+                categoryName: categoryName
+            }).map(toBulkId).filter(Boolean);
+        }
+
         const ws = String(workspaceId || '').trim();
         const cat = String(categoryName || 'Unsorted').trim();
         const key = ws + '::' + cat;
@@ -148,6 +201,18 @@ window.bulkLastToggledId = bulkLastToggledId;
     }
 
     function getScopeLinkIdsForFolder(categoryName, workspaceId, folderId) {
+        const indexApi = getDatapackIndexApi();
+        if (hasUsableDatapackSnapshot(indexApi) && typeof indexApi.getExactBookmarkLinkIds === 'function') {
+            if (!folderId) {
+                return getIndexedRootLinkIds(indexApi, workspaceId, categoryName) || [];
+            }
+            return indexApi.getExactBookmarkLinkIds({
+                workspaceId: workspaceId,
+                categoryName: categoryName,
+                folderId: folderId
+            }).map(toBulkId).filter(Boolean);
+        }
+
         if (!folderId) {
             const ws = String(workspaceId || '').trim();
             const cat = String(categoryName || 'Unsorted').trim();
@@ -197,9 +262,6 @@ window.bulkLastToggledId = bulkLastToggledId;
         });
 
         // 2. Update scope toggle buttons (Card/Folder selectors)
-        // Pre-build the scope index once for all buttons
-        _getScopeIndex();
-
         document.querySelectorAll('.bulk-scope-btn[data-scope-category]').forEach((btn) => {
             const cat = btn.getAttribute('data-scope-category');
             const ws = btn.getAttribute('data-scope-workspace');
@@ -229,6 +291,24 @@ window.bulkLastToggledId = bulkLastToggledId;
 
     function getAllCategoryNames(workspaceId) {
         const scopedWorkspaceId = String(workspaceId || '').trim();
+        const indexApi = getDatapackIndexApi();
+        const structureSummary = getDatapackStructureSummary(indexApi);
+        if (structureSummary?.cards) {
+            const namesFromSummary = [...new Set(
+                Object.keys(structureSummary.cards).map(function (key) {
+                    return structureSummary.cards[key];
+                }).filter(function (cardSummary) {
+                    if (!cardSummary) return false;
+                    if (!scopedWorkspaceId) return true;
+                    return String(cardSummary.workspaceId || '').trim() === scopedWorkspaceId;
+                }).map(function (cardSummary) {
+                    return String(cardSummary.categoryName || 'Unsorted').trim() || 'Unsorted';
+                }).filter(Boolean)
+            )];
+            if (!namesFromSummary.includes('Unsorted')) namesFromSummary.push('Unsorted');
+            return namesFromSummary.sort((a, b) => a.localeCompare(b));
+        }
+
         const scopedLinks = scopedWorkspaceId
             ? getLinks().filter(link => String(link.workspace || '').trim() === scopedWorkspaceId)
             : getLinks();
@@ -318,6 +398,7 @@ window.bulkLastToggledId = bulkLastToggledId;
         setBulkMode: syncBulkMode,
         getSelectedIds: function () { return selectedIds; },
         getLinks,
+        setLinks,
         getConfig,
         toBulkId,
         clearSelection,

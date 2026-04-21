@@ -5,6 +5,7 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
     if (ns.categoryWorkspaceActionsReady) return;
 
     function getLiveLinks() {
+        if (typeof window.getLiveLinks === 'function') return window.getLiveLinks();
         if (Array.isArray(window.eveState?.links)) return window.eveState.links;
         if (Array.isArray(window.links)) return window.links;
         if (typeof links !== 'undefined' && Array.isArray(links)) return links;
@@ -12,6 +13,7 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
     }
 
     function setLiveLinks(nextLinks) {
+        if (typeof window.setLiveLinks === 'function') return window.setLiveLinks(nextLinks);
         if (window.eveState) window.eveState.links = nextLinks;
         window.links = nextLinks;
         if (typeof links !== 'undefined') links = nextLinks;

@@ -127,9 +127,11 @@ window.showLinkContextMenu = function (e, id) {
     const pinScopeCard = m.querySelector('#ctx-pin-scope-card');
     const pinScopeFolder = m.querySelector('#ctx-pin-scope-folder');
     const doneAction = m.querySelector('#ctx-toggle-done-action');
-    const linkSource = Array.isArray(window.links)
-        ? window.links
-        : (typeof links !== 'undefined' && Array.isArray(links) ? links : []);
+    const linkSource = typeof window.getLiveLinks === 'function'
+        ? window.getLiveLinks()
+        : (Array.isArray(window.links)
+            ? window.links
+            : (typeof links !== 'undefined' && Array.isArray(links) ? links : []));
     const link = window.EveContextMenuActions?.getCtxLink?.()
         || linkSource.find(function (item) { return String(item?.id ?? '') === normalizedId; })
         || null;

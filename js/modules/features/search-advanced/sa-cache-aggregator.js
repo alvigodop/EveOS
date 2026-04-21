@@ -28,8 +28,74 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         return ids;
     }
 
+    function getDatapackIndexApi() {
+        return window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
+    }
+
+    function hasUsableDatapackSnapshot(indexApi) {
+        if (!indexApi) return false;
+        const buildState = typeof indexApi.getBuildState === 'function' ? indexApi.getBuildState() : null;
+        return typeof indexApi.hasUsableSnapshot === 'function'
+            ? indexApi.hasUsableSnapshot()
+            : (!buildState?.dirty && Number(buildState?.builtAt || 0) > 0);
+    }
+
+    function getDatapackSnapshot(indexApi) {
+        if (!hasUsableDatapackSnapshot(indexApi) || typeof indexApi?.getSnapshot !== 'function') return null;
+        return indexApi.getSnapshot();
+    }
+
+    function getLiveLinks() {
+        if (Array.isArray(window.eveState?.links)) return window.eveState.links;
+        if (Array.isArray(window.links)) return window.links;
+        if (typeof links !== 'undefined' && Array.isArray(links)) return links;
+        return [];
+    }
+
+    function buildLiveLinkMap(links) {
+        const map = new Map();
+        (Array.isArray(links) ? links : []).forEach(function (link) {
+            const linkId = String(link?.id || '').trim();
+            if (linkId) map.set(linkId, link);
+        });
+        return map;
+    }
+
+    function getRecordWorkspaceIds(record) {
+        const rawIds = Array.isArray(record?.workspaceIds) && record.workspaceIds.length
+            ? record.workspaceIds
+            : [record?.workspaceId];
+        return rawIds.map(function (workspaceId) {
+            return String(workspaceId || '').trim();
+        }).filter(Boolean);
+    }
+
+    function matchesSnapshotScope(record, wsIds, catFilter) {
+        if (!record) return false;
+        if (wsIds && !getRecordWorkspaceIds(record).some(function (workspaceId) { return wsIds.has(workspaceId); })) {
+            return false;
+        }
+        if (catFilter) {
+            const recordCategory = String(record?.categoryName || record?.path?.categoryName || 'Unsorted').trim() || 'Unsorted';
+            if (recordCategory !== catFilter) return false;
+        }
+        return true;
+    }
+
     function getScopedLinks(scope) {
-        const links = Array.isArray(window.eveState?.links) ? window.eveState.links : (typeof window.links !== 'undefined' ? window.links : []);
+        const indexApi = getDatapackIndexApi();
+        if (indexApi && hasUsableDatapackSnapshot(indexApi)
+            && typeof indexApi.getScopedBookmarkLinkIds === 'function'
+            && typeof indexApi.resolveBookmarkLink === 'function') {
+            const liveLinkMap = buildLiveLinkMap(getLiveLinks());
+            return indexApi.getScopedBookmarkLinkIds(scope || null).map(function (linkId) {
+                const normalizedId = String(linkId || '').trim();
+                if (!normalizedId) return null;
+                return liveLinkMap.get(normalizedId) || indexApi.resolveBookmarkLink(normalizedId);
+            }).filter(Boolean);
+        }
+
+        const links = getLiveLinks();
         const wsIds = getWorkspaceIdsInScope(scope);
         const catFilter = scope?.categoryName ? String(scope.categoryName).trim() : null;
 
@@ -42,6 +108,21 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     }
 
     function getVisibleCategories(scope) {
+        const indexApi = getDatapackIndexApi();
+        const snapshot = getDatapackSnapshot(indexApi);
+        const wsIds = getWorkspaceIdsInScope(scope);
+        const catFilter = scope?.categoryName ? String(scope.categoryName).trim() : null;
+        if (Array.isArray(snapshot?.records)) {
+            const categories = new Set();
+            snapshot.records.forEach(function (record) {
+                if (String(record?.type || '').trim() !== 'card') return;
+                if (!matchesSnapshotScope(record, wsIds, catFilter)) return;
+                const categoryName = String(record?.categoryName || 'Unsorted').trim() || 'Unsorted';
+                if (categoryName) categories.add(categoryName);
+            });
+            return Array.from(categories);
+        }
+
         const scopedLinks = getScopedLinks(scope);
         const categories = new Set();
         scopedLinks.forEach(function (link) {
@@ -248,10 +329,53 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     }
 
     function detectOrphanedLinks() {
-        const links = Array.isArray(window.eveState?.links) ? window.eveState.links : [];
+        const indexApi = getDatapackIndexApi();
         const knownIds = getKnownWorkspaceIds();
+        const snapshot = getDatapackSnapshot(indexApi);
         const orphaned = [];
         const orphanedByWorkspace = {};
+
+        if (Array.isArray(snapshot?.records)) {
+            snapshot.records.forEach(function (record, idx) {
+                if (String(record?.type || '').trim() !== 'bookmark' || !record?.provenance?.orphaned) return;
+                const linkId = String(record?.path?.linkId || record?.provenance?.linkId || '').trim();
+                const workspaceId = String(record?.workspaceId || record?.path?.workspaceId || 'main').trim() || 'main';
+                const resolved = linkId && typeof indexApi?.resolveBookmarkLink === 'function'
+                    ? indexApi.resolveBookmarkLink(linkId)
+                    : null;
+                const link = resolved || {
+                    id: linkId,
+                    title: String(record?.title || 'Untitled').trim() || 'Untitled',
+                    name: String(record?.title || 'Untitled').trim() || 'Untitled',
+                    url: String(record?.url || '').trim(),
+                    category: String(record?.categoryName || 'Unsorted').trim() || 'Unsorted',
+                    workspace: workspaceId,
+                    folderId: String(record?.path?.folderId || '').trim(),
+                    notes: String(record?.description || '').trim()
+                };
+                orphaned.push({
+                    index: idx,
+                    link: link,
+                    workspace: workspaceId,
+                    category: String(link.category || 'Unsorted'),
+                    title: link.title || link.name || link.url || 'Untitled',
+                    url: link.url || ''
+                });
+                if (!orphanedByWorkspace[workspaceId]) orphanedByWorkspace[workspaceId] = [];
+                orphanedByWorkspace[workspaceId].push(link);
+            });
+
+            return {
+                orphaned: orphaned,
+                orphanedByWorkspace: orphanedByWorkspace,
+                totalOrphaned: orphaned.length,
+                totalLinks: Number(snapshot?.stats?.bookmarkCount || getLiveLinks().length || 0),
+                knownWorkspaces: Array.from(knownIds),
+                ghostWorkspaces: Object.keys(orphanedByWorkspace)
+            };
+        }
+
+        const links = getLiveLinks();
 
         links.forEach(function (link, idx) {
             if (!link) return;

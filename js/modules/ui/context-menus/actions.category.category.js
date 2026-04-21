@@ -13,9 +13,19 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
     }
 
     function getLiveLinks() {
+        if (typeof window.getLiveLinks === 'function') return window.getLiveLinks();
         if (Array.isArray(window.eveState?.links)) return window.eveState.links;
         if (Array.isArray(window.links)) return window.links;
+        if (typeof links !== 'undefined' && Array.isArray(links)) return links;
         return [];
+    }
+
+    function setLiveLinks(nextLinks) {
+        if (typeof window.setLiveLinks === 'function') return window.setLiveLinks(nextLinks);
+        if (window.eveState) window.eveState.links = nextLinks;
+        window.links = nextLinks;
+        if (typeof links !== 'undefined') links = nextLinks;
+        return nextLinks;
     }
 
     function getExactCategoryLinkIds(workspaceId, categoryName) {
@@ -102,11 +112,7 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
                     String(entry?.workspace || 'main').trim() === workspaceId
                     && String(entry?.category || 'Unsorted').trim() === String(name || 'Unsorted').trim()
                 ));
-            if (window.eveState) window.eveState.links = nextLinks;
-            window.links = nextLinks;
-            if (typeof links !== 'undefined' && Array.isArray(nextLinks)) {
-                links = nextLinks;
-            }
+            setLiveLinks(nextLinks);
 
             if (window.EveBookmarkFolders?.deleteCategoryScope) {
                 window.EveBookmarkFolders.deleteCategoryScope(workspaceId, name);

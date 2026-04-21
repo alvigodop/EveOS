@@ -12,6 +12,7 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
 
     const deps = {
         getLinks: ns.getLinks,
+        setLinks: ns.setLinks,
         getConfig: ns.getConfig,
         getSelectedIds: ns.getSelectedIds,
         toBulkId: ns.toBulkId,
