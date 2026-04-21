@@ -63,7 +63,9 @@ function buildFolderSectionsHtml(categoryName, linksForCard, options, renderer) 
         }
 
         // Section-scoped stats helper
-        const isCardTaskMode = !Array.isArray(options.hideStats) || !options.hideStats.includes(categoryName);
+        const isCardTaskMode = typeof folderApi?.isCardTaskEnabled === 'function'
+            ? !!folderApi.isCardTaskEnabled(workspaceId, categoryName)
+            : (!Array.isArray(options.hideStats) || !options.hideStats.includes(categoryName));
         function buildSectionStats(sectionLinks) {
             if (!isCardTaskMode || !sectionLinks.length) return '';
             var taskLinks = sectionLinks.filter(function (l) {

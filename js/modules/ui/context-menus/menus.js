@@ -190,7 +190,7 @@ window.showCategoryContextMenu = function (e, name, workspaceId) {
 
     const safeName = String(name || '').replace(/'/g, "\\'");
     const customOrderApi = window.EveCustomOrder;
-    const coWsId = String((window.config && window.config.activeWorkspace) || 'main');
+    const coWsId = String(window.ctxWsId || (window.config && window.config.activeWorkspace) || 'main');
     const coEnabled = customOrderApi ? customOrderApi.isEnabled(coWsId, name) : false;
     const coSortMode = customOrderApi ? customOrderApi.getSortMode(coWsId, name) : 'none';
     const coToggleLabel = coEnabled ? '&#128202; Custom Numbering ✓' : '&#128202; Custom Numbering';
@@ -199,15 +199,20 @@ window.showCategoryContextMenu = function (e, name, workspaceId) {
     const tvEnabled = tvApi ? tvApi.isEnabled(coWsId, name) : false;
     const tvToggleLabel = tvEnabled ? '📐 True Value Sort ✓' : '📐 True Value Sort';
 
+    const folderApi = window.EveBookmarkFolders;
+    const taskModeEnabled = folderApi?.isCardTaskEnabled
+        ? folderApi.isCardTaskEnabled(coWsId, name)
+        : !((window.config?.hideStats || []).includes(name));
+    const taskToggleLabel = taskModeEnabled ? '&#128221; Task Mode &#10003;' : '&#128221; Task Mode';
     const safeHtmlName = String(name || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     const safeHtmlWs = String(coWsId || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     m.innerHTML = `
         <div class="ctx-item" data-ws="${safeHtmlWs}" data-cat="${safeHtmlName}" onclick="if(window.EveConstellationMap) window.EveConstellationMap.openCardMap(this.dataset.ws, this.dataset.cat)">&#127756; Constellation Map</div>
-        <div class="ctx-item" data-cat="${safeHtmlName}" onclick="openCategorySettings(this.dataset.cat, 'search')">&#128269; Search & Settings</div>
-        <div class="ctx-item" data-cat="${safeHtmlName}" onclick="openRenameModal(this.dataset.cat)">&#9998; Rename</div>
+        <div class="ctx-item" data-cat="${safeHtmlName}" data-ws="${safeHtmlWs}" onclick="openCategorySettings(this.dataset.cat, 'search', this.dataset.ws)">&#128269; Search & Settings</div>
+        <div class="ctx-item" data-cat="${safeHtmlName}" data-ws="${safeHtmlWs}" onclick="window.ctxWsId=this.dataset.ws; openRenameModal(this.dataset.cat)">&#9998; Rename</div>
         <div class="ctx-item" data-cat="${safeHtmlName}" onclick="openBulkTitleModal(this.dataset.cat)">&#129668; Auto-Title Links</div>
         <div class="ctx-item" onclick="ctxCatFocus()">&#127919; Focus</div>
-        <div class="ctx-item" onclick="ctxCatToggleTask()">&#128221; Task Mode</div>
+        <div class="ctx-item" onclick="ctxCatToggleTask()">${taskToggleLabel}</div>
         <div class="ctx-item" onclick="ctxCatToggleCustomOrder()">${coToggleLabel}</div>
         <div class="ctx-item" onclick="ctxCatCycleSortOrder()">${coSortLabel}</div>
         <div class="ctx-item" onclick="ctxCatToggleTrueValue()">${tvToggleLabel}</div>

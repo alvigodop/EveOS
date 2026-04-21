@@ -36,6 +36,7 @@ let config = {
         effectColor: "#00d4ff"
     },
     hideStats: [],
+    hideStatsScoped: [],
     workspaces: [{ id: "main", name: "Main", icon: "\u{1F3E0}" }],
     sidebarGroups: [],
     sidebarOrderMode: "auto",

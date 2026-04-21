@@ -32,7 +32,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             const entries = workspaceLinks.filter(function (link) {
                 return (link.category || 'Unsorted') === state.selectedCategory;
             });
-            const taskMode = isTaskModeCategory(state.selectedCategory);
+            const taskMode = isTaskModeCategory(workspace.id, state.selectedCategory);
             const layoutMode = getEntriesLayoutMode();
             const libraryReady = ensureLibraryReadyForEntries();
 

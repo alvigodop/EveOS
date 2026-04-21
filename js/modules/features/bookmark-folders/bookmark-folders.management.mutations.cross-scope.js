@@ -150,6 +150,50 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         writeStore(nextStore, false);
     }
 
+    function renameCategoryScope(workspaceId, oldCategoryName, nextCategoryName) {
+        const targetWorkspace = normalizeWorkspaceId(workspaceId);
+        const previous = normalizeCategoryName(oldCategoryName);
+        const next = normalizeCategoryName(nextCategoryName);
+        if (!targetWorkspace || !previous || !next || previous === next) return false;
+
+        const nextStore = cloneStore();
+        const sourceKey = buildScopedKey(targetWorkspace, previous);
+        const targetKey = buildScopedKey(targetWorkspace, next);
+        const sourceTree = nextStore[sourceKey];
+        if (!sourceTree) return false;
+
+        if (!nextStore[targetKey]) {
+            nextStore[targetKey] = sourceTree;
+        } else {
+            const mergedSettings = normalizeTreeSettings({
+                clickBehaviorMode: sourceTree?.settings?.clickBehaviorMode !== 'inherit'
+                    ? sourceTree?.settings?.clickBehaviorMode
+                    : nextStore[targetKey]?.settings?.clickBehaviorMode
+            });
+            nextStore[targetKey] = {
+                nodes: dedupeNodes([...(nextStore[targetKey]?.nodes || []), ...(sourceTree?.nodes || [])]),
+                settings: mergedSettings
+            };
+        }
+
+        if (targetKey !== sourceKey) delete nextStore[sourceKey];
+        writeStore(nextStore, false);
+        return true;
+    }
+
+    function deleteCategoryScope(workspaceId, categoryName) {
+        const targetWorkspace = normalizeWorkspaceId(workspaceId);
+        const targetCategory = normalizeCategoryName(categoryName);
+        const nextStore = cloneStore();
+        const scopedKey = buildScopedKey(targetWorkspace, targetCategory);
+        if (Object.prototype.hasOwnProperty.call(nextStore, scopedKey)) {
+            delete nextStore[scopedKey];
+            writeStore(nextStore, false);
+            return true;
+        }
+        return false;
+    }
+
     function transferCategoryFolders(sourceWs, sourceCat, targetWs, targetCat, options = {}) {
         const sWs = normalizeWorkspaceId(sourceWs);
         const sCat = normalizeCategoryName(sourceCat);
@@ -223,7 +267,9 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
 
     Object.assign(api, {
         transferFolderToCategory,
+        renameCategoryScope,
         renameCategoryEverywhere,
+        deleteCategoryScope,
         deleteCategoryEverywhere,
         transferCategoryFolders,
         moveWorkspaceTrees

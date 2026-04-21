@@ -107,7 +107,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                     ${buildEntriesHtml(filteredEntries, false, layoutMode, {
                         includeCategoryTag: true,
                         resolveTaskMode: function (link) {
-                            return isTaskModeCategory(link.category || 'Unsorted');
+                            return isTaskModeCategory(link.workspace || 'main', link.category || 'Unsorted');
                         },
                         getExtraTagsHtml: function (link) {
                             const workspaceLabel = escapeHtml(getWorkspaceLabel(link.workspace));
@@ -243,7 +243,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                     ${buildEntriesHtml(filteredEntries, false, layoutMode, {
                         includeCategoryTag: true,
                         resolveTaskMode: function (link) {
-                            return isTaskModeCategory(link.category || 'Unsorted');
+                            return isTaskModeCategory(link.workspace || 'main', link.category || 'Unsorted');
                         }
                     })}
                 </section>

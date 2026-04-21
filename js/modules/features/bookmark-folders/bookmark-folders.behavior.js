@@ -148,11 +148,129 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
 
 
 
+    function buildCardTaskScopeKey(workspaceId, categoryName) {
+
+        return normalizeWorkspaceId(workspaceId) + '::' + normalizeCategoryName(categoryName);
+
+    }
+
+
+
+    function getTaskConfigStore() {
+
+        if (window.eveState?.config && typeof window.eveState.config === 'object') return window.eveState.config;
+
+        if (typeof config !== 'undefined' && config && typeof config === 'object') return config;
+
+        return null;
+
+    }
+
+
+
+    function getKnownCardTaskScopeKeys() {
+
+        const scopedKeys = new Set();
+
+        const sourceLinks = Array.isArray(window.eveState?.links)
+
+            ? window.eveState.links
+
+            : (typeof links !== 'undefined' && Array.isArray(links) ? links : []);
+
+        sourceLinks.forEach((link) => {
+
+            scopedKeys.add(buildCardTaskScopeKey(link?.workspace, link?.category));
+
+        });
+
+        const folderStore = window.eveState?.bookmarkFolders || window.bookmarkFolders || {};
+
+        Object.keys(folderStore || {}).forEach((scopedKey) => {
+
+            const parts = String(scopedKey || '').split('::');
+
+            const storeWorkspace = parts.shift();
+
+            const storeCategory = parts.join('::');
+
+            scopedKeys.add(buildCardTaskScopeKey(storeWorkspace, storeCategory));
+
+        });
+
+        return scopedKeys;
+
+    }
+
+
+
+    function ensureTaskModeStores() {
+
+        const store = getTaskConfigStore();
+
+        if (!store) return null;
+
+        if (!Array.isArray(store.hideStats)) store.hideStats = [];
+
+        if (!Array.isArray(store.hideStatsScoped)) store.hideStatsScoped = [];
+
+        if (!store.hideStats.length) return store;
+
+        const scopedKeys = getKnownCardTaskScopeKeys();
+
+        if (!scopedKeys.size) return store;
+
+        const nextScoped = new Set(store.hideStatsScoped.map((entry) => String(entry || '').trim()).filter(Boolean));
+
+        const nextLegacy = [];
+
+        store.hideStats.forEach((categoryName) => {
+
+            const normalizedCategory = normalizeCategoryName(categoryName);
+
+            let matched = false;
+
+            scopedKeys.forEach((scopedKey) => {
+
+                if (!String(scopedKey || '').endsWith('::' + normalizedCategory)) return;
+
+                nextScoped.add(scopedKey);
+
+                matched = true;
+
+            });
+
+            if (!matched) nextLegacy.push(normalizedCategory);
+
+        });
+
+        store.hideStatsScoped = Array.from(nextScoped);
+
+        store.hideStats = nextLegacy;
+
+        return store;
+
+    }
+
+
+
     function getHideStatsStore() {
 
-        if (Array.isArray(window.eveState?.config?.hideStats)) return window.eveState.config.hideStats;
+        const store = ensureTaskModeStores();
 
-        if (typeof config !== 'undefined' && Array.isArray(config?.hideStats)) return config.hideStats;
+        if (Array.isArray(store?.hideStats)) return store.hideStats;
+
+        return [];
+
+    }
+
+
+
+    function getHideStatsScopedStore() {
+
+        const store = ensureTaskModeStores();
+
+        if (Array.isArray(store?.hideStatsScoped)) return store.hideStatsScoped;
 
         return [];
 
@@ -162,9 +280,87 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
 
     function isCardTaskEnabled(workspaceId, categoryName) {
 
+        const scopedKey = buildCardTaskScopeKey(workspaceId, categoryName);
+
+        if (getHideStatsScopedStore().includes(scopedKey)) return false;
+
         const normalizedCategoryName = normalizeCategoryName(categoryName);
 
         return !getHideStatsStore().includes(normalizedCategoryName);
+
+    }
+
+
+
+    function setCardTaskEnabled(workspaceId, categoryName, enabled) {
+
+        const store = ensureTaskModeStores();
+
+        if (!store) return !!enabled;
+
+        const scopedKey = buildCardTaskScopeKey(workspaceId, categoryName);
+
+        store.hideStatsScoped = getHideStatsScopedStore().filter((entry) => String(entry || '').trim() !== scopedKey);
+
+        if (!enabled) store.hideStatsScoped.push(scopedKey);
+
+        return isCardTaskEnabled(workspaceId, categoryName);
+
+    }
+
+
+
+    function renameCardTaskScope(workspaceId, previousCategoryName, nextCategoryName) {
+
+        const store = ensureTaskModeStores();
+
+        if (!store) return false;
+
+        const previousKey = buildCardTaskScopeKey(workspaceId, previousCategoryName);
+
+        const nextKey = buildCardTaskScopeKey(workspaceId, nextCategoryName);
+
+        let changed = false;
+
+        const nextScoped = [];
+
+        getHideStatsScopedStore().forEach((entry) => {
+
+            const normalizedEntry = String(entry || '').trim();
+
+            if (normalizedEntry === previousKey) {
+
+                nextScoped.push(nextKey);
+
+                changed = true;
+
+                return;
+
+            }
+
+            nextScoped.push(normalizedEntry);
+
+        });
+
+        store.hideStatsScoped = Array.from(new Set(nextScoped.filter(Boolean)));
+
+        if (!changed && getHideStatsStore().includes(normalizeCategoryName(previousCategoryName))) {
+
+            store.hideStats = getHideStatsStore().map((entry) => {
+
+                return normalizeCategoryName(entry) === normalizeCategoryName(previousCategoryName)
+
+                    ? normalizeCategoryName(nextCategoryName)
+
+                    : normalizeCategoryName(entry);
+
+            });
+
+            changed = true;
+
+        }
+
+        return changed;
 
     }
 
@@ -277,7 +473,10 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         getFolderTaskMode,
         setFolderTaskMode,
         getFolderTaskModeChain,
+        buildCardTaskScopeKey,
         isCardTaskEnabled,
+        setCardTaskEnabled,
+        renameCardTaskScope,
         resolveTaskState,
         isTaskEnabledForLink,
         getTaskModeOptions,

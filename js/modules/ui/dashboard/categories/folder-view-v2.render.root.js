@@ -18,7 +18,9 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         const dropTargetAttr = `ondragover="if(typeof allowDrop==='function')allowDrop(event)" ondrop="event.currentTarget.classList.remove('active'); if(typeof window.EveFolderViewV2.handleFolderDrop==='function') window.EveFolderViewV2.handleFolderDrop(event, '${escapeCardJs(categoryName)}', '', '${escapeCardJs(workspaceId)}')" ondragenter="event.currentTarget.classList.add('active')" ondragleave="event.currentTarget.classList.remove('active')"`;
 
         // Section stats helper
-        const isCardTaskMode = !(window.eveState?.config?.hideStats || []).includes(categoryName);
+        const isCardTaskMode = typeof folderApi?.isCardTaskEnabled === 'function'
+            ? !!folderApi.isCardTaskEnabled(workspaceId, categoryName)
+            : !(window.eveState?.config?.hideStats || []).includes(categoryName);
         function buildSectionStats(sectionLinks) {
             if (!isCardTaskMode || !sectionLinks.length) return '';
             var taskLinks = sectionLinks.filter(function (l) {

@@ -18,7 +18,9 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         transferCategoryFolders,
         deleteFolder,
         clearLinkFolderAssignment,
+        renameCategoryScope,
         renameCategoryEverywhere,
+        deleteCategoryScope,
         deleteCategoryEverywhere,
         moveWorkspaceTrees,
         moveLinksToFolderTarget
@@ -40,7 +42,9 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         transferCategoryFolders,
         deleteFolder,
         clearLinkFolderAssignment,
+        renameCategoryScope,
         renameCategoryEverywhere,
+        deleteCategoryScope,
         deleteCategoryEverywhere,
         moveWorkspaceTrees,
         moveLinksToFolderTarget

@@ -89,12 +89,15 @@ window.DashboardCategories = window.DashboardCategories || {};
         var safeCatHtml = escapeCardHtml(cat || 'Unsorted');
         var safeCatJs = escapeCardJs(cat || 'Unsorted');
         var libraryPanelId = 'lib-' + String(cat || 'Unsorted').replace(/[^a-zA-Z0-9]/g, '_') + '-panel';
-        var folderToolbarExpanded = !!folderTaskApi?.isToolbarExpanded?.(options.activeWorkspace, cat);
+        var folderToolbarExpanded = !!folderTaskApi?.isToolbarExpanded?.(cardWorkspaceId, cat);
         var folderHeaderBtnClass = 'category-action-btn' + (folderToolbarExpanded ? ' is-active' : '');
 
         function isTaskEnabledForLink(link) {
             if (typeof folderTaskApi?.isTaskEnabledForLink === 'function') {
                 return !!folderTaskApi.isTaskEnabledForLink(link);
+            }
+            if (typeof folderTaskApi?.isCardTaskEnabled === 'function') {
+                return !!folderTaskApi.isCardTaskEnabled(link?.workspace || summaryWorkspaceId, link?.category || cat);
             }
             return !Array.isArray(options.hideStats) || !options.hideStats.includes(cat);
         }
@@ -131,7 +134,7 @@ window.DashboardCategories = window.DashboardCategories || {};
         }
         var isTaskMode = hasTaskBookmarks;
         var customOrderApi = window.EveCustomOrder;
-        var activeWorkspaceId = String(options.activeWorkspace || config.activeWorkspace || 'main');
+        var activeWorkspaceId = String(cardWorkspaceId || options.activeWorkspace || config.activeWorkspace || 'main');
         var progressiveBookmarkRevealEnabled = typeof isCardBookmarkProgressiveRevealEnabled === 'function'
             ? isCardBookmarkProgressiveRevealEnabled(activeWorkspaceId, cat)
             : true;
@@ -252,7 +255,7 @@ window.DashboardCategories = window.DashboardCategories || {};
 
             var cappedLinks = linksForRender.slice(0, RENDER_CAP);
             var dashboardWorkspaceId = options._parentDashboardWorkspace || options.activeWorkspace;
-            var cardRenderWorkspaceId = String(options.activeWorkspace || cardWorkspaceId || '').trim() || 'main';
+            var cardRenderWorkspaceId = String(cardWorkspaceId || options.activeWorkspace || '').trim() || 'main';
             var suppressCardWorkspaceSubtabBadge = false;
             if (dashboardWorkspaceId && cardRenderWorkspaceId && String(dashboardWorkspaceId).trim() !== cardRenderWorkspaceId) {
                 var helpersForBadgeSuppression = window.EveWorkspaceHelpers;
@@ -295,7 +298,9 @@ window.DashboardCategories = window.DashboardCategories || {};
         }
 
         var shouldSkipGhosts = (options._skipGhosts !== undefined) ? !!options._skipGhosts : isMegaCard;
-        var folderOptions = shouldSkipGhosts ? Object.assign({}, options, { skipGhosts: true }) : options;
+        var folderOptions = shouldSkipGhosts
+            ? Object.assign({}, options, { skipGhosts: true, activeWorkspace: activeWorkspaceId })
+            : Object.assign({}, options, { activeWorkspace: activeWorkspaceId });
         var listHtml = buildFolderSectionsHtml(cat, renderedLinks, folderOptions, renderLinkCollection);
 
         var shownSuffix = (isFocusMode && focusedFilterMode !== 'all') ? ' shown' : '';

@@ -4,6 +4,10 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
     const ns = window.EveContextMenuActions;
     if (ns.categoryCardActionsReady) return;
 
+    function getCategoryWorkspaceId() {
+        return String(window.ctxWsId || config?.activeWorkspace || 'main').trim() || 'main';
+    }
+
     function getScopedCategoryLinks(workspaceId, categoryName) {
         const folderScopeShared = window.EveFolderViewV2?._shared || null;
         if (folderScopeShared && typeof folderScopeShared.getCategoryLinks === 'function') {
@@ -15,6 +19,16 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
         return sourceLinks.filter(function (link) {
             return String(link?.workspace || '') === String(workspaceId || '')
                 && String(link?.category || 'Unsorted') === String(categoryName || 'Unsorted');
+        });
+    }
+
+    function getLiveScopedCategoryLinks(workspaceId, categoryName) {
+        const sourceLinks = Array.isArray(window.eveState?.links)
+            ? window.eveState.links
+            : (Array.isArray(window.links) ? window.links : []);
+        return sourceLinks.filter(function (link) {
+            return String(link?.workspace || 'main').trim() === String(workspaceId || 'main').trim()
+                && String(link?.category || 'Unsorted').trim() === String(categoryName || 'Unsorted').trim();
         });
     }
 
@@ -32,18 +46,29 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
 
             if (!(await showConfirm('Delete Category?'))) return;
 
-            const removedIds = links.filter((entry) => entry.category === name).map((entry) => entry.id);
-            links = links.filter((entry) => entry.category !== name);
-            if (window.eveState) window.eveState.links = links;
-            window.links = links;
+            const removedIds = getLiveScopedCategoryLinks(workspaceId, name).map((entry) => entry.id);
+            const nextLinks = (Array.isArray(window.eveState?.links)
+                ? window.eveState.links
+                : (Array.isArray(window.links) ? window.links : []))
+                .filter((entry) => !(
+                    String(entry?.workspace || 'main').trim() === workspaceId
+                    && String(entry?.category || 'Unsorted').trim() === String(name || 'Unsorted').trim()
+                ));
+            links = nextLinks;
+            if (window.eveState) window.eveState.links = nextLinks;
+            window.links = nextLinks;
 
-            if (window.EveBookmarkFolders?.deleteCategoryEverywhere) {
+            if (window.EveBookmarkFolders?.deleteCategoryScope) {
+                window.EveBookmarkFolders.deleteCategoryScope(workspaceId, name);
+            } else if (window.EveBookmarkFolders?.deleteCategoryEverywhere) {
                 window.EveBookmarkFolders.deleteCategoryEverywhere(name);
             }
             if (window.EveLibrary?.ConnectionsAPI?.removeByLinkId) {
                 removedIds.forEach((id) => window.EveLibrary.ConnectionsAPI.removeByLinkId(id));
             }
-            if (window.EveCategoryOrder?.removeCategoryEverywhere) {
+            if (window.EveCategoryOrder?.removeCategory) {
+                window.EveCategoryOrder.removeCategory(workspaceId, name);
+            } else if (window.EveCategoryOrder?.removeCategoryEverywhere) {
                 window.EveCategoryOrder.removeCategoryEverywhere(name);
             } else if (window.config?.categoryOrder) {
                 window.config.categoryOrder = window.config.categoryOrder.filter((category) => category !== name);
@@ -67,9 +92,17 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
     window.ctxCatToggleTask = function () {
         const categoryName = ns.getCtxCategoryName?.();
         if (!categoryName) return showToast('No category selected', 'error');
+        const workspaceId = getCategoryWorkspaceId();
+        const folderApi = window.EveBookmarkFolders;
 
-        if (config.hideStats.includes(categoryName)) config.hideStats = config.hideStats.filter((entry) => entry !== categoryName);
-        else config.hideStats.push(categoryName);
+        if (folderApi?.setCardTaskEnabled && folderApi?.isCardTaskEnabled) {
+            const nextEnabled = !folderApi.isCardTaskEnabled(workspaceId, categoryName);
+            folderApi.setCardTaskEnabled(workspaceId, categoryName, nextEnabled);
+            showToast(nextEnabled ? 'Task mode enabled' : 'Task mode disabled', 'info');
+        } else {
+            if (config.hideStats.includes(categoryName)) config.hideStats = config.hideStats.filter((entry) => entry !== categoryName);
+            else config.hideStats.push(categoryName);
+        }
 
         saveConfig();
         renderDashboard();
@@ -79,7 +112,7 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
         const categoryName = ns.getCtxCategoryName?.();
         if (!categoryName) return showToast('No category selected', 'error');
 
-        const wsId = String(config.activeWorkspace || 'main');
+        const wsId = getCategoryWorkspaceId();
         const scopedKey = wsId + '::' + categoryName;
 
         if (!Array.isArray(config.smartCardWeights)) config.smartCardWeights = [];
@@ -101,7 +134,7 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
         if (!categoryName) return showToast('No category selected', 'error');
         const api = window.EveCustomOrder;
         if (!api) return showToast('Custom order module not loaded', 'error');
-        const wsId = String(config.activeWorkspace || 'main');
+        const wsId = getCategoryWorkspaceId();
         var cardLinks = getScopedCategoryLinks(wsId, categoryName);
         api.toggle(wsId, categoryName, cardLinks);
         if (typeof closeAllMenus === 'function') closeAllMenus();
@@ -113,7 +146,7 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
         if (!categoryName) return showToast('No category selected', 'error');
         const api = window.EveCustomOrder;
         if (!api) return;
-        const wsId = String(config.activeWorkspace || 'main');
+        const wsId = getCategoryWorkspaceId();
         api.cycleSortMode(wsId, categoryName);
         if (typeof closeAllMenus === 'function') closeAllMenus();
         var mode = api.getSortMode(wsId, categoryName);
@@ -126,7 +159,7 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
         if (!categoryName) return showToast('No category selected', 'error');
         const api = window.EveTrueValue;
         if (!api) return;
-        const wsId = String(config.activeWorkspace || 'main');
+        const wsId = getCategoryWorkspaceId();
         api.toggle(wsId, categoryName);
         if (typeof closeAllMenus === 'function') closeAllMenus();
         var enabled = api.isEnabled(wsId, categoryName);

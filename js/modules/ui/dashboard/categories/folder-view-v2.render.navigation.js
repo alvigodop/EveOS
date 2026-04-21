@@ -73,7 +73,9 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         const headerActionsExpanded = folderId ? window.EveFolderViewV2.isHeaderActionsExpanded(resolvedWorkspaceId, resolvedCategoryName, folderId) : false;
 
         // Section stats helper for Manhwa view
-        const isCardTaskMode = !(window.eveState?.config?.hideStats || []).includes(resolvedCategoryName);
+        const isCardTaskMode = typeof folderApi?.isCardTaskEnabled === 'function'
+            ? !!folderApi.isCardTaskEnabled(resolvedWorkspaceId, resolvedCategoryName)
+            : !(window.eveState?.config?.hideStats || []).includes(resolvedCategoryName);
         function buildSectionStats(sectionLinks) {
             if (!isCardTaskMode || !sectionLinks.length) return '';
             var taskLinks = sectionLinks.filter(function (l) {

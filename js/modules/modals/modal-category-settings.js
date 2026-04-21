@@ -102,6 +102,9 @@
         } catch (e) {}
 
         window.ctxCatName = categoryName;
+        if (workspaceId) {
+            window.ctxWsId = String(workspaceId || '').trim() || window.ctxWsId || 'main';
+        }
 
         if (window.StorageManager && typeof window.StorageManager.setCategoryContext === 'function') {
             window.StorageManager.setCategoryContext(categoryName);

@@ -224,7 +224,10 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             return String(workspace.name || 'Unnamed Tab');
         }
 
-        function isTaskModeCategory(categoryName) {
+        function isTaskModeCategory(workspaceId, categoryName) {
+            if (window.EveBookmarkFolders?.isCardTaskEnabled) {
+                return !!window.EveBookmarkFolders.isCardTaskEnabled(workspaceId, categoryName);
+            }
             const hidden = Array.isArray(config.hideStats) ? config.hideStats : [];
             return !hidden.includes(categoryName);
         }
@@ -259,6 +262,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
         }
 
         function getCategoryModels(workspaceLinks) {
+            const workspaceId = String(workspaceLinks[0]?.workspace || config.activeWorkspace || 'main').trim() || 'main';
             return getSortedCategories(workspaceLinks).map(function (category) {
                 const categoryLinks = workspaceLinks.filter(function (link) {
                     return (link.category || 'Unsorted') === category;
@@ -270,7 +274,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                     total: categoryLinks.length,
                     done: doneCount,
                     pending: Math.max(categoryLinks.length - doneCount, 0),
-                    taskMode: isTaskModeCategory(category)
+                    taskMode: isTaskModeCategory(workspaceId, category)
                 };
             });
         }
@@ -315,7 +319,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                             total: total,
                             done: done,
                             pending: Math.max(total - done, 0),
-                            taskMode: isTaskModeCategory(category)
+                            taskMode: isTaskModeCategory(workspaceId, category)
                         };
                     });
                 }
