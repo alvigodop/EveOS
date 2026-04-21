@@ -33,7 +33,30 @@ window.EveBulkImport = window.EveBulkImport || {};
         return /^www\./i.test(rawVal) ? `https://${rawVal}` : rawVal;
     }
 
-    function normalizeImportedFileTitle(fileName) {
+    const IMPORT_TITLE_STATUS_SUFFIX_RULES = [
+        {
+            pattern: /^(.*?)(?:\s{2,}|(?:\s*[-_.]\s*)+)(?:fin|finished|complete|completed|done)\s*$/i,
+            status: 'Finished'
+        },
+        {
+            pattern: /^(.*?)(?:\s{2,}|(?:\s*[-_.]\s*)+)(?:drop|dropped|abandoned|cancelled|canceled)\s*$/i,
+            status: 'Dropped'
+        },
+        {
+            pattern: /^(.*?)(?:\s{2,}|(?:\s*[-_.]\s*)+)(?:on hold|hold|paused|pause|hiatus)\s*$/i,
+            status: 'On Hold'
+        },
+        {
+            pattern: /^(.*?)(?:\s{2,}|(?:\s*[-_.]\s*)+)(?:watching|reading|ongoing|current|in progress)\s*$/i,
+            status: 'Ongoing'
+        },
+        {
+            pattern: /^(.*?)(?:\s{2,}|(?:\s*[-_.]\s*)+)(?:plan|planned|queue|queued|todo|want)\s*$/i,
+            status: 'Planned'
+        }
+    ];
+
+    function normalizeImportedFileBaseTitle(fileName) {
         let title = String(fileName || '')
             .replace(/_\d{6}_\d{6}\.txt$/i, '')
             .replace(/\.txt$/i, '')
@@ -46,15 +69,112 @@ window.EveBulkImport = window.EveBulkImport || {};
         return title;
     }
 
-    function isGenericImportFileTitle(value) {
-        const normalized = String(value || '')
+    function extractImportedFileMetadata(fileName) {
+        const fallbackTitle = normalizeImportedFileBaseTitle(fileName);
+        let title = fallbackTitle;
+        let status = '';
+
+        for (const rule of IMPORT_TITLE_STATUS_SUFFIX_RULES) {
+            const match = title.match(rule.pattern);
+            if (!match) continue;
+            const strippedTitle = String(match[1] || '').trim();
+            if (!strippedTitle) continue;
+            title = strippedTitle;
+            status = rule.status;
+            break;
+        }
+
+        return {
+            title: String(title || fallbackTitle).replace(/\s+/g, ' ').trim(),
+            status
+        };
+    }
+
+    function normalizeImportedFileTitle(fileName) {
+        return extractImportedFileMetadata(fileName).title;
+    }
+
+    const GENERIC_IMPORT_FILE_TITLES = new Set([
+        'untitled',
+        'new text document',
+        'note',
+        'notes',
+        'url',
+        'urls',
+        'link',
+        'links',
+        'list',
+        'data',
+        'import',
+        'imports',
+        'bookmark',
+        'bookmarks',
+        'bulk',
+        'text'
+    ]);
+
+    const GENERIC_IMPORT_FILE_SUFFIX_BASES = [
+        'untitled',
+        'new text document',
+        'note',
+        'notes',
+        'url',
+        'urls',
+        'link',
+        'links',
+        'list',
+        'import',
+        'imports',
+        'bookmark',
+        'bookmarks',
+        'bulk'
+    ];
+
+    function normalizeGenericImportFileTitle(value) {
+        return String(value || '')
             .trim()
             .toLowerCase()
-            // Treat copied generic files like "bookmark (2)" the same as "bookmark"
-            .replace(/\s*\(\d+\)\s*$/i, '')
+            .replace(/[_-]+/g, ' ')
+            .replace(/\s+/g, ' ')
             .trim();
+    }
+
+    function stripLeadingGenericNoise(value) {
+        return String(value || '')
+            .replace(/^[\s._-]+/, '')
+            .trim();
+    }
+
+    function consumeGenericSuffixNoise(value) {
+        let remainder = stripLeadingGenericNoise(value);
+        if (!remainder) return '';
+
+        let previous = '';
+        while (remainder && remainder !== previous) {
+            previous = remainder;
+            remainder = remainder
+                .replace(/^(?:copy|duplicate|dup|backup|export|import|new|final|draft|temp|tmp)\b(?:\s+\d+)?/i, '')
+                .replace(/^\d+\b/, '')
+                .replace(/^[\(\[\{][^()\[\]{}]{0,120}[\)\]\}]/, '')
+                .trim();
+            remainder = stripLeadingGenericNoise(remainder);
+        }
+
+        return remainder;
+    }
+
+    function matchesGenericImportTitleWithSuffix(normalizedTitle, baseTitle) {
+        if (!normalizedTitle || !baseTitle) return false;
+        if (normalizedTitle === baseTitle) return true;
+        if (!normalizedTitle.startsWith(baseTitle)) return false;
+        return !consumeGenericSuffixNoise(normalizedTitle.slice(baseTitle.length));
+    }
+
+    function isGenericImportFileTitle(value) {
+        const normalized = normalizeGenericImportFileTitle(value);
         if (!normalized) return true;
-        return /^(?:untitled|new text document|notes?|urls?|links?|list|data|import|imports|bookmark(?:s)?|bulk|text)$/i.test(normalized);
+        if (GENERIC_IMPORT_FILE_TITLES.has(normalized)) return true;
+        return GENERIC_IMPORT_FILE_SUFFIX_BASES.some((baseTitle) => matchesGenericImportTitleWithSuffix(normalized, baseTitle));
     }
 
     function isStandaloneTitleCandidate(value) {
@@ -70,6 +190,12 @@ window.EveBulkImport = window.EveBulkImport || {};
     function hasStructuredFieldLine(value) {
         const text = String(value || '').trim();
         return /^(?:title|name|url|link|read site|site|to watch site|type|category|status|state|notes|summary|finished ep|going to ep|ep|episode|ch|chapter)[\s:-]+/i.test(text);
+    }
+
+    function isProgressLedgerLine(value) {
+        const text = String(value || '').trim();
+        if (!text || looksLikeUrlValue(text)) return false;
+        return /^(?:(?:movie|film|episode|ep|chapter|ch|book|vol(?:ume)?|volume|season|part|arc|disc|track)\s*[\divxlcdm]+|[\divxlcdm]+)\s*[:\-#]\s*(?:fin(?:ished)?|done|complete(?:d)?|watched|read|seen|skip(?:ped)?|drop(?:ped)?|hold|pause(?:d)?|hiatus|todo|tbd|plan(?:ned)?|ongoing|current|in progress)\b/i.test(text);
     }
 
     function looksLikeStructuredFileContent(content, fileName = '') {
@@ -113,6 +239,11 @@ window.EveBulkImport = window.EveBulkImport || {};
         const standaloneUrlLines = nonEmptyLines.filter(isStandaloneUrlLine);
         if (standaloneUrlLines.length > 1) return false;
 
+        const progressLedgerLines = nonEmptyLines.filter(isProgressLedgerLine);
+        if (progressLedgerLines.length >= 2 && progressLedgerLines.length === nonEmptyLines.length && nonEmptyLines.length <= 40) {
+            return true;
+        }
+
         const allListLikeTitles = nonEmptyLines.length > 1
             && standaloneUrlLines.length === 0
             && nonEmptyLines.every((line) => {
@@ -148,15 +279,16 @@ window.EveBulkImport = window.EveBulkImport || {};
 
 function processStructuredFile(content, fileName, targetCategory, folderId = '', options = {}) {
     const lines = content.split('\n');
+    const fileMeta = extractImportedFileMetadata(fileName);
 
     // Clean filename: remove things like "_260228_000943.txt" and ".txt"
-    let title = normalizeImportedFileTitle(fileName);
+    let title = fileMeta.title;
     let url = '';
     let episode = 0;
     let chapter = 0;
     let season = 0;
     let type = '';
-    let status = '';
+    let status = fileMeta.status || '';
     let notesArr = [];
     let explicitTitleAssigned = false;
     let bodyTitleAssigned = false;
