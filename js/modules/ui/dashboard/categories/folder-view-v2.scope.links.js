@@ -28,9 +28,13 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
     function getSourceLinks() {
         return typeof window.getModalLinks === 'function'
             ? window.getModalLinks()
-            : (Array.isArray(window.eveState?.links)
-                ? window.eveState.links
-                : (Array.isArray(window.links) ? window.links : []));
+            : (typeof window.getLiveLinks === 'function'
+                ? window.getLiveLinks()
+                : (Array.isArray(window.eveState?.links)
+                    ? window.eveState.links
+                    : (Array.isArray(window.links)
+                        ? window.links
+                        : (typeof links !== 'undefined' && Array.isArray(links) ? links : []))));
     }
 
     function getDatapackIndexApi() {
@@ -44,6 +48,15 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         return sourceLinks.filter((link) => idSet.has(String(link?.id || '').trim()));
     }
 
+    function buildLinkIdMap(sourceLinks) {
+        const map = new Map();
+        (Array.isArray(sourceLinks) ? sourceLinks : []).forEach((link) => {
+            const linkId = String(link?.id || '').trim();
+            if (linkId) map.set(linkId, link);
+        });
+        return map;
+    }
+
     function getIndexedScopedLinks(scope, sourceLinks) {
         const indexApi = getDatapackIndexApi();
         if (!indexApi || typeof indexApi.getExactBookmarkLinkIds !== 'function') return null;
@@ -51,7 +64,15 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
             ? indexApi.hasUsableSnapshot()
             : !!indexApi.getSnapshot?.();
         if (!hasUsableSnapshot) return null;
-        return filterLinksByIds(sourceLinks, indexApi.getExactBookmarkLinkIds(scope || null));
+        const linkIdMap = buildLinkIdMap(sourceLinks);
+        const resolveIndexedLink = typeof indexApi.resolveBookmarkLink === 'function'
+            ? function (linkId) { return indexApi.resolveBookmarkLink(linkId); }
+            : null;
+        return (indexApi.getExactBookmarkLinkIds(scope || null) || []).map((linkId) => {
+            const normalizedId = String(linkId || '').trim();
+            if (!normalizedId) return null;
+            return linkIdMap.get(normalizedId) || (resolveIndexedLink ? resolveIndexedLink(normalizedId) : null) || null;
+        }).filter(Boolean);
     }
 
     function getCategoryLinks(workspaceId, categoryName) {
@@ -61,7 +82,12 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
             categoryName: categoryName
         }, sourceLinks);
         if (indexedLinks) return indexedLinks;
-        return sourceLinks.filter((link) => link.workspace === workspaceId && link.category === categoryName);
+        const normalizedWorkspaceId = String(workspaceId || 'main').trim() || 'main';
+        const normalizedCategoryName = String(categoryName || 'Unsorted').trim() || 'Unsorted';
+        return sourceLinks.filter((link) => (
+            String(link?.workspace || 'main').trim() === normalizedWorkspaceId
+            && String(link?.category || 'Unsorted').trim() === normalizedCategoryName
+        ));
     }
 
     function collectFolderSubtreeLinkIds(viewModel, folderId) {

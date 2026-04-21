@@ -42,14 +42,26 @@ window.EveBookmarkFocus = window.EveBookmarkFocus || {};
         return String(value);
     }
 
+    function getDatapackIndexApi() {
+        return window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
+    }
+
     function getLinks() {
-        if (window.eveState?.links) return window.eveState.links;
+        if (typeof window.getLiveLinks === 'function') return window.getLiveLinks();
+        if (Array.isArray(window.eveState?.links)) return window.eveState.links;
+        if (Array.isArray(window.links)) return window.links;
         if (typeof links !== 'undefined' && Array.isArray(links)) return links;
         return [];
     }
 
     function findLinkById(linkId) {
         const target = toId(linkId);
+        if (!target) return null;
+        const indexApi = getDatapackIndexApi();
+        if (indexApi && typeof indexApi.resolveBookmarkLink === 'function') {
+            const resolved = indexApi.resolveBookmarkLink(target);
+            if (resolved) return resolved;
+        }
         return getLinks().find(item => toId(item.id) === target) || null;
     }
 

@@ -5,8 +5,24 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
     const runtime = ns._runtime = ns._runtime || {};
     if (runtime.baseLoaded) return;
 
+    function getDatapackIndexApi() {
+        return window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
+    }
+
+    function hasUsableDatapackSnapshot(indexApi) {
+        if (!indexApi) return false;
+        const buildState = typeof indexApi.getBuildState === 'function' ? indexApi.getBuildState() : null;
+        return typeof indexApi.hasUsableSnapshot === 'function'
+            ? indexApi.hasUsableSnapshot()
+            : (!buildState?.dirty && Number(buildState?.builtAt || 0) > 0);
+    }
+
     function getLinks() {
-        return Array.isArray(window.eveState?.links) ? window.eveState.links : (window.links || []);
+        if (typeof window.getLiveLinks === 'function') return window.getLiveLinks();
+        if (Array.isArray(window.eveState?.links)) return window.eveState.links;
+        if (Array.isArray(window.links)) return window.links;
+        if (typeof links !== 'undefined' && Array.isArray(links)) return links;
+        return [];
     }
 
     function getConfig() {
@@ -103,12 +119,79 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
         return { getFolderLabel };
     }
 
+    function buildLinkIdMap(sourceLinks) {
+        const map = new Map();
+        (Array.isArray(sourceLinks) ? sourceLinks : []).forEach((link) => {
+            const linkId = String(link?.id || '').trim();
+            if (linkId) map.set(linkId, link);
+        });
+        return map;
+    }
+
+    function resolveIndexedLinks(indexApi, linkIds, sourceLinks) {
+        if (!Array.isArray(linkIds)) return null;
+        const linkIdMap = buildLinkIdMap(sourceLinks);
+        const resolveIndexedLink = typeof indexApi?.resolveBookmarkLink === 'function'
+            ? function (linkId) { return indexApi.resolveBookmarkLink(linkId); }
+            : null;
+        return linkIds.map((linkId) => {
+            const normalizedId = String(linkId || '').trim();
+            if (!normalizedId) return null;
+            return linkIdMap.get(normalizedId) || (resolveIndexedLink ? resolveIndexedLink(normalizedId) : null) || null;
+        }).filter(Boolean);
+    }
+
+    function getIndexedScopedLinks(scope, workspaceId, categoryName, folderId, sourceLinks) {
+        const indexApi = getDatapackIndexApi();
+        if (!indexApi || typeof indexApi.getExactBookmarkLinkIds !== 'function' || !hasUsableDatapackSnapshot(indexApi)) {
+            return null;
+        }
+
+        if (scope === 'all_tabs') {
+            if (typeof indexApi.getScopedBookmarkLinkIds !== 'function') return null;
+            return resolveIndexedLinks(indexApi, indexApi.getScopedBookmarkLinkIds(null), sourceLinks);
+        }
+
+        if (scope === 'workspace') {
+            return resolveIndexedLinks(indexApi, indexApi.getExactBookmarkLinkIds({ workspaceId: workspaceId }), sourceLinks);
+        }
+
+        if (scope === 'card') {
+            return resolveIndexedLinks(indexApi, indexApi.getExactBookmarkLinkIds({
+                workspaceId: workspaceId,
+                categoryName: categoryName
+            }), sourceLinks);
+        }
+
+        if (scope === 'folder') {
+            const categoryLinks = resolveIndexedLinks(indexApi, indexApi.getExactBookmarkLinkIds({
+                workspaceId: workspaceId,
+                categoryName: categoryName
+            }), sourceLinks);
+            if (!Array.isArray(categoryLinks)) return null;
+            return categoryLinks.filter((link) => String(link?.folderId || '').trim() === folderId);
+        }
+
+        return null;
+    }
+
     function getScopedLinks(scope, workspaceId, categoryName, folderId) {
         const normalizedScope = normalizeScope(scope);
         const normalizedWorkspace = String(workspaceId || '').trim();
         const normalizedCategory = String(categoryName || '').trim();
         const normalizedFolderId = String(folderId || '').trim();
         const links = getLinks();
+        const indexedLinks = getIndexedScopedLinks(
+            normalizedScope,
+            normalizedWorkspace,
+            normalizedCategory,
+            normalizedFolderId,
+            links
+        );
+
+        if (Array.isArray(indexedLinks)) {
+            return indexedLinks;
+        }
 
         if (normalizedScope === 'all_tabs') {
             return links.slice();
@@ -178,6 +261,7 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
     }
 
     Object.assign(runtime, {
+        getDatapackIndexApi,
         getLinks,
         getConfig,
         getFolderTrees,

@@ -34,9 +34,21 @@ const TARGET_TYPES = new Set(['bookmark', 'card', 'folder']);
 
 
 
+    function getDatapackIndexApi() {
+
+        return window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
+
+    }
+
+
+
     function getLinks() {
 
-        if (window.eveState?.links) return window.eveState.links;
+        if (typeof window.getLiveLinks === 'function') return window.getLiveLinks();
+
+        if (Array.isArray(window.eveState?.links)) return window.eveState.links;
+
+        if (Array.isArray(window.links)) return window.links;
 
         if (typeof links !== 'undefined' && Array.isArray(links)) return links;
 
@@ -242,6 +254,16 @@ const TARGET_TYPES = new Set(['bookmark', 'card', 'folder']);
 
         const targetId = toId(linkId);
 
+        const indexApi = getDatapackIndexApi();
+
+        if (indexApi && typeof indexApi.resolveBookmarkLink === 'function') {
+
+            const resolved = indexApi.resolveBookmarkLink(targetId);
+
+            if (resolved) return resolved;
+
+        }
+
         return getLinks().find((link) => toId(link?.id) === targetId) || null;
 
     }
@@ -256,6 +278,7 @@ const TARGET_TYPES = new Set(['bookmark', 'card', 'folder']);
         TARGET_VISIBILITY_SCOPE_TYPES,
         BOOKMARK_SCOPE_OPTIONS,
         TARGET_VISIBILITY_SCOPE_OPTIONS,
+        getDatapackIndexApi,
         getLinks,
         getConfig,
         getFolderApi,

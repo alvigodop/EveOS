@@ -100,7 +100,9 @@ function _getRobustScrollTop() {
 }
 
 function getDashboardLiveLinks() {
+    if (typeof window.getLiveLinks === 'function') return window.getLiveLinks();
     if (Array.isArray(window.eveState?.links)) return window.eveState.links;
+    if (Array.isArray(window.links)) return window.links;
     if (typeof links !== 'undefined' && Array.isArray(links)) return links;
     return [];
 }
@@ -174,9 +176,14 @@ function collectIndexedDashboardVisibleLinks(sourceLinks, matcher) {
     var liveLinkMap = new Map((Array.isArray(sourceLinks) ? sourceLinks : []).map(function (link) {
         return [String(link?.id || '').trim(), link];
     }));
+    var resolveIndexedLink = typeof indexApi.resolveBookmarkLink === 'function'
+        ? function (linkId) { return indexApi.resolveBookmarkLink(linkId); }
+        : null;
 
     return indexApi.getScopedBookmarkLinkIds(null).map(function (linkId) {
-        return liveLinkMap.get(String(linkId || '').trim()) || null;
+        var normalizedId = String(linkId || '').trim();
+        if (!normalizedId) return null;
+        return liveLinkMap.get(normalizedId) || (resolveIndexedLink ? resolveIndexedLink(normalizedId) : null) || null;
     }).filter(function (link) {
         return !!link && matcher(link);
     });

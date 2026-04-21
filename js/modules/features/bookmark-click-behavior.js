@@ -81,7 +81,9 @@ window.EveBookmarkClickBehavior = window.EveBookmarkClickBehavior || {};
     }
 
     function getLinks() {
+        if (typeof window.getLiveLinks === 'function') return window.getLiveLinks();
         if (Array.isArray(window.eveState?.links)) return window.eveState.links;
+        if (Array.isArray(window.links)) return window.links;
         if (typeof links !== 'undefined' && Array.isArray(links)) return links;
         return [];
     }
@@ -89,6 +91,11 @@ window.EveBookmarkClickBehavior = window.EveBookmarkClickBehavior || {};
     function findLinkById(linkId) {
         const targetId = String(linkId || '').trim();
         if (!targetId) return null;
+        const indexApi = window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
+        if (indexApi && typeof indexApi.resolveBookmarkLink === 'function') {
+            const resolved = indexApi.resolveBookmarkLink(targetId);
+            if (resolved) return resolved;
+        }
         return getLinks().find((entry) => String(entry?.id || '').trim() === targetId) || null;
     }
 

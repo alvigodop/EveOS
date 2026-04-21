@@ -81,9 +81,15 @@ window.EveBookmarkCovers = window.EveBookmarkCovers || {};
         selectionCache.delete(normalizedId);
     }
 
+    function getDatapackIndexApi() {
+        return window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
+    }
+
     function getLinks() {
-        if (window.eveState?.links) return window.eveState.links;
-        if (typeof links !== 'undefined') return links;
+        if (typeof window.getLiveLinks === 'function') return window.getLiveLinks();
+        if (Array.isArray(window.eveState?.links)) return window.eveState.links;
+        if (Array.isArray(window.links)) return window.links;
+        if (typeof links !== 'undefined' && Array.isArray(links)) return links;
         return [];
     }
 
@@ -106,6 +112,12 @@ window.EveBookmarkCovers = window.EveBookmarkCovers || {};
             return String(item?.workspace || '').trim() === workspace;
         });
         if (!match) return null;
+
+        const indexApi = getDatapackIndexApi();
+        if (indexApi && typeof indexApi.resolveBookmarkLink === 'function') {
+            const resolved = indexApi.resolveBookmarkLink(toLinkId(match.linkId));
+            if (resolved) return resolved;
+        }
 
         return getLinks().find((link) => toLinkId(link?.id) === toLinkId(match.linkId)) || null;
     }
