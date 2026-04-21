@@ -25,8 +25,18 @@ window.renderDock = function (_visibleLinks, dockContainer, focusCategory) {
         return 'Link';
     }
 
+    function resolvePinnedLink(pin) {
+        const liveLink = pinApi.getLinkById?.(pin.targetId);
+        if (liveLink) return liveLink;
+        const indexApi = window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
+        if (indexApi && typeof indexApi.resolveBookmarkLink === 'function') {
+            return indexApi.resolveBookmarkLink(pin.targetId);
+        }
+        return null;
+    }
+
     function buildBookmarkIcon(pin) {
-        const link = pinApi.getLinkById?.(pin.targetId);
+        const link = resolvePinnedLink(pin);
         const rawUrl = String(link?.url || '');
         const isLocal = rawUrl.startsWith('file://');
         const faviconUtils = window.EveFaviconUtils || null;

@@ -99,6 +99,89 @@ function _getRobustScrollTop() {
     );
 }
 
+function getDashboardLiveLinks() {
+    if (Array.isArray(window.eveState?.links)) return window.eveState.links;
+    if (typeof links !== 'undefined' && Array.isArray(links)) return links;
+    return [];
+}
+
+function getDashboardDatapackIndexApi() {
+    return window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
+}
+
+function hasDashboardUsableSnapshot(indexApi) {
+    if (!indexApi) return false;
+    if (typeof indexApi.hasUsableSnapshot === 'function') return !!indexApi.hasUsableSnapshot();
+    var buildState = typeof indexApi.getBuildState === 'function' ? indexApi.getBuildState() : null;
+    return !buildState?.dirty && Number(buildState?.builtAt || 0) > 0;
+}
+
+function buildDashboardVisibleLinkMatcher(visibleWorkspaceIds, searchTerms, folderPathLabelBuilder) {
+    return function (link) {
+        if (!visibleWorkspaceIds.has(String(link?.workspace || 'main').trim())) return false;
+        if (!searchTerms.length) return true;
+
+        var titleStr = String(link?.title || link?.name || '').toLowerCase();
+        var nameStr = String(link?.name || '').toLowerCase();
+        var urlStr = String(link?.url || '').toLowerCase();
+        var catStr = String(link?.category || 'Unsorted').toLowerCase();
+        var folderStr = String(link?.folderId || '').toLowerCase();
+        var folderLabelStr = typeof folderPathLabelBuilder === 'function'
+            ? String(folderPathLabelBuilder(link?.workspace, link?.category, link?.folderId) || '').toLowerCase()
+            : '';
+        var notesStr = String(link?.notes || '').toLowerCase();
+        var tagsStr = Array.isArray(link?.tags)
+            ? link.tags.map(function (tag) { return String(tag || '').trim(); }).filter(Boolean).join(' ').toLowerCase()
+            : '';
+
+        return searchTerms.every(function (term) {
+            return titleStr.includes(term)
+                || nameStr.includes(term)
+                || urlStr.includes(term)
+                || catStr.includes(term)
+                || folderStr.includes(term)
+                || folderLabelStr.includes(term)
+                || notesStr.includes(term)
+                || tagsStr.includes(term);
+        });
+    };
+}
+
+function mergeDashboardPreferredLinks(preferredLinks, liveLinks) {
+    var merged = [];
+    var seen = new Set();
+
+    function pushLinks(items) {
+        (Array.isArray(items) ? items : []).forEach(function (link) {
+            var linkId = String(link?.id || '').trim();
+            if (!linkId || seen.has(linkId)) return;
+            seen.add(linkId);
+            merged.push(link);
+        });
+    }
+
+    pushLinks(preferredLinks);
+    pushLinks(liveLinks);
+    return merged;
+}
+
+function collectIndexedDashboardVisibleLinks(sourceLinks, matcher) {
+    var indexApi = getDashboardDatapackIndexApi();
+    if (!indexApi || typeof indexApi.getScopedBookmarkLinkIds !== 'function' || !hasDashboardUsableSnapshot(indexApi)) {
+        return null;
+    }
+
+    var liveLinkMap = new Map((Array.isArray(sourceLinks) ? sourceLinks : []).map(function (link) {
+        return [String(link?.id || '').trim(), link];
+    }));
+
+    return indexApi.getScopedBookmarkLinkIds(null).map(function (linkId) {
+        return liveLinkMap.get(String(linkId || '').trim()) || null;
+    }).filter(function (link) {
+        return !!link && matcher(link);
+    });
+}
+
 function _renderDashboardImmediate() {
     var cardScrollState = captureDashboardCardScrollState();
 
@@ -272,34 +355,14 @@ function _renderDashboardCore() {
     window._eveGroupOverviewRootMap = (overviewGroupId && groupOverviewRootMap.size) ? groupOverviewRootMap : null;
     const folderPathLabelBuilder = window.EveBookmarkFolders?.buildFolderPathLabel;
 
-    const visibleLinks = links.filter(function (link) {
-        if (!visibleWorkspaceIds.has(String(link?.workspace || 'main').trim())) return false;
-        if (searchTerms.length === 0) return true;
-
-        const titleStr = String(link?.title || link?.name || '').toLowerCase();
-        const nameStr = String(link?.name || '').toLowerCase();
-        const urlStr = String(link?.url || '').toLowerCase();
-        const catStr = String(link?.category || 'Unsorted').toLowerCase();
-        const folderStr = String(link?.folderId || '').toLowerCase();
-        const folderLabelStr = typeof folderPathLabelBuilder === 'function'
-            ? String(folderPathLabelBuilder(link?.workspace, link?.category, link?.folderId) || '').toLowerCase()
-            : '';
-        const notesStr = String(link?.notes || '').toLowerCase();
-        const tagsStr = Array.isArray(link?.tags)
-            ? link.tags.map(function (tag) { return String(tag || '').trim(); }).filter(Boolean).join(' ').toLowerCase()
-            : '';
-
-        return searchTerms.every(function (term) {
-            return titleStr.includes(term)
-                || nameStr.includes(term)
-                || urlStr.includes(term)
-                || catStr.includes(term)
-                || folderStr.includes(term)
-                || folderLabelStr.includes(term)
-                || notesStr.includes(term)
-                || tagsStr.includes(term);
-        });
-    });
+    const matchesVisibleLink = buildDashboardVisibleLinkMatcher(visibleWorkspaceIds, searchTerms, folderPathLabelBuilder);
+    const rawVisibleLinks = getDashboardLiveLinks().filter(matchesVisibleLink);
+    const indexedVisibleLinks = searchTerms.length > 0
+        ? collectIndexedDashboardVisibleLinks(getDashboardLiveLinks(), matchesVisibleLink)
+        : null;
+    const visibleLinks = Array.isArray(indexedVisibleLinks)
+        ? mergeDashboardPreferredLinks(indexedVisibleLinks, rawVisibleLinks)
+        : rawVisibleLinks;
     // Level 1: Standard Perf Mode (600+) - degraded animations, basic throttling
     // Level 2: Mega Perf Mode (1500+) - strip icons, strip hovers, max throttling
     window._evePerfMode = visibleLinks.length > 600;

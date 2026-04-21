@@ -78,6 +78,40 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             }).filter(Boolean);
         }
 
+        function mergePreferredLinks(preferredLinks, liveLinks) {
+            const merged = [];
+            const seen = new Set();
+
+            function pushLinks(items) {
+                (Array.isArray(items) ? items : []).forEach(function (link) {
+                    const linkId = String(link?.id || '').trim();
+                    if (!linkId || seen.has(linkId)) return;
+                    seen.add(linkId);
+                    merged.push(link);
+                });
+            }
+
+            pushLinks(preferredLinks);
+            pushLinks(liveLinks);
+            return merged;
+        }
+
+        function getIndexedScopedLinks(scope) {
+            const indexApi = getDatapackIndexApi();
+            if (!indexApi || typeof indexApi.getScopedBookmarkLinkIds !== 'function') return null;
+            const buildState = typeof indexApi.getBuildState === 'function' ? indexApi.getBuildState() : null;
+            const hasUsableSnapshot = typeof indexApi.hasUsableSnapshot === 'function'
+                ? indexApi.hasUsableSnapshot()
+                : (!buildState?.dirty && Number(buildState?.builtAt || 0) > 0);
+            if (!hasUsableSnapshot) {
+                warmDatapackIndex();
+                return null;
+            }
+            return collectIndexedLinks(function () {
+                return indexApi.getScopedBookmarkLinkIds(scope || null);
+            }, getAllLinks());
+        }
+
         function getIndexedWorkspaceLinks(workspaceId) {
             const indexApi = getDatapackIndexApi();
             if (!indexApi || typeof indexApi.getExactBookmarkLinkIds !== 'function') return null;
@@ -130,13 +164,16 @@ window.UnidexViewModules = window.UnidexViewModules || {};
         }
 
         function getWorkspaceLinks(workspaceId, searchStr) {
-            if (!String(searchStr || '').trim()) {
-                const indexedLinks = getIndexedWorkspaceLinks(workspaceId);
-                if (Array.isArray(indexedLinks)) return indexedLinks;
-            }
-            return getAllLinks().filter(function (link) {
+            const rawLinks = getAllLinks().filter(function (link) {
                 return String(link.workspace) === String(workspaceId) && matchesSearch(link, searchStr);
             });
+            const indexedLinks = getIndexedWorkspaceLinks(workspaceId);
+            if (!Array.isArray(indexedLinks)) return rawLinks;
+            const filteredIndexedLinks = indexedLinks.filter(function (link) {
+                return matchesSearch(link, searchStr);
+            });
+            if (!String(searchStr || '').trim()) return filteredIndexedLinks;
+            return mergePreferredLinks(filteredIndexedLinks, rawLinks);
         }
 
         function getWorkspaceAndSubTabLinks(workspaceId, searchStr) {
@@ -150,26 +187,35 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                     subTabIds.add(id);
                 });
             }
-            var allLinks = getAllLinks().filter(function (link) {
+            var rawLinks = getAllLinks().filter(function (link) {
                 return visibleIds.has(String(link.workspace)) && matchesSearch(link, searchStr);
             });
-            return { links: allLinks, subTabIds: subTabIds };
+            var indexedLinks = getIndexedScopedLinks({ workspaceId: workspaceId });
+            if (!Array.isArray(indexedLinks)) {
+                return { links: rawLinks, subTabIds: subTabIds };
+            }
+            var filteredIndexedLinks = indexedLinks.filter(function (link) {
+                return visibleIds.has(String(link.workspace)) && matchesSearch(link, searchStr);
+            });
+            if (!String(searchStr || '').trim()) {
+                return { links: filteredIndexedLinks, subTabIds: subTabIds };
+            }
+            return { links: mergePreferredLinks(filteredIndexedLinks, rawLinks), subTabIds: subTabIds };
         }
 
         function getAllWorkspaceLinks(searchStr) {
-            if (!String(searchStr || '').trim()) {
-                const indexedLinks = getIndexedAllWorkspaceLinks();
-                if (Array.isArray(indexedLinks)) {
-                    return indexedLinks.filter(function (link) {
-                        const hasWorkspace = getWorkspaceById(link.workspace);
-                        return !!hasWorkspace;
-                    });
-                }
-            }
-            return getAllLinks().filter(function (link) {
+            const rawLinks = getAllLinks().filter(function (link) {
                 const hasWorkspace = getWorkspaceById(link.workspace);
                 return !!hasWorkspace && matchesSearch(link, searchStr);
             });
+            const indexedLinks = getIndexedAllWorkspaceLinks();
+            if (!Array.isArray(indexedLinks)) return rawLinks;
+            const filteredIndexedLinks = indexedLinks.filter(function (link) {
+                const hasWorkspace = getWorkspaceById(link.workspace);
+                return !!hasWorkspace && matchesSearch(link, searchStr);
+            });
+            if (!String(searchStr || '').trim()) return filteredIndexedLinks;
+            return mergePreferredLinks(filteredIndexedLinks, rawLinks);
         }
 
         function getWorkspaceLabel(workspaceId) {
