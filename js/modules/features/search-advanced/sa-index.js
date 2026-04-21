@@ -14,6 +14,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         STORAGE_MANAGER_KEY,
         SNAPSHOT_MAX_AGE_MS,
         SEARCH_STORAGE_KEYS,
+        INCREMENTAL_LOCAL_RECORD_TYPES,
         state,
         now,
         text,
@@ -23,7 +24,12 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         readConfig,
         buildFolderPathLabel
     } = shared;
-    const { buildSnapshot } = sources;
+    const {
+        buildSnapshot,
+        buildLocalRecordBundle,
+        buildSnapshotStats,
+        rehydrateSourceRecords
+    } = sources;
     const {
         matchesScope,
         buildScopeRecordMatcher,
@@ -91,6 +97,14 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         state.lastReason = text(reason, 'state-mutated');
     }
 
+    function isSourceDrivenReason(reason) {
+        const normalizedReason = text(reason, '');
+        return normalizedReason === 'cache-store-query'
+            || normalizedReason === 'cache-store-pool'
+            || normalizedReason.startsWith('scoped-storage:')
+            || normalizedReason.startsWith('storage-save:');
+    }
+
     function shouldTrackStorageKey(key) {
         const normalized = text(key, '');
         return !!normalized && normalized !== STORAGE_MANAGER_KEY && SEARCH_STORAGE_KEYS.has(normalized);
@@ -146,12 +160,62 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         });
     }
 
+    function finalizeSnapshot(snapshot, reason, startRevision) {
+        state.snapshot = snapshot;
+        if (Number(state.revision || 0) === startRevision) {
+            state.dirty = false;
+            state.lastReason = reason;
+        }
+        return persistSnapshot(snapshot).then(function () {
+            return snapshot;
+        });
+    }
+
+    function scheduleFollowUpBuild() {
+        if (!state.dirty) return;
+        setTimeout(function () {
+            if (!state.buildPromise && state.dirty) {
+                rebuild({ reason: state.lastReason });
+            }
+        }, 0);
+    }
+
+    function buildIncrementalSnapshot(reason) {
+        const localBundle = buildLocalRecordBundle();
+        const preservedSourceRecords = rehydrateSourceRecords(
+            toArray(state.snapshot?.records).filter(function (record) {
+                return !INCREMENTAL_LOCAL_RECORD_TYPES.has(text(record?.type, ''));
+            }),
+            localBundle.categoryMap
+        );
+        const records = []
+            .concat(localBundle.records)
+            .concat(preservedSourceRecords);
+
+        return {
+            version: shared.INDEX_VERSION,
+            builtAt: now(),
+            reason: text(reason, 'manual'),
+            stats: buildSnapshotStats(records),
+            records: records
+        };
+    }
+
     async function ensureFresh(options) {
         await loadPersistedSnapshot();
         const force = !!options?.force;
         const snapshotAge = state.snapshot ? (now() - Number(state.snapshot.builtAt || 0)) : Number.POSITIVE_INFINITY;
         if (!force && state.snapshot && !state.dirty && snapshotAge < SNAPSHOT_MAX_AGE_MS) {
             return state.snapshot;
+        }
+        if (
+            !force
+            && state.snapshot
+            && state.dirty
+            && snapshotAge < SNAPSHOT_MAX_AGE_MS
+            && !isSourceDrivenReason(options?.reason || state.lastReason)
+        ) {
+            return rebuild(Object.assign({}, options, { incremental: true }));
         }
         return rebuild(options);
     }
@@ -160,25 +224,16 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         if (state.buildPromise) return state.buildPromise;
         const reason = text(options?.reason || state.lastReason, 'manual');
         const startRevision = Number(state.revision || 0);
-        state.buildPromise = buildSnapshot(reason)
+        const buildRunner = options?.incremental
+            ? Promise.resolve().then(function () { return buildIncrementalSnapshot(reason); })
+            : buildSnapshot(reason);
+        state.buildPromise = buildRunner
             .then(async function (snapshot) {
-                state.snapshot = snapshot;
-                if (Number(state.revision || 0) === startRevision) {
-                    state.dirty = false;
-                    state.lastReason = reason;
-                }
-                await persistSnapshot(snapshot);
-                return snapshot;
+                return finalizeSnapshot(snapshot, reason, startRevision);
             })
             .finally(function () {
                 state.buildPromise = null;
-                if (state.dirty) {
-                    setTimeout(function () {
-                        if (!state.buildPromise && state.dirty) {
-                            rebuild({ reason: state.lastReason });
-                        }
-                    }, 0);
-                }
+                scheduleFollowUpBuild();
             });
         return state.buildPromise;
     }

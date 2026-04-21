@@ -29,16 +29,8 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         buildLibraryRecords
     } = local;
 
-    async function buildCachedRecords(categoryMap) {
-        const cache = window.EveOS?.API?.Cache;
-        const cacheRuntime = window.EveOS?.API?.CacheRuntime || {};
-        const locators = ns.Locators || {};
-        if (!cache?.loadPool) return [];
-
-        const activeWorkspace = text(readConfig().activeWorkspace, 'main');
-        const records = [];
+    function buildCategoryScopeMap(categoryMap) {
         const groupedByCategory = new Map();
-
         Array.from(categoryMap.values()).forEach(function (entry) {
             const key = entry.categoryName;
             if (!groupedByCategory.has(key)) {
@@ -51,27 +43,161 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 groupedByCategory.get(key).workspaceIds.add(workspaceId);
             });
         });
+        return groupedByCategory;
+    }
+
+    function buildCategoryScopeMeta(categoryName, workspaceIds) {
+        const locators = ns.Locators || {};
+        const normalizedWorkspaceIds = (Array.isArray(workspaceIds)
+            ? workspaceIds
+            : Array.from(workspaceIds || []))
+            .map(function (value) { return text(value, ''); })
+            .filter(Boolean);
+        const activeWorkspace = text(readConfig().activeWorkspace, 'main');
+        const preferredWorkspaceId = normalizedWorkspaceIds.includes(activeWorkspace)
+            ? activeWorkspace
+            : text(normalizedWorkspaceIds[0], 'main');
+        const path = locators.buildPathMeta
+            ? locators.buildPathMeta({
+                workspaceIds: normalizedWorkspaceIds,
+                workspaceId: preferredWorkspaceId,
+                categoryName: categoryName
+            })
+            : {
+                workspaceId: preferredWorkspaceId,
+                workspaceIds: normalizedWorkspaceIds,
+                categoryName: categoryName,
+                pathLabel: categoryName
+            };
+        const groupMeta = getWorkspaceGroupMeta(preferredWorkspaceId);
+        return {
+            categoryName: categoryName,
+            workspaceIds: normalizedWorkspaceIds,
+            preferredWorkspaceId: preferredWorkspaceId,
+            path: path,
+            groupMeta: groupMeta
+        };
+    }
+
+    function buildLocalRecordBundle() {
+        const links = readLinks().filter(Boolean);
+        const categoryMap = buildCategoryMap(links);
+        const records = []
+            .concat(buildCardRecords(categoryMap))
+            .concat(buildFolderRecords(links, categoryMap))
+            .concat(buildBookmarkRecords(links))
+            .concat(buildLibraryRecords());
+        return {
+            links: links,
+            categoryMap: categoryMap,
+            records: records
+        };
+    }
+
+    function buildSnapshotStats(records) {
+        const providers = new Set();
+        const workspaceIds = new Set();
+        const stats = {
+            totalRecords: toArray(records).length,
+            cardCount: 0,
+            folderCount: 0,
+            bookmarkCount: 0,
+            libraryCount: 0,
+            knowledgeCount: 0,
+            cachedCount: 0,
+            providerCount: 0,
+            workspaceCount: 0
+        };
+
+        toArray(records).forEach(function (record) {
+            const type = text(record?.type, '');
+            if (type === 'card') stats.cardCount += 1;
+            if (type === 'folder') stats.folderCount += 1;
+            if (type === 'bookmark') stats.bookmarkCount += 1;
+            if (type === 'library') stats.libraryCount += 1;
+            if (type === 'knowledge') stats.knowledgeCount += 1;
+            if (type === 'cached') stats.cachedCount += 1;
+
+            if (record?.provider && !LOCAL_TYPES.has(record.provider)) providers.add(record.provider);
+            toArray(record?.provenance?.providers).forEach(function (provider) {
+                if (provider) providers.add(provider);
+            });
+            if (record?.workspaceId) workspaceIds.add(record.workspaceId);
+        });
+
+        stats.providerCount = providers.size;
+        stats.workspaceCount = workspaceIds.size;
+        return stats;
+    }
+
+    function rebuildSourceSearchableText(record) {
+        if (text(record?.type, '') === 'cached') {
+            return normalizeText([
+                record.title,
+                record.url,
+                record.description,
+                record.provider,
+                record.categoryName,
+                record?.provenance?.sourceQuery,
+                record?.path?.pathLabel
+            ].join(' '));
+        }
+
+        return normalizeText([
+            record.title,
+            record.description,
+            record.displayUrl,
+            toArray(record?.provenance?.aliases).join(' '),
+            toArray(record?.provenance?.apiQueries).join(' '),
+            record.categoryName,
+            record?.path?.pathLabel
+        ].join(' '));
+    }
+
+    function rehydrateSourceRecords(records, categoryMap) {
+        const sourceScopeMap = buildCategoryScopeMap(categoryMap);
+        return toArray(records).map(function (record) {
+            const type = text(record?.type, '');
+            if (type !== 'knowledge' && type !== 'cached') return null;
+
+            const scopeMeta = buildCategoryScopeMeta(
+                text(record?.categoryName, ''),
+                sourceScopeMap.get(text(record?.categoryName, ''))?.workspaceIds
+            );
+            if (!scopeMeta.workspaceIds.length) return null;
+
+            const refreshedRecord = Object.assign({}, record, {
+                workspaceId: scopeMeta.preferredWorkspaceId,
+                workspaceIds: scopeMeta.workspaceIds,
+                categoryName: scopeMeta.categoryName,
+                sourceCard: scopeMeta.categoryName,
+                path: scopeMeta.path,
+                groupId: scopeMeta.groupMeta.groupId,
+                groupName: scopeMeta.groupMeta.groupName,
+                groupHidden: scopeMeta.groupMeta.hidden
+            });
+            refreshedRecord.baseHealth = deriveBaseHealth(refreshedRecord);
+            refreshedRecord.searchableText = rebuildSourceSearchableText(refreshedRecord);
+            return refreshedRecord;
+        }).filter(Boolean);
+    }
+
+    async function buildCachedRecords(categoryMap) {
+        const cache = window.EveOS?.API?.Cache;
+        const cacheRuntime = window.EveOS?.API?.CacheRuntime || {};
+        if (!cache?.loadPool) return [];
+
+        const records = [];
+        const groupedByCategory = buildCategoryScopeMap(categoryMap);
 
         for (const category of groupedByCategory.values()) {
             try {
+                const scopeMeta = buildCategoryScopeMeta(
+                    category.categoryName,
+                    Array.from(category.workspaceIds)
+                );
                 const pool = await cache.loadPool(category.categoryName);
                 if (!pool || typeof pool !== 'object') continue;
-                const workspaceIds = Array.from(category.workspaceIds);
-                const preferredWorkspaceId = workspaceIds.includes(activeWorkspace) ? activeWorkspace : workspaceIds[0];
-                const path = locators.buildPathMeta
-                    ? locators.buildPathMeta({
-                        workspaceIds: workspaceIds,
-                        workspaceId: preferredWorkspaceId,
-                        categoryName: category.categoryName
-                    })
-                    : {
-                        workspaceId: preferredWorkspaceId,
-                        workspaceIds: workspaceIds,
-                        categoryName: category.categoryName,
-                        pathLabel: category.categoryName
-                    };
-                const groupMeta = getWorkspaceGroupMeta(preferredWorkspaceId);
-
                 const queryEntries = pool?.queries && typeof pool.queries === 'object' ? pool.queries : pool;
                 Object.keys(queryEntries).forEach(function (queryKey) {
                     const entry = queryEntries[queryKey];
@@ -128,14 +254,14 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                                     sourceQuery: sourceQuery,
                                     provider: text(providerKey, 'unknown')
                                 },
-                                workspaceId: preferredWorkspaceId,
-                                workspaceIds: workspaceIds,
+                                workspaceId: scopeMeta.preferredWorkspaceId,
+                                workspaceIds: scopeMeta.workspaceIds,
                                 categoryName: category.categoryName,
-                                path: path,
+                                path: scopeMeta.path,
                                 updatedAt: Number(entry?.updatedAt || entry?.createdAt || 0),
-                                groupId: groupMeta.groupId,
-                                groupName: groupMeta.groupName,
-                                groupHidden: groupMeta.hidden,
+                                groupId: scopeMeta.groupMeta.groupId,
+                                groupName: scopeMeta.groupMeta.groupName,
+                                groupHidden: scopeMeta.groupMeta.hidden,
                                 provenance: {
                                     kind: 'cached',
                                     sourceQuery: sourceQuery,
@@ -144,15 +270,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                                 }
                             };
                             record.baseHealth = deriveBaseHealth(record);
-                            record.searchableText = normalizeText([
-                                record.title,
-                                record.url,
-                                record.description,
-                                record.provider,
-                                category.categoryName,
-                                record.provenance.sourceQuery,
-                                path.pathLabel
-                            ].join(' '));
+                            record.searchableText = rebuildSourceSearchableText(record);
                             records.push(record);
                         });
                     });
@@ -167,46 +285,20 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
 
     async function buildKnowledgeRecords(categoryMap) {
         const searchInternals = window.EveOS?.API?.SearchInternals;
-        const locators = ns.Locators || {};
         if (!searchInternals?.buildSourceCacheGroups) return [];
 
-        const activeWorkspace = text(readConfig().activeWorkspace, 'main');
         const records = [];
-        const groupedByCategory = new Map();
-
-        Array.from(categoryMap.values()).forEach(function (entry) {
-            const key = entry.categoryName;
-            if (!groupedByCategory.has(key)) {
-                groupedByCategory.set(key, {
-                    categoryName: key,
-                    workspaceIds: new Set()
-                });
-            }
-            entry.workspaceIds.forEach(function (workspaceId) {
-                groupedByCategory.get(key).workspaceIds.add(workspaceId);
-            });
-        });
+        const groupedByCategory = buildCategoryScopeMap(categoryMap);
 
         for (const category of groupedByCategory.values()) {
             try {
+                const scopeMeta = buildCategoryScopeMeta(
+                    category.categoryName,
+                    Array.from(category.workspaceIds)
+                );
                 const groups = await searchInternals.buildSourceCacheGroups(category.categoryName, {
                     includeUncachedKnowledge: true
                 });
-                const workspaceIds = Array.from(category.workspaceIds);
-                const preferredWorkspaceId = workspaceIds.includes(activeWorkspace) ? activeWorkspace : workspaceIds[0];
-                const path = locators.buildPathMeta
-                    ? locators.buildPathMeta({
-                        workspaceIds: workspaceIds,
-                        workspaceId: preferredWorkspaceId,
-                        categoryName: category.categoryName
-                    })
-                    : {
-                        workspaceId: preferredWorkspaceId,
-                        workspaceIds: workspaceIds,
-                        categoryName: category.categoryName,
-                        pathLabel: category.categoryName
-                    };
-                const groupMeta = getWorkspaceGroupMeta(preferredWorkspaceId);
                 toArray(groups).forEach(function (group, index) {
                     const providerSummary = searchInternals.summarizeApiGroupProviders
                         ? searchInternals.summarizeApiGroupProviders(group?.apiEntries || [])
@@ -233,14 +325,14 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                             wikipediaTitle: wikiTitle,
                             fandomDomain: fandomDomain
                         },
-                        workspaceId: preferredWorkspaceId,
-                        workspaceIds: workspaceIds,
+                        workspaceId: scopeMeta.preferredWorkspaceId,
+                        workspaceIds: scopeMeta.workspaceIds,
                         categoryName: category.categoryName,
-                        path: path,
+                        path: scopeMeta.path,
                         updatedAt: Number(group?.updatedAt || 0),
-                        groupId: groupMeta.groupId,
-                        groupName: groupMeta.groupName,
-                        groupHidden: groupMeta.hidden,
+                        groupId: scopeMeta.groupMeta.groupId,
+                        groupName: scopeMeta.groupMeta.groupName,
+                        groupHidden: scopeMeta.groupMeta.hidden,
                         provenance: {
                             kind: 'knowledge',
                             aliases: toArray(group?.aliases).map(function (value) { return text(value, ''); }).filter(Boolean),
@@ -252,15 +344,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                         }
                     };
                     record.baseHealth = deriveBaseHealth(record);
-                    record.searchableText = normalizeText([
-                        record.title,
-                        record.description,
-                        record.displayUrl,
-                        record.provenance.aliases.join(' '),
-                        record.provenance.apiQueries.join(' '),
-                        category.categoryName,
-                        path.pathLabel
-                    ].join(' '));
+                    record.searchableText = rebuildSourceSearchableText(record);
                     records.push(record);
                 });
             } catch (error) {
@@ -272,39 +356,17 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     }
 
     async function buildSnapshot(reason) {
-        const links = readLinks().filter(Boolean);
-        const categoryMap = buildCategoryMap(links);
+        const localBundle = buildLocalRecordBundle();
         const records = []
-            .concat(buildCardRecords(categoryMap))
-            .concat(buildFolderRecords(links, categoryMap))
-            .concat(buildBookmarkRecords(links))
-            .concat(buildLibraryRecords())
-            .concat(await buildKnowledgeRecords(categoryMap))
-            .concat(await buildCachedRecords(categoryMap));
-
-        const providers = new Set();
-        records.forEach(function (record) {
-            if (record?.provider && !LOCAL_TYPES.has(record.provider)) providers.add(record.provider);
-            toArray(record?.provenance?.providers).forEach(function (provider) {
-                if (provider) providers.add(provider);
-            });
-        });
+            .concat(localBundle.records)
+            .concat(await buildKnowledgeRecords(localBundle.categoryMap))
+            .concat(await buildCachedRecords(localBundle.categoryMap));
 
         return {
             version: INDEX_VERSION,
             builtAt: now(),
             reason: text(reason, 'manual'),
-            stats: {
-                totalRecords: records.length,
-                cardCount: records.filter(function (record) { return record.type === 'card'; }).length,
-                folderCount: records.filter(function (record) { return record.type === 'folder'; }).length,
-                bookmarkCount: records.filter(function (record) { return record.type === 'bookmark'; }).length,
-                libraryCount: records.filter(function (record) { return record.type === 'library'; }).length,
-                knowledgeCount: records.filter(function (record) { return record.type === 'knowledge'; }).length,
-                cachedCount: records.filter(function (record) { return record.type === 'cached'; }).length,
-                providerCount: providers.size,
-                workspaceCount: new Set(records.map(function (record) { return record.workspaceId; }).filter(Boolean)).size
-            },
+            stats: buildSnapshotStats(records),
             records: records
         };
     }
@@ -312,6 +374,9 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     ns.IndexRecordBuildersSources = {
         buildCachedRecords,
         buildKnowledgeRecords,
+        buildLocalRecordBundle,
+        buildSnapshotStats,
+        rehydrateSourceRecords,
         buildSnapshot
     };
 })();

@@ -10,6 +10,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     const STORAGE_MANAGER_KEY = 'nexusIndexV2';
     const SNAPSHOT_MAX_AGE_MS = 15 * 60 * 1000;
     const LOCAL_TYPES = new Set(['bookmark', 'card', 'folder', 'library', 'knowledge', 'cached']);
+    const INCREMENTAL_LOCAL_RECORD_TYPES = new Set(['bookmark', 'card', 'folder', 'library']);
     const SEARCH_STORAGE_KEYS = new Set(['wikiEntries', 'fandomDomains', 'wikiCacheStore', 'wikiDataStore', 'fandomCacheIndex', 'wikiCategories']);
 
     const state = {
@@ -213,6 +214,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         STORAGE_MANAGER_KEY,
         SNAPSHOT_MAX_AGE_MS,
         LOCAL_TYPES,
+        INCREMENTAL_LOCAL_RECORD_TYPES,
         SEARCH_STORAGE_KEYS,
         state,
         now,
