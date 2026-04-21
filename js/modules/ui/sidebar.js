@@ -10,6 +10,8 @@
         return;
     }
 
+    var SIDEBAR_HEAVY_NODE_THRESHOLD = 80;
+
     function buildUnidexButton() {
         var unidexBtn = document.createElement('div');
         unidexBtn.className = 'ws-item ws-unidex ' + (config.viewMode === 'unidex' ? 'active' : '');
@@ -137,11 +139,31 @@
         };
     }
 
+    function estimateSidebarNodeCount() {
+        var workspaceCount = Array.isArray(config?.workspaces) ? config.workspaces.length : 0;
+        var groupCount = Array.isArray(config?.sidebarGroups) ? config.sidebarGroups.length : 0;
+        return workspaceCount + groupCount;
+    }
+
+    function syncSidebarShellState(sb) {
+        if (!sb) return;
+        sb.classList.toggle('ultra-collapsed', !!config.ultraCollapseSidebar);
+        sb.classList.toggle('hidden-completely', !!config.sidebarHidden);
+        sb.classList.toggle('ws-hover-reveal-active', !!(rt.isHoverRevealActive && rt.isHoverRevealActive()));
+        sb.classList.toggle('ws-heavy', estimateSidebarNodeCount() >= SIDEBAR_HEAVY_NODE_THRESHOLD);
+    }
+
     window.toggleSidebarVisibility = function () {
         config.sidebarHidden = !config.sidebarHidden;
         saveConfig();
         var sb = document.getElementById('sidebar');
-        if (sb) sb.classList.toggle('hidden-completely', !!config.sidebarHidden);
+        var wasHidden = !!(sb && sb.classList.contains('hidden-completely'));
+        if (sb) syncSidebarShellState(sb);
+        if (config.sidebarHidden) return;
+        if (wasHidden && !rt.sidebarDirtyWhileHidden && sb?.querySelector('.ws-sidebar-content')?.childElementCount) {
+            if (typeof rt.syncHoverRevealUiState === 'function') rt.syncHoverRevealUiState();
+            return;
+        }
         if (typeof window.renderSidebar === 'function') window.renderSidebar();
     };
 
@@ -151,11 +173,13 @@
 
         var scaffold = ensureSidebarScaffold(sb);
         var ctx = rt.createRenderContext(sb);
-
+        syncSidebarShellState(sb);
+        if (config.sidebarHidden) {
+            rt.sidebarDirtyWhileHidden = true;
+            return;
+        }
+        rt.sidebarDirtyWhileHidden = false;
         scaffold.contentHost.innerHTML = '';
-        sb.classList.toggle('ultra-collapsed', !!config.ultraCollapseSidebar);
-        sb.classList.toggle('hidden-completely', !!config.sidebarHidden);
-        sb.classList.toggle('ws-hover-reveal-active', !!(rt.isHoverRevealActive && rt.isHoverRevealActive()));
 
         scaffold.contentHost.appendChild(buildUnidexButton());
 

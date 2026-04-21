@@ -8,6 +8,13 @@
     max-width: 100%;
 }
 
+#sidebar .ws-node-wrapper,
+#sidebar .ws-top-order-block,
+#sidebar .ws-group-body {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 40px;
+}
+
 .ws-node-wrapper[style*="--ws-depth"] {
     padding-left: 0;
 }

@@ -1,6 +1,8 @@
 window.EveDashboardMasonryHelpers = window.EveDashboardMasonryHelpers || {};
 
 (function (ns) {
+    var MAX_MASONRY_CARD_COUNT = 18;
+
     function getDashboardMasonryState() {
         var state = window.__dashboardMasonryState || {
             activeGrid: null,
@@ -29,6 +31,7 @@ window.EveDashboardMasonryHelpers = window.EveDashboardMasonryHelpers || {};
     function shouldUseDashboardMasonry(grid) {
         if (!grid) return false;
         if (window._evePerfMode) return false;
+        if (grid.querySelectorAll('.category-card').length > MAX_MASONRY_CARD_COUNT) return false;
         return !grid.classList.contains('list-mode')
             && !grid.classList.contains('focus-mode')
             && !grid.classList.contains('unidex-mode');

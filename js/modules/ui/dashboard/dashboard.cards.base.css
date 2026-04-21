@@ -26,6 +26,11 @@ html[data-native-scheme="light"] {
     overflow: hidden;
 }
 
+#dashboard-grid:not(.masonry-layout) .category-card {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 420px;
+}
+
 #dashboard-grid.masonry-layout {
     align-items: start;
     grid-auto-rows: 8px;
