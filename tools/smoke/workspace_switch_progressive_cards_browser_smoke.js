@@ -71,6 +71,46 @@ async function seedState(page, seed) {
   }, seed);
 }
 
+async function primeIndexedScopeCounter(page) {
+  await page.evaluate(async () => {
+    window.EveOS = window.EveOS || {};
+    let indexApi = window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
+    if (!indexApi || typeof indexApi.getScopedBookmarkLinkIds !== 'function') {
+      indexApi = {
+        hasUsableSnapshot() {
+          return true;
+        },
+        getBuildState() {
+          return { dirty: false, builtAt: Date.now() };
+        },
+        getScopedBookmarkLinkIds(scope) {
+          const workspaceIds = new Set(Array.isArray(scope?.workspaceIds) ? scope.workspaceIds.map((id) => String(id || '').trim()) : []);
+          return (Array.isArray(window.links) ? window.links : [])
+            .filter((link) => workspaceIds.has(String(link?.workspace || 'main').trim()))
+            .map((link) => String(link?.id || '').trim())
+            .filter(Boolean);
+        },
+        resolveBookmarkLink(linkId) {
+          const normalizedId = String(linkId || '').trim();
+          return (Array.isArray(window.links) ? window.links : []).find((link) => String(link?.id || '').trim() === normalizedId) || null;
+        }
+      };
+      window.EveOS.DatapackIndex = indexApi;
+    }
+    if (typeof indexApi.rebuild === 'function') {
+      await Promise.resolve(indexApi.rebuild({ reason: 'workspace-switch-progressive-smoke' }));
+    }
+    if (window.__workspaceSwitchScopedIdsCounterInstalled) return;
+    window.__workspaceSwitchScopedIdsCounterInstalled = true;
+    window.__workspaceSwitchScopedIdsCount = 0;
+    const original = indexApi.getScopedBookmarkLinkIds.bind(indexApi);
+    indexApi.getScopedBookmarkLinkIds = function wrappedGetScopedBookmarkLinkIds(...args) {
+      window.__workspaceSwitchScopedIdsCount += 1;
+      return original(...args);
+    };
+  });
+}
+
 (async () => {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1600, height: 1100 } });
@@ -78,6 +118,7 @@ async function seedState(page, seed) {
     await page.goto(FILE_URL, { waitUntil: 'domcontentloaded', timeout: 120000 });
     await waitForApp(page);
     await seedState(page, buildSeedPayload());
+    await primeIndexedScopeCounter(page);
 
     await page.waitForSelector('.category-card[data-card-category="Alt"]', { timeout: 10000 });
 
@@ -100,6 +141,11 @@ async function seedState(page, seed) {
         && !!hydratedCard.querySelector('.category-footer')
         && !!hydratedCard.querySelector('.card-header-icon-row, .focus-card-controls');
     }, undefined, { timeout: 10000 });
+
+    const scopedIdsCount = await page.evaluate(() => Number(window.__workspaceSwitchScopedIdsCount || 0));
+    if (scopedIdsCount < 1) {
+      throw new Error(`Expected workspace switch to use scoped index ids, got ${scopedIdsCount}`);
+    }
 
     console.log('WORKSPACE_SWITCH_PROGRESSIVE_CARDS_BROWSER_SMOKE_OK');
   } finally {

@@ -14,7 +14,7 @@ async function waitForApp(page) {
 async function seedState(page) {
     await page.evaluate(() => {
         config = window.config = {
-            activeWorkspace: 'main',
+            activeWorkspace: 'alt',
             viewMode: 'grid',
             sidebarExpanded: true,
             workspaces: [{
@@ -32,6 +32,11 @@ async function seedState(page) {
                         subTabs: []
                     }]
                 }]
+            }, {
+                id: 'alt',
+                name: 'Alt',
+                icon: 'folder',
+                subTabs: []
             }],
             sidebarGroups: [],
             sidebarOrderMode: 'auto',
@@ -69,6 +74,13 @@ async function getSidebarRenderCounter(page) {
     return page.evaluate(() => Number(window.__sidebarCollapseRenderCount || 0));
 }
 
+async function clickWorkspaceToggleLane(page, workspaceId) {
+    const item = page.locator(`#sidebar .ws-item[data-ws-id="${workspaceId}"]`).first();
+    const box = await item.boundingBox();
+    if (!box) throw new Error(`Missing sidebar item box for ${workspaceId}`);
+    await page.mouse.click(box.x + 16, box.y + (box.height / 2));
+}
+
 async function main() {
     const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage({ viewport: { width: 1600, height: 1100 } });
@@ -87,7 +99,7 @@ async function main() {
         });
 
         await resetSidebarRenderCounter(page);
-        await page.locator('#sidebar .ws-item[data-ws-id="main"] .ws-toggle').click();
+        await clickWorkspaceToggleLane(page, 'main');
         await page.waitForFunction(() => {
             const alphaItem = document.querySelector('#sidebar .ws-item[data-ws-id="alpha"]');
             const betaItem = document.querySelector('#sidebar .ws-item[data-ws-id="beta"]');
@@ -95,6 +107,7 @@ async function main() {
                 && !alphaItem.offsetParent
                 && !!betaItem
                 && !betaItem.offsetParent
+                && String(config.activeWorkspace || '') === 'alt'
                 && Array.isArray(config.collapsedTabs)
                 && config.collapsedTabs.includes('main');
         }, undefined, { timeout: 10000 });
@@ -105,7 +118,7 @@ async function main() {
         }
 
         await resetSidebarRenderCounter(page);
-        await page.locator('#sidebar .ws-item[data-ws-id="main"] .ws-toggle').click();
+        await clickWorkspaceToggleLane(page, 'main');
         await page.waitForFunction(() => {
             const alphaItem = document.querySelector('#sidebar .ws-item[data-ws-id="alpha"]');
             const betaItem = document.querySelector('#sidebar .ws-item[data-ws-id="beta"]');
@@ -115,6 +128,7 @@ async function main() {
                 && !!betaItem.offsetParent
                 && alphaItem === window.__alphaSidebarNode
                 && betaItem === window.__betaSidebarNode
+                && String(config.activeWorkspace || '') === 'alt'
                 && Array.isArray(config.collapsedTabs)
                 && !config.collapsedTabs.includes('main');
         }, undefined, { timeout: 10000 });
@@ -122,6 +136,46 @@ async function main() {
         const expandRenderCount = await getSidebarRenderCounter(page);
         if (expandRenderCount !== 0) {
             throw new Error(`Expected expanding a tab chain to avoid full sidebar rerender, got ${expandRenderCount}`);
+        }
+
+        await page.setViewportSize({ width: 1024, height: 900 });
+        await page.waitForTimeout(100);
+
+        await resetSidebarRenderCounter(page);
+        await clickWorkspaceToggleLane(page, 'main');
+        await page.waitForFunction(() => {
+            const alphaItem = document.querySelector('#sidebar .ws-item[data-ws-id="alpha"]');
+            return !!alphaItem
+                && !alphaItem.offsetParent
+                && String(config.activeWorkspace || '') === 'alt'
+                && Array.isArray(config.collapsedTabs)
+                && config.collapsedTabs.includes('main');
+        }, undefined, { timeout: 10000 });
+
+        const narrowCollapseRenderCount = await getSidebarRenderCounter(page);
+        if (narrowCollapseRenderCount !== 0) {
+            throw new Error(`Expected narrow-width toggle lane collapse to avoid full sidebar rerender, got ${narrowCollapseRenderCount}`);
+        }
+
+        await resetSidebarRenderCounter(page);
+        await clickWorkspaceToggleLane(page, 'main');
+        await page.waitForFunction(() => {
+            const alphaItem = document.querySelector('#sidebar .ws-item[data-ws-id="alpha"]');
+            const betaItem = document.querySelector('#sidebar .ws-item[data-ws-id="beta"]');
+            return !!alphaItem
+                && !!alphaItem.offsetParent
+                && !!betaItem
+                && !!betaItem.offsetParent
+                && alphaItem === window.__alphaSidebarNode
+                && betaItem === window.__betaSidebarNode
+                && String(config.activeWorkspace || '') === 'alt'
+                && Array.isArray(config.collapsedTabs)
+                && !config.collapsedTabs.includes('main');
+        }, undefined, { timeout: 10000 });
+
+        const narrowExpandRenderCount = await getSidebarRenderCounter(page);
+        if (narrowExpandRenderCount !== 0) {
+            throw new Error(`Expected narrow-width toggle lane expand to avoid full sidebar rerender, got ${narrowExpandRenderCount}`);
         }
 
         console.log('SIDEBAR_COLLAPSE_TOGGLE_BROWSER_SMOKE_OK');

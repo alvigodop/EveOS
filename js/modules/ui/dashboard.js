@@ -26,6 +26,13 @@ if (!window.__dashboardMasonryResizeBound) {
 var _scrollSave = -1;
 var _scrollRafId = 0;
 var _scrollSpacer = null;
+var _dashboardLiveLinkMapCache = {
+    ref: null,
+    length: -1,
+    firstId: '',
+    lastId: '',
+    map: null
+};
 var _dashboardScrollableSelectors = [
     '.category-scrollable',
     '.bookmark-folder-sections',
@@ -111,6 +118,54 @@ function getDashboardDatapackIndexApi() {
     return window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
 }
 
+function consumeDashboardRenderHint() {
+    var hint = window.__eveDashboardRenderHint || null;
+    window.__eveDashboardRenderHint = null;
+    return hint;
+}
+
+function shouldSkipDashboardCardScrollPreserve(renderHint) {
+    return !!(
+        renderHint
+        && renderHint.kind === 'workspace-switch'
+        && String(renderHint.fromWorkspaceId || '').trim()
+        && String(renderHint.toWorkspaceId || '').trim()
+        && String(renderHint.fromWorkspaceId || '').trim() !== String(renderHint.toWorkspaceId || '').trim()
+    );
+}
+
+function getDashboardLiveLinkMap(sourceLinks) {
+    var linksList = Array.isArray(sourceLinks) ? sourceLinks : [];
+    var firstId = linksList.length ? String(linksList[0]?.id || '').trim() : '';
+    var lastId = linksList.length ? String(linksList[linksList.length - 1]?.id || '').trim() : '';
+    if (
+        _dashboardLiveLinkMapCache.ref === linksList
+        && _dashboardLiveLinkMapCache.length === linksList.length
+        && _dashboardLiveLinkMapCache.firstId === firstId
+        && _dashboardLiveLinkMapCache.lastId === lastId
+        && _dashboardLiveLinkMapCache.map instanceof Map
+    ) {
+        return _dashboardLiveLinkMapCache.map;
+    }
+
+    var linkMap = new Map();
+    for (var i = 0; i < linksList.length; i += 1) {
+        var link = linksList[i];
+        var linkId = String(link?.id || '').trim();
+        if (!linkId) continue;
+        linkMap.set(linkId, link);
+    }
+
+    _dashboardLiveLinkMapCache = {
+        ref: linksList,
+        length: linksList.length,
+        firstId: firstId,
+        lastId: lastId,
+        map: linkMap
+    };
+    return linkMap;
+}
+
 function hasDashboardUsableSnapshot(indexApi) {
     if (!indexApi) return false;
     if (typeof indexApi.hasUsableSnapshot === 'function') return !!indexApi.hasUsableSnapshot();
@@ -173,9 +228,7 @@ function collectIndexedDashboardVisibleLinks(sourceLinks, scope, matcher) {
         return null;
     }
 
-    var liveLinkMap = new Map((Array.isArray(sourceLinks) ? sourceLinks : []).map(function (link) {
-        return [String(link?.id || '').trim(), link];
-    }));
+    var liveLinkMap = getDashboardLiveLinkMap(sourceLinks);
     var resolveIndexedLink = typeof indexApi.resolveBookmarkLink === 'function'
         ? function (linkId) { return indexApi.resolveBookmarkLink(linkId); }
         : null;
@@ -190,7 +243,9 @@ function collectIndexedDashboardVisibleLinks(sourceLinks, scope, matcher) {
 }
 
 function _renderDashboardImmediate() {
-    var cardScrollState = captureDashboardCardScrollState();
+    var renderHint = consumeDashboardRenderHint();
+    var shouldPreserveCardScroll = !shouldSkipDashboardCardScrollPreserve(renderHint);
+    var cardScrollState = shouldPreserveCardScroll ? captureDashboardCardScrollState() : null;
 
     // Capture scroll position ONCE per synchronous batch
     if (_scrollSave < 0) {
@@ -212,7 +267,7 @@ function _renderDashboardImmediate() {
     }
 
     // Run render synchronously â€” DOM is rebuilt immediately but Masonry takes later frames
-    _renderDashboardCore();
+    _renderDashboardCore(renderHint);
 
     // Restore scroll position immediately
     window.scrollTo(0, _scrollSave);
@@ -233,7 +288,7 @@ function _renderDashboardImmediate() {
     }, 350);
 }
 
-function _renderDashboardCore() {
+function _renderDashboardCore(renderHint) {
     const grid = document.getElementById('dashboard-grid');
     const dock = document.getElementById('dock-container');
     const searchInput = document.getElementById('search');
@@ -366,8 +421,13 @@ function _renderDashboardCore() {
         : null;
 
     const matchesVisibleLink = buildDashboardVisibleLinkMatcher(visibleWorkspaceIds, searchTerms, folderPathLabelBuilder);
-    const shouldPreferIndexedVisibleLinks = searchTerms.length > 0 || visibleWorkspaceIds.size > 1;
     const liveLinks = getDashboardLiveLinks();
+    const shouldPreferIndexedVisibleLinks = !!(
+        searchTerms.length > 0
+        || visibleWorkspaceIds.size > 1
+        || liveLinks.length > 250
+        || shouldSkipDashboardCardScrollPreserve(renderHint)
+    );
     const indexedVisibleLinks = shouldPreferIndexedVisibleLinks
         ? collectIndexedDashboardVisibleLinks(liveLinks, visibleScope, searchTerms.length > 0 ? matchesVisibleLink : null)
         : null;

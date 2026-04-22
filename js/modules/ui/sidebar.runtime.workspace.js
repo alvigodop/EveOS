@@ -120,6 +120,16 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
 
         var childHost = null;
         var childBranchRendered = false;
+        var toggle = null;
+
+        function syncToggleUi(nextCollapsed) {
+            if (!toggle) return;
+            var isNowCollapsed = !!nextCollapsed;
+            toggle.textContent = isNowCollapsed ? '\u25B6' : '\u25BC';
+            toggle.setAttribute('aria-expanded', isNowCollapsed ? 'false' : 'true');
+            toggle.setAttribute('aria-label', isNowCollapsed ? 'Expand sub tabs' : 'Collapse sub tabs');
+            toggle.title = isNowCollapsed ? 'Expand sub tabs' : 'Collapse sub tabs';
+        }
 
         function ensureChildHost() {
             if (!hasChildren) return null;
@@ -144,6 +154,49 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             });
             childBranchRendered = true;
             return host;
+        }
+
+        function toggleWorkspaceBranch(event) {
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+
+            var nextCollapsed = !config.collapsedTabs.includes(ws.id);
+            if (!nextCollapsed) {
+                config.collapsedTabs = config.collapsedTabs.filter(function (id) { return id !== ws.id; });
+            } else {
+                config.collapsedTabs.push(ws.id);
+            }
+            saveConfig();
+
+            syncToggleUi(nextCollapsed);
+            wrapper.classList.toggle('is-collapsed', nextCollapsed);
+            var host = ensureChildHost();
+            if (!host) return;
+
+            if (nextCollapsed) {
+                host.hidden = true;
+                host.classList.add('is-collapsed');
+                return;
+            }
+
+            renderChildBranch(false);
+            host.hidden = false;
+            host.classList.remove('is-collapsed');
+        }
+
+        function shouldTreatRowClickAsToggle(event) {
+            if (!hasChildren || !toggle || !event) return false;
+            var sidebar = document.getElementById('sidebar');
+            if (!sidebar || !sidebar.classList.contains('is-expanded')) return false;
+            var itemRect = item.getBoundingClientRect();
+            if (!itemRect || itemRect.width <= 0) return false;
+            var toggleRect = toggle.getBoundingClientRect();
+            var relativeX = Number(event.clientX) - itemRect.left;
+            if (!Number.isFinite(relativeX) || relativeX < 0) return false;
+            var toggleZoneRight = Math.max(36, (toggleRect.right - itemRect.left) + 10);
+            return relativeX <= Math.min(toggleZoneRight, itemRect.width);
         }
 
         var item = document.createElement('div');
@@ -217,34 +270,24 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         };
 
         if (hasChildren) {
-            var toggle = document.createElement('span');
+            toggle = document.createElement('button');
+            toggle.type = 'button';
             toggle.className = 'ws-toggle';
-            toggle.textContent = isCollapsed ? '\u25B6' : '\u25BC';
-            toggle.onclick = function (e) {
+            toggle.draggable = false;
+            toggle.setAttribute('aria-controls', 'sidebar-children-' + String(ws.id || ''));
+            syncToggleUi(isCollapsed);
+            toggle.onpointerdown = function (e) {
                 e.stopPropagation();
-                var nextCollapsed = !config.collapsedTabs.includes(ws.id);
-                if (!nextCollapsed) {
-                    config.collapsedTabs = config.collapsedTabs.filter(function (id) { return id !== ws.id; });
-                } else {
-                    config.collapsedTabs.push(ws.id);
-                }
-                saveConfig();
-
-                toggle.textContent = nextCollapsed ? '\u25B6' : '\u25BC';
-                wrapper.classList.toggle('is-collapsed', nextCollapsed);
-                var host = ensureChildHost();
-                if (!host) return;
-
-                if (nextCollapsed) {
-                    host.hidden = true;
-                    host.classList.add('is-collapsed');
-                    return;
-                }
-
-                renderChildBranch(false);
-                host.hidden = false;
-                host.classList.remove('is-collapsed');
             };
+            toggle.onmousedown = function (e) {
+                e.stopPropagation();
+            };
+            toggle.ondragstart = function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                return false;
+            };
+            toggle.onclick = toggleWorkspaceBranch;
             item.appendChild(toggle);
         } else if (currentDepth > 0) {
             var spacer = document.createElement('span');
@@ -297,7 +340,11 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         }
 
         if (!isInactive) {
-            item.onclick = function () {
+            item.onclick = function (event) {
+                if (shouldTreatRowClickAsToggle(event)) {
+                    toggleWorkspaceBranch(event);
+                    return;
+                }
                 var exitingUnidex = config.viewMode === 'unidex';
                 if (exitingUnidex) {
                     if (window.UnidexView && typeof window.UnidexView.resetSelection === 'function') {
@@ -321,6 +368,9 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         wrapper.appendChild(item);
         if (hasChildren) {
             var initialChildHost = ensureChildHost();
+            if (initialChildHost) {
+                initialChildHost.id = 'sidebar-children-' + String(ws.id || '');
+            }
             wrapper.classList.toggle('is-collapsed', isCollapsed);
             if (!isCollapsed) {
                 renderChildBranch(false);

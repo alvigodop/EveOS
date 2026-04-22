@@ -92,6 +92,15 @@ function switchWorkspace(id, options = {}) {
         focusCategory = null;
     }
 
+    if (nextWorkspaceId !== currentWorkspaceId) {
+        window.__eveDashboardRenderHint = {
+            kind: 'workspace-switch',
+            fromWorkspaceId: currentWorkspaceId,
+            toWorkspaceId: nextWorkspaceId,
+            at: Date.now()
+        };
+    }
+
     // Clear stale folder view caches from the previous workspace
     if (window.EveFolderViewV2?._viewModelCache) {
         window.EveFolderViewV2._viewModelCache = {};

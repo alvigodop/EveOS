@@ -172,22 +172,44 @@ html[data-native-scheme="light"] #sidebar.is-expanded .ws-group-member-item .ws-
 
 .ws-toggle {
     display: none;
-    font-size: 0.55rem;
+    width: 28px;
+    min-width: 28px;
+    height: 28px;
+    padding: 0;
+    margin: -4px 2px -4px -4px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: currentColor;
+    font-size: 0.64rem;
     cursor: pointer;
-    opacity: 0.6;
-    margin-right: 4px;
-    transition: opacity 0.15s;
+    opacity: 0.72;
+    transition: opacity 0.15s, background 0.15s, transform 0.15s;
     flex-shrink: 0;
     line-height: 1;
+    align-items: center;
+    justify-content: center;
+    appearance: none;
+    -webkit-appearance: none;
+    position: relative;
+    z-index: 1;
+    touch-action: manipulation;
 }
 
 .ws-toggle:hover {
     opacity: 1;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.ws-toggle:focus-visible {
+    opacity: 1;
+    outline: 2px solid color-mix(in srgb, var(--accent) 70%, rgba(255, 255, 255, 0.28));
+    outline-offset: 1px;
+    background: rgba(255, 255, 255, 0.1);
 }
 
 #sidebar.is-expanded .ws-toggle {
     display: inline-flex;
-    align-items: center;
 }
 
 .ws-spacer {
