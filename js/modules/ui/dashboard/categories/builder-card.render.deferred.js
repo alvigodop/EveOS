@@ -28,11 +28,13 @@ window.DashboardCategories = window.DashboardCategories || {};
         var isDetachedParkingCard = !!options.detachedParkingCard;
         var isFocusMode = !!options.focusMode;
         var HEAVY_CARD_THRESHOLD = 80;
+        var shouldForceDeferredShell = !!options._forceDeferredShell;
+        var hydrationDelayMs = Math.max(0, Number(options._deferredHydrationDelayMs || 0));
         var cardWorkspaceId = typeof catInput === 'object' && catInput
             ? (catInput.workspaceId || options.activeWorkspace || 'main')
             : (options.activeWorkspace || 'main');
 
-        if (catLinks.length > HEAVY_CARD_THRESHOLD) {
+        if (shouldForceDeferredShell || catLinks.length > HEAVY_CARD_THRESHOLD) {
             var safeCatHtml = escapeCardHtml(cat || 'Unsorted');
             var safeCatJs = escapeCardJs(cat || 'Unsorted');
             var cardTargetId = window.EveQuickPins?.buildCardTargetId
@@ -126,7 +128,7 @@ window.DashboardCategories = window.DashboardCategories || {};
                 }, 300);
             }
 
-            setTimeout(doDeferredBuild, 0);
+            setTimeout(doDeferredBuild, hydrationDelayMs);
             return;
         }
 

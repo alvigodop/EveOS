@@ -162,6 +162,7 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
         ? window.EveDetachedDashboardCard.buildDetachedDashboardModel(activeWorkspace)
         : null;
     const categories = collectDashboardCategories(visibleLinks, activeWorkspace, workspaceCategoryOrder, detachedModel, searchStr);
+    const categoryCount = categories.length;
 
     // Pre-index links by (workspaceId::category) — O(n) instead of O(n * categories)
     const linksByCatWs = new Map();
@@ -174,7 +175,10 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
         linksByCatWs.get(key).push(visibleLinks[i]);
     }
 
-    var CARD_CAP = visibleLinks.length > 500 ? 2 : (visibleLinks.length > 200 ? 3 : 8);
+    var aggressiveDeferredCards = !searchStr && !focusCategory && (visibleLinks.length > 150 || categoryCount > 6);
+    var CARD_CAP = aggressiveDeferredCards
+        ? (visibleLinks.length > 500 ? 6 : 5)
+        : (visibleLinks.length > 500 ? 2 : (visibleLinks.length > 200 ? 3 : 8));
     var renderCount = 0;
     var deferredCards = [];
 
@@ -210,6 +214,10 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
                 activeWorkspace: activeWorkspace, // Global active WS
                 _renderGen: renderGen
             };
+            if (aggressiveDeferredCards && catLinks.length > 0) {
+                buildConfig._forceDeferredShell = true;
+                buildConfig._deferredHydrationDelayMs = renderCount < CARD_CAP ? 0 : 12;
+            }
             if (isDetachedParkingCard) {
                 buildConfig.virtualFolderViewModel = detachedModel.viewModel;
                 buildConfig.detachedParkingCard = true;
@@ -227,7 +235,9 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
     // Render remaining cards in batches via setTimeout to avoid blocking paint
     if (deferredCards.length > 0) {
         var batchIdx = 0;
-        var BATCH_SIZE = visibleLinks.length > 500 ? 2 : 4;
+        var BATCH_SIZE = aggressiveDeferredCards
+            ? 3
+            : (visibleLinks.length > 500 ? 2 : 4);
         var capturedGen = renderGen;
         function renderNextBatch() {
             // Bail if a newer render has started
