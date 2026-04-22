@@ -65,7 +65,9 @@ function toggleView() {
         }
         config.viewMode = 'grid';
         saveConfig();
-        if (typeof renderSidebar === 'function') renderSidebar();
+        if (typeof window.EveSidebarRuntime?.syncSidebarViewState === 'function') {
+            window.EveSidebarRuntime.syncSidebarViewState();
+        }
         renderDashboard();
         return;
     }
@@ -76,7 +78,9 @@ function toggleView() {
     config.viewMode = orderedModes[(currentIndex + 1) % orderedModes.length];
 
     saveConfig();
-    if (typeof renderSidebar === 'function') renderSidebar();
+    if (typeof window.EveSidebarRuntime?.syncSidebarViewState === 'function') {
+        window.EveSidebarRuntime.syncSidebarViewState();
+    }
     renderDashboard();
 }
 
@@ -86,7 +90,9 @@ function openUnidexView() {
     }
     config.viewMode = 'unidex';
     saveConfig();
-    if (typeof renderSidebar === 'function') renderSidebar();
+    if (typeof window.EveSidebarRuntime?.syncSidebarViewState === 'function') {
+        window.EveSidebarRuntime.syncSidebarViewState();
+    }
     renderDashboard();
 }
 

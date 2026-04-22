@@ -115,6 +115,36 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             wrapper.classList.add('ws-group-member-wrapper');
             wrapper.style.setProperty('--ws-group-color', renderOptions.groupColor || '#00d4ff');
         }
+        wrapper.dataset.wsId = String(ws.id || '');
+        wrapper.dataset.wsDepth = String(currentDepth);
+
+        var childHost = null;
+        var childBranchRendered = false;
+
+        function ensureChildHost() {
+            if (!hasChildren) return null;
+            if (!childHost) {
+                childHost = document.createElement('div');
+                childHost.className = 'ws-node-children';
+                wrapper.appendChild(childHost);
+            }
+            return childHost;
+        }
+
+        function renderChildBranch(force) {
+            var host = ensureChildHost();
+            if (!host) return null;
+            if (childBranchRendered && !force && host.childElementCount > 0) {
+                return host;
+            }
+            host.replaceChildren();
+            renderParentEntries(ctx, ws.id, host, currentDepth + 1, {
+                manualSlots: !!renderOptions.manualSlots,
+                renderInactive: !!renderOptions.renderInactive
+            });
+            childBranchRendered = true;
+            return host;
+        }
 
         var item = document.createElement('div');
         item.className = 'ws-item ' + (isWorkspaceActive ? 'active' : '');
@@ -192,13 +222,28 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             toggle.textContent = isCollapsed ? '\u25B6' : '\u25BC';
             toggle.onclick = function (e) {
                 e.stopPropagation();
-                if (config.collapsedTabs.includes(ws.id)) {
+                var nextCollapsed = !config.collapsedTabs.includes(ws.id);
+                if (!nextCollapsed) {
                     config.collapsedTabs = config.collapsedTabs.filter(function (id) { return id !== ws.id; });
                 } else {
                     config.collapsedTabs.push(ws.id);
                 }
                 saveConfig();
-                if (typeof window.renderSidebar === 'function') window.renderSidebar();
+
+                toggle.textContent = nextCollapsed ? '\u25B6' : '\u25BC';
+                wrapper.classList.toggle('is-collapsed', nextCollapsed);
+                var host = ensureChildHost();
+                if (!host) return;
+
+                if (nextCollapsed) {
+                    host.hidden = true;
+                    host.classList.add('is-collapsed');
+                    return;
+                }
+
+                renderChildBranch(false);
+                host.hidden = false;
+                host.classList.remove('is-collapsed');
             };
             item.appendChild(toggle);
         } else if (currentDepth > 0) {
@@ -274,14 +319,18 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         item.addEventListener('mouseleave', hideWsPopout);
 
         wrapper.appendChild(item);
-        container.appendChild(wrapper);
-
-        if (hasChildren && !isCollapsed) {
-            renderParentEntries(ctx, ws.id, container, currentDepth + 1, {
-                manualSlots: !!renderOptions.manualSlots,
-                renderInactive: !!renderOptions.renderInactive
-            });
+        if (hasChildren) {
+            var initialChildHost = ensureChildHost();
+            wrapper.classList.toggle('is-collapsed', isCollapsed);
+            if (!isCollapsed) {
+                renderChildBranch(false);
+                initialChildHost.hidden = false;
+            } else if (initialChildHost) {
+                initialChildHost.hidden = true;
+                initialChildHost.classList.add('is-collapsed');
+            }
         }
+        container.appendChild(wrapper);
     }
 
     function handleSidebarWorkspaceDrop(ctx, dragId, targetWorkspaceId) {

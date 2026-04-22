@@ -65,6 +65,7 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
 
         var section = document.createElement('div');
         section.className = 'ws-group-section';
+        if (groupId) section.dataset.groupId = groupId;
         section.style.setProperty('--ws-group-color', groupColor);
         if (currentDepth > 0) section.classList.add('ws-group-section--nested');
         if (group && group.hidden) section.classList.add('ws-group-section--hidden');
@@ -194,7 +195,9 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
                 var current = String(config.groupOverviewId || '').trim();
                 var next = current === groupId ? '' : groupId;
                 config.groupOverviewId = next;
-                ctx.saveAndRefresh(true);
+                saveConfig();
+                if (typeof rt.syncSidebarViewState === 'function') rt.syncSidebarViewState();
+                if (typeof renderDashboard === 'function') renderDashboard();
 
                 if (typeof window.showToast === 'function') {
                     var groupLabel = group.name || 'Group';

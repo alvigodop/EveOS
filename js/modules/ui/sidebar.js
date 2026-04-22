@@ -29,6 +29,7 @@
                     window.UnidexView.resetSelection();
                 }
                 saveConfig();
+                if (typeof rt.syncSidebarViewState === 'function') rt.syncSidebarViewState();
                 if (typeof renderDashboard === 'function') renderDashboard();
             }
         };

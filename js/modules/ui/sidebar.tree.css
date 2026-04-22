@@ -8,9 +8,24 @@
     max-width: 100%;
 }
 
+.ws-node-children {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    box-sizing: border-box;
+    max-width: 100%;
+}
+
+.ws-node-children[hidden],
+.ws-node-children.is-collapsed {
+    display: none !important;
+}
+
 #sidebar .ws-node-wrapper,
 #sidebar .ws-top-order-block,
-#sidebar .ws-group-body {
+#sidebar .ws-group-body,
+#sidebar .ws-node-children {
     content-visibility: auto;
     contain-intrinsic-size: auto 40px;
 }

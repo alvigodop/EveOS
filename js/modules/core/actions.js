@@ -98,7 +98,11 @@ function switchWorkspace(id, options = {}) {
     }
 
     saveConfig();
-    if (typeof renderSidebar === 'function') renderSidebar();
+    if (changed) {
+        if (typeof renderSidebar === 'function') renderSidebar();
+    } else if (typeof window.EveSidebarRuntime?.syncSidebarViewState === 'function') {
+        window.EveSidebarRuntime.syncSidebarViewState();
+    }
 
     // Yield one frame so the sidebar paints immediately, then render the dashboard
     requestAnimationFrame(function () {

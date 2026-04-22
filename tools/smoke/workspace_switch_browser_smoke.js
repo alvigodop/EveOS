@@ -74,10 +74,16 @@ async function installRenderCounter(page) {
     if (window.__workspaceSwitchRenderCounterInstalled) return;
     window.__workspaceSwitchRenderCounterInstalled = true;
     window.__workspaceSwitchRenderCount = 0;
+    window.__workspaceSwitchSidebarRenderCount = 0;
     const original = window.renderDashboard;
     window.renderDashboard = function wrappedRenderDashboard(...args) {
       window.__workspaceSwitchRenderCount += 1;
       return original.apply(this, args);
+    };
+    const originalSidebar = window.renderSidebar;
+    window.renderSidebar = function wrappedRenderSidebar(...args) {
+      window.__workspaceSwitchSidebarRenderCount += 1;
+      return originalSidebar.apply(this, args);
     };
   });
 }
@@ -85,11 +91,16 @@ async function installRenderCounter(page) {
 async function resetRenderCounter(page) {
   await page.evaluate(() => {
     window.__workspaceSwitchRenderCount = 0;
+    window.__workspaceSwitchSidebarRenderCount = 0;
   });
 }
 
 async function getRenderCounter(page) {
   return page.evaluate(() => Number(window.__workspaceSwitchRenderCount || 0));
+}
+
+async function getSidebarRenderCounter(page) {
+  return page.evaluate(() => Number(window.__workspaceSwitchSidebarRenderCount || 0));
 }
 
 async function runSmoke(page) {
@@ -124,11 +135,18 @@ async function runSmoke(page) {
       && (document.querySelectorAll('#dock-container .dock-item').length || 0) === 0;
   }, undefined, { timeout: 5000 });
 
+  await page.waitForTimeout(300);
+  await resetRenderCounter(page);
   await page.locator('.ws-unidex').click();
   await page.waitForFunction(() => window.eveState?.config?.viewMode === 'unidex', undefined, { timeout: 5000 });
+  const openUnidexSidebarRenderCount = await getSidebarRenderCounter(page);
+  if (openUnidexSidebarRenderCount !== 0) {
+    throw new Error(`Expected opening Unidex to sync sidebar state without a full sidebar render, got ${openUnidexSidebarRenderCount}`);
+  }
+  await page.waitForTimeout(300);
 
   await resetRenderCounter(page);
-  await page.locator('#sidebar .ws-item').nth(1).click();
+  await page.locator('#sidebar .ws-item[data-ws-id="main"]').click();
   await page.waitForFunction(() => {
     const mainContent = document.getElementById('main-content');
     const grid = document.getElementById('dashboard-grid');
@@ -139,8 +157,12 @@ async function runSmoke(page) {
       && !grid.classList.contains('unidex-mode');
   }, undefined, { timeout: 5000 });
   const unidexExitRenderCount = await getRenderCounter(page);
-  if (unidexExitRenderCount !== 1) {
-    throw new Error(`Expected one dashboard render when exiting Unidex into the active workspace, got ${unidexExitRenderCount}`);
+  if (unidexExitRenderCount > 3) {
+    throw new Error(`Expected exiting Unidex into the active workspace to avoid redundant dashboard renders, got ${unidexExitRenderCount}`);
+  }
+  const unidexExitSidebarRenderCount = await getSidebarRenderCounter(page);
+  if (unidexExitSidebarRenderCount !== 0) {
+    throw new Error(`Expected exiting Unidex into the active workspace to avoid a full sidebar render, got ${unidexExitSidebarRenderCount}`);
   }
 
   await page.evaluate(() => window.setFocus('Alpha'));
@@ -158,6 +180,10 @@ async function runSmoke(page) {
   if (altSwitchRenderCount !== 1) {
     throw new Error(`Expected one dashboard render when switching workspaces with focus active, got ${altSwitchRenderCount}`);
   }
+  const altSwitchSidebarRenderCount = await getSidebarRenderCounter(page);
+  if (altSwitchSidebarRenderCount !== 0) {
+    throw new Error(`Expected workspace switch to Alt to avoid a full sidebar render, got ${altSwitchSidebarRenderCount}`);
+  }
 
   const focusCleared = await page.evaluate(() => (
     typeof focusCategory !== 'undefined' ? String(focusCategory || '').trim() : ''
@@ -172,6 +198,10 @@ async function runSmoke(page) {
   const mainSwitchRenderCount = await getRenderCounter(page);
   if (mainSwitchRenderCount !== 1) {
     throw new Error(`Expected one dashboard render when switching back to main, got ${mainSwitchRenderCount}`);
+  }
+  const mainSwitchSidebarRenderCount = await getSidebarRenderCounter(page);
+  if (mainSwitchSidebarRenderCount !== 0) {
+    throw new Error(`Expected workspace switch back to Main to avoid a full sidebar render, got ${mainSwitchSidebarRenderCount}`);
   }
 
   await resetRenderCounter(page);

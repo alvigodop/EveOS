@@ -167,7 +167,7 @@ function mergeDashboardPreferredLinks(preferredLinks, liveLinks) {
     return merged;
 }
 
-function collectIndexedDashboardVisibleLinks(sourceLinks, matcher) {
+function collectIndexedDashboardVisibleLinks(sourceLinks, scope, matcher) {
     var indexApi = getDashboardDatapackIndexApi();
     if (!indexApi || typeof indexApi.getScopedBookmarkLinkIds !== 'function' || !hasDashboardUsableSnapshot(indexApi)) {
         return null;
@@ -180,12 +180,12 @@ function collectIndexedDashboardVisibleLinks(sourceLinks, matcher) {
         ? function (linkId) { return indexApi.resolveBookmarkLink(linkId); }
         : null;
 
-    return indexApi.getScopedBookmarkLinkIds(null).map(function (linkId) {
+    return indexApi.getScopedBookmarkLinkIds(scope || null).map(function (linkId) {
         var normalizedId = String(linkId || '').trim();
         if (!normalizedId) return null;
         return liveLinkMap.get(normalizedId) || (resolveIndexedLink ? resolveIndexedLink(normalizedId) : null) || null;
     }).filter(function (link) {
-        return !!link && matcher(link);
+        return !!link && (!matcher || matcher(link));
     });
 }
 
@@ -361,15 +361,19 @@ function _renderDashboardCore() {
     window._eveActiveVisibleWorkspaceIds = visibleWorkspaceIds;
     window._eveGroupOverviewRootMap = (overviewGroupId && groupOverviewRootMap.size) ? groupOverviewRootMap : null;
     const folderPathLabelBuilder = window.EveBookmarkFolders?.buildFolderPathLabel;
+    const visibleScope = visibleWorkspaceIds.size
+        ? { workspaceIds: Array.from(visibleWorkspaceIds) }
+        : null;
 
     const matchesVisibleLink = buildDashboardVisibleLinkMatcher(visibleWorkspaceIds, searchTerms, folderPathLabelBuilder);
-    const rawVisibleLinks = getDashboardLiveLinks().filter(matchesVisibleLink);
-    const indexedVisibleLinks = searchTerms.length > 0
-        ? collectIndexedDashboardVisibleLinks(getDashboardLiveLinks(), matchesVisibleLink)
+    const shouldPreferIndexedVisibleLinks = searchTerms.length > 0 || visibleWorkspaceIds.size > 1;
+    const liveLinks = getDashboardLiveLinks();
+    const indexedVisibleLinks = shouldPreferIndexedVisibleLinks
+        ? collectIndexedDashboardVisibleLinks(liveLinks, visibleScope, searchTerms.length > 0 ? matchesVisibleLink : null)
         : null;
     const visibleLinks = Array.isArray(indexedVisibleLinks)
-        ? mergeDashboardPreferredLinks(indexedVisibleLinks, rawVisibleLinks)
-        : rawVisibleLinks;
+        ? indexedVisibleLinks
+        : liveLinks.filter(matchesVisibleLink);
     // Level 1: Standard Perf Mode (600+) - degraded animations, basic throttling
     // Level 2: Mega Perf Mode (1500+) - strip icons, strip hovers, max throttling
     window._evePerfMode = visibleLinks.length > 600;

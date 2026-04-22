@@ -32,6 +32,32 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         return !!previewState.hoverRevealActive;
     }
 
+    function syncSidebarViewState() {
+        var sb = document.getElementById('sidebar');
+        if (!sb) return false;
+
+        var activeWorkspaceId = String(config?.activeWorkspace || '').trim();
+        var overviewGroupId = String(config?.groupOverviewId || '').trim();
+        var inUnidexView = String(config?.viewMode || '').trim() === 'unidex';
+
+        sb.querySelectorAll('.ws-unidex').forEach(function (element) {
+            element.classList.toggle('active', inUnidexView);
+        });
+
+        sb.querySelectorAll('.ws-item[data-ws-id]').forEach(function (element) {
+            var workspaceId = String(element.dataset?.wsId || '').trim();
+            var isActive = !inUnidexView && !overviewGroupId && workspaceId && workspaceId === activeWorkspaceId;
+            element.classList.toggle('active', isActive);
+        });
+
+        sb.querySelectorAll('.ws-group-section[data-group-id]').forEach(function (element) {
+            var groupId = String(element.dataset?.groupId || '').trim();
+            element.classList.toggle('ws-group-section--overview', !!groupId && groupId === overviewGroupId);
+        });
+
+        return true;
+    }
+
     function getDatapackIndexApi() {
         return window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
     }
@@ -317,6 +343,7 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
     rt.syncHoverRevealUiState = syncHoverRevealUiState;
     rt.setHoverRevealActive = setHoverRevealActive;
     rt.isHoverRevealActive = isHoverRevealActive;
+    rt.syncSidebarViewState = syncSidebarViewState;
     rt.createRenderContext = createRenderContext;
     rt.sharedReady = true;
 })();
