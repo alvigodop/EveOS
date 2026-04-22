@@ -185,7 +185,7 @@ StorageManager.saveHeavyData = async function(key, data, context = null) {
             console.warn(`StorageManager (IDB): Save failed for ${key}, falling back`, e);
         }
     }
-    return this.saveData(key, data);
+    return this.saveData(key, data, context);
 };
 
 /**
@@ -319,54 +319,54 @@ StorageManager.clearAllData = function () {
 // Wiki operations - delegate to SMWiki if available
 StorageManager.saveFandomDomains = async function (domains) {
     if (window.SMWiki) return await SMWiki.saveFandomDomains(domains);
-    return await this.saveDataAsync(this.KEYS.FANDOM_DOMAINS, domains);
+    return await this.saveDataAsync(this.KEYS.FANDOM_DOMAINS, domains, this.categoryContext);
 };
 
 StorageManager.loadFandomDomains = async function () {
     if (window.SMWiki) return await SMWiki.loadFandomDomains();
-    return await this.loadDataAsync(this.KEYS.FANDOM_DOMAINS, []);
+    return await this.loadDataAsync(this.KEYS.FANDOM_DOMAINS, [], this.categoryContext);
 };
 
 
 StorageManager.saveWikiEntries = async function (entries) {
     if (window.SMWiki) return await SMWiki.saveWikiEntries(entries);
-    return await this.saveDataAsync(this.KEYS.WIKI_ENTRIES, entries);
+    return await this.saveDataAsync(this.KEYS.WIKI_ENTRIES, entries, this.categoryContext);
 };
 
 StorageManager.loadWikiEntries = async function () {
     if (window.SMWiki) return await SMWiki.loadWikiEntries();
-    return await this.loadDataAsync(this.KEYS.WIKI_ENTRIES, []);
+    return await this.loadDataAsync(this.KEYS.WIKI_ENTRIES, [], this.categoryContext);
 };
 
 StorageManager.saveWikiCategories = async function (categories) {
     if (window.SMWiki) return await SMWiki.saveWikiCategories(categories);
-    return await this.saveDataAsync(this.KEYS.WIKI_CATEGORIES, categories);
+    return await this.saveDataAsync(this.KEYS.WIKI_CATEGORIES, categories, this.categoryContext);
 };
 
 StorageManager.loadWikiCategories = async function () {
     if (window.SMWiki) return await SMWiki.loadWikiCategories();
-    return await this.loadDataAsync(this.KEYS.WIKI_CATEGORIES, []);
+    return await this.loadDataAsync(this.KEYS.WIKI_CATEGORIES, [], this.categoryContext);
 };
 
 
 StorageManager.saveToDataStore = function (data) {
     if (window.SMWiki) return SMWiki.saveToDataStore(data);
-    return this.saveData(this.KEYS.WIKI_DATA_STORE, data);
+    return this.saveData(this.KEYS.WIKI_DATA_STORE, data, this.categoryContext);
 };
 
 StorageManager.loadFromDataStore = function () {
     if (window.SMWiki) return SMWiki.loadFromDataStore();
-    return this.loadData(this.KEYS.WIKI_DATA_STORE, {});
+    return this.loadData(this.KEYS.WIKI_DATA_STORE, {}, this.categoryContext);
 };
 
 StorageManager.saveToCacheStore = function (data) {
     if (window.SMWiki) return SMWiki.saveToCacheStore(data);
-    return this.saveData(this.KEYS.WIKI_CACHE_STORE, data);
+    return this.saveData(this.KEYS.WIKI_CACHE_STORE, data, this.categoryContext);
 };
 
 StorageManager.loadFromCacheStore = function () {
     if (window.SMWiki) return SMWiki.loadFromCacheStore();
-    return this.loadData(this.KEYS.WIKI_CACHE_STORE, {});
+    return this.loadData(this.KEYS.WIKI_CACHE_STORE, {}, this.categoryContext);
 };
 
 // Register

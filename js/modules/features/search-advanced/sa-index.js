@@ -27,7 +27,9 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     const {
         buildSnapshot,
         buildLocalRecordBundle,
+        buildSourceRecordBundle,
         buildSnapshotStats,
+        filterCategoryMap,
         rehydrateSourceRecords
     } = sources;
     const {
@@ -91,10 +93,32 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         }
     }
 
-    function markDirty(reason) {
+    function normalizeMutationMeta(meta) {
+        if (!meta || typeof meta !== 'object') return null;
+        const categoryName = text(meta.categoryName, '');
+        const sourceKey = text(meta.sourceKey, '');
+        const query = text(meta.query, '');
+        if (!categoryName && !sourceKey && !query) return null;
+        return {
+            categoryName: categoryName,
+            sourceKey: sourceKey,
+            query: query
+        };
+    }
+
+    function resolveMutationCategoryName(explicitCategoryName, fallbackContext) {
+        const explicit = text(explicitCategoryName, '');
+        if (explicit) return explicit;
+        const currentCategory = text(window.currentCategoryCtx, '');
+        if (currentCategory) return currentCategory;
+        return text(fallbackContext, '');
+    }
+
+    function markDirty(reason, mutationMeta) {
         state.revision = Number(state.revision || 0) + 1;
         state.dirty = true;
         state.lastReason = text(reason, 'state-mutated');
+        state.lastMutationMeta = normalizeMutationMeta(mutationMeta);
     }
 
     function isSourceDrivenReason(reason) {
@@ -138,33 +162,71 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         const searchInternals = window.EveOS?.API?.SearchInternals;
         wrapMutationMethod(searchInternals || {}, 'saveScopedStorageValueAsync', function (args) {
             const key = text(args?.[0], '');
-            if (shouldTrackStorageKey(key)) markDirty('scoped-storage:' + key);
+            if (shouldTrackStorageKey(key)) {
+                markDirty('scoped-storage:' + key, {
+                    sourceKey: key,
+                    categoryName: resolveMutationCategoryName(
+                        args?.[2],
+                        window.StorageManager?.categoryContext
+                    )
+                });
+            }
         });
 
         const cacheApi = window.EveOS?.API?.Cache;
-        wrapMutationMethod(cacheApi || {}, 'storeQuery', function () {
-            markDirty('cache-store-query');
+        wrapMutationMethod(cacheApi || {}, 'storeQuery', function (args) {
+            markDirty('cache-store-query', {
+                sourceKey: 'cache-store-query',
+                categoryName: resolveMutationCategoryName(
+                    args?.[2],
+                    window.StorageManager?.categoryContext
+                ),
+                query: text(args?.[0], '')
+            });
         });
-        wrapMutationMethod(cacheApi || {}, 'storePool', function () {
-            markDirty('cache-store-pool');
+        wrapMutationMethod(cacheApi || {}, 'storePool', function (args) {
+            markDirty('cache-store-pool', {
+                sourceKey: 'cache-store-pool',
+                categoryName: resolveMutationCategoryName(
+                    args?.[1],
+                    window.StorageManager?.categoryContext
+                )
+            });
         });
 
         const storageManager = window.StorageManager;
         wrapMutationMethod(storageManager || {}, 'saveDataAsync', function (args) {
             const key = text(args?.[0], '');
-            if (shouldTrackStorageKey(key)) markDirty('storage-save:' + key);
+            if (shouldTrackStorageKey(key)) {
+                markDirty('storage-save:' + key, {
+                    sourceKey: key,
+                    categoryName: resolveMutationCategoryName(
+                        args?.[2],
+                        storageManager?.categoryContext
+                    )
+                });
+            }
         });
         wrapMutationMethod(storageManager || {}, 'saveData', function (args) {
             const key = text(args?.[0], '');
-            if (shouldTrackStorageKey(key)) markDirty('storage-save:' + key);
+            if (shouldTrackStorageKey(key)) {
+                markDirty('storage-save:' + key, {
+                    sourceKey: key,
+                    categoryName: resolveMutationCategoryName(
+                        args?.[2],
+                        storageManager?.categoryContext
+                    )
+                });
+            }
         });
     }
 
-    function finalizeSnapshot(snapshot, reason, startRevision) {
+    function finalizeSnapshot(snapshot, reason, startRevision, mutationMeta) {
         state.snapshot = snapshot;
         if (Number(state.revision || 0) === startRevision) {
             state.dirty = false;
             state.lastReason = reason;
+            state.lastMutationMeta = normalizeMutationMeta(mutationMeta);
         }
         return persistSnapshot(snapshot).then(function () {
             return snapshot;
@@ -201,9 +263,53 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         };
     }
 
+    async function buildSourceIncrementalSnapshot(reason, mutationMeta) {
+        const normalizedMeta = normalizeMutationMeta(mutationMeta);
+        const affectedCategoryName = text(normalizedMeta?.categoryName, '');
+        if (!affectedCategoryName) {
+            return await buildSnapshot(reason);
+        }
+
+        const sourceKey = text(normalizedMeta?.sourceKey, '');
+        const includeCached = sourceKey === 'cache-store-query' || sourceKey === 'cache-store-pool' || !sourceKey;
+        const includeKnowledge = true;
+
+        const localBundle = buildLocalRecordBundle();
+        const affectedCategoryMap = filterCategoryMap(localBundle.categoryMap, [affectedCategoryName]);
+        const refreshedSourceBundle = await buildSourceRecordBundle(affectedCategoryMap, {
+            includeKnowledge: includeKnowledge,
+            includeCached: includeCached
+        });
+        const preservedSourceRecords = rehydrateSourceRecords(
+            toArray(state.snapshot?.records).filter(function (record) {
+                const type = text(record?.type, '');
+                if (type !== 'knowledge' && type !== 'cached') return false;
+                if (text(record?.categoryName, '') !== affectedCategoryName) return true;
+                if (type === 'knowledge') return !includeKnowledge;
+                if (type === 'cached') return !includeCached;
+                return false;
+            }),
+            localBundle.categoryMap
+        );
+        const records = []
+            .concat(localBundle.records)
+            .concat(preservedSourceRecords)
+            .concat(refreshedSourceBundle.records);
+
+        return {
+            version: shared.INDEX_VERSION,
+            builtAt: now(),
+            reason: text(reason, 'manual'),
+            stats: buildSnapshotStats(records),
+            records: records
+        };
+    }
+
     async function ensureFresh(options) {
         await loadPersistedSnapshot();
         const force = !!options?.force;
+        const mutationMeta = normalizeMutationMeta(options?.mutationMeta || state.lastMutationMeta);
+        const reason = text(options?.reason || state.lastReason, 'manual');
         const snapshotAge = state.snapshot ? (now() - Number(state.snapshot.builtAt || 0)) : Number.POSITIVE_INFINITY;
         if (!force && state.snapshot && !state.dirty && snapshotAge < SNAPSHOT_MAX_AGE_MS) {
             return state.snapshot;
@@ -213,9 +319,22 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             && state.snapshot
             && state.dirty
             && snapshotAge < SNAPSHOT_MAX_AGE_MS
-            && !isSourceDrivenReason(options?.reason || state.lastReason)
+            && !isSourceDrivenReason(reason)
         ) {
             return rebuild(Object.assign({}, options, { incremental: true }));
+        }
+        if (
+            !force
+            && state.snapshot
+            && state.dirty
+            && snapshotAge < SNAPSHOT_MAX_AGE_MS
+            && isSourceDrivenReason(reason)
+            && text(mutationMeta?.categoryName, '')
+        ) {
+            return rebuild(Object.assign({}, options, {
+                incremental: 'source',
+                mutationMeta: mutationMeta
+            }));
         }
         return rebuild(options);
     }
@@ -223,13 +342,16 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     async function rebuild(options) {
         if (state.buildPromise) return state.buildPromise;
         const reason = text(options?.reason || state.lastReason, 'manual');
+        const mutationMeta = normalizeMutationMeta(options?.mutationMeta || state.lastMutationMeta);
         const startRevision = Number(state.revision || 0);
-        const buildRunner = options?.incremental
-            ? Promise.resolve().then(function () { return buildIncrementalSnapshot(reason); })
-            : buildSnapshot(reason);
+        const buildRunner = options?.incremental === 'source'
+            ? buildSourceIncrementalSnapshot(reason, mutationMeta)
+            : (options?.incremental
+                ? Promise.resolve().then(function () { return buildIncrementalSnapshot(reason); })
+                : buildSnapshot(reason));
         state.buildPromise = buildRunner
             .then(async function (snapshot) {
-                return finalizeSnapshot(snapshot, reason, startRevision);
+                return finalizeSnapshot(snapshot, reason, startRevision, mutationMeta);
             })
             .finally(function () {
                 state.buildPromise = null;
@@ -804,7 +926,8 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             building: !!state.buildPromise,
             builtAt: Number(state.snapshot?.builtAt || 0),
             revision: Number(state.revision || 0),
-            lastReason: text(state.lastReason, '')
+            lastReason: text(state.lastReason, ''),
+            lastMutationMeta: normalizeMutationMeta(state.lastMutationMeta)
         };
     }
 

@@ -172,14 +172,9 @@
             if (target.closest('.ws-hover-reveal')) return;
 
             var interactiveTarget = target.closest('.ws-item, .ws-group-header, .ws-toggle, .ws-order-slot');
-            if (!isSidebarExpanded()) {
-                setSidebarExpanded(true);
-                return;
-            }
+            if (interactiveTarget) return;
 
-            if (!interactiveTarget) {
-                setSidebarExpanded(false);
-            }
+            setSidebarExpanded(!isSidebarExpanded());
         });
     }
 

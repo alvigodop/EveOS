@@ -19,6 +19,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         dirty: true,
         loaded: false,
         lastReason: 'startup',
+        lastMutationMeta: null,
         revision: 0
     };
 

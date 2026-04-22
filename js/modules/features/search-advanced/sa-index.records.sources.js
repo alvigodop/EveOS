@@ -46,6 +46,20 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         return groupedByCategory;
     }
 
+    function filterCategoryMap(categoryMap, categoryNames) {
+        const allowedNames = new Set(
+            toArray(categoryNames)
+                .map(function (value) { return text(value, ''); })
+                .filter(Boolean)
+        );
+        if (!allowedNames.size) return new Map();
+        return new Map(
+            Array.from(categoryMap.entries()).filter(function (entryPair) {
+                return allowedNames.has(text(entryPair?.[1]?.categoryName, ''));
+            })
+        );
+    }
+
     function buildCategoryScopeMeta(categoryName, workspaceIds) {
         const locators = ns.Locators || {};
         const normalizedWorkspaceIds = (Array.isArray(workspaceIds)
@@ -180,6 +194,22 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             refreshedRecord.searchableText = rebuildSourceSearchableText(refreshedRecord);
             return refreshedRecord;
         }).filter(Boolean);
+    }
+
+    async function buildSourceRecordBundle(categoryMap, options = {}) {
+        const includeKnowledge = options?.includeKnowledge !== false;
+        const includeCached = options?.includeCached !== false;
+        const knowledgeRecords = includeKnowledge
+            ? await buildKnowledgeRecords(categoryMap)
+            : [];
+        const cachedRecords = includeCached
+            ? await buildCachedRecords(categoryMap)
+            : [];
+        return {
+            knowledgeRecords: knowledgeRecords,
+            cachedRecords: cachedRecords,
+            records: knowledgeRecords.concat(cachedRecords)
+        };
     }
 
     async function buildCachedRecords(categoryMap) {
@@ -357,10 +387,10 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
 
     async function buildSnapshot(reason) {
         const localBundle = buildLocalRecordBundle();
+        const sourceBundle = await buildSourceRecordBundle(localBundle.categoryMap);
         const records = []
             .concat(localBundle.records)
-            .concat(await buildKnowledgeRecords(localBundle.categoryMap))
-            .concat(await buildCachedRecords(localBundle.categoryMap));
+            .concat(sourceBundle.records);
 
         return {
             version: INDEX_VERSION,
@@ -375,7 +405,9 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         buildCachedRecords,
         buildKnowledgeRecords,
         buildLocalRecordBundle,
+        buildSourceRecordBundle,
         buildSnapshotStats,
+        filterCategoryMap,
         rehydrateSourceRecords,
         buildSnapshot
     };

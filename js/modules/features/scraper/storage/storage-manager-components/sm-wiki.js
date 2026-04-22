@@ -101,27 +101,27 @@
 
         // Internal helpers
         _save: function (key, data) {
-            return window.StorageManager ? StorageManager.saveData(key, data) : false;
+            return window.StorageManager ? StorageManager.saveData(key, data, StorageManager.categoryContext) : false;
         },
 
         _load: function (key, defaultValue) {
-            return window.StorageManager ? StorageManager.loadData(key, defaultValue) : defaultValue;
+            return window.StorageManager ? StorageManager.loadData(key, defaultValue, StorageManager.categoryContext) : defaultValue;
         },
 
         _saveHeavy: async function (key, data) {
             if (!window.StorageManager) return false;
             if (typeof StorageManager.saveHeavyData === 'function') {
-                return await StorageManager.saveHeavyData(key, data);
+                return await StorageManager.saveHeavyData(key, data, StorageManager.categoryContext);
             }
-            return StorageManager.saveData(key, data);
+            return StorageManager.saveData(key, data, StorageManager.categoryContext);
         },
 
         _loadHeavy: async function (key, defaultValue) {
             if (!window.StorageManager) return defaultValue;
             if (typeof StorageManager.loadHeavyData === 'function') {
-                return await StorageManager.loadHeavyData(key, defaultValue);
+                return await StorageManager.loadHeavyData(key, defaultValue, StorageManager.categoryContext);
             }
-            return StorageManager.loadData(key, defaultValue);
+            return StorageManager.loadData(key, defaultValue, StorageManager.categoryContext);
         }
     };
 
