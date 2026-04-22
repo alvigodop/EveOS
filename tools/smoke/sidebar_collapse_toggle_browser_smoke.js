@@ -81,6 +81,13 @@ async function clickWorkspaceToggleLane(page, workspaceId) {
     await page.mouse.click(box.x + 16, box.y + (box.height / 2));
 }
 
+async function clickWorkspaceContentLane(page, workspaceId) {
+    const item = page.locator(`#sidebar .ws-item[data-ws-id="${workspaceId}"]`).first();
+    const box = await item.boundingBox();
+    if (!box) throw new Error(`Missing sidebar item box for ${workspaceId}`);
+    await page.mouse.click(box.x + 56, box.y + (box.height / 2));
+}
+
 async function main() {
     const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage({ viewport: { width: 1600, height: 1100 } });
@@ -177,6 +184,13 @@ async function main() {
         if (narrowExpandRenderCount !== 0) {
             throw new Error(`Expected narrow-width toggle lane expand to avoid full sidebar rerender, got ${narrowExpandRenderCount}`);
         }
+
+        await clickWorkspaceContentLane(page, 'main');
+        await page.waitForFunction(() => {
+            return String(config.activeWorkspace || '') === 'main'
+                && Array.isArray(config.collapsedTabs)
+                && !config.collapsedTabs.includes('main');
+        }, undefined, { timeout: 10000 });
 
         console.log('SIDEBAR_COLLAPSE_TOGGLE_BROWSER_SMOKE_OK');
     } finally {

@@ -190,12 +190,17 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             if (!hasChildren || !toggle || !event) return false;
             var sidebar = document.getElementById('sidebar');
             if (!sidebar || !sidebar.classList.contains('is-expanded')) return false;
+            var target = event.target instanceof Element ? event.target : null;
+            if (target) {
+                if (target.closest('.ws-toggle')) return true;
+                if (target.closest('.ws-icon, .ws-label, .ws-summary, .ws-hidden-badge')) return false;
+            }
             var itemRect = item.getBoundingClientRect();
             if (!itemRect || itemRect.width <= 0) return false;
             var toggleRect = toggle.getBoundingClientRect();
             var relativeX = Number(event.clientX) - itemRect.left;
             if (!Number.isFinite(relativeX) || relativeX < 0) return false;
-            var toggleZoneRight = Math.max(36, (toggleRect.right - itemRect.left) + 10);
+            var toggleZoneRight = Math.max(28, (toggleRect.right - itemRect.left) + 4);
             return relativeX <= Math.min(toggleZoneRight, itemRect.width);
         }
 
