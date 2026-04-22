@@ -241,6 +241,7 @@ async function loadData() {
     config.sidebarFocusedGroupId = String(config.sidebarFocusedGroupId || '').trim();
     if (typeof config.showHiddenSidebarGroups !== 'boolean') config.showHiddenSidebarGroups = false;
     if (typeof config.showInactiveTabs !== 'boolean') config.showInactiveTabs = false;
+    if (typeof config.sidebarExpanded !== 'boolean') config.sidebarExpanded = false;
 
     // Custom bookmark ordering defaults
     if (!config.customOrder || typeof config.customOrder !== 'object') config.customOrder = {};

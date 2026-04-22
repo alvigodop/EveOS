@@ -145,12 +145,53 @@
         return workspaceCount + groupCount;
     }
 
+    function isSidebarExpanded() {
+        return !!config.sidebarExpanded;
+    }
+
+    function setSidebarExpanded(nextValue, options) {
+        var opts = options && typeof options === 'object' ? options : {};
+        var nextExpanded = !!nextValue;
+        if (!!config.sidebarExpanded === nextExpanded && !opts.forceSync) return nextExpanded;
+        config.sidebarExpanded = nextExpanded;
+        if (opts.persist !== false && typeof saveConfig === 'function') {
+            saveConfig({ immediate: true });
+        }
+        var sb = document.getElementById('sidebar');
+        if (sb) syncSidebarShellState(sb);
+        return nextExpanded;
+    }
+
+    function bindSidebarToggleBehavior(sb) {
+        if (!sb || sb.__eveSidebarToggleBound) return;
+        sb.__eveSidebarToggleBound = true;
+        sb.addEventListener('click', function (event) {
+            if (config.sidebarHidden) return;
+            var target = event.target instanceof Element ? event.target : null;
+            if (!target) return;
+            if (target.closest('.ws-hover-reveal')) return;
+
+            var interactiveTarget = target.closest('.ws-item, .ws-group-header, .ws-toggle, .ws-order-slot');
+            if (!isSidebarExpanded()) {
+                setSidebarExpanded(true);
+                return;
+            }
+
+            if (!interactiveTarget) {
+                setSidebarExpanded(false);
+            }
+        });
+    }
+
     function syncSidebarShellState(sb) {
         if (!sb) return;
+        if (typeof config.sidebarExpanded !== 'boolean') config.sidebarExpanded = false;
+        sb.classList.toggle('is-expanded', !!config.sidebarExpanded);
         sb.classList.toggle('ultra-collapsed', !!config.ultraCollapseSidebar);
         sb.classList.toggle('hidden-completely', !!config.sidebarHidden);
         sb.classList.toggle('ws-hover-reveal-active', !!(rt.isHoverRevealActive && rt.isHoverRevealActive()));
         sb.classList.toggle('ws-heavy', estimateSidebarNodeCount() >= SIDEBAR_HEAVY_NODE_THRESHOLD);
+        sb.setAttribute('aria-expanded', config.sidebarExpanded ? 'true' : 'false');
     }
 
     window.toggleSidebarVisibility = function () {
@@ -171,6 +212,7 @@
         var sb = document.getElementById('sidebar');
         if (!sb) return;
 
+        bindSidebarToggleBehavior(sb);
         var scaffold = ensureSidebarScaffold(sb);
         var ctx = rt.createRenderContext(sb);
         syncSidebarShellState(sb);
@@ -224,6 +266,11 @@
         ctx.sb = originalHost;
 
         if (typeof rt.syncHoverRevealUiState === 'function') rt.syncHoverRevealUiState();
+    };
+
+    window.toggleSidebarExpanded = function (nextValue) {
+        if (typeof nextValue === 'boolean') return setSidebarExpanded(nextValue);
+        return setSidebarExpanded(!isSidebarExpanded());
     };
 
     rt.ready = true;

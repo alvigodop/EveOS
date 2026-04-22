@@ -52,20 +52,20 @@
     background: var(--scrollbar-thumb-hover);
 }
 
-#sidebar:hover {
+#sidebar.is-expanded {
     width: var(--ws-rail-width-expanded);
 }
 
-#sidebar.ultra-collapsed:not(:hover) {
+#sidebar.ultra-collapsed:not(.is-expanded) {
     width: 12px;
 }
 
-#sidebar.ultra-collapsed:not(:hover) > * {
+#sidebar.ultra-collapsed:not(.is-expanded) > * {
     opacity: 0;
     pointer-events: none;
 }
 
-#sidebar.ultra-collapsed:not(:hover) .ws-sidebar-content::-webkit-scrollbar {
+#sidebar.ultra-collapsed:not(.is-expanded) .ws-sidebar-content::-webkit-scrollbar {
     width: 0px;
 }
 
@@ -133,7 +133,7 @@
     min-width: 0;
 }
 
-#sidebar:hover .ws-label {
+#sidebar.is-expanded .ws-label {
     opacity: 1;
     display: block;
 }
@@ -147,7 +147,7 @@
     flex: 0 0 auto;
 }
 
-#sidebar:hover .ws-summary {
+#sidebar.is-expanded .ws-summary {
     display: inline-flex;
 }
 
@@ -174,7 +174,7 @@
     border-color: rgba(255, 166, 0, 0.24);
 }
 
-#sidebar:hover .ws-item {
+#sidebar.is-expanded .ws-item {
     width: var(--ws-expanded-row-width);
     max-width: var(--ws-expanded-row-width);
     justify-content: flex-start;
@@ -277,7 +277,7 @@
         0 0 14px color-mix(in srgb, var(--accent) 28%, transparent);
 }
 
-#sidebar:hover .ws-hover-reveal {
+#sidebar.is-expanded .ws-hover-reveal {
     width: 100%;
     min-width: 0;
     min-height: 44px;
@@ -308,7 +308,7 @@
     flex-shrink: 0;
 }
 
-#sidebar:hover .ws-divider {
+#sidebar.is-expanded .ws-divider {
     width: 136px;
 }
 
@@ -353,14 +353,14 @@
     background: color-mix(in srgb, var(--ws-group-color) 14%, rgba(255, 255, 255, 0.04));
 }
 
-#sidebar:hover .ws-group-header {
+#sidebar.is-expanded .ws-group-header {
     width: var(--ws-expanded-row-width);
     max-width: var(--ws-expanded-row-width);
     justify-content: flex-start;
     padding-right: 8px;
 }
 
-#sidebar:hover .ws-group-section--nested .ws-group-header {
+#sidebar.is-expanded .ws-group-section--nested .ws-group-header {
     min-height: 32px;
     padding-left: 10px;
     padding-right: 8px;
@@ -375,7 +375,7 @@
     flex-shrink: 0;
 }
 
-#sidebar:hover .ws-group-toggle {
+#sidebar.is-expanded .ws-group-toggle {
     display: inline-flex;
     align-items: center;
 }
@@ -403,11 +403,11 @@
     display: none;
 }
 
-#sidebar:hover .ws-group-title,
-#sidebar:hover .ws-group-count,
-#sidebar:hover .ws-group-summary,
-#sidebar:hover .ws-group-hidden-badge,
-#sidebar:hover .ws-group-focus-badge {
+#sidebar.is-expanded .ws-group-title,
+#sidebar.is-expanded .ws-group-count,
+#sidebar.is-expanded .ws-group-summary,
+#sidebar.is-expanded .ws-group-hidden-badge,
+#sidebar.is-expanded .ws-group-focus-badge {
     display: inline-flex;
     align-items: center;
 }
@@ -482,12 +482,12 @@
         0 6px 18px rgba(0, 0, 0, 0.08);
 }
 
-#sidebar:hover .ws-group-section .ws-group-body {
+#sidebar.is-expanded .ws-group-section .ws-group-body {
     width: calc(100% - 14px);
     padding: 8px 0 10px;
 }
 
-#sidebar:hover .ws-group-section--nested .ws-group-body {
+#sidebar.is-expanded .ws-group-section--nested .ws-group-body {
     width: calc(100% - 20px);
 }
 
@@ -500,7 +500,7 @@
     display: none;
 }
 
-#sidebar:hover .ws-group-empty {
+#sidebar.is-expanded .ws-group-empty {
     width: 140px;
     min-height: 32px;
     border-radius: 8px;
@@ -514,7 +514,7 @@
     box-sizing: border-box;
 }
 
-#sidebar:hover .ws-group-section--nested .ws-group-empty {
+#sidebar.is-expanded .ws-group-section--nested .ws-group-empty {
     width: 124px;
 }
 
@@ -542,7 +542,7 @@
         0 0 14px color-mix(in srgb, var(--ws-group-color) 26%, transparent);
 }
 
-#sidebar:hover .ws-group-section--overview .ws-group-header {
+#sidebar.is-expanded .ws-group-section--overview .ws-group-header {
     background:
         linear-gradient(
             180deg,
@@ -576,7 +576,7 @@ html[data-native-scheme="light"] .ws-group-section--overview .ws-group-header {
         0 4px 12px rgba(0, 0, 0, 0.06);
 }
 
-html[data-native-scheme="light"] #sidebar:hover .ws-group-section--overview .ws-group-header {
+html[data-native-scheme="light"] #sidebar.is-expanded .ws-group-section--overview .ws-group-header {
     background:
         linear-gradient(
             180deg,

@@ -47,6 +47,7 @@ let config = {
     sidebarFocusedGroupId: "",
     showHiddenSidebarGroups: false,
     showInactiveTabs: false,
+    sidebarExpanded: false,
     activeWorkspace: "main",
     bookmarkFolderToolbarExpanded: [],
     cardHeaderButtonsVisible: {},
