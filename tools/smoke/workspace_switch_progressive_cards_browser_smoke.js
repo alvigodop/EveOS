@@ -103,11 +103,20 @@ async function primeIndexedScopeCounter(page) {
     if (window.__workspaceSwitchScopedIdsCounterInstalled) return;
     window.__workspaceSwitchScopedIdsCounterInstalled = true;
     window.__workspaceSwitchScopedIdsCount = 0;
+    window.__workspaceSwitchInvalidateCount = 0;
     const original = indexApi.getScopedBookmarkLinkIds.bind(indexApi);
     indexApi.getScopedBookmarkLinkIds = function wrappedGetScopedBookmarkLinkIds(...args) {
       window.__workspaceSwitchScopedIdsCount += 1;
       return original(...args);
     };
+    if (typeof window.invalidateDashboardDeferredWork === 'function' && !window.__workspaceSwitchInvalidateWrapped) {
+      window.__workspaceSwitchInvalidateWrapped = true;
+      const originalInvalidate = window.invalidateDashboardDeferredWork.bind(window);
+      window.invalidateDashboardDeferredWork = function wrappedInvalidateDashboardDeferredWork(...args) {
+        window.__workspaceSwitchInvalidateCount += 1;
+        return originalInvalidate(...args);
+      };
+    }
   });
 }
 
@@ -145,6 +154,10 @@ async function primeIndexedScopeCounter(page) {
     const scopedIdsCount = await page.evaluate(() => Number(window.__workspaceSwitchScopedIdsCount || 0));
     if (scopedIdsCount < 1) {
       throw new Error(`Expected workspace switch to use scoped index ids, got ${scopedIdsCount}`);
+    }
+    const invalidateCount = await page.evaluate(() => Number(window.__workspaceSwitchInvalidateCount || 0));
+    if (invalidateCount < 1) {
+      throw new Error(`Expected workspace switch to invalidate old deferred dashboard work, got ${invalidateCount}`);
     }
 
     console.log('WORKSPACE_SWITCH_PROGRESSIVE_CARDS_BROWSER_SMOKE_OK');

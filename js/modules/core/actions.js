@@ -93,6 +93,9 @@ function switchWorkspace(id, options = {}) {
     }
 
     if (nextWorkspaceId !== currentWorkspaceId) {
+        if (typeof window.invalidateDashboardDeferredWork === 'function') {
+            window.invalidateDashboardDeferredWork();
+        }
         window.__eveDashboardRenderHint = {
             kind: 'workspace-switch',
             fromWorkspaceId: currentWorkspaceId,

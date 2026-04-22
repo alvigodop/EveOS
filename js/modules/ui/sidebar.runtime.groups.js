@@ -66,6 +66,9 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         var section = document.createElement('div');
         section.className = 'ws-group-section';
         if (groupId) section.dataset.groupId = groupId;
+        if (groupId && typeof rt.registerGroupSectionElement === 'function') {
+            rt.registerGroupSectionElement(groupId, section);
+        }
         section.style.setProperty('--ws-group-color', groupColor);
         if (currentDepth > 0) section.classList.add('ws-group-section--nested');
         if (group && group.hidden) section.classList.add('ws-group-section--hidden');

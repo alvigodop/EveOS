@@ -87,6 +87,39 @@ function restoreDashboardCardScrollState(snapshot) {
 var _eveDashRenderGen = 0;
 window._eveDashRenderGen = 0;
 
+function invalidateDashboardDeferredWork(options) {
+    var opts = options && typeof options === 'object' ? options : {};
+    _eveDashRenderGen++;
+    window._eveDashRenderGen = _eveDashRenderGen;
+
+    if (_scrollRafId) {
+        clearTimeout(_scrollRafId);
+        _scrollRafId = 0;
+    }
+
+    if (_scrollSpacer && _scrollSpacer.parentNode) {
+        _scrollSpacer.parentNode.removeChild(_scrollSpacer);
+    }
+    _scrollSpacer = null;
+    _scrollSave = -1;
+
+    if (dashboardMasonryState.rafId) {
+        window.cancelAnimationFrame(dashboardMasonryState.rafId);
+        dashboardMasonryState.rafId = 0;
+    }
+    if (dashboardMasonryState._throttleTimer) {
+        clearTimeout(dashboardMasonryState._throttleTimer);
+        dashboardMasonryState._throttleTimer = 0;
+    }
+    if (opts.cleanupMasonry !== false) {
+        cleanupDashboardMasonryObserver();
+    }
+
+    return _eveDashRenderGen;
+}
+
+window.invalidateDashboardDeferredWork = invalidateDashboardDeferredWork;
+
 function renderDashboard() {
     // Coalesce rapid-fire render calls into a single frame
     if (window._eveDashRenderPending) return;

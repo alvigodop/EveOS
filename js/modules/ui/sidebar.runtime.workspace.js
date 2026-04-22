@@ -210,6 +210,9 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
 
         item.draggable = !isInactive;
         item.dataset.wsId = ws.id;
+        if (typeof rt.registerWorkspaceItemElement === 'function') {
+            rt.registerWorkspaceItemElement(ws.id, item);
+        }
         if (!isInactive) {
             item.ondragstart = function (e) {
                 ctx.setDragState('workspace', ws.id);

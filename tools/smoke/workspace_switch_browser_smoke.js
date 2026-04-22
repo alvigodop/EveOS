@@ -75,6 +75,7 @@ async function installRenderCounter(page) {
     window.__workspaceSwitchRenderCounterInstalled = true;
     window.__workspaceSwitchRenderCount = 0;
     window.__workspaceSwitchSidebarRenderCount = 0;
+    window.__workspaceSwitchSidebarQueryCount = 0;
     const original = window.renderDashboard;
     window.renderDashboard = function wrappedRenderDashboard(...args) {
       window.__workspaceSwitchRenderCount += 1;
@@ -85,6 +86,15 @@ async function installRenderCounter(page) {
       window.__workspaceSwitchSidebarRenderCount += 1;
       return originalSidebar.apply(this, args);
     };
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar && !sidebar.__workspaceSwitchQueryWrapped) {
+      sidebar.__workspaceSwitchQueryWrapped = true;
+      const originalQuerySelectorAll = sidebar.querySelectorAll.bind(sidebar);
+      sidebar.querySelectorAll = function wrappedSidebarQuerySelectorAll(...args) {
+        window.__workspaceSwitchSidebarQueryCount += 1;
+        return originalQuerySelectorAll(...args);
+      };
+    }
   });
 }
 
@@ -92,6 +102,7 @@ async function resetRenderCounter(page) {
   await page.evaluate(() => {
     window.__workspaceSwitchRenderCount = 0;
     window.__workspaceSwitchSidebarRenderCount = 0;
+    window.__workspaceSwitchSidebarQueryCount = 0;
   });
 }
 
@@ -101,6 +112,10 @@ async function getRenderCounter(page) {
 
 async function getSidebarRenderCounter(page) {
   return page.evaluate(() => Number(window.__workspaceSwitchSidebarRenderCount || 0));
+}
+
+async function getSidebarQueryCounter(page) {
+  return page.evaluate(() => Number(window.__workspaceSwitchSidebarQueryCount || 0));
 }
 
 async function runSmoke(page) {
@@ -143,6 +158,10 @@ async function runSmoke(page) {
   if (openUnidexSidebarRenderCount !== 0) {
     throw new Error(`Expected opening Unidex to sync sidebar state without a full sidebar render, got ${openUnidexSidebarRenderCount}`);
   }
+  const openUnidexSidebarQueryCount = await getSidebarQueryCounter(page);
+  if (openUnidexSidebarQueryCount !== 0) {
+    throw new Error(`Expected opening Unidex to avoid sidebar-wide querySelectorAll scans, got ${openUnidexSidebarQueryCount}`);
+  }
   await page.waitForTimeout(300);
 
   await resetRenderCounter(page);
@@ -164,6 +183,10 @@ async function runSmoke(page) {
   if (unidexExitSidebarRenderCount !== 0) {
     throw new Error(`Expected exiting Unidex into the active workspace to avoid a full sidebar render, got ${unidexExitSidebarRenderCount}`);
   }
+  const unidexExitSidebarQueryCount = await getSidebarQueryCounter(page);
+  if (unidexExitSidebarQueryCount !== 0) {
+    throw new Error(`Expected exiting Unidex into the active workspace to avoid sidebar-wide querySelectorAll scans, got ${unidexExitSidebarQueryCount}`);
+  }
 
   await page.evaluate(() => window.setFocus('Alpha'));
   await page.waitForFunction(() => (
@@ -184,6 +207,10 @@ async function runSmoke(page) {
   if (altSwitchSidebarRenderCount !== 0) {
     throw new Error(`Expected workspace switch to Alt to avoid a full sidebar render, got ${altSwitchSidebarRenderCount}`);
   }
+  const altSwitchSidebarQueryCount = await getSidebarQueryCounter(page);
+  if (altSwitchSidebarQueryCount !== 0) {
+    throw new Error(`Expected workspace switch to Alt to avoid sidebar-wide querySelectorAll scans, got ${altSwitchSidebarQueryCount}`);
+  }
 
   const focusCleared = await page.evaluate(() => (
     typeof focusCategory !== 'undefined' ? String(focusCategory || '').trim() : ''
@@ -202,6 +229,10 @@ async function runSmoke(page) {
   const mainSwitchSidebarRenderCount = await getSidebarRenderCounter(page);
   if (mainSwitchSidebarRenderCount !== 0) {
     throw new Error(`Expected workspace switch back to Main to avoid a full sidebar render, got ${mainSwitchSidebarRenderCount}`);
+  }
+  const mainSwitchSidebarQueryCount = await getSidebarQueryCounter(page);
+  if (mainSwitchSidebarQueryCount !== 0) {
+    throw new Error(`Expected workspace switch back to Main to avoid sidebar-wide querySelectorAll scans, got ${mainSwitchSidebarQueryCount}`);
   }
 
   await resetRenderCounter(page);

@@ -15,6 +15,9 @@
     function buildUnidexButton() {
         var unidexBtn = document.createElement('div');
         unidexBtn.className = 'ws-item ws-unidex ' + (config.viewMode === 'unidex' ? 'active' : '');
+        if (typeof rt.registerUnidexButtonElement === 'function') {
+            rt.registerUnidexButtonElement(unidexBtn);
+        }
         unidexBtn.innerHTML = '\u{1F9ED} <span class="ws-label">Unidex Layer</span>';
         unidexBtn.title = 'Open Unidex View';
         unidexBtn.oncontextmenu = function (e) {
@@ -218,6 +221,9 @@
         }
         rt.sidebarDirtyWhileHidden = false;
         scaffold.contentHost.innerHTML = '';
+        if (typeof rt.resetSidebarElementRegistry === 'function') {
+            rt.resetSidebarElementRegistry();
+        }
 
         scaffold.contentHost.appendChild(buildUnidexButton());
 
@@ -261,6 +267,7 @@
         ctx.sb.appendChild(buildAddButton(ctx));
         ctx.sb = originalHost;
 
+        if (typeof rt.captureSidebarViewState === 'function') rt.captureSidebarViewState();
         if (typeof rt.syncHoverRevealUiState === 'function') rt.syncHoverRevealUiState();
     };
 
