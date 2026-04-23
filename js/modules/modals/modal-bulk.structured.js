@@ -265,6 +265,24 @@ window.EveBulkImport = window.EveBulkImport || {};
         return true;
     }
 
+    function looksLikeBookmarkTitleListLine(value) {
+        const text = String(value || '').trim();
+        if (!isStandaloneTitleCandidate(text)) return false;
+        if (hasStructuredFieldLine(text) || isProgressLedgerLine(text)) return false;
+        if (/^[\-\*\u2022]/.test(text)) return false;
+        const words = text.split(/\s+/).filter(Boolean);
+        if (words.length > 24) return false;
+
+        const alphaWords = words.filter((word) => /[A-Za-z]/.test(word));
+        if (alphaWords.length > 0) {
+            const capitalLikeWords = alphaWords.filter((word) => /^[A-Z0-9]/.test(word));
+            if (/^[a-z]/.test(text) && words.length > 4) return false;
+            if (words.length >= 4 && (capitalLikeWords.length / alphaWords.length) < 0.34) return false;
+        }
+
+        return text.length <= 160;
+    }
+
     function hasStructuredFieldLine(value) {
         const text = String(value || '').trim();
         return /^(?:title|name|url|link|read site|site|to watch site|type|category|status|state|notes|summary|finished ep|going to ep|ep|episode|ch|chapter)[\s:-]+/i.test(text);
@@ -330,6 +348,11 @@ window.EveBulkImport = window.EveBulkImport || {};
                 return wordCount <= 6 && line.length <= 40 && !/[.!?]$/.test(line);
             });
         if (allListLikeTitles) return false;
+
+        const allBookmarkTitleLines = nonEmptyLines.length >= 3
+            && standaloneUrlLines.length === 0
+            && nonEmptyLines.every(looksLikeBookmarkTitleListLine);
+        if (allBookmarkTitleLines) return false;
 
         const progressLines = nonEmptyLines.filter(isUnlabeledProgressToken);
         if (progressLines.length > 0) return true;

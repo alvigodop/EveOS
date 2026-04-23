@@ -126,7 +126,35 @@ async function readState(page) {
           { liveLinks: ledgerLinks, deferLibrarySave: true, silent: true }
         );
 
+        const titleListContent = [
+          'A Cursed Sword’s Daily Life',
+          'Honzuki no Gekokujou: Shisho ni Naru Tame ni wa Shudan o Erandeiraremasen—Dai 1-bu: Hon ga Nai nara Tsukureba Ii!',
+          'Akuyaku Reijou Tensei Ojisan (Pre-Serialization)',
+          'Dominate the Three Realms',
+          'Promise of an Orchid'
+        ].join('\n');
+
+        const punctuatedTitleListContent = [
+          'The Strongest Manager in History',
+          'Blazer Drive',
+          'Jí\'ě Yóuxì',
+          'Last Round Arthurs',
+          'Path of the Sword',
+          'Doryoku Shisugita Sekai Saikyou no Butouka ha, Mahou Sekai wo Yoyuu de Ikinuku.',
+          'Dawn of the Eastland',
+          'LESSA',
+          'Chronicles of Everlasting Wind and Sword Rain'
+        ].join('\n');
+
         return {
+          titleListDetection: {
+            structured: api.looksLikeStructuredFileContent(titleListContent, 'I-Remember-Its-Good.txt'),
+            singleEntry: api.looksLikeSingleEntryBulkFile(titleListContent, 'I-Remember-Its-Good.txt')
+          },
+          punctuatedTitleListDetection: {
+            structured: api.looksLikeStructuredFileContent(punctuatedTitleListContent, 'Looks-Good.txt'),
+            singleEntry: api.looksLikeSingleEntryBulkFile(punctuatedTitleListContent, 'Looks-Good.txt')
+          },
           singleLineBookmark: {
             title: singleLineBookmark?.title || '',
             url: singleLineBookmark?.url || '',
@@ -153,6 +181,12 @@ async function readState(page) {
     }
     if (parserCases.singleLineBookmark.notes) {
       throw new Error(`Single-line smart extract should not leave the promoted title in notes: ${JSON.stringify(parserCases.singleLineBookmark)}`);
+    }
+    if (parserCases.titleListDetection.structured || parserCases.titleListDetection.singleEntry) {
+      throw new Error(`Title-list smart extract should stay line-per-bookmark, got ${JSON.stringify(parserCases.titleListDetection)}`);
+    }
+    if (parserCases.punctuatedTitleListDetection.structured || parserCases.punctuatedTitleListDetection.singleEntry) {
+      throw new Error(`Punctuated title-list smart extract should stay line-per-bookmark, got ${JSON.stringify(parserCases.punctuatedTitleListDetection)}`);
     }
     if (parserCases.ledgerBookmark.title !== 'Harry Potter') {
       throw new Error(`Progress-ledger structured file regressed: ${JSON.stringify(parserCases.ledgerBookmark)}`);
