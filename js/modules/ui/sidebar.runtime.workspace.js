@@ -156,6 +156,14 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             return host;
         }
 
+        function syncHoverRevealPreviewAfterBranchChange() {
+            if (typeof rt.invalidateHoverRevealPreview !== 'function') return;
+            rt.invalidateHoverRevealPreview({
+                queue: false,
+                rebuildIfActive: !!(rt.isHoverRevealActive && rt.isHoverRevealActive())
+            });
+        }
+
         function toggleWorkspaceBranch(event) {
             if (event) {
                 event.preventDefault();
@@ -178,12 +186,14 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             if (nextCollapsed) {
                 host.hidden = true;
                 host.classList.add('is-collapsed');
+                syncHoverRevealPreviewAfterBranchChange();
                 return;
             }
 
             renderChildBranch(false);
             host.hidden = false;
             host.classList.remove('is-collapsed');
+            syncHoverRevealPreviewAfterBranchChange();
         }
 
         function shouldTreatRowClickAsToggle(event) {

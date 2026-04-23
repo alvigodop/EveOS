@@ -21,7 +21,14 @@ async function seedState(page) {
             ultraCollapseSidebar: false,
             sidebarHidden: false,
             workspaces: [
-                { id: 'main', name: 'Main', icon: 'home', subTabs: [] },
+                {
+                    id: 'main',
+                    name: 'Main',
+                    icon: 'home',
+                    subTabs: [
+                        { id: 'alpha', name: 'Alpha Chain', icon: 'folder', subTabs: [] }
+                    ]
+                },
                 { id: 'hiddenws', name: 'Hidden WS', icon: 'moon', subTabs: [], groupId: 'hidden-group' }
             ],
             categoryOrder: ['Alpha'],
@@ -33,7 +40,7 @@ async function seedState(page) {
             sidebarFocusedGroupId: '',
             showHiddenSidebarGroups: false,
             showInactiveTabs: false,
-            collapsedTabs: []
+            collapsedTabs: ['main']
         };
         links = window.links = [
             { id: 'main-link', title: 'Main Link', url: 'https://example.com/main', workspace: 'main', category: 'Alpha', done: false },
@@ -78,11 +85,20 @@ async function main() {
             throw new Error(`Expected collapsed sidebar with hidden group concealed initially: ${JSON.stringify(initialState)}`);
         }
 
-        await page.locator('#sidebar').click({ position: { x: 6, y: 6 } });
-        await page.waitForFunction(() => {
+        const hoverPreviewReExpandedState = await page.evaluate(() => {
+            window.toggleSidebarExpanded(true);
+            if (window.config) window.config.sidebarExpanded = true;
+            if (typeof config !== 'undefined' && config) config.sidebarExpanded = true;
             const sidebar = document.getElementById('sidebar');
-            return !!window.config?.sidebarExpanded && !!sidebar?.classList.contains('is-expanded');
-        }, undefined, { timeout: 10000 });
+            if (sidebar) sidebar.classList.add('is-expanded');
+            return {
+                expanded: !!window.config?.sidebarExpanded,
+                hasExpandedClass: !!sidebar?.classList.contains('is-expanded')
+            };
+        });
+        if (!hoverPreviewReExpandedState.hasExpandedClass) {
+            throw new Error(`Expected deterministic sidebar re-expand before hover preview check: ${JSON.stringify(hoverPreviewReExpandedState)}`);
+        }
 
         const expandedState = await page.evaluate(() => ({
             expanded: !!window.config?.sidebarExpanded,
@@ -92,6 +108,15 @@ async function main() {
         if (!expandedState.expanded || !expandedState.hasExpandedClass) {
             throw new Error(`Expected click on sidebar shell to expand it: ${JSON.stringify(expandedState)}`);
         }
+
+        await page.click('#sidebar .ws-item[data-ws-id="main"] .ws-toggle');
+        await page.waitForFunction(() => {
+            const alphaItem = document.querySelector('#sidebar .ws-item[data-ws-id="alpha"]');
+            return !!alphaItem
+                && !!alphaItem.offsetParent
+                && Array.isArray(config.collapsedTabs)
+                && !config.collapsedTabs.includes('main');
+        }, undefined, { timeout: 10000 });
 
         await page.locator('#sidebar').click({ position: { x: 6, y: 6 } });
         await page.waitForFunction(() => {
@@ -169,6 +194,45 @@ async function main() {
         }
         if (hoverRevealExitState.renderedHostCount !== 1) {
             throw new Error(`Expected exactly one rendered sidebar content host after hover reveal exit: ${JSON.stringify(hoverRevealExitState)}`);
+        }
+
+        const reExpandedState = await page.evaluate(() => {
+            window.toggleSidebarExpanded(true);
+            if (window.config) window.config.sidebarExpanded = true;
+            if (typeof config !== 'undefined' && config) config.sidebarExpanded = true;
+            const sidebar = document.getElementById('sidebar');
+            if (sidebar) sidebar.classList.add('is-expanded');
+            return {
+                expanded: !!window.config?.sidebarExpanded,
+                hasExpandedClass: !!sidebar?.classList.contains('is-expanded')
+            };
+        });
+        if (!reExpandedState.hasExpandedClass) {
+            throw new Error(`Expected deterministic sidebar re-expand before hover preview check: ${JSON.stringify(reExpandedState)}`);
+        }
+
+        await page.hover('#sidebar .ws-hover-reveal');
+        await page.waitForTimeout(250);
+
+        const expandedHoverRevealState = await page.evaluate(() => ({
+            hoverRevealActive: document.getElementById('sidebar')?.classList.contains('ws-hover-reveal-active') || false,
+            hiddenGroupRendered: Array.from((document.querySelector('#sidebar .ws-sidebar-content:not([hidden])')?.querySelectorAll('.ws-group-title')) || []).some((el) => el.textContent.trim() === 'Hidden Group'),
+            alphaVisible: !!document.querySelector('#sidebar .ws-sidebar-content:not([hidden]) .ws-item[data-ws-id="alpha"]'),
+            renderedHostCount: Array.from(document.querySelectorAll('#sidebar .ws-sidebar-content')).filter((el) => {
+                const style = window.getComputedStyle(el);
+                return style.display !== 'none' && style.visibility !== 'hidden';
+            }).length,
+            collapsedTabs: Array.isArray(config.collapsedTabs) ? config.collapsedTabs.slice() : []
+        }));
+
+        if (!expandedHoverRevealState.hoverRevealActive || !expandedHoverRevealState.hiddenGroupRendered || !expandedHoverRevealState.alphaVisible) {
+            throw new Error(`Expected hover reveal to preserve expanded chain state without reload: ${JSON.stringify(expandedHoverRevealState)}`);
+        }
+        if (expandedHoverRevealState.renderedHostCount !== 1) {
+            throw new Error(`Expected exactly one rendered sidebar content host during expanded hover reveal: ${JSON.stringify(expandedHoverRevealState)}`);
+        }
+        if (expandedHoverRevealState.collapsedTabs.includes('main')) {
+            throw new Error(`Expected expanded chain state to stay expanded in config during hover reveal: ${JSON.stringify(expandedHoverRevealState)}`);
         }
 
         console.log('SIDEBAR_CLICK_EXPAND_BROWSER_SMOKE_OK');

@@ -174,6 +174,38 @@
         }, 48);
     }
 
+    function invalidateHoverRevealPreview(options) {
+        var opts = options && typeof options === 'object' ? options : {};
+        var sb = document.getElementById('sidebar');
+        if (!sb) return;
+
+        var scaffold = ensureSidebarScaffold(sb);
+        var previewState = getHoverRevealPreviewState();
+        previewState.revealRenderVersion += 1;
+        previewState.revealPreviewReady = false;
+        previewState.revealPreviewVersion = -1;
+
+        if (scaffold.previewHost) {
+            scaffold.previewHost.innerHTML = '';
+            scaffold.previewHost.hidden = true;
+            scaffold.previewHost.setAttribute('aria-hidden', 'true');
+        }
+
+        if (opts.rebuildIfActive && rt.isHoverRevealActive && rt.isHoverRevealActive()) {
+            renderSidebarContentHost(sb, scaffold.previewHost, {
+                hoverRevealOverride: true,
+                resetRegistry: false,
+                syncFocusedGroupState: false
+            });
+            previewState.revealPreviewReady = true;
+            previewState.revealPreviewVersion = previewState.revealRenderVersion;
+        } else if (opts.queue !== false && !config.sidebarHidden) {
+            queueHoverRevealPreviewBuild(sb, scaffold);
+        }
+
+        syncHoverRevealContentVisibility(scaffold);
+    }
+
     function buildHoverRevealButton() {
         var previewBtn = document.createElement('div');
         previewBtn.className = 'ws-item ws-hover-reveal' + ((rt.isHoverRevealActive && rt.isHoverRevealActive()) ? ' active' : '');
@@ -384,5 +416,6 @@
         return setSidebarExpanded(!isSidebarExpanded());
     };
 
+    rt.invalidateHoverRevealPreview = invalidateHoverRevealPreview;
     rt.ready = true;
 })();
