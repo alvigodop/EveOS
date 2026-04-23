@@ -96,6 +96,71 @@ async function readState(page) {
     state = await readState(page);
     if (state.latentInputs.length !== 0) throw new Error(`Clear should reset latent inputs: ${state.latentInputs.join('|')}`);
 
+    const parserCases = await page.evaluate(() => {
+      const api = window.EveBulkImport && window.EveBulkImport._api;
+      if (!api || typeof api.processStructuredFile !== 'function') {
+        throw new Error('Bulk structured parser API unavailable');
+      }
+
+      const priorPromoter = window.EveLibrary?.ConnectionsAPI?.promoteLinkWithData;
+      if (window.EveLibrary?.ConnectionsAPI) {
+        window.EveLibrary.ConnectionsAPI.promoteLinkWithData = () => {};
+      }
+
+      try {
+        const singleLineLinks = [];
+        const singleLineBookmark = api.processStructuredFile(
+          'Cultivator Against Hero Society',
+          'I-Remeber-Its-Mid.txt',
+          'Straglers',
+          '',
+          { liveLinks: singleLineLinks, deferLibrarySave: true, silent: true }
+        );
+
+        const ledgerLinks = [];
+        const ledgerBookmark = api.processStructuredFile(
+          'Movie 8: Fin\nMovie 7: Fin',
+          'Harry Potter  Finished _260228_000250.txt',
+          'Movies',
+          '',
+          { liveLinks: ledgerLinks, deferLibrarySave: true, silent: true }
+        );
+
+        return {
+          singleLineBookmark: {
+            title: singleLineBookmark?.title || '',
+            url: singleLineBookmark?.url || '',
+            notes: singleLineBookmark?.notes || ''
+          },
+          ledgerBookmark: {
+            title: ledgerBookmark?.title || '',
+            url: ledgerBookmark?.url || '',
+            notes: ledgerBookmark?.notes || ''
+          }
+        };
+      } finally {
+        if (window.EveLibrary?.ConnectionsAPI) {
+          window.EveLibrary.ConnectionsAPI.promoteLinkWithData = priorPromoter;
+        }
+      }
+    });
+
+    if (parserCases.singleLineBookmark.title !== 'Cultivator Against Hero Society') {
+      throw new Error(`Single-line smart extract title promotion failed: ${JSON.stringify(parserCases.singleLineBookmark)}`);
+    }
+    if (!/Cultivator%20Against%20Hero%20Society/.test(parserCases.singleLineBookmark.url)) {
+      throw new Error(`Single-line smart extract URL did not follow the promoted title: ${JSON.stringify(parserCases.singleLineBookmark)}`);
+    }
+    if (parserCases.singleLineBookmark.notes) {
+      throw new Error(`Single-line smart extract should not leave the promoted title in notes: ${JSON.stringify(parserCases.singleLineBookmark)}`);
+    }
+    if (parserCases.ledgerBookmark.title !== 'Harry Potter') {
+      throw new Error(`Progress-ledger structured file regressed: ${JSON.stringify(parserCases.ledgerBookmark)}`);
+    }
+    if (!/Movie 8: Fin/.test(parserCases.ledgerBookmark.notes)) {
+      throw new Error(`Progress-ledger structured file lost note lines: ${JSON.stringify(parserCases.ledgerBookmark)}`);
+    }
+
     console.log('MODAL_BULK_RUNTIME_SMOKE_OK');
   } finally {
     await browser.close();

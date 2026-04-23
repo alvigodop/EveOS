@@ -193,6 +193,68 @@ window.EveBulkImport = window.EveBulkImport || {};
         return GENERIC_IMPORT_FILE_SUFFIX_BASES.some((baseTitle) => matchesGenericImportTitleWithSuffix(normalized, baseTitle));
     }
 
+    function tokenizeImportedTitleForComparison(value) {
+        return normalizeImportedFileTitle(value)
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, ' ')
+            .split(/\s+/)
+            .map((token) => token.trim())
+            .filter(Boolean);
+    }
+
+    function scoreImportedTitleConfidence(value, options = {}) {
+        const opts = options && typeof options === 'object' ? options : {};
+        const raw = String(value || '').trim();
+        const normalized = normalizeImportedFileTitle(raw);
+        if (!normalized) return -100;
+
+        const tokens = tokenizeImportedTitleForComparison(normalized);
+        if (!tokens.length) return -100;
+
+        let score = 0;
+        score += Math.min(tokens.length, 5);
+        if (tokens.length >= 2) score += 1;
+        if (!/[_-]/.test(raw)) score += 1;
+        if (/^[A-Z0-9]/.test(normalized)) score += 1;
+
+        if (opts.fileContext) {
+            if (/\b(?:remember|remeber|forgot|forget|unknown|later|mid|meh|misc|random|temp|tmp|placeholder|note|notes)\b/i.test(normalized)) {
+                score -= 4;
+            }
+            if (/[_-]/.test(raw)) score -= 1;
+        }
+
+        return score;
+    }
+
+    function shouldPromoteStandaloneBodyTitle(fileName, candidateLine, allNonEmptyLines) {
+        const lines = Array.isArray(allNonEmptyLines) ? allNonEmptyLines.filter(Boolean) : [];
+        const candidate = String(candidateLine || '').trim();
+        if (lines.length !== 1 || !candidate) return false;
+        if (!isStandaloneTitleCandidate(candidate)) return false;
+        if (isStandaloneUrlLine(candidate) || hasStructuredFieldLine(candidate) || isProgressLedgerLine(candidate)) return false;
+
+        const fileTitle = normalizeImportedFileTitle(fileName);
+        const bodyTitle = normalizeImportedFileTitle(candidate);
+        if (!bodyTitle) return false;
+        if (!fileTitle) return true;
+        if (bodyTitle.toLowerCase() === fileTitle.toLowerCase()) return false;
+
+        const fileTokens = tokenizeImportedTitleForComparison(fileTitle);
+        const bodyTokens = tokenizeImportedTitleForComparison(bodyTitle);
+        if (!bodyTokens.length) return false;
+
+        const fileTokenSet = new Set(fileTokens);
+        const overlapCount = bodyTokens.filter((token) => fileTokenSet.has(token)).length;
+        const overlapRatio = overlapCount / Math.max(1, Math.min(fileTokens.length || 1, bodyTokens.length));
+        const fileScore = scoreImportedTitleConfidence(fileName, { fileContext: true });
+        const bodyScore = scoreImportedTitleConfidence(candidate);
+
+        if (bodyTokens.length >= 2 && overlapCount === 0 && bodyScore >= fileScore + 2) return true;
+        if (bodyScore >= fileScore + 3 && overlapRatio < 0.34) return true;
+        return false;
+    }
+
     function isStandaloneTitleCandidate(value) {
         const text = String(value || '').trim();
         if (!text) return false;
@@ -295,6 +357,9 @@ window.EveBulkImport = window.EveBulkImport || {};
 
 function processStructuredFile(content, fileName, targetCategory, folderId = '', options = {}) {
     const lines = content.split('\n');
+    const nonEmptyLines = lines
+        .map((line) => String(line || '').trim())
+        .filter(Boolean);
     const fileMeta = extractImportedFileMetadata(fileName);
 
     // Clean filename: remove things like "_260228_000943.txt" and ".txt"
@@ -388,6 +453,23 @@ function processStructuredFile(content, fileName, targetCategory, folderId = '',
             notesArr.push(trimmed);
         }
     });
+
+    if (!explicitTitleAssigned && shouldPromoteStandaloneBodyTitle(fileName, nonEmptyLines[0], nonEmptyLines)) {
+        title = nonEmptyLines[0];
+        const promotedNormalizedTitle = normalizeImportedFileTitle(title).toLowerCase();
+        const promotedLine = nonEmptyLines[0];
+        let removedPromotedLine = false;
+        notesArr = notesArr.filter((line) => {
+            if (removedPromotedLine) return true;
+            const normalizedLine = normalizeImportedFileTitle(line).toLowerCase();
+            if (String(line || '').trim() === promotedLine || normalizedLine === promotedNormalizedTitle) {
+                removedPromotedLine = true;
+                return false;
+            }
+            return true;
+        });
+        bodyTitleAssigned = true;
+    }
 
     // Extract Season from title (e.g., "Rick and Morty S5", "Rick and Morty S8 Spinoff")
     // This runs here so that if 'Title:' in the file text had 'S5', we catch it too.
