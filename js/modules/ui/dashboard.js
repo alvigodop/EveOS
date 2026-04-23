@@ -511,7 +511,7 @@ function _renderDashboardCore(renderHint) {
     }
 
     if (typeof window.renderCategories === 'function') {
-        window.renderCategories(visibleLinks, grid, focusCategory, searchStr, _eveDashRenderGen);
+        window.renderCategories(visibleLinks, grid, focusCategory, searchStr, _eveDashRenderGen, renderHint);
         // Defer masonry layout to after initial cards have painted
         var _masonryGen = _eveDashRenderGen;
         setTimeout(function () {

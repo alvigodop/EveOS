@@ -152,7 +152,7 @@ function collectDashboardCategories(visibleLinks, activeWorkspaceId, categoryOrd
     return ordered;
 }
 
-window.renderCategories = function (visibleLinks, gridContainer, focusCategory, searchStr, renderGen) {
+window.renderCategories = function (visibleLinks, gridContainer, focusCategory, searchStr, renderGen, renderHint) {
     if (!gridContainer) return;
     const activeWorkspace = getDashboardActiveWorkspace();
     const workspaceCategoryOrder = window.EveCategoryOrder?.getOrder
@@ -163,6 +163,13 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
         : null;
     const categories = collectDashboardCategories(visibleLinks, activeWorkspace, workspaceCategoryOrder, detachedModel, searchStr);
     const categoryCount = categories.length;
+    const isCrossWorkspaceSwitchRender = !!(
+        renderHint
+        && renderHint.kind === 'workspace-switch'
+        && String(renderHint.fromWorkspaceId || '').trim()
+        && String(renderHint.toWorkspaceId || '').trim()
+        && String(renderHint.fromWorkspaceId || '').trim() !== String(renderHint.toWorkspaceId || '').trim()
+    );
 
     // Pre-index links by (workspaceId::category) — O(n) instead of O(n * categories)
     const linksByCatWs = new Map();
@@ -175,10 +182,14 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
         linksByCatWs.get(key).push(visibleLinks[i]);
     }
 
-    var aggressiveDeferredCards = !searchStr && !focusCategory && (visibleLinks.length > 150 || categoryCount > 6);
+    var aggressiveDeferredCards = isCrossWorkspaceSwitchRender
+        || (!searchStr && !focusCategory && (visibleLinks.length > 150 || categoryCount > 6));
     var CARD_CAP = aggressiveDeferredCards
         ? (visibleLinks.length > 500 ? 6 : 5)
         : (visibleLinks.length > 500 ? 2 : (visibleLinks.length > 200 ? 3 : 8));
+    if (isCrossWorkspaceSwitchRender) {
+        CARD_CAP = Math.min(CARD_CAP, 0);
+    }
     var renderCount = 0;
     var deferredCards = [];
 
@@ -212,18 +223,24 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
                 searchStr: searchStr,
                 focusMode: !!focusCategory,
                 activeWorkspace: activeWorkspace, // Global active WS
-                _renderGen: renderGen
+                _renderGen: renderGen,
+                _dashboardRenderHint: renderHint || null
             };
-            if (aggressiveDeferredCards && catLinks.length > 0) {
+            if ((aggressiveDeferredCards && catLinks.length > 0) || isCrossWorkspaceSwitchRender) {
                 buildConfig._forceDeferredShell = true;
-                buildConfig._deferredHydrationDelayMs = renderCount < CARD_CAP ? 0 : 12;
+                buildConfig._deferredHydrationDelayMs = isCrossWorkspaceSwitchRender
+                    ? Math.min(120, 12 + (renderCount * 10))
+                    : (renderCount < CARD_CAP ? 0 : 12);
             }
             if (isDetachedParkingCard) {
                 buildConfig.virtualFolderViewModel = detachedModel.viewModel;
                 buildConfig.detachedParkingCard = true;
             }
 
-            if (renderCount < CARD_CAP) {
+            if (isCrossWorkspaceSwitchRender) {
+                window.DashboardCategories.renderCard(catObj, catLinks, gridContainer, buildConfig);
+                renderCount++;
+            } else if (renderCount < CARD_CAP) {
                 window.DashboardCategories.renderCard(catObj, catLinks, gridContainer, buildConfig);
                 renderCount++;
             } else {
