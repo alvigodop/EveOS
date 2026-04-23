@@ -207,6 +207,10 @@
     scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }
 
+.ws-sidebar-content[hidden] {
+    display: none !important;
+}
+
 .ws-sidebar-footer {
     width: 100%;
     display: flex;

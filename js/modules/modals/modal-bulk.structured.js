@@ -49,6 +49,37 @@ window.EveBulkImport = window.EveBulkImport || {};
         return /^www\./i.test(rawVal) ? `https://${rawVal}` : rawVal;
     }
 
+    function trimInlineBookmarkFragment(value) {
+        return String(value || '')
+            .replace(/^[\-\|:;,\u2022\u2013\u2014\s]+|[\-\|:;,\u2022\u2013\u2014\s]+$/g, '')
+            .trim();
+    }
+
+    function extractInlineUrlTitlePair(value) {
+        const text = String(value || '').trim();
+        if (!text) return null;
+
+        const urlMatch = text.match(/((?:https?:\/\/|www\.)[^\s|]+)/i);
+        if (!urlMatch) return null;
+
+        const rawUrl = String(urlMatch[1] || '').trim();
+        const before = trimInlineBookmarkFragment(text.slice(0, urlMatch.index));
+        const after = trimInlineBookmarkFragment(text.slice(urlMatch.index + rawUrl.length));
+        const title = [before, after]
+            .filter(Boolean)
+            .filter((part) => !looksLikeUrlValue(part))
+            .join(' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+
+        if (!title) return null;
+
+        return {
+            url: normalizeStandaloneUrl(rawUrl),
+            title
+        };
+    }
+
     const IMPORT_TITLE_STATUS_SUFFIX_RULES = [
         {
             pattern: /^(.*?)(?:\s{2,}|(?:\s*[-_.]\s*)+)(?:fin|finished|complete|completed|done)\s*$/i,
@@ -308,6 +339,7 @@ window.EveBulkImport = window.EveBulkImport || {};
         if (nonEmptyLines.some(hasStructuredFieldLine)) return true;
 
         const standaloneUrlLines = nonEmptyLines.filter(isStandaloneUrlLine);
+        const inlineUrlTitleLines = nonEmptyLines.filter((line) => !!extractInlineUrlTitlePair(line));
         const bareNumericLines = nonEmptyLines.filter(isUnlabeledProgressToken);
 
         if (nonEmptyLines.length === 1
@@ -316,6 +348,7 @@ window.EveBulkImport = window.EveBulkImport || {};
             && !isUnlabeledProgressToken(normalizedFileTitle)) {
             return true;
         }
+        if (inlineUrlTitleLines.length === 1 && nonEmptyLines.length <= 8) return true;
         if (standaloneUrlLines.length === 1 && nonEmptyLines.length <= 8) return true;
         if (bareNumericLines.length > 0 && standaloneUrlLines.length === 1 && nonEmptyLines.length <= 8) return true;
 
@@ -331,6 +364,10 @@ window.EveBulkImport = window.EveBulkImport || {};
 
         if (nonEmptyLines.length === 0) return false;
         if (!normalizedFileTitle || isGenericImportFileTitle(normalizedFileTitle)) return false;
+
+        const inlineUrlTitleLines = nonEmptyLines.filter((line) => !!extractInlineUrlTitlePair(line));
+        if (inlineUrlTitleLines.length > 1) return false;
+        if (inlineUrlTitleLines.length === 1 && nonEmptyLines.length <= 8) return true;
 
         const standaloneUrlLines = nonEmptyLines.filter(isStandaloneUrlLine);
         if (standaloneUrlLines.length > 1) return false;
@@ -401,6 +438,18 @@ function processStructuredFile(content, fileName, targetCategory, folderId = '',
     lines.forEach(line => {
         const trimmed = line.trim();
         if (!trimmed) return;
+
+        const inlineUrlTitlePair = extractInlineUrlTitlePair(trimmed);
+        if (inlineUrlTitlePair) {
+            if (!url) {
+                url = inlineUrlTitlePair.url;
+            }
+            if (inlineUrlTitlePair.title && !explicitTitleAssigned) {
+                title = inlineUrlTitlePair.title;
+                bodyTitleAssigned = true;
+            }
+            return;
+        }
 
         let processedAsCoreKey = false;
         const colonIdx = trimmed.indexOf(':');

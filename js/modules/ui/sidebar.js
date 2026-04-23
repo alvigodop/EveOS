@@ -85,8 +85,93 @@
             if (hoveredPreview) return;
             if (!rt.isHoverRevealActive || !rt.isHoverRevealActive()) return;
             rt.setHoverRevealActive(false);
-            if (typeof window.renderSidebar === 'function') window.renderSidebar();
+            syncHoverRevealContentVisibility();
         }, 0);
+    }
+
+    function getHoverRevealPreviewState() {
+        var previewState = rt.previewState || (rt.previewState = {});
+        if (typeof previewState.revealRenderVersion !== 'number') previewState.revealRenderVersion = 0;
+        if (typeof previewState.revealPreviewVersion !== 'number') previewState.revealPreviewVersion = -1;
+        if (typeof previewState.revealPreviewQueued !== 'boolean') previewState.revealPreviewQueued = false;
+        if (typeof previewState.revealPreviewReady !== 'boolean') previewState.revealPreviewReady = false;
+        return previewState;
+    }
+
+    function syncHoverRevealContentVisibility(scaffold) {
+        var sb = document.getElementById('sidebar');
+        if (!sb) return;
+
+        var targetScaffold = scaffold && scaffold.contentHost ? scaffold : ensureSidebarScaffold(sb);
+        var previewState = getHoverRevealPreviewState();
+        var revealActive = !!(rt.isHoverRevealActive && rt.isHoverRevealActive());
+        var previewReady = !!previewState.revealPreviewReady
+            && !!targetScaffold.previewHost
+            && targetScaffold.previewHost.childElementCount > 0;
+
+        if (targetScaffold.contentHost) {
+            targetScaffold.contentHost.hidden = revealActive && previewReady;
+            targetScaffold.contentHost.setAttribute('aria-hidden', revealActive && previewReady ? 'true' : 'false');
+        }
+        if (targetScaffold.previewHost) {
+            targetScaffold.previewHost.hidden = !(revealActive && previewReady);
+            targetScaffold.previewHost.setAttribute('aria-hidden', revealActive && previewReady ? 'false' : 'true');
+        }
+    }
+
+    function renderSidebarContentHost(sb, host, options) {
+        var opts = options && typeof options === 'object' ? options : {};
+        if (!sb || !host) return;
+        host.innerHTML = '';
+
+        var ctx = rt.createRenderContext(sb, {
+            hoverRevealOverride: typeof opts.hoverRevealOverride === 'boolean'
+                ? opts.hoverRevealOverride
+                : null
+        });
+
+        if (opts.resetRegistry && typeof rt.resetSidebarElementRegistry === 'function') {
+            rt.resetSidebarElementRegistry();
+        }
+        if (opts.syncFocusedGroupState) {
+            ctx.syncFocusedGroupState();
+        }
+
+        host.appendChild(buildUnidexButton());
+
+        var divider = document.createElement('div');
+        divider.className = 'ws-divider';
+        host.appendChild(divider);
+
+        var originalHost = ctx.sb;
+        ctx.sb = host;
+        rt.renderRootTree(ctx);
+        ctx.sb.appendChild(buildAddButton(ctx));
+        ctx.sb = originalHost;
+    }
+
+    function queueHoverRevealPreviewBuild(sb, scaffold) {
+        if (!sb || !scaffold || !scaffold.previewHost) return;
+        var previewState = getHoverRevealPreviewState();
+        if (previewState.revealPreviewQueued) return;
+
+        previewState.revealPreviewQueued = true;
+        var renderVersion = previewState.revealRenderVersion;
+
+        window.setTimeout(function () {
+            previewState.revealPreviewQueued = false;
+            if (previewState.revealRenderVersion !== renderVersion) return;
+            if (config.sidebarHidden) return;
+
+            renderSidebarContentHost(sb, scaffold.previewHost, {
+                hoverRevealOverride: true,
+                resetRegistry: false,
+                syncFocusedGroupState: false
+            });
+            previewState.revealPreviewReady = true;
+            previewState.revealPreviewVersion = renderVersion;
+            syncHoverRevealContentVisibility(scaffold);
+        }, 48);
     }
 
     function buildHoverRevealButton() {
@@ -103,7 +188,20 @@
             if (!rt.setHoverRevealActive) return;
             if (rt.isHoverRevealActive && rt.isHoverRevealActive()) return;
             rt.setHoverRevealActive(true);
-            if (typeof window.renderSidebar === 'function') window.renderSidebar();
+            var sb = document.getElementById('sidebar');
+            if (!sb) return;
+            var scaffold = ensureSidebarScaffold(sb);
+            var previewState = getHoverRevealPreviewState();
+            if (!previewState.revealPreviewReady || !scaffold.previewHost || scaffold.previewHost.childElementCount === 0) {
+                renderSidebarContentHost(sb, scaffold.previewHost, {
+                    hoverRevealOverride: true,
+                    resetRegistry: false,
+                    syncFocusedGroupState: false
+                });
+                previewState.revealPreviewReady = true;
+                previewState.revealPreviewVersion = previewState.revealRenderVersion;
+            }
+            syncHoverRevealContentVisibility(scaffold);
         };
         previewBtn.onmouseleave = function () {
             queueHoverRevealDeactivation();
@@ -117,6 +215,17 @@
             contentHost = document.createElement('div');
             contentHost.className = 'ws-sidebar-content';
             sb.appendChild(contentHost);
+        }
+
+        var previewHost = sb.querySelector('.ws-sidebar-content--hover-preview');
+        if (!previewHost) {
+            previewHost = document.createElement('div');
+            previewHost.className = 'ws-sidebar-content ws-sidebar-content--hover-preview';
+            previewHost.hidden = true;
+            previewHost.setAttribute('aria-hidden', 'true');
+            sb.appendChild(previewHost);
+        } else if (previewHost.parentNode !== sb) {
+            sb.appendChild(previewHost);
         }
 
         var footerHost = sb.querySelector('.ws-sidebar-footer');
@@ -138,6 +247,7 @@
 
         return {
             contentHost: contentHost,
+            previewHost: previewHost,
             footerHost: footerHost,
             previewBtn: previewBtn
         };
@@ -215,23 +325,25 @@
         var scaffold = ensureSidebarScaffold(sb);
         var ctx = rt.createRenderContext(sb);
         syncSidebarShellState(sb);
+        syncHoverRevealContentVisibility(scaffold);
         if (config.sidebarHidden) {
             rt.sidebarDirtyWhileHidden = true;
             return;
         }
         rt.sidebarDirtyWhileHidden = false;
-        scaffold.contentHost.innerHTML = '';
-        if (typeof rt.resetSidebarElementRegistry === 'function') {
-            rt.resetSidebarElementRegistry();
-        }
+        var previewState = getHoverRevealPreviewState();
+        previewState.revealRenderVersion += 1;
+        previewState.revealPreviewReady = false;
+        previewState.revealPreviewVersion = -1;
+        scaffold.previewHost.innerHTML = '';
+        scaffold.previewHost.hidden = true;
+        scaffold.previewHost.setAttribute('aria-hidden', 'true');
 
-        scaffold.contentHost.appendChild(buildUnidexButton());
-
-        var divider = document.createElement('div');
-        divider.className = 'ws-divider';
-        scaffold.contentHost.appendChild(divider);
-
-        ctx.syncFocusedGroupState();
+        renderSidebarContentHost(sb, scaffold.contentHost, {
+            hoverRevealOverride: false,
+            resetRegistry: true,
+            syncFocusedGroupState: true
+        });
 
         sb.ondragover = function (e) {
             var dragId = ctx.getDraggedWorkspaceId();
@@ -261,14 +373,10 @@
             }
         };
 
-        var originalHost = ctx.sb;
-        ctx.sb = scaffold.contentHost;
-        rt.renderRootTree(ctx);
-        ctx.sb.appendChild(buildAddButton(ctx));
-        ctx.sb = originalHost;
-
         if (typeof rt.captureSidebarViewState === 'function') rt.captureSidebarViewState();
         if (typeof rt.syncHoverRevealUiState === 'function') rt.syncHoverRevealUiState();
+        syncHoverRevealContentVisibility(scaffold);
+        queueHoverRevealPreviewBuild(sb, scaffold);
     };
 
     window.toggleSidebarExpanded = function (nextValue) {

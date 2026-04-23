@@ -146,6 +146,16 @@ async function readState(page) {
           'Chronicles of Everlasting Wind and Sword Rain'
         ].join('\n');
 
+        const inlineUrlTitleContent = 'https://www.youtube.com/watch?v=1PlfTgkCAws | Different Kings Chapter 1 & 2 [ ENGLISH ] - YouTube';
+        const inlineUrlTitleLinks = [];
+        const inlineUrlTitleBookmark = api.processStructuredFile(
+          inlineUrlTitleContent,
+          'manga YouTube_and_Misc.txt',
+          'Straglers',
+          '',
+          { liveLinks: inlineUrlTitleLinks, deferLibrarySave: true, silent: true }
+        );
+
         return {
           titleListDetection: {
             structured: api.looksLikeStructuredFileContent(titleListContent, 'I-Remember-Its-Good.txt'),
@@ -154,6 +164,15 @@ async function readState(page) {
           punctuatedTitleListDetection: {
             structured: api.looksLikeStructuredFileContent(punctuatedTitleListContent, 'Looks-Good.txt'),
             singleEntry: api.looksLikeSingleEntryBulkFile(punctuatedTitleListContent, 'Looks-Good.txt')
+          },
+          inlineUrlTitleDetection: {
+            structured: api.looksLikeStructuredFileContent(inlineUrlTitleContent, 'manga YouTube_and_Misc.txt'),
+            singleEntry: api.looksLikeSingleEntryBulkFile(inlineUrlTitleContent, 'manga YouTube_and_Misc.txt')
+          },
+          inlineUrlTitleBookmark: {
+            title: inlineUrlTitleBookmark?.title || '',
+            url: inlineUrlTitleBookmark?.url || '',
+            notes: inlineUrlTitleBookmark?.notes || ''
           },
           singleLineBookmark: {
             title: singleLineBookmark?.title || '',
@@ -188,6 +207,18 @@ async function readState(page) {
     if (parserCases.punctuatedTitleListDetection.structured || parserCases.punctuatedTitleListDetection.singleEntry) {
       throw new Error(`Punctuated title-list smart extract should stay line-per-bookmark, got ${JSON.stringify(parserCases.punctuatedTitleListDetection)}`);
     }
+    if (!parserCases.inlineUrlTitleDetection.structured || !parserCases.inlineUrlTitleDetection.singleEntry) {
+      throw new Error(`Inline URL+title single-entry file should be detected for Smart Extract, got ${JSON.stringify(parserCases.inlineUrlTitleDetection)}`);
+    }
+    if (parserCases.inlineUrlTitleBookmark.title !== 'Different Kings Chapter 1 & 2 [ ENGLISH ] - YouTube') {
+      throw new Error(`Inline URL+title structured file title mismatch: ${JSON.stringify(parserCases.inlineUrlTitleBookmark)}`);
+    }
+    if (parserCases.inlineUrlTitleBookmark.url !== 'https://www.youtube.com/watch?v=1PlfTgkCAws') {
+      throw new Error(`Inline URL+title structured file URL mismatch: ${JSON.stringify(parserCases.inlineUrlTitleBookmark)}`);
+    }
+    if (parserCases.inlineUrlTitleBookmark.notes) {
+      throw new Error(`Inline URL+title structured file should not spill parsed data into notes: ${JSON.stringify(parserCases.inlineUrlTitleBookmark)}`);
+    }
     if (parserCases.ledgerBookmark.title !== 'Harry Potter') {
       throw new Error(`Progress-ledger structured file regressed: ${JSON.stringify(parserCases.ledgerBookmark)}`);
     }
@@ -201,7 +232,9 @@ async function readState(page) {
         throw new Error('Bulk process API unavailable');
       }
 
-      const priorLinks = Array.isArray(window.links) ? window.links.slice() : [];
+      const priorLinks = typeof window.getLiveLinks === 'function'
+        ? window.getLiveLinks().slice()
+        : (Array.isArray(window.links) ? window.links.slice() : []);
       const priorConfig = window.config ? JSON.parse(JSON.stringify(window.config)) : {};
       const priorSaveData = window.saveData;
       const priorCloseModals = window.closeModals;
@@ -211,8 +244,12 @@ async function readState(page) {
       window.config = window.config || {};
       config.activeWorkspace = 'main';
       config.workspaces = config.workspaces || [{ id: 'main', name: 'Main', icon: '🏠', subTabs: [] }];
-      window.links = [];
-      if (window.eveState) window.eveState.links = window.links;
+      if (typeof window.setLiveLinks === 'function') {
+        window.setLiveLinks([]);
+      } else {
+        window.links = [];
+        if (window.eveState) window.eveState.links = window.links;
+      }
       window.saveData = () => {};
       window.closeModals = () => {};
       window.showToast = (msg, type) => { lastToast = { msg, type }; };
@@ -231,12 +268,17 @@ async function readState(page) {
         await api.processBulk();
 
         return {
-          links: window.links.map((link) => ({ title: link.title, category: link.category, url: link.url })),
+          links: (typeof window.getLiveLinks === 'function' ? window.getLiveLinks() : window.links)
+            .map((link) => ({ title: link.title, category: link.category, url: link.url })),
           toast: lastToast
         };
       } finally {
-        window.links = priorLinks;
-        if (window.eveState) window.eveState.links = priorLinks;
+        if (typeof window.setLiveLinks === 'function') {
+          window.setLiveLinks(priorLinks);
+        } else {
+          window.links = priorLinks;
+          if (window.eveState) window.eveState.links = priorLinks;
+        }
         window.config = priorConfig;
         window.saveData = priorSaveData;
         window.closeModals = priorCloseModals;
@@ -255,6 +297,82 @@ async function readState(page) {
     }
     if (!leadingBlankLineImport.toast || leadingBlankLineImport.toast.msg !== 'Imported 3 items into 1 card.') {
       throw new Error(`Leading-blank-line Smart Extract toast mismatch: ${JSON.stringify(leadingBlankLineImport)}`);
+    }
+
+    const inlineUrlTitleImport = await page.evaluate(async () => {
+      const api = window.EveBulkImport && window.EveBulkImport._api;
+      if (!api || typeof api.processBulk !== 'function') {
+        throw new Error('Bulk process API unavailable');
+      }
+
+      const priorLinks = typeof window.getLiveLinks === 'function'
+        ? window.getLiveLinks().slice()
+        : (Array.isArray(window.links) ? window.links.slice() : []);
+      const priorConfig = window.config ? JSON.parse(JSON.stringify(window.config)) : {};
+      const priorSaveData = window.saveData;
+      const priorCloseModals = window.closeModals;
+      const priorShowToast = window.showToast;
+      let lastToast = null;
+
+      window.config = window.config || {};
+      config.activeWorkspace = 'main';
+      config.workspaces = config.workspaces || [{ id: 'main', name: 'Main', icon: 'ðŸ ', subTabs: [] }];
+      if (typeof window.setLiveLinks === 'function') {
+        window.setLiveLinks([]);
+      } else {
+        window.links = [];
+        if (window.eveState) window.eveState.links = window.links;
+      }
+      window.saveData = () => {};
+      window.closeModals = () => {};
+      window.showToast = (msg, type) => { lastToast = { msg, type }; };
+
+      try {
+        window.openBulkModal();
+        document.getElementById('bulkModeFile').checked = true;
+        document.getElementById('bulkSmartExtractCardPerFile').checked = true;
+        if (typeof api.updateBulkModeUi === 'function') api.updateBulkModeUi();
+
+        const text = 'https://www.youtube.com/watch?v=1PlfTgkCAws | Different Kings Chapter 1 & 2 [ ENGLISH ] - YouTube';
+        const file = new File([text], 'manga YouTube_and_Misc.txt', { type: 'text/plain', lastModified: Date.now() });
+        const input = document.getElementById('bulkFileInput');
+        Object.defineProperty(input, 'files', { configurable: true, value: [file] });
+
+        await api.processBulk();
+
+        return {
+          links: (typeof window.getLiveLinks === 'function' ? window.getLiveLinks() : window.links)
+            .map((link) => ({ title: link.title, category: link.category, url: link.url })),
+          toast: lastToast
+        };
+      } finally {
+        if (typeof window.setLiveLinks === 'function') {
+          window.setLiveLinks(priorLinks);
+        } else {
+          window.links = priorLinks;
+          if (window.eveState) window.eveState.links = priorLinks;
+        }
+        window.config = priorConfig;
+        window.saveData = priorSaveData;
+        window.closeModals = priorCloseModals;
+        window.showToast = priorShowToast;
+      }
+    });
+
+    if (inlineUrlTitleImport.links.length !== 1) {
+      throw new Error(`Inline URL+title Smart Extract import should create 1 bookmark, got ${JSON.stringify(inlineUrlTitleImport)}`);
+    }
+    if (inlineUrlTitleImport.links[0].title !== 'Different Kings Chapter 1 & 2 [ ENGLISH ] - YouTube') {
+      throw new Error(`Inline URL+title Smart Extract title mismatch: ${JSON.stringify(inlineUrlTitleImport)}`);
+    }
+    if (inlineUrlTitleImport.links[0].url !== 'https://www.youtube.com/watch?v=1PlfTgkCAws') {
+      throw new Error(`Inline URL+title Smart Extract URL mismatch: ${JSON.stringify(inlineUrlTitleImport)}`);
+    }
+    if (inlineUrlTitleImport.links[0].category !== 'manga YouTube_and_Misc') {
+      throw new Error(`Inline URL+title Smart Extract card title mismatch: ${JSON.stringify(inlineUrlTitleImport)}`);
+    }
+    if (!inlineUrlTitleImport.toast || inlineUrlTitleImport.toast.msg !== 'Imported 1 items into 1 card.') {
+      throw new Error(`Inline URL+title Smart Extract toast mismatch: ${JSON.stringify(inlineUrlTitleImport)}`);
     }
 
     console.log('MODAL_BULK_RUNTIME_SMOKE_OK');

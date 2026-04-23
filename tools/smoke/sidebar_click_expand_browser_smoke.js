@@ -47,7 +47,15 @@ async function seedState(page) {
             window.eveState.bookmarkFolders = bookmarkFolders;
         }
 
+        window.__sidebarHoverRevealRenderCount = 0;
+        const originalRenderSidebar = window.renderSidebar;
+        window.renderSidebar = function wrappedRenderSidebar(...args) {
+            window.__sidebarHoverRevealRenderCount += 1;
+            return originalRenderSidebar.apply(this, args);
+        };
+
         window.renderSidebar();
+        window.__sidebarHoverRevealRenderCount = 0;
     });
 }
 
@@ -100,11 +108,16 @@ async function main() {
             throw new Error(`Expected second shell click to collapse sidebar: ${JSON.stringify(collapsedState)}`);
         }
 
+        await page.waitForTimeout(600);
+        await page.evaluate(() => {
+            window.__sidebarHoverRevealRenderCount = 0;
+        });
         await page.hover('#sidebar .ws-hover-reveal');
         await page.waitForFunction(() => {
             const sidebar = document.getElementById('sidebar');
             const activePreview = sidebar?.classList.contains('ws-hover-reveal-active');
-            const hiddenGroupVisible = Array.from(document.querySelectorAll('#sidebar .ws-group-title')).some((el) => el.textContent.trim() === 'Hidden Group');
+            const visibleHost = document.querySelector('#sidebar .ws-sidebar-content:not([hidden])');
+            const hiddenGroupVisible = Array.from(visibleHost?.querySelectorAll('.ws-group-title') || []).some((el) => el.textContent.trim() === 'Hidden Group');
             return !!activePreview && hiddenGroupVisible;
         }, undefined, { timeout: 10000 });
 
@@ -112,7 +125,11 @@ async function main() {
             expanded: !!window.config?.sidebarExpanded,
             hasExpandedClass: document.getElementById('sidebar')?.classList.contains('is-expanded') || false,
             hoverRevealActive: document.getElementById('sidebar')?.classList.contains('ws-hover-reveal-active') || false,
-            hiddenGroupRendered: Array.from(document.querySelectorAll('#sidebar .ws-group-title')).some((el) => el.textContent.trim() === 'Hidden Group')
+            hiddenGroupRendered: Array.from((document.querySelector('#sidebar .ws-sidebar-content:not([hidden])')?.querySelectorAll('.ws-group-title')) || []).some((el) => el.textContent.trim() === 'Hidden Group'),
+            renderedHostCount: Array.from(document.querySelectorAll('#sidebar .ws-sidebar-content')).filter((el) => {
+                const style = window.getComputedStyle(el);
+                return style.display !== 'none' && style.visibility !== 'hidden';
+            }).length
         }));
 
         if (hoverRevealState.expanded || hoverRevealState.hasExpandedClass) {
@@ -121,14 +138,38 @@ async function main() {
         if (!hoverRevealState.hoverRevealActive || !hoverRevealState.hiddenGroupRendered) {
             throw new Error(`Expected eye-button hover to reveal hidden group content: ${JSON.stringify(hoverRevealState)}`);
         }
+        if (hoverRevealState.renderedHostCount !== 1) {
+            throw new Error(`Expected exactly one rendered sidebar content host during hover reveal: ${JSON.stringify(hoverRevealState)}`);
+        }
+
+        const hoverRevealRenderCount = await page.evaluate(() => Number(window.__sidebarHoverRevealRenderCount || 0));
+        if (hoverRevealRenderCount !== 0) {
+            throw new Error(`Expected eye-button hover reveal to avoid full sidebar rerender, got ${hoverRevealRenderCount}`);
+        }
 
         await page.mouse.move(350, 120);
         await page.waitForFunction(() => {
             const sidebar = document.getElementById('sidebar');
             const hoverActive = sidebar?.classList.contains('ws-hover-reveal-active');
-            const hiddenGroupVisible = Array.from(document.querySelectorAll('#sidebar .ws-group-title')).some((el) => el.textContent.trim() === 'Hidden Group');
+            const visibleHost = document.querySelector('#sidebar .ws-sidebar-content:not([hidden])');
+            const hiddenGroupVisible = Array.from(visibleHost?.querySelectorAll('.ws-group-title') || []).some((el) => el.textContent.trim() === 'Hidden Group');
             return !hoverActive && !hiddenGroupVisible;
         }, undefined, { timeout: 10000 });
+
+        const hoverRevealExitState = await page.evaluate(() => ({
+            renderCount: Number(window.__sidebarHoverRevealRenderCount || 0),
+            renderedHostCount: Array.from(document.querySelectorAll('#sidebar .ws-sidebar-content')).filter((el) => {
+                const style = window.getComputedStyle(el);
+                return style.display !== 'none' && style.visibility !== 'hidden';
+            }).length
+        }));
+        const hoverRevealExitRenderCount = hoverRevealExitState.renderCount;
+        if (hoverRevealExitRenderCount !== 0) {
+            throw new Error(`Expected eye-button hover exit to avoid full sidebar rerender, got ${hoverRevealExitRenderCount}`);
+        }
+        if (hoverRevealExitState.renderedHostCount !== 1) {
+            throw new Error(`Expected exactly one rendered sidebar content host after hover reveal exit: ${JSON.stringify(hoverRevealExitState)}`);
+        }
 
         console.log('SIDEBAR_CLICK_EXPAND_BROWSER_SMOKE_OK');
     } finally {

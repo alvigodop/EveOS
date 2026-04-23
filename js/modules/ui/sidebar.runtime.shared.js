@@ -200,14 +200,18 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             });
     }
 
-    function createRenderContext(sb) {
+    function createRenderContext(sb, options) {
         var helpers = window.EveWorkspaceHelpers;
         var groupsApi = window.EveSidebarGroups || null;
+        var opts = options && typeof options === 'object' ? options : {};
         var dragState = { type: '', id: '', hoverWorkspaceId: '', didApply: false };
         var ctx = {
             sb: sb,
             helpers: helpers,
-            groupsApi: groupsApi
+            groupsApi: groupsApi,
+            hoverRevealOverride: typeof opts.hoverRevealOverride === 'boolean'
+                ? opts.hoverRevealOverride
+                : null
         };
 
         if (groupsApi && typeof groupsApi.ensureConfigDefaults === 'function') {
@@ -351,10 +355,12 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         };
 
         ctx.shouldShowInactiveTabs = function () {
+            if (ctx.hoverRevealOverride !== null) return ctx.hoverRevealOverride;
             return !!config.showInactiveTabs || isHoverRevealActive();
         };
 
         ctx.shouldShowHiddenGroups = function () {
+            if (ctx.hoverRevealOverride !== null) return ctx.hoverRevealOverride;
             return !!config.showHiddenSidebarGroups || isHoverRevealActive();
         };
 
