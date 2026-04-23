@@ -3,6 +3,7 @@
 (function () {
     const shared = window.EveFolderViewV2._shared || {};
     const { cloneGhostFilterChain } = shared;
+    window.EveFolderViewV2._restoreTimers = window.EveFolderViewV2._restoreTimers || {};
 
     window.EveFolderViewV2.isManhwaModeEnabled = function (workspaceId, categoryName) {
         if (!window.eveState?.config) return true;
@@ -80,13 +81,24 @@
 
     window.EveFolderViewV2.restoreActiveFolderState = function (workspaceId, categoryName) {
         if (!window.EveFolderViewV2.isManhwaModeEnabled(workspaceId, categoryName)) return;
-        if (!window.eveState?.config?.activeManhwaFolders) return;
         const key = `${workspaceId}::${categoryName}`;
-        const targetFolderId = window.eveState.config.activeManhwaFolders[key];
-        if (targetFolderId) {
-            setTimeout(() => {
-                window.EveFolderViewV2.enterFolder(null, categoryName, targetFolderId, workspaceId);
-            }, 50);
+        const restoreTimers = window.EveFolderViewV2._restoreTimers || {};
+        if (restoreTimers[key]) {
+            clearTimeout(restoreTimers[key]);
+            delete restoreTimers[key];
         }
+        if (!window.eveState?.config?.activeManhwaFolders) return;
+        const targetFolderId = window.eveState.config.activeManhwaFolders[key];
+        if (!targetFolderId) return;
+
+        restoreTimers[key] = setTimeout(() => {
+            if (restoreTimers[key]) delete restoreTimers[key];
+            const latestTargetFolderId = window.eveState?.config?.activeManhwaFolders?.[key];
+            if (String(latestTargetFolderId || '') !== String(targetFolderId || '')) return;
+            window.EveFolderViewV2.enterFolder(null, categoryName, targetFolderId, workspaceId, {
+                preservePageScroll: false,
+                source: 'auto-restore'
+            });
+        }, 50);
     };
 })();

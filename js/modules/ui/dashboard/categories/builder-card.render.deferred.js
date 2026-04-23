@@ -9,6 +9,56 @@ window.DashboardCategories = window.DashboardCategories || {};
         escapeCardJs,
         buildScopedCategoryKey
     } = api;
+    var cardHeightCache = api._cardHeightCache = api._cardHeightCache || {};
+
+    function buildCardHeightCacheKey(workspaceId, categoryName) {
+        return buildScopedCategoryKey(workspaceId || 'main', categoryName || 'Unsorted');
+    }
+
+    function estimateDeferredShellMinHeight(workspaceId, categoryName, catLinks, options) {
+        var cacheKey = buildCardHeightCacheKey(workspaceId, categoryName);
+        var cachedHeight = Number(cardHeightCache[cacheKey] || 0);
+        if (cachedHeight > 0) {
+            return Math.max(160, cachedHeight);
+        }
+
+        var linkCount = Array.isArray(catLinks) ? catLinks.length : 0;
+        var estimate = 170 + Math.min(1500, linkCount * 14);
+        if (options?.detachedParkingCard) estimate += 120;
+
+        var folderModeApi = window.EveFolderViewV2;
+        var isFolderMode = typeof folderModeApi?.isManhwaModeEnabled === 'function'
+            ? !!folderModeApi.isManhwaModeEnabled(workspaceId, categoryName)
+            : false;
+        if (isFolderMode) estimate += 220;
+
+        var activeFolderKey = String(workspaceId || 'main').trim() + '::' + String(categoryName || 'Unsorted').trim();
+        if (window.eveState?.config?.activeManhwaFolders?.[activeFolderKey]) {
+            estimate += 320;
+        }
+
+        return Math.max(200, Math.min(2200, estimate));
+    }
+
+    function captureRenderedCardHeight(cardNode, workspaceId, categoryName) {
+        if (!cardNode || !cardNode.isConnected) return;
+        var cacheKey = buildCardHeightCacheKey(workspaceId, categoryName);
+
+        function commitHeightMeasurement() {
+            if (!cardNode || !cardNode.isConnected) return;
+            var measuredHeight = Math.ceil(cardNode.getBoundingClientRect?.().height || cardNode.offsetHeight || 0);
+            if (measuredHeight > 0) {
+                cardHeightCache[cacheKey] = Math.max(Number(cardHeightCache[cacheKey] || 0), measuredHeight);
+            }
+            cardNode.removeAttribute('data-card-hydrating');
+            cardNode.style.removeProperty('min-height');
+        }
+
+        requestAnimationFrame(commitHeightMeasurement);
+        window.setTimeout(commitHeightMeasurement, 180);
+    }
+
+    api.captureRenderedCardHeight = captureRenderedCardHeight;
 
     function renderCard(catInput, catLinks, gridContainer, configOptions) {
         var options = configOptions || {};
@@ -51,6 +101,8 @@ window.DashboardCategories = window.DashboardCategories || {};
             shellCard.setAttribute('data-card-category', String(cat || 'Unsorted'));
             shellCard.setAttribute('data-card-workspace', cardWorkspaceId);
             shellCard.setAttribute('data-card-deferred', '1');
+            shellCard.setAttribute('data-card-hydrating', '1');
+            shellCard.style.minHeight = estimateDeferredShellMinHeight(cardWorkspaceId, cat, catLinks, options) + 'px';
             if (isDetachedParkingCard) {
                 shellCard.setAttribute('data-detached-parking-card', '1');
             }
@@ -97,12 +149,15 @@ window.DashboardCategories = window.DashboardCategories || {};
                 var fullCard = tempContainer.firstChild;
                 if (!fullCard) return;
 
+                fullCard.setAttribute('data-card-hydrating', '1');
+                fullCard.style.minHeight = shellCard.style.minHeight || '';
                 shellCard.replaceWith(fullCard);
                 fullCard.style.opacity = '0';
                 fullCard.style.transition = 'opacity 0.2s ease';
                 requestAnimationFrame(function () {
                     fullCard.style.opacity = '1';
                 });
+                captureRenderedCardHeight(fullCard, cardWorkspaceId, cat);
                 if (window.EveFolderViewV2 && window.EveFolderViewV2.restoreActiveFolderState) {
                     var workspaceId = fullCard.getAttribute('data-card-workspace') || cardWorkspaceId;
                     window.EveFolderViewV2.restoreActiveFolderState(workspaceId, cat);
@@ -119,7 +174,10 @@ window.DashboardCategories = window.DashboardCategories || {};
                     api._renderCardFull(cat, catLinks, ghostContainer, phase2Options);
                     var ghostCard = ghostContainer.firstChild;
                     if (ghostCard && fullCard.parentNode) {
+                        ghostCard.setAttribute('data-card-hydrating', '1');
+                        ghostCard.style.minHeight = fullCard.style.minHeight || '';
                         fullCard.replaceWith(ghostCard);
+                        captureRenderedCardHeight(ghostCard, cardWorkspaceId, cat);
                         if (window.EveFolderViewV2 && window.EveFolderViewV2.restoreActiveFolderState) {
                             var workspaceId = ghostCard.getAttribute('data-card-workspace') || cardWorkspaceId;
                             window.EveFolderViewV2.restoreActiveFolderState(workspaceId, cat);

@@ -465,6 +465,9 @@ window.DashboardCategories = window.DashboardCategories || {};
         }
 
         gridContainer.appendChild(card);
+        if (typeof api.captureRenderedCardHeight === 'function') {
+            api.captureRenderedCardHeight(card, activeWorkspaceId, cat);
+        }
 
         if (window.EveFolderViewV2 && window.EveFolderViewV2.restoreActiveFolderState) {
             window.EveFolderViewV2.restoreActiveFolderState(activeWorkspaceId, cat);

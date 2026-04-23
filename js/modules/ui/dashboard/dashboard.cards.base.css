@@ -26,6 +26,15 @@ html[data-native-scheme="light"] {
     overflow: hidden;
 }
 
+.category-card[data-card-deferred="1"],
+.category-card[data-card-hydrating="1"] {
+    overflow-anchor: none;
+}
+
+.category-card[data-card-deferred="1"] .eve-card-deferred-skeleton {
+    min-height: 84px;
+}
+
 #dashboard-grid:not(.masonry-layout) .category-card {
     content-visibility: auto;
     contain-intrinsic-size: auto 420px;

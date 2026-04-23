@@ -21,7 +21,9 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         ));
     }
 
-    window.EveFolderViewV2.enterFolder = function (event, categoryName, folderId, workspaceId) {
+    window.EveFolderViewV2.enterFolder = function (event, categoryName, folderId, workspaceId, enterOptions) {
+        const options = enterOptions && typeof enterOptions === 'object' ? enterOptions : {};
+        const preservePageScroll = options.preservePageScroll !== false;
         if (event) {
             event.preventDefault();
             event.stopPropagation();
@@ -51,7 +53,9 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         }
         pendingFolderEntryRetryKey = '';
 
-        const scrollBefore = window.pageYOffset || document.documentElement.scrollTop;
+        const scrollBefore = preservePageScroll
+            ? (window.pageYOffset || document.documentElement.scrollTop)
+            : -1;
 
         const cacheKey = `${resolvedWorkspaceId}::${resolvedCategoryName}`;
         const cachedViewModel = window.EveFolderViewV2.getCachedViewModel(resolvedWorkspaceId, resolvedCategoryName);
@@ -233,7 +237,14 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         }
         
         // Final fallback to ensure scroll doesn't jump away from the user
-        if (Math.abs((window.pageYOffset || document.documentElement.scrollTop) - scrollBefore) > 100) {
+        if (
+            preservePageScroll
+            && scrollBefore >= 0
+            && Math.abs((window.pageYOffset || document.documentElement.scrollTop) - scrollBefore) > 100
+        ) {
+            if (typeof window.markDashboardProgrammaticScrollWindow === 'function') {
+                window.markDashboardProgrammaticScrollWindow(48);
+            }
             window.scrollTo(0, scrollBefore);
         }
     };
