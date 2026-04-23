@@ -9,7 +9,22 @@ window.DashboardCategories = window.DashboardCategories || {};
         escapeCardJs
     } = api;
 
-    function buildPath(wsId, helpers) {
+    function getRenderContext(options) {
+        return options && options._dashboardRenderContext ? options._dashboardRenderContext : null;
+    }
+
+    function getWorkspaceRecord(workspaceId, context, helpers) {
+        if (context && typeof context.getWorkspaceById === 'function') {
+            return context.getWorkspaceById(workspaceId);
+        }
+        if (!helpers) return null;
+        return helpers.findById(config.workspaces || [], workspaceId);
+    }
+
+    function buildPath(wsId, context, helpers) {
+        if (context && typeof context.getPath === 'function') {
+            return context.getPath(wsId);
+        }
         if (!helpers) return [{ id: wsId, name: wsId, icon: '📁' }];
 
         var segments = [];
@@ -26,7 +41,10 @@ window.DashboardCategories = window.DashboardCategories || {};
         return segments;
     }
 
-    function isDirectDescendant(wsId, helpers, activeWorkspaceId) {
+    function isDirectDescendant(wsId, context, helpers, activeWorkspaceId) {
+        if (context && typeof context.getVisibleDescendantIds === 'function') {
+            return context.getVisibleDescendantIds(activeWorkspaceId).indexOf(String(wsId || '').trim()) !== -1;
+        }
         if (!helpers) return false;
         var activeWorkspace = helpers.findById(config.workspaces || [], activeWorkspaceId);
         if (!activeWorkspace) return false;
@@ -45,6 +63,7 @@ window.DashboardCategories = window.DashboardCategories || {};
         ).trim();
         if (!displayWorkspaceId) return '';
 
+        var context = getRenderContext(options);
         var subTabIds = new Set();
         (Array.isArray(catLinks) ? catLinks : []).forEach(function (link) {
             var linkWorkspaceId = String(link?.workspace || 'main').trim();
@@ -62,20 +81,27 @@ window.DashboardCategories = window.DashboardCategories || {};
             { solid: '#c8b400', bg: 'rgba(200,180,0,0.15)', border: 'rgba(200,180,0,0.3)' }
         ];
 
-        var linkedTabsByTarget = {};
-        if (helpers) {
+        var linkedTabsByTarget = context && typeof context.getLinkedTabsByTarget === 'function'
+            ? null
+            : {};
+        if (!linkedTabsByTarget && context && typeof context.getLinkedTabsByTarget === 'function') {
+            // Use render-scoped cache.
+        } else if (helpers) {
             var visibleWorkspaceIds = window._eveActiveVisibleWorkspaceIds;
             if (visibleWorkspaceIds) {
                 visibleWorkspaceIds.forEach(function (visibleWorkspaceId) {
-                    var visibleWorkspace = helpers.findById(config.workspaces || [], visibleWorkspaceId);
+                    var visibleWorkspace = getWorkspaceRecord(visibleWorkspaceId, context, helpers);
                     if (!visibleWorkspace || !visibleWorkspace.linkedTo) return;
 
-                    var linkedTarget = helpers.findById(config.workspaces || [], visibleWorkspace.linkedTo);
+                    var linkedTarget = getWorkspaceRecord(visibleWorkspace.linkedTo, context, helpers);
                     if (!linkedTabsByTarget[visibleWorkspace.linkedTo]) linkedTabsByTarget[visibleWorkspace.linkedTo] = [];
                     linkedTabsByTarget[visibleWorkspace.linkedTo].push(visibleWorkspace);
 
                     if (linkedTarget && Array.isArray(linkedTarget.subTabs)) {
-                        helpers.getVisibleDescendantIds(linkedTarget).forEach(function (descendantId) {
+                        var visibleDescendants = context && typeof context.getVisibleDescendantIds === 'function'
+                            ? context.getVisibleDescendantIds(linkedTarget.id)
+                            : helpers.getVisibleDescendantIds(linkedTarget);
+                        visibleDescendants.forEach(function (descendantId) {
                             if (!linkedTabsByTarget[descendantId]) linkedTabsByTarget[descendantId] = [];
                             linkedTabsByTarget[descendantId].push(visibleWorkspace);
                         });
@@ -93,24 +119,26 @@ window.DashboardCategories = window.DashboardCategories || {};
                 routes.push({
                     type: 'native',
                     color: routeColors[colorIndex++ % routeColors.length],
-                    path: buildPath(workspaceId, helpers)
+                    path: buildPath(workspaceId, context, helpers)
                 });
-            } else if (isDirectDescendant(workspaceId, helpers, displayWorkspaceId)) {
+            } else if (isDirectDescendant(workspaceId, context, helpers, displayWorkspaceId)) {
                 routes.push({
                     type: 'direct',
                     color: routeColors[colorIndex++ % routeColors.length],
-                    path: buildPath(workspaceId, helpers)
+                    path: buildPath(workspaceId, context, helpers)
                 });
             }
 
-            var linkedTabs = linkedTabsByTarget[workspaceId] || [];
+            var linkedTabs = context && typeof context.getLinkedTabsByTarget === 'function'
+                ? context.getLinkedTabsByTarget(workspaceId)
+                : (linkedTabsByTarget[workspaceId] || []);
             linkedTabs.forEach(function (linkedTab) {
                 routes.push({
                     type: 'linked',
                     color: routeColors[colorIndex++ % routeColors.length],
                     linkedTab: { id: linkedTab.id, name: linkedTab.name, icon: linkedTab.icon || '🔗' },
-                    sourcePath: buildPath(workspaceId, helpers),
-                    linkedPath: buildPath(linkedTab.id, helpers)
+                    sourcePath: buildPath(workspaceId, context, helpers),
+                    linkedPath: buildPath(linkedTab.id, context, helpers)
                 });
             });
 
@@ -118,7 +146,7 @@ window.DashboardCategories = window.DashboardCategories || {};
                 routes.push({
                     type: 'direct',
                     color: routeColors[0],
-                    path: buildPath(workspaceId, helpers)
+                    path: buildPath(workspaceId, context, helpers)
                 });
             }
 
@@ -126,7 +154,7 @@ window.DashboardCategories = window.DashboardCategories || {};
                 return;
             }
 
-            var workspace = helpers ? helpers.findById(config.workspaces || [], workspaceId) : null;
+            var workspace = getWorkspaceRecord(workspaceId, context, helpers);
             var workspaceName = workspace ? escapeCardHtml(workspace.name) : workspaceId;
             var workspaceIcon = workspace ? (workspace.icon || '📁') : '📁';
             var escapedId = escapeCardJs(workspaceId);

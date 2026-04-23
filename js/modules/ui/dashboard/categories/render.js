@@ -20,6 +20,7 @@ function queueDashboardCategorySummaryWarmup() {
     var indexApi = getDashboardDatapackIndexApi();
     if (!indexApi || typeof indexApi.rebuild !== 'function') return;
     if (dashboardCategorySummaryWarmPromise) return;
+    var scrollSeqAtRequest = Number(window._dashboardScrollActivitySeq || 0);
 
     dashboardCategorySummaryWarmPromise = Promise.resolve(indexApi.rebuild({ reason: 'dashboard-categories' }))
         .catch(function () {
@@ -27,6 +28,7 @@ function queueDashboardCategorySummaryWarmup() {
         })
         .finally(function () {
             dashboardCategorySummaryWarmPromise = null;
+            if (Number(window._dashboardScrollActivitySeq || 0) !== scrollSeqAtRequest) return;
             if (typeof renderDashboard === 'function') renderDashboard();
         });
 }
@@ -106,6 +108,137 @@ function collectIndexedDashboardCardLinks(visibleLinkIdMap, workspaceId, categor
     }).filter(Boolean);
 }
 
+function createDashboardRenderContext(activeWorkspaceId) {
+    var helpers = window.EveWorkspaceHelpers;
+    var workspaces = Array.isArray(config?.workspaces) ? config.workspaces : [];
+    var visibleWorkspaceIds = new Set(getVisibleDashboardWorkspaceIds(activeWorkspaceId));
+    var workspaceById = new Map();
+    var parentById = new Map();
+    var childIdsById = new Map();
+    var pathCache = new Map();
+    var visibleDescendantCache = new Map();
+    var linkedTabsByTarget = new Map();
+
+    function addChild(parentId, childId) {
+        var normalizedParentId = String(parentId || '').trim();
+        var normalizedChildId = String(childId || '').trim();
+        if (!normalizedChildId) return;
+        if (!childIdsById.has(normalizedParentId)) childIdsById.set(normalizedParentId, []);
+        childIdsById.get(normalizedParentId).push(normalizedChildId);
+    }
+
+    function walk(nodes, parentId) {
+        (Array.isArray(nodes) ? nodes : []).forEach(function (workspace) {
+            if (!workspace || !workspace.id) return;
+            var workspaceId = String(workspace.id || '').trim();
+            if (!workspaceId) return;
+
+            workspaceById.set(workspaceId, workspace);
+            if (parentId) parentById.set(workspaceId, String(parentId || '').trim());
+            addChild(parentId, workspaceId);
+
+            if (Array.isArray(workspace.subTabs) && workspace.subTabs.length > 0) {
+                walk(workspace.subTabs, workspaceId);
+            }
+        });
+    }
+
+    walk(workspaces, '');
+
+    function getWorkspaceById(workspaceId) {
+        var normalizedId = String(workspaceId || '').trim();
+        return normalizedId ? (workspaceById.get(normalizedId) || null) : null;
+    }
+
+    function getPath(workspaceId) {
+        var normalizedId = String(workspaceId || '').trim();
+        if (!normalizedId) return [];
+        if (pathCache.has(normalizedId)) return pathCache.get(normalizedId).slice();
+
+        var path = [];
+        var current = getWorkspaceById(normalizedId);
+        while (current) {
+            var currentId = String(current.id || '').trim();
+            path.unshift({
+                id: currentId,
+                name: String(current.name || currentId || '').trim(),
+                icon: current.icon || '📁'
+            });
+            var parentId = String(parentById.get(currentId) || '').trim();
+            current = parentId ? getWorkspaceById(parentId) : null;
+        }
+
+        if (!path.length) {
+            path = [{ id: normalizedId, name: normalizedId, icon: '📁' }];
+        }
+        pathCache.set(normalizedId, path);
+        return path.slice();
+    }
+
+    function getVisibleDescendantIds(workspaceId) {
+        var normalizedId = String(workspaceId || '').trim();
+        if (!normalizedId) return [];
+        if (visibleDescendantCache.has(normalizedId)) {
+            return visibleDescendantCache.get(normalizedId).slice();
+        }
+
+        var descendants = [];
+        var queue = (childIdsById.get(normalizedId) || []).slice();
+        while (queue.length > 0) {
+            var nextId = String(queue.shift() || '').trim();
+            if (!nextId) continue;
+            descendants.push(nextId);
+            var children = childIdsById.get(nextId);
+            if (Array.isArray(children) && children.length > 0) {
+                for (var i = 0; i < children.length; i++) {
+                    queue.push(children[i]);
+                }
+            }
+        }
+
+        if (visibleWorkspaceIds.size > 0) {
+            descendants = descendants.filter(function (descendantId) {
+                return visibleWorkspaceIds.has(descendantId);
+            });
+        }
+
+        visibleDescendantCache.set(normalizedId, descendants);
+        return descendants.slice();
+    }
+
+    if (visibleWorkspaceIds.size > 0) {
+        visibleWorkspaceIds.forEach(function (visibleWorkspaceId) {
+            var visibleWorkspace = getWorkspaceById(visibleWorkspaceId);
+            if (!visibleWorkspace || !visibleWorkspace.linkedTo) return;
+
+            var linkedTargetId = String(visibleWorkspace.linkedTo || '').trim();
+            if (!linkedTargetId) return;
+
+            if (!linkedTabsByTarget.has(linkedTargetId)) linkedTabsByTarget.set(linkedTargetId, []);
+            linkedTabsByTarget.get(linkedTargetId).push(visibleWorkspace);
+
+            getVisibleDescendantIds(linkedTargetId).forEach(function (descendantId) {
+                if (!linkedTabsByTarget.has(descendantId)) linkedTabsByTarget.set(descendantId, []);
+                linkedTabsByTarget.get(descendantId).push(visibleWorkspace);
+            });
+        });
+    }
+
+    return {
+        activeWorkspaceId: String(activeWorkspaceId || 'main').trim() || 'main',
+        visibleWorkspaceIds: visibleWorkspaceIds,
+        getWorkspaceById: getWorkspaceById,
+        getPath: getPath,
+        getVisibleDescendantIds: getVisibleDescendantIds,
+        getLinkedTabsByTarget: function (workspaceId) {
+            var normalizedId = String(workspaceId || '').trim();
+            return normalizedId && linkedTabsByTarget.has(normalizedId)
+                ? linkedTabsByTarget.get(normalizedId).slice()
+                : [];
+        }
+    };
+}
+
 function getFolderBackedCategories(workspaceId) {
     const scopedPrefix = String(workspaceId || 'main') + '::';
     const store = getDashboardFolderStore();
@@ -155,6 +288,7 @@ function collectDashboardCategories(visibleLinks, activeWorkspaceId, categoryOrd
 window.renderCategories = function (visibleLinks, gridContainer, focusCategory, searchStr, renderGen, renderHint) {
     if (!gridContainer) return;
     const activeWorkspace = getDashboardActiveWorkspace();
+    const dashboardRenderContext = createDashboardRenderContext(activeWorkspace);
     const workspaceCategoryOrder = window.EveCategoryOrder?.getOrder
         ? window.EveCategoryOrder.getOrder(activeWorkspace)
         : (Array.isArray(config.categoryOrder) ? config.categoryOrder : []);
@@ -224,7 +358,8 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
                 focusMode: !!focusCategory,
                 activeWorkspace: activeWorkspace, // Global active WS
                 _renderGen: renderGen,
-                _dashboardRenderHint: renderHint || null
+                _dashboardRenderHint: renderHint || null,
+                _dashboardRenderContext: dashboardRenderContext
             };
             if ((aggressiveDeferredCards && catLinks.length > 0) || isCrossWorkspaceSwitchRender) {
                 buildConfig._forceDeferredShell = true;

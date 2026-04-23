@@ -220,6 +220,7 @@ window.DashboardCategories = window.DashboardCategories || {};
 
 window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspace, workspaces, options) {
     const extraOptions = options || {};
+    const renderContext = extraOptions._dashboardRenderContext || null;
     const perfMode = !!window._evePerfMode;
     const megaPerfMode = !!window._eveMegaPerfMode;
     const faviconUtils = window.EveFaviconUtils || null;
@@ -297,7 +298,12 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
         : `drag(event, ${jsLinkIdLiteral})`;
 
     let wsBadge = (searchStr && l.workspace !== badgeWorkspaceId)
-        ? `<span class="search-badge">${workspaces.find(w => w.id === l.workspace)?.name || "?"}</span>`
+        ? `<span class="search-badge">${
+            (renderContext && typeof renderContext.getWorkspaceById === 'function'
+                ? renderContext.getWorkspaceById(l.workspace)
+                : workspaces.find(w => w.id === l.workspace)
+            )?.name || "?"
+        }</span>`
         : '';
 
     // Sub-tab origin badge: shown when this link came from a sub-tab merged into the parent view
@@ -305,15 +311,25 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
     if (!perfMode && !searchStr && !isGroupOverviewMode && !suppressCardWorkspaceSubtabBadge) {
         const helpers = window.EveWorkspaceHelpers;
         if (l.workspace !== badgeWorkspaceId) {
-            const subWs = helpers
-                ? helpers.findById(config.workspaces || [], l.workspace)
-                : null;
+            const subWs = renderContext && typeof renderContext.getWorkspaceById === 'function'
+                ? renderContext.getWorkspaceById(l.workspace)
+                : (helpers ? helpers.findById(config.workspaces || [], l.workspace) : null);
             const subTabName = subWs ? subWs.name : null;
             if (subTabName) {
-                const activeWsObj = helpers ? helpers.findById(config.workspaces, badgeWorkspaceId) : null;
-                const linkedToObj = activeWsObj && activeWsObj.linkedTo ? helpers.findById(config.workspaces, activeWsObj.linkedTo) : null;
+                const activeWsObj = renderContext && typeof renderContext.getWorkspaceById === 'function'
+                    ? renderContext.getWorkspaceById(badgeWorkspaceId)
+                    : (helpers ? helpers.findById(config.workspaces, badgeWorkspaceId) : null);
+                const linkedToObj = activeWsObj && activeWsObj.linkedTo
+                    ? (renderContext && typeof renderContext.getWorkspaceById === 'function'
+                        ? renderContext.getWorkspaceById(activeWsObj.linkedTo)
+                        : (helpers ? helpers.findById(config.workspaces, activeWsObj.linkedTo) : null))
+                    : null;
                 const isFromLinkedMain = activeWsObj && activeWsObj.linkedTo === l.workspace;
-                const isFromLinkedSub = linkedToObj && helpers.getVisibleDescendantIds(linkedToObj).includes(l.workspace);
+                const isFromLinkedSub = linkedToObj && (
+                    renderContext && typeof renderContext.getVisibleDescendantIds === 'function'
+                        ? renderContext.getVisibleDescendantIds(linkedToObj.id).includes(String(l.workspace || '').trim())
+                        : helpers.getVisibleDescendantIds(linkedToObj).includes(l.workspace)
+                );
 
                 // Check if this link comes through a nested linked sub-tab (parent has a sub-tab with linkedTo targeting this workspace)
                 let isFromNestedLink = false;
@@ -322,12 +338,21 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
                     if (visWs) {
                         visWs.forEach(function (vId) {
                             if (vId === badgeWorkspaceId) return;
-                            const vWs = helpers.findById(config.workspaces || [], vId);
+                            const vWs = renderContext && typeof renderContext.getWorkspaceById === 'function'
+                                ? renderContext.getWorkspaceById(vId)
+                                : (helpers ? helpers.findById(config.workspaces || [], vId) : null);
                             if (vWs && vWs.linkedTo) {
                                 if (vWs.linkedTo === l.workspace) isFromNestedLink = true;
                                 else {
-                                    const linkedTarget = helpers.findById(config.workspaces || [], vWs.linkedTo);
-                                    if (linkedTarget && helpers.getVisibleDescendantIds(linkedTarget).includes(l.workspace)) isFromNestedLink = true;
+                                    const linkedTarget = renderContext && typeof renderContext.getWorkspaceById === 'function'
+                                        ? renderContext.getWorkspaceById(vWs.linkedTo)
+                                        : (helpers ? helpers.findById(config.workspaces || [], vWs.linkedTo) : null);
+                                    const visibleDescendants = linkedTarget
+                                        ? (renderContext && typeof renderContext.getVisibleDescendantIds === 'function'
+                                            ? renderContext.getVisibleDescendantIds(linkedTarget.id)
+                                            : helpers.getVisibleDescendantIds(linkedTarget))
+                                        : [];
+                                    if (visibleDescendants.includes(String(l.workspace || '').trim())) isFromNestedLink = true;
                                 }
                             }
                         });
@@ -345,7 +370,9 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
                 }
             }
         } else {
-            const activeWsObj = helpers ? helpers.findById(config.workspaces, badgeWorkspaceId) : null;
+            const activeWsObj = renderContext && typeof renderContext.getWorkspaceById === 'function'
+                ? renderContext.getWorkspaceById(badgeWorkspaceId)
+                : (helpers ? helpers.findById(config.workspaces, badgeWorkspaceId) : null);
             if (activeWsObj && activeWsObj.linkedTo) {
                 subTabBadge = `<span class="subtab-origin-badge" style="background:#ff8c00;color:#fff;font-weight:bold;margin-right:6px;border-radius:4px;padding:2px 6px;font-size:0.75em;" title="Added specifically to this shortcut tab">🔗 Shortcut Local</span>`;
             }

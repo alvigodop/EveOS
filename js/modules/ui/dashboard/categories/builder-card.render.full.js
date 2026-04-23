@@ -18,6 +18,7 @@ window.DashboardCategories = window.DashboardCategories || {};
         var indexApi = window.EveOS?.SearchAdvanced?.Index;
         if (!indexApi || typeof indexApi.rebuild !== 'function') return;
         if (cardSummaryWarmPromise) return;
+        var scrollSeqAtRequest = Number(window._dashboardScrollActivitySeq || 0);
 
         cardSummaryWarmPromise = Promise.resolve(indexApi.rebuild({ reason: 'dashboard-card-summary' }))
             .catch(function () {
@@ -25,6 +26,7 @@ window.DashboardCategories = window.DashboardCategories || {};
             })
             .finally(function () {
                 cardSummaryWarmPromise = null;
+                if (Number(window._dashboardScrollActivitySeq || 0) !== scrollSeqAtRequest) return;
                 if (typeof renderDashboard === 'function') renderDashboard();
             });
     }

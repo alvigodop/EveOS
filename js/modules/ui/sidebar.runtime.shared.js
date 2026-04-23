@@ -196,8 +196,31 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             })
             .finally(function () {
                 rt._structureSummaryWarmPromise = null;
-                if (typeof rerender === 'function') rerender();
             });
+    }
+
+    function queueSidebarDashboardRefresh(options) {
+        var opts = options && typeof options === 'object' ? options : {};
+        if (rt._sidebarDashboardRefreshRaf) {
+            window.cancelAnimationFrame(rt._sidebarDashboardRefreshRaf);
+            rt._sidebarDashboardRefreshRaf = 0;
+        }
+        if (rt._sidebarDashboardRefreshTimer) {
+            clearTimeout(rt._sidebarDashboardRefreshTimer);
+            rt._sidebarDashboardRefreshTimer = 0;
+        }
+
+        var delayMs = Math.max(0, Number(opts.delayMs || 0) || 24);
+        rt._sidebarDashboardRefreshTimer = window.setTimeout(function () {
+            rt._sidebarDashboardRefreshTimer = 0;
+            rt._sidebarDashboardRefreshRaf = window.requestAnimationFrame(function () {
+                rt._sidebarDashboardRefreshRaf = 0;
+                if (typeof window.invalidateDashboardDeferredWork === 'function') {
+                    window.invalidateDashboardDeferredWork({ cleanupMasonry: true });
+                }
+                if (typeof renderDashboard === 'function') renderDashboard();
+            });
+        }, delayMs);
     }
 
     function createRenderContext(sb, options) {
@@ -225,7 +248,11 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         ctx.saveAndRefresh = function (shouldRenderDashboard) {
             saveConfig({ immediate: true });
             if (typeof window.renderSidebar === 'function') window.renderSidebar();
-            if (shouldRenderDashboard && typeof renderDashboard === 'function') renderDashboard();
+            if (shouldRenderDashboard) {
+                queueSidebarDashboardRefresh({
+                    delayMs: dragState.type ? 40 : 16
+                });
+            }
         };
 
         ctx.getStructureSummary = function () {
