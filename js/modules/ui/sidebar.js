@@ -171,7 +171,7 @@
             previewState.revealPreviewReady = true;
             previewState.revealPreviewVersion = renderVersion;
             syncHoverRevealContentVisibility(scaffold);
-        }, 48);
+        }, 12);
     }
 
     function invalidateHoverRevealPreview(options) {
