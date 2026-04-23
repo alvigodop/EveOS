@@ -180,6 +180,13 @@ async function readState(page) {
           'Memorable'
         );
 
+        const onePieceContent = 'Vol: 1';
+        const onePieceCase = parseStructured(
+          onePieceContent,
+          'One Piece_260227_233250.txt',
+          'Manga The Ultimate'
+        );
+
         return {
           titleListDetection: {
             structured: api.looksLikeStructuredFileContent(titleListContent, 'I-Remember-Its-Good.txt'),
@@ -196,6 +203,10 @@ async function readState(page) {
           soloLevelingDetection: {
             structured: api.looksLikeStructuredFileContent(soloLevelingContent, 'Solo Leveling_260227_234000.txt'),
             singleEntry: api.looksLikeSingleEntryBulkFile(soloLevelingContent, 'Solo Leveling_260227_234000.txt')
+          },
+          onePieceDetection: {
+            structured: api.looksLikeStructuredFileContent(onePieceContent, 'One Piece_260227_233250.txt'),
+            singleEntry: api.looksLikeSingleEntryBulkFile(onePieceContent, 'One Piece_260227_233250.txt')
           },
           inlineUrlTitleBookmark: {
             title: inlineUrlTitleCase.bookmark?.title || '',
@@ -217,10 +228,20 @@ async function readState(page) {
             url: soloLevelingCase.bookmark?.url || '',
             notes: soloLevelingCase.bookmark?.notes || ''
           },
+          onePieceBookmark: {
+            title: onePieceCase.bookmark?.title || '',
+            url: onePieceCase.bookmark?.url || '',
+            notes: onePieceCase.bookmark?.notes || ''
+          },
           soloLevelingPromotion: {
             chapter: soloLevelingCase.promotion?.data?.chapter || 0,
             summary: soloLevelingCase.promotion?.data?.summary || '',
             status: soloLevelingCase.promotion?.data?.status || ''
+          },
+          onePiecePromotion: {
+            chapter: onePieceCase.promotion?.data?.chapter || 0,
+            summary: onePieceCase.promotion?.data?.summary || '',
+            status: onePieceCase.promotion?.data?.status || ''
           }
         };
       } finally {
@@ -251,6 +272,9 @@ async function readState(page) {
     if (!parserCases.soloLevelingDetection.structured) {
       throw new Error(`Solo Leveling note file should be detected as structured Smart Extract, got ${JSON.stringify(parserCases.soloLevelingDetection)}`);
     }
+    if (!parserCases.onePieceDetection.structured) {
+      throw new Error(`One Piece volume note file should be detected as structured Smart Extract, got ${JSON.stringify(parserCases.onePieceDetection)}`);
+    }
     if (parserCases.inlineUrlTitleBookmark.title !== 'Different Kings Chapter 1 & 2 [ ENGLISH ] - YouTube') {
       throw new Error(`Inline URL+title structured file title mismatch: ${JSON.stringify(parserCases.inlineUrlTitleBookmark)}`);
     }
@@ -274,6 +298,15 @@ async function readState(page) {
     }
     if (parserCases.soloLevelingPromotion.chapter !== 184) {
       throw new Error(`Solo Leveling structured file should promote chapter 184, got ${JSON.stringify(parserCases.soloLevelingPromotion)}`);
+    }
+    if (parserCases.onePieceBookmark.title !== 'One Piece') {
+      throw new Error(`One Piece volume note file should stay filename-driven, got ${JSON.stringify(parserCases.onePieceBookmark)}`);
+    }
+    if (parserCases.onePieceBookmark.notes !== 'Vol: 1') {
+      throw new Error(`One Piece volume note file should keep volume text in notes, got ${JSON.stringify(parserCases.onePieceBookmark)}`);
+    }
+    if (parserCases.onePiecePromotion.summary !== 'Vol: 1') {
+      throw new Error(`One Piece volume note file should promote notes into library summary, got ${JSON.stringify(parserCases.onePiecePromotion)}`);
     }
 
     const leadingBlankLineImport = await page.evaluate(async () => {
@@ -423,6 +456,81 @@ async function readState(page) {
     }
     if (!inlineUrlTitleImport.toast || inlineUrlTitleImport.toast.msg !== 'Imported 1 items into 1 card.') {
       throw new Error(`Inline URL+title Smart Extract toast mismatch: ${JSON.stringify(inlineUrlTitleImport)}`);
+    }
+
+    const onePieceFolderCardImport = await page.evaluate(async () => {
+      const api = window.EveBulkImport && window.EveBulkImport._api;
+      if (!api || typeof api.processBulk !== 'function') {
+        throw new Error('Bulk process API unavailable');
+      }
+
+      const priorLinks = typeof window.getLiveLinks === 'function'
+        ? window.getLiveLinks().slice()
+        : (Array.isArray(window.links) ? window.links.slice() : []);
+      const priorConfig = window.config ? JSON.parse(JSON.stringify(window.config)) : {};
+      const priorSaveData = window.saveData;
+      const priorCloseModals = window.closeModals;
+      const priorShowToast = window.showToast;
+      let lastToast = null;
+
+      window.config = window.config || {};
+      config.activeWorkspace = 'main';
+      config.workspaces = config.workspaces || [{ id: 'main', name: 'Main', icon: '🏠', subTabs: [] }];
+      if (typeof window.setLiveLinks === 'function') {
+        window.setLiveLinks([]);
+      } else {
+        window.links = [];
+        if (window.eveState) window.eveState.links = window.links;
+      }
+      window.saveData = () => {};
+      window.closeModals = () => {};
+      window.showToast = (msg, type) => { lastToast = { msg, type }; };
+
+      try {
+        window.openBulkModal();
+        document.getElementById('bulkModeCard').checked = true;
+        if (typeof api.updateBulkModeUi === 'function') api.updateBulkModeUi();
+
+        const file = new File(['Vol: 1'], 'One Piece_260227_233250.txt', { type: 'text/plain', lastModified: Date.now() });
+        file.customRelativePath = 'Manga The Ultimate/One Piece_260227_233250.txt';
+        api._accumulatedFolderFiles = [file];
+        api._latentCardMap = { 'Manga The Ultimate': 'Manga The Ultimate' };
+
+        await api.processBulk();
+
+        return {
+          links: (typeof window.getLiveLinks === 'function' ? window.getLiveLinks() : window.links)
+            .map((link) => ({ title: link.title, category: link.category, notes: link.notes || '', url: link.url })),
+          toast: lastToast
+        };
+      } finally {
+        if (typeof window.setLiveLinks === 'function') {
+          window.setLiveLinks(priorLinks);
+        } else {
+          window.links = priorLinks;
+          if (window.eveState) window.eveState.links = priorLinks;
+        }
+        window.config = priorConfig;
+        window.saveData = priorSaveData;
+        window.closeModals = priorCloseModals;
+        window.showToast = priorShowToast;
+      }
+    });
+
+    if (onePieceFolderCardImport.links.length !== 1) {
+      throw new Error(`One Piece folder-card import should create 1 bookmark, got ${JSON.stringify(onePieceFolderCardImport)}`);
+    }
+    if (onePieceFolderCardImport.links[0].title !== 'One Piece') {
+      throw new Error(`One Piece folder-card import title mismatch: ${JSON.stringify(onePieceFolderCardImport)}`);
+    }
+    if (onePieceFolderCardImport.links[0].category !== 'Manga The Ultimate') {
+      throw new Error(`One Piece folder-card import category mismatch: ${JSON.stringify(onePieceFolderCardImport)}`);
+    }
+    if (onePieceFolderCardImport.links[0].notes !== 'Vol: 1') {
+      throw new Error(`One Piece folder-card import notes mismatch: ${JSON.stringify(onePieceFolderCardImport)}`);
+    }
+    if (!onePieceFolderCardImport.toast || onePieceFolderCardImport.toast.msg !== 'Created Cards from folders and imported 1 items.') {
+      throw new Error(`One Piece folder-card import toast mismatch: ${JSON.stringify(onePieceFolderCardImport)}`);
     }
 
     console.log('MODAL_BULK_RUNTIME_SMOKE_OK');

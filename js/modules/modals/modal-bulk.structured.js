@@ -291,7 +291,7 @@ window.EveBulkImport = window.EveBulkImport || {};
         if (!text) return false;
         if (isUnlabeledProgressToken(text)) return false;
         if (looksLikeUrlValue(text)) return false;
-        if (/^(?:title|name|url|link|read site|site|to watch site|type|category|status|state|notes|summary|source|origin|provider|via)[\s:-]+/i.test(text)) return false;
+        if (/^(?:title|name|url|link|read site|site|to watch site|type|category|status|state|notes|summary|source|origin|provider|via|vol|volume|book|season|part|arc|disc|track)[\s:-]+/i.test(text)) return false;
         if (/^(?:last\s+)?(?:finished ep|going to ep|ep|episode|ch|chapter)[\s:\-#]*\d+/i.test(text)) return false;
         return true;
     }
@@ -316,7 +316,7 @@ window.EveBulkImport = window.EveBulkImport || {};
 
     function hasStructuredFieldLine(value) {
         const text = String(value || '').trim();
-        return /^(?:title|name|url|link|read site|site|to watch site|type|category|status|state|notes|summary|source|origin|provider|via|finished ep|going to ep|ep|episode|ch|chapter)[\s:-]+/i.test(text);
+        return /^(?:title|name|url|link|read site|site|to watch site|type|category|status|state|notes|summary|source|origin|provider|via|vol|volume|book|season|part|arc|disc|track|finished ep|going to ep|ep|episode|ch|chapter)[\s:-]+/i.test(text);
     }
 
     function extractContextualProgressNumber(value, kind = 'chapter') {
