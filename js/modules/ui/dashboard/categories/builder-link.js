@@ -1,6 +1,13 @@
 window.DashboardCategories = window.DashboardCategories || {};
 
 (function () {
+    const BOOKMARK_HOVER_SHOW_DELAY_MS = 110;
+    let bookmarkCoverHoverShowTimer = 0;
+    let bookmarkCoverHoverMoveRaf = 0;
+    let bookmarkCoverHoverActiveLinkId = '';
+    let bookmarkCoverHoverPendingLinkId = '';
+    let bookmarkCoverHoverActiveTarget = null;
+
     function toLinkId(value) {
         if (value === null || value === undefined) return '';
         return String(value);
@@ -80,6 +87,17 @@ window.DashboardCategories = window.DashboardCategories || {};
         return overlay;
     }
 
+    function clearBookmarkCoverHoverTimers() {
+        if (bookmarkCoverHoverShowTimer) {
+            clearTimeout(bookmarkCoverHoverShowTimer);
+            bookmarkCoverHoverShowTimer = 0;
+        }
+        if (bookmarkCoverHoverMoveRaf) {
+            cancelAnimationFrame(bookmarkCoverHoverMoveRaf);
+            bookmarkCoverHoverMoveRaf = 0;
+        }
+    }
+
     function positionBookmarkCoverHoverOverlay(target, overlay) {
         if (!target || !overlay) return;
         const rect = target.getBoundingClientRect();
@@ -107,10 +125,10 @@ window.DashboardCategories = window.DashboardCategories || {};
         overlay.style.top = Math.round(top) + 'px';
     }
 
-    function showBookmarkCoverHover(event, linkId) {
-        const target = event?.currentTarget;
-        const preview = getBookmarkHoverPreview(findLinkById(linkId));
-        if (!target || !preview) {
+    function renderBookmarkCoverHover(target, linkId) {
+        const normalizedId = toLinkId(linkId);
+        const preview = getBookmarkHoverPreview(findLinkById(normalizedId));
+        if (!target || !preview || !normalizedId) {
             hideBookmarkCoverHover();
             return;
         }
@@ -142,17 +160,53 @@ window.DashboardCategories = window.DashboardCategories || {};
         }
 
         overlay.classList.add('is-visible');
+        bookmarkCoverHoverActiveTarget = target;
+        bookmarkCoverHoverActiveLinkId = normalizedId;
         positionBookmarkCoverHoverOverlay(target, overlay);
+    }
+
+    function showBookmarkCoverHover(event, linkId) {
+        const target = event?.currentTarget;
+        const normalizedId = toLinkId(linkId);
+        if (!target || !normalizedId || !!window._evePerfMode) {
+            hideBookmarkCoverHover();
+            return;
+        }
+
+        clearBookmarkCoverHoverTimers();
+        bookmarkCoverHoverPendingLinkId = normalizedId;
+        bookmarkCoverHoverActiveTarget = target;
+
+        const overlay = document.getElementById('bookmark-cover-hover-overlay');
+        if (bookmarkCoverHoverActiveLinkId === normalizedId && overlay?.classList.contains('is-visible')) {
+            positionBookmarkCoverHoverOverlay(target, overlay);
+            return;
+        }
+
+        bookmarkCoverHoverShowTimer = setTimeout(() => {
+            bookmarkCoverHoverShowTimer = 0;
+            if (bookmarkCoverHoverPendingLinkId !== normalizedId || !!window._evePerfMode) return;
+            renderBookmarkCoverHover(target, normalizedId);
+        }, BOOKMARK_HOVER_SHOW_DELAY_MS);
     }
 
     function moveBookmarkCoverHover(event) {
         const target = event?.currentTarget;
         const overlay = document.getElementById('bookmark-cover-hover-overlay');
         if (!target || !overlay || !overlay.classList.contains('is-visible')) return;
-        positionBookmarkCoverHoverOverlay(target, overlay);
+        bookmarkCoverHoverActiveTarget = target;
+        if (bookmarkCoverHoverMoveRaf) return;
+        bookmarkCoverHoverMoveRaf = requestAnimationFrame(() => {
+            bookmarkCoverHoverMoveRaf = 0;
+            positionBookmarkCoverHoverOverlay(bookmarkCoverHoverActiveTarget, overlay);
+        });
     }
 
     function hideBookmarkCoverHover() {
+        clearBookmarkCoverHoverTimers();
+        bookmarkCoverHoverPendingLinkId = '';
+        bookmarkCoverHoverActiveLinkId = '';
+        bookmarkCoverHoverActiveTarget = null;
         const overlay = document.getElementById('bookmark-cover-hover-overlay');
         if (!overlay) return;
         overlay.classList.remove('is-visible');
@@ -343,7 +397,7 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
         }
     }
 
-    const hoverHandlers = megaPerfMode ? '' : ` onmouseenter="showBookmarkCoverHover(event, ${jsLinkIdLiteral})" onmousemove="moveBookmarkCoverHover(event)" onmouseleave="hideBookmarkCoverHover()"`;
+    const hoverHandlers = perfMode ? '' : ` onmouseenter="showBookmarkCoverHover(event, ${jsLinkIdLiteral})" onmousemove="moveBookmarkCoverHover(event)" onmouseleave="hideBookmarkCoverHover()"`;
     return `<li class="${doneClass} ${isLocal ? 'is-local' : ''} ${pClass} ${pinnedClass}" draggable="true" ondragstart="${dragStartHandler}" oncontextmenu="showLinkContextMenu(event, ${jsLinkIdLiteral})"${hoverHandlers}>
                 <input type="checkbox" class="bulk-check" data-bulk-id="${linkId.replace(/&/g, '&amp;').replace(/\"/g, '&quot;')}" onclick="event.preventDefault();event.stopPropagation();toggleSelect(this, ${jsLinkIdLiteral}, event);return false;" ${isChecked}>
                 ${iconHtml} ${wsBadge} ${subTabBadge} ${folderBadge} ${detachedBadge} ${identifierBadges} <a href="${l.url}" target="_blank" rel="noopener noreferrer" onclick='return (typeof openBookmarkFromDashboard==="function") ? openBookmarkFromDashboard(event, decodeURIComponent("${encodedLinkId}")) : true;'>${l.title}</a>

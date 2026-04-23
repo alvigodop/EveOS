@@ -369,7 +369,8 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             if (typeof showWsContext === 'function') showWsContext(e, ws.id);
         };
 
-        item.title = isInactive ? (ws.name + ' (Inactive)') : ws.name;
+        item.setAttribute('aria-label', isInactive ? (ws.name + ' (Inactive)') : ws.name);
+        item.removeAttribute('title');
         item.addEventListener('mouseenter', function (e) { showWsPopout(e, ws); });
         item.addEventListener('mouseleave', hideWsPopout);
 

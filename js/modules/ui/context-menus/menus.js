@@ -10,6 +10,8 @@ window.ctxCatName = null;
 window.ctxWsId = null;
 window.ctxSidebarGroupId = '';
 window.ctxFolderId = null;
+var folderContextStatsCache = new Map();
+var folderContextStatsRequestToken = 0;
 
 window.closeAllMenus = function () {
     document.querySelectorAll('.context-menu').forEach(m => m.style.display = 'none');
@@ -55,6 +57,110 @@ function placeContextMenu(menuElement, event) {
     menuElement.style.visibility = 'visible';
 }
 
+function getFolderContextStatsCacheKey(workspaceId, categoryName, folderId) {
+    return String(workspaceId || '').trim()
+        + '::' + String(categoryName || '').trim()
+        + '::' + String(folderId || '').trim();
+}
+
+function computeFolderContextStatsFromViewModel(viewModel, folderId) {
+    let totalItems = 0;
+    let totalFolders = 0;
+    const normalizedFolderId = String(folderId || '').trim();
+    if (!normalizedFolderId || !viewModel?.childrenMap || !viewModel?.folderLinks) {
+        return { totalFolders: 0, totalItems: 0 };
+    }
+
+    (function recurseCount(currentFolderId) {
+        const items = viewModel.folderLinks.get(currentFolderId) || [];
+        totalItems += items.length;
+        const children = viewModel.childrenMap.get(currentFolderId) || [];
+        totalFolders += children.length;
+        children.forEach(function (child) {
+            recurseCount(child.id);
+        });
+    })(normalizedFolderId);
+
+    return {
+        totalFolders: totalFolders,
+        totalItems: totalItems
+    };
+}
+
+function getCachedFolderContextStats(workspaceId, categoryName, folderId) {
+    const key = getFolderContextStatsCacheKey(workspaceId, categoryName, folderId);
+    const cached = folderContextStatsCache.get(key);
+    const storeRef = window.eveState?.bookmarkFolders || window.bookmarkFolders || null;
+    const linksRef = getContextMenuLiveLinks();
+    if (!cached) return null;
+    if (cached.storeRef !== storeRef || cached.linksRef !== linksRef) return null;
+    return cached.value || null;
+}
+
+function setCachedFolderContextStats(workspaceId, categoryName, folderId, value) {
+    folderContextStatsCache.set(getFolderContextStatsCacheKey(workspaceId, categoryName, folderId), {
+        storeRef: window.eveState?.bookmarkFolders || window.bookmarkFolders || null,
+        linksRef: getContextMenuLiveLinks(),
+        value: value || { totalFolders: 0, totalItems: 0 }
+    });
+}
+
+function updateFolderContextStatsUi(statsFoldersEl, statsItemsEl, stats) {
+    if (!(statsFoldersEl && statsItemsEl && stats)) return;
+    statsFoldersEl.textContent = 'Overall Folders: ' + Number(stats.totalFolders || 0);
+    statsItemsEl.textContent = 'Overall Items: ' + Number(stats.totalItems || 0);
+}
+
+function scheduleFolderContextStats(workspaceId, categoryName, folderId, statsFoldersEl, statsItemsEl) {
+    if (!(statsFoldersEl && statsItemsEl)) return;
+
+    const cachedStats = getCachedFolderContextStats(workspaceId, categoryName, folderId);
+    if (cachedStats) {
+        updateFolderContextStatsUi(statsFoldersEl, statsItemsEl, cachedStats);
+        return;
+    }
+
+    const requestToken = ++folderContextStatsRequestToken;
+    const runCompute = function () {
+        if (requestToken !== folderContextStatsRequestToken) return;
+
+        let stats = null;
+        const cachedVM = window.EveFolderViewV2 && typeof window.EveFolderViewV2.getCachedViewModel === 'function'
+            ? window.EveFolderViewV2.getCachedViewModel(workspaceId, categoryName)
+            : null;
+
+        if (cachedVM && cachedVM.childrenMap && cachedVM.folderLinks) {
+            stats = computeFolderContextStatsFromViewModel(cachedVM, folderId);
+        } else if (window.EveBookmarkFolders) {
+            const folderLinks = typeof window.EveContextMenuActions?.getFolderCategoryLinks === 'function'
+                ? window.EveContextMenuActions.getFolderCategoryLinks(workspaceId, categoryName)
+                : [];
+            const viewModel = window.EveBookmarkFolders.buildFolderView(workspaceId, categoryName, folderLinks, { skipGhosts: true });
+            if (window.EveFolderViewV2?.setCachedViewModel) {
+                window.EveFolderViewV2.setCachedViewModel(workspaceId, categoryName, Object.assign(viewModel, { scopedLinks: folderLinks }));
+            }
+            stats = computeFolderContextStatsFromViewModel(viewModel, folderId);
+        }
+
+        if (!stats || requestToken !== folderContextStatsRequestToken) return;
+        setCachedFolderContextStats(workspaceId, categoryName, folderId, stats);
+        updateFolderContextStatsUi(statsFoldersEl, statsItemsEl, stats);
+    };
+
+    const hasCachedViewModel = !!(window.EveFolderViewV2 && typeof window.EveFolderViewV2.getCachedViewModel === 'function'
+        && window.EveFolderViewV2.getCachedViewModel(workspaceId, categoryName));
+    if (hasCachedViewModel) {
+        setTimeout(runCompute, 0);
+        return;
+    }
+
+    if (typeof window.requestIdleCallback === 'function') {
+        window.requestIdleCallback(runCompute, { timeout: 240 });
+    } else {
+        setTimeout(runCompute, 140);
+    }
+}
+
 window.showFolderContextMenu = function (e, categoryName, folderId, workspaceId) {
     e.preventDefault();
     e.stopPropagation();
@@ -69,6 +175,13 @@ window.showFolderContextMenu = function (e, categoryName, folderId, workspaceId)
 
     const statsFoldersEl = document.getElementById('ctx-folder-stats-folders');
     const statsItemsEl = document.getElementById('ctx-folder-stats-items');
+    if (statsFoldersEl && statsItemsEl) {
+        statsFoldersEl.textContent = 'Overall Folders: ...';
+        statsItemsEl.textContent = 'Overall Items: ...';
+        scheduleFolderContextStats(window.ctxWsId, window.ctxCatName, folderId, statsFoldersEl, statsItemsEl);
+        placeContextMenu(m, e);
+        return;
+    }
     
     if (statsFoldersEl && statsItemsEl) {
         // Show placeholder immediately, compute stats after menu paints

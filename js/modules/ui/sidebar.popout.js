@@ -7,6 +7,8 @@
     var popoutEl = null;
     var hideTimer = null;
     var displayTimer = null;
+    var activePopoutKey = '';
+    var SIDEBAR_POPOUT_DELAY_MS = 10;
 
     function ensurePopout() {
         if (popoutEl) return;
@@ -22,31 +24,55 @@
         displayTimer = null;
     }
 
+    function shouldSuppressPopout() {
+        var sidebar = document.getElementById('sidebar');
+        if (!sidebar) return true;
+        if (sidebar.classList.contains('hidden-completely')) return true;
+        return false;
+    }
+
     window.showWsPopout = function (event, ws) {
         clearTimers();
+        if (shouldSuppressPopout()) {
+            window.hideWsPopout(true);
+            return;
+        }
         ensurePopout();
-        var item = event.currentTarget;
-        var rect = item.getBoundingClientRect();
+        var item = event && event.currentTarget;
+        if (!item) return;
         var popoutIcon = ws && ws.icon ? ws.icon : '\u{1F4C1}';
         var popoutName = ws && ws.name ? ws.name : 'Untitled';
         var popoutHint = ws && ws.popoutHint ? ws.popoutHint : 'Peek';
+        var nextPopoutKey = [String(popoutIcon || ''), String(popoutName || ''), String(popoutHint || '')].join('::');
 
-        popoutEl.innerHTML = ''
-            + '<span class="popout-icon">' + popoutIcon + '</span>'
-            + '<span class="popout-name">' + popoutName + '</span>'
-            + '<span class="popout-hint">' + popoutHint + '</span>';
+        displayTimer = setTimeout(function () {
+            if (shouldSuppressPopout()) {
+                window.hideWsPopout(true);
+                return;
+            }
+            var rect = item.getBoundingClientRect();
+            if (!rect || rect.width <= 0 || rect.height <= 0) return;
 
-        popoutEl.style.display = 'flex';
+            if (activePopoutKey !== nextPopoutKey) {
+                popoutEl.innerHTML = ''
+                    + '<span class="popout-icon">' + popoutIcon + '</span>'
+                    + '<span class="popout-name">' + popoutName + '</span>'
+                    + '<span class="popout-hint">' + popoutHint + '</span>';
+                activePopoutKey = nextPopoutKey;
+            }
 
-        var sidebar = document.getElementById('sidebar');
-        var sidebarRect = sidebar ? sidebar.getBoundingClientRect() : { right: 60 };
+            popoutEl.style.display = 'flex';
 
-        popoutEl.style.top = (rect.top + (rect.height / 2) - 15) + 'px';
-        popoutEl.style.left = (sidebarRect.right + 10) + 'px';
+            var sidebar = document.getElementById('sidebar');
+            var sidebarRect = sidebar ? sidebar.getBoundingClientRect() : { right: 60 };
 
-        requestAnimationFrame(function () {
-            popoutEl.classList.add('active');
-        });
+            popoutEl.style.top = (rect.top + (rect.height / 2) - 15) + 'px';
+            popoutEl.style.left = (sidebarRect.right + 10) + 'px';
+
+            requestAnimationFrame(function () {
+                popoutEl.classList.add('active');
+            });
+        }, SIDEBAR_POPOUT_DELAY_MS);
     };
 
     window.hideWsPopout = function (immediate) {
@@ -55,6 +81,7 @@
 
         var doHide = function () {
             popoutEl.classList.remove('active');
+            activePopoutKey = '';
             displayTimer = setTimeout(function () {
                 if (!popoutEl.classList.contains('active')) {
                     popoutEl.style.display = 'none';

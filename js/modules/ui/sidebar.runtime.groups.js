@@ -81,9 +81,11 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
 
         var header = document.createElement('div');
         header.className = 'ws-group-header';
-        header.title = group.hidden ? group.name + ' (Hidden)' : group.name;
-        if (isFocusedGroup) header.title += ' (Focused)';
-        else if (isInactiveGroup) header.title += ' (Inactive)';
+        var groupLabel = group.hidden ? group.name + ' (Hidden)' : group.name;
+        if (isFocusedGroup) groupLabel += ' (Focused)';
+        else if (isInactiveGroup) groupLabel += ' (Inactive)';
+        header.setAttribute('aria-label', groupLabel);
+        header.removeAttribute('title');
 
         function toggleGroup(e) {
             if (e) e.stopPropagation();
@@ -134,8 +136,6 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         title.className = 'ws-group-title';
         title.textContent = group.name;
         title.onclick = toggleGroup;
-        title.addEventListener('mouseenter', function (e) { showWsPopout(e, popoutPayload); });
-        title.addEventListener('mouseleave', hideWsPopout);
         header.appendChild(title);
 
         var count = document.createElement('span');

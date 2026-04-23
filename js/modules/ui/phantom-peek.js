@@ -31,7 +31,6 @@
         document.body.appendChild(peekOverlay);
 
         document.addEventListener('mouseover', handleMouseOver);
-        document.addEventListener('mousemove', handleMouseMove);
         document.addEventListener('mouseout', handleMouseOut);
     }
 
@@ -128,12 +127,6 @@
                     showPeek(e.clientX, e.clientY, health);
                 }, 600); // 600ms hover delay
             }
-        }
-    }
-
-    function handleMouseMove(e) {
-        if (peekOverlay && peekOverlay.style.opacity === '1') {
-            // we could track mouse, but let's keep it static once opened until mouseout
         }
     }
 

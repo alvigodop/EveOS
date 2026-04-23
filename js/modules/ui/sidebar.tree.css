@@ -34,10 +34,45 @@
     padding-left: 0;
 }
 
-#sidebar.is-expanded .ws-node-wrapper.ws-depth-1 { padding-left: 10px; }
-#sidebar.is-expanded .ws-node-wrapper.ws-depth-2 { padding-left: 20px; }
-#sidebar.is-expanded .ws-node-wrapper.ws-depth-3 { padding-left: 28px; }
-#sidebar.is-expanded .ws-node-wrapper.ws-depth-4 { padding-left: 34px; }
+#sidebar.is-expanded .ws-node-wrapper[style*="--ws-depth"] {
+    align-items: flex-start;
+}
+
+#sidebar.is-expanded .ws-node-wrapper {
+    --ws-depth-offset: 0px;
+}
+
+#sidebar.is-expanded .ws-node-wrapper.ws-depth-1 {
+    --ws-depth-offset: 4px;
+    padding-left: 4px;
+}
+
+#sidebar.is-expanded .ws-node-wrapper.ws-depth-2 {
+    --ws-depth-offset: 8px;
+    padding-left: 8px;
+}
+
+#sidebar.is-expanded .ws-node-wrapper.ws-depth-3 {
+    --ws-depth-offset: 10px;
+    padding-left: 10px;
+}
+
+#sidebar.is-expanded .ws-node-wrapper.ws-depth-4 {
+    --ws-depth-offset: 12px;
+    padding-left: 12px;
+}
+
+#sidebar.is-expanded .ws-node-wrapper.ws-depth-1 > .ws-sub-item,
+#sidebar.is-expanded .ws-node-wrapper.ws-depth-2 > .ws-sub-item,
+#sidebar.is-expanded .ws-node-wrapper.ws-depth-3 > .ws-sub-item,
+#sidebar.is-expanded .ws-node-wrapper.ws-depth-4 > .ws-sub-item,
+#sidebar.is-expanded .ws-node-wrapper.ws-depth-1 > .ws-group-section > .ws-group-header,
+#sidebar.is-expanded .ws-node-wrapper.ws-depth-2 > .ws-group-section > .ws-group-header,
+#sidebar.is-expanded .ws-node-wrapper.ws-depth-3 > .ws-group-section > .ws-group-header,
+#sidebar.is-expanded .ws-node-wrapper.ws-depth-4 > .ws-group-section > .ws-group-header {
+    width: calc(var(--ws-expanded-row-width) - var(--ws-depth-offset, 0px));
+    max-width: calc(var(--ws-expanded-row-width) - var(--ws-depth-offset, 0px));
+}
 
 /* --- Sub-Tab Collapsed Visual (icon-only mode) --- */
 /* Sub-tabs are smaller and visually subordinate when collapsed */
@@ -269,7 +304,7 @@ html[data-native-scheme="light"] #sidebar.is-expanded .ws-group-member-item .ws-
 }
 
 .ws-order-slot--nested {
-    padding-left: calc(min(var(--ws-depth, 0), 4) * 10px);
+    padding-left: calc(min(var(--ws-depth, 0), 4) * 4px);
 }
 
 .ws-order-slot--top::before {
@@ -310,7 +345,7 @@ html[data-native-scheme="light"] #sidebar.is-expanded .ws-group-member-item .ws-
 }
 
 #sidebar.is-expanded.ws-drag-active .ws-order-slot--nested::before {
-    width: calc(136px - min(var(--ws-depth, 0), 4) * 10px);
+    width: calc(136px - min(var(--ws-depth, 0), 4) * 4px);
 }
 
 .ws-order-slot.ws-drop-target {
@@ -370,7 +405,7 @@ html[data-native-scheme="light"] #sidebar.is-expanded .ws-group-member-item .ws-
     box-shadow: 0 8px 32px rgba(0,0,0,0.4), inset 0 0 0 1px rgba(255,255,255,0.05);
     opacity: 0;
     transform: translateX(-10px) scale(0.95);
-    transition: opacity 0.15s ease, transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    transition: opacity 0.09s ease, transform 0.09s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     white-space: nowrap;
     display: none;
     align-items: center;

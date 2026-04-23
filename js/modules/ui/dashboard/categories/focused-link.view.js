@@ -55,6 +55,7 @@ window.DashboardCategoriesModules = window.DashboardCategoriesModules || {};
 
     function buildFocusedLinkHtml(link, options) {
         const renderOptions = options || {};
+        const allowHoverPreview = !window._evePerfMode;
         const isTaskMode = renderOptions.taskEnabled !== undefined
             ? !!renderOptions.taskEnabled
             : !!renderOptions.taskMode;
@@ -141,6 +142,11 @@ window.DashboardCategoriesModules = window.DashboardCategoriesModules || {};
         const doneActionHtml = isTaskMode
             ? '<button type="button" class="unidex-entry-btn" onclick="toggleDone(' + jsIdLiteral + ')">' + (link.done ? 'Undo Done' : 'Mark Done') + '</button>'
             : '';
+        const hoverHandlers = allowHoverPreview
+            ? ' onmouseenter="showBookmarkCoverHover(event, ' + jsIdLiteral + ')"'
+                + ' onmousemove="moveBookmarkCoverHover(event)"'
+                + ' onmouseleave="hideBookmarkCoverHover()"'
+            : '';
 
         return ''
             + '<article class="unidex-entry-item has-visual-slot focused-entry-item ' + (isTaskMode && link.done ? 'is-done' : '') + ' ' + (isLibraryLinked ? 'is-library-linked' : 'is-bookmark-only') + '"'
@@ -148,9 +154,7 @@ window.DashboardCategoriesModules = window.DashboardCategoriesModules || {};
                 + ' draggable="true"'
                 + ' ondragstart="drag(event, ' + jsIdLiteral + ')"'
                 + ' oncontextmenu="showLinkContextMenu(event, ' + jsIdLiteral + ')"'
-                + ' onmouseenter="showBookmarkCoverHover(event, ' + jsIdLiteral + ')"'
-                + ' onmousemove="moveBookmarkCoverHover(event)"'
-                + ' onmouseleave="hideBookmarkCoverHover()">'
+                + hoverHandlers + '>'
                 + '<button type="button" class="unidex-entry-visual-btn"'
                     + ' onclick="return window.DashboardCategories.openFocusedEntryDirect(' + jsIdLiteral + ', event)"'
                     + ' title="Open ' + safeTitle + ' in new tab"'
