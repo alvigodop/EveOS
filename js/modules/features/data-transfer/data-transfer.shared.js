@@ -8,6 +8,9 @@ window.EveDataTransfer = window.EveDataTransfer || {};
     if (typeof ns.refreshWorkspaceBackupList === 'function') {
         window.refreshWorkspaceBackupList = ns.refreshWorkspaceBackupList;
     }
+    if (typeof ns.refreshGroupBackupList === 'function') {
+        window.refreshGroupBackupList = ns.refreshGroupBackupList;
+    }
     if (typeof ns.refreshCardBackupList === 'function') {
         window.refreshCardBackupList = ns.refreshCardBackupList;
     }

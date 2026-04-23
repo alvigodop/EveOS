@@ -27,6 +27,10 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         return document.getElementById('tabBackupSelect');
     }
 
+    function getGroupSelect() {
+        return document.getElementById('groupBackupSelect');
+    }
+
     function getCardWorkspaceSelect() {
         return document.getElementById('cardBackupWorkspaceSelect');
     }
@@ -65,6 +69,19 @@ window.EveDataTransfer = window.EveDataTransfer || {};
 
     function getLayerPathInput() {
         return document.getElementById('modularLayerPathInput');
+    }
+
+    function getSidebarGroups() {
+        const appConfig = getAppConfig();
+        return Array.isArray(appConfig.sidebarGroups) ? appConfig.sidebarGroups : [];
+    }
+
+    function countGroupRootWorkspaces(groupId) {
+        const appConfig = getAppConfig();
+        const workspaces = Array.isArray(appConfig.workspaces) ? appConfig.workspaces : [];
+        const targetGroupId = String(groupId || '').trim();
+        if (!targetGroupId) return 0;
+        return workspaces.filter((workspace) => String(workspace?.groupId || '').trim() === targetGroupId).length;
     }
 
     function isHttpContext() {
@@ -336,9 +353,33 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         populateFolderSelect(folderSelect, selectedWorkspace, categorySelect.value || categories[0] || '', selectedFolderId);
     }
 
+    function refreshGroupBackupList() {
+        const select = getGroupSelect();
+        if (!select) return;
+        const groups = getSidebarGroups()
+            .slice()
+            .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || '')));
+        const previousValue = String(select.value || '').trim();
+        select.innerHTML = '';
+        groups.forEach((group) => {
+            const groupId = String(group?.id || '').trim();
+            if (!groupId) return;
+            const option = document.createElement('option');
+            const rootCount = countGroupRootWorkspaces(groupId);
+            option.value = groupId;
+            option.textContent = `${String(group?.name || groupId).trim() || groupId}${rootCount ? ` (${rootCount} tabs)` : ''}`;
+            select.appendChild(option);
+        });
+        if (groups.length > 0) {
+            const hasPrevious = groups.some((group) => String(group?.id || '').trim() === previousValue);
+            select.value = hasPrevious ? previousValue : String(groups[0]?.id || '').trim();
+        }
+    }
+
     function refreshWorkspaceBackupList() {
         const select = getWorkspaceSelect();
         if (!select) {
+            refreshGroupBackupList();
             refreshCardBackupList();
             refreshBookmarkBackupList();
             refreshFolderBackupList();
@@ -354,6 +395,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             select.appendChild(option);
         });
         select.value = appConfig.activeWorkspace || workspaces[0]?.id || '';
+        refreshGroupBackupList();
         refreshCardBackupList();
         refreshBookmarkBackupList();
         refreshFolderBackupList();
@@ -388,6 +430,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         getAppConfig,
         getAppLinks,
         getWorkspaceSelect,
+        getGroupSelect,
         getCardWorkspaceSelect,
         getCardCategorySelect,
         getBookmarkWorkspaceSelect,
@@ -398,6 +441,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         getFolderCategorySelect,
         getFolderSelect,
         getLayerPathInput,
+        getSidebarGroups,
         isHttpContext,
         canUseServerFolderBackups,
         buildBookmarkLocationValue,
@@ -410,10 +454,12 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         refreshCardBackupList,
         refreshBookmarkBackupList,
         refreshFolderBackupList,
+        refreshGroupBackupList,
         refreshWorkspaceBackupList
     });
 
     window.refreshWorkspaceBackupList = refreshWorkspaceBackupList;
+    window.refreshGroupBackupList = refreshGroupBackupList;
     window.refreshCardBackupList = refreshCardBackupList;
     window.refreshBookmarkBackupList = refreshBookmarkBackupList;
     window.refreshFolderBackupList = refreshFolderBackupList;

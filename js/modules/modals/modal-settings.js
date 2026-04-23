@@ -151,6 +151,7 @@ function openSettings() {
     updateColorInputAvailability();
 
     if (typeof refreshWorkspaceBackupList === 'function') refreshWorkspaceBackupList();
+    if (typeof refreshGroupBackupList === 'function') refreshGroupBackupList();
     if (typeof refreshCardBackupList === 'function') refreshCardBackupList();
     if (typeof refreshFolderBackupList === 'function') refreshFolderBackupList();
     if (typeof refreshBookmarkBackupList === 'function') refreshBookmarkBackupList();

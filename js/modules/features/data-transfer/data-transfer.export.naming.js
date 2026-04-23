@@ -85,6 +85,10 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
             return `${stem}.json`;
         }
 
+        function buildFullBackupJsonName() {
+            return sanitizePathSegment(`eve_full_backup_${buildCompactBackupStamp()}.json`, `eve_full_backup.json`, 48);
+        }
+
         function buildWorkspaceBackupJsonName(workspaceId, workspaceName) {
             const rawId = String(workspaceId || 'main').trim() || 'main';
             const rawName = String(workspaceName || workspaceId || 'main').trim() || 'main';
@@ -129,6 +133,14 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
             return sanitizePathSegment(`eve_folder_${workspacePart}_${cardPart}_${folderPart}--${hash}.json`, `eve_folder_${hash}.json`, 64);
         }
 
+        function buildGroupBackupJsonName(groupId, groupName) {
+            const rawGroupId = String(groupId || 'group').trim() || 'group';
+            const rawGroupName = String(groupName || groupId || 'group').trim() || 'group';
+            const groupPart = compactSlug(rawGroupName, 'group', 18);
+            const hash = shortHashHex(`${rawGroupId}::${rawGroupName}`, 8);
+            return sanitizePathSegment(`eve_group_${groupPart}--${hash}.json`, `eve_group_${hash}.json`, 52);
+        }
+
         return {
             sanitizePathSegment,
             getSuggestedBackupFolderName,
@@ -140,10 +152,12 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
             buildWorkspaceFolderName,
             buildCardFolderName,
             buildBookmarkFileName,
+            buildFullBackupJsonName,
             buildWorkspaceBackupJsonName,
             buildCardBackupJsonName,
             buildBookmarkBackupJsonName,
-            buildFolderBackupJsonName
+            buildFolderBackupJsonName,
+            buildGroupBackupJsonName
         };
     };
 })();

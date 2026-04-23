@@ -8,6 +8,7 @@ window.EveSettingsTemplates.backupPanel = `
                     <select id="backupSettingsMode" onchange="saveSettingsBackupMode()">
                         <option value="all">Show All Tools</option>
                         <option value="full">Full Backup / Restore</option>
+                        <option value="group">Group Tab Backup</option>
                         <option value="workspace">Tab Backup</option>
                         <option value="card">Card Backup</option>
                         <option value="folder">Folder Backup</option>
@@ -21,12 +22,13 @@ window.EveSettingsTemplates.backupPanel = `
                 <div class="backup-panel" data-backup-panel="full">
                     <h4 style="margin:0 0 10px 0;">Full Backup / Restore</h4>
                     <div class="btn-action-row">
-                        <button onclick="exportData()" class="btn-backup">Backup All Data</button>
+                        <button onclick="exportData()" class="btn-backup">Backup All Data Folder/Zip</button>
                         <label class="btn-restore">
                             Restore All Data
                             <input type="file" id="importFile" style="display: none;" onchange="importData(this)">
                         </label>
                     </div>
+                    <button onclick="exportDataJsonOnly()" class="btn-backup" style="width:100%; margin-top:8px;">Backup All Data JSON Only</button>
                     <button onclick="importDataFolderBrowserOnly()" class="btn-restore" style="width:100%; border:none; margin-top:8px;">Restore Backup Folder</button>
                     <div class="btn-action-row" style="margin-top:8px;">
                         <button onclick="runDuplicateSensorForFullBackup()" class="btn-backup">Run Cross-Tab Duplicate Scan</button>
@@ -39,6 +41,16 @@ window.EveSettingsTemplates.backupPanel = `
                     <button onclick="clearAllData()" class="btn-danger" style="width:100%; margin-top:10px;">Wipe All Data</button>
                 </div>
 
+                <div class="backup-panel" data-backup-panel="group">
+                    <h4 style="margin:0 0 10px 0;">Group Tab Backup</h4>
+                    <select id="groupBackupSelect" style="width:100%; margin-bottom:10px;"></select>
+                    <button onclick="exportGroupBackup()" class="btn-backup" style="width:100%;">Backup Group Folder/Zip</button>
+                    <button onclick="exportGroupBackupJsonOnly()" class="btn-backup" style="width:100%; margin-top:8px;">Backup Group JSON Only</button>
+                    <div style="font-size:0.78rem; opacity:0.75; margin-top:8px;">
+                        Exports the selected sidebar group with its grouped tabs, cards, folders, bookmarks, and group metadata.
+                    </div>
+                </div>
+
                 <div class="backup-panel" data-backup-panel="workspace">
                     <h4 style="margin:0 0 10px 0;">Tab Backup (Single Workspace)</h4>
                     <select id="tabBackupSelect" style="width:100%; margin-bottom:10px;"></select>
@@ -49,6 +61,7 @@ window.EveSettingsTemplates.backupPanel = `
                             <input type="file" id="importWorkspaceFile" style="display:none;" accept=".json" onchange="importWorkspaceBackup(this)">
                         </label>
                     </div>
+                    <button onclick="exportWorkspaceBackupJsonOnly()" class="btn-backup" style="width:100%; margin-top:8px;">Backup Tab JSON Only</button>
                     <button onclick="importWorkspaceFolderBackupBrowserOnly()" class="btn-restore" style="width:100%; border:none; margin-top:8px;">Restore Tab Folder</button>
                     <div class="btn-action-row" style="margin-top:8px;">
                         <button onclick="runDuplicateSensorForWorkspace()" class="btn-backup">Run Tab Duplicate Scan</button>
@@ -71,6 +84,7 @@ window.EveSettingsTemplates.backupPanel = `
                             <input type="file" id="importCardFile" style="display:none;" accept=".json" onchange="importCardBackup(this)">
                         </label>
                     </div>
+                    <button onclick="exportCardBackupJsonOnly()" class="btn-backup" style="width:100%; margin-top:8px;">Backup Card JSON Only</button>
                     <button onclick="importCardFolderBackupBrowserOnly()" class="btn-restore" style="width:100%; border:none; margin-top:8px;">Restore Card Folder</button>
                     <div class="btn-action-row" style="margin-top:8px;">
                         <button onclick="runDuplicateSensorForCard()" class="btn-backup">Run Card Duplicate Scan</button>
@@ -94,6 +108,7 @@ window.EveSettingsTemplates.backupPanel = `
                             <input type="file" id="importFolderFile" style="display:none;" accept=".json" onchange="importFolderBackup(this)">
                         </label>
                     </div>
+                    <button onclick="exportFolderBackupJsonOnly()" class="btn-backup" style="width:100%; margin-top:8px;">Backup Folder/Subtree JSON Only</button>
                     <button onclick="importFolderFolderBackupBrowserOnly()" class="btn-restore" style="width:100%; border:none; margin-top:8px;">Restore Folder/Subtree Folder</button>
                     <div class="btn-action-row" style="margin-top:8px;">
                         <button onclick="runDuplicateSensorForFolder()" class="btn-backup">Run Folder Duplicate Scan</button>
@@ -112,7 +127,7 @@ window.EveSettingsTemplates.backupPanel = `
                     <select id="bookmarkBackupLocationSelect" style="width:100%; margin-bottom:8px;"></select>
                     <select id="bookmarkBackupLinkSelect" style="width:100%; margin-bottom:10px;"></select>
                     <div class="btn-action-row">
-                        <button onclick="exportBookmarkBackup()" class="btn-backup">Backup Selected Bookmark</button>
+                        <button onclick="exportBookmarkBackupJsonOnly()" class="btn-backup">Backup Selected Bookmark JSON</button>
                         <label class="btn-restore">
                             Restore Bookmark File
                             <input type="file" id="importBookmarkFile" style="display:none;" accept=".json" onchange="importBookmarkBackup(this)">

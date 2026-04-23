@@ -12,19 +12,44 @@ window.EveDataTransfer = window.EveDataTransfer || {};
     const getAppConfig = ns.getAppConfig;
     const getAppLinks = ns.getAppLinks;
     const exportFullBackupAsFolder = ns.exportFullBackupAsFolder;
+    const buildFullBackupJsonName = ns.buildFullBackupJsonName;
     const persistLayerDestinationPath = ns.persistLayerDestinationPath;
     const requireLayerDestinationPath = ns.requireLayerDestinationPath;
     const canUseServerFolderBackups = typeof ns.canUseServerFolderBackups === 'function'
         ? ns.canUseServerFolderBackups
         : (modularSync) => /^https?:$/i.test(window.location?.protocol || '') && typeof modularSync?.backupLayer === 'function';
 
-    window.exportData = async function () {
+    function downloadFullBackupJson(exportState) {
+        const blob = new Blob([JSON.stringify(exportState, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = typeof buildFullBackupJsonName === 'function'
+            ? buildFullBackupJsonName()
+            : `eve_backup_${new Date().toISOString().slice(0, 10)}.json`;
+        a.click();
+        if (typeof URL.revokeObjectURL === 'function') {
+            setTimeout(() => URL.revokeObjectURL(url), 500);
+        }
+    }
+
+    function captureFullExportState() {
         const dataStore = getDataStore();
-        const exportState = dataStore ? dataStore.captureState() : {
+        return dataStore ? dataStore.captureState() : {
             date: new Date().toISOString(),
             config: getAppConfig(),
             links: getAppLinks()
         };
+    }
+
+    window.exportDataJsonOnly = function () {
+        const exportState = captureFullExportState();
+        downloadFullBackupJson(exportState);
+        showToast('Full backup downloaded as JSON.', 'info');
+    };
+
+    window.exportData = async function () {
+        const exportState = captureFullExportState();
 
         const modularSync = window.EveDataStore?.ModularSync;
         if (canUseServerFolderBackups(modularSync)) {
@@ -75,11 +100,6 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             showToast('Backup failed. Downloading JSON backup instead.', 'warning');
         }
 
-        const blob = new Blob([JSON.stringify(exportState, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `eve_backup_${new Date().toISOString().slice(0, 10)}.json`;
-        a.click();
+        downloadFullBackupJson(exportState);
     };
 })();

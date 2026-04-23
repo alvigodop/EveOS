@@ -18,7 +18,7 @@ function getAllWorkspacesForSettings() {
 
 function normalizeBackupSettingsMode(mode) {
     const normalized = String(mode || 'all').toLowerCase();
-    const allowed = ['all', 'full', 'workspace', 'card', 'folder', 'bookmark', 'modular', 'layer'];
+    const allowed = ['all', 'full', 'group', 'workspace', 'card', 'folder', 'bookmark', 'modular', 'layer'];
     return allowed.includes(normalized) ? normalized : 'all';
 }
 
@@ -71,8 +71,9 @@ function applyBackupSettingsLayout(mode) {
     if (!panels.length) return;
 
     const visibleByMode = {
-        all: ['full', 'workspace', 'card', 'folder', 'bookmark', 'modular', 'layer'],
+        all: ['full', 'group', 'workspace', 'card', 'folder', 'bookmark', 'modular', 'layer'],
         full: ['full'],
+        group: ['group'],
         workspace: ['workspace'],
         card: ['card'],
         folder: ['folder'],

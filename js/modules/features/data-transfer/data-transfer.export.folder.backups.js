@@ -176,6 +176,78 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
             }
         }
 
+        async function exportGroupFolderFallback(groupState, groupId, groupName) {
+            const normalizedGroupId = String(groupId || '').trim();
+            const normalizedGroupName = String(groupName || groupId || 'group').trim() || 'group';
+            if (!groupState || !normalizedGroupId) {
+                return { ok: false, error: 'Group backup payload is unavailable.' };
+            }
+
+            const manifest = {
+                schema: 'eveos.group-folder-backup.v1',
+                generatedAt: new Date().toISOString(),
+                pageUrl: window.location.href,
+                notes: 'Grouped tab backup snapshot (group metadata + grouped tabs + unified state).',
+                group: {
+                    id: normalizedGroupId,
+                    name: normalizedGroupName
+                }
+            };
+
+            if (await ensureZipReady()) {
+                const zipHelpers = getZipHelpers();
+                const zipHandle = zipHelpers.createZipRootHandle();
+                const summary = await writeFullStoreFolderBackup(zipHandle, groupState);
+                await writeJsonFileToFolder(zipHandle, 'manifest.json', {
+                    ...manifest,
+                    dataPack: {
+                        tabs: Number(summary?.tabsCount || 0),
+                        cards: Number(summary?.cardsCount || 0),
+                        bookmarks: Number(summary?.bookmarksCount || 0)
+                    }
+                });
+                const folderName = buildScopedBackupFolderName('group-backup', normalizedGroupName);
+                const blob = await zipHandle.generateBlob();
+                zipHelpers.downloadBlob(blob, `${folderName}.zip`);
+                return {
+                    ok: true,
+                    folderName,
+                    tabs: Number(summary?.tabsCount || 0),
+                    cards: Number(summary?.cardsCount || 0),
+                    bookmarks: Number(summary?.bookmarksCount || 0)
+                };
+            }
+
+            if (typeof window.showDirectoryPicker !== 'function') {
+                return { ok: false, error: 'Folder export is not supported in this browser.' };
+            }
+
+            const parentHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+            const folderName = buildScopedBackupFolderName('group-backup', normalizedGroupName);
+            try {
+                const rootHandle = await parentHandle.getDirectoryHandle(folderName, { create: true });
+                const summary = await writeFullStoreFolderBackup(rootHandle, groupState);
+                await writeJsonFileToFolder(rootHandle, 'manifest.json', {
+                    ...manifest,
+                    dataPack: {
+                        tabs: Number(summary?.tabsCount || 0),
+                        cards: Number(summary?.cardsCount || 0),
+                        bookmarks: Number(summary?.bookmarksCount || 0)
+                    }
+                });
+                return {
+                    ok: true,
+                    folderName,
+                    tabs: Number(summary?.tabsCount || 0),
+                    cards: Number(summary?.cardsCount || 0),
+                    bookmarks: Number(summary?.bookmarksCount || 0)
+                };
+            } catch (error) {
+                await cleanupPartialFolder(parentHandle, folderName);
+                throw error;
+            }
+        }
+
         // --- Workspace (tab) backup ---
         async function exportWorkspaceFolderFallback(workspaceState, workspaceId, workspaceName) {
             if (await ensureZipReady()) {
@@ -435,6 +507,7 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
 
         return {
             exportFullBackupAsFolder,
+            exportGroupFolderFallback,
             exportWorkspaceFolderFallback,
             exportCardFolderFallback,
             exportFolderFolderFallback,
