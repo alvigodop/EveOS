@@ -32,6 +32,16 @@ html[data-native-scheme="light"] {
     overflow-anchor: none;
 }
 
+.category-card[data-card-subtab-parent-view="1"],
+.category-card[data-card-subtab-parent-view="1"] .v2-folder-container,
+.category-card[data-card-subtab-parent-view="1"] .subtab-parent-folder-wrap-grid,
+.category-card[data-card-subtab-parent-view="1"] .bookmark-folder-sections,
+.category-card[data-card-subtab-parent-view="1"] .bookmark-folder-root-group,
+.category-card[data-card-subtab-parent-view="1"] .bookmark-folder-group,
+.category-card[data-card-subtab-parent-view="1"] .manhwa-frame {
+    overflow-anchor: none;
+}
+
 .category-card[data-card-deferred="1"] .eve-card-deferred-skeleton {
     min-height: 84px;
 }
