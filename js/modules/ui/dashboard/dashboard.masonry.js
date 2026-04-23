@@ -65,6 +65,7 @@ window.EveDashboardMasonryHelpers = window.EveDashboardMasonryHelpers || {};
         }
 
         var scrollPos = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+        var scrollActivitySeqAtCapture = Number(window._dashboardScrollActivitySeq || 0);
         var currentHeight = grid.offsetHeight;
         if (currentHeight > 100) {
             grid.style.minHeight = currentHeight + 'px';
@@ -86,6 +87,7 @@ window.EveDashboardMasonryHelpers = window.EveDashboardMasonryHelpers || {};
 
         requestAnimationFrame(function () {
             grid.style.minHeight = '';
+            if (Number(window._dashboardScrollActivitySeq || 0) !== scrollActivitySeqAtCapture) return;
             if (Math.abs((window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0) - scrollPos) > 10) {
                 window.scrollTo(0, scrollPos);
             }

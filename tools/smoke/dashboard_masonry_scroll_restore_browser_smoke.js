@@ -7,13 +7,13 @@ const FILE_URL = 'file:///' + path.join(REPO_ROOT, 'EveOS.html').replace(/\\/g, 
 function buildSeedPayload() {
   const links = [];
   const categoryOrder = [];
-  for (let categoryIndex = 1; categoryIndex <= 40; categoryIndex += 1) {
-    const categoryName = `ScrollCat${categoryIndex}`;
+  for (let categoryIndex = 1; categoryIndex <= 8; categoryIndex += 1) {
+    const categoryName = `MasonryCat${categoryIndex}`;
     categoryOrder.push(categoryName);
-    for (let linkIndex = 1; linkIndex <= 18; linkIndex += 1) {
+    for (let linkIndex = 1; linkIndex <= 10 + categoryIndex; linkIndex += 1) {
       links.push({
         id: `${categoryName}-${linkIndex}`,
-        title: `${categoryName} Link ${linkIndex}`,
+        title: `${categoryName} Link ${linkIndex} with extra text to vary height`,
         url: `https://example.com/${categoryName.toLowerCase()}/${linkIndex}`,
         workspace: 'main',
         category: categoryName,
@@ -41,6 +41,7 @@ async function waitForApp(page) {
   await page.waitForFunction(() => (
     typeof window.renderDashboard === 'function'
     && typeof window.renderSidebar === 'function'
+    && !!window.EveDashboardMasonryHelpers?.refreshDashboardMasonryLayout
   ), undefined, { timeout: 120000 });
 }
 
@@ -71,14 +72,11 @@ async function seedState(page, payload) {
     await waitForApp(page);
     await seedState(page, buildSeedPayload());
 
-    await page.waitForFunction(() => document.querySelectorAll('.category-card').length >= 10, undefined, { timeout: 10000 });
+    await page.waitForFunction(() => document.querySelectorAll('.category-card').length >= 8, undefined, { timeout: 10000 });
     await page.evaluate(() => {
       window.__dashboardSmokeScrollTop = 900;
       window.scrollTo = function (_x, y) {
         window.__dashboardSmokeScrollTop = Number(y) || 0;
-      };
-      window._getRobustScrollTop = function () {
-        return Number(window.__dashboardSmokeScrollTop || 0);
       };
       Object.defineProperty(window, 'pageYOffset', {
         configurable: true,
@@ -92,28 +90,40 @@ async function seedState(page, payload) {
           return Number(window.__dashboardSmokeScrollTop || 0);
         }
       });
+      Object.defineProperty(document.documentElement, 'scrollTop', {
+        configurable: true,
+        get() {
+          return Number(window.__dashboardSmokeScrollTop || 0);
+        }
+      });
+      Object.defineProperty(document.body, 'scrollTop', {
+        configurable: true,
+        get() {
+          return Number(window.__dashboardSmokeScrollTop || 0);
+        }
+      });
     });
-    await page.waitForTimeout(50);
 
-    const beforeRender = await page.evaluate(() => Math.round(window.scrollY || window.pageYOffset || 0));
-    if (beforeRender < 600) {
-      throw new Error(`Expected to reach a deep dashboard scroll position, got ${beforeRender}`);
+    const before = await page.evaluate(() => Math.round(window.scrollY || window.pageYOffset || 0));
+    if (before < 600) {
+      throw new Error(`Expected starting deep scroll position, got ${before}`);
     }
 
-    await page.evaluate(() => window.renderDashboard());
-    await page.waitForTimeout(8);
     await page.evaluate(() => {
+      const grid = document.getElementById('dashboard-grid');
+      if (!grid) throw new Error('dashboard-grid missing');
+      window.EveDashboardMasonryHelpers.refreshDashboardMasonryLayout(grid);
       window.dispatchEvent(new WheelEvent('wheel', { deltaY: -180, bubbles: true, cancelable: true }));
       window.__dashboardSmokeScrollTop = 240;
     });
-    await page.waitForTimeout(450);
+    await page.waitForTimeout(120);
 
-    const afterUserScroll = await page.evaluate(() => Math.round(window.scrollY || window.pageYOffset || 0));
-    if (Math.abs(afterUserScroll - 240) > 80) {
-      throw new Error(`Dashboard delayed restore overrode user scroll; expected near 240, got ${afterUserScroll}`);
+    const after = await page.evaluate(() => Math.round(window.scrollY || window.pageYOffset || 0));
+    if (Math.abs(after - 240) > 80) {
+      throw new Error(`Masonry restore overrode user scroll; expected near 240, got ${after}`);
     }
 
-    console.log('DASHBOARD_SCROLL_RESTORE_BROWSER_SMOKE_OK');
+    console.log('DASHBOARD_MASONRY_SCROLL_RESTORE_BROWSER_SMOKE_OK');
   } finally {
     await browser.close();
   }

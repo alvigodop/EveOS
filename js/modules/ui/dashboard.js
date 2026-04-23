@@ -27,6 +27,7 @@ var _scrollSave = -1;
 var _scrollRafId = 0;
 var _scrollSpacer = null;
 var _dashboardScrollActivitySeq = 0;
+window._dashboardScrollActivitySeq = 0;
 var _dashboardIgnoreScrollActivityUntil = 0;
 var _dashboardLiveLinkMapCache = {
     ref: null,
@@ -102,14 +103,51 @@ function clearDashboardScrollPreservation() {
     _scrollSave = -1;
 }
 
+function hasDashboardScrollPreservation() {
+    return !!(_scrollRafId || _scrollSpacer || _scrollSave >= 0);
+}
+
+function cancelDashboardScrollPreservationForUserInput() {
+    if (!hasDashboardScrollPreservation()) return;
+    _dashboardScrollActivitySeq += 1;
+    window._dashboardScrollActivitySeq = _dashboardScrollActivitySeq;
+    clearDashboardScrollPreservation();
+}
+
+function isDashboardScrollKey(event) {
+    var key = String(event?.key || '').trim();
+    return key === 'ArrowUp'
+        || key === 'ArrowDown'
+        || key === 'PageUp'
+        || key === 'PageDown'
+        || key === 'Home'
+        || key === 'End'
+        || key === ' '
+        || key === 'Spacebar';
+}
+
 if (!window.__dashboardScrollCaptureBound) {
     window.__dashboardScrollCaptureBound = true;
     document.addEventListener('scroll', function () {
         if (Date.now() <= _dashboardIgnoreScrollActivityUntil) return;
         _dashboardScrollActivitySeq += 1;
+        window._dashboardScrollActivitySeq = _dashboardScrollActivitySeq;
         if (_scrollRafId || _scrollSpacer || _scrollSave >= 0) {
             clearDashboardScrollPreservation();
         }
+    }, true);
+    window.addEventListener('wheel', function () {
+        cancelDashboardScrollPreservationForUserInput();
+    }, { passive: true });
+    window.addEventListener('touchmove', function () {
+        cancelDashboardScrollPreservationForUserInput();
+    }, { passive: true });
+    document.addEventListener('keydown', function (event) {
+        if (!isDashboardScrollKey(event)) return;
+        var activeEl = document.activeElement;
+        var tagName = String(activeEl?.tagName || '').toLowerCase();
+        if (tagName === 'input' || tagName === 'textarea' || tagName === 'select' || activeEl?.isContentEditable) return;
+        cancelDashboardScrollPreservationForUserInput();
     }, true);
 }
 
