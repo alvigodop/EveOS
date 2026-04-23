@@ -95,7 +95,108 @@
         if (typeof previewState.revealPreviewVersion !== 'number') previewState.revealPreviewVersion = -1;
         if (typeof previewState.revealPreviewQueued !== 'boolean') previewState.revealPreviewQueued = false;
         if (typeof previewState.revealPreviewReady !== 'boolean') previewState.revealPreviewReady = false;
+        if (typeof previewState.revealPreviewVisible !== 'boolean') previewState.revealPreviewVisible = false;
         return previewState;
+    }
+
+    function getSidebarScrollMemory() {
+        var scrollMemory = rt._sidebarScrollMemory || (rt._sidebarScrollMemory = {});
+        if (typeof scrollMemory.contentTop !== 'number') scrollMemory.contentTop = 0;
+        if (typeof scrollMemory.previewTop !== 'number') scrollMemory.previewTop = 0;
+        if (typeof scrollMemory.visibleTop !== 'number') scrollMemory.visibleTop = 0;
+        if (typeof scrollMemory.restoreToken !== 'number') scrollMemory.restoreToken = 0;
+        return scrollMemory;
+    }
+
+    function bindSidebarScrollTracking(scaffold) {
+        var targetScaffold = scaffold && scaffold.contentHost ? scaffold : null;
+        if (!targetScaffold) return;
+
+        var scrollMemory = getSidebarScrollMemory();
+
+        function bindHost(host, kind) {
+            if (!host || host.__eveSidebarScrollTrackingBound) return;
+            host.__eveSidebarScrollTrackingBound = true;
+            host.addEventListener('scroll', function () {
+                if (rt._sidebarSuppressScrollTracking) return;
+                var nextTop = Number(host.scrollTop || 0);
+                if (kind === 'preview') {
+                    scrollMemory.previewTop = nextTop;
+                    if (rt.isHoverRevealActive && rt.isHoverRevealActive()) {
+                        scrollMemory.visibleTop = nextTop;
+                    }
+                    return;
+                }
+
+                scrollMemory.contentTop = nextTop;
+                if (!(rt.isHoverRevealActive && rt.isHoverRevealActive())) {
+                    scrollMemory.visibleTop = nextTop;
+                }
+            }, { passive: true });
+        }
+
+        bindHost(targetScaffold.contentHost, 'content');
+        bindHost(targetScaffold.previewHost, 'preview');
+    }
+
+    function captureSidebarScrollState(scaffold) {
+        var targetScaffold = scaffold && scaffold.contentHost ? scaffold : null;
+        var scrollMemory = getSidebarScrollMemory();
+        if (!targetScaffold) {
+            return {
+                contentTop: 0,
+                previewTop: 0,
+                visibleTop: 0
+            };
+        }
+
+        var contentTop = targetScaffold.contentHost ? Number(targetScaffold.contentHost.scrollTop || 0) : 0;
+        var previewTop = targetScaffold.previewHost ? Number(targetScaffold.previewHost.scrollTop || 0) : 0;
+        var visibleTop = targetScaffold.previewHost && !targetScaffold.previewHost.hidden
+            ? previewTop
+            : contentTop;
+
+        if (rt._sidebarSuppressScrollTracking) {
+            if (Number.isFinite(scrollMemory.contentTop)) contentTop = Number(scrollMemory.contentTop || 0);
+            if (Number.isFinite(scrollMemory.previewTop)) previewTop = Number(scrollMemory.previewTop || 0);
+            if (Number.isFinite(scrollMemory.visibleTop)) visibleTop = Number(scrollMemory.visibleTop || 0);
+        }
+
+        return {
+            contentTop: contentTop,
+            previewTop: previewTop,
+            visibleTop: visibleTop
+        };
+    }
+
+    function restoreSidebarScrollState(scaffold, state) {
+        var targetScaffold = scaffold && scaffold.contentHost ? scaffold : null;
+        var scrollState = state && typeof state === 'object' ? state : null;
+        if (!targetScaffold || !scrollState) return;
+
+        var scrollMemory = getSidebarScrollMemory();
+
+        if (targetScaffold.contentHost && Number.isFinite(scrollState.contentTop)) {
+            targetScaffold.contentHost.scrollTop = scrollState.contentTop;
+            scrollMemory.contentTop = Number(targetScaffold.contentHost.scrollTop || 0);
+        }
+        if (targetScaffold.previewHost && Number.isFinite(scrollState.previewTop)) {
+            targetScaffold.previewHost.scrollTop = scrollState.previewTop;
+            scrollMemory.previewTop = Number(targetScaffold.previewHost.scrollTop || 0);
+        }
+
+        if (!Number.isFinite(scrollState.visibleTop)) return;
+
+        var previewVisible = !!(targetScaffold.previewHost && !targetScaffold.previewHost.hidden);
+        if (previewVisible && targetScaffold.previewHost) {
+            targetScaffold.previewHost.scrollTop = scrollState.visibleTop;
+            scrollMemory.previewTop = Number(targetScaffold.previewHost.scrollTop || 0);
+            scrollMemory.visibleTop = scrollMemory.previewTop;
+        } else if (targetScaffold.contentHost) {
+            targetScaffold.contentHost.scrollTop = scrollState.visibleTop;
+            scrollMemory.contentTop = Number(targetScaffold.contentHost.scrollTop || 0);
+            scrollMemory.visibleTop = scrollMemory.contentTop;
+        }
     }
 
     function syncHoverRevealContentVisibility(scaffold) {
@@ -103,25 +204,38 @@
         if (!sb) return;
 
         var targetScaffold = scaffold && scaffold.contentHost ? scaffold : ensureSidebarScaffold(sb);
+        bindSidebarScrollTracking(targetScaffold);
         var previewState = getHoverRevealPreviewState();
         var revealActive = !!(rt.isHoverRevealActive && rt.isHoverRevealActive());
         var previewReady = !!previewState.revealPreviewReady
             && !!targetScaffold.previewHost
             && targetScaffold.previewHost.childElementCount > 0;
+        var nextPreviewVisible = revealActive && previewReady;
+
+        if (targetScaffold.contentHost && targetScaffold.previewHost) {
+            if (nextPreviewVisible && !previewState.revealPreviewVisible) {
+                targetScaffold.previewHost.scrollTop = Number(targetScaffold.contentHost.scrollTop || 0);
+            } else if (!nextPreviewVisible && previewState.revealPreviewVisible) {
+                targetScaffold.contentHost.scrollTop = Number(targetScaffold.previewHost.scrollTop || 0);
+            }
+        }
+
+        previewState.revealPreviewVisible = nextPreviewVisible;
 
         if (targetScaffold.contentHost) {
-            targetScaffold.contentHost.hidden = revealActive && previewReady;
-            targetScaffold.contentHost.setAttribute('aria-hidden', revealActive && previewReady ? 'true' : 'false');
+            targetScaffold.contentHost.hidden = nextPreviewVisible;
+            targetScaffold.contentHost.setAttribute('aria-hidden', nextPreviewVisible ? 'true' : 'false');
         }
         if (targetScaffold.previewHost) {
-            targetScaffold.previewHost.hidden = !(revealActive && previewReady);
-            targetScaffold.previewHost.setAttribute('aria-hidden', revealActive && previewReady ? 'false' : 'true');
+            targetScaffold.previewHost.hidden = !nextPreviewVisible;
+            targetScaffold.previewHost.setAttribute('aria-hidden', nextPreviewVisible ? 'false' : 'true');
         }
     }
 
     function renderSidebarContentHost(sb, host, options) {
         var opts = options && typeof options === 'object' ? options : {};
         if (!sb || !host) return;
+        host.scrollTop = 0;
         host.innerHTML = '';
 
         var ctx = rt.createRenderContext(sb, {
@@ -355,6 +469,12 @@
 
         bindSidebarToggleBehavior(sb);
         var scaffold = ensureSidebarScaffold(sb);
+        bindSidebarScrollTracking(scaffold);
+        var scrollState = captureSidebarScrollState(scaffold);
+        var scrollMemory = getSidebarScrollMemory();
+        scrollMemory.restoreToken += 1;
+        var restoreToken = scrollMemory.restoreToken;
+        rt._sidebarSuppressScrollTracking = true;
         var ctx = rt.createRenderContext(sb);
         syncSidebarShellState(sb);
         syncHoverRevealContentVisibility(scaffold);
@@ -376,6 +496,17 @@
             resetRegistry: true,
             syncFocusedGroupState: true
         });
+        restoreSidebarScrollState(scaffold, scrollState);
+        window.requestAnimationFrame(function () {
+            if (getSidebarScrollMemory().restoreToken !== restoreToken) return;
+            restoreSidebarScrollState(scaffold, scrollState);
+        });
+        window.setTimeout(function () {
+            var latestScrollMemory = getSidebarScrollMemory();
+            if (latestScrollMemory.restoreToken !== restoreToken) return;
+            restoreSidebarScrollState(scaffold, scrollState);
+            rt._sidebarSuppressScrollTracking = false;
+        }, 90);
 
         sb.ondragover = function (e) {
             var dragId = ctx.getDraggedWorkspaceId();

@@ -103,27 +103,40 @@ async function readState(page) {
       }
 
       const priorPromoter = window.EveLibrary?.ConnectionsAPI?.promoteLinkWithData;
+      const promotionCalls = [];
       if (window.EveLibrary?.ConnectionsAPI) {
-        window.EveLibrary.ConnectionsAPI.promoteLinkWithData = () => {};
+        window.EveLibrary.ConnectionsAPI.promoteLinkWithData = (id, data) => {
+          promotionCalls.push({ id, data });
+        };
       }
 
       try {
-        const singleLineLinks = [];
-        const singleLineBookmark = api.processStructuredFile(
+        function parseStructured(content, fileName, category) {
+          const liveLinks = [];
+          const priorPromotionCount = promotionCalls.length;
+          const bookmark = api.processStructuredFile(
+            content,
+            fileName,
+            category,
+            '',
+            { liveLinks, deferLibrarySave: true, silent: true }
+          );
+          const promotion = promotionCalls.length > priorPromotionCount
+            ? promotionCalls[promotionCalls.length - 1]
+            : null;
+          return { bookmark, promotion };
+        }
+
+        const singleLineCase = parseStructured(
           'Cultivator Against Hero Society',
           'I-Remeber-Its-Mid.txt',
-          'Straglers',
-          '',
-          { liveLinks: singleLineLinks, deferLibrarySave: true, silent: true }
+          'Straglers'
         );
 
-        const ledgerLinks = [];
-        const ledgerBookmark = api.processStructuredFile(
+        const ledgerCase = parseStructured(
           'Movie 8: Fin\nMovie 7: Fin',
           'Harry Potter  Finished _260228_000250.txt',
-          'Movies',
-          '',
-          { liveLinks: ledgerLinks, deferLibrarySave: true, silent: true }
+          'Movies'
         );
 
         const titleListContent = [
@@ -147,13 +160,24 @@ async function readState(page) {
         ].join('\n');
 
         const inlineUrlTitleContent = 'https://www.youtube.com/watch?v=1PlfTgkCAws | Different Kings Chapter 1 & 2 [ ENGLISH ] - YouTube';
-        const inlineUrlTitleLinks = [];
-        const inlineUrlTitleBookmark = api.processStructuredFile(
+        const inlineUrlTitleCase = parseStructured(
           inlineUrlTitleContent,
           'manga YouTube_and_Misc.txt',
-          'Straglers',
+          'Straglers'
+        );
+
+        const soloLevelingContent = [
+          'Source: The Best Sites',
+          'Officially ened at Ch: 184',
           '',
-          { liveLinks: inlineUrlTitleLinks, deferLibrarySave: true, silent: true }
+          'Then New Begining after End: 200',
+          '',
+          '2 endings'
+        ].join('\n');
+        const soloLevelingCase = parseStructured(
+          soloLevelingContent,
+          'Solo Leveling_260227_234000.txt',
+          'Memorable'
         );
 
         return {
@@ -169,20 +193,34 @@ async function readState(page) {
             structured: api.looksLikeStructuredFileContent(inlineUrlTitleContent, 'manga YouTube_and_Misc.txt'),
             singleEntry: api.looksLikeSingleEntryBulkFile(inlineUrlTitleContent, 'manga YouTube_and_Misc.txt')
           },
+          soloLevelingDetection: {
+            structured: api.looksLikeStructuredFileContent(soloLevelingContent, 'Solo Leveling_260227_234000.txt'),
+            singleEntry: api.looksLikeSingleEntryBulkFile(soloLevelingContent, 'Solo Leveling_260227_234000.txt')
+          },
           inlineUrlTitleBookmark: {
-            title: inlineUrlTitleBookmark?.title || '',
-            url: inlineUrlTitleBookmark?.url || '',
-            notes: inlineUrlTitleBookmark?.notes || ''
+            title: inlineUrlTitleCase.bookmark?.title || '',
+            url: inlineUrlTitleCase.bookmark?.url || '',
+            notes: inlineUrlTitleCase.bookmark?.notes || ''
           },
           singleLineBookmark: {
-            title: singleLineBookmark?.title || '',
-            url: singleLineBookmark?.url || '',
-            notes: singleLineBookmark?.notes || ''
+            title: singleLineCase.bookmark?.title || '',
+            url: singleLineCase.bookmark?.url || '',
+            notes: singleLineCase.bookmark?.notes || ''
           },
           ledgerBookmark: {
-            title: ledgerBookmark?.title || '',
-            url: ledgerBookmark?.url || '',
-            notes: ledgerBookmark?.notes || ''
+            title: ledgerCase.bookmark?.title || '',
+            url: ledgerCase.bookmark?.url || '',
+            notes: ledgerCase.bookmark?.notes || ''
+          },
+          soloLevelingBookmark: {
+            title: soloLevelingCase.bookmark?.title || '',
+            url: soloLevelingCase.bookmark?.url || '',
+            notes: soloLevelingCase.bookmark?.notes || ''
+          },
+          soloLevelingPromotion: {
+            chapter: soloLevelingCase.promotion?.data?.chapter || 0,
+            summary: soloLevelingCase.promotion?.data?.summary || '',
+            status: soloLevelingCase.promotion?.data?.status || ''
           }
         };
       } finally {
@@ -210,6 +248,9 @@ async function readState(page) {
     if (!parserCases.inlineUrlTitleDetection.structured || !parserCases.inlineUrlTitleDetection.singleEntry) {
       throw new Error(`Inline URL+title single-entry file should be detected for Smart Extract, got ${JSON.stringify(parserCases.inlineUrlTitleDetection)}`);
     }
+    if (!parserCases.soloLevelingDetection.structured) {
+      throw new Error(`Solo Leveling note file should be detected as structured Smart Extract, got ${JSON.stringify(parserCases.soloLevelingDetection)}`);
+    }
     if (parserCases.inlineUrlTitleBookmark.title !== 'Different Kings Chapter 1 & 2 [ ENGLISH ] - YouTube') {
       throw new Error(`Inline URL+title structured file title mismatch: ${JSON.stringify(parserCases.inlineUrlTitleBookmark)}`);
     }
@@ -224,6 +265,15 @@ async function readState(page) {
     }
     if (!/Movie 8: Fin/.test(parserCases.ledgerBookmark.notes)) {
       throw new Error(`Progress-ledger structured file lost note lines: ${JSON.stringify(parserCases.ledgerBookmark)}`);
+    }
+    if (parserCases.soloLevelingBookmark.title !== 'Solo Leveling') {
+      throw new Error(`Solo Leveling structured file title mismatch: ${JSON.stringify(parserCases.soloLevelingBookmark)}`);
+    }
+    if (!/Officially ened at Ch: 184/.test(parserCases.soloLevelingBookmark.notes) || !/Then New Begining after End: 200/.test(parserCases.soloLevelingBookmark.notes)) {
+      throw new Error(`Solo Leveling structured file lost note lines: ${JSON.stringify(parserCases.soloLevelingBookmark)}`);
+    }
+    if (parserCases.soloLevelingPromotion.chapter !== 184) {
+      throw new Error(`Solo Leveling structured file should promote chapter 184, got ${JSON.stringify(parserCases.soloLevelingPromotion)}`);
     }
 
     const leadingBlankLineImport = await page.evaluate(async () => {

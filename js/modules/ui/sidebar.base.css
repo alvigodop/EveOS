@@ -205,6 +205,7 @@
     padding-bottom: 10px;
     scrollbar-width: thin;
     scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+    overflow-anchor: none;
 }
 
 .ws-sidebar-content[hidden] {

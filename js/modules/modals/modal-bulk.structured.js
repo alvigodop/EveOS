@@ -291,7 +291,7 @@ window.EveBulkImport = window.EveBulkImport || {};
         if (!text) return false;
         if (isUnlabeledProgressToken(text)) return false;
         if (looksLikeUrlValue(text)) return false;
-        if (/^(?:title|name|url|link|read site|site|to watch site|type|category|status|state|notes|summary)[\s:-]+/i.test(text)) return false;
+        if (/^(?:title|name|url|link|read site|site|to watch site|type|category|status|state|notes|summary|source|origin|provider|via)[\s:-]+/i.test(text)) return false;
         if (/^(?:last\s+)?(?:finished ep|going to ep|ep|episode|ch|chapter)[\s:\-#]*\d+/i.test(text)) return false;
         return true;
     }
@@ -316,7 +316,30 @@ window.EveBulkImport = window.EveBulkImport || {};
 
     function hasStructuredFieldLine(value) {
         const text = String(value || '').trim();
-        return /^(?:title|name|url|link|read site|site|to watch site|type|category|status|state|notes|summary|finished ep|going to ep|ep|episode|ch|chapter)[\s:-]+/i.test(text);
+        return /^(?:title|name|url|link|read site|site|to watch site|type|category|status|state|notes|summary|source|origin|provider|via|finished ep|going to ep|ep|episode|ch|chapter)[\s:-]+/i.test(text);
+    }
+
+    function extractContextualProgressNumber(value, kind = 'chapter') {
+        const text = String(value || '').trim();
+        if (!text || looksLikeUrlValue(text)) return 0;
+
+        const normalizedKind = kind === 'episode' ? 'episode' : 'chapter';
+        const directPattern = normalizedKind === 'episode'
+            ? /^(?:Last\s+)?(?:Finished Ep|Going To Ep|Ep|Episode)[\s:\-#]*\d+/i
+            : /^(?:Last\s+)?(?:Ch|Chapter)[\s:\-#]*\d+/i;
+        if (directPattern.test(text)) return 0;
+
+        const embeddedPattern = normalizedKind === 'episode'
+            ? /\b(?:ep|episode)\s*[:\-#]?\s*(\d+)\b/i
+            : /\b(?:ch|chapter)\s*[:\-#]?\s*(\d+)\b/i;
+        const match = text.match(embeddedPattern);
+        if (!match) return 0;
+
+        if (!/\b(?:official(?:ly)?|finished|done|complete(?:d)?|ongoing|current|reading|read|watching|watched|ended?|ened|last|through|upto|up to|at)\b/i.test(text)) {
+            return 0;
+        }
+
+        return parseInt(match[1], 10) || 0;
     }
 
     function isProgressLedgerLine(value) {
@@ -490,6 +513,9 @@ function processStructuredFile(content, fileName, targetCategory, folderId = '',
                 status = val;
                 processedAsCoreKey = true;
                 notesArr.push(`${key}: ${val}`); // Keep in notes for raw context
+            } else if (key === 'source' || key === 'origin' || key === 'provider' || key === 'via') {
+                if (val) notesArr.push(trimmed);
+                processedAsCoreKey = true;
             } else if (key === 'notes' || key === 'summary') {
                 notesArr.push(val);
                 processedAsCoreKey = true;
@@ -502,10 +528,18 @@ function processStructuredFile(content, fileName, targetCategory, folderId = '',
             episode = Math.max(episode, parseInt(epMatch[1], 10));
             // Keep in notes as well to avoid losing context like "Finished Ep" vs "Going To Ep"
         }
+        const contextualEpisode = !epMatch ? extractContextualProgressNumber(trimmed, 'episode') : 0;
+        if (contextualEpisode > 0) {
+            episode = Math.max(episode, contextualEpisode);
+        }
 
         const chMatch = trimmed.match(/^(?:Last\s+)?(?:Ch|Chapter)[\s:\-#]*(\d+)/i);
         if (chMatch) {
             chapter = Math.max(chapter, parseInt(chMatch[1], 10));
+        }
+        const contextualChapter = !chMatch ? extractContextualProgressNumber(trimmed, 'chapter') : 0;
+        if (contextualChapter > 0) {
+            chapter = Math.max(chapter, contextualChapter);
         }
 
         if (!processedAsCoreKey) {
