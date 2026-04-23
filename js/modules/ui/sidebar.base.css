@@ -81,7 +81,12 @@
     justify-content: center;
     cursor: pointer;
     font-size: 1.2rem;
-    transition: 0.2s;
+    transition:
+        background-color 0.06s ease-out,
+        color 0.06s ease-out,
+        box-shadow 0.08s ease-out,
+        border-color 0.08s ease-out,
+        opacity 0.08s ease-out;
     position: relative;
     flex-shrink: 0;
     min-width: 0;
@@ -124,7 +129,9 @@
     font-size: 0.9rem;
     color: var(--text-main);
     opacity: 0;
-    transition: 0.2s;
+    transition:
+        opacity 0.1s ease-out,
+        color 0.06s ease-out;
     pointer-events: none;
     white-space: nowrap;
     overflow: hidden;
@@ -337,7 +344,12 @@
     gap: 6px;
     padding: 0 10px;
     cursor: pointer;
-    transition: 0.2s;
+    transition:
+        background-color 0.06s ease-out,
+        color 0.06s ease-out,
+        box-shadow 0.08s ease-out,
+        border-color 0.08s ease-out,
+        opacity 0.08s ease-out;
     box-sizing: border-box;
     overflow: hidden;
     min-width: 0;
@@ -494,6 +506,15 @@
 .ws-group-section .ws-group-body .ws-item:not(:hover):not(.active) {
     background: color-mix(in srgb, var(--ws-group-color) 10%, var(--sidebar-item-bg));
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ws-group-color) 18%, rgba(255, 255, 255, 0.05));
+}
+
+.ws-group-section .ws-group-body .ws-item {
+    transition:
+        background-color 0.06s ease-out,
+        color 0.06s ease-out,
+        box-shadow 0.08s ease-out,
+        border-color 0.08s ease-out,
+        opacity 0.08s ease-out;
 }
 
 .ws-group-empty {

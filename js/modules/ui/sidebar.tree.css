@@ -83,13 +83,30 @@
     border-radius: 7px;
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.08);
+    --ws-sub-hover-accent: rgba(168, 130, 255, 0.78);
+    --ws-sub-hover-bg: rgba(168, 130, 255, 0.16);
+    --ws-sub-hover-glow: rgba(168, 130, 255, 0.24);
+    transition:
+        background-color 0.06s ease-out,
+        color 0.06s ease-out,
+        box-shadow 0.08s ease-out,
+        border-color 0.08s ease-out,
+        opacity 0.08s ease-out;
 }
 
 .ws-sub-item:hover,
 .ws-sub-item.active {
-    background: var(--accent);
+    background:
+        linear-gradient(
+            90deg,
+            color-mix(in srgb, var(--ws-sub-hover-accent) 18%, transparent),
+            var(--ws-sub-hover-bg)
+        );
     color: var(--accent-contrast);
-    box-shadow: 0 0 6px rgba(0, 212, 255, 0.35);
+    box-shadow:
+        inset 3px 0 0 var(--ws-sub-hover-accent),
+        inset 0 0 0 1px color-mix(in srgb, var(--ws-sub-hover-accent) 28%, rgba(255, 255, 255, 0.08)),
+        0 0 8px var(--ws-sub-hover-glow);
 }
 
 /* Tighten gap between collapsed sub-tab icons */
@@ -114,26 +131,44 @@
     background: rgba(168, 130, 255, 0.05);
     gap: 5px;
     overflow: hidden;
+    transition:
+        background-color 0.06s ease-out,
+        color 0.06s ease-out,
+        box-shadow 0.08s ease-out,
+        border-color 0.08s ease-out,
+        opacity 0.08s ease-out;
 }
 
 /* Depth-based left border style and color variations */
 #sidebar.is-expanded .ws-depth-1 > .ws-sub-item {
     border-left-color: rgba(168, 130, 255, 0.5);
+    --ws-sub-hover-accent: rgba(168, 130, 255, 0.82);
+    --ws-sub-hover-bg: rgba(168, 130, 255, 0.16);
+    --ws-sub-hover-glow: rgba(168, 130, 255, 0.26);
 }
 #sidebar.is-expanded .ws-depth-2 > .ws-sub-item {
     border-left-style: dashed;
     border-left-color: rgba(218, 165, 32, 0.5);
     background: rgba(218, 165, 32, 0.05);
+    --ws-sub-hover-accent: rgba(218, 165, 32, 0.86);
+    --ws-sub-hover-bg: rgba(218, 165, 32, 0.15);
+    --ws-sub-hover-glow: rgba(218, 165, 32, 0.24);
 }
 #sidebar.is-expanded .ws-depth-3 > .ws-sub-item {
     border-left-style: dotted;
     border-left-color: rgba(100, 200, 180, 0.45);
     background: rgba(100, 200, 180, 0.04);
+    --ws-sub-hover-accent: rgba(100, 200, 180, 0.84);
+    --ws-sub-hover-bg: rgba(100, 200, 180, 0.14);
+    --ws-sub-hover-glow: rgba(100, 200, 180, 0.22);
 }
 #sidebar.is-expanded .ws-depth-4 > .ws-sub-item {
     border-left-style: dotted;
     border-left-color: rgba(180, 120, 100, 0.4);
     background: rgba(180, 120, 100, 0.04);
+    --ws-sub-hover-accent: rgba(180, 120, 100, 0.82);
+    --ws-sub-hover-bg: rgba(180, 120, 100, 0.14);
+    --ws-sub-hover-glow: rgba(180, 120, 100, 0.22);
     opacity: 0.85;
 }
 
@@ -142,6 +177,24 @@
     border-left-color: color-mix(in srgb, var(--ws-group-color) 74%, rgba(255, 255, 255, 0.34));
     background: color-mix(in srgb, var(--ws-group-color) 10%, rgba(255, 255, 255, 0.04));
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ws-group-color) 18%, rgba(255, 255, 255, 0.05));
+    --ws-sub-hover-accent: color-mix(in srgb, var(--ws-group-color) 84%, rgba(255, 255, 255, 0.34));
+    --ws-sub-hover-bg: color-mix(in srgb, var(--ws-group-color) 16%, rgba(255, 255, 255, 0.06));
+    --ws-sub-hover-glow: color-mix(in srgb, var(--ws-group-color) 24%, transparent);
+}
+
+#sidebar.is-expanded .ws-group-member-item:hover,
+#sidebar.is-expanded .ws-group-member-item.active {
+    border-left-color: color-mix(in srgb, var(--ws-group-color) 86%, rgba(255, 255, 255, 0.32));
+    background:
+        linear-gradient(
+            90deg,
+            color-mix(in srgb, var(--ws-group-color) 18%, transparent),
+            color-mix(in srgb, var(--ws-group-color) 18%, rgba(255, 255, 255, 0.08))
+        );
+    box-shadow:
+        inset 3px 0 0 color-mix(in srgb, var(--ws-group-color) 84%, rgba(255, 255, 255, 0.28)),
+        inset 0 0 0 1px color-mix(in srgb, var(--ws-group-color) 22%, rgba(255, 255, 255, 0.08)),
+        0 0 10px color-mix(in srgb, var(--ws-group-color) 26%, transparent);
 }
 
 .ws-group-member-wrapper.ws-depth-1::before,
