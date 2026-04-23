@@ -27,7 +27,8 @@ html[data-native-scheme="light"] {
 }
 
 .category-card[data-card-deferred="1"],
-.category-card[data-card-hydrating="1"] {
+.category-card[data-card-hydrating="1"],
+.category-card[data-card-heavy-layout="1"] {
     overflow-anchor: none;
 }
 

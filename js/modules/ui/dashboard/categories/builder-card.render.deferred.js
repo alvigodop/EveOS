@@ -40,6 +40,20 @@ window.DashboardCategories = window.DashboardCategories || {};
         return Math.max(200, Math.min(2200, estimate));
     }
 
+    function applyCardPlaceholderSizing(cardNode, workspaceId, categoryName, catLinks, options) {
+        if (!cardNode || !cardNode.style) return 0;
+        var placeholderHeight = estimateDeferredShellMinHeight(workspaceId, categoryName, catLinks, options);
+        cardNode.style.containIntrinsicSize = 'auto ' + placeholderHeight + 'px';
+        if (placeholderHeight >= 900) {
+            cardNode.style.contentVisibility = 'visible';
+            cardNode.setAttribute('data-card-heavy-layout', '1');
+        } else {
+            cardNode.style.removeProperty('content-visibility');
+            cardNode.removeAttribute('data-card-heavy-layout');
+        }
+        return placeholderHeight;
+    }
+
     function captureRenderedCardHeight(cardNode, workspaceId, categoryName) {
         if (!cardNode || !cardNode.isConnected) return;
         var cacheKey = buildCardHeightCacheKey(workspaceId, categoryName);
@@ -49,6 +63,14 @@ window.DashboardCategories = window.DashboardCategories || {};
             var measuredHeight = Math.ceil(cardNode.getBoundingClientRect?.().height || cardNode.offsetHeight || 0);
             if (measuredHeight > 0) {
                 cardHeightCache[cacheKey] = Math.max(Number(cardHeightCache[cacheKey] || 0), measuredHeight);
+                cardNode.style.containIntrinsicSize = 'auto ' + measuredHeight + 'px';
+                if (measuredHeight >= 900) {
+                    cardNode.style.contentVisibility = 'visible';
+                    cardNode.setAttribute('data-card-heavy-layout', '1');
+                } else {
+                    cardNode.style.removeProperty('content-visibility');
+                    cardNode.removeAttribute('data-card-heavy-layout');
+                }
             }
             cardNode.removeAttribute('data-card-hydrating');
             cardNode.style.removeProperty('min-height');
@@ -58,6 +80,7 @@ window.DashboardCategories = window.DashboardCategories || {};
         window.setTimeout(commitHeightMeasurement, 180);
     }
 
+    api.applyCardPlaceholderSizing = applyCardPlaceholderSizing;
     api.captureRenderedCardHeight = captureRenderedCardHeight;
 
     function renderCard(catInput, catLinks, gridContainer, configOptions) {
@@ -102,7 +125,7 @@ window.DashboardCategories = window.DashboardCategories || {};
             shellCard.setAttribute('data-card-workspace', cardWorkspaceId);
             shellCard.setAttribute('data-card-deferred', '1');
             shellCard.setAttribute('data-card-hydrating', '1');
-            shellCard.style.minHeight = estimateDeferredShellMinHeight(cardWorkspaceId, cat, catLinks, options) + 'px';
+            shellCard.style.minHeight = applyCardPlaceholderSizing(shellCard, cardWorkspaceId, cat, catLinks, options) + 'px';
             if (isDetachedParkingCard) {
                 shellCard.setAttribute('data-detached-parking-card', '1');
             }
@@ -151,6 +174,11 @@ window.DashboardCategories = window.DashboardCategories || {};
 
                 fullCard.setAttribute('data-card-hydrating', '1');
                 fullCard.style.minHeight = shellCard.style.minHeight || '';
+                fullCard.style.containIntrinsicSize = shellCard.style.containIntrinsicSize || '';
+                if (shellCard.getAttribute('data-card-heavy-layout') === '1') {
+                    fullCard.style.contentVisibility = 'visible';
+                    fullCard.setAttribute('data-card-heavy-layout', '1');
+                }
                 shellCard.replaceWith(fullCard);
                 fullCard.style.opacity = '0';
                 fullCard.style.transition = 'opacity 0.2s ease';
@@ -176,6 +204,11 @@ window.DashboardCategories = window.DashboardCategories || {};
                     if (ghostCard && fullCard.parentNode) {
                         ghostCard.setAttribute('data-card-hydrating', '1');
                         ghostCard.style.minHeight = fullCard.style.minHeight || '';
+                        ghostCard.style.containIntrinsicSize = fullCard.style.containIntrinsicSize || '';
+                        if (fullCard.getAttribute('data-card-heavy-layout') === '1') {
+                            ghostCard.style.contentVisibility = 'visible';
+                            ghostCard.setAttribute('data-card-heavy-layout', '1');
+                        }
                         fullCard.replaceWith(ghostCard);
                         captureRenderedCardHeight(ghostCard, cardWorkspaceId, cat);
                         if (window.EveFolderViewV2 && window.EveFolderViewV2.restoreActiveFolderState) {

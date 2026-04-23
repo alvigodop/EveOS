@@ -463,6 +463,9 @@ window.DashboardCategories = window.DashboardCategories || {};
         if (isDetachedParkingCard) {
             card.setAttribute('data-detached-parking-card', '1');
         }
+        if (typeof api.applyCardPlaceholderSizing === 'function') {
+            api.applyCardPlaceholderSizing(card, activeWorkspaceId, cat, catLinks, options);
+        }
 
         gridContainer.appendChild(card);
         if (typeof api.captureRenderedCardHeight === 'function') {
