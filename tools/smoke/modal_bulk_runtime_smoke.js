@@ -195,6 +195,68 @@ async function readState(page) {
       throw new Error(`Progress-ledger structured file lost note lines: ${JSON.stringify(parserCases.ledgerBookmark)}`);
     }
 
+    const leadingBlankLineImport = await page.evaluate(async () => {
+      const api = window.EveBulkImport && window.EveBulkImport._api;
+      if (!api || typeof api.processBulk !== 'function') {
+        throw new Error('Bulk process API unavailable');
+      }
+
+      const priorLinks = Array.isArray(window.links) ? window.links.slice() : [];
+      const priorConfig = window.config ? JSON.parse(JSON.stringify(window.config)) : {};
+      const priorSaveData = window.saveData;
+      const priorCloseModals = window.closeModals;
+      const priorShowToast = window.showToast;
+      let lastToast = null;
+
+      window.config = window.config || {};
+      config.activeWorkspace = 'main';
+      config.workspaces = config.workspaces || [{ id: 'main', name: 'Main', icon: '🏠', subTabs: [] }];
+      window.links = [];
+      if (window.eveState) window.eveState.links = window.links;
+      window.saveData = () => {};
+      window.closeModals = () => {};
+      window.showToast = (msg, type) => { lastToast = { msg, type }; };
+
+      try {
+        window.openBulkModal();
+        document.getElementById('bulkModeFile').checked = true;
+        document.getElementById('bulkSmartExtractCardPerFile').checked = true;
+        if (typeof api.updateBulkModeUi === 'function') api.updateBulkModeUi();
+
+        const text = '\nMaterial and Spiritual World\nI Fell in Love, so I Tried Livestreaming.\nThe Blue Hole\n';
+        const file = new File([text], 'Really-Idk-or-Ero.txt', { type: 'text/plain', lastModified: Date.now() });
+        const input = document.getElementById('bulkFileInput');
+        Object.defineProperty(input, 'files', { configurable: true, value: [file] });
+
+        await api.processBulk();
+
+        return {
+          links: window.links.map((link) => ({ title: link.title, category: link.category, url: link.url })),
+          toast: lastToast
+        };
+      } finally {
+        window.links = priorLinks;
+        if (window.eveState) window.eveState.links = priorLinks;
+        window.config = priorConfig;
+        window.saveData = priorSaveData;
+        window.closeModals = priorCloseModals;
+        window.showToast = priorShowToast;
+      }
+    });
+
+    if (leadingBlankLineImport.links.length !== 3) {
+      throw new Error(`Leading-blank-line Smart Extract import should create 3 bookmarks, got ${JSON.stringify(leadingBlankLineImport)}`);
+    }
+    if (leadingBlankLineImport.links.map((link) => link.title).join('|') !== 'Material and Spiritual World|I Fell in Love, so I Tried Livestreaming.|The Blue Hole') {
+      throw new Error(`Leading-blank-line Smart Extract titles mismatch: ${JSON.stringify(leadingBlankLineImport)}`);
+    }
+    if (leadingBlankLineImport.links.some((link) => link.category !== 'Really-Idk-or-Ero')) {
+      throw new Error(`Leading-blank-line Smart Extract card title mismatch: ${JSON.stringify(leadingBlankLineImport)}`);
+    }
+    if (!leadingBlankLineImport.toast || leadingBlankLineImport.toast.msg !== 'Imported 3 items into 1 card.') {
+      throw new Error(`Leading-blank-line Smart Extract toast mismatch: ${JSON.stringify(leadingBlankLineImport)}`);
+    }
+
     console.log('MODAL_BULK_RUNTIME_SMOKE_OK');
   } finally {
     await browser.close();
