@@ -26,6 +26,8 @@ if (!window.__dashboardMasonryResizeBound) {
 var _scrollSave = -1;
 var _scrollRafId = 0;
 var _scrollSpacer = null;
+var _dashboardScrollActivitySeq = 0;
+var _dashboardIgnoreScrollActivityUntil = 0;
 var _dashboardLiveLinkMapCache = {
     ref: null,
     length: -1,
@@ -83,6 +85,34 @@ function restoreDashboardCardScrollState(snapshot) {
     });
 }
 
+function markDashboardProgrammaticScrollWindow(durationMs) {
+    var safeDurationMs = Math.max(8, Number(durationMs || 0) || 16);
+    _dashboardIgnoreScrollActivityUntil = Math.max(_dashboardIgnoreScrollActivityUntil, Date.now() + safeDurationMs);
+}
+
+function clearDashboardScrollPreservation() {
+    if (_scrollRafId) {
+        clearTimeout(_scrollRafId);
+        _scrollRafId = 0;
+    }
+    if (_scrollSpacer && _scrollSpacer.parentNode) {
+        _scrollSpacer.parentNode.removeChild(_scrollSpacer);
+    }
+    _scrollSpacer = null;
+    _scrollSave = -1;
+}
+
+if (!window.__dashboardScrollCaptureBound) {
+    window.__dashboardScrollCaptureBound = true;
+    document.addEventListener('scroll', function () {
+        if (Date.now() <= _dashboardIgnoreScrollActivityUntil) return;
+        _dashboardScrollActivitySeq += 1;
+        if (_scrollRafId || _scrollSpacer || _scrollSave >= 0) {
+            clearDashboardScrollPreservation();
+        }
+    }, true);
+}
+
 // Monotonically increasing render generation â€” all deferred work checks this
 var _eveDashRenderGen = 0;
 window._eveDashRenderGen = 0;
@@ -91,17 +121,7 @@ function invalidateDashboardDeferredWork(options) {
     var opts = options && typeof options === 'object' ? options : {};
     _eveDashRenderGen++;
     window._eveDashRenderGen = _eveDashRenderGen;
-
-    if (_scrollRafId) {
-        clearTimeout(_scrollRafId);
-        _scrollRafId = 0;
-    }
-
-    if (_scrollSpacer && _scrollSpacer.parentNode) {
-        _scrollSpacer.parentNode.removeChild(_scrollSpacer);
-    }
-    _scrollSpacer = null;
-    _scrollSave = -1;
+    clearDashboardScrollPreservation();
 
     if (dashboardMasonryState.rafId) {
         window.cancelAnimationFrame(dashboardMasonryState.rafId);
@@ -279,30 +299,24 @@ function _renderDashboardImmediate() {
     var renderHint = consumeDashboardRenderHint();
     var shouldPreserveCardScroll = !shouldSkipDashboardCardScrollPreserve(renderHint);
     var cardScrollState = shouldPreserveCardScroll ? captureDashboardCardScrollState() : null;
+    var scrollActivitySeqAtCapture = _dashboardScrollActivitySeq;
 
-    // Capture scroll position ONCE per synchronous batch
+    // Cancel any pending cleanup from a previous call in this batch, then capture fresh scroll state.
+    clearDashboardScrollPreservation();
     if (_scrollSave < 0) {
         _scrollSave = _getRobustScrollTop();
-
-        // Create a proper block-level spacer on the body to physically hold height
-        // This is necessary because Masonry layout takes time/frames to expand the grid
-        if (_scrollSave > 0) {
-            _scrollSpacer = document.createElement('div');
-            _scrollSpacer.style.cssText = 'height:' + Math.max(document.documentElement.scrollHeight, document.body.scrollHeight) + 'px; width:100%; position:absolute; top:0; left:0; z-index:-1; pointer-events:none; visibility:hidden; display:block;';
-            document.body.appendChild(_scrollSpacer);
-        }
     }
-
-    // Cancel any pending cleanup from a previous call in this batch
-    if (_scrollRafId) {
-        clearTimeout(_scrollRafId);
-        _scrollRafId = 0;
+    if (_scrollSave > 0 && !_scrollSpacer) {
+        _scrollSpacer = document.createElement('div');
+        _scrollSpacer.style.cssText = 'height:' + Math.max(document.documentElement.scrollHeight, document.body.scrollHeight) + 'px; width:100%; position:absolute; top:0; left:0; z-index:-1; pointer-events:none; visibility:hidden; display:block;';
+        document.body.appendChild(_scrollSpacer);
     }
 
     // Run render synchronously â€” DOM is rebuilt immediately but Masonry takes later frames
     _renderDashboardCore(renderHint);
 
     // Restore scroll position immediately
+    markDashboardProgrammaticScrollWindow(24);
     window.scrollTo(0, _scrollSave);
     restoreDashboardCardScrollState(cardScrollState);
 
@@ -310,14 +324,14 @@ function _renderDashboardImmediate() {
     // 300ms is generous enough to span typical reflows and transitions
     var target = _scrollSave;
     _scrollRafId = setTimeout(function () {
+        if (_dashboardScrollActivitySeq !== scrollActivitySeqAtCapture) {
+            clearDashboardScrollPreservation();
+            return;
+        }
+        markDashboardProgrammaticScrollWindow(24);
         window.scrollTo(0, target);
         restoreDashboardCardScrollState(cardScrollState);
-        if (_scrollSpacer && _scrollSpacer.parentNode) {
-            _scrollSpacer.parentNode.removeChild(_scrollSpacer);
-        }
-        _scrollSpacer = null;
-        _scrollSave = -1;
-        _scrollRafId = 0;
+        clearDashboardScrollPreservation();
     }, 350);
 }
 
