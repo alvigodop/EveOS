@@ -56,6 +56,13 @@ window.DashboardCategories = window.DashboardCategories || {};
             : (options.activeWorkspace || 'main');
         var isDetachedParkingCard = !!options.detachedParkingCard;
         var isFocusMode = !!options.focusMode;
+        var isSubTabInParentView = !!options.isSubTabInParentView;
+        if (!isSubTabInParentView && options._parentDashboardWorkspace) {
+            var parentDashboardWorkspaceId = String(options._parentDashboardWorkspace || '').trim();
+            isSubTabInParentView = !!parentDashboardWorkspaceId
+                && parentDashboardWorkspaceId !== String(cardWorkspaceId || '').trim();
+        }
+        options.isSubTabInParentView = isSubTabInParentView;
         var focusedFilterMode = (isFocusMode && typeof window.DashboardCategories.getFocusedEntriesFilterMode === 'function')
             ? window.DashboardCategories.getFocusedEntriesFilterMode()
             : 'all';
@@ -467,6 +474,9 @@ window.DashboardCategories = window.DashboardCategories || {};
         }
         if (typeof api.applyCardPlaceholderSizing === 'function') {
             api.applyCardPlaceholderSizing(card, activeWorkspaceId, cat, catLinks, options);
+        }
+        if (isSubTabInParentView) {
+            card.setAttribute('data-card-subtab-parent-view', '1');
         }
 
         gridContainer.appendChild(card);
