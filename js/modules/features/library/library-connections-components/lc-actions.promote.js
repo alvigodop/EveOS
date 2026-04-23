@@ -120,15 +120,27 @@ window.EveLibrary.ConnectionsCoreModules = window.EveLibrary.ConnectionsCoreModu
             return true;
         }
 
-        function removeByLinkId(linkId) {
+        function removeByLinkId(linkId, options = {}) {
             const before = Core.connections.length;
             Core.connections = Core.connections.filter(item => String(item.linkId) !== String(linkId));
             if (Core.connections.length !== before) {
-                Core.saveConnections();
+                Core.saveConnections(options);
             }
         }
 
-        function removeByLibraryEntry(categoryName, entryId, workspaceId) {
+        function removeByLinkIds(linkIds, options = {}) {
+            const validIds = new Set((Array.isArray(linkIds) ? linkIds : [linkIds])
+                .map((value) => String(value || '').trim())
+                .filter(Boolean));
+            if (!validIds.size) return;
+            const before = Core.connections.length;
+            Core.connections = Core.connections.filter(item => !validIds.has(String(item.linkId || '').trim()));
+            if (Core.connections.length !== before) {
+                Core.saveConnections(options);
+            }
+        }
+
+        function removeByLibraryEntry(categoryName, entryId, workspaceId, options = {}) {
             const before = Core.connections.length;
             const normalizedCategory = Core.normalizeCategoryName(categoryName);
             const normalizedEntryId = String(entryId);
@@ -140,7 +152,7 @@ window.EveLibrary.ConnectionsCoreModules = window.EveLibrary.ConnectionsCoreModu
                 return Core.normalizeWorkspaceId(item.workspace) !== Core.normalizeWorkspaceId(normalizedWorkspace);
             });
             if (Core.connections.length !== before) {
-                Core.saveConnections();
+                Core.saveConnections(options);
             }
         }
 
@@ -149,6 +161,7 @@ window.EveLibrary.ConnectionsCoreModules = window.EveLibrary.ConnectionsCoreModu
             promoteLinkWithData,
             unlinkLink,
             removeByLinkId,
+            removeByLinkIds,
             removeByLibraryEntry
         };
     };

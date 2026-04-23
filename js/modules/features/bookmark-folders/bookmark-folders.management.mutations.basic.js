@@ -157,6 +157,7 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
             : new Set();
         const removedLinkIds = new Set();
         const removeLinked = window.EveLibrary?.ConnectionsAPI?.removeByLinkId;
+        const removeLinkedBatch = window.EveLibrary?.ConnectionsAPI?.removeByLinkIds;
         const linksArray = getLiveLinks();
         for (let i = linksArray.length - 1; i >= 0; i--) {
             const link = linksArray[i];
@@ -168,14 +169,18 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
                 const targetId = String(link.id);
                 linksArray.splice(i, 1);
                 removedLinkIds.add(targetId);
-                if (typeof removeLinked === 'function') {
-                    removeLinked(targetId);
-                }
             }
         }
         setLiveLinks(linksArray);
 
-        if (typeof removeLinked === 'function') {
+        if (typeof removeLinkedBatch === 'function') {
+            const allScopedRemovedIds = new Set(removedLinkIds);
+            indexedLinkIds.forEach((linkId) => {
+                const normalizedId = String(linkId || '').trim();
+                if (normalizedId) allScopedRemovedIds.add(normalizedId);
+            });
+            removeLinkedBatch(Array.from(allScopedRemovedIds), { immediate: true });
+        } else if (typeof removeLinked === 'function') {
             indexedLinkIds.forEach((linkId) => {
                 const normalizedId = String(linkId || '').trim();
                 if (!normalizedId || removedLinkIds.has(normalizedId)) return;

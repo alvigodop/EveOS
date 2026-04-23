@@ -170,13 +170,10 @@ function toggleDone(id) {
 async function deleteLink(id) {
     const targetId = String(id);
     if (await showConfirm("Delete?")) {
-        // Instant DOM patch in perf mode
-        if (window._evePerfMode) {
-            const bulkCheck = document.querySelector(`.bulk-check[data-bulk-id="${CSS.escape(targetId)}"]`);
-            if (bulkCheck) {
-                const li = bulkCheck.closest('li');
-                if (li) li.remove();
-            }
+        const bulkCheck = document.querySelector(`.bulk-check[data-bulk-id="${CSS.escape(targetId)}"]`);
+        if (bulkCheck) {
+            const li = bulkCheck.closest('li');
+            if (li) li.remove();
         }
 
         setLiveLinks(getLiveLinks().filter(l => String(l.id) !== targetId));

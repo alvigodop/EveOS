@@ -160,32 +160,33 @@ window.EveBulkImport = window.EveBulkImport || {};
         const shouldSaveLibrary = !!options.saveLibrary;
         const shouldSaveConnections = !!options.saveConnections;
         if (!shouldSaveLibrary && !shouldSaveConnections) return true;
+        window.setTimeout(function () {
+            let succeeded = true;
 
-        let succeeded = true;
-
-        if (shouldSaveLibrary && window.EveLibrary?.Storage?.saveLibrary) {
-            try {
-                window.EveLibrary.Storage.saveLibrary();
-            } catch (error) {
-                succeeded = false;
-                console.error('Bulk import: failed to persist library state', error);
+            if (shouldSaveLibrary && window.EveLibrary?.Storage?.saveLibrary) {
+                try {
+                    window.EveLibrary.Storage.saveLibrary();
+                } catch (error) {
+                    succeeded = false;
+                    console.error('Bulk import: failed to persist library state', error);
+                }
             }
-        }
 
-        if (shouldSaveConnections && window.EveLibrary?.ConnectionsCore?.saveConnections) {
-            try {
-                window.EveLibrary.ConnectionsCore.saveConnections();
-            } catch (error) {
-                succeeded = false;
-                console.error('Bulk import: failed to persist library connections', error);
+            if (shouldSaveConnections && window.EveLibrary?.ConnectionsCore?.saveConnections) {
+                try {
+                    window.EveLibrary.ConnectionsCore.saveConnections({ immediate: true });
+                } catch (error) {
+                    succeeded = false;
+                    console.error('Bulk import: failed to persist library connections', error);
+                }
             }
-        }
 
-        if (!succeeded) {
-            showToast('Imported items, but some library links could not be fully persisted.', 'warning');
-        }
+            if (!succeeded) {
+                showToast('Imported items, but some library links could not be fully persisted.', 'warning');
+            }
+        }, 0);
 
-        return succeeded;
+        return true;
     }
 
 async function processBulk() {

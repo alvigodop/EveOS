@@ -6,6 +6,7 @@ window.EveLibrary.ConnectionsCore = window.EveLibrary.ConnectionsCore || {
 
 (function () {
     const Core = window.EveLibrary.ConnectionsCore;
+    let _saveConnectionsTimer = 0;
 
     function getCoreStorage() {
         return window.EveCoreStorage || window.EveStorageRuntime?.coreStorage || null;
@@ -103,11 +104,27 @@ window.EveLibrary.ConnectionsCore = window.EveLibrary.ConnectionsCore || {
         if (typeof saveData === 'function') saveData();
     }
 
-    function saveConnections() {
+    function flushConnectionsSave() {
         invalidateConnectionIndex();
         window.EveLibrary.Connections = Core.connections.map(item => ({ ...item }));
         void persistConnections(window.EveLibrary.Connections);
         window.dispatchEvent(new CustomEvent('eve:state-mutated', { detail: { source: 'library-connections-save' } }));
+        return true;
+    }
+
+    function saveConnections(options = {}) {
+        const opts = options && typeof options === 'object' ? options : {};
+        if (_saveConnectionsTimer) {
+            clearTimeout(_saveConnectionsTimer);
+            _saveConnectionsTimer = 0;
+        }
+        if (opts.immediate) {
+            return flushConnectionsSave();
+        }
+        _saveConnectionsTimer = setTimeout(function () {
+            _saveConnectionsTimer = 0;
+            flushConnectionsSave();
+        }, 60);
         return true;
     }
 

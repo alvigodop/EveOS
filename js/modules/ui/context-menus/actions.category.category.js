@@ -119,7 +119,9 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
             } else if (window.EveBookmarkFolders?.deleteCategoryEverywhere) {
                 window.EveBookmarkFolders.deleteCategoryEverywhere(name);
             }
-            if (window.EveLibrary?.ConnectionsAPI?.removeByLinkId) {
+            if (window.EveLibrary?.ConnectionsAPI?.removeByLinkIds) {
+                window.EveLibrary.ConnectionsAPI.removeByLinkIds(removedIds, { immediate: true });
+            } else if (window.EveLibrary?.ConnectionsAPI?.removeByLinkId) {
                 removedIds.forEach((id) => window.EveLibrary.ConnectionsAPI.removeByLinkId(id));
             }
             if (window.EveCategoryOrder?.removeCategory) {
@@ -130,7 +132,7 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
                 window.config.categoryOrder = window.config.categoryOrder.filter((category) => category !== name);
             }
             if (typeof saveConfig === 'function') saveConfig();
-            if (typeof saveData === 'function') saveData();
+            if (typeof saveData === 'function') saveData({ skipRender: true });
             if (typeof closeAllMenus === 'function') closeAllMenus();
             if (typeof closeModals === 'function') closeModals();
             if (typeof renderDashboard === 'function') renderDashboard();
