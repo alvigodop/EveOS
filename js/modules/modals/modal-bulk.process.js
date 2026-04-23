@@ -35,6 +35,68 @@ window.EveBulkImport = window.EveBulkImport || {};
         return nextLinks;
     }
 
+    function normalizeBulkFolderKeyPart(value) {
+        return String(value || '').trim().toLowerCase();
+    }
+
+    function buildBulkFolderTreeKey(categoryName, parts) {
+        const normalizedCategory = normalizeBulkFolderKeyPart(categoryName);
+        const normalizedParts = (Array.isArray(parts) ? parts : String(parts || '').split('/'))
+            .map((part) => normalizeBulkFolderKeyPart(part))
+            .filter(Boolean);
+        return `${normalizedCategory}::${normalizedParts.join('/')}`;
+    }
+
+    function primeExistingBulkFolderMap(folderManager, workspaceId, categoryNames, createdFolders) {
+        if (!folderManager || typeof folderManager.getScopedNodes !== 'function' || !(createdFolders instanceof Map)) return;
+
+        const uniqueCategoryNames = Array.from(new Set(
+            (Array.isArray(categoryNames) ? categoryNames : [categoryNames])
+                .map((name) => String(name || '').trim())
+                .filter(Boolean)
+        ));
+
+        uniqueCategoryNames.forEach((categoryName) => {
+            const scopedNodes = Array.isArray(folderManager.getScopedNodes(workspaceId, categoryName))
+                ? folderManager.getScopedNodes(workspaceId, categoryName)
+                : [];
+            if (!scopedNodes.length) return;
+
+            const nodeMap = new Map();
+            const pathCache = new Map();
+
+            scopedNodes.forEach((node) => {
+                const nodeId = String(node?.id || '').trim();
+                if (!nodeId) return;
+                nodeMap.set(nodeId, node);
+            });
+
+            function buildNodeParts(nodeId, depth = 0) {
+                const normalizedId = String(nodeId || '').trim();
+                if (!normalizedId || depth > 64) return [];
+                if (pathCache.has(normalizedId)) return pathCache.get(normalizedId).slice();
+
+                const node = nodeMap.get(normalizedId);
+                if (!node) return [];
+
+                const parentParts = buildNodeParts(node.parentId, depth + 1);
+                const name = String(node.name || '').trim();
+                const nextParts = name ? parentParts.concat(name) : parentParts;
+                pathCache.set(normalizedId, nextParts);
+                return nextParts.slice();
+            }
+
+            scopedNodes.forEach((node) => {
+                const nodeId = String(node?.id || '').trim();
+                if (!nodeId) return;
+                const nodeParts = buildNodeParts(nodeId);
+                const treeKey = buildBulkFolderTreeKey(categoryName, nodeParts);
+                if (!treeKey || createdFolders.has(treeKey)) return;
+                createdFolders.set(treeKey, nodeId);
+            });
+        });
+    }
+
     function pushBulkLink(liveLinks, categoryName, title, rawUrl, folderId = '') {
         liveLinks.push({
             id: Date.now() + Math.random(),
@@ -184,15 +246,14 @@ async function processBulk() {
             }
             
             if (activeParts.length > 1) {
-                let currentPath = '';
                 for (let j = 0; j < activeParts.length - 1; j++) {
-                    currentPath = currentPath ? currentPath + '/' + activeParts[j] : activeParts[j];
-                    const fullKey = activeCategory + "::" + currentPath;
+                    const folderParts = activeParts.slice(0, j + 1);
+                    const fullKey = buildBulkFolderTreeKey(activeCategory, folderParts);
                     if (!dirPaths.has(fullKey)) {
                         dirPaths.set(fullKey, {
                             cardName: activeCategory,
-                            path: currentPath,
-                            parts: activeParts.slice(0, j + 1),
+                            path: folderParts.join('/'),
+                            parts: folderParts,
                             fullKey: fullKey
                         });
                     }
@@ -201,16 +262,23 @@ async function processBulk() {
             filesToProcess.push({ file, path: originalPath, parts: activeParts, cardName: activeCategory });
         }
 
+        primeExistingBulkFolderMap(
+            folderManager,
+            workspaceId,
+            filesToProcess.map((entry) => entry.cardName),
+            createdFolders
+        );
+
         // Sort paths by length so we create parents before children
         const sortedPaths = Array.from(dirPaths.values()).sort((a, b) => a.parts.length - b.parts.length);
 
         for (const meta of sortedPaths) {
+            if (createdFolders.has(meta.fullKey)) continue;
             const folderName = meta.parts[meta.parts.length - 1];
             let parentId = '';
             
             if (meta.parts.length > 1) {
-                const parentPath = meta.parts.slice(0, meta.parts.length - 1).join('/');
-                const parentKey = meta.cardName + "::" + parentPath;
+                const parentKey = buildBulkFolderTreeKey(meta.cardName, meta.parts.slice(0, meta.parts.length - 1));
                 parentId = createdFolders.get(parentKey) || '';
             }
 
@@ -234,8 +302,7 @@ async function processBulk() {
             try {
                 let parentFolderId = '';
                 if (parts.length > 1) {
-                    const parentPath = parts.slice(0, parts.length - 1).join('/');
-                    const parentKey = cardName + "::" + parentPath;
+                    const parentKey = buildBulkFolderTreeKey(cardName, parts.slice(0, parts.length - 1));
                     parentFolderId = createdFolders.get(parentKey) || '';
                 }
 
