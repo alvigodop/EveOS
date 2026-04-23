@@ -159,7 +159,8 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         function syncHoverRevealPreviewAfterBranchChange() {
             if (typeof rt.invalidateHoverRevealPreview !== 'function') return;
             rt.invalidateHoverRevealPreview({
-                rebuildIfActive: !!(rt.isHoverRevealActive && rt.isHoverRevealActive())
+                rebuildIfActive: !!(rt.isHoverRevealActive && rt.isHoverRevealActive()),
+                queue: false
             });
         }
 

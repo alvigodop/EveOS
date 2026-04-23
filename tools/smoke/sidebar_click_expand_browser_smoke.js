@@ -118,6 +118,14 @@ async function main() {
                 && !config.collapsedTabs.includes('main');
         }, undefined, { timeout: 10000 });
 
+        const preHoverPreviewState = await page.evaluate(() => ({
+            previewReady: !!window.EveSidebarRuntime?.previewState?.revealPreviewReady,
+            previewChildCount: document.querySelector('#sidebar .ws-sidebar-content--hover-preview')?.childElementCount || 0
+        }));
+        if (preHoverPreviewState.previewReady || preHoverPreviewState.previewChildCount !== 0) {
+            throw new Error(`Expected branch expand to avoid prebuilding hidden preview host, got ${JSON.stringify(preHoverPreviewState)}`);
+        }
+
         await page.locator('#sidebar').click({ position: { x: 6, y: 6 } });
         await page.waitForFunction(() => {
             const sidebar = document.getElementById('sidebar');

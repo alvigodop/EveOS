@@ -264,6 +264,22 @@
         ctx.sb = originalHost;
     }
 
+    function buildHoverRevealPreview(sb, scaffold) {
+        if (!sb || !scaffold || !scaffold.previewHost) return false;
+        if (config.sidebarHidden) return false;
+
+        var previewState = getHoverRevealPreviewState();
+        renderSidebarContentHost(sb, scaffold.previewHost, {
+            hoverRevealOverride: true,
+            resetRegistry: false,
+            syncFocusedGroupState: false
+        });
+        previewState.revealPreviewReady = true;
+        previewState.revealPreviewVersion = previewState.revealRenderVersion;
+        syncHoverRevealContentVisibility(scaffold);
+        return true;
+    }
+
     function queueHoverRevealPreviewBuild(sb, scaffold) {
         if (!sb || !scaffold || !scaffold.previewHost) return;
         var previewState = getHoverRevealPreviewState();
@@ -277,14 +293,7 @@
             if (previewState.revealRenderVersion !== renderVersion) return;
             if (config.sidebarHidden) return;
 
-            renderSidebarContentHost(sb, scaffold.previewHost, {
-                hoverRevealOverride: true,
-                resetRegistry: false,
-                syncFocusedGroupState: false
-            });
-            previewState.revealPreviewReady = true;
-            previewState.revealPreviewVersion = renderVersion;
-            syncHoverRevealContentVisibility(scaffold);
+            buildHoverRevealPreview(sb, scaffold);
         }, 12);
     }
 
@@ -306,14 +315,8 @@
         }
 
         if (opts.rebuildIfActive && rt.isHoverRevealActive && rt.isHoverRevealActive()) {
-            renderSidebarContentHost(sb, scaffold.previewHost, {
-                hoverRevealOverride: true,
-                resetRegistry: false,
-                syncFocusedGroupState: false
-            });
-            previewState.revealPreviewReady = true;
-            previewState.revealPreviewVersion = previewState.revealRenderVersion;
-        } else if (opts.queue !== false && !config.sidebarHidden) {
+            buildHoverRevealPreview(sb, scaffold);
+        } else if (opts.queue === true && !config.sidebarHidden) {
             queueHoverRevealPreviewBuild(sb, scaffold);
         }
 
@@ -339,13 +342,7 @@
             var scaffold = ensureSidebarScaffold(sb);
             var previewState = getHoverRevealPreviewState();
             if (!previewState.revealPreviewReady || !scaffold.previewHost || scaffold.previewHost.childElementCount === 0) {
-                renderSidebarContentHost(sb, scaffold.previewHost, {
-                    hoverRevealOverride: true,
-                    resetRegistry: false,
-                    syncFocusedGroupState: false
-                });
-                previewState.revealPreviewReady = true;
-                previewState.revealPreviewVersion = previewState.revealRenderVersion;
+                buildHoverRevealPreview(sb, scaffold);
             }
             syncHoverRevealContentVisibility(scaffold);
         };
@@ -538,8 +535,11 @@
 
         if (typeof rt.captureSidebarViewState === 'function') rt.captureSidebarViewState();
         if (typeof rt.syncHoverRevealUiState === 'function') rt.syncHoverRevealUiState();
-        syncHoverRevealContentVisibility(scaffold);
-        queueHoverRevealPreviewBuild(sb, scaffold);
+        if (rt.isHoverRevealActive && rt.isHoverRevealActive()) {
+            buildHoverRevealPreview(sb, scaffold);
+        } else {
+            syncHoverRevealContentVisibility(scaffold);
+        }
     };
 
     window.toggleSidebarExpanded = function (nextValue) {
