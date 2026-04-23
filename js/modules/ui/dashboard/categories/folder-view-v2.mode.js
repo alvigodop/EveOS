@@ -101,4 +101,37 @@
             });
         }, 50);
     };
+
+    window.EveFolderViewV2.queueRestoreActiveFolderState = function (workspaceId, categoryName, options) {
+        const resolvedWorkspaceId = String(workspaceId || 'main').trim() || 'main';
+        const resolvedCategoryName = String(categoryName || 'Unsorted').trim() || 'Unsorted';
+        const queueOptions = options && typeof options === 'object' ? options : {};
+        const key = `${resolvedWorkspaceId}::${resolvedCategoryName}`;
+        const restoreTimers = window.EveFolderViewV2._restoreTimers || {};
+        const delayMs = Math.max(0, Number(queueOptions.delayMs || 0) || 0);
+
+        if (restoreTimers[key]) {
+            clearTimeout(restoreTimers[key]);
+            delete restoreTimers[key];
+        }
+
+        const runRestore = function () {
+            if (queueOptions.visibleOnly) {
+                const card = document.querySelector(`.category-card[data-card-category="${CSS.escape(resolvedCategoryName)}"][data-card-workspace="${CSS.escape(resolvedWorkspaceId)}"]`);
+                if (!card || !card.isConnected) return;
+            }
+            window.EveFolderViewV2.restoreActiveFolderState(resolvedWorkspaceId, resolvedCategoryName);
+        };
+
+        restoreTimers[key] = setTimeout(function () {
+            if (restoreTimers[key]) delete restoreTimers[key];
+            if (typeof requestAnimationFrame === 'function') {
+                requestAnimationFrame(function () {
+                    setTimeout(runRestore, delayMs);
+                });
+            } else {
+                setTimeout(runRestore, delayMs);
+            }
+        }, 0);
+    };
 })();

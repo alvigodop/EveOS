@@ -29,10 +29,10 @@ function buildFolderSectionsHtml(categoryName, linksForCard, options, renderer) 
             window.EveFolderViewV2.setCachedViewModel(workspaceId, categoryName, viewModel);
         }
 
-        // Skip Manhwa Navigation mode for sub-tab folders in parent view — tree view is used instead
-        // because Manhwa mode's DOM replacement doesn't work when the card has mixed-workspace content.
         const isSubTabInParentView = !!options?.isSubTabInParentView;
-        if (!isDetachedParkingCard && !readOnlyFolders && !isSubTabInParentView && window.EveFolderViewV2 && window.EveFolderViewV2.isManhwaModeEnabled(workspaceId, categoryName)) {
+        const activeFolderStateKey = `${workspaceId}::${categoryName}`;
+        const hasActiveFolderState = !!window.eveState?.config?.activeManhwaFolders?.[activeFolderStateKey];
+        if (!isDetachedParkingCard && !readOnlyFolders && !hasActiveFolderState && window.EveFolderViewV2 && window.EveFolderViewV2.isManhwaModeEnabled(workspaceId, categoryName)) {
             return window.EveFolderViewV2.renderRootGrid(workspaceId, categoryName, viewModel, renderer);
         }
 
@@ -152,6 +152,9 @@ function buildFolderSectionsHtml(categoryName, linksForCard, options, renderer) 
         }
 
         const topLevelHtml = (viewModel.topLevelFolders || []).map(renderFolderNode).join('');
+        const topLevelFoldersHtml = isSubTabInParentView && topLevelHtml
+            ? `<div class="folder-wrap-grid subtab-parent-folder-wrap-grid">${topLevelHtml}</div>`
+            : topLevelHtml;
         const hasFolders = viewModel.nodes.length > 0;
         const hasRootLinks = viewModel.rootLinks.length > 0;
         const rootActionsExpanded = isFolderActionExpanded(workspaceId, categoryName, '__root__');
@@ -204,7 +207,7 @@ function buildFolderSectionsHtml(categoryName, linksForCard, options, renderer) 
                         + buildSectionStats(viewModel.rootLinks)
                     + '</div>'
                 + '</div>'
-                + topLevelHtml
+                + topLevelFoldersHtml
             + '</div>';
     }
 

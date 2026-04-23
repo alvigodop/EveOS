@@ -63,8 +63,6 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         const scopeRootId = cachedTargetNode?.isGhost
             ? (cachedTargetNode?._ghostScopeRootId || window.eveState?.config?.activeManhwaScopeRoots?.[cacheKey] || null)
             : folderId;
-        window.EveFolderViewV2.saveActiveFolderState(resolvedWorkspaceId, resolvedCategoryName, folderId, cloneGhostFilterChain(cachedTargetNode?._ghostFilterChain), scopeRootId);
-
         const folderApi = window.EveBookmarkFolders;
         if (!folderApi?.buildFolderView) return;
 
@@ -235,6 +233,8 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         if (typeof window.scheduleDashboardMasonryLayout === 'function') {
             window.scheduleDashboardMasonryLayout(card.parentElement || document.getElementById('dashboard-grid'));
         }
+
+        window.EveFolderViewV2.saveActiveFolderState(resolvedWorkspaceId, resolvedCategoryName, folderId, cloneGhostFilterChain(cachedTargetNode?._ghostFilterChain), scopeRootId);
         
         // Final fallback to ensure scroll doesn't jump away from the user
         if (
@@ -258,8 +258,6 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         const resolvedWorkspaceId = String(workspaceId || '').trim();
         const scrollBefore = window.pageYOffset || document.documentElement.scrollTop;
 
-        window.EveFolderViewV2.saveActiveFolderState(resolvedWorkspaceId, resolvedCategoryName, null, null, null);
-
         const card = document.querySelector(`.category-card[data-card-category="${CSS.escape(resolvedCategoryName)}"][data-card-workspace="${CSS.escape(resolvedWorkspaceId)}"]`);
         if (!card) {
             if (!window._evePerfMode && typeof window.renderDashboard === 'function') window.renderDashboard();
@@ -279,6 +277,8 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         if (typeof window.scheduleDashboardMasonryLayout === 'function') {
             window.scheduleDashboardMasonryLayout(card.parentElement || document.getElementById('dashboard-grid'));
         }
+
+        window.EveFolderViewV2.saveActiveFolderState(resolvedWorkspaceId, resolvedCategoryName, null, null, null);
         
         if (Math.abs((window.pageYOffset || document.documentElement.scrollTop) - scrollBefore) > 100) {
             window.scrollTo(0, scrollBefore);

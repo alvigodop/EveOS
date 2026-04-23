@@ -484,8 +484,15 @@ window.DashboardCategories = window.DashboardCategories || {};
             api.captureRenderedCardHeight(card, activeWorkspaceId, cat);
         }
 
-        if (window.EveFolderViewV2 && window.EveFolderViewV2.restoreActiveFolderState) {
-            window.EveFolderViewV2.restoreActiveFolderState(activeWorkspaceId, cat);
+        if (!options._skipFolderRestore && window.EveFolderViewV2 && window.EveFolderViewV2.restoreActiveFolderState) {
+            if (isSubTabInParentView && typeof window.EveFolderViewV2.queueRestoreActiveFolderState === 'function') {
+                window.EveFolderViewV2.queueRestoreActiveFolderState(activeWorkspaceId, cat, {
+                    delayMs: 24,
+                    visibleOnly: true
+                });
+            } else {
+                window.EveFolderViewV2.restoreActiveFolderState(activeWorkspaceId, cat);
+            }
         }
     }
 

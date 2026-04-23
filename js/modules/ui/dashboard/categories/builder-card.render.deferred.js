@@ -165,8 +165,8 @@ window.DashboardCategories = window.DashboardCategories || {};
                 if (shellCard.classList.contains('collapsed')) return;
 
                 var phase1Options = isMega
-                    ? Object.assign({}, configOptions, { _skipGhosts: true })
-                    : configOptions;
+                    ? Object.assign({}, configOptions, { _skipGhosts: true, _skipFolderRestore: true })
+                    : Object.assign({}, configOptions, { _skipFolderRestore: true });
                 var tempContainer = document.createDocumentFragment();
                 api._renderCardFull(cat, catLinks, tempContainer, phase1Options);
                 var fullCard = tempContainer.firstChild;
@@ -188,7 +188,15 @@ window.DashboardCategories = window.DashboardCategories || {};
                 captureRenderedCardHeight(fullCard, cardWorkspaceId, cat);
                 if (window.EveFolderViewV2 && window.EveFolderViewV2.restoreActiveFolderState) {
                     var workspaceId = fullCard.getAttribute('data-card-workspace') || cardWorkspaceId;
-                    window.EveFolderViewV2.restoreActiveFolderState(workspaceId, cat);
+                    if (fullCard.getAttribute('data-card-subtab-parent-view') === '1'
+                        && typeof window.EveFolderViewV2.queueRestoreActiveFolderState === 'function') {
+                        window.EveFolderViewV2.queueRestoreActiveFolderState(workspaceId, cat, {
+                            delayMs: 24,
+                            visibleOnly: true
+                        });
+                    } else {
+                        window.EveFolderViewV2.restoreActiveFolderState(workspaceId, cat);
+                    }
                 }
 
                 if (!isMega) return;
@@ -198,7 +206,7 @@ window.DashboardCategories = window.DashboardCategories || {};
                     if (!fullCard.parentNode) return;
 
                     var ghostContainer = document.createDocumentFragment();
-                    var phase2Options = Object.assign({}, configOptions, { _skipGhosts: false });
+                    var phase2Options = Object.assign({}, configOptions, { _skipGhosts: false, _skipFolderRestore: true });
                     api._renderCardFull(cat, catLinks, ghostContainer, phase2Options);
                     var ghostCard = ghostContainer.firstChild;
                     if (ghostCard && fullCard.parentNode) {
@@ -213,7 +221,15 @@ window.DashboardCategories = window.DashboardCategories || {};
                         captureRenderedCardHeight(ghostCard, cardWorkspaceId, cat);
                         if (window.EveFolderViewV2 && window.EveFolderViewV2.restoreActiveFolderState) {
                             var workspaceId = ghostCard.getAttribute('data-card-workspace') || cardWorkspaceId;
-                            window.EveFolderViewV2.restoreActiveFolderState(workspaceId, cat);
+                            if (ghostCard.getAttribute('data-card-subtab-parent-view') === '1'
+                                && typeof window.EveFolderViewV2.queueRestoreActiveFolderState === 'function') {
+                                window.EveFolderViewV2.queueRestoreActiveFolderState(workspaceId, cat, {
+                                    delayMs: 24,
+                                    visibleOnly: true
+                                });
+                            } else {
+                                window.EveFolderViewV2.restoreActiveFolderState(workspaceId, cat);
+                            }
                         }
                     }
                 }, 300);
