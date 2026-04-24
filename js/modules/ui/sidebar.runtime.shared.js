@@ -244,6 +244,9 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         if (!Array.isArray(config.collapsedTabs)) {
             config.collapsedTabs = Array.isArray(config.collapsed) ? config.collapsed.slice() : [];
         }
+        var collapsedTabIds = new Set((Array.isArray(config.collapsedTabs) ? config.collapsedTabs : []).map(function (id) {
+            return String(id || '').trim();
+        }).filter(Boolean));
 
         ctx.saveAndRefresh = function (shouldRenderDashboard) {
             saveConfig({ immediate: true });
@@ -360,6 +363,26 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
                 return hoveredTargetId;
             }
             return '';
+        };
+
+        ctx.isWorkspaceCollapsed = function (workspaceId) {
+            var targetId = String(workspaceId || '').trim();
+            return !!targetId && collapsedTabIds.has(targetId);
+        };
+
+        ctx.setWorkspaceCollapsed = function (workspaceId, nextValue) {
+            var targetId = String(workspaceId || '').trim();
+            if (!targetId) return false;
+
+            var shouldCollapse = typeof nextValue === 'boolean'
+                ? nextValue
+                : !collapsedTabIds.has(targetId);
+
+            if (shouldCollapse) collapsedTabIds.add(targetId);
+            else collapsedTabIds.delete(targetId);
+
+            config.collapsedTabs = Array.from(collapsedTabIds);
+            return shouldCollapse;
         };
 
         ctx.isManualSidebarOrder = function () {

@@ -111,10 +111,14 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
     function renderWorkspaceItem(ctx, ws, container, depth, options) {
         var currentDepth = typeof depth === 'number' ? depth : 0;
         var renderOptions = options && typeof options === 'object' ? options : {};
-        var childEntries = ctx.getVisibleParentEntries(ws.id);
-        var childEntriesAll = ctx.getRawParentEntries(ws.id, true);
-        var hasChildren = childEntriesAll.length > 0;
-        var isCollapsed = (Array.isArray(config.collapsedTabs) ? config.collapsedTabs : []).map(String).includes(String(ws.id));
+        var hasChildren = !!(
+            (Array.isArray(ws.subTabs) && ws.subTabs.length > 0)
+            || (ctx.groupsApi && typeof ctx.groupsApi.getGroupsForParent === 'function'
+                && ctx.groupsApi.getGroupsForParent(ws.id, config).length > 0)
+        );
+        var isCollapsed = typeof ctx.isWorkspaceCollapsed === 'function'
+            ? ctx.isWorkspaceCollapsed(ws.id)
+            : (Array.isArray(config.collapsedTabs) ? config.collapsedTabs : []).map(String).includes(String(ws.id));
         var isGroupOverviewActive = !!String(config.groupOverviewId || '').trim();
         var isWorkspaceActive = config.viewMode !== 'unidex' && config.activeWorkspace === ws.id && !isGroupOverviewActive;
         var isInactive = ctx.isWorkspaceEffectivelyInactive(ws);
@@ -163,21 +167,24 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             if (childBranchRendered && !force && host.childElementCount > 0) {
                 return host;
             }
-            host.replaceChildren();
-            renderParentEntries(ctx, ws.id, host, currentDepth + 1, {
+            var fragment = document.createDocumentFragment();
+            renderParentEntries(ctx, ws.id, fragment, currentDepth + 1, {
                 manualSlots: !!renderOptions.manualSlots,
                 renderInactive: !!renderOptions.renderInactive,
-                orderedEntries: childEntries,
                 parentWorkspaceId: ws.id
             });
+            host.replaceChildren(fragment);
             childBranchRendered = true;
             return host;
         }
 
         function syncHoverRevealPreviewAfterBranchChange() {
             if (typeof rt.invalidateHoverRevealPreview !== 'function') return;
+            var previewState = rt.previewState || null;
+            var hoverRevealActive = !!(rt.isHoverRevealActive && rt.isHoverRevealActive());
+            if (!hoverRevealActive && !previewState?.revealPreviewReady) return;
             rt.invalidateHoverRevealPreview({
-                rebuildIfActive: !!(rt.isHoverRevealActive && rt.isHoverRevealActive()),
+                rebuildIfActive: hoverRevealActive,
                 queue: false
             });
         }
@@ -188,11 +195,15 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
                 event.stopPropagation();
             }
 
-            var nextCollapsed = !config.collapsedTabs.includes(ws.id);
-            if (!nextCollapsed) {
-                config.collapsedTabs = config.collapsedTabs.filter(function (id) { return id !== ws.id; });
-            } else {
-                config.collapsedTabs.push(ws.id);
+            var nextCollapsed = typeof ctx.setWorkspaceCollapsed === 'function'
+                ? ctx.setWorkspaceCollapsed(ws.id)
+                : !config.collapsedTabs.includes(ws.id);
+            if (typeof ctx.setWorkspaceCollapsed !== 'function') {
+                if (!nextCollapsed) {
+                    config.collapsedTabs = config.collapsedTabs.filter(function (id) { return id !== ws.id; });
+                } else {
+                    config.collapsedTabs.push(ws.id);
+                }
             }
             saveConfig();
 
@@ -309,8 +320,10 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
                 return;
             }
             var targetParentId = String(renderOptions.parentWorkspaceId || '').trim();
-            var siblingEntries = Array.isArray(renderOptions.orderedEntries) ? renderOptions.orderedEntries : childEntries;
-            var siblingIndex = typeof renderOptions.entryIndex === 'number' ? renderOptions.entryIndex : childEntries.length;
+            var siblingEntries = Array.isArray(renderOptions.orderedEntries)
+                ? renderOptions.orderedEntries
+                : ctx.getVisibleParentEntries(targetParentId);
+            var siblingIndex = typeof renderOptions.entryIndex === 'number' ? renderOptions.entryIndex : siblingEntries.length;
             var beforeEntry = renderOptions.beforeEntry || null;
             if (ctx.moveWorkspaceToParentContext(dragId, targetParentId, beforeEntry, siblingEntries, siblingIndex)) ctx.saveAndRefresh(true);
         };
