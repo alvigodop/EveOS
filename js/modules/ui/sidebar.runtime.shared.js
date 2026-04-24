@@ -247,6 +247,9 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         var collapsedTabIds = new Set((Array.isArray(config.collapsedTabs) ? config.collapsedTabs : []).map(function (id) {
             return String(id || '').trim();
         }).filter(Boolean));
+        var structureSummaryResolved = false;
+        var structureSummaryCache = null;
+        var structureSummaryUnavailable = false;
 
         ctx.saveAndRefresh = function (shouldRenderDashboard) {
             saveConfig({ immediate: true });
@@ -259,19 +262,31 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         };
 
         ctx.getStructureSummary = function () {
+            if (structureSummaryResolved) return structureSummaryCache;
+            if (structureSummaryUnavailable) return null;
+
             var indexApi = getDatapackIndexApi();
-            if (!indexApi || typeof indexApi.getStructureSummary !== 'function') return null;
+            if (!indexApi || typeof indexApi.getStructureSummary !== 'function') {
+                structureSummaryUnavailable = true;
+                return null;
+            }
             var buildState = typeof indexApi.getBuildState === 'function' ? indexApi.getBuildState() : null;
             var hasUsableSnapshot = typeof indexApi.hasUsableSnapshot === 'function'
                 ? indexApi.hasUsableSnapshot()
                 : (!buildState?.dirty && Number(buildState?.builtAt || 0) > 0);
             if (!hasUsableSnapshot) {
                 queueStructureSummaryWarmup('sidebar-structure-summary', window.renderSidebar);
+                structureSummaryUnavailable = true;
                 return null;
             }
             var summary = indexApi.getStructureSummary();
-            if (summary && Number(summary.builtAt || 0) > 0) return summary;
+            if (summary && Number(summary.builtAt || 0) > 0) {
+                structureSummaryCache = summary;
+                structureSummaryResolved = true;
+                return summary;
+            }
             queueStructureSummaryWarmup('sidebar-structure-summary', window.renderSidebar);
+            structureSummaryUnavailable = true;
             return null;
         };
 
