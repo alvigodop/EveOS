@@ -53,7 +53,6 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             var currentGroupId = groupsApi && typeof groupsApi.getWorkspaceGroupId === 'function'
                 ? groupsApi.getWorkspaceGroupId(dragId, config)
                 : String(dragNode.groupId || '').trim();
-            if (!currentGroupId && groupsApi && groupsApi.isRootWorkspace(dragId, config)) return true;
 
             var targetIndex = ctx.resolveWorkspaceInsertIndex('', beforeEntry, orderedEntries || [], typeof entryIndex === 'number' ? entryIndex : 0);
             var previousWorkspaces = config.workspaces;
@@ -107,7 +106,16 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             }
             delete movedNode.groupId;
 
-            if (groupsApi && typeof groupsApi.removeManualOrderEntry === 'function') {
+            if (groupsApi && ctx.isManualSidebarOrder() && typeof groupsApi.placeManualOrderEntry === 'function') {
+                groupsApi.placeManualOrderEntry(
+                    'workspace',
+                    dragId,
+                    beforeEntry ? beforeEntry.kind : '',
+                    beforeEntry ? beforeEntry.id : '',
+                    config,
+                    targetParentId
+                );
+            } else if (groupsApi && typeof groupsApi.removeManualOrderEntry === 'function') {
                 groupsApi.removeManualOrderEntry('workspace', dragId, config);
             }
             ctx.markWorkspaceDropApplied();
