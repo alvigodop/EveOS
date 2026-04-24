@@ -203,6 +203,8 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
                 e.preventDefault();
                 e.stopPropagation();
                 element.classList.remove('ws-drop-target');
+                var dragDuration = Date.now() - (rt._lastWorkspaceDragStartTime || 0);
+                if (dragDuration < 150) return; // Ignore instant buffered drops
                 var dragId = String(ctx.getDraggedWorkspaceId() || e.dataTransfer.getData('text/plain') || '').trim();
                 if (!dragId || !ctx.canDropWorkspaceIntoGroup(groupId)) return;
                 if (ctx.moveWorkspaceIntoGroup(dragId, groupId, '')) ctx.saveAndRefresh(true);
@@ -240,6 +242,8 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
                 e.preventDefault();
                 e.stopPropagation();
                 slot.classList.remove('ws-drop-target');
+                var dragDuration = Date.now() - (rt._lastWorkspaceDragStartTime || 0);
+                if (dragDuration < 150) return; // Ignore instant buffered drops
                 var dragId = String(ctx.getDraggedWorkspaceId() || e.dataTransfer.getData('text/plain') || '').trim();
                 if (!dragId || !canAcceptDrop()) return;
                 if (ctx.moveWorkspaceIntoGroup(dragId, opts.groupId, opts.beforeWorkspaceId || '')) ctx.saveAndRefresh(true);
@@ -294,6 +298,8 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
                 e.preventDefault();
                 e.stopPropagation();
                 slot.classList.remove('ws-drop-target');
+                var dragDuration = Date.now() - (rt._lastWorkspaceDragStartTime || 0);
+                if (dragDuration < 150) return; // Ignore instant buffered drops
 
                 var dragGroupId = ctx.getDraggedGroupId();
                 if (dragGroupId) {

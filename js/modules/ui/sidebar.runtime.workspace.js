@@ -253,6 +253,8 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         }
 
         function startWorkspaceDrag(e) {
+            rt._lastWorkspaceDragStartTime = Date.now();
+            rt._isDraggingWorkspace = true;
             if (typeof ctx.markRecentWorkspaceDragGesture === 'function') {
                 ctx.markRecentWorkspaceDragGesture(420);
             }
@@ -263,6 +265,7 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         }
 
         function endWorkspaceDrag(e) {
+            rt._isDraggingWorkspace = false;
             item.classList.remove('ws-dragging');
             if (typeof ctx.markRecentWorkspaceDragGesture === 'function') {
                 ctx.markRecentWorkspaceDragGesture(260);
@@ -460,7 +463,21 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         }
 
         if (!isInactive) {
+            item.onmousedown = function (e) {
+                if (e.button !== 0) return; // Only track left clicks
+                item.dataset.mousedownTime = String(Date.now());
+            };
             item.onclick = function (event) {
+                var mousedownTime = Number(item.dataset.mousedownTime || 0);
+                var clickDuration = Date.now() - mousedownTime;
+
+                // If the click took longer than 350ms, it was a drag or a long-press. Suppress it.
+                if (mousedownTime > 0 && clickDuration > 350) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    return;
+                }
+
                 if (typeof ctx.shouldSuppressWorkspaceClick === 'function' && ctx.shouldSuppressWorkspaceClick()) {
                     event.preventDefault();
                     event.stopPropagation();
@@ -510,6 +527,9 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
     }
 
     function handleSidebarWorkspaceDrop(ctx, dragId, targetWorkspaceId) {
+        var dragDuration = Date.now() - (rt._lastWorkspaceDragStartTime || 0);
+        if (dragDuration < 150) return false; // Ignore instant buffered drops caused by UI freezes
+
         var targetId = String(targetWorkspaceId || '').trim();
         if (!dragId || !targetId || dragId === targetId) return false;
         if (ctx.isWorkspaceEffectivelyInactive(targetId)) return false;

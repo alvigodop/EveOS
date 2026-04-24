@@ -327,9 +327,22 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         ctx.markRecentWorkspaceDragGesture = function (durationMs) {
             var lifetimeMs = Math.max(120, Number(durationMs || 0) || 220);
             rt._sidebarWorkspaceClickSuppressUntil = Date.now() + lifetimeMs;
+            rt._sidebarDragJustEnded = true;
+            
+            if (rt._sidebarDragClearTimer) {
+                clearTimeout(rt._sidebarDragClearTimer);
+                rt._sidebarDragClearTimer = 0;
+            }
+            window.requestAnimationFrame(function () {
+                rt._sidebarDragClearTimer = window.setTimeout(function () {
+                    rt._sidebarDragJustEnded = false;
+                    rt._sidebarDragClearTimer = 0;
+                }, lifetimeMs);
+            });
         };
 
         ctx.shouldSuppressWorkspaceClick = function () {
+            if (rt._isDraggingWorkspace || rt._sidebarDragJustEnded) return true;
             return Number(rt._sidebarWorkspaceClickSuppressUntil || 0) > Date.now();
         };
 
