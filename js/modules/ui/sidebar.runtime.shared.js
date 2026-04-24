@@ -400,6 +400,15 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             return shouldCollapse;
         };
 
+        ctx.getSidebarDensityFlags = function () {
+            if (rt && typeof rt.getSidebarDensityFlags === 'function') {
+                return rt.getSidebarDensityFlags();
+            }
+            return rt && rt._sidebarDensityFlags
+                ? rt._sidebarDensityFlags
+                : { nodeCount: 0, isHeavy: false, suppressBadges: false };
+        };
+
         ctx.isManualSidebarOrder = function () {
             return !!(groupsApi && typeof groupsApi.getSidebarOrderMode === 'function'
                 && groupsApi.getSidebarOrderMode(config) === 'manual');
@@ -430,7 +439,10 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         };
 
         ctx.shouldShowDatapackBadges = function () {
-            return config.showSidebarDatapackBadges !== false;
+            var densityFlags = ctx.getSidebarDensityFlags();
+            return config.showSidebarDatapackBadges !== false
+                && !!config.sidebarExpanded
+                && !densityFlags.suppressBadges;
         };
 
         ctx.shouldRenderWorkspace = function (ws) {

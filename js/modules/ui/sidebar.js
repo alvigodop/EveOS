@@ -11,6 +11,7 @@
     }
 
     var SIDEBAR_HEAVY_NODE_THRESHOLD = 80;
+    var SIDEBAR_BADGE_DISABLE_NODE_THRESHOLD = 140;
 
     function buildUnidexButton() {
         var unidexBtn = document.createElement('div');
@@ -396,10 +397,40 @@
         };
     }
 
+    function estimateWorkspaceTreeNodeCount() {
+        var helpers = window.EveWorkspaceHelpers;
+        if (helpers && typeof helpers.flattenIds === 'function') {
+            return helpers.flattenIds((config && config.workspaces) || []).length;
+        }
+
+        var count = 0;
+        (function walk(nodes) {
+            if (!Array.isArray(nodes)) return;
+            nodes.forEach(function (workspace) {
+                if (!workspace) return;
+                count += 1;
+                if (Array.isArray(workspace.subTabs) && workspace.subTabs.length > 0) {
+                    walk(workspace.subTabs);
+                }
+            });
+        })((config && config.workspaces) || []);
+
+        return count;
+    }
+
     function estimateSidebarNodeCount() {
-        var workspaceCount = Array.isArray(config?.workspaces) ? config.workspaces.length : 0;
+        var workspaceCount = estimateWorkspaceTreeNodeCount();
         var groupCount = Array.isArray(config?.sidebarGroups) ? config.sidebarGroups.length : 0;
         return workspaceCount + groupCount;
+    }
+
+    function getSidebarDensityFlags() {
+        var nodeCount = estimateSidebarNodeCount();
+        return {
+            nodeCount: nodeCount,
+            isHeavy: nodeCount >= SIDEBAR_HEAVY_NODE_THRESHOLD,
+            suppressBadges: nodeCount >= SIDEBAR_BADGE_DISABLE_NODE_THRESHOLD
+        };
     }
 
     function isSidebarExpanded() {
@@ -438,11 +469,13 @@
     function syncSidebarShellState(sb) {
         if (!sb) return;
         if (typeof config.sidebarExpanded !== 'boolean') config.sidebarExpanded = false;
+        var densityFlags = getSidebarDensityFlags();
+        rt._sidebarDensityFlags = densityFlags;
         sb.classList.toggle('is-expanded', !!config.sidebarExpanded);
         sb.classList.toggle('ultra-collapsed', !!config.ultraCollapseSidebar);
         sb.classList.toggle('hidden-completely', !!config.sidebarHidden);
         sb.classList.toggle('ws-hover-reveal-active', !!(rt.isHoverRevealActive && rt.isHoverRevealActive()));
-        sb.classList.toggle('ws-heavy', estimateSidebarNodeCount() >= SIDEBAR_HEAVY_NODE_THRESHOLD);
+        sb.classList.toggle('ws-heavy', densityFlags.isHeavy);
         sb.setAttribute('aria-expanded', config.sidebarExpanded ? 'true' : 'false');
     }
 
@@ -472,8 +505,8 @@
         scrollMemory.restoreToken += 1;
         var restoreToken = scrollMemory.restoreToken;
         rt._sidebarSuppressScrollTracking = true;
-        var ctx = rt.createRenderContext(sb);
         syncSidebarShellState(sb);
+        var ctx = rt.createRenderContext(sb);
         syncHoverRevealContentVisibility(scaffold);
         if (config.sidebarHidden) {
             rt.sidebarDirtyWhileHidden = true;
@@ -548,5 +581,6 @@
     };
 
     rt.invalidateHoverRevealPreview = invalidateHoverRevealPreview;
+    rt.getSidebarDensityFlags = getSidebarDensityFlags;
     rt.ready = true;
 })();
