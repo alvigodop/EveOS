@@ -36,7 +36,10 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
                 <!-- Search Input -->
                 <div class="nx-section">
                     <label class="nx-section-label">⌕ QUERY</label>
-                    <input type="text" id="esQuery" class="nx-input nx-query-input" placeholder="Search across all vectors...">
+                    <div class="nx-typeahead-wrap">
+                        <input type="text" id="esQuery" class="nx-input nx-query-input" placeholder="Search across all vectors..." autocomplete="off" aria-autocomplete="list" aria-controls="nxTypeahead" aria-expanded="false">
+                        <div class="nx-typeahead" id="nxTypeahead" role="listbox" hidden></div>
+                    </div>
                 </div>
 
                 <!-- Search Vectors (RPG Skill Slots) -->

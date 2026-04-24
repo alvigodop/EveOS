@@ -13,7 +13,10 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         if (!uiHelpers) {
             uiHelpers = Modules.createUiHelpers({
                 onRunSearch: runSearch,
-                onClearFilters: clearFilters
+                onClearFilters: clearFilters,
+                getScope: function (scopeMode) {
+                    return resolveCurrentScope(scopeMode);
+                }
             });
         }
         return uiHelpers;

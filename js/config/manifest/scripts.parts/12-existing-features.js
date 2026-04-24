@@ -20,6 +20,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/search-advanced/sa-debug-view.js?v=0.1.0",
     "js/modules/features/search-advanced/sa-ui.form.template.js?v=0.4.0",
     "js/modules/features/search-advanced/sa-ui.form.fields.js?v=0.3.0",
+    "js/modules/features/search-advanced/sa-ui.typeahead.js?v=0.1.0",
     "js/modules/features/search-advanced/sa-ui.form.js?v=0.4.0",
     "js/modules/features/search-advanced/sa-ui.results.js",
     "js/modules/features/search-advanced/sa-ui.results.vectors.js?v=0.1.0",

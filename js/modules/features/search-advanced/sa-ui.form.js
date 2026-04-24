@@ -18,11 +18,20 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
             const runBtn = fields.byId?.('esRunBtn');
             const clearBtn = fields.byId?.('esClearBtn');
             const queryInput = fields.byId?.('esQuery');
+            const typeahead = typeof modules.createUiTypeahead === 'function'
+                ? modules.createUiTypeahead({
+                    onRunSearch: onRunSearch,
+                    getSettings: fields.collectSettings,
+                    getScope: deps?.getScope
+                })
+                : null;
             if (runBtn) runBtn.onclick = onRunSearch;
             if (clearBtn) clearBtn.onclick = onClearFilters;
             if (queryInput) {
+                typeahead?.bind(queryInput, fields.byId?.('nxTypeahead'), fields.byId?.('nxInlineQuery'));
                 queryInput.addEventListener('keypress', function (event) {
                     if (event.key === 'Enter') {
+                        if (queryInput.__nexusTypeaheadHandledEnter) return;
                         event.preventDefault();
                         onRunSearch();
                     }

@@ -451,11 +451,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         return facets;
     }
 
-    async function search(query, scope, settings) {
-        const snapshot = await ensureFresh();
-        const q = normalizeText(query);
-        if (!q) return { records: [], facets: {}, stats: {}, snapshot: snapshot };
-
+    function buildAllowedTypes(settings) {
         const allowedTypes = new Set();
         const vectors = settings?.activeVectors || {};
         if (vectors.bookmarks) {
@@ -466,6 +462,21 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         }
         if (vectors.knowledge) allowedTypes.add('knowledge');
         if (vectors.cachedResults) allowedTypes.add('cached');
+        return allowedTypes;
+    }
+
+    function compareRankedRecords(left, right) {
+        return Number(right.score || 0) - Number(left.score || 0)
+            || Number(right.updatedAt || 0) - Number(left.updatedAt || 0)
+            || text(left.title, '').localeCompare(text(right.title, ''));
+    }
+
+    async function search(query, scope, settings) {
+        const snapshot = await ensureFresh();
+        const q = normalizeText(query);
+        if (!q) return { records: [], facets: {}, stats: {}, snapshot: snapshot };
+
+        const allowedTypes = buildAllowedTypes(settings);
 
         const records = [];
         snapshot.records.forEach(function (record) {
@@ -486,16 +497,79 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             }));
         });
 
-        records.sort(function (left, right) {
-            return Number(right.score || 0) - Number(left.score || 0)
-                || Number(right.updatedAt || 0) - Number(left.updatedAt || 0)
-                || text(left.title, '').localeCompare(text(right.title, ''));
-        });
+        records.sort(compareRankedRecords);
 
         return {
             records: records,
             facets: buildFacets(records),
             stats: snapshot.stats || {},
+            snapshot: snapshot
+        };
+    }
+
+    function buildSuggestionSubtitle(record) {
+        return text(record?.path?.pathLabel, '')
+            || text(record?.displayUrl || record?.url, '')
+            || text(record?.provider, '')
+            || text(record?.categoryName, '');
+    }
+
+    function buildSuggestionRecord(record, score) {
+        const visibility = computeVisibility(record);
+        const freshness = computeFreshness(record?.updatedAt);
+        const health = computeHealth(record);
+        return {
+            id: text(record?.id, ''),
+            type: text(record?.type, 'result'),
+            title: text(record?.title, 'Untitled'),
+            subtitle: buildSuggestionSubtitle(record),
+            insertText: text(record?.title, ''),
+            score: score,
+            updatedAt: Number(record?.updatedAt || 0),
+            workspaceId: text(record?.workspaceId, ''),
+            categoryName: text(record?.categoryName, ''),
+            provider: text(record?.provider, ''),
+            path: record?.path || null,
+            visibilityState: visibility.state,
+            healthState: health.state,
+            freshnessState: freshness.state
+        };
+    }
+
+    async function getSuggestionSnapshot() {
+        await loadPersistedSnapshot();
+        if (state.snapshot) return state.snapshot;
+        return ensureFresh();
+    }
+
+    async function suggest(query, scope, settings) {
+        const snapshot = await getSuggestionSnapshot();
+        const q = normalizeText(query);
+        if (!q || q.length < 2) {
+            return { suggestions: [], stats: snapshot?.stats || {}, snapshot: snapshot };
+        }
+
+        const allowedTypes = buildAllowedTypes(settings);
+        const maxSuggestions = Math.max(1, Math.min(20, Number(settings?.maxSuggestions || 8)));
+        const suggestions = [];
+
+        toArray(snapshot?.records).forEach(function (record) {
+            if (!record || !allowedTypes.has(record.type) || !matchesScope(record, scope)) return;
+            const score = computeScore(record, q, scope);
+            if (score <= 0) return;
+
+            suggestions.push(buildSuggestionRecord(record, score));
+            if (suggestions.length > maxSuggestions) {
+                suggestions.sort(compareRankedRecords);
+                suggestions.length = maxSuggestions;
+            }
+        });
+
+        suggestions.sort(compareRankedRecords);
+
+        return {
+            suggestions: suggestions,
+            stats: snapshot?.stats || {},
             snapshot: snapshot
         };
     }
@@ -971,6 +1045,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         ensureFresh,
         rebuild,
         search,
+        suggest,
         getStats,
         getSnapshot,
         getScopedBookmarkLinkIds,
