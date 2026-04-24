@@ -15,6 +15,26 @@ window.DashboardCategories = window.DashboardCategories || {};
         return buildScopedCategoryKey(workspaceId || 'main', categoryName || 'Unsorted');
     }
 
+    function resolveDeferredLinkCount(catLinks, options) {
+        var configuredCount = Number(options?._deferredLinkCount);
+        if (Number.isFinite(configuredCount) && configuredCount >= 0) {
+            return configuredCount;
+        }
+        return Array.isArray(catLinks) ? catLinks.length : 0;
+    }
+
+    function resolveDeferredCardLinks(catLinks, options) {
+        if (Array.isArray(catLinks) && catLinks.length > 0) {
+            return catLinks;
+        }
+        var loader = options?._deferredLinksLoader;
+        if (typeof loader === 'function') {
+            var loadedLinks = loader();
+            return Array.isArray(loadedLinks) ? loadedLinks : [];
+        }
+        return Array.isArray(catLinks) ? catLinks : [];
+    }
+
     function estimateDeferredShellMinHeight(workspaceId, categoryName, catLinks, options) {
         var cacheKey = buildCardHeightCacheKey(workspaceId, categoryName);
         var cachedHeight = Number(cardHeightCache[cacheKey] || 0);
@@ -22,7 +42,7 @@ window.DashboardCategories = window.DashboardCategories || {};
             return Math.max(160, cachedHeight);
         }
 
-        var linkCount = Array.isArray(catLinks) ? catLinks.length : 0;
+        var linkCount = resolveDeferredLinkCount(catLinks, options);
         var estimate = 170 + Math.min(1500, linkCount * 14);
         if (options?.detachedParkingCard) estimate += 120;
 
@@ -103,11 +123,12 @@ window.DashboardCategories = window.DashboardCategories || {};
         var HEAVY_CARD_THRESHOLD = 80;
         var shouldForceDeferredShell = !!options._forceDeferredShell;
         var hydrationDelayMs = Math.max(0, Number(options._deferredHydrationDelayMs || 0));
+        var cardLinkCount = resolveDeferredLinkCount(catLinks, options);
         var cardWorkspaceId = typeof catInput === 'object' && catInput
             ? (catInput.workspaceId || options.activeWorkspace || 'main')
             : (options.activeWorkspace || 'main');
 
-        if (shouldForceDeferredShell || catLinks.length > HEAVY_CARD_THRESHOLD) {
+        if (shouldForceDeferredShell || cardLinkCount > HEAVY_CARD_THRESHOLD) {
             var safeCatHtml = escapeCardHtml(cat || 'Unsorted');
             var safeCatJs = escapeCardJs(cat || 'Unsorted');
             var cardTargetId = window.EveQuickPins?.buildCardTargetId
@@ -149,6 +170,13 @@ window.DashboardCategories = window.DashboardCategories || {};
                 + '</div>'
                 + '<div class="category-footer"><span class="stat-pending">Tasks: …</span><span class="stat-done">…</span></div>';
 
+            var skeletonLabel = shellCard.querySelector('.eve-card-deferred-skeleton > div');
+            if (skeletonLabel) {
+                skeletonLabel.innerHTML = ''
+                    + '<span class="eve-skeleton-spinner" style="display:inline-block; width:14px; height:14px; border:2px solid rgba(80,200,255,0.15); border-top-color:rgba(80,200,255,0.5); border-radius:50%; animation:spin 0.8s linear infinite;"></span>'
+                    + 'Loading ' + cardLinkCount + ' bookmarks...';
+            }
+
             gridContainer.appendChild(shellCard);
 
             if (shellCard.classList.contains('collapsed')) {
@@ -157,18 +185,26 @@ window.DashboardCategories = window.DashboardCategories || {};
 
             var cardGen = options._renderGen;
             var MEGA_THRESHOLD = 500;
-            var isMega = catLinks.length > MEGA_THRESHOLD;
+            var isMega = cardLinkCount > MEGA_THRESHOLD;
+            var resolvedCatLinks = null;
+
+            function getResolvedCatLinks() {
+                if (resolvedCatLinks) return resolvedCatLinks;
+                resolvedCatLinks = resolveDeferredCardLinks(catLinks, options);
+                return resolvedCatLinks;
+            }
 
             function doDeferredBuild() {
                 if (cardGen != null && window._eveDashRenderGen !== cardGen) return;
                 if (!shellCard.parentNode) return;
                 if (shellCard.classList.contains('collapsed')) return;
 
+                var hydratedCatLinks = getResolvedCatLinks();
                 var phase1Options = isMega
                     ? Object.assign({}, configOptions, { _skipGhosts: true, _skipFolderRestore: true })
                     : Object.assign({}, configOptions, { _skipFolderRestore: true });
                 var tempContainer = document.createDocumentFragment();
-                api._renderCardFull(cat, catLinks, tempContainer, phase1Options);
+                api._renderCardFull(cat, hydratedCatLinks, tempContainer, phase1Options);
                 var fullCard = tempContainer.firstChild;
                 if (!fullCard) return;
 
@@ -207,7 +243,7 @@ window.DashboardCategories = window.DashboardCategories || {};
 
                     var ghostContainer = document.createDocumentFragment();
                     var phase2Options = Object.assign({}, configOptions, { _skipGhosts: false, _skipFolderRestore: true });
-                    api._renderCardFull(cat, catLinks, ghostContainer, phase2Options);
+                    api._renderCardFull(cat, getResolvedCatLinks(), ghostContainer, phase2Options);
                     var ghostCard = ghostContainer.firstChild;
                     if (ghostCard && fullCard.parentNode) {
                         ghostCard.setAttribute('data-card-hydrating', '1');

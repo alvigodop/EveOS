@@ -108,6 +108,13 @@ function collectIndexedDashboardCardLinks(visibleLinkIdMap, workspaceId, categor
     }).filter(Boolean);
 }
 
+function getIndexedDashboardCardSummaryBucket(summary, workspaceId, categoryName) {
+    if (!summary?.cards) return null;
+    var normalizedWorkspaceId = String(workspaceId || 'main').trim() || 'main';
+    var normalizedCategoryName = String(categoryName || 'Unsorted').trim() || 'Unsorted';
+    return summary.cards[normalizedWorkspaceId + '::' + normalizedCategoryName] || null;
+}
+
 function createDashboardRenderContext(activeWorkspaceId) {
     var helpers = window.EveWorkspaceHelpers;
     var workspaces = Array.isArray(config?.workspaces) ? config.workspaces : [];
@@ -289,6 +296,7 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
     if (!gridContainer) return;
     const activeWorkspace = getDashboardActiveWorkspace();
     const dashboardRenderContext = createDashboardRenderContext(activeWorkspace);
+    const dashboardStructureSummary = !searchStr ? getDashboardStructureSummary() : null;
     const workspaceCategoryOrder = window.EveCategoryOrder?.getOrder
         ? window.EveCategoryOrder.getOrder(activeWorkspace)
         : (Array.isArray(config.categoryOrder) ? config.categoryOrder : []);
@@ -305,15 +313,40 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
         && String(renderHint.fromWorkspaceId || '').trim() !== String(renderHint.toWorkspaceId || '').trim()
     );
 
-    // Pre-index links by (workspaceId::category) — O(n) instead of O(n * categories)
-    const linksByCatWs = new Map();
-    const visibleLinkIdMap = buildDashboardLinkIdMap(visibleLinks);
-    for (var i = 0; i < visibleLinks.length; i++) {
-        var cat = String(visibleLinks[i].category || 'Unsorted').trim() || 'Unsorted';
-        var ws = String(visibleLinks[i].workspace || 'main').trim() || 'main';
-        var key = `${ws}::${cat}`;
-        if (!linksByCatWs.has(key)) linksByCatWs.set(key, []);
-        linksByCatWs.get(key).push(visibleLinks[i]);
+    // Only build category/link indexes on demand so workspace-switch paints do not pay
+    // the full per-category exact-link resolution cost up front.
+    var linksByCatWs = null;
+    var visibleLinkIdMap = null;
+
+    function getLinksByCatWs() {
+        if (linksByCatWs instanceof Map) return linksByCatWs;
+
+        linksByCatWs = new Map();
+        for (var i = 0; i < visibleLinks.length; i++) {
+            var cat = String(visibleLinks[i].category || 'Unsorted').trim() || 'Unsorted';
+            var ws = String(visibleLinks[i].workspace || 'main').trim() || 'main';
+            var key = `${ws}::${cat}`;
+            if (!linksByCatWs.has(key)) linksByCatWs.set(key, []);
+            linksByCatWs.get(key).push(visibleLinks[i]);
+        }
+        return linksByCatWs;
+    }
+
+    function getVisibleLinkIdMap() {
+        if (visibleLinkIdMap instanceof Map) return visibleLinkIdMap;
+        visibleLinkIdMap = buildDashboardLinkIdMap(visibleLinks);
+        return visibleLinkIdMap;
+    }
+
+    function getCategoryLiveLinks(workspaceId, categoryName) {
+        return getLinksByCatWs().get(`${workspaceId}::${categoryName}`) || [];
+    }
+
+    function resolveCategoryLinks(workspaceId, categoryName) {
+        const indexedCardLinks = !searchStr
+            ? collectIndexedDashboardCardLinks(getVisibleLinkIdMap(), workspaceId, categoryName)
+            : null;
+        return indexedCardLinks || getCategoryLiveLinks(workspaceId, categoryName);
     }
 
     var aggressiveDeferredCards = isCrossWorkspaceSwitchRender
@@ -334,13 +367,20 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
         if (focusCategory && cat !== focusCategory) return;
 
         const isDetachedParkingCard = !!detachedModel && cat === detachedModel.categoryName;
-        const indexedCardLinks = (!searchStr && !isDetachedParkingCard)
-            ? collectIndexedDashboardCardLinks(visibleLinkIdMap, catWsId, cat)
+        const summaryBucket = (!searchStr && !isDetachedParkingCard)
+            ? getIndexedDashboardCardSummaryBucket(dashboardStructureSummary, catWsId, cat)
             : null;
-        // The empty empty-shortcut cards (not tied to content) will still map to activeWorkspace context
-        const catLinks = isDetachedParkingCard 
-            ? detachedModel.links.slice() 
-            : (indexedCardLinks || linksByCatWs.get(`${catWsId}::${cat}`) || []);
+        const canUseLazyDeferredLinks = isCrossWorkspaceSwitchRender
+            && !!summaryBucket;
+        // Empty shortcut cards still map to the activeWorkspace context.
+        const catLinks = isDetachedParkingCard
+            ? detachedModel.links.slice()
+            : (canUseLazyDeferredLinks ? [] : resolveCategoryLinks(catWsId, cat));
+        const catLinkCount = isDetachedParkingCard
+            ? catLinks.length
+            : (canUseLazyDeferredLinks
+                ? Math.max(0, Number(summaryBucket?.bookmarkCount || 0))
+                : catLinks.length);
         
         const hasFolderContent = isDetachedParkingCard
             ? !!(detachedModel?.viewModel?.nodes?.length)
@@ -351,7 +391,7 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
                 : workspaceCategoryOrder.includes(cat)
         );
 
-        if (catLinks.length > 0 || hasFolderContent || shouldRenderEmptyCard) {
+        if (catLinkCount > 0 || hasFolderContent || shouldRenderEmptyCard) {
             const buildConfig = {
                 ...config,
                 searchStr: searchStr,
@@ -361,11 +401,17 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
                 _dashboardRenderHint: renderHint || null,
                 _dashboardRenderContext: dashboardRenderContext
             };
-            if ((aggressiveDeferredCards && catLinks.length > 0) || isCrossWorkspaceSwitchRender) {
+            if ((aggressiveDeferredCards && catLinkCount > 0) || isCrossWorkspaceSwitchRender) {
                 buildConfig._forceDeferredShell = true;
                 buildConfig._deferredHydrationDelayMs = isCrossWorkspaceSwitchRender
                     ? Math.min(120, 12 + (renderCount * 10))
                     : (renderCount < CARD_CAP ? 0 : 12);
+            }
+            if (canUseLazyDeferredLinks) {
+                buildConfig._deferredLinkCount = catLinkCount;
+                buildConfig._deferredLinksLoader = function () {
+                    return resolveCategoryLinks(catWsId, cat);
+                };
             }
             if (isDetachedParkingCard) {
                 buildConfig.virtualFolderViewModel = detachedModel.viewModel;
