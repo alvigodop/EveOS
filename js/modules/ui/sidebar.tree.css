@@ -108,7 +108,6 @@
         opacity 0.08s ease-out;
     cursor: grab;
     user-select: none;
-    -webkit-user-drag: element;
 }
 
 .ws-sub-item:active {
@@ -157,7 +156,6 @@
         border-color 0.08s ease-out,
         opacity 0.08s ease-out;
     cursor: grab;
-    -webkit-user-drag: element;
 }
 
 #sidebar.is-expanded .ws-sub-item:active {
