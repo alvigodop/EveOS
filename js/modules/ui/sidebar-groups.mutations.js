@@ -296,16 +296,16 @@
         return helpers.getPath([rootWorkspace], groupParentId).length === 0;
     }
 
-    function moveRootWorkspaceToGroup(workspaceId, groupId, configRef) {
+    function moveRootWorkspaceToGroup(workspaceId, groupId, configRef, beforeWorkspaceId) {
         var cfg = rt.ensureConfigDefaults(configRef);
         var targetId = rt.normalizeGroupId(groupId);
         if (!cfg || !rt.isRootWorkspace(workspaceId, cfg)) return false;
         if (targetId && !rt.findGroupById(targetId, cfg)) return false;
         if (targetId && !canGroupWorkspaceInGroup(workspaceId, targetId, cfg)) return false;
 
-        // Skip if already in the target group (or already ungrouped when removing)
+        // Skip only if already in the target group and no explicit reordering anchor was provided.
         var currentGroupId = rt.getWorkspaceGroupId(workspaceId, cfg);
-        if (currentGroupId === targetId) return true;
+        if (currentGroupId === targetId && !String(beforeWorkspaceId || '').trim()) return true;
 
         var previousWorkspaces = cfg.workspaces;
         var roots = rt.getRootWorkspaces(cfg).slice();
@@ -320,7 +320,15 @@
         else delete dragged.groupId;
 
         var insertIndex = roots.length;
-        if (targetId) {
+        var beforeId = rt.normalizeWorkspaceId(beforeWorkspaceId);
+        if (beforeId) {
+            var beforeIndex = roots.findIndex(function (workspace) {
+                return String(workspace.id) === beforeId;
+            });
+            if (beforeIndex !== -1) {
+                insertIndex = beforeIndex;
+            }
+        } else if (targetId) {
             var lastIndex = roots.reduce(function (acc, workspace, index) {
                 return rt.getWorkspaceGroupId(workspace, cfg) === targetId ? index : acc;
             }, -1);

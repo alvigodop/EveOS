@@ -131,7 +131,7 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             if (!targetGroupId || !groupsApi.findGroupById(targetGroupId, config)) return false;
 
             var existingGroupId = groupsApi.getWorkspaceGroupId(dragId, config);
-            if (existingGroupId === targetGroupId && groupsApi.isRootWorkspace(dragId, config)) return true;
+            if (existingGroupId === targetGroupId && groupsApi.isRootWorkspace(dragId, config) && !beforeWorkspaceId) return true;
 
             if (groupsApi.isRootWorkspace(dragId, config)
                 && typeof groupsApi.canGroupWorkspaceInGroup === 'function'
@@ -139,29 +139,8 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
                 return false;
             }
 
-            var targetIndex = Array.isArray(config.workspaces) ? config.workspaces.length : 0;
-            if (beforeWorkspaceId) {
-                var beforeContext = helpers.findSiblingContext(config.workspaces, beforeWorkspaceId);
-                if (beforeContext && !beforeContext.parentId) targetIndex = beforeContext.index;
-            } else {
-                var roots = groupsApi.getRootWorkspaces(config);
-                var lastIndex = roots.reduce(function (acc, workspace, index) {
-                    return groupsApi.getWorkspaceGroupId(workspace, config) === targetGroupId ? index : acc;
-                }, -1);
-                targetIndex = lastIndex === -1 ? roots.length : lastIndex + 1;
-            }
-
-            var previousWorkspaces = config.workspaces;
-            config.workspaces = helpers.moveToPosition(config.workspaces, dragId, '', targetIndex);
-            var movedNode = helpers.findById(config.workspaces, dragId);
-            if (!movedNode) {
-                config.workspaces = previousWorkspaces;
-                return false;
-            }
-            movedNode.groupId = targetGroupId;
-            if (typeof groupsApi.removeManualOrderEntry === 'function') {
-                groupsApi.removeManualOrderEntry('workspace', dragId, config);
-            }
+            if (typeof groupsApi.moveRootWorkspaceToGroup !== 'function') return false;
+            if (!groupsApi.moveRootWorkspaceToGroup(dragId, targetGroupId, config, beforeWorkspaceId || '')) return false;
             ctx.markWorkspaceDropApplied();
             return true;
         };

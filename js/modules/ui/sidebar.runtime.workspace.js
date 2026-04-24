@@ -20,7 +20,12 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         }
 
         if (entry.workspace && (ctx.shouldRenderWorkspace(entry.workspace) || !!(options && options.renderInactive))) {
-            renderWorkspaceItem(ctx, entry.workspace, container, depth, options);
+            renderWorkspaceItem(ctx, entry.workspace, container, depth, Object.assign({}, options, {
+                parentWorkspaceId: entry.parentWorkspaceId || '',
+                orderedEntries: Array.isArray(options && options.orderedEntries) ? options.orderedEntries : [],
+                entryIndex: typeof (options && options.entryIndex) === 'number' ? options.entryIndex : 0,
+                beforeEntry: entry
+            }));
         }
     }
 
@@ -35,7 +40,13 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             depth: 0,
             topLevel: true
         }));
-        renderEntry(ctx, entry, block, 0, { manualSlots: true });
+        renderEntry(ctx, entry, block, 0, {
+            manualSlots: true,
+            parentWorkspaceId: '',
+            orderedEntries: orderedEntries,
+            entryIndex: entryIndex,
+            beforeEntry: entry
+        });
         return block;
     }
 
@@ -78,7 +89,12 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
                     depth: depth
                 }));
             }
-            renderEntry(ctx, entry, container, depth, opts);
+            renderEntry(ctx, entry, container, depth, Object.assign({}, opts, {
+                parentWorkspaceId: parentWorkspaceId || '',
+                orderedEntries: orderedEntries,
+                entryIndex: index,
+                beforeEntry: entry
+            }));
         });
 
         if (opts.manualSlots) {
@@ -150,7 +166,9 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             host.replaceChildren();
             renderParentEntries(ctx, ws.id, host, currentDepth + 1, {
                 manualSlots: !!renderOptions.manualSlots,
-                renderInactive: !!renderOptions.renderInactive
+                renderInactive: !!renderOptions.renderInactive,
+                orderedEntries: childEntries,
+                parentWorkspaceId: ws.id
             });
             childBranchRendered = true;
             return host;
@@ -284,7 +302,17 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
 
             var dragId = String(ctx.getDraggedWorkspaceId() || e.dataTransfer.getData('text/plain') || '').trim();
             if (!dragId || dragId === String(ws.id)) return;
-            if (ctx.moveWorkspaceToParentContext(dragId, ws.id, null, childEntries, childEntries.length)) ctx.saveAndRefresh(true);
+            if (renderOptions.groupPreview
+                && String(renderOptions.groupId || '').trim()
+                && currentDepth === renderOptions.groupPreviewBaseDepth) {
+                if (ctx.moveWorkspaceIntoGroup(dragId, renderOptions.groupId, ws.id)) ctx.saveAndRefresh(true);
+                return;
+            }
+            var targetParentId = String(renderOptions.parentWorkspaceId || '').trim();
+            var siblingEntries = Array.isArray(renderOptions.orderedEntries) ? renderOptions.orderedEntries : childEntries;
+            var siblingIndex = typeof renderOptions.entryIndex === 'number' ? renderOptions.entryIndex : childEntries.length;
+            var beforeEntry = renderOptions.beforeEntry || null;
+            if (ctx.moveWorkspaceToParentContext(dragId, targetParentId, beforeEntry, siblingEntries, siblingIndex)) ctx.saveAndRefresh(true);
         };
 
         if (hasChildren) {

@@ -23,9 +23,19 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             rt.renderWorkspaceItem(ctx, workspace, container, opts.depth, {
                 manualSlots: !!opts.manualSlots,
                 groupPreview: true,
+                groupId: opts.groupId,
                 groupColor: opts.groupColor,
                 groupPreviewBaseDepth: opts.depth,
-                renderInactive: !!opts.renderInactive
+                renderInactive: !!opts.renderInactive,
+                parentWorkspaceId: '',
+                orderedEntries: visibleWorkspaces,
+                entryIndex: visibleWorkspaces.findIndex(function (entry) {
+                    return entry && String(entry.id || '') === String(workspace.id || '');
+                }),
+                beforeEntry: {
+                    kind: 'workspace',
+                    id: String(workspace.id || '')
+                }
             });
         });
 
