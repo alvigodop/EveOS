@@ -127,10 +127,13 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             var targetGroupId = String(groupId || '').trim();
             if (!dragId || !targetGroupId || !groupsApi) return false;
             if (!groupsApi.findGroupById(targetGroupId, config)) return false;
-            if (typeof groupsApi.canGroupWorkspaceInGroup === 'function' && groupsApi.isRootWorkspace(dragId, config)) {
+            if (typeof groupsApi.isRootWorkspace !== 'function' || !groupsApi.isRootWorkspace(dragId, config)) {
+                return false;
+            }
+            if (typeof groupsApi.canGroupWorkspaceInGroup === 'function') {
                 return groupsApi.canGroupWorkspaceInGroup(dragId, targetGroupId, config);
             }
-            return !!groupsApi.findGroupById(targetGroupId, config);
+            return true;
         };
 
         ctx.moveWorkspaceIntoGroup = function (dragId, groupId, beforeWorkspaceId) {

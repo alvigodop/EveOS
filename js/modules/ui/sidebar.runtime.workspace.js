@@ -252,32 +252,43 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             item.style.setProperty('--ws-group-color', renderOptions.groupColor || '#00d4ff');
         }
 
-        item.draggable = !isInactive;
+        function startWorkspaceDrag(e) {
+            if (typeof ctx.markRecentWorkspaceDragGesture === 'function') {
+                ctx.markRecentWorkspaceDragGesture(420);
+            }
+            ctx.setDragState('workspace', ws.id);
+            e.dataTransfer.setData('text/plain', ws.id);
+            e.dataTransfer.effectAllowed = 'move';
+            item.classList.add('ws-dragging');
+        }
+
+        function endWorkspaceDrag(e) {
+            item.classList.remove('ws-dragging');
+            if (typeof ctx.markRecentWorkspaceDragGesture === 'function') {
+                ctx.markRecentWorkspaceDragGesture(260);
+            }
+            var dragId = ctx.getDraggedWorkspaceId();
+            var fallbackTargetId = dragId && !ctx.wasWorkspaceDropApplied()
+                ? ctx.resolveWorkspaceFallbackTargetId(e, dragId)
+                : '';
+            if (dragId && fallbackTargetId && handleSidebarWorkspaceDrop(ctx, dragId, fallbackTargetId)) {
+                ctx.clearDragState();
+                ctx.saveAndRefresh(true);
+                return;
+            }
+            ctx.clearDragState();
+        }
+
+        // Keep visible tabs draggable even when their branch is marked inactive.
+        // Inactive should block open/select behavior, not reorder gestures.
+        item.setAttribute('draggable', 'true');
+        item.draggable = true;
         item.dataset.wsId = ws.id;
         if (typeof rt.registerWorkspaceItemElement === 'function') {
             rt.registerWorkspaceItemElement(ws.id, item);
         }
-        if (!isInactive) {
-            item.ondragstart = function (e) {
-                ctx.setDragState('workspace', ws.id);
-                e.dataTransfer.setData('text/plain', ws.id);
-                e.dataTransfer.effectAllowed = 'move';
-                item.classList.add('ws-dragging');
-            };
-            item.ondragend = function (e) {
-                item.classList.remove('ws-dragging');
-                var dragId = ctx.getDraggedWorkspaceId();
-                var fallbackTargetId = dragId && !ctx.wasWorkspaceDropApplied()
-                    ? ctx.resolveWorkspaceFallbackTargetId(e, dragId)
-                    : '';
-                if (dragId && fallbackTargetId && handleSidebarWorkspaceDrop(ctx, dragId, fallbackTargetId)) {
-                    ctx.clearDragState();
-                    ctx.saveAndRefresh(true);
-                    return;
-                }
-                ctx.clearDragState();
-            };
-        }
+        item.ondragstart = startWorkspaceDrag;
+        item.ondragend = endWorkspaceDrag;
 
         item.ondragover = function (e) {
             if (isInactive) return;
@@ -316,7 +327,17 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             if (renderOptions.groupPreview
                 && String(renderOptions.groupId || '').trim()
                 && currentDepth === renderOptions.groupPreviewBaseDepth) {
-                if (ctx.moveWorkspaceIntoGroup(dragId, renderOptions.groupId, ws.id)) ctx.saveAndRefresh(true);
+                var isRootWorkspaceDrag = !!(ctx.groupsApi
+                    && typeof ctx.groupsApi.isRootWorkspace === 'function'
+                    && ctx.groupsApi.isRootWorkspace(dragId, config));
+                if (isRootWorkspaceDrag) {
+                    if (ctx.moveWorkspaceIntoGroup(dragId, renderOptions.groupId, ws.id)) ctx.saveAndRefresh(true);
+                    return;
+                }
+                var targetEntries = ctx.getVisibleParentEntries(ws.id);
+                if (ctx.moveWorkspaceToParentContext(dragId, ws.id, null, targetEntries, targetEntries.length)) {
+                    ctx.saveAndRefresh(true);
+                }
                 return;
             }
             var targetParentId = String(renderOptions.parentWorkspaceId || '').trim();
@@ -357,11 +378,31 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         var iconSpan = document.createElement('span');
         iconSpan.className = 'ws-icon';
         iconSpan.textContent = ws.icon || '\u{1F4C1}';
+        iconSpan.setAttribute('draggable', 'true');
+        iconSpan.draggable = true;
+        iconSpan.ondragstart = function (e) {
+            e.stopPropagation();
+            startWorkspaceDrag(e);
+        };
+        iconSpan.ondragend = function (e) {
+            e.stopPropagation();
+            endWorkspaceDrag(e);
+        };
         item.appendChild(iconSpan);
 
         var label = document.createElement('span');
         label.className = 'ws-label';
         label.textContent = ws.name;
+        label.setAttribute('draggable', 'true');
+        label.draggable = true;
+        label.ondragstart = function (e) {
+            e.stopPropagation();
+            startWorkspaceDrag(e);
+        };
+        label.ondragend = function (e) {
+            e.stopPropagation();
+            endWorkspaceDrag(e);
+        };
         item.appendChild(label);
 
         var workspaceSummary = ctx.shouldShowDatapackBadges()
@@ -370,6 +411,16 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         if (workspaceSummary) {
             var summary = document.createElement('span');
             summary.className = 'ws-summary';
+            summary.setAttribute('draggable', 'true');
+            summary.draggable = true;
+            summary.ondragstart = function (e) {
+                e.stopPropagation();
+                startWorkspaceDrag(e);
+            };
+            summary.ondragend = function (e) {
+                e.stopPropagation();
+                endWorkspaceDrag(e);
+            };
 
             var bookmarkChip = document.createElement('span');
             bookmarkChip.className = 'ws-summary-chip';
@@ -395,11 +446,26 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             hiddenBadge.className = 'ws-hidden-badge';
             hiddenBadge.textContent = 'Hidden';
             hiddenBadge.title = 'Hidden from parent tab view';
+            hiddenBadge.setAttribute('draggable', 'true');
+            hiddenBadge.draggable = true;
+            hiddenBadge.ondragstart = function (e) {
+                e.stopPropagation();
+                startWorkspaceDrag(e);
+            };
+            hiddenBadge.ondragend = function (e) {
+                e.stopPropagation();
+                endWorkspaceDrag(e);
+            };
             item.appendChild(hiddenBadge);
         }
 
         if (!isInactive) {
             item.onclick = function (event) {
+                if (typeof ctx.shouldSuppressWorkspaceClick === 'function' && ctx.shouldSuppressWorkspaceClick()) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    return;
+                }
                 if (shouldTreatRowClickAsToggle(event)) {
                     toggleWorkspaceBranch(event);
                     return;

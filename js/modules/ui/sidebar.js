@@ -200,6 +200,51 @@
         }
     }
 
+    function getSidebarActiveScrollHost(scaffold) {
+        var targetScaffold = scaffold && scaffold.contentHost ? scaffold : null;
+        if (!targetScaffold) return null;
+        if (targetScaffold.previewHost && !targetScaffold.previewHost.hidden) {
+            return targetScaffold.previewHost;
+        }
+        return targetScaffold.contentHost || null;
+    }
+
+    function maybeAutoScrollSidebarDrag(scaffold, event) {
+        var scrollHost = getSidebarActiveScrollHost(scaffold);
+        if (!scrollHost || !Number.isFinite(event?.clientY)) return;
+
+        var rect = typeof scrollHost.getBoundingClientRect === 'function'
+            ? scrollHost.getBoundingClientRect()
+            : null;
+        if (!rect || rect.height <= 0) return;
+
+        var edgeThreshold = Math.max(40, Math.min(72, rect.height * 0.14));
+        var delta = 0;
+
+        if (event.clientY < rect.top + edgeThreshold) {
+            var topRatio = 1 - ((event.clientY - rect.top) / edgeThreshold);
+            delta = -Math.ceil(6 + (Math.max(0, topRatio) * 20));
+        } else if (event.clientY > rect.bottom - edgeThreshold) {
+            var bottomRatio = 1 - ((rect.bottom - event.clientY) / edgeThreshold);
+            delta = Math.ceil(6 + (Math.max(0, bottomRatio) * 20));
+        }
+
+        if (!delta) return;
+
+        var previousTop = Number(scrollHost.scrollTop || 0);
+        scrollHost.scrollTop = previousTop + delta;
+        var nextTop = Number(scrollHost.scrollTop || 0);
+        if (nextTop === previousTop) return;
+
+        var scrollMemory = getSidebarScrollMemory();
+        if (scrollHost === scaffold.previewHost) {
+            scrollMemory.previewTop = nextTop;
+        } else {
+            scrollMemory.contentTop = nextTop;
+        }
+        scrollMemory.visibleTop = nextTop;
+    }
+
     function syncHoverRevealContentVisibility(scaffold) {
         var sb = document.getElementById('sidebar');
         if (!sb) return;
@@ -541,6 +586,7 @@
         sb.ondragover = function (e) {
             var dragId = ctx.getDraggedWorkspaceId();
             if (!dragId) return;
+            maybeAutoScrollSidebarDrag(scaffold, e);
 
             var targetElement = ctx.resolveEventTargetElement(e);
             var targetWorkspaceId = ctx.resolveWorkspaceDropTargetId(targetElement, dragId);

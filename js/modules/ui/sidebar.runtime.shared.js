@@ -324,6 +324,15 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             ctx.clearDragTargets();
         };
 
+        ctx.markRecentWorkspaceDragGesture = function (durationMs) {
+            var lifetimeMs = Math.max(120, Number(durationMs || 0) || 220);
+            rt._sidebarWorkspaceClickSuppressUntil = Date.now() + lifetimeMs;
+        };
+
+        ctx.shouldSuppressWorkspaceClick = function () {
+            return Number(rt._sidebarWorkspaceClickSuppressUntil || 0) > Date.now();
+        };
+
         ctx.resolveEventTargetElement = function (event) {
             if (!event) return null;
             if (typeof document.elementFromPoint === 'function'
@@ -371,13 +380,10 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         };
 
         ctx.resolveWorkspaceFallbackTargetId = function (event, dragId) {
-            var eventTargetId = ctx.resolveWorkspaceDropTargetId(ctx.resolveEventTargetElement(event), dragId);
-            if (eventTargetId) return eventTargetId;
-            var hoveredTargetId = ctx.getHoveredWorkspaceTarget();
-            if (hoveredTargetId && hoveredTargetId !== dragId && !ctx.isWorkspaceEffectivelyInactive(hoveredTargetId)) {
-                return hoveredTargetId;
-            }
-            return '';
+            var targetElement = ctx.resolveEventTargetElement(event);
+            if (!(targetElement instanceof Element)) return '';
+            if (!targetElement.closest('.ws-drop-target')) return '';
+            return ctx.resolveWorkspaceDropTargetId(targetElement, dragId);
         };
 
         ctx.isWorkspaceCollapsed = function (workspaceId) {

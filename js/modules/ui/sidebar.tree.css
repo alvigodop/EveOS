@@ -15,6 +15,7 @@
     align-items: center;
     box-sizing: border-box;
     max-width: 100%;
+    content-visibility: visible;
 }
 
 .ws-node-children[hidden],
@@ -28,6 +29,24 @@
 #sidebar .ws-node-children {
     content-visibility: auto;
     contain-intrinsic-size: auto 40px;
+}
+
+#sidebar .ws-node-children {
+    content-visibility: visible;
+    contain-intrinsic-size: auto;
+}
+
+#sidebar .ws-node-children > .ws-node-wrapper,
+#sidebar .ws-group-body > .ws-node-wrapper {
+    content-visibility: visible;
+    contain-intrinsic-size: auto;
+}
+
+#sidebar.ws-drag-active .ws-node-wrapper,
+#sidebar.ws-drag-active .ws-top-order-block,
+#sidebar.ws-drag-active .ws-group-body,
+#sidebar.ws-drag-active .ws-node-children {
+    content-visibility: visible;
 }
 
 .ws-node-wrapper[style*="--ws-depth"] {
@@ -92,6 +111,13 @@
         box-shadow 0.08s ease-out,
         border-color 0.08s ease-out,
         opacity 0.08s ease-out;
+    cursor: grab;
+    user-select: none;
+    -webkit-user-drag: element;
+}
+
+.ws-sub-item:active {
+    cursor: grabbing;
 }
 
 .ws-sub-item:hover,
@@ -137,6 +163,12 @@
         box-shadow 0.08s ease-out,
         border-color 0.08s ease-out,
         opacity 0.08s ease-out;
+    cursor: grab;
+    -webkit-user-drag: element;
+}
+
+#sidebar.is-expanded .ws-sub-item:active {
+    cursor: grabbing;
 }
 
 /* Depth-based left border style and color variations */
@@ -389,16 +421,22 @@ html[data-native-scheme="light"] #sidebar.is-expanded .ws-group-member-item .ws-
 }
 
 #sidebar.ws-drag-active .ws-order-slot {
-    height: 6px;
+    height: 10px;
     opacity: 0.9;
+}
+
+#sidebar.ws-drag-active .ws-order-slot--nested {
+    height: 12px;
 }
 
 #sidebar.is-expanded.ws-drag-active .ws-order-slot::before {
     width: 136px;
+    height: 3px;
 }
 
 #sidebar.is-expanded.ws-drag-active .ws-order-slot--nested::before {
     width: calc(136px - min(var(--ws-depth, 0), 4) * 4px);
+    height: 4px;
 }
 
 .ws-order-slot.ws-drop-target {
@@ -501,13 +539,17 @@ html[data-native-scheme="light"] #ws-popout .popout-hint {
 .ws-item.ws-inactive {
     opacity: 0.12;
     filter: grayscale(0.8);
-    cursor: default;
+    cursor: grab;
     transition: opacity 0.4s ease, filter 0.4s ease;
 }
 
 .ws-item.ws-inactive:hover {
     opacity: 0.25;
     filter: grayscale(0.5);
+}
+
+.ws-item.ws-inactive:active {
+    cursor: grabbing;
 }
 
 /* Inactive tabs won't glow or animate on hover */
