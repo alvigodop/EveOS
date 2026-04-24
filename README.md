@@ -320,6 +320,32 @@ Most UI smokes under `tools/smoke/` are the correct terminal path for validating
 
 That makes them better than ad hoc manual browser clicking for routine validation. If an agent changes a runtime path and does not run the nearest smoke, they are operating below the repo's current standard.
 
+### Browser Smoke Launch Notes
+
+Most browser smokes use Playwright. In restricted agent shells, direct Chromium launch can fail with `spawn EPERM`. When that happens, rerun the same smoke with the approved elevated browser command path, or connect to an already-running browser by setting `PW_CDP_ENDPOINT` / `PLAYWRIGHT_CDP_ENDPOINT`.
+
+New browser smokes should prefer the helper in `tools/smoke/playwright-browser.js`:
+
+```js
+const { launchChromiumOrConnect } = require('./playwright-browser');
+```
+
+That helper keeps the normal `chromium.launch(...)` path, but also supports CDP and explicit browser executable overrides through environment variables. It avoids hard-coding a single local browser setup into each smoke.
+
+### Focused Runtime Harnesses
+
+Use a focused runtime harness when the behavior under test is a module-level UI interaction and the full app route is blocked by boot/loading state. This is the right pattern for event-path regressions such as sidebar drag, click suppression, hover targeting, keyboard targeting, and isolated render/runtime interactions.
+
+Focused harness pattern:
+
+1. Use `page.setContent(...)` to create only the DOM surface needed by the module.
+2. Seed `window.config`, `window.links`, folders, and no-op UI globals directly.
+3. Load the real runtime modules with `page.addScriptTag({ path })`.
+4. Drive the browser event path with Playwright or dispatched DOM events.
+5. Assert the real runtime state after the interaction.
+
+Do not treat a full-app loading failure as proof that the interaction cannot be tested. If the bug is inside a runtime module, build a small smoke around that module and keep it under `tools/smoke/` when the behavior is likely to regress.
+
 ### Standard Validation Sequence
 
 For a normal code change, use this order:
@@ -491,6 +517,38 @@ node tools\\smoke\\quick_pins_browser_smoke.js
 node tools\\smoke\\non_scraper_facades.js
 ```
 
+#### Sidebar, groups, and nested tab interactions
+
+Primary scripts:
+
+- `tools/smoke/sidebar_workspace_reorder_browser_smoke.js`
+- `tools/smoke/sidebar_group_reorder_browser_smoke.js`
+- `tools/smoke/sidebar_group_nested_subtabs_browser_smoke.js`
+- `tools/smoke/sidebar_nested_pointer_drag_browser_smoke.js`
+- `tools/smoke/sidebar_click_expand_browser_smoke.js`
+- `tools/smoke/sidebar_collapse_toggle_browser_smoke.js`
+- `tools/smoke/sidebar_scroll_restore_browser_smoke.js`
+
+Use when touching:
+
+- `js/modules/ui/sidebar.js`
+- `js/modules/ui/sidebar.runtime.*.js`
+- `js/modules/ui/sidebar-groups*.js`
+- `js/modules/ui/sidebar*.css`
+- workspace tree rendering, group rendering, manual order, nested tab drag/drop, sidebar click/toggle behavior, or scroll restoration
+
+Recommended command set:
+
+```bash
+node --check js\\modules\\ui\\sidebar.runtime.workspace.js
+node --check js\\modules\\ui\\sidebar.runtime.interactions.js
+node tools\\smoke\\sidebar_nested_pointer_drag_browser_smoke.js
+node tools\\smoke\\sidebar_group_nested_subtabs_browser_smoke.js
+node tools\\smoke\\sidebar_workspace_reorder_browser_smoke.js
+```
+
+Use `sidebar_nested_pointer_drag_browser_smoke.js` specifically for `sub^2` / deeper tab movement and grouped-root child trees. It is a focused runtime harness, so it does not depend on the full app route rendering successfully.
+
 ### Browser Fallback Bridges
 
 The scraper fallback stack is not just frontend code. Agents touching browser-assisted scraping should use the same local standalone services the product already supports.
@@ -546,6 +604,8 @@ Add a new smoke only when all of the following are true:
 4. The smoke can run in isolation without requiring manual browser setup.
 
 If a nearby smoke exists, extend it instead of proliferating one-off scripts.
+
+For UI interaction bugs where native browser automation is unreliable, prefer a focused runtime harness over a temporary one-off script. Keep the harness small, load the real modules, and assert the state mutation that proves the interaction worked.
 
 ### Manifest And Load-Order Changes
 
