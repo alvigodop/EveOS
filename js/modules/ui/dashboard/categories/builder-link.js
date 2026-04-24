@@ -297,14 +297,7 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
         ? `if(window.EveConstellationMap&&window.EveConstellationMap._detached&&typeof window.EveConstellationMap._detached.handleDetachedLinkDragStart==='function') window.EveConstellationMap._detached.handleDetachedLinkDragStart(event, ${jsDetachedEntryIdLiteral}, ${jsLinkIdLiteral});`
         : `drag(event, ${jsLinkIdLiteral})`;
 
-    let wsBadge = (searchStr && l.workspace !== badgeWorkspaceId)
-        ? `<span class="search-badge">${
-            (renderContext && typeof renderContext.getWorkspaceById === 'function'
-                ? renderContext.getWorkspaceById(l.workspace)
-                : workspaces.find(w => w.id === l.workspace)
-            )?.name || "?"
-        }</span>`
-        : '';
+    let wsBadge = ''; // Disabled: workspace context is already shown on the card level
 
     // Sub-tab origin badge: shown when this link came from a sub-tab merged into the parent view
     let subTabBadge = '';
