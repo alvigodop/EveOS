@@ -490,6 +490,10 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
                 if (itemTarget && itemTarget !== item && typeof itemTarget.__eveSidebarApplyPointerDrop === 'function') {
                     return itemTarget;
                 }
+                var groupTarget = pointTarget.closest('.ws-group-header, .ws-group-body');
+                if (groupTarget && typeof groupTarget.__eveSidebarApplyPointerDrop === 'function') {
+                    return groupTarget;
+                }
                 return null;
             }
 

@@ -1,5 +1,5 @@
 const path = require('path');
-const { chromium } = require('playwright');
+const { launchChromiumOrConnect } = require('./playwright-browser');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const FILE_URL = 'file:///' + path.join(REPO_ROOT, 'EveOS.html').replace(/\\/g, '/');
@@ -130,7 +130,7 @@ async function readSidebarIndentState(page) {
 }
 
 async function main() {
-    const browser = await chromium.launch({ headless: true });
+    const { browser } = await launchChromiumOrConnect({ headless: true });
     const page = await browser.newPage({ viewport: { width: 1600, height: 1100 } });
 
     try {

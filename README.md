@@ -525,6 +525,7 @@ Primary scripts:
 - `tools/smoke/sidebar_group_reorder_browser_smoke.js`
 - `tools/smoke/sidebar_group_nested_subtabs_browser_smoke.js`
 - `tools/smoke/sidebar_nested_pointer_drag_browser_smoke.js`
+- `tools/smoke/sidebar_deep_group_promotion_smoke.js`
 - `tools/smoke/sidebar_click_expand_browser_smoke.js`
 - `tools/smoke/sidebar_collapse_toggle_browser_smoke.js`
 - `tools/smoke/sidebar_scroll_restore_browser_smoke.js`
@@ -543,11 +544,14 @@ Recommended command set:
 node --check js\\modules\\ui\\sidebar.runtime.workspace.js
 node --check js\\modules\\ui\\sidebar.runtime.interactions.js
 node tools\\smoke\\sidebar_nested_pointer_drag_browser_smoke.js
+node tools\\smoke\\sidebar_deep_group_promotion_smoke.js
 node tools\\smoke\\sidebar_group_nested_subtabs_browser_smoke.js
 node tools\\smoke\\sidebar_workspace_reorder_browser_smoke.js
 ```
 
-Use `sidebar_nested_pointer_drag_browser_smoke.js` specifically for `sub^2` / deeper tab movement and grouped-root child trees. It is a focused runtime harness, so it does not depend on the full app route rendering successfully.
+Use `sidebar_nested_pointer_drag_browser_smoke.js` specifically for `sub^2` / deeper tab movement and grouped-root child trees. Use `sidebar_deep_group_promotion_smoke.js` for deep sub-tab promotion directly into a group top layer without a browser launch. The pointer smoke is a focused runtime harness, so it does not depend on the full app route rendering successfully.
+
+All `tools/smoke/sidebar_*_browser_smoke.js` scripts route browser startup through `tools/smoke/playwright-browser.js`, so they support direct Playwright launch or an existing browser via `PW_CDP_ENDPOINT` / `PLAYWRIGHT_CDP_ENDPOINT`.
 
 ### Browser Fallback Bridges
 

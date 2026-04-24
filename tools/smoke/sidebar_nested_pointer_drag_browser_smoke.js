@@ -142,8 +142,43 @@ async function runSmoke(page) {
 
         document.elementFromPoint = originalElementFromPoint;
 
+        const groupHeader = document.querySelector('.ws-group-section[data-group-id="groupA"] > .ws-group-header');
+        const promotedSource = document.querySelector('.ws-node-wrapper[data-ws-id="leaf1"] > .ws-item');
+        const groupHeaderHasPointerDrop = typeof (groupHeader && groupHeader.__eveSidebarApplyPointerDrop) === 'function';
+
+        if (promotedSource && groupHeader) {
+            document.elementFromPoint = function () { return groupHeader; };
+
+            promotedSource.dispatchEvent(new PointerEvent('pointerdown', {
+                bubbles: true,
+                pointerId: 2,
+                button: 0,
+                clientX: 20,
+                clientY: 120
+            }));
+            promotedSource.dispatchEvent(new PointerEvent('pointermove', {
+                bubbles: true,
+                pointerId: 2,
+                button: 0,
+                clientX: 46,
+                clientY: 140
+            }));
+            promotedSource.dispatchEvent(new PointerEvent('pointerup', {
+                bubbles: true,
+                pointerId: 2,
+                button: 0,
+                clientX: 46,
+                clientY: 140
+            }));
+
+            document.elementFromPoint = originalElementFromPoint;
+        }
+
         const child = window.EveWorkspaceHelpers.findById(window.config.workspaces, 'child');
         const groupRoot = window.EveWorkspaceHelpers.findById(window.config.workspaces, 'groupRoot');
+        const leaf1 = window.EveWorkspaceHelpers.findById(window.config.workspaces, 'leaf1');
+        const leaf1Parent = window.EveWorkspaceHelpers.findParent(window.config.workspaces, 'leaf1');
+        const groupRoots = window.EveSidebarGroups.getGroupRoots('groupA', window.config).map(tab => tab.id);
         const leafOrder = Array.isArray(child && child.subTabs)
             ? child.subTabs.map(tab => tab.id)
             : [];
@@ -153,18 +188,28 @@ async function runSmoke(page) {
             : [];
 
         return {
-            ok: leafOrder.join('|') === 'leaf2|leaf1'
+            ok: leafOrder.join('|') === 'leaf2'
                 && groupRoot
                 && groupRoot.groupId === 'groupA'
+                && leaf1
+                && leaf1.groupId === 'groupA'
+                && !leaf1Parent
+                && groupRoots.join('|') === 'groupRoot|leaf1'
+                && manualOrder.join('|') === 'workspace:leaf2'
                 && source.draggable
                 && typeof source.onpointermove === 'function'
-                && typeof firstSlot.__eveSidebarApplyPointerDrop === 'function',
+                && typeof firstSlot.__eveSidebarApplyPointerDrop === 'function'
+                && groupHeaderHasPointerDrop,
             leafOrder,
             manualOrder,
             groupRootGroupId: groupRoot ? groupRoot.groupId || '' : '',
+            leaf1GroupId: leaf1 ? leaf1.groupId || '' : '',
+            leaf1ParentId: leaf1Parent ? leaf1Parent.id || '' : '',
+            groupRoots,
             sourceDraggable: source.draggable,
             hasPointerMove: typeof source.onpointermove === 'function',
-            slotHasPointerDrop: typeof firstSlot.__eveSidebarApplyPointerDrop === 'function'
+            slotHasPointerDrop: typeof firstSlot.__eveSidebarApplyPointerDrop === 'function',
+            groupHeaderHasPointerDrop
         };
     });
 }

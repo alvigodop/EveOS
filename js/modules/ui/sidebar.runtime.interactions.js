@@ -122,36 +122,96 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             return true;
         };
 
-        ctx.canDropWorkspaceIntoGroup = function (groupId) {
-            var dragId = ctx.getDraggedWorkspaceId();
+        ctx.canMoveWorkspaceIntoGroup = function (workspaceId, groupId) {
+            var dragId = String(workspaceId || '').trim();
             var targetGroupId = String(groupId || '').trim();
             if (!dragId || !targetGroupId || !groupsApi) return false;
             if (!groupsApi.findGroupById(targetGroupId, config)) return false;
-            if (typeof groupsApi.isRootWorkspace !== 'function' || !groupsApi.isRootWorkspace(dragId, config)) {
-                return false;
+
+            if (typeof groupsApi.isRootWorkspace === 'function' && groupsApi.isRootWorkspace(dragId, config)) {
+                if (typeof groupsApi.canGroupWorkspaceInGroup === 'function') {
+                    return groupsApi.canGroupWorkspaceInGroup(dragId, targetGroupId, config);
+                }
+                return true;
             }
-            if (typeof groupsApi.canGroupWorkspaceInGroup === 'function') {
-                return groupsApi.canGroupWorkspaceInGroup(dragId, targetGroupId, config);
+
+            var dragNode = helpers && typeof helpers.findById === 'function'
+                ? helpers.findById(config.workspaces, dragId)
+                : null;
+            if (!dragNode) return false;
+
+            var groupParentId = typeof groupsApi.getGroupParentWorkspaceId === 'function'
+                ? String(groupsApi.getGroupParentWorkspaceId(targetGroupId, config) || '').trim()
+                : '';
+            if (!groupParentId) return true;
+            if (groupParentId === dragId) return false;
+            if (helpers && typeof helpers.getPath === 'function') {
+                return helpers.getPath([dragNode], groupParentId).length === 0;
             }
             return true;
+        };
+
+        ctx.canDropWorkspaceIntoGroup = function (groupId) {
+            return ctx.canMoveWorkspaceIntoGroup(ctx.getDraggedWorkspaceId(), groupId);
         };
 
         ctx.moveWorkspaceIntoGroup = function (dragId, groupId, beforeWorkspaceId) {
             if (!helpers || !groupsApi || typeof helpers.moveToPosition !== 'function') return false;
             var targetGroupId = String(groupId || '').trim();
             if (!targetGroupId || !groupsApi.findGroupById(targetGroupId, config)) return false;
+            if (!ctx.canMoveWorkspaceIntoGroup(dragId, targetGroupId)) return false;
 
             var existingGroupId = groupsApi.getWorkspaceGroupId(dragId, config);
-            if (existingGroupId === targetGroupId && groupsApi.isRootWorkspace(dragId, config) && !beforeWorkspaceId) return true;
+            var isRootWorkspace = typeof groupsApi.isRootWorkspace === 'function'
+                && groupsApi.isRootWorkspace(dragId, config);
+            if (existingGroupId === targetGroupId && isRootWorkspace && !beforeWorkspaceId) {
+                ctx.markWorkspaceDropApplied();
+                return true;
+            }
 
-            if (groupsApi.isRootWorkspace(dragId, config)
+            if (isRootWorkspace
                 && typeof groupsApi.canGroupWorkspaceInGroup === 'function'
                 && !groupsApi.canGroupWorkspaceInGroup(dragId, targetGroupId, config)) {
                 return false;
             }
 
-            if (typeof groupsApi.moveRootWorkspaceToGroup !== 'function') return false;
-            if (!groupsApi.moveRootWorkspaceToGroup(dragId, targetGroupId, config, beforeWorkspaceId || '')) return false;
+            if (isRootWorkspace) {
+                if (typeof groupsApi.moveRootWorkspaceToGroup !== 'function') return false;
+                if (!groupsApi.moveRootWorkspaceToGroup(dragId, targetGroupId, config, beforeWorkspaceId || '')) return false;
+                ctx.markWorkspaceDropApplied();
+                return true;
+            }
+
+            var roots = Array.isArray(config.workspaces) ? config.workspaces : [];
+            var insertIndex = roots.length;
+            var beforeId = String(beforeWorkspaceId || '').trim();
+            if (beforeId) {
+                var beforeIndex = roots.findIndex(function (workspace) {
+                    return workspace && String(workspace.id || '') === beforeId;
+                });
+                if (beforeIndex !== -1) insertIndex = beforeIndex;
+            } else {
+                var lastGroupIndex = roots.reduce(function (acc, workspace, index) {
+                    return workspace && groupsApi.getWorkspaceGroupId(workspace, config) === targetGroupId ? index : acc;
+                }, -1);
+                insertIndex = lastGroupIndex === -1 ? roots.length : lastGroupIndex + 1;
+            }
+
+            var previousWorkspaces = config.workspaces;
+            config.workspaces = helpers.moveToPosition(config.workspaces, dragId, '', insertIndex);
+            var movedNode = helpers.findById(config.workspaces, dragId);
+            var movedParent = typeof helpers.findParent === 'function'
+                ? helpers.findParent(config.workspaces, dragId)
+                : null;
+            if (!movedNode || movedParent) {
+                config.workspaces = previousWorkspaces;
+                return false;
+            }
+
+            movedNode.groupId = targetGroupId;
+            if (typeof groupsApi.removeManualOrderEntry === 'function') {
+                groupsApi.removeManualOrderEntry('workspace', dragId, config);
+            }
             ctx.markWorkspaceDropApplied();
             return true;
         };
@@ -208,6 +268,11 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
                 var dragId = String(ctx.getDraggedWorkspaceId() || e.dataTransfer.getData('text/plain') || '').trim();
                 if (!dragId || !ctx.canDropWorkspaceIntoGroup(groupId)) return;
                 if (ctx.moveWorkspaceIntoGroup(dragId, groupId, '')) ctx.saveAndRefresh(true);
+            };
+            element.__eveSidebarApplyPointerDrop = function (dragId) {
+                var workspaceId = String(dragId || '').trim();
+                if (!workspaceId || !ctx.canMoveWorkspaceIntoGroup(workspaceId, groupId)) return false;
+                return ctx.moveWorkspaceIntoGroup(workspaceId, groupId, '');
             };
         };
 

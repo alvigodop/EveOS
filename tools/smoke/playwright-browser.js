@@ -36,6 +36,19 @@ function getBrowserType(browserName) {
     return chromium;
 }
 
+function addBlockedLaunchHint(error) {
+    if (!error || !error.message) return error;
+    if (!/spawn EPERM|EACCES/i.test(error.message)) return error;
+    if (getCdpEndpoint()) return error;
+
+    var hint = 'Browser launch was blocked by this shell. Start a browser with remote debugging and set PW_CDP_ENDPOINT or PLAYWRIGHT_CDP_ENDPOINT, or run from a shell that can launch Playwright browsers.';
+    error.message += '\n\n' + hint;
+    if (error.stack && !error.stack.includes(hint)) {
+        error.stack += '\n\n' + hint;
+    }
+    return error;
+}
+
 async function launchChromiumOrConnect(options) {
     const opts = options && typeof options === 'object' ? options : {};
     const headless = opts.headless !== false;
@@ -75,7 +88,7 @@ async function launchChromiumOrConnect(options) {
                 endpoint: cdpEndpoint
             };
         }
-        throw error;
+        throw addBlockedLaunchHint(error);
     }
 }
 
