@@ -344,6 +344,7 @@ html[data-native-scheme="light"] #sidebar.is-expanded .ws-group-member-item .ws-
 
 .ws-icon {
     flex-shrink: 0;
+    pointer-events: none;
 }
 
 /* Hidden-in-parent sub-tab visual */
@@ -361,6 +362,7 @@ html[data-native-scheme="light"] #sidebar.is-expanded .ws-group-member-item .ws-
     margin-left: auto;
     opacity: 0.5;
     flex-shrink: 0;
+    pointer-events: none;
 }
 
 #sidebar.is-expanded .ws-hidden-badge {
