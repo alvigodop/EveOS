@@ -498,7 +498,7 @@
     function bindSidebarToggleBehavior(sb) {
         if (!sb || sb.__eveSidebarToggleBound) return;
         sb.__eveSidebarToggleBound = true;
-        sb.addEventListener('click', function (event) {
+        sb.addEventListener('dblclick', function (event) {
             if (config.sidebarHidden) return;
             var target = event.target instanceof Element ? event.target : null;
             if (!target) return;

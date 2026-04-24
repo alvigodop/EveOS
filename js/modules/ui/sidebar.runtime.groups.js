@@ -104,7 +104,27 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             ctx.saveAndRefresh(false);
         }
 
-        header.onclick = toggleGroup;
+        function toggleOverview(e) {
+            if (e) e.stopPropagation();
+            if (isInactiveGroup) return;
+
+            var current = String(config.groupOverviewId || '').trim();
+            var next = current === groupId ? '' : groupId;
+            config.groupOverviewId = next;
+            saveConfig();
+            if (typeof rt.syncSidebarViewState === 'function') rt.syncSidebarViewState();
+            if (typeof renderDashboard === 'function') renderDashboard();
+
+            if (typeof window.showToast === 'function') {
+                var groupLabel = group.name || 'Group';
+                window.showToast(
+                    next ? 'Group overview: ' + groupLabel : 'Exited group overview',
+                    'info'
+                );
+            }
+        }
+
+        header.onclick = toggleOverview;
         header.oncontextmenu = function (e) {
             if (isInactiveGroup) return;
             if (typeof showSidebarGroupContext === 'function') showSidebarGroupContext(e, groupId);
@@ -145,7 +165,6 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         var title = document.createElement('span');
         title.className = 'ws-group-title';
         title.textContent = group.name;
-        title.onclick = toggleGroup;
         header.appendChild(title);
 
         var count = document.createElement('span');
@@ -201,25 +220,7 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         if (!isInactiveGroup) ctx.attachGroupMemberDropTarget(body, groupId);
 
         if (!isInactiveGroup) {
-            body.onclick = function (e) {
-                if (e.target.closest('.ws-item') || e.target.closest('.ws-order-slot') || e.target.closest('.ws-group-empty')) return;
-                e.stopPropagation();
-
-                var current = String(config.groupOverviewId || '').trim();
-                var next = current === groupId ? '' : groupId;
-                config.groupOverviewId = next;
-                saveConfig();
-                if (typeof rt.syncSidebarViewState === 'function') rt.syncSidebarViewState();
-                if (typeof renderDashboard === 'function') renderDashboard();
-
-                if (typeof window.showToast === 'function') {
-                    var groupLabel = group.name || 'Group';
-                    window.showToast(
-                        next ? 'Group overview: ' + groupLabel : 'Exited group overview',
-                        'info'
-                    );
-                }
-            };
+            // Group body no longer triggers overview. Access it via the group header.
         }
 
         if (!isCollapsed) {

@@ -108,6 +108,7 @@
         opacity 0.08s ease-out;
     cursor: grab;
     user-select: none;
+    -webkit-user-drag: element;
 }
 
 .ws-sub-item:active {
@@ -156,6 +157,7 @@
         border-color 0.08s ease-out,
         opacity 0.08s ease-out;
     cursor: grab;
+    -webkit-user-drag: element;
 }
 
 #sidebar.is-expanded .ws-sub-item:active {
@@ -391,7 +393,7 @@ html[data-native-scheme="light"] #sidebar.is-expanded .ws-group-member-item .ws-
     height: 2px;
     border-radius: 999px;
     background: rgba(168, 130, 255, 0.18);
-    transition: width 0.14s ease, height 0.14s ease, background 0.14s ease, box-shadow 0.14s ease;
+    transition: background 0.14s ease, box-shadow 0.14s ease, transform 0.14s ease;
 }
 
 .ws-order-slot--nested {
@@ -438,15 +440,34 @@ html[data-native-scheme="light"] #sidebar.is-expanded .ws-group-member-item .ws-
     transform: scaleY(1.2);
 }
 
-#sidebar.is-expanded.ws-drag-active .ws-order-slot::before {
-    width: 136px;
+#sidebar.is-expanded .ws-order-slot {
+    justify-content: flex-start;
+}
+
+#sidebar.is-expanded .ws-order-slot::before {
+    width: calc(var(--ws-expanded-row-width) - 20px);
+    height: 3px;
+    margin-left: 14px; /* Align with tab text */
+    background: rgba(168, 130, 255, 0.28);
+}
+
+#sidebar.is-expanded .ws-order-slot--nested::before {
+    width: calc(var(--ws-expanded-row-width) - min(var(--ws-depth, 0), 4) * 4px - 20px);
     height: 3px;
 }
 
-#sidebar.is-expanded.ws-drag-active .ws-order-slot--nested::before {
-    width: calc(136px - min(var(--ws-depth, 0), 4) * 4px);
-    height: 4px;
-}
+/* Depth Coloring */
+#sidebar.is-expanded.ws-drag-active .ws-order-slot.ws-depth-1::before { background: rgba(168, 130, 255, 0.45); }
+#sidebar.is-expanded.ws-drag-active .ws-order-slot.ws-depth-2::before { background: rgba(218, 165, 32, 0.45); }
+#sidebar.is-expanded.ws-drag-active .ws-order-slot.ws-depth-3::before { background: rgba(100, 200, 180, 0.45); }
+#sidebar.is-expanded.ws-drag-active .ws-order-slot.ws-depth-4::before { background: rgba(180, 120, 100, 0.45); }
+
+/* Hover glowing */
+#sidebar.is-expanded.ws-drag-active .ws-order-slot.ws-drop-target::before { background: rgba(168, 130, 255, 0.9); box-shadow: 0 0 10px rgba(168, 130, 255, 0.5); height: 4px; }
+#sidebar.is-expanded.ws-drag-active .ws-order-slot.ws-drop-target.ws-depth-1::before { background: rgba(168, 130, 255, 0.9); box-shadow: 0 0 10px rgba(168, 130, 255, 0.5); }
+#sidebar.is-expanded.ws-drag-active .ws-order-slot.ws-drop-target.ws-depth-2::before { background: rgba(218, 165, 32, 0.9); box-shadow: 0 0 10px rgba(218, 165, 32, 0.5); }
+#sidebar.is-expanded.ws-drag-active .ws-order-slot.ws-drop-target.ws-depth-3::before { background: rgba(100, 200, 180, 0.9); box-shadow: 0 0 10px rgba(100, 200, 180, 0.5); }
+#sidebar.is-expanded.ws-drag-active .ws-order-slot.ws-drop-target.ws-depth-4::before { background: rgba(180, 120, 100, 0.9); box-shadow: 0 0 10px rgba(180, 120, 100, 0.5); }
 
 .ws-order-slot.ws-drop-target {
     outline: none !important;
@@ -484,10 +505,7 @@ html[data-native-scheme="light"] #sidebar.is-expanded .ws-group-member-item .ws-
     background: rgba(168, 130, 255, 0.08) !important;
 }
 
-/* During drag, dim non-target items slightly */
-#sidebar.ws-drag-active .ws-item:not(.ws-dragging):not(.ws-drop-target) {
-    opacity: 0.7;
-}
+
 
 /* --- Workspace Popout (Custom Tooltip) --- */
 #ws-popout {

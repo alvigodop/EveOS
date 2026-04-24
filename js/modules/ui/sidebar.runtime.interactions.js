@@ -217,6 +217,7 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             slot.className = 'ws-order-slot';
             if (typeof opts.depth === 'number' && opts.depth > 0) {
                 slot.classList.add('ws-order-slot--nested');
+                slot.classList.add('ws-depth-' + Math.min(opts.depth, 4));
                 slot.style.setProperty('--ws-depth', opts.depth);
             }
 
@@ -249,6 +250,12 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
                 if (ctx.moveWorkspaceIntoGroup(dragId, opts.groupId, opts.beforeWorkspaceId || '')) ctx.saveAndRefresh(true);
             };
 
+            slot.__eveSidebarApplyPointerDrop = function (dragId) {
+                var workspaceId = String(dragId || '').trim();
+                if (!workspaceId || !canAcceptDrop()) return false;
+                return ctx.moveWorkspaceIntoGroup(workspaceId, opts.groupId, opts.beforeWorkspaceId || '');
+            };
+
             return slot;
         };
 
@@ -260,6 +267,7 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
                 slot.classList.add('ws-order-slot--top');
             } else if (typeof opts.depth === 'number' && opts.depth > 0) {
                 slot.classList.add('ws-order-slot--nested');
+                slot.classList.add('ws-depth-' + Math.min(opts.depth, 4));
                 slot.style.setProperty('--ws-depth', opts.depth);
             }
 
@@ -314,6 +322,18 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
                 if (ctx.moveWorkspaceToParentContext(dragId, opts.parentWorkspaceId || '', opts.beforeEntry || null, opts.orderedEntries || [], opts.entryIndex || 0)) {
                     ctx.saveAndRefresh(true);
                 }
+            };
+
+            slot.__eveSidebarApplyPointerDrop = function (dragId) {
+                var workspaceId = String(dragId || '').trim();
+                if (!workspaceId || !canAcceptDrop()) return false;
+                return ctx.moveWorkspaceToParentContext(
+                    workspaceId,
+                    opts.parentWorkspaceId || '',
+                    opts.beforeEntry || null,
+                    opts.orderedEntries || [],
+                    opts.entryIndex || 0
+                );
             };
 
             return slot;

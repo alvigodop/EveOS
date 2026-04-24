@@ -93,6 +93,7 @@
     min-width: 0;
     box-sizing: border-box;
     max-width: 100%;
+    -webkit-user-drag: element;
 }
 
 .ws-item:hover,
