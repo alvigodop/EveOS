@@ -121,38 +121,59 @@
     }
 
     /**
-     * Find adjacent (sibling) workspace IDs for the current active workspace.
-     * Returns up to `maxCount` nearest siblings.
+     * Find nearby workspace IDs for the current active workspace.
+     * Includes: children (sub-tabs), parent, and siblings — prioritized
+     * in that order since those are the most likely navigation targets.
+     * Returns up to `maxCount` IDs.
      */
     function getAdjacentWorkspaceIds(activeWsId, workspaces, maxCount) {
         var helpers = window.EveWorkspaceHelpers;
-        if (!helpers || !helpers.findSiblingContext) return [];
+        if (!helpers) return [];
 
-        var ctx = helpers.findSiblingContext(workspaces, activeWsId);
-        if (!ctx || !Array.isArray(ctx.siblings)) return [];
-
-        var siblings = ctx.siblings;
-        var idx = ctx.index;
         var result = [];
         var added = new Set();
         added.add(activeWsId);
 
-        // Interleave: one after, one before, one after, one before...
-        var lo = idx - 1;
-        var hi = idx + 1;
-        while (result.length < maxCount && (lo >= 0 || hi < siblings.length)) {
-            if (hi < siblings.length && siblings[hi] && !added.has(String(siblings[hi].id))) {
-                result.push(String(siblings[hi].id));
-                added.add(String(siblings[hi].id));
-                hi++;
+        function tryAdd(id) {
+            var wsId = String(id || '').trim();
+            if (!wsId || added.has(wsId)) return;
+            if (result.length >= maxCount) return;
+            added.add(wsId);
+            result.push(wsId);
+        }
+
+        // 1. Children (sub-tabs) — highest priority, most likely next click
+        var activeWs = helpers.findById(workspaces, activeWsId);
+        if (activeWs && Array.isArray(activeWs.subTabs)) {
+            for (var c = 0; c < activeWs.subTabs.length && result.length < maxCount; c++) {
+                if (activeWs.subTabs[c]) tryAdd(activeWs.subTabs[c].id);
             }
-            if (lo >= 0 && siblings[lo] && !added.has(String(siblings[lo].id))) {
-                result.push(String(siblings[lo].id));
-                added.add(String(siblings[lo].id));
-                lo--;
+        }
+
+        // 2. Parent — second priority, common back-navigation
+        var parent = helpers.findParent(workspaces, activeWsId);
+        if (parent) tryAdd(parent.id);
+
+        // 3. Siblings — fill remaining slots with nearest siblings
+        if (result.length < maxCount && helpers.findSiblingContext) {
+            var ctx = helpers.findSiblingContext(workspaces, activeWsId);
+            if (ctx && Array.isArray(ctx.siblings)) {
+                var siblings = ctx.siblings;
+                var idx = ctx.index;
+                var lo = idx - 1;
+                var hi = idx + 1;
+                while (result.length < maxCount && (lo >= 0 || hi < siblings.length)) {
+                    if (hi < siblings.length && siblings[hi]) {
+                        tryAdd(siblings[hi].id);
+                        hi++;
+                    }
+                    if (lo >= 0 && siblings[lo]) {
+                        tryAdd(siblings[lo].id);
+                        lo--;
+                    }
+                    if (hi >= siblings.length && lo < 0) break;
+                }
             }
-            if (result.length >= maxCount) break;
-            if (hi >= siblings.length && lo < 0) break;
         }
 
         return result;
