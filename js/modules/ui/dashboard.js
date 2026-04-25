@@ -436,6 +436,11 @@ function _renderDashboardCore(renderHint) {
                 if (_eveDashRenderGen !== _cacheGen) return;
                 applyDashboardLayoutMaintenance(grid);
             }, 50);
+
+            // Schedule prefetch of adjacent tabs after cache restore too
+            if (window.EveDashboardPrefetch && typeof window.EveDashboardPrefetch.schedulePrefetch === 'function') {
+                window.EveDashboardPrefetch.schedulePrefetch();
+            }
             return;
         }
     }
@@ -561,18 +566,29 @@ function _renderDashboardCore(renderHint) {
 
     const matchesVisibleLink = buildDashboardVisibleLinkMatcher(visibleWorkspaceIds, searchTerms, folderPathLabelBuilder);
     const liveLinks = getDashboardLiveLinks();
-    const shouldPreferIndexedVisibleLinks = !!(
-        searchTerms.length > 0
-        || visibleWorkspaceIds.size > 1
-        || liveLinks.length > 250
-        || shouldSkipDashboardCardScrollPreserve(renderHint)
-    );
-    const indexedVisibleLinks = shouldPreferIndexedVisibleLinks
-        ? collectIndexedDashboardVisibleLinks(liveLinks, visibleScope, searchTerms.length > 0 ? matchesVisibleLink : null)
+
+    // Try to use prefetched data for this workspace (adjacent tab prefetch)
+    var prefetch = (!isSearchActive && window.EveDashboardPrefetch)
+        ? window.EveDashboardPrefetch.getPrefetched(activeWorkspaceId)
         : null;
-    const visibleLinks = Array.isArray(indexedVisibleLinks)
-        ? indexedVisibleLinks
-        : liveLinks.filter(matchesVisibleLink);
+
+    var visibleLinks;
+    if (prefetch && Array.isArray(prefetch.visibleLinks) && prefetch.visibleLinks.length > 0) {
+        visibleLinks = prefetch.visibleLinks;
+    } else {
+        const shouldPreferIndexedVisibleLinks = !!(
+            searchTerms.length > 0
+            || visibleWorkspaceIds.size > 1
+            || liveLinks.length > 250
+            || shouldSkipDashboardCardScrollPreserve(renderHint)
+        );
+        const indexedVisibleLinks = shouldPreferIndexedVisibleLinks
+            ? collectIndexedDashboardVisibleLinks(liveLinks, visibleScope, searchTerms.length > 0 ? matchesVisibleLink : null)
+            : null;
+        visibleLinks = Array.isArray(indexedVisibleLinks)
+            ? indexedVisibleLinks
+            : liveLinks.filter(matchesVisibleLink);
+    }
     // Level 1: Standard Perf Mode (600+) - degraded animations, basic throttling
     // Level 2: Mega Perf Mode (1500+) - strip icons, strip hovers, max throttling
     window._evePerfMode = visibleLinks.length > 600;
@@ -612,5 +628,10 @@ function _renderDashboardCore(renderHint) {
         }, 100);
     } else {
         console.error('renderCategories not found');
+    }
+
+    // Schedule prefetch of adjacent tabs during idle time
+    if (window.EveDashboardPrefetch && typeof window.EveDashboardPrefetch.schedulePrefetch === 'function') {
+        window.EveDashboardPrefetch.schedulePrefetch();
     }
 }
