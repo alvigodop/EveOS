@@ -567,7 +567,6 @@
         scaffold.previewHost.setAttribute('aria-hidden', 'true');
 
         renderSidebarContentHost(sb, scaffold.contentHost, {
-            hoverRevealOverride: false,
             resetRegistry: true,
             syncFocusedGroupState: true
         });
