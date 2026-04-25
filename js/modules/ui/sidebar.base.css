@@ -510,6 +510,13 @@
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ws-group-color) 18%, rgba(255, 255, 255, 0.05));
 }
 
+.ws-group-section .ws-group-body .ws-item:hover,
+.ws-group-section .ws-group-body .ws-item.active {
+    background: var(--accent);
+    color: var(--accent-contrast);
+    box-shadow: 0 0 10px var(--accent);
+}
+
 .ws-group-section .ws-group-body .ws-item {
     transition:
         background-color 0.06s ease-out,
