@@ -53,6 +53,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/ui/dashboard/unidex-view.core.js?v=0.2.46",
     "js/modules/ui/dashboard/unidex-view.js?v=0.2.39",
     "js/modules/ui/dashboard/dashboard.masonry.js?v=0.1.0",
+    "js/modules/ui/dashboard.cache.js?v=0.1.0",
     "js/modules/ui/dashboard.js?v=0.2.45",
     "js/modules/ui/context-menus/templates.js?v=0.3.1",
     "js/modules/ui/context-menus/actions.shared.js?v=0.1.0",

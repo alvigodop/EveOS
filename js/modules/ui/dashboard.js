@@ -382,15 +382,58 @@ function _renderDashboardCore(renderHint) {
 
     if (!grid) return;
 
+    const searchStr = searchInput ? searchInput.value.toLowerCase() : '';
+    const searchTerms = searchStr ? searchStr.split(/\s+/).filter(Boolean) : [];
+    const isSearchActive = searchTerms.length > 0;
+    const isListMode = config.viewMode === 'list';
+    const isUnidexMode = config.viewMode === 'unidex';
+
+    // --- Workspace DOM Cache: save outgoing, try restore incoming ---
+    var cache = window.EveDashboardCache || null;
+    var isWorkspaceSwitch = !!(
+        renderHint
+        && renderHint.kind === 'workspace-switch'
+        && String(renderHint.fromWorkspaceId || '').trim()
+        && String(renderHint.toWorkspaceId || '').trim()
+        && String(renderHint.fromWorkspaceId || '').trim() !== String(renderHint.toWorkspaceId || '').trim()
+    );
+
+    if (cache && isWorkspaceSwitch && !isSearchActive && grid.children.length > 0) {
+        var fromKey = cache.cacheKey(renderHint.fromWorkspaceId, '');
+        cache.save(fromKey, grid, dock);
+    }
+
+    if (cache && isWorkspaceSwitch && !isSearchActive && !String(config.groupOverviewId || '').trim()) {
+        var toKey = cache.cacheKey(renderHint.toWorkspaceId, '');
+        if (cache.has(toKey)) {
+            _eveDashRenderGen++;
+            window._eveDashRenderGen = _eveDashRenderGen;
+            cleanupDashboardMasonryObserver();
+
+            grid.innerHTML = '';
+            if (dock) dock.innerHTML = '';
+            grid.classList.toggle('list-mode', isListMode);
+            grid.classList.toggle('unidex-mode', isUnidexMode);
+            grid.classList.toggle('focus-mode', false);
+            if (mainContent) mainContent.classList.toggle('unidex-view-active', isUnidexMode);
+            if (focusBanner) focusBanner.style.display = 'none';
+
+            cache.restore(toKey, grid, dock);
+
+            var _cacheGen = _eveDashRenderGen;
+            setTimeout(function () {
+                if (_eveDashRenderGen !== _cacheGen) return;
+                applyDashboardLayoutMaintenance(grid);
+            }, 50);
+            return;
+        }
+    }
+
     // Bump generation â€” all in-flight deferred work from previous renders is now stale
     _eveDashRenderGen++;
     window._eveDashRenderGen = _eveDashRenderGen;
 
     cleanupDashboardMasonryObserver();
-    const searchStr = searchInput ? searchInput.value.toLowerCase() : '';
-    const searchTerms = searchStr ? searchStr.split(/\s+/).filter(Boolean) : [];
-    const isListMode = config.viewMode === 'list';
-    const isUnidexMode = config.viewMode === 'unidex';
 
     grid.innerHTML = '';
     if (dock) dock.innerHTML = '';

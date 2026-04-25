@@ -360,96 +360,151 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
     var renderCount = 0;
     var deferredCards = [];
 
-    categories.forEach(catObj => {
-        const cat = catObj.category;
-        const catWsId = catObj.workspaceId;
+    // Extract only needed config props instead of spreading the entire config per card
+    var sharedBuildConfig = {
+        collapsed: config.collapsed,
+        foldersCollapsed: config.foldersCollapsed,
+        linksCollapsed: config.linksCollapsed,
+        hideStats: config.hideStats,
+        scrollableCategories: config.scrollableCategories,
+        workspaces: config.workspaces,
+        categoryOrder: config.categoryOrder,
+        activeWorkspace: activeWorkspace,
+        searchStr: searchStr,
+        focusMode: !!focusCategory,
+        _renderGen: renderGen,
+        _dashboardRenderHint: renderHint || null,
+        _dashboardRenderContext: dashboardRenderContext
+    };
+
+    // Pre-collect category render descriptors to avoid synchronous DOM work in the loop
+    var categoryDescriptors = [];
+    categories.forEach(function (catObj) {
+        var cat = catObj.category;
+        var catWsId = catObj.workspaceId;
 
         if (focusCategory && cat !== focusCategory) return;
 
-        const isDetachedParkingCard = !!detachedModel && cat === detachedModel.categoryName;
-        const summaryBucket = (!searchStr && !isDetachedParkingCard)
+        var isDetachedParkingCard = !!detachedModel && cat === detachedModel.categoryName;
+        var summaryBucket = (!searchStr && !isDetachedParkingCard)
             ? getIndexedDashboardCardSummaryBucket(dashboardStructureSummary, catWsId, cat)
             : null;
-        const canUseLazyDeferredLinks = isCrossWorkspaceSwitchRender
+        var canUseLazyDeferredLinks = isCrossWorkspaceSwitchRender
             && !!summaryBucket;
-        // Empty shortcut cards still map to the activeWorkspace context.
-        const catLinks = isDetachedParkingCard
+        var catLinks = isDetachedParkingCard
             ? detachedModel.links.slice()
             : (canUseLazyDeferredLinks ? [] : resolveCategoryLinks(catWsId, cat));
-        const catLinkCount = isDetachedParkingCard
+        var catLinkCount = isDetachedParkingCard
             ? catLinks.length
             : (canUseLazyDeferredLinks
                 ? Math.max(0, Number(summaryBucket?.bookmarkCount || 0))
                 : catLinks.length);
-        
-        const hasFolderContent = isDetachedParkingCard
+
+        var hasFolderContent = isDetachedParkingCard
             ? !!(detachedModel?.viewModel?.nodes?.length)
             : hasFolderBackedCategory(catWsId, cat);
-        const shouldRenderEmptyCard = !searchStr && (
+        var shouldRenderEmptyCard = !searchStr && (
             window.EveCategoryOrder?.hasCategory
                 ? window.EveCategoryOrder.hasCategory(activeWorkspace, cat)
                 : workspaceCategoryOrder.includes(cat)
         );
 
         if (catLinkCount > 0 || hasFolderContent || shouldRenderEmptyCard) {
-            const buildConfig = {
-                ...config,
-                searchStr: searchStr,
-                focusMode: !!focusCategory,
-                activeWorkspace: activeWorkspace, // Global active WS
-                _renderGen: renderGen,
-                _dashboardRenderHint: renderHint || null,
-                _dashboardRenderContext: dashboardRenderContext
-            };
-            if ((aggressiveDeferredCards && catLinkCount > 0) || isCrossWorkspaceSwitchRender) {
-                buildConfig._forceDeferredShell = true;
-                buildConfig._deferredHydrationDelayMs = isCrossWorkspaceSwitchRender
-                    ? Math.min(120, 12 + (renderCount * 10))
-                    : (renderCount < CARD_CAP ? 0 : 12);
-            }
-            if (canUseLazyDeferredLinks) {
-                buildConfig._deferredLinkCount = catLinkCount;
-                buildConfig._deferredLinksLoader = function () {
-                    return resolveCategoryLinks(catWsId, cat);
-                };
-            }
-            if (isDetachedParkingCard) {
-                buildConfig.virtualFolderViewModel = detachedModel.viewModel;
-                buildConfig.detachedParkingCard = true;
-            }
-
-            if (isCrossWorkspaceSwitchRender) {
-                window.DashboardCategories.renderCard(catObj, catLinks, gridContainer, buildConfig);
-                renderCount++;
-            } else if (renderCount < CARD_CAP) {
-                window.DashboardCategories.renderCard(catObj, catLinks, gridContainer, buildConfig);
-                renderCount++;
-            } else {
-                deferredCards.push({ cat: catObj, catLinks: catLinks, buildConfig: buildConfig });
-            }
+            categoryDescriptors.push({
+                catObj: catObj,
+                catLinks: catLinks,
+                catLinkCount: catLinkCount,
+                canUseLazyDeferredLinks: canUseLazyDeferredLinks,
+                catWsId: catWsId,
+                cat: cat,
+                isDetachedParkingCard: isDetachedParkingCard
+            });
         }
     });
 
-    // Render remaining cards in batches via setTimeout to avoid blocking paint
-    if (deferredCards.length > 0) {
-        var batchIdx = 0;
-        var BATCH_SIZE = aggressiveDeferredCards
-            ? 3
-            : (visibleLinks.length > 500 ? 2 : 4);
-        var capturedGen = renderGen;
-        function renderNextBatch() {
-            // Bail if a newer render has started
+    // Build and render cards — batch shells during cross-workspace switches
+    var SHELL_BATCH = 4;
+    var shellBatchIdx = 0;
+    var capturedGen = renderGen;
+
+    function buildCardConfig(desc) {
+        var buildConfig = Object.assign({}, sharedBuildConfig);
+        if ((aggressiveDeferredCards && desc.catLinkCount > 0) || isCrossWorkspaceSwitchRender) {
+            buildConfig._forceDeferredShell = true;
+            buildConfig._deferredHydrationDelayMs = isCrossWorkspaceSwitchRender
+                ? Math.min(120, 12 + (renderCount * 10))
+                : (renderCount < CARD_CAP ? 0 : 12);
+        }
+        if (desc.canUseLazyDeferredLinks) {
+            buildConfig._deferredLinkCount = desc.catLinkCount;
+            buildConfig._deferredLinksLoader = function () {
+                return resolveCategoryLinks(desc.catWsId, desc.cat);
+            };
+        }
+        if (desc.isDetachedParkingCard) {
+            buildConfig.virtualFolderViewModel = detachedModel.viewModel;
+            buildConfig.detachedParkingCard = true;
+        }
+        return buildConfig;
+    }
+
+    function renderDescriptor(desc) {
+        var buildConfig = buildCardConfig(desc);
+        window.DashboardCategories.renderCard(desc.catObj, desc.catLinks, gridContainer, buildConfig);
+        renderCount++;
+    }
+
+    if (isCrossWorkspaceSwitchRender && categoryDescriptors.length > SHELL_BATCH) {
+        // Render the first batch of shells immediately so the user sees content fast
+        var firstBatchEnd = Math.min(SHELL_BATCH, categoryDescriptors.length);
+        for (var i = 0; i < firstBatchEnd; i++) {
+            renderDescriptor(categoryDescriptors[i]);
+        }
+        shellBatchIdx = firstBatchEnd;
+
+        // Yield to the browser between shell batches
+        function renderNextShellBatch() {
             if (window._eveDashRenderGen !== capturedGen) return;
-            var end = Math.min(batchIdx + BATCH_SIZE, deferredCards.length);
-            for (var j = batchIdx; j < end; j++) {
-                var d = deferredCards[j];
-                window.DashboardCategories.renderCard(d.cat, d.catLinks, gridContainer, d.buildConfig);
+            var end = Math.min(shellBatchIdx + SHELL_BATCH, categoryDescriptors.length);
+            for (var j = shellBatchIdx; j < end; j++) {
+                renderDescriptor(categoryDescriptors[j]);
             }
-            batchIdx = end;
-            if (batchIdx < deferredCards.length) {
-                setTimeout(renderNextBatch, 0);
+            shellBatchIdx = end;
+            if (shellBatchIdx < categoryDescriptors.length) {
+                setTimeout(renderNextShellBatch, 0);
             }
         }
-        setTimeout(renderNextBatch, 0);
+        setTimeout(renderNextShellBatch, 0);
+    } else {
+        // Non-switch render: use existing immediate + deferred pattern
+        for (var k = 0; k < categoryDescriptors.length; k++) {
+            var desc = categoryDescriptors[k];
+            if (renderCount < CARD_CAP) {
+                renderDescriptor(desc);
+            } else {
+                deferredCards.push({ cat: desc.catObj, catLinks: desc.catLinks, buildConfig: buildCardConfig(desc) });
+            }
+        }
+
+        // Render remaining cards in batches via setTimeout to avoid blocking paint
+        if (deferredCards.length > 0) {
+            var batchIdx = 0;
+            var BATCH_SIZE = aggressiveDeferredCards
+                ? 3
+                : (visibleLinks.length > 500 ? 2 : 4);
+            function renderNextBatch() {
+                if (window._eveDashRenderGen !== capturedGen) return;
+                var end = Math.min(batchIdx + BATCH_SIZE, deferredCards.length);
+                for (var j = batchIdx; j < end; j++) {
+                    var d = deferredCards[j];
+                    window.DashboardCategories.renderCard(d.cat, d.catLinks, gridContainer, d.buildConfig);
+                }
+                batchIdx = end;
+                if (batchIdx < deferredCards.length) {
+                    setTimeout(renderNextBatch, 0);
+                }
+            }
+            setTimeout(renderNextBatch, 0);
+        }
     }
 };
