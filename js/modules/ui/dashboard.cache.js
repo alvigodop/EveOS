@@ -7,7 +7,7 @@
     if (window.__wsDomCacheReady) return;
 
     var _wsDomCache = new Map();
-    var _WS_DOM_CACHE_MAX = 5;
+    var _WS_DOM_CACHE_MAX = 10;
 
     function cacheKey(workspaceId, groupOverviewId) {
         var wsId = String(workspaceId || '').trim();
