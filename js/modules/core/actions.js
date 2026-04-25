@@ -116,10 +116,8 @@ function switchWorkspace(id, options = {}) {
         window.EveSidebarRuntime.syncSidebarViewState();
     }
 
-    // Yield one frame so the sidebar paints immediately, then render the dashboard
-    requestAnimationFrame(function () {
-        if (typeof renderDashboard === 'function') renderDashboard();
-    });
+    // renderDashboard already coalesces via rAF internally, no need for a second rAF wrapper
+    if (typeof renderDashboard === 'function') renderDashboard();
 }
 
 function togglePin(id) {

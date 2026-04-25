@@ -335,8 +335,19 @@ function collectIndexedDashboardVisibleLinks(sourceLinks, scope, matcher) {
 
 function _renderDashboardImmediate() {
     var renderHint = consumeDashboardRenderHint();
-    var shouldPreserveCardScroll = !shouldSkipDashboardCardScrollPreserve(renderHint);
-    var cardScrollState = shouldPreserveCardScroll ? captureDashboardCardScrollState() : null;
+    var isWsSwitch = shouldSkipDashboardCardScrollPreserve(renderHint);
+
+    // Fast path for workspace switches: skip all scroll preservation overhead
+    // (layout reflow from scrollHeight measurement, spacer div, card scroll queries)
+    if (isWsSwitch) {
+        clearDashboardScrollPreservation();
+        _renderDashboardCore(renderHint);
+        window.scrollTo(0, 0);
+        return;
+    }
+
+    var shouldPreserveCardScroll = true;
+    var cardScrollState = captureDashboardCardScrollState();
     var scrollActivitySeqAtCapture = _dashboardScrollActivitySeq;
 
     // Cancel any pending cleanup from a previous call in this batch, then capture fresh scroll state.
