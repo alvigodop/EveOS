@@ -75,7 +75,12 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         let viewModel = folderApi.buildFolderView(resolvedWorkspaceId, resolvedCategoryName, catLinks, { skipGhosts: false });
         viewModel.scopedLinks = catLinks;
         viewModel._skipGhosts = false;
-        window.EveFolderViewV2.setCachedViewModel(resolvedWorkspaceId, resolvedCategoryName, viewModel);
+
+        // Only update the global cache if we are entering the root (rare) or if we want to preserve this as the root state.
+        // Usually, we only want builder-card.folders.js to manage the permanent root cache.
+        if (!folderId && window.EveFolderViewV2.setCachedViewModel) {
+            window.EveFolderViewV2.setCachedViewModel(resolvedWorkspaceId, resolvedCategoryName, viewModel);
+        }
 
         let trail = [{ label: resolvedCategoryName.toLowerCase(), id: null }];
         let currentNodeId = folderId;
@@ -271,6 +276,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         }
 
         const isV1Fallback = !card.dataset.mode1Html.includes('v2-folder-root-container');
+        const isHydratingFallback = card.dataset.mode1Html.includes('data-card-hydrating="1"');
 
         const v2Container = card.querySelector('.v2-folder-container');
         if (v2Container) {
@@ -288,7 +294,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
             window.scrollTo(0, scrollBefore);
         }
 
-        if (isV1Fallback && typeof window.renderDashboard === 'function') {
+        if ((isV1Fallback || isHydratingFallback) && typeof window.renderDashboard === 'function') {
             window.__eveDashboardRenderHint = { immediate: true };
             window.renderDashboard();
             return;
