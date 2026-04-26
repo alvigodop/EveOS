@@ -28,9 +28,17 @@ window.DashboardCategories = window.DashboardCategories || {};
         let viewModel = virtualFolderViewModel;
         if (!viewModel) {
             const cached = window.EveFolderViewV2?.getCachedViewModel?.(workspaceId, categoryName);
+            
+            // Detection for structural folder changes (new folders, deletions)
+            const currentRealNodes = (typeof folderApi?._shared?.getScopedNodes === 'function')
+                ? folderApi._shared.getScopedNodes(workspaceId, categoryName)
+                : [];
+            
             const isCachedValid = cached && Array.isArray(cached.scopedLinks) 
                 && cached.scopedLinks.length === linksForCard.length 
-                && cached.scopedLinks.every((l, i) => l === linksForCard[i]);
+                && cached.scopedLinks.every((l, i) => l === linksForCard[i])
+                // Ensure real folder node count matches (detects newly created folders)
+                && cached.nodes && cached.nodes.filter(n => !n.isGhost).length === currentRealNodes.length;
 
             if (isCachedValid && (options?.skipGhosts || !cached._skipGhosts)) {
                 viewModel = cached;
