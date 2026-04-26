@@ -11,7 +11,7 @@ window.DashboardCategories = window.DashboardCategories || {};
         isFolderActionExpanded
     } = api;
 
-function buildFolderSectionsHtml(categoryName, linksForCard, options, renderer) {
+    function buildFolderSectionsHtml(categoryName, linksForCard, options, renderer) {
         const folderApi = window.EveBookmarkFolders;
         const isDetachedParkingCard = !!options?.detachedParkingCard;
         const readOnlyFolders = !!options?.readOnlyFolders && !isDetachedParkingCard;
@@ -115,18 +115,18 @@ function buildFolderSectionsHtml(categoryName, linksForCard, options, renderer) 
             const summaryActionsHtml = (isGhostNode || readOnlyFolders || isDetachedParkingCard)
                 ? ''
                 : ''
-                    + '<div class="bookmark-folder-summary-actions">'
-                        + `<button type="button" class="bookmark-folder-inline-btn bookmark-folder-summary-edit-toggle${sublinksCollapsedClass ? ' is-collapsed' : ''}" title="Toggle Bookmarks" onclick="event.preventDefault();event.stopPropagation();toggleSublinksCollapse('${escapeCardJs(node.id)}')">&#128216;</button>`
-                        + `<button type="button" class="bookmark-folder-inline-btn bookmark-folder-summary-edit-toggle${subfoldersCollapsedClass ? ' is-collapsed' : ''}" title="Toggle Subfolders" onclick="event.preventDefault();event.stopPropagation();toggleSubfoldersCollapse('${escapeCardJs(node.id)}')">&#128193;</button>`
-                        + `<button type="button" class="bookmark-folder-inline-btn bulk-scope-btn" data-scope-category="${escapeCardHtml(categoryName)}" data-scope-workspace="${escapeCardHtml(workspaceId)}" data-scope-folder-id="${escapeCardHtml(node.id)}" title="Select this folder subtree" onclick="event.preventDefault();event.stopPropagation();bulkToggleFolderScopeSelection('${safeCategoryJs}', '${safeWorkspaceJs}', '${escapeCardJs(node.id)}')">&#9744;</button>`
-                        + `<button type="button" class="bookmark-folder-inline-btn bookmark-folder-summary-edit-toggle" aria-expanded="${actionsExpandedAttr}" onclick="event.preventDefault();event.stopPropagation();toggleCategoryCardFolderActions(this, '${safeCategoryJs}', '${escapeCardJs(node.id)}', '${safeWorkspaceJs}')">&#9998;</button>`
-                        + `<div class="bookmark-folder-summary-action-list"${actionsHiddenAttr}>`
-                            + `<button type="button" class="bookmark-folder-inline-btn" onclick="${buildFolderAction(categoryName, node.id, 'openAddModalForFolder', workspaceId)}">Add</button>`
-                            + `<button type="button" class="bookmark-folder-inline-btn" onclick="${buildFolderAction(categoryName, node.id, 'promptCreateBookmarkFolder', workspaceId)}">Subfolder</button>`
-                            + `<button type="button" class="bookmark-folder-inline-btn" onclick="${buildFolderAction(categoryName, node.id, 'promptRenameBookmarkFolder', workspaceId)}">Rename</button>`
-                            + `<button type="button" class="bookmark-folder-inline-btn danger" onclick="${buildFolderAction(categoryName, node.id, 'deleteBookmarkFolderPrompt', workspaceId)}">Delete</button>`
-                        + '</div>'
-                    + '</div>';
+                + '<div class="bookmark-folder-summary-actions">'
+                + `<button type="button" class="bookmark-folder-inline-btn bookmark-folder-summary-edit-toggle${sublinksCollapsedClass ? ' is-collapsed' : ''}" title="Toggle Bookmarks" onclick="event.preventDefault();event.stopPropagation();toggleSublinksCollapse('${escapeCardJs(node.id)}')">&#128216;</button>`
+                + `<button type="button" class="bookmark-folder-inline-btn bookmark-folder-summary-edit-toggle${subfoldersCollapsedClass ? ' is-collapsed' : ''}" title="Toggle Subfolders" onclick="event.preventDefault();event.stopPropagation();toggleSubfoldersCollapse('${escapeCardJs(node.id)}')">&#128193;</button>`
+                + `<button type="button" class="bookmark-folder-inline-btn bulk-scope-btn" data-scope-category="${escapeCardHtml(categoryName)}" data-scope-workspace="${escapeCardHtml(workspaceId)}" data-scope-folder-id="${escapeCardHtml(node.id)}" title="Select this folder subtree" onclick="event.preventDefault();event.stopPropagation();bulkToggleFolderScopeSelection('${safeCategoryJs}', '${safeWorkspaceJs}', '${escapeCardJs(node.id)}')">&#9744;</button>`
+                + `<button type="button" class="bookmark-folder-inline-btn bookmark-folder-summary-edit-toggle" aria-expanded="${actionsExpandedAttr}" onclick="event.preventDefault();event.stopPropagation();toggleCategoryCardFolderActions(this, '${safeCategoryJs}', '${escapeCardJs(node.id)}', '${safeWorkspaceJs}')">&#9998;</button>`
+                + `<div class="bookmark-folder-summary-action-list"${actionsHiddenAttr}>`
+                + `<button type="button" class="bookmark-folder-inline-btn" onclick="${buildFolderAction(categoryName, node.id, 'openAddModalForFolder', workspaceId)}">Add</button>`
+                + `<button type="button" class="bookmark-folder-inline-btn" onclick="${buildFolderAction(categoryName, node.id, 'promptCreateBookmarkFolder', workspaceId)}">Subfolder</button>`
+                + `<button type="button" class="bookmark-folder-inline-btn" onclick="${buildFolderAction(categoryName, node.id, 'promptRenameBookmarkFolder', workspaceId)}">Rename</button>`
+                + `<button type="button" class="bookmark-folder-inline-btn danger" onclick="${buildFolderAction(categoryName, node.id, 'deleteBookmarkFolderPrompt', workspaceId)}">Delete</button>`
+                + '</div>'
+                + '</div>';
             const bodyContentHtml = folderLinks.length
                 ? renderer(folderLinks)
                 : (isGhostNode && childFolders.length
@@ -136,18 +136,18 @@ function buildFolderSectionsHtml(categoryName, linksForCard, options, renderer) 
             return ''
                 + `<details class="bookmark-folder-group${isGhostNode ? ' is-ghost-folder-group' : ''}${subfoldersCollapsedClass}${sublinksCollapsedClass}" open data-bookmark-folder-target-id="${escapeCardHtml(folderTargetId)}" data-detached-entry-id="${escapeCardHtml(node.detachedEntryId || '')}" ${dropTargetAttributes} ${dragStartAttr}>`
 
-                    + '<summary class="bookmark-folder-summary">'
-                        + '<div class="bookmark-folder-summary-copy">'
-                            + `<span class="bookmark-folder-title">${escapeCardHtml(node.name)}</span>`
-                            + `<span class="bookmark-folder-meta">${escapeCardHtml(folderCountLabel)} | ${escapeCardHtml(childCountLabel)}</span>`
-                        + '</div>'
-                        + summaryActionsHtml
-                    + '</summary>'
-                    + '<div class="bookmark-folder-body">'
-                        + '<div class="bookmark-folder-links">' + bodyContentHtml + '</div>'
-                        + '<div class="bookmark-folder-subfolders">' + childHtml + '</div>'
-                        + buildSectionStats(folderLinks)
-                    + '</div>'
+                + '<summary class="bookmark-folder-summary">'
+                + '<div class="bookmark-folder-summary-copy">'
+                + `<span class="bookmark-folder-title">${escapeCardHtml(node.name)}</span>`
+                + `<span class="bookmark-folder-meta">${escapeCardHtml(folderCountLabel)} | ${escapeCardHtml(childCountLabel)}</span>`
+                + '</div>'
+                + summaryActionsHtml
+                + '</summary>'
+                + '<div class="bookmark-folder-body">'
+                + '<div class="bookmark-folder-links">' + bodyContentHtml + '</div>'
+                + '<div class="bookmark-folder-subfolders">' + childHtml + '</div>'
+                + buildSectionStats(folderLinks)
+                + '</div>'
                 + '</details>';
         }
 
@@ -164,8 +164,8 @@ function buildFolderSectionsHtml(categoryName, linksForCard, options, renderer) 
             ? ''
             : ''
             + `<div class="bookmark-folder-toolbar${toolbarExpanded ? ' is-visible' : ''}">`
-                + `<button type="button" class="bookmark-folder-toolbar-btn" onclick="promptCreateBookmarkFolder('${safeCategoryJs}', '', '${safeWorkspaceJs}')">New Folder</button>`
-                + `<button type="button" class="bookmark-folder-toolbar-btn" onclick="openBookmarkFolders('${safeCategoryJs}')">Manage Folders</button>`
+            + `<button type="button" class="bookmark-folder-toolbar-btn" onclick="promptCreateBookmarkFolder('${safeCategoryJs}', '', '${safeWorkspaceJs}')">New Folder</button>`
+            + `<button type="button" class="bookmark-folder-toolbar-btn" onclick="openBookmarkFolders('${safeCategoryJs}')">Manage Folders</button>`
             + '</div>';
 
         const isRootSubfoldersCollapsed = !!(window.eveState?.config?.subfoldersCollapsed || []).includes(`${safeWorkspaceJs}::__root__::${categoryName}`);
@@ -180,34 +180,34 @@ function buildFolderSectionsHtml(categoryName, linksForCard, options, renderer) 
         return ''
             + toolbarHtml
             + '<div class="bookmark-folder-sections">'
-                + `<div class="bookmark-folder-root-group${rootSubfoldersCollapsedClass}${rootSublinksCollapsedClass}" ${buildDropTargetAttributes('', '')}>`
-                    + '<div class="bookmark-folder-root-header">'
-                        + '<div class="bookmark-folder-root-copy">'
-                            + '<span class="bookmark-folder-root-title">Root Bookmarks</span>'
-                            + `<span class="bookmark-folder-meta">${viewModel.rootLinks.length} bookmark${viewModel.rootLinks.length === 1 ? '' : 's'}</span>`
-                        + '</div>'
-                        + (readOnlyFolders || isDetachedParkingCard
-                            ? ''
-                            : '<div class="bookmark-folder-summary-actions">'
-                                + `<button type="button" class="bookmark-folder-inline-btn bookmark-folder-summary-edit-toggle${rootSublinksCollapsedClass ? ' is-collapsed' : ''}" title="Toggle Bookmarks" onclick="event.preventDefault();event.stopPropagation();toggleSublinksCollapse('__root__::${safeCategoryJs}', '${safeWorkspaceJs}')">&#128216;</button>`
-                                + `<button type="button" class="bookmark-folder-inline-btn bookmark-folder-summary-edit-toggle${rootSubfoldersCollapsedClass ? ' is-collapsed' : ''}" title="Toggle Subfolders" onclick="event.preventDefault();event.stopPropagation();toggleSubfoldersCollapse('__root__::${safeCategoryJs}', '${safeWorkspaceJs}')">&#128193;</button>`
-                                + `<button type="button" class="bookmark-folder-inline-btn bookmark-folder-summary-edit-toggle" aria-expanded="${rootActionsExpandedAttr}" onclick="event.preventDefault();event.stopPropagation();toggleCategoryCardFolderActions(this, '${safeCategoryJs}', '__root__', '${safeWorkspaceJs}')">&#9998;</button>`
-                                + `<div class="bookmark-folder-summary-action-list"${rootActionsHiddenAttr}>`
-                                    + `<button type="button" class="bookmark-folder-inline-btn bulk-scope-btn" data-scope-category="${escapeCardHtml(categoryName)}" data-scope-workspace="${escapeCardHtml(workspaceId)}" data-scope-folder-id="" title="Select root bookmarks in this card" onclick="event.preventDefault(); event.stopPropagation(); bulkToggleFolderScopeSelection('${safeCategoryJs}', '${safeWorkspaceJs}', '')">Select Root</button>`
-                                    + `<button type="button" class="bookmark-folder-inline-btn" onclick="openAddModal('${safeCategoryJs}')">Add Root</button>`
-                                + '</div>'
-                            + '</div>')
-                    + '</div>'
-                    + '<div class="bookmark-folder-body">'
-                        + '<div class="bookmark-folder-links">'
-                            + (hasRootLinks
-                                ? renderer(viewModel.rootLinks)
-                                : '<div class="bookmark-folder-empty">No root bookmarks in this card.</div>')
-                        + '</div>'
-                        + buildSectionStats(viewModel.rootLinks)
-                    + '</div>'
+            + `<div class="bookmark-folder-root-group${rootSubfoldersCollapsedClass}${rootSublinksCollapsedClass}" ${buildDropTargetAttributes('', '')}>`
+            + '<div class="bookmark-folder-root-header">'
+            + '<div class="bookmark-folder-root-copy">'
+            + '<span class="bookmark-folder-root-title">Root Bookmarks</span>'
+            + `<span class="bookmark-folder-meta">${viewModel.rootLinks.length} bookmark${viewModel.rootLinks.length === 1 ? '' : 's'}</span>`
+            + '</div>'
+            + (readOnlyFolders || isDetachedParkingCard
+                ? ''
+                : '<div class="bookmark-folder-summary-actions">'
+                + `<button type="button" class="bookmark-folder-inline-btn bookmark-folder-summary-edit-toggle${rootSublinksCollapsedClass ? ' is-collapsed' : ''}" title="Toggle Bookmarks" onclick="event.preventDefault();event.stopPropagation();toggleSublinksCollapse('__root__::${safeCategoryJs}', '${safeWorkspaceJs}')">&#128216;</button>`
+                + `<button type="button" class="bookmark-folder-inline-btn bookmark-folder-summary-edit-toggle${rootSubfoldersCollapsedClass ? ' is-collapsed' : ''}" title="Toggle Subfolders" onclick="event.preventDefault();event.stopPropagation();toggleSubfoldersCollapse('__root__::${safeCategoryJs}', '${safeWorkspaceJs}')">&#128193;</button>`
+                + `<button type="button" class="bookmark-folder-inline-btn bookmark-folder-summary-edit-toggle" aria-expanded="${rootActionsExpandedAttr}" onclick="event.preventDefault();event.stopPropagation();toggleCategoryCardFolderActions(this, '${safeCategoryJs}', '__root__', '${safeWorkspaceJs}')">&#9998;</button>`
+                + `<div class="bookmark-folder-summary-action-list"${rootActionsHiddenAttr}>`
+                + `<button type="button" class="bookmark-folder-inline-btn bulk-scope-btn" data-scope-category="${escapeCardHtml(categoryName)}" data-scope-workspace="${escapeCardHtml(workspaceId)}" data-scope-folder-id="" title="Select root bookmarks in this card" onclick="event.preventDefault(); event.stopPropagation(); bulkToggleFolderScopeSelection('${safeCategoryJs}', '${safeWorkspaceJs}', '')">Select Root</button>`
+                + `<button type="button" class="bookmark-folder-inline-btn" onclick="openAddModal('${safeCategoryJs}')">Add Root</button>`
                 + '</div>'
-                + topLevelFoldersHtml
+                + '</div>')
+            + '</div>'
+            + '<div class="bookmark-folder-body">'
+            + '<div class="bookmark-folder-links">'
+            + (hasRootLinks
+                ? renderer(viewModel.rootLinks)
+                : '<div class="bookmark-folder-empty">No root bookmarks in this card.</div>')
+            + '</div>'
+            + buildSectionStats(viewModel.rootLinks)
+            + '</div>'
+            + '</div>'
+            + topLevelFoldersHtml
             + '</div>';
     }
 
@@ -239,7 +239,7 @@ function buildFolderSectionsHtml(categoryName, linksForCard, options, renderer) 
         if (typeof renderDashboard === 'function') renderDashboard();
     };
 
-    
+
 
     Object.assign(api, {
         buildFolderSectionsHtml,

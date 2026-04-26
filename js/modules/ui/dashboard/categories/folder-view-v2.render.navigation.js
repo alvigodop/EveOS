@@ -32,7 +32,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         const resolvedCategoryName = String(categoryName || '').trim();
         const resolvedWorkspaceId = String(workspaceId || '').trim();
         const card = document.querySelector(`.category-card[data-card-category="${CSS.escape(resolvedCategoryName)}"][data-card-workspace="${CSS.escape(resolvedWorkspaceId)}"]`);
-        
+
         if (!card) {
             // If the card is mid-rerender, retry once after forcing a fresh dashboard pass.
             if (!event && !window._evePerfMode && typeof window.renderDashboard === 'function') {
@@ -119,12 +119,12 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
 
         const folderHeaderActionsHtml = folderId
             ? `<div class="folder-breadcrumb-actions">`
-                + `<button type="button" class="folder-tile-edit-btn folder-breadcrumb-icon-btn ${isCardLinksCollapsed || isFolderSublinksCollapsed ? 'collapsed' : ''}" title="Toggle Bookmarks" onclick="event.preventDefault(); event.stopPropagation(); toggleSublinksCollapse('${escapeCardJs(folderId)}');">&#128216;</button>`
-                + `<button type="button" class="folder-tile-edit-btn folder-breadcrumb-icon-btn ${isCardFoldersCollapsed || isFolderSubfoldersCollapsed ? 'collapsed' : ''}" title="Toggle Subfolders" onclick="event.preventDefault(); event.stopPropagation(); toggleSubfoldersCollapse('${escapeCardJs(folderId)}');">&#128193;</button>`
-                + `<button type="button" class="folder-tile-edit-btn folder-breadcrumb-icon-btn bulk-scope-btn" data-scope-category="${escapeCardHtml(resolvedCategoryName)}" data-scope-workspace="${escapeCardHtml(resolvedWorkspaceId)}" data-scope-folder-id="${escapeCardHtml(folderId)}" title="Select Folder Subtree" onclick="event.preventDefault(); event.stopPropagation(); bulkToggleFolderScopeSelection('${escapeCardJs(resolvedCategoryName)}', '${escapeCardJs(resolvedWorkspaceId)}', '${escapeCardJs(folderId)}');">&#9744;</button>`
-                + `<button type="button" class="folder-tile-edit-btn folder-breadcrumb-icon-btn ${headerActionsExpanded ? 'active' : ''}" title="Folder Actions" onclick="event.preventDefault(); event.stopPropagation(); window.EveFolderViewV2.toggleHeaderActions('${escapeCardJs(resolvedWorkspaceId)}', '${escapeCardJs(resolvedCategoryName)}', '${escapeCardJs(folderId)}');">&#9998;</button>`
-                + `<button type="button" class="folder-tile-edit-btn folder-breadcrumb-icon-btn" title="Constellation Map" onclick="event.preventDefault(); event.stopPropagation(); window.EveFolderViewV2.openFolderScopedMap('${escapeCardJs(resolvedCategoryName)}', '${escapeCardJs(folderId)}', '${escapeCardJs(resolvedWorkspaceId)}');">&#127756;</button>`
-                + `</div>`
+            + `<button type="button" class="folder-tile-edit-btn folder-breadcrumb-icon-btn ${isCardLinksCollapsed || isFolderSublinksCollapsed ? 'collapsed' : ''}" title="Toggle Bookmarks" onclick="event.preventDefault(); event.stopPropagation(); toggleSublinksCollapse('${escapeCardJs(folderId)}');">&#128216;</button>`
+            + `<button type="button" class="folder-tile-edit-btn folder-breadcrumb-icon-btn ${isCardFoldersCollapsed || isFolderSubfoldersCollapsed ? 'collapsed' : ''}" title="Toggle Subfolders" onclick="event.preventDefault(); event.stopPropagation(); toggleSubfoldersCollapse('${escapeCardJs(folderId)}');">&#128193;</button>`
+            + `<button type="button" class="folder-tile-edit-btn folder-breadcrumb-icon-btn bulk-scope-btn" data-scope-category="${escapeCardHtml(resolvedCategoryName)}" data-scope-workspace="${escapeCardHtml(resolvedWorkspaceId)}" data-scope-folder-id="${escapeCardHtml(folderId)}" title="Select Folder Subtree" onclick="event.preventDefault(); event.stopPropagation(); bulkToggleFolderScopeSelection('${escapeCardJs(resolvedCategoryName)}', '${escapeCardJs(resolvedWorkspaceId)}', '${escapeCardJs(folderId)}');">&#9744;</button>`
+            + `<button type="button" class="folder-tile-edit-btn folder-breadcrumb-icon-btn ${headerActionsExpanded ? 'active' : ''}" title="Folder Actions" onclick="event.preventDefault(); event.stopPropagation(); window.EveFolderViewV2.toggleHeaderActions('${escapeCardJs(resolvedWorkspaceId)}', '${escapeCardJs(resolvedCategoryName)}', '${escapeCardJs(folderId)}');">&#9998;</button>`
+            + `<button type="button" class="folder-tile-edit-btn folder-breadcrumb-icon-btn" title="Constellation Map" onclick="event.preventDefault(); event.stopPropagation(); window.EveFolderViewV2.openFolderScopedMap('${escapeCardJs(resolvedCategoryName)}', '${escapeCardJs(folderId)}', '${escapeCardJs(resolvedWorkspaceId)}');">&#127756;</button>`
+            + `</div>`
             : '';
 
         const editFolderButtonHtml = targetNode.isGhost
@@ -223,7 +223,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
             const contentWrapper = Array.from(card.children).find((element) => element !== libPanel && !element.classList.contains('category-header') && !element.classList.contains('cat-progress-bg') && !element.classList.contains('category-footer'));
             if (contentWrapper) {
                 card.dataset.mode1Html = contentWrapper.outerHTML;
-                contentWrapper.outerHTML = `<div class="v2-folder-container" style="padding: 0 10px 10px;">${frameHtml}</div>`;
+                contentWrapper.outerHTML = `<div class="v2-folder-container card-folder-view-content" style="padding: 0 10px 10px;">${frameHtml}</div>`;
             }
         } else {
             const v2Container = card.querySelector('.v2-folder-container');
@@ -235,7 +235,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         }
 
         window.EveFolderViewV2.saveActiveFolderState(resolvedWorkspaceId, resolvedCategoryName, folderId, cloneGhostFilterChain(cachedTargetNode?._ghostFilterChain), scopeRootId);
-        
+
         // Final fallback to ensure scroll doesn't jump away from the user
         if (
             preservePageScroll
@@ -279,7 +279,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         }
 
         window.EveFolderViewV2.saveActiveFolderState(resolvedWorkspaceId, resolvedCategoryName, null, null, null);
-        
+
         if (Math.abs((window.pageYOffset || document.documentElement.scrollTop) - scrollBefore) > 100) {
             window.scrollTo(0, scrollBefore);
         }

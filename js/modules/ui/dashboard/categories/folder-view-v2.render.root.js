@@ -36,7 +36,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                 + '</div>';
         }
 
-        let html = toolbarHtml + `<div class="v2-folder-root-container" style="padding: 0 10px 10px;" ${dropTargetAttr}>`;
+        let html = toolbarHtml + `<div class="v2-folder-root-container card-folder-view-content" style="padding: 0 10px 10px;" ${dropTargetAttr}>`;
 
         if (topLevelFolders.length > 0) {
             // Helper: recursively count all bookmarks nested inside a folder tree

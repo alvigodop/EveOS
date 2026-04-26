@@ -464,7 +464,7 @@ window.DashboardCategories = window.DashboardCategories || {};
             + headerButtonsHtml
             + '</div>'
             + '<div id="' + libraryPanelId + '" class="lib-panel" style="display:none;"></div>'
-            + listHtml
+            + '<div class="card-folder-view-content">' + listHtml + '</div>'
             + '<div class="category-footer"><span class="stat-pending">Pending: ' + Math.max(totalVisibleTasks - doneVisible, 0) + '</span><span class="stat-done">Done: ' + doneVisible + '</span></div>';
         card.setAttribute('data-card-target-id', cardTargetId);
         card.setAttribute('data-card-category', String(cat || 'Unsorted'));

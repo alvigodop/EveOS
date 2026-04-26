@@ -3,34 +3,45 @@
     position: relative;
     background: linear-gradient(180deg, rgba(0, 0, 0, 0.45) 0%, rgba(0, 0, 0, 0.15) 100%);
     border: 1px solid var(--accent, #0088ff)44;
-    box-shadow: 0 0 0 1px var(--accent, #0088ff)11, inset 0 0 30px rgba(0,0,0,0.5), inset 0 0 60px var(--accent, #0088ff)04;
+    box-shadow: 0 0 0 1px var(--accent, #0088ff)11, inset 0 0 30px rgba(0, 0, 0, 0.5), inset 0 0 60px var(--accent, #0088ff)04;
     transition: background 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
     border-radius: 4px;
     overflow: hidden;
     padding: 10px;
     min-height: 200px;
     /* Softened fade out on all 4 sides - keeps edges slightly visible instead of totally invisible */
-    -webkit-mask-image: linear-gradient(to right, rgba(0,0,0,0.15) 0px, black 12px, black calc(100% - 12px), rgba(0,0,0,0.15) 100%),
-                        linear-gradient(to bottom, rgba(0,0,0,0.15) 0px, black 12px, black calc(100% - 12px), rgba(0,0,0,0.15) 100%);
+    -webkit-mask-image: linear-gradient(to right, rgba(0, 0, 0, 0.15) 0px, black 12px, black calc(100% - 12px), rgba(0, 0, 0, 0.15) 100%),
+        linear-gradient(to bottom, rgba(0, 0, 0, 0.15) 0px, black 12px, black calc(100% - 12px), rgba(0, 0, 0, 0.15) 100%);
     -webkit-mask-composite: source-in;
-    mask-image: linear-gradient(to right, rgba(0,0,0,0.15) 0px, black 12px, black calc(100% - 12px), rgba(0,0,0,0.15) 100%),
-                linear-gradient(to bottom, rgba(0,0,0,0.15) 0px, black 12px, black calc(100% - 12px), rgba(0,0,0,0.15) 100%);
+    mask-image: linear-gradient(to right, rgba(0, 0, 0, 0.15) 0px, black 12px, black calc(100% - 12px), rgba(0, 0, 0, 0.15) 100%),
+        linear-gradient(to bottom, rgba(0, 0, 0, 0.15) 0px, black 12px, black calc(100% - 12px), rgba(0, 0, 0, 0.15) 100%);
     mask-composite: intersect;
 }
 
 .manhwa-frame-top-beam {
-    position: absolute; top: 0; left: 0; right: 0; height: 1px;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
     background: linear-gradient(90deg, transparent, var(--accent, #0088ff), transparent);
     opacity: 0.8;
 }
 
 .manhwa-frame-left-glow {
-    position: absolute; top: 0; bottom: 0; left: 0; width: 1px;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 1px;
     background: linear-gradient(180deg, var(--accent, #0088ff)66, transparent 30%, transparent 70%, var(--accent, #0088ff)33);
 }
 
 .manhwa-scan-beam {
-    position: absolute; top: 0; bottom: 0; width: 56%;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 56%;
     background: linear-gradient(90deg, transparent, var(--accent, #0088ff)10, transparent);
     animation: scanBeam 0.35s ease-out forwards;
     pointer-events: none;
@@ -89,9 +100,9 @@
 
 .folder-breadcrumb-icon-btn {
     opacity: 0.9 !important;
-    border: 1px solid rgba(128,128,128,0.24);
+    border: 1px solid rgba(128, 128, 128, 0.24);
     border-radius: 8px;
-    background: rgba(255,255,255,0.04);
+    background: rgba(255, 255, 255, 0.04);
     padding: 6px 8px;
     width: 34px;
     min-width: 34px;
@@ -118,9 +129,9 @@
 }
 
 .folder-breadcrumb-action-btn {
-    border: 1px solid rgba(128,128,128,0.24);
-    background: rgba(255,255,255,0.04);
-    color: var(--text-main, rgba(255,255,255,0.9));
+    border: 1px solid rgba(128, 128, 128, 0.24);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-main, rgba(255, 255, 255, 0.9));
     border-radius: 8px;
     padding: 6px 10px;
     cursor: pointer;
@@ -201,7 +212,8 @@
 /* -- FOLDER GRID -- */
 .folder-wrap-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    align-items: stretch;
     gap: 8px;
     padding: 8px 0;
 }
@@ -209,7 +221,7 @@
 .folder-tile {
     cursor: pointer;
     border: 1px solid rgba(128, 128, 128, 0.2);
-    background: linear-gradient(135deg, rgba(255,255,255,0.02) 0%, transparent 100%);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.02) 0%, transparent 100%);
     padding: 12px;
     transition: background 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
     position: relative;
@@ -228,8 +240,12 @@
 }
 
 .folder-tile-left-bar {
-    position: absolute; left: 0; top: 0; bottom: 0; width: 2px;
-    background: linear-gradient(180deg, transparent 0%, rgba(128,128,128,0.3) 50%, transparent 100%);
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: linear-gradient(180deg, transparent 0%, rgba(128, 128, 128, 0.3) 50%, transparent 100%);
     transition: all 0.18s;
 }
 
@@ -241,9 +257,11 @@
 .folder-icon-box {
     width: 28px;
     height: 28px;
-    border: 1px solid rgba(128,128,128,0.2);
-    background: rgba(255,255,255,0.02);
-    display: flex; align-items: center; justify-content: center;
+    border: 1px solid rgba(128, 128, 128, 0.2);
+    background: rgba(255, 255, 255, 0.02);
+    display: flex;
+    align-items: center;
+    justify-content: center;
     transition: all 0.18s;
 }
 
@@ -273,7 +291,7 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    color: var(--text-main, rgba(255,255,255,0.85));
+    color: var(--text-main, rgba(255, 255, 255, 0.85));
     transition: all 0.18s;
 }
 
@@ -285,7 +303,7 @@
 .folder-tile-stats {
     font-family: 'Share Tech Mono', monospace;
     font-size: 9px;
-    color: rgba(128,128,128,0.6);
+    color: rgba(128, 128, 128, 0.6);
     margin-top: 2px;
 }
 
@@ -324,7 +342,9 @@ body.bulk-active .folder-tile-edit-btn.bulk-scope-btn {
     align-items: center;
     gap: 8px;
 }
-.manhwa-divider::before, .manhwa-divider::after {
+
+.manhwa-divider::before,
+.manhwa-divider::after {
     content: '';
     flex: 1;
     height: 1px;

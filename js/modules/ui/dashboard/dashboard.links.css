@@ -301,11 +301,11 @@ html[data-native-scheme="light"] .subtab-origin-badge {
     width: 100%;
     min-width: 0;
     box-sizing: border-box;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     align-items: stretch;
 }
 
-.subtab-parent-folder-wrap-grid > .bookmark-folder-group {
+.subtab-parent-folder-wrap-grid>.bookmark-folder-group {
     width: 100%;
     min-width: 0;
 }
@@ -366,4 +366,11 @@ html[data-native-scheme="light"] .subtab-origin-badge {
 
 .section-stat-done {
     color: rgba(0, 220, 130, 0.5);
+}
+
+.card-folder-view-content {
+    width: 100%;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
 }
