@@ -201,7 +201,7 @@ window.DashboardCategories = window.DashboardCategories || {};
 
                 var hydratedCatLinks = getResolvedCatLinks();
                 var phase1Options = isMega
-                    ? Object.assign({}, configOptions, { _skipGhosts: true, _skipFolderRestore: true })
+                    ? Object.assign({}, configOptions, { _skipGhosts: false, _skipFolderRestore: true })
                     : Object.assign({}, configOptions, { _skipFolderRestore: true });
                 var tempContainer = document.createDocumentFragment();
                 api._renderCardFull(cat, hydratedCatLinks, tempContainer, phase1Options);
