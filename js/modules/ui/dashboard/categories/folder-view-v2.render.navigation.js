@@ -286,7 +286,8 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
             window.scrollTo(0, scrollBefore);
         }
 
-        if (isV1Fallback && !window._evePerfMode && typeof window.renderDashboard === 'function') {
+        if (isV1Fallback && typeof window.renderDashboard === 'function') {
+            window.__eveDashboardRenderHint = { immediate: true };
             window.renderDashboard();
             return;
         }
