@@ -1,4 +1,4 @@
-﻿// --- DASHBOARD CORE ---
+// --- DASHBOARD CORE ---
 
 var dashboardMasonryState = window.__dashboardMasonryState || {
     activeGrid: null,
@@ -343,6 +343,19 @@ function _renderDashboardImmediate() {
         clearDashboardScrollPreservation();
         _renderDashboardCore(renderHint);
         window.scrollTo(0, 0);
+        return;
+    }
+
+    // Fast path for data mutations (bookmark save/edit, folder create):
+    // skip expensive scroll-preservation (scrollHeight, spacer div, card scroll capture)
+    // and just save/restore a simple scroll offset — the view stays on the same workspace.
+    var isDataMutation = !!(renderHint && renderHint.kind === 'data-mutation');
+    if (isDataMutation) {
+        var scrollY = _getRobustScrollTop();
+        clearDashboardScrollPreservation();
+        _renderDashboardCore(renderHint);
+        markDashboardProgrammaticScrollWindow(24);
+        window.scrollTo(0, scrollY);
         return;
     }
 

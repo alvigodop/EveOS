@@ -427,7 +427,7 @@ const CLICK_BEHAVIOR_MODES = new Set(['inherit', 'invert', 'focus_only', 'intern
 
         if (persist && typeof saveData === 'function') {
 
-            saveData();
+            saveData({ forceRender: true });
 
         }
 
