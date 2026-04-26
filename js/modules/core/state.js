@@ -94,8 +94,11 @@ let timerInterval = null, timerSeconds = 1500, timerRunning = false;
 // Expose state globally for debug/access patterns used in this app
 window.eveState = {
     get config() { return config; },
+    set config(value) { if (value && typeof value === 'object') config = value; },
     get links() { return links; },
+    set links(value) { if (Array.isArray(value)) links = value; },
     get bookmarkFolders() { return bookmarkFolders; },
+    set bookmarkFolders(value) { if (value && typeof value === 'object') bookmarkFolders = value; },
     get quickPins() { return quickPins; },
     set quickPins(value) { quickPins = Array.isArray(value) ? value : []; }
 };

@@ -93,18 +93,16 @@
     window.openCategorySettings = function (categoryName, activeTab = 'general', workspaceId = null) {
 
         window.currentCategoryCtx = categoryName;
+        const resolvedWsId = String(workspaceId || window.eveState?.config?.activeWorkspace || (typeof config !== 'undefined' ? config?.activeWorkspace : 'main')).trim() || 'main';
+
         // Persist context for reload recovery
         try {
             localStorage.setItem('eve_current_category_context', categoryName);
-            if (workspaceId) {
-                localStorage.setItem('eve_current_category_workspace', workspaceId);
-            }
+            localStorage.setItem('eve_current_category_workspace', resolvedWsId);
         } catch (e) {}
 
         window.ctxCatName = categoryName;
-        if (workspaceId) {
-            window.ctxWsId = String(workspaceId || '').trim() || window.ctxWsId || 'main';
-        }
+        window.ctxWsId = resolvedWsId;
 
         if (window.StorageManager && typeof window.StorageManager.setCategoryContext === 'function') {
             window.StorageManager.setCategoryContext(categoryName);
