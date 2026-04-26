@@ -63,17 +63,19 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         const scopeRootId = cachedTargetNode?.isGhost
             ? (cachedTargetNode?._ghostScopeRootId || window.eveState?.config?.activeManhwaScopeRoots?.[cacheKey] || null)
             : folderId;
+        
+        // Save state FIRST so buildFolderView picks up the new active folder scope for ghosts
+        window.EveFolderViewV2.saveActiveFolderState(resolvedWorkspaceId, resolvedCategoryName, folderId, cloneGhostFilterChain(cachedTargetNode?._ghostFilterChain), scopeRootId);
+
         const folderApi = window.EveBookmarkFolders;
         if (!folderApi?.buildFolderView) return;
 
-        // Reuse cached view model if available
-        let viewModel = cachedViewModel;
-        if (!viewModel || !viewModel.nodes || !viewModel.childrenMap) {
-            const catLinks = getCategoryLinks(resolvedWorkspaceId, resolvedCategoryName);
-            viewModel = folderApi.buildFolderView(resolvedWorkspaceId, resolvedCategoryName, catLinks);
-            viewModel.scopedLinks = catLinks;
-            window.EveFolderViewV2.setCachedViewModel(resolvedWorkspaceId, resolvedCategoryName, viewModel);
-        }
+        // Force rebuild of viewModel so ghost folders (System Views) attach to the new active folder instantly
+        const catLinks = getCategoryLinks(resolvedWorkspaceId, resolvedCategoryName);
+        let viewModel = folderApi.buildFolderView(resolvedWorkspaceId, resolvedCategoryName, catLinks, { skipGhosts: false });
+        viewModel.scopedLinks = catLinks;
+        viewModel._skipGhosts = false;
+        window.EveFolderViewV2.setCachedViewModel(resolvedWorkspaceId, resolvedCategoryName, viewModel);
 
         let trail = [{ label: resolvedCategoryName.toLowerCase(), id: null }];
         let currentNodeId = folderId;
@@ -292,12 +294,8 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
             return;
         }
 
-        if (!window._evePerfMode) {
-            const folderApi = window.EveBookmarkFolders;
-            if (folderApi?.buildFolderView) {
-                const catLinks = getCategoryLinks(resolvedWorkspaceId, resolvedCategoryName);
-                window.EveFolderViewV2.setCachedViewModel(resolvedWorkspaceId, resolvedCategoryName, Object.assign(folderApi.buildFolderView(resolvedWorkspaceId, resolvedCategoryName, catLinks), { scopedLinks: catLinks }));
-            }
-        }
+        // We do NOT rebuild the view model synchronously here to prevent UI lag on exit.
+        // The root card's DOM is restored instantly from mode1Html, and the view model
+        // will be naturally rebuilt during the next dashboard render or folder entry.
     };
 })();
