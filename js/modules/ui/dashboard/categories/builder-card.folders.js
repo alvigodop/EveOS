@@ -24,9 +24,23 @@ window.DashboardCategories = window.DashboardCategories || {};
         }
 
         const workspaceId = String(options.activeWorkspace || window.eveState?.config?.activeWorkspace || 'main').trim() || 'main';
-        const viewModel = virtualFolderViewModel || folderApi.buildFolderView(workspaceId, categoryName, linksForCard, { skipGhosts: !!options?.skipGhosts });
-        if (window.EveFolderViewV2?.setCachedViewModel) {
-            window.EveFolderViewV2.setCachedViewModel(workspaceId, categoryName, viewModel);
+        
+        let viewModel = virtualFolderViewModel;
+        if (!viewModel) {
+            const cached = window.EveFolderViewV2?.getCachedViewModel?.(workspaceId, categoryName);
+            const isCachedValid = cached && Array.isArray(cached.scopedLinks) 
+                && cached.scopedLinks.length === linksForCard.length 
+                && cached.scopedLinks.every((l, i) => l === linksForCard[i]);
+
+            if (isCachedValid && (options?.skipGhosts || !cached._skipGhosts)) {
+                viewModel = cached;
+            } else {
+                viewModel = folderApi.buildFolderView(workspaceId, categoryName, linksForCard, { skipGhosts: !!options?.skipGhosts });
+                viewModel._skipGhosts = !!options?.skipGhosts;
+                if (window.EveFolderViewV2?.setCachedViewModel) {
+                    window.EveFolderViewV2.setCachedViewModel(workspaceId, categoryName, Object.assign(viewModel, { scopedLinks: linksForCard }));
+                }
+            }
         }
 
         const isSubTabInParentView = !!options?.isSubTabInParentView;
