@@ -268,6 +268,8 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
             return;
         }
 
+        const isV1Fallback = !card.dataset.mode1Html.includes('v2-folder-root-container');
+
         const v2Container = card.querySelector('.v2-folder-container');
         if (v2Container) {
             v2Container.outerHTML = card.dataset.mode1Html;
@@ -282,6 +284,11 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
 
         if (Math.abs((window.pageYOffset || document.documentElement.scrollTop) - scrollBefore) > 100) {
             window.scrollTo(0, scrollBefore);
+        }
+
+        if (isV1Fallback && !window._evePerfMode && typeof window.renderDashboard === 'function') {
+            window.renderDashboard();
+            return;
         }
 
         if (!window._evePerfMode) {
