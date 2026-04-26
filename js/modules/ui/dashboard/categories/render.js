@@ -402,7 +402,7 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
 
         var hasFolderContent = isDetachedParkingCard
             ? !!(detachedModel?.viewModel?.nodes?.length)
-            : hasFolderBackedCategory(catWsId, cat);
+            : (!searchStr && hasFolderBackedCategory(catWsId, cat));
         var shouldRenderEmptyCard = !searchStr && (
             window.EveCategoryOrder?.hasCategory
                 ? window.EveCategoryOrder.hasCategory(activeWorkspace, cat)
