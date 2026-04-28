@@ -61,7 +61,7 @@ const context = {
                         if (categoryName !== 'Alpha') return [];
                         return [{
                             query: 'naruto',
-                            timestamp: Date.parse('2026-04-04T09:10:00.000Z'),
+                            updatedAt: Date.parse('2026-04-04T09:10:00.000Z'),
                             summary: {
                                 perSource: {
                                     mangadex: 2,
@@ -127,6 +127,7 @@ function loadScript(relPath) {
     assert(!!narutoGroup.wikipediaEntry, 'Grouped source should include the cached Wikipedia entry');
     assert(!!narutoGroup.fandomEntry, 'Grouped source should include the cached Fandom entry');
     assert(Array.isArray(narutoGroup.apiEntries) && narutoGroup.apiEntries.length === 1, 'Grouped source should include cached API queries');
+    assert(narutoGroup.updatedAt === Date.parse('2026-04-04T09:10:00.000Z'), 'Grouped source should use API cache updatedAt when it is freshest');
 
     const foundGroup = await ctx.findSourceCacheGroup('Alpha', ['Narutopedia', 'naruto']);
     assert(foundGroup && foundGroup.id === narutoGroup.id, 'Grouped source lookup should match aliases across wiki/fandom/API identities');

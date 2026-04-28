@@ -286,6 +286,7 @@ window.EveLinkForm = window.EveLinkForm || {};
             const modalOpen = document.getElementById('addModal')?.style?.display === 'flex';
             if (!modalOpen || !editId) return;
             if (String(detail.linkId) !== String(editId)) return;
+            if (ns._localLibraryDraftSync?.linkId === String(editId)) return;
 
             const entry = detail.entry || null;
             if (!entry) return;

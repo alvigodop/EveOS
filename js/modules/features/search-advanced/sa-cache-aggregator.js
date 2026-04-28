@@ -141,6 +141,118 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         ).trim() || 'main';
     }
 
+    function normalizePoolEntries(pool) {
+        if (!pool || typeof pool !== 'object') return [];
+
+        const queryEntries = pool.queries && typeof pool.queries === 'object'
+            ? pool.queries
+            : pool;
+        const orderedKeys = [];
+        const seen = new Set();
+
+        (Array.isArray(pool.order) ? pool.order : []).forEach(function (queryKey) {
+            const key = String(queryKey || '').trim();
+            if (!key || seen.has(key) || !queryEntries[key]) return;
+            seen.add(key);
+            orderedKeys.push(key);
+        });
+
+        Object.keys(queryEntries).forEach(function (queryKey) {
+            if (queryKey === 'queries' || queryKey === 'order' || queryKey.charAt(0) === '_') return;
+            if (!queryEntries[queryKey] || seen.has(queryKey)) return;
+            seen.add(queryKey);
+            orderedKeys.push(queryKey);
+        });
+
+        return orderedKeys.map(function (queryKey) {
+            const entry = queryEntries[queryKey];
+            if (!entry || typeof entry !== 'object') return null;
+            return { queryKey: queryKey, entry: entry };
+        }).filter(Boolean);
+    }
+
+    function getResultTitle(result) {
+        return String(
+            result?.title
+            || result?.name
+            || result?.attributes?.title?.en
+            || result?.attributes?.title?.ja
+            || result?.node?.title?.userPreferred
+            || result?.volumeInfo?.title
+            || 'Untitled'
+        ).trim() || 'Untitled';
+    }
+
+    function getResultUrl(result) {
+        return String(
+            result?.url
+            || result?.link
+            || result?.siteUrl
+            || result?.html_url
+            || result?.attributes?.url
+            || ''
+        ).trim();
+    }
+
+    function getResultDescription(result) {
+        return String(
+            result?.description
+            || result?.snippet
+            || result?.synopsis
+            || result?.attributes?.description?.en
+            || result?.attributes?.description
+            || result?.volumeInfo?.description
+            || ''
+        ).trim();
+    }
+
+    function safeStringify(value) {
+        try {
+            return JSON.stringify(value);
+        } catch (error) {
+            return '';
+        }
+    }
+
+    function normalizeCachedResult(result, providerKey) {
+        const item = result && typeof result === 'object' ? result : { title: String(result || '') };
+        return Object.assign({}, item, {
+            title: getResultTitle(item),
+            url: getResultUrl(item),
+            description: getResultDescription(item),
+            _searchText: safeStringify(item),
+            source: String(item.source || item.provider || providerKey || 'unknown').trim() || 'unknown',
+            provider: String(item.provider || item.source || providerKey || 'unknown').trim() || 'unknown'
+        });
+    }
+
+    function extractCachedResults(entry) {
+        if (Array.isArray(entry?.results)) {
+            return entry.results.map(function (result) {
+                return normalizeCachedResult(result, result?.source || result?.provider);
+            });
+        }
+
+        const cacheRuntime = window.EveOS?.API?.CacheRuntime || {};
+        const sources = entry?.sources && typeof entry.sources === 'object' ? entry.sources : {};
+        const perSource = entry?.summary?.perSource || {};
+        const providerKeys = cacheRuntime.getSearchableProviderKeys
+            ? cacheRuntime.getSearchableProviderKeys()
+            : Object.keys(perSource);
+        const results = [];
+
+        providerKeys.forEach(function (providerKey) {
+            const items = cacheRuntime.getProviderList
+                ? cacheRuntime.getProviderList(sources, providerKey)
+                : [];
+            (Array.isArray(items) ? items : []).forEach(function (item) {
+                results.push(normalizeCachedResult(item, providerKey));
+            });
+        });
+
+        return results;
+    }
+
     async function aggregateAllCaches(scope) {
         if (!Cache || typeof Cache.loadPool !== 'function') {
             return { entries: [], stats: { totalEntries: 0, totalProviders: 0, cardCount: 0 } };
@@ -156,19 +268,23 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 const pool = await Cache.loadPool(categoryName);
                 if (!pool || typeof pool !== 'object') continue;
 
-                const queries = Object.keys(pool);
-                queries.forEach(function (queryKey) {
-                    const entry = pool[queryKey];
-                    if (!entry || typeof entry !== 'object') return;
+                normalizePoolEntries(pool).forEach(function (record) {
+                    const queryKey = record.queryKey;
+                    const entry = record.entry;
                     const sources = entry.summary?.perSource || {};
+                    const cachedResults = extractCachedResults(entry);
                     Object.keys(sources).forEach(function (provider) {
                         if (Number(sources[provider] || 0) > 0) providerSet.add(provider);
+                    });
+                    cachedResults.forEach(function (result) {
+                        const provider = String(result?.source || result?.provider || '').trim();
+                        if (provider) providerSet.add(provider);
                     });
                     allEntries.push({
                         query: String(entry.query || queryKey || '').trim(),
                         categoryName: categoryName,
-                        updatedAt: Number(entry.updatedAt || entry.createdAt || 0),
-                        results: Array.isArray(entry.results) ? entry.results : [],
+                        updatedAt: Number(entry.lastUsedAt || entry.updatedAt || entry.createdAt || 0),
+                        results: cachedResults,
                         summary: entry.summary || {},
                         perSource: sources
                     });
@@ -208,22 +324,27 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             const results = Array.isArray(entry.results) ? entry.results : [];
             results.forEach(function (result) {
                 if (!result) return;
-                const title = String(result.title || '').toLowerCase();
-                const url = String(result.url || result.link || '').toLowerCase();
-                const description = String(result.description || result.snippet || '').toLowerCase();
+                const titleText = getResultTitle(result);
+                const urlText = getResultUrl(result);
+                const descriptionText = getResultDescription(result);
+                const title = titleText.toLowerCase();
+                const url = urlText.toLowerCase();
+                const description = descriptionText.toLowerCase();
+                const rawText = String(result.searchableText || result._searchText || '').toLowerCase();
 
                 const isMatch = queryMatch
                     || title.includes(q)
                     || url.includes(q)
-                    || description.includes(q);
+                    || description.includes(q)
+                    || rawText.includes(q);
 
                 if (isMatch) {
                     matches.push({
                         type: 'cached',
-                        title: result.title || result.name || 'Untitled',
-                        url: result.url || result.link || '',
-                        displayUrl: result.displayUrl || result.formattedUrl || result.url || result.link || '',
-                        description: result.description || result.snippet || '',
+                        title: titleText,
+                        url: urlText,
+                        displayUrl: result.displayUrl || result.formattedUrl || urlText,
+                        description: descriptionText,
                         provider: result.source || result.provider || 'unknown',
                         sourceCard: entry.categoryName,
                         sourceQuery: entry.query,

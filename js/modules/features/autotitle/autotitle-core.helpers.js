@@ -83,6 +83,7 @@ window.EveOS.Autotitle = window.EveOS.Autotitle || {};
 
         const isBrowserHtmlMode = window.location?.protocol === 'file:';
         const allowSlowCover = !!options.allowSlowCover;
+        const fastTitleOnly = !!(options.fastTitleOnly || options.fastTitle || options.skipSlowFallbacks);
         const strongCoverThreshold = Number(options.coverStrengthThreshold || 80);
         let parsedUrl = null;
         try {
@@ -95,6 +96,7 @@ window.EveOS.Autotitle = window.EveOS.Autotitle || {};
             strats,
             isBrowserHtmlMode,
             allowSlowCover,
+            fastTitleOnly,
             strongCoverThreshold,
             parsedUrl,
             isMangaFireHost: /(^|\.)mangafire\.to$/i.test(parsedUrl?.hostname || ''),
@@ -115,6 +117,7 @@ window.EveOS.Autotitle = window.EveOS.Autotitle || {};
             camofoxAttempted: false
         };
 
+        ctx.strategyTimeout = (standardMs, fastMs) => Number(ctx.fastTitleOnly ? (fastMs || standardMs) : standardMs);
         ctx.hasStrongCoverResult = (result) => ctx.scoreCoverUrl(result?.coverUrl, ctx.url) >= ctx.strongCoverThreshold;
         ctx.needsCoverUpgrade = (result) => ctx.allowSlowCover && (!result?.coverUrl || !ctx.hasStrongCoverResult(result));
         ctx.normalizeLightpandaResult = createBridgeResultNormalizer(ctx.url, ctx.normalizeAutotitleResult, 'Lightpanda', 'lightpandaBlocked');

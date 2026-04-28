@@ -5,6 +5,13 @@ window.EveOS.Autotitle = window.EveOS.Autotitle || {};
     const runtime = ns.RuntimeCore = ns.RuntimeCore || {};
     if (runtime.browserLoaded) return;
 
+    function hasUsableFastTitle(ctx, result) {
+        return !!(ctx.fastTitleOnly
+            && result?.title
+            && result.title !== 'CLOUDFLARE_BLOCK'
+            && !ctx.looksLikeGenericSiteName(result.title, ctx.url));
+    }
+
     async function runBrowserHtmlStrategies(ctx) {
         if (!ctx.isBrowserHtmlMode) return null;
 
@@ -41,9 +48,12 @@ window.EveOS.Autotitle = window.EveOS.Autotitle || {};
         }
 
         if (ctx.strats.MangaDexApi) {
-            const mangaDexApiResult = ctx.normalizeAutotitleResult(await ctx.runStrategy(ctx.strats.MangaDexApi, 5000), ctx.url);
+            const mangaDexApiResult = ctx.normalizeAutotitleResult(await ctx.runStrategy(ctx.strats.MangaDexApi, ctx.strategyTimeout(5000, 3500)), ctx.url);
             if (mangaDexApiResult) {
                 ctx.primaryResult = ctx.mergeAutotitleMetadata(ctx.primaryResult, mangaDexApiResult, ctx.url);
+                if (hasUsableFastTitle(ctx, mangaDexApiResult)) {
+                    return mangaDexApiResult;
+                }
                 if (mangaDexApiResult.title && mangaDexApiResult.coverUrl) {
                     return mangaDexApiResult;
                 }
@@ -52,11 +62,14 @@ window.EveOS.Autotitle = window.EveOS.Autotitle || {};
 
         if (ctx.strats.GoogleSearch && !ctx.isVideoOrContentSite(ctx.url)) {
             console.log('Autotitle: Browser HTML mode detected. Trying MicroLink early...');
-            const earlyMicro = ctx.normalizeAutotitleResult(await ctx.runStrategy(ctx.strats.GoogleSearch, 7000), ctx.url);
+            const earlyMicro = ctx.normalizeAutotitleResult(await ctx.runStrategy(ctx.strats.GoogleSearch, ctx.strategyTimeout(7000, 3500)), ctx.url);
             if (!ctx.primaryResult && earlyMicro) {
                 ctx.primaryResult = ctx.mergeAutotitleMetadata(ctx.primaryResult, earlyMicro, ctx.url);
             } else if (earlyMicro) {
                 runtime.mergeIntoPrimaryResult(ctx, earlyMicro);
+            }
+            if (hasUsableFastTitle(ctx, earlyMicro)) {
+                return earlyMicro;
             }
             if (!ctx.allowSlowCover && earlyMicro?.title && !ctx.looksLikeGenericSiteName(earlyMicro.title, ctx.url) && earlyMicro.coverUrl && !ctx.primaryResult?.source?.includes?.('MangaDexAPI')) {
                 return earlyMicro;
@@ -84,16 +97,19 @@ window.EveOS.Autotitle = window.EveOS.Autotitle || {};
         }
 
         if (ctx.strats.LinkMeta) {
-            const earlyLinkMeta = ctx.normalizeAutotitleResult(await ctx.runStrategy(ctx.strats.LinkMeta, 5000), ctx.url);
+            const earlyLinkMeta = ctx.normalizeAutotitleResult(await ctx.runStrategy(ctx.strats.LinkMeta, ctx.strategyTimeout(5000, 3000)), ctx.url);
             if (earlyLinkMeta) {
                 ctx.primaryResult = ctx.mergeAutotitleMetadata(ctx.primaryResult, earlyLinkMeta, ctx.url);
+                if (hasUsableFastTitle(ctx, earlyLinkMeta)) {
+                    return earlyLinkMeta;
+                }
                 if (!ctx.allowSlowCover && earlyLinkMeta.title && !ctx.looksLikeGenericSiteName(earlyLinkMeta.title, ctx.url) && earlyLinkMeta.coverUrl) {
                     return earlyLinkMeta;
                 }
             }
         }
 
-        if (ctx.strats.Lightpanda && (!ctx.primaryResult || ctx.primaryResult.isFallback || ctx.primaryResult.title === 'CLOUDFLARE_BLOCK' || ctx.looksLikeGenericSiteName(ctx.primaryResult.title, ctx.url) || ctx.needsCoverUpgrade(ctx.primaryResult))) {
+        if (!ctx.fastTitleOnly && ctx.strats.Lightpanda && (!ctx.primaryResult || ctx.primaryResult.isFallback || ctx.primaryResult.title === 'CLOUDFLARE_BLOCK' || ctx.looksLikeGenericSiteName(ctx.primaryResult.title, ctx.url) || ctx.needsCoverUpgrade(ctx.primaryResult))) {
             console.log('Autotitle: Trying Lightpanda early before proxy fallbacks...');
             try {
                 ctx.lightpandaAttempted = true;
@@ -114,7 +130,7 @@ window.EveOS.Autotitle = window.EveOS.Autotitle || {};
             }
         }
 
-        if (ctx.strats.Camofox && (!ctx.primaryResult || ctx.primaryResult.isFallback || ctx.primaryResult.title === 'CLOUDFLARE_BLOCK' || ctx.looksLikeGenericSiteName(ctx.primaryResult.title, ctx.url) || ctx.needsCoverUpgrade(ctx.primaryResult))) {
+        if (!ctx.fastTitleOnly && ctx.strats.Camofox && (!ctx.primaryResult || ctx.primaryResult.isFallback || ctx.primaryResult.title === 'CLOUDFLARE_BLOCK' || ctx.looksLikeGenericSiteName(ctx.primaryResult.title, ctx.url) || ctx.needsCoverUpgrade(ctx.primaryResult))) {
             console.log('Autotitle: Trying Camofox after Lightpanda...');
             try {
                 ctx.camofoxAttempted = true;

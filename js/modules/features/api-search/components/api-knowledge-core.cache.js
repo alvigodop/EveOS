@@ -272,7 +272,7 @@ window.EveOS.API = window.EveOS.API || {};
             if (!group.wikipediaEntry && !group.fandomEntry) {
                 group.title = String(entry.query || group.title).trim();
             }
-            const entryTs = Number(entry.timestamp || 0);
+            const entryTs = Number(entry.lastUsedAt || entry.updatedAt || entry.timestamp || entry.createdAt || 0);
             group.updatedAt = Math.max(Number(group.updatedAt || 0), entryTs);
         });
 

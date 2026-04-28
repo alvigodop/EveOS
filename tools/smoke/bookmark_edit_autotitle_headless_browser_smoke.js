@@ -33,12 +33,15 @@ async function main() {
             };
 
             let baseCalls = 0;
+            let slowBaseCalls = 0;
             let headlessCalls = 0;
+            let lastBaseOptions = null;
             const originalGetTitleFromUrl = window.getTitleFromUrl;
             const originalGetTitleFromUrlHeadless = window.getTitleFromUrlHeadless;
 
-            window.getTitleFromUrl = async function () {
+            window.getTitleFromUrl = async function (url, options) {
                 baseCalls += 1;
+                lastBaseOptions = JSON.parse(JSON.stringify(options || {}));
                 return {
                     title: 'Correct Title',
                     source: 'Lightpanda',
@@ -66,16 +69,41 @@ async function main() {
                 throw new Error('Auto-fetch button not found');
             }
 
+            await window.fetchTitle(button);
+            const fastDefault = {
+                baseCalls,
+                headlessCalls,
+                lastBaseOptions,
+                title: document.getElementById('newTitle').value,
+                coverUrl: document.getElementById('newCoverImage').value
+            };
+
+            document.getElementById('newTitle').value = '';
+            document.getElementById('newCoverImage').value = '';
+            button.dataset.allowSlowAutotitle = 'true';
+            window.getTitleFromUrl = async function (url, options) {
+                slowBaseCalls += 1;
+                lastBaseOptions = JSON.parse(JSON.stringify(options || {}));
+                return {
+                    title: 'Correct Title',
+                    source: 'Lightpanda',
+                    isFallback: false,
+                    coverUrl: 'https://example.com/thumbs/preview-small.jpg'
+                };
+            };
+
             try {
                 await window.fetchTitle(button);
             } finally {
+                delete button.dataset.allowSlowAutotitle;
                 window.getTitleFromUrl = originalGetTitleFromUrl;
                 window.getTitleFromUrlHeadless = originalGetTitleFromUrlHeadless;
                 window.showToast = originalShowToast;
             }
 
             return {
-                baseCalls,
+                fastDefault,
+                slowBaseCalls,
                 headlessCalls,
                 title: document.getElementById('newTitle').value,
                 coverUrl: document.getElementById('newCoverImage').value,
@@ -83,8 +111,20 @@ async function main() {
             };
         });
 
-        if (result.baseCalls !== 1) {
-            throw new Error(`Expected one base autotitle call, saw ${result.baseCalls}`);
+        if (result.fastDefault.baseCalls !== 1) {
+            throw new Error(`Expected one default base autotitle call, saw ${result.fastDefault.baseCalls}`);
+        }
+        if (result.fastDefault.headlessCalls !== 0) {
+            throw new Error(`Expected default auto-title to avoid headless follow-up, saw ${result.fastDefault.headlessCalls}`);
+        }
+        if (!result.fastDefault.lastBaseOptions?.fastTitleOnly || result.fastDefault.lastBaseOptions?.allowSlowCover) {
+            throw new Error(`Expected default auto-title to request fast title mode, saw ${JSON.stringify(result.fastDefault.lastBaseOptions)}`);
+        }
+        if (result.fastDefault.title !== 'Correct Title') {
+            throw new Error(`Expected fast default title to populate, saw ${result.fastDefault.title}`);
+        }
+        if (result.slowBaseCalls !== 1) {
+            throw new Error(`Expected one slow opt-in base autotitle call, saw ${result.slowBaseCalls}`);
         }
         if (result.headlessCalls !== 1) {
             throw new Error(`Expected one headless follow-up call, saw ${result.headlessCalls}`);

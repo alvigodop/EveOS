@@ -21,6 +21,7 @@ window.fetchTitle = async function (btn) {
     btn.disabled = true;
 
     try {
+        const allowSlowEnrichment = btn?.dataset?.allowSlowAutotitle === 'true';
         const utils = window.EveOS?.Autotitle?.CoreUtils || {};
         const isWeakAutotitleResult = typeof utils.isWeakAutotitleResult === 'function'
             ? utils.isWeakAutotitleResult
@@ -38,12 +39,16 @@ window.fetchTitle = async function (btn) {
             ? utils.isClearlyBetterTitle
             : ((candidate, primary) => !!candidate?.title && (!primary?.title || String(candidate.title).length > String(primary.title || '').length));
 
-        const baseData = await window.getTitleFromUrl(url, { allowSlowCover: true });
+        const baseData = await window.getTitleFromUrl(url, {
+            allowSlowCover: allowSlowEnrichment,
+            fastTitleOnly: !allowSlowEnrichment
+        });
         let data = baseData;
         let headlessFollowup = null;
         const currentCoverScore = scoreCoverUrl(data?.coverUrl, url);
 
-        const shouldEscalateToHeadless = window.location?.protocol === 'file:'
+        const shouldEscalateToHeadless = allowSlowEnrichment
+            && window.location?.protocol === 'file:'
             && typeof window.getTitleFromUrlHeadless === 'function'
             && (!data || isWeakAutotitleResult(data, url) || !data.coverUrl || currentCoverScore < 80)
             && data?.source !== 'Camofox';

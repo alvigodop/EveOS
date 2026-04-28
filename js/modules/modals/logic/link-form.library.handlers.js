@@ -56,7 +56,19 @@ window.EveLinkForm = window.EveLinkForm || {};
                 clearTimeout(liveSyncTimer);
                 liveSyncTimer = setTimeout(function () {
                     const patch = patchFactory();
-                    api.updateLinkedEntry?.(editId, patch);
+                    ns._localLibraryDraftSync = {
+                        linkId: String(editId),
+                        startedAt: Date.now()
+                    };
+                    try {
+                        api.updateLinkedEntry?.(editId, patch);
+                    } finally {
+                        setTimeout(function () {
+                            if (ns._localLibraryDraftSync?.linkId === String(editId)) {
+                                ns._localLibraryDraftSync = null;
+                            }
+                        }, 0);
+                    }
                 }, 150);
             };
 
@@ -67,18 +79,12 @@ window.EveLinkForm = window.EveLinkForm || {};
                     syncing = true;
                     libraryUrlInput.value = bookmarkUrlInput.value;
                     syncing = false;
-                    pushLivePatchToLinkedEntry(function () {
-                        return { sourceUrl: (libraryUrlInput.value || '').trim() };
-                    });
                 };
                 libraryUrlInput.oninput = function () {
                     if (syncing) return;
                     syncing = true;
                     bookmarkUrlInput.value = libraryUrlInput.value;
                     syncing = false;
-                    pushLivePatchToLinkedEntry(function () {
-                        return { sourceUrl: (libraryUrlInput.value || '').trim() };
-                    });
                 };
             }
 
