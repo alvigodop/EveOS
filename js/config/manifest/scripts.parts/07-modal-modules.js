@@ -36,7 +36,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/modals/modal-category-settings.folders.render-state.js?v=0.2.1",
     "js/modules/modals/modal-category-settings.folders.rows.js?v=0.2.1",
     "js/modules/modals/modal-category-settings.folders.panel.js?v=0.2.1",
-    "js/modules/modals/modal-category-settings.folders.form.js?v=0.2.1",
+    "js/modules/modals/modal-category-settings.folders.form.js?v=0.2.2",
     "js/modules/modals/modal-category-settings.folders.js?v=0.3.0",
     "js/modules/modals/modal-category-settings.actions.js?v=0.2.2",
     "js/modules/modals/modal-category-settings.helpers.js?v=0.3.0",

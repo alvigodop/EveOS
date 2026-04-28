@@ -18,6 +18,23 @@
         return draftWorkspace || getCategorySettingsWorkspaceId();
     }
 
+    function ensureFolderCreatorModal() {
+        if (!document.getElementById('bookmarkFolderCreatorModal') && typeof initModals === 'function') {
+            initModals();
+        }
+        return document.getElementById('bookmarkFolderCreatorModal');
+    }
+
+    function requestFolderDashboardRefresh(workspaceId, categoryName) {
+        if (window.EveFolderViewV2?.invalidateCachedViewModel) {
+            window.EveFolderViewV2.invalidateCachedViewModel(workspaceId, categoryName);
+        }
+        if (typeof window.renderDashboard === 'function') {
+            window.__eveDashboardRenderHint = { kind: 'data-mutation' };
+            window.renderDashboard();
+        }
+    }
+
     function renderCategoryFolderCreateForm(preferredParentId) {
         const folderApi = getFolderApi();
         const categoryName = getFolderDraftCategoryName();
@@ -69,7 +86,7 @@
     window.openFolderCreator = function (categoryName, parentId, workspaceId) {
         const resolvedCategory = String(categoryName || window.currentCategoryCtx || 'Unsorted').trim() || 'Unsorted';
         const resolvedWorkspace = String(workspaceId || '').trim() || getCategorySettingsWorkspaceId();
-        const modal = document.getElementById('bookmarkFolderCreatorModal');
+        const modal = ensureFolderCreatorModal();
         setFolderDraft({
             mode: 'create',
             categoryName: resolvedCategory,
@@ -96,7 +113,7 @@
         const target = folderApi?.getFolderById?.(resolvedWorkspace, resolvedCategory, folderId);
         if (!target) return;
 
-        const modal = document.getElementById('bookmarkFolderCreatorModal');
+        const modal = ensureFolderCreatorModal();
         setFolderDraft({
             mode: 'rename',
             categoryName: resolvedCategory,
@@ -184,6 +201,7 @@
             if (isCategorySettingsVisibleFor(categoryName)) {
                 window.renderCategoryFolderManager();
             }
+            requestFolderDashboardRefresh(workspaceId, categoryName);
             window.closeBookmarkFolderCreatorModal();
             return true;
         }
@@ -209,6 +227,7 @@
         if (isCategorySettingsVisibleFor(categoryName)) {
             window.renderCategoryFolderManager();
         }
+        requestFolderDashboardRefresh(workspaceId, categoryName);
         window.closeBookmarkFolderCreatorModal();
         return true;
     };

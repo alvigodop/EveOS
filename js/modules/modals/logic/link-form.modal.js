@@ -44,6 +44,26 @@ window.EveLinkForm = window.EveLinkForm || {};
             : '<div style="opacity:0.5; font-size:0.9rem;">No sources attached.</div>';
     }
 
+    function bindAddModalOverlayClose(addModal) {
+        if (!addModal || addModal.dataset.overlayCloseBound === '1') return;
+        addModal.dataset.overlayCloseBound = '1';
+
+        addModal.addEventListener('pointerdown', (event) => {
+            addModal.dataset.overlayPointerStarted = event.target === addModal ? '1' : '0';
+        });
+
+        addModal.addEventListener('click', (event) => {
+            const startedOnOverlay = addModal.dataset.overlayPointerStarted === '1';
+            addModal.dataset.overlayPointerStarted = '0';
+            if (event.target !== addModal || !startedOnOverlay) return;
+            if (typeof window.closeModals === 'function') {
+                window.closeModals();
+            } else {
+                addModal.style.display = 'none';
+            }
+        });
+    }
+
     function ensureAddModalElements() {
         if (!document.getElementById('addModal') && typeof initModals === 'function') {
             initModals();
@@ -69,7 +89,10 @@ window.EveLinkForm = window.EveLinkForm || {};
         const missing = Object.entries(elements)
             .filter(([, el]) => !el)
             .map(([name]) => name);
-        if (!missing.length) return elements;
+        if (!missing.length) {
+            bindAddModalOverlayClose(elements.addModal);
+            return elements;
+        }
 
         console.warn(`[LinkForm] Missing modal elements: ${missing.join(', ')}`);
         if (typeof showToast === 'function') {

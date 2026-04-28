@@ -11,11 +11,18 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         const toolbarExpanded = !!folderApi?.isToolbarExpanded?.(workspaceId, categoryName);
         const toolbarHtml = ''
             + `<div class="bookmark-folder-toolbar${toolbarExpanded ? ' is-visible' : ''}">`
-            + `<button type="button" class="bookmark-folder-toolbar-btn" onclick="promptCreateBookmarkFolder('${escapeCardJs(categoryName)}', '')">New Folder</button>`
+            + `<button type="button" class="bookmark-folder-toolbar-btn" onclick="promptCreateBookmarkFolder('${escapeCardJs(categoryName)}', '', '${escapeCardJs(workspaceId)}')">New Folder</button>`
             + `<button type="button" class="bookmark-folder-toolbar-btn" onclick="openBookmarkFolders('${escapeCardJs(categoryName)}')">Manage Folders</button>`
             + '</div>';
 
-        const dropTargetAttr = `ondragover="if(typeof allowDrop==='function')allowDrop(event)" ondrop="event.currentTarget.classList.remove('active'); if(typeof window.EveFolderViewV2.handleFolderDrop==='function') window.EveFolderViewV2.handleFolderDrop(event, '${escapeCardJs(categoryName)}', '', '${escapeCardJs(workspaceId)}')" ondragenter="event.currentTarget.classList.add('active')" ondragleave="event.currentTarget.classList.remove('active')"`;
+        const rootHoverOn = "if(window.setBookmarkFolderDropHover)window.setBookmarkFolderDropHover(event,'active',true);else event.currentTarget.classList.add('active');";
+        const rootHoverOff = "if(window.setBookmarkFolderDropHover)window.setBookmarkFolderDropHover(event,'active',false);else event.currentTarget.classList.remove('active');";
+        const rootHoverClear = "if(window.clearBookmarkFolderDropHovers)window.clearBookmarkFolderDropHovers();else event.currentTarget.classList.remove('active');";
+        const tileHoverOn = "if(window.setBookmarkFolderDropHover)window.setBookmarkFolderDropHover(event,'folder-tile-drag-hover',true);else event.currentTarget.classList.add('folder-tile-drag-hover');";
+        const tileHoverOff = "if(window.setBookmarkFolderDropHover)window.setBookmarkFolderDropHover(event,'folder-tile-drag-hover',false);else event.currentTarget.classList.remove('folder-tile-drag-hover');";
+        const tileHoverClear = "if(window.clearBookmarkFolderDropHovers)window.clearBookmarkFolderDropHovers();else event.currentTarget.classList.remove('folder-tile-drag-hover');";
+
+        const dropTargetAttr = `ondragover="if(typeof allowDrop==='function')allowDrop(event);${rootHoverOn}" ondrop="${rootHoverClear} if(typeof window.EveFolderViewV2.handleFolderDrop==='function') window.EveFolderViewV2.handleFolderDrop(event, '${escapeCardJs(categoryName)}', '', '${escapeCardJs(workspaceId)}')" ondragenter="${rootHoverOn}" ondragleave="${rootHoverOff}"`;
 
         // Section stats helper
         const isCardTaskMode = typeof folderApi?.isCardTaskEnabled === 'function'
@@ -51,7 +58,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
 
             html += `<div class="folder-wrap-grid">${topLevelFolders.map((folder) => {
                 const isGhost = !!folder.isGhost;
-                const folderDropAttr = isGhost ? '' : `ondragover="if(typeof allowDrop==='function')allowDrop(event)" ondrop="event.currentTarget.classList.remove('folder-tile-drag-hover'); if(typeof window.EveFolderViewV2.handleFolderDrop==='function') window.EveFolderViewV2.handleFolderDrop(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(folder.id)}', '${escapeCardJs(workspaceId)}')" ondragenter="event.currentTarget.classList.add('folder-tile-drag-hover')" ondragleave="event.currentTarget.classList.remove('folder-tile-drag-hover')"`;
+                const folderDropAttr = isGhost ? '' : `ondragover="if(typeof allowDrop==='function')allowDrop(event);${tileHoverOn}" ondrop="${tileHoverClear} if(typeof window.EveFolderViewV2.handleFolderDrop==='function') window.EveFolderViewV2.handleFolderDrop(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(folder.id)}', '${escapeCardJs(workspaceId)}')" ondragenter="${tileHoverOn}" ondragleave="${tileHoverOff}"`;
                 const dragStartAttr = isGhost ? '' : `draggable="true" ondragstart="if(typeof window.EveFolderViewV2.handleFolderDragStart==='function') window.EveFolderViewV2.handleFolderDragStart(event, '${escapeCardJs(folder.id)}', '${escapeCardJs(categoryName)}', '${escapeCardJs(workspaceId)}')" ondragend="this.classList.remove('is-dragging')"`;
                 const matchCount = viewModel.folderLinks.get(folder.id)?.length || 0;
                 const childCount = (viewModel.childrenMap.get(folder.id) || []).length;

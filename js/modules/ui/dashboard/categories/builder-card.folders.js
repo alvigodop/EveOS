@@ -66,22 +66,25 @@ window.DashboardCategories = window.DashboardCategories || {};
             if (readOnlyFolders) return '';
             const safeFolderId = escapeCardJs(targetFolderId || '');
             const safeDetachedEntryId = escapeCardJs(detachedEntryId || '');
+            const hoverOn = "if(window.setBookmarkFolderDropHover)window.setBookmarkFolderDropHover(event,'bookmark-folder-drop-target',true);";
+            const hoverOff = "if(window.setBookmarkFolderDropHover)window.setBookmarkFolderDropHover(event,'bookmark-folder-drop-target',false);else event.currentTarget.classList.remove('bookmark-folder-drop-target');";
+            const hoverClear = "if(window.clearBookmarkFolderDropHovers)window.clearBookmarkFolderDropHovers();else event.currentTarget.classList.remove('bookmark-folder-drop-target');";
             if (isDetachedParkingCard) {
                 if (!safeDetachedEntryId) {
-                    return 'ondragover="allowDrop(event)" '
-                        + 'ondrop="event.currentTarget.classList.remove(\'bookmark-folder-drop-target\'); if(window.EveConstellationMap&&window.EveConstellationMap._detached&&typeof window.EveConstellationMap._detached.handleDashboardParkingDrop===\'function\') window.EveConstellationMap._detached.handleDashboardParkingDrop(event, \'' + safeWorkspaceJs + '\')"'
-                        + ' ondragenter="event.currentTarget.classList.add(\'bookmark-folder-drop-target\')"'
-                        + ' ondragleave="event.currentTarget.classList.remove(\'bookmark-folder-drop-target\')"';
+                    return `ondragover="allowDrop(event);${hoverOn}" `
+                        + `ondrop="${hoverClear} if(window.EveConstellationMap&&window.EveConstellationMap._detached&&typeof window.EveConstellationMap._detached.handleDashboardParkingDrop==='function') window.EveConstellationMap._detached.handleDashboardParkingDrop(event, '${safeWorkspaceJs}')"`
+                        + ` ondragenter="${hoverOn}"`
+                        + ` ondragleave="${hoverOff}"`;
                 }
-                return 'ondragover="allowDrop(event)" '
-                    + `ondrop="event.currentTarget.classList.remove('bookmark-folder-drop-target'); if(window.EveConstellationMap&&window.EveConstellationMap._detached&&typeof window.EveConstellationMap._detached.handleDashboardDetachedFolderDrop==='function') window.EveConstellationMap._detached.handleDashboardDetachedFolderDrop(event, '${safeDetachedEntryId}', '${safeFolderId}')"`
-                    + ' ondragenter="event.currentTarget.classList.add(\'bookmark-folder-drop-target\')"'
-                    + ' ondragleave="event.currentTarget.classList.remove(\'bookmark-folder-drop-target\')"';
+                return `ondragover="allowDrop(event);${hoverOn}" `
+                    + `ondrop="${hoverClear} if(window.EveConstellationMap&&window.EveConstellationMap._detached&&typeof window.EveConstellationMap._detached.handleDashboardDetachedFolderDrop==='function') window.EveConstellationMap._detached.handleDashboardDetachedFolderDrop(event, '${safeDetachedEntryId}', '${safeFolderId}')"`
+                    + ` ondragenter="${hoverOn}"`
+                    + ` ondragleave="${hoverOff}"`;
             }
-            return 'ondragover="allowDrop(event)" '
-                + `ondrop="event.currentTarget.classList.remove('bookmark-folder-drop-target'); moveBookmarksToFolderDrop(event, '${safeCategoryJs}', '${safeFolderId}', '${safeWorkspaceJs}')"`
-                + ' ondragenter="event.currentTarget.classList.add(\'bookmark-folder-drop-target\')"'
-                + ' ondragleave="event.currentTarget.classList.remove(\'bookmark-folder-drop-target\')"';
+            return `ondragover="allowDrop(event);${hoverOn}" `
+                + `ondrop="${hoverClear} moveBookmarksToFolderDrop(event, '${safeCategoryJs}', '${safeFolderId}', '${safeWorkspaceJs}')"`
+                + ` ondragenter="${hoverOn}"`
+                + ` ondragleave="${hoverOff}"`;
         }
 
         // Section-scoped stats helper

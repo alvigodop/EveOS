@@ -68,6 +68,18 @@ async function main() {
 
                 const saved = JSON.parse(JSON.stringify(window.links[0]));
                 window.openEdit(saved.id);
+                const modal = document.getElementById('addModal');
+                const modalInner = modal?.querySelector('.modal');
+                if (!modal || !modalInner || modal.style.display !== 'flex') {
+                    throw new Error('Edit modal was not open before overlay assertions');
+                }
+
+                modalInner.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                const displayAfterInsideClick = modal.style.display;
+
+                modal.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
+                modal.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                const displayAfterOverlayClick = modal.style.display;
 
                 return {
                     saveCalls,
@@ -79,6 +91,8 @@ async function main() {
                     editCover: document.getElementById('newCoverImage')?.value || '',
                     editCoverImages: document.getElementById('newCoverImages')?.value || '',
                     editFixedCover: document.getElementById('newFixedCoverImage')?.value || '',
+                    displayAfterInsideClick,
+                    displayAfterOverlayClick,
                     lastToast: toasts[toasts.length - 1] || null
                 };
             } finally {
@@ -129,6 +143,12 @@ async function main() {
         }
         if (result.editFixedCover !== 'https://example.com/images/alt.jpg') {
             throw new Error(`Expected edit fixed cover to repopulate, saw ${result.editFixedCover}`);
+        }
+        if (result.displayAfterInsideClick !== 'flex') {
+            throw new Error(`Expected inside modal click to keep edit panel open, saw ${result.displayAfterInsideClick}`);
+        }
+        if (result.displayAfterOverlayClick !== 'none') {
+            throw new Error(`Expected overlay click to cancel edit panel, saw ${result.displayAfterOverlayClick}`);
         }
         if (!result.lastToast || result.lastToast.message !== 'Link Saved') {
             throw new Error(`Expected Link Saved toast, saw ${JSON.stringify(result.lastToast)}`);

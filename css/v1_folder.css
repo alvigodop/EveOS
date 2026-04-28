@@ -18,6 +18,15 @@
     mask-composite: intersect;
 }
 
+.manhwa-frame.active,
+.v2-folder-root-container.active {
+    border-color: var(--accent, #0088ff);
+    outline: 1px solid var(--accent, #0088ff)88;
+    outline-offset: 2px;
+    background: radial-gradient(circle at 50% 0%, var(--accent, #0088ff)20 0%, rgba(0, 0, 0, 0.2) 58%, rgba(0, 0, 0, 0.12) 100%);
+    box-shadow: 0 0 0 1px var(--accent, #0088ff)22, 0 12px 28px var(--accent, #0088ff)18, inset 0 0 28px var(--accent, #0088ff)10;
+}
+
 .manhwa-frame-top-beam {
     position: absolute;
     top: 0;
@@ -237,6 +246,23 @@
     border-color: rgba(255, 255, 255, 0.05);
     background: radial-gradient(ellipse at center, var(--accent, #0088ff)20 0%, var(--accent, #0088ff)04 56%, transparent 100%);
     box-shadow: 0 0 14px var(--accent, #0088ff)10, inset 0 0 12px var(--accent, #0088ff)08;
+}
+
+.folder-tile.folder-tile-drag-hover {
+    border-color: var(--accent, #0088ff);
+    background: radial-gradient(ellipse at center, var(--accent, #0088ff)2e 0%, var(--accent, #0088ff)0a 62%, transparent 100%);
+    box-shadow: 0 0 0 1px var(--accent, #0088ff)33, 0 10px 24px var(--accent, #0088ff)18, inset 0 0 18px var(--accent, #0088ff)12;
+}
+
+.folder-tile.folder-tile-drag-hover .folder-tile-left-bar {
+    width: 3px;
+    background: linear-gradient(180deg, transparent 0%, var(--accent, #0088ff) 50%, transparent 100%);
+    box-shadow: 0 0 12px var(--accent, #0088ff);
+}
+
+.folder-tile.folder-tile-drag-hover .folder-tile-title {
+    color: var(--text-main, #fff);
+    text-shadow: 0 0 10px var(--accent, #0088ff);
 }
 
 .folder-tile-left-bar {

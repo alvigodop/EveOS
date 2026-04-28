@@ -17,7 +17,9 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         writeStore,
         buildChildrenMap,
         getLiveLinks,
-        setLiveLinks
+        setLiveLinks,
+        invalidateFolderViewModel,
+        invalidateAllFolderViewModels
     } = shared;
     const { moveFolder } = api;
 
@@ -102,6 +104,10 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
             setLiveLinks(liveLinks);
 
             writeStore(nextStore, true);
+            if (typeof invalidateFolderViewModel === 'function') {
+                invalidateFolderViewModel(sWs, sCat);
+                invalidateFolderViewModel(tWs, tCat);
+            }
             return true;
         } catch (error) {
             return false;
@@ -150,6 +156,7 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
             }
         });
         writeStore(nextStore, false);
+        if (typeof invalidateAllFolderViewModels === 'function') invalidateAllFolderViewModels();
     }
 
     function renameCategoryScope(workspaceId, oldCategoryName, nextCategoryName) {
@@ -180,6 +187,10 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
 
         if (targetKey !== sourceKey) delete nextStore[sourceKey];
         writeStore(nextStore, false);
+        if (typeof invalidateFolderViewModel === 'function') {
+            invalidateFolderViewModel(targetWorkspace, previous);
+            invalidateFolderViewModel(targetWorkspace, next);
+        }
         return true;
     }
 
@@ -191,6 +202,9 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         if (Object.prototype.hasOwnProperty.call(nextStore, scopedKey)) {
             delete nextStore[scopedKey];
             writeStore(nextStore, false);
+            if (typeof invalidateFolderViewModel === 'function') {
+                invalidateFolderViewModel(targetWorkspace, targetCategory);
+            }
             return true;
         }
         return false;
@@ -235,6 +249,10 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
             delete nextStore[sourceKey];
         }
         writeStore(nextStore, false);
+        if (typeof invalidateFolderViewModel === 'function') {
+            invalidateFolderViewModel(sWs, sCat);
+            invalidateFolderViewModel(tWs, tCat);
+        }
     }
 
     function moveWorkspaceTrees(sourceWorkspaceId, targetWorkspaceId) {
@@ -265,6 +283,7 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
             if (nextKey !== key) delete nextStore[key];
         });
         writeStore(nextStore, false);
+        if (typeof invalidateAllFolderViewModels === 'function') invalidateAllFolderViewModels();
     }
 
     Object.assign(api, {

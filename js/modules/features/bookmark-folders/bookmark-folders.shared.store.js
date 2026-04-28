@@ -123,6 +123,50 @@ const CLICK_BEHAVIOR_MODES = new Set(['inherit', 'invert', 'focus_only', 'intern
 
 
 
+    function invalidateFolderViewModel(workspaceId, categoryName) {
+
+        const folderViewApi = window.EveFolderViewV2 || null;
+
+        if (folderViewApi && typeof folderViewApi.invalidateCachedViewModel === 'function') {
+
+            folderViewApi.invalidateCachedViewModel(workspaceId, categoryName);
+
+            return;
+
+        }
+
+        if (folderViewApi && folderViewApi._viewModelCache && typeof folderViewApi._viewModelCache === 'object') {
+
+            delete folderViewApi._viewModelCache[buildScopedKey(workspaceId, categoryName)];
+
+        }
+
+    }
+
+
+
+    function invalidateAllFolderViewModels() {
+
+        const folderViewApi = window.EveFolderViewV2 || null;
+
+        if (folderViewApi && typeof folderViewApi.invalidateAllCachedViewModels === 'function') {
+
+            folderViewApi.invalidateAllCachedViewModels();
+
+            return;
+
+        }
+
+        if (folderViewApi && folderViewApi._viewModelCache && typeof folderViewApi._viewModelCache === 'object') {
+
+            folderViewApi._viewModelCache = {};
+
+        }
+
+    }
+
+
+
     function getToolbarConfigStore() {
 
         if (!window.eveState?.config) return [];
@@ -465,6 +509,8 @@ const CLICK_BEHAVIOR_MODES = new Set(['inherit', 'invert', 'focus_only', 'intern
 
         writeStore(nextStore, persist);
 
+        invalidateFolderViewModel(workspaceId, categoryName);
+
         return nextStore[scopedKey] || { nodes: [], settings: normalizeTreeSettings({}) };
 
     }
@@ -549,6 +595,8 @@ const CLICK_BEHAVIOR_MODES = new Set(['inherit', 'invert', 'focus_only', 'intern
         normalizeTaskMode,
         normalizeTreeSettings,
         buildScopedKey,
+        invalidateFolderViewModel,
+        invalidateAllFolderViewModels,
         getToolbarConfigStore,
         getScopedTreeByKey,
         getScopedTree,

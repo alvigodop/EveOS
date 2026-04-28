@@ -10,7 +10,8 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         normalizeCategoryName,
         normalizeFolderId,
         getLiveLinks,
-        setLiveLinks
+        setLiveLinks,
+        invalidateFolderViewModel
     } = shared;
     const {
         getFolderById,
@@ -45,6 +46,69 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         return dragIds.filter(Boolean);
     }
 
+    const dropHoverTimers = new WeakMap();
+    const dropHoverSelectors = [
+        { selector: '.bookmark-folder-drop-target', className: 'bookmark-folder-drop-target' },
+        { selector: '.folder-tile-drag-hover', className: 'folder-tile-drag-hover' },
+        { selector: '.breadcrumb-drag-hover', className: 'breadcrumb-drag-hover' },
+        { selector: '.v2-folder-root-container.active', className: 'active' },
+        { selector: '.manhwa-frame.active', className: 'active' }
+    ];
+
+    window.setBookmarkFolderDropHover = function (event, className, active) {
+        const target = event?.currentTarget;
+        const hoverClass = String(className || '').trim();
+        if (!target?.classList || !hoverClass) return;
+
+        const existingTimer = dropHoverTimers.get(target);
+        if (existingTimer) {
+            clearTimeout(existingTimer);
+            dropHoverTimers.delete(target);
+        }
+
+        if (active) {
+            target.classList.add(hoverClass);
+            return;
+        }
+
+        const relatedTarget = event?.relatedTarget;
+        if (relatedTarget && target.contains && target.contains(relatedTarget)) return;
+
+        const timer = setTimeout(() => {
+            target.classList.remove(hoverClass);
+            dropHoverTimers.delete(target);
+        }, 80);
+        dropHoverTimers.set(target, timer);
+    };
+
+    window.clearBookmarkFolderDropHovers = function () {
+        dropHoverSelectors.forEach((entry) => {
+            document.querySelectorAll(entry.selector).forEach((element) => {
+                element.classList.remove(entry.className);
+            });
+        });
+    };
+
+    function addTouchedScope(scopes, workspaceId, categoryName) {
+        const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId);
+        const normalizedCategoryName = normalizeCategoryName(categoryName);
+        scopes.set(`${normalizedWorkspaceId}::${normalizedCategoryName}`, {
+            workspaceId: normalizedWorkspaceId,
+            categoryName: normalizedCategoryName
+        });
+    }
+
+    function invalidateTouchedScopes(scopes) {
+        if (!scopes || !scopes.size) return;
+        scopes.forEach((scope) => {
+            if (typeof invalidateFolderViewModel === 'function') {
+                invalidateFolderViewModel(scope.workspaceId, scope.categoryName);
+            } else if (window.EveFolderViewV2?.invalidateCachedViewModel) {
+                window.EveFolderViewV2.invalidateCachedViewModel(scope.workspaceId, scope.categoryName);
+            }
+        });
+    }
+
     function moveLinksToFolderTarget(linkIds, workspaceId, categoryName, folderId, options = {}) {
         const targetWorkspaceId = normalizeWorkspaceId(workspaceId);
         const targetCategoryName = normalizeCategoryName(categoryName);
@@ -56,6 +120,8 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         const liveLinks = getLiveLinks();
         if (!linkIds.length) return false;
         let movedAny = false;
+        const movedIds = [];
+        const touchedScopes = new Map();
         const syncLinked = window.EveLibrary?.ConnectionsAPI?.syncFromLink;
 
         liveLinks.forEach((link) => {
@@ -63,27 +129,44 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
             const nextWorkspaceId = targetWorkspaceId;
             const nextCategoryName = targetCategoryName;
             const currentFolderId = normalizeFolderId(link?.folderId);
-            const alreadyAtTarget = normalizeWorkspaceId(link?.workspace) === nextWorkspaceId
-                && normalizeCategoryName(link?.category) === nextCategoryName
+            const sourceWorkspaceId = normalizeWorkspaceId(link?.workspace);
+            const sourceCategoryName = normalizeCategoryName(link?.category);
+            const alreadyAtTarget = sourceWorkspaceId === nextWorkspaceId
+                && sourceCategoryName === nextCategoryName
                 && currentFolderId === validFolderId;
             if (alreadyAtTarget) return;
 
+            addTouchedScope(touchedScopes, sourceWorkspaceId, sourceCategoryName);
             link.workspace = nextWorkspaceId;
             link.category = nextCategoryName;
             if (validFolderId) link.folderId = validFolderId;
             else delete link.folderId;
             if (typeof syncLinked === 'function') syncLinked(link.id);
+            addTouchedScope(touchedScopes, nextWorkspaceId, nextCategoryName);
+            movedIds.push(String(link.id));
             movedAny = true;
         });
 
         if (movedAny) {
             setLiveLinks(liveLinks);
+            invalidateTouchedScopes(touchedScopes);
+            if (typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
+                window.dispatchEvent(new CustomEvent('eve:bookmark-folder-links-moved', {
+                    detail: {
+                        linkIds: movedIds,
+                        workspaceId: targetWorkspaceId,
+                        categoryName: targetCategoryName,
+                        folderId: validFolderId
+                    }
+                }));
+            }
         }
         if (movedAny && options.persist !== false && typeof saveData === 'function') {
             saveData({
                 skipRender: !!options.skipRender,
                 skipSuggestions: !!options.skipSuggestions,
-                forceRender: true
+                forceRender: true,
+                immediate: options.immediate !== false
             });
         }
 
@@ -132,9 +215,29 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
 
     window.promptCreateBookmarkFolder = function (categoryName, parentId, workspaceId) {
         const resolvedCategory = getActiveCategoryContext(categoryName);
-        if (typeof window.openFolderCreator === 'function') {
-            window.openFolderCreator(resolvedCategory, parentId, workspaceId);
-        }
+        const resolvedParentId = normalizeFolderId(parentId);
+        const resolvedWorkspace = workspaceId ? String(workspaceId).trim() : '';
+        let attempts = 0;
+
+        const openWhenReady = function () {
+            if (!document.getElementById('bookmarkFolderCreatorModal') && typeof initModals === 'function') {
+                initModals();
+            }
+            if (typeof window.openFolderCreator === 'function') {
+                window.openFolderCreator(resolvedCategory, resolvedParentId, resolvedWorkspace);
+                return;
+            }
+            attempts += 1;
+            if (attempts <= 8) {
+                setTimeout(openWhenReady, 50);
+                return;
+            }
+            if (typeof showToast === 'function') {
+                showToast('Folder controls are still loading. Try again in a moment.', 'warning');
+            }
+        };
+
+        openWhenReady();
     };
 
     window.promptRenameBookmarkFolder = function (categoryName, folderId, workspaceId) {

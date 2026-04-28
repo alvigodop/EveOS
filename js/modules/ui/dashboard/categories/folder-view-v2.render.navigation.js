@@ -123,6 +123,12 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         const isCardLinksCollapsed = !!(window.eveState?.config?.linksCollapsed || []).includes(resolvedCategoryName);
         const isFolderSubfoldersCollapsed = !!(window.eveState?.config?.subfoldersCollapsed || []).includes(folderId);
         const isFolderSublinksCollapsed = !!(window.eveState?.config?.sublinksCollapsed || []).includes(folderId);
+        const breadcrumbHoverOn = "if(window.setBookmarkFolderDropHover)window.setBookmarkFolderDropHover(event,'breadcrumb-drag-hover',true);else event.currentTarget.classList.add('breadcrumb-drag-hover');";
+        const breadcrumbHoverOff = "if(window.setBookmarkFolderDropHover)window.setBookmarkFolderDropHover(event,'breadcrumb-drag-hover',false);else event.currentTarget.classList.remove('breadcrumb-drag-hover');";
+        const breadcrumbHoverClear = "if(window.clearBookmarkFolderDropHovers)window.clearBookmarkFolderDropHovers();else event.currentTarget.classList.remove('breadcrumb-drag-hover');";
+        const tileHoverOn = "if(window.setBookmarkFolderDropHover)window.setBookmarkFolderDropHover(event,'folder-tile-drag-hover',true);else event.currentTarget.classList.add('folder-tile-drag-hover');";
+        const tileHoverOff = "if(window.setBookmarkFolderDropHover)window.setBookmarkFolderDropHover(event,'folder-tile-drag-hover',false);else event.currentTarget.classList.remove('folder-tile-drag-hover');";
+        const tileHoverClear = "if(window.clearBookmarkFolderDropHovers)window.clearBookmarkFolderDropHovers();else event.currentTarget.classList.remove('folder-tile-drag-hover');";
 
         const folderHeaderActionsHtml = folderId
             ? `<div class="folder-breadcrumb-actions">`
@@ -149,7 +155,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
             const clickAction = trailEntry.id
                 ? `window.EveFolderViewV2.enterFolder(event, '${escapeCardJs(resolvedCategoryName)}', '${escapeCardJs(trailEntry.id)}', '${escapeCardJs(resolvedWorkspaceId)}')`
                 : `window.EveFolderViewV2.exitFolder(event, '${escapeCardJs(resolvedCategoryName)}', '${escapeCardJs(resolvedWorkspaceId)}')`;
-            const dropAction = `ondragover="if(typeof allowDrop==='function')allowDrop(event)" ondrop="event.currentTarget.classList.remove('breadcrumb-drag-hover'); if(typeof window.EveFolderViewV2.handleFolderDrop==='function') window.EveFolderViewV2.handleFolderDrop(event, '${escapeCardJs(resolvedCategoryName)}', '${escapeCardJs(trailEntry.id || '')}', '${escapeCardJs(resolvedWorkspaceId)}')" ondragenter="event.currentTarget.classList.add('breadcrumb-drag-hover')" ondragleave="event.currentTarget.classList.remove('breadcrumb-drag-hover')"`;
+            const dropAction = `ondragover="if(typeof allowDrop==='function')allowDrop(event);${breadcrumbHoverOn}" ondrop="${breadcrumbHoverClear} if(typeof window.EveFolderViewV2.handleFolderDrop==='function') window.EveFolderViewV2.handleFolderDrop(event, '${escapeCardJs(resolvedCategoryName)}', '${escapeCardJs(trailEntry.id || '')}', '${escapeCardJs(resolvedWorkspaceId)}')" ondragenter="${breadcrumbHoverOn}" ondragleave="${breadcrumbHoverOff}"`;
             breadcrumbsHtml += `<span class="breadcrumb-item ${isLast ? 'active' : ''}" onclick="${isLast ? '' : clickAction}" ${dropAction}>${escapeCardHtml(trailEntry.label.toUpperCase())}</span>`;
             if (isLast) breadcrumbsHtml += '<span class="breadcrumb-cursor"></span>';
         });
@@ -159,7 +165,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         if (subFolders.length > 0) {
             subFoldersHtml += `<div class="manhwa-divider folders-divider">FOLDERS</div><div class="folder-wrap-grid">${subFolders.map((folder) => {
                 const isGhost = !!folder.isGhost;
-                const folderDropAttr = isGhost ? '' : `ondragover="if(typeof allowDrop==='function')allowDrop(event)" ondrop="event.currentTarget.classList.remove('folder-tile-drag-hover'); if(typeof window.EveFolderViewV2.handleFolderDrop==='function') window.EveFolderViewV2.handleFolderDrop(event, '${escapeCardJs(resolvedCategoryName)}', '${escapeCardJs(folder.id)}', '${escapeCardJs(resolvedWorkspaceId)}')" ondragenter="event.currentTarget.classList.add('folder-tile-drag-hover')" ondragleave="event.currentTarget.classList.remove('folder-tile-drag-hover')"`;
+                const folderDropAttr = isGhost ? '' : `ondragover="if(typeof allowDrop==='function')allowDrop(event);${tileHoverOn}" ondrop="${tileHoverClear} if(typeof window.EveFolderViewV2.handleFolderDrop==='function') window.EveFolderViewV2.handleFolderDrop(event, '${escapeCardJs(resolvedCategoryName)}', '${escapeCardJs(folder.id)}', '${escapeCardJs(resolvedWorkspaceId)}')" ondragenter="${tileHoverOn}" ondragleave="${tileHoverOff}"`;
                 const dragStartAttr = isGhost ? '' : `draggable="true" ondragstart="if(typeof window.EveFolderViewV2.handleFolderDragStart==='function') window.EveFolderViewV2.handleFolderDragStart(event, '${escapeCardJs(folder.id)}', '${escapeCardJs(resolvedCategoryName)}', '${escapeCardJs(resolvedWorkspaceId)}')" ondragend="this.classList.remove('is-dragging')"`;
                 const matchCount = viewModel.folderLinks.get(folder.id)?.length || 0;
                 const childCount = (viewModel.childrenMap.get(folder.id) || []).length;

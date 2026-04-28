@@ -47,6 +47,14 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         return ns._viewModelCache[buildScopedFolderViewKey(workspaceId, categoryName)] || null;
     };
 
+    ns.invalidateCachedViewModel = function (workspaceId, categoryName) {
+        delete ns._viewModelCache[buildScopedFolderViewKey(workspaceId, categoryName)];
+    };
+
+    ns.invalidateAllCachedViewModels = function () {
+        ns._viewModelCache = {};
+    };
+
     function buildHeaderActionKey(workspaceId, categoryName, folderId) {
         return `${buildScopedFolderViewKey(workspaceId, categoryName)}::${String(folderId || '').trim() || '__root__'}`;
     }
