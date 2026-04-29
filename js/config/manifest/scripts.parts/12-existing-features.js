@@ -26,6 +26,6 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/search-advanced/sa-ui.results.vectors.js?v=0.1.0",
     "js/modules/features/search-advanced/sa-ui.helpers.js",
     "js/modules/features/search-advanced/sa-ui.js?v=0.4.0",
-    "js/modules/features/bookmark-identifiers.js?v=0.1.1",
+    "js/modules/features/bookmark-identifiers.js?v=0.2.0",
     "js/modules/core/events.js?v=0.2.2"
 ]);

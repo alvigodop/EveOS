@@ -127,6 +127,19 @@ window.modalTemplate += `
                     <label for="bookmarkIdentifierDescription" style="font-size:0.78rem; opacity:0.82;">Description</label>
                     <input type="text" id="bookmarkIdentifierDescription" placeholder="Long-form text, books, manga, or articles.">
                 </div>
+                <div class="bookmark-identifier-quicklink-editor">
+                    <div class="bookmark-identifier-quicklink-heading">
+                        <div>
+                            <strong>Quick Links</strong>
+                            <span>Attach destination cards to this label for fast bookmark routing.</span>
+                        </div>
+                    </div>
+                    <div id="bookmarkIdentifierQuickLinksList" class="bookmark-identifier-quicklink-list"></div>
+                    <div class="bookmark-identifier-quicklink-add">
+                        <select id="bookmarkIdentifierQuickLinkTarget" aria-label="Quick link card target"></select>
+                        <button type="button" onclick="addBookmarkIdentifierQuickLink()">Add Card</button>
+                    </div>
+                </div>
                 <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
                     <button type="button" id="bookmarkIdentifierSaveBtn" onclick="saveBookmarkIdentifierDefinition()">Add Identifier</button>
                     <button type="button" onclick="clearBookmarkIdentifierForm()">Clear</button>

@@ -10,6 +10,7 @@ async function waitForApp(page) {
         && typeof window.saveLink === 'function'
         && typeof window.openSettings === 'function'
         && !!window.EveBookmarkIdentifiers?.ready
+        && typeof window.EveBookmarkFolders?.moveLinksToFolderTarget === 'function'
     ), undefined, { timeout: 180000 });
 }
 
@@ -21,20 +22,33 @@ async function main() {
         await page.goto(FILE_URL, { waitUntil: 'load', timeout: 180000 });
         await waitForApp(page);
 
-        const result = await page.evaluate(() => {
+        const result = await page.evaluate(async () => {
+            const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
             const originalSaveData = window.saveData;
             const originalSaveConfig = window.saveConfig;
             let saveDataCalls = 0;
             let saveConfigCalls = 0;
 
             window.links = links = [];
+            window.bookmarkFolders = bookmarkFolders = {
+                'main::Currently Reading': {
+                    nodes: [
+                        { id: 'quick-folder', parentId: '', name: 'Queue Folder', order: 0 }
+                    ],
+                    settings: { clickBehaviorMode: 'inherit' }
+                }
+            };
             window.config = config = Object.assign({}, window.config || {}, {
                 activeWorkspace: 'main',
-                workspaces: [{ id: 'main', name: 'Main', icon: 'home' }]
+                workspaces: [{ id: 'main', name: 'Main', icon: 'home' }],
+                categoryOrderByWorkspace: {
+                    main: ['Alpha', 'Currently Reading']
+                }
             });
             if (window.eveState) {
                 window.eveState.links = links;
                 window.eveState.config = config;
+                window.eveState.bookmarkFolders = bookmarkFolders;
             }
 
             window.EveBookmarkIdentifiers.ensureConfigDefaults();
@@ -71,8 +85,31 @@ async function main() {
                 if (!savedLink || !Array.isArray(savedLink.identifiers)) {
                     throw new Error('Link identifiers were not saved');
                 }
+                window.links.push({
+                    id: 'target-existing',
+                    title: 'Target Existing',
+                    url: 'https://example.com/target-existing',
+                    workspace: 'main',
+                    category: 'Currently Reading',
+                    folderId: 'quick-folder'
+                });
 
                 window.openSettings();
+                window.editBookmarkIdentifierDefinition('reading');
+                const quickTargetSelect = document.getElementById('bookmarkIdentifierQuickLinkTarget');
+                if (!quickTargetSelect) throw new Error('Quick link target select missing');
+                const quickValue = Array.from(quickTargetSelect.options)
+                    .map(option => option.value)
+                    .find(value => value.includes(encodeURIComponent('Currently Reading')));
+                if (!quickValue) throw new Error('Currently Reading quick-link target missing');
+                quickTargetSelect.value = quickValue;
+                window.addBookmarkIdentifierQuickLink();
+                window.saveBookmarkIdentifierDefinition();
+                const readingDefinition = window.EveBookmarkIdentifiers.getDefinitions().find((entry) => entry.id === 'reading');
+                if (!readingDefinition?.quickLinks || readingDefinition.quickLinks.length !== 1) {
+                    throw new Error('Reading quick link was not saved');
+                }
+
                 document.getElementById('bookmarkIdentifierLabel').value = 'Queue';
                 document.getElementById('bookmarkIdentifierIcon').value = 'Q';
                 document.getElementById('bookmarkIdentifierColor').value = '#cc7a00';
@@ -90,9 +127,32 @@ async function main() {
                     throw new Error('Custom identifier did not appear in link editor');
                 }
 
+                if (typeof window.closeAddModal === 'function') window.closeAddModal();
                 if (typeof renderDashboard === 'function') renderDashboard();
+                await wait(160);
                 const badgeNode = document.querySelector('.bookmark-link-identifiers');
                 const badgeText = badgeNode ? badgeNode.textContent.replace(/\s+/g, ' ').trim() : '';
+                const readingBadge = document.querySelector('.bookmark-identifier-badge[data-bookmark-identifier-id="reading"][data-bookmark-id="' + savedLink.id + '"]');
+                if (!readingBadge) throw new Error('Reading badge with quick panel attributes missing');
+                readingBadge.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, relatedTarget: null }));
+                const quickPanel = document.getElementById('bookmarkIdentifierQuickPanel');
+                if (!quickPanel || !quickPanel.classList.contains('is-open')) {
+                    throw new Error('Quick panel did not open from label hover');
+                }
+                const quickButton = quickPanel.querySelector('[data-bi-action="quick"]');
+                if (!quickButton) throw new Error('Quick Links button missing');
+                quickButton.click();
+                const folderButton = quickPanel.querySelector('[data-folder-id="quick-folder"]');
+                if (!folderButton) throw new Error('Quick link folder browser did not render target folder');
+                folderButton.click();
+                const moveButton = quickPanel.querySelector('[data-bi-action="move"]');
+                if (!moveButton) throw new Error('Quick link move button missing');
+                moveButton.click();
+
+                const movedLink = window.links.find((link) => String(link.id) === String(savedLink.id));
+                if (!movedLink || movedLink.category !== 'Currently Reading' || movedLink.folderId !== 'quick-folder') {
+                    throw new Error('Quick link move did not send bookmark into selected folder');
+                }
 
                 return {
                     saveDataCalls,
@@ -100,7 +160,10 @@ async function main() {
                     savedIdentifiers: savedLink.identifiers.slice(),
                     customIdentifierId: queueDefinition.id,
                     badgeText,
-                    settingsCount: window.EveBookmarkIdentifiers.getDefinitions().length
+                    settingsCount: window.EveBookmarkIdentifiers.getDefinitions().length,
+                    quickLinkTarget: readingDefinition.quickLinks[0],
+                    movedCategory: movedLink.category,
+                    movedFolderId: movedLink.folderId
                 };
             } finally {
                 window.saveData = originalSaveData;
