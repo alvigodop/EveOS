@@ -159,6 +159,7 @@
         setBulkTitleButtonsDisabled(true, headlessOnly ? 'headless' : 'normal');
 
         let updatedCount = 0;
+        const updatedLinkIds = [];
         let hadConnectionFailure = false;
         let blockedCount = 0;
         let blockedSample = null;
@@ -189,6 +190,7 @@
                     }
                     statusSpan.innerText = 'OK';
                     updatedCount++;
+                    updatedLinkIds.push(String(link.id));
                 } else if (data && data.title === 'CLOUDFLARE_BLOCK') {
                     statusSpan.innerText = 'BLOCK';
                     statusSpan.title = 'Blocked by Cloudflare';
@@ -204,7 +206,18 @@
             }
         }
 
-        if (typeof saveData === 'function') saveData();
+        if (updatedLinkIds.length > 0 && typeof saveData === 'function') {
+            saveData({
+                skipSuggestions: true,
+                source: 'bookmark-autotitle-bulk',
+                meta: {
+                    workspaceId: config?.activeWorkspace || 'main',
+                    categoryName: bulkTitleContext.categoryName,
+                    linkIds: updatedLinkIds,
+                    updatedCount: updatedLinkIds.length
+                }
+            });
+        }
 
         const normalBtn = document.getElementById('btnRunBulkTitle');
         const headlessBtn = document.getElementById('btnRunBulkTitleLightpanda');

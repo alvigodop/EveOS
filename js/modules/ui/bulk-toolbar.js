@@ -117,7 +117,14 @@ window.EveBulkToolbar = window.EveBulkToolbar || {};
             return;
         }
 
-        if (typeof saveData === 'function') saveData();
+        if (typeof saveData === 'function') {
+            saveData({
+                source: 'bulk-done-toggle',
+                meta: {
+                    kind: 'bulk-done-toggle'
+                }
+            });
+        }
         updateBulkUI();
         showToast(`${nextDoneState ? 'Marked' : 'Cleared'} ${changedCount} bookmark${changedCount === 1 ? '' : 's'}.`, 'success');
     }
@@ -127,7 +134,12 @@ window.EveBulkToolbar = window.EveBulkToolbar || {};
         if (!(await showConfirm(`Delete ${selected.size}?`))) return;
         replaceLinks(getLinks().filter(link => !selected.has(toBulkId(link.id))));
         toggleBulkModeAction();
-        saveData();
+        saveData({
+            source: 'bulk-delete',
+            meta: {
+                kind: 'bulk-delete'
+            }
+        });
     }
 
     function bulkPinSelectedAction() {
@@ -187,7 +199,12 @@ window.EveBulkToolbar = window.EveBulkToolbar || {};
     function completeBulkAction(didApply) {
         if (!didApply) return;
         toggleBulkModeAction();
-        saveData();
+        saveData({
+            source: 'bulk-move',
+            meta: {
+                kind: 'bulk-move'
+            }
+        });
     }
 
     window.toggleBulkMode = toggleBulkModeAction;

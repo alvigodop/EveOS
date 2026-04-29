@@ -404,7 +404,13 @@ async function processBulk() {
         if (folderInput) folderInput.value = '';
         api._accumulatedFolderFiles = [];
         setLiveLinks(liveLinks);
-        saveData();
+        saveData({
+            source: 'bulk-folder-import',
+            meta: {
+                kind: 'bulk-folder-import',
+                categoryName: targetCategory
+            }
+        });
         shouldPersistLibrary = deferredLibraryPromotions > 0;
         shouldPersistConnections = deferredLibraryPromotions > 0;
         closeModals();
@@ -495,7 +501,12 @@ async function processBulk() {
                 return showToast("No entries found", "warning");
             }
             setLiveLinks(liveLinks);
-            saveData();
+            saveData({
+                source: 'bulk-file-import',
+                meta: {
+                    kind: 'bulk-file-import'
+                }
+            });
             closeModals();
             persistBulkLibraryState({
                 saveLibrary: shouldPersistLibrary,
@@ -557,7 +568,13 @@ async function processBulk() {
     }
 
     setLiveLinks(liveLinks);
-    saveData();
+    saveData({
+        source: 'bulk-import',
+        meta: {
+            kind: 'bulk-import',
+            categoryName: targetCategory
+        }
+    });
     closeModals();
     persistBulkLibraryState({
         saveLibrary: shouldPersistLibrary,

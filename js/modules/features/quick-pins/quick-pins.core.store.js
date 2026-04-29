@@ -171,7 +171,12 @@ function buildPinRecord(record, fallbackOrder = 0) {
 
         if (typeof saveData === 'function') {
 
-            saveData({ skipRender: true, skipSuggestions: true });
+            saveData({
+                skipRender: true,
+                skipSuggestions: true,
+                source: 'quick-pins-flush',
+                meta: { nonIndexing: true, quickPins: true }
+            });
 
         }
 

@@ -271,7 +271,10 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
         // Standardized sync using the same logic as folder merge
         const writeStore = buildStoreWriter(runtime);
 
-        writeStore(runtime.getFolderTrees());
+        writeStore(runtime.getFolderTrees(), {
+            source: 'duplicate-sensor-bookmark-merge',
+            meta: { linkId: baseLinkId, linkIds: [baseLinkId].concat(idsToRemove), removedLinkIds: idsToRemove }
+        });
         
         if (typeof window.renderSidebar === 'function') window.renderSidebar();
         if (typeof window.renderDashboard === 'function') window.renderDashboard();
@@ -396,7 +399,15 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
             }
         });
 
-        writeStore(nextStore);
+        writeStore(nextStore, {
+            source: 'duplicate-sensor-folder-merge',
+            meta: {
+                workspaceId: baseFolder.workspaceId,
+                categoryName: baseFolder.categoryName,
+                folderId: baseFolder.id,
+                folderIds: [baseFolder.id].concat(removedIds)
+            }
+        });
 
         if (typeof window.renderSidebar === 'function') window.renderSidebar();
         if (typeof window.renderDashboard === 'function') window.renderDashboard();

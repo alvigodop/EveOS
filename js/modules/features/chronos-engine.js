@@ -260,8 +260,14 @@
             debugLog(`[Chronos] Pulse snapshot restored: ${timestamp}`);
 
             // Trigger full UI re-render
-            if (typeof window.saveData === 'function') window.saveData();
-            if (typeof window.saveConfig === 'function') window.saveConfig();
+            if (typeof window.saveData === 'function') window.saveData({
+                source: 'chronos-snapshot-restored',
+                meta: { restoredSnapshot: true, timestamp: timestamp }
+            });
+            if (typeof window.saveConfig === 'function') window.saveConfig({
+                source: 'chronos-snapshot-restored',
+                meta: { restoredSnapshot: true, timestamp: timestamp }
+            });
             if (typeof window.renderSidebar === 'function') window.renderSidebar();
             if (typeof window.renderDashboard === 'function') window.renderDashboard();
             if (typeof window.showToast === 'function') window.showToast('Chronos snapshot restored.', 'success');

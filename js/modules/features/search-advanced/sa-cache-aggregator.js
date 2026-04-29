@@ -582,8 +582,15 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         });
 
         // Save
-        if (typeof saveConfig === 'function') saveConfig();
-        if (typeof saveData === 'function') saveData();
+        var ghostIdsArray = Array.from(ghostIds);
+        if (typeof saveConfig === 'function') saveConfig({
+            source: 'nexus-ghost-workspaces-recovered',
+            meta: { workspaceIds: ghostIdsArray }
+        });
+        if (typeof saveData === 'function') saveData({
+            source: 'nexus-ghost-workspaces-recovered',
+            meta: { workspaceIds: ghostIdsArray }
+        });
 
         return {
             rescued: links.filter(function (l) { return l && ghostIds.has(String(l.workspace || 'main').trim()); }).length,

@@ -61,10 +61,10 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/ui/context-menus/actions.link.js?v=0.1.0",
     "js/modules/ui/context-menus/actions.category.shared.js?v=0.1.0",
     "js/modules/ui/context-menus/actions.category.category.js?v=0.1.1",
-    "js/modules/ui/context-menus/actions.category.workspace.js?v=0.1.0",
+    "js/modules/ui/context-menus/actions.category.workspace.js?v=0.1.1",
     "js/modules/ui/context-menus/actions.category.groups.js?v=0.1.0",
     "js/modules/ui/context-menus/actions.category.js?v=0.3.3",
-    "js/modules/ui/context-menus/actions.folder.js?v=0.1.0",
+    "js/modules/ui/context-menus/actions.folder.js?v=0.1.1",
     "js/modules/ui/context-menus/actions.js?v=0.3.0",
     "js/modules/ui/context-menus/menus.js?v=0.3.1",
     "js/modules/ui/scratchpad.js",
@@ -73,5 +73,5 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/ui/bulk-toolbar.modals.category.js",
     "js/modules/ui/bulk-toolbar.modals.workspace.js?v=0.2.1",
     "js/modules/ui/bulk-toolbar.modals.js",
-    "js/modules/ui/bulk-toolbar.js?v=0.2.3"
+    "js/modules/ui/bulk-toolbar.js?v=0.2.4"
 ]);

@@ -131,6 +131,17 @@ async function main() {
     const rankedIds = searchResult.records.map(record => record.id);
     assert(rankedIds[0] === 'card::spirited' || rankedIds[0] === 'bookmark::spirited', 'Expected a local typo match to rank first: ' + rankedIds.join(', '));
     assert(rankedIds.indexOf('cached::spirited') > rankedIds.indexOf('bookmark::spirited'), 'Expected cached/web-like evidence below local path truth: ' + rankedIds.join(', '));
+    assert(searchResult.records.every(record => record.diagnostic), 'Expected every result to carry a diagnostic object.');
+
+    const operatorResult = await indexApi.search('type:bookmark sprited chihro', { workspaceId: 'main' }, {
+        activeVectors: { bookmarks: true, knowledge: false, cachedResults: true }
+    });
+    assert(operatorResult.records.length === 1 && operatorResult.records[0].id === 'bookmark::spirited', 'Expected type:bookmark operator to filter to the local bookmark.');
+
+    const staleResult = await indexApi.search('flag:stale', { workspaceId: 'main' }, {
+        activeVectors: { bookmarks: true, knowledge: false, cachedResults: true }
+    });
+    assert(staleResult.records.some(record => record.id === 'cached::spirited'), 'Expected flag:stale operator to expose stale cached records.');
 
     const report = await indexApi.getIntegrityReport({ scope: null });
     assert(report.issueCount >= 2, 'Expected integrity report to expose concrete issue rows.');

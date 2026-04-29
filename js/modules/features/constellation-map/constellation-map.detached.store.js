@@ -238,7 +238,12 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         } catch (error) {
         }
         if (typeof saveData === 'function') {
-            saveData({ skipRender: true, skipSuggestions: true });
+            saveData({
+                skipRender: true,
+                skipSuggestions: true,
+                source: 'constellation-detached-store-updated',
+                meta: { nonIndexing: true, constellation: true }
+            });
         }
         return store;
     }

@@ -52,8 +52,14 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
             setLiveLinks(liveLinks);
             window.EveBookmarkFolders?.moveWorkspaceTrees?.(ctxWsId, targetWorkspaceId);
             config.activeWorkspace = config.workspaces[0].id;
-            saveConfig();
-            saveData();
+            saveConfig({
+                source: 'workspace-delete-config',
+                meta: { workspaceId: ctxWsId, targetWorkspaceId: targetWorkspaceId, workspaceIds: Array.from(removedIds) }
+            });
+            saveData({
+                source: 'workspace-delete-links-moved',
+                meta: { workspaceId: ctxWsId, targetWorkspaceId: targetWorkspaceId, workspaceIds: Array.from(removedIds) }
+            });
             renderSidebar();
         }
     };

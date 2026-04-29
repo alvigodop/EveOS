@@ -17,7 +17,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/library/entry-manager.form.js?v=0.2.1",
     "js/modules/features/library/entry-manager.crud.js?v=0.2.1",
     "js/modules/features/library/entry-manager.js?v=0.2.3",
-    "js/modules/features/library/library-connections-components/lc-state.js?v=0.2.4",
+    "js/modules/features/library/library-connections-components/lc-state.js?v=0.2.5",
     "js/modules/features/library/library-connections-components/lc-entry-lookup.js?v=0.2.4",
     "js/modules/features/library/library-connections-components/lc-actions.promote.js?v=0.2.2",
     "js/modules/features/library/library-connections-components/lc-actions.sync.js?v=0.2.2",

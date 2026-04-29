@@ -108,6 +108,71 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         };
     }
 
+    function normalizeScopeKey(workspaceId, categoryName) {
+        return text(workspaceId, 'main') + '::' + text(categoryName, 'Unsorted');
+    }
+
+    function buildScopedLocalRecordBundle(options) {
+        const allLinks = readLinks().filter(Boolean);
+        const allCategoryMap = buildCategoryMap(allLinks);
+        const explicitScopes = toArray(options?.scopes);
+        const explicitLinkIds = new Set(
+            toArray(options?.linkIds)
+                .map(function (value) { return text(value, ''); })
+                .filter(Boolean)
+        );
+        const scopeKeys = new Set();
+
+        explicitScopes.forEach(function (scope) {
+            const workspaceId = text(scope?.workspaceId, '');
+            const categoryName = text(scope?.categoryName, '');
+            if (!workspaceId && !categoryName) return;
+            if (workspaceId && categoryName) {
+                scopeKeys.add(normalizeScopeKey(workspaceId, categoryName));
+                return;
+            }
+            Array.from(allCategoryMap.values()).forEach(function (entry) {
+                if (workspaceId && text(entry.workspaceId, '') !== workspaceId) return;
+                if (categoryName && text(entry.categoryName, '') !== categoryName) return;
+                scopeKeys.add(normalizeScopeKey(entry.workspaceId, entry.categoryName));
+            });
+        });
+
+        if (explicitLinkIds.size) {
+            allLinks.forEach(function (link) {
+                if (!explicitLinkIds.has(text(link?.id, ''))) return;
+                scopeKeys.add(normalizeScopeKey(link?.workspace, link?.category));
+            });
+        }
+
+        const scopedCategoryMap = new Map(
+            Array.from(allCategoryMap.entries()).filter(function (entryPair) {
+                return scopeKeys.has(text(entryPair?.[0], ''));
+            })
+        );
+        const scopedLinks = allLinks.filter(function (link) {
+            const linkScopeKey = normalizeScopeKey(link?.workspace, link?.category);
+            return scopeKeys.has(linkScopeKey) || explicitLinkIds.has(text(link?.id, ''));
+        });
+        const scopedLibraryRecords = buildLibraryRecords().filter(function (record) {
+            return scopeKeys.has(normalizeScopeKey(record?.workspaceId, record?.categoryName));
+        });
+        const records = []
+            .concat(buildCardRecords(scopedCategoryMap))
+            .concat(buildFolderRecords(allLinks, scopedCategoryMap))
+            .concat(buildBookmarkRecords(scopedLinks))
+            .concat(scopedLibraryRecords);
+
+        return {
+            links: scopedLinks,
+            categoryMap: allCategoryMap,
+            scopedCategoryMap: scopedCategoryMap,
+            scopeKeys: Array.from(scopeKeys),
+            linkIds: Array.from(explicitLinkIds),
+            records: records
+        };
+    }
+
     function buildSnapshotStats(records) {
         const providers = new Set();
         const workspaceIds = new Set();
@@ -405,6 +470,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         buildCachedRecords,
         buildKnowledgeRecords,
         buildLocalRecordBundle,
+        buildScopedLocalRecordBundle,
         buildSourceRecordBundle,
         buildSnapshotStats,
         filterCategoryMap,

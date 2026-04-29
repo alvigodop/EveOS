@@ -186,7 +186,14 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
                                 const parsed = JSON.parse(e.target.result);
                                 if (window.EveDataStore && window.EveDataStore.applyFolder) {
                                     window.EveDataStore.applyFolder(window._ctxTempWs, window._ctxTempCat, window._ctxTempFolderId, parsed);
-                                    if(typeof saveData === 'function') saveData();
+                                    if(typeof saveData === 'function') saveData({
+                                        source: 'folder-json-imported',
+                                        meta: {
+                                            workspaceId: window._ctxTempWs,
+                                            categoryName: window._ctxTempCat,
+                                            folderId: window._ctxTempFolderId
+                                        }
+                                    });
                                     if(typeof renderDashboard === 'function') renderDashboard();
                                     if(typeof showToast === 'function') showToast('Folder imported successfully', 'success');
                                     document.getElementById('folderOperationsModal').style.display='none';
@@ -263,7 +270,16 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
                                     }
                                 }
                             });
-                            if(typeof saveData === 'function') saveData();
+                            if(typeof saveData === 'function') saveData({
+                                skipSuggestions: true,
+                                source: 'folder-library-status-bulk-patched',
+                                meta: {
+                                    workspaceId: window._ctxTempWs,
+                                    categoryName: window._ctxTempCat,
+                                    folderId: window._ctxTempFolderId,
+                                    updatedCount: patched
+                                }
+                            });
                             if(typeof renderDashboard === 'function') renderDashboard();
                             if(typeof showToast === 'function') showToast('Successfully patched ' + patched + ' items to ' + newStatus, 'success');
                             document.getElementById('folderOperationsModal').style.display='none';

@@ -30,6 +30,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     const {
         buildSnapshot,
         buildLocalRecordBundle,
+        buildScopedLocalRecordBundle,
         buildSourceRecordBundle,
         buildSnapshotStats,
         filterCategoryMap,
@@ -40,6 +41,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         buildScopeRecordMatcher,
         computeVisibility,
         computeHealth,
+        diagnoseRecord,
         buildIntegrityReportSync
     } = runtimeIntegrity;
     const { buildStructureSummary } = runtimeSummary;
@@ -47,6 +49,14 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         snapshot: null,
         index: null
     };
+    const INDEX_RELEVANT_CONFIG_KEYS = new Set([
+        'workspaces',
+        'categoryOrder',
+        'categoryOrderByWorkspace',
+        'hideStats',
+        'smartCardWeights',
+        'bookmarkIdentifiers'
+    ]);
 
     async function loadPersistedSnapshot() {
         if (state.loaded) return state.snapshot;
@@ -128,7 +138,12 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         const kind = text(meta.kind, '');
         const dragType = text(meta.dragType, '');
         const dragId = text(meta.dragId, '');
-        if (!categoryName && !sourceKey && !query && !workspaceId && !folderId && !linkId && !kind && !dragType && !dragId) return null;
+        const nonIndexing = !!meta.nonIndexing;
+        const quickPins = !!meta.quickPins;
+        const constellation = !!meta.constellation;
+        const dataDelta = meta.dataDelta && typeof meta.dataDelta === 'object' ? meta.dataDelta : null;
+        const configDelta = meta.configDelta && typeof meta.configDelta === 'object' ? meta.configDelta : null;
+        if (!categoryName && !sourceKey && !query && !workspaceId && !folderId && !linkId && !kind && !dragType && !dragId && !nonIndexing && !quickPins && !constellation && !dataDelta && !configDelta) return null;
         return {
             categoryName: categoryName,
             sourceKey: sourceKey,
@@ -138,7 +153,12 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             linkId: linkId,
             kind: kind,
             dragType: dragType,
-            dragId: dragId
+            dragId: dragId,
+            nonIndexing: nonIndexing,
+            quickPins: quickPins,
+            constellation: constellation,
+            dataDelta: dataDelta,
+            configDelta: configDelta
         };
     }
 
@@ -151,10 +171,12 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     }
 
     function markDirty(reason, mutationMeta) {
+        const normalizedMeta = normalizeMutationMeta(mutationMeta);
+        if (isNonIndexingCoreDelta(reason, normalizedMeta)) return;
         state.revision = Number(state.revision || 0) + 1;
         state.dirty = true;
         state.lastReason = text(reason, 'state-mutated');
-        state.lastMutationMeta = normalizeMutationMeta(mutationMeta);
+        state.lastMutationMeta = normalizedMeta;
     }
 
     function isSourceDrivenReason(reason) {
@@ -346,6 +368,119 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         };
     }
 
+    function getMutationDataDelta(mutationMeta) {
+        const delta = mutationMeta?.dataDelta;
+        return delta && typeof delta === 'object' && text(delta.kind, '') === 'core-data-delta'
+            ? delta
+            : null;
+    }
+
+    function getMutationConfigDelta(mutationMeta) {
+        const delta = mutationMeta?.configDelta;
+        return delta && typeof delta === 'object' && text(delta.kind, '') === 'core-config-delta'
+            ? delta
+            : null;
+    }
+
+    function isNonIndexingCoreDelta(reason, mutationMeta) {
+        const delta = getMutationDataDelta(mutationMeta);
+        if (delta) {
+            const hasIndexScope = toArray(delta.linkIds).length
+                || toArray(delta.affectedScopes).length
+                || !!delta.hasFolderStoreChanges;
+            if (hasIndexScope) return false;
+            if (mutationMeta?.nonIndexing || mutationMeta?.quickPins || mutationMeta?.constellation) return true;
+            return text(reason, '') === 'saveData'
+                || text(reason, '').indexOf('quick-pins') !== -1
+                || text(reason, '').indexOf('constellation-detached') !== -1;
+        }
+
+        const configDelta = getMutationConfigDelta(mutationMeta);
+        if (!configDelta) return false;
+        const changedKeys = toArray(configDelta.changedKeys).map(function (key) {
+            return text(key, '');
+        }).filter(Boolean);
+        if (!changedKeys.length) return true;
+        return !changedKeys.some(function (key) {
+            return INDEX_RELEVANT_CONFIG_KEYS.has(key);
+        });
+    }
+
+    function getDeltaAffectedScopes(delta) {
+        return toArray(delta?.affectedScopes)
+            .map(function (scope) {
+                const workspaceId = text(scope?.workspaceId, '');
+                const categoryName = text(scope?.categoryName, '');
+                if (!workspaceId && !categoryName) return null;
+                return {
+                    workspaceId: workspaceId,
+                    categoryName: categoryName
+                };
+            })
+            .filter(Boolean);
+    }
+
+    function canUseScopedLocalIncremental(mutationMeta) {
+        const delta = getMutationDataDelta(mutationMeta);
+        if (!delta || !delta.complete || typeof buildScopedLocalRecordBundle !== 'function') return false;
+        const scopes = getDeltaAffectedScopes(delta);
+        const linkIds = toArray(delta.linkIds).filter(Boolean);
+        if (!scopes.length && !linkIds.length) return false;
+        if (scopes.length > 80 || linkIds.length > 500) return false;
+        return true;
+    }
+
+    function getRecordScopeKey(record) {
+        const workspaceId = text(record?.workspaceId || record?.path?.workspaceId, '');
+        const categoryName = text(record?.categoryName || record?.path?.categoryName, '');
+        return workspaceId && categoryName ? (workspaceId + '::' + categoryName) : '';
+    }
+
+    function shouldReplaceScopedLocalRecord(record, scopeKeySet) {
+        const type = text(record?.type, '');
+        if (!INCREMENTAL_LOCAL_RECORD_TYPES.has(type)) return false;
+        const scopeKey = getRecordScopeKey(record);
+        return !!scopeKey && scopeKeySet.has(scopeKey);
+    }
+
+    function buildScopedLocalIncrementalSnapshot(reason, mutationMeta) {
+        if (!state.snapshot || !canUseScopedLocalIncremental(mutationMeta)) {
+            return buildIncrementalSnapshot(reason);
+        }
+
+        const delta = getMutationDataDelta(mutationMeta);
+        const scopedBundle = buildScopedLocalRecordBundle({
+            scopes: getDeltaAffectedScopes(delta),
+            linkIds: toArray(delta.linkIds)
+        });
+        const scopeKeySet = new Set(toArray(scopedBundle?.scopeKeys).map(function (value) { return text(value, ''); }).filter(Boolean));
+        if (!scopeKeySet.size) return buildIncrementalSnapshot(reason);
+
+        const preservedLocalRecords = toArray(state.snapshot.records).filter(function (record) {
+            const type = text(record?.type, '');
+            return INCREMENTAL_LOCAL_RECORD_TYPES.has(type) && !shouldReplaceScopedLocalRecord(record, scopeKeySet);
+        });
+        const preservedSourceRecords = rehydrateSourceRecords(
+            toArray(state.snapshot.records).filter(function (record) {
+                const type = text(record?.type, '');
+                return type === 'knowledge' || type === 'cached';
+            }),
+            scopedBundle.categoryMap
+        );
+        const records = []
+            .concat(preservedLocalRecords)
+            .concat(toArray(scopedBundle.records))
+            .concat(preservedSourceRecords);
+
+        return {
+            version: shared.INDEX_VERSION,
+            builtAt: now(),
+            reason: text(reason, 'manual'),
+            stats: buildSnapshotStats(records),
+            records: records
+        };
+    }
+
     async function ensureFresh(options) {
         await loadPersistedSnapshot();
         const force = !!options?.force;
@@ -362,6 +497,9 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             && snapshotAge < SNAPSHOT_MAX_AGE_MS
             && !isSourceDrivenReason(reason)
         ) {
+            if (canUseScopedLocalIncremental(mutationMeta)) {
+                return rebuild(Object.assign({}, options, { incremental: 'local-scope', mutationMeta: mutationMeta }));
+            }
             return rebuild(Object.assign({}, options, { incremental: true }));
         }
         if (
@@ -387,9 +525,11 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         const startRevision = Number(state.revision || 0);
         const buildRunner = options?.incremental === 'source'
             ? buildSourceIncrementalSnapshot(reason, mutationMeta)
-            : (options?.incremental
+            : (options?.incremental === 'local-scope'
+                ? Promise.resolve().then(function () { return buildScopedLocalIncrementalSnapshot(reason, mutationMeta); })
+                : (options?.incremental
                 ? Promise.resolve().then(function () { return buildIncrementalSnapshot(reason); })
-                : buildSnapshot(reason));
+                : buildSnapshot(reason)));
         state.buildPromise = buildRunner
             .then(async function (snapshot) {
                 return finalizeSnapshot(snapshot, reason, startRevision, mutationMeta);
@@ -551,6 +691,110 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         return score;
     }
 
+    function parseQueryIntent(query) {
+        const raw = text(query, '');
+        const filters = {};
+        const phrases = [];
+        const excludedTerms = [];
+        const requiredTerms = [];
+        const terms = [];
+        const phrasePattern = /"([^"]+)"/g;
+        let remainder = raw.replace(phrasePattern, function (_, phrase) {
+            const normalizedPhrase = normalizeText(phrase);
+            if (normalizedPhrase) phrases.push(normalizedPhrase);
+            return ' ';
+        });
+
+        remainder.split(/\s+/).map(function (token) {
+            return text(token, '');
+        }).filter(Boolean).forEach(function (token) {
+            const negative = token.charAt(0) === '-';
+            const required = token.charAt(0) === '+';
+            const cleanToken = negative || required ? token.slice(1) : token;
+            const separatorIndex = cleanToken.indexOf(':');
+            if (separatorIndex > 0) {
+                const key = normalizeText(cleanToken.slice(0, separatorIndex));
+                const value = normalizeText(cleanToken.slice(separatorIndex + 1));
+                if (value && ['type', 'provider', 'tab', 'workspace', 'card', 'health', 'visibility', 'freshness', 'flag'].includes(key)) {
+                    if (!filters[key]) filters[key] = [];
+                    filters[key].push(value);
+                    return;
+                }
+            }
+            const normalizedToken = normalizeText(cleanToken);
+            if (!normalizedToken) return;
+            if (negative) excludedTerms.push(normalizedToken);
+            else if (required) requiredTerms.push(normalizedToken);
+            else terms.push(normalizedToken);
+        });
+
+        const searchText = phrases.concat(requiredTerms).concat(terms).join(' ');
+        return {
+            raw: raw,
+            searchText: searchText,
+            phrases: phrases,
+            requiredTerms: requiredTerms,
+            terms: terms,
+            excludedTerms: excludedTerms,
+            filters: filters,
+            hasFilters: Object.keys(filters).length > 0
+        };
+    }
+
+    function recordSearchHaystack(record) {
+        return normalizeText([
+            record?.title,
+            record?.description,
+            record?.url,
+            record?.displayUrl,
+            record?.provider,
+            record?.categoryName,
+            record?.path?.workspaceLabel,
+            record?.path?.pathLabel,
+            record?.searchableText
+        ].join(' '));
+    }
+
+    function matchesAnyFilterValue(value, filters) {
+        const normalizedValue = normalizeText(value);
+        return toArray(filters).some(function (filterValue) {
+            const normalizedFilter = normalizeText(filterValue);
+            return normalizedValue === normalizedFilter || normalizedValue.includes(normalizedFilter);
+        });
+    }
+
+    function matchesFlagFilter(record, visibility, health, freshness, filters) {
+        if (!toArray(filters).length) return true;
+        return toArray(filters).some(function (filterValue) {
+            const flag = normalizeText(filterValue);
+            if (flag === 'orphaned') return !!record?.provenance?.orphaned;
+            if (flag === 'broken') return visibility?.state === 'broken' || health?.state === 'broken';
+            if (flag === 'hidden') return visibility?.state === 'hidden';
+            if (flag === 'done') return !!record?.provenance?.done;
+            if (flag === 'stale') return freshness?.state === 'stale';
+            if (flag === 'warning') return health?.state === 'warning';
+            return false;
+        });
+    }
+
+    function matchesQueryIntent(record, intent, visibility, health, freshness) {
+        const filters = intent?.filters || {};
+        const haystack = recordSearchHaystack(record);
+        if (toArray(intent?.excludedTerms).some(function (term) { return haystack.includes(term); })) return false;
+        if (toArray(intent?.phrases).some(function (phrase) { return !haystack.includes(phrase); })) return false;
+        if (toArray(intent?.requiredTerms).some(function (term) { return !haystack.includes(term); })) return false;
+        if (filters.type && !matchesAnyFilterValue(record?.type, filters.type)) return false;
+        if (filters.provider && !matchesAnyFilterValue(record?.provider, filters.provider)) return false;
+        if (filters.tab && !matchesAnyFilterValue(record?.path?.workspaceLabel || record?.workspaceId, filters.tab)) return false;
+        if (filters.workspace && !matchesAnyFilterValue(record?.workspaceId || record?.path?.workspaceLabel, filters.workspace)) return false;
+        if (filters.card && !matchesAnyFilterValue(record?.categoryName, filters.card)) return false;
+        if (filters.health && !matchesAnyFilterValue(health?.state + ' ' + health?.label, filters.health)) return false;
+        if (filters.visibility && !matchesAnyFilterValue(visibility?.state + ' ' + visibility?.label, filters.visibility)) return false;
+        if (filters.freshness && !matchesAnyFilterValue(freshness?.state + ' ' + freshness?.label, filters.freshness)) return false;
+        if (filters.flag && !matchesFlagFilter(record, visibility, health, freshness, filters.flag)) return false;
+        return true;
+    }
+
     function buildFacets(records) {
         const facets = {
             tabs: {},
@@ -614,19 +858,30 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
 
     async function search(query, scope, settings) {
         const snapshot = await ensureFresh();
-        const q = normalizeText(query);
-        if (!q) return { records: [], facets: {}, stats: {}, snapshot: snapshot };
+        const intent = parseQueryIntent(query);
+        const q = normalizeText(intent.searchText || query);
+        if (!q && !intent.hasFilters) return { records: [], facets: {}, stats: {}, snapshot: snapshot };
 
         const allowedTypes = buildAllowedTypes(settings);
 
         const records = [];
         snapshot.records.forEach(function (record) {
             if (!record || !allowedTypes.has(record.type) || !matchesScope(record, scope)) return;
-            const score = computeScore(record, q, scope);
-            if (score <= 0) return;
             const visibility = computeVisibility(record);
             const freshness = computeFreshness(record.updatedAt);
             const health = computeHealth(record);
+            if (!matchesQueryIntent(record, intent, visibility, health, freshness)) return;
+            const score = q ? computeScore(record, q, scope) : 1;
+            if (score <= 0) return;
+            const diagnostic = typeof diagnoseRecord === 'function'
+                ? diagnoseRecord(record)
+                : {
+                    visibility: visibility,
+                    health: health,
+                    freshness: freshness,
+                    severity: 'ok',
+                    reasons: []
+                };
             records.push(Object.assign({}, record, {
                 score: score,
                 visibility: visibility,
@@ -634,7 +889,8 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 freshness: freshness,
                 freshnessState: freshness.state,
                 health: health,
-                healthState: health.state
+                healthState: health.state,
+                diagnostic: diagnostic
             }));
         });
 
@@ -644,7 +900,8 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             records: records,
             facets: buildFacets(records),
             stats: snapshot.stats || {},
-            snapshot: snapshot
+            snapshot: snapshot,
+            queryIntent: intent
         };
     }
 

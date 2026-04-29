@@ -100,8 +100,14 @@ window.EveLibrary.ConnectionsCore = window.EveLibrary.ConnectionsCore || {
         return {};
     }
 
-    function saveLinks() {
-        if (typeof saveData === 'function') saveData();
+    function saveLinks(options = {}) {
+        if (typeof saveData === 'function') {
+            saveData({
+                skipSuggestions: !!options.skipSuggestions,
+                source: String(options.source || 'library-linked-bookmark-updated').trim() || 'library-linked-bookmark-updated',
+                meta: options.meta && typeof options.meta === 'object' ? options.meta : null
+            });
+        }
     }
 
     function flushConnectionsSave() {

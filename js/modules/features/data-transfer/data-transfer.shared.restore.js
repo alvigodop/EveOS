@@ -38,7 +38,9 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             await Promise.resolve(window.saveData({
                 immediate: true,
                 skipRender,
-                skipSuggestions
+                skipSuggestions,
+                source: 'data-transfer-restore',
+                meta: { restoredState: true }
             }));
         }
         if (typeof window.saveConfig === 'function') {

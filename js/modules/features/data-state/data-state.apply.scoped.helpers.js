@@ -49,7 +49,12 @@
     function replaceQuickPinsForWorkspace(workspaceId, incomingPins) {
         if (window.EveQuickPins?.replacePinsForWorkspace) {
             window.EveQuickPins.replacePinsForWorkspace(workspaceId, incomingPins, { persist: false });
-            if (typeof saveData === 'function') saveData();
+            if (typeof saveData === 'function') saveData({
+                skipRender: true,
+                skipSuggestions: true,
+                source: 'data-state-quick-pins-workspace-replaced',
+                meta: { workspaceId: workspaceId, nonIndexing: true, quickPins: true }
+            });
             return;
         }
         setQuickPins(Array.isArray(incomingPins) ? incomingPins : []);
@@ -58,7 +63,12 @@
     function replaceQuickPinsForCard(workspaceId, categoryName, incomingPins) {
         if (window.EveQuickPins?.replacePinsForCard) {
             window.EveQuickPins.replacePinsForCard(workspaceId, categoryName, incomingPins, { persist: false });
-            if (typeof saveData === 'function') saveData();
+            if (typeof saveData === 'function') saveData({
+                skipRender: true,
+                skipSuggestions: true,
+                source: 'data-state-quick-pins-card-replaced',
+                meta: { workspaceId: workspaceId, categoryName: categoryName, nonIndexing: true, quickPins: true }
+            });
             return;
         }
         setQuickPins(Array.isArray(incomingPins) ? incomingPins : []);
@@ -67,7 +77,12 @@
     function replaceQuickPinsForBookmark(bookmarkId, incomingPins) {
         if (window.EveQuickPins?.replacePinsForBookmark) {
             window.EveQuickPins.replacePinsForBookmark(bookmarkId, incomingPins, { persist: false });
-            if (typeof saveData === 'function') saveData();
+            if (typeof saveData === 'function') saveData({
+                skipRender: true,
+                skipSuggestions: true,
+                source: 'data-state-quick-pins-bookmark-replaced',
+                meta: { linkId: String(bookmarkId || ''), nonIndexing: true, quickPins: true }
+            });
             return;
         }
         setQuickPins(Array.isArray(incomingPins) ? incomingPins : []);
@@ -76,7 +91,12 @@
     function replaceQuickPinsForFolder(workspaceId, categoryName, folderId, incomingPins) {
         if (window.EveQuickPins?.replacePinsForFolder) {
             window.EveQuickPins.replacePinsForFolder(workspaceId, categoryName, folderId, incomingPins, { persist: false });
-            if (typeof saveData === 'function') saveData();
+            if (typeof saveData === 'function') saveData({
+                skipRender: true,
+                skipSuggestions: true,
+                source: 'data-state-quick-pins-folder-replaced',
+                meta: { workspaceId: workspaceId, categoryName: categoryName, folderId: folderId, nonIndexing: true, quickPins: true }
+            });
             return;
         }
         setQuickPins(Array.isArray(incomingPins) ? incomingPins : []);

@@ -352,8 +352,17 @@ window.EveBookmarkIdentifiers = window.EveBookmarkIdentifiers || {};
             else delete link.identifiers;
         });
 
-        if (typeof saveData === 'function') saveData({ skipSuggestions: true, immediate: true });
-        if (typeof saveConfig === 'function') saveConfig({ immediate: true });
+        if (typeof saveData === 'function') saveData({
+            skipSuggestions: true,
+            immediate: true,
+            source: 'bookmark-identifier-deleted',
+            meta: { identifierId: targetId }
+        });
+        if (typeof saveConfig === 'function') saveConfig({
+            immediate: true,
+            source: 'bookmark-identifier-deleted',
+            meta: { identifierId: targetId }
+        });
         clearSettingsForm();
         renderSettingsManager();
         rerenderActiveModalEditor();

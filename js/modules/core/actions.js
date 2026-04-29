@@ -159,7 +159,13 @@ function toggleDone(id) {
             }
         }
 
-        saveData();
+        saveData({
+            source: 'bookmark-done-toggle',
+            meta: {
+                kind: 'bookmark-done-toggle',
+                linkId: targetId
+            }
+        });
         return true;
     }
     return false;
@@ -178,7 +184,13 @@ async function deleteLink(id) {
         if (window.EveLibrary?.ConnectionsAPI?.removeByLinkId) {
             window.EveLibrary.ConnectionsAPI.removeByLinkId(targetId);
         }
-        saveData();
+        saveData({
+            source: 'bookmark-delete',
+            meta: {
+                kind: 'bookmark-delete',
+                linkId: targetId
+            }
+        });
     }
 }
 
@@ -212,7 +224,14 @@ async function sweepDone() {
         if (window.EveLibrary?.ConnectionsAPI?.removeByLinkId) {
             removedIds.forEach(id => window.EveLibrary.ConnectionsAPI.removeByLinkId(id));
         }
-        saveData({ forceRender: true });
+        saveData({
+            forceRender: true,
+            source: 'bookmark-sweep-done',
+            meta: {
+                kind: 'bookmark-sweep-done',
+                removedLinkIds: removedIds
+            }
+        });
         showToast("Swept!", "success");
     }
 }

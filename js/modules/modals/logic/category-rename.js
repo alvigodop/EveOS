@@ -73,8 +73,14 @@ window.confirmRename = function () {
             config.hideStats = config.hideStats.filter(c => c !== o);
             config.hideStats.push(name);
         }
-        saveConfig();
-        saveData();
+        saveConfig({
+            source: 'category-rename-config',
+            meta: { workspaceId: workspaceId, oldCategoryName: o, categoryName: name }
+        });
+        saveData({
+            source: 'category-rename-links',
+            meta: { workspaceId: workspaceId, oldCategoryName: o, categoryName: name }
+        });
     }
     closeModals();
 };

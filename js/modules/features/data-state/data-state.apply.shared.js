@@ -202,7 +202,10 @@ window.EveDataStore = window.EveDataStore || {};
             window.links = sanitized;
             if (typeof links !== 'undefined') links = sanitized;
         }
-        if (typeof saveData === 'function') saveData();
+        if (typeof saveData === 'function') saveData({
+            source: 'data-state-links-set',
+            meta: { replacedLinks: true, linkCount: sanitized.length }
+        });
     }
 
     function setConfig(newConfig) {
@@ -225,7 +228,10 @@ window.EveDataStore = window.EveDataStore || {};
         } else {
             window.bookmarkFolders = sanitized;
         }
-        if (typeof saveData === 'function') saveData();
+        if (typeof saveData === 'function') saveData({
+            source: 'data-state-folder-store-set',
+            meta: { replacedFolderStore: true }
+        });
     }
 
     function setQuickPins(newQuickPins) {
@@ -239,7 +245,12 @@ window.EveDataStore = window.EveDataStore || {};
         } else {
             window.quickPins = sanitized;
         }
-        if (typeof saveData === 'function') saveData();
+        if (typeof saveData === 'function') saveData({
+            skipRender: true,
+            skipSuggestions: true,
+            source: 'data-state-quick-pins-set',
+            meta: { nonIndexing: true, quickPins: true }
+        });
     }
 
     function applyLibraryCategories(categories, workspaceId = null) {

@@ -168,6 +168,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         const visibility = result?.visibility;
         const health = result?.health;
         const freshness = result?.freshness;
+        const diagnostic = result?.diagnostic;
 
         if (visibility?.label) lines.push('Visibility: ' + visibility.label);
         if (Array.isArray(visibility?.reasons)) {
@@ -182,6 +183,17 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             });
         }
         if (freshness?.label) lines.push('Freshness: ' + freshness.label);
+        if (diagnostic?.severity && diagnostic.severity !== 'ok') {
+            lines.push('Diagnostic severity: ' + diagnostic.severity);
+        }
+        if (diagnostic?.issue?.pathLabel) {
+            lines.push('Diagnostic path: ' + diagnostic.issue.pathLabel);
+        }
+        if (Array.isArray(diagnostic?.reasons)) {
+            diagnostic.reasons.forEach(function (reason) {
+                if (reason && !lines.includes(reason)) lines.push(reason);
+            });
+        }
 
         return lines;
     }

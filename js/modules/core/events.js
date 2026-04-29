@@ -59,6 +59,7 @@ function drop(ev, newCategory) {
     const rawJson = ev.dataTransfer.getData("application/json") || ev.dataTransfer.getData("text/plain");
     let movedAny = false;
     let dragIds = [];
+    const targetWorkspace = ev.currentTarget.getAttribute('data-card-workspace') || (window.eveState?.config?.activeWorkspace) || 'main';
 
     let payload = null;
     try {
@@ -126,7 +127,17 @@ function drop(ev, newCategory) {
 
     if (movedAny) {
         setDropTargetLinks(targetLinks);
-        if (typeof saveData === 'function') saveData({ forceRender: true });
+        if (typeof saveData === 'function') {
+            saveData({
+                forceRender: true,
+                source: 'bookmark-dropped-to-category',
+                meta: {
+                    workspaceId: targetWorkspace,
+                    categoryName: newCategory,
+                    linkIds: dragIds
+                }
+            });
+        }
     }
 }
 

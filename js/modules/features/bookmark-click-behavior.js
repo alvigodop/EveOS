@@ -127,7 +127,17 @@ window.EveBookmarkClickBehavior = window.EveBookmarkClickBehavior || {};
         const normalized = normalizeMode(mode);
         if (normalized === 'inherit') delete link.clickBehaviorMode;
         else link.clickBehaviorMode = normalized;
-        if (typeof saveData === 'function') saveData();
+        if (typeof saveData === 'function') {
+            saveData({
+                skipSuggestions: true,
+                source: 'bookmark-click-behavior-updated',
+                meta: {
+                    workspaceId: getWorkspaceId(link),
+                    categoryName: getCategoryName(link),
+                    linkId: String(linkId)
+                }
+            });
+        }
         if (typeof renderDashboard === 'function') renderDashboard();
         return normalized;
     }

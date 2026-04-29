@@ -22,14 +22,21 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
 
     function buildStoreWriter(runtime) {
         if (typeof window.EveBookmarkFolders?._shared?.writeStore === 'function') {
-            return window.EveBookmarkFolders._shared.writeStore;
+            return function (next, options = {}) {
+                return window.EveBookmarkFolders._shared.writeStore(next, true, options);
+            };
         }
-        return function (next) {
+        return function (next, options = {}) {
             const store = next || runtime.getFolderTrees();
             if (window.eveState) window.eveState.bookmarkFolders = store;
             window.bookmarkFolders = store;
             if (typeof bookmarkFolders !== 'undefined') bookmarkFolders = store;
-            if (typeof window.saveData === 'function') window.saveData();
+            if (typeof window.saveData === 'function') {
+                window.saveData({
+                    source: String(options.source || 'duplicate-sensor-folder-store-updated').trim() || 'duplicate-sensor-folder-store-updated',
+                    meta: options.meta && typeof options.meta === 'object' ? options.meta : null
+                });
+            }
         };
     }
 

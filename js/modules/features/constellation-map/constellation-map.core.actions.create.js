@@ -51,7 +51,12 @@
         }
 
         if (typeof saveData === 'function') {
-            saveData({ skipRender: true, skipSuggestions: true });
+            saveData({
+                skipRender: true,
+                skipSuggestions: true,
+                source: 'constellation-folder-created',
+                meta: { workspaceId, categoryName, folderId: text(folder.id, '') }
+            });
         }
 
         refreshGraphAfterMutation(folderNodeId);

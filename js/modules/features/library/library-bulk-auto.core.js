@@ -164,7 +164,18 @@
             }
         }
 
-        if (typeof saveData === 'function') saveData();
+        if (typeof saveData === 'function') {
+            saveData({
+                skipSuggestions: true,
+                source: 'library-bulk-auto-updated',
+                meta: {
+                    workspaceId: bulkLibraryContext.workspaceId || config?.activeWorkspace || 'main',
+                    categoryName: bulkLibraryContext.categoryName || 'Unsorted',
+                    processedCount: processed,
+                    createdCount: created
+                }
+            });
+        }
 
         runButton.disabled = false;
         runButton.innerText = originalText;

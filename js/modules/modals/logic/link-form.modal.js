@@ -284,7 +284,17 @@ window.EveLinkForm = window.EveLinkForm || {};
             window.EveBookmarkCovers.clearSelection(targetId);
         }
 
-        saveData({ forceRender: true });
+        saveData({
+            forceRender: true,
+            source: editId ? 'bookmark-edit' : 'bookmark-create',
+            meta: {
+                kind: editId ? 'bookmark-edit' : 'bookmark-create',
+                linkId: String(targetId || '').trim(),
+                workspaceId: String(config?.activeWorkspace || 'main').trim() || 'main',
+                categoryName: category,
+                folderId: folderId || ''
+            }
+        });
 
         if (targetId) {
             ns.saveLibraryLinkState(targetId, category, title, url);

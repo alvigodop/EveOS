@@ -23,12 +23,12 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/autotitle/autotitle-core.orchestrator.js?v=0.1.0",
     "js/modules/features/autotitle/autotitle-core.js?v=0.4.0",
     "js/modules/features/autotitle/autotitle-ui.js?v=0.2.12",
-    "js/modules/features/autotitle/autotitle-bulk.js?v=0.2.9",
+    "js/modules/features/autotitle/autotitle-bulk.js?v=0.3.0",
     "js/modules/features/library/library-bulk-auto-components/lba-utils.text.js?v=0.2.1",
     "js/modules/features/library/library-bulk-auto-components/lba-utils.sources.js?v=0.2.1",
     "js/modules/features/library/library-bulk-auto-components/lba-utils.js?v=0.2.5",
     "js/modules/features/library/library-bulk-auto-components/lba-api.js?v=0.2.4",
     "js/modules/features/library/library-bulk-auto-components/lba-patch.js?v=0.2.5",
-    "js/modules/features/library/library-bulk-auto.core.js?v=0.2.5",
+    "js/modules/features/library/library-bulk-auto.core.js?v=0.2.6",
     "js/modules/features/library/library-bulk-auto.js?v=0.2.3"
 ]);

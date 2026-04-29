@@ -287,6 +287,21 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         };
     }
 
+    function diagnoseRecord(record) {
+        const visibility = computeVisibility(record);
+        const health = computeHealth(record);
+        const freshness = computeFreshness(record?.updatedAt);
+        const issue = buildRecordIssue(record, visibility, health, freshness);
+        return {
+            visibility: visibility,
+            health: health,
+            freshness: freshness,
+            issue: issue,
+            severity: issue?.severity || 'ok',
+            reasons: issue?.reasons || []
+        };
+    }
+
     function buildIntegrityReportSync(snapshot, scope) {
         const report = {
             totalRecords: 0,
@@ -356,6 +371,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         buildScopeRecordMatcher,
         computeVisibility,
         computeHealth,
+        diagnoseRecord,
         buildIntegrityReportSync
     };
 })();
