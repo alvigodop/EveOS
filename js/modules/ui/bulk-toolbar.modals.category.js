@@ -73,14 +73,31 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
             if (!categoryName) return false;
 
             const syncLinked = window.EveLibrary?.ConnectionsAPI?.syncFromLink;
-            getLinks().forEach(link => {
-                if (!getSelectedIds().has(toBulkId(link.id))) return;
+            const mergeApi = window.EveBookmarkMerge;
+            const allLinks = getLinks();
+            const selectedLinkIds = Array.from(getSelectedIds()).map(toBulkId);
+            selectedLinkIds.forEach((selectedId) => {
+                const link = allLinks.find((candidate) => toBulkId(candidate?.id) === selectedId);
+                if (!link) return;
+                const targetWorkspaceId = String(link.workspace || getSelectedWorkspaceForMove() || '').trim() || 'main';
+                if (mergeApi && typeof mergeApi.moveOrMergeLinkToScope === 'function') {
+                    mergeApi.moveOrMergeLinkToScope(link, {
+                        workspaceId: targetWorkspaceId,
+                        categoryName,
+                        folderId: ''
+                    }, {
+                        source: 'bulk-category-bookmark-move',
+                        links: allLinks
+                    });
+                    return;
+                }
                 link.category = categoryName;
                 window.EveBookmarkFolders?.clearLinkFolderAssignment?.(link);
                 if (typeof syncLinked === 'function') {
                     syncLinked(link.id);
                 }
             });
+            if (typeof deps.setLinks === 'function') deps.setLinks(allLinks);
             return true;
         }
 

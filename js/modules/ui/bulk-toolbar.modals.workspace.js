@@ -202,22 +202,36 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
 
             // 2) Update links
             const syncLinked = window.EveLibrary?.ConnectionsAPI?.syncFromLink;
-            selectedLinks.forEach(link => {
+            const mergeApi = window.EveBookmarkMerge;
+            selectedLinks.forEach(selectedLink => {
+                const link = allLinks.find(candidate => String(candidate?.id) === String(selectedLink.id));
+                if (!link) return;
+
+                let nextFolderId = String(link.folderId || '').trim();
+                if (nextFolderId && folderApi) {
+                    const folder = folderApi.getFolderById(targetWorkspaceId, targetCategoryName, nextFolderId);
+                    if (!folder) nextFolderId = '';
+                }
+
+                if (mergeApi && typeof mergeApi.moveOrMergeLinkToScope === 'function') {
+                    mergeApi.moveOrMergeLinkToScope(link, {
+                        workspaceId: targetWorkspaceId,
+                        categoryName: targetCategoryName,
+                        folderId: nextFolderId
+                    }, {
+                        source: 'bulk-workspace-bookmark-move',
+                        links: allLinks
+                    });
+                    return;
+                }
+
                 link.workspace = targetWorkspaceId;
                 link.category = targetCategoryName;
 
-                // Check if the link's folder exists in the target scope.
-                const folderId = link.folderId;
-                if (folderId && folderApi) {
-                    const folder = folderApi.getFolderById(targetWorkspaceId, targetCategoryName, folderId);
-                    if (!folder) {
-                        folderApi.clearLinkFolderAssignment(link);
-                    }
-                }
+                if (nextFolderId) link.folderId = nextFolderId;
+                else if (folderApi) folderApi.clearLinkFolderAssignment(link);
 
-                if (typeof syncLinked === 'function') {
-                    syncLinked(link.id);
-                }
+                if (typeof syncLinked === 'function') syncLinked(link.id);
             });
 
             setLinks(allLinks);

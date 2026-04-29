@@ -115,13 +115,42 @@ function drop(ev, newCategory) {
     }
 
     const targetLinks = getDropTargetLinks();
+    const mergeApi = window.EveBookmarkMerge;
+    const movedIds = [];
+    const mergedIds = [];
+    const removedIds = [];
     dragIds.forEach((id) => {
         const idx = targetLinks.findIndex(l => String(l.id) === String(id));
         if (idx < 0) return;
-        if (targetLinks[idx].category === newCategory) return;
-        targetLinks[idx].category = newCategory;
-        window.EveBookmarkFolders?.clearLinkFolderAssignment?.(targetLinks[idx]);
-        window.EveLibrary?.ConnectionsAPI?.syncFromLink?.(targetLinks[idx].id);
+        const link = targetLinks[idx];
+        const currentWorkspace = String(link.workspace || '').trim() || 'main';
+        const currentCategory = String(link.category || 'Unsorted').trim() || 'Unsorted';
+        const alreadyAtTarget = currentWorkspace === targetWorkspace && currentCategory === newCategory && !String(link.folderId || '').trim();
+        if (alreadyAtTarget) return;
+
+        if (mergeApi && typeof mergeApi.moveOrMergeLinkToScope === 'function') {
+            const result = mergeApi.moveOrMergeLinkToScope(link, {
+                workspaceId: targetWorkspace,
+                categoryName: newCategory,
+                folderId: ''
+            }, {
+                source: 'bookmark-dropped-to-category',
+                links: targetLinks
+            });
+            if (result?.moved || result?.merged) {
+                movedAny = true;
+                movedIds.push(String(result.targetId || id));
+                if (result.merged) mergedIds.push(String(result.targetId || ''));
+                if (Array.isArray(result.removedIds)) removedIds.push(...result.removedIds);
+            }
+            return;
+        }
+
+        link.workspace = targetWorkspace;
+        link.category = newCategory;
+        window.EveBookmarkFolders?.clearLinkFolderAssignment?.(link);
+        window.EveLibrary?.ConnectionsAPI?.syncFromLink?.(link.id);
+        movedIds.push(String(link.id));
         movedAny = true;
     });
 
@@ -134,7 +163,9 @@ function drop(ev, newCategory) {
                 meta: {
                     workspaceId: targetWorkspace,
                     categoryName: newCategory,
-                    linkIds: dragIds
+                    linkIds: movedIds.length ? movedIds : dragIds,
+                    mergedLinkIds: mergedIds.filter(Boolean),
+                    removedLinkIds: removedIds
                 }
             });
         }

@@ -19,6 +19,37 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
         const targetLinks = links.filter((link) => linkIds.includes(String(link.id)));
         if (targetLinks.length < 2) return null;
 
+        const sharedMerge = window.EveBookmarkMerge;
+        if (sharedMerge && typeof sharedMerge.mergeDuplicateGroup === 'function') {
+            const sharedResult = sharedMerge.mergeDuplicateGroup(linkIds, {
+                source: 'duplicate-sensor-bookmark-merge',
+                links,
+                reason: 'Duplicate sensor merge matched bookmarks by title or URL.'
+            });
+            if (sharedResult?.removedIds?.length) {
+                const writeStore = buildStoreWriter(runtime);
+                writeStore(runtime.getFolderTrees(), {
+                    source: 'duplicate-sensor-bookmark-merge',
+                    meta: {
+                        linkId: sharedResult.mergedId,
+                        linkIds: [sharedResult.mergedId].concat(sharedResult.removedIds),
+                        removedLinkIds: sharedResult.removedIds,
+                        mergeModes: sharedResult.modes || []
+                    }
+                });
+
+                if (typeof window.renderSidebar === 'function') window.renderSidebar();
+                if (typeof window.renderDashboard === 'function') window.renderDashboard();
+                if (window.EveLibrary?.UI && typeof window.EveLibrary.UI.renderLibrary === 'function') {
+                    window.EveLibrary.UI.renderLibrary();
+                } else if (typeof window.renderLibrary === 'function') {
+                    window.renderLibrary();
+                }
+
+                return { mergedId: sharedResult.mergedId, removedIds: sharedResult.removedIds };
+            }
+        }
+
         const nonSearchLinks = targetLinks.filter((link) => !isSearch(link.url));
         const bestUrlLink = (nonSearchLinks.length > 0 ? nonSearchLinks : targetLinks)
             .reduce((best, current) => (String(current.url).length > String(best.url).length ? current : best));

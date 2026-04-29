@@ -92,13 +92,28 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
             }
 
             const liveLinks = getLiveLinks();
-            liveLinks.forEach((link) => {
-                if (toMoveIds.has(normalizeFolderId(link.folderId))) {
-                    link.workspace = tWs;
-                    link.category = tCat;
-                    if (typeof window.EveLibrary?.ConnectionsAPI?.syncFromLink === 'function') {
-                        window.EveLibrary.ConnectionsAPI.syncFromLink(link.id);
-                    }
+            const movedFolderLinkIds = liveLinks
+                .filter((link) => toMoveIds.has(normalizeFolderId(link.folderId)))
+                .map((link) => String(link.id));
+            const mergeApi = window.EveBookmarkMerge;
+            movedFolderLinkIds.forEach((linkId) => {
+                const link = liveLinks.find((candidate) => String(candidate?.id) === linkId);
+                if (!link) return;
+                if (mergeApi && typeof mergeApi.moveOrMergeLinkToScope === 'function') {
+                    mergeApi.moveOrMergeLinkToScope(link, {
+                        workspaceId: tWs,
+                        categoryName: tCat,
+                        folderId: normalizeFolderId(link.folderId)
+                    }, {
+                        source: 'bookmark-folder-transfer-links-moved',
+                        links: liveLinks
+                    });
+                    return;
+                }
+                link.workspace = tWs;
+                link.category = tCat;
+                if (typeof window.EveLibrary?.ConnectionsAPI?.syncFromLink === 'function') {
+                    window.EveLibrary.ConnectionsAPI.syncFromLink(link.id);
                 }
             });
             setLiveLinks(liveLinks);

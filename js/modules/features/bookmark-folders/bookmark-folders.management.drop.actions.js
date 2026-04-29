@@ -121,11 +121,15 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         if (!linkIds.length) return false;
         let movedAny = false;
         const movedIds = [];
+        const mergedIds = [];
+        const removedIds = [];
         const touchedScopes = new Map();
         const syncLinked = window.EveLibrary?.ConnectionsAPI?.syncFromLink;
+        const mergeApi = window.EveBookmarkMerge;
 
-        liveLinks.forEach((link) => {
-            if (!linkIds.includes(String(link?.id))) return;
+        linkIds.forEach((linkId) => {
+            const link = liveLinks.find((candidate) => String(candidate?.id) === String(linkId));
+            if (!link) return;
             const nextWorkspaceId = targetWorkspaceId;
             const nextCategoryName = targetCategoryName;
             const currentFolderId = normalizeFolderId(link?.folderId);
@@ -137,13 +141,29 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
             if (alreadyAtTarget) return;
 
             addTouchedScope(touchedScopes, sourceWorkspaceId, sourceCategoryName);
-            link.workspace = nextWorkspaceId;
-            link.category = nextCategoryName;
-            if (validFolderId) link.folderId = validFolderId;
-            else delete link.folderId;
-            if (typeof syncLinked === 'function') syncLinked(link.id);
+
+            if (mergeApi && typeof mergeApi.moveOrMergeLinkToScope === 'function') {
+                const result = mergeApi.moveOrMergeLinkToScope(link, {
+                    workspaceId: nextWorkspaceId,
+                    categoryName: nextCategoryName,
+                    folderId: validFolderId
+                }, {
+                    source: 'bookmark-folder-links-moved',
+                    links: liveLinks
+                });
+                if (!result?.moved && !result?.merged) return;
+                movedIds.push(String(result.targetId || link.id));
+                if (result.merged) mergedIds.push(String(result.targetId || ''));
+                if (Array.isArray(result.removedIds)) removedIds.push(...result.removedIds);
+            } else {
+                link.workspace = nextWorkspaceId;
+                link.category = nextCategoryName;
+                if (validFolderId) link.folderId = validFolderId;
+                else delete link.folderId;
+                if (typeof syncLinked === 'function') syncLinked(link.id);
+                movedIds.push(String(link.id));
+            }
             addTouchedScope(touchedScopes, nextWorkspaceId, nextCategoryName);
-            movedIds.push(String(link.id));
             movedAny = true;
         });
 
@@ -156,7 +176,9 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
                         linkIds: movedIds,
                         workspaceId: targetWorkspaceId,
                         categoryName: targetCategoryName,
-                        folderId: validFolderId
+                        folderId: validFolderId,
+                        mergedLinkIds: mergedIds.filter(Boolean),
+                        removedLinkIds: removedIds
                     }
                 }));
             }
@@ -172,7 +194,9 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
                     workspaceId: targetWorkspaceId,
                     categoryName: targetCategoryName,
                     folderId: validFolderId,
-                    movedCount: movedIds.length
+                    movedCount: movedIds.length,
+                    mergedLinkIds: mergedIds.filter(Boolean),
+                    removedLinkIds: removedIds
                 }
             });
         }
