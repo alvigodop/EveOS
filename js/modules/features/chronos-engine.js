@@ -201,6 +201,18 @@
         window.setTimeout(run, 250);
     }
 
+    function scheduleSnapshotForMutation(event) {
+        const detail = event && event.detail && typeof event.detail === 'object' ? event.detail : {};
+        if (detail.dirty === false) return;
+        const source = String(detail.source || '').trim();
+        if (source === 'chronos-restore') return;
+
+        const now = Date.now();
+        if (now - lastSnapshotTime <= SNAPSHOT_INTERVAL_MS) return;
+        lastSnapshotTime = now;
+        scheduleSnapshotCapture();
+    }
+
     async function getSnapshots() {
         await migrateLegacySnapshots();
         if (await canUseIndexedDb()) {
@@ -265,18 +277,5 @@
     window.EveChronosEngine.getSnapshots = getSnapshots;
     window.EveChronosEngine.restoreSnapshot = restoreSnapshot;
 
-    // Automatically hook into main saveData to take a snapshot occasionally
-    const originalSaveData = window.saveData;
-
-    if (typeof originalSaveData === 'function') {
-        window.saveData = function() {
-            const ret = originalSaveData.apply(this, arguments);
-            const now = Date.now();
-            if (now - lastSnapshotTime > SNAPSHOT_INTERVAL_MS) {
-                lastSnapshotTime = now;
-                scheduleSnapshotCapture();
-            }
-            return ret;
-        };
-    }
+    window.addEventListener('eve:state-mutated', scheduleSnapshotForMutation);
 })();

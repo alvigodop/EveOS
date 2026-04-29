@@ -25,36 +25,81 @@ function sanitizeLinksForStorage(sourceLinks) {
         : [];
 }
 
-function persistCoreStateAsync(sanitizedLinks) {
+function getBookmarkFoldersForStorage() {
+    return (typeof bookmarkFolders !== 'undefined' && bookmarkFolders && typeof bookmarkFolders === 'object')
+        ? bookmarkFolders
+        : {};
+}
+
+function getQuickPinsForStorage() {
+    return (typeof quickPins !== 'undefined' && Array.isArray(quickPins))
+        ? quickPins
+        : [];
+}
+
+function getConstellationDetachedForStorage() {
+    return (window.constellationDetachedChains && typeof window.constellationDetachedChains === 'object')
+        ? window.constellationDetachedChains
+        : {};
+}
+
+function buildCoreStateSnapshot() {
+    return {
+        links: sanitizeLinksForStorage(typeof links !== 'undefined' ? links : []),
+        bookmarkFolders: getBookmarkFoldersForStorage(),
+        quickPins: getQuickPinsForStorage(),
+        constellationDetachedChains: getConstellationDetachedForStorage()
+    };
+}
+
+function buildStateSignature(value) {
+    try {
+        return JSON.stringify(value);
+    } catch (error) {
+        console.warn('Core Storage: Failed to build state signature; forcing save.', error);
+        return 'unstable:' + Date.now() + ':' + Math.random();
+    }
+}
+
+function dispatchStateMutation(source, detail) {
+    if (typeof window.dispatchEvent !== 'function' || typeof CustomEvent !== 'function') return;
+    window.dispatchEvent(new CustomEvent('eve:state-mutated', {
+        detail: Object.assign({ source: source, dirty: true }, detail || {})
+    }));
+}
+
+var _lastCoreStateSignature = '';
+var _lastConfigSignature = '';
+
+function markCoreStateClean(snapshot) {
+    _lastCoreStateSignature = buildStateSignature(snapshot || buildCoreStateSnapshot());
+}
+
+function markConfigClean(nextConfig) {
+    _lastConfigSignature = buildStateSignature(nextConfig || config || {});
+}
+
+function persistCoreStateAsync(coreSnapshot) {
     const storage = getCoreStorage();
     if (!storage) return Promise.resolve(false);
+    const snapshot = coreSnapshot && typeof coreSnapshot === 'object'
+        ? coreSnapshot
+        : buildCoreStateSnapshot();
 
     return Promise.all([
-        storage.saveJson(EVE_LINKS_KEY, sanitizedLinks, {
+        storage.saveJson(EVE_LINKS_KEY, snapshot.links || [], {
             localFallbackKey: EVE_LINKS_KEY,
             cleanupLocalKeys: [EVE_LINKS_KEY]
         }),
-        storage.saveJson(EVE_BOOKMARK_FOLDERS_KEY, (
-            (typeof bookmarkFolders !== 'undefined' && bookmarkFolders && typeof bookmarkFolders === 'object')
-                ? bookmarkFolders
-                : {}
-        ), {
+        storage.saveJson(EVE_BOOKMARK_FOLDERS_KEY, snapshot.bookmarkFolders || {}, {
             localFallbackKey: EVE_BOOKMARK_FOLDERS_KEY,
             cleanupLocalKeys: [EVE_BOOKMARK_FOLDERS_KEY]
         }),
-        storage.saveJson(EVE_QUICK_PINS_KEY, (
-            (typeof quickPins !== 'undefined' && Array.isArray(quickPins))
-                ? quickPins
-                : []
-        ), {
+        storage.saveJson(EVE_QUICK_PINS_KEY, Array.isArray(snapshot.quickPins) ? snapshot.quickPins : [], {
             localFallbackKey: EVE_QUICK_PINS_KEY,
             cleanupLocalKeys: [EVE_QUICK_PINS_KEY]
         }),
-        storage.saveJson(EVE_CONSTELLATION_DETACHED_KEY, (
-            (window.constellationDetachedChains && typeof window.constellationDetachedChains === 'object')
-                ? window.constellationDetachedChains
-                : {}
-        ), {
+        storage.saveJson(EVE_CONSTELLATION_DETACHED_KEY, snapshot.constellationDetachedChains || {}, {
             localFallbackKey: EVE_CONSTELLATION_DETACHED_KEY,
             cleanupLocalKeys: [EVE_CONSTELLATION_DETACHED_KEY]
         })
@@ -70,18 +115,26 @@ function _saveDataImmediate(options = {}) {
     const skipRender = !!options.skipRender;
     const skipSuggestions = !!options.skipSuggestions;
     const forceRender = !!options.forceRender;
-    const sanitizedLinks = sanitizeLinksForStorage(links);
+    const snapshot = buildCoreStateSnapshot();
+    const signature = buildStateSignature(snapshot);
+    const dirty = signature !== _lastCoreStateSignature;
 
-    const persistPromise = persistCoreStateAsync(sanitizedLinks);
+    if (dirty) {
+        _lastCoreStateSignature = signature;
+        dispatchStateMutation('saveData');
+    }
+
+    const persistPromise = dirty ? persistCoreStateAsync(snapshot) : Promise.resolve(true);
+    const shouldRefresh = dirty || forceRender;
 
     // In perf mode, skip the full DOM rebuild â€” actions handle their own UI updates
     if (window._evePerfMode && !forceRender) return persistPromise;
 
-    if (!skipRender && typeof renderDashboard === 'function') {
+    if (shouldRefresh && !skipRender && typeof renderDashboard === 'function') {
         window.__eveDashboardRenderHint = { kind: 'data-mutation' };
         renderDashboard();
     }
-    if (!skipSuggestions && typeof updateSuggestions === 'function') updateSuggestions();
+    if (shouldRefresh && !skipSuggestions && typeof updateSuggestions === 'function') updateSuggestions();
     return persistPromise;
 }
 
@@ -90,9 +143,6 @@ function saveData(options = {}) {
     const skipSuggestions = !!options.skipSuggestions;
     const forceRender = !!options.forceRender;
     const immediate = !!options.immediate;
-
-    // Immediate: dispatch event for reactive listeners
-    window.dispatchEvent(new CustomEvent('eve:state-mutated', { detail: { source: 'saveData' } }));
 
     if (_saveDataTimer) clearTimeout(_saveDataTimer);
     if (immediate) {
@@ -103,17 +153,25 @@ function saveData(options = {}) {
     // Debounce the expensive work: sanitize + persist + render
     _saveDataTimer = setTimeout(function () {
         _saveDataTimer = 0;
-        persistCoreStateAsync(sanitizeLinksForStorage(links));
+        const snapshot = buildCoreStateSnapshot();
+        const signature = buildStateSignature(snapshot);
+        const dirty = signature !== _lastCoreStateSignature;
+        if (dirty) {
+            _lastCoreStateSignature = signature;
+            dispatchStateMutation('saveData');
+            persistCoreStateAsync(snapshot);
+        }
+        const shouldRefresh = dirty || forceRender;
 
         // In perf mode, skip the full DOM rebuild — actions handle their own UI updates
         if (window._evePerfMode && !forceRender) return;
 
-        if (!skipRender && typeof renderDashboard === 'function') {
+        if (shouldRefresh && !skipRender && typeof renderDashboard === 'function') {
             // Tag as data-mutation so the render skips expensive scroll preservation
             window.__eveDashboardRenderHint = { kind: 'data-mutation' };
             renderDashboard();
         }
-        if (!skipSuggestions && typeof updateSuggestions === 'function') updateSuggestions();
+        if (shouldRefresh && !skipSuggestions && typeof updateSuggestions === 'function') updateSuggestions();
     }, 100);
 }
 
@@ -136,6 +194,12 @@ function saveConfig(options) {
 }
 
 function _saveConfigImmediate() {
+    var signature = buildStateSignature(config || {});
+    if (signature === _lastConfigSignature) {
+        return Promise.resolve(true);
+    }
+    _lastConfigSignature = signature;
+
     var persistPromise = Promise.resolve(true);
     var storage = getCoreStorage();
     if (storage) {
@@ -164,7 +228,7 @@ function _saveConfigImmediate() {
             }
         }
     }
-    window.dispatchEvent(new CustomEvent('eve:state-mutated', { detail: { source: 'saveConfig' } }));
+    dispatchStateMutation('saveConfig');
     return persistPromise;
 }
 
@@ -277,6 +341,9 @@ async function loadData() {
     if (window.EveQuickPins?.migrateLegacyPins) {
         window.EveQuickPins.migrateLegacyPins();
     }
+
+    markCoreStateClean();
+    markConfigClean(config);
 
     // Render — defer heavy dashboard to let browser breathe after 800+ script evaluations
     // Use setTimeout(0) to push to back of macrotask queue (rAF still competes with paint)

@@ -110,7 +110,7 @@ function switchWorkspace(id, options = {}) {
     }
 
     saveConfig();
-    if (changed || forceRender) {
+    if (changed) {
         if (typeof renderSidebar === 'function') renderSidebar();
     } else if (typeof window.EveSidebarRuntime?.syncSidebarViewState === 'function') {
         window.EveSidebarRuntime.syncSidebarViewState();
