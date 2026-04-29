@@ -173,14 +173,14 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
 
         const scopedKeys = new Set();
         const indexApi = window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
-        const structureSummary = indexApi && typeof indexApi.getStructureSummary === 'function'
-            ? indexApi.getStructureSummary()
-            : null;
         const hasUsableSnapshot = indexApi && typeof indexApi.hasReadableStructureSnapshot === 'function'
             ? indexApi.hasReadableStructureSnapshot()
             : (indexApi && typeof indexApi.hasUsableSnapshot === 'function'
                 ? indexApi.hasUsableSnapshot()
-                : !!structureSummary?.builtAt);
+                : false);
+        const structureSummary = hasUsableSnapshot && typeof indexApi?.getStructureSummary === 'function'
+            ? indexApi.getStructureSummary()
+            : null;
 
         if (hasUsableSnapshot && structureSummary?.cards) {
             Object.keys(structureSummary.cards).forEach((scopedKey) => {

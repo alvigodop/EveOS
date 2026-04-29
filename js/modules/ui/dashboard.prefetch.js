@@ -48,9 +48,29 @@
         return map;
     }
 
+    var _indexWarmPromise = null;
+
+    function warmDatapackIndex(reason) {
+        var indexApi = getDatapackIndexApi();
+        if (!indexApi || (typeof indexApi.ensureFresh !== 'function' && typeof indexApi.rebuild !== 'function')) return;
+        if (_indexWarmPromise) return;
+        var warmReason = String(reason || 'dashboard-prefetch');
+        var warmPromise = typeof indexApi.ensureFresh === 'function'
+            ? indexApi.ensureFresh({ reason: warmReason })
+            : indexApi.rebuild({ reason: warmReason });
+        _indexWarmPromise = Promise.resolve(warmPromise)
+            .catch(function () {
+                // Live-link fallback remains available if the index warmup fails.
+            })
+            .finally(function () {
+                _indexWarmPromise = null;
+            });
+    }
+
     function collectIndexedVisibleLinks(visibleWsIds, liveLinks) {
         var indexApi = getDatapackIndexApi();
         if (!indexApi || typeof indexApi.getScopedBookmarkLinkIds !== 'function' || !hasReadableLinkSnapshot(indexApi)) {
+            warmDatapackIndex('dashboard-prefetch');
             return null;
         }
 

@@ -20,6 +20,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         loaded: false,
         lastReason: 'startup',
         lastMutationMeta: null,
+        lastInvalidationPlan: null,
         revision: 0,
         datapackFingerprint: ''
     };
@@ -181,6 +182,18 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         if (record?.provenance?.orphaned) {
             stateLabel = 'broken';
             reasons.push('Workspace reference no longer exists.');
+        }
+        if (record?.provenance?.missingFolder) {
+            stateLabel = 'broken';
+            reasons.push('Folder parent no longer exists.');
+        }
+        if (record?.provenance?.missingParent) {
+            stateLabel = 'broken';
+            reasons.push('Parent path is missing.');
+        }
+        if (record?.provenance?.sourceOnly) {
+            if (stateLabel !== 'broken') stateLabel = 'warning';
+            reasons.push('Result exists only in saved source/cache data.');
         }
         if (record?.path?.ambiguousWorkspace) {
             if (stateLabel !== 'broken') stateLabel = 'warning';

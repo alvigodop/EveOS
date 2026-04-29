@@ -220,6 +220,25 @@ async function main() {
     assert(alpha && alpha.title === 'Alpha Updated', 'Expected patched alpha bookmark title.');
     assert(beta && beta.title === 'Beta Original', 'Expected unrelated beta bookmark to be preserved.');
 
+    window.eveState.links = [
+        makeLink('alpha-1', 'Alpha Library Link Updated', 'Alpha'),
+        makeLink('beta-1', 'Beta Original', 'Beta')
+    ];
+    indexApi.markDirty('library-link-updated', {
+        workspaceId: 'main',
+        categoryName: 'Alpha',
+        linkId: 'alpha-1'
+    });
+    const directPlan = indexApi.getInvalidationPlan();
+    assert(directPlan.mode === 'local-scope', 'Expected direct mutation metadata to plan a scoped local patch.');
+    const directPatchedSnapshot = await indexApi.ensureFresh();
+    const directAlpha = directPatchedSnapshot.records.find(record => record.id === 'bookmark::alpha-1');
+    const directBeta = directPatchedSnapshot.records.find(record => record.id === 'bookmark::beta-1');
+    assert(scopedLocalBuilds === 2, 'Expected direct metadata to use one additional scoped local patch build.');
+    assert(fullLocalBuilds === 0, 'Expected no full local rebuild for direct metadata patch.');
+    assert(directAlpha && directAlpha.title === 'Alpha Library Link Updated', 'Expected direct metadata patch to refresh alpha.');
+    assert(directBeta && directBeta.title === 'Beta Original', 'Expected direct metadata patch to preserve beta.');
+
     const revisionBefore = indexApi.getBuildState().revision;
     indexApi.markDirty('saveData', {
         dataDelta: {
@@ -251,12 +270,13 @@ async function main() {
         }
     });
     assert(indexApi.getBuildState().revision === revisionBefore + 1, 'Expected workspace config delta to dirty Nexus index.');
+    assert(indexApi.getInvalidationPlan().mode === 'local', 'Expected workspace config delta to plan a local projection refresh.');
 
     console.log('PASS nexus_index_surgical_delta_smoke:', JSON.stringify({
         scopedLocalBuilds,
         fullLocalBuilds,
-        alphaTitle: alpha.title,
-        betaTitle: beta.title
+        alphaTitle: directAlpha.title,
+        betaTitle: directBeta.title
     }));
 }
 

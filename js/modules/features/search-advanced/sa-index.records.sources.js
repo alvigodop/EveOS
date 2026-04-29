@@ -36,12 +36,14 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             if (!groupedByCategory.has(key)) {
                 groupedByCategory.set(key, {
                     categoryName: key,
-                    workspaceIds: new Set()
+                    workspaceIds: new Set(),
+                    linkCount: 0
                 });
             }
             entry.workspaceIds.forEach(function (workspaceId) {
                 groupedByCategory.get(key).workspaceIds.add(workspaceId);
             });
+            groupedByCategory.get(key).linkCount += Number(entry.linkCount || 0);
         });
         return groupedByCategory;
     }
@@ -361,7 +363,8 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                                     kind: 'cached',
                                     sourceQuery: sourceQuery,
                                     provider: text(providerKey, 'unknown'),
-                                    perSource: perSource
+                                    perSource: perSource,
+                                    sourceOnly: Number(category.linkCount || 0) <= 0
                                 }
                             };
                             record.baseHealth = deriveBaseHealth(record);
@@ -435,7 +438,8 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                             fandomDomain: fandomDomain,
                             apiQueries: toArray(group?.apiEntries).map(function (entry) { return text(entry?.query, ''); }).filter(Boolean),
                             providers: Object.keys(providerSummary),
-                            providerSummary: providerSummary
+                            providerSummary: providerSummary,
+                            sourceOnly: Number(category.linkCount || 0) <= 0
                         }
                     };
                     record.baseHealth = deriveBaseHealth(record);

@@ -16,11 +16,14 @@ window.DashboardCategories = window.DashboardCategories || {};
 
     function queueCardSummaryWarmup() {
         var indexApi = window.EveOS?.SearchAdvanced?.Index;
-        if (!indexApi || typeof indexApi.rebuild !== 'function') return;
+        if (!indexApi || (typeof indexApi.ensureFresh !== 'function' && typeof indexApi.rebuild !== 'function')) return;
         if (cardSummaryWarmPromise) return;
         var scrollSeqAtRequest = Number(window._dashboardScrollActivitySeq || 0);
+        var warmPromise = typeof indexApi.ensureFresh === 'function'
+            ? indexApi.ensureFresh({ reason: 'dashboard-card-summary' })
+            : indexApi.rebuild({ reason: 'dashboard-card-summary' });
 
-        cardSummaryWarmPromise = Promise.resolve(indexApi.rebuild({ reason: 'dashboard-card-summary' }))
+        cardSummaryWarmPromise = Promise.resolve(warmPromise)
             .catch(function () {
                 // Ignore warmup failures and render without datapack summary chips.
             })

@@ -254,6 +254,9 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             .map(function (reason) { return text(reason, ''); })
             .filter(Boolean);
         if (record?.provenance?.orphaned) reasons.push('Record is orphaned from its expected parent path.');
+        if (record?.provenance?.missingFolder) reasons.push('Bookmark points at a folder that no longer exists.');
+        if (record?.provenance?.missingParent) reasons.push('Record parent path is missing.');
+        if (record?.provenance?.sourceOnly) reasons.push('Record exists in saved source/cache data, not as a live bookmark.');
         if (freshness?.state === 'stale') reasons.push('Record freshness is stale.');
         return Array.from(new Set(reasons));
     }
@@ -309,6 +312,8 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             indirectRecords: 0,
             brokenRecords: 0,
             orphanedRecords: 0,
+            missingParentRecords: 0,
+            sourceOnlyRecords: 0,
             staleRecords: 0,
             agingRecords: 0,
             linkedLibraryRecords: 0,
@@ -344,6 +349,8 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             if (visibility.state === 'indirect') report.indirectRecords += 1;
             if (visibility.state === 'broken' || health.state === 'broken') report.brokenRecords += 1;
             if (record?.provenance?.orphaned) report.orphanedRecords += 1;
+            if (record?.provenance?.missingFolder || record?.provenance?.missingParent) report.missingParentRecords += 1;
+            if (record?.provenance?.sourceOnly) report.sourceOnlyRecords += 1;
             if (freshness.state === 'stale') report.staleRecords += 1;
             if (freshness.state === 'aging') report.agingRecords += 1;
             if (record?.library?.linked) report.linkedLibraryRecords += 1;

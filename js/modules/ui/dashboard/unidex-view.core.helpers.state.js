@@ -24,10 +24,13 @@ window.UnidexViewModules = window.UnidexViewModules || {};
 
         function warmDatapackIndex() {
             const indexApi = getDatapackIndexApi();
-            if (!indexApi || typeof indexApi.rebuild !== 'function') return;
+            if (!indexApi || (typeof indexApi.ensureFresh !== 'function' && typeof indexApi.rebuild !== 'function')) return;
             if (state.datapackIndexWarmPromise) return;
+            const warmPromise = typeof indexApi.ensureFresh === 'function'
+                ? indexApi.ensureFresh({ reason: 'unidex-summary' })
+                : indexApi.rebuild({ reason: 'unidex-summary' });
 
-            state.datapackIndexWarmPromise = Promise.resolve(indexApi.rebuild({ reason: 'unidex-summary' }))
+            state.datapackIndexWarmPromise = Promise.resolve(warmPromise)
                 .catch(function () {
                     // Keep raw-link fallback active if the datapack spine is not ready.
                 })

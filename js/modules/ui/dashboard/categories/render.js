@@ -18,11 +18,14 @@ function getDashboardDatapackIndexApi() {
 
 function queueDashboardCategorySummaryWarmup() {
     var indexApi = getDashboardDatapackIndexApi();
-    if (!indexApi || typeof indexApi.rebuild !== 'function') return;
+    if (!indexApi || (typeof indexApi.ensureFresh !== 'function' && typeof indexApi.rebuild !== 'function')) return;
     if (dashboardCategorySummaryWarmPromise) return;
     var scrollSeqAtRequest = Number(window._dashboardScrollActivitySeq || 0);
+    var warmPromise = typeof indexApi.ensureFresh === 'function'
+        ? indexApi.ensureFresh({ reason: 'dashboard-categories' })
+        : indexApi.rebuild({ reason: 'dashboard-categories' });
 
-    dashboardCategorySummaryWarmPromise = Promise.resolve(indexApi.rebuild({ reason: 'dashboard-categories' }))
+    dashboardCategorySummaryWarmPromise = Promise.resolve(warmPromise)
         .catch(function () {
             // Raw-link fallback remains active when the datapack spine is cold.
         })

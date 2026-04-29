@@ -160,6 +160,18 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         return records;
     }
 
+    function hasFolderNode(workspaceId, categoryName, folderId) {
+        const normalizedFolderId = text(folderId, '');
+        if (!normalizedFolderId) return true;
+        const tree = readBookmarkFolders()[getScopedKey(workspaceId, categoryName)];
+        const nodes = Array.isArray(tree?.nodes)
+            ? tree.nodes
+            : (Array.isArray(tree) ? tree : []);
+        return nodes.some(function (node) {
+            return text(node?.id, '') === normalizedFolderId;
+        });
+    }
+
     function buildBookmarkRecords(links) {
         const locators = ns.Locators || {};
         const knownWorkspaceIds = window.EveOS?.SearchAdvanced?.CacheAggregator?.getKnownWorkspaceIds
@@ -180,6 +192,8 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             const library = getLinkedLibraryMeta(link.id);
             const groupMeta = getWorkspaceGroupMeta(path.workspaceId);
             const tags = toArray(link.tags).map(function (tag) { return text(tag, ''); }).filter(Boolean);
+            const folderId = text(path.folderId || link.folderId, '');
+            const missingFolder = !!folderId && !hasFolderNode(path.workspaceId, path.categoryName, folderId);
             const record = {
                 id: 'bookmark::' + text(link.id, Math.random().toString(36).slice(2, 8)),
                 type: 'bookmark',
@@ -206,6 +220,8 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                     linkId: text(link.id, ''),
                     done: !!link.done,
                     orphaned: !knownWorkspaceIds.has(path.workspaceId),
+                    missingFolder: missingFolder,
+                    missingParent: missingFolder,
                     tags: tags,
                     identifiers: toArray(link.identifiers).map(function (value) { return text(value, ''); }).filter(Boolean),
                     icon: text(link.icon, ''),

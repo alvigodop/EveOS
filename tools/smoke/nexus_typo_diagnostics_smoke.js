@@ -104,6 +104,28 @@ async function main() {
             searchableText: 'orphaned bookmark',
             provenance: { orphaned: true, linkId: 'orphaned' },
             baseHealth: { state: 'broken', reasons: ['Workspace path is missing.'] }
+        }),
+        makeRecord({
+            id: 'bookmark::missing-folder',
+            type: 'bookmark',
+            title: 'Missing Folder Bookmark',
+            workspaceId: 'main',
+            categoryName: 'Studio',
+            searchableText: 'missing folder bookmark',
+            provenance: { missingFolder: true, missingParent: true, linkId: 'missing-folder' },
+            baseHealth: { state: 'broken', reasons: ['Folder parent no longer exists.'] }
+        }),
+        makeRecord({
+            id: 'cached::source-only',
+            type: 'cached',
+            title: 'Source Only Cache',
+            provider: 'google',
+            workspaceId: 'main',
+            categoryName: 'Studio',
+            updatedAt: Date.now(),
+            searchableText: 'source only cache',
+            provenance: { sourceOnly: true },
+            baseHealth: { state: 'warning', reasons: ['Result exists only in saved source/cache data.'] }
         })
     ];
 
@@ -146,8 +168,14 @@ async function main() {
     const report = await indexApi.getIntegrityReport({ scope: null });
     assert(report.issueCount >= 2, 'Expected integrity report to expose concrete issue rows.');
     assert(report.byReason['Workspace path is missing.'] >= 1, 'Expected broken path reason bucket.');
+    assert(report.byReason['Folder parent no longer exists.'] >= 1, 'Expected missing folder parent reason bucket.');
+    assert(report.byReason['Result exists only in saved source/cache data.'] >= 1, 'Expected source-only reason bucket.');
     assert(report.issues.some(issue => issue.id === 'bookmark::orphaned' && issue.severity === 'error'), 'Expected orphaned bookmark issue detail.');
+    assert(report.issues.some(issue => issue.id === 'bookmark::missing-folder' && issue.severity === 'error'), 'Expected missing-folder bookmark issue detail.');
     assert(report.issues.some(issue => issue.id === 'cached::spirited' && issue.severity === 'warning'), 'Expected stale cached issue detail.');
+    assert(report.issues.some(issue => issue.id === 'cached::source-only' && issue.severity === 'warning'), 'Expected source-only cache issue detail.');
+    assert(report.missingParentRecords >= 1, 'Expected missing parent records to be counted.');
+    assert(report.sourceOnlyRecords >= 1, 'Expected source-only records to be counted.');
 
     indexApi.markDirty('saveConfig');
     assert(indexApi.hasReadableStructureSnapshot(), 'Expected config-only dirtiness to keep structure snapshot readable.');

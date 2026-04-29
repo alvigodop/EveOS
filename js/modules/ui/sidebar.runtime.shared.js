@@ -187,10 +187,14 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
 
     function queueStructureSummaryWarmup(reason, rerender) {
         var indexApi = getDatapackIndexApi();
-        if (!indexApi || typeof indexApi.rebuild !== 'function') return;
+        if (!indexApi || (typeof indexApi.ensureFresh !== 'function' && typeof indexApi.rebuild !== 'function')) return;
         if (rt._structureSummaryWarmPromise) return;
+        var warmReason = String(reason || 'sidebar-structure-summary');
+        var warmPromise = typeof indexApi.ensureFresh === 'function'
+            ? indexApi.ensureFresh({ reason: warmReason })
+            : indexApi.rebuild({ reason: warmReason });
 
-        rt._structureSummaryWarmPromise = Promise.resolve(indexApi.rebuild({ reason: String(reason || 'sidebar-structure-summary') }))
+        rt._structureSummaryWarmPromise = Promise.resolve(warmPromise)
             .catch(function () {
                 // Ignore warmup failures and continue rendering without summaries.
             })
