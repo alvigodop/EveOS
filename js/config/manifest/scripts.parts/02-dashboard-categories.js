@@ -5,7 +5,7 @@ window.EveModuleManifestScriptChunks = window.EveModuleManifestScriptChunks || [
 window.EveModuleManifestScriptChunks.push([
     // Dashboard Categories Modules
     "js/modules/ui/dashboard/categories/folder-view-v2.scope.shared.js?v=0.1.1",
-    "js/modules/ui/dashboard/categories/folder-view-v2.scope.links.js?v=0.1.0",
+    "js/modules/ui/dashboard/categories/folder-view-v2.scope.links.js?v=0.1.1",
     "js/modules/ui/dashboard/categories/folder-view-v2.scope.actions.js?v=0.1.0",
     "js/modules/ui/dashboard/categories/folder-view-v2.scope.js?v=0.3.0",
     "js/modules/ui/dashboard/categories/folder-view-v2.mode.js?v=0.1.0",
@@ -31,7 +31,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/ui/dashboard/categories/builder-card.render.js?v=0.2.0",
     "js/modules/ui/dashboard/categories/builder-card.js?v=0.3.0",
     "js/modules/ui/dashboard/categories/detached-card.js?v=0.1.0",
-    "js/modules/ui/dashboard/categories/render.js?v=0.2.45",
+    "js/modules/ui/dashboard/categories/render.js?v=0.2.46",
     "js/modules/ui/dashboard/unidex-view.builders.panels.js?v=0.2.1",
     "js/modules/ui/dashboard/unidex-view.builders.entries.js?v=0.2.4",
     "js/modules/ui/dashboard/unidex-view.builders.js?v=0.2.2",
@@ -55,7 +55,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/ui/dashboard/dashboard.masonry.js?v=0.1.0",
     "js/modules/ui/dashboard.cache.js?v=0.1.0",
     "js/modules/ui/dashboard.prefetch.js?v=0.1.0",
-    "js/modules/ui/dashboard.js?v=0.2.45",
+    "js/modules/ui/dashboard.js?v=0.2.47",
     "js/modules/ui/context-menus/templates.js?v=0.3.1",
     "js/modules/ui/context-menus/actions.shared.js?v=0.1.0",
     "js/modules/ui/context-menus/actions.link.js?v=0.1.0",

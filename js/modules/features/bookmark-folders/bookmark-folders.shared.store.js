@@ -327,13 +327,17 @@ const CLICK_BEHAVIOR_MODES = new Set(['inherit', 'invert', 'focus_only', 'intern
 
         if (!indexApi || typeof indexApi.getExactBookmarkLinkIds !== 'function') return null;
 
-        const hasUsableSnapshot = typeof indexApi.hasUsableSnapshot === 'function'
+        const hasReadableSnapshot = typeof indexApi.hasReadableLinkSnapshot === 'function'
 
-            ? indexApi.hasUsableSnapshot()
+            ? indexApi.hasReadableLinkSnapshot()
 
-            : !!indexApi.getSnapshot?.();
+            : (typeof indexApi.hasUsableSnapshot === 'function'
 
-        if (!hasUsableSnapshot) return null;
+                ? indexApi.hasUsableSnapshot()
+
+                : !!indexApi.getSnapshot?.());
+
+        if (!hasReadableSnapshot) return null;
 
         return indexApi.getExactBookmarkLinkIds(scope || null);
 

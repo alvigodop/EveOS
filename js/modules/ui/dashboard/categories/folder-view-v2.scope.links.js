@@ -60,10 +60,12 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
     function getIndexedScopedLinks(scope, sourceLinks) {
         const indexApi = getDatapackIndexApi();
         if (!indexApi || typeof indexApi.getExactBookmarkLinkIds !== 'function') return null;
-        const hasUsableSnapshot = typeof indexApi.hasUsableSnapshot === 'function'
-            ? indexApi.hasUsableSnapshot()
-            : !!indexApi.getSnapshot?.();
-        if (!hasUsableSnapshot) return null;
+        const hasReadableSnapshot = typeof indexApi.hasReadableLinkSnapshot === 'function'
+            ? indexApi.hasReadableLinkSnapshot()
+            : (typeof indexApi.hasUsableSnapshot === 'function'
+                ? indexApi.hasUsableSnapshot()
+                : !!indexApi.getSnapshot?.());
+        if (!hasReadableSnapshot) return null;
         const linkIdMap = buildLinkIdMap(sourceLinks);
         const resolveIndexedLink = typeof indexApi.resolveBookmarkLink === 'function'
             ? function (linkId) { return indexApi.resolveBookmarkLink(linkId); }

@@ -264,6 +264,12 @@ function hasDashboardUsableSnapshot(indexApi) {
     return !buildState?.dirty && Number(buildState?.builtAt || 0) > 0;
 }
 
+function hasDashboardReadableLinkSnapshot(indexApi) {
+    if (!indexApi) return false;
+    if (typeof indexApi.hasReadableLinkSnapshot === 'function') return !!indexApi.hasReadableLinkSnapshot();
+    return hasDashboardUsableSnapshot(indexApi);
+}
+
 function buildDashboardVisibleLinkMatcher(visibleWorkspaceIds, searchTerms, folderPathLabelBuilder) {
     return function (link) {
         if (!visibleWorkspaceIds.has(String(link?.workspace || 'main').trim())) return false;
@@ -315,7 +321,7 @@ function mergeDashboardPreferredLinks(preferredLinks, liveLinks) {
 
 function collectIndexedDashboardVisibleLinks(sourceLinks, scope, matcher) {
     var indexApi = getDashboardDatapackIndexApi();
-    if (!indexApi || typeof indexApi.getScopedBookmarkLinkIds !== 'function' || !hasDashboardUsableSnapshot(indexApi)) {
+    if (!indexApi || typeof indexApi.getScopedBookmarkLinkIds !== 'function' || !hasDashboardReadableLinkSnapshot(indexApi)) {
         return null;
     }
 
@@ -580,8 +586,11 @@ function _renderDashboardCore(renderHint) {
     const matchesVisibleLink = buildDashboardVisibleLinkMatcher(visibleWorkspaceIds, searchTerms, folderPathLabelBuilder);
     const liveLinks = getDashboardLiveLinks();
 
-    // Try to use prefetched data for this workspace (adjacent tab prefetch)
-    var prefetch = (!isSearchActive && window.EveDashboardPrefetch)
+    var isWorkspaceSwitchRender = shouldSkipDashboardCardScrollPreserve(renderHint);
+
+    // Try to use prefetched data for this workspace (adjacent tab prefetch).
+    // Workspace switches prefer the scoped index so large datapacks avoid stale prefetched slices.
+    var prefetch = (!isSearchActive && !isWorkspaceSwitchRender && window.EveDashboardPrefetch)
         ? window.EveDashboardPrefetch.getPrefetched(activeWorkspaceId)
         : null;
 
@@ -593,7 +602,7 @@ function _renderDashboardCore(renderHint) {
             searchTerms.length > 0
             || visibleWorkspaceIds.size > 1
             || liveLinks.length > 250
-            || shouldSkipDashboardCardScrollPreserve(renderHint)
+            || isWorkspaceSwitchRender
         );
         const indexedVisibleLinks = shouldPreferIndexedVisibleLinks
             ? collectIndexedDashboardVisibleLinks(liveLinks, visibleScope, searchTerms.length > 0 ? matchesVisibleLink : null)

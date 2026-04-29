@@ -24,6 +24,9 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         readConfig,
         buildFolderPathLabel
     } = shared;
+    const buildDatapackStateFingerprint = typeof shared.buildDatapackStateFingerprint === 'function'
+        ? shared.buildDatapackStateFingerprint
+        : function () { return ''; };
     const {
         buildSnapshot,
         buildLocalRecordBundle,
@@ -40,6 +43,10 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         buildIntegrityReportSync
     } = runtimeIntegrity;
     const { buildStructureSummary } = runtimeSummary;
+    let exactScopeIndexCache = {
+        snapshot: null,
+        index: null
+    };
 
     async function loadPersistedSnapshot() {
         if (state.loaded) return state.snapshot;
@@ -64,8 +71,25 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         }
 
         if (snapshot?.version === shared.INDEX_VERSION && Array.isArray(snapshot.records)) {
+            const currentFingerprint = buildDatapackStateFingerprint();
+            const snapshotFingerprint = text(snapshot.datapackFingerprint, '');
+            if (currentFingerprint && snapshotFingerprint && snapshotFingerprint !== currentFingerprint) {
+                state.snapshot = null;
+                state.dirty = true;
+                state.lastReason = 'datapack-fingerprint-mismatch';
+                state.datapackFingerprint = currentFingerprint;
+                return state.snapshot;
+            }
+            if (currentFingerprint && !snapshotFingerprint) {
+                state.snapshot = null;
+                state.dirty = true;
+                state.lastReason = 'datapack-fingerprint-missing';
+                state.datapackFingerprint = currentFingerprint;
+                return state.snapshot;
+            }
             state.snapshot = snapshot;
             state.dirty = false;
+            state.datapackFingerprint = snapshotFingerprint || currentFingerprint;
         }
 
         return state.snapshot;
@@ -222,14 +246,19 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     }
 
     function finalizeSnapshot(snapshot, reason, startRevision, mutationMeta) {
-        state.snapshot = snapshot;
+        const fingerprint = buildDatapackStateFingerprint();
+        const finalizedSnapshot = Object.assign({}, snapshot, {
+            datapackFingerprint: fingerprint || text(snapshot?.datapackFingerprint, '')
+        });
+        state.snapshot = finalizedSnapshot;
+        state.datapackFingerprint = finalizedSnapshot.datapackFingerprint;
         if (Number(state.revision || 0) === startRevision) {
             state.dirty = false;
             state.lastReason = reason;
             state.lastMutationMeta = normalizeMutationMeta(mutationMeta);
         }
-        return persistSnapshot(snapshot).then(function () {
-            return snapshot;
+        return persistSnapshot(finalizedSnapshot).then(function () {
+            return finalizedSnapshot;
         });
     }
 
@@ -453,7 +482,10 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
 
     function buildAllowedTypes(settings) {
         const allowedTypes = new Set();
-        const vectors = settings?.activeVectors || {};
+        const hasExplicitVectors = !!(settings?.activeVectors && typeof settings.activeVectors === 'object');
+        const vectors = hasExplicitVectors
+            ? settings.activeVectors
+            : { bookmarks: true, knowledge: true, cachedResults: true };
         if (vectors.bookmarks) {
             allowedTypes.add('bookmark');
             allowedTypes.add('card');
@@ -538,7 +570,8 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
 
     async function getSuggestionSnapshot() {
         await loadPersistedSnapshot();
-        if (state.snapshot) return state.snapshot;
+        const snapshotAge = state.snapshot ? (now() - Number(state.snapshot.builtAt || 0)) : Number.POSITIVE_INFINITY;
+        if (state.snapshot && !state.dirty && snapshotAge < SNAPSHOT_MAX_AGE_MS) return state.snapshot;
         return ensureFresh();
     }
 
@@ -854,6 +887,87 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         return text(record?.path?.linkId || record?.provenance?.linkId || record?.sourceIdentity?.linkId, '');
     }
 
+    function ensureMapList(map, key) {
+        if (!map.has(key)) map.set(key, []);
+        return map.get(key);
+    }
+
+    function ensureNestedMap(map, key) {
+        if (!map.has(key)) map.set(key, new Map());
+        return map.get(key);
+    }
+
+    function buildExactScopeIndex(snapshot) {
+        if (exactScopeIndexCache.snapshot === snapshot && exactScopeIndexCache.index) {
+            return exactScopeIndexCache.index;
+        }
+
+        const index = {
+            cardKeys: [],
+            cardKeySet: new Set(),
+            bookmarkIdsByCard: new Map(),
+            folderChildrenByCard: new Map(),
+            bookmarkIdsByFolderByCard: new Map(),
+            recordByLinkId: new Map()
+        };
+
+        toArray(snapshot?.records).forEach(function (record) {
+            const type = text(record?.type, '');
+            if (type !== 'bookmark' && type !== 'folder') return;
+
+            const workspaceId = text(record?.workspaceId, '');
+            const categoryName = text(record?.categoryName, '');
+            if (!workspaceId || !categoryName) return;
+
+            const cardKey = workspaceId + '::' + categoryName;
+            if (!index.cardKeySet.has(cardKey)) {
+                index.cardKeySet.add(cardKey);
+                index.cardKeys.push(cardKey);
+            }
+
+            if (type === 'folder') {
+                const folderId = text(record?.path?.folderId, '');
+                if (!folderId) return;
+                const parentFolderId = text(record?.parentFolderId || record?.provenance?.parentFolderId, '');
+                const childrenMap = ensureNestedMap(index.folderChildrenByCard, cardKey);
+                ensureMapList(childrenMap, parentFolderId).push(folderId);
+                return;
+            }
+
+            const linkId = getExactRecordLinkId(record);
+            if (!linkId) return;
+            if (!index.recordByLinkId.has(linkId)) index.recordByLinkId.set(linkId, record);
+            ensureMapList(index.bookmarkIdsByCard, cardKey).push(linkId);
+
+            const folderId = getExactRecordFolderId(record);
+            if (folderId) {
+                const folderMap = ensureNestedMap(index.bookmarkIdsByFolderByCard, cardKey);
+                ensureMapList(folderMap, folderId).push(linkId);
+            }
+        });
+
+        exactScopeIndexCache = {
+            snapshot: snapshot,
+            index: index
+        };
+        return index;
+    }
+
+    function getExactScopeCardKeys(scopeIndex, workspaceId, categoryName) {
+        if (workspaceId && categoryName) {
+            const key = workspaceId + '::' + categoryName;
+            return scopeIndex.cardKeySet.has(key) ? [key] : [];
+        }
+        return scopeIndex.cardKeys.filter(function (cardKey) {
+            const separatorIndex = cardKey.indexOf('::');
+            const keyWorkspaceId = separatorIndex >= 0 ? cardKey.slice(0, separatorIndex) : cardKey;
+            const keyCategoryName = separatorIndex >= 0 ? cardKey.slice(separatorIndex + 2) : '';
+            if (workspaceId && keyWorkspaceId !== workspaceId) return false;
+            if (categoryName && keyCategoryName !== categoryName) return false;
+            return true;
+        });
+    }
+
     function buildExactFolderHierarchy(records) {
         const childrenByFolderId = new Map();
 
@@ -889,7 +1003,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
 
     function getScopedBookmarkLinkIds(scope) {
         const snapshot = state.snapshot;
-        if (!snapshot || !hasUsableSnapshot()) return [];
+        if (!snapshot || !hasReadableLinkSnapshot()) return [];
 
         const inScope = typeof buildScopeRecordMatcher === 'function'
             ? buildScopeRecordMatcher(snapshot, scope || null)
@@ -910,33 +1024,36 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
 
     function getExactBookmarkLinkIds(scope) {
         const snapshot = state.snapshot;
-        if (!snapshot || !hasUsableSnapshot()) return [];
+        if (!snapshot || !hasReadableLinkSnapshot()) return [];
 
         const workspaceId = text(scope?.workspaceId, '');
         const categoryName = text(scope?.categoryName, '');
         const folderId = text(scope?.folderId, '');
-        const exactRecords = toArray(snapshot.records).filter(function (record) {
-            if (text(record?.type, '') !== 'bookmark' && text(record?.type, '') !== 'folder') return false;
-            if (workspaceId && text(record?.workspaceId, '') !== workspaceId) return false;
-            if (categoryName && text(record?.categoryName, '') !== categoryName) return false;
-            return true;
-        });
-
-        let allowedFolderIds = null;
-        if (folderId) {
-            allowedFolderIds = collectExactFolderSubtree(folderId, buildExactFolderHierarchy(exactRecords));
-            if (!allowedFolderIds.size) return [];
-        }
-
+        const scopeIndex = buildExactScopeIndex(snapshot);
+        const cardKeys = getExactScopeCardKeys(scopeIndex, workspaceId, categoryName);
         const linkIds = [];
         const seen = new Set();
-        exactRecords.forEach(function (record) {
-            if (text(record?.type, '') !== 'bookmark') return;
-            if (allowedFolderIds && !allowedFolderIds.has(getExactRecordFolderId(record))) return;
-            const linkId = getExactRecordLinkId(record);
-            if (!linkId || seen.has(linkId)) return;
-            seen.add(linkId);
-            linkIds.push(linkId);
+
+        function pushLinkId(linkId) {
+            const normalizedLinkId = text(linkId, '');
+            if (!normalizedLinkId || seen.has(normalizedLinkId)) return;
+            seen.add(normalizedLinkId);
+            linkIds.push(normalizedLinkId);
+        }
+
+        cardKeys.forEach(function (cardKey) {
+            if (folderId) {
+                const allowedFolderIds = collectExactFolderSubtree(folderId, {
+                    childrenByFolderId: scopeIndex.folderChildrenByCard.get(cardKey) || new Map()
+                });
+                if (!allowedFolderIds.size) return;
+                const folderMap = scopeIndex.bookmarkIdsByFolderByCard.get(cardKey) || new Map();
+                allowedFolderIds.forEach(function (allowedFolderId) {
+                    toArray(folderMap.get(allowedFolderId)).forEach(pushLinkId);
+                });
+                return;
+            }
+            toArray(scopeIndex.bookmarkIdsByCard.get(cardKey)).forEach(pushLinkId);
         });
 
         return linkIds;
@@ -944,15 +1061,12 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
 
     function getIndexedBookmarkRecordByLinkId(linkId) {
         const snapshot = state.snapshot;
-        if (!snapshot || !hasUsableSnapshot()) return null;
+        if (!snapshot || !hasReadableLinkSnapshot()) return null;
 
         const normalizedLinkId = text(linkId, '');
         if (!normalizedLinkId) return null;
 
-        return toArray(snapshot.records).find(function (record) {
-            return text(record?.type, '') === 'bookmark'
-                && getExactRecordLinkId(record) === normalizedLinkId;
-        }) || null;
+        return buildExactScopeIndex(snapshot).recordByLinkId.get(normalizedLinkId) || null;
     }
 
     function getLiveLinks() {
@@ -1001,12 +1115,30 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             builtAt: Number(state.snapshot?.builtAt || 0),
             revision: Number(state.revision || 0),
             lastReason: text(state.lastReason, ''),
-            lastMutationMeta: normalizeMutationMeta(state.lastMutationMeta)
+            lastMutationMeta: normalizeMutationMeta(state.lastMutationMeta),
+            datapackFingerprint: text(state.datapackFingerprint || state.snapshot?.datapackFingerprint, '')
         };
     }
 
     function hasUsableSnapshot() {
-        return !!state.snapshot && !state.dirty && Number(state.snapshot?.builtAt || 0) > 0;
+        const snapshotFingerprint = text(state.snapshot?.datapackFingerprint, '');
+        return !!state.snapshot
+            && !state.dirty
+            && Number(state.snapshot?.builtAt || 0) > 0
+            && (!!snapshotFingerprint || !text(state.datapackFingerprint, ''));
+    }
+
+    function isLinkScopeReadableDirtyReason(reason) {
+        const normalizedReason = text(reason, '');
+        return normalizedReason === 'saveConfig'
+            || normalizedReason === 'library-link-updated'
+            || isSourceDrivenReason(normalizedReason);
+    }
+
+    function hasReadableLinkSnapshot() {
+        if (!state.snapshot || Number(state.snapshot?.builtAt || 0) <= 0) return false;
+        if (!state.dirty) return true;
+        return isLinkScopeReadableDirtyReason(state.lastReason);
     }
 
     function getStructureSummary() {
@@ -1054,6 +1186,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         resolveBookmarkLink,
         getBuildState,
         hasUsableSnapshot,
+        hasReadableLinkSnapshot,
         getStructureSummary,
         getWorkspaceSummary,
         getCardSummary,

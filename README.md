@@ -498,6 +498,7 @@ The PowerShell runner executes the two restore-specific browser regressions in s
 Primary scripts:
 
 - `tools/smoke/workspace_switch_browser_smoke.js`
+- `tools/smoke/dashboard_datapack_card_link_resolver_smoke.js`
 - `tools/smoke/quick_pins_browser_smoke.js`
 - `tools/smoke/non_scraper_facades.js`
 - `tools/smoke/duplicate_sensor_browser_smoke.js`
@@ -506,16 +507,46 @@ Use when touching:
 
 - `js/modules/ui/dashboard/*`
 - `js/modules/features/quick-pins/*`
+- dashboard card link resolution through `DatapackIndex`
 - shared facade or manifest wiring
 - duplicate-sensor behavior
 
 Recommended command set:
 
 ```bash
+node tools\\smoke\\dashboard_datapack_card_link_resolver_smoke.js
 node tools\\smoke\\workspace_switch_browser_smoke.js
 node tools\\smoke\\quick_pins_browser_smoke.js
 node tools\\smoke\\non_scraper_facades.js
 ```
+
+#### Nexus search, DatapackIndex, and Search Monitor
+
+Primary scripts:
+
+- `tools/smoke/nexus_index_state_fingerprint_smoke.js`
+- `tools/smoke/nexus_index_suggest_smoke.js`
+- `tools/smoke/nexus_index_incremental_browser_smoke.js`
+- `tools/smoke/search_monitor_boot_smoke.js`
+
+Use when touching:
+
+- `js/modules/features/search-advanced/sa-index*.js`
+- `js/modules/features/search-advanced/sa-search-vectors.js`
+- `js/modules/features/search-advanced/sa-ui*.js`
+- `js/modules/core/search-monitor-boot.js`
+- DatapackIndex persistence, dirty-state handling, typeahead, Nexus result ranking, or Search Monitor trace wiring
+
+Recommended command set:
+
+```bash
+node tools\\smoke\\nexus_index_state_fingerprint_smoke.js
+node tools\\smoke\\nexus_index_suggest_smoke.js
+node tools\\smoke\\nexus_index_incremental_browser_smoke.js
+node tools\\smoke\\search_monitor_boot_smoke.js
+```
+
+Use `nexus_index_state_fingerprint_smoke.js` specifically for stale persisted-index regressions, dirty typeahead results, and large-datapack state drift between live links/folders/config and the local Nexus index.
 
 #### Sidebar, groups, and nested tab interactions
 

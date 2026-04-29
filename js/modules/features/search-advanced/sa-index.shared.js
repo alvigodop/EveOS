@@ -20,7 +20,8 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         loaded: false,
         lastReason: 'startup',
         lastMutationMeta: null,
-        revision: 0
+        revision: 0,
+        datapackFingerprint: ''
     };
 
     function now() {
@@ -209,6 +210,79 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         return text(window.EveBookmarkFolders.buildFolderPathLabel(workspaceId, categoryName, folderId), '');
     }
 
+    function stableStringify(value, seen) {
+        if (value == null) return 'null';
+        const type = typeof value;
+        if (type === 'string' || type === 'number' || type === 'boolean') return JSON.stringify(value);
+        if (type === 'undefined' || type === 'function' || type === 'symbol') return 'null';
+
+        const activeSeen = seen || new Set();
+        if (activeSeen.has(value)) return '"[Circular]"';
+        activeSeen.add(value);
+
+        if (Array.isArray(value)) {
+            const output = '[' + value.map(function (item) {
+                return stableStringify(item, activeSeen);
+            }).join(',') + ']';
+            activeSeen.delete(value);
+            return output;
+        }
+
+        const keys = Object.keys(value).sort();
+        const output = '{' + keys.map(function (key) {
+            const entryValue = value[key];
+            if (typeof entryValue === 'undefined' || typeof entryValue === 'function' || typeof entryValue === 'symbol') return '';
+            return JSON.stringify(key) + ':' + stableStringify(entryValue, activeSeen);
+        }).filter(Boolean).join(',') + '}';
+        activeSeen.delete(value);
+        return output;
+    }
+
+    function hashText(value) {
+        const input = String(value || '');
+        let hash = 2166136261;
+        for (let i = 0; i < input.length; i += 1) {
+            hash ^= input.charCodeAt(i);
+            hash = Math.imul(hash, 16777619);
+        }
+        return (hash >>> 0).toString(36);
+    }
+
+    function pickConfigFingerprintSource(configRef) {
+        const cfg = configRef && typeof configRef === 'object' ? configRef : {};
+        return {
+            activeWorkspace: text(cfg.activeWorkspace, 'main'),
+            workspaces: cfg.workspaces || [],
+            sidebarGroups: cfg.sidebarGroups || [],
+            sidebarOrderMode: text(cfg.sidebarOrderMode, ''),
+            sidebarManualOrder: cfg.sidebarManualOrder || {},
+            categoryOrder: cfg.categoryOrder || [],
+            categoryOrderByWorkspace: cfg.categoryOrderByWorkspace || {},
+            showHiddenSidebarGroups: !!cfg.showHiddenSidebarGroups,
+            showInactiveTabs: !!cfg.showInactiveTabs
+        };
+    }
+
+    function readLibraryFingerprintSource() {
+        const stateApi = window.EveLibrary?.State;
+        if (!stateApi?.getAllLibraries) return {};
+        try {
+            return stateApi.getAllLibraries() || {};
+        } catch (error) {
+            return {};
+        }
+    }
+
+    function buildDatapackStateFingerprint() {
+        const payload = {
+            links: readLinks(),
+            bookmarkFolders: readBookmarkFolders(),
+            config: pickConfigFingerprintSource(readConfig()),
+            libraries: readLibraryFingerprintSource()
+        };
+        return 'dp1:' + hashText(stableStringify(payload));
+    }
+
     ns.IndexShared = {
         INDEX_VERSION,
         STORAGE_KEY,
@@ -232,6 +306,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         getLinkedLibraryMeta,
         computeFreshness,
         deriveBaseHealth,
-        buildFolderPathLabel
+        buildFolderPathLabel,
+        buildDatapackStateFingerprint
     };
 })();

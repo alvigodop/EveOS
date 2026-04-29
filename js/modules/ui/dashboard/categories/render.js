@@ -95,16 +95,30 @@ function collectIndexedDashboardCardLinks(visibleLinkIdMap, workspaceId, categor
     var indexApi = getDashboardDatapackIndexApi();
     if (!indexApi || typeof indexApi.getExactBookmarkLinkIds !== 'function') return null;
     var buildState = typeof indexApi.getBuildState === 'function' ? indexApi.getBuildState() : null;
+    var hasReadableSnapshot = typeof indexApi.hasReadableLinkSnapshot === 'function'
+        ? indexApi.hasReadableLinkSnapshot()
+        : (typeof indexApi.hasUsableSnapshot === 'function'
+            ? indexApi.hasUsableSnapshot()
+            : (!buildState?.dirty && Number(buildState?.builtAt || 0) > 0));
     var hasUsableSnapshot = typeof indexApi.hasUsableSnapshot === 'function'
         ? indexApi.hasUsableSnapshot()
         : (!buildState?.dirty && Number(buildState?.builtAt || 0) > 0);
-    if (!hasUsableSnapshot) return null;
+    if (!hasReadableSnapshot && !hasUsableSnapshot) return null;
+
+    var linkMap = visibleLinkIdMap instanceof Map ? visibleLinkIdMap : new Map();
+    var resolveIndexedLink = typeof indexApi.resolveBookmarkLink === 'function'
+        ? function (linkId) { return indexApi.resolveBookmarkLink(linkId); }
+        : null;
 
     return indexApi.getExactBookmarkLinkIds({
         workspaceId: workspaceId,
         categoryName: categoryName
     }).map(function (linkId) {
-        return visibleLinkIdMap.get(String(linkId || '').trim()) || null;
+        var normalizedId = String(linkId || '').trim();
+        if (!normalizedId) return null;
+        return linkMap.get(normalizedId)
+            || (resolveIndexedLink ? resolveIndexedLink(normalizedId) : null)
+            || null;
     }).filter(Boolean);
 }
 

@@ -16,7 +16,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/core/storage.runtime.io.js?v=0.1.0",
     "js/modules/core/storage.js?v=0.3.1",
     "js/modules/features/semantic-drift.js?v=0.1.1",
-    "js/modules/features/bookmark-folders/bookmark-folders.shared.store.js?v=0.1.2",
+    "js/modules/features/bookmark-folders/bookmark-folders.shared.store.js?v=0.1.3",
     "js/modules/features/bookmark-folders/bookmark-folders.shared.library.js?v=0.1.0",
     "js/modules/features/bookmark-folders/bookmark-folders.shared.derived.normalize.js?v=0.1.0",
     "js/modules/features/bookmark-folders/bookmark-folders.shared.derived.metrics.js?v=0.1.0",
