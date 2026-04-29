@@ -622,6 +622,14 @@ async function loadData() {
     if (window.EveQuickPins?.migrateLegacyPins) {
         window.EveQuickPins.migrateLegacyPins();
     }
+    if (typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
+        window.dispatchEvent(new CustomEvent('eve:quick-pins-updated', {
+            detail: {
+                source: 'storage-load',
+                count: Array.isArray(quickPins) ? quickPins.length : 0
+            }
+        }));
+    }
 
     markCoreStateClean();
     markConfigClean(config);

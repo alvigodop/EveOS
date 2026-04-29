@@ -115,6 +115,9 @@ window.EveLibrary = window.EveLibrary || {};
     }
 
     function saveLibrary() {
+        if (typeof State.pruneEmptyTransientLibraries === 'function') {
+            State.pruneEmptyTransientLibraries();
+        }
         const data = migrateLibraryDataStructure(State.getAllLibraries());
         State.setAllLibraries(data);
         // Invalidate entry index after library data changes

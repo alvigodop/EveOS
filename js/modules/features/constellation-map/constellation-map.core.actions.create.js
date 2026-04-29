@@ -7,7 +7,7 @@
     const { getConfig, text } = shared;
     const { hasArmedSource, promptForNodeName, ensureCategoryInOrder, refreshGraphAfterMutation } = helpers;
 
-    function createFolderFromNode(node, options = {}) {
+    async function createFolderFromNode(node, options = {}) {
         const data = node?.data || {};
         const targetKind = text(node?.kind, '');
         if (targetKind !== 'category' && targetKind !== 'folder') return false;
@@ -18,7 +18,7 @@
 
         if (!categoryName || !window.EveBookmarkFolders?.createFolder) return false;
 
-        const folderName = promptForNodeName(
+        const folderName = await promptForNodeName(
             parentId ? 'New subfolder name' : 'New folder name',
             parentId ? 'Detached Chain' : 'New Folder'
         );
@@ -68,7 +68,7 @@
         return true;
     }
 
-    function createCardAndAttachFromWorkspace(node) {
+    async function createCardAndAttachFromWorkspace(node) {
         const workspaceId = text(node?.data?.workspaceId, getConfig().activeWorkspace || 'main');
         if (!workspaceId) return false;
 
@@ -79,7 +79,7 @@
             return false;
         }
 
-        const categoryName = promptForNodeName('New card name', 'Detached Chain');
+        const categoryName = await promptForNodeName('New card name', 'Detached Chain');
         if (!categoryName) return false;
 
         ensureCategoryInOrder(categoryName, workspaceId);

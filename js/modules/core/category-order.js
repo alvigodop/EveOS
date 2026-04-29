@@ -55,6 +55,19 @@ window.EveCategoryOrder = window.EveCategoryOrder || {};
         return ordered;
     }
 
+    function normalizeComparableCategoryName(categoryName) {
+        return normalizeCategoryName(categoryName).toLowerCase();
+    }
+
+    function isLikelyTransientPrefixCategory(categoryName, knownCategories) {
+        const comparable = normalizeComparableCategoryName(categoryName);
+        if (comparable.length < 2) return false;
+        return (Array.isArray(knownCategories) ? knownCategories : []).some(function (knownCategoryName) {
+            const knownComparable = normalizeComparableCategoryName(knownCategoryName);
+            return knownComparable !== comparable && knownComparable.indexOf(comparable) === 0;
+        });
+    }
+
     function getWorkspaceOrderStore() {
         const config = getConfig();
         if (!config.categoryOrderByWorkspace || typeof config.categoryOrderByWorkspace !== 'object') {
@@ -129,11 +142,16 @@ window.EveCategoryOrder = window.EveCategoryOrder || {};
         const storedOrder = Array.isArray(store[normalizedWorkspaceId])
             ? dedupeNormalizedCategoryList(store[normalizedWorkspaceId])
             : null;
-        const baseOrder = storedOrder ? storedOrder.slice() : buildDerivedWorkspaceOrder(normalizedWorkspaceId);
         const knownCategories = Array.from(getKnownCategories(normalizedWorkspaceId))
             .sort(function (left, right) {
                 return left.localeCompare(right, undefined, { sensitivity: 'base' });
             });
+        const knownSet = new Set(knownCategories);
+        const baseOrder = storedOrder
+            ? storedOrder.filter(function (categoryName) {
+                return knownSet.has(categoryName) || !isLikelyTransientPrefixCategory(categoryName, knownCategories);
+            })
+            : buildDerivedWorkspaceOrder(normalizedWorkspaceId);
 
         knownCategories.forEach(function (categoryName) {
             if (!baseOrder.includes(categoryName)) baseOrder.push(categoryName);

@@ -31,6 +31,7 @@ const TARGET_TYPES = new Set(['bookmark', 'card', 'folder']);
     const PERSIST_FALLBACK_DELAY_MS = 180;
     let persistFlushHandle = null;
     let persistFlushScheduled = false;
+    let lastStoreSignature = '';
 
 
 
@@ -103,6 +104,12 @@ const TARGET_TYPES = new Set(['bookmark', 'card', 'folder']);
     function setRawStore(nextPins) {
 
         const sanitized = Array.isArray(nextPins) ? nextPins : [];
+        let nextSignature = '';
+        try {
+            nextSignature = JSON.stringify(sanitized);
+        } catch (error) {
+            nextSignature = 'unstable:' + Date.now();
+        }
 
         if (window.eveState) window.eveState.quickPins = sanitized;
 
@@ -114,6 +121,18 @@ const TARGET_TYPES = new Set(['bookmark', 'card', 'folder']);
 
             window.quickPins = sanitized;
 
+        }
+
+        if (nextSignature !== lastStoreSignature) {
+            lastStoreSignature = nextSignature;
+            if (typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
+                window.dispatchEvent(new CustomEvent('eve:quick-pins-updated', {
+                    detail: {
+                        source: 'quick-pins-store',
+                        count: sanitized.length
+                    }
+                }));
+            }
         }
 
     }
@@ -253,6 +272,8 @@ const TARGET_TYPES = new Set(['bookmark', 'card', 'folder']);
     function getLinkById(linkId) {
 
         const targetId = toId(linkId);
+        const liveLink = getLinks().find((link) => toId(link?.id) === targetId) || null;
+        if (liveLink) return liveLink;
 
         const indexApi = getDatapackIndexApi();
 
@@ -264,7 +285,7 @@ const TARGET_TYPES = new Set(['bookmark', 'card', 'folder']);
 
         }
 
-        return getLinks().find((link) => toId(link?.id) === targetId) || null;
+        return null;
 
     }
 

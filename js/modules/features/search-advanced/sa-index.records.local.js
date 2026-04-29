@@ -45,7 +45,21 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         const libraryState = window.EveLibrary?.State;
         const libraries = libraryState?.getAllLibraries ? libraryState.getAllLibraries() : {};
         const parseScopedKey = libraryState?.parseScopedCategoryKey;
+        const isEmptyTransientLibrary = typeof libraryState?.isEmptyTransientLibraryBucket === 'function'
+            ? libraryState.isEmptyTransientLibraryBucket
+            : function (value) {
+                const source = value && typeof value === 'object' ? value : {};
+                const entries = Array.isArray(source.entries) ? source.entries : [];
+                const folderView = source.folderView && typeof source.folderView === 'object' ? source.folderView : {};
+                const chain = Array.isArray(folderView.chain) ? folderView.chain : [];
+                return entries.length === 0
+                    && String(source.dataType || 'graphicNovels') === 'graphicNovels'
+                    && String(folderView.root || 'all') === 'all'
+                    && chain.length === 0
+                    && folderView.expanded !== true;
+            };
         Object.keys(libraries || {}).forEach(function (key) {
+            if (isEmptyTransientLibrary(libraries[key])) return;
             const parsed = parseScopedKey
                 ? parseScopedKey(key)
                 : { workspaceId: 'main', categoryName: key };

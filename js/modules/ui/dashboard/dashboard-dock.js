@@ -201,3 +201,23 @@ window.renderDock = function (_visibleLinks, dockContainer, focusCategory) {
         dockContainer.appendChild(item);
     });
 };
+
+(function () {
+    if (window.__eveDashboardDockQuickPinsBound) return;
+    window.__eveDashboardDockQuickPinsBound = true;
+
+    let pending = false;
+    window.addEventListener('eve:quick-pins-updated', function () {
+        if (pending) return;
+        pending = true;
+        const schedule = typeof window.requestAnimationFrame === 'function'
+            ? window.requestAnimationFrame
+            : function (callback) { return window.setTimeout(callback, 16); };
+        schedule(function () {
+            pending = false;
+            if (typeof window.renderDashboard === 'function') {
+                window.renderDashboard();
+            }
+        });
+    });
+})();

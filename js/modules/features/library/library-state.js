@@ -7,6 +7,7 @@ window.EveLibrary = window.EveLibrary || {};
 
 (function () {
     const LIB_SCOPE_SEPARATOR = '::';
+    const DEFAULT_DATA_TYPE = 'graphicNovels';
     const DEFAULT_FOLDER_VIEW = Object.freeze({
         root: 'all',
         chain: [],
@@ -104,9 +105,25 @@ window.EveLibrary = window.EveLibrary || {};
         return {
             ...source,
             entries: Array.isArray(source.entries) ? source.entries : [],
-            dataType: source.dataType || 'graphicNovels',
+            dataType: source.dataType || DEFAULT_DATA_TYPE,
             folderView: normalizeFolderViewState(source.folderView)
         };
+    }
+
+    function isDefaultFolderView(folderView) {
+        const normalized = normalizeFolderViewState(folderView);
+        return normalized.root === DEFAULT_FOLDER_VIEW.root
+            && normalized.expanded === DEFAULT_FOLDER_VIEW.expanded
+            && Array.isArray(normalized.chain)
+            && normalized.chain.length === 0;
+    }
+
+    function isEmptyTransientLibraryBucket(data) {
+        const bucket = normalizeLibraryBucket(data);
+        return bucket.dataType === DEFAULT_DATA_TYPE
+            && Array.isArray(bucket.entries)
+            && bucket.entries.length === 0
+            && isDefaultFolderView(bucket.folderView);
     }
 
     function parseScopedCategoryKey(key) {
@@ -144,6 +161,20 @@ window.EveLibrary = window.EveLibrary || {};
         return scopedKey;
     }
 
+    function getExistingCategoryLibrary(categoryName, workspaceId) {
+        const scopedKey = buildScopedCategoryKey(categoryName, workspaceId);
+        if (categoryLibraries[scopedKey]) {
+            return normalizeLibraryBucket(categoryLibraries[scopedKey]);
+        }
+
+        const legacyKey = normalizeCategoryName(categoryName);
+        if (categoryLibraries[legacyKey]) {
+            return normalizeLibraryBucket(categoryLibraries[legacyKey]);
+        }
+
+        return null;
+    }
+
     function getCategoryLibrary(categoryName, workspaceId) {
         const key = resolveLibraryKey(categoryName, workspaceId);
         if (!categoryLibraries[key]) {
@@ -172,6 +203,16 @@ window.EveLibrary = window.EveLibrary || {};
     }
 
     function getAllLibraries() { return categoryLibraries; }
+
+    function pruneEmptyTransientLibraries() {
+        let removed = 0;
+        Object.keys(categoryLibraries || {}).forEach((key) => {
+            if (!isEmptyTransientLibraryBucket(categoryLibraries[key])) return;
+            delete categoryLibraries[key];
+            removed += 1;
+        });
+        return removed;
+    }
     function setAllLibraries(data) {
         const next = {};
         Object.entries(data && typeof data === 'object' ? data : {}).forEach(([key, value]) => {
@@ -184,8 +225,8 @@ window.EveLibrary = window.EveLibrary || {};
     function getDataType(typeName) { return dataTypes[typeName]; }
 
     function getCategoryDataType(categoryName, workspaceId) {
-        const lib = getCategoryLibrary(categoryName, workspaceId);
-        return lib.dataType || 'graphicNovels';
+        const lib = getExistingCategoryLibrary(categoryName, workspaceId);
+        return lib?.dataType || DEFAULT_DATA_TYPE;
     }
 
     function setCategoryDataType(categoryName, typeName, workspaceId) {
@@ -194,9 +235,8 @@ window.EveLibrary = window.EveLibrary || {};
     }
 
     function getCategoryFolderView(categoryName, workspaceId) {
-        const lib = getCategoryLibrary(categoryName, workspaceId);
-        lib.folderView = normalizeFolderViewState(lib.folderView);
-        return lib.folderView;
+        const lib = getExistingCategoryLibrary(categoryName, workspaceId);
+        return normalizeFolderViewState(lib?.folderView);
     }
 
     function setCategoryFolderView(categoryName, folderView, workspaceId) {
@@ -238,6 +278,8 @@ window.EveLibrary = window.EveLibrary || {};
         getCategoryLibrary,
         setCategoryLibrary,
         getAllLibraries,
+        pruneEmptyTransientLibraries,
+        isEmptyTransientLibraryBucket,
         setAllLibraries,
         getDataTypes,
         getDataType,
