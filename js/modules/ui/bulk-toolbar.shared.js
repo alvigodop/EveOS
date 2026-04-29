@@ -67,7 +67,10 @@ window.bulkLastToggledId = bulkLastToggledId;
     }
 
     function getDatapackStructureSummary(indexApi) {
-        if (!hasUsableDatapackSnapshot(indexApi) || typeof indexApi?.getStructureSummary !== 'function') return null;
+        const hasReadableStructure = typeof indexApi?.hasReadableStructureSnapshot === 'function'
+            ? !!indexApi.hasReadableStructureSnapshot()
+            : hasUsableDatapackSnapshot(indexApi);
+        if (!hasReadableStructure || typeof indexApi?.getStructureSummary !== 'function') return null;
         return indexApi.getStructureSummary();
     }
 

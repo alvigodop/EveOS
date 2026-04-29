@@ -47,7 +47,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     }
 
     function getDatapackSnapshot(indexApi) {
-        if (!hasUsableDatapackSnapshot(indexApi) || typeof indexApi?.getSnapshot !== 'function') return null;
+        if (!hasReadableDatapackLinkSnapshot(indexApi) || typeof indexApi?.getSnapshot !== 'function') return null;
         return indexApi.getSnapshot();
     }
 

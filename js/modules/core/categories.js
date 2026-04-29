@@ -11,9 +11,10 @@ function getCategoryLiveLinks() {
 function getCategoryStructureSummary() {
     const indexApi = window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
     if (!indexApi || typeof indexApi.getStructureSummary !== 'function') return null;
-    if (typeof indexApi.hasUsableSnapshot === 'function' && !indexApi.hasUsableSnapshot()) return null;
+    if (typeof indexApi.hasReadableStructureSnapshot === 'function' && !indexApi.hasReadableStructureSnapshot()) return null;
+    if (typeof indexApi.hasReadableStructureSnapshot !== 'function' && typeof indexApi.hasUsableSnapshot === 'function' && !indexApi.hasUsableSnapshot()) return null;
     const buildState = typeof indexApi.getBuildState === 'function' ? indexApi.getBuildState() : null;
-    if (typeof indexApi.hasUsableSnapshot !== 'function' && Number(buildState?.builtAt || 0) <= 0) return null;
+    if (typeof indexApi.hasReadableStructureSnapshot !== 'function' && typeof indexApi.hasUsableSnapshot !== 'function' && Number(buildState?.builtAt || 0) <= 0) return null;
     return indexApi.getStructureSummary();
 }
 

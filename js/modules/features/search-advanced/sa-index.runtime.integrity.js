@@ -229,6 +229,64 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         };
     }
 
+    function incrementBucket(bucket, key) {
+        const normalizedKey = text(key, 'unknown');
+        bucket[normalizedKey] = (bucket[normalizedKey] || 0) + 1;
+    }
+
+    function getRecordIssueSeverity(record, visibility, health, freshness) {
+        if (visibility?.state === 'broken' || health?.state === 'broken' || record?.provenance?.orphaned) return 'error';
+        if (health?.state === 'warning' || freshness?.state === 'stale') return 'warning';
+        if (visibility?.state === 'hidden' || visibility?.state === 'indirect') return 'info';
+        return '';
+    }
+
+    function getRecordIssueReasons(record, visibility, health, freshness) {
+        const visibilityReasons = visibility?.state && visibility.state !== 'visible'
+            ? toArray(visibility?.reasons)
+            : [];
+        const healthReasons = health?.state && health.state !== 'healthy'
+            ? toArray(health?.reasons)
+            : [];
+        const reasons = []
+            .concat(visibilityReasons)
+            .concat(healthReasons)
+            .map(function (reason) { return text(reason, ''); })
+            .filter(Boolean);
+        if (record?.provenance?.orphaned) reasons.push('Record is orphaned from its expected parent path.');
+        if (freshness?.state === 'stale') reasons.push('Record freshness is stale.');
+        return Array.from(new Set(reasons));
+    }
+
+    function buildRecordIssue(record, visibility, health, freshness) {
+        const severity = getRecordIssueSeverity(record, visibility, health, freshness);
+        if (!severity) return null;
+
+        const reasons = getRecordIssueReasons(record, visibility, health, freshness);
+        const sourceIdentity = record?.sourceIdentity || {};
+        return {
+            id: text(record?.id, ''),
+            type: text(record?.type, 'result'),
+            title: text(record?.title, 'Untitled'),
+            workspaceId: text(record?.workspaceId || record?.path?.workspaceId, ''),
+            workspaceLabel: text(record?.path?.workspaceLabel, record?.workspaceId),
+            categoryName: text(record?.categoryName || record?.path?.categoryName, ''),
+            folderId: getRecordFolderId(record),
+            linkId: getRecordLinkId(record),
+            provider: text(record?.provider, ''),
+            sourceKind: text(sourceIdentity?.kind || record?.provenance?.kind, ''),
+            pathLabel: text(record?.path?.pathLabel, ''),
+            severity: severity,
+            visibilityState: text(visibility?.state, ''),
+            visibilityLabel: text(visibility?.label, ''),
+            healthState: text(health?.state, ''),
+            healthLabel: text(health?.label, ''),
+            freshnessState: text(freshness?.state, ''),
+            freshnessLabel: text(freshness?.label, ''),
+            reasons: reasons
+        };
+    }
+
     function buildIntegrityReportSync(snapshot, scope) {
         const report = {
             totalRecords: 0,
@@ -241,7 +299,14 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             linkedLibraryRecords: 0,
             doneRecords: 0,
             byType: {},
-            byWorkspace: {}
+            byWorkspace: {},
+            byVisibility: {},
+            byHealth: {},
+            byFreshness: {},
+            byReason: {},
+            issues: [],
+            issueCap: 250,
+            truncatedIssueCount: 0
         };
         const inScope = buildScopeRecordMatcher(snapshot, scope);
 
@@ -256,6 +321,9 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
 
             report.byType[typeKey] = (report.byType[typeKey] || 0) + 1;
             report.byWorkspace[workspaceKey] = (report.byWorkspace[workspaceKey] || 0) + 1;
+            incrementBucket(report.byVisibility, visibility.label || visibility.state || 'Visible');
+            incrementBucket(report.byHealth, health.label || health.state || 'Healthy');
+            incrementBucket(report.byFreshness, freshness.label || freshness.state || 'Unknown');
 
             if (visibility.state === 'hidden') report.hiddenRecords += 1;
             if (visibility.state === 'indirect') report.indirectRecords += 1;
@@ -265,7 +333,20 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             if (freshness.state === 'aging') report.agingRecords += 1;
             if (record?.library?.linked) report.linkedLibraryRecords += 1;
             if (record?.provenance?.done) report.doneRecords += 1;
+
+            const issue = buildRecordIssue(record, visibility, health, freshness);
+            if (!issue) return;
+            issue.reasons.forEach(function (reason) {
+                incrementBucket(report.byReason, reason);
+            });
+            if (report.issues.length < report.issueCap) {
+                report.issues.push(issue);
+            } else {
+                report.truncatedIssueCount += 1;
+            }
         });
+
+        report.issueCount = report.issues.length + report.truncatedIssueCount;
 
         return report;
     }

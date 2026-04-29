@@ -176,9 +176,11 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         const structureSummary = indexApi && typeof indexApi.getStructureSummary === 'function'
             ? indexApi.getStructureSummary()
             : null;
-        const hasUsableSnapshot = indexApi && typeof indexApi.hasUsableSnapshot === 'function'
-            ? indexApi.hasUsableSnapshot()
-            : !!structureSummary?.builtAt;
+        const hasUsableSnapshot = indexApi && typeof indexApi.hasReadableStructureSnapshot === 'function'
+            ? indexApi.hasReadableStructureSnapshot()
+            : (indexApi && typeof indexApi.hasUsableSnapshot === 'function'
+                ? indexApi.hasUsableSnapshot()
+                : !!structureSummary?.builtAt);
 
         if (hasUsableSnapshot && structureSummary?.cards) {
             Object.keys(structureSummary.cards).forEach((scopedKey) => {

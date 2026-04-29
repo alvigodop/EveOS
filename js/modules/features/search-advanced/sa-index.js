@@ -122,11 +122,23 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         const categoryName = text(meta.categoryName, '');
         const sourceKey = text(meta.sourceKey, '');
         const query = text(meta.query, '');
-        if (!categoryName && !sourceKey && !query) return null;
+        const workspaceId = text(meta.workspaceId, '');
+        const folderId = text(meta.folderId, '');
+        const linkId = text(meta.linkId, '');
+        const kind = text(meta.kind, '');
+        const dragType = text(meta.dragType, '');
+        const dragId = text(meta.dragId, '');
+        if (!categoryName && !sourceKey && !query && !workspaceId && !folderId && !linkId && !kind && !dragType && !dragId) return null;
         return {
             categoryName: categoryName,
             sourceKey: sourceKey,
-            query: query
+            query: query,
+            workspaceId: workspaceId,
+            folderId: folderId,
+            linkId: linkId,
+            kind: kind,
+            dragType: dragType,
+            dragId: dragId
         };
     }
 
@@ -400,11 +412,102 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         return n === needle.length;
     }
 
-    function scoreField(value, query) {
+    function tokenizeSearchText(value) {
+        return normalizeText(value)
+            .split(/[^a-z0-9]+/i)
+            .map(function (token) { return text(token, ''); })
+            .filter(Boolean);
+    }
+
+    function buildAcronym(value) {
+        return tokenizeSearchText(value).map(function (token) {
+            return token.charAt(0);
+        }).join('');
+    }
+
+    function getTypoDistanceLimit(token) {
+        const length = String(token || '').length;
+        if (length < 4) return 0;
+        if (length <= 6) return 1;
+        return 2;
+    }
+
+    function boundedEditDistance(left, right, maxDistance) {
+        const a = text(left, '');
+        const b = text(right, '');
+        const limit = Number(maxDistance || 0);
+        if (!a || !b) return limit + 1;
+        if (a === b) return 0;
+        if (Math.abs(a.length - b.length) > limit) return limit + 1;
+
+        let previous = new Array(b.length + 1);
+        let current = new Array(b.length + 1);
+        for (let j = 0; j <= b.length; j += 1) previous[j] = j;
+
+        for (let i = 1; i <= a.length; i += 1) {
+            current[0] = i;
+            let rowMin = current[0];
+            for (let j = 1; j <= b.length; j += 1) {
+                const cost = a.charAt(i - 1) === b.charAt(j - 1) ? 0 : 1;
+                const value = Math.min(
+                    previous[j] + 1,
+                    current[j - 1] + 1,
+                    previous[j - 1] + cost
+                );
+                current[j] = value;
+                if (value < rowMin) rowMin = value;
+            }
+            if (rowMin > limit) return limit + 1;
+            const temp = previous;
+            previous = current;
+            current = temp;
+        }
+
+        return previous[b.length];
+    }
+
+    function tokenMatchScore(fieldTokens, queryTokens) {
+        if (!fieldTokens.length || !queryTokens.length) return 0;
+        let score = 0;
+        let matched = 0;
+
+        queryTokens.forEach(function (queryToken) {
+            let best = 0;
+            fieldTokens.forEach(function (fieldToken) {
+                if (fieldToken === queryToken) best = Math.max(best, 42);
+                else if (fieldToken.startsWith(queryToken)) best = Math.max(best, 34);
+                else if (fieldToken.includes(queryToken) && queryToken.length >= 3) best = Math.max(best, 24);
+                else {
+                    const typoLimit = getTypoDistanceLimit(queryToken);
+                    if (typoLimit > 0 && boundedEditDistance(fieldToken, queryToken, typoLimit) <= typoLimit) {
+                        best = Math.max(best, typoLimit === 1 ? 30 : 22);
+                    }
+                }
+            });
+            if (best > 0) {
+                matched += 1;
+                score += best;
+            }
+        });
+
+        if (matched === queryTokens.length && queryTokens.length > 1) score += 24;
+        return score;
+    }
+
+    function scoreField(value, query, options) {
         if (!value || !query) return 0;
         if (value === query) return 140;
         if (value.startsWith(query)) return 110;
         if (value.includes(query)) return 75;
+        const tokens = tokenizeSearchText(value);
+        const queryTokens = tokenizeSearchText(query);
+        const tokenScore = tokenMatchScore(tokens, queryTokens);
+        if (tokenScore) return Math.min(96, tokenScore);
+        if (options?.acronym) {
+            const acronym = buildAcronym(value);
+            if (acronym && acronym === query) return 70;
+            if (acronym && query.length >= 2 && acronym.startsWith(query)) return 44;
+        }
         if (looseFuzzyMatch(value, query)) return 18;
         return 0;
     }
@@ -421,14 +524,20 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         const provider = normalizeText(record?.provider);
         const searchText = normalizeText(record?.searchableText);
 
-        score += scoreField(title, q);
-        score += Math.floor(scoreField(pathLabel, q) * 0.6);
+        const titleScore = scoreField(title, q, { acronym: true });
+        const pathScore = scoreField(pathLabel, q);
+        score += titleScore;
+        score += Math.floor(pathScore * 0.75);
         score += Math.floor(scoreField(displayUrl, q) * 0.45);
         score += Math.floor(scoreField(description, q) * 0.35);
         score += Math.floor(scoreField(provider, q) * 0.2);
 
         if (!score && searchText.includes(q)) score += 26;
         if (!score && looseFuzzyMatch(searchText.replace(/\s+/g, ''), q.replace(/\s+/g, ''))) score += 12;
+        if (titleScore >= 140) score += 70;
+        if (pathScore >= 140) score += 48;
+        if (titleScore >= 96 && record?.type !== 'cached') score += 24;
+        if (pathScore >= 96 && record?.type !== 'cached') score += 20;
 
         if (scope?.workspaceId && matchesScope(record, { workspaceId: scope.workspaceId })) score += 14;
         if (scope?.categoryName && text(record?.categoryName, '') === text(scope.categoryName, '')) score += 18;
@@ -1141,6 +1250,20 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         return isLinkScopeReadableDirtyReason(state.lastReason);
     }
 
+    function isStructureScopeReadableDirtyReason(reason) {
+        const normalizedReason = text(reason, '');
+        return normalizedReason === 'saveConfig'
+            || normalizedReason === 'sidebar-tab-reorder'
+            || normalizedReason === 'library-link-updated'
+            || isSourceDrivenReason(normalizedReason);
+    }
+
+    function hasReadableStructureSnapshot() {
+        if (!state.snapshot || Number(state.snapshot?.builtAt || 0) <= 0) return false;
+        if (!state.dirty) return true;
+        return isStructureScopeReadableDirtyReason(state.lastReason);
+    }
+
     function getStructureSummary() {
         return buildStructureSummary(state.snapshot);
     }
@@ -1164,7 +1287,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     }
 
     window.addEventListener('eve:state-mutated', function (event) {
-        markDirty(event?.detail?.source || 'state-mutated');
+        markDirty(event?.detail?.source || 'state-mutated', event?.detail?.meta || null);
     });
     window.addEventListener('eve:library-link-updated', function () {
         markDirty('library-link-updated');
@@ -1187,6 +1310,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         getBuildState,
         hasUsableSnapshot,
         hasReadableLinkSnapshot,
+        hasReadableStructureSnapshot,
         getStructureSummary,
         getWorkspaceSummary,
         getCardSummary,

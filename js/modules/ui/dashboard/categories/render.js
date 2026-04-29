@@ -37,9 +37,11 @@ function getDashboardStructureSummary() {
     var indexApi = getDashboardDatapackIndexApi();
     if (!indexApi || typeof indexApi.getStructureSummary !== 'function') return null;
     var buildState = typeof indexApi.getBuildState === 'function' ? indexApi.getBuildState() : null;
-    var hasUsableSnapshot = typeof indexApi.hasUsableSnapshot === 'function'
-        ? indexApi.hasUsableSnapshot()
-        : (!buildState?.dirty && Number(buildState?.builtAt || 0) > 0);
+    var hasUsableSnapshot = typeof indexApi.hasReadableStructureSnapshot === 'function'
+        ? indexApi.hasReadableStructureSnapshot()
+        : (typeof indexApi.hasUsableSnapshot === 'function'
+            ? indexApi.hasUsableSnapshot()
+            : (!buildState?.dirty && Number(buildState?.builtAt || 0) > 0));
     if (!hasUsableSnapshot) {
         queueDashboardCategorySummaryWarmup();
         return null;

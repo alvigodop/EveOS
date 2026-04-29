@@ -213,6 +213,28 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         }).join('') + '</div>';
     }
 
+    function renderIssueList(issues, truncatedCount) {
+        const rows = (Array.isArray(issues) ? issues : []).slice(0, 8);
+        if (!rows.length && !truncatedCount) return '';
+        let html = '<div class="nx-debug-mini-list">';
+        rows.forEach(function (issue) {
+            const label = [
+                issue.severity || 'info',
+                issue.type || 'result',
+                issue.title || 'Untitled'
+            ].join(' / ');
+            const reason = Array.isArray(issue.reasons) && issue.reasons.length
+                ? issue.reasons[0]
+                : (issue.pathLabel || issue.workspaceLabel || '');
+            html += '<div class="nx-debug-mini-row"><span>' + escHtml(label) + '</span><span>' + escHtml(reason) + '</span></div>';
+        });
+        if (truncatedCount) {
+            html += '<div class="nx-debug-mini-row"><span>more issues</span><span>' + truncatedCount + '</span></div>';
+        }
+        html += '</div>';
+        return html;
+    }
+
     async function renderDebugPanel(container) {
         if (!container) return;
         container.innerHTML = '<div class="nx-debug-placeholder" style="padding:12px; text-align:center; color:rgba(128,128,128,0.6); font-size:0.78rem;">Loading diagnostics...</div>';
@@ -266,12 +288,19 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             html += '<tr><td>Broken / Orphaned</td><td>' + spine.integrity.brokenRecords + ' / ' + spine.integrity.orphanedRecords + '</td></tr>';
             html += '<tr><td>Stale / Aging</td><td>' + spine.integrity.staleRecords + ' / ' + spine.integrity.agingRecords + '</td></tr>';
             html += '<tr><td>Linked Library / Done</td><td>' + spine.integrity.linkedLibraryRecords + ' / ' + spine.integrity.doneRecords + '</td></tr>';
+            html += '<tr><td>Issue Details</td><td>' + (spine.integrity.issueCount || 0) + '</td></tr>';
             html += '<tr><td>Graph Nodes / Edges</td><td>' + spine.graph.nodeCount + ' / ' + spine.graph.edgeCount + '</td></tr>';
             html += '<tr><td>Graph Kinds</td><td>' + Object.entries(spine.graph.kindCounts).map(function (entry) {
                 return escHtml(entry[0]) + ':' + entry[1];
             }).join(' · ') + '</td></tr>';
             html += '</table>';
             html += renderMiniList(spine.topWorkspaces);
+            html += renderMiniList(Object.entries(spine.integrity.byReason || {})
+                .sort(function (left, right) {
+                    return Number(right[1] || 0) - Number(left[1] || 0);
+                })
+                .slice(0, 5));
+            html += renderIssueList(spine.integrity.issues || [], spine.integrity.truncatedIssueCount || 0);
         } else {
             html += '<div style="font-size:0.74rem; color:rgba(140,170,205,0.7);">Nexus index is unavailable.</div>';
         }

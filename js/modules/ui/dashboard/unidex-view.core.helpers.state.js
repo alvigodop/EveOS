@@ -40,7 +40,10 @@ window.UnidexViewModules = window.UnidexViewModules || {};
         function getDatapackStructureSummary() {
             const indexApi = getDatapackIndexApi();
             if (!indexApi || typeof indexApi.getStructureSummary !== 'function') return null;
-            if (!hasUsableDatapackSnapshot(indexApi)) {
+            const hasReadableStructure = typeof indexApi.hasReadableStructureSnapshot === 'function'
+                ? !!indexApi.hasReadableStructureSnapshot()
+                : hasUsableDatapackSnapshot(indexApi);
+            if (!hasReadableStructure) {
                 warmDatapackIndex();
                 return null;
             }

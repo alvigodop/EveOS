@@ -22,9 +22,10 @@ window.EveCategoryOrder = window.EveCategoryOrder || {};
     function getDatapackStructureSummary() {
         var indexApi = getDatapackIndexApi();
         if (!indexApi || typeof indexApi.getStructureSummary !== 'function') return null;
-        if (typeof indexApi.hasUsableSnapshot === 'function' && !indexApi.hasUsableSnapshot()) return null;
+        if (typeof indexApi.hasReadableStructureSnapshot === 'function' && !indexApi.hasReadableStructureSnapshot()) return null;
+        if (typeof indexApi.hasReadableStructureSnapshot !== 'function' && typeof indexApi.hasUsableSnapshot === 'function' && !indexApi.hasUsableSnapshot()) return null;
         var buildState = typeof indexApi.getBuildState === 'function' ? indexApi.getBuildState() : null;
-        if (!indexApi.hasUsableSnapshot && Number(buildState?.builtAt || 0) <= 0) return null;
+        if (!indexApi.hasReadableStructureSnapshot && !indexApi.hasUsableSnapshot && Number(buildState?.builtAt || 0) <= 0) return null;
         return indexApi.getStructureSummary();
     }
 

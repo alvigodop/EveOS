@@ -532,6 +532,7 @@ Primary scripts:
 
 - `tools/smoke/nexus_index_state_fingerprint_smoke.js`
 - `tools/smoke/nexus_index_suggest_smoke.js`
+- `tools/smoke/nexus_typo_diagnostics_smoke.js`
 - `tools/smoke/nexus_index_incremental_browser_smoke.js`
 - `tools/smoke/search_monitor_boot_smoke.js`
 
@@ -548,11 +549,13 @@ Recommended command set:
 ```bash
 node tools\\smoke\\nexus_index_state_fingerprint_smoke.js
 node tools\\smoke\\nexus_index_suggest_smoke.js
+node tools\\smoke\\nexus_typo_diagnostics_smoke.js
 node tools\\smoke\\nexus_index_incremental_browser_smoke.js
 node tools\\smoke\\search_monitor_boot_smoke.js
 ```
 
 Use `nexus_index_state_fingerprint_smoke.js` specifically for stale persisted-index regressions, dirty typeahead results, and large-datapack state drift between live links/folders/config and the local Nexus index.
+Use `nexus_typo_diagnostics_smoke.js` for local-first typo ranking, concrete integrity issue rows, and readable-structure dirty-state behavior.
 
 #### Sidebar, groups, and nested tab interactions
 
