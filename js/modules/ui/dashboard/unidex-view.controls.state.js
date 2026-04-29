@@ -24,6 +24,8 @@ window.UnidexViewModules = window.UnidexViewModules || {};
 
         return {
             getEntriesLayoutMode: configHelpers.getEntriesLayoutMode,
+            getEntriesDensityMode: configHelpers.getEntriesDensityMode,
+            setEntriesDensityMode: configHelpers.setEntriesDensityMode,
             setEntriesLayoutMode: configHelpers.setEntriesLayoutMode,
             toggleEntriesLayout: configHelpers.toggleEntriesLayout,
             getCardsUnifiedMode: configHelpers.getCardsUnifiedMode,

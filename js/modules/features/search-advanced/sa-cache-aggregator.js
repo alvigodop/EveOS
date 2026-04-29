@@ -12,6 +12,14 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     // workspaceId + categoryName = single card
 
     function getWorkspaceIdsInScope(scope) {
+        if (Array.isArray(scope?.workspaceIds) && scope.workspaceIds.length) {
+            const explicitIds = new Set();
+            scope.workspaceIds.forEach(function (workspaceId) {
+                const id = String(workspaceId || '').trim();
+                if (id) explicitIds.add(id);
+            });
+            return explicitIds.size ? explicitIds : null;
+        }
         if (!scope?.workspaceId) return null; // null means "all"
         const wsId = String(scope.workspaceId).trim();
         const ids = new Set([wsId]);
@@ -600,7 +608,15 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
 
     // Convenience: build a scope description string for UI display
     function describeScopeLabel(scope) {
-        if (!scope || (!scope.workspaceId && !scope.categoryName)) return 'All Tabs';
+        const explicitWorkspaceIds = Array.isArray(scope?.workspaceIds)
+            ? scope.workspaceIds.map(function (workspaceId) { return String(workspaceId || '').trim(); }).filter(Boolean)
+            : [];
+        if (!scope || (!scope.workspaceId && !scope.categoryName && !explicitWorkspaceIds.length)) return 'All Tabs';
+        if (explicitWorkspaceIds.length) {
+            const groupName = String(scope.groupName || '').trim();
+            if (groupName) return groupName + ' (' + explicitWorkspaceIds.length + ' tabs)';
+            return explicitWorkspaceIds.length + ' scoped tabs';
+        }
         if (scope.categoryName && scope.workspaceId) return scope.categoryName;
         if (scope.workspaceId) {
             const helpers = window.EveWorkspaceHelpers;

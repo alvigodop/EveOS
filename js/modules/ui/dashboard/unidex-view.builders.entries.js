@@ -19,6 +19,10 @@ window.UnidexViewModules = window.UnidexViewModules || {};
 
         function buildEntriesHtml(entryLinks, taskMode, layoutMode, options) {
             const entryOptions = options || {};
+            const densityMode = String(entryOptions.densityMode || 'comfortable').trim().toLowerCase();
+            const normalizedDensity = densityMode === 'compact' || densityMode === 'atlas'
+                ? densityMode
+                : 'comfortable';
             if (entryLinks.length === 0) {
                 return `
                 <div class="unidex-empty-state">
@@ -30,8 +34,11 @@ window.UnidexViewModules = window.UnidexViewModules || {};
 
             const isGridLayout = String(layoutMode || '') === 'grid';
             const isCompactViewport = window.matchMedia('(max-width: 900px)').matches;
-            const rowCoverWidth = isCompactViewport ? 72 : 84;
-            const rowCoverHeight = isCompactViewport ? 132 : 156;
+            const compactFactor = normalizedDensity === 'atlas'
+                ? 0.68
+                : (normalizedDensity === 'compact' ? 0.82 : 1);
+            const rowCoverWidth = Math.max(52, Math.round((isCompactViewport ? 72 : 84) * compactFactor));
+            const rowCoverHeight = Math.max(86, Math.round((isCompactViewport ? 132 : 156) * compactFactor));
             const rowImageHeight = Math.round(rowCoverHeight * 1.32);
             const rowImageOffset = Math.round((rowImageHeight - rowCoverHeight) / 2);
 
@@ -138,7 +145,10 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 const libraryRatingRaw = String(libraryEntry?.rating || '').trim();
                 const libraryAuthorRaw = String(libraryEntry?.author || '').trim();
                 const libraryGenreRaw = String(libraryEntry?.genre || '').trim();
-                const librarySummaryRaw = truncateText(libraryEntry?.summary, 220);
+                const summaryLimit = normalizedDensity === 'atlas'
+                    ? 90
+                    : (normalizedDensity === 'compact' ? 140 : 220);
+                const librarySummaryRaw = truncateText(libraryEntry?.summary, summaryLimit);
                 const libraryLanguageRaw = String(libraryEntry?.language || '').trim();
                 const libraryMediaTypeRaw = getMediaTypeLabel(libraryEntry);
                 const progressRaw = getProgressLabel(libraryEntry);
@@ -240,7 +250,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                     : '';
 
                 return `
-                <article class="unidex-entry-item has-visual-slot ${taskMode && link.done ? 'is-done' : ''} ${isLibraryLinked ? 'is-library-linked' : 'is-bookmark-only'} ${safeCoverUrl ? 'has-cover-image' : 'has-no-cover-image'}"
+                <article class="unidex-entry-item has-visual-slot is-density-${normalizedDensity} ${taskMode && link.done ? 'is-done' : ''} ${isLibraryLinked ? 'is-library-linked' : 'is-bookmark-only'} ${safeCoverUrl ? 'has-cover-image' : 'has-no-cover-image'}"
                     data-text="${hoverText}">
                     <button type="button"
                         class="unidex-entry-visual-btn"${visualButtonStyle}

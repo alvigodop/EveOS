@@ -22,7 +22,9 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
         getSelectedCategoryName: ns.getSelectedCategoryName,
         getSelectedWorkspaceForMove: ns.getSelectedWorkspaceForMove,
         getWorkspaceList: ns.getWorkspaceList,
-        getSelectedWorkspaceId: ns.getSelectedWorkspaceId
+        getSelectedWorkspaceId: ns.getSelectedWorkspaceId,
+        addTouchedScope: ns.addTouchedScope,
+        formatSelectionSummary: ns.formatSelectionSummary
     };
 
     const modules = window.EveBulkToolbar.ModalModules || {};
@@ -53,6 +55,11 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
             if (tabOverlay && tabOverlay.style.display === 'flex' && event.target === tabOverlay) {
                 workspaceHelpers.closeBulkTabModal?.();
             }
+        });
+        document.addEventListener('keydown', (event) => {
+            if (event.key !== 'Escape') return;
+            categoryHelpers.closeBulkMoveModal?.();
+            workspaceHelpers.closeBulkTabModal?.();
         });
         overlayDismissReady = true;
     }

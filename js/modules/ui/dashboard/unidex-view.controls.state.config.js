@@ -30,6 +30,22 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             return String(getConfigState().unidexEntriesLayout || 'rows') === 'grid' ? 'grid' : 'rows';
         }
 
+        function getEntriesDensityMode() {
+            const mode = String(getConfigState().unidexEntriesDensity || 'comfortable').trim().toLowerCase();
+            if (mode === 'compact' || mode === 'atlas') return mode;
+            return 'comfortable';
+        }
+
+        function setEntriesDensityMode(mode) {
+            const raw = String(mode || '').trim().toLowerCase();
+            const nextMode = raw === 'compact' || raw === 'atlas' ? raw : 'comfortable';
+            const currentConfig = getConfigState();
+            if (String(currentConfig.unidexEntriesDensity || 'comfortable') === nextMode) return;
+            currentConfig.unidexEntriesDensity = nextMode;
+            persistConfig();
+            requestRender();
+        }
+
         function setEntriesLayoutMode(mode) {
             const nextMode = String(mode || '') === 'grid' ? 'grid' : 'rows';
             const currentConfig = getConfigState();
@@ -197,6 +213,8 @@ window.UnidexViewModules = window.UnidexViewModules || {};
 
         return {
             getEntriesLayoutMode,
+            getEntriesDensityMode,
+            setEntriesDensityMode,
             setEntriesLayoutMode,
             toggleEntriesLayout,
             getCardsUnifiedMode,

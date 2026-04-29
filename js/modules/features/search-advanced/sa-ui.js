@@ -34,10 +34,55 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         return State?.getSettings?.()?.scopeMode === 'all' ? 'all' : 'current';
     }
 
+    function normalizeWorkspaceIds(values) {
+        return Array.from(new Set((Array.isArray(values) ? values : [])
+            .map(function (value) { return String(value || '').trim(); })
+            .filter(Boolean)));
+    }
+
+    function hasScopeTarget(scope) {
+        return !!(
+            scope
+            && (
+                scope.workspaceId
+                || scope.categoryName
+                || normalizeWorkspaceIds(scope.workspaceIds).length > 0
+            )
+        );
+    }
+
+    function resolveGroupOverviewScope() {
+        const currentConfig = window.eveState?.config || (typeof config !== 'undefined' ? config : null) || {};
+        const groupId = String(currentConfig.groupOverviewId || '').trim();
+        if (!groupId) return null;
+
+        const workspaceIds = normalizeWorkspaceIds(
+            window._eveActiveVisibleWorkspaceIds instanceof Set
+                ? Array.from(window._eveActiveVisibleWorkspaceIds)
+                : window._eveActiveVisibleWorkspaceIds
+        );
+        if (!workspaceIds.length) return null;
+
+        const group = Array.isArray(currentConfig.sidebarGroups)
+            ? currentConfig.sidebarGroups.find(function (item) {
+                return String(item?.id || '').trim() === groupId;
+            })
+            : null;
+
+        return {
+            workspaceIds,
+            groupId,
+            groupName: String(group?.name || 'Group Overview').trim() || 'Group Overview'
+        };
+    }
+
     function resolveCurrentScope(scopeMode) {
         const mode = scopeMode === 'all' ? 'all' : getCurrentScopeMode();
         if (mode === 'all') return {};
-        if (activeScope && (activeScope.workspaceId || activeScope.categoryName)) return activeScope;
+        if (hasScopeTarget(activeScope)) return activeScope;
+
+        const groupScope = resolveGroupOverviewScope();
+        if (groupScope) return groupScope;
 
         const grid = document.getElementById('dashboard-grid');
         const isUnidexMode = grid && grid.classList.contains('unidex-mode');
@@ -455,13 +500,13 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     function openExpandedSearchModal(options) {
         const ui = getUiHelpers();
         ui.createModalIfNeeded();
-        activeScope = (options?.scope && (options.scope.workspaceId || options.scope.categoryName))
+        activeScope = hasScopeTarget(options?.scope)
             ? options.scope
             : null;
 
         const settings = State.getSettings();
         const scopeModeOverride = options?.scopeMode
-            || (options?.scope && !options.scope.workspaceId && !options.scope.categoryName ? 'all' : '');
+            || (options?.scope && !hasScopeTarget(options.scope) ? 'all' : '');
         const queryFromOptions = typeof options?.query === 'string'
             ? options.query
             : (byId('search')?.value || '');

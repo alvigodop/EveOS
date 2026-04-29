@@ -232,3 +232,86 @@
     opacity: 0.88;
 }
 
+.unidex-entries.is-density-compact {
+    gap: 8px !important;
+}
+
+.unidex-entries.is-density-atlas {
+    gap: 6px !important;
+}
+
+.unidex-entries.is-grid-layout.is-density-compact {
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)) !important;
+    gap: 10px !important;
+}
+
+.unidex-entries.is-grid-layout.is-density-atlas {
+    grid-template-columns: repeat(auto-fill, minmax(218px, 1fr)) !important;
+    gap: 8px !important;
+}
+
+.unidex-entry-item.is-density-compact {
+    padding: 10px;
+    gap: 10px;
+    border-radius: 11px;
+}
+
+.unidex-entry-item.has-visual-slot.is-density-compact {
+    grid-template-columns: 69px minmax(0, 1fr) auto !important;
+    gap: 10px;
+}
+
+.unidex-entry-item.is-density-atlas {
+    padding: 8px;
+    gap: 8px;
+    border-radius: 10px;
+}
+
+.unidex-entry-item.has-visual-slot.is-density-atlas {
+    grid-template-columns: 57px minmax(0, 1fr) auto !important;
+    gap: 8px;
+}
+
+.unidex-entry-item.is-density-compact .unidex-entry-title {
+    font-size: 0.92rem;
+}
+
+.unidex-entry-item.is-density-atlas .unidex-entry-title {
+    font-size: 0.84rem;
+}
+
+.unidex-entry-item.is-density-atlas .unidex-entry-domain,
+.unidex-entry-item.is-density-atlas .unidex-entry-library-author,
+.unidex-entry-item.is-density-atlas .unidex-entry-library-genre,
+.unidex-entry-item.is-density-atlas .unidex-entry-library-summary {
+    display: none;
+}
+
+.unidex-entry-item.is-density-atlas .unidex-entry-tags {
+    margin-top: 5px;
+    gap: 4px;
+}
+
+.unidex-entry-item.is-density-atlas .unidex-entry-tag {
+    padding: 2px 6px;
+    font-size: 0.64rem;
+}
+
+.unidex-entry-item.is-density-atlas .unidex-entry-actions {
+    align-self: center;
+}
+
+.unidex-entry-item.is-density-atlas .unidex-entry-btn {
+    padding: 5px 8px;
+    font-size: 0.68rem;
+}
+
+.unidex-entries.is-grid-layout .unidex-entry-item.is-density-compact.has-visual-slot,
+.unidex-entries.is-grid-layout .unidex-entry-item.is-density-atlas.has-visual-slot {
+    grid-template-columns: minmax(0, 1fr) !important;
+}
+
+.unidex-entries.is-grid-layout .unidex-entry-item.is-density-atlas .unidex-entry-actions {
+    width: 100%;
+}
+

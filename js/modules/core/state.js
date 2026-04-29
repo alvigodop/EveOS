@@ -56,6 +56,7 @@ let config = {
     unidexCardsUnified: false,
     unidexTabsUnified: false,
     unidexEntriesLayout: "rows",
+    unidexEntriesDensity: "comfortable",
     unidexEntriesFilter: "all",
     unidexEntriesSortBy: "none",
     unidexEntriesSortOrder: "desc",

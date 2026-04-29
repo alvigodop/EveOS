@@ -54,6 +54,8 @@ async function waitForApp(page) {
     && !!window.bulkMarkDone
     && !!window.bulkMarkUndone
     && !!window.confirmBulkTabMove
+    && typeof window.renderBulkTabOptions === 'function'
+    && typeof window.renderBulkMoveCategoryOptions === 'function'
   ), undefined, { timeout: 120000 });
 }
 
@@ -73,6 +75,33 @@ async function seedState(page, payload) {
     if (typeof window.renderSidebar === 'function') window.renderSidebar();
     if (typeof window.renderDashboard === 'function') window.renderDashboard();
   }, payload);
+}
+
+async function installBulkInstrumentation(page) {
+  await page.evaluate(() => {
+    window.__bulkSmokeEvents = [];
+    window.__bulkSmokeSaves = [];
+    window.addEventListener('eve:bulk-bookmark-move', (event) => {
+      window.__bulkSmokeEvents.push({
+        type: 'eve:bulk-bookmark-move',
+        detail: event.detail
+      });
+    });
+    window.addEventListener('eve:state-mutated', (event) => {
+      window.__bulkSmokeEvents.push({
+        type: 'eve:state-mutated',
+        detail: event.detail
+      });
+    });
+    if (!window.__bulkSmokeSaveWrapped && typeof window.saveData === 'function') {
+      const originalSaveData = window.saveData;
+      window.saveData = function smokeSaveDataWrapper(payload) {
+        window.__bulkSmokeSaves.push(JSON.parse(JSON.stringify(payload || {})));
+        return originalSaveData.apply(this, arguments);
+      };
+      window.__bulkSmokeSaveWrapped = true;
+    }
+  });
 }
 
 async function getSelectedIds(page) {
@@ -209,7 +238,43 @@ async function runSmoke(page) {
     });
   });
   await openTabMoveModal(page);
+
+  const modalSummary = await page.locator('#bulk-tab-selection-summary').textContent();
+  if (!String(modalSummary || '').includes('2 selected')) {
+    throw new Error(`Bulk tab modal summary did not reflect selection: ${modalSummary}`);
+  }
+
+  await page.fill('#bulk-tab-workspace-filter', 'Second');
+  await page.waitForTimeout(100);
+  let workspaceOptions = await page.evaluate(() => Array.from(document.querySelectorAll('#bulk-tab-existing-select option')).map((option) => ({
+    value: option.value,
+    text: option.textContent.trim()
+  })));
+  if (workspaceOptions.length !== 1 || workspaceOptions[0].value !== 'second') {
+    throw new Error(`Destination tab filter mismatch: ${JSON.stringify(workspaceOptions)}`);
+  }
+
   await page.selectOption('#bulk-tab-existing-select', 'second');
+  await page.waitForTimeout(100);
+  await page.fill('#bulk-tab-card-filter', 'Target');
+  await page.waitForTimeout(100);
+  let filteredCardOptions = await page.evaluate(() => Array.from(document.querySelectorAll('#bulk-tab-card-existing-select option')).map((option) => option.value));
+  if (filteredCardOptions.join('|') !== 'TargetCard') {
+    throw new Error(`Destination card filter mismatch: ${filteredCardOptions.join('|')}`);
+  }
+  await page.fill('#bulk-tab-card-filter', 'NoCardSmoke');
+  await page.waitForTimeout(100);
+  let activeCardMode = await page.evaluate(() => document.querySelector('input[name="bulkTabCardMode"]:checked')?.value || '');
+  if (activeCardMode !== 'new') {
+    throw new Error(`Card filter miss should temporarily switch to new-card mode, got ${activeCardMode}`);
+  }
+  await page.fill('#bulk-tab-card-filter', 'Target');
+  await page.waitForTimeout(100);
+  activeCardMode = await page.evaluate(() => document.querySelector('input[name="bulkTabCardMode"]:checked')?.value || '');
+  if (activeCardMode !== 'existing') {
+    throw new Error(`Clearing a card-filter miss should restore existing-card mode, got ${activeCardMode}`);
+  }
+  await page.fill('#bulk-tab-card-filter', '');
   await page.waitForTimeout(100);
   const existingCardOptions = await page.evaluate(() => Array.from(document.querySelectorAll('#bulk-tab-card-existing-select option')).map((option) => option.value));
   if (existingCardOptions.includes('AlphaPlain') || existingCardOptions.includes('AlphaFolder')) {
@@ -221,6 +286,22 @@ async function runSmoke(page) {
   await page.selectOption('#bulk-tab-card-existing-select', 'TargetCard');
   await page.evaluate(() => window.confirmBulkTabMove());
   await page.waitForFunction(() => !document.body.classList.contains('bulk-active'));
+
+  const firstMoveMeta = await page.evaluate(() => ({
+    moveEvents: window.__bulkSmokeEvents.filter((event) => event.type === 'eve:bulk-bookmark-move'),
+    saves: window.__bulkSmokeSaves
+  }));
+  const firstMoveEvent = firstMoveMeta.moveEvents[firstMoveMeta.moveEvents.length - 1];
+  if (!firstMoveEvent || firstMoveEvent.detail.source !== 'bulk-workspace-bookmark-move') {
+    throw new Error(`Bulk move event metadata missing: ${JSON.stringify(firstMoveMeta.moveEvents)}`);
+  }
+  if (!Array.isArray(firstMoveEvent.detail.touchedScopes) || firstMoveEvent.detail.touchedScopes.length < 2) {
+    throw new Error(`Bulk move event did not include touched scopes: ${JSON.stringify(firstMoveEvent.detail)}`);
+  }
+  const firstSave = firstMoveMeta.saves[firstMoveMeta.saves.length - 1];
+  if (!firstSave || firstSave.source !== 'bulk-workspace-bookmark-move' || firstSave.meta?.kind !== 'bulk-move') {
+    throw new Error(`Bulk move save metadata missing: ${JSON.stringify(firstMoveMeta.saves)}`);
+  }
 
   let movedLinks = await page.evaluate(() => window.links.filter((link) => ['p1', 'p2'].includes(link.id)).map((link) => ({
     id: link.id,
@@ -265,6 +346,7 @@ async function runSmoke(page) {
   try {
     await page.goto(FILE_URL, { waitUntil: 'domcontentloaded', timeout: 120000 });
     await waitForApp(page);
+    await installBulkInstrumentation(page);
     await seedState(page, buildSeedPayload());
     await runSmoke(page);
     console.log('BULK_SELECTION_BROWSER_SMOKE_OK');

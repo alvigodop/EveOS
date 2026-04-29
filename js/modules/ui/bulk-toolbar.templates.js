@@ -24,12 +24,14 @@ window.EveBulkToolbar = window.EveBulkToolbar || {};
     <div id="bulk-move-modal" role="dialog" aria-modal="true" aria-labelledby="bulk-move-modal-title">
         <h3 id="bulk-move-modal-title">Move Selected Bookmarks</h3>
         <p class="bulk-move-subtitle">Choose an existing card or create a new one for selected bookmarks.</p>
+        <div class="bulk-move-summary" id="bulk-move-selection-summary">No bookmarks selected.</div>
 
         <div class="bulk-move-section">
             <label class="bulk-move-radio">
                 <input type="radio" name="bulkMoveMode" value="existing" checked onchange="setBulkMoveMode('existing')">
                 <span>Move to existing card</span>
             </label>
+            <input type="search" id="bulk-move-card-filter" class="bulk-target-filter" placeholder="Filter destination cards" oninput="renderBulkMoveCategoryOptions()">
             <select id="bulk-move-existing-select"></select>
         </div>
 
@@ -54,12 +56,14 @@ window.EveBulkToolbar = window.EveBulkToolbar || {};
     <div id="bulk-tab-modal" role="dialog" aria-modal="true" aria-labelledby="bulk-tab-modal-title">
         <h3 id="bulk-tab-modal-title">Move Selected Bookmarks</h3>
         <p class="bulk-move-subtitle">Choose a destination tab, then choose the destination card inside that tab.</p>
+        <div class="bulk-move-summary" id="bulk-tab-selection-summary">No bookmarks selected.</div>
 
         <div class="bulk-move-section">
             <label class="bulk-move-radio">
                 <input type="radio" name="bulkTabMode" value="existing" checked onchange="setBulkTabMode('existing')">
                 <span>Move to existing tab</span>
             </label>
+            <input type="search" id="bulk-tab-workspace-filter" class="bulk-target-filter" placeholder="Filter destination tabs" oninput="renderBulkTabOptions()">
             <select id="bulk-tab-existing-select" onchange="renderBulkTabCardOptions()"></select>
         </div>
 
@@ -76,6 +80,7 @@ window.EveBulkToolbar = window.EveBulkToolbar || {};
                 <input type="radio" name="bulkTabCardMode" value="existing" checked onchange="setBulkTabCardMode('existing')">
                 <span>Move into existing card in destination tab</span>
             </label>
+            <input type="search" id="bulk-tab-card-filter" class="bulk-target-filter" placeholder="Filter destination cards" oninput="renderBulkTabCardOptions()">
             <select id="bulk-tab-card-existing-select"></select>
         </div>
 

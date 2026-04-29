@@ -14,10 +14,17 @@ window.UnidexViewModules = window.UnidexViewModules || {};
         const stabilizeEntriesLayout = deps?.stabilizeEntriesLayout;
         const buildEntriesHtml = deps?.buildEntriesHtml;
         const getEntriesLayoutMode = deps?.getEntriesLayoutMode;
+        const getEntriesDensityMode = deps?.getEntriesDensityMode || (() => 'comfortable');
         const getEntriesFilterMode = deps?.getEntriesFilterMode;
         const getEntriesGroupMode = deps?.getEntriesGroupMode || (() => 'flat');
         const applyEntriesViewTransforms = deps?.applyEntriesViewTransforms;
         const buildEntriesControlsHtml = deps?.buildEntriesControlsHtml;
+
+        function buildEntriesClassName(layoutMode) {
+            return 'unidex-entries '
+                + (layoutMode === 'grid' ? 'is-grid-layout' : 'is-row-layout')
+                + ' is-density-' + getEntriesDensityMode();
+        }
 
         function renderEntriesStage(gridContainer, searchStr, callbacks) {
             const workspace = getWorkspaceById(state.selectedWorkspaceId);
@@ -52,7 +59,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                             ${buildEntriesControlsHtml()}
                         </div>
                     </header>
-                    <section class="unidex-entries ${layoutMode === 'grid' ? 'is-grid-layout' : 'is-row-layout'}" aria-label="Bookmark and Library Entries">
+                    <section class="${buildEntriesClassName(layoutMode)}" aria-label="Bookmark and Library Entries">
                         <div class="unidex-empty-state">
                             <h3>Preparing Entries</h3>
                             <p>Loading library links...</p>
@@ -75,8 +82,11 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                         ${buildEntriesControlsHtml()}
                     </div>
                 </header>
-                <section class="unidex-entries ${layoutMode === 'grid' ? 'is-grid-layout' : 'is-row-layout'}" aria-label="Bookmark and Library Entries">
-                    ${buildEntriesHtml(filteredEntries, taskMode, layoutMode, { groupMode: getEntriesGroupMode() })}
+                <section class="${buildEntriesClassName(layoutMode)}" aria-label="Bookmark and Library Entries">
+                    ${buildEntriesHtml(filteredEntries, taskMode, layoutMode, {
+                        groupMode: getEntriesGroupMode(),
+                        densityMode: getEntriesDensityMode()
+                    })}
                 </section>
             </section>
         `;

@@ -73,7 +73,8 @@ window.UnidexView = (function () {
         getEntriesFilterMode: controls.getEntriesFilterMode,
         getEntriesGroupMode: controls.getEntriesGroupMode,
         applyEntriesViewTransforms: controls.applyEntriesViewTransforms,
-        buildEntriesControlsHtml: controls.buildEntriesControlsHtml
+        buildEntriesControlsHtml: controls.buildEntriesControlsHtml,
+        getEntriesDensityMode: controls.getEntriesDensityMode
     }) : null;
     const navigation = helpers && stages && modules.createCoreNavigation ? modules.createCoreNavigation({
         state,
@@ -114,6 +115,7 @@ window.UnidexView = (function () {
             backToCards: function () { },
             setEntriesFilter: function () { },
             setEntriesGroupMode: function () { },
+            setEntriesDensityMode: function () { },
             setEntriesSortBy: function () { },
             setEntriesSortOrder: function () { },
             setEntriesConfidenceMin: function () { },
@@ -171,6 +173,7 @@ window.UnidexView = (function () {
         backToCards: navigation.backToCards,
         setEntriesFilter: controls.setEntriesFilter,
         setEntriesGroupMode: controls.setEntriesGroupMode,
+        setEntriesDensityMode: controls.setEntriesDensityMode,
         setEntriesSortBy: controls.setEntriesSortBy,
         setEntriesSortOrder: controls.setEntriesSortOrder,
         setEntriesConfidenceMin: controls.setEntriesConfidenceMin,

@@ -160,6 +160,51 @@ window.bulkLastToggledId = bulkLastToggledId;
         return getLinks().filter(link => selectedIds.has(toBulkId(link?.id)));
     }
 
+    function normalizeScope(workspaceId, categoryName) {
+        return {
+            workspaceId: String(workspaceId || 'main').trim() || 'main',
+            categoryName: String(categoryName || 'Unsorted').trim() || 'Unsorted'
+        };
+    }
+
+    function addTouchedScope(scopes, workspaceId, categoryName) {
+        const scope = normalizeScope(workspaceId, categoryName);
+        scopes.set(scope.workspaceId + '::' + scope.categoryName, scope);
+    }
+
+    function buildSelectionSummary() {
+        const selectedLinks = getSelectedLinks();
+        const workspaceIds = new Set();
+        const categoryNames = new Set();
+        const folderIds = new Set();
+        selectedLinks.forEach(function (link) {
+            workspaceIds.add(String(link?.workspace || 'main').trim() || 'main');
+            categoryNames.add(String(link?.category || 'Unsorted').trim() || 'Unsorted');
+            const folderId = String(link?.folderId || '').trim();
+            if (folderId) folderIds.add(folderId);
+        });
+        return {
+            count: selectedLinks.length,
+            workspaces: workspaceIds.size,
+            cards: categoryNames.size,
+            folders: folderIds.size,
+            labels: Array.from(categoryNames).slice(0, 4)
+        };
+    }
+
+    function formatSelectionSummary() {
+        const summary = buildSelectionSummary();
+        if (!summary.count) return 'No bookmarks selected.';
+        const scopeBits = [
+            `${summary.count} selected`,
+            `${summary.workspaces} tab${summary.workspaces === 1 ? '' : 's'}`,
+            `${summary.cards} card${summary.cards === 1 ? '' : 's'}`
+        ];
+        if (summary.folders) scopeBits.push(`${summary.folders} folder scope${summary.folders === 1 ? '' : 's'}`);
+        const labelText = summary.labels.length ? ` (${summary.labels.join(', ')}${summary.cards > summary.labels.length ? ', ...' : ''})` : '';
+        return scopeBits.join(' / ') + labelText;
+    }
+
     function areAllIdsSelected(ids) {
         const normalized = (Array.isArray(ids) ? ids : []).map(toBulkId).filter(Boolean);
         return normalized.length > 0 && normalized.every((id) => selectedIds.has(id));
@@ -408,6 +453,9 @@ window.bulkLastToggledId = bulkLastToggledId;
         toggleScopeSelection,
         areAllIdsSelected,
         getSelectedLinks,
+        addTouchedScope,
+        buildSelectionSummary,
+        formatSelectionSummary,
         applyRangeSelection,
         setLastToggledId,
         getLastToggledId,

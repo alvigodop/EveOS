@@ -85,6 +85,17 @@ assert(localConfig.unidexEntriesGroupMode === 'identifiers', 'Unidex group mode 
 assert(persisted === 1 && rendered === 1, 'Changing group mode should persist and render once');
 configHelpers.setEntriesGroupMode('unknown');
 assert(configHelpers.getEntriesGroupMode() === 'flat', 'Invalid group mode should normalize to flat');
+assert(persisted === 2 && rendered === 2, 'Invalid group mode change should persist and render once');
+assert(configHelpers.getEntriesDensityMode() === 'comfortable', 'Unidex entry density should default to comfortable');
+configHelpers.setEntriesDensityMode('compact');
+assert(configHelpers.getEntriesDensityMode() === 'compact', 'Unidex entry density should persist compact');
+assert(localConfig.unidexEntriesDensity === 'compact', 'Unidex density mode should write config');
+configHelpers.setEntriesDensityMode('atlas');
+assert(configHelpers.getEntriesDensityMode() === 'atlas', 'Unidex entry density should persist atlas');
+configHelpers.setEntriesDensityMode('unknown');
+assert(configHelpers.getEntriesDensityMode() === 'comfortable', 'Invalid density mode should normalize to comfortable');
+configHelpers.setEntriesDensityMode('unknown');
+assert(persisted === 5 && rendered === 5, 'Density mode should persist/render only on actual changes');
 
 global.EveBookmarkIdentifiers = {
   getDefinitions() {
@@ -142,11 +153,13 @@ const groupedHtml = entryBuilders.buildEntriesHtml([
   }
 ], false, 'rows', {
   groupMode: 'identifiers',
-  includeCategoryTag: true
+  includeCategoryTag: true,
+  densityMode: 'atlas'
 });
 
 assert(groupedHtml.includes('class="unidex-identifier-group"'), 'Identifier grouping should render group sections');
 assert(groupedHtml.includes('data-identifier-id="reading"'), 'Reading identifier group should render');
+assert(groupedHtml.includes('is-density-atlas'), 'Identifier grouping should preserve density classes on entries');
 assert(groupedHtml.includes('No Identifier'), 'Unidentified group should render for unmarked bookmarks');
 assert(groupedHtml.includes('Folder: Arc One / Nested Folder'), 'Folder tag should show folder path label');
 assert(groupedHtml.includes('Folder: Arc One / Nested Folder'), 'Folder path should be available in hover/title text');
@@ -155,5 +168,6 @@ console.log(JSON.stringify({
   ok: true,
   saveConfigCalls: global.saveConfigCalls,
   renderDashboardCalls: global.renderDashboardCalls,
-  unidexGroupMode: configHelpers.getEntriesGroupMode()
+  unidexGroupMode: configHelpers.getEntriesGroupMode(),
+  unidexDensityMode: configHelpers.getEntriesDensityMode()
 }, null, 2));

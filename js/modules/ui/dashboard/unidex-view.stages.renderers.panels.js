@@ -23,6 +23,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
         const buildCardsHtml = deps?.buildCardsHtml;
         const buildEntriesHtml = deps?.buildEntriesHtml;
         const getEntriesLayoutMode = deps?.getEntriesLayoutMode;
+        const getEntriesDensityMode = deps?.getEntriesDensityMode || (() => 'comfortable');
         const getCardsUnifiedMode = deps?.getCardsUnifiedMode;
         const getTabsUnifiedMode = deps?.getTabsUnifiedMode;
         const getEntriesFilterMode = deps?.getEntriesFilterMode;
@@ -34,6 +35,12 @@ window.UnidexViewModules = window.UnidexViewModules || {};
         function buildNexusScopedBtn(wsId) {
             const safeWsId = String(wsId || '').replace(/'/g, "\\'");
             return '<button type="button" class="unidex-layout-btn unidex-nexus-btn" onclick="window.UnidexView.openNexusSearch(\'' + safeWsId + '\')" title="Search this tab (bookmarks + scraper cache)">⚔ Nexus Search</button>';
+        }
+
+        function buildEntriesClassName(layoutMode) {
+            return 'unidex-entries '
+                + (layoutMode === 'grid' ? 'is-grid-layout' : 'is-row-layout')
+                + ' is-density-' + getEntriesDensityMode();
         }
 
         function renderTabsStage(gridContainer, searchStr) {
@@ -82,7 +89,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                     <div class="unidex-panel-controls unidex-tabs-controls">
                         ${buildEntriesControlsHtml({ toggleHtml: tabsUnifiedToggleHtml })}
                     </div>
-                    <section class="unidex-entries ${layoutMode === 'grid' ? 'is-grid-layout' : 'is-row-layout'}" aria-label="Unified entries across all tabs">
+                    <section class="${buildEntriesClassName(layoutMode)}" aria-label="Unified entries across all tabs">
                         <div class="unidex-empty-state">
                             <h3>Preparing Entries</h3>
                             <p>Loading library links...</p>
@@ -104,10 +111,11 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 <div class="unidex-panel-controls unidex-tabs-controls">
                     ${buildEntriesControlsHtml({ toggleHtml: tabsUnifiedToggleHtml })}
                 </div>
-                <section class="unidex-entries ${layoutMode === 'grid' ? 'is-grid-layout' : 'is-row-layout'}" aria-label="Unified entries across all tabs">
+                <section class="${buildEntriesClassName(layoutMode)}" aria-label="Unified entries across all tabs">
                     ${buildEntriesHtml(filteredEntries, false, layoutMode, {
                         includeCategoryTag: true,
                         groupMode: getEntriesGroupMode(),
+                        densityMode: getEntriesDensityMode(),
                         resolveTaskMode: function (link) {
                             return isTaskModeCategory(link.workspace || 'main', link.category || 'Unsorted');
                         },
@@ -218,7 +226,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                             ${buildEntriesControlsHtml({ toggleHtml: unifiedToggleHtml })}
                         </div>
                     </header>
-                    <section class="unidex-entries ${layoutMode === 'grid' ? 'is-grid-layout' : 'is-row-layout'}" aria-label="Unified bookmark and library entries">
+                    <section class="${buildEntriesClassName(layoutMode)}" aria-label="Unified bookmark and library entries">
                         <div class="unidex-empty-state">
                             <h3>Preparing Entries</h3>
                             <p>Loading library links...</p>
@@ -241,10 +249,11 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                         ${buildEntriesControlsHtml({ toggleHtml: unifiedToggleHtml })}
                     </div>
                 </header>
-                <section class="unidex-entries ${layoutMode === 'grid' ? 'is-grid-layout' : 'is-row-layout'}" aria-label="Unified bookmark and library entries">
+                <section class="${buildEntriesClassName(layoutMode)}" aria-label="Unified bookmark and library entries">
                     ${buildEntriesHtml(filteredEntries, false, layoutMode, {
                         includeCategoryTag: true,
                         groupMode: getEntriesGroupMode(),
+                        densityMode: getEntriesDensityMode(),
                         resolveTaskMode: function (link) {
                             return isTaskModeCategory(link.workspace || 'main', link.category || 'Unsorted');
                         }

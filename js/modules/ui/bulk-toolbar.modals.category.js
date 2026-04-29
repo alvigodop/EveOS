@@ -12,21 +12,29 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
         const escapeBulkMoveHtml = deps.escapeBulkMoveHtml;
         const getSelectedCategoryName = deps.getSelectedCategoryName;
         const getSelectedWorkspaceForMove = deps.getSelectedWorkspaceForMove;
+        const addTouchedScope = deps.addTouchedScope || function () {};
+        const formatSelectionSummary = deps.formatSelectionSummary || function () { return ''; };
 
         function renderBulkMoveCategoryOptions() {
             const select = document.getElementById('bulk-move-existing-select');
             if (!select) return;
-            const names = (() => {
+            const filterText = String(document.getElementById('bulk-move-card-filter')?.value || '').trim().toLowerCase();
+            const summary = document.getElementById('bulk-move-selection-summary');
+            if (summary) summary.textContent = formatSelectionSummary();
+            const allNames = (() => {
                 const visibleNames = getVisibleDashboardCategoryNames();
                 if (visibleNames.length > 0) return visibleNames;
                 return getAllCategoryNames(getSelectedWorkspaceForMove());
             })();
+            const names = allNames.filter((name) => !filterText || String(name || '').toLowerCase().includes(filterText));
             const currentCategory = getSelectedCategoryName();
-            select.innerHTML = names.map(name => {
+            select.innerHTML = names.length
+                ? names.map(name => {
                 const selected = name === currentCategory ? ' selected' : '';
                 const safeName = escapeBulkMoveHtml(name);
                 return `<option value="${safeName}"${selected}>${safeName}</option>`;
-            }).join('');
+            }).join('')
+                : '<option value="">No matching cards</option>';
         }
 
         function setBulkMoveMode(mode) {
@@ -48,10 +56,12 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
         function openBulkMoveModal() {
             const overlay = document.getElementById('bulk-move-modal-overlay');
             if (!overlay) return;
-            renderBulkMoveCategoryOptions();
-            setBulkMoveMode('existing');
             const input = document.getElementById('bulk-move-new-input');
             if (input) input.value = '';
+            const filter = document.getElementById('bulk-move-card-filter');
+            if (filter) filter.value = '';
+            renderBulkMoveCategoryOptions();
+            setBulkMoveMode('existing');
             overlay.style.display = 'flex';
         }
 
@@ -76,12 +86,19 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
             const mergeApi = window.EveBookmarkMerge;
             const allLinks = getLinks();
             const selectedLinkIds = Array.from(getSelectedIds()).map(toBulkId);
+            const movedLinkIds = [];
+            const mergedLinkIds = [];
+            const removedLinkIds = [];
+            const touchedScopes = new Map();
             selectedLinkIds.forEach((selectedId) => {
                 const link = allLinks.find((candidate) => toBulkId(candidate?.id) === selectedId);
                 if (!link) return;
                 const targetWorkspaceId = String(link.workspace || getSelectedWorkspaceForMove() || '').trim() || 'main';
+                const sourceWorkspaceId = String(link.workspace || 'main').trim() || 'main';
+                const sourceCategoryName = String(link.category || 'Unsorted').trim() || 'Unsorted';
+                addTouchedScope(touchedScopes, sourceWorkspaceId, sourceCategoryName);
                 if (mergeApi && typeof mergeApi.moveOrMergeLinkToScope === 'function') {
-                    mergeApi.moveOrMergeLinkToScope(link, {
+                    const result = mergeApi.moveOrMergeLinkToScope(link, {
                         workspaceId: targetWorkspaceId,
                         categoryName,
                         folderId: ''
@@ -89,6 +106,12 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
                         source: 'bulk-category-bookmark-move',
                         links: allLinks
                     });
+                    if (result?.moved || result?.merged) {
+                        movedLinkIds.push(String(result.targetId || link.id));
+                        if (result.merged) mergedLinkIds.push(String(result.targetId || ''));
+                        if (Array.isArray(result.removedIds)) removedLinkIds.push(...result.removedIds.map(String));
+                        addTouchedScope(touchedScopes, targetWorkspaceId, categoryName);
+                    }
                     return;
                 }
                 link.category = categoryName;
@@ -96,9 +119,19 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
                 if (typeof syncLinked === 'function') {
                     syncLinked(link.id);
                 }
+                movedLinkIds.push(String(link.id));
+                addTouchedScope(touchedScopes, targetWorkspaceId, categoryName);
             });
             if (typeof deps.setLinks === 'function') deps.setLinks(allLinks);
-            return true;
+            return {
+                applied: movedLinkIds.length > 0 || removedLinkIds.length > 0,
+                source: 'bulk-category-bookmark-move',
+                movedLinkIds: Array.from(new Set(movedLinkIds)),
+                mergedLinkIds: Array.from(new Set(mergedLinkIds.filter(Boolean))),
+                removedLinkIds: Array.from(new Set(removedLinkIds)),
+                target: { categoryName },
+                touchedScopes: Array.from(touchedScopes.values())
+            };
         }
 
         function confirmBulkMove() {
@@ -109,14 +142,15 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
                 return false;
             }
 
-            if (!applyBulkCategoryMove(nextCategory)) {
+            const result = applyBulkCategoryMove(nextCategory);
+            if (!result?.applied) {
                 showToast('Unable to move bookmarks.', 'error');
                 return false;
             }
 
             closeBulkMoveModal();
             showToast(`Moved ${movedCount} bookmark(s) to "${nextCategory}"`, 'success');
-            return true;
+            return result;
         }
 
         return {

@@ -64,15 +64,19 @@ body.bulk-active .bulk-scope-btn {
 
 #bulk-move-modal,
 #bulk-tab-modal {
-    width: min(480px, 95vw);
-    background: var(--card-bg, #1f1f1f);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 14px;
-    padding: 16px;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    width: min(560px, 95vw);
+    max-height: min(760px, calc(100vh - 32px));
+    overflow: auto;
+    background:
+        radial-gradient(circle at 12% -8%, color-mix(in srgb, var(--accent, #00d4ff) 16%, transparent), transparent 34%),
+        linear-gradient(145deg, color-mix(in srgb, var(--card-bg, #1f1f1f) 94%, #000 6%), rgba(12, 16, 20, 0.94));
+    border: 1px solid color-mix(in srgb, var(--accent, #00d4ff) 22%, rgba(255, 255, 255, 0.18));
+    border-radius: 18px;
+    padding: 18px;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.52);
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 14px;
 }
 
 #bulk-move-modal h3,
@@ -86,6 +90,16 @@ body.bulk-active .bulk-scope-btn {
     margin: 0;
     font-size: 0.85rem;
     color: var(--text-muted);
+}
+
+.bulk-move-summary {
+    padding: 10px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 13px;
+    background: rgba(255, 255, 255, 0.045);
+    color: color-mix(in srgb, var(--text-main, #fff) 86%, var(--accent, #00d4ff) 14%);
+    font-size: 0.82rem;
+    font-weight: 700;
 }
 
 #bulk-move-modal .bulk-move-section,
@@ -105,10 +119,29 @@ body.bulk-active .bulk-scope-btn {
 
 #bulk-move-modal select,
 #bulk-move-modal input[type="text"],
+#bulk-move-modal input[type="search"],
 #bulk-tab-modal select,
-#bulk-tab-modal input[type="text"] {
+#bulk-tab-modal input[type="text"],
+#bulk-tab-modal input[type="search"] {
     width: 100%;
     box-sizing: border-box;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 11px;
+    background: rgba(0, 0, 0, 0.18);
+    color: var(--text-main);
+    padding: 9px 10px;
+}
+
+.bulk-target-filter {
+    margin-bottom: 2px;
+}
+
+#bulk-move-modal select:focus-visible,
+#bulk-move-modal input:focus-visible,
+#bulk-tab-modal select:focus-visible,
+#bulk-tab-modal input:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--accent, #00d4ff) 52%, transparent);
+    outline-offset: 1px;
 }
 
 #bulk-move-modal .bulk-move-actions,

@@ -35,6 +35,10 @@ window.EveBulkToolbar = window.EveBulkToolbar || {};
         return setLinks(nextLinks);
     }
 
+    function getSelectedLinkIds() {
+        return Array.from(getSelectedIds()).map(toBulkId).filter(Boolean);
+    }
+
     function toggleBulkModeAction() {
         const nextMode = !getBulkMode();
         setBulkMode(nextMode);
@@ -196,13 +200,60 @@ window.EveBulkToolbar = window.EveBulkToolbar || {};
         applyBulkDoneState(false);
     }
 
-    function completeBulkAction(didApply) {
-        if (!didApply) return;
+    function normalizeBulkActionResult(result) {
+        if (!result) return null;
+        if (result === true) {
+            return {
+                applied: true,
+                source: 'bulk-move',
+                movedLinkIds: getSelectedLinkIds(),
+                mergedLinkIds: [],
+                removedLinkIds: [],
+                touchedScopes: []
+            };
+        }
+        if (typeof result === 'object') {
+            return Object.assign({
+                applied: true,
+                source: 'bulk-move',
+                movedLinkIds: [],
+                mergedLinkIds: [],
+                removedLinkIds: [],
+                touchedScopes: []
+            }, result);
+        }
+        return null;
+    }
+
+    function dispatchBulkMoveResult(detail) {
+        if (!detail || typeof window.dispatchEvent !== 'function' || typeof CustomEvent !== 'function') return;
+        window.dispatchEvent(new CustomEvent('eve:bulk-bookmark-move', { detail }));
+        window.dispatchEvent(new CustomEvent('eve:state-mutated', {
+            detail: {
+                source: detail.source || 'bulk-move',
+                meta: detail
+            }
+        }));
+    }
+
+    function completeBulkAction(result) {
+        const detail = normalizeBulkActionResult(result);
+        if (!detail?.applied) return;
+        const removedIds = Array.isArray(detail.removedLinkIds) ? detail.removedLinkIds : [];
+        if (removedIds.length) removeSelectedIds(removedIds);
+        dispatchBulkMoveResult(detail);
         toggleBulkModeAction();
         saveData({
-            source: 'bulk-move',
+            immediate: true,
+            forceRender: true,
+            source: detail.source || 'bulk-move',
             meta: {
-                kind: 'bulk-move'
+                kind: 'bulk-move',
+                movedLinkIds: detail.movedLinkIds || [],
+                mergedLinkIds: detail.mergedLinkIds || [],
+                removedLinkIds: detail.removedLinkIds || [],
+                touchedScopes: detail.touchedScopes || [],
+                target: detail.target || null
             }
         });
     }
@@ -219,12 +270,14 @@ window.EveBulkToolbar = window.EveBulkToolbar || {};
     window.bulkMove = bulkMoveAction;
     window.bulkWorkspace = bulkWorkspaceAction;
     window.setBulkMoveMode = ns.setBulkMoveMode;
+    window.renderBulkMoveCategoryOptions = ns.renderBulkMoveCategoryOptions;
     window.closeBulkMoveModal = ns.closeBulkMoveModal;
     window.confirmBulkMove = function () {
         completeBulkAction(ns.confirmBulkMove());
     };
     window.setBulkTabMode = ns.setBulkTabMode;
     window.setBulkTabCardMode = ns.setBulkTabCardMode;
+    window.renderBulkTabOptions = ns.renderBulkTabOptions;
     window.renderBulkTabCardOptions = ns.renderBulkTabCardOptions;
     window.closeBulkTabModal = ns.closeBulkTabModal;
     window.confirmBulkTabMove = function () {

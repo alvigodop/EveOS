@@ -9,6 +9,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
         const getEntriesConfidenceMin = deps?.getEntriesConfidenceMin || (() => null);
         const getEntriesConfidenceMax = deps?.getEntriesConfidenceMax || (() => null);
         const getEntriesLayoutMode = deps?.getEntriesLayoutMode || (() => 'rows');
+        const getEntriesDensityMode = deps?.getEntriesDensityMode || (() => 'comfortable');
         const getEntriesGroupMode = deps?.getEntriesGroupMode || (() => 'flat');
         const formatConfidenceInput = deps?.formatConfidenceInput || (() => '');
 
@@ -21,6 +22,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             const minConfidence = getEntriesConfidenceMin();
             const maxConfidence = getEntriesConfidenceMax();
             const layoutLabel = getEntriesLayoutMode() === 'grid' ? 'Grid' : 'Rows';
+            const densityMode = getEntriesDensityMode();
             const toggleHtml = String(controlOptions.toggleHtml || '');
 
             return `
@@ -33,6 +35,11 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             <select class="unidex-filter-select" aria-label="Bookmark grouping" onchange="window.UnidexView.setEntriesGroupMode(this.value)">
                 <option value="flat" ${groupMode === 'flat' ? 'selected' : ''}>View: Flat</option>
                 <option value="identifiers" ${groupMode === 'identifiers' ? 'selected' : ''}>View: Identifiers</option>
+            </select>
+            <select class="unidex-filter-select" aria-label="Entry density" onchange="window.UnidexView.setEntriesDensityMode(this.value)">
+                <option value="comfortable" ${densityMode === 'comfortable' ? 'selected' : ''}>Density: Comfortable</option>
+                <option value="compact" ${densityMode === 'compact' ? 'selected' : ''}>Density: Compact</option>
+                <option value="atlas" ${densityMode === 'atlas' ? 'selected' : ''}>Density: Atlas</option>
             </select>
             <select class="unidex-filter-select" aria-label="Entries sort" onchange="window.UnidexView.setEntriesSortBy(this.value)">
                 <option value="none" ${sortBy === 'none' ? 'selected' : ''}>Sort: Default</option>
