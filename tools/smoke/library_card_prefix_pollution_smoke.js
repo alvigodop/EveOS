@@ -73,4 +73,24 @@ assert(!categoryMap.has('main::Ama'), 'Empty transient prefix library should not
 assert(!categoryMap.has('main::Amazi'), 'Empty transient longer prefix library should not become an indexed card');
 assert(categoryMap.has('main::Amazing-Worlds'), 'Real library entries should still create an indexed card');
 
+windowObject.eveState.config.bookmarkIdentifiers = [{
+    id: 'reading',
+    label: 'Reading Queue',
+    description: 'Books and long form reading list',
+    quickLinks: [{ workspaceId: 'main', categoryName: 'Currently Reading' }]
+}];
+const bookmarkRecords = windowObject.EveOS.SearchAdvanced.IndexRecordBuildersLocal.buildBookmarkRecords([{
+    id: 'label-search-link',
+    title: 'Plain Bookmark',
+    url: 'https://example.com/plain',
+    workspace: 'main',
+    category: 'Alpha',
+    identifiers: ['reading']
+}]);
+const bookmarkRecord = bookmarkRecords[0];
+assert(bookmarkRecord.provenance.identifierLabels.includes('Reading Queue'), 'Identifier label should be indexed on bookmark provenance');
+assert(bookmarkRecord.searchableText.includes('reading queue'), 'Identifier label should be searchable through Nexus local records');
+assert(bookmarkRecord.searchableText.includes('books and long form reading list'), 'Identifier description should be searchable through Nexus local records');
+assert(bookmarkRecord.searchableText.includes('currently reading main'), 'Identifier quick-link targets should be searchable through Nexus local records');
+
 console.log('LIBRARY_CARD_PREFIX_POLLUTION_SMOKE_OK');

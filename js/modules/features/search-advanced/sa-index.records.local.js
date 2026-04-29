@@ -172,11 +172,67 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         });
     }
 
+    function normalizeQuickLinksForIndex(value) {
+        const source = Array.isArray(value) ? value : [];
+        return source.map(function (entry) {
+            return {
+                workspaceId: text(entry?.workspaceId || entry?.workspace || entry?.tabId, 'main'),
+                categoryName: text(entry?.categoryName || entry?.category || entry?.cardName, 'Unsorted')
+            };
+        }).filter(function (entry) {
+            return !!(entry.workspaceId && entry.categoryName);
+        });
+    }
+
+    function buildBookmarkIdentifierMap() {
+        const cfg = readConfig();
+        const apiDefinitions = window.EveBookmarkIdentifiers?.getDefinitions
+            ? window.EveBookmarkIdentifiers.getDefinitions()
+            : null;
+        const definitions = Array.isArray(apiDefinitions) && apiDefinitions.length
+            ? apiDefinitions
+            : (Array.isArray(cfg.bookmarkIdentifiers) ? cfg.bookmarkIdentifiers : []);
+        return new Map(definitions.filter(Boolean).map(function (definition) {
+            return [text(definition.id, ''), {
+                id: text(definition.id, ''),
+                label: text(definition.label || definition.id, ''),
+                description: text(definition.description, ''),
+                icon: text(definition.icon, ''),
+                quickLinks: normalizeQuickLinksForIndex(definition.quickLinks)
+            }];
+        }).filter(function (entry) {
+            return !!entry[0];
+        }));
+    }
+
+    function buildBookmarkIdentifierMeta(identifierIds, identifierMap) {
+        const ids = toArray(identifierIds).map(function (value) { return text(value, ''); }).filter(Boolean);
+        const labels = [];
+        const descriptions = [];
+        const quickLinkTargets = [];
+        ids.forEach(function (id) {
+            const definition = identifierMap.get(id);
+            if (!definition) return;
+            if (definition.label) labels.push(definition.label);
+            if (definition.description) descriptions.push(definition.description);
+            normalizeQuickLinksForIndex(definition.quickLinks).forEach(function (target) {
+                quickLinkTargets.push(target.categoryName + ' ' + target.workspaceId);
+            });
+        });
+        return {
+            ids,
+            labels,
+            descriptions,
+            quickLinkTargets
+        };
+    }
+
     function buildBookmarkRecords(links) {
         const locators = ns.Locators || {};
         const knownWorkspaceIds = window.EveOS?.SearchAdvanced?.CacheAggregator?.getKnownWorkspaceIds
             ? window.EveOS.SearchAdvanced.CacheAggregator.getKnownWorkspaceIds()
             : new Set(['main']);
+        const identifierMap = buildBookmarkIdentifierMap();
         return links.filter(Boolean).map(function (link) {
             const path = locators.buildBookmarkPath
                 ? locators.buildBookmarkPath(link)
@@ -194,6 +250,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             const tags = toArray(link.tags).map(function (tag) { return text(tag, ''); }).filter(Boolean);
             const folderId = text(path.folderId || link.folderId, '');
             const missingFolder = !!folderId && !hasFolderNode(path.workspaceId, path.categoryName, folderId);
+            const identifierMeta = buildBookmarkIdentifierMeta(link.identifiers, identifierMap);
             const record = {
                 id: 'bookmark::' + text(link.id, Math.random().toString(36).slice(2, 8)),
                 type: 'bookmark',
@@ -223,7 +280,10 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                     missingFolder: missingFolder,
                     missingParent: missingFolder,
                     tags: tags,
-                    identifiers: toArray(link.identifiers).map(function (value) { return text(value, ''); }).filter(Boolean),
+                    identifiers: identifierMeta.ids,
+                    identifierLabels: identifierMeta.labels,
+                    identifierDescriptions: identifierMeta.descriptions,
+                    identifierQuickLinkTargets: identifierMeta.quickLinkTargets,
                     icon: text(link.icon, ''),
                     coverImage: text(link.coverImage, ''),
                     priority: text(link.priority, ''),
@@ -238,6 +298,10 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 record.url,
                 record.description,
                 tags.join(' '),
+                identifierMeta.ids.join(' '),
+                identifierMeta.labels.join(' '),
+                identifierMeta.descriptions.join(' '),
+                identifierMeta.quickLinkTargets.join(' '),
                 library.title,
                 library.summary,
                 library.author,

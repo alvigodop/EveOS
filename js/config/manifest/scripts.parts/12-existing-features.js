@@ -9,7 +9,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/search-advanced/sa-api.js",
     "js/modules/features/search-advanced/sa-locators.js?v=0.1.0",
     "js/modules/features/search-advanced/sa-index.shared.js?v=0.1.1",
-    "js/modules/features/search-advanced/sa-index.records.local.js?v=0.1.0",
+    "js/modules/features/search-advanced/sa-index.records.local.js?v=0.1.1",
     "js/modules/features/search-advanced/sa-index.records.sources.js?v=0.1.1",
     "js/modules/features/search-advanced/sa-index.runtime.integrity.js?v=0.1.2",
     "js/modules/features/search-advanced/sa-index.runtime.summary.js?v=0.1.0",
@@ -26,6 +26,6 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/search-advanced/sa-ui.results.vectors.js?v=0.1.0",
     "js/modules/features/search-advanced/sa-ui.helpers.js",
     "js/modules/features/search-advanced/sa-ui.js?v=0.4.0",
-    "js/modules/features/bookmark-identifiers.js?v=0.2.0",
+    "js/modules/features/bookmark-identifiers.js?v=0.2.1",
     "js/modules/core/events.js?v=0.2.2"
 ]);

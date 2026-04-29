@@ -24,6 +24,14 @@ async function main() {
 
         const result = await page.evaluate(async () => {
             const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const waitFor = async (predicate, message, timeoutMs = 5000) => {
+                const startedAt = Date.now();
+                while (Date.now() - startedAt < timeoutMs) {
+                    if (predicate()) return true;
+                    await wait(60);
+                }
+                throw new Error(message);
+            };
             const originalSaveData = window.saveData;
             const originalSaveConfig = window.saveConfig;
             let saveDataCalls = 0;
@@ -42,7 +50,7 @@ async function main() {
                 activeWorkspace: 'main',
                 workspaces: [{ id: 'main', name: 'Main', icon: 'home' }],
                 categoryOrderByWorkspace: {
-                    main: ['Alpha', 'Currently Reading']
+                    main: ['Alpha', 'Currently Reading', 'Copy Shelf']
                 }
             });
             if (window.eveState) {
@@ -104,9 +112,15 @@ async function main() {
                 if (!quickValue) throw new Error('Currently Reading quick-link target missing');
                 quickTargetSelect.value = quickValue;
                 window.addBookmarkIdentifierQuickLink();
+                const copyValue = Array.from(quickTargetSelect.options)
+                    .map(option => option.value)
+                    .find(value => value.includes(encodeURIComponent('Copy Shelf')));
+                if (!copyValue) throw new Error('Copy Shelf quick-link target missing');
+                quickTargetSelect.value = copyValue;
+                window.addBookmarkIdentifierQuickLink();
                 window.saveBookmarkIdentifierDefinition();
                 const readingDefinition = window.EveBookmarkIdentifiers.getDefinitions().find((entry) => entry.id === 'reading');
-                if (!readingDefinition?.quickLinks || readingDefinition.quickLinks.length !== 1) {
+                if (!readingDefinition?.quickLinks || readingDefinition.quickLinks.length !== 2) {
                     throw new Error('Reading quick link was not saved');
                 }
 
@@ -129,19 +143,49 @@ async function main() {
 
                 if (typeof window.closeAddModal === 'function') window.closeAddModal();
                 if (typeof renderDashboard === 'function') renderDashboard();
-                await wait(160);
+                const readingBadgeSelector = '.bookmark-identifier-badge[data-bookmark-identifier-id="reading"][data-bookmark-id="' + savedLink.id + '"]';
+                await waitFor(() => !!document.querySelector(readingBadgeSelector), 'Reading badge with quick panel attributes missing');
                 const badgeNode = document.querySelector('.bookmark-link-identifiers');
                 const badgeText = badgeNode ? badgeNode.textContent.replace(/\s+/g, ' ').trim() : '';
-                const readingBadge = document.querySelector('.bookmark-identifier-badge[data-bookmark-identifier-id="reading"][data-bookmark-id="' + savedLink.id + '"]');
+                const readingBadge = document.querySelector(readingBadgeSelector);
                 if (!readingBadge) throw new Error('Reading badge with quick panel attributes missing');
                 readingBadge.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, relatedTarget: null }));
                 const quickPanel = document.getElementById('bookmarkIdentifierQuickPanel');
                 if (!quickPanel || !quickPanel.classList.contains('is-open')) {
                     throw new Error('Quick panel did not open from label hover');
                 }
-                const quickButton = quickPanel.querySelector('[data-bi-action="quick"]');
+                const quickButtons = quickPanel.querySelectorAll('[data-bi-action="quick"]');
+                if (quickButtons.length !== 1) {
+                    throw new Error('Expected one Quick Links entry button, saw ' + quickButtons.length);
+                }
+                const quickButton = quickButtons[0];
                 if (!quickButton) throw new Error('Quick Links button missing');
                 quickButton.click();
+                const copyCard = Array.from(quickPanel.querySelectorAll('[data-bi-action="card"]'))
+                    .find(button => button.textContent.includes('Copy Shelf'));
+                if (!copyCard) throw new Error('Copy Shelf quick-link card missing');
+                copyCard.click();
+                const copyButton = quickPanel.querySelector('[data-bi-action="copy"]');
+                if (!copyButton) throw new Error('Quick link copy button missing');
+                copyButton.click();
+                const copiedLink = window.links.find((link) => (
+                    String(link.id) !== String(savedLink.id)
+                    && link.category === 'Copy Shelf'
+                    && link.title === savedLink.title
+                    && link.url === savedLink.url
+                ));
+                if (!copiedLink) {
+                    throw new Error('Quick link copy did not clone bookmark into selected card');
+                }
+                const readingCard = Array.from(quickPanel.querySelectorAll('[data-bi-action="card"]'))
+                    .find(button => button.textContent.includes('Currently Reading'));
+                if (!readingCard) throw new Error('Currently Reading quick-link card missing after copy');
+                readingCard.click();
+                const filterInput = quickPanel.querySelector('[data-bi-action="filter"]');
+                if (!filterInput) throw new Error('Quick link destination filter missing');
+                filterInput.value = 'Queue';
+                filterInput.dispatchEvent(new Event('input', { bubbles: true }));
+                await wait(80);
                 const folderButton = quickPanel.querySelector('[data-folder-id="quick-folder"]');
                 if (!folderButton) throw new Error('Quick link folder browser did not render target folder');
                 folderButton.click();
@@ -161,9 +205,11 @@ async function main() {
                     customIdentifierId: queueDefinition.id,
                     badgeText,
                     settingsCount: window.EveBookmarkIdentifiers.getDefinitions().length,
-                    quickLinkTarget: readingDefinition.quickLinks[0],
+                    quickLinkTargets: readingDefinition.quickLinks,
+                    copiedCategory: copiedLink.category,
                     movedCategory: movedLink.category,
-                    movedFolderId: movedLink.folderId
+                    movedFolderId: movedLink.folderId,
+                    recentDestinations: (window.config.bookmarkIdentifierQuickLinkRecents || []).length
                 };
             } finally {
                 window.saveData = originalSaveData;

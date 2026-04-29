@@ -96,6 +96,14 @@ window.EveBookmarkIdentifiers = window.EveBookmarkIdentifiers || {};
         return `${encodeURIComponent(normalizeWorkspaceId(workspaceId))}|${encodeURIComponent(normalizeCategoryName(categoryName))}`;
     }
 
+    function buildQuickLinkDestinationKey(target) {
+        return [
+            encodeURIComponent(normalizeWorkspaceId(target?.workspaceId)),
+            encodeURIComponent(normalizeCategoryName(target?.categoryName)),
+            encodeURIComponent(normalizeFolderId(target?.folderId))
+        ].join('|');
+    }
+
     function parseQuickLinkKey(value) {
         const parts = String(value || '').split('|');
         if (parts.length < 2) return null;
@@ -103,6 +111,20 @@ window.EveBookmarkIdentifiers = window.EveBookmarkIdentifiers || {};
             return {
                 workspaceId: normalizeWorkspaceId(decodeURIComponent(parts[0])),
                 categoryName: normalizeCategoryName(decodeURIComponent(parts.slice(1).join('|')))
+            };
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function parseQuickLinkDestinationKey(value) {
+        const parts = String(value || '').split('|');
+        if (parts.length < 2) return null;
+        try {
+            return {
+                workspaceId: normalizeWorkspaceId(decodeURIComponent(parts[0] || '')),
+                categoryName: normalizeCategoryName(decodeURIComponent(parts[1] || '')),
+                folderId: normalizeFolderId(decodeURIComponent(parts[2] || ''))
             };
         } catch (error) {
             return null;
@@ -123,6 +145,56 @@ window.EveBookmarkIdentifiers = window.EveBookmarkIdentifiers || {};
             result.push({ workspaceId, categoryName });
         });
         return result;
+    }
+
+    function normalizeRecentDestinations(value) {
+        const source = Array.isArray(value) ? value : [];
+        const seen = new Set();
+        const result = [];
+        source.forEach((item) => {
+            const entry = {
+                workspaceId: normalizeWorkspaceId(item?.workspaceId || item?.workspace),
+                categoryName: normalizeCategoryName(item?.categoryName || item?.category),
+                folderId: normalizeFolderId(item?.folderId),
+                at: Number(item?.at) || 0
+            };
+            if (!entry.workspaceId || !entry.categoryName) return;
+            const key = buildQuickLinkDestinationKey(entry);
+            if (seen.has(key)) return;
+            seen.add(key);
+            result.push(entry);
+        });
+        return result.sort((a, b) => (b.at || 0) - (a.at || 0)).slice(0, 10);
+    }
+
+    function getQuickLinkRecents() {
+        const cfg = getConfigObject();
+        return normalizeRecentDestinations(cfg?.bookmarkIdentifierQuickLinkRecents);
+    }
+
+    function persistQuickLinkRecents(recents) {
+        const cfg = getConfigObject();
+        if (!cfg) return;
+        cfg.bookmarkIdentifierQuickLinkRecents = normalizeRecentDestinations(recents);
+        if (typeof saveConfig === 'function') {
+            saveConfig({
+                immediate: true,
+                source: 'bookmark-identifier-quick-link-recents'
+            });
+        }
+    }
+
+    function rememberQuickLinkDestination(target) {
+        if (!target?.workspaceId || !target?.categoryName) return;
+        const nextEntry = {
+            workspaceId: normalizeWorkspaceId(target.workspaceId),
+            categoryName: normalizeCategoryName(target.categoryName),
+            folderId: normalizeFolderId(target.folderId),
+            at: Date.now()
+        };
+        const nextKey = buildQuickLinkDestinationKey(nextEntry);
+        const recents = getQuickLinkRecents().filter((entry) => buildQuickLinkDestinationKey(entry) !== nextKey);
+        persistQuickLinkRecents([nextEntry].concat(recents).slice(0, 10));
     }
 
     function getConfigWorkspaces() {
@@ -672,6 +744,7 @@ window.EveBookmarkIdentifiers = window.EveBookmarkIdentifiers || {};
             window.hideBookmarkCoverHover?.();
         });
         quickPanelEl.addEventListener('click', handleQuickPanelClick);
+        quickPanelEl.addEventListener('input', handleQuickPanelInput);
         document.body.appendChild(quickPanelEl);
         return quickPanelEl;
     }
@@ -723,6 +796,18 @@ window.EveBookmarkIdentifiers = window.EveBookmarkIdentifiers || {};
             workspaceCount: workspaces.size,
             cardCount: cards.size
         };
+    }
+
+    function getQuickPanelQuery() {
+        return String(quickPanelState?.query || '').trim();
+    }
+
+    function matchesQuickPanelQuery(values) {
+        const query = getQuickPanelQuery().toLowerCase();
+        if (!query) return true;
+        return (Array.isArray(values) ? values : [values]).some((value) => (
+            String(value || '').toLowerCase().includes(query)
+        ));
     }
 
     function getFolderNodes(workspaceId, categoryName) {
@@ -799,7 +884,6 @@ window.EveBookmarkIdentifiers = window.EveBookmarkIdentifiers || {};
                 <div><strong>${quickLinks.length}</strong><span>Quick Links</span></div>
             </div>
             <div class="bookmark-identifier-panel__context">Current: ${escapeHtml(currentCard)}</div>
-            <button type="button" class="bookmark-identifier-panel__primary" data-bi-action="quick">Open Quick Links</button>
         `;
     }
 
@@ -811,7 +895,15 @@ window.EveBookmarkIdentifiers = window.EveBookmarkIdentifiers || {};
         const selectedKey = quickPanelState?.target
             ? buildQuickLinkKey(quickPanelState.target.workspaceId, quickPanelState.target.categoryName)
             : '';
-        return quickLinks.map((entry) => {
+        const query = getQuickPanelQuery();
+        const visibleLinks = quickLinks.filter((entry) => !query || matchesQuickPanelQuery([
+            entry.categoryName,
+            getWorkspaceLabel(entry.workspaceId)
+        ]));
+        if (!visibleLinks.length) {
+            return '<div class="bookmark-identifier-panel__empty">No quick-link cards match this filter.</div>';
+        }
+        return visibleLinks.map((entry) => {
             const key = buildQuickLinkKey(entry.workspaceId, entry.categoryName);
             const isActive = key === selectedKey ? ' is-active' : '';
             return `
@@ -823,18 +915,64 @@ window.EveBookmarkIdentifiers = window.EveBookmarkIdentifiers || {};
         }).join('');
     }
 
+    function renderRecentDestinations(definition) {
+        const allowedCards = new Set(normalizeQuickLinks(definition.quickLinks).map((entry) => (
+            buildQuickLinkKey(entry.workspaceId, entry.categoryName)
+        )));
+        const rows = getQuickLinkRecents().filter((entry) => {
+            if (!allowedCards.has(buildQuickLinkKey(entry.workspaceId, entry.categoryName))) return false;
+            if (!getQuickPanelQuery()) return true;
+            return matchesQuickPanelQuery([
+                entry.categoryName,
+                getWorkspaceLabel(entry.workspaceId),
+                getFolderPathLabel(entry.workspaceId, entry.categoryName, entry.folderId)
+            ]);
+        }).slice(0, 5);
+        if (!rows.length) return '';
+        return `
+            <div class="bookmark-identifier-panel__recent">
+                <div class="bookmark-identifier-panel__section-label">Recent destinations</div>
+                <div class="bookmark-identifier-panel__recent-list">
+                    ${rows.map((entry) => `
+                        <button type="button" class="bookmark-identifier-panel__recent-chip" data-bi-action="recent" data-key="${escapeHtml(buildQuickLinkDestinationKey(entry))}">
+                            <span>${escapeHtml(entry.categoryName)}</span>
+                            <small>${escapeHtml(getFolderPathLabel(entry.workspaceId, entry.categoryName, entry.folderId))}</small>
+                        </button>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    function renderQuickPanelFilter() {
+        const query = getQuickPanelQuery();
+        return `
+            <div class="bookmark-identifier-panel__filter">
+                <input type="search" value="${escapeHtml(query)}" data-bi-action="filter" placeholder="Filter cards, folders, or bookmarks">
+                ${query ? '<button type="button" class="bookmark-identifier-panel__ghost" data-bi-action="clear-filter">Clear</button>' : ''}
+            </div>
+        `;
+    }
+
     function renderFolderBrowser(target) {
         if (!target?.workspaceId || !target?.categoryName) {
             return '<div class="bookmark-identifier-panel__empty">Pick a quick-link card to inspect it.</div>';
         }
         const folderId = normalizeFolderId(target.folderId);
-        const folders = getChildFolders(target.workspaceId, target.categoryName, folderId);
-        const bookmarks = getBookmarksForFolder(target.workspaceId, target.categoryName, folderId);
+        const folders = getChildFolders(target.workspaceId, target.categoryName, folderId).filter((folder) => matchesQuickPanelQuery([
+            folder?.name,
+            getFolderPathLabel(target.workspaceId, target.categoryName, folder?.id)
+        ]));
+        const bookmarks = getBookmarksForFolder(target.workspaceId, target.categoryName, folderId).filter((bookmark) => matchesQuickPanelQuery([
+            bookmark?.title,
+            bookmark?.url,
+            bookmark?.notes
+        ]));
         const pathLabel = getFolderPathLabel(target.workspaceId, target.categoryName, folderId);
         const folderRows = folders.map((folder) => `
             <button type="button" class="bookmark-identifier-panel__folder-row" data-bi-action="folder" data-folder-id="${escapeHtml(folder.id)}">
                 <span>${escapeHtml(folder.name || 'Folder')}</span>
-                <small>Open folder</small>
+                <small>${escapeHtml(getFolderPathLabel(target.workspaceId, target.categoryName, folder.id))}</small>
             </button>
         `).join('');
         const bookmarkRows = bookmarks.slice(0, 80).map((bookmark) => `
@@ -854,7 +992,10 @@ window.EveBookmarkIdentifiers = window.EveBookmarkIdentifiers || {};
                 </div>
                 ${folderId ? '<button type="button" data-bi-action="up">Up</button>' : ''}
             </div>
-            <button type="button" class="bookmark-identifier-panel__primary" data-bi-action="move">Transfer Bookmark Here</button>
+            <div class="bookmark-identifier-panel__action-row">
+                <button type="button" class="bookmark-identifier-panel__primary" data-bi-action="move">Move Here</button>
+                <button type="button" class="bookmark-identifier-panel__secondary" data-bi-action="copy">Copy Here</button>
+            </div>
             <div class="bookmark-identifier-panel__browser-list">
                 ${folderRows || ''}
                 ${bookmarkRows || ''}
@@ -875,6 +1016,8 @@ window.EveBookmarkIdentifiers = window.EveBookmarkIdentifiers || {};
                 <button type="button" class="bookmark-identifier-panel__ghost" data-bi-action="close">Close</button>
             </div>
             <div class="bookmark-identifier-panel__title">Quick Links</div>
+            ${renderQuickPanelFilter()}
+            ${renderRecentDestinations(definition)}
             <div class="bookmark-identifier-panel__cards">${renderCardButtons(definition)}</div>
             ${renderFolderBrowser(quickPanelState.target)}
         `;
@@ -908,7 +1051,8 @@ window.EveBookmarkIdentifiers = window.EveBookmarkIdentifiers || {};
             identifierId,
             linkId,
             page: 'summary',
-            target: null
+            target: null,
+            query: ''
         };
         renderQuickPanel();
     }
@@ -943,6 +1087,15 @@ window.EveBookmarkIdentifiers = window.EveBookmarkIdentifiers || {};
         renderQuickPanel();
     }
 
+    function openQuickLinkRecent(key) {
+        if (!quickPanelState) return;
+        const parsed = parseQuickLinkDestinationKey(key);
+        if (!parsed) return;
+        quickPanelState.page = 'quick';
+        quickPanelState.target = parsed;
+        renderQuickPanel();
+    }
+
     function quickLinkGoUp() {
         if (!quickPanelState?.target) return;
         quickPanelState.target = {
@@ -954,6 +1107,45 @@ window.EveBookmarkIdentifiers = window.EveBookmarkIdentifiers || {};
             )
         };
         renderQuickPanel();
+    }
+
+    function cloneBookmarkForDestination(link, target) {
+        if (!link || !target) return null;
+        const clone = typeof structuredClone === 'function'
+            ? structuredClone(link)
+            : JSON.parse(JSON.stringify(link));
+        clone.id = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+        clone.workspace = normalizeWorkspaceId(target.workspaceId);
+        clone.category = normalizeCategoryName(target.categoryName);
+        const folderId = normalizeFolderId(target.folderId);
+        if (folderId) clone.folderId = folderId;
+        else delete clone.folderId;
+        return clone;
+    }
+
+    function copyLinkedLibraryState(sourceLink, clonedLink) {
+        const api = window.EveLibrary?.ConnectionsAPI;
+        if (!api?.getLinkedEntry || !api?.promoteLinkWithData || !sourceLink?.id || !clonedLink?.id) return;
+        const linked = api.getLinkedEntry(String(sourceLink.id));
+        if (!linked?.entry) return;
+        const patch = { ...linked.entry };
+        delete patch.id;
+        patch.title = clonedLink.title || patch.title || 'Untitled';
+        patch.sourceUrl = clonedLink.url || patch.sourceUrl || '';
+        api.promoteLinkWithData(String(clonedLink.id), patch, { silent: true });
+    }
+
+    function saveQuickLinkBookmarkChange(source, meta) {
+        setLinksList(getLinksList());
+        if (typeof saveData === 'function') {
+            saveData({
+                forceRender: true,
+                immediate: true,
+                source,
+                meta
+            });
+        }
+        if (typeof renderDashboard === 'function') renderDashboard();
     }
 
     function transferActiveBookmarkToQuickLinkTarget() {
@@ -1013,8 +1205,78 @@ window.EveBookmarkIdentifiers = window.EveBookmarkIdentifiers || {};
             const folderLabel = target.folderId ? ` / ${getFolderPathLabel(target.workspaceId, target.categoryName, target.folderId)}` : '';
             showToast(`Bookmark sent to ${target.categoryName}${folderLabel}`, 'success');
         }
+        rememberQuickLinkDestination(target);
         hideQuickPanel();
         if (typeof renderDashboard === 'function') renderDashboard();
+        return true;
+    }
+
+    function copyActiveBookmarkToQuickLinkTarget() {
+        const state = quickPanelState;
+        const target = state?.target;
+        const link = findLinkById(state?.linkId);
+        if (!target?.workspaceId || !target?.categoryName || !link) {
+            if (typeof showToast === 'function') showToast('Choose a quick-link destination first.', 'warning');
+            return false;
+        }
+
+        const links = getLinksList();
+        const clone = cloneBookmarkForDestination(link, target);
+        if (!clone) return false;
+        links.push(clone);
+        copyLinkedLibraryState(link, clone);
+
+        let merged = false;
+        let removedIds = [];
+        const mergeApi = window.EveBookmarkMerge;
+        if (mergeApi?.findDuplicateInCard && mergeApi?.mergeBookmarkIntoTarget) {
+            const duplicate = mergeApi.findDuplicateInCard(clone, {
+                workspaceId: target.workspaceId,
+                categoryName: target.categoryName,
+                folderId: normalizeFolderId(target.folderId)
+            }, {
+                links,
+                ignoreIds: [link.id]
+            });
+            if (duplicate) {
+                const result = mergeApi.mergeBookmarkIntoTarget(clone, duplicate, {
+                    links,
+                    removeSource: true,
+                    source: 'bookmark-identifier-quick-link-copy-merge',
+                    sourceScope: {
+                        workspaceId: normalizeWorkspaceId(link.workspace),
+                        categoryName: normalizeCategoryName(link.category),
+                        folderId: normalizeFolderId(link.folderId)
+                    },
+                    targetScope: {
+                        workspaceId: normalizeWorkspaceId(target.workspaceId),
+                        categoryName: normalizeCategoryName(target.categoryName),
+                        folderId: normalizeFolderId(target.folderId)
+                    },
+                    reason: 'Copying a labeled bookmark into a card that already has the same title or URL.'
+                });
+                merged = !!result?.merged;
+                removedIds = result?.removedIds || [];
+            }
+        }
+
+        saveQuickLinkBookmarkChange('bookmark-identifier-quick-link-copy', {
+            sourceLinkId: String(link.id),
+            clonedLinkId: String(clone.id),
+            workspaceId: normalizeWorkspaceId(target.workspaceId),
+            categoryName: normalizeCategoryName(target.categoryName),
+            folderId: normalizeFolderId(target.folderId),
+            merged,
+            removedLinkIds: removedIds
+        });
+        rememberQuickLinkDestination(target);
+        if (typeof showToast === 'function') {
+            const folderLabel = target.folderId ? ` / ${getFolderPathLabel(target.workspaceId, target.categoryName, target.folderId)}` : '';
+            showToast(merged
+                ? `Bookmark copied and merged into ${target.categoryName}${folderLabel}`
+                : `Bookmark copied to ${target.categoryName}${folderLabel}`, 'success');
+        }
+        renderQuickPanel();
         return true;
     }
 
@@ -1028,9 +1290,30 @@ window.EveBookmarkIdentifiers = window.EveBookmarkIdentifiers || {};
         else if (action === 'quick') showQuickLinksView();
         else if (action === 'summary') showSummaryView();
         else if (action === 'card') openQuickLinkCard(target.getAttribute('data-key'));
+        else if (action === 'recent') openQuickLinkRecent(target.getAttribute('data-key'));
         else if (action === 'folder') openQuickLinkFolder(target.getAttribute('data-folder-id'));
         else if (action === 'up') quickLinkGoUp();
         else if (action === 'move') transferActiveBookmarkToQuickLinkTarget();
+        else if (action === 'copy') copyActiveBookmarkToQuickLinkTarget();
+        else if (action === 'clear-filter') {
+            if (!quickPanelState) return;
+            quickPanelState.query = '';
+            renderQuickPanel();
+        }
+    }
+
+    function handleQuickPanelInput(event) {
+        const target = event.target?.closest?.('[data-bi-action="filter"]');
+        if (!target || !quickPanelState) return;
+        quickPanelState.query = String(target.value || '').trim();
+        renderQuickPanel();
+        requestAnimationFrame(() => {
+            const input = quickPanelEl?.querySelector?.('[data-bi-action="filter"]');
+            if (!input) return;
+            input.focus();
+            const end = input.value.length;
+            input.setSelectionRange?.(end, end);
+        });
     }
 
     function getBadgeFromEvent(event) {
@@ -1112,6 +1395,8 @@ window.EveBookmarkIdentifiers = window.EveBookmarkIdentifiers || {};
     ns.openQuickLinkFolder = openQuickLinkFolder;
     ns.quickLinkGoUp = quickLinkGoUp;
     ns.transferActiveBookmarkToQuickLinkTarget = transferActiveBookmarkToQuickLinkTarget;
+    ns.copyActiveBookmarkToQuickLinkTarget = copyActiveBookmarkToQuickLinkTarget;
+    ns.getQuickLinkRecents = getQuickLinkRecents;
 
     window.saveBookmarkIdentifierDefinition = saveDefinitionFromSettingsForm;
     window.clearBookmarkIdentifierForm = clearSettingsForm;
