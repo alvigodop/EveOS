@@ -21,6 +21,104 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         ));
     }
 
+    function buildRootLinkRenderer(workspaceId, categoryName) {
+        const resolvedWorkspaceId = String(workspaceId || 'main').trim() || 'main';
+        const resolvedCategoryName = String(categoryName || 'Unsorted').trim() || 'Unsorted';
+        const folderApi = window.EveBookmarkFolders;
+        const customOrderApi = window.EveCustomOrder;
+        const trueValueApi = window.EveTrueValue;
+        const workspaces = window.eveState?.config?.workspaces || [];
+        const progressiveEnabled = typeof window.isCardBookmarkProgressiveRevealEnabled === 'function'
+            ? window.isCardBookmarkProgressiveRevealEnabled(resolvedWorkspaceId, resolvedCategoryName)
+            : true;
+        const renderCap = progressiveEnabled
+            ? (window._evePerfMode ? 20 : 50)
+            : Number.MAX_SAFE_INTEGER;
+
+        return function renderRootLinkCollection(rootLinks) {
+            let linksForRender = Array.isArray(rootLinks) ? rootLinks.slice() : [];
+            const customOrderEnabled = !window._evePerfMode && customOrderApi
+                ? !!customOrderApi.isEnabled(resolvedWorkspaceId, resolvedCategoryName)
+                : false;
+            if (customOrderEnabled && customOrderApi) {
+                linksForRender.forEach(function (link, index) {
+                    const linkId = String(link?.id || '');
+                    const customOrderNumber = customOrderApi.getNumber(resolvedWorkspaceId, resolvedCategoryName, linkId);
+                    link._basePos = (typeof customOrderNumber === 'number') ? customOrderNumber : (index + 1);
+                });
+                linksForRender = customOrderApi.applySorting(linksForRender, resolvedWorkspaceId, resolvedCategoryName);
+            }
+
+            const trueValueEnabled = !window._evePerfMode && trueValueApi
+                ? !!trueValueApi.isEnabled(resolvedWorkspaceId, resolvedCategoryName)
+                : false;
+            let trueValueData = null;
+            if (trueValueEnabled && trueValueApi) {
+                const currentSortMode = customOrderApi ? customOrderApi.getSortMode(resolvedWorkspaceId, resolvedCategoryName) : 'none';
+                trueValueData = trueValueApi.computeTrueValues(linksForRender, resolvedWorkspaceId, resolvedCategoryName);
+                linksForRender = trueValueApi.applySorting(linksForRender, trueValueData, currentSortMode);
+            }
+
+            const cappedLinks = linksForRender.slice(0, renderCap);
+            const flatHtml = cappedLinks.map(function (link) {
+                if (typeof window.DashboardCategories?.buildLinkHtml === 'function') {
+                    return window.DashboardCategories.buildLinkHtml(link, '', resolvedWorkspaceId, workspaces, {
+                        dashboardWorkspaceId: resolvedWorkspaceId,
+                        cardWorkspaceId: resolvedWorkspaceId,
+                        suppressCardWorkspaceSubtabBadge: false,
+                        folderLabel: '',
+                        isTaskEnabled: typeof folderApi?.isTaskEnabledForLink === 'function'
+                            ? !!folderApi.isTaskEnabledForLink(link)
+                            : true,
+                        customOrderEnabled,
+                        customOrderWsId: resolvedWorkspaceId,
+                        customOrderCategory: resolvedCategoryName,
+                        trueValueEnabled,
+                        trueValueData
+                    });
+                }
+                return '<li class="item-row">' + escapeCardHtml(link?.title || link?.url || 'Untitled') + '</li>';
+            }).join('');
+
+            let showMoreHtml = '';
+            if (
+                progressiveEnabled
+                && linksForRender.length > renderCap
+                && typeof window.DashboardCategories?._builderCard?.buildShowMoreButton === 'function'
+            ) {
+                showMoreHtml = window.DashboardCategories._builderCard.buildShowMoreButton(
+                    resolvedCategoryName,
+                    linksForRender,
+                    renderCap,
+                    false
+                );
+            }
+
+            const scrollableClass = window.eveState?.config?.scrollableCategories ? 'category-scrollable' : '';
+            return '<ul class="' + scrollableClass + '">' + flatHtml + showMoreHtml + '</ul>';
+        };
+    }
+
+    function buildFreshRootContentHtml(workspaceId, categoryName) {
+        const folderApi = window.EveBookmarkFolders;
+        if (!folderApi?.buildFolderView || typeof window.EveFolderViewV2.renderRootGrid !== 'function') return '';
+        const categoryLinks = getCategoryLinks(workspaceId, categoryName);
+        const skipGhosts = !!window._evePerfMode || categoryLinks.length > 500;
+        const viewModel = folderApi.buildFolderView(workspaceId, categoryName, categoryLinks, { skipGhosts });
+        viewModel.scopedLinks = categoryLinks;
+        viewModel._skipGhosts = skipGhosts;
+        if (typeof window.EveFolderViewV2.setCachedViewModel === 'function') {
+            window.EveFolderViewV2.setCachedViewModel(workspaceId, categoryName, viewModel);
+        }
+        const rootHtml = window.EveFolderViewV2.renderRootGrid(
+            workspaceId,
+            categoryName,
+            viewModel,
+            buildRootLinkRenderer(workspaceId, categoryName)
+        );
+        return `<div class="card-folder-view-content">${rootHtml}</div>`;
+    }
+
     window.EveFolderViewV2.enterFolder = function (event, categoryName, folderId, workspaceId, enterOptions) {
         const options = enterOptions && typeof enterOptions === 'object' ? enterOptions : {};
         const preservePageScroll = options.preservePageScroll !== false;
@@ -271,6 +369,8 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         const resolvedWorkspaceId = String(workspaceId || '').trim();
         const scrollBefore = window.pageYOffset || document.documentElement.scrollTop;
 
+        window.EveFolderViewV2.saveActiveFolderState(resolvedWorkspaceId, resolvedCategoryName, null, null, null);
+
         const card = document.querySelector(`.category-card[data-card-category="${CSS.escape(resolvedCategoryName)}"][data-card-workspace="${CSS.escape(resolvedWorkspaceId)}"]`);
         if (!card) {
             if (!window._evePerfMode && typeof window.renderDashboard === 'function') window.renderDashboard();
@@ -285,8 +385,11 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         const isHydratingFallback = card.dataset.mode1Html.includes('data-card-hydrating="1"');
 
         const v2Container = card.querySelector('.v2-folder-container');
+        let restoredFreshRoot = false;
         if (v2Container) {
-            v2Container.outerHTML = card.dataset.mode1Html;
+            const freshRootHtml = buildFreshRootContentHtml(resolvedWorkspaceId, resolvedCategoryName);
+            restoredFreshRoot = !!freshRootHtml;
+            v2Container.outerHTML = freshRootHtml || card.dataset.mode1Html;
             delete card.dataset.mode1Html;
         }
 
@@ -294,13 +397,11 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
             window.scheduleDashboardMasonryLayout(card.parentElement || document.getElementById('dashboard-grid'));
         }
 
-        window.EveFolderViewV2.saveActiveFolderState(resolvedWorkspaceId, resolvedCategoryName, null, null, null);
-
         if (Math.abs((window.pageYOffset || document.documentElement.scrollTop) - scrollBefore) > 100) {
             window.scrollTo(0, scrollBefore);
         }
 
-        if ((isV1Fallback || isHydratingFallback) && typeof window.renderDashboard === 'function') {
+        if (!restoredFreshRoot && (isV1Fallback || isHydratingFallback) && typeof window.renderDashboard === 'function') {
             window.__eveDashboardRenderHint = { immediate: true };
             window.renderDashboard();
             return;
