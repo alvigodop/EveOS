@@ -24,7 +24,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/library/library-connections-components/lc-actions.js?v=0.2.5",
     "js/modules/features/library/library-connections.core.js?v=0.2.4",
     "js/modules/features/library/library-connections.js?v=0.2.3",
-    "js/modules/features/library/search-filters.helpers.js?v=0.2.1",
+    "js/modules/features/library/search-filters.helpers.js?v=0.2.2",
     "js/modules/features/library/search-filters.pipeline.js?v=0.2.1",
     "js/modules/features/library/search-filters.js?v=0.2.3",
     "js/modules/features/library/options-updaters.js?v=0.2.2",

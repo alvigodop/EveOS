@@ -61,10 +61,23 @@ function buildStateSignature(value) {
     }
 }
 
+var _stateMutationSequence = 0;
+
+function normalizeMutationSource(source, fallback) {
+    var normalized = String(source || '').trim();
+    return normalized || fallback || 'state-mutated';
+}
+
 function dispatchStateMutation(source, detail) {
     if (typeof window.dispatchEvent !== 'function' || typeof CustomEvent !== 'function') return;
+    _stateMutationSequence += 1;
     window.dispatchEvent(new CustomEvent('eve:state-mutated', {
-        detail: Object.assign({ source: source, dirty: true }, detail || {})
+        detail: Object.assign({
+            source: normalizeMutationSource(source, 'state-mutated'),
+            dirty: true,
+            mutationSeq: _stateMutationSequence,
+            at: Date.now()
+        }, detail || {})
     }));
 }
 
@@ -115,13 +128,18 @@ function _saveDataImmediate(options = {}) {
     const skipRender = !!options.skipRender;
     const skipSuggestions = !!options.skipSuggestions;
     const forceRender = !!options.forceRender;
+    const mutationSource = normalizeMutationSource(options.source || options.reason, 'saveData');
     const snapshot = buildCoreStateSnapshot();
     const signature = buildStateSignature(snapshot);
     const dirty = signature !== _lastCoreStateSignature;
 
     if (dirty) {
         _lastCoreStateSignature = signature;
-        dispatchStateMutation('saveData');
+        dispatchStateMutation(mutationSource, {
+            kind: 'data',
+            immediate: true,
+            meta: options.meta && typeof options.meta === 'object' ? options.meta : null
+        });
     }
 
     const persistPromise = dirty ? persistCoreStateAsync(snapshot) : Promise.resolve(true);
@@ -143,11 +161,13 @@ function saveData(options = {}) {
     const skipSuggestions = !!options.skipSuggestions;
     const forceRender = !!options.forceRender;
     const immediate = !!options.immediate;
+    const mutationSource = normalizeMutationSource(options.source || options.reason, 'saveData');
+    const mutationMeta = options.meta && typeof options.meta === 'object' ? options.meta : null;
 
     if (_saveDataTimer) clearTimeout(_saveDataTimer);
     if (immediate) {
         _saveDataTimer = 0;
-        return _saveDataImmediate({ skipRender, skipSuggestions, forceRender });
+        return _saveDataImmediate({ skipRender, skipSuggestions, forceRender, immediate, source: mutationSource, meta: mutationMeta });
     }
 
     // Debounce the expensive work: sanitize + persist + render
@@ -158,7 +178,11 @@ function saveData(options = {}) {
         const dirty = signature !== _lastCoreStateSignature;
         if (dirty) {
             _lastCoreStateSignature = signature;
-            dispatchStateMutation('saveData');
+            dispatchStateMutation(mutationSource, {
+                kind: 'data',
+                immediate: false,
+                meta: mutationMeta
+            });
             persistCoreStateAsync(snapshot);
         }
         const shouldRefresh = dirty || forceRender;
@@ -184,21 +208,22 @@ function saveConfig(options) {
         _saveConfigTimer = 0;
     }
     if (opts.immediate) {
-        return _saveConfigImmediate();
+        return _saveConfigImmediate(opts);
     }
     _saveConfigTimer = setTimeout(function () {
         _saveConfigTimer = 0;
-        _saveConfigImmediate();
+        _saveConfigImmediate(opts);
     }, 150);
     return null;
 }
 
-function _saveConfigImmediate() {
+function _saveConfigImmediate(options = {}) {
     var signature = buildStateSignature(config || {});
     if (signature === _lastConfigSignature) {
         return Promise.resolve(true);
     }
     _lastConfigSignature = signature;
+    var mutationSource = normalizeMutationSource(options.source || options.reason, 'saveConfig');
 
     var persistPromise = Promise.resolve(true);
     var storage = getCoreStorage();
@@ -228,7 +253,11 @@ function _saveConfigImmediate() {
             }
         }
     }
-    dispatchStateMutation('saveConfig');
+    dispatchStateMutation(mutationSource, {
+        kind: 'config',
+        immediate: !!options.immediate,
+        meta: options.meta && typeof options.meta === 'object' ? options.meta : null
+    });
     return persistPromise;
 }
 

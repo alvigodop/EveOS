@@ -28,7 +28,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/library/library-bulk-auto-components/lba-utils.sources.js?v=0.2.1",
     "js/modules/features/library/library-bulk-auto-components/lba-utils.js?v=0.2.5",
     "js/modules/features/library/library-bulk-auto-components/lba-api.js?v=0.2.4",
-    "js/modules/features/library/library-bulk-auto-components/lba-patch.js?v=0.2.4",
+    "js/modules/features/library/library-bulk-auto-components/lba-patch.js?v=0.2.5",
     "js/modules/features/library/library-bulk-auto.core.js?v=0.2.5",
     "js/modules/features/library/library-bulk-auto.js?v=0.2.3"
 ]);

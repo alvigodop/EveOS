@@ -44,10 +44,12 @@ window.EveLibrary = window.EveLibrary || {};
         const indexApi = getDatapackIndexApi();
         if (indexApi && typeof indexApi.getExactBookmarkLinkIds === 'function' && typeof indexApi.resolveBookmarkLink === 'function') {
             const buildState = typeof indexApi.getBuildState === 'function' ? indexApi.getBuildState() : null;
-            const hasUsableSnapshot = typeof indexApi.hasUsableSnapshot === 'function'
-                ? indexApi.hasUsableSnapshot()
-                : (!buildState?.dirty && Number(buildState?.builtAt || 0) > 0);
-            if (hasUsableSnapshot) {
+            const hasReadableSnapshot = typeof indexApi.hasReadableLinkSnapshot === 'function'
+                ? indexApi.hasReadableLinkSnapshot()
+                : (typeof indexApi.hasUsableSnapshot === 'function'
+                    ? indexApi.hasUsableSnapshot()
+                    : (!buildState?.dirty && Number(buildState?.builtAt || 0) > 0));
+            if (hasReadableSnapshot) {
                 return indexApi.getExactBookmarkLinkIds({
                     workspaceId,
                     categoryName: normalizedCategory

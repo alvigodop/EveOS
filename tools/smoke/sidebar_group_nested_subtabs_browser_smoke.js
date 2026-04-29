@@ -46,9 +46,18 @@ async function seedState(page, mode) {
 
 async function performNestedDrag(page) {
     await page.dragAndDrop('#sidebar .ws-item[data-ws-id="beta"]', '#sidebar .ws-item[data-ws-id="alpha"]', { force: true });
-    await page.waitForTimeout(400);
+    await page.waitForFunction(() => {
+        const helpers = window.EveWorkspaceHelpers;
+        const betaParent = helpers.findParent(config.workspaces, 'beta');
+        return betaParent && betaParent.id === 'alpha'
+            && !!document.querySelector('#sidebar .ws-node-wrapper[data-ws-id="beta"] > .ws-item');
+    }, undefined, { timeout: 10000 });
     await page.dragAndDrop('#sidebar .ws-item[data-ws-id="gamma"]', '#sidebar .ws-item[data-ws-id="beta"]', { force: true });
-    await page.waitForTimeout(600);
+    await page.waitForFunction(() => {
+        const helpers = window.EveWorkspaceHelpers;
+        const gammaParent = helpers.findParent(config.workspaces, 'gamma');
+        return gammaParent && gammaParent.id === 'beta';
+    }, undefined, { timeout: 10000 });
 }
 
 async function readTree(page) {

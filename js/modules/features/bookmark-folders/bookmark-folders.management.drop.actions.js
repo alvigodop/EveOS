@@ -166,7 +166,14 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
                 skipRender: !!options.skipRender,
                 skipSuggestions: !!options.skipSuggestions,
                 forceRender: true,
-                immediate: options.immediate !== false
+                immediate: options.immediate !== false,
+                source: 'bookmark-folder-links-moved',
+                meta: {
+                    workspaceId: targetWorkspaceId,
+                    categoryName: targetCategoryName,
+                    folderId: validFolderId,
+                    movedCount: movedIds.length
+                }
             });
         }
 

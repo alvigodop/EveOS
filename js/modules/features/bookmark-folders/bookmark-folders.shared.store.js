@@ -453,7 +453,7 @@ const CLICK_BEHAVIOR_MODES = new Set(['inherit', 'invert', 'focus_only', 'intern
 
 
 
-    function writeStore(nextStore, persist = true) {
+    function writeStore(nextStore, persist = true, options = {}) {
 
         // Ensure all global refs point to the same object
 
@@ -475,7 +475,11 @@ const CLICK_BEHAVIOR_MODES = new Set(['inherit', 'invert', 'focus_only', 'intern
 
         if (persist && typeof saveData === 'function') {
 
-            saveData({ forceRender: true });
+            saveData({
+                forceRender: true,
+                source: String(options.source || 'bookmark-folder-store-updated').trim() || 'bookmark-folder-store-updated',
+                meta: options.meta && typeof options.meta === 'object' ? options.meta : null
+            });
 
         }
 
@@ -511,7 +515,13 @@ const CLICK_BEHAVIOR_MODES = new Set(['inherit', 'invert', 'focus_only', 'intern
 
         }
 
-        writeStore(nextStore, persist);
+        writeStore(nextStore, persist, {
+            source: options.source,
+            meta: Object.assign({
+                workspaceId: workspaceId,
+                categoryName: categoryName
+            }, options.meta && typeof options.meta === 'object' ? options.meta : {})
+        });
 
         invalidateFolderViewModel(workspaceId, categoryName);
 

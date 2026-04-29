@@ -55,7 +55,11 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
             taskMode: 'inherit'
         };
         nodes.push(folder);
-        setScopedNodes(workspaceId, categoryName, nodes, { persist: options.persist !== false });
+        setScopedNodes(workspaceId, categoryName, nodes, {
+            persist: options.persist !== false,
+            source: 'bookmark-folder-created',
+            meta: { workspaceId: workspaceId, categoryName: categoryName, folderId: folder.id }
+        });
         return folder;
     }
 
@@ -75,7 +79,9 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         if (options.persist !== false && typeof saveData === 'function') {
             saveData({
                 skipRender: !!options.skipRender,
-                skipSuggestions: !!options.skipSuggestions
+                skipSuggestions: !!options.skipSuggestions,
+                source: 'bookmark-folder-renamed',
+                meta: { workspaceId: workspaceId, categoryName: categoryName, folderId: folderId }
             });
         }
         return true;
@@ -108,7 +114,14 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         if (options.persist !== false && typeof saveData === 'function') {
             saveData({
                 skipRender: !!options.skipRender,
-                skipSuggestions: !!options.skipSuggestions
+                skipSuggestions: !!options.skipSuggestions,
+                source: 'bookmark-folder-moved',
+                meta: {
+                    workspaceId: workspaceId,
+                    categoryName: categoryName,
+                    folderId: folderId,
+                    targetParentId: targetParentId
+                }
             });
         }
         return true;
@@ -189,7 +202,18 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         }
 
         setScopedNodes(workspaceId, categoryName, filteredNodes, { persist: false });
-        if (typeof saveData === 'function') saveData({ forceRender: true });
+        if (typeof saveData === 'function') {
+            saveData({
+                forceRender: true,
+                source: 'bookmark-folder-deleted',
+                meta: {
+                    workspaceId: workspaceId,
+                    categoryName: categoryName,
+                    folderId: folderId,
+                    removedLinkCount: removedLinkIds.size
+                }
+            });
+        }
         return true;
     }
 

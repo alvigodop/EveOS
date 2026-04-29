@@ -55,8 +55,14 @@ window.bulkLastToggledId = bulkLastToggledId;
             : (!buildState?.dirty && Number(buildState?.builtAt || 0) > 0);
     }
 
+    function hasReadableDatapackLinkSnapshot(indexApi) {
+        if (!indexApi) return false;
+        if (typeof indexApi.hasReadableLinkSnapshot === 'function') return !!indexApi.hasReadableLinkSnapshot();
+        return hasUsableDatapackSnapshot(indexApi);
+    }
+
     function getDatapackSnapshot(indexApi) {
-        if (!hasUsableDatapackSnapshot(indexApi) || typeof indexApi?.getSnapshot !== 'function') return null;
+        if (!hasReadableDatapackLinkSnapshot(indexApi) || typeof indexApi?.getSnapshot !== 'function') return null;
         return indexApi.getSnapshot();
     }
 
@@ -185,7 +191,7 @@ window.bulkLastToggledId = bulkLastToggledId;
 
     function getScopeLinkIdsForCard(categoryName, workspaceId) {
         const indexApi = getDatapackIndexApi();
-        if (hasUsableDatapackSnapshot(indexApi) && typeof indexApi.getExactBookmarkLinkIds === 'function') {
+        if (hasReadableDatapackLinkSnapshot(indexApi) && typeof indexApi.getExactBookmarkLinkIds === 'function') {
             return indexApi.getExactBookmarkLinkIds({
                 workspaceId: workspaceId,
                 categoryName: categoryName
@@ -202,7 +208,7 @@ window.bulkLastToggledId = bulkLastToggledId;
 
     function getScopeLinkIdsForFolder(categoryName, workspaceId, folderId) {
         const indexApi = getDatapackIndexApi();
-        if (hasUsableDatapackSnapshot(indexApi) && typeof indexApi.getExactBookmarkLinkIds === 'function') {
+        if (hasReadableDatapackLinkSnapshot(indexApi) && typeof indexApi.getExactBookmarkLinkIds === 'function') {
             if (!folderId) {
                 return getIndexedRootLinkIds(indexApi, workspaceId, categoryName) || [];
             }

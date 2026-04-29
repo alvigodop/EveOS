@@ -252,7 +252,14 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         var structureSummaryUnavailable = false;
 
         ctx.saveAndRefresh = function (shouldRenderDashboard) {
-            saveConfig({ immediate: true });
+            saveConfig({
+                immediate: true,
+                source: 'sidebar-tab-reorder',
+                meta: {
+                    dragType: dragState.type || '',
+                    dragId: dragState.id || ''
+                }
+            });
             if (typeof window.renderSidebar === 'function') window.renderSidebar();
             if (shouldRenderDashboard) {
                 queueSidebarDashboardRefresh({

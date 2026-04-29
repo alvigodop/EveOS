@@ -26,6 +26,53 @@
         return _prefetchCache.has(key);
     }
 
+    function getDatapackIndexApi() {
+        return window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
+    }
+
+    function hasReadableLinkSnapshot(indexApi) {
+        if (!indexApi) return false;
+        if (typeof indexApi.hasReadableLinkSnapshot === 'function') return !!indexApi.hasReadableLinkSnapshot();
+        var buildState = typeof indexApi.getBuildState === 'function' ? indexApi.getBuildState() : null;
+        return typeof indexApi.hasUsableSnapshot === 'function'
+            ? !!indexApi.hasUsableSnapshot()
+            : (!buildState?.dirty && Number(buildState?.builtAt || 0) > 0);
+    }
+
+    function buildLiveLinkIdMap(liveLinks) {
+        var map = new Map();
+        (Array.isArray(liveLinks) ? liveLinks : []).forEach(function (link) {
+            var linkId = String(link?.id || '').trim();
+            if (linkId) map.set(linkId, link);
+        });
+        return map;
+    }
+
+    function collectIndexedVisibleLinks(visibleWsIds, liveLinks) {
+        var indexApi = getDatapackIndexApi();
+        if (!indexApi || typeof indexApi.getScopedBookmarkLinkIds !== 'function' || !hasReadableLinkSnapshot(indexApi)) {
+            return null;
+        }
+
+        var scope = visibleWsIds && visibleWsIds.size
+            ? { workspaceIds: Array.from(visibleWsIds) }
+            : null;
+        var linkIds = indexApi.getScopedBookmarkLinkIds(scope);
+        if (!Array.isArray(linkIds)) return null;
+
+        var liveLinkIdMap = buildLiveLinkIdMap(liveLinks);
+        var resolveIndexedLink = typeof indexApi.resolveBookmarkLink === 'function'
+            ? function (linkId) { return indexApi.resolveBookmarkLink(linkId); }
+            : null;
+        var seen = new Set();
+        return linkIds.map(function (linkId) {
+            var normalizedId = String(linkId || '').trim();
+            if (!normalizedId || seen.has(normalizedId)) return null;
+            seen.add(normalizedId);
+            return liveLinkIdMap.get(normalizedId) || (resolveIndexedLink ? resolveIndexedLink(normalizedId) : null) || null;
+        }).filter(Boolean);
+    }
+
     /**
      * Resolve the set of visible workspace IDs for a given target workspace,
      * mirroring the logic in _renderDashboardCore but without side effects.
@@ -86,12 +133,17 @@
 
         var visibleWsIds = resolveVisibleWorkspaceIds(targetWsId, workspaces);
 
-        // Filter links belonging to this workspace's scope
-        var visibleLinks = [];
-        for (var i = 0; i < liveLinks.length; i++) {
-            var link = liveLinks[i];
-            if (visibleWsIds.has(String(link.workspace || 'main').trim())) {
-                visibleLinks.push(link);
+        var visibleLinks = collectIndexedVisibleLinks(visibleWsIds, liveLinks);
+        var source = 'datapack-index';
+
+        if (!Array.isArray(visibleLinks)) {
+            source = 'live-links';
+            visibleLinks = [];
+            for (var i = 0; i < liveLinks.length; i++) {
+                var link = liveLinks[i];
+                if (visibleWsIds.has(String(link.workspace || 'main').trim())) {
+                    visibleLinks.push(link);
+                }
             }
         }
 
@@ -110,6 +162,7 @@
             visibleLinks: visibleLinks,
             visibleWorkspaceIds: visibleWsIds,
             linksByCatWs: linksByCatWs,
+            source: source,
             prefetchedAt: Date.now()
         });
 

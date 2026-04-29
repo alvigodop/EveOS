@@ -16,6 +16,12 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 : (!buildState?.dirty && Number(buildState?.builtAt || 0) > 0);
         }
 
+        function hasReadableDatapackLinkSnapshot(indexApi) {
+            if (!indexApi) return false;
+            if (typeof indexApi.hasReadableLinkSnapshot === 'function') return !!indexApi.hasReadableLinkSnapshot();
+            return hasUsableDatapackSnapshot(indexApi);
+        }
+
         function warmDatapackIndex() {
             const indexApi = getDatapackIndexApi();
             if (!indexApi || typeof indexApi.rebuild !== 'function') return;
@@ -111,7 +117,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
         function getIndexedScopedLinks(scope) {
             const indexApi = getDatapackIndexApi();
             if (!indexApi || typeof indexApi.getScopedBookmarkLinkIds !== 'function') return null;
-            if (!hasUsableDatapackSnapshot(indexApi)) {
+            if (!hasReadableDatapackLinkSnapshot(indexApi)) {
                 warmDatapackIndex();
                 return null;
             }
@@ -123,7 +129,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
         function getIndexedWorkspaceLinks(workspaceId) {
             const indexApi = getDatapackIndexApi();
             if (!indexApi || typeof indexApi.getExactBookmarkLinkIds !== 'function') return null;
-            if (!hasUsableDatapackSnapshot(indexApi)) {
+            if (!hasReadableDatapackLinkSnapshot(indexApi)) {
                 warmDatapackIndex();
                 return null;
             }
@@ -135,7 +141,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
         function getIndexedAllWorkspaceLinks() {
             const indexApi = getDatapackIndexApi();
             if (!indexApi || typeof indexApi.getScopedBookmarkLinkIds !== 'function') return null;
-            if (!hasUsableDatapackSnapshot(indexApi)) {
+            if (!hasReadableDatapackLinkSnapshot(indexApi)) {
                 warmDatapackIndex();
                 return null;
             }

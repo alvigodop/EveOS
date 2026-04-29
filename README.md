@@ -498,24 +498,30 @@ The PowerShell runner executes the two restore-specific browser regressions in s
 Primary scripts:
 
 - `tools/smoke/workspace_switch_browser_smoke.js`
+- `tools/smoke/dashboard_prefetch_indexed_links_smoke.js`
 - `tools/smoke/dashboard_datapack_card_link_resolver_smoke.js`
 - `tools/smoke/quick_pins_browser_smoke.js`
 - `tools/smoke/non_scraper_facades.js`
 - `tools/smoke/duplicate_sensor_browser_smoke.js`
+- `tools/smoke/cache_hygiene_no_dump_smoke.js`
 
 Use when touching:
 
 - `js/modules/ui/dashboard/*`
 - `js/modules/features/quick-pins/*`
 - dashboard card link resolution through `DatapackIndex`
+- dashboard prefetch behavior for large workspace switches
+- cache writes, localStorage fallback, or stale state dump cleanup
 - shared facade or manifest wiring
 - duplicate-sensor behavior
 
 Recommended command set:
 
 ```bash
+node tools\\smoke\\dashboard_prefetch_indexed_links_smoke.js
 node tools\\smoke\\dashboard_datapack_card_link_resolver_smoke.js
 node tools\\smoke\\workspace_switch_browser_smoke.js
+node tools\\smoke\\cache_hygiene_no_dump_smoke.js
 node tools\\smoke\\quick_pins_browser_smoke.js
 node tools\\smoke\\non_scraper_facades.js
 ```
@@ -556,6 +562,7 @@ Primary scripts:
 - `tools/smoke/sidebar_group_reorder_browser_smoke.js`
 - `tools/smoke/sidebar_group_nested_subtabs_browser_smoke.js`
 - `tools/smoke/sidebar_nested_pointer_drag_browser_smoke.js`
+- `tools/smoke/sidebar_deep_pointer_drag_browser_smoke.js`
 - `tools/smoke/sidebar_deep_group_promotion_smoke.js`
 - `tools/smoke/sidebar_click_expand_browser_smoke.js`
 - `tools/smoke/sidebar_collapse_toggle_browser_smoke.js`
@@ -574,13 +581,14 @@ Recommended command set:
 ```bash
 node --check js\\modules\\ui\\sidebar.runtime.workspace.js
 node --check js\\modules\\ui\\sidebar.runtime.interactions.js
+node tools\\smoke\\sidebar_deep_pointer_drag_browser_smoke.js
 node tools\\smoke\\sidebar_nested_pointer_drag_browser_smoke.js
 node tools\\smoke\\sidebar_deep_group_promotion_smoke.js
 node tools\\smoke\\sidebar_group_nested_subtabs_browser_smoke.js
 node tools\\smoke\\sidebar_workspace_reorder_browser_smoke.js
 ```
 
-Use `sidebar_nested_pointer_drag_browser_smoke.js` specifically for `sub^2` / deeper tab movement and grouped-root child trees. Use `sidebar_deep_group_promotion_smoke.js` for deep sub-tab promotion directly into a group top layer without a browser launch. The pointer smoke is a focused runtime harness, so it does not depend on the full app route rendering successfully.
+Use `sidebar_deep_pointer_drag_browser_smoke.js` specifically for rendered `sub^3` pointer dragging into a group top layer. Use `sidebar_nested_pointer_drag_browser_smoke.js` for `sub^2` / deeper sibling movement and grouped-root child trees. Use `sidebar_deep_group_promotion_smoke.js` for deep sub-tab promotion directly into a group top layer without a browser launch. The pointer smokes are focused runtime harnesses, so they do not depend on the full app route rendering successfully.
 
 All `tools/smoke/sidebar_*_browser_smoke.js` scripts route browser startup through `tools/smoke/playwright-browser.js`, so they support direct Playwright launch or an existing browser via `PW_CDP_ENDPOINT` / `PLAYWRIGHT_CDP_ENDPOINT`.
 

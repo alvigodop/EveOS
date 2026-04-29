@@ -96,7 +96,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/scraper/core/fixes/global-fix.js",
     "js/modules/features/scraper/core/initialization/debug-diagnostics.js",
     "js/modules/features/scraper/storage/storage-manager-components/sm-wiki.js",
-    "js/modules/features/scraper/storage/storage-manager.js",
+    "js/modules/features/scraper/storage/storage-manager.js?v=0.1.0",
     "js/modules/features/scraper/storage/cache-core-components/cc-maintenance.js",
     "js/modules/features/scraper/storage/cache-core.js",
     "js/modules/features/scraper/storage/cache-ui-components/cui-utils.js",

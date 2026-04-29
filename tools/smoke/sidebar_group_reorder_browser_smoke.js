@@ -53,7 +53,7 @@ async function runSmoke(page) {
         throw new Error(`Unexpected grouped sidebar order after drag reorder: ${order.join(' | ')}`);
     }
 
-    await page.dragAndDrop('#sidebar .ws-group-section[data-group-id="group-1"] .ws-item[data-ws-id="alpha"] > .ws-node-children .ws-item[data-ws-id="alpha-2"]', '#sidebar .ws-group-section[data-group-id="group-1"] .ws-item[data-ws-id="alpha"] > .ws-node-children .ws-item[data-ws-id="alpha-1"]', { force: true });
+    await page.dragAndDrop('#sidebar .ws-group-section[data-group-id="group-1"] .ws-node-wrapper[data-ws-id="alpha"] > .ws-node-children .ws-item[data-ws-id="alpha-2"]', '#sidebar .ws-group-section[data-group-id="group-1"] .ws-node-wrapper[data-ws-id="alpha"] > .ws-node-children .ws-item[data-ws-id="alpha-1"]', { force: true });
     await page.waitForTimeout(400);
 
     const nestedOrder = await page.evaluate(() => {

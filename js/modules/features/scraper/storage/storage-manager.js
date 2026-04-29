@@ -41,6 +41,44 @@ StorageManager._getPrefixedKey = function (key, contextOverride = null) {
     return `${normalized}_${key}`;
 };
 
+StorageManager._emitCacheMutation = function (action, key, context = null, backend = 'localstorage') {
+    if (typeof window.dispatchEvent !== 'function' || typeof CustomEvent !== 'function') return;
+    const sourceKey = String(key || '').trim();
+    window.dispatchEvent(new CustomEvent('eve:cache-mutated', {
+        detail: {
+            action: String(action || '').trim() || 'write',
+            key: sourceKey,
+            context: context || this.categoryContext || null,
+            prefixedKey: this._getPrefixedKey(sourceKey, context),
+            backend: backend,
+            at: Date.now()
+        }
+    }));
+};
+
+StorageManager.getCacheHygieneReport = function (keys = []) {
+    const trackedKeys = new Set((Array.isArray(keys) ? keys : []).map(function (key) {
+        return String(key || '').trim();
+    }).filter(Boolean));
+    const buckets = {};
+    try {
+        for (let i = 0; i < localStorage.length; i += 1) {
+            const storageKey = localStorage.key(i);
+            if (!storageKey) continue;
+            const suffix = storageKey.includes('_') ? storageKey.slice(storageKey.lastIndexOf('_') + 1) : storageKey;
+            if (trackedKeys.size && !trackedKeys.has(suffix)) continue;
+            if (!buckets[suffix]) buckets[suffix] = [];
+            buckets[suffix].push(storageKey);
+        }
+    } catch (error) {
+        console.warn('StorageManager: Failed to build cache hygiene report.', error);
+    }
+    return {
+        trackedKeys: Array.from(trackedKeys),
+        buckets
+    };
+};
+
 /**
  * Initialize the storage manager
  */
@@ -128,6 +166,7 @@ StorageManager.saveData = function (key, data, context = null) {
     
     try {
         localStorage.setItem(prefixedKey, stringifiedData);
+        this._emitCacheMutation('write', key, context, 'localstorage');
         return true;
     } catch (error) {
         if (error.name === 'QuotaExceededError' || error.name === 'NS_ERROR_DOM_QUOTA_REACHED' || error.code === 22) {
@@ -140,6 +179,7 @@ StorageManager.saveData = function (key, data, context = null) {
                 try {
                     localStorage.setItem(prefixedKey, stringifiedData);
                     console.log(`StorageManager: Successfully saved ${prefixedKey} after emergency prune.`);
+                    this._emitCacheMutation('write', key, context, 'localstorage');
                     return true;
                 } catch (retryError) {
                     console.error(`StorageManager: Final save failure after prune for ${prefixedKey}:`, retryError);
@@ -180,6 +220,7 @@ StorageManager.saveHeavyData = async function(key, data, context = null) {
             console.log(`StorageManager (IDB): Saved massive payload for [${key}]`);
             // GC the old maxed out payload to free up the 5MB localStorage limit cleanly
             try { localStorage.removeItem(prefixedKey); } catch(e) {}
+            this._emitCacheMutation('write', key, context, 'indexeddb');
             return true;
         } catch (e) {
             console.warn(`StorageManager (IDB): Save failed for ${key}, falling back`, e);
@@ -233,12 +274,15 @@ StorageManager.saveDataAsync = StorageManager.saveHeavyData;
  * Delete heavy data from IndexedDB asynchronously
  */
 StorageManager.deleteHeavyData = async function(key) {
+    const prefixedKey = this._getPrefixedKey(key);
+    let backend = 'localstorage';
     if (window.IDBStore) {
         try {
-            await window.IDBStore.remove(this._getPrefixedKey(key));
+            await window.IDBStore.remove(prefixedKey);
+            backend = 'indexeddb';
         } catch (e) {}
     }
-    this.deleteData(key);
+    return this.deleteData(key, this.categoryContext, { backend: backend });
 };
 
 /**
@@ -282,10 +326,11 @@ StorageManager.loadData = function (key, defaultValue, context = null) {
     }
 };
 
-StorageManager.deleteData = function (key, context = null) {
+StorageManager.deleteData = function (key, context = null, options = {}) {
     const prefixedKey = this._getPrefixedKey(key, context);
     try {
         localStorage.removeItem(prefixedKey);
+        this._emitCacheMutation('delete', key, context, options.backend || 'localstorage');
         return true;
     } catch (error) {
         console.error(`Error deleting data from localStorage (${prefixedKey}):`, error);
@@ -307,6 +352,7 @@ StorageManager.clearAllData = function () {
                 localStorage.removeItem(key);
             }
         });
+        this._emitCacheMutation('clear-context', '*', this.categoryContext, 'localstorage');
         console.log(`Cleared data for category: ${this.categoryContext}`);
         return true;
     }

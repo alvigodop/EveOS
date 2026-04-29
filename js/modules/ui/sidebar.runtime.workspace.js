@@ -324,7 +324,12 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
                 var isRootWorkspaceDrag = !!(ctx.groupsApi
                     && typeof ctx.groupsApi.isRootWorkspace === 'function'
                     && ctx.groupsApi.isRootWorkspace(workspaceId, config));
-                if (isRootWorkspaceDrag) {
+                var targetHasChildren = !!(
+                    (Array.isArray(ws.subTabs) && ws.subTabs.length > 0)
+                    || (ctx.groupsApi && typeof ctx.groupsApi.getGroupsForParent === 'function'
+                        && ctx.groupsApi.getGroupsForParent(ws.id, config).length > 0)
+                );
+                if (isRootWorkspaceDrag && targetHasChildren) {
                     return ctx.moveWorkspaceIntoGroup(workspaceId, renderOptions.groupId, ws.id);
                 }
                 var targetEntries = ctx.getVisibleParentEntries(ws.id);
@@ -332,6 +337,16 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             }
 
             var targetParentId = String(renderOptions.parentWorkspaceId || '').trim();
+            if (targetParentId) {
+                var dragParent = ctx.helpers && typeof ctx.helpers.findParent === 'function'
+                    ? ctx.helpers.findParent(config.workspaces, workspaceId)
+                    : null;
+                var dragParentId = String(dragParent && dragParent.id || '').trim();
+                if (dragParentId !== targetParentId) {
+                    var childEntries = ctx.getVisibleParentEntries(ws.id);
+                    return ctx.moveWorkspaceToParentContext(workspaceId, ws.id, null, childEntries, childEntries.length);
+                }
+            }
             var siblingEntries = Array.isArray(renderOptions.orderedEntries)
                 ? renderOptions.orderedEntries
                 : ctx.getVisibleParentEntries(targetParentId);

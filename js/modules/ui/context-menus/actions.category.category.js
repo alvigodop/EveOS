@@ -31,10 +31,12 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
     function getExactCategoryLinkIds(workspaceId, categoryName) {
         const indexApi = getDatapackIndexApi();
         if (!indexApi || typeof indexApi.getExactBookmarkLinkIds !== 'function') return null;
-        const hasUsableSnapshot = typeof indexApi.hasUsableSnapshot === 'function'
-            ? indexApi.hasUsableSnapshot()
-            : !!indexApi.getSnapshot?.();
-        if (!hasUsableSnapshot) return null;
+        const hasReadableSnapshot = typeof indexApi.hasReadableLinkSnapshot === 'function'
+            ? indexApi.hasReadableLinkSnapshot()
+            : (typeof indexApi.hasUsableSnapshot === 'function'
+                ? indexApi.hasUsableSnapshot()
+                : !!indexApi.getSnapshot?.());
+        if (!hasReadableSnapshot) return null;
         return indexApi.getExactBookmarkLinkIds({
             workspaceId: workspaceId,
             categoryName: categoryName
@@ -131,8 +133,19 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
             } else if (window.config?.categoryOrder) {
                 window.config.categoryOrder = window.config.categoryOrder.filter((category) => category !== name);
             }
-            if (typeof saveConfig === 'function') saveConfig();
-            if (typeof saveData === 'function') saveData({ skipRender: true });
+            if (typeof saveConfig === 'function') {
+                saveConfig({
+                    source: 'category-delete-config',
+                    meta: { workspaceId: workspaceId, categoryName: name }
+                });
+            }
+            if (typeof saveData === 'function') {
+                saveData({
+                    skipRender: true,
+                    source: 'category-delete-links',
+                    meta: { workspaceId: workspaceId, categoryName: name, removedCount: removedIds.length }
+                });
+            }
             if (typeof closeAllMenus === 'function') closeAllMenus();
             if (typeof closeModals === 'function') closeModals();
             if (typeof renderDashboard === 'function') renderDashboard();

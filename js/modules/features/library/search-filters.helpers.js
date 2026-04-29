@@ -41,10 +41,12 @@ window.EveLibrary.SearchModules = window.EveLibrary.SearchModules || {};
         const indexApi = window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
         if (indexApi && typeof indexApi.getScopedBookmarkLinkIds === 'function' && typeof indexApi.resolveBookmarkLink === 'function') {
             const buildState = typeof indexApi.getBuildState === 'function' ? indexApi.getBuildState() : null;
-            const hasUsableSnapshot = typeof indexApi.hasUsableSnapshot === 'function'
-                ? indexApi.hasUsableSnapshot()
-                : (!buildState?.dirty && Number(buildState?.builtAt || 0) > 0);
-            if (hasUsableSnapshot) {
+            const hasReadableSnapshot = typeof indexApi.hasReadableLinkSnapshot === 'function'
+                ? indexApi.hasReadableLinkSnapshot()
+                : (typeof indexApi.hasUsableSnapshot === 'function'
+                    ? indexApi.hasUsableSnapshot()
+                    : (!buildState?.dirty && Number(buildState?.builtAt || 0) > 0));
+            if (hasReadableSnapshot) {
                 return indexApi.getScopedBookmarkLinkIds(null)
                     .map((linkId) => indexApi.resolveBookmarkLink(linkId))
                     .filter(Boolean);

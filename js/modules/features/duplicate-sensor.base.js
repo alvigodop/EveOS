@@ -17,6 +17,12 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
             : (!buildState?.dirty && Number(buildState?.builtAt || 0) > 0);
     }
 
+    function hasReadableDatapackLinkSnapshot(indexApi) {
+        if (!indexApi) return false;
+        if (typeof indexApi.hasReadableLinkSnapshot === 'function') return !!indexApi.hasReadableLinkSnapshot();
+        return hasUsableDatapackSnapshot(indexApi);
+    }
+
     function getLinks() {
         if (typeof window.getLiveLinks === 'function') return window.getLiveLinks();
         if (Array.isArray(window.eveState?.links)) return window.eveState.links;
@@ -143,7 +149,7 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
 
     function getIndexedScopedLinks(scope, workspaceId, categoryName, folderId, sourceLinks) {
         const indexApi = getDatapackIndexApi();
-        if (!indexApi || typeof indexApi.getExactBookmarkLinkIds !== 'function' || !hasUsableDatapackSnapshot(indexApi)) {
+        if (!indexApi || typeof indexApi.getExactBookmarkLinkIds !== 'function' || !hasReadableDatapackLinkSnapshot(indexApi)) {
             return null;
         }
 

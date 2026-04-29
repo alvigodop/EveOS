@@ -40,6 +40,12 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             : (!buildState?.dirty && Number(buildState?.builtAt || 0) > 0);
     }
 
+    function hasReadableDatapackLinkSnapshot(indexApi) {
+        if (!indexApi) return false;
+        if (typeof indexApi.hasReadableLinkSnapshot === 'function') return !!indexApi.hasReadableLinkSnapshot();
+        return hasUsableDatapackSnapshot(indexApi);
+    }
+
     function getDatapackSnapshot(indexApi) {
         if (!hasUsableDatapackSnapshot(indexApi) || typeof indexApi?.getSnapshot !== 'function') return null;
         return indexApi.getSnapshot();
@@ -85,7 +91,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
 
     function getScopedLinks(scope) {
         const indexApi = getDatapackIndexApi();
-        if (indexApi && hasUsableDatapackSnapshot(indexApi)
+        if (indexApi && hasReadableDatapackLinkSnapshot(indexApi)
             && typeof indexApi.getScopedBookmarkLinkIds === 'function'
             && typeof indexApi.resolveBookmarkLink === 'function') {
             const liveLinkMap = buildLiveLinkMap(getLiveLinks());
