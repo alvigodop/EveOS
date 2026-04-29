@@ -6,9 +6,11 @@ window.DashboardCategories = window.DashboardCategories || {};
 
     var RENDER_BATCH = 50;
 
-    function buildShowMoreButton(categoryName, allLinks, alreadyRendered, isFocused) {
+    function buildShowMoreButton(categoryName, allLinks, alreadyRendered, isFocused, scopeKey) {
         var remaining = allLinks.length - alreadyRendered;
-        var buttonId = 'showMore_' + String(categoryName || '').replace(/[^a-zA-Z0-9]/g, '_') + '_' + alreadyRendered;
+        var safeCategory = String(categoryName || '').replace(/[^a-zA-Z0-9]/g, '_');
+        var safeScope = String(scopeKey || 'card').replace(/[^a-zA-Z0-9]/g, '_');
+        var buttonId = 'showMore_' + safeCategory + '_' + safeScope + '_' + alreadyRendered;
         if (!window._eveProgressiveLinks) window._eveProgressiveLinks = {};
         window._eveProgressiveLinks[buttonId] = {
             links: allLinks,

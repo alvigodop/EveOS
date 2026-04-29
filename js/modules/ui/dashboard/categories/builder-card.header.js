@@ -137,6 +137,76 @@ var DEFAULT_CARD_HEADER_BUTTONS = ['add', 'folders', 'library', 'focus', 'launch
         return window.eveState.config.cardBookmarkProgressiveReveal;
     }
 
+    function getFolderBookmarkRevealStore() {
+        if (!window.eveState?.config) return {};
+        if (!window.eveState.config.folderBookmarkProgressiveReveal || typeof window.eveState.config.folderBookmarkProgressiveReveal !== 'object' || Array.isArray(window.eveState.config.folderBookmarkProgressiveReveal)) {
+            window.eveState.config.folderBookmarkProgressiveReveal = {};
+        }
+        return window.eveState.config.folderBookmarkProgressiveReveal;
+    }
+
+    function buildScopedFolderKey(workspaceId, categoryName, folderId) {
+        return buildScopedCategoryKey(workspaceId, categoryName) + '::' + String(folderId || '').trim();
+    }
+
+    function normalizeFolderBookmarkProgressiveRevealMode(mode) {
+        var normalized = String(mode || '').trim().toLowerCase();
+        if (mode === true || normalized === 'on' || normalized === 'enabled' || normalized === 'true') return 'on';
+        if (mode === false || normalized === 'off' || normalized === 'disabled' || normalized === 'false') return 'off';
+        return 'inherit';
+    }
+
+    function getFolderBookmarkProgressiveRevealMode(workspaceId, categoryName, folderId) {
+        var normalizedFolderId = String(folderId || '').trim();
+        if (!normalizedFolderId) return 'inherit';
+        var store = getFolderBookmarkRevealStore();
+        var scopedKey = buildScopedFolderKey(workspaceId, categoryName, normalizedFolderId);
+        if (!Object.prototype.hasOwnProperty.call(store, scopedKey)) return 'inherit';
+        return normalizeFolderBookmarkProgressiveRevealMode(store[scopedKey]);
+    }
+
+    function isFolderBookmarkProgressiveRevealEnabled(workspaceId, categoryName, folderId) {
+        var mode = getFolderBookmarkProgressiveRevealMode(workspaceId, categoryName, folderId);
+        if (mode === 'on') return true;
+        if (mode === 'off') return false;
+        return isCardBookmarkProgressiveRevealEnabled(workspaceId, categoryName);
+    }
+
+    function setFolderBookmarkProgressiveRevealMode(workspaceId, categoryName, folderId, mode) {
+        var normalizedFolderId = String(folderId || '').trim();
+        if (!normalizedFolderId) return 'inherit';
+        var scopedKey = buildScopedFolderKey(workspaceId, categoryName, normalizedFolderId);
+        var store = getFolderBookmarkRevealStore();
+        var normalizedMode = normalizeFolderBookmarkProgressiveRevealMode(mode);
+        if (normalizedMode === 'inherit') {
+            delete store[scopedKey];
+        } else {
+            store[scopedKey] = normalizedMode;
+        }
+        if (typeof saveConfig === 'function') saveConfig();
+        if (typeof renderDashboard === 'function') renderDashboard();
+        return getFolderBookmarkProgressiveRevealMode(workspaceId, categoryName, normalizedFolderId);
+    }
+
+    function setFolderBookmarkProgressiveRevealEnabled(workspaceId, categoryName, folderId, enabled) {
+        return setFolderBookmarkProgressiveRevealMode(workspaceId, categoryName, folderId, enabled ? 'on' : 'off');
+    }
+
+    function getFolderBookmarkProgressiveRevealOptions() {
+        return [
+            { value: 'inherit', label: 'Inherit Card Display' },
+            { value: 'on', label: 'Use Show More' },
+            { value: 'off', label: 'Render All Bookmarks' }
+        ];
+    }
+
+    function describeFolderBookmarkProgressiveRevealMode(mode) {
+        var normalizedMode = normalizeFolderBookmarkProgressiveRevealMode(mode);
+        if (normalizedMode === 'on') return 'This folder initially shows a capped bookmark list and adds the "Show more" control when needed.';
+        if (normalizedMode === 'off') return 'This folder renders all bookmarks immediately with no "Show more" control.';
+        return 'This folder follows the card-level bookmark display setting.';
+    }
+
     function normalizeHeaderButtons(buttonIds) {
         var allowed = new Set(ALL_CARD_HEADER_BUTTONS);
         return Array.from(new Set((Array.isArray(buttonIds) ? buttonIds : []).map(function (entry) {
@@ -211,12 +281,21 @@ var DEFAULT_CARD_HEADER_BUTTONS = ['add', 'folders', 'library', 'focus', 'launch
         buildFolderActionExpansionKey,
         isFolderActionExpanded,
         buildScopedCategoryKey,
+        buildScopedFolderKey,
         getCardHeaderButtonStore,
         getCardBookmarkRevealStore,
+        getFolderBookmarkRevealStore,
         normalizeHeaderButtons,
         getCardHeaderButtonsForCategory,
         setCardHeaderButtonsForCategory,
         isCardBookmarkProgressiveRevealEnabled,
-        setCardBookmarkProgressiveRevealEnabled
+        setCardBookmarkProgressiveRevealEnabled,
+        normalizeFolderBookmarkProgressiveRevealMode,
+        getFolderBookmarkProgressiveRevealMode,
+        isFolderBookmarkProgressiveRevealEnabled,
+        setFolderBookmarkProgressiveRevealMode,
+        setFolderBookmarkProgressiveRevealEnabled,
+        getFolderBookmarkProgressiveRevealOptions,
+        describeFolderBookmarkProgressiveRevealMode
     });
 })();

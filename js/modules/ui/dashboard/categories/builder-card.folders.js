@@ -153,7 +153,11 @@ window.DashboardCategories = window.DashboardCategories || {};
                 + '</div>'
                 + '</div>';
             const bodyContentHtml = folderLinks.length
-                ? renderer(folderLinks)
+                ? renderer(folderLinks, {
+                    workspaceId: workspaceId,
+                    categoryName: categoryName,
+                    folderId: isGhostNode ? '' : node.id
+                })
                 : (isGhostNode && childFolders.length
                     ? ''
                     : '<div class="bookmark-folder-empty">No bookmarks in this folder yet.</div>');
@@ -226,7 +230,11 @@ window.DashboardCategories = window.DashboardCategories || {};
             + '<div class="bookmark-folder-body">'
             + '<div class="bookmark-folder-links">'
             + (hasRootLinks
-                ? renderer(viewModel.rootLinks)
+                ? renderer(viewModel.rootLinks, {
+                    workspaceId: workspaceId,
+                    categoryName: categoryName,
+                    folderId: ''
+                })
                 : '<div class="bookmark-folder-empty">No root bookmarks in this card.</div>')
             + '</div>'
             + buildSectionStats(viewModel.rootLinks)

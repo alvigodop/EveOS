@@ -40,6 +40,9 @@
             const selectedTaskMode = normalizeFolderTaskModeValue(folder?.taskMode);
             const taskModeOptionsHtml = renderFolderManagerSelectOptions(renderState.taskModeOptions, selectedTaskMode);
             const taskModeHint = renderState.getTaskModeHint(selectedTaskMode);
+            const selectedProgressiveMode = renderState.getProgressiveMode(folder.id);
+            const progressiveModeOptionsHtml = renderFolderManagerSelectOptions(renderState.progressiveModeOptions, selectedProgressiveMode);
+            const progressiveModeHint = renderState.getProgressiveModeHint(selectedProgressiveMode);
             const folderPinState = renderState.folderPinState.get(folder.id) || null;
             const isFolderPinned = !!folderPinState?.pinned;
             const selectedPinScope = folderPinState?.scopeType || 'tab';
@@ -83,6 +86,11 @@
                         + '<label style="font-size:0.74rem; opacity:0.76;">Folder Task Behavior</label>'
                         + `<select onchange="saveFolderTaskModeSetting('${safeCategoryJs}', '${safeFolderJs}', this.value)">${taskModeOptionsHtml}</select>`
                         + `<div style="font-size:0.76rem; opacity:0.68;">${escapeCategorySettingsHtml(taskModeHint)}</div>`
+                    + '</div>'
+                    + '<div style="display:flex; flex-direction:column; gap:4px;">'
+                        + '<label style="font-size:0.74rem; opacity:0.76;">Folder Bookmark Display</label>'
+                        + `<select onchange="saveFolderBookmarkProgressiveRevealSetting('${safeCategoryJs}', '${safeFolderJs}', this.value)">${progressiveModeOptionsHtml}</select>`
+                        + `<div style="font-size:0.76rem; opacity:0.68;">${escapeCategorySettingsHtml(progressiveModeHint)}</div>`
                     + '</div>'
                     + renderFolderManagerRows(categoryName, workspaceId, viewModel, renderState, folder.id, depth + 1)
                 + '</div>';

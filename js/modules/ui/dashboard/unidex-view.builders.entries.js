@@ -35,7 +35,87 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             const rowImageHeight = Math.round(rowCoverHeight * 1.32);
             const rowImageOffset = Math.round((rowImageHeight - rowCoverHeight) / 2);
 
-            return entryLinks.map(function (link) {
+            function getIdentifierIds(link) {
+                if (typeof window.EveBookmarkIdentifiers?.getIdentifiersForLink === 'function') {
+                    return window.EveBookmarkIdentifiers.getIdentifiersForLink(link);
+                }
+                return Array.isArray(link?.identifiers)
+                    ? link.identifiers.map(function (id) { return String(id || '').trim(); }).filter(Boolean)
+                    : [];
+            }
+
+            function buildIdentifierGroupedEntriesHtml(links) {
+                const identifierApi = window.EveBookmarkIdentifiers || {};
+                const definitions = typeof identifierApi.getDefinitions === 'function'
+                    ? identifierApi.getDefinitions()
+                    : [];
+                const definitionGroups = (Array.isArray(definitions) ? definitions : []).map(function (definition) {
+                    return {
+                        id: String(definition?.id || '').trim(),
+                        label: String(definition?.label || definition?.id || 'Identifier').trim(),
+                        links: []
+                    };
+                }).filter(function (group) {
+                    return !!group.id;
+                });
+                const groupById = new Map(definitionGroups.map(function (group) {
+                    return [group.id, group];
+                }));
+                const unidentifiedLinks = [];
+
+                (Array.isArray(links) ? links : []).forEach(function (link) {
+                    const ids = getIdentifierIds(link);
+                    if (!ids.length) {
+                        unidentifiedLinks.push(link);
+                        return;
+                    }
+                    ids.forEach(function (id) {
+                        if (!groupById.has(id)) {
+                            const fallbackGroup = { id, label: id, links: [] };
+                            groupById.set(id, fallbackGroup);
+                            definitionGroups.push(fallbackGroup);
+                        }
+                        groupById.get(id).links.push(link);
+                    });
+                });
+
+                const populatedGroups = definitionGroups.filter(function (group) {
+                    return group.links.length > 0;
+                });
+                if (unidentifiedLinks.length) {
+                    populatedGroups.push({
+                        id: '__unidentified__',
+                        label: 'No Identifier',
+                        links: unidentifiedLinks
+                    });
+                }
+
+                if (!populatedGroups.length) return renderEntryItems(links);
+
+                return populatedGroups.map(function (group) {
+                    const safeGroupLabel = escapeHtml(group.label || 'Identifier');
+                    const safeGroupId = escapeHtml(group.id || '');
+                    const badgeHtml = group.id === '__unidentified__'
+                        ? `<span class="unidex-identifier-group-fallback">${safeGroupLabel}</span>`
+                        : (typeof identifierApi.buildBadgeHtml === 'function'
+                            ? identifierApi.buildBadgeHtml([group.id])
+                            : `<span class="unidex-identifier-group-fallback">${safeGroupLabel}</span>`);
+                    return `
+                    <section class="unidex-identifier-group" data-identifier-id="${safeGroupId}">
+                        <header class="unidex-identifier-group-header">
+                            <div class="unidex-identifier-group-title">${badgeHtml || `<span class="unidex-identifier-group-fallback">${safeGroupLabel}</span>`}</div>
+                            <span class="unidex-identifier-group-count">${group.links.length} bookmark${group.links.length === 1 ? '' : 's'}</span>
+                        </header>
+                        <div class="unidex-identifier-group-body">
+                            ${renderEntryItems(group.links)}
+                        </div>
+                    </section>
+                `;
+                }).join('');
+            }
+
+            function renderEntryItems(links) {
+                return (Array.isArray(links) ? links : []).map(function (link) {
                 const encodedId = encodeParam(link.id);
                 const safeTitle = escapeHtml(link.title || 'Untitled');
                 const hoverText = escapeHtml(truncateText(String(link.title || 'Untitled').toUpperCase(), 34));
@@ -143,6 +223,18 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                     ? `<span class="unidex-entry-tag confidence">Conf ${confidenceLabel}</span>`
                     : '';
                 const identifierTagsHtml = window.EveBookmarkIdentifiers?.getBadgeHtmlForLink?.(link) || '';
+                const folderId = String(link?.folderId || '').trim();
+                let folderTagHtml = '';
+                if (folderId && typeof window.EveBookmarkFolders?.buildFolderPathLabel === 'function') {
+                    const folderPathRaw = String(window.EveBookmarkFolders.buildFolderPathLabel(link.workspace, link.category, folderId) || '').trim();
+                    const folderPath = folderPathRaw || 'Folder';
+                    const folderPathTitle = [
+                        `Tab: ${String(link.workspace || 'Unknown Tab')}`,
+                        `Card: ${String(link.category || 'Unsorted')}`,
+                        `Folder: ${folderPath}`
+                    ].join(' | ');
+                    folderTagHtml = `<span class="unidex-entry-tag folder-path" title="${escapeHtml(folderPathTitle)}">Folder: ${escapeHtml(folderPath)}</span>`;
+                }
                 const extraTagsHtml = typeof entryOptions.getExtraTagsHtml === 'function'
                     ? String(entryOptions.getExtraTagsHtml(link) || '')
                     : '';
@@ -164,6 +256,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                         <div class="unidex-entry-tags">
                             ${categoryTagHtml}
                             ${identifierTagsHtml}
+                            ${folderTagHtml}
                             ${extraTagsHtml}
                             ${taskTagHtml}
                             ${libraryTagHtml}
@@ -176,7 +269,14 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                     </div>
                 </article>
             `;
-            }).join('');
+                }).join('');
+            }
+
+            if (entryOptions.groupMode === 'identifiers') {
+                return buildIdentifierGroupedEntriesHtml(entryLinks);
+            }
+
+            return renderEntryItems(entryLinks);
         }
 
         return {

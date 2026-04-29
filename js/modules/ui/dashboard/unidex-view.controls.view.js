@@ -9,11 +9,13 @@ window.UnidexViewModules = window.UnidexViewModules || {};
         const getEntriesConfidenceMin = deps?.getEntriesConfidenceMin || (() => null);
         const getEntriesConfidenceMax = deps?.getEntriesConfidenceMax || (() => null);
         const getEntriesLayoutMode = deps?.getEntriesLayoutMode || (() => 'rows');
+        const getEntriesGroupMode = deps?.getEntriesGroupMode || (() => 'flat');
         const formatConfidenceInput = deps?.formatConfidenceInput || (() => '');
 
         function buildEntriesControlsHtml(options) {
             const controlOptions = options || {};
             const filterMode = getEntriesFilterMode();
+            const groupMode = getEntriesGroupMode();
             const sortBy = getEntriesSortBy();
             const sortOrder = getEntriesSortOrder();
             const minConfidence = getEntriesConfidenceMin();
@@ -27,6 +29,10 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 <option value="all" ${filterMode === 'all' ? 'selected' : ''}>All Bookmarks</option>
                 <option value="linked" ${filterMode === 'linked' ? 'selected' : ''}>Library Linked</option>
                 <option value="bookmark-only" ${filterMode === 'bookmark-only' ? 'selected' : ''}>Bookmarks Only</option>
+            </select>
+            <select class="unidex-filter-select" aria-label="Bookmark grouping" onchange="window.UnidexView.setEntriesGroupMode(this.value)">
+                <option value="flat" ${groupMode === 'flat' ? 'selected' : ''}>View: Flat</option>
+                <option value="identifiers" ${groupMode === 'identifiers' ? 'selected' : ''}>View: Identifiers</option>
             </select>
             <select class="unidex-filter-select" aria-label="Entries sort" onchange="window.UnidexView.setEntriesSortBy(this.value)">
                 <option value="none" ${sortBy === 'none' ? 'selected' : ''}>Sort: Default</option>

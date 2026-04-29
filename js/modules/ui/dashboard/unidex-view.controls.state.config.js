@@ -86,6 +86,22 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             return 'all';
         }
 
+        function getEntriesGroupMode() {
+            const mode = String(getConfigState().unidexEntriesGroupMode || 'flat').trim().toLowerCase();
+            return mode === 'identifiers' ? 'identifiers' : 'flat';
+        }
+
+        function setEntriesGroupMode(mode) {
+            const nextMode = String(mode || '').trim().toLowerCase() === 'identifiers'
+                ? 'identifiers'
+                : 'flat';
+            const currentConfig = getConfigState();
+            if (String(currentConfig.unidexEntriesGroupMode || 'flat') === nextMode) return;
+            currentConfig.unidexEntriesGroupMode = nextMode;
+            persistConfig();
+            requestRender();
+        }
+
         function setEntriesFilter(mode) {
             const nextMode = String(mode || '') === 'linked'
                 ? 'linked'
@@ -190,6 +206,8 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             setTabsUnifiedMode,
             setTabsUnified,
             getEntriesFilterMode,
+            getEntriesGroupMode,
+            setEntriesGroupMode,
             setEntriesFilter,
             getEntriesSortBy,
             getEntriesSortOrder,

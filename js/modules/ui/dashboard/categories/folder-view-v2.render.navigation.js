@@ -31,11 +31,19 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         const progressiveEnabled = typeof window.isCardBookmarkProgressiveRevealEnabled === 'function'
             ? window.isCardBookmarkProgressiveRevealEnabled(resolvedWorkspaceId, resolvedCategoryName)
             : true;
+        const baseRenderCap = window._evePerfMode ? 20 : 50;
         const renderCap = progressiveEnabled
-            ? (window._evePerfMode ? 20 : 50)
+            ? baseRenderCap
             : Number.MAX_SAFE_INTEGER;
 
-        return function renderRootLinkCollection(rootLinks) {
+        return function renderRootLinkCollection(rootLinks, renderContext) {
+            const folderId = String(renderContext?.folderId || '').trim();
+            const collectionProgressiveEnabled = folderId && typeof window.isFolderBookmarkProgressiveRevealEnabled === 'function'
+                ? !!window.isFolderBookmarkProgressiveRevealEnabled(resolvedWorkspaceId, resolvedCategoryName, folderId)
+                : progressiveEnabled;
+            const collectionRenderCap = collectionProgressiveEnabled
+                ? baseRenderCap
+                : Number.MAX_SAFE_INTEGER;
             let linksForRender = Array.isArray(rootLinks) ? rootLinks.slice() : [];
             const customOrderEnabled = !window._evePerfMode && customOrderApi
                 ? !!customOrderApi.isEnabled(resolvedWorkspaceId, resolvedCategoryName)
@@ -59,7 +67,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                 linksForRender = trueValueApi.applySorting(linksForRender, trueValueData, currentSortMode);
             }
 
-            const cappedLinks = linksForRender.slice(0, renderCap);
+            const cappedLinks = linksForRender.slice(0, collectionRenderCap);
             const flatHtml = cappedLinks.map(function (link) {
                 if (typeof window.DashboardCategories?.buildLinkHtml === 'function') {
                     return window.DashboardCategories.buildLinkHtml(link, '', resolvedWorkspaceId, workspaces, {
@@ -82,15 +90,16 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
 
             let showMoreHtml = '';
             if (
-                progressiveEnabled
-                && linksForRender.length > renderCap
+                collectionProgressiveEnabled
+                && linksForRender.length > collectionRenderCap
                 && typeof window.DashboardCategories?._builderCard?.buildShowMoreButton === 'function'
             ) {
                 showMoreHtml = window.DashboardCategories._builderCard.buildShowMoreButton(
                     resolvedCategoryName,
                     linksForRender,
-                    renderCap,
-                    false
+                    collectionRenderCap,
+                    false,
+                    folderId ? ('folder_' + folderId) : 'root'
                 );
             }
 
@@ -287,7 +296,14 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
             const coEnabled = customOrderApi ? customOrderApi.isEnabled(resolvedWorkspaceId, resolvedCategoryName) : false;
             const tvData = tvEnabled ? tvApi.computeTrueValues(folderItems, resolvedWorkspaceId, resolvedCategoryName) : null;
 
-            const FOLDER_ITEM_CAP = window._evePerfMode ? 50 : folderItems.length;
+            const folderProgressiveEnabled = typeof window.isFolderBookmarkProgressiveRevealEnabled === 'function'
+                ? !!window.isFolderBookmarkProgressiveRevealEnabled(resolvedWorkspaceId, resolvedCategoryName, folderId)
+                : (typeof window.isCardBookmarkProgressiveRevealEnabled === 'function'
+                    ? !!window.isCardBookmarkProgressiveRevealEnabled(resolvedWorkspaceId, resolvedCategoryName)
+                    : true);
+            const FOLDER_ITEM_CAP = folderProgressiveEnabled
+                ? (window._evePerfMode ? 20 : 50)
+                : Number.MAX_SAFE_INTEGER;
             const cappedItems = folderItems.slice(0, FOLDER_ITEM_CAP);
 
             const flatHtml = cappedItems.map((link) => {
@@ -308,7 +324,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
             }).join('');
 
             let showMoreHtml = '';
-            if (folderItems.length > FOLDER_ITEM_CAP) {
+            if (folderProgressiveEnabled && folderItems.length > FOLDER_ITEM_CAP) {
                 const remaining = folderItems.length - FOLDER_ITEM_CAP;
                 const btnId = 'showMore_folder_' + String(folderId || '').replace(/[^a-zA-Z0-9]/g, '_');
                 if (!window._eveProgressiveLinks) window._eveProgressiveLinks = {};

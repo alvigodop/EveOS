@@ -4,7 +4,8 @@
         escapeCategorySettingsHtml,
         getFolderApi,
         getPinApi,
-        getClickBehaviorApi
+        getClickBehaviorApi,
+        getBookmarkProgressiveRevealApi
     } = core;
 
     const mod = window.EveCategorySettingsFolders = window.EveCategorySettingsFolders || {};
@@ -34,6 +35,7 @@
         const clickApi = getClickBehaviorApi();
         const folderApi = getFolderApi();
         const pinApi = getPinApi();
+        const progressiveApi = getBookmarkProgressiveRevealApi();
         const linkById = new Map((Array.isArray(scopedLinks) ? scopedLinks : []).map((link) => [String(link?.id || '').trim(), link]));
         const cardPins = Array.isArray(pinApi?.getPins?.())
             ? pinApi.getPins().filter((pin) => {
@@ -102,6 +104,11 @@
         return {
             clickModeOptions: clickApi?.getModeOptions?.() || [{ value: 'inherit', label: 'Inherit Current Behavior' }],
             taskModeOptions: folderApi?.getTaskModeOptions?.() || [{ value: 'inherit', label: 'Inherit Card Task Mode' }],
+            progressiveModeOptions: progressiveApi?.getFolderBookmarkProgressiveRevealOptions?.() || [
+                { value: 'inherit', label: 'Inherit Card Display' },
+                { value: 'on', label: 'Use Show More' },
+                { value: 'off', label: 'Render All Bookmarks' }
+            ],
             pinScopeOptions: pinApi?.getTargetVisibilityScopeOptions?.() || [{ value: 'tab', label: 'This Tab' }],
             cardPinnedBookmarkCount,
             subtreePinnedBookmarkCounts,
@@ -111,6 +118,16 @@
             },
             getTaskModeHint(mode) {
                 return folderApi?.describeTaskMode ? folderApi.describeTaskMode(mode) : '';
+            },
+            getProgressiveMode(folderId) {
+                return progressiveApi?.getFolderBookmarkProgressiveRevealMode
+                    ? progressiveApi.getFolderBookmarkProgressiveRevealMode(workspaceId, categoryName, folderId)
+                    : 'inherit';
+            },
+            getProgressiveModeHint(mode) {
+                return progressiveApi?.describeFolderBookmarkProgressiveRevealMode
+                    ? progressiveApi.describeFolderBookmarkProgressiveRevealMode(mode)
+                    : 'This folder follows the card-level bookmark display setting.';
             },
             getPinScopeHint(scopeType, isPinned) {
                 if (!isPinned) return 'Pin this folder to control where its dock shortcut appears.';

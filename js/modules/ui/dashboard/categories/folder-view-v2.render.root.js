@@ -77,7 +77,11 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
             html += '<div class="manhwa-divider">ROOT ITEMS</div>';
         }
         if (rootLinks.length > 0) {
-            html += `<div style="padding-top: 4px;">${defaultRenderer(rootLinks)}${buildSectionStats(rootLinks)}</div>`;
+            html += `<div style="padding-top: 4px;">${defaultRenderer(rootLinks, {
+                workspaceId: workspaceId,
+                categoryName: categoryName,
+                folderId: ''
+            })}${buildSectionStats(rootLinks)}</div>`;
         }
         if (topLevelFolders.length === 0 && rootLinks.length === 0) {
             html += `<div style="padding: 20px; text-align: center; color: rgba(128,128,128,0.5); font-family: 'Share Tech Mono', monospace; font-size: 11px;">EMPTY SECTOR</div>`;

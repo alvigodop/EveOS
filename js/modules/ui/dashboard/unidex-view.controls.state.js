@@ -33,6 +33,8 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             setTabsUnifiedMode: configHelpers.setTabsUnifiedMode,
             setTabsUnified: configHelpers.setTabsUnified,
             getEntriesFilterMode: configHelpers.getEntriesFilterMode,
+            getEntriesGroupMode: configHelpers.getEntriesGroupMode,
+            setEntriesGroupMode: configHelpers.setEntriesGroupMode,
             setEntriesFilter: configHelpers.setEntriesFilter,
             getEntriesSortBy: configHelpers.getEntriesSortBy,
             getEntriesSortOrder: configHelpers.getEntriesSortOrder,

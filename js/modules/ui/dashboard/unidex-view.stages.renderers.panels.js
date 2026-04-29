@@ -26,6 +26,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
         const getCardsUnifiedMode = deps?.getCardsUnifiedMode;
         const getTabsUnifiedMode = deps?.getTabsUnifiedMode;
         const getEntriesFilterMode = deps?.getEntriesFilterMode;
+        const getEntriesGroupMode = deps?.getEntriesGroupMode || (() => 'flat');
         const applyEntriesViewTransforms = deps?.applyEntriesViewTransforms;
         const buildEntriesControlsHtml = deps?.buildEntriesControlsHtml;
         const mapButtonHtml = '<button type="button" class="unidex-layout-btn unidex-map-btn" onclick="window.UnidexView.openConstellationMap()" title="Open Constellation Map for this layer">Map</button>';
@@ -106,6 +107,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 <section class="unidex-entries ${layoutMode === 'grid' ? 'is-grid-layout' : 'is-row-layout'}" aria-label="Unified entries across all tabs">
                     ${buildEntriesHtml(filteredEntries, false, layoutMode, {
                         includeCategoryTag: true,
+                        groupMode: getEntriesGroupMode(),
                         resolveTaskMode: function (link) {
                             return isTaskModeCategory(link.workspace || 'main', link.category || 'Unsorted');
                         },
@@ -242,6 +244,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 <section class="unidex-entries ${layoutMode === 'grid' ? 'is-grid-layout' : 'is-row-layout'}" aria-label="Unified bookmark and library entries">
                     ${buildEntriesHtml(filteredEntries, false, layoutMode, {
                         includeCategoryTag: true,
+                        groupMode: getEntriesGroupMode(),
                         resolveTaskMode: function (link) {
                             return isTaskModeCategory(link.workspace || 'main', link.category || 'Unsorted');
                         }

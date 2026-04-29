@@ -15,6 +15,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
         const buildEntriesHtml = deps?.buildEntriesHtml;
         const getEntriesLayoutMode = deps?.getEntriesLayoutMode;
         const getEntriesFilterMode = deps?.getEntriesFilterMode;
+        const getEntriesGroupMode = deps?.getEntriesGroupMode || (() => 'flat');
         const applyEntriesViewTransforms = deps?.applyEntriesViewTransforms;
         const buildEntriesControlsHtml = deps?.buildEntriesControlsHtml;
 
@@ -75,7 +76,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                     </div>
                 </header>
                 <section class="unidex-entries ${layoutMode === 'grid' ? 'is-grid-layout' : 'is-row-layout'}" aria-label="Bookmark and Library Entries">
-                    ${buildEntriesHtml(filteredEntries, taskMode, layoutMode)}
+                    ${buildEntriesHtml(filteredEntries, taskMode, layoutMode, { groupMode: getEntriesGroupMode() })}
                 </section>
             </section>
         `;

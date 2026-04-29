@@ -129,6 +129,31 @@
 
     };
 
+    window.saveFolderBookmarkProgressiveRevealSetting = function (categoryName, folderId, mode) {
+
+        const progressiveApi = getBookmarkProgressiveRevealApi();
+
+        if (!progressiveApi?.setFolderBookmarkProgressiveRevealMode) return;
+
+        const workspaceId = getCategorySettingsWorkspaceId();
+
+        const resolvedCategory = String(categoryName || window.currentCategoryCtx || 'Unsorted').trim() || 'Unsorted';
+
+        const nextMode = progressiveApi.setFolderBookmarkProgressiveRevealMode(workspaceId, resolvedCategory, folderId, mode);
+
+        window.renderCategoryFolderManager();
+
+        showToast(
+            nextMode === 'on'
+                ? 'Folder bookmark reveal limit enabled'
+                : nextMode === 'off'
+                    ? 'Folder bookmark reveal limit disabled'
+                    : 'Folder bookmark display set to inherit',
+            'success'
+        );
+
+    };
+
 
 
     window.toggleCategoryCardPin = function () {

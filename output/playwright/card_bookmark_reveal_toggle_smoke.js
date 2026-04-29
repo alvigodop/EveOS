@@ -22,6 +22,8 @@ function assert(condition, message) {
       ? links
       : (Array.isArray(window.eveState?.links) ? window.eveState.links : []);
     const workspaceId = String(window.eveState?.config?.activeWorkspace || 'main');
+    if (window.eveState?.config) window.eveState.config.viewMode = 'dashboard';
+    if (typeof config !== 'undefined' && config) config.viewMode = 'dashboard';
 
     for (let index = 0; index < 60; index += 1) {
       rawLinks.push({
@@ -35,11 +37,21 @@ function assert(condition, message) {
       });
     }
 
-    if (!Array.isArray(window.eveState.config.categoryOrder)) {
+    if (window.EveCategoryOrder?.ensureCategory) {
+      window.EveCategoryOrder.ensureCategory(workspaceId, targetCategory);
+    } else if (!Array.isArray(window.eveState.config.categoryOrder)) {
       window.eveState.config.categoryOrder = [];
     }
-    if (!window.eveState.config.categoryOrder.includes(targetCategory)) {
+    if (!window.EveCategoryOrder?.ensureCategory && !window.eveState.config.categoryOrder.includes(targetCategory)) {
       window.eveState.config.categoryOrder.push(targetCategory);
+    }
+
+    const indexApi = window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index;
+    if (indexApi?.markDirty) {
+      indexApi.markDirty('card-bookmark-reveal-toggle-smoke', { workspaceId, categoryName: targetCategory });
+    }
+    if (indexApi?.ensureFresh) {
+      await indexApi.ensureFresh({ reason: 'card-bookmark-reveal-toggle-smoke', force: true });
     }
 
     if (typeof window.renderDashboard === 'function') {

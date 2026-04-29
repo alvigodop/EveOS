@@ -10,6 +10,7 @@ window.DashboardCategories = window.DashboardCategories || {};
         buildScopedCategoryKey,
         getCardHeaderButtonsForCategory,
         isCardBookmarkProgressiveRevealEnabled,
+        isFolderBookmarkProgressiveRevealEnabled,
         buildFolderSectionsHtml
     } = api;
     var cardSummaryWarmPromise = null;
@@ -152,6 +153,7 @@ window.DashboardCategories = window.DashboardCategories || {};
         var progressiveBookmarkRevealEnabled = typeof isCardBookmarkProgressiveRevealEnabled === 'function'
             ? isCardBookmarkProgressiveRevealEnabled(activeWorkspaceId, cat)
             : true;
+        var progressiveBookmarkRenderCap = window._evePerfMode ? 20 : 50;
         var customOrderEnabled = !isMegaCard && customOrderApi ? customOrderApi.isEnabled(activeWorkspaceId, cat) : false;
         if (customOrderEnabled) {
             card.classList.add('custom-order');
@@ -223,13 +225,26 @@ window.DashboardCategories = window.DashboardCategories || {};
             if (typeof drop === 'function') drop(event, cat);
         };
 
-        var RENDER_CAP = progressiveBookmarkRevealEnabled
-            ? (window._evePerfMode ? 20 : 50)
-            : Number.MAX_SAFE_INTEGER;
+        function resolveProgressiveRevealForCollection(renderContext) {
+            var context = renderContext && typeof renderContext === 'object' ? renderContext : {};
+            var folderId = String(context.folderId || '').trim();
+            if (folderId && typeof isFolderBookmarkProgressiveRevealEnabled === 'function') {
+                return !!isFolderBookmarkProgressiveRevealEnabled(activeWorkspaceId, cat, folderId);
+            }
+            return progressiveBookmarkRevealEnabled;
+        }
 
-        function renderLinkCollection(linksForRender) {
+        function renderLinkCollection(linksForRender, renderContext) {
+            var context = renderContext && typeof renderContext === 'object' ? renderContext : {};
+            var showMoreScope = String(context.folderId || '').trim()
+                ? 'folder_' + String(context.folderId || '').trim()
+                : (Object.prototype.hasOwnProperty.call(context, 'folderId') ? 'root' : 'card');
+            var collectionProgressiveRevealEnabled = resolveProgressiveRevealForCollection(renderContext);
+            var renderCap = collectionProgressiveRevealEnabled
+                ? progressiveBookmarkRenderCap
+                : Number.MAX_SAFE_INTEGER;
             if (isFocusMode && typeof window.DashboardCategories.buildFocusedLinkHtml === 'function') {
-                var cappedFocusLinks = linksForRender.slice(0, RENDER_CAP);
+                var cappedFocusLinks = linksForRender.slice(0, renderCap);
                 var focusedHtml = cappedFocusLinks.map(function (link) {
                     return window.DashboardCategories.buildFocusedLinkHtml(link, {
                         taskMode: isTaskEnabledForLink(link),
@@ -245,8 +260,8 @@ window.DashboardCategories = window.DashboardCategories || {};
                         + '</div>';
                 }
 
-                if (progressiveBookmarkRevealEnabled && linksForRender.length > RENDER_CAP) {
-                    focusedHtml += api.buildShowMoreButton(cat, linksForRender, RENDER_CAP, true);
+                if (collectionProgressiveRevealEnabled && linksForRender.length > renderCap) {
+                    focusedHtml += api.buildShowMoreButton(cat, linksForRender, renderCap, true, showMoreScope);
                 }
                 return '<section class="unidex-entries is-row-layout focused-category-entries" aria-label="' + safeCatHtml + ' bookmarks">' + focusedHtml + '</section>';
             }
@@ -267,7 +282,7 @@ window.DashboardCategories = window.DashboardCategories || {};
                 trueValueData = sectionTrueValueData;
             }
 
-            var cappedLinks = linksForRender.slice(0, RENDER_CAP);
+            var cappedLinks = linksForRender.slice(0, renderCap);
             var dashboardWorkspaceId = options._parentDashboardWorkspace || options.activeWorkspace;
             var cardRenderWorkspaceId = String(cardWorkspaceId || options.activeWorkspace || '').trim() || 'main';
             var suppressCardWorkspaceSubtabBadge = false;
@@ -304,8 +319,8 @@ window.DashboardCategories = window.DashboardCategories || {};
                 });
             }).join('');
 
-            if (progressiveBookmarkRevealEnabled && linksForRender.length > RENDER_CAP) {
-                flatHtml += api.buildShowMoreButton(cat, linksForRender, RENDER_CAP, false);
+            if (collectionProgressiveRevealEnabled && linksForRender.length > renderCap) {
+                flatHtml += api.buildShowMoreButton(cat, linksForRender, renderCap, false, showMoreScope);
             }
 
             return '<ul class="' + (options.scrollableCategories ? 'category-scrollable' : '') + '">' + flatHtml + '</ul>';
