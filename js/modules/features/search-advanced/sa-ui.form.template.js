@@ -194,6 +194,7 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
                 <div class="nx-actions">
                     <button class="nx-btn nx-btn-primary" id="esRunBtn">⚔ Search</button>
                     <button class="nx-btn nx-btn-secondary" id="esClearBtn">↺ Clear</button>
+                    <button type="button" class="nx-btn nx-btn-secondary" id="nxDatapackViewBtn" title="Open scoped datapack macro state">View State</button>
                 </div>
 
                 <!-- Debug Diagnostics (Collapsible) -->

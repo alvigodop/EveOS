@@ -27,6 +27,12 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
                 : null;
             if (runBtn) runBtn.onclick = onRunSearch;
             if (clearBtn) clearBtn.onclick = onClearFilters;
+            const datapackViewBtn = fields.byId?.('nxDatapackViewBtn');
+            if (datapackViewBtn) {
+                datapackViewBtn.onclick = function () {
+                    window.EveOS?.SearchAdvanced?.DatapackView?.openGateway?.();
+                };
+            }
             if (queryInput) {
                 typeahead?.bind(queryInput, fields.byId?.('nxTypeahead'), fields.byId?.('nxInlineQuery'));
                 queryInput.addEventListener('keypress', function (event) {

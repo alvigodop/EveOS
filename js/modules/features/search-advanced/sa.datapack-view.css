@@ -1,0 +1,241 @@
+.nx-dv-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 16px;
+    color: var(--text-main, #f5f7fb);
+}
+
+.nx-dv-head,
+.nx-dv-card-foot,
+.nx-dv-micro-head,
+.nx-dv-micro-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.nx-dv-kicker,
+.nx-dv-section-title {
+    color: var(--text-muted, rgba(210, 224, 242, 0.68));
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.nx-dv-head h3,
+.nx-dv-micro-head h3 {
+    margin: 2px 0 0;
+    font-size: 1.08rem;
+}
+
+.nx-dv-actions,
+.nx-dv-card-stats,
+.nx-dv-summary {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.nx-dv-summary span,
+.nx-dv-card-stats span,
+.nx-dv-bookmark-meta span,
+.nx-dv-bookmark-meta small {
+    padding: 4px 8px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.035);
+    color: var(--text-muted, rgba(210, 224, 242, 0.72));
+    font-size: 0.72rem;
+}
+
+.nx-dv-btn,
+.nx-dv-close {
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.045);
+    color: var(--text-main, #f5f7fb);
+    cursor: pointer;
+    padding: 7px 11px;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.nx-dv-primary {
+    border-color: color-mix(in srgb, var(--accent, #00d4ff) 54%, rgba(255, 255, 255, 0.16));
+    background: color-mix(in srgb, var(--accent, #00d4ff) 20%, rgba(255, 255, 255, 0.045));
+}
+
+.nx-dv-btn:hover,
+.nx-dv-close:hover,
+.nx-dv-ref:hover {
+    border-color: color-mix(in srgb, var(--accent, #00d4ff) 48%, rgba(255, 255, 255, 0.14));
+    background: color-mix(in srgb, var(--accent, #00d4ff) 10%, rgba(255, 255, 255, 0.045));
+}
+
+.nx-dv-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.nx-dv-ref-grid,
+.nx-dv-card-list,
+.nx-dv-folder-list,
+.nx-dv-bookmark-list {
+    display: grid;
+    gap: 9px;
+}
+
+.nx-dv-ref-grid {
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+
+.nx-dv-ref,
+.nx-dv-card,
+.nx-dv-folder-row,
+.nx-dv-bookmark-row,
+.nx-dv-empty,
+.nx-dv-json {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.nx-dv-ref {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px;
+    color: inherit;
+    cursor: pointer;
+    text-align: left;
+}
+
+.nx-dv-ref span,
+.nx-dv-ref small,
+.nx-dv-card-foot span,
+.nx-dv-folder-row span,
+.nx-dv-folder-row small {
+    color: var(--text-muted, rgba(210, 224, 242, 0.68));
+    font-size: 0.74rem;
+}
+
+.nx-dv-card {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    padding: 11px;
+}
+
+.nx-dv-card-main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 86px;
+    gap: 9px;
+}
+
+.nx-dv-card label,
+.nx-dv-bookmark-row label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    color: var(--text-muted, rgba(210, 224, 242, 0.68));
+    font-size: 0.72rem;
+}
+
+.nx-dv-card input,
+.nx-dv-bookmark-row input {
+    min-width: 0;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.18);
+    color: var(--text-main, #f5f7fb);
+    padding: 8px 9px;
+}
+
+.nx-dv-json {
+    padding: 10px;
+}
+
+.nx-dv-json pre {
+    max-height: 340px;
+    overflow: auto;
+    margin: 10px 0 0;
+    color: rgba(222, 235, 250, 0.86);
+    font-size: 0.76rem;
+    white-space: pre-wrap;
+}
+
+.nx-dv-empty {
+    padding: 12px;
+    color: var(--text-muted, rgba(210, 224, 242, 0.68));
+    text-align: center;
+}
+
+.nx-dv-micro-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10020;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(0, 0, 0, 0.58);
+    backdrop-filter: blur(8px);
+}
+
+.nx-dv-micro {
+    width: min(900px, calc(100vw - 32px));
+    max-height: min(780px, calc(100vh - 32px));
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+    border: 1px solid color-mix(in srgb, var(--accent, #00d4ff) 24%, rgba(255, 255, 255, 0.12));
+    border-radius: 18px;
+    background:
+        radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--accent, #00d4ff) 10%, transparent), transparent 32%),
+        color-mix(in srgb, var(--card-bg, #1f1f1f) 94%, rgba(0, 0, 0, 0.2));
+    color: var(--text-main, #f5f7fb);
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.42);
+}
+
+.nx-dv-micro-body {
+    display: grid;
+    grid-template-columns: minmax(180px, 0.45fr) minmax(0, 1fr);
+    gap: 12px;
+    min-height: 0;
+    overflow: auto;
+}
+
+.nx-dv-micro-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+}
+
+.nx-dv-folder-row,
+.nx-dv-bookmark-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px;
+}
+
+.nx-dv-bookmark-meta {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+@media (max-width: 760px) {
+    .nx-dv-card-main,
+    .nx-dv-micro-body {
+        grid-template-columns: 1fr;
+    }
+}
