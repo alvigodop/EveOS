@@ -8,6 +8,7 @@
     Object.assign(ns, {
         getActiveDockPins: runtime.getActiveDockPins,
         activatePin: runtime.activatePin,
+        revealBookmarkInCard: runtime.revealBookmarkInCard,
         removePin: runtime.removePin,
         movePin: runtime.movePin,
         filterPinsForWorkspace: runtime.filterPinsForWorkspace,

@@ -10,6 +10,7 @@
         getPins,
         getConfig,
         getLinkById,
+        getTargetContext,
         toId,
         normalizeWorkspaceId,
         normalizeCategoryName,
@@ -47,6 +48,114 @@
             window.openBookmarkFocusModal(link.id);
         }
         return true;
+    }
+
+    function ensureGridMode() {
+        const currentConfig = getConfig();
+        if (!currentConfig || currentConfig.viewMode === 'grid') return;
+        currentConfig.viewMode = 'grid';
+        if (typeof saveConfig === 'function') saveConfig();
+    }
+
+    function findBookmarkNode(linkId) {
+        const targetId = toId(linkId);
+        if (!targetId) return null;
+        const dataNode = Array.from(document.querySelectorAll('[data-link-id]')).find((node) => (
+            toId(node.getAttribute('data-link-id')) === targetId
+        ));
+        if (dataNode) return dataNode;
+        const bulkNode = Array.from(document.querySelectorAll('.bulk-check[data-bulk-id]')).find((node) => (
+            toId(node.getAttribute('data-bulk-id')) === targetId
+        ));
+        return bulkNode ? bulkNode.closest('li') : null;
+    }
+
+    function ensureBookmarkRendered(linkId) {
+        if (findBookmarkNode(linkId)) return true;
+        const targetId = toId(linkId);
+        const progressiveStore = window._eveProgressiveLinks || {};
+        if (!targetId || typeof window._eveLoadMoreLinks !== 'function') return false;
+
+        for (let attempt = 0; attempt < 30; attempt += 1) {
+            const entry = Object.entries(progressiveStore).find(([buttonId, store]) => {
+                if (!document.getElementById(buttonId)) return false;
+                const links = Array.isArray(store?.links) ? store.links : [];
+                return links.some((link) => toId(link?.id) === targetId);
+            });
+            if (!entry) return false;
+            window._eveLoadMoreLinks(entry[0]);
+            if (findBookmarkNode(targetId)) return true;
+        }
+        return !!findBookmarkNode(targetId);
+    }
+
+    function highlightBookmarkNode(linkId) {
+        ensureBookmarkRendered(linkId);
+        const node = findBookmarkNode(linkId);
+        if (!node) return false;
+
+        document.querySelectorAll('.quick-pin-reveal-target').forEach((entry) => {
+            entry.classList.remove('quick-pin-reveal-target');
+            delete entry.dataset.quickPinRevealToken;
+        });
+        const revealToken = String(Date.now());
+        node.dataset.quickPinRevealToken = revealToken;
+        node.classList.add('quick-pin-reveal-target');
+        if (typeof window.markDashboardProgrammaticScrollWindow === 'function') {
+            window.markDashboardProgrammaticScrollWindow(220);
+        }
+        if (node.scrollIntoView) {
+            node.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+        }
+        window.setTimeout(function () {
+            if (node.dataset.quickPinRevealToken !== revealToken) return;
+            node.classList.remove('quick-pin-reveal-target');
+            delete node.dataset.quickPinRevealToken;
+        }, 4200);
+        return true;
+    }
+
+    function revealBookmarkInCard(pinOrId) {
+        const targetPin = (pinOrId && typeof pinOrId === 'object')
+            ? pinOrId
+            : getPins().find((pin) => toId(pin.id) === toId(pinOrId) || toId(pin.targetId) === toId(pinOrId));
+        const targetId = toId(targetPin?.targetId || pinOrId);
+        const link = getLinkById(targetId);
+        if (!link) return false;
+
+        const context = getTargetContext(targetPin) || {
+            workspaceId: normalizeWorkspaceId(link.workspace),
+            categoryName: normalizeCategoryName(link.category),
+            folderId: toId(link.folderId)
+        };
+        if (!context?.workspaceId || !context?.categoryName) return false;
+
+        ensureGridMode();
+        return activateCardTarget(context.workspaceId, context.categoryName, function () {
+            const linkId = toId(link.id || targetId);
+            window.setTimeout(function () {
+                if (context.folderId && window.EveFolderViewV2?.enterFolder) {
+                    window.EveFolderViewV2.enterFolder(null, context.categoryName, context.folderId, context.workspaceId, {
+                        preservePageScroll: false,
+                        source: 'quick-pin-bookmark-reveal'
+                    });
+                    window.setTimeout(function () {
+                        highlightBookmarkNode(linkId);
+                    }, 80);
+                    return;
+                }
+
+                if (!context.folderId && window.EveFolderViewV2?.exitFolder) {
+                    const activeFolderKey = `${context.workspaceId}::${context.categoryName}`;
+                    if (getConfig()?.activeManhwaFolders?.[activeFolderKey]) {
+                        window.EveFolderViewV2.exitFolder(null, context.categoryName, context.workspaceId);
+                    }
+                }
+                window.setTimeout(function () {
+                    highlightBookmarkNode(linkId);
+                }, 40);
+            }, 40);
+        });
     }
 
     function activateCardTarget(workspaceId, categoryName, afterRender) {
@@ -100,6 +209,7 @@
 
     Object.assign(runtime, {
         activateBookmarkPin,
+        revealBookmarkInCard,
         activateCardTarget,
         activateFolderPin,
         activateCardPin,

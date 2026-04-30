@@ -156,8 +156,26 @@ window.renderDock = function (_visibleLinks, dockContainer, focusCategory) {
         title.textContent = String(pin.label || pin.targetId || 'Pinned');
 
         const badge = document.createElement('div');
-        badge.className = 'dock-badge';
+        const isBookmarkPin = pin.targetType === 'bookmark';
+        badge.className = `dock-badge${isBookmarkPin ? ' dock-badge--link-jump' : ''}`;
         badge.textContent = getTargetBadgeLabel(pin);
+        if (isBookmarkPin) {
+            badge.dataset.pinLinkAction = 'reveal';
+            badge.setAttribute('role', 'button');
+            badge.tabIndex = 0;
+            badge.title = 'Jump to this bookmark in its card';
+            const revealPinnedBookmark = function (event) {
+                event.preventDefault();
+                event.stopPropagation();
+                if (pinApi.revealBookmarkInCard?.(pin.id)) return;
+                pinApi._main?.revealBookmarkInCard?.(pin);
+            };
+            badge.addEventListener('click', revealPinnedBookmark);
+            badge.addEventListener('keydown', function (event) {
+                if (event.key !== 'Enter' && event.key !== ' ') return;
+                revealPinnedBookmark(event);
+            });
+        }
 
         item.appendChild(icon);
         item.appendChild(badge);

@@ -145,6 +145,27 @@ async function runQuickPinsSmoke(page) {
             throw new Error(`Card pin should be hidden until focus mode: ${JSON.stringify(normalDock)}`);
         }
 
+        const folderDockItem = Array.from(document.querySelectorAll('#dock-container .dock-item')).find((item) => (
+            item.querySelector('.dock-title')?.textContent?.trim() === 'Folder One'
+        ));
+        const folderLinkBadge = folderDockItem?.querySelector('.dock-badge--link-jump');
+        if (!folderLinkBadge) {
+            throw new Error('Expected pinned bookmark Link badge to expose reveal action');
+        }
+        if (getComputedStyle(folderLinkBadge).cursor !== 'pointer') {
+            throw new Error('Expected pinned bookmark Link badge to use pointer cursor');
+        }
+        folderLinkBadge.click();
+        await wait(850);
+        const activeFolderId = window.eveState?.config?.activeManhwaFolders?.['main::Reading'] || '';
+        const revealedFolderBookmark = document.querySelector('[data-link-id="folder-1"].quick-pin-reveal-target');
+        if (activeFolderId !== 'f-parent') {
+            throw new Error(`Expected Link badge to enter owning folder f-parent, got ${activeFolderId}`);
+        }
+        if (!revealedFolderBookmark) {
+            throw new Error('Expected Link badge to reveal and highlight folder bookmark');
+        }
+
         window.setFocus('Reading');
         await wait(400);
         const focusedDock = getDockLabels();
@@ -175,6 +196,7 @@ async function runQuickPinsSmoke(page) {
             readingScrollAfterPin,
             rootScope,
             folderScopeAfterContextChange: window.EveQuickPins.getBookmarkScopeType('folder-1'),
+            activeFolderIdAfterLinkBadge: activeFolderId,
             normalDock,
             focusedDock,
             afterMove

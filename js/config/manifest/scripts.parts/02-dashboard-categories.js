@@ -15,7 +15,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/ui/dashboard/categories/folder-view-v2.render.js?v=0.3.0",
     "js/modules/ui/dashboard/categories/folder-view-v2.js?v=0.3.0",
     "js/modules/ui/dashboard/categories/sorter.js?v=0.2.41",
-    "js/modules/ui/dashboard/categories/builder-link.js?v=0.2.50",
+    "js/modules/ui/dashboard/categories/builder-link.js?v=0.2.51",
     "js/modules/ui/dashboard/categories/focused-link.helpers.js?v=0.2.1",
     "js/modules/ui/dashboard/categories/focused-link.view.js?v=0.2.6",
     "js/modules/ui/dashboard/categories/focused-link.js?v=0.2.44",
