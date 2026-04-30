@@ -41,6 +41,10 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             const rowCoverHeight = Math.max(86, Math.round((isCompactViewport ? 132 : 156) * compactFactor));
             const rowImageHeight = Math.round(rowCoverHeight * 1.32);
             const rowImageOffset = Math.round((rowImageHeight - rowCoverHeight) / 2);
+            const gridCoverBaseHeight = normalizedDensity === 'atlas'
+                ? 144
+                : (normalizedDensity === 'compact' ? 176 : 218);
+            const gridCoverHeight = Math.max(128, Math.round(gridCoverBaseHeight * (isCompactViewport ? 0.86 : 1)));
 
             function getIdentifierIds(link) {
                 if (typeof window.EveBookmarkIdentifiers?.getIdentifiersForLink === 'function') {
@@ -187,13 +191,13 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 `
                     : '';
                 const visualButtonStyle = isGridLayout
-                    ? ' style="width:100% !important;min-width:0 !important;max-width:none !important;height:auto !important;min-height:0 !important;border:0 !important;background:transparent !important;overflow:visible !important;display:block !important;padding:0 !important;line-height:0 !important;"'
+                    ? ` style="width:100% !important;min-width:0 !important;max-width:none !important;height:${gridCoverHeight}px !important;min-height:${gridCoverHeight}px !important;border:1px solid rgba(255,255,255,0.16) !important;background:rgba(0,0,0,0.22) !important;overflow:hidden !important;display:block !important;padding:0 !important;line-height:0 !important;"`
                     : ` style="width:${rowCoverWidth}px !important;height:${rowCoverHeight}px !important;min-height:${rowCoverHeight}px !important;border:1px solid rgba(255,255,255,0.18) !important;background:rgba(0,0,0,0.22) !important;overflow:hidden !important;display:block !important;padding:0 !important;line-height:0 !important;"`;
                 const coverSlotStyle = isGridLayout
-                    ? ' style="width:100% !important;height:auto !important;min-height:0 !important;display:block !important;aspect-ratio:auto !important;border:0 !important;background:transparent !important;overflow:visible !important;"'
+                    ? ' style="width:100% !important;height:100% !important;min-height:100% !important;display:block !important;aspect-ratio:auto !important;border:0 !important;background:transparent !important;overflow:hidden !important;"'
                     : ` style="width:100% !important;height:100% !important;min-height:100% !important;display:block !important;border:0 !important;background:transparent !important;overflow:hidden !important;"`;
                 const coverImageStyle = isGridLayout
-                    ? ' style="display:block !important;width:100% !important;max-width:100% !important;height:auto !important;min-height:0 !important;max-height:none !important;margin:0 !important;object-fit:contain !important;object-position:center top !important;"'
+                    ? ' style="display:block !important;width:100% !important;max-width:100% !important;height:100% !important;min-height:100% !important;max-height:100% !important;margin:0 !important;object-fit:contain !important;object-position:center center !important;"'
                     : ` style="width:100% !important;max-width:100% !important;height:${rowImageHeight}px !important;min-height:0 !important;max-height:none !important;margin-left:0 !important;margin-top:-${rowImageOffset}px !important;object-fit:cover !important;object-position:center top !important;"`;
                 const visualHtml = safeCoverUrl
                     ? `

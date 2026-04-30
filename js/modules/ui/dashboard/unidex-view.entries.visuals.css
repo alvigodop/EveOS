@@ -1,12 +1,13 @@
-ï»¿.unidex-entries {
+.unidex-entries {
     display: grid !important;
     gap: 10px !important;
 }
 
 .unidex-entries.is-grid-layout {
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)) !important;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 260px)) !important;
     gap: 14px !important;
     align-items: start;
+    justify-content: center;
 }
 
 .unidex-entry-item {
@@ -241,12 +242,12 @@
 }
 
 .unidex-entries.is-grid-layout.is-density-compact {
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)) !important;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 220px)) !important;
     gap: 10px !important;
 }
 
 .unidex-entries.is-grid-layout.is-density-atlas {
-    grid-template-columns: repeat(auto-fill, minmax(218px, 1fr)) !important;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 180px)) !important;
     gap: 8px !important;
 }
 

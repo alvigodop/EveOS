@@ -107,9 +107,10 @@
 }
 
 .unidex-entries.is-grid-layout .unidex-identifier-group-body {
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(200px, 240px));
     gap: 14px;
     align-items: start;
+    justify-content: center;
 }
 
 .unidex-entry-library-wrap {
@@ -176,31 +177,46 @@
 .unidex-entries.is-grid-layout .unidex-entry-cover-slot {
     grid-area: cover;
     width: 100%;
-    height: auto !important;
-    min-height: 0 !important;
+    height: 218px !important;
+    min-height: 218px !important;
+    max-height: 218px !important;
     aspect-ratio: auto !important;
     display: block !important;
     border: 0 !important;
-    background: transparent !important;
-    overflow: visible !important;
+    background:
+        radial-gradient(circle at 50% 18%, rgba(0, 212, 255, 0.12), transparent 44%),
+        rgba(0, 0, 0, 0.18) !important;
+    overflow: hidden !important;
+    clip-path: inset(0 round 10px);
 }
 
 .unidex-entries.is-grid-layout .unidex-entry-visual-btn {
     width: 100%;
     min-width: 0;
     max-width: none;
+    height: 218px !important;
+    min-height: 218px !important;
+    max-height: 218px !important;
+    overflow: hidden !important;
+    clip-path: inset(0 round 10px);
 }
 
 .unidex-entries.is-grid-layout .unidex-entry-cover {
     width: 100% !important;
     max-width: 100% !important;
-    height: auto !important;
-    min-height: 0 !important;
-    max-height: none !important;
+    height: 100% !important;
+    min-height: 100% !important;
+    max-height: 100% !important;
     margin-top: 0 !important;
     object-fit: contain !important;
     object-position: center center !important;
     display: block !important;
+}
+
+.unidex-entries.is-grid-layout .unidex-entry-item.has-cover-image .unidex-entry-cover-slot:hover .unidex-entry-cover,
+.unidex-entries.is-grid-layout .unidex-entry-item.has-cover-image .unidex-entry-visual-btn:hover .unidex-entry-cover {
+    animation: none !important;
+    transform: none !important;
 }
 
 .unidex-entries.is-row-layout .unidex-entry-cover-slot {
@@ -238,6 +254,20 @@
     aspect-ratio: 4 / 3;
     height: auto;
     min-height: 0;
+}
+
+.unidex-entries.is-grid-layout .unidex-entry-item.is-density-compact .unidex-entry-visual-btn,
+.unidex-entries.is-grid-layout .unidex-entry-item.is-density-compact .unidex-entry-cover-slot {
+    height: 176px !important;
+    min-height: 176px !important;
+    max-height: 176px !important;
+}
+
+.unidex-entries.is-grid-layout .unidex-entry-item.is-density-atlas .unidex-entry-visual-btn,
+.unidex-entries.is-grid-layout .unidex-entry-item.is-density-atlas .unidex-entry-cover-slot {
+    height: 144px !important;
+    min-height: 144px !important;
+    max-height: 144px !important;
 }
 
 .unidex-entries.is-grid-layout .unidex-entry-item:hover {
