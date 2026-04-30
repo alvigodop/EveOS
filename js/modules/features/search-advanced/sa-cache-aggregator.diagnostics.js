@@ -33,7 +33,9 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             || (typeof config !== 'undefined' ? config.workspaces : null)
             || [];
         if (helpers?.flattenIds) {
-            return new Set(helpers.flattenIds(workspaces));
+            const helperIds = new Set(helpers.flattenIds(workspaces));
+            if (helperIds.size === 0) helperIds.add('main');
+            return helperIds;
         }
         const ids = new Set();
         function visit(items) {
@@ -45,7 +47,21 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             });
         }
         visit(workspaces);
+        if (ids.size === 0) ids.add('main');
         return ids;
+    }
+
+    function buildOrphanReport(knownIds, orphaned, orphanedByWorkspace, totalLinks, source) {
+        const ghostWorkspaces = Object.keys(orphanedByWorkspace || {}).sort();
+        return {
+            knownIds: Array.from(knownIds || []),
+            orphaned: orphaned,
+            orphanedByWorkspace: orphanedByWorkspace,
+            ghostWorkspaces: ghostWorkspaces,
+            totalOrphaned: orphaned.length,
+            totalLinks: totalLinks,
+            source: source
+        };
     }
 
     function detectOrphanedLinks() {
@@ -84,19 +100,19 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 if (!orphanedByWorkspace[workspaceId]) orphanedByWorkspace[workspaceId] = [];
                 orphanedByWorkspace[workspaceId].push(enriched);
             });
-            return {
-                knownIds: Array.from(knownIds),
-                orphaned: orphaned,
-                orphanedByWorkspace: orphanedByWorkspace,
-                totalLinks: snapshot.records.filter(function (record) { return String(record?.type || '') === 'bookmark'; }).length,
-                source: 'datapack-index'
-            };
+            return buildOrphanReport(
+                knownIds,
+                orphaned,
+                orphanedByWorkspace,
+                snapshot.records.filter(function (record) { return String(record?.type || '') === 'bookmark'; }).length,
+                'datapack-index'
+            );
         }
 
         const links = getLiveLinks();
         links.forEach(function (link, idx) {
             if (!link) return;
-            const wsId = String(link.workspace || 'main').trim();
+            const wsId = String(link.workspace || 'main').trim() || 'main';
             if (!knownIds.has(wsId)) {
                 const enriched = {
                     index: idx,
@@ -112,43 +128,30 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             }
         });
 
-        return {
-            knownIds: Array.from(knownIds),
-            orphaned: orphaned,
-            orphanedByWorkspace: orphanedByWorkspace,
-            totalLinks: links.length,
-            source: 'live-links'
-        };
+        return buildOrphanReport(knownIds, orphaned, orphanedByWorkspace, links.length, 'live-links');
     }
 
     function rescueOrphanedLinks() {
         const links = getLiveLinks();
-        const knownIds = getKnownWorkspaceIds();
-        const workspaces = (typeof config !== 'undefined' ? config.workspaces : null)
-            || window.eveState?.config?.workspaces
-            || [];
-        const main = workspaces[0]?.id || 'main';
-        const ghostIds = new Set();
+        const configObject = (typeof config !== 'undefined' ? config : null)
+            || window.eveState?.config
+            || null;
+        const report = detectOrphanedLinks();
+        const ghostIds = new Set((report.ghostWorkspaces || []).filter(Boolean));
         links.forEach(function (link) {
-            if (!link) return;
-            const wsId = String(link.workspace || 'main').trim();
-            if (!knownIds.has(wsId)) {
-                ghostIds.add(wsId);
-                link.workspace = main;
-                if (!link.category) link.category = 'Recovered';
+            if (link && ghostIds.has(String(link.workspace || 'main').trim()) && !link.category) {
+                link.category = 'Recovered';
             }
         });
         const restoredTabs = [];
         ghostIds.forEach(function (ghostId) {
             restoredTabs.push({ id: ghostId, name: `Recovered ${ghostId}`, icon: 'folder', subTabs: [] });
         });
-        if (restoredTabs.length && Array.isArray(config?.workspaces)) {
-            config.workspaces = config.workspaces.concat(restoredTabs);
-            links.forEach(function (link) {
-                if (link && ghostIds.has(String(link.workspace || 'main').trim())) {
-                    link.workspace = String(link.workspace || 'main').trim();
-                }
-            });
+        if (restoredTabs.length && Array.isArray(configObject?.workspaces)) {
+            const existing = new Set(getKnownWorkspaceIds());
+            configObject.workspaces = configObject.workspaces.concat(restoredTabs.filter(function (tab) {
+                return !existing.has(String(tab.id || '').trim());
+            }));
         }
         if (typeof window.setLiveLinks === 'function') {
             window.setLiveLinks(links);
@@ -168,7 +171,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         if (typeof renderDashboard === 'function') renderDashboard();
         return {
             restoredTabs: restoredTabs,
-            rescued: links.filter(function (l) { return l && ghostIds.has(String(l.workspace || 'main').trim()); }).length,
+            rescued: Number(report.totalOrphaned || 0),
             mode: restoredTabs.length ? 'restored-tabs' : 'none'
         };
     }

@@ -261,14 +261,21 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
             const textEl = byId('nxOrphanText');
             if (!banner) return;
 
-            if (!report || report.totalOrphaned === 0) {
+            const totalOrphaned = Number(report?.totalOrphaned || report?.orphaned?.length || 0);
+            const ghostWorkspaces = Array.isArray(report?.ghostWorkspaces)
+                ? report.ghostWorkspaces
+                : Object.keys(report?.orphanedByWorkspace || {});
+
+            if (!report || totalOrphaned <= 0 || ghostWorkspaces.length === 0) {
                 banner.style.display = 'none';
                 return;
             }
 
             banner.style.display = 'flex';
-            const ghostList = report.ghostWorkspaces.map(function (id) { return '"' + id + '"'; }).join(', ');
-            textEl.textContent = report.totalOrphaned + ' orphaned bookmarks from ' + report.ghostWorkspaces.length + ' deleted workspace(s): ' + ghostList;
+            const ghostList = ghostWorkspaces.map(function (id) { return '"' + id + '"'; }).join(', ');
+            if (textEl) {
+                textEl.textContent = totalOrphaned + ' orphaned bookmarks from ' + ghostWorkspaces.length + ' deleted workspace(s): ' + ghostList;
+            }
 
             // Bind View button
             const viewBtn = byId('nxOrphanViewBtn');
@@ -308,6 +315,13 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
         function renderOrphanList(report) {
             const resultsEl = byId('esResults');
             if (!resultsEl || !report) return;
+            const totalOrphaned = Number(report.totalOrphaned || report.orphaned?.length || 0);
+            const ghostWorkspaces = Array.isArray(report.ghostWorkspaces)
+                ? report.ghostWorkspaces
+                : Object.keys(report.orphanedByWorkspace || {});
+            report.totalOrphaned = totalOrphaned;
+            report.ghostWorkspaces = ghostWorkspaces;
+            report.orphanedByWorkspace = report.orphanedByWorkspace || {};
 
             let html = '<div class="nx-results-stats">⚠ ' + report.totalOrphaned + ' orphaned bookmarks from ' + report.ghostWorkspaces.length + ' ghost workspace(s)</div>';
 
