@@ -171,6 +171,39 @@
             } else if (action === 'reset-order') {
                 rt.resetManualSidebarOrder();
             }
+
+            var sidebarPreviewActive = !!(window.EveSidebarRuntime?.isHoverRevealActive
+                && window.EveSidebarRuntime.isHoverRevealActive());
+            if ((action === 'toggle-inactive' || action === 'toggle-hidden-groups')
+                && (actionBtn.matches(':hover') || sidebarPreviewActive)) {
+                window.setTimeout(function () {
+                    rt.beginSidebarHoverPreview(action);
+                    actionBtn.classList.add('is-hover-previewing');
+                }, 0);
+            }
+        });
+        rt.state.popoverEl.addEventListener('mouseover', function (e) {
+            var previewBtn = e.target.closest('[data-tab-nav-hover-preview]');
+            if (!previewBtn || !rt.state.popoverEl.contains(previewBtn)) return;
+            if (rt.state.hoverPreviewButton === previewBtn) return;
+
+            if (rt.state.hoverPreviewButton) {
+                rt.state.hoverPreviewButton.classList.remove('is-hover-previewing');
+            }
+            rt.state.hoverPreviewButton = previewBtn;
+            previewBtn.classList.add('is-hover-previewing');
+            rt.beginSidebarHoverPreview(previewBtn.getAttribute('data-tab-nav-action'));
+        });
+        rt.state.popoverEl.addEventListener('mouseout', function (e) {
+            var previewBtn = e.target.closest('[data-tab-nav-hover-preview]');
+            if (!previewBtn || !rt.state.popoverEl.contains(previewBtn)) return;
+            if (e.relatedTarget && previewBtn.contains(e.relatedTarget)) return;
+
+            previewBtn.classList.remove('is-hover-previewing');
+            if (rt.state.hoverPreviewButton === previewBtn) {
+                rt.state.hoverPreviewButton = null;
+            }
+            rt.endSidebarHoverPreview(700);
         });
         rt.state.popoverEl.addEventListener('mouseenter', function () {
             clearTimeout(rt.state.hideTimeout);

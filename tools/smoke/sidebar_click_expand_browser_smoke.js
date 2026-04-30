@@ -126,7 +126,7 @@ async function main() {
             throw new Error(`Expected branch expand to avoid prebuilding hidden preview host, got ${JSON.stringify(preHoverPreviewState)}`);
         }
 
-        await page.locator('#sidebar').click({ position: { x: 6, y: 6 } });
+        await page.locator('#sidebar').dblclick({ position: { x: 6, y: 6 } });
         await page.waitForFunction(() => {
             const sidebar = document.getElementById('sidebar');
             return !window.config?.sidebarExpanded && !sidebar?.classList.contains('is-expanded');
@@ -138,7 +138,7 @@ async function main() {
         }));
 
         if (collapsedState.expanded || collapsedState.hasExpandedClass) {
-            throw new Error(`Expected second shell click to collapse sidebar: ${JSON.stringify(collapsedState)}`);
+            throw new Error(`Expected second shell double-click to collapse sidebar: ${JSON.stringify(collapsedState)}`);
         }
 
         await page.waitForTimeout(600);

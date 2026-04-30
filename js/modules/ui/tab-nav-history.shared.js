@@ -267,6 +267,34 @@
         updatePopover();
     }
 
+    function getSidebarHoverPreviewOptions(action) {
+        var configRef = getConfigRef();
+        var normalizedAction = String(action || '').trim();
+        if (!configRef) return null;
+
+        if (normalizedAction === 'toggle-inactive') {
+            return { showInactiveTabs: !configRef.showInactiveTabs };
+        }
+        if (normalizedAction === 'toggle-hidden-groups') {
+            return { showHiddenGroups: !configRef.showHiddenSidebarGroups };
+        }
+        return null;
+    }
+
+    function beginSidebarHoverPreview(action) {
+        var options = getSidebarHoverPreviewOptions(action);
+        var sidebarRuntime = window.EveSidebarRuntime || null;
+        if (!options || !sidebarRuntime || typeof sidebarRuntime.activateHoverRevealPreview !== 'function') return false;
+        return sidebarRuntime.activateHoverRevealPreview(options);
+    }
+
+    function endSidebarHoverPreview(delayMs) {
+        var sidebarRuntime = window.EveSidebarRuntime || null;
+        if (!sidebarRuntime || typeof sidebarRuntime.queueHoverRevealDeactivation !== 'function') return false;
+        sidebarRuntime.queueHoverRevealDeactivation(Math.max(0, Number(delayMs || 0) || 650));
+        return true;
+    }
+
     function toggleSidebarOrderMode() {
         var configRef = getConfigRef();
         var groupsApi = getSidebarGroupsApi();
@@ -309,6 +337,8 @@
             inactiveBtn.innerHTML = configRef?.showInactiveTabs
                 ? '&#128065; Hide Inactive Tabs'
                 : '&#128065; Show Inactive Tabs';
+            inactiveBtn.setAttribute('data-tab-nav-hover-preview', 'inactive-tabs');
+            inactiveBtn.title = 'Hover previews this tab visibility state in the sidebar. Click keeps it.';
         }
 
         var datapackBadgesBtn = pop.querySelector('[data-tab-nav-action="toggle-datapack-badges"]');
@@ -323,6 +353,8 @@
             hiddenGroupsBtn.innerHTML = configRef?.showHiddenSidebarGroups
                 ? '&#128065; Hide Hidden Groups'
                 : '&#128065; Show Hidden Groups';
+            hiddenGroupsBtn.setAttribute('data-tab-nav-hover-preview', 'hidden-groups');
+            hiddenGroupsBtn.title = 'Hover previews this group visibility state in the sidebar. Click keeps it.';
         }
 
         if (groupsApi && configRef) {
@@ -448,6 +480,9 @@
         collapseAllGroups: collapseAllGroups,
         expandAllGroups: expandAllGroups,
         toggleShowHiddenGroups: toggleShowHiddenGroups,
+        getSidebarHoverPreviewOptions: getSidebarHoverPreviewOptions,
+        beginSidebarHoverPreview: beginSidebarHoverPreview,
+        endSidebarHoverPreview: endSidebarHoverPreview,
         toggleSidebarOrderMode: toggleSidebarOrderMode,
         resetManualSidebarOrder: resetManualSidebarOrder,
         updateSidebarActionLabels: updateSidebarActionLabels,

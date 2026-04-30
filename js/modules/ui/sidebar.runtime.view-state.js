@@ -8,8 +8,28 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
 
     var previewState = rt.previewState || (rt.previewState = {
         hoverRevealActive: false,
-        hideTimer: 0
+        hideTimer: 0,
+        hoverRevealPreviewOptions: null
     });
+
+    function normalizeHoverRevealOptions(options) {
+        var opts = options && typeof options === 'object' ? options : null;
+        var normalized = {};
+
+        if (opts && Object.prototype.hasOwnProperty.call(opts, 'showInactiveTabs')) {
+            normalized.showInactiveTabs = !!opts.showInactiveTabs;
+        }
+        if (opts && Object.prototype.hasOwnProperty.call(opts, 'showHiddenGroups')) {
+            normalized.showHiddenGroups = !!opts.showHiddenGroups;
+        }
+
+        if (!Object.keys(normalized).length) {
+            normalized.showInactiveTabs = true;
+            normalized.showHiddenGroups = true;
+        }
+
+        return normalized;
+    }
 
     function syncHoverRevealUiState() {
         var sb = document.getElementById('sidebar');
@@ -22,14 +42,22 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         if (previewButton) previewButton.classList.toggle('active', isActive);
     }
 
-    function setHoverRevealActive(nextValue) {
+    function setHoverRevealActive(nextValue, options) {
         previewState.hoverRevealActive = !!nextValue;
+        previewState.hoverRevealPreviewOptions = previewState.hoverRevealActive
+            ? normalizeHoverRevealOptions(options)
+            : null;
         syncHoverRevealUiState();
         return previewState.hoverRevealActive;
     }
 
     function isHoverRevealActive() {
         return !!previewState.hoverRevealActive;
+    }
+
+    function getHoverRevealPreviewOptions() {
+        if (!previewState.hoverRevealActive) return null;
+        return normalizeHoverRevealOptions(previewState.hoverRevealPreviewOptions);
     }
 
     function createSidebarElementRegistry() {
@@ -184,6 +212,7 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
     rt.syncHoverRevealUiState = syncHoverRevealUiState;
     rt.setHoverRevealActive = setHoverRevealActive;
     rt.isHoverRevealActive = isHoverRevealActive;
+    rt.getHoverRevealPreviewOptions = getHoverRevealPreviewOptions;
     rt.resetSidebarElementRegistry = resetSidebarElementRegistry;
     rt.registerWorkspaceItemElement = registerWorkspaceItemElement;
     rt.registerGroupSectionElement = registerGroupSectionElement;

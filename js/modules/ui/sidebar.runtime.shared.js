@@ -63,6 +63,9 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             groupsApi: groupsApi,
             hoverRevealOverride: typeof opts.hoverRevealOverride === 'boolean'
                 ? opts.hoverRevealOverride
+                : null,
+            hoverRevealOverrides: opts.hoverRevealOverrides && typeof opts.hoverRevealOverrides === 'object'
+                ? opts.hoverRevealOverrides
                 : null
         };
 
@@ -285,14 +288,21 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             return !!ws.inactive;
         };
 
-        ctx.shouldShowInactiveTabs = function () {
+        ctx.getHoverRevealOverrideValue = function (key, fallbackValue) {
+            if (ctx.hoverRevealOverrides
+                && Object.prototype.hasOwnProperty.call(ctx.hoverRevealOverrides, key)) {
+                return !!ctx.hoverRevealOverrides[key];
+            }
             if (ctx.hoverRevealOverride !== null) return ctx.hoverRevealOverride;
-            return !!config.showInactiveTabs || !!(rt.isHoverRevealActive && rt.isHoverRevealActive());
+            return !!fallbackValue;
+        };
+
+        ctx.shouldShowInactiveTabs = function () {
+            return ctx.getHoverRevealOverrideValue('showInactiveTabs', !!config.showInactiveTabs);
         };
 
         ctx.shouldShowHiddenGroups = function () {
-            if (ctx.hoverRevealOverride !== null) return ctx.hoverRevealOverride;
-            return !!config.showHiddenSidebarGroups || !!(rt.isHoverRevealActive && rt.isHoverRevealActive());
+            return ctx.getHoverRevealOverrideValue('showHiddenGroups', !!config.showHiddenSidebarGroups);
         };
 
         ctx.shouldShowDatapackBadges = function () {
@@ -391,7 +401,10 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         ctx.getVisibleParentEntries = function (parentWorkspaceId) {
             return ctx.getRawParentEntries(parentWorkspaceId, false).filter(function (entry) {
                 if (!entry) return false;
-                if (entry.kind === 'group') return ctx.shouldRenderGroup(entry.group, entry.workspaces);
+                if (entry.kind === 'group') {
+                    if (entry.group?.hidden && !ctx.shouldShowHiddenGroups()) return false;
+                    return ctx.shouldRenderGroup(entry.group, entry.workspaces);
+                }
                 return ctx.shouldRenderWorkspace(entry.workspace);
             });
         };

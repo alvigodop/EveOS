@@ -387,6 +387,30 @@
     transform: translateY(-1px);
 }
 
+.tab-nav-sidebar-tool-btn[data-tab-nav-hover-preview] {
+    position: relative;
+}
+
+.tab-nav-sidebar-tool-btn[data-tab-nav-hover-preview]::after {
+    content: "preview";
+    margin-left: auto;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: rgba(0, 212, 255, 0.1);
+    border: 1px solid rgba(0, 212, 255, 0.18);
+    color: rgba(149, 230, 255, 0.78);
+    font-size: 0.58rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.tab-nav-sidebar-tool-btn.is-hover-previewing {
+    background: color-mix(in srgb, var(--accent, #00d4ff) 24%, rgba(255, 255, 255, 0.08));
+    border-color: color-mix(in srgb, var(--accent, #00d4ff) 60%, rgba(255, 255, 255, 0.12));
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent, #00d4ff) 18%, transparent);
+    color: var(--accent, #00d4ff);
+}
+
 .tab-nav-sidebar-tool-btn:active {
     transform: scale(0.98);
 }

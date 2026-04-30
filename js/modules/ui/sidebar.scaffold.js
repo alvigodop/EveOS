@@ -71,16 +71,23 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         return addBtn;
     }
 
-    function queueHoverRevealDeactivation() {
+    function isHoverRevealHoldTargetActive() {
+        var sb = document.getElementById('sidebar');
+        if (sb && sb.matches && sb.matches(':hover')) return true;
+        if (document.querySelector('.tab-nav-popover [data-tab-nav-hover-preview]:hover')) return true;
+        if (document.querySelector('#sidebar .ws-hover-reveal:hover')) return true;
+        return false;
+    }
+
+    function queueHoverRevealDeactivation(delayMs) {
         var previewState = rt.previewState || (rt.previewState = {});
         window.clearTimeout(previewState.hideTimer || 0);
         previewState.hideTimer = window.setTimeout(function () {
-            var hoveredPreview = document.querySelector('#sidebar .ws-hover-reveal:hover');
-            if (hoveredPreview) return;
+            if (isHoverRevealHoldTargetActive()) return;
             if (!rt.isHoverRevealActive || !rt.isHoverRevealActive()) return;
             rt.setHoverRevealActive(false);
             syncHoverRevealContentVisibility();
-        }, 0);
+        }, Math.max(0, Number(delayMs || 0) || 0));
     }
 
     function getHoverRevealPreviewState() {
@@ -280,6 +287,9 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         var ctx = rt.createRenderContext(sb, {
             hoverRevealOverride: typeof opts.hoverRevealOverride === 'boolean'
                 ? opts.hoverRevealOverride
+                : null,
+            hoverRevealOverrides: opts.hoverRevealOverrides && typeof opts.hoverRevealOverrides === 'object'
+                ? opts.hoverRevealOverrides
                 : null
         });
 
@@ -308,8 +318,11 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         if (config.sidebarHidden) return false;
 
         var previewState = getHoverRevealPreviewState();
+        var hoverRevealOverrides = rt.getHoverRevealPreviewOptions
+            ? rt.getHoverRevealPreviewOptions()
+            : { showInactiveTabs: true, showHiddenGroups: true };
         renderSidebarContentHost(sb, scaffold.previewHost, {
-            hoverRevealOverride: true,
+            hoverRevealOverrides: hoverRevealOverrides || { showInactiveTabs: true, showHiddenGroups: true },
             resetRegistry: false,
             syncFocusedGroupState: false
         });
@@ -362,6 +375,21 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         syncHoverRevealContentVisibility(scaffold);
     }
 
+    function activateHoverRevealPreview(options) {
+        if (!rt.setHoverRevealActive) return false;
+        rt.setHoverRevealActive(true, options);
+
+        var sb = document.getElementById('sidebar');
+        if (!sb || config.sidebarHidden) return false;
+        var scaffold = ensureSidebarScaffold(sb);
+        var previewState = getHoverRevealPreviewState();
+        previewState.revealPreviewReady = false;
+        previewState.revealPreviewVersion = -1;
+        buildHoverRevealPreview(sb, scaffold);
+        syncHoverRevealContentVisibility(scaffold);
+        return true;
+    }
+
     function buildHoverRevealButton() {
         var previewBtn = document.createElement('div');
         previewBtn.className = 'ws-item ws-hover-reveal' + ((rt.isHoverRevealActive && rt.isHoverRevealActive()) ? ' active' : '');
@@ -373,25 +401,26 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             e.stopPropagation();
         };
         previewBtn.onmouseenter = function () {
-            if (!rt.setHoverRevealActive) return;
-            if (rt.isHoverRevealActive && rt.isHoverRevealActive()) return;
-            rt.setHoverRevealActive(true);
-            var sb = document.getElementById('sidebar');
-            if (!sb) return;
-            var scaffold = ensureSidebarScaffold(sb);
-            var previewState = getHoverRevealPreviewState();
-            if (!previewState.revealPreviewReady || !scaffold.previewHost || scaffold.previewHost.childElementCount === 0) {
-                buildHoverRevealPreview(sb, scaffold);
-            }
-            syncHoverRevealContentVisibility(scaffold);
+            activateHoverRevealPreview({ showInactiveTabs: true, showHiddenGroups: true });
         };
         previewBtn.onmouseleave = function () {
-            queueHoverRevealDeactivation();
+            queueHoverRevealDeactivation(450);
         };
         return previewBtn;
     }
 
     function ensureSidebarScaffold(sb) {
+        if (sb && !sb.__eveSidebarHoverRevealLeaveBound) {
+            sb.__eveSidebarHoverRevealLeaveBound = true;
+            sb.addEventListener('mouseenter', function () {
+                var previewState = rt.previewState || (rt.previewState = {});
+                window.clearTimeout(previewState.hideTimer || 0);
+            });
+            sb.addEventListener('mouseleave', function () {
+                queueHoverRevealDeactivation(240);
+            });
+        }
+
         var contentHost = sb.querySelector('.ws-sidebar-content');
         if (!contentHost) {
             contentHost = document.createElement('div');
@@ -446,6 +475,8 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
     rt.buildHoverRevealPreview = buildHoverRevealPreview;
     rt.queueHoverRevealPreviewBuild = queueHoverRevealPreviewBuild;
     rt.invalidateHoverRevealPreview = invalidateHoverRevealPreview;
+    rt.activateHoverRevealPreview = activateHoverRevealPreview;
+    rt.queueHoverRevealDeactivation = queueHoverRevealDeactivation;
     rt.maybeAutoScrollSidebarDrag = maybeAutoScrollSidebarDrag;
     rt.scaffoldReady = true;
 })();
