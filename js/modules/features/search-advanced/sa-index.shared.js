@@ -187,6 +187,18 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             stateLabel = 'broken';
             reasons.push('Folder parent no longer exists.');
         }
+        if (record?.provenance?.folderUnreachable) {
+            stateLabel = 'broken';
+            reasons.push('Folder branch is unreachable from the card root.');
+        }
+        if (record?.provenance?.folderParentBroken) {
+            stateLabel = 'broken';
+            reasons.push('Folder parent chain is broken.');
+        }
+        toArray(record?.provenance?.folderIssueReasons).forEach(function (reason) {
+            const normalizedReason = text(reason, '');
+            if (normalizedReason) reasons.push(normalizedReason);
+        });
         if (record?.provenance?.missingParent) {
             stateLabel = 'broken';
             reasons.push('Parent path is missing.');

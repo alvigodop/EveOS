@@ -160,6 +160,9 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         const projection = indexApi.buildGraphProjection
             ? await indexApi.buildGraphProjection({ snapshot, scope })
             : null;
+        const folderIntegrity = window.EveBookmarkFolders?.collectFolderIntegrity
+            ? window.EveBookmarkFolders.collectFolderIntegrity({ scope })
+            : null;
         const kindCounts = (projection?.nodes || []).reduce(function (acc, node) {
             const key = String(node?.kind || 'node');
             acc[key] = (acc[key] || 0) + 1;
@@ -176,6 +179,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             scope,
             scopeLabel,
             integrity,
+            folderIntegrity,
             graph: {
                 nodeCount: projection?.nodes?.length || 0,
                 edgeCount: projection?.edges?.length || 0,
@@ -289,6 +293,11 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             html += '<tr><td>Stale / Aging</td><td>' + spine.integrity.staleRecords + ' / ' + spine.integrity.agingRecords + '</td></tr>';
             html += '<tr><td>Linked Library / Done</td><td>' + spine.integrity.linkedLibraryRecords + ' / ' + spine.integrity.doneRecords + '</td></tr>';
             html += '<tr><td>Issue Details</td><td>' + (spine.integrity.issueCount || 0) + '</td></tr>';
+            if (spine.folderIntegrity) {
+                html += '<tr><td>Folder Disturbances</td><td>' + (spine.folderIntegrity.issueCount || 0) + '</td></tr>';
+                html += '<tr><td>Broken / Unreachable Folders</td><td>' + spine.folderIntegrity.brokenFolderCount + ' / ' + spine.folderIntegrity.unreachableFolderCount + '</td></tr>';
+                html += '<tr><td>Missing / Hidden Folder Bookmarks</td><td>' + spine.folderIntegrity.missingFolderBookmarkCount + ' / ' + spine.folderIntegrity.unreachableBookmarkCount + '</td></tr>';
+            }
             html += '<tr><td>Graph Nodes / Edges</td><td>' + spine.graph.nodeCount + ' / ' + spine.graph.edgeCount + '</td></tr>';
             html += '<tr><td>Graph Kinds</td><td>' + Object.entries(spine.graph.kindCounts).map(function (entry) {
                 return escHtml(entry[0]) + ':' + entry[1];
@@ -301,6 +310,18 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 })
                 .slice(0, 5));
             html += renderIssueList(spine.integrity.issues || [], spine.integrity.truncatedIssueCount || 0);
+            if (spine.folderIntegrity?.issueCount) {
+                html += '<div class="nx-debug-section-title">FOLDER PATH DISTURBANCES</div>';
+                html += renderIssueList((spine.folderIntegrity.folders || []).concat(spine.folderIntegrity.bookmarks || []).map(function (issue) {
+                    return {
+                        severity: 'error',
+                        type: issue.linkId ? 'bookmark-folder' : 'folder',
+                        title: issue.title || issue.name || issue.folderId || 'Folder issue',
+                        pathLabel: [issue.workspaceId, issue.categoryName, issue.folderId].filter(Boolean).join(' > '),
+                        reasons: issue.reasons || []
+                    };
+                }), 0);
+            }
         } else {
             html += '<div style="font-size:0.74rem; color:rgba(140,170,205,0.7);">Nexus index is unavailable.</div>';
         }
@@ -326,6 +347,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         html += '<button type="button" class="nx-debug-action-btn" id="nxDebugForceRender">Force Re-render</button>';
         html += '<button type="button" class="nx-debug-action-btn" id="nxDebugResetLoading">Reset Loading State</button>';
         html += '<button type="button" class="nx-debug-action-btn" id="nxDebugReindexNexus">Reindex Nexus</button>';
+        html += '<button type="button" class="nx-debug-action-btn" id="nxDebugRepairFolders">Repair Folder Paths</button>';
         html += '<button type="button" class="nx-debug-action-btn" id="nxDebugOpenScopeMap">Open Scope Map</button>';
         html += '<button type="button" class="nx-debug-action-btn" id="nxDebugRefreshDiag">Refresh Diagnostics</button>';
         html += '</div></div>';
@@ -398,6 +420,24 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             reindexBtn.onclick = async function () {
                 await window.EveOS?.SearchAdvanced?.Index?.rebuild?.({ reason: 'debug-panel', force: true });
                 if (typeof showToast === 'function') showToast('Nexus index rebuilt', 'info');
+                renderDebugPanel(container);
+            };
+        }
+
+        const repairFoldersBtn = document.getElementById('nxDebugRepairFolders');
+        if (repairFoldersBtn) {
+            repairFoldersBtn.onclick = async function () {
+                const repairApi = window.EveBookmarkFolders?.repairFolderIntegrity;
+                if (typeof repairApi !== 'function') {
+                    if (typeof showToast === 'function') showToast('Folder repair is not available', 'warning');
+                    return;
+                }
+                const result = repairApi({ scope: spine.scope });
+                await window.EveOS?.SearchAdvanced?.Index?.rebuild?.({ reason: 'folder-integrity-repair', force: true });
+                if (typeof renderDashboard === 'function') renderDashboard();
+                if (typeof showToast === 'function') {
+                    showToast('Repaired ' + result.rootedFolders + ' folder paths and moved ' + result.movedBookmarksToRoot + ' orphaned bookmarks to card root', 'success');
+                }
                 renderDebugPanel(container);
             };
         }

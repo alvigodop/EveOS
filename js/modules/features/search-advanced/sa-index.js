@@ -74,6 +74,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     const markDirty = invalidationRuntime.markDirty;
     const installMutationHooks = invalidationRuntime.installMutationHooks;
     const classifyInvalidationPlan = invalidationRuntime.classifyInvalidationPlan;
+    const isSourceDrivenReason = invalidationRuntime.isSourceDrivenReason;
     const getMutationAffectedScopes = invalidationRuntime.getMutationAffectedScopes;
     const getMutationAffectedLinkIds = invalidationRuntime.getMutationAffectedLinkIds;
     const canUseScopedLocalIncremental = invalidationRuntime.canUseScopedLocalIncremental;

@@ -340,6 +340,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             markDirty,
             installMutationHooks,
             classifyInvalidationPlan,
+            isSourceDrivenReason,
             getMutationAffectedScopes,
             getMutationAffectedLinkIds,
             canUseScopedLocalIncremental

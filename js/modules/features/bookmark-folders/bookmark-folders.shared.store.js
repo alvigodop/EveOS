@@ -189,9 +189,11 @@ const CLICK_BEHAVIOR_MODES = new Set(['inherit', 'invert', 'focus_only', 'intern
 
         const rawTree = store[scopedKey] || {};
 
+        const rawNodes = Array.isArray(rawTree) ? rawTree : (rawTree?.nodes || []);
+
         return {
 
-            nodes: dedupeNodes(rawTree?.nodes || []),
+            nodes: dedupeNodes(rawNodes),
 
             settings: normalizeTreeSettings(rawTree?.settings)
 

@@ -255,6 +255,12 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             .filter(Boolean);
         if (record?.provenance?.orphaned) reasons.push('Record is orphaned from its expected parent path.');
         if (record?.provenance?.missingFolder) reasons.push('Bookmark points at a folder that no longer exists.');
+        if (record?.provenance?.folderUnreachable) reasons.push('Folder branch is unreachable from the card root.');
+        if (record?.provenance?.folderParentBroken) reasons.push('Folder parent chain is broken.');
+        toArray(record?.provenance?.folderIssueReasons).forEach(function (reason) {
+            const normalizedReason = text(reason, '');
+            if (normalizedReason) reasons.push(normalizedReason);
+        });
         if (record?.provenance?.missingParent) reasons.push('Record parent path is missing.');
         if (record?.provenance?.sourceOnly) reasons.push('Record exists in saved source/cache data, not as a live bookmark.');
         if (freshness?.state === 'stale') reasons.push('Record freshness is stale.');

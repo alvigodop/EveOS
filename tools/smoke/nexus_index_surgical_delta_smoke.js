@@ -3,6 +3,11 @@ const path = require('path');
 
 const repoRoot = path.resolve(__dirname, '..', '..');
 const sharedPath = path.join(repoRoot, 'js/modules/features/search-advanced/sa-index.shared.js');
+const searchPath = path.join(repoRoot, 'js/modules/features/search-advanced/sa-index.search.js');
+const graphPath = path.join(repoRoot, 'js/modules/features/search-advanced/sa-index.graph.js');
+const exactScopePath = path.join(repoRoot, 'js/modules/features/search-advanced/sa-index.exact-scope.js');
+const invalidationPath = path.join(repoRoot, 'js/modules/features/search-advanced/sa-index.invalidation.js');
+const persistencePath = path.join(repoRoot, 'js/modules/features/search-advanced/sa-index.persistence.js');
 const indexPath = path.join(repoRoot, 'js/modules/features/search-advanced/sa-index.js');
 
 function assert(condition, message) {
@@ -193,6 +198,11 @@ async function main() {
         }
     };
 
+    eval(fs.readFileSync(searchPath, 'utf8'));
+    eval(fs.readFileSync(graphPath, 'utf8'));
+    eval(fs.readFileSync(exactScopePath, 'utf8'));
+    eval(fs.readFileSync(invalidationPath, 'utf8'));
+    eval(fs.readFileSync(persistencePath, 'utf8'));
     eval(fs.readFileSync(indexPath, 'utf8'));
     const indexApi = window.EveOS.SearchAdvanced.Index;
     await indexApi.rebuild({ reason: 'surgical-smoke-initial', force: true });
