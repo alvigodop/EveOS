@@ -29,8 +29,18 @@ async function seedLargeDatapack(page) {
 
         const workspaces = [];
         const links = [];
+        const linkedEntries = {};
         const categoryOrderByWorkspace = {};
         const bookmarkFolders = {};
+
+        function buildCover(label, color) {
+            const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="240" height="320" viewBox="0 0 240 320">
+                <rect width="240" height="320" fill="${color}"/>
+                <circle cx="190" cy="72" r="54" fill="rgba(255,255,255,0.18)"/>
+                <text x="22" y="174" fill="white" font-size="30" font-family="Arial" font-weight="700">${label}</text>
+            </svg>`;
+            return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+        }
 
         for (let workspaceIndex = 0; workspaceIndex < 6; workspaceIndex += 1) {
             const workspaceId = `ws${workspaceIndex}`;
@@ -55,7 +65,7 @@ async function seedLargeDatapack(page) {
 
                 const bookmarkCount = workspaceIndex === 0 && cardIndex === 0 ? 150 : 12;
                 for (let bookmarkIndex = 0; bookmarkIndex < bookmarkCount; bookmarkIndex += 1) {
-                    links.push({
+                    const link = {
                         id: `link-${workspaceIndex}-${cardIndex}-${bookmarkIndex}`,
                         title: `Stress Bookmark ${workspaceIndex}-${cardIndex}-${bookmarkIndex}`,
                         url: `https://stress.example/${workspaceIndex}/${cardIndex}/${bookmarkIndex}`,
@@ -64,7 +74,25 @@ async function seedLargeDatapack(page) {
                         folderId: bookmarkIndex % 3 === 0 ? `folder-${workspaceIndex}-${cardIndex}` : '',
                         identifiers: bookmarkIndex % 2 === 0 ? ['reading'] : ['research'],
                         notes: bookmarkIndex === 0 ? 'Long note seed for datapack view state smoke.' : ''
-                    });
+                    };
+                    if (workspaceIndex < 2 && bookmarkIndex % 4 === 0) {
+                        link.coverImage = buildCover(`S${workspaceIndex}${cardIndex}`, bookmarkIndex % 8 === 0 ? '#173a4d' : '#3a254d');
+                    }
+                    if (workspaceIndex === 0 && cardIndex === 0 && bookmarkIndex === 0) {
+                        link.coverImage = 'data:image/png;base64,not-a-real-image';
+                    }
+                    if (bookmarkIndex % 5 === 0) {
+                        linkedEntries[link.id] = {
+                            title: link.title,
+                            status: bookmarkIndex % 10 === 0 ? 'Reading' : 'Pending',
+                            rating: String(3 + (bookmarkIndex % 3)),
+                            author: `Stress Author ${workspaceIndex}-${cardIndex}`,
+                            genre: 'Action, Fantasy, Long Running, Regression, Bookmarks, Datapack Stress Fixture',
+                            summary: 'This linked-library summary is intentionally long enough to test large Unidex card clamping without letting one bookmark reserve a giant empty grid area. '.repeat(3),
+                            derivedRatings: { confidence: 0.74 }
+                        };
+                    }
+                    links.push(link);
                 }
             }
         }
@@ -90,6 +118,20 @@ async function seedLargeDatapack(page) {
         };
         window.links = links;
         window.bookmarkFolders = bookmarkFolders;
+        window.EveLibrary = window.EveLibrary || {};
+        window.EveLibrary.Connections = Object.keys(linkedEntries).map((linkId) => ({ linkId, entry: linkedEntries[linkId] }));
+        window.EveLibrary.State = window.EveLibrary.State || {};
+        window.EveLibrary.ConnectionsAPI = {
+            loadConnections() {},
+            getLinkedEntry(linkId) {
+                return linkedEntries[linkId] ? { entry: linkedEntries[linkId] } : null;
+            }
+        };
+        window.EveLibrary.Ratings = {
+            applyDerivedRatings(entry) {
+                if (!entry.derivedRatings) entry.derivedRatings = { confidence: 0.74 };
+            }
+        };
 
         if (window.eveState) {
             window.eveState.config = config;
@@ -120,6 +162,12 @@ async function seedLargeDatapack(page) {
 async function assertUnidexLargeView(page) {
     await page.waitForSelector('.unidex-shell .unidex-entries.is-density-atlas', { timeout: 25000 });
     await page.waitForSelector('.unidex-identifier-group', { timeout: 25000 });
+    await page.waitForFunction(() => (
+        document.querySelector('.unidex-entries')?.classList?.contains('is-large-entry-set')
+    ), undefined, { timeout: 25000 });
+    await page.waitForFunction(() => (
+        !!document.querySelector('.unidex-entry-cover-slot.is-cover-error')
+    ), undefined, { timeout: 25000 });
 
     const unidexState = await page.evaluate(() => ({
         density: window.config.unidexEntriesDensity,
@@ -127,6 +175,11 @@ async function assertUnidexLargeView(page) {
         renderedEntries: document.querySelectorAll('.unidex-entry-item.is-density-atlas').length,
         identifierGroups: document.querySelectorAll('.unidex-identifier-group').length,
         gridClass: document.querySelector('.unidex-entries')?.className || '',
+        masonryApplied: document.querySelector('.unidex-entries')?.dataset?.unidexMasonryApplied || '',
+        groupedBodyDisplay: getComputedStyle(document.querySelector('.unidex-identifier-group-body')).display,
+        groupedBodyGridAutoRows: getComputedStyle(document.querySelector('.unidex-identifier-group-body')).gridAutoRows,
+        groupedBodyGridAutoFlow: getComputedStyle(document.querySelector('.unidex-identifier-group-body')).gridAutoFlow,
+        coverErrors: document.querySelectorAll('.unidex-entry-cover-slot.is-cover-error').length,
         megaPerfMode: !!window._eveMegaPerfMode
     }));
 
@@ -135,6 +188,101 @@ async function assertUnidexLargeView(page) {
     }
     if (!unidexState.gridClass.includes('is-grid-layout') || unidexState.density !== 'atlas' || unidexState.groupMode !== 'identifiers') {
         throw new Error(`Expected Unidex density/group/layout state to hold: ${JSON.stringify(unidexState)}`);
+    }
+    if (!unidexState.gridClass.includes('is-large-entry-set') || !unidexState.gridClass.includes('is-grouped-entry-set')) {
+        throw new Error(`Expected huge Unidex view to use large-list layout path: ${JSON.stringify(unidexState)}`);
+    }
+    if (unidexState.masonryApplied !== 'visible' || unidexState.groupedBodyDisplay !== 'grid' || unidexState.groupedBodyGridAutoRows !== '8px' || !unidexState.groupedBodyGridAutoFlow.includes('dense')) {
+        throw new Error(`Expected huge Unidex view to use visible-only grouped masonry packing: ${JSON.stringify(unidexState)}`);
+    }
+}
+
+async function assertUnidexLargeFlatPlacement(page) {
+    await page.evaluate(() => window.UnidexView.setEntriesGroupMode('flat'));
+    await page.waitForFunction(() => {
+        const entries = document.querySelector('.unidex-entries');
+        return entries?.classList?.contains('is-large-entry-set')
+            && entries?.classList?.contains('is-flat-entry-set')
+            && document.querySelectorAll('.unidex-entries > .unidex-entry-item').length > 1000;
+    }, undefined, { timeout: 25000 });
+    await page.waitForFunction(() => {
+        const entries = document.querySelector('.unidex-entries');
+        const visibleItems = Array.from(document.querySelectorAll('.unidex-entries > .unidex-entry-item')).filter((item) => {
+            const rect = item.getBoundingClientRect();
+            return rect.bottom > -50 && rect.top < window.innerHeight + 50;
+        }).slice(0, 12);
+        return entries?.dataset?.unidexMasonryApplied === 'visible'
+            && visibleItems.length >= 6
+            && visibleItems.every((item) => item.dataset.unidexMasonryMeasured === '1' && getComputedStyle(item).gridRowEnd.startsWith('span '));
+    }, undefined, { timeout: 25000 });
+
+    const flatState = await page.evaluate(() => {
+        const entries = document.querySelector('.unidex-entries');
+        const computed = getComputedStyle(entries);
+        const items = Array.from(entries.querySelectorAll(':scope > .unidex-entry-item')).slice(0, 24);
+        const rects = items.map((item) => {
+            const rect = item.getBoundingClientRect();
+            return {
+                top: Math.round(rect.top),
+                left: Math.round(rect.left),
+                height: Math.round(rect.height),
+                span: getComputedStyle(item).gridRowEnd
+            };
+        });
+        return {
+            className: entries.className,
+            display: computed.display,
+        gridAutoRows: computed.gridAutoRows,
+        gridAutoFlow: computed.gridAutoFlow,
+        masonryApplied: entries.dataset.unidexMasonryApplied || '',
+        measuredCount: document.querySelectorAll('.unidex-entries > .unidex-entry-item[data-unidex-masonry-measured="1"]').length,
+        totalDirectEntries: document.querySelectorAll('.unidex-entries > .unidex-entry-item').length,
+        rects
+    };
+    });
+
+    if (flatState.display !== 'grid' || flatState.gridAutoRows !== '8px' || !flatState.gridAutoFlow.includes('dense')) {
+        throw new Error(`Expected large flat Unidex to use dense grid placement: ${JSON.stringify(flatState)}`);
+    }
+    if (flatState.masonryApplied !== 'visible' || !flatState.rects.some((rect) => rect.span.startsWith('span '))) {
+        throw new Error(`Expected large flat Unidex to use visible-only masonry spans: ${JSON.stringify(flatState)}`);
+    }
+    if (flatState.measuredCount < 6 || flatState.measuredCount > 140 || flatState.measuredCount >= flatState.totalDirectEntries) {
+        throw new Error(`Expected large flat Unidex to measure only a bounded viewport window: ${JSON.stringify(flatState)}`);
+    }
+    const firstTop = flatState.rects[0]?.top;
+    const firstRow = flatState.rects.filter((rect) => Math.abs(rect.top - firstTop) <= 4);
+    const uniqueLefts = new Set(firstRow.map((rect) => rect.left));
+    if (uniqueLefts.size < 3) {
+        throw new Error(`Expected large flat Unidex placement to fill across the row instead of stacking down one side: ${JSON.stringify(flatState)}`);
+    }
+    const uniqueHeights = new Set(flatState.rects.map((rect) => rect.height));
+    if (uniqueHeights.size < 2) {
+        throw new Error(`Expected large flat Unidex cards to keep natural variable heights: ${JSON.stringify(flatState)}`);
+    }
+    const firstHeight = Math.max(...firstRow.map((rect) => rect.height));
+    const secondTop = flatState.rects.map((rect) => rect.top).find((top) => top > firstTop + 20);
+    if (!secondTop || secondTop - (firstTop + firstHeight) > 36) {
+        throw new Error(`Expected large flat Unidex masonry to keep rows pulled upward without giant reserved holes: ${JSON.stringify(flatState)}`);
+    }
+
+    await page.evaluate(() => window.scrollTo(0, Math.floor(document.body.scrollHeight * 0.35)));
+    await page.waitForFunction(() => {
+        const visibleItems = Array.from(document.querySelectorAll('.unidex-entries > .unidex-entry-item')).filter((item) => {
+            const rect = item.getBoundingClientRect();
+            return rect.bottom > -50 && rect.top < window.innerHeight + 50;
+        }).slice(0, 8);
+        return visibleItems.length >= 4
+            && visibleItems.some((item) => item.dataset.unidexMasonryMeasured === '1');
+    }, undefined, { timeout: 25000 });
+
+    const scrolledState = await page.evaluate(() => ({
+        measuredCount: document.querySelectorAll('.unidex-entries > .unidex-entry-item[data-unidex-masonry-measured="1"]').length,
+        totalDirectEntries: document.querySelectorAll('.unidex-entries > .unidex-entry-item').length,
+        scanIndex: Number(document.querySelector('.unidex-entries')?.dataset?.unidexMasonryScanIndex || 0)
+    }));
+    if (scrolledState.measuredCount > 220 || scrolledState.measuredCount >= scrolledState.totalDirectEntries) {
+        throw new Error(`Expected scrolling large Unidex to keep measurement bounded: ${JSON.stringify(scrolledState)}`);
     }
 }
 
@@ -231,6 +379,7 @@ async function assertLargeBulkMove(page) {
         await waitForApp(page);
         await seedLargeDatapack(page);
         await assertUnidexLargeView(page);
+        await assertUnidexLargeFlatPlacement(page);
         await assertDatapackViewLargeCaps(page);
         await assertLargeBulkMove(page);
         console.log('LARGE_DATAPACK_UNIDEX_DATAPACK_MOVE_BROWSER_SMOKE_OK');

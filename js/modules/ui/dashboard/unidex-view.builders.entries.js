@@ -19,11 +19,13 @@ window.UnidexViewModules = window.UnidexViewModules || {};
 
         function buildEntriesHtml(entryLinks, taskMode, layoutMode, options) {
             const entryOptions = options || {};
+            const renderItemsOnly = !!entryOptions.renderItemsOnly;
             const densityMode = String(entryOptions.densityMode || 'comfortable').trim().toLowerCase();
             const normalizedDensity = densityMode === 'compact' || densityMode === 'atlas'
                 ? densityMode
                 : 'comfortable';
             if (entryLinks.length === 0) {
+                if (renderItemsOnly) return '';
                 return `
                 <div class="unidex-empty-state">
                     <h3>No Entries Found</h3>
@@ -202,7 +204,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 const visualHtml = safeCoverUrl
                     ? `
                     <div class="unidex-entry-cover-slot"${coverSlotStyle}>
-                        <img class="unidex-entry-cover" src="${safeCoverUrl}" alt="${safeTitle} cover" loading="lazy" decoding="async" referrerpolicy="no-referrer"${coverImageStyle}>
+                        <img class="unidex-entry-cover" src="${safeCoverUrl}" alt="${safeTitle} cover" loading="lazy" decoding="async" fetchpriority="low" referrerpolicy="no-referrer" onerror="this.closest('.unidex-entry-cover-slot')?.classList.add('is-cover-error');this.removeAttribute('src');"${coverImageStyle}>
                         <div class="unidex-entry-icon-overlay" style="position: absolute; bottom: 8px; right: 8px; z-index: 2; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.45); backdrop-filter: blur(4px); border-radius: 4px; border: 1px solid rgba(255, 255, 255, 0.2); pointer-events: none;">
                              ${buildBookmarkIconHtml(link, safeTitle)}
                         </div>
@@ -284,6 +286,10 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 </article>
             `;
                 }).join('');
+            }
+
+            if (renderItemsOnly) {
+                return renderEntryItems(entryLinks);
             }
 
             if (entryOptions.groupMode === 'identifiers') {

@@ -36,8 +36,12 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             if (String(getActiveWorkspaceId() || '') !== String(workspaceId)) {
                 if (typeof config !== 'undefined') {
                     config.activeWorkspace = workspaceId;
-                    if (typeof saveConfig === 'function') saveConfig();
                 }
+            }
+            if (typeof stages.persistSelection === 'function') {
+                stages.persistSelection(true);
+            } else if (typeof saveConfig === 'function') {
+                saveConfig({ immediate: true, source: 'unidex-view-state' });
             }
             requestRender();
         }
@@ -47,6 +51,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             if (!category) return;
             state.selectedCategory = category;
             state.stage = 'entries';
+            if (typeof stages.persistSelection === 'function') stages.persistSelection(true);
             requestRender();
         }
 
@@ -63,6 +68,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             helpers.resetLibraryReadyWait();
             state.stage = 'cards';
             state.selectedCategory = '';
+            if (typeof stages.persistSelection === 'function') stages.persistSelection(true);
             requestRender();
         }
 

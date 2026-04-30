@@ -17,6 +17,126 @@
     align-self: start;
 }
 
+.unidex-entries.is-large-entry-set .unidex-entry-item {
+    content-visibility: auto;
+    contain: layout paint style;
+    contain-intrinsic-size: 260px var(--unidex-large-card-height, 360px);
+}
+
+.unidex-entries.is-row-layout.is-large-entry-set .unidex-entry-item {
+    contain-intrinsic-size: 160px 100%;
+    grid-row-end: auto !important;
+}
+
+.unidex-entries.is-large-entry-set .unidex-entry-item {
+    transition: border-color 0.16s ease, background 0.16s ease;
+}
+
+.unidex-entries.is-large-entry-set .unidex-entry-item:hover {
+    transform: none;
+    box-shadow: none;
+}
+
+.unidex-entries.is-large-entry-set .unidex-entry-cover {
+    will-change: auto;
+    transition: none;
+}
+
+.unidex-progressive-status {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 10px 14px;
+    border: 1px solid rgba(0, 212, 255, 0.22);
+    border-radius: 12px;
+    background: rgba(0, 212, 255, 0.06);
+    color: rgba(255, 255, 255, 0.76);
+    font-size: 0.78rem;
+}
+
+.unidex-progressive-status small {
+    color: rgba(255, 255, 255, 0.52);
+}
+
+.unidex-entries.is-grid-layout.is-large-entry-set {
+    --unidex-entry-span: 18;
+    --unidex-large-cover-height: 176px;
+}
+
+.unidex-entries.is-grid-layout.is-large-entry-set.is-flat-entry-set {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 260px)) !important;
+    grid-auto-rows: 8px !important;
+    grid-auto-flow: row dense !important;
+    gap: 14px !important;
+    align-items: start;
+    justify-content: center;
+}
+
+.unidex-entries.is-grid-layout.is-large-entry-set.is-flat-entry-set > .unidex-entry-item,
+.unidex-entries.is-grid-layout.is-large-entry-set.is-grouped-entry-set .unidex-identifier-group-body > .unidex-entry-item {
+    grid-row-end: span var(--unidex-entry-span, 18);
+    width: auto;
+    min-width: 0;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0;
+    overflow: visible;
+}
+
+.unidex-entries.is-grid-layout.is-large-entry-set .unidex-entry-item.has-visual-slot {
+    grid-template-rows: var(--unidex-large-cover-height, 176px) auto auto !important;
+    align-content: stretch;
+}
+
+.unidex-entries.is-grid-layout.is-large-entry-set .unidex-entry-visual-btn,
+.unidex-entries.is-grid-layout.is-large-entry-set .unidex-entry-cover-slot {
+    height: var(--unidex-large-cover-height, 176px) !important;
+    min-height: var(--unidex-large-cover-height, 176px) !important;
+    max-height: var(--unidex-large-cover-height, 176px) !important;
+}
+
+.unidex-entries.is-grid-layout.is-large-entry-set .unidex-entry-cover-slot.is-cover-error {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+}
+
+.unidex-entries.is-grid-layout.is-large-entry-set .unidex-entry-cover-slot.is-cover-error .unidex-entry-cover {
+    display: none !important;
+}
+
+.unidex-entries.is-grid-layout.is-large-entry-set .unidex-entry-cover-slot.is-cover-error::after {
+    content: "Cover unavailable";
+    color: rgba(255, 255, 255, 0.58);
+    font-size: 0.72rem;
+    letter-spacing: 0.02em;
+}
+
+.unidex-entries.is-grid-layout.is-large-entry-set .unidex-entry-main {
+    min-height: 0;
+    overflow: visible;
+}
+
+.unidex-entries.is-grid-layout.is-large-entry-set.is-grouped-entry-set .unidex-identifier-group {
+    content-visibility: auto;
+    contain: layout paint style;
+    contain-intrinsic-size: 900px 100%;
+}
+
+.unidex-entries.is-grid-layout.is-large-entry-set.is-grouped-entry-set .unidex-identifier-group-body {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 260px)) !important;
+    grid-auto-rows: 8px !important;
+    grid-auto-flow: row dense !important;
+    gap: 12px !important;
+    align-items: start;
+    justify-content: center;
+}
+
 .unidex-entry-item {
     display: flex;
     align-items: center;
@@ -254,9 +374,25 @@
     gap: 10px !important;
 }
 
+.unidex-entries.is-grid-layout.is-large-entry-set.is-flat-entry-set.is-density-compact,
+.unidex-entries.is-grid-layout.is-large-entry-set.is-grouped-entry-set.is-density-compact .unidex-identifier-group-body {
+    --unidex-entry-span: 17;
+    --unidex-large-cover-height: 150px;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 220px)) !important;
+    gap: 10px !important;
+}
+
 .unidex-entries.is-grid-layout.is-density-atlas {
     grid-template-columns: repeat(auto-fill, minmax(160px, 180px)) !important;
     grid-auto-rows: 8px !important;
+    gap: 8px !important;
+}
+
+.unidex-entries.is-grid-layout.is-large-entry-set.is-flat-entry-set.is-density-atlas,
+.unidex-entries.is-grid-layout.is-large-entry-set.is-grouped-entry-set.is-density-atlas .unidex-identifier-group-body {
+    --unidex-entry-span: 16;
+    --unidex-large-cover-height: 126px;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 180px)) !important;
     gap: 8px !important;
 }
 

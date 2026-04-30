@@ -372,7 +372,11 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             if (state.entriesRetryTimer) return;
             state.entriesRetryTimer = setTimeout(function () {
                 state.entriesRetryTimer = null;
-                if (state.stage !== 'entries') return;
+                const currentConfig = typeof config !== 'undefined' && config ? config : {};
+                const shouldRetry = state.stage === 'entries'
+                    || (state.stage === 'cards' && !!currentConfig.unidexCardsUnified)
+                    || (state.stage === 'tabs' && !!currentConfig.unidexTabsUnified);
+                if (!shouldRetry) return;
                 if (typeof renderDashboard === 'function') renderDashboard();
             }, state.LIBRARY_READY_RETRY_MS);
         }

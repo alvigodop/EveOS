@@ -283,6 +283,12 @@ async function loadData() {
     if (typeof config.showHiddenSidebarGroups !== 'boolean') config.showHiddenSidebarGroups = false;
     if (typeof config.showInactiveTabs !== 'boolean') config.showInactiveTabs = false;
     if (typeof config.sidebarExpanded !== 'boolean') config.sidebarExpanded = false;
+    if (!['tabs', 'cards', 'entries'].includes(String(config.unidexStage || '').trim())) {
+        config.unidexStage = 'tabs';
+    }
+    if (typeof config.unidexStagePersisted !== 'boolean') config.unidexStagePersisted = false;
+    config.unidexSelectedWorkspaceId = String(config.unidexSelectedWorkspaceId || '').trim();
+    config.unidexSelectedCategory = String(config.unidexSelectedCategory || '').trim();
 
     // Custom bookmark ordering defaults
     if (!config.customOrder || typeof config.customOrder !== 'object') config.customOrder = {};

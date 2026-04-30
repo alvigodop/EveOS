@@ -4,6 +4,10 @@ window.UnidexViewModules = window.UnidexViewModules || {};
 (function () {
     window.UnidexViewModules.createLayout = function createLayout(deps) {
         const state = deps?.state || {};
+        const LARGE_ENTRY_LAYOUT_THRESHOLD = 180;
+        let largeMasonryToken = 0;
+        let largeMasonryCleanup = null;
+        let largeMasonryFrame = 0;
 
         function clearLayoutMaintenanceTimers() {
             state.layoutMaintenanceToken += 1;
@@ -46,22 +50,81 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             });
         }
 
-        function clearEntriesMasonrySpans(entriesSection) {
-            getEntriesMasonryItems(entriesSection).forEach(function (item) {
-                item.style.gridRowEnd = '';
-            });
-            if (entriesSection) entriesSection.style.minHeight = '';
+        function getLargeMasonryContainers(entriesSection) {
+            if (!entriesSection) return [];
+            if (entriesSection.classList.contains('is-grouped-entry-set')) {
+                return Array.from(entriesSection.querySelectorAll('.unidex-identifier-group-body'));
+            }
+            return [entriesSection];
         }
 
-        function applyEntriesMasonry(entriesSection) {
-            if (!entriesSection?.classList?.contains('is-grid-layout')) return;
-            const computedStyle = window.getComputedStyle(entriesSection);
+        function updateLargeEntrySetClasses(entriesSection) {
+            if (!entriesSection) return { isLarge: false, hasGroups: false, entryCount: 0 };
+            const entryCount = entriesSection.querySelectorAll('.unidex-entry-item').length;
+            const hasGroups = !!entriesSection.querySelector('.unidex-identifier-group');
+            const isLarge = entryCount > LARGE_ENTRY_LAYOUT_THRESHOLD;
+            entriesSection.classList.toggle('is-large-entry-set', isLarge);
+            entriesSection.classList.toggle('is-flat-entry-set', isLarge && !hasGroups);
+            entriesSection.classList.toggle('is-grouped-entry-set', isLarge && hasGroups);
+            entriesSection.dataset.unidexEntryCount = String(entryCount);
+            return { isLarge, hasGroups, entryCount };
+        }
+
+        function stopLargeMasonryMaintenance() {
+            largeMasonryToken += 1;
+            if (typeof largeMasonryCleanup === 'function') {
+                largeMasonryCleanup();
+                largeMasonryCleanup = null;
+            }
+            if (largeMasonryFrame) cancelAnimationFrame(largeMasonryFrame);
+            largeMasonryFrame = 0;
+        }
+
+        function clearEntriesMasonrySpans(entriesSection) {
+            stopLargeMasonryMaintenance();
+            if (!entriesSection?.dataset?.unidexMasonryApplied) {
+                if (entriesSection) entriesSection.style.minHeight = '';
+                return;
+            }
+            entriesSection.querySelectorAll('.unidex-entry-item, .unidex-identifier-group').forEach(function (item) {
+                item.style.gridRowEnd = '';
+                delete item.dataset.unidexMasonryMeasured;
+            });
+            entriesSection.querySelectorAll('.unidex-identifier-group-body').forEach(function (container) {
+                delete container.dataset.unidexMasonryScanIndex;
+            });
+            delete entriesSection.dataset.unidexMasonryScanIndex;
+            if (entriesSection) {
+                entriesSection.style.minHeight = '';
+                delete entriesSection.dataset.unidexMasonryApplied;
+            }
+        }
+
+        function getMasonryMetrics(container) {
+            const computedStyle = window.getComputedStyle(container);
             const rowHeight = parseFloat(computedStyle.getPropertyValue('grid-auto-rows')) || 8;
             let rowGap = parseFloat(computedStyle.getPropertyValue('row-gap'));
             if (!rowGap || Number.isNaN(rowGap)) {
                 rowGap = parseFloat(computedStyle.getPropertyValue('gap')) || 0;
             }
+            return { rowHeight, rowGap };
+        }
 
+        function applyMasonryItem(item, container, metrics) {
+            if (!item || !container || !document.body?.contains(item)) return;
+            const localMetrics = metrics || getMasonryMetrics(container);
+            item.style.gridRowEnd = 'auto';
+            const rect = item.getBoundingClientRect();
+            const measuredHeight = Math.max(item.scrollHeight || 0, rect.height || 0);
+            const span = Math.max(1, Math.ceil((measuredHeight + localMetrics.rowGap) / (localMetrics.rowHeight + localMetrics.rowGap)));
+            item.style.gridRowEnd = `span ${span}`;
+            item.dataset.unidexMasonryMeasured = '1';
+        }
+
+        function applyEntriesMasonry(entriesSection) {
+            if (!entriesSection?.classList?.contains('is-grid-layout')) return;
+            if (entriesSection.classList.contains('is-large-entry-set')) return;
+            const metrics = getMasonryMetrics(entriesSection);
             const items = getEntriesMasonryItems(entriesSection);
             if (!items.length) {
                 entriesSection.style.minHeight = '';
@@ -82,13 +145,119 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             });
 
             items.forEach(function (item, index) {
-                const span = Math.max(1, Math.ceil((heights[index] + rowGap) / (rowHeight + rowGap)));
+                const span = Math.max(1, Math.ceil((heights[index] + metrics.rowGap) / (metrics.rowHeight + metrics.rowGap)));
                 item.style.gridRowEnd = `span ${span}`;
             });
+            entriesSection.dataset.unidexMasonryApplied = '1';
 
             requestAnimationFrame(function () {
                 entriesSection.style.minHeight = '';
             });
+        }
+
+        function scheduleVisibleLargeMasonry(entriesSection) {
+            const containers = getLargeMasonryContainers(entriesSection);
+            if (!containers.length) return;
+            largeMasonryToken += 1;
+            const token = largeMasonryToken;
+
+            entriesSection.dataset.unidexMasonryApplied = 'pending-visible';
+
+            function scheduleWindowMeasure() {
+                if (largeMasonryFrame) return;
+                largeMasonryFrame = requestAnimationFrame(function () {
+                    largeMasonryFrame = 0;
+                    if (token !== largeMasonryToken || !document.body?.contains(entriesSection)) return;
+                    measureLargeViewportWindow(entriesSection, containers);
+                });
+            }
+
+            if (typeof largeMasonryCleanup === 'function') largeMasonryCleanup();
+            window.addEventListener('scroll', scheduleWindowMeasure, { passive: true });
+            window.addEventListener('resize', scheduleWindowMeasure, { passive: true });
+            largeMasonryCleanup = function cleanupLargeMasonry() {
+                window.removeEventListener('scroll', scheduleWindowMeasure);
+                window.removeEventListener('resize', scheduleWindowMeasure);
+            };
+
+            setTimeout(function () {
+                if (token !== largeMasonryToken || !document.body?.contains(entriesSection)) return;
+                scheduleWindowMeasure();
+            }, 180);
+
+            if (!entriesSection.dataset.unidexLargeMasonryLoadBound) {
+                entriesSection.dataset.unidexLargeMasonryLoadBound = '1';
+                entriesSection.addEventListener('load', function (event) {
+                    const target = event.target;
+                    if (!target?.classList?.contains('unidex-entry-cover')) return;
+                    const item = target.closest('.unidex-entry-item');
+                    if (!item || !isNearViewport(item, 900)) return;
+                    requestAnimationFrame(function () {
+                        applyMasonryItem(item, item.parentElement);
+                    });
+                }, true);
+            }
+        }
+
+        function isNearViewport(item, margin) {
+            if (!item) return false;
+            const rect = item.getBoundingClientRect();
+            return rect.bottom >= -margin && rect.top <= window.innerHeight + margin;
+        }
+
+        function measureLargeViewportWindow(entriesSection, containers) {
+            const viewportTop = -700;
+            const viewportBottom = window.innerHeight + 900;
+            const maxPerFrame = 56;
+            let measured = 0;
+            containers.forEach(function (container) {
+                if (measured >= maxPerFrame) return;
+                const metrics = getMasonryMetrics(container);
+                const children = container.children || [];
+                let startIndex = Number(container.dataset.unidexMasonryScanIndex || 0);
+                if (!Number.isFinite(startIndex) || startIndex < 0) startIndex = 0;
+                if (startIndex >= children.length) startIndex = Math.max(0, children.length - 1);
+
+                while (startIndex > 0) {
+                    const probe = children[startIndex];
+                    if (!probe?.classList?.contains('unidex-entry-item')) {
+                        startIndex -= 1;
+                        continue;
+                    }
+                    const probeRect = probe.getBoundingClientRect();
+                    if (probeRect.top <= viewportBottom) break;
+                    startIndex = Math.max(0, startIndex - 48);
+                }
+
+                while (startIndex < children.length) {
+                    const probe = children[startIndex];
+                    if (!probe?.classList?.contains('unidex-entry-item')) {
+                        startIndex += 1;
+                        continue;
+                    }
+                    const probeRect = probe.getBoundingClientRect();
+                    if (probeRect.bottom >= viewportTop) break;
+                    startIndex += 1;
+                }
+
+                let nextScanIndex = startIndex;
+                for (let index = startIndex; index < children.length; index += 1) {
+                    if (measured >= maxPerFrame) break;
+                    const item = children[index];
+                    if (!item?.classList?.contains('unidex-entry-item')) continue;
+                    const rect = item.getBoundingClientRect();
+                    if (rect.top > viewportBottom) break;
+                    if (rect.bottom < viewportTop) {
+                        nextScanIndex = index;
+                        continue;
+                    }
+                    if (item.dataset.unidexMasonryMeasured === '1') continue;
+                    applyMasonryItem(item, container, metrics);
+                    measured += 1;
+                }
+                container.dataset.unidexMasonryScanIndex = String(Math.max(0, nextScanIndex - 8));
+            });
+            entriesSection.dataset.unidexMasonryApplied = 'visible';
         }
 
         function scheduleEntriesMasonry(entriesSection) {
@@ -106,11 +275,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             const isGrid = layoutMode === 'grid';
             entriesSection.classList.toggle('is-grid-layout', isGrid);
             entriesSection.classList.toggle('is-row-layout', !isGrid);
-
-            const visualButtons = Array.from(entriesSection.querySelectorAll('.unidex-entry-visual-btn'));
-            const coverSlots = Array.from(entriesSection.querySelectorAll('.unidex-entry-cover-slot'))
-                .filter(function (slot) { return !slot.classList.contains('is-bookmark-only'); });
-            const covers = Array.from(entriesSection.querySelectorAll('.unidex-entry-cover'));
+            const entrySetState = updateLargeEntrySetClasses(entriesSection);
 
             if (isGrid) {
                 const isCompactViewport = window.matchMedia('(max-width: 900px)').matches;
@@ -132,11 +297,36 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                     return 218;
                 }
 
+                if (entrySetState.isLarge) {
+                    entriesSection.style.setProperty('grid-auto-rows', '8px', 'important');
+                    entriesSection.style.setProperty('grid-auto-flow', 'row dense', 'important');
+                    entriesSection.style.setProperty('align-items', 'start', 'important');
+                    entriesSection.style.setProperty('justify-content', 'center', 'important');
+                    if (entrySetState.hasGroups) {
+                        entriesSection.style.setProperty('grid-template-columns', 'minmax(0, 1fr)', 'important');
+                    } else {
+                        entriesSection.style.setProperty('grid-template-columns', gridColumns, 'important');
+                    }
+                    const masonryState = String(entriesSection.dataset.unidexMasonryApplied || '');
+                    if (masonryState !== 'visible' && masonryState !== 'pending-visible') {
+                        scheduleVisibleLargeMasonry(entriesSection);
+                    }
+                    return;
+                }
+
+                clearEntriesMasonrySpans(entriesSection);
+
                 entriesSection.style.setProperty('grid-template-columns', gridColumns, 'important');
                 entriesSection.style.setProperty('grid-auto-rows', '8px', 'important');
                 entriesSection.style.setProperty('grid-auto-flow', 'row dense', 'important');
                 entriesSection.style.setProperty('align-items', 'start', 'important');
                 entriesSection.style.setProperty('justify-content', 'center', 'important');
+
+                const visualButtons = Array.from(entriesSection.querySelectorAll('.unidex-entry-visual-btn'));
+                const coverSlots = Array.from(entriesSection.querySelectorAll('.unidex-entry-cover-slot'))
+                    .filter(function (slot) { return !slot.classList.contains('is-bookmark-only'); });
+                const covers = Array.from(entriesSection.querySelectorAll('.unidex-entry-cover'));
+
                 visualButtons.forEach(function (button) {
                     const targetHeight = getGridCoverHeight(button);
                     button.style.setProperty('width', '100%', 'important');
@@ -187,18 +377,28 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 return;
             }
 
-            clearEntriesMasonrySpans(entriesSection);
             entriesSection.style.setProperty('grid-template-columns', 'minmax(0, 1fr)', 'important');
             entriesSection.style.removeProperty('grid-auto-rows');
             entriesSection.style.removeProperty('grid-auto-flow');
             entriesSection.style.removeProperty('align-items');
             entriesSection.style.removeProperty('justify-content');
 
+            if (entrySetState.isLarge) {
+                stopLargeMasonryMaintenance();
+                return;
+            }
+
+            clearEntriesMasonrySpans(entriesSection);
+
             const isCompactViewport = window.matchMedia('(max-width: 900px)').matches;
             const targetWidth = isCompactViewport ? 72 : 84;
             const targetHeight = isCompactViewport ? 132 : 156;
             const rowFillHeight = Math.round(targetHeight * 1.32);
             const rowFillOffset = Math.round((rowFillHeight - targetHeight) / 2);
+            const visualButtons = Array.from(entriesSection.querySelectorAll('.unidex-entry-visual-btn'));
+            const coverSlots = Array.from(entriesSection.querySelectorAll('.unidex-entry-cover-slot'))
+                .filter(function (slot) { return !slot.classList.contains('is-bookmark-only'); });
+            const covers = Array.from(entriesSection.querySelectorAll('.unidex-entry-cover'));
             visualButtons.forEach(function (button) {
                 button.style.setProperty('width', `${targetWidth}px`, 'important');
                 button.style.setProperty('min-width', `${targetWidth}px`, 'important');
