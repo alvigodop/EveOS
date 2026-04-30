@@ -66,6 +66,9 @@ state.setAllLibraries({
 });
 
 runScript(context, 'js/modules/features/search-advanced/sa-index.shared.js');
+runScript(context, 'js/modules/features/search-advanced/sa-index.records.library.js');
+runScript(context, 'js/modules/features/search-advanced/sa-index.records.folder-diagnostics.js');
+runScript(context, 'js/modules/features/search-advanced/sa-index.records.folders.js');
 runScript(context, 'js/modules/features/search-advanced/sa-index.records.local.js');
 
 const categoryMap = windowObject.EveOS.SearchAdvanced.IndexRecordBuildersLocal.buildCategoryMap([]);

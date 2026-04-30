@@ -193,7 +193,12 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         });
 
         report.brokenFolderCount = report.folders.filter((issue) => issue.issueTypes.some((type) => type !== 'unreachable_folder')).length;
-        report.unreachableFolderCount = report.folders.filter((issue) => issue.issueTypes.includes('unreachable_folder')).length;
+        report.unreachableFolderCount = report.folders.filter((issue) => (
+            issue.issueTypes.includes('unreachable_folder')
+            || issue.issueTypes.includes('missing_parent_folder')
+            || issue.issueTypes.includes('folder_parent_cycle')
+            || issue.issueTypes.includes('self_parent')
+        )).length;
         report.missingParentFolderCount = report.folders.filter((issue) => issue.issueTypes.includes('missing_parent_folder')).length;
         report.cycleFolderCount = report.folders.filter((issue) => issue.issueTypes.includes('folder_parent_cycle')).length;
         report.selfParentFolderCount = report.folders.filter((issue) => issue.issueTypes.includes('self_parent')).length;

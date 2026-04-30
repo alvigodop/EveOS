@@ -45,10 +45,10 @@ global.eveState = {
 global.window.EveLibrary = {
   ConnectionsAPI: {
     findConnectionByLinkId(linkId) {
-      return this._connections.find((item) => String(item.linkId) === String(linkId)) || null;
+      return global.window.EveLibrary.ConnectionsAPI._connections.find((item) => String(item.linkId) === String(linkId)) || null;
     },
     getLinkedEntry(linkId) {
-      const conn = this.findConnectionByLinkId(linkId);
+      const conn = global.window.EveLibrary.ConnectionsAPI.findConnectionByLinkId(linkId);
       if (!conn) return null;
       const entry = global.window.EveLibrary.EntriesAPI.getEntryById('main', conn.categoryName, conn.entryId);
       if (!entry) return null;
@@ -135,7 +135,9 @@ load('js/modules/features/bookmark-folders/bookmark-folders.shared.derived.metri
 load('js/modules/features/bookmark-folders/bookmark-folders.shared.derived.buckets.js');
 load('js/modules/features/bookmark-folders/bookmark-folders.shared.derived.js');
 load('js/modules/features/bookmark-folders/bookmark-folders.shared.js');
+load('js/modules/features/bookmark-folders/bookmark-folders.ghost-sensors.helpers.js');
 load('js/modules/features/bookmark-folders/bookmark-folders.ghost-sensors.js');
+load('js/modules/features/bookmark-folders/bookmark-folders.ghost-recursion.helpers.js');
 load('js/modules/features/bookmark-folders/bookmark-folders.ghost-recursion.js');
 load('js/modules/features/bookmark-folders/bookmark-folders.ghosts.js');
 load('js/modules/features/bookmark-folders/bookmark-folders.view.js');
