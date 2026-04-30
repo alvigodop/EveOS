@@ -14,6 +14,9 @@ window.UnidexViewModules = window.UnidexViewModules || {};
         };
         const isTaskModeCategory = deps?.isTaskModeCategory;
         const getWorkspaceLabel = deps?.getWorkspaceLabel;
+        const encodeParam = deps?.encodeParam || function (value) {
+            return encodeURIComponent(String(value ?? ''));
+        };
         const escapeHtml = deps?.escapeHtml;
         const ensureLibraryReadyForEntries = deps?.ensureLibraryReadyForEntries;
         const shouldShowLibraryLoadingHint = deps?.shouldShowLibraryLoadingHint;
@@ -21,6 +24,9 @@ window.UnidexViewModules = window.UnidexViewModules || {};
         const stabilizeEntriesLayout = deps?.stabilizeEntriesLayout;
         const buildTabsHtml = deps?.buildTabsHtml;
         const buildCardsHtml = deps?.buildCardsHtml;
+        const buildWrappedCardsHtml = deps?.buildWrappedCardsHtml || function (workspace, models) {
+            return '<section class="unidex-cards" aria-label="Category Cards">' + buildCardsHtml(models) + '</section>';
+        };
         const buildEntriesHtml = deps?.buildEntriesHtml;
         const getEntriesLayoutMode = deps?.getEntriesLayoutMode;
         const getEntriesDensityMode = deps?.getEntriesDensityMode || (() => 'comfortable');
@@ -49,6 +55,25 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             const label = mode === 'wrapped' ? 'Wrapped' : 'Unfolded';
             const nextLabel = mode === 'wrapped' ? 'Unfolded' : 'Wrapped';
             return '<button type="button" class="unidex-layout-btn unidex-tree-mode-btn" onclick="window.UnidexView.toggleTabsTreeMode()" title="Switch to ' + nextLabel + ' tab tree view">Tab View: ' + label + '</button>';
+        }
+
+        function getParentWorkspace(workspace) {
+            const helpers = window.EveWorkspaceHelpers;
+            if (!helpers || typeof helpers.findParent !== 'function' || !workspace?.id) return null;
+            return helpers.findParent(config.workspaces || [], workspace.id);
+        }
+
+        function buildCardsNavHtml(workspace) {
+            const parentWorkspace = getParentWorkspace(workspace);
+            const parentName = parentWorkspace ? escapeHtml(parentWorkspace.name || parentWorkspace.id) : '';
+            const parentId = parentWorkspace ? String(encodeParam(parentWorkspace.id)).replace(/'/g, '%27') : '';
+            const parentButtonHtml = parentWorkspace
+                ? `<button type="button" class="unidex-back-btn unidex-parent-back-btn" onclick="window.UnidexView.switchWorkspaceTab('${parentId}')" title="Back to parent tab: ${parentName}"><span>Back To Parent</span><small>${parentName}</small></button>`
+                : '';
+            return `<div class="unidex-panel-nav">
+                <button type="button" class="unidex-back-btn" onclick="window.UnidexView.backToTabs()">Back To Tabs</button>
+                ${parentButtonHtml}
+            </div>`;
         }
 
         function renderTabsStage(gridContainer, searchStr) {
@@ -183,9 +208,11 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                                 <span class="unidex-subtab-badge">${safeIcon} ${safeName}</span>
                                 <span class="unidex-subtab-count">${stCount} links</span>
                             </div>
-                            <section class="unidex-cards" aria-label="${safeName} Cards">
-                                ${buildCardsHtml(stModels)}
-                            </section>
+                            ${buildWrappedCardsHtml(subTab, stModels, {
+                                depth: depth,
+                                badge: 'Nested Tab',
+                                sectionLabel: 'CARDS'
+                            })}
                         </div>`;
                     });
                 }
@@ -203,7 +230,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 gridContainer.innerHTML = `
                 <section class="unidex-shell" aria-label="Unidex Cards View">
                     <header class="unidex-panel-header">
-                        <button type="button" class="unidex-back-btn" onclick="window.UnidexView.backToTabs()">Back To Tabs</button>
+                        ${buildCardsNavHtml(workspace)}
                         <h3 class="unidex-panel-title unidex-echo-title" data-text="${escapeHtml(String(workspace.name || '').toUpperCase())}"><span>${escapeHtml(workspace.name)} Cards</span></h3>
                         <div class="unidex-panel-controls">
                             ${unifiedToggleHtml}
@@ -211,9 +238,11 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                             ${mapButtonHtml}
                         </div>
                     </header>
-                    <section class="unidex-cards" aria-label="Category Cards">
-                        ${buildCardsHtml(categoryModels)}
-                    </section>
+                    ${buildWrappedCardsHtml(workspace, categoryModels, {
+                        root: true,
+                        badge: 'Current Tab',
+                        sectionLabel: 'CARDS'
+                    })}
                     ${subTabCardsHtml}
                 </section>
             `;
@@ -230,7 +259,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 gridContainer.innerHTML = `
                 <section class="unidex-shell" aria-label="Unidex Unified Entries View">
                     <header class="unidex-panel-header">
-                        <button type="button" class="unidex-back-btn" onclick="window.UnidexView.backToTabs()">Back To Tabs</button>
+                        ${buildCardsNavHtml(workspace)}
                         <h3 class="unidex-panel-title unidex-echo-title" data-text="${escapeHtml(String(workspace.name || '').toUpperCase())}"><span>${escapeHtml(workspace.name)} Unified Entries</span></h3>
                         <div class="unidex-panel-controls">
                             ${buildEntriesControlsHtml({ toggleHtml: unifiedToggleHtml })}
@@ -253,7 +282,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             gridContainer.innerHTML = `
             <section class="unidex-shell" aria-label="Unidex Unified Entries View">
                 <header class="unidex-panel-header">
-                    <button type="button" class="unidex-back-btn" onclick="window.UnidexView.backToTabs()">Back To Tabs</button>
+                    ${buildCardsNavHtml(workspace)}
                     <h3 class="unidex-panel-title unidex-echo-title" data-text="${escapeHtml(String(workspace.name || '').toUpperCase())}"><span>${escapeHtml(workspace.name)} Unified Entries</span></h3>
                     <div class="unidex-panel-controls">
                         ${buildEntriesControlsHtml({ toggleHtml: unifiedToggleHtml })}

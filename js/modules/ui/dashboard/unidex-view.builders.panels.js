@@ -128,6 +128,83 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             }).join('');
         }
 
+        function getCategoryModelsList(categoryModels) {
+            return Array.isArray(categoryModels) ? categoryModels.filter(Boolean) : [];
+        }
+
+        function getCardSummary(categoryModels) {
+            return getCategoryModelsList(categoryModels).reduce(function (summary, model) {
+                const total = Number(model?.total || 0);
+                const done = Number(model?.done || 0);
+                const pending = Number(model?.pending || 0);
+                summary.cards += 1;
+                summary.links += Number.isFinite(total) ? total : 0;
+                summary.done += Number.isFinite(done) ? done : 0;
+                summary.pending += Number.isFinite(pending) ? pending : 0;
+                if (model?.taskMode) summary.taskCards += 1;
+                return summary;
+            }, {
+                cards: 0,
+                links: 0,
+                done: 0,
+                pending: 0,
+                taskCards: 0
+            });
+        }
+
+        function buildWrappedCardsHtml(workspace, categoryModels, options) {
+            const settings = options || {};
+            const models = getCategoryModelsList(categoryModels);
+            const summary = getCardSummary(models);
+            const name = getWorkspaceName(workspace);
+            const rawIcon = getWorkspaceIcon(workspace);
+            const safeIcon = rawIcon ? escapeHtml(rawIcon) : '&#128193;';
+            const safeName = escapeHtml(name);
+            const encodedId = encodeParam(workspace?.id || '');
+            const depth = Math.max(0, Number(settings.depth) || 0);
+            const depthClass = ' unidex-card-wrapper-depth-' + Math.min(depth, 4);
+            const rootClass = settings.root ? ' is-root-card-wrapper' : ' is-sub-card-wrapper';
+            const sectionLabel = escapeHtml(settings.sectionLabel || 'CARDS');
+            const badgeHtml = settings.badge
+                ? `<span class="unidex-card-wrapper-badge">${escapeHtml(settings.badge)}</span>`
+                : '';
+            const pathHtml = settings.pathLabel
+                ? `<span class="unidex-card-wrapper-path">${escapeHtml(settings.pathLabel)}</span>`
+                : '';
+            const openTabAttr = encodedId
+                ? ` onclick="window.UnidexView.switchWorkspaceTab('${encodedId}')"`
+                : '';
+            const cardsHtml = models.length
+                ? buildCardsHtml(models)
+                : `<div class="unidex-card-wrap-empty">NO CARDS IN THIS TAB</div>`;
+
+            return `<article class="unidex-card-wrapper-frame${rootClass}${depthClass}">
+                <div class="unidex-card-frame-top-beam" aria-hidden="true"></div>
+                <div class="unidex-card-frame-left-glow" aria-hidden="true"></div>
+                <div class="unidex-card-scan-beam" aria-hidden="true"></div>
+                <div class="unidex-card-frame-corner is-top-left" aria-hidden="true"></div>
+                <div class="unidex-card-frame-corner is-top-right" aria-hidden="true"></div>
+                <div class="unidex-card-frame-corner is-bottom-left" aria-hidden="true"></div>
+                <div class="unidex-card-frame-corner is-bottom-right" aria-hidden="true"></div>
+                <div class="unidex-card-wrapper-header">
+                    <button type="button" class="unidex-card-wrapper-tab"${openTabAttr} title="Open ${safeName} tab">
+                        <span class="unidex-card-wrapper-title">${safeIcon} ${safeName}</span>
+                        ${pathHtml}
+                        ${badgeHtml}
+                    </button>
+                    <div class="unidex-card-wrapper-stats">
+                        <span>${summary.cards} cards</span>
+                        <span>${summary.links} links</span>
+                        <span>${summary.taskCards} tracked</span>
+                    </div>
+                </div>
+                <div class="unidex-manhwa-divider">${sectionLabel}</div>
+                <section class="unidex-cards unidex-cards-wrap-grid" aria-label="${safeName} Cards">
+                    ${cardsHtml}
+                </section>
+            </article>`;
+        }
+
         function buildTabsHtml(options) {
             const mode = String(options?.mode || 'wrapped');
             if (mode === 'wrapped') return buildWrappedTabsHtml();
@@ -213,7 +290,8 @@ window.UnidexViewModules = window.UnidexViewModules || {};
 
         return {
             buildTabsHtml,
-            buildCardsHtml
+            buildCardsHtml,
+            buildWrappedCardsHtml
         };
     };
 })();

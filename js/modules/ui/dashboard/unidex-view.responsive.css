@@ -18,8 +18,13 @@
         width: 100%;
     }
 
+    .unidex-panel-nav {
+        width: 100%;
+    }
+
     .unidex-layout-btn,
-    .unidex-map-btn {
+    .unidex-map-btn,
+    .unidex-panel-nav .unidex-back-btn {
         width: 100%;
     }
 
