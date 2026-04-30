@@ -38,6 +38,67 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             head.appendChild(styleLink);
         }
 
+        function getEntriesMasonryItems(entriesSection) {
+            if (!entriesSection) return [];
+            return Array.from(entriesSection.children).filter(function (node) {
+                return node?.classList?.contains('unidex-entry-item')
+                    || node?.classList?.contains('unidex-identifier-group');
+            });
+        }
+
+        function clearEntriesMasonrySpans(entriesSection) {
+            getEntriesMasonryItems(entriesSection).forEach(function (item) {
+                item.style.gridRowEnd = '';
+            });
+            if (entriesSection) entriesSection.style.minHeight = '';
+        }
+
+        function applyEntriesMasonry(entriesSection) {
+            if (!entriesSection?.classList?.contains('is-grid-layout')) return;
+            const computedStyle = window.getComputedStyle(entriesSection);
+            const rowHeight = parseFloat(computedStyle.getPropertyValue('grid-auto-rows')) || 8;
+            let rowGap = parseFloat(computedStyle.getPropertyValue('row-gap'));
+            if (!rowGap || Number.isNaN(rowGap)) {
+                rowGap = parseFloat(computedStyle.getPropertyValue('gap')) || 0;
+            }
+
+            const items = getEntriesMasonryItems(entriesSection);
+            if (!items.length) {
+                entriesSection.style.minHeight = '';
+                return;
+            }
+
+            const currentHeight = entriesSection.offsetHeight;
+            if (currentHeight > 100) {
+                entriesSection.style.minHeight = `${currentHeight}px`;
+            }
+
+            items.forEach(function (item) {
+                item.style.gridRowEnd = 'auto';
+            });
+
+            const heights = items.map(function (item) {
+                return item.getBoundingClientRect().height;
+            });
+
+            items.forEach(function (item, index) {
+                const span = Math.max(1, Math.ceil((heights[index] + rowGap) / (rowHeight + rowGap)));
+                item.style.gridRowEnd = `span ${span}`;
+            });
+
+            requestAnimationFrame(function () {
+                entriesSection.style.minHeight = '';
+            });
+        }
+
+        function scheduleEntriesMasonry(entriesSection) {
+            if (!entriesSection) return;
+            applyEntriesMasonry(entriesSection);
+            requestAnimationFrame(function () {
+                applyEntriesMasonry(entriesSection);
+            });
+        }
+
         function forceEntriesLayoutPass(gridContainer, layoutMode) {
             if (!gridContainer) return;
             const entriesSection = gridContainer.querySelector('.unidex-entries');
@@ -72,6 +133,9 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 }
 
                 entriesSection.style.setProperty('grid-template-columns', gridColumns, 'important');
+                entriesSection.style.setProperty('grid-auto-rows', '8px', 'important');
+                entriesSection.style.setProperty('grid-auto-flow', 'row dense', 'important');
+                entriesSection.style.setProperty('align-items', 'start', 'important');
                 entriesSection.style.setProperty('justify-content', 'center', 'important');
                 visualButtons.forEach(function (button) {
                     const targetHeight = getGridCoverHeight(button);
@@ -112,9 +176,23 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                     image.style.setProperty('object-fit', 'contain', 'important');
                     image.style.setProperty('object-position', 'center center', 'important');
                     image.style.setProperty('transform-origin', 'center center', 'important');
+                    if (!image.dataset.unidexMasonryBound) {
+                        image.dataset.unidexMasonryBound = '1';
+                        image.addEventListener('load', function () {
+                            scheduleEntriesMasonry(entriesSection);
+                        }, { once: true });
+                    }
                 });
+                scheduleEntriesMasonry(entriesSection);
                 return;
             }
+
+            clearEntriesMasonrySpans(entriesSection);
+            entriesSection.style.setProperty('grid-template-columns', 'minmax(0, 1fr)', 'important');
+            entriesSection.style.removeProperty('grid-auto-rows');
+            entriesSection.style.removeProperty('grid-auto-flow');
+            entriesSection.style.removeProperty('align-items');
+            entriesSection.style.removeProperty('justify-content');
 
             const isCompactViewport = window.matchMedia('(max-width: 900px)').matches;
             const targetWidth = isCompactViewport ? 72 : 84;

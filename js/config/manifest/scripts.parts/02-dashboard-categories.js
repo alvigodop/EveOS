@@ -42,7 +42,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/ui/dashboard/unidex-view.controls.state.js?v=0.2.5",
     "js/modules/ui/dashboard/unidex-view.controls.view.js?v=0.2.4",
     "js/modules/ui/dashboard/unidex-view.controls.js?v=0.2.2",
-    "js/modules/ui/dashboard/unidex-view.layout.js?v=0.2.2",
+    "js/modules/ui/dashboard/unidex-view.layout.js?v=0.2.3",
     "js/modules/ui/dashboard/unidex-view.stages.renderers.panels.js?v=0.2.7",
     "js/modules/ui/dashboard/unidex-view.stages.renderers.entries.js?v=0.2.3",
     "js/modules/ui/dashboard/unidex-view.stages.renderers.js?v=0.2.2",

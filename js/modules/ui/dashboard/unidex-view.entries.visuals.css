@@ -5,9 +5,16 @@
 
 .unidex-entries.is-grid-layout {
     grid-template-columns: repeat(auto-fill, minmax(220px, 260px)) !important;
+    grid-auto-rows: 8px !important;
+    grid-auto-flow: row dense !important;
     gap: 14px !important;
     align-items: start;
     justify-content: center;
+}
+
+.unidex-entries.is-grid-layout > .unidex-entry-item,
+.unidex-entries.is-grid-layout > .unidex-identifier-group {
+    align-self: start;
 }
 
 .unidex-entry-item {
@@ -243,11 +250,13 @@
 
 .unidex-entries.is-grid-layout.is-density-compact {
     grid-template-columns: repeat(auto-fill, minmax(190px, 220px)) !important;
+    grid-auto-rows: 8px !important;
     gap: 10px !important;
 }
 
 .unidex-entries.is-grid-layout.is-density-atlas {
     grid-template-columns: repeat(auto-fill, minmax(160px, 180px)) !important;
+    grid-auto-rows: 8px !important;
     gap: 8px !important;
 }
 
