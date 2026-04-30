@@ -296,6 +296,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 }
                 renderedCount = nextCount;
                 updateStatus(false);
+                entriesSection.dispatchEvent(new CustomEvent('unidex-progressive-chunk'));
 
                 scheduleIdleTask(appendNextChunk);
             }

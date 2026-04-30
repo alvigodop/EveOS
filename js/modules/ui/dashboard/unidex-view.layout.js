@@ -127,6 +127,15 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             item.dataset.unidexMasonryHeight = String(Math.round(measuredHeight));
         }
 
+        function getMasonryScrollHosts() {
+            const hosts = [window];
+            const mainContent = document.getElementById('main-content');
+            if (mainContent && mainContent !== document.body && mainContent !== document.documentElement) {
+                hosts.push(mainContent);
+            }
+            return hosts;
+        }
+
         function applyEntriesMasonry(entriesSection) {
             if (!entriesSection?.classList?.contains('is-grid-layout')) return;
             if (entriesSection.classList.contains('is-large-entry-set')) return;
@@ -178,12 +187,25 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 });
             }
 
+            function handleProgressiveChunk() {
+                if (token !== largeMasonryToken || !document.body?.contains(entriesSection)) return;
+                measureLargeViewportWindow(entriesSection, containers);
+                scheduleWindowMeasure();
+            }
+
             if (typeof largeMasonryCleanup === 'function') largeMasonryCleanup();
-            window.addEventListener('scroll', scheduleWindowMeasure, { passive: true });
+            const scrollHosts = getMasonryScrollHosts();
+            scrollHosts.forEach(function (host) {
+                host.addEventListener('scroll', scheduleWindowMeasure, { passive: true });
+            });
             window.addEventListener('resize', scheduleWindowMeasure, { passive: true });
+            entriesSection.addEventListener('unidex-progressive-chunk', handleProgressiveChunk);
             largeMasonryCleanup = function cleanupLargeMasonry() {
-                window.removeEventListener('scroll', scheduleWindowMeasure);
+                scrollHosts.forEach(function (host) {
+                    host.removeEventListener('scroll', scheduleWindowMeasure);
+                });
                 window.removeEventListener('resize', scheduleWindowMeasure);
+                entriesSection.removeEventListener('unidex-progressive-chunk', handleProgressiveChunk);
             };
 
             measureLargeViewportWindow(entriesSection, containers);
@@ -217,7 +239,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
         function measureLargeViewportWindow(entriesSection, containers) {
             const viewportTop = -700;
             const viewportBottom = window.innerHeight + 900;
-            const maxPerFrame = 56;
+            const maxPerFrame = 120;
             let measured = 0;
             containers.forEach(function (container) {
                 if (measured >= maxPerFrame) return;
@@ -326,7 +348,8 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                     if (masonryState !== 'visible' && masonryState !== 'pending-visible') {
                         scheduleVisibleLargeMasonry(entriesSection);
                     } else if (masonryState === 'visible') {
-                        measureLargeViewportWindow(entriesSection, getLargeMasonryContainers(entriesSection));
+                        const masonryContainers = getLargeMasonryContainers(entriesSection);
+                        measureLargeViewportWindow(entriesSection, masonryContainers);
                     }
                     return;
                 }

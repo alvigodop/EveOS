@@ -150,6 +150,14 @@ async function assertProgressiveInitialLoad(initialState) {
     }
 }
 
+async function scrollUnidexViewport(page, point) {
+    await page.evaluate((scrollPoint) => {
+        const scroller = document.getElementById('main-content') || document.scrollingElement || document.documentElement;
+        const maxScroll = Math.max(scroller.scrollHeight - scroller.clientHeight, 0);
+        scroller.scrollTo(0, Math.round(maxScroll * scrollPoint));
+    }, point);
+}
+
 async function assertNoVisibleCardOverlap(page, label) {
     await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     async function collectLayoutState() {
@@ -198,7 +206,7 @@ async function assertNoVisibleCardOverlap(page, label) {
 
     let layoutState = await collectLayoutState();
     if (layoutState.checked < 4) {
-        await page.evaluate(() => window.scrollTo(0, 0));
+        await scrollUnidexViewport(page, 0);
         await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
         layoutState = await collectLayoutState();
     }
@@ -243,15 +251,36 @@ async function assertVisibleCardContentContained(page, label) {
     }
 }
 
+async function assertNoOverlapAcrossScroll(page, label) {
+    const points = [0, 0.18, 0.36, 0.54, 0.72];
+    for (const point of points) {
+        await scrollUnidexViewport(page, point);
+        await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        await assertNoVisibleCardOverlap(page, `${label} scroll ${point}`);
+        await assertVisibleCardContentContained(page, `${label} scroll ${point}`);
+    }
+}
+
 async function assertProgressiveHydrationCompletes(page) {
     await page.waitForFunction(() => {
         const entriesSection = document.querySelector('.unidex-entries');
+        if ((!entriesSection || document.querySelectorAll('.unidex-entry-item').length === 0)
+            && typeof window.__restoreUnidexUnified5kSmoke === 'function') {
+            window.__restoreUnidexUnified5kSmoke({ unidexEntriesGroupMode: 'flat' });
+            if (typeof window._renderDashboardImmediate === 'function') {
+                window._renderDashboardImmediate();
+            } else if (typeof window.renderDashboard === 'function') {
+                window.renderDashboard();
+            }
+            return false;
+        }
         return document.querySelectorAll('.unidex-entry-item').length === 5500
             && entriesSection?.getAttribute('aria-busy') === 'false';
     }, undefined, { timeout: 120000 });
 
     const finalState = await page.evaluate(async () => {
-        window.scrollTo(0, Math.floor(document.body.scrollHeight * 0.45));
+        const scroller = document.getElementById('main-content') || document.scrollingElement || document.documentElement;
+        scroller.scrollTo(0, Math.floor(Math.max(scroller.scrollHeight - scroller.clientHeight, 0) * 0.45));
         await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         const entriesSection = document.querySelector('.unidex-entries');
         return {
@@ -271,6 +300,7 @@ async function assertProgressiveHydrationCompletes(page) {
     }
     await assertNoVisibleCardOverlap(page, 'flat hydration');
     await assertVisibleCardContentContained(page, 'flat hydration');
+    await assertNoOverlapAcrossScroll(page, 'flat hydration');
 }
 
 async function assertIdentifierGroupedProgressive(page) {
@@ -320,6 +350,7 @@ async function assertIdentifierGroupedProgressive(page) {
     }, undefined, { timeout: 120000 });
     await assertNoVisibleCardOverlap(page, 'identifier hydration');
     await assertVisibleCardContentContained(page, 'identifier hydration');
+    await assertNoOverlapAcrossScroll(page, 'identifier hydration');
 }
 
 (async () => {
