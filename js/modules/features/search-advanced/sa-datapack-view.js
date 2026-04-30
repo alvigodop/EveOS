@@ -4,6 +4,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
 (function () {
     const ns = window.EveOS.SearchAdvanced;
     if (ns.DatapackView) return;
+    if (!ns.DatapackViewMicro || !ns.DatapackViewMacroActions) return;
 
     const MAX_MACRO_CARDS = 250;
     const MAX_MICRO_BOOKMARKS = 120;
@@ -34,10 +35,16 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     }
 
     function getLiveLinks() {
-        if (typeof window.getLiveLinks === 'function') return window.getLiveLinks();
-        if (Array.isArray(window.eveState?.links)) return window.eveState.links;
-        if (Array.isArray(window.links)) return window.links;
-        if (typeof links !== 'undefined' && Array.isArray(links)) return links;
+        const live = typeof window.getLiveLinks === 'function' ? window.getLiveLinks() : null;
+        const directWindowLinks = Array.isArray(window.links) ? window.links : null;
+        const directGlobalLinks = typeof links !== 'undefined' && Array.isArray(links) ? links : null;
+        const stateLinks = Array.isArray(window.eveState?.links) ? window.eveState.links : null;
+        const richest = [directWindowLinks, directGlobalLinks, stateLinks, live]
+            .filter(Array.isArray)
+            .sort(function (left, right) { return right.length - left.length; })[0];
+        if (richest && live && richest !== live && richest.length > live.length) return richest;
+        if (live) return live;
+        if (richest) return richest;
         return [];
     }
 
@@ -50,7 +57,17 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     }
 
     function getFolderStore() {
-        return window.eveState?.bookmarkFolders || window.bookmarkFolders || {};
+        const stores = [
+            window.bookmarkFolders,
+            typeof bookmarkFolders !== 'undefined' ? bookmarkFolders : null,
+            window.eveState?.bookmarkFolders
+        ].filter(function (store) {
+            return store && typeof store === 'object';
+        });
+        if (!stores.length) return {};
+        return stores.sort(function (left, right) {
+            return Object.keys(right).length - Object.keys(left).length;
+        })[0];
     }
 
     function buildScopedKey(workspaceId, categoryName) {
@@ -133,11 +150,13 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     }
 
     function getFolderNodes(workspaceId, categoryName) {
-        if (typeof window.EveBookmarkFolders?.getScopedNodes === 'function') {
-            return window.EveBookmarkFolders.getScopedNodes(workspaceId, categoryName) || [];
-        }
         const tree = getFolderStore()[buildScopedKey(workspaceId, categoryName)];
-        return Array.isArray(tree?.nodes) ? tree.nodes : (Array.isArray(tree) ? tree : []);
+        const storeNodes = Array.isArray(tree?.nodes) ? tree.nodes : (Array.isArray(tree) ? tree : []);
+        if (typeof window.EveBookmarkFolders?.getScopedNodes === 'function') {
+            const apiNodes = window.EveBookmarkFolders.getScopedNodes(workspaceId, categoryName) || [];
+            return storeNodes.length > apiNodes.length ? storeNodes : apiNodes;
+        }
+        return storeNodes;
     }
 
     function getFolderPathLabel(workspaceId, categoryName, folderId) {
@@ -365,283 +384,35 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             + '</div></div>';
     }
 
-    function saveMacroChanges() {
-        const panel = document.getElementById('nxDatapackViewPanel');
-        if (!panel) return false;
-        const rows = Array.from(panel.querySelectorAll('.nx-dv-card[data-workspace-id][data-category-name]'));
-        const edits = rows.map(function (row) {
-            const workspaceId = normalizeWorkspaceId(row.getAttribute('data-workspace-id'));
-            const oldCategoryName = normalizeCategoryName(row.getAttribute('data-category-name'));
-            const rawCategoryName = String(row.querySelector('[data-nx-dv-field="categoryName"]')?.value || '').trim();
-            const order = Math.max(1, Number(row.querySelector('[data-nx-dv-field="order"]')?.value) || 1);
-            return {
-                workspaceId,
-                oldCategoryName,
-                nextCategoryName: rawCategoryName ? normalizeCategoryName(rawCategoryName) : '',
-                order
-            };
-        });
-        if (edits.some(function (edit) { return !edit.nextCategoryName; })) {
-            if (typeof showToast === 'function') showToast('Card names cannot be blank.', 'error');
-            return false;
-        }
-        const validationGroups = new Map();
-        edits.forEach(function (edit) {
-            if (!validationGroups.has(edit.workspaceId)) validationGroups.set(edit.workspaceId, []);
-            validationGroups.get(edit.workspaceId).push(edit);
-        });
-        let validationError = '';
-        validationGroups.forEach(function (items, workspaceId) {
-            if (validationError) return;
-            const nextNames = new Set();
-            const oldNames = new Set(items.map(function (item) {
-                return item.oldCategoryName.toLowerCase();
-            }));
-            items.forEach(function (item) {
-                const comparableName = item.nextCategoryName.toLowerCase();
-                if (nextNames.has(comparableName)) {
-                    validationError = 'Duplicate card name in gateway edit: ' + item.nextCategoryName;
-                    return;
-                }
-                nextNames.add(comparableName);
-            });
-            if (validationError) return;
-            const existingNames = getCategoryNamesForWorkspace(workspaceId).map(function (name) {
-                return normalizeCategoryName(name).toLowerCase();
-            });
-            items.forEach(function (item) {
-                const comparableName = item.nextCategoryName.toLowerCase();
-                if (existingNames.includes(comparableName) && !oldNames.has(comparableName)) {
-                    validationError = 'Card name already exists outside this gateway view: ' + item.nextCategoryName;
-                }
-            });
-        });
-        if (validationError) {
-            if (typeof showToast === 'function') showToast(validationError, 'error');
-            return false;
-        }
-        const liveLinks = getLiveLinks();
-        const orderGroups = new Map();
-        let renamed = 0;
-        let reordered = 0;
-
-        edits.forEach(function (edit) {
-            const workspaceId = edit.workspaceId;
-            const oldCategoryName = edit.oldCategoryName;
-            const nextCategoryName = edit.nextCategoryName;
-            const order = edit.order;
-            if (!orderGroups.has(workspaceId)) orderGroups.set(workspaceId, []);
-            orderGroups.get(workspaceId).push({ oldCategoryName, nextCategoryName, order });
-
-            if (nextCategoryName && nextCategoryName !== oldCategoryName) {
-                liveLinks.forEach(function (link) {
-                    if (normalizeWorkspaceId(link?.workspace) !== workspaceId) return;
-                    if (normalizeCategoryName(link?.category) !== oldCategoryName) return;
-                    link.category = nextCategoryName;
-                    window.EveLibrary?.ConnectionsAPI?.syncFromLink?.(link.id);
-                });
-                window.EveBookmarkFolders?.renameCategoryScope?.(workspaceId, oldCategoryName, nextCategoryName);
-                window.EveCategoryOrder?.renameCategory?.(workspaceId, oldCategoryName, nextCategoryName);
-                window.EveBookmarkFolders?.renameCardTaskScope?.(workspaceId, oldCategoryName, nextCategoryName);
-                renamed += 1;
-            }
-        });
-
-        setLiveLinks(liveLinks);
-        orderGroups.forEach(function (items, workspaceId) {
-            const cfg = getConfig();
-            if (!cfg.categoryOrderByWorkspace || typeof cfg.categoryOrderByWorkspace !== 'object') cfg.categoryOrderByWorkspace = {};
-            const existing = window.EveCategoryOrder?.getOrder
-                ? window.EveCategoryOrder.getOrder(workspaceId, { persist: true })
-                : (Array.isArray(cfg.categoryOrderByWorkspace[workspaceId]) ? cfg.categoryOrderByWorkspace[workspaceId] : []);
-            const shownNames = new Set(items.map(function (item) { return item.nextCategoryName; }));
-            const sortedShown = items.slice().sort(function (left, right) {
-                return left.order - right.order || left.nextCategoryName.localeCompare(right.nextCategoryName);
-            }).map(function (item) {
-                return item.nextCategoryName;
-            });
-            const rest = existing.map(function (name) {
-                const replacement = items.find(function (item) { return item.oldCategoryName === name; });
-                return replacement ? replacement.nextCategoryName : name;
-            }).filter(function (name) {
-                return !shownNames.has(name);
-            });
-            const nextOrder = Array.from(new Set(sortedShown.concat(rest)));
-            if (nextOrder.join('\n') !== existing.join('\n')) reordered += 1;
-            cfg.categoryOrderByWorkspace[workspaceId] = nextOrder;
-        });
-
-        if (!renamed && !reordered) {
-            if (typeof showToast === 'function') showToast('No macro changes to save.', 'info');
-            return false;
-        }
-        if (typeof saveConfig === 'function') {
-            saveConfig({
-                immediate: true,
-                source: 'nexus-datapack-view-macro-config',
-                meta: { renamed, reordered }
-            });
-        }
-        if (typeof saveData === 'function') {
-            saveData({
-                immediate: true,
-                forceRender: true,
-                source: 'nexus-datapack-view-macro-data',
-                meta: { renamed, reordered }
-            });
-        }
-        if (typeof renderSidebar === 'function') renderSidebar();
-        if (typeof renderDashboard === 'function') renderDashboard();
-        renderGateway(resolveCurrentScope());
-        if (typeof showToast === 'function') showToast('Datapack macro changes saved.', 'success');
-        return true;
-    }
-
-    function buildCardInternals(workspaceId, categoryName) {
-        const scopedLinks = getScopedLinks(workspaceId, categoryName);
-        const folders = getFolderNodes(workspaceId, categoryName);
-        const bookmarkRows = scopedLinks.slice(0, MAX_MICRO_BOOKMARKS).map(function (link) {
-            const folderId = normalizeFolderId(link?.folderId);
-            const notes = String(link?.notes || '').trim();
-            return {
-                id: String(link?.id || ''),
-                title: String(link?.title || 'Untitled'),
-                url: String(link?.url || ''),
-                folderId,
-                folderPath: getFolderPathLabel(workspaceId, categoryName, folderId),
-                identifiers: getIdentifierLabels(link),
-                notesSummary: notes ? notes.slice(0, 180) : '',
-                linkedLibrary: !!window.EveLibrary?.ConnectionsAPI?.getLinkedEntry?.(String(link?.id || ''))?.entry
-            };
-        });
-        return {
-            workspaceId: normalizeWorkspaceId(workspaceId),
-            categoryName: normalizeCategoryName(categoryName),
-            counts: {
-                bookmarks: scopedLinks.length,
-                bookmarksShown: bookmarkRows.length,
-                omittedBookmarks: Math.max(0, scopedLinks.length - bookmarkRows.length),
-                folders: folders.length
-            },
-            folders: folders.map(function (folder) {
-                const id = normalizeFolderId(folder?.id);
-                return {
-                    id,
-                    name: String(folder?.name || 'Folder'),
-                    parentId: normalizeFolderId(folder?.parentId),
-                    path: getFolderPathLabel(workspaceId, categoryName, id),
-                    bookmarks: scopedLinks.filter(function (link) {
-                        return normalizeFolderId(link?.folderId) === id;
-                    }).length
-                };
-            }),
-            bookmarks: bookmarkRows
-        };
-    }
-
-    function openCardInternals(workspaceId, categoryName) {
-        closeCardInternals();
-        const state = buildCardInternals(workspaceId, categoryName);
-        const overlay = document.createElement('div');
-        overlay.className = 'nx-dv-micro-overlay';
-        overlay.innerHTML = ''
-            + '<div class="nx-dv-micro" role="dialog" aria-modal="true" aria-label="Card internals">'
-            + '<div class="nx-dv-micro-head">'
-            + '<div><div class="nx-dv-kicker">Card Internals</div><h3>' + escapeHtml(state.categoryName) + '</h3></div>'
-            + '<button type="button" class="nx-dv-close" data-nx-dv-action="close-micro">X</button>'
-            + '</div>'
-            + '<div class="nx-dv-summary">'
-            + '<span>' + state.counts.bookmarks + ' bookmarks</span>'
-            + '<span>' + state.counts.folders + ' folders</span>'
-            + '<span>' + state.counts.omittedBookmarks + ' omitted by safety cap</span>'
-            + '</div>'
-            + '<div class="nx-dv-micro-body">'
-            + renderMicroFolders(state)
-            + renderMicroBookmarks(state)
-            + '</div>'
-            + '<div class="nx-dv-micro-actions">'
-            + '<button type="button" class="nx-dv-btn nx-dv-primary" data-nx-dv-action="save-micro" data-workspace-id="' + escapeHtml(state.workspaceId) + '" data-category-name="' + escapeHtml(state.categoryName) + '">Save</button>'
-            + '<button type="button" class="nx-dv-btn" data-nx-dv-action="revert-micro" data-workspace-id="' + escapeHtml(state.workspaceId) + '" data-category-name="' + escapeHtml(state.categoryName) + '">Revert</button>'
-            + '<button type="button" class="nx-dv-btn" data-nx-dv-action="close-micro">Cancel</button>'
-            + '</div>'
-            + '</div>';
-        document.body.appendChild(overlay);
-        return state;
-    }
-
-    function renderMicroFolders(state) {
-        if (!state.folders.length) return '<div class="nx-dv-empty">No folders in this card.</div>';
-        return '<section class="nx-dv-micro-section"><div class="nx-dv-section-title">Folders</div><div class="nx-dv-folder-list">'
-            + state.folders.map(function (folder) {
-                return '<div class="nx-dv-folder-row">'
-                    + '<strong>' + escapeHtml(folder.name) + '</strong>'
-                    + '<span title="' + escapeHtml(folder.path) + '">' + escapeHtml(folder.path) + '</span>'
-                    + '<small>' + folder.bookmarks + ' bookmarks</small>'
-                    + '</div>';
-            }).join('')
-            + '</div></section>';
-    }
-
-    function renderMicroBookmarks(state) {
-        if (!state.bookmarks.length) return '<div class="nx-dv-empty">No bookmarks in this card.</div>';
-        return '<section class="nx-dv-micro-section"><div class="nx-dv-section-title">Bookmarks</div><div class="nx-dv-bookmark-list">'
-            + state.bookmarks.map(function (bookmark) {
-                return '<div class="nx-dv-bookmark-row" data-link-id="' + escapeHtml(bookmark.id) + '">'
-                    + '<label><span>Title</span><input type="text" data-nx-dv-field="bookmarkTitle" value="' + escapeHtml(bookmark.title) + '"></label>'
-                    + '<div class="nx-dv-bookmark-meta">'
-                    + '<span title="' + escapeHtml(bookmark.url) + '">' + escapeHtml(bookmark.url || 'No URL') + '</span>'
-                    + '<span title="' + escapeHtml(bookmark.folderPath) + '">Folder: ' + escapeHtml(bookmark.folderPath) + '</span>'
-                    + (bookmark.identifiers.length ? '<span>Labels: ' + escapeHtml(bookmark.identifiers.join(', ')) + '</span>' : '')
-                    + (bookmark.linkedLibrary ? '<span>Library linked</span>' : '')
-                    + (bookmark.notesSummary ? '<small>' + escapeHtml(bookmark.notesSummary) + '</small>' : '')
-                    + '</div>'
-                    + '</div>';
-            }).join('')
-            + '</div></section>';
-    }
-
-    function closeCardInternals() {
-        document.querySelectorAll('.nx-dv-micro-overlay').forEach(function (node) {
-            node.remove();
-        });
-    }
-
-    function saveMicroChanges(overlay) {
-        const panel = overlay?.querySelector?.('.nx-dv-micro');
-        if (!panel) return false;
-        const liveLinks = getLiveLinks();
-        let changed = 0;
-        panel.querySelectorAll('.nx-dv-bookmark-row[data-link-id]').forEach(function (row) {
-            const linkId = String(row.getAttribute('data-link-id') || '').trim();
-            const title = String(row.querySelector('[data-nx-dv-field="bookmarkTitle"]')?.value || '').trim();
-            const link = liveLinks.find(function (candidate) {
-                return String(candidate?.id || '') === linkId;
-            });
-            if (!link || !title || String(link.title || '') === title) return;
-            link.title = title;
-            window.EveLibrary?.ConnectionsAPI?.syncFromLink?.(link.id);
-            changed += 1;
-        });
-        if (!changed) {
-            if (typeof showToast === 'function') showToast('No micro changes to save.', 'info');
-            return false;
-        }
-        setLiveLinks(liveLinks);
-        if (typeof saveData === 'function') {
-            saveData({
-                immediate: true,
-                forceRender: true,
-                source: 'nexus-datapack-view-micro-data',
-                meta: { changed }
-            });
-        }
-        if (typeof renderDashboard === 'function') renderDashboard();
-        if (typeof showToast === 'function') showToast('Card internals saved.', 'success');
-        closeCardInternals();
-        renderGateway(resolveCurrentScope());
-        return true;
-    }
-
+    const macroActions = ns.DatapackViewMacroActions.create({
+        normalizeWorkspaceId: normalizeWorkspaceId,
+        normalizeCategoryName: normalizeCategoryName,
+        getConfig: getConfig,
+        getCategoryNamesForWorkspace: getCategoryNamesForWorkspace,
+        getLiveLinks: getLiveLinks,
+        setLiveLinks: setLiveLinks,
+        resolveCurrentScope: resolveCurrentScope,
+        renderGateway: renderGateway
+    });
+    const saveMacroChanges = macroActions.saveMacroChanges;
+    const microRuntime = ns.DatapackViewMicro.create({
+        MAX_MICRO_BOOKMARKS: MAX_MICRO_BOOKMARKS,
+        escapeHtml: escapeHtml,
+        normalizeWorkspaceId: normalizeWorkspaceId,
+        normalizeCategoryName: normalizeCategoryName,
+        normalizeFolderId: normalizeFolderId,
+        getScopedLinks: getScopedLinks,
+        getFolderNodes: getFolderNodes,
+        getFolderPathLabel: getFolderPathLabel,
+        getIdentifierLabels: getIdentifierLabels,
+        getLiveLinks: getLiveLinks,
+        setLiveLinks: setLiveLinks,
+        resolveCurrentScope: resolveCurrentScope,
+        renderGateway: renderGateway
+    });
+    const openCardInternals = microRuntime.openCardInternals;
+    const closeCardInternals = microRuntime.closeCardInternals;
+    const saveMicroChanges = microRuntime.saveMicroChanges;
     function openGateway(options) {
         const modal = document.getElementById('expandedSearchModal');
         if (!modal && typeof window.openExpandedSearchModal === 'function') {

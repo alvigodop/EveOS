@@ -5,6 +5,11 @@ const repoRoot = path.resolve(__dirname, '..', '..');
 const sharedPath = path.join(repoRoot, 'js/modules/features/search-advanced/sa-index.shared.js');
 const integrityPath = path.join(repoRoot, 'js/modules/features/search-advanced/sa-index.runtime.integrity.js');
 const summaryPath = path.join(repoRoot, 'js/modules/features/search-advanced/sa-index.runtime.summary.js');
+const searchPath = path.join(repoRoot, 'js/modules/features/search-advanced/sa-index.search.js');
+const graphPath = path.join(repoRoot, 'js/modules/features/search-advanced/sa-index.graph.js');
+const exactScopePath = path.join(repoRoot, 'js/modules/features/search-advanced/sa-index.exact-scope.js');
+const invalidationPath = path.join(repoRoot, 'js/modules/features/search-advanced/sa-index.invalidation.js');
+const persistencePath = path.join(repoRoot, 'js/modules/features/search-advanced/sa-index.persistence.js');
 const indexPath = path.join(repoRoot, 'js/modules/features/search-advanced/sa-index.js');
 
 function assert(condition, message) {
@@ -148,6 +153,11 @@ async function main() {
     eval(fs.readFileSync(sharedPath, 'utf8'));
     eval(fs.readFileSync(integrityPath, 'utf8'));
     eval(fs.readFileSync(summaryPath, 'utf8'));
+    eval(fs.readFileSync(searchPath, 'utf8'));
+    eval(fs.readFileSync(graphPath, 'utf8'));
+    eval(fs.readFileSync(exactScopePath, 'utf8'));
+    eval(fs.readFileSync(invalidationPath, 'utf8'));
+    eval(fs.readFileSync(persistencePath, 'utf8'));
 
     const shared = window.EveOS.SearchAdvanced.IndexShared;
     let records = [];

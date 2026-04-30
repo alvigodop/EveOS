@@ -1,11 +1,16 @@
 // --- MODAL CORE ---
 function initModals() {
     if (!window.modalTemplate) return;
+    const expandedSearchModal = document.getElementById('expandedSearchModal');
+    const expandedSearchDisplay = expandedSearchModal?.style?.display || '';
     // Check for the concrete link modal root instead of any overlay from unrelated features.
     if (!document.getElementById('addModal')) {
         document.body.insertAdjacentHTML('beforeend', window.modalTemplate);
     }
     closeModals();
+    if (expandedSearchModal && expandedSearchDisplay && expandedSearchDisplay !== 'none') {
+        expandedSearchModal.style.display = expandedSearchDisplay;
+    }
 }
 
 function closeModals() {
