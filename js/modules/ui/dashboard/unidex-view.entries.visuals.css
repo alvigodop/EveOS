@@ -61,8 +61,8 @@
 }
 
 .unidex-entries.is-grid-layout.is-large-entry-set {
-    --unidex-entry-span: 18;
-    --unidex-large-cover-height: 176px;
+    --unidex-entry-span: 20;
+    --unidex-large-cover-height: 218px;
 }
 
 .unidex-entries.is-grid-layout.is-large-entry-set.is-flat-entry-set {
@@ -75,6 +75,12 @@
     justify-content: center;
 }
 
+.unidex-entries.is-grid-layout.is-large-entry-set.is-grouped-entry-set {
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-auto-rows: auto !important;
+    grid-auto-flow: row !important;
+}
+
 .unidex-entries.is-grid-layout.is-large-entry-set.is-flat-entry-set > .unidex-entry-item,
 .unidex-entries.is-grid-layout.is-large-entry-set.is-grouped-entry-set .unidex-identifier-group-body > .unidex-entry-item {
     grid-row-end: span var(--unidex-entry-span, 18);
@@ -84,12 +90,12 @@
     min-height: 0 !important;
     max-height: none !important;
     margin: 0;
-    overflow: visible;
+    overflow: hidden;
 }
 
 .unidex-entries.is-grid-layout.is-large-entry-set .unidex-entry-item.has-visual-slot {
-    grid-template-rows: var(--unidex-large-cover-height, 176px) auto auto !important;
-    align-content: stretch;
+    grid-template-rows: auto auto auto !important;
+    align-content: start;
 }
 
 .unidex-entries.is-grid-layout.is-large-entry-set .unidex-entry-visual-btn,
@@ -117,14 +123,68 @@
 }
 
 .unidex-entries.is-grid-layout.is-large-entry-set .unidex-entry-main {
+    min-width: 0;
     min-height: 0;
-    overflow: visible;
+    overflow: hidden;
+    align-self: start;
+}
+
+.unidex-entries.is-grid-layout.is-large-entry-set .unidex-entry-title {
+    display: -webkit-box;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+}
+
+.unidex-entries.is-grid-layout.is-large-entry-set .unidex-entry-domain,
+.unidex-entries.is-grid-layout.is-large-entry-set .unidex-entry-library-author,
+.unidex-entries.is-grid-layout.is-large-entry-set .unidex-entry-library-genre,
+.unidex-entries.is-grid-layout.is-large-entry-set .unidex-entry-library-summary {
+    display: -webkit-box;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+}
+
+.unidex-entries.is-grid-layout.is-large-entry-set .unidex-entry-domain {
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+}
+
+.unidex-entries.is-grid-layout.is-large-entry-set .unidex-entry-library-author,
+.unidex-entries.is-grid-layout.is-large-entry-set .unidex-entry-library-genre {
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+}
+
+.unidex-entries.is-grid-layout.is-large-entry-set .unidex-entry-library-summary {
+    -webkit-line-clamp: 4;
+    line-clamp: 4;
+}
+
+.unidex-entries.is-grid-layout.is-large-entry-set .unidex-entry-library-wrap {
+    min-width: 0;
+    overflow: hidden;
+}
+
+.unidex-entries.is-grid-layout.is-large-entry-set .unidex-entry-library-chips {
+    max-height: 52px;
+    overflow: hidden;
+}
+
+.unidex-entries.is-grid-layout.is-large-entry-set .unidex-entry-tags {
+    max-height: 72px;
+    overflow: hidden;
 }
 
 .unidex-entries.is-grid-layout.is-large-entry-set.is-grouped-entry-set .unidex-identifier-group {
-    content-visibility: auto;
-    contain: layout paint style;
-    contain-intrinsic-size: 900px 100%;
+    content-visibility: visible;
+    contain: none;
+    contain-intrinsic-size: none;
 }
 
 .unidex-entries.is-grid-layout.is-large-entry-set.is-grouped-entry-set .unidex-identifier-group-body {
@@ -376,10 +436,14 @@
 
 .unidex-entries.is-grid-layout.is-large-entry-set.is-flat-entry-set.is-density-compact,
 .unidex-entries.is-grid-layout.is-large-entry-set.is-grouped-entry-set.is-density-compact .unidex-identifier-group-body {
-    --unidex-entry-span: 17;
-    --unidex-large-cover-height: 150px;
+    --unidex-entry-span: 19;
+    --unidex-large-cover-height: 176px;
     grid-template-columns: repeat(auto-fill, minmax(190px, 220px)) !important;
     gap: 10px !important;
+}
+
+.unidex-entries.is-grid-layout.is-large-entry-set.is-density-compact .unidex-entry-tags {
+    max-height: 58px;
 }
 
 .unidex-entries.is-grid-layout.is-density-atlas {
@@ -390,10 +454,21 @@
 
 .unidex-entries.is-grid-layout.is-large-entry-set.is-flat-entry-set.is-density-atlas,
 .unidex-entries.is-grid-layout.is-large-entry-set.is-grouped-entry-set.is-density-atlas .unidex-identifier-group-body {
-    --unidex-entry-span: 16;
-    --unidex-large-cover-height: 126px;
+    --unidex-entry-span: 18;
+    --unidex-large-cover-height: 144px;
     grid-template-columns: repeat(auto-fill, minmax(160px, 180px)) !important;
     gap: 8px !important;
+}
+
+.unidex-entries.is-grid-layout.is-large-entry-set.is-density-atlas .unidex-entry-tags {
+    max-height: 44px;
+}
+
+.unidex-entries.is-grid-layout.is-large-entry-set .unidex-entry-item.is-density-atlas .unidex-entry-domain,
+.unidex-entries.is-grid-layout.is-large-entry-set .unidex-entry-item.is-density-atlas .unidex-entry-library-author,
+.unidex-entries.is-grid-layout.is-large-entry-set .unidex-entry-item.is-density-atlas .unidex-entry-library-genre,
+.unidex-entries.is-grid-layout.is-large-entry-set .unidex-entry-item.is-density-atlas .unidex-entry-library-summary {
+    display: none;
 }
 
 .unidex-entry-item.is-density-compact {

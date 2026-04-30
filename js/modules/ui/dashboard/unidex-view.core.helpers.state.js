@@ -120,6 +120,19 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             return merged;
         }
 
+        function preferIndexedLinks(indexedLinks, rawLinks) {
+            if (!Array.isArray(indexedLinks)) return rawLinks;
+            if (indexedLinks.length === 0 && Array.isArray(rawLinks) && rawLinks.length > 0) {
+                const now = Date.now();
+                if (!state.lastEmptyIndexFallbackAt || now - state.lastEmptyIndexFallbackAt > 3000) {
+                    state.lastEmptyIndexFallbackAt = now;
+                    warmDatapackIndex();
+                }
+                return rawLinks;
+            }
+            return indexedLinks;
+        }
+
         function getIndexedScopedLinks(scope) {
             const indexApi = getDatapackIndexApi();
             if (!indexApi || typeof indexApi.getScopedBookmarkLinkIds !== 'function') return null;
@@ -184,7 +197,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             const filteredIndexedLinks = indexedLinks.filter(function (link) {
                 return matchesSearch(link, searchStr);
             });
-            if (!String(searchStr || '').trim()) return filteredIndexedLinks;
+            if (!String(searchStr || '').trim()) return preferIndexedLinks(filteredIndexedLinks, rawLinks);
             return mergePreferredLinks(filteredIndexedLinks, rawLinks);
         }
 
@@ -210,7 +223,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 return visibleIds.has(String(link.workspace)) && matchesSearch(link, searchStr);
             });
             if (!String(searchStr || '').trim()) {
-                return { links: filteredIndexedLinks, subTabIds: subTabIds };
+                return { links: preferIndexedLinks(filteredIndexedLinks, rawLinks), subTabIds: subTabIds };
             }
             return { links: mergePreferredLinks(filteredIndexedLinks, rawLinks), subTabIds: subTabIds };
         }
@@ -226,7 +239,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 const hasWorkspace = getWorkspaceById(link.workspace);
                 return !!hasWorkspace && matchesSearch(link, searchStr);
             });
-            if (!String(searchStr || '').trim()) return filteredIndexedLinks;
+            if (!String(searchStr || '').trim()) return preferIndexedLinks(filteredIndexedLinks, rawLinks);
             return mergePreferredLinks(filteredIndexedLinks, rawLinks);
         }
 

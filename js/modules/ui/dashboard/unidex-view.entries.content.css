@@ -191,6 +191,7 @@
 }
 
 .unidex-entries.is-grid-layout .unidex-entry-visual-btn {
+    grid-area: cover;
     width: 100%;
     min-width: 0;
     max-width: none;
@@ -285,6 +286,8 @@
 
 .unidex-entries.is-grid-layout .unidex-entry-main {
     grid-area: main;
+    min-width: 0;
+    overflow: hidden;
 }
 
 .unidex-entries.is-grid-layout .unidex-entry-actions {

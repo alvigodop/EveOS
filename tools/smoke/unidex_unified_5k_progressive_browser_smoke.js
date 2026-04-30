@@ -16,6 +16,7 @@ async function seedFiveThousandUnifiedView(page) {
     return page.evaluate(() => {
         const workspaces = [];
         const links = [];
+        const libraryEntriesByLinkId = {};
         const categoryOrderByWorkspace = {};
         const workspaceCount = 20;
         const linksPerWorkspace = 275;
@@ -31,15 +32,28 @@ async function seedFiveThousandUnifiedView(page) {
             categoryOrderByWorkspace[workspaceId] = ['Bulk Card A', 'Bulk Card B'];
 
             for (let linkIndex = 0; linkIndex < linksPerWorkspace; linkIndex += 1) {
+                const linkId = `bulk-link-${workspaceIndex}-${linkIndex}`;
                 links.push({
-                    id: `bulk-link-${workspaceIndex}-${linkIndex}`,
-                    title: `Bulk Bookmark ${workspaceIndex}-${linkIndex}`,
+                    id: linkId,
+                    title: `Bulk Bookmark ${workspaceIndex}-${linkIndex} With A Long Wrapped Title Segment For Layout Stability`,
                     url: `https://bulk.example/${workspaceIndex}/${linkIndex}`,
                     workspace: workspaceId,
                     category: linkIndex % 2 === 0 ? 'Bulk Card A' : 'Bulk Card B',
                     identifiers: [linkIndex % 3 === 0 ? 'reading' : 'research'],
                     done: false
                 });
+                if (linkIndex % 2 === 0) {
+                    libraryEntriesByLinkId[linkId] = {
+                        author: `Author ${workspaceIndex} ${linkIndex} With Extended Alias Text`,
+                        genre: 'Action, Adventure, Fantasy, Slice Of Life, Deep Archive, Long Running Collection',
+                        status: linkIndex % 4 === 0 ? 'Reading' : 'Pending',
+                        rating: String((linkIndex % 5) + 1),
+                        chapter: String(linkIndex + 1),
+                        type: 'Graphic Novel',
+                        language: 'English',
+                        summary: 'This intentionally long library summary exercises the unified card wrapping path so a large progressive render cannot spill text or tag rows into nearby bookmark cards before masonry measurement catches up.'
+                    };
+                }
             }
         }
 
@@ -68,8 +82,33 @@ async function seedFiveThousandUnifiedView(page) {
         window.EveLibrary.State = window.EveLibrary.State || {};
         window.EveLibrary.ConnectionsAPI = {
             loadConnections() {},
-            getLinkedEntry() {
-                return null;
+            getLinkedEntry(linkId) {
+                const entry = libraryEntriesByLinkId[String(linkId || '')];
+                return entry ? { entry } : null;
+            }
+        };
+        const smokeSeedConfig = JSON.parse(JSON.stringify(config));
+        const smokeSeedLinks = JSON.parse(JSON.stringify(links));
+        window.__restoreUnidexUnified5kSmoke = function restoreUnidexUnified5kSmoke(overrides) {
+            const clonedLinks = JSON.parse(JSON.stringify(smokeSeedLinks));
+            const nextConfig = Object.assign({}, JSON.parse(JSON.stringify(smokeSeedConfig)), overrides || {});
+            window.config = config = nextConfig;
+            window.links = clonedLinks;
+            window.bookmarkFolders = {};
+            window.EveLibrary = window.EveLibrary || {};
+            window.EveLibrary.Connections = [];
+            window.EveLibrary.State = window.EveLibrary.State || {};
+            window.EveLibrary.ConnectionsAPI = {
+                loadConnections() {},
+                getLinkedEntry(linkId) {
+                    const entry = libraryEntriesByLinkId[String(linkId || '')];
+                    return entry ? { entry } : null;
+                }
+            };
+            if (window.eveState) {
+                window.eveState.config = nextConfig;
+                window.eveState.links = clonedLinks;
+                window.eveState.bookmarkFolders = {};
             }
         };
 
@@ -111,6 +150,99 @@ async function assertProgressiveInitialLoad(initialState) {
     }
 }
 
+async function assertNoVisibleCardOverlap(page, label) {
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    async function collectLayoutState() {
+        return page.evaluate(() => {
+        const nodes = Array.from(document.querySelectorAll(
+            '.unidex-entries > .unidex-entry-item, .unidex-identifier-group-body > .unidex-entry-item'
+        ));
+        const rects = nodes.map((node, index) => {
+            const rect = node.getBoundingClientRect();
+            return {
+                index,
+                left: rect.left,
+                right: rect.right,
+                top: rect.top,
+                bottom: rect.bottom,
+                width: rect.width,
+                height: rect.height
+            };
+        }).filter((rect) => (
+            rect.width > 0
+            && rect.height > 0
+            && rect.bottom > -40
+            && rect.top < window.innerHeight + 220
+        )).slice(0, 80);
+        const overlaps = [];
+        for (let i = 0; i < rects.length; i += 1) {
+            for (let j = i + 1; j < rects.length; j += 1) {
+                const a = rects[i];
+                const b = rects[j];
+                const horizontalOverlap = a.left < b.right - 6 && a.right > b.left + 6;
+                const verticalOverlap = a.top < b.bottom - 6 && a.bottom > b.top + 6;
+                if (horizontalOverlap && verticalOverlap) {
+                    overlaps.push({ a: a.index, b: b.index, aBottom: a.bottom, bTop: b.top });
+                    if (overlaps.length >= 5) break;
+                }
+            }
+            if (overlaps.length >= 5) break;
+        }
+        return {
+            checked: rects.length,
+            overlaps,
+            maxHeight: rects.reduce((max, rect) => Math.max(max, Math.round(rect.height)), 0)
+        };
+        });
+    }
+
+    let layoutState = await collectLayoutState();
+    if (layoutState.checked < 4) {
+        await page.evaluate(() => window.scrollTo(0, 0));
+        await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        layoutState = await collectLayoutState();
+    }
+
+    if (layoutState.checked < 4 || layoutState.overlaps.length) {
+        throw new Error(`Expected no visible unified card overlap during ${label}: ${JSON.stringify(layoutState)}`);
+    }
+}
+
+async function assertVisibleCardContentContained(page, label) {
+    const contentState = await page.evaluate(() => {
+        const items = Array.from(document.querySelectorAll(
+            '.unidex-entries > .unidex-entry-item, .unidex-identifier-group-body > .unidex-entry-item'
+        )).filter((item) => {
+            const rect = item.getBoundingClientRect();
+            return rect.width > 0
+                && rect.height > 0
+                && rect.bottom > -40
+                && rect.top < window.innerHeight + 220;
+        }).slice(0, 40);
+
+        const failures = [];
+        items.forEach((item, index) => {
+            const itemRect = item.getBoundingClientRect();
+            const coverRect = item.querySelector('.unidex-entry-visual-btn')?.getBoundingClientRect();
+            const mainRect = item.querySelector('.unidex-entry-main')?.getBoundingClientRect();
+            const titleRect = item.querySelector('.unidex-entry-title')?.getBoundingClientRect();
+            if (!coverRect || !mainRect || !titleRect) return;
+            if (titleRect.top < coverRect.bottom - 2) {
+                failures.push({ index, reason: 'title-over-cover', titleTop: titleRect.top, coverBottom: coverRect.bottom });
+            }
+            if (mainRect.bottom > itemRect.bottom + 2 || mainRect.left < itemRect.left - 2 || mainRect.right > itemRect.right + 2) {
+                failures.push({ index, reason: 'main-overflows-card', mainBottom: mainRect.bottom, itemBottom: itemRect.bottom });
+            }
+        });
+
+        return { checked: items.length, failures: failures.slice(0, 6) };
+    });
+
+    if (contentState.checked < 4 || contentState.failures.length) {
+        throw new Error(`Expected unified card text/content to stay inside cards during ${label}: ${JSON.stringify(contentState)}`);
+    }
+}
+
 async function assertProgressiveHydrationCompletes(page) {
     await page.waitForFunction(() => {
         const entriesSection = document.querySelector('.unidex-entries');
@@ -137,12 +269,18 @@ async function assertProgressiveHydrationCompletes(page) {
     if (!finalState.status.includes('Loaded 5,500')) {
         throw new Error(`Expected progressive status to confirm full load: ${JSON.stringify(finalState)}`);
     }
+    await assertNoVisibleCardOverlap(page, 'flat hydration');
+    await assertVisibleCardContentContained(page, 'flat hydration');
 }
 
 async function assertIdentifierGroupedProgressive(page) {
     const initialState = await page.evaluate(() => {
-        window.config.unidexEntriesGroupMode = 'identifiers';
-        if (window.eveState?.config) window.eveState.config.unidexEntriesGroupMode = 'identifiers';
+        if (typeof window.__restoreUnidexUnified5kSmoke === 'function') {
+            window.__restoreUnidexUnified5kSmoke({ unidexEntriesGroupMode: 'identifiers' });
+        } else {
+            window.config.unidexEntriesGroupMode = 'identifiers';
+            if (window.eveState?.config) window.eveState.config.unidexEntriesGroupMode = 'identifiers';
+        }
         const startedAt = performance.now();
         if (typeof window._renderDashboardImmediate === 'function') {
             window._renderDashboardImmediate();
@@ -166,10 +304,22 @@ async function assertIdentifierGroupedProgressive(page) {
 
     await page.waitForFunction(() => {
         const entriesSection = document.querySelector('.unidex-entries');
+        if ((!entriesSection || document.querySelectorAll('.unidex-entry-item').length === 0)
+            && typeof window.__restoreUnidexUnified5kSmoke === 'function') {
+            window.__restoreUnidexUnified5kSmoke({ unidexEntriesGroupMode: 'identifiers' });
+            if (typeof window._renderDashboardImmediate === 'function') {
+                window._renderDashboardImmediate();
+            } else if (typeof window.renderDashboard === 'function') {
+                window.renderDashboard();
+            }
+            return false;
+        }
         return document.querySelectorAll('.unidex-entry-item').length === 5500
             && document.querySelectorAll('.unidex-identifier-group').length >= 2
             && entriesSection?.getAttribute('aria-busy') === 'false';
     }, undefined, { timeout: 120000 });
+    await assertNoVisibleCardOverlap(page, 'identifier hydration');
+    await assertVisibleCardContentContained(page, 'identifier hydration');
 }
 
 (async () => {
@@ -180,6 +330,8 @@ async function assertIdentifierGroupedProgressive(page) {
         await waitForApp(page);
         const initialState = await seedFiveThousandUnifiedView(page);
         await assertProgressiveInitialLoad(initialState);
+        await assertNoVisibleCardOverlap(page, 'flat initial render');
+        await assertVisibleCardContentContained(page, 'flat initial render');
         await assertProgressiveHydrationCompletes(page);
         await assertIdentifierGroupedProgressive(page);
         console.log('UNIDEX_UNIFIED_5K_PROGRESSIVE_BROWSER_SMOKE_OK');

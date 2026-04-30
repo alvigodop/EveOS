@@ -41,6 +41,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
         const PROGRESSIVE_GRID_INITIAL_COUNT = 288;
         const PROGRESSIVE_ROW_INITIAL_COUNT = 180;
         const PROGRESSIVE_CHUNK_SIZE = 220;
+        const PROGRESSIVE_GROUP_CHUNK_SIZE = 760;
         let progressiveEntriesToken = 0;
         const mapButtonHtml = '<button type="button" class="unidex-layout-btn unidex-map-btn" onclick="window.UnidexView.openConstellationMap()" title="Open Constellation Map for this layer">Map</button>';
         const nexusAllTabsBtn = '<button type="button" class="unidex-layout-btn unidex-nexus-btn" onclick="window.UnidexView.openNexusSearch()" title="Search across all tabs (bookmarks + scraper cache)">⚔ Nexus Search</button>';
@@ -262,7 +263,8 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 }
 
                 const sourceRows = payload.grouped && Array.isArray(payload.rows) ? payload.rows : entries;
-                const nextCount = Math.min(totalCount, renderedCount + PROGRESSIVE_CHUNK_SIZE);
+                const chunkSize = payload.grouped ? PROGRESSIVE_GROUP_CHUNK_SIZE : PROGRESSIVE_CHUNK_SIZE;
+                const nextCount = Math.min(totalCount, renderedCount + chunkSize);
                 const chunk = sourceRows.slice(renderedCount, nextCount);
 
                 if (payload.grouped) {

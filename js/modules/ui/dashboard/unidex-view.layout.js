@@ -89,6 +89,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             entriesSection.querySelectorAll('.unidex-entry-item, .unidex-identifier-group').forEach(function (item) {
                 item.style.gridRowEnd = '';
                 delete item.dataset.unidexMasonryMeasured;
+                delete item.dataset.unidexMasonryHeight;
             });
             entriesSection.querySelectorAll('.unidex-identifier-group-body').forEach(function (container) {
                 delete container.dataset.unidexMasonryScanIndex;
@@ -113,12 +114,17 @@ window.UnidexViewModules = window.UnidexViewModules || {};
         function applyMasonryItem(item, container, metrics) {
             if (!item || !container || !document.body?.contains(item)) return;
             const localMetrics = metrics || getMasonryMetrics(container);
-            item.style.gridRowEnd = 'auto';
+            const entriesSection = item.closest('.unidex-entries');
+            const isLargeEntrySet = entriesSection?.classList?.contains('is-large-entry-set');
+            if (!isLargeEntrySet) item.style.gridRowEnd = 'auto';
             const rect = item.getBoundingClientRect();
-            const measuredHeight = Math.max(item.scrollHeight || 0, rect.height || 0);
+            const measuredHeight = isLargeEntrySet
+                ? (rect.height || item.offsetHeight || 0)
+                : Math.max(item.scrollHeight || 0, rect.height || 0);
             const span = Math.max(1, Math.ceil((measuredHeight + localMetrics.rowGap) / (localMetrics.rowHeight + localMetrics.rowGap)));
             item.style.gridRowEnd = `span ${span}`;
             item.dataset.unidexMasonryMeasured = '1';
+            item.dataset.unidexMasonryHeight = String(Math.round(measuredHeight));
         }
 
         function applyEntriesMasonry(entriesSection) {
@@ -179,6 +185,9 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 window.removeEventListener('scroll', scheduleWindowMeasure);
                 window.removeEventListener('resize', scheduleWindowMeasure);
             };
+
+            measureLargeViewportWindow(entriesSection, containers);
+            scheduleWindowMeasure();
 
             setTimeout(function () {
                 if (token !== largeMasonryToken || !document.body?.contains(entriesSection)) return;
@@ -251,7 +260,11 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                         nextScanIndex = index;
                         continue;
                     }
-                    if (item.dataset.unidexMasonryMeasured === '1') continue;
+                    if (item.dataset.unidexMasonryMeasured === '1') {
+                        const previousHeight = Number(item.dataset.unidexMasonryHeight || 0);
+                        const currentHeight = Math.round(rect.height || item.offsetHeight || 0);
+                        if (previousHeight > 0 && Math.abs(currentHeight - previousHeight) < 6) continue;
+                    }
                     applyMasonryItem(item, container, metrics);
                     measured += 1;
                 }
@@ -298,18 +311,22 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 }
 
                 if (entrySetState.isLarge) {
-                    entriesSection.style.setProperty('grid-auto-rows', '8px', 'important');
-                    entriesSection.style.setProperty('grid-auto-flow', 'row dense', 'important');
                     entriesSection.style.setProperty('align-items', 'start', 'important');
                     entriesSection.style.setProperty('justify-content', 'center', 'important');
                     if (entrySetState.hasGroups) {
                         entriesSection.style.setProperty('grid-template-columns', 'minmax(0, 1fr)', 'important');
+                        entriesSection.style.setProperty('grid-auto-rows', 'auto', 'important');
+                        entriesSection.style.setProperty('grid-auto-flow', 'row', 'important');
                     } else {
                         entriesSection.style.setProperty('grid-template-columns', gridColumns, 'important');
+                        entriesSection.style.setProperty('grid-auto-rows', '8px', 'important');
+                        entriesSection.style.setProperty('grid-auto-flow', 'row dense', 'important');
                     }
                     const masonryState = String(entriesSection.dataset.unidexMasonryApplied || '');
                     if (masonryState !== 'visible' && masonryState !== 'pending-visible') {
                         scheduleVisibleLargeMasonry(entriesSection);
+                    } else if (masonryState === 'visible') {
+                        measureLargeViewportWindow(entriesSection, getLargeMasonryContainers(entriesSection));
                     }
                     return;
                 }
