@@ -97,11 +97,15 @@ async function loadSidebarRuntime(page) {
         'js/modules/ui/sidebar-groups.order.js',
         'js/modules/ui/sidebar-groups.mutations.js',
         'js/modules/ui/sidebar-groups.js',
+        'js/modules/ui/sidebar.runtime.view-state.js',
         'js/modules/ui/sidebar.runtime.shared.js',
         'js/modules/ui/sidebar.runtime.interactions.js',
         'js/modules/ui/sidebar.runtime.groups.js',
+        'js/modules/ui/sidebar.runtime.workspace.pointer-drag.js',
+        'js/modules/ui/sidebar.runtime.workspace.item.js',
         'js/modules/ui/sidebar.runtime.workspace.js',
         'js/modules/ui/sidebar.popout.js',
+        'js/modules/ui/sidebar.scaffold.js',
         'js/modules/ui/sidebar.js'
     ]) {
         await page.addScriptTag({ path: repoPath(modulePath) });

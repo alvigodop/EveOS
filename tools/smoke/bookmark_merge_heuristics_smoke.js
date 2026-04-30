@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
+const HELPER_PATH = path.join(REPO_ROOT, 'js/modules/features/bookmark-merge-heuristics.helpers.js');
 const MODULE_PATH = path.join(REPO_ROOT, 'js/modules/features/bookmark-merge-heuristics.js');
 
 function assert(condition, message) {
@@ -105,6 +106,7 @@ function installRuntime() {
         });
     }
 
+    eval(fs.readFileSync(HELPER_PATH, 'utf8'));
     eval(fs.readFileSync(MODULE_PATH, 'utf8'));
 
     return { entries, get connections() { return connections; }, linkEntry, syncCalls };

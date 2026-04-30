@@ -1,0 +1,80 @@
+/* Expanded content (stats rows) */
+#loadingIndicator .expanded-content {
+    max-height: 76vh;
+    padding: 12px 0 8px 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    margin-top: 8px;
+    font-size: 0.78em;
+    color: rgba(255, 255, 255, 0.6);
+    transition: all 0.3s ease;
+}
+
+/* Stats row */
+#loadingIndicator .stats-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+#loadingIndicator .stats-label {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+#loadingIndicator .stats-value {
+    font-weight: 500;
+    color: white;
+    font-family: 'Consolas', 'Monaco', monospace;
+}
+
+/* Compact mode - hide expanded content */
+#loadingIndicator.compact .expanded-content {
+    max-height: 0;
+    opacity: 0;
+    margin-top: 0;
+    padding: 0;
+    border-top: none;
+}
+
+
+/* Note: Animations (@keyframes pulse, pulse-error, ripple, wave) 
+   are now imported from loading-animations.css */
+
+/* Note: Light theme variant styles are now imported from 
+   loading-indicator-light.css */
+
+/* ============================================
+   LEGACY RAINBOW LOADING ANIMATION
+   ============================================ */
+.loading-message {
+    text-align: center;
+    padding: 20px;
+    font-size: 16px;
+    color: #666;
+    position: relative;
+    padding-bottom: 40px;
+}
+
+.loading-message::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    width: 100px;
+    height: 4px;
+    background: linear-gradient(90deg, #2196F3, #4CAF50, #FFC107, #F44336, #2196F3);
+    background-size: 200% 100%;
+    border-radius: 2px;
+    transform: translateX(-50%);
+    animation: loading-gradient-animation 1.5s infinite linear;
+}
+
+@keyframes loading-gradient-animation {
+    0% {
+        background-position: 0% 0%;
+    }
+
+    100% {
+        background-position: 200% 0%;
+    }
+}

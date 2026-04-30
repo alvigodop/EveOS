@@ -1,0 +1,316 @@
+.bookmark-identifier-panel {
+    position: fixed;
+    z-index: 9999;
+    width: min(460px, calc(100vw - 24px));
+    max-height: min(680px, calc(100vh - 24px));
+    overflow: hidden;
+    display: none;
+    padding: 14px;
+    border-radius: 18px;
+    border: 1px solid color-mix(in srgb, var(--accent, #00d4ff) 24%, rgba(255, 255, 255, 0.12));
+    background:
+        radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--accent, #00d4ff) 13%, transparent) 0%, transparent 34%),
+        linear-gradient(145deg, color-mix(in srgb, var(--card-bg, #1f1f1f) 94%, transparent), color-mix(in srgb, var(--input-bg, #151515) 88%, var(--card-bg, #1f1f1f) 12%));
+    color: var(--text-main, #f4f8ff);
+    box-shadow: 0 22px 58px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(16px);
+}
+
+.bookmark-identifier-panel.is-open {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    animation: bookmarkIdentifierPanelIn 0.16s ease-out;
+}
+
+@keyframes bookmarkIdentifierPanelIn {
+    from {
+        opacity: 0;
+        transform: translateY(6px) scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.bookmark-identifier-panel__topline {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+}
+
+.bookmark-identifier-panel__top-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.bookmark-identifier-panel__badge {
+    display: flex;
+    min-width: 0;
+}
+
+.bookmark-identifier-panel__title {
+    font-size: 1rem;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+}
+
+.bookmark-identifier-panel__desc {
+    margin: 0;
+    padding: 10px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.035);
+    color: var(--text-muted, rgba(244, 248, 255, 0.76));
+    font-size: 0.82rem;
+    line-height: 1.45;
+}
+
+.bookmark-identifier-panel__stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.bookmark-identifier-panel__stats div {
+    padding: 9px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.035);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.bookmark-identifier-panel__stats strong {
+    display: block;
+    font-size: 1.08rem;
+}
+
+.bookmark-identifier-panel__stats span,
+.bookmark-identifier-panel__context,
+.bookmark-identifier-panel__card small,
+.bookmark-identifier-panel__folder-row small,
+.bookmark-identifier-panel__bookmark-row small,
+.bookmark-identifier-panel__browser-head span,
+.bookmark-identifier-panel__recent-chip small,
+.bookmark-identifier-panel__overflow {
+    color: var(--text-muted, rgba(244, 248, 255, 0.62));
+    font-size: 0.72rem;
+}
+
+.bookmark-identifier-panel__context {
+    padding: 8px 10px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.035);
+}
+
+.bookmark-identifier-panel__primary,
+.bookmark-identifier-panel__secondary,
+.bookmark-identifier-panel__ghost,
+.bookmark-identifier-panel__browser-head button {
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: inherit;
+    cursor: pointer;
+}
+
+.bookmark-identifier-panel__primary {
+    padding: 9px 12px;
+    background: color-mix(in srgb, var(--accent, #00d4ff) 22%, var(--input-bg, #151515) 78%);
+    color: var(--text-main, #f4f8ff);
+    border-color: color-mix(in srgb, var(--accent, #00d4ff) 54%, rgba(255, 255, 255, 0.16));
+    font-weight: 800;
+}
+
+.bookmark-identifier-panel__secondary {
+    padding: 9px 12px;
+    background: rgba(255, 255, 255, 0.035);
+    font-weight: 700;
+}
+
+.bookmark-identifier-panel__ghost,
+.bookmark-identifier-panel__browser-head button {
+    padding: 6px 10px;
+    background: rgba(255, 255, 255, 0.045);
+}
+
+.bookmark-identifier-panel__cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+    gap: 8px;
+}
+
+.bookmark-identifier-panel__card,
+.bookmark-identifier-panel__folder-row,
+.bookmark-identifier-panel__bookmark-row {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+    min-width: 0;
+    padding: 9px 10px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    background: rgba(255, 255, 255, 0.035);
+    color: inherit;
+    text-align: left;
+}
+
+.bookmark-identifier-panel__card,
+.bookmark-identifier-panel__folder-row {
+    cursor: pointer;
+}
+
+.bookmark-identifier-panel__card.is-active {
+    border-color: color-mix(in srgb, var(--accent, #00d4ff) 58%, rgba(255, 255, 255, 0.14));
+    background: color-mix(in srgb, var(--accent, #00d4ff) 12%, rgba(255, 255, 255, 0.04));
+    box-shadow: inset 0 0 18px color-mix(in srgb, var(--accent, #00d4ff) 8%, transparent);
+}
+
+.bookmark-identifier-panel__card span,
+.bookmark-identifier-panel__folder-row span,
+.bookmark-identifier-panel__bookmark-row span {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 700;
+}
+
+.bookmark-identifier-panel__browser-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding-top: 2px;
+}
+
+.bookmark-identifier-panel__browser-head div {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.bookmark-identifier-panel__browser-list {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    min-height: 90px;
+    max-height: 260px;
+    overflow: auto;
+    padding-right: 2px;
+}
+
+.bookmark-identifier-panel__folder-row {
+    border-color: color-mix(in srgb, var(--accent, #00d4ff) 22%, rgba(255, 255, 255, 0.08));
+    background: color-mix(in srgb, var(--accent, #00d4ff) 7%, rgba(255, 255, 255, 0.035));
+}
+
+.bookmark-identifier-panel__folder-row:hover,
+.bookmark-identifier-panel__card:hover,
+.bookmark-identifier-panel__recent-chip:hover,
+.bookmark-identifier-panel__ghost:hover,
+.bookmark-identifier-panel__secondary:hover {
+    border-color: color-mix(in srgb, var(--accent, #00d4ff) 46%, rgba(255, 255, 255, 0.14));
+    background: color-mix(in srgb, var(--accent, #00d4ff) 11%, rgba(255, 255, 255, 0.045));
+}
+
+.bookmark-identifier-panel__primary:hover {
+    background: color-mix(in srgb, var(--accent, #00d4ff) 28%, var(--input-bg, #151515) 72%);
+}
+
+.bookmark-identifier-panel__filter {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+}
+
+.bookmark-identifier-panel__filter input {
+    min-width: 0;
+    padding: 8px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-main, #f4f8ff);
+    outline: none;
+}
+
+.bookmark-identifier-panel__filter input:focus {
+    border-color: color-mix(in srgb, var(--accent, #00d4ff) 58%, rgba(255, 255, 255, 0.16));
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent, #00d4ff) 16%, transparent);
+}
+
+.bookmark-identifier-panel__recent {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.bookmark-identifier-panel__section-label {
+    color: var(--text-muted, rgba(244, 248, 255, 0.62));
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.bookmark-identifier-panel__recent-list {
+    display: flex;
+    gap: 7px;
+    overflow-x: auto;
+    padding-bottom: 1px;
+}
+
+.bookmark-identifier-panel__recent-chip {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    min-width: 132px;
+    max-width: 180px;
+    padding: 7px 9px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    background: rgba(255, 255, 255, 0.035);
+    color: inherit;
+    cursor: pointer;
+}
+
+.bookmark-identifier-panel__recent-chip span,
+.bookmark-identifier-panel__recent-chip small {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.bookmark-identifier-panel__action-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px;
+}
+
+.bookmark-identifier-panel__empty,
+.bookmark-identifier-panel__overflow {
+    padding: 10px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.035);
+    text-align: center;
+}
+
+@media (max-width: 620px) {
+    .bookmark-identifier-quicklink-add {
+        grid-template-columns: 1fr;
+    }
+
+    .bookmark-identifier-panel {
+        width: calc(100vw - 20px);
+    }
+
+    .bookmark-identifier-panel__action-row,
+    .bookmark-identifier-panel__filter {
+        grid-template-columns: 1fr;
+    }
+}

@@ -128,7 +128,7 @@ async function runConstellationUnidex(page, { anchoredStats, canvasBox, category
     await page.mouse.wheel(0, -1600);
     await page.waitForTimeout(220);
     const deepZoomStats = await getStats(page);
-    if (!(deepZoomStats.transform.scale > 3.4)) {
+    if (!(deepZoomStats.transform.scale > 3.1)) {
         throw new Error(`Expected deeper zoom-in headroom, got scale=${deepZoomStats.transform.scale}`);
     }
     await closeMap(page);

@@ -37,6 +37,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/data-transfer/data-transfer.export.folder.writer.backups.js?v=0.2.0",
     "js/modules/features/data-transfer/data-transfer.export.folder.writer.cards.js?v=0.2.0",
     "js/modules/features/data-transfer/data-transfer.export.folder.writer.js?v=0.3.1",
+    "js/modules/features/data-transfer/data-transfer.export.folder.backups.helpers.js?v=0.1.0",
     "js/modules/features/data-transfer/data-transfer.export.folder.backups.js?v=0.4.0",
     "js/modules/features/data-transfer/data-transfer.export.folder.paths.js",
     "js/modules/features/data-transfer/data-transfer.export.folder.js?v=0.2.1",
@@ -76,11 +77,15 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/ui/sidebar-groups.order.js?v=0.1.0",
     "js/modules/ui/sidebar-groups.mutations.js?v=0.1.1",
     "js/modules/ui/sidebar-groups.js?v=0.1.4",
+    "js/modules/ui/sidebar.runtime.view-state.js?v=0.1.0",
     "js/modules/ui/sidebar.runtime.shared.js?v=0.1.2",
     "js/modules/ui/sidebar.runtime.interactions.js?v=0.1.0",
     "js/modules/ui/sidebar.runtime.groups.js?v=0.1.0",
+    "js/modules/ui/sidebar.runtime.workspace.pointer-drag.js?v=0.1.0",
+    "js/modules/ui/sidebar.runtime.workspace.item.js?v=0.1.0",
     "js/modules/ui/sidebar.runtime.workspace.js?v=0.1.1",
     "js/modules/ui/sidebar.popout.js?v=0.1.0",
+    "js/modules/ui/sidebar.scaffold.js?v=0.1.0",
     "js/modules/ui/sidebar.js?v=0.4.0",
     "js/modules/ui/dashboard/dashboard-dock.js?v=0.2.4"
 ]);

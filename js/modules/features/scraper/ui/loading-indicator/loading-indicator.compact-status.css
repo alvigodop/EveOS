@@ -1,0 +1,183 @@
+/* Compact mode styling */
+#loadingIndicator.compact {
+    padding: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    overflow: hidden;
+    min-height: auto;
+}
+
+/* Ensure compact visible has proper display and centering */
+#loadingIndicator.compact.visible {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0;
+}
+
+#loadingIndicator.compact:hover {
+    transform: scale(1.1);
+    background: rgba(0, 0, 0, 0.95);
+}
+
+/* Hide indicator content in compact mode */
+#loadingIndicator.compact .indicator-content {
+    display: none;
+}
+
+/* The status dot - grey when idle, matching old version */
+#loadingIndicator .dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #e0e0e0;
+    /* Grey when idle, like old version */
+    flex-shrink: 0;
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+/* When searching, animate the dot with ripple effect */
+#loadingIndicator.searching .dot {
+    animation: pulse 1.5s infinite;
+    background: #2196F3;
+}
+
+#loadingIndicator.searching .dot::after {
+    content: '';
+    position: absolute;
+    top: -4px;
+    left: -4px;
+    right: -4px;
+    bottom: -4px;
+    border-radius: 50%;
+    border: 2px solid #2196F3;
+    animation: ripple 1.5s infinite;
+    opacity: 0;
+}
+
+/* Hide dot in expanded (non-compact) mode */
+#loadingIndicator:not(.compact) .dot {
+    display: none;
+}
+
+/* Error state */
+#loadingIndicator.error .dot {
+    background: #f44336;
+    animation: pulse-error 2s ease-in-out infinite;
+}
+
+#loadingIndicator.error {
+    border-color: rgba(244, 67, 54, 0.3);
+}
+
+#loadingIndicator.error .status-text {
+    color: #ff8a80;
+}
+
+/* Ensure children of indicator content don't shrink */
+#loadingIndicator .indicator-content>* {
+    flex-shrink: 0 !important;
+}
+
+/* Indicator content container */
+#loadingIndicator .indicator-content {
+    flex: 1;
+    min-width: 200px;
+    transition: width 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+#loadingIndicator:not(.compact) .indicator-content {
+    width: 460px;
+    max-width: 92vw;
+}
+
+/* Title styling */
+#loadingIndicator .indicator-title {
+    font-size: 0.75rem;
+    color: var(--accent, #00d4ff);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    border-bottom: 1px solid rgba(0, 212, 255, 0.2);
+    padding-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    text-shadow: 0 0 10px rgba(0, 212, 255, 0.3);
+}
+
+/* Gemini Placeholder Spacing */
+#gemini-placeholder:not(:empty) {
+    margin-bottom: 6px;
+    display: block;
+    min-height: 1px;
+    flex-shrink: 0;
+}
+
+/* Group Idle Text and Wave Bar */
+#loadingIndicator .status-group {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px;
+    padding: 4px 0 !important;
+    position: relative;
+    z-index: 1000 !important;
+    margin-top: 4px;
+}
+
+/* Status text */
+#loadingIndicator .status-text {
+    font-weight: 500;
+    font-size: 0.82em;
+    letter-spacing: 0.5px;
+    color: rgba(255, 255, 255, 0.7) !important;
+    white-space: nowrap;
+}
+
+/* Sleek Line Progress Bar */
+#loadingIndicator .wave-container {
+    flex: 1;
+    height: 2px;
+    position: relative;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 1px;
+}
+
+#loadingIndicator .wave {
+    position: absolute;
+    width: 60%;
+    height: 100%;
+    background: linear-gradient(90deg, 
+        transparent, 
+        var(--accent, #00d4ff), 
+        transparent
+    );
+    left: -60%;
+    transition: opacity 0.3s ease;
+}
+
+#loadingIndicator.searching .wave {
+    animation: aurora-slide 1.5s infinite ease-out;
+    opacity: 1;
+}
+
+@keyframes aurora-slide {
+    0% { left: -60%; }
+    100% { left: 100%; }
+}
+
+#loadingIndicator:not(.searching) .wave {
+    animation: none;
+    opacity: 0.4;
+    transform: scaleY(0.2) translateY(10px);
+}

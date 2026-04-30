@@ -11,50 +11,11 @@ window.DashboardCategories = window.DashboardCategories || {};
         getCardHeaderButtonsForCategory,
         isCardBookmarkProgressiveRevealEnabled,
         isFolderBookmarkProgressiveRevealEnabled,
-        buildFolderSectionsHtml
+        buildFolderSectionsHtml,
+        getCardDatapackSummary
     } = api;
-    var cardSummaryWarmPromise = null;
 
-    function queueCardSummaryWarmup() {
-        var indexApi = window.EveOS?.SearchAdvanced?.Index;
-        if (!indexApi || (typeof indexApi.ensureFresh !== 'function' && typeof indexApi.rebuild !== 'function')) return;
-        if (cardSummaryWarmPromise) return;
-        var scrollSeqAtRequest = Number(window._dashboardScrollActivitySeq || 0);
-        var warmPromise = typeof indexApi.ensureFresh === 'function'
-            ? indexApi.ensureFresh({ reason: 'dashboard-card-summary' })
-            : indexApi.rebuild({ reason: 'dashboard-card-summary' });
-
-        cardSummaryWarmPromise = Promise.resolve(warmPromise)
-            .catch(function () {
-                // Ignore warmup failures and render without datapack summary chips.
-            })
-            .finally(function () {
-                cardSummaryWarmPromise = null;
-                if (Number(window._dashboardScrollActivitySeq || 0) !== scrollSeqAtRequest) return;
-                if (typeof renderDashboard === 'function') renderDashboard();
-            });
-    }
-
-    function getCardDatapackSummary(workspaceId, categoryName) {
-        var indexApi = window.EveOS?.SearchAdvanced?.Index;
-        if (!indexApi || typeof indexApi.getCardSummary !== 'function') return null;
-        var buildState = typeof indexApi.getBuildState === 'function' ? indexApi.getBuildState() : null;
-        var hasUsableSnapshot = typeof indexApi.hasReadableStructureSnapshot === 'function'
-            ? indexApi.hasReadableStructureSnapshot()
-            : (typeof indexApi.hasUsableSnapshot === 'function'
-                ? indexApi.hasUsableSnapshot()
-                : (!buildState?.dirty && Number(buildState?.builtAt || 0) > 0));
-        if (!hasUsableSnapshot) {
-            queueCardSummaryWarmup();
-            return null;
-        }
-        var summary = indexApi.getCardSummary(workspaceId, categoryName);
-        if (summary) return summary;
-        queueCardSummaryWarmup();
-        return null;
-    }
-
-    function renderCardFull(catInput, catLinks, gridContainer, configOptions) {
+function renderCardFull(catInput, catLinks, gridContainer, configOptions) {
         var options = configOptions || {};
         var cat = typeof catInput === 'object' && catInput ? catInput.category : catInput;
         var cardWorkspaceId = typeof catInput === 'object' && catInput

@@ -184,6 +184,7 @@ load('js/modules/features/constellation-map/constellation-map.static.js');
 load('js/modules/features/constellation-map/constellation-map.graph.builders.js');
 load('js/modules/features/constellation-map/constellation-map.graph.detached.js');
 load('js/modules/features/constellation-map/constellation-map.graph.world.js');
+load('js/modules/features/constellation-map/constellation-map.graph.projection.js');
 load('js/modules/features/constellation-map/constellation-map.graph.js');
 load('js/modules/features/constellation-map/constellation-map.render.anchors.js');
 load('js/modules/features/constellation-map/constellation-map.render.labels.js');
@@ -248,16 +249,21 @@ load('js/modules/features/constellation-map/constellation-map.core.debug.graph.j
 load('js/modules/features/constellation-map/constellation-map.core.debug.inspector.js');
 load('js/modules/features/constellation-map/constellation-map.core.debug.js');
 load('js/modules/features/constellation-map/constellation-map.core.js');
-window.EveConstellationMap.openMap();
-const stats = window.EveConstellationMap.__debugGetGraphStats();
-
 function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-assert(stats.nodeCount > 0, 'constellation map should build nodes');
-assert(stats.outOfBounds <= Math.max(4, Math.ceil(stats.nodeCount * 0.06)), 'constellation nodes should stay mostly inside the initial viewport without large drift');
-assert(stats.edgeCount < 4000, 'constellation map should cap edge growth for large bookmark sets');
-assert(stats.worldBounds && stats.worldBounds.maxX > stats.worldBounds.minX, 'constellation map should expose stable world bounds');
+(async function run() {
+  await window.EveConstellationMap.openMap();
+  const stats = window.EveConstellationMap.__debugGetGraphStats();
 
-console.log('CONSTELLATION_MAP_STABILITY_OK', JSON.stringify(stats));
+  assert(stats.nodeCount > 0, 'constellation map should build nodes');
+  assert(stats.outOfBounds <= Math.max(4, Math.ceil(stats.nodeCount * 0.06)), 'constellation nodes should stay mostly inside the initial viewport without large drift');
+  assert(stats.edgeCount < 4000, 'constellation map should cap edge growth for large bookmark sets');
+  assert(stats.worldBounds && stats.worldBounds.maxX > stats.worldBounds.minX, 'constellation map should expose stable world bounds');
+
+  console.log('CONSTELLATION_MAP_STABILITY_OK', JSON.stringify(stats));
+})().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});
