@@ -82,6 +82,26 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             return !!getConfigState().unidexTabsUnified;
         }
 
+        function getTabsTreeMode() {
+            const mode = String(getConfigState().unidexTabsTreeMode || 'wrapped').trim().toLowerCase();
+            return mode === 'unfolded' ? 'unfolded' : 'wrapped';
+        }
+
+        function setTabsTreeMode(mode) {
+            const nextMode = String(mode || '').trim().toLowerCase() === 'unfolded'
+                ? 'unfolded'
+                : 'wrapped';
+            const currentConfig = getConfigState();
+            if (String(currentConfig.unidexTabsTreeMode || 'wrapped') === nextMode) return;
+            currentConfig.unidexTabsTreeMode = nextMode;
+            persistConfig();
+            requestRender();
+        }
+
+        function toggleTabsTreeMode() {
+            setTabsTreeMode(getTabsTreeMode() === 'wrapped' ? 'unfolded' : 'wrapped');
+        }
+
         function setTabsUnifiedMode(enabled) {
             const nextState = !!enabled;
             const currentConfig = getConfigState();
@@ -221,6 +241,9 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             setCardsUnifiedMode,
             setCardsUnified,
             getTabsUnifiedMode,
+            getTabsTreeMode,
+            setTabsTreeMode,
+            toggleTabsTreeMode,
             setTabsUnifiedMode,
             setTabsUnified,
             getEntriesFilterMode,

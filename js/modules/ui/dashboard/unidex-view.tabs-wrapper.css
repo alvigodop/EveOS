@@ -1,0 +1,271 @@
+.unidex-tabs.is-wrapper-view {
+    width: min(100%, 1040px);
+    gap: 16px !important;
+}
+
+.unidex-tabs.is-unfolded-view {
+    width: min(100%, 980px);
+}
+
+.unidex-tree-mode-btn {
+    border-color: color-mix(in srgb, var(--accent, #00d4ff) 36%, rgba(255, 255, 255, 0.2));
+    color: color-mix(in srgb, var(--accent, #00d4ff) 78%, var(--text-main, #fff));
+}
+
+.unidex-tab-wrapper-frame {
+    position: relative;
+    width: 100%;
+    min-height: 150px;
+    padding: 12px;
+    border: 1px solid color-mix(in srgb, var(--accent, #00d4ff) 32%, rgba(255, 255, 255, 0.1));
+    border-radius: 8px;
+    overflow: hidden;
+    background:
+        linear-gradient(180deg, rgba(0, 0, 0, 0.42) 0%, rgba(0, 0, 0, 0.14) 100%),
+        radial-gradient(circle at 18% 0%, color-mix(in srgb, var(--accent, #00d4ff) 12%, transparent), transparent 42%);
+    box-shadow:
+        0 0 0 1px color-mix(in srgb, var(--accent, #00d4ff) 10%, transparent),
+        inset 0 0 30px rgba(0, 0, 0, 0.42),
+        inset 0 0 60px color-mix(in srgb, var(--accent, #00d4ff) 4%, transparent);
+    transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.unidex-tab-wrapper-frame:hover {
+    border-color: color-mix(in srgb, var(--accent, #00d4ff) 58%, rgba(255, 255, 255, 0.14));
+    box-shadow:
+        0 14px 32px rgba(0, 0, 0, 0.18),
+        0 0 0 1px color-mix(in srgb, var(--accent, #00d4ff) 18%, transparent),
+        inset 0 0 34px color-mix(in srgb, var(--accent, #00d4ff) 8%, transparent);
+}
+
+.unidex-tab-frame-top-beam,
+.unidex-tab-frame-left-glow,
+.unidex-tab-scan-beam {
+    position: absolute;
+    pointer-events: none;
+}
+
+.unidex-tab-frame-top-beam {
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent, #00d4ff), transparent);
+    opacity: 0.75;
+}
+
+.unidex-tab-frame-left-glow {
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 1px;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--accent, #00d4ff) 70%, transparent), transparent 34%, transparent 68%, color-mix(in srgb, var(--accent, #00d4ff) 38%, transparent));
+}
+
+.unidex-tab-scan-beam {
+    top: 0;
+    bottom: 0;
+    width: 42%;
+    background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent, #00d4ff) 10%, transparent), transparent);
+    opacity: 0.34;
+    animation: scanBeam 0.35s ease-out forwards;
+    z-index: 2;
+}
+
+.unidex-tab-frame-corner {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    pointer-events: none;
+    opacity: 0.82;
+}
+
+.unidex-tab-frame-corner::before,
+.unidex-tab-frame-corner::after {
+    content: "";
+    position: absolute;
+    background: var(--accent, #00d4ff);
+    box-shadow: 0 0 8px color-mix(in srgb, var(--accent, #00d4ff) 42%, transparent);
+}
+
+.unidex-tab-frame-corner::before {
+    width: 10px;
+    height: 1px;
+}
+
+.unidex-tab-frame-corner::after {
+    width: 1px;
+    height: 10px;
+}
+
+.unidex-tab-frame-corner.is-top-left { top: 6px; left: 6px; }
+.unidex-tab-frame-corner.is-top-right { top: 6px; right: 6px; transform: scaleX(-1); }
+.unidex-tab-frame-corner.is-bottom-left { bottom: 6px; left: 6px; transform: scaleY(-1); }
+.unidex-tab-frame-corner.is-bottom-right { right: 6px; bottom: 6px; transform: scale(-1); }
+
+.unidex-tab-wrapper-header {
+    position: relative;
+    z-index: 3;
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) auto;
+    gap: 12px;
+    align-items: stretch;
+}
+
+.unidex-tab-wrapper-stats {
+    min-width: 132px;
+    display: grid;
+    align-content: center;
+    gap: 5px;
+    padding: 10px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.025);
+    color: rgba(190, 205, 210, 0.74);
+    font-family: "Share Tech Mono", monospace;
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.unidex-manhwa-divider {
+    position: relative;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 11px 8px 7px;
+    color: rgba(170, 185, 190, 0.46);
+    font-family: "Share Tech Mono", monospace;
+    font-size: 0.66rem;
+    letter-spacing: 0.22em;
+}
+
+.unidex-manhwa-divider::before,
+.unidex-manhwa-divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: rgba(170, 185, 190, 0.12);
+}
+
+.unidex-tab-wrap-grid {
+    position: relative;
+    z-index: 3;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 8px;
+}
+
+.unidex-tabs.is-wrapper-view .unidex-tab-btn::before {
+    display: none;
+}
+
+.unidex-tab-wrap-tile {
+    min-height: 72px !important;
+    align-items: flex-start;
+    justify-content: center;
+    text-align: left;
+    padding: 12px 12px 12px 16px;
+    border-radius: 4px;
+    border-color: rgba(128, 128, 128, 0.22);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.035) 0%, rgba(255, 255, 255, 0.005) 100%);
+    box-shadow: none;
+    contain: layout paint;
+}
+
+.unidex-tab-wrap-tile:hover {
+    transform: translateY(-1px);
+    background: radial-gradient(ellipse at center, color-mix(in srgb, var(--accent, #00d4ff) 14%, transparent) 0%, color-mix(in srgb, var(--accent, #00d4ff) 4%, transparent) 64%, transparent 100%);
+}
+
+.unidex-tab-wrap-tile .unidex-tab-main,
+.unidex-tab-wrap-tile .unidex-tab-count {
+    margin: 0;
+    opacity: 1 !important;
+}
+
+.unidex-tab-wrap-tile .unidex-tab-main {
+    max-width: 100%;
+    color: var(--text-main);
+    font-size: 0.84rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.unidex-tab-wrap-tile .unidex-tab-count,
+.unidex-tab-path,
+.unidex-tab-wrap-badge {
+    font-family: "Share Tech Mono", monospace;
+    font-size: 0.66rem;
+    color: rgba(170, 185, 190, 0.68);
+}
+
+.unidex-tab-path {
+    width: 100%;
+    margin-top: 5px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    opacity: 0.68;
+}
+
+.unidex-tab-wrap-badge {
+    margin-top: 7px;
+    padding: 2px 7px;
+    border: 1px solid color-mix(in srgb, var(--accent, #00d4ff) 24%, rgba(255, 255, 255, 0.08));
+    border-radius: 999px;
+    color: color-mix(in srgb, var(--accent, #00d4ff) 72%, rgba(255, 255, 255, 0.62));
+    background: color-mix(in srgb, var(--accent, #00d4ff) 8%, transparent);
+}
+
+.unidex-tab-wrap-bar {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: linear-gradient(180deg, transparent, rgba(128, 128, 128, 0.34), transparent);
+    transition: width 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+}
+
+.unidex-tab-wrap-tile:hover .unidex-tab-wrap-bar {
+    width: 3px;
+    background: linear-gradient(180deg, transparent, var(--accent, #00d4ff), transparent);
+    box-shadow: 0 0 10px var(--accent, #00d4ff);
+}
+
+.unidex-tab-wrap-tile.is-root-tile {
+    min-height: 86px !important;
+    border-color: color-mix(in srgb, var(--accent, #00d4ff) 36%, rgba(255, 255, 255, 0.12));
+    background:
+        linear-gradient(135deg, color-mix(in srgb, var(--accent, #00d4ff) 8%, rgba(255, 255, 255, 0.035)), rgba(255, 255, 255, 0.01)),
+        rgba(0, 0, 0, 0.12);
+}
+
+.unidex-tab-wrap-empty {
+    padding: 16px;
+    border: 1px dashed rgba(255, 255, 255, 0.11);
+    border-radius: 4px;
+    color: rgba(170, 185, 190, 0.5);
+    font-family: "Share Tech Mono", monospace;
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
+    text-align: center;
+}
+
+@media (max-width: 760px) {
+    .unidex-tab-wrapper-header {
+        grid-template-columns: 1fr;
+    }
+
+    .unidex-tab-wrapper-stats {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        min-width: 0;
+    }
+
+    .unidex-tab-wrap-grid {
+        grid-template-columns: 1fr;
+    }
+}

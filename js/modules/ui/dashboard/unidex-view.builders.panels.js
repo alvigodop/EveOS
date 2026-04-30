@@ -16,7 +16,122 @@ window.UnidexViewModules = window.UnidexViewModules || {};
         const encodeParam = deps?.encodeParam || identity;
         const escapeHtml = deps?.escapeHtml || identity;
 
-        function buildTabsHtml() {
+        function getWorkspaceName(workspace) {
+            return String(workspace?.name || workspace?.id || 'Untitled Tab');
+        }
+
+        function getWorkspaceIcon(workspace) {
+            return String(workspace?.icon || '');
+        }
+
+        function getSubTabs(workspace) {
+            return Array.isArray(workspace?.subTabs) ? workspace.subTabs.filter(Boolean) : [];
+        }
+
+        function getBranchTabCount(workspace) {
+            return getSubTabs(workspace).reduce(function (total, child) {
+                return total + 1 + getBranchTabCount(child);
+            }, 0);
+        }
+
+        function getBranchBookmarkCount(workspace) {
+            return getWorkspaceBookmarkCount(workspace?.id) + getSubTabs(workspace).reduce(function (total, child) {
+                return total + getBranchBookmarkCount(child);
+            }, 0);
+        }
+
+        function buildWrappedTabButton(workspace, depth, options) {
+            const settings = options || {};
+            const name = getWorkspaceName(workspace);
+            const encodedId = encodeParam(workspace.id);
+            const safeName = escapeHtml(name);
+            const rawIcon = getWorkspaceIcon(workspace);
+            const safeIcon = rawIcon ? escapeHtml(rawIcon) : '&#128193;';
+            const workspaceCount = getWorkspaceBookmarkCount(workspace.id);
+            const depthValue = Math.max(0, Number(depth) || 0);
+            const depthClass = ' unidex-tab-depth-' + Math.min(depthValue, 4);
+            const hiddenClass = workspace.hiddenInParent ? ' unidex-tab-is-hidden' : '';
+            const pathHtml = settings.pathLabel
+                ? `<span class="unidex-tab-path">${escapeHtml(settings.pathLabel)}</span>`
+                : '';
+            const badgeHtml = settings.badge
+                ? `<span class="unidex-tab-wrap-badge">${escapeHtml(settings.badge)}</span>`
+                : '';
+
+            return `<button type="button"
+                class="unidex-tab-btn unidex-tab-wrap-tile${settings.root ? ' is-root-tile' : ''}${depthClass}${hiddenClass}"
+                data-text="${safeName.toUpperCase()}"
+                data-ws-depth="${depthValue}"
+                onclick="window.UnidexView.switchWorkspaceTab('${encodedId}')"
+                title="Open ${safeName}">
+                <span class="unidex-tab-wrap-bar" aria-hidden="true"></span>
+                <span class="unidex-tab-main">${safeIcon} ${safeName}</span>
+                <span class="unidex-tab-count">${workspaceCount} links</span>
+                ${pathHtml}
+                ${badgeHtml}
+            </button>`;
+        }
+
+        function buildWrappedDescendants(workspace, depth, pathParts) {
+            return getSubTabs(workspace).map(function (child) {
+                const childName = getWorkspaceName(child);
+                const childPath = pathParts.concat([childName]);
+                const childCount = getSubTabs(child).length;
+                const badgeText = childCount > 0
+                    ? childCount + ' child tab' + (childCount === 1 ? '' : 's')
+                    : '';
+                return buildWrappedTabButton(child, depth, {
+                    pathLabel: childPath.join(' / '),
+                    badge: badgeText
+                }) + buildWrappedDescendants(child, depth + 1, childPath);
+            }).join('');
+        }
+
+        function buildWrappedTabsHtml() {
+            const workspaces = config.workspaces || [];
+            if (!workspaces.length) return '';
+
+            return workspaces.map(function (workspace) {
+                const name = getWorkspaceName(workspace);
+                const descendants = getBranchTabCount(workspace);
+                const directChildren = getSubTabs(workspace).length;
+                const branchLinks = getBranchBookmarkCount(workspace);
+                const childHtml = buildWrappedDescendants(workspace, 1, [name]);
+                const emptyHtml = childHtml
+                    ? ''
+                    : '<div class="unidex-tab-wrap-empty">NO SUB TABS IN THIS BRANCH</div>';
+
+                return `<article class="unidex-tab-wrapper-frame">
+                    <div class="unidex-tab-frame-top-beam" aria-hidden="true"></div>
+                    <div class="unidex-tab-frame-left-glow" aria-hidden="true"></div>
+                    <div class="unidex-tab-scan-beam" aria-hidden="true"></div>
+                    <div class="unidex-tab-frame-corner is-top-left" aria-hidden="true"></div>
+                    <div class="unidex-tab-frame-corner is-top-right" aria-hidden="true"></div>
+                    <div class="unidex-tab-frame-corner is-bottom-left" aria-hidden="true"></div>
+                    <div class="unidex-tab-frame-corner is-bottom-right" aria-hidden="true"></div>
+                    <div class="unidex-tab-wrapper-header">
+                        ${buildWrappedTabButton(workspace, 0, {
+                            root: true,
+                            badge: descendants + ' nested tab' + (descendants === 1 ? '' : 's')
+                        })}
+                        <div class="unidex-tab-wrapper-stats">
+                            <span>${directChildren} direct</span>
+                            <span>${descendants} nested</span>
+                            <span>${branchLinks} branch links</span>
+                        </div>
+                    </div>
+                    <div class="unidex-manhwa-divider">SUB TABS</div>
+                    <div class="unidex-tab-wrap-grid">
+                        ${childHtml || emptyHtml}
+                    </div>
+                </article>`;
+            }).join('');
+        }
+
+        function buildTabsHtml(options) {
+            const mode = String(options?.mode || 'wrapped');
+            if (mode === 'wrapped') return buildWrappedTabsHtml();
+
             const helpers = window.EveWorkspaceHelpers;
             const workspaces = config.workspaces || [];
             const tabHtmlParts = [];

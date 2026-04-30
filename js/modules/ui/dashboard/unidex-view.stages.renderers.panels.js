@@ -26,6 +26,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
         const getEntriesDensityMode = deps?.getEntriesDensityMode || (() => 'comfortable');
         const getCardsUnifiedMode = deps?.getCardsUnifiedMode;
         const getTabsUnifiedMode = deps?.getTabsUnifiedMode;
+        const getTabsTreeMode = deps?.getTabsTreeMode || (() => 'wrapped');
         const getEntriesFilterMode = deps?.getEntriesFilterMode;
         const getEntriesGroupMode = deps?.getEntriesGroupMode || (() => 'flat');
         const applyEntriesViewTransforms = deps?.applyEntriesViewTransforms;
@@ -43,8 +44,16 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 + ' is-density-' + getEntriesDensityMode();
         }
 
+        function buildTabsTreeModeButton() {
+            const mode = getTabsTreeMode();
+            const label = mode === 'wrapped' ? 'Wrapped' : 'Unfolded';
+            const nextLabel = mode === 'wrapped' ? 'Unfolded' : 'Wrapped';
+            return '<button type="button" class="unidex-layout-btn unidex-tree-mode-btn" onclick="window.UnidexView.toggleTabsTreeMode()" title="Switch to ' + nextLabel + ' tab tree view">Tab View: ' + label + '</button>';
+        }
+
         function renderTabsStage(gridContainer, searchStr) {
             const tabsUnifiedMode = getTabsUnifiedMode();
+            const tabsTreeMode = getTabsTreeMode();
             const layoutMode = getEntriesLayoutMode();
             const tabsUnifiedToggleHtml = `
             <label class="unidex-switch" title="Show bookmarks from all tabs in one unified view">
@@ -62,11 +71,12 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                     </header>
                     <div class="unidex-panel-controls unidex-tabs-controls">
                         ${tabsUnifiedToggleHtml}
+                        ${buildTabsTreeModeButton()}
                         ${nexusAllTabsBtn}
                         ${mapButtonHtml}
                     </div>
-                    <section class="unidex-tabs" aria-label="Workspace Tabs">
-                        ${buildTabsHtml()}
+                    <section class="unidex-tabs ${tabsTreeMode === 'wrapped' ? 'is-wrapper-view' : 'is-unfolded-view'}" aria-label="Workspace Tabs">
+                        ${buildTabsHtml({ mode: tabsTreeMode })}
                     </section>
                 </section>
             `;

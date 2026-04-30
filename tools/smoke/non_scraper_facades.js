@@ -41,6 +41,11 @@ async function testUnidexControlsState() {
     assert(context.config.unidexEntriesLayout === 'grid', 'layout mode should persist through injected config access');
     controls.toggleEntriesLayout();
     assert(context.config.unidexEntriesLayout === 'rows', 'layout toggle should update config');
+    assert(controls.getTabsTreeMode() === 'wrapped', 'tab tree mode should default to wrapped');
+    controls.toggleTabsTreeMode();
+    assert(context.config.unidexTabsTreeMode === 'unfolded', 'tab tree toggle should update config');
+    controls.setTabsTreeMode('wrapped');
+    assert(context.config.unidexTabsTreeMode === 'wrapped', 'tab tree setter should persist wrapped mode');
     assert(metrics.saves >= 2, 'config saves should be triggered');
     assert(metrics.renders >= 1, 'render callback should be triggered');
 
