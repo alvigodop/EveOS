@@ -117,8 +117,8 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    max-width: 1600px;
-    margin: 0 auto 10px auto;
+    max-width: none;
+    margin: 0 0 10px 0;
     width: 100%;
     gap: 14px;
 }
@@ -423,4 +423,3 @@ html[data-native-scheme="light"] option {
 .light-theme h4 {
     color: #222;
 }
-
