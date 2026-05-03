@@ -96,10 +96,36 @@ function estimateWorkspaceTreeNodeCount() {
     }
 
     window.toggleSidebarVisibility = function () {
-        config.sidebarHidden = !config.sidebarHidden;
-        saveConfig();
+        if (typeof config.sidebarExpanded !== 'boolean') config.sidebarExpanded = false;
+        if (typeof config.sidebarHidden !== 'boolean') config.sidebarHidden = false;
+        if (typeof config.sidebarToggleDirection !== 'number') config.sidebarToggleDirection = -1;
+
         var sb = document.getElementById('sidebar');
         var wasHidden = !!(sb && sb.classList.contains('hidden-completely'));
+
+        if (config.sidebarExpanded && !config.sidebarHidden) {
+            // Expanded -> Collapsed
+            config.sidebarExpanded = false;
+            config.sidebarHidden = false;
+            config.sidebarToggleDirection = -1;
+        } else if (!config.sidebarExpanded && !config.sidebarHidden) {
+            // Collapsed -> Hidden or Expanded depending on direction
+            if (config.sidebarToggleDirection === -1) {
+                config.sidebarHidden = true;
+                config.sidebarToggleDirection = 1;
+            } else {
+                config.sidebarExpanded = true;
+                config.sidebarToggleDirection = -1;
+            }
+        } else {
+            // Hidden -> Collapsed
+            config.sidebarHidden = false;
+            config.sidebarExpanded = false;
+            config.sidebarToggleDirection = 1;
+        }
+
+        saveConfig();
+        
         if (sb) syncSidebarShellState(sb);
         if (config.sidebarHidden) return;
         if (wasHidden && !rt.sidebarDirtyWhileHidden && sb?.querySelector('.ws-sidebar-content')?.childElementCount) {

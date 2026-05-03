@@ -206,9 +206,30 @@
     overflow-y: auto;
     overflow-x: hidden;
     padding-bottom: 10px;
+    /* Firefox */
     scrollbar-width: thin;
-    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+    scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
     overflow-anchor: none;
+}
+
+/* Webkit Scrollbar Styling for Sidebar */
+.ws-sidebar-content::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.ws-sidebar-content::-webkit-scrollbar-track {
+    background: transparent;
+    border-radius: 3px;
+}
+
+.ws-sidebar-content::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 3px;
+}
+
+.ws-sidebar-content::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.25);
 }
 
 .ws-sidebar-content[hidden] {
