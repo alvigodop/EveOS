@@ -245,6 +245,76 @@ window.bulkLastToggledId = bulkLastToggledId;
         return bucket ? bucket.length : 0;
     }
 
+    function getFolderTreeForScope(workspaceId, categoryName) {
+        const folderApi = window.EveBookmarkFolders;
+        const shared = folderApi?._shared;
+        if (!shared || typeof shared.getScopedNodes !== 'function') return [];
+        const nodes = shared.getScopedNodes(workspaceId, categoryName) || [];
+        if (!Array.isArray(nodes) || nodes.length === 0) return [];
+
+        const childrenMap = new Map();
+        nodes.forEach((node) => {
+            const parentId = String(node?.parentId || '').trim();
+            if (!childrenMap.has(parentId)) childrenMap.set(parentId, []);
+            childrenMap.get(parentId).push(node);
+        });
+        childrenMap.forEach((list) => {
+            list.sort((a, b) => {
+                const oa = Number(a?.order) || 0;
+                const ob = Number(b?.order) || 0;
+                if (oa !== ob) return oa - ob;
+                return String(a?.name || '').localeCompare(String(b?.name || ''));
+            });
+        });
+
+        function build(parentId) {
+            const list = childrenMap.get(String(parentId || '').trim()) || [];
+            return list.map((node) => ({
+                id: String(node.id || ''),
+                name: String(node.name || '').trim() || 'Folder',
+                children: build(node.id)
+            })).filter((entry) => entry.id);
+        }
+        return build('');
+    }
+
+    function getBookmarkCountForFolder(workspaceId, categoryName, folderId, options = {}) {
+        const ws = String(workspaceId || '').trim();
+        const cat = String(categoryName || 'Unsorted').trim();
+        const targetFolderId = String(folderId || '').trim();
+        if (!targetFolderId) return 0;
+        const recursive = options.recursive !== false;
+
+        const index = _getScopeIndex();
+        const bucket = index.get(ws + '::' + cat) || [];
+
+        if (!recursive) {
+            return bucket.filter((link) => String(link?.folderId || '').trim() === targetFolderId).length;
+        }
+
+        const folderApi = window.EveBookmarkFolders;
+        const shared = folderApi?._shared;
+        const nodes = (shared?.getScopedNodes?.(ws, cat) || []);
+        const childrenMap = new Map();
+        nodes.forEach((node) => {
+            const parentId = String(node?.parentId || '').trim();
+            if (!childrenMap.has(parentId)) childrenMap.set(parentId, []);
+            childrenMap.get(parentId).push(node);
+        });
+        const descendants = new Set([targetFolderId]);
+        function collect(id) {
+            (childrenMap.get(id) || []).forEach((child) => {
+                const cid = String(child?.id || '').trim();
+                if (!cid || descendants.has(cid)) return;
+                descendants.add(cid);
+                collect(cid);
+            });
+        }
+        collect(targetFolderId);
+
+        return bucket.filter((link) => descendants.has(String(link?.folderId || '').trim())).length;
+    }
+
     function getBookmarkCountForWorkspace(workspaceId) {
         const ws = String(workspaceId || '').trim();
         if (!ws) return 0;
@@ -503,6 +573,8 @@ window.bulkLastToggledId = bulkLastToggledId;
         getScopeLinkIdsForFolder,
         getBookmarkCountForCard,
         getBookmarkCountForWorkspace,
+        getFolderTreeForScope,
+        getBookmarkCountForFolder,
         getAllCategoryNames,
         getVisibleDashboardCategoryNames,
         escapeBulkMoveHtml,

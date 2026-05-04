@@ -393,17 +393,18 @@ async function runPickerRenderPhase(page) {
         // Open card-move modal
         window.bulkMove();
         const list = document.getElementById('bulk-move-existing-list');
-        const initialRows = Array.from(list?.querySelectorAll('.bulk-target-row') || []).map((row) => ({
-            value: row.getAttribute('data-value'),
+        const initialRows = Array.from(list?.querySelectorAll('.bulk-target-row[data-card][data-folder-id=""]') || []).map((row) => ({
+            value: row.getAttribute('data-card'),
+            folderId: row.getAttribute('data-folder-id') || '',
             count: Number(String(row.querySelector('.bulk-target-row-count')?.textContent || '0').trim()),
             selected: row.classList.contains('is-selected')
         }));
-        const initialSelected = String(list?.dataset.selected || '');
+        const initialSelected = String(list?.dataset.selectedCard || list?.dataset.selected || '');
 
-        // Click the Beta row
-        const betaRow = Array.from(list?.querySelectorAll('.bulk-target-row[data-value="Beta"]') || [])[0];
+        // Click the Beta card row (folder-id is empty for card root)
+        const betaRow = list?.querySelector('.bulk-target-row[data-card="Beta"][data-folder-id=""]');
         if (betaRow) betaRow.click();
-        const afterClickSelected = String(list?.dataset.selected || '');
+        const afterClickSelected = String(list?.dataset.selectedCard || list?.dataset.selected || '');
         const betaIsSelected = !!betaRow?.classList.contains('is-selected');
 
         // Filter test
@@ -412,7 +413,7 @@ async function runPickerRenderPhase(page) {
             filter.value = 'bet';
             filter.dispatchEvent(new Event('input', { bubbles: true }));
         }
-        const filteredRows = Array.from(list?.querySelectorAll('.bulk-target-row') || []).map((row) => row.getAttribute('data-value'));
+        const filteredRows = Array.from(list?.querySelectorAll('.bulk-target-row[data-card][data-folder-id=""]') || []).map((row) => row.getAttribute('data-card'));
 
         if (typeof window.closeBulkMoveModal === 'function') window.closeBulkMoveModal();
 
@@ -627,6 +628,102 @@ async function runTabTreePhase(page) {
     return result;
 }
 
+async function runFolderTargetPhase(page) {
+    // Card picker should expose folders within each card; selecting a nested folder
+    // should land the bulk-moved bookmarks in that folder (not at the card root).
+    await seedState(page, {
+        links: [
+            { id: 'src-1', title: 'Source 1', url: 'https://example.com/s1', workspace: 'main', category: 'Alpha' },
+            { id: 'src-2', title: 'Source 2', url: 'https://example.com/s2', workspace: 'main', category: 'Alpha' },
+            { id: 'beta-existing', title: 'Existing in Beta folder', url: 'https://example.com/beta-existing', workspace: 'main', category: 'Beta', folderId: 'beta-folder-x' }
+        ],
+        bookmarkFolders: {
+            'main::Beta': {
+                nodes: [
+                    { id: 'beta-folder-x', name: 'Folder X', parentId: null, order: 0, createdAt: 1, updatedAt: 1 },
+                    { id: 'beta-folder-x-sub', name: 'Sub X', parentId: 'beta-folder-x', order: 0, createdAt: 1, updatedAt: 1 }
+                ],
+                settings: { clickBehaviorMode: 'inherit' }
+            }
+        },
+        config: buildConfig('main')
+    });
+
+    const result = await page.evaluate((snapshotFnSrc) => {
+        const snapshotState = new Function('return (' + snapshotFnSrc + ')')();
+        window.selectedIds = new Set(['src-1', 'src-2']);
+        const grid = document.getElementById('dashboard-grid') || (() => {
+            const el = document.createElement('div');
+            el.id = 'dashboard-grid';
+            document.body.appendChild(el);
+            return el;
+        })();
+        grid.innerHTML = ''
+            + '<div class="category-card"><div class="category-title">Alpha</div></div>'
+            + '<div class="category-card"><div class="category-title">Beta</div></div>';
+
+        window.bulkMove();
+        const list = document.getElementById('bulk-move-existing-list');
+
+        // Verify the Beta card node renders nested folder rows
+        const subFolderRow = list?.querySelector('.bulk-target-row[data-card="Beta"][data-folder-id="beta-folder-x-sub"]');
+        const folderXRow = list?.querySelector('.bulk-target-row[data-card="Beta"][data-folder-id="beta-folder-x"]');
+
+        // Click the nested sub-folder row
+        if (subFolderRow) subFolderRow.click();
+        const afterClick = {
+            selectedCard: list?.dataset.selectedCard,
+            selectedFolder: list?.dataset.selectedFolder,
+            subRowSelected: subFolderRow?.classList.contains('is-selected')
+        };
+
+        // Apply the move
+        const helpers = window.EveBulkToolbar.ModalModules.createCategoryModalHelpers({
+            getLinks: window.EveBulkToolbar.getLinks,
+            setLinks: window.EveBulkToolbar.setLinks,
+            getConfig: window.EveBulkToolbar.getConfig,
+            getSelectedIds: window.EveBulkToolbar.getSelectedIds,
+            toBulkId: window.EveBulkToolbar.toBulkId,
+            getAllCategoryNames: window.EveBulkToolbar.getAllCategoryNames,
+            getVisibleDashboardCategoryNames: window.EveBulkToolbar.getVisibleDashboardCategoryNames,
+            escapeBulkMoveHtml: window.EveBulkToolbar.escapeBulkMoveHtml,
+            getSelectedCategoryName: window.EveBulkToolbar.getSelectedCategoryName,
+            getSelectedWorkspaceForMove: window.EveBulkToolbar.getSelectedWorkspaceForMove,
+            getWorkspaceList: window.EveBulkToolbar.getWorkspaceList,
+            getWorkspaceTree: window.EveBulkToolbar.getWorkspaceTree,
+            getSelectedWorkspaceId: window.EveBulkToolbar.getSelectedWorkspaceId,
+            addTouchedScope: window.EveBulkToolbar.addTouchedScope,
+            formatSelectionSummary: window.EveBulkToolbar.formatSelectionSummary,
+            getBookmarkCountForCard: window.EveBulkToolbar.getBookmarkCountForCard,
+            getBookmarkCountForWorkspace: window.EveBulkToolbar.getBookmarkCountForWorkspace,
+            getFolderTreeForScope: window.EveBulkToolbar.getFolderTreeForScope,
+            getBookmarkCountForFolder: window.EveBulkToolbar.getBookmarkCountForFolder
+        });
+
+        const moveResult = helpers.confirmBulkMove();
+        if (typeof window.closeBulkMoveModal === 'function') window.closeBulkMoveModal();
+
+        return {
+            folderRowsExist: !!folderXRow && !!subFolderRow,
+            afterClick,
+            moveResult,
+            after: snapshotState()
+        };
+    }, snapshotState.toString());
+
+    if (!result.folderRowsExist) {
+        throw new Error('[folder-target] Card picker did not render nested folder rows for Beta: ' + JSON.stringify(result));
+    }
+    if (result.afterClick.selectedCard !== 'Beta' || result.afterClick.selectedFolder !== 'beta-folder-x-sub' || !result.afterClick.subRowSelected) {
+        throw new Error('[folder-target] Click on nested folder row did not update dataset / selection: ' + JSON.stringify(result));
+    }
+    const movedLinks = result.after.links.filter((l) => l.id === 'src-1' || l.id === 'src-2');
+    if (movedLinks.length !== 2 || movedLinks.some((l) => l.category !== 'Beta' || l.folderId !== 'beta-folder-x-sub')) {
+        throw new Error('[folder-target] Bookmarks did not land in the chosen sub-folder: ' + JSON.stringify(result));
+    }
+    return result;
+}
+
 async function main() {
     const browser = await chromium.launch();
     const context = await browser.newContext();
@@ -668,6 +765,10 @@ async function main() {
         console.log('Phase 7: Tab picker tree (subtabs collapsible)');
         await runTabTreePhase(page);
         console.log('  ✓ subtabs hidden by default, chevron expands, filter auto-expands');
+
+        console.log('Phase 8: Card picker exposes folders as targets');
+        await runFolderTargetPhase(page);
+        console.log('  ✓ nested folder picked → bookmarks land inside that folder');
 
         console.log('All bulk-select folder-move + merge smoke checks passed.');
     } finally {

@@ -28,7 +28,9 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
         addTouchedScope: ns.addTouchedScope,
         formatSelectionSummary: ns.formatSelectionSummary,
         getBookmarkCountForCard: ns.getBookmarkCountForCard,
-        getBookmarkCountForWorkspace: ns.getBookmarkCountForWorkspace
+        getBookmarkCountForWorkspace: ns.getBookmarkCountForWorkspace,
+        getFolderTreeForScope: ns.getFolderTreeForScope,
+        getBookmarkCountForFolder: ns.getBookmarkCountForFolder
     };
 
     const modules = window.EveBulkToolbar.ModalModules || {};

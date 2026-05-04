@@ -19,6 +19,8 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
         const formatSelectionSummary = deps.formatSelectionSummary || function () { return ''; };
         const getBookmarkCountForCard = deps.getBookmarkCountForCard || function () { return 0; };
         const getBookmarkCountForWorkspace = deps.getBookmarkCountForWorkspace || function () { return 0; };
+        const getFolderTreeForScope = deps.getFolderTreeForScope || function () { return []; };
+        const getBookmarkCountForFolder = deps.getBookmarkCountForFolder || function () { return 0; };
 
         function getSelectedCardNameFallback() {
             return String(getSelectedCategoryName() || 'Unsorted').trim() || 'Unsorted';
@@ -101,34 +103,104 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
             return html;
         }
 
-        function buildCardRowHtml(name, workspaceId, currentName) {
+        function buildCardFolderRowsHtml(folders, workspaceId, categoryName, depth, currentCard, currentFolder) {
+            return folders.map((folder) => {
+                const folderId = String(folder?.id || '');
+                if (!folderId) return '';
+                const safeFolderId = escapeBulkMoveHtml(folderId);
+                const safeCard = escapeBulkMoveHtml(categoryName);
+                const safeName = escapeBulkMoveHtml(folder.name);
+                const initial = String(folder.name || '?').trim().charAt(0).toUpperCase() || '?';
+                const count = getBookmarkCountForFolder(workspaceId, categoryName, folderId, { recursive: true });
+                const isSelected = currentCard === categoryName && currentFolder === folderId;
+                const children = Array.isArray(folder.children) ? folder.children : [];
+                const hasChildren = children.length > 0;
+                const indentStyle = ` style="padding-left:${depth * 18}px"`;
+
+                let html = `<div class="bulk-target-node" data-folder-id="${safeFolderId}" data-depth="${depth}">`;
+                html += `<div class="bulk-target-row-wrap"${indentStyle}>`;
+                html += `<button type="button" class="bulk-target-row${isSelected ? ' is-selected' : ''}" `;
+                html += `role="option" aria-selected="${isSelected}" `;
+                html += `data-card="${safeCard}" data-folder-id="${safeFolderId}">`;
+                html += `<span class="bulk-target-row-bar" aria-hidden="true"></span>`;
+                html += `<span class="bulk-target-row-icon" aria-hidden="true">${escapeBulkMoveHtml(initial)}</span>`;
+                html += `<span class="bulk-target-row-body">`;
+                html += `<span class="bulk-target-row-title">${safeName}</span>`;
+                html += `<span class="bulk-target-row-meta">folder &middot; ${count} bookmark${count === 1 ? '' : 's'}${hasChildren ? ` &middot; ${children.length} subfolder${children.length === 1 ? '' : 's'}` : ''}</span>`;
+                html += `</span>`;
+                html += `<span class="bulk-target-row-count" aria-hidden="true">${count}</span>`;
+                html += `</button>`;
+                if (hasChildren) {
+                    html += `<button type="button" class="bulk-target-tree-toggle" aria-label="Toggle subfolders" aria-expanded="false" onclick="toggleBulkTreeNode(this)">`;
+                    html += `<span class="bulk-section-chevron" aria-hidden="true">&#9662;</span>`;
+                    html += `</button>`;
+                }
+                html += `</div>`;
+                if (hasChildren) {
+                    html += `<div class="bulk-target-children" hidden>`;
+                    html += buildCardFolderRowsHtml(children, workspaceId, categoryName, depth + 1, currentCard, currentFolder);
+                    html += `</div>`;
+                }
+                html += `</div>`;
+                return html;
+            }).join('');
+        }
+
+        function buildDestinationCardNodeHtml(name, workspaceId, currentCard, currentFolder) {
             const safeName = escapeBulkMoveHtml(name);
-            const isSelected = name === currentName;
             const count = getBookmarkCountForCard(name, workspaceId);
+            const isSelected = name === currentCard && !currentFolder;
             const initial = String(name || '?').trim().charAt(0).toUpperCase() || '?';
-            return (
-                `<button type="button" class="bulk-target-row${isSelected ? ' is-selected' : ''}" `
-                + `role="option" aria-selected="${isSelected}" data-value="${safeName}">`
-                + `<span class="bulk-target-row-bar" aria-hidden="true"></span>`
-                + `<span class="bulk-target-row-icon" aria-hidden="true">${escapeBulkMoveHtml(initial)}</span>`
-                + `<span class="bulk-target-row-body">`
-                + `<span class="bulk-target-row-title">${safeName}</span>`
-                + `<span class="bulk-target-row-meta">${count} bookmark${count === 1 ? '' : 's'}</span>`
-                + `</span>`
-                + `<span class="bulk-target-row-count" aria-hidden="true">${count}</span>`
-                + `</button>`
-            );
+            const folderTree = getFolderTreeForScope(workspaceId, name) || [];
+            const hasChildren = folderTree.length > 0;
+
+            let html = `<div class="bulk-target-node" data-card="${safeName}" data-depth="0">`;
+            html += `<div class="bulk-target-row-wrap">`;
+            html += `<button type="button" class="bulk-target-row${isSelected ? ' is-selected' : ''}" `;
+            html += `role="option" aria-selected="${isSelected}" `;
+            html += `data-card="${safeName}" data-folder-id="">`;
+            html += `<span class="bulk-target-row-bar" aria-hidden="true"></span>`;
+            html += `<span class="bulk-target-row-icon" aria-hidden="true">${escapeBulkMoveHtml(initial)}</span>`;
+            html += `<span class="bulk-target-row-body">`;
+            html += `<span class="bulk-target-row-title">${safeName}</span>`;
+            html += `<span class="bulk-target-row-meta">${count} bookmark${count === 1 ? '' : 's'}${hasChildren ? ` &middot; ${folderTree.length} folder${folderTree.length === 1 ? '' : 's'}` : ''}</span>`;
+            html += `</span>`;
+            html += `<span class="bulk-target-row-count" aria-hidden="true">${count}</span>`;
+            html += `</button>`;
+            if (hasChildren) {
+                html += `<button type="button" class="bulk-target-tree-toggle" aria-label="Toggle folders" aria-expanded="false" onclick="toggleBulkTreeNode(this)">`;
+                html += `<span class="bulk-section-chevron" aria-hidden="true">&#9662;</span>`;
+                html += `</button>`;
+            }
+            html += `</div>`;
+            if (hasChildren) {
+                html += `<div class="bulk-target-children" hidden>`;
+                html += buildCardFolderRowsHtml(folderTree, workspaceId, name, 1, currentCard, currentFolder);
+                html += `</div>`;
+            }
+            html += `</div>`;
+            return html;
         }
 
         function attachListClickHandler(listId, onChange) {
             const list = document.getElementById(listId);
             if (!list || list.dataset.bulkClickReady === '1') return;
             list.addEventListener('click', (event) => {
-                const row = event.target.closest('.bulk-target-row[data-value]');
+                const row = event.target.closest('.bulk-target-row[data-value], .bulk-target-row[data-card]');
                 if (!row || !list.contains(row)) return;
                 event.preventDefault();
-                const value = row.getAttribute('data-value') || '';
-                list.dataset.selected = value;
+                let value = '';
+                if (row.hasAttribute('data-card')) {
+                    const card = row.getAttribute('data-card') || '';
+                    const folderId = row.getAttribute('data-folder-id') || '';
+                    list.dataset.selected = card;
+                    list.dataset.selectedCard = card;
+                    list.dataset.selectedFolder = folderId;
+                    value = card;
+                } else {
+                    value = row.getAttribute('data-value') || '';
+                    list.dataset.selected = value;
+                }
                 Array.from(list.querySelectorAll('.bulk-target-row')).forEach((node) => {
                     const matches = node === row;
                     node.classList.toggle('is-selected', matches);
@@ -237,27 +309,33 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
             const cardNames = workspaceId
                 ? getAllCategoryNames(workspaceId).filter((name) => !filterText || String(name || '').toLowerCase().includes(filterText))
                 : [];
-            const preferredCard = getSelectedCardNameFallback();
+            const preferredCardFallback = getSelectedCardNameFallback();
 
             if (!workspaceId || !cardNames.length) {
                 list.innerHTML = '<div class="bulk-target-empty">' + (workspaceId ? 'No matching cards' : 'No cards in destination tab') + '</div>';
                 list.dataset.selected = '';
+                list.dataset.selectedCard = '';
+                list.dataset.selectedFolder = '';
                 list.dataset.bulkAutoCardMode = 'new';
                 setBulkTabCardMode('new');
                 const input = document.getElementById('bulk-tab-card-new-input');
                 if (input && !String(input.value || '').trim()) {
-                    input.value = preferredCard;
+                    input.value = preferredCardFallback;
                 }
                 return;
             }
 
-            const currentSelected = String(list.dataset.selected || '').trim();
-            const preferred = cardNames.includes(currentSelected)
-                ? currentSelected
-                : cardNames.includes(preferredCard) ? preferredCard : cardNames[0];
+            const currentCard = String(list.dataset.selectedCard || list.dataset.selected || '').trim();
+            const currentFolder = String(list.dataset.selectedFolder || '').trim();
+            const preferredCard = cardNames.includes(currentCard)
+                ? currentCard
+                : cardNames.includes(preferredCardFallback) ? preferredCardFallback : cardNames[0];
+            const preferredFolder = preferredCard === currentCard ? currentFolder : '';
 
-            list.innerHTML = cardNames.map((name) => buildCardRowHtml(name, workspaceId, preferred)).join('');
-            list.dataset.selected = preferred;
+            list.innerHTML = cardNames.map((name) => buildDestinationCardNodeHtml(name, workspaceId, preferredCard, preferredFolder)).join('');
+            list.dataset.selected = preferredCard;
+            list.dataset.selectedCard = preferredCard;
+            list.dataset.selectedFolder = preferredFolder;
 
             if (list.dataset.bulkAutoCardMode === 'new') {
                 delete list.dataset.bulkAutoCardMode;
@@ -266,7 +344,7 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
 
             const input = document.getElementById('bulk-tab-card-new-input');
             if (input && !String(input.value || '').trim()) {
-                input.value = preferredCard;
+                input.value = preferredCardFallback;
             }
         }
 
@@ -333,19 +411,25 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
         function resolveBulkTabCategoryTarget(targetWorkspaceId) {
             const mode = document.querySelector('input[name="bulkTabCardMode"]:checked')?.value || 'existing';
             if (mode === 'new') {
-                return String(document.getElementById('bulk-tab-card-new-input')?.value || '').trim();
+                return {
+                    categoryName: String(document.getElementById('bulk-tab-card-new-input')?.value || '').trim(),
+                    folderId: ''
+                };
             }
 
-            const existingValue = String(document.getElementById('bulk-tab-card-existing-list')?.dataset.selected || '').trim();
-            if (existingValue) return existingValue;
+            const list = document.getElementById('bulk-tab-card-existing-list');
+            const existingCard = String(list?.dataset.selectedCard || list?.dataset.selected || '').trim();
+            const existingFolder = String(list?.dataset.selectedFolder || '').trim();
+            if (existingCard) return { categoryName: existingCard, folderId: existingFolder };
 
             const categoryOptions = getAllCategoryNames(targetWorkspaceId);
-            return categoryOptions[0] || '';
+            return { categoryName: categoryOptions[0] || '', folderId: '' };
         }
 
-        function applyBulkWorkspaceMove(workspaceId, categoryName) {
+        function applyBulkWorkspaceMove(workspaceId, categoryName, folderIdArg) {
             const targetWorkspaceId = String(workspaceId || '').trim() || 'main';
             const targetCategoryName = String(categoryName || '').trim() || 'Unsorted';
+            const targetFolderId = String(folderIdArg || '').trim();
             if (!targetWorkspaceId || !targetCategoryName) return false;
 
             const allLinks = getLinks();
@@ -377,9 +461,14 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
                 if (typeof folderApi?.transferCategoryFolders === 'function') {
                     // Always ensure target has the folder structure.
                     // If it's a partial move, we keep it in source too (mergeOnly: true).
-                    folderApi.transferCategoryFolders(sWs, sCat, targetWorkspaceId, targetCategoryName, {
-                        mergeOnly: !isWholeCardMove
-                    });
+                    // Skip cloning when the user explicitly picked a destination folder —
+                    // bookmarks land in that folder and we don't want to replicate the
+                    // source's folder hierarchy on top of it.
+                    if (!targetFolderId) {
+                        folderApi.transferCategoryFolders(sWs, sCat, targetWorkspaceId, targetCategoryName, {
+                            mergeOnly: !isWholeCardMove
+                        });
+                    }
                 }
 
                 // For partial-card moves where individual folders are *fully* covered by the
@@ -416,10 +505,15 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
                 if (!link) return;
                 addTouchedScope(touchedScopes, link.workspace, link.category);
 
-                let nextFolderId = String(link.folderId || '').trim();
-                if (nextFolderId && folderApi) {
-                    const folder = folderApi.getFolderById(targetWorkspaceId, targetCategoryName, nextFolderId);
-                    if (!folder) nextFolderId = '';
+                let nextFolderId = '';
+                if (targetFolderId) {
+                    nextFolderId = targetFolderId;
+                } else {
+                    nextFolderId = String(link.folderId || '').trim();
+                    if (nextFolderId && folderApi) {
+                        const folder = folderApi.getFolderById(targetWorkspaceId, targetCategoryName, nextFolderId);
+                        if (!folder) nextFolderId = '';
+                    }
                 }
 
                 if (mergeApi && typeof mergeApi.moveOrMergeLinkToScope === 'function') {
@@ -460,7 +554,8 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
                 removedLinkIds: Array.from(new Set(removedLinkIds)),
                 target: {
                     workspaceId: targetWorkspaceId,
-                    categoryName: targetCategoryName
+                    categoryName: targetCategoryName,
+                    folderId: targetFolderId
                 },
                 touchedScopes: Array.from(touchedScopes.values())
             };
@@ -472,20 +567,21 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
                 showToast('Select a tab or enter a new tab name.', 'warning');
                 return false;
             }
-            const nextCategory = resolveBulkTabCategoryTarget(target.workspaceId);
-            if (!nextCategory) {
+            const cardTarget = resolveBulkTabCategoryTarget(target.workspaceId);
+            if (!cardTarget?.categoryName) {
                 showToast('Select a destination card or enter a new card name.', 'warning');
                 return false;
             }
 
-            const result = applyBulkWorkspaceMove(target.workspaceId, nextCategory);
+            const result = applyBulkWorkspaceMove(target.workspaceId, cardTarget.categoryName, cardTarget.folderId);
             if (!result?.applied) {
                 showToast('Unable to move bookmarks to tab.', 'error');
                 return false;
             }
 
             closeBulkTabModal();
-            showToast(`Moved ${movedCount} bookmark(s) to "${nextCategory}" in tab "${target.workspaceName}"`, 'success');
+            const folderSuffix = cardTarget.folderId ? ' (into a specific folder)' : '';
+            showToast(`Moved ${movedCount} bookmark(s) to "${cardTarget.categoryName}" in tab "${target.workspaceName}"${folderSuffix}`, 'success');
             return result;
         }
 
