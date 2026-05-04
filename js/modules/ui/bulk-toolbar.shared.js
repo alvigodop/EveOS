@@ -237,6 +237,26 @@ window.bulkLastToggledId = bulkLastToggledId;
         return index;
     }
 
+    function getBookmarkCountForCard(categoryName, workspaceId) {
+        const ws = String(workspaceId || '').trim();
+        const cat = String(categoryName || 'Unsorted').trim();
+        const index = _getScopeIndex();
+        const bucket = index.get(ws + '::' + cat);
+        return bucket ? bucket.length : 0;
+    }
+
+    function getBookmarkCountForWorkspace(workspaceId) {
+        const ws = String(workspaceId || '').trim();
+        if (!ws) return 0;
+        const index = _getScopeIndex();
+        let total = 0;
+        index.forEach((bucket, key) => {
+            const keyWs = String(key).split('::')[0];
+            if (keyWs === ws) total += bucket.length;
+        });
+        return total;
+    }
+
     function getScopeLinkIdsForCard(categoryName, workspaceId) {
         const indexApi = getDatapackIndexApi();
         if (hasReadableDatapackLinkSnapshot(indexApi) && typeof indexApi.getExactBookmarkLinkIds === 'function') {
@@ -462,6 +482,8 @@ window.bulkLastToggledId = bulkLastToggledId;
         updateBulkUI,
         getScopeLinkIdsForCard,
         getScopeLinkIdsForFolder,
+        getBookmarkCountForCard,
+        getBookmarkCountForWorkspace,
         getAllCategoryNames,
         getVisibleDashboardCategoryNames,
         escapeBulkMoveHtml,

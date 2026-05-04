@@ -71,10 +71,11 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/ui/context-menus/actions.js?v=0.3.0",
     "js/modules/ui/context-menus/menus.js?v=0.3.1",
     "js/modules/ui/scratchpad.js",
-    "js/modules/ui/bulk-toolbar.shared.js?v=0.2.4",
-    "js/modules/ui/bulk-toolbar.templates.js?v=0.2.5",
-    "js/modules/ui/bulk-toolbar.modals.category.js?v=0.2.1",
-    "js/modules/ui/bulk-toolbar.modals.workspace.js?v=0.2.2",
-    "js/modules/ui/bulk-toolbar.modals.js?v=0.2.1",
-    "js/modules/ui/bulk-toolbar.js?v=0.2.5"
+    "js/modules/ui/bulk-toolbar.shared.js?v=0.2.5",
+    "js/modules/ui/bulk-toolbar.templates.js?v=0.2.7",
+    "js/modules/ui/bulk-toolbar.modals.category.js?v=0.2.2",
+    "js/modules/ui/bulk-toolbar.modals.workspace.js?v=0.2.3",
+    "js/modules/ui/bulk-toolbar.modals.merge.js?v=0.1.0",
+    "js/modules/ui/bulk-toolbar.modals.js?v=0.2.3",
+    "js/modules/ui/bulk-toolbar.js?v=0.2.6"
 ]);

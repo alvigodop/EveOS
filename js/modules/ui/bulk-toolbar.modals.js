@@ -15,6 +15,7 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
         setLinks: ns.setLinks,
         getConfig: ns.getConfig,
         getSelectedIds: ns.getSelectedIds,
+        getSelectedLinks: ns.getSelectedLinks,
         toBulkId: ns.toBulkId,
         getAllCategoryNames: ns.getAllCategoryNames,
         getVisibleDashboardCategoryNames: ns.getVisibleDashboardCategoryNames,
@@ -24,7 +25,9 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
         getWorkspaceList: ns.getWorkspaceList,
         getSelectedWorkspaceId: ns.getSelectedWorkspaceId,
         addTouchedScope: ns.addTouchedScope,
-        formatSelectionSummary: ns.formatSelectionSummary
+        formatSelectionSummary: ns.formatSelectionSummary,
+        getBookmarkCountForCard: ns.getBookmarkCountForCard,
+        getBookmarkCountForWorkspace: ns.getBookmarkCountForWorkspace
     };
 
     const modules = window.EveBulkToolbar.ModalModules || {};
@@ -34,12 +37,16 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
     const workspaceHelpers = typeof modules.createWorkspaceModalHelpers === 'function'
         ? modules.createWorkspaceModalHelpers(deps)
         : {};
+    const mergeHelpers = typeof modules.createMergeModalHelpers === 'function'
+        ? modules.createMergeModalHelpers(deps)
+        : {};
 
     let overlayDismissReady = false;
 
     function closeAllModals() {
         categoryHelpers.closeBulkMoveModal?.();
         workspaceHelpers.closeBulkTabModal?.();
+        mergeHelpers.closeBulkMergeModal?.();
     }
 
     function attachOverlayDismissHandlers() {
@@ -54,17 +61,24 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
             const tabOverlay = document.getElementById('bulk-tab-modal-overlay');
             if (tabOverlay && tabOverlay.style.display === 'flex' && event.target === tabOverlay) {
                 workspaceHelpers.closeBulkTabModal?.();
+                return;
+            }
+
+            const mergeOverlay = document.getElementById('bulk-merge-modal-overlay');
+            if (mergeOverlay && mergeOverlay.style.display === 'flex' && event.target === mergeOverlay) {
+                mergeHelpers.closeBulkMergeModal?.();
             }
         });
         document.addEventListener('keydown', (event) => {
             if (event.key !== 'Escape') return;
             categoryHelpers.closeBulkMoveModal?.();
             workspaceHelpers.closeBulkTabModal?.();
+            mergeHelpers.closeBulkMergeModal?.();
         });
         overlayDismissReady = true;
     }
 
-    Object.assign(ns, categoryHelpers, workspaceHelpers, {
+    Object.assign(ns, categoryHelpers, workspaceHelpers, mergeHelpers, {
         closeAllModals,
         attachOverlayDismissHandlers
     });

@@ -14,10 +14,30 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
         const getSelectedWorkspaceForMove = deps.getSelectedWorkspaceForMove;
         const addTouchedScope = deps.addTouchedScope || function () {};
         const formatSelectionSummary = deps.formatSelectionSummary || function () { return ''; };
+        const getBookmarkCountForCard = deps.getBookmarkCountForCard || function () { return 0; };
+
+        function buildCardRowHtml(name, workspaceId, currentCategory) {
+            const safeName = escapeBulkMoveHtml(name);
+            const count = getBookmarkCountForCard(name, workspaceId);
+            const isSelected = name === currentCategory;
+            const initial = String(name || '?').trim().charAt(0).toUpperCase() || '?';
+            return (
+                `<button type="button" class="bulk-target-row${isSelected ? ' is-selected' : ''}" `
+                + `role="option" aria-selected="${isSelected}" data-value="${safeName}">`
+                + `<span class="bulk-target-row-bar" aria-hidden="true"></span>`
+                + `<span class="bulk-target-row-icon" aria-hidden="true">${escapeBulkMoveHtml(initial)}</span>`
+                + `<span class="bulk-target-row-body">`
+                + `<span class="bulk-target-row-title">${safeName}</span>`
+                + `<span class="bulk-target-row-meta">${count} bookmark${count === 1 ? '' : 's'}</span>`
+                + `</span>`
+                + `<span class="bulk-target-row-count" aria-hidden="true">${count}</span>`
+                + `</button>`
+            );
+        }
 
         function renderBulkMoveCategoryOptions() {
-            const select = document.getElementById('bulk-move-existing-select');
-            if (!select) return;
+            const list = document.getElementById('bulk-move-existing-list');
+            if (!list) return;
             const filterText = String(document.getElementById('bulk-move-card-filter')?.value || '').trim().toLowerCase();
             const summary = document.getElementById('bulk-move-selection-summary');
             if (summary) summary.textContent = formatSelectionSummary();
@@ -27,30 +47,55 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
                 return getAllCategoryNames(getSelectedWorkspaceForMove());
             })();
             const names = allNames.filter((name) => !filterText || String(name || '').toLowerCase().includes(filterText));
+            const workspaceId = getSelectedWorkspaceForMove();
+            const currentSelected = String(list.dataset.selected || '').trim();
             const currentCategory = getSelectedCategoryName();
-            select.innerHTML = names.length
-                ? names.map(name => {
-                const selected = name === currentCategory ? ' selected' : '';
-                const safeName = escapeBulkMoveHtml(name);
-                return `<option value="${safeName}"${selected}>${safeName}</option>`;
-            }).join('')
-                : '<option value="">No matching cards</option>';
+            const preferredSelection = names.includes(currentSelected)
+                ? currentSelected
+                : names.includes(currentCategory) ? currentCategory : (names[0] || '');
+
+            if (!names.length) {
+                list.innerHTML = '<div class="bulk-target-empty">No matching cards</div>';
+                list.dataset.selected = '';
+                return;
+            }
+
+            list.innerHTML = names.map((name) => buildCardRowHtml(name, workspaceId, preferredSelection)).join('');
+            list.dataset.selected = preferredSelection;
         }
 
         function setBulkMoveMode(mode) {
             const isNewMode = mode === 'new';
-            const select = document.getElementById('bulk-move-existing-select');
+            const list = document.getElementById('bulk-move-existing-list');
             const input = document.getElementById('bulk-move-new-input');
             const existingRadio = document.querySelector('input[name="bulkMoveMode"][value="existing"]');
             const newRadio = document.querySelector('input[name="bulkMoveMode"][value="new"]');
 
             if (existingRadio) existingRadio.checked = !isNewMode;
             if (newRadio) newRadio.checked = isNewMode;
-            if (select) select.disabled = isNewMode;
+            if (list) list.classList.toggle('is-disabled', isNewMode);
             if (input) {
                 input.disabled = !isNewMode;
                 if (isNewMode) input.focus();
             }
+        }
+
+        function attachListClickHandler() {
+            const list = document.getElementById('bulk-move-existing-list');
+            if (!list || list.dataset.bulkClickReady === '1') return;
+            list.addEventListener('click', (event) => {
+                const row = event.target.closest('.bulk-target-row[data-value]');
+                if (!row || !list.contains(row)) return;
+                event.preventDefault();
+                const value = row.getAttribute('data-value') || '';
+                list.dataset.selected = value;
+                Array.from(list.querySelectorAll('.bulk-target-row')).forEach((node) => {
+                    const matches = node === row;
+                    node.classList.toggle('is-selected', matches);
+                    node.setAttribute('aria-selected', matches ? 'true' : 'false');
+                });
+            });
+            list.dataset.bulkClickReady = '1';
         }
 
         function openBulkMoveModal() {
@@ -60,7 +105,10 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
             if (input) input.value = '';
             const filter = document.getElementById('bulk-move-card-filter');
             if (filter) filter.value = '';
+            const list = document.getElementById('bulk-move-existing-list');
+            if (list) list.dataset.selected = '';
             renderBulkMoveCategoryOptions();
+            attachListClickHandler();
             setBulkMoveMode('existing');
             overlay.style.display = 'flex';
         }
@@ -75,17 +123,64 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
             if (mode === 'new') {
                 return String(document.getElementById('bulk-move-new-input')?.value || '').trim();
             }
-            return String(document.getElementById('bulk-move-existing-select')?.value || '').trim();
+            return String(document.getElementById('bulk-move-existing-list')?.dataset.selected || '').trim();
         }
 
         function applyBulkCategoryMove(nextCategory) {
             const categoryName = String(nextCategory || '').trim();
             if (!categoryName) return false;
 
+            const folderApi = window.EveBookmarkFolders;
             const syncLinked = window.EveLibrary?.ConnectionsAPI?.syncFromLink;
             const mergeApi = window.EveBookmarkMerge;
             const allLinks = getLinks();
-            const selectedLinkIds = Array.from(getSelectedIds()).map(toBulkId);
+            const selectedIdSet = getSelectedIds();
+            const selectedLinkIds = Array.from(selectedIdSet).map(toBulkId);
+            const selectedLinks = allLinks.filter((link) => selectedIdSet.has(toBulkId(link?.id)));
+
+            const normWs = (value) => String(value || 'main').trim() || 'main';
+            const normCat = (value) => String(value || 'Unsorted').trim() || 'Unsorted';
+            const normFolder = (value) => String(value || '').trim();
+
+            // 1) Per source scope, transfer folders that are fully covered by the selection.
+            //    transferFolderToCategory moves the folder + descendants + their links atomically,
+            //    so the per-link loop below will see them as already-at-target and skip.
+            const sourceScopes = new Map();
+            selectedLinks.forEach((link) => {
+                const sWs = normWs(link.workspace);
+                const sCat = normCat(link.category);
+                sourceScopes.set(sWs + '::' + sCat, { workspaceId: sWs, categoryName: sCat });
+            });
+
+            sourceScopes.forEach((scope) => {
+                const sWs = scope.workspaceId;
+                const sCat = scope.categoryName;
+                const tWs = sWs; // card-move keeps the workspace
+                const tCat = categoryName;
+                if (sWs === tWs && sCat === tCat) return;
+                if (typeof folderApi?.transferFolderToCategory !== 'function') return;
+
+                const folderIdsInSelection = new Set();
+                selectedLinks.forEach((link) => {
+                    if (normWs(link.workspace) !== sWs || normCat(link.category) !== sCat) return;
+                    const fid = normFolder(link.folderId);
+                    if (fid) folderIdsInSelection.add(fid);
+                });
+                if (!folderIdsInSelection.size) return;
+
+                folderIdsInSelection.forEach((fid) => {
+                    const allInFolder = allLinks.filter((link) => (
+                        normWs(link.workspace) === sWs
+                        && normCat(link.category) === sCat
+                        && normFolder(link.folderId) === fid
+                    ));
+                    if (!allInFolder.length) return;
+                    const allCovered = allInFolder.every((link) => selectedIdSet.has(toBulkId(link.id)));
+                    if (!allCovered) return;
+                    folderApi.transferFolderToCategory(fid, sWs, sCat, tWs, tCat, '');
+                });
+            });
+
             const movedLinkIds = [];
             const mergedLinkIds = [];
             const removedLinkIds = [];
@@ -97,11 +192,20 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
                 const sourceWorkspaceId = String(link.workspace || 'main').trim() || 'main';
                 const sourceCategoryName = String(link.category || 'Unsorted').trim() || 'Unsorted';
                 addTouchedScope(touchedScopes, sourceWorkspaceId, sourceCategoryName);
+
+                // Preserve folderId if a folder with the same id exists in the destination
+                // (e.g. it just got transferred above). Otherwise drop it so links land at root.
+                let nextFolderId = normFolder(link.folderId);
+                if (nextFolderId && folderApi?.getFolderById) {
+                    const folder = folderApi.getFolderById(targetWorkspaceId, categoryName, nextFolderId);
+                    if (!folder) nextFolderId = '';
+                }
+
                 if (mergeApi && typeof mergeApi.moveOrMergeLinkToScope === 'function') {
                     const result = mergeApi.moveOrMergeLinkToScope(link, {
                         workspaceId: targetWorkspaceId,
                         categoryName,
-                        folderId: ''
+                        folderId: nextFolderId
                     }, {
                         source: 'bulk-category-bookmark-move',
                         links: allLinks
@@ -115,7 +219,8 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
                     return;
                 }
                 link.category = categoryName;
-                window.EveBookmarkFolders?.clearLinkFolderAssignment?.(link);
+                if (nextFolderId) link.folderId = nextFolderId;
+                else folderApi?.clearLinkFolderAssignment?.(link);
                 if (typeof syncLinked === 'function') {
                     syncLinked(link.id);
                 }

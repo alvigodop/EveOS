@@ -270,6 +270,44 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         }
     }
 
+    function removeFolderNodesById(workspaceId, categoryName, folderIds, options = {}) {
+        const ws = normalizeWorkspaceId(workspaceId);
+        const cat = normalizeCategoryName(categoryName);
+        const ids = (Array.isArray(folderIds) ? folderIds : [folderIds])
+            .map(normalizeFolderId)
+            .filter(Boolean);
+        if (!ids.length) return false;
+
+        const nextStore = cloneStore();
+        const key = buildScopedKey(ws, cat);
+        const tree = nextStore[key];
+        if (!tree || !Array.isArray(tree.nodes) || tree.nodes.length === 0) return false;
+
+        const childrenMap = buildChildrenMap(tree.nodes);
+        const toRemove = new Set();
+        function collect(id) {
+            if (!id || toRemove.has(id)) return;
+            toRemove.add(id);
+            (childrenMap.get(id) || []).forEach((child) => collect(child.id));
+        }
+        ids.forEach(collect);
+        if (!toRemove.size) return false;
+
+        const before = tree.nodes.length;
+        tree.nodes = tree.nodes.filter((node) => !toRemove.has(normalizeFolderId(node.id)));
+        if (tree.nodes.length === before) return false;
+
+        if (tree.nodes.length === 0 && tree.settings?.clickBehaviorMode === 'inherit') {
+            delete nextStore[key];
+        } else {
+            nextStore[key] = tree;
+        }
+
+        writeStore(nextStore, options.persist !== false);
+        if (typeof invalidateFolderViewModel === 'function') invalidateFolderViewModel(ws, cat);
+        return true;
+    }
+
     function moveWorkspaceTrees(sourceWorkspaceId, targetWorkspaceId) {
         const sourceWorkspace = normalizeWorkspaceId(sourceWorkspaceId);
         const targetWorkspace = normalizeWorkspaceId(targetWorkspaceId);
@@ -308,6 +346,7 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         deleteCategoryScope,
         deleteCategoryEverywhere,
         transferCategoryFolders,
+        removeFolderNodesById,
         moveWorkspaceTrees
     });
 
