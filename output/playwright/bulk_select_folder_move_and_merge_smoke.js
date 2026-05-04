@@ -378,6 +378,12 @@ async function runPickerRenderPhase(page) {
 
     const result = await page.evaluate(() => {
         window.selectedIds = new Set(['p-a-1']);
+        // Force the renderer to use the live-links fallback (visible-dashboard scan
+        // returns a partial set in the smoke harness because not every category card
+        // is rendered into the test DOM).
+        if (window.EveBulkToolbar) {
+            window.EveBulkToolbar.getVisibleDashboardCategoryNames = function () { return []; };
+        }
         // Open card-move modal
         window.bulkMove();
         const list = document.getElementById('bulk-move-existing-list');
@@ -456,6 +462,10 @@ async function main() {
         console.log('Phase 4: Bulk Merge — all-as-one mode (different titles)');
         await runBulkMergeAllModePhase(page);
         console.log('  ✓ different-title selection collapsed into picked base');
+
+        console.log('Phase 5: Picker render + click + filter');
+        await runPickerRenderPhase(page);
+        console.log('  ✓ rows render with counts, click selects, filter narrows');
 
         console.log('All bulk-select folder-move + merge smoke checks passed.');
     } finally {
