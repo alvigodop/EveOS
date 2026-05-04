@@ -23,6 +23,7 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
         getSelectedCategoryName: ns.getSelectedCategoryName,
         getSelectedWorkspaceForMove: ns.getSelectedWorkspaceForMove,
         getWorkspaceList: ns.getWorkspaceList,
+        getWorkspaceTree: ns.getWorkspaceTree,
         getSelectedWorkspaceId: ns.getSelectedWorkspaceId,
         addTouchedScope: ns.addTouchedScope,
         formatSelectionSummary: ns.formatSelectionSummary,

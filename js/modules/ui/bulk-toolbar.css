@@ -472,6 +472,68 @@ body.bulk-active .bulk-scope-btn {
     box-shadow: 0 0 8px color-mix(in srgb, var(--accent, #00d4ff) 28%, transparent);
 }
 
+/* Tree: nested subtab nodes inside the picker */
+.bulk-target-node {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.bulk-target-row-wrap {
+    position: relative;
+    display: flex;
+    align-items: stretch;
+    gap: 6px;
+}
+
+.bulk-target-row-wrap > .bulk-target-row {
+    flex: 1;
+    min-width: 0;
+}
+
+.bulk-target-tree-toggle {
+    flex-shrink: 0;
+    width: 32px;
+    border: 1px solid color-mix(in srgb, var(--accent, #00d4ff) 22%, rgba(255, 255, 255, 0.1));
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.22);
+    color: color-mix(in srgb, var(--accent, #00d4ff) 75%, var(--text-main, #fff));
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.18s ease;
+}
+
+.bulk-target-tree-toggle:hover {
+    border-color: color-mix(in srgb, var(--accent, #00d4ff) 60%, transparent);
+    background: color-mix(in srgb, var(--accent, #00d4ff) 12%, transparent);
+    color: var(--text-main, #fff);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--accent, #00d4ff) 24%, transparent);
+}
+
+.bulk-target-tree-toggle .bulk-section-chevron {
+    transform: rotate(-90deg);
+    transition: transform 0.18s ease;
+}
+
+.bulk-target-node.is-expanded > .bulk-target-row-wrap > .bulk-target-tree-toggle .bulk-section-chevron {
+    transform: rotate(0deg);
+}
+
+.bulk-target-children {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 2px;
+    padding-left: 12px;
+    border-left: 1px dashed color-mix(in srgb, var(--accent, #00d4ff) 24%, rgba(255, 255, 255, 0.08));
+}
+
+.bulk-target-children[hidden] {
+    display: none;
+}
+
 #bulk-move-modal select:focus-visible,
 #bulk-move-modal input:focus-visible,
 #bulk-tab-modal select:focus-visible,

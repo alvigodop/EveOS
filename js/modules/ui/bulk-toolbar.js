@@ -64,6 +64,18 @@ window.EveBulkToolbar = window.EveBulkToolbar || {};
         if (toggle) toggle.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');
     }
 
+    function toggleBulkTreeNodeAction(button) {
+        const node = button?.closest ? button.closest('.bulk-target-node') : null;
+        if (!node) return;
+        const children = node.querySelector(':scope > .bulk-target-children');
+        if (!children) return;
+        const expanding = children.hasAttribute('hidden');
+        if (expanding) children.removeAttribute('hidden');
+        else children.setAttribute('hidden', '');
+        node.classList.toggle('is-expanded', expanding);
+        button.setAttribute('aria-expanded', expanding ? 'true' : 'false');
+    }
+
     function toggleBulkModeAction() {
         const nextMode = !getBulkMode();
         setBulkMode(nextMode);
@@ -465,6 +477,7 @@ window.EveBulkToolbar = window.EveBulkToolbar || {};
     window.setBulkMergeMode = ns.setBulkMergeMode;
     window.closeBulkMergeModal = ns.closeBulkMergeModal;
     window.toggleBulkSection = toggleBulkSectionAction;
+    window.toggleBulkTreeNode = toggleBulkTreeNodeAction;
     ns.syncBulkSectionGroup = syncBulkSectionGroup;
     window.setBulkMoveMode = ns.setBulkMoveMode;
     window.renderBulkMoveCategoryOptions = ns.renderBulkMoveCategoryOptions;

@@ -426,7 +426,7 @@ window.bulkLastToggledId = bulkLastToggledId;
     function getWorkspaceList() {
         const workspaces = Array.isArray(getConfig()?.workspaces) ? getConfig().workspaces : [];
         const result = [];
-        
+
         function traverse(tabs, prefix = '') {
             if (!Array.isArray(tabs)) return;
             for (const tab of tabs) {
@@ -447,9 +447,28 @@ window.bulkLastToggledId = bulkLastToggledId;
                 }
             }
         }
-        
+
         traverse(workspaces);
         return result;
+    }
+
+    function getWorkspaceTree() {
+        const workspaces = Array.isArray(getConfig()?.workspaces) ? getConfig().workspaces : [];
+        function normalize(node) {
+            if (!node) return null;
+            const id = String(node.id || '').trim();
+            if (!id) return null;
+            const children = Array.isArray(node.subTabs)
+                ? node.subTabs.map(normalize).filter(Boolean)
+                : [];
+            return {
+                id,
+                name: String(node.name || '').trim() || 'Unnamed',
+                icon: String(node.icon || '').trim(),
+                children
+            };
+        }
+        return workspaces.map(normalize).filter(Boolean);
     }
 
     function getSelectedWorkspaceId() {
@@ -490,6 +509,7 @@ window.bulkLastToggledId = bulkLastToggledId;
         getSelectedCategoryName,
         getSelectedWorkspaceForMove,
         getWorkspaceList,
+        getWorkspaceTree,
         getSelectedWorkspaceId
     });
     ns.sharedReady = true;

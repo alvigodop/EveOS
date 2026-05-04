@@ -13,6 +13,7 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
         const getAllCategoryNames = deps.getAllCategoryNames;
         const getSelectedCategoryName = deps.getSelectedCategoryName;
         const getWorkspaceList = deps.getWorkspaceList;
+        const getWorkspaceTree = deps.getWorkspaceTree || function () { return []; };
         const getSelectedWorkspaceId = deps.getSelectedWorkspaceId;
         const addTouchedScope = deps.addTouchedScope || function () {};
         const formatSelectionSummary = deps.formatSelectionSummary || function () { return ''; };
@@ -23,27 +24,81 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
             return String(getSelectedCategoryName() || 'Unsorted').trim() || 'Unsorted';
         }
 
-        function buildWorkspaceRowHtml(workspace, currentWorkspaceId) {
-            const id = String(workspace?.id || '');
+        function filterWorkspaceTree(nodes, filterText) {
+            if (!filterText) return nodes;
+            const needle = String(filterText || '').toLowerCase();
+            return nodes
+                .map((node) => {
+                    const matchesSelf = String(node.id || '').toLowerCase().includes(needle)
+                        || String(node.name || '').toLowerCase().includes(needle);
+                    const filteredChildren = filterWorkspaceTree(node.children || [], filterText);
+                    if (matchesSelf || filteredChildren.length) {
+                        return { ...node, children: filteredChildren };
+                    }
+                    return null;
+                })
+                .filter(Boolean);
+        }
+
+        function collectAncestorIds(nodes, targetId, trail = []) {
+            for (const node of nodes) {
+                if (node.id === targetId) return trail;
+                if (node.children?.length) {
+                    const result = collectAncestorIds(node.children, targetId, trail.concat(node.id));
+                    if (result) return result;
+                }
+            }
+            return null;
+        }
+
+        function flattenTreeIds(nodes, accumulator = []) {
+            nodes.forEach((node) => {
+                accumulator.push(node.id);
+                if (node.children?.length) flattenTreeIds(node.children, accumulator);
+            });
+            return accumulator;
+        }
+
+        function buildWorkspaceTreeRowHtml(node, currentWorkspaceId, depth, autoExpandIds) {
+            const id = String(node?.id || '');
             const safeId = escapeBulkMoveHtml(id);
-            const name = String(workspace?.name || 'Unnamed').trim() || 'Unnamed';
+            const name = String(node?.name || 'Unnamed').trim() || 'Unnamed';
             const safeName = escapeBulkMoveHtml(name);
-            const iconRaw = String(workspace?.icon || '').trim();
+            const iconRaw = String(node?.icon || '').trim();
             const safeIcon = iconRaw ? escapeBulkMoveHtml(iconRaw) : escapeBulkMoveHtml(name.charAt(0).toUpperCase() || '?');
             const isSelected = id === currentWorkspaceId;
             const count = getBookmarkCountForWorkspace(id);
-            return (
-                `<button type="button" class="bulk-target-row${isSelected ? ' is-selected' : ''}" `
-                + `role="option" aria-selected="${isSelected}" data-value="${safeId}">`
-                + `<span class="bulk-target-row-bar" aria-hidden="true"></span>`
-                + `<span class="bulk-target-row-icon" aria-hidden="true">${safeIcon}</span>`
-                + `<span class="bulk-target-row-body">`
-                + `<span class="bulk-target-row-title">${safeName}</span>`
-                + `<span class="bulk-target-row-meta">${count} bookmark${count === 1 ? '' : 's'}</span>`
-                + `</span>`
-                + `<span class="bulk-target-row-count" aria-hidden="true">${count}</span>`
-                + `</button>`
-            );
+            const children = Array.isArray(node?.children) ? node.children : [];
+            const hasChildren = children.length > 0;
+            const expanded = hasChildren && autoExpandIds.has(id);
+            const indentStyle = depth ? ` style="padding-left:${depth * 18}px"` : '';
+
+            let html = `<div class="bulk-target-node${expanded ? ' is-expanded' : ''}" data-tab-id="${safeId}" data-depth="${depth}">`;
+            html += `<div class="bulk-target-row-wrap"${indentStyle}>`;
+            html += `<button type="button" class="bulk-target-row${isSelected ? ' is-selected' : ''}" role="option" aria-selected="${isSelected}" data-value="${safeId}">`;
+            html += `<span class="bulk-target-row-bar" aria-hidden="true"></span>`;
+            html += `<span class="bulk-target-row-icon" aria-hidden="true">${safeIcon}</span>`;
+            html += `<span class="bulk-target-row-body">`;
+            html += `<span class="bulk-target-row-title">${safeName}</span>`;
+            html += `<span class="bulk-target-row-meta">${count} bookmark${count === 1 ? '' : 's'}${hasChildren ? ` &middot; ${children.length} subtab${children.length === 1 ? '' : 's'}` : ''}</span>`;
+            html += `</span>`;
+            html += `<span class="bulk-target-row-count" aria-hidden="true">${count}</span>`;
+            html += `</button>`;
+            if (hasChildren) {
+                html += `<button type="button" class="bulk-target-tree-toggle" aria-label="Toggle subtabs" aria-expanded="${expanded}" onclick="toggleBulkTreeNode(this)">`;
+                html += `<span class="bulk-section-chevron" aria-hidden="true">&#9662;</span>`;
+                html += `</button>`;
+            }
+            html += `</div>`;
+            if (hasChildren) {
+                html += `<div class="bulk-target-children"${expanded ? '' : ' hidden'}>`;
+                children.forEach((child) => {
+                    html += buildWorkspaceTreeRowHtml(child, currentWorkspaceId, depth + 1, autoExpandIds);
+                });
+                html += `</div>`;
+            }
+            html += `</div>`;
+            return html;
         }
 
         function buildCardRowHtml(name, workspaceId, currentName) {
@@ -88,31 +143,38 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
             const list = document.getElementById('bulk-tab-existing-list');
             if (!list) return;
 
-            const workspaces = getWorkspaceList();
+            const tree = getWorkspaceTree();
             const currentWorkspaceId = getSelectedWorkspaceId();
             const filterText = String(document.getElementById('bulk-tab-workspace-filter')?.value || '').trim().toLowerCase();
             const summary = document.getElementById('bulk-tab-selection-summary');
             if (summary) summary.textContent = formatSelectionSummary();
-            const filteredWorkspaces = workspaces.filter((workspace) => {
-                if (!filterText) return true;
-                return String(workspace.id || '').toLowerCase().includes(filterText)
-                    || String(workspace.name || '').toLowerCase().includes(filterText);
-            });
+
+            const filteredTree = filterWorkspaceTree(tree, filterText);
 
             const currentSelected = String(list.dataset.selected || '').trim();
-            const filteredIds = filteredWorkspaces.map((workspace) => String(workspace.id || ''));
-            const preferred = filteredIds.includes(currentSelected)
+            const allIds = flattenTreeIds(filteredTree);
+            const preferred = allIds.includes(currentSelected)
                 ? currentSelected
-                : filteredIds.includes(currentWorkspaceId) ? currentWorkspaceId : (filteredIds[0] || '');
+                : allIds.includes(currentWorkspaceId) ? currentWorkspaceId : (allIds[0] || '');
 
-            if (!filteredWorkspaces.length) {
+            if (!filteredTree.length) {
                 list.innerHTML = '<div class="bulk-target-empty">No matching tabs</div>';
                 list.dataset.selected = '';
                 renderBulkTabCardOptions();
                 return;
             }
 
-            list.innerHTML = filteredWorkspaces.map((workspace) => buildWorkspaceRowHtml(workspace, preferred)).join('');
+            // Auto-expand: when filtering, expand every node so matches are visible.
+            // Otherwise expand the chain leading to the preferred selection (if nested).
+            const autoExpandIds = new Set();
+            if (filterText) {
+                flattenTreeIds(filteredTree).forEach((id) => autoExpandIds.add(id));
+            } else if (preferred) {
+                const ancestors = collectAncestorIds(filteredTree, preferred) || [];
+                ancestors.forEach((id) => autoExpandIds.add(id));
+            }
+
+            list.innerHTML = filteredTree.map((node) => buildWorkspaceTreeRowHtml(node, preferred, 0, autoExpandIds)).join('');
             list.dataset.selected = preferred;
             renderBulkTabCardOptions();
         }

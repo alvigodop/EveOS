@@ -503,6 +503,130 @@ async function runSectionCollapsePhase(page) {
     return result;
 }
 
+async function runTabTreePhase(page) {
+    // Seed nested workspaces and verify the tab picker renders a collapsible tree
+    // (children hidden by default), expanding via chevron, selecting nested tabs,
+    // and auto-expanding when filtering.
+    const nestedConfig = {
+        activeWorkspace: 'main',
+        viewMode: 'grid',
+        showInactiveTabs: true,
+        workspaces: [
+            {
+                id: 'main', name: 'Main', icon: '📁', subTabs: [
+                    {
+                        id: 'child-a', name: 'Child A', icon: '📁', subTabs: [
+                            { id: 'grand-a', name: 'Grand A', icon: '📁', subTabs: [] }
+                        ]
+                    }
+                ]
+            },
+            { id: 'other', name: 'Other', icon: '📁', subTabs: [] }
+        ],
+        categoryOrder: ['Alpha'],
+        categoryOrderByWorkspace: { main: ['Alpha'], 'child-a': ['Alpha'], 'grand-a': ['Alpha'], other: ['Alpha'] },
+        hideStats: [],
+        hideStatsScoped: []
+    };
+
+    await seedState(page, {
+        links: [
+            { id: 't-main-1', title: 'M1', url: 'https://example.com/m1', workspace: 'main', category: 'Alpha' },
+            { id: 't-grand-1', title: 'G1', url: 'https://example.com/g1', workspace: 'grand-a', category: 'Alpha' }
+        ],
+        bookmarkFolders: {},
+        config: nestedConfig
+    });
+
+    const result = await page.evaluate(() => {
+        window.selectedIds = new Set(['t-main-1']);
+
+        // Open Tab modal
+        window.bulkWorkspace();
+
+        const list = document.getElementById('bulk-tab-existing-list');
+        const initial = {
+            topNodeIds: Array.from(list?.querySelectorAll(':scope > .bulk-target-node') || []).map((n) => n.getAttribute('data-tab-id')),
+            childAExpanded: list?.querySelector('.bulk-target-node[data-tab-id="child-a"]')?.classList.contains('is-expanded'),
+            grandAVisible: !list?.querySelector('.bulk-target-node[data-tab-id="grand-a"]')?.closest('.bulk-target-children[hidden]')
+        };
+
+        // Click chevron on "main" to expand its children
+        const mainToggle = list?.querySelector('.bulk-target-node[data-tab-id="main"] > .bulk-target-row-wrap > .bulk-target-tree-toggle');
+        if (mainToggle) mainToggle.click();
+        const afterMainExpand = {
+            mainExpanded: list?.querySelector('.bulk-target-node[data-tab-id="main"]')?.classList.contains('is-expanded'),
+            childAVisible: !list?.querySelector('.bulk-target-node[data-tab-id="child-a"]')?.closest('.bulk-target-children[hidden]')
+        };
+
+        // Expand child-a too
+        const childAToggle = list?.querySelector('.bulk-target-node[data-tab-id="child-a"] > .bulk-target-row-wrap > .bulk-target-tree-toggle');
+        if (childAToggle) childAToggle.click();
+        const grandRow = list?.querySelector('.bulk-target-node[data-tab-id="grand-a"] .bulk-target-row[data-value="grand-a"]');
+        const afterGrandReveal = {
+            grandRowVisible: !!grandRow && !grandRow.closest('.bulk-target-children[hidden]')
+        };
+
+        // Click the grand-a row
+        if (grandRow) grandRow.click();
+        const afterGrandSelect = {
+            datasetSelected: list?.dataset.selected,
+            grandIsSelected: grandRow?.classList.contains('is-selected')
+        };
+
+        // Filter "other" — should narrow to just 'other' top-level (no auto-expand needed)
+        const filter = document.getElementById('bulk-tab-workspace-filter');
+        if (filter) {
+            filter.value = 'other';
+            filter.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        const filteredTopIds = Array.from(list?.querySelectorAll(':scope > .bulk-target-node') || []).map((n) => n.getAttribute('data-tab-id'));
+
+        // Filter "grand" — should keep main → child-a → grand-a chain and auto-expand it
+        if (filter) {
+            filter.value = 'grand';
+            filter.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        const filteredGrand = {
+            topIds: Array.from(list?.querySelectorAll(':scope > .bulk-target-node') || []).map((n) => n.getAttribute('data-tab-id')),
+            mainExpanded: list?.querySelector('.bulk-target-node[data-tab-id="main"]')?.classList.contains('is-expanded'),
+            childAExpanded: list?.querySelector('.bulk-target-node[data-tab-id="child-a"]')?.classList.contains('is-expanded'),
+            grandRowVisible: !!list?.querySelector('.bulk-target-row[data-value="grand-a"]')
+                && !list?.querySelector('.bulk-target-row[data-value="grand-a"]')?.closest('.bulk-target-children[hidden]')
+        };
+
+        if (typeof window.closeBulkTabModal === 'function') window.closeBulkTabModal();
+
+        return { initial, afterMainExpand, afterGrandReveal, afterGrandSelect, filteredTopIds, filteredGrand };
+    });
+
+    if (!result.initial.topNodeIds.includes('main') || !result.initial.topNodeIds.includes('other')) {
+        throw new Error('[tab-tree] Top-level tabs missing from initial render: ' + JSON.stringify(result));
+    }
+    if (result.initial.childAExpanded !== false) {
+        throw new Error('[tab-tree] Subtab should start collapsed: ' + JSON.stringify(result));
+    }
+    if (result.afterMainExpand.mainExpanded !== true || result.afterMainExpand.childAVisible !== true) {
+        throw new Error('[tab-tree] Chevron click did not expand main and reveal child-a: ' + JSON.stringify(result));
+    }
+    if (result.afterGrandReveal.grandRowVisible !== true) {
+        throw new Error('[tab-tree] Expanding child-a should reveal grand-a row: ' + JSON.stringify(result));
+    }
+    if (result.afterGrandSelect.datasetSelected !== 'grand-a' || !result.afterGrandSelect.grandIsSelected) {
+        throw new Error('[tab-tree] Clicking grand-a did not select it: ' + JSON.stringify(result));
+    }
+    if (!result.filteredTopIds.includes('other') || result.filteredTopIds.includes('main')) {
+        throw new Error('[tab-tree] Filter "other" did not narrow top-level: ' + JSON.stringify(result));
+    }
+    if (!result.filteredGrand.topIds.includes('main')
+        || result.filteredGrand.mainExpanded !== true
+        || result.filteredGrand.childAExpanded !== true
+        || result.filteredGrand.grandRowVisible !== true) {
+        throw new Error('[tab-tree] Filter "grand" should auto-expand the chain: ' + JSON.stringify(result));
+    }
+    return result;
+}
+
 async function main() {
     const browser = await chromium.launch();
     const context = await browser.newContext();
@@ -540,6 +664,10 @@ async function main() {
         console.log('Phase 6: Section collapse/expand');
         await runSectionCollapsePhase(page);
         console.log('  ✓ radio drives section state, chevron toggles independently');
+
+        console.log('Phase 7: Tab picker tree (subtabs collapsible)');
+        await runTabTreePhase(page);
+        console.log('  ✓ subtabs hidden by default, chevron expands, filter auto-expands');
 
         console.log('All bulk-select folder-move + merge smoke checks passed.');
     } finally {
