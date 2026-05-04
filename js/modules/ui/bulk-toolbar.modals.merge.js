@@ -66,6 +66,7 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
                 picker.hidden = !isAll;
                 if (isAll) renderBasePicker();
             }
+            window.EveBulkToolbar?.syncBulkSectionGroup?.('bulkMergeMode', mode);
         }
 
         function openBulkMergeModal() {
@@ -74,6 +75,7 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
             const summary = document.getElementById('bulk-merge-selection-summary');
             if (summary) summary.textContent = formatSelectionSummary();
             setBulkMergeMode('title');
+            window.EveBulkToolbar?.syncBulkSectionGroup?.('bulkMergeMode', 'title');
             overlay.style.display = 'flex';
         }
 

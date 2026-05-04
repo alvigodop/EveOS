@@ -131,6 +131,7 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
                 input.disabled = !isNewMode;
                 if (isNewMode) input.focus();
             }
+            window.EveBulkToolbar?.syncBulkSectionGroup?.('bulkTabMode', mode);
             if (isNewMode) {
                 setBulkTabCardMode('new');
                 const cardInput = document.getElementById('bulk-tab-card-new-input');
@@ -156,6 +157,7 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
                 input.disabled = !isNewMode;
                 if (isNewMode) input.focus();
             }
+            window.EveBulkToolbar?.syncBulkSectionGroup?.('bulkTabCardMode', mode);
         }
 
         function getResolvedBulkTabWorkspaceId() {
@@ -226,6 +228,8 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
             attachListClickHandler('bulk-tab-card-existing-list');
             setBulkTabMode('existing');
             setBulkTabCardMode('existing');
+            window.EveBulkToolbar?.syncBulkSectionGroup?.('bulkTabMode', 'existing');
+            window.EveBulkToolbar?.syncBulkSectionGroup?.('bulkTabCardMode', 'existing');
             overlay.style.display = 'flex';
         }
 

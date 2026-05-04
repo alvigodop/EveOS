@@ -378,12 +378,18 @@ async function runPickerRenderPhase(page) {
 
     const result = await page.evaluate(() => {
         window.selectedIds = new Set(['p-a-1']);
-        // Force the renderer to use the live-links fallback (visible-dashboard scan
-        // returns a partial set in the smoke harness because not every category card
-        // is rendered into the test DOM).
-        if (window.EveBulkToolbar) {
-            window.EveBulkToolbar.getVisibleDashboardCategoryNames = function () { return []; };
-        }
+        // Force the visible-dashboard scan to report both Alpha and Beta by injecting
+        // the matching DOM nodes — the dashboard renderer in the smoke harness only
+        // produces the first card.
+        const grid = document.getElementById('dashboard-grid') || (() => {
+            const el = document.createElement('div');
+            el.id = 'dashboard-grid';
+            document.body.appendChild(el);
+            return el;
+        })();
+        grid.innerHTML = ''
+            + '<div class="category-card"><div class="category-title">Alpha</div></div>'
+            + '<div class="category-card"><div class="category-title">Beta</div></div>';
         // Open card-move modal
         window.bulkMove();
         const list = document.getElementById('bulk-move-existing-list');
@@ -433,6 +439,70 @@ async function runPickerRenderPhase(page) {
     return result;
 }
 
+async function runSectionCollapsePhase(page) {
+    // Verify each modal section collapses when its sibling radio is selected,
+    // and that the chevron toggle can collapse/expand independently.
+    await seedState(page, {
+        links: [
+            { id: 'c-a-1', title: 'A1', url: 'https://example.com/c-a1', workspace: 'main', category: 'Alpha' },
+            { id: 'c-b-1', title: 'B1', url: 'https://example.com/c-b1', workspace: 'main', category: 'Beta' }
+        ],
+        bookmarkFolders: {},
+        config: buildConfig('main')
+    });
+
+    const result = await page.evaluate(() => {
+        window.selectedIds = new Set(['c-a-1']);
+        if (window.EveBulkToolbar) {
+            window.EveBulkToolbar.getVisibleDashboardCategoryNames = function () { return []; };
+        }
+
+        // Open Move modal — "existing" should be expanded, "new" collapsed
+        window.bulkMove();
+        const movedExisting = document.querySelector('.bulk-move-section[data-bulk-section-group="bulkMoveMode"][data-bulk-section-mode="existing"]');
+        const movedNew = document.querySelector('.bulk-move-section[data-bulk-section-group="bulkMoveMode"][data-bulk-section-mode="new"]');
+        const initialState = {
+            existingCollapsed: movedExisting?.classList.contains('is-collapsed'),
+            newCollapsed: movedNew?.classList.contains('is-collapsed')
+        };
+
+        // Switch to "new" mode — should flip
+        window.setBulkMoveMode('new');
+        const afterRadioState = {
+            existingCollapsed: movedExisting?.classList.contains('is-collapsed'),
+            newCollapsed: movedNew?.classList.contains('is-collapsed')
+        };
+
+        // Manually toggle the existing section via chevron
+        const chevronBtn = movedExisting?.querySelector('.bulk-section-toggle');
+        if (chevronBtn) chevronBtn.click();
+        const afterChevronExpand = {
+            existingCollapsed: movedExisting?.classList.contains('is-collapsed')
+        };
+        if (chevronBtn) chevronBtn.click();
+        const afterChevronCollapse = {
+            existingCollapsed: movedExisting?.classList.contains('is-collapsed')
+        };
+
+        if (typeof window.closeBulkMoveModal === 'function') window.closeBulkMoveModal();
+        return { initialState, afterRadioState, afterChevronExpand, afterChevronCollapse };
+    });
+
+    if (result.initialState.existingCollapsed !== false || result.initialState.newCollapsed !== true) {
+        throw new Error('[collapse] Initial state wrong (existing should be expanded, new collapsed): ' + JSON.stringify(result));
+    }
+    if (result.afterRadioState.existingCollapsed !== true || result.afterRadioState.newCollapsed !== false) {
+        throw new Error('[collapse] Switching radio did not flip section collapse state: ' + JSON.stringify(result));
+    }
+    if (result.afterChevronExpand.existingCollapsed !== false) {
+        throw new Error('[collapse] Chevron click did not expand collapsed section: ' + JSON.stringify(result));
+    }
+    if (result.afterChevronCollapse.existingCollapsed !== true) {
+        throw new Error('[collapse] Chevron click did not re-collapse section: ' + JSON.stringify(result));
+    }
+    return result;
+}
+
 async function main() {
     const browser = await chromium.launch();
     const context = await browser.newContext();
@@ -466,6 +536,10 @@ async function main() {
         console.log('Phase 5: Picker render + click + filter');
         await runPickerRenderPhase(page);
         console.log('  ✓ rows render with counts, click selects, filter narrows');
+
+        console.log('Phase 6: Section collapse/expand');
+        await runSectionCollapsePhase(page);
+        console.log('  ✓ radio drives section state, chevron toggles independently');
 
         console.log('All bulk-select folder-move + merge smoke checks passed.');
     } finally {

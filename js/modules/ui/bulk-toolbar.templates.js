@@ -20,6 +20,17 @@ window.EveBulkToolbar = window.EveBulkToolbar || {};
 </div>
 `;
 
+    function sectionHeader(radioHtml) {
+        return (
+            `<div class="bulk-section-header">`
+            + `<label class="bulk-move-radio">${radioHtml}</label>`
+            + `<button type="button" class="bulk-section-toggle" aria-label="Toggle section" onclick="toggleBulkSection(this)">`
+            + `<span class="bulk-section-chevron" aria-hidden="true">&#9662;</span>`
+            + `</button>`
+            + `</div>`
+        );
+    }
+
     const bulkMoveModalTemplate = `
 <div id="bulk-move-modal-overlay" style="display:none;">
     <div id="bulk-move-modal" role="dialog" aria-modal="true" aria-labelledby="bulk-move-modal-title">
@@ -27,21 +38,19 @@ window.EveBulkToolbar = window.EveBulkToolbar || {};
         <p class="bulk-move-subtitle">Choose an existing card or create a new one for selected bookmarks.</p>
         <div class="bulk-move-summary" id="bulk-move-selection-summary">No bookmarks selected.</div>
 
-        <div class="bulk-move-section">
-            <label class="bulk-move-radio">
-                <input type="radio" name="bulkMoveMode" value="existing" checked onchange="setBulkMoveMode('existing')">
-                <span>Move to existing card</span>
-            </label>
-            <input type="search" id="bulk-move-card-filter" class="bulk-target-filter" placeholder="Filter destination cards" oninput="renderBulkMoveCategoryOptions()">
-            <div id="bulk-move-existing-list" class="bulk-target-list" role="listbox" aria-label="Destination card" data-selected=""></div>
+        <div class="bulk-move-section" data-bulk-section-group="bulkMoveMode" data-bulk-section-mode="existing">
+            ${sectionHeader('<input type="radio" name="bulkMoveMode" value="existing" checked onchange="setBulkMoveMode(\'existing\')"><span>Move to existing card</span>')}
+            <div class="bulk-section-body">
+                <input type="search" id="bulk-move-card-filter" class="bulk-target-filter" placeholder="Filter destination cards" oninput="renderBulkMoveCategoryOptions()">
+                <div id="bulk-move-existing-list" class="bulk-target-list" role="listbox" aria-label="Destination card" data-selected=""></div>
+            </div>
         </div>
 
-        <div class="bulk-move-section">
-            <label class="bulk-move-radio">
-                <input type="radio" name="bulkMoveMode" value="new" onchange="setBulkMoveMode('new')">
-                <span>Create new card from selected</span>
-            </label>
-            <input type="text" id="bulk-move-new-input" placeholder="New card name" disabled>
+        <div class="bulk-move-section" data-bulk-section-group="bulkMoveMode" data-bulk-section-mode="new">
+            ${sectionHeader('<input type="radio" name="bulkMoveMode" value="new" onchange="setBulkMoveMode(\'new\')"><span>Create new card from selected</span>')}
+            <div class="bulk-section-body">
+                <input type="text" id="bulk-move-new-input" placeholder="New card name" disabled>
+            </div>
         </div>
 
         <div class="bulk-move-actions">
@@ -59,38 +68,34 @@ window.EveBulkToolbar = window.EveBulkToolbar || {};
         <p class="bulk-move-subtitle">Choose a destination tab, then choose the destination card inside that tab.</p>
         <div class="bulk-move-summary" id="bulk-tab-selection-summary">No bookmarks selected.</div>
 
-        <div class="bulk-move-section">
-            <label class="bulk-move-radio">
-                <input type="radio" name="bulkTabMode" value="existing" checked onchange="setBulkTabMode('existing')">
-                <span>Move to existing tab</span>
-            </label>
-            <input type="search" id="bulk-tab-workspace-filter" class="bulk-target-filter" placeholder="Filter destination tabs" oninput="renderBulkTabOptions()">
-            <div id="bulk-tab-existing-list" class="bulk-target-list" role="listbox" aria-label="Destination tab" data-selected=""></div>
+        <div class="bulk-move-section" data-bulk-section-group="bulkTabMode" data-bulk-section-mode="existing">
+            ${sectionHeader('<input type="radio" name="bulkTabMode" value="existing" checked onchange="setBulkTabMode(\'existing\')"><span>Move to existing tab</span>')}
+            <div class="bulk-section-body">
+                <input type="search" id="bulk-tab-workspace-filter" class="bulk-target-filter" placeholder="Filter destination tabs" oninput="renderBulkTabOptions()">
+                <div id="bulk-tab-existing-list" class="bulk-target-list" role="listbox" aria-label="Destination tab" data-selected=""></div>
+            </div>
         </div>
 
-        <div class="bulk-move-section">
-            <label class="bulk-move-radio">
-                <input type="radio" name="bulkTabMode" value="new" onchange="setBulkTabMode('new')">
-                <span>Create new tab and move selected</span>
-            </label>
-            <input type="text" id="bulk-tab-new-name-input" placeholder="New tab name" disabled>
+        <div class="bulk-move-section" data-bulk-section-group="bulkTabMode" data-bulk-section-mode="new">
+            ${sectionHeader('<input type="radio" name="bulkTabMode" value="new" onchange="setBulkTabMode(\'new\')"><span>Create new tab and move selected</span>')}
+            <div class="bulk-section-body">
+                <input type="text" id="bulk-tab-new-name-input" placeholder="New tab name" disabled>
+            </div>
         </div>
 
-        <div class="bulk-move-section">
-            <label class="bulk-move-radio">
-                <input type="radio" name="bulkTabCardMode" value="existing" checked onchange="setBulkTabCardMode('existing')">
-                <span>Move into existing card in destination tab</span>
-            </label>
-            <input type="search" id="bulk-tab-card-filter" class="bulk-target-filter" placeholder="Filter destination cards" oninput="renderBulkTabCardOptions()">
-            <div id="bulk-tab-card-existing-list" class="bulk-target-list" role="listbox" aria-label="Destination card in tab" data-selected=""></div>
+        <div class="bulk-move-section" data-bulk-section-group="bulkTabCardMode" data-bulk-section-mode="existing">
+            ${sectionHeader('<input type="radio" name="bulkTabCardMode" value="existing" checked onchange="setBulkTabCardMode(\'existing\')"><span>Move into existing card in destination tab</span>')}
+            <div class="bulk-section-body">
+                <input type="search" id="bulk-tab-card-filter" class="bulk-target-filter" placeholder="Filter destination cards" oninput="renderBulkTabCardOptions()">
+                <div id="bulk-tab-card-existing-list" class="bulk-target-list" role="listbox" aria-label="Destination card in tab" data-selected=""></div>
+            </div>
         </div>
 
-        <div class="bulk-move-section">
-            <label class="bulk-move-radio">
-                <input type="radio" name="bulkTabCardMode" value="new" onchange="setBulkTabCardMode('new')">
-                <span>Create new card in destination tab</span>
-            </label>
-            <input type="text" id="bulk-tab-card-new-input" placeholder="New card name" disabled>
+        <div class="bulk-move-section" data-bulk-section-group="bulkTabCardMode" data-bulk-section-mode="new">
+            ${sectionHeader('<input type="radio" name="bulkTabCardMode" value="new" onchange="setBulkTabCardMode(\'new\')"><span>Create new card in destination tab</span>')}
+            <div class="bulk-section-body">
+                <input type="text" id="bulk-tab-card-new-input" placeholder="New card name" disabled>
+            </div>
         </div>
 
         <div class="bulk-move-actions">
@@ -108,26 +113,24 @@ window.EveBulkToolbar = window.EveBulkToolbar || {};
         <p class="bulk-move-subtitle">Pick how to fold the selected bookmarks together.</p>
         <div class="bulk-move-summary" id="bulk-merge-selection-summary">No bookmarks selected.</div>
 
-        <div class="bulk-move-section">
-            <label class="bulk-move-radio">
-                <input type="radio" name="bulkMergeMode" value="title" checked onchange="setBulkMergeMode('title')">
-                <span>Group bookmarks with matching titles</span>
-            </label>
-            <p class="bulk-move-subtitle bulk-merge-mode-hint" data-merge-mode="title">
-                Selected bookmarks are grouped by title; each group collapses into one main bookmark.
-            </p>
+        <div class="bulk-move-section" data-bulk-section-group="bulkMergeMode" data-bulk-section-mode="title">
+            ${sectionHeader('<input type="radio" name="bulkMergeMode" value="title" checked onchange="setBulkMergeMode(\'title\')"><span>Group bookmarks with matching titles</span>')}
+            <div class="bulk-section-body">
+                <p class="bulk-move-subtitle bulk-merge-mode-hint" data-merge-mode="title">
+                    Selected bookmarks are grouped by title; each group collapses into one main bookmark.
+                </p>
+            </div>
         </div>
 
-        <div class="bulk-move-section">
-            <label class="bulk-move-radio">
-                <input type="radio" name="bulkMergeMode" value="all" onchange="setBulkMergeMode('all')">
-                <span>Merge all selected as one bookmark (different titles allowed)</span>
-            </label>
-            <p class="bulk-move-subtitle bulk-merge-mode-hint" data-merge-mode="all">
-                Use this when titles differ but the bookmarks point to the same thing
-                (e.g. <em>Monarch</em> and <em>Monarch: The Monster Legacy</em>). Pick which one is the main bookmark below.
-            </p>
-            <div id="bulk-merge-base-picker" class="bulk-merge-base-picker" hidden></div>
+        <div class="bulk-move-section" data-bulk-section-group="bulkMergeMode" data-bulk-section-mode="all">
+            ${sectionHeader('<input type="radio" name="bulkMergeMode" value="all" onchange="setBulkMergeMode(\'all\')"><span>Merge all selected as one bookmark (different titles allowed)</span>')}
+            <div class="bulk-section-body">
+                <p class="bulk-move-subtitle bulk-merge-mode-hint" data-merge-mode="all">
+                    Use this when titles differ but the bookmarks point to the same thing
+                    (e.g. <em>Monarch</em> and <em>Monarch: The Monster Legacy</em>). Pick which one is the main bookmark below.
+                </p>
+                <div id="bulk-merge-base-picker" class="bulk-merge-base-picker" hidden></div>
+            </div>
         </div>
 
         <div class="bulk-move-actions">

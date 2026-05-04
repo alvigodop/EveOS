@@ -78,6 +78,7 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
                 input.disabled = !isNewMode;
                 if (isNewMode) input.focus();
             }
+            window.EveBulkToolbar?.syncBulkSectionGroup?.('bulkMoveMode', mode);
         }
 
         function attachListClickHandler() {
@@ -110,6 +111,7 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
             renderBulkMoveCategoryOptions();
             attachListClickHandler();
             setBulkMoveMode('existing');
+            window.EveBulkToolbar?.syncBulkSectionGroup?.('bulkMoveMode', 'existing');
             overlay.style.display = 'flex';
         }
 

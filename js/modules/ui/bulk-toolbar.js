@@ -43,6 +43,27 @@ window.EveBulkToolbar = window.EveBulkToolbar || {};
         return Array.from(getSelectedIds()).map(toBulkId).filter(Boolean);
     }
 
+    function syncBulkSectionGroup(groupName, activeMode) {
+        if (!groupName) return;
+        const sections = document.querySelectorAll(`.bulk-move-section[data-bulk-section-group="${groupName}"]`);
+        sections.forEach((section) => {
+            const isActive = section.getAttribute('data-bulk-section-mode') === String(activeMode);
+            section.classList.toggle('is-collapsed', !isActive);
+            const toggle = section.querySelector('.bulk-section-toggle');
+            if (toggle) toggle.setAttribute('aria-expanded', isActive ? 'true' : 'false');
+        });
+    }
+
+    function toggleBulkSectionAction(buttonOrSection) {
+        const section = buttonOrSection?.closest
+            ? buttonOrSection.closest('.bulk-move-section')
+            : null;
+        if (!section) return;
+        const isCollapsed = section.classList.toggle('is-collapsed');
+        const toggle = section.querySelector('.bulk-section-toggle');
+        if (toggle) toggle.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');
+    }
+
     function toggleBulkModeAction() {
         const nextMode = !getBulkMode();
         setBulkMode(nextMode);
@@ -443,6 +464,8 @@ window.EveBulkToolbar = window.EveBulkToolbar || {};
     window.confirmBulkMerge = confirmBulkMergeAction;
     window.setBulkMergeMode = ns.setBulkMergeMode;
     window.closeBulkMergeModal = ns.closeBulkMergeModal;
+    window.toggleBulkSection = toggleBulkSectionAction;
+    ns.syncBulkSectionGroup = syncBulkSectionGroup;
     window.setBulkMoveMode = ns.setBulkMoveMode;
     window.renderBulkMoveCategoryOptions = ns.renderBulkMoveCategoryOptions;
     window.closeBulkMoveModal = ns.closeBulkMoveModal;

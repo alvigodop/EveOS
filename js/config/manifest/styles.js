@@ -13,7 +13,7 @@ window.EveModuleManifestParts.styles = [
         'js/modules/ui/dashboard/unidex-view.responsive.css?v=0.2.5',
         'js/modules/ui/dashboard/categories/focused-card.css?v=0.2.68',
         'js/modules/ui/dashboard/dock.css?v=0.2.5',
-        'js/modules/ui/bulk-toolbar.css?v=0.2.5',
+        'js/modules/ui/bulk-toolbar.css?v=0.2.6',
         'js/modules/ui/scratchpad.css?v=0.1.1',
         'js/modules/ui/context-menus/styles.css?v=0.2.41',
         'js/modules/ui/inline-prompt.css',
