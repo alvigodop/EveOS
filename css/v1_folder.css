@@ -331,6 +331,9 @@
     font-size: 9px;
     color: rgba(128, 128, 128, 0.6);
     margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .folder-tile-edit-btn {
@@ -379,26 +382,25 @@ body.bulk-active .folder-tile-edit-btn.bulk-scope-btn {
 
 /* ===== FOLDER HATCH (consolidated) ===== */
 .folder-wrap-grid {
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)) !important;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)) !important;
 }
 
 .folder-tile {
     padding: 0 !important;
     align-items: stretch !important;
-    min-height: 54px !important;
+    min-height: 44px !important;
+    max-height: 64px !important;
+    gap: 0 !important;
 }
 
 .folder-tile-main {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 12px;
+    gap: 6px;
+    padding: 6px 8px;
     flex: 1;
     position: relative;
-    min-width: 110px;
-}
-.folder-tile-main:has(.hatch-subfolders) {
-    padding-right: 52px !important;
+    min-width: 0;
 }
 
 /* -- Side hatch (bookmark panel only) -- */
@@ -407,26 +409,25 @@ body.bulk-active .folder-tile-edit-btn.bulk-scope-btn {
     border-left: 1px dashed rgba(128, 128, 128, 0.2);
     background: rgba(0, 0, 0, 0.15);
     min-width: 0;
-    max-width: 35%;
+    flex: 0 0 auto;
+    overflow: hidden;
+    border-radius: 0 4px 4px 0;
 }
 
-/* -- Subfolders: 2x3 grid, scrollable, top-right of tile -- */
+/* -- Subfolders: 2x3 grid, scrollable, between main and hatch -- */
 .hatch-subfolders {
-    position: absolute;
-    top: 0;
-    right: 0;
-    bottom: 0;
     display: grid;
-    grid-template-columns: repeat(2, 20px);
+    grid-template-columns: repeat(2, 16px);
     align-content: start;
+    align-self: stretch;
     gap: 2px;
-    padding: 3px;
+    padding: 3px 4px 3px 3px;
     overflow-y: auto;
     overflow-x: hidden;
     scrollbar-width: none;
     background: rgba(0, 0, 0, 0.25);
     border-left: 1px solid rgba(128, 128, 128, 0.15);
-    z-index: 1;
+    flex: 0 0 auto;
 }
 .hatch-subfolders::-webkit-scrollbar {
     display: none;
@@ -436,9 +437,9 @@ body.bulk-active .folder-tile-edit-btn.bulk-scope-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 20px;
-    height: 20px;
-    min-height: 20px;
+    width: 16px;
+    height: 16px;
+    min-height: 16px;
     border: 1px solid rgba(128, 128, 128, 0.3);
     border-radius: 4px;
     background: rgba(255, 255, 255, 0.05);
@@ -453,14 +454,14 @@ body.bulk-active .folder-tile-edit-btn.bulk-scope-btn {
     transform: scale(1.1);
 }
 .hatch-subfolder-icon svg {
-    width: 12px;
-    height: 12px;
+    width: 10px;
+    height: 10px;
 }
 
 /* -- Bookmark carousel -- */
 .hatch-bookmarks {
-    flex: 0 0 70px;
-    min-width: 70px;
+    flex: 0 0 40px;
+    min-width: 40px;
     position: relative;
     overflow: hidden;
 }

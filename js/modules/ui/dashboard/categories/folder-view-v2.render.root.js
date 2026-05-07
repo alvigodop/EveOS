@@ -127,12 +127,12 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                         <div class="folder-tile-left-bar"></div>
                         <div class="folder-icon-box"><svg width="14" height="14" viewBox="0 0 14 14" style="overflow: visible;"><rect x="0" y="3" width="14" height="10" rx="0" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.6" /><path d="M0,3 L4,3 L5.5,1 L9,1 L9,3" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.6" /></svg></div>
                         <div class="folder-tile-content">
-                            <div class="folder-tile-title">${escapeCardHtml(folder.name)}</div>
-                            <div class="folder-tile-stats">${escapeCardHtml(statsLabel)}</div>
+                            <div class="folder-tile-title" title="${escapeCardHtml(folder.name)}">${escapeCardHtml(folder.name)}</div>
+                            <div class="folder-tile-stats" title="${escapeCardHtml(statsLabel)}">${escapeCardHtml(statsLabel)}</div>
                         </div>
-                        ${subFolderHtml}
                         ${editButtonHtml}
                     </div>
+                    ${subFolderHtml}
                     ${hatchHtml}
                 </div>`;
             }).join('')}</div>`;
