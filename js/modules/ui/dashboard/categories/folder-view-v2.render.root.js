@@ -78,12 +78,12 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                     }).join('') + '</div>';
                 }
 
-                // Get bookmarks with images for the hatch
+                // Get bookmarks for the hatch (up to 3)
                 const folderLinks = viewModel.folderLinks.get(folder.id) || [];
                 let hatchBookmarksHtml = '';
-                const linksWithCovers = [];
+                const hatchSlides = [];
                 for (const link of folderLinks) {
-                    if (linksWithCovers.length >= 3) break; // keep up to 3
+                    if (hatchSlides.length >= 3) break;
                     const libraryEntry = window.EveLibrary?.ConnectionsAPI?.getLinkedEntry?.(link.id)?.entry || null;
                     const rawCoverUrl = String(
                         window.EveBookmarkCovers?.getDisplayCover?.(link, libraryEntry?.image || libraryEntry?.imageUrl)
@@ -93,21 +93,25 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                         || ''
                     ).trim();
                     const coverUrl = (typeof window.EveBookmarkCovers?.isRenderableCoverUrl === 'function' && !window.EveBookmarkCovers.isRenderableCoverUrl(rawCoverUrl)) ? '' : rawCoverUrl;
-                    if (coverUrl) {
-                        linksWithCovers.push({ link, coverUrl });
-                    }
+                    hatchSlides.push({ link, coverUrl });
                 }
                 
-                if (linksWithCovers.length > 0) {
-                    const totalSlides = linksWithCovers.length;
-                    hatchBookmarksHtml = '<div class="hatch-bookmarks">' + linksWithCovers.map((item, idx) => {
+                if (hatchSlides.length > 0) {
+                    const totalSlides = hatchSlides.length;
+                    hatchBookmarksHtml = '<div class="hatch-bookmarks">' + hatchSlides.map((item, idx) => {
                         const title = item.link.title || 'Untitled';
                         let animationClass = (totalSlides === 1) ? 'slide-single' : (totalSlides === 2 ? `slide-2-total-${idx + 1}` : `slide-3-total-${idx + 1}`);
                         const jsLinkIdLiteral = `'${String(item.link.id || '').replace(/'/g, "\\'")}'`;
                         const hoverHandlers = `onmouseenter="if(typeof showBookmarkCoverHover==='function') showBookmarkCoverHover(event, ${jsLinkIdLiteral})" onmousemove="if(typeof moveBookmarkCoverHover==='function') moveBookmarkCoverHover(event)" onmouseleave="if(typeof hideBookmarkCoverHover==='function') hideBookmarkCoverHover()"`;
                         const clickHandlers = `onclick="event.stopPropagation(); return (typeof openBookmarkFromDashboard==='function') ? openBookmarkFromDashboard(event, ${jsLinkIdLiteral}) : true;" oncontextmenu="event.stopPropagation(); if(typeof showLinkContextMenu==='function') showLinkContextMenu(event, ${jsLinkIdLiteral})"`;
+                        let faviconUrl = '';
+                        try { faviconUrl = new URL(item.link.url).origin + '/favicon.ico'; } catch(e) {}
+                        const googleFavicon = faviconUrl ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(new URL(item.link.url).hostname)}&sz=64` : '';
+                        const visualHtml = item.coverUrl
+                            ? `<img class="hatch-bookmark-image" src="${escapeCardHtml(item.coverUrl)}" alt="" loading="lazy">`
+                            : `<div class="hatch-bookmark-icon-fallback"><img src="${escapeCardHtml(googleFavicon)}" alt="" class="hatch-favicon" onerror="this.style.display='none'"></div>`;
                         return `<a href="${escapeCardHtml(item.link.url)}" class="hatch-bookmark-slide ${animationClass}" ${hoverHandlers} ${clickHandlers} style="cursor: pointer; display: block; text-decoration: none;">
-                            <img class="hatch-bookmark-image" src="${escapeCardHtml(item.coverUrl)}" alt="" loading="lazy">
+                            ${visualHtml}
                             <div class="hatch-bookmark-title">${escapeCardHtml(title)}</div>
                         </a>`;
                     }).join('') + '</div>';
