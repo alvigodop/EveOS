@@ -376,14 +376,16 @@ body.bulk-active .folder-tile-edit-btn.bulk-scope-btn {
     height: 1px;
     background: rgba(128, 128, 128, 0.1);
 }
-/* -- FOLDER HATCH OVERRIDES -- */
+
+/* ===== FOLDER HATCH (consolidated) ===== */
 .folder-wrap-grid {
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)) !important;
 }
 
 .folder-tile {
     padding: 0 !important;
     align-items: stretch !important;
+    min-height: 54px !important;
 }
 
 .folder-tile-main {
@@ -393,36 +395,45 @@ body.bulk-active .folder-tile-edit-btn.bulk-scope-btn {
     padding: 12px;
     flex: 1;
     position: relative;
-    min-width: 0;
+    min-width: 110px;
+}
+.folder-tile-main:has(.hatch-subfolders) {
+    padding-right: 52px !important;
 }
 
+/* -- Side hatch (bookmark panel only) -- */
 .folder-tile-hatch {
-    flex: 1;
     display: flex;
     border-left: 1px dashed rgba(128, 128, 128, 0.2);
     background: rgba(0, 0, 0, 0.15);
     min-width: 0;
-    max-width: 50%;
+    max-width: 35%;
 }
 
+/* -- Subfolders: 2x3 grid, scrollable, top-right of tile -- */
 .hatch-subfolders {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    padding: 6px;
-    border-right: 1px solid rgba(128, 128, 128, 0.1);
-    background: rgba(255, 255, 255, 0.02);
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    display: grid;
+    grid-template-columns: repeat(2, 20px);
+    align-content: start;
+    gap: 2px;
+    padding: 3px;
     overflow-y: auto;
     overflow-x: hidden;
     scrollbar-width: none;
-    align-items: center;
+    background: rgba(0, 0, 0, 0.25);
+    border-left: 1px solid rgba(128, 128, 128, 0.15);
+    z-index: 1;
 }
 .hatch-subfolders::-webkit-scrollbar {
     display: none;
 }
 
 .hatch-subfolder-icon {
-    display: inline-flex;
+    display: flex;
     align-items: center;
     justify-content: center;
     width: 20px;
@@ -435,19 +446,23 @@ body.bulk-active .folder-tile-edit-btn.bulk-scope-btn {
     cursor: pointer;
     transition: all 0.2s;
 }
-
 .hatch-subfolder-icon:hover {
     background: var(--accent, #0088ff)22;
     border-color: var(--accent, #0088ff);
     color: var(--accent, #0088ff);
     transform: scale(1.1);
 }
+.hatch-subfolder-icon svg {
+    width: 12px;
+    height: 12px;
+}
 
+/* -- Bookmark carousel -- */
 .hatch-bookmarks {
-    flex: 1;
+    flex: 0 0 70px;
+    min-width: 70px;
     position: relative;
     overflow: hidden;
-    min-width: 0;
 }
 
 .hatch-bookmark-slide {
@@ -458,16 +473,27 @@ body.bulk-active .folder-tile-edit-btn.bulk-scope-btn {
     flex-direction: column;
     background: #000;
 }
+.hatch-bookmark-slide.slide-single {
+    opacity: 1;
+    animation: none;
+}
 
 @keyframes slideFade {
     0%, 5% { opacity: 0; }
     10%, 28% { opacity: 1; }
     33%, 100% { opacity: 0; }
 }
+@keyframes slideFade2 {
+    0%, 15% { opacity: 0; }
+    25%, 50% { opacity: 1; }
+    60%, 100% { opacity: 0; }
+}
 
-.hatch-bookmark-slide.slide-1 { animation: slideFade 9s infinite; animation-delay: 0s; }
-.hatch-bookmark-slide.slide-2 { animation: slideFade 9s infinite; animation-delay: 3s; }
-.hatch-bookmark-slide.slide-3 { animation: slideFade 9s infinite; animation-delay: 6s; }
+.hatch-bookmark-slide.slide-2-total-1 { animation: slideFade2 6s infinite; animation-delay: 0s; }
+.hatch-bookmark-slide.slide-2-total-2 { animation: slideFade2 6s infinite; animation-delay: 3s; }
+.hatch-bookmark-slide.slide-3-total-1 { animation: slideFade 9s infinite; animation-delay: 0s; }
+.hatch-bookmark-slide.slide-3-total-2 { animation: slideFade 9s infinite; animation-delay: 3s; }
+.hatch-bookmark-slide.slide-3-total-3 { animation: slideFade 9s infinite; animation-delay: 6s; }
 
 .hatch-bookmark-image {
     width: 100%;
@@ -476,7 +502,6 @@ body.bulk-active .folder-tile-edit-btn.bulk-scope-btn {
     opacity: 0.7;
     transition: opacity 0.3s;
 }
-
 .folder-tile:hover .hatch-bookmark-image {
     opacity: 1;
 }
@@ -487,95 +512,13 @@ body.bulk-active .folder-tile-edit-btn.bulk-scope-btn {
     left: 0;
     right: 0;
     background: linear-gradient(transparent, rgba(0,0,0,0.85) 40%, #000);
-    padding: 16px 8px 6px;
+    padding: 8px 2px 2px;
     font-family: 'Rajdhani', sans-serif;
-    font-size: 10px;
+    font-size: 7.5px;
     font-weight: 500;
     color: #eee;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     text-align: center;
-}
-.folder-tile-hatch.no-bookmarks {
-    flex: 0 0 auto;
-}
-.folder-tile-hatch.no-bookmarks .hatch-subfolders {
-    border-right: none;
-}
-.hatch-bookmark-slide.slide-single {
-    opacity: 1;
-    animation: none;
-}
-
-@keyframes slideFade2 {
-    0%, 15% { opacity: 0; }
-    25%, 50% { opacity: 1; }
-    60%, 100% { opacity: 0; }
-}
-.hatch-bookmark-slide.slide-2-total-1 { animation: slideFade2 6s infinite; animation-delay: 0s; }
-.hatch-bookmark-slide.slide-2-total-2 { animation: slideFade2 6s infinite; animation-delay: 3s; }
-
-.hatch-bookmark-slide.slide-3-total-1 { animation: slideFade 9s infinite; animation-delay: 0s; }
-.hatch-bookmark-slide.slide-3-total-2 { animation: slideFade 9s infinite; animation-delay: 3s; }
-.hatch-bookmark-slide.slide-3-total-3 { animation: slideFade 9s infinite; animation-delay: 6s; }
-.hatch-subfolders {
-    flex-direction: row !important;
-    flex-wrap: wrap !important;
-    justify-content: flex-start !important;
-    align-items: flex-start !important;
-    align-content: flex-start !important;
-}
-/* -- UI TWEAKS -- */
-.folder-tile-hatch {
-    max-width: 35% !important;
-}
-.folder-tile-hatch.no-bookmarks {
-    max-width: none !important;
-}
-.hatch-bookmarks {
-    flex: 0 0 100px !important;
-    min-width: 100px !important;
-}
-.hatch-bookmark-title {
-    font-size: 8.5px !important;
-    padding: 12px 4px 4px !important;
-}
-/* -- UI TWEAKS 2 -- */
-.folder-wrap-grid {
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)) !important;
-}
-.folder-tile {
-    max-width: 320px !important;
-}
-/* -- UI TWEAKS 3 -- */
-.folder-wrap-grid {
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)) !important;
-}
-.folder-tile {
-    max-width: 260px !important;
-}
-/* -- UI TWEAKS 4 -- */
-.hatch-subfolder {
-    width: 20px !important;
-    height: 20px !important;
-    margin: 1px !important;
-}
-.hatch-subfolder svg {
-    width: 10px !important;
-    height: 10px !important;
-}
-.hatch-subfolders {
-    max-width: 68px !important;
-}
-.hatch-bookmarks {
-    flex: 0 0 70px !important;
-    min-width: 70px !important;
-}
-.hatch-bookmark-title {
-    font-size: 7.5px !important;
-    padding: 8px 2px 2px !important;
-}
-.folder-tile-main {
-    min-width: 80px !important;
 }
