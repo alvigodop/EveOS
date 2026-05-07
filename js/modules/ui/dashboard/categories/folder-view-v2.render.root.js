@@ -69,7 +69,68 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                 const editButtonHtml = isGhost
                     ? `<div class="folder-tile-action-buttons"><button type="button" class="folder-tile-edit-btn bulk-scope-btn" data-scope-category="${escapeCardHtml(categoryName)}" data-scope-workspace="${escapeCardHtml(workspaceId)}" data-scope-folder-id="${escapeCardHtml(folder.id)}" title="Select Matching Bookmarks" onclick="event.preventDefault(); event.stopPropagation(); bulkToggleFolderScopeSelection('${escapeCardJs(categoryName)}', '${escapeCardJs(workspaceId)}', '${escapeCardJs(folder.id)}');">&#9744;</button></div>`
                     : `<div class="folder-tile-action-buttons"><button type="button" class="folder-tile-edit-btn bulk-scope-btn" data-scope-category="${escapeCardHtml(categoryName)}" data-scope-workspace="${escapeCardHtml(workspaceId)}" data-scope-folder-id="${escapeCardHtml(folder.id)}" title="Select Folder Subtree" onclick="event.preventDefault(); event.stopPropagation(); bulkToggleFolderScopeSelection('${escapeCardJs(categoryName)}', '${escapeCardJs(workspaceId)}', '${escapeCardJs(folder.id)}');">&#9744;</button><button type="button" class="folder-tile-edit-btn" title="Edit Folder" onclick="event.preventDefault(); event.stopPropagation(); if(typeof window.showFolderContextMenu === 'function') window.showFolderContextMenu(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(folder.id)}', '${escapeCardJs(workspaceId)}');">&#9998;</button></div>`;
-                return `<div class="folder-tile${isGhost ? ' folder-tile-ghost' : ''}" ${folderDropAttr} ${dragStartAttr} onclick="window.EveFolderViewV2.enterFolder(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(folder.id)}', '${escapeCardJs(workspaceId)}')" ${contextMenuAttr}><div class="folder-tile-left-bar"></div><div class="folder-icon-box"><svg width="14" height="14" viewBox="0 0 14 14" style="overflow: visible;"><rect x="0" y="3" width="14" height="10" rx="0" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.6" /><path d="M0,3 L4,3 L5.5,1 L9,1 L9,3" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.6" /></svg></div><div class="folder-tile-content"><div class="folder-tile-title">${escapeCardHtml(folder.name)}</div><div class="folder-tile-stats">${escapeCardHtml(statsLabel)}</div></div>${editButtonHtml}</div>`;
+                // Get subfolders for the hatch
+                const subFolders = viewModel.childrenMap.get(folder.id) || [];
+                let subFolderHtml = '';
+                if (subFolders.length > 0) {
+                    subFolderHtml = '<div class="hatch-subfolders">' + subFolders.map(sf => {
+                        return `<div class="hatch-subfolder-icon" title="${escapeCardHtml(sf.name)}" onclick="event.stopPropagation(); window.EveFolderViewV2.enterFolder(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(sf.id)}', '${escapeCardJs(workspaceId)}')"><svg width="10" height="10" viewBox="0 0 14 14" style="overflow: visible;"><rect x="0" y="3" width="14" height="10" rx="0" fill="none" stroke="currentColor" stroke-width="1.5" /><path d="M0,3 L4,3 L5.5,1 L9,1 L9,3" fill="none" stroke="currentColor" stroke-width="1.5" /></svg></div>`;
+                    }).join('') + '</div>';
+                }
+
+                // Get bookmarks with images for the hatch
+                const folderLinks = viewModel.folderLinks.get(folder.id) || [];
+                let hatchBookmarksHtml = '';
+                const linksWithCovers = [];
+                for (const link of folderLinks) {
+                    if (linksWithCovers.length >= 3) break; // keep up to 3
+                    const libraryEntry = window.EveLibrary?.ConnectionsAPI?.getLinkedEntry?.(link.id)?.entry || null;
+                    const rawCoverUrl = String(
+                        window.EveBookmarkCovers?.getDisplayCover?.(link, libraryEntry?.image || libraryEntry?.imageUrl)
+                        || link?.coverImage
+                        || libraryEntry?.image
+                        || libraryEntry?.imageUrl
+                        || ''
+                    ).trim();
+                    const coverUrl = (typeof window.EveBookmarkCovers?.isRenderableCoverUrl === 'function' && !window.EveBookmarkCovers.isRenderableCoverUrl(rawCoverUrl)) ? '' : rawCoverUrl;
+                    if (coverUrl) {
+                        linksWithCovers.push({ link, coverUrl });
+                    }
+                }
+                
+                if (linksWithCovers.length > 0) {
+                    const totalSlides = linksWithCovers.length;
+                    hatchBookmarksHtml = '<div class="hatch-bookmarks">' + linksWithCovers.map((item, idx) => {
+                        const title = item.link.title || 'Untitled';
+                        let animationClass = '';
+                        if (totalSlides === 1) {
+                            animationClass = 'slide-single';
+                        } else if (totalSlides === 2) {
+                            animationClass = `slide-2-total-${idx + 1}`;
+                        } else {
+                            animationClass = `slide-3-total-${idx + 1}`;
+                        }
+                        const jsLinkIdLiteral = `'${String(item.link.id || '').replace(/'/g, "\\'")}'`;
+                        const hoverHandlers = `onmouseenter="if(typeof showBookmarkCoverHover==='function') showBookmarkCoverHover(event, ${jsLinkIdLiteral})" onmousemove="if(typeof moveBookmarkCoverHover==='function') moveBookmarkCoverHover(event)" onmouseleave="if(typeof hideBookmarkCoverHover==='function') hideBookmarkCoverHover()"`;
+                        const clickHandlers = `onclick="event.stopPropagation(); if(typeof openBookmarkFromDashboard==='function') openBookmarkFromDashboard(event, ${jsLinkIdLiteral}); else if(typeof openEdit==='function') openEdit(${jsLinkIdLiteral});" oncontextmenu="event.stopPropagation(); if(typeof showLinkContextMenu==='function') showLinkContextMenu(event, ${jsLinkIdLiteral})"`;
+                        return `<div class="hatch-bookmark-slide ${animationClass}" ${hoverHandlers} ${clickHandlers} style="cursor: pointer;">
+                            <img class="hatch-bookmark-image" src="${escapeCardHtml(item.coverUrl)}" alt="" loading="lazy">
+                            <div class="hatch-bookmark-title">${escapeCardHtml(title)}</div>
+                        </div>`;
+                    }).join('') + '</div>';
+                }
+
+                let hatchHtml = '';
+                if (subFolderHtml || hatchBookmarksHtml) {
+                    hatchHtml = `<div class="folder-tile-hatch${!hatchBookmarksHtml ? ' no-bookmarks' : ''}">${subFolderHtml}${hatchBookmarksHtml}</div>`;
+                }
+
+                return `<div class="folder-tile${isGhost ? ' folder-tile-ghost' : ''}" ${folderDropAttr} ${dragStartAttr} ${contextMenuAttr}>
+                    <div class="folder-tile-main" onclick="window.EveFolderViewV2.enterFolder(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(folder.id)}', '${escapeCardJs(workspaceId)}')">
+                        <div class="folder-tile-left-bar"></div><div class="folder-icon-box"><svg width="14" height="14" viewBox="0 0 14 14" style="overflow: visible;"><rect x="0" y="3" width="14" height="10" rx="0" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.6" /><path d="M0,3 L4,3 L5.5,1 L9,1 L9,3" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.6" /></svg></div><div class="folder-tile-content"><div class="folder-tile-title">${escapeCardHtml(folder.name)}</div><div class="folder-tile-stats">${escapeCardHtml(statsLabel)}</div></div>${editButtonHtml}
+                    </div>
+                    ${hatchHtml}
+                </div>`;
             }).join('')}</div>`;
         }
 

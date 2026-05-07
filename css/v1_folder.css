@@ -376,3 +376,175 @@ body.bulk-active .folder-tile-edit-btn.bulk-scope-btn {
     height: 1px;
     background: rgba(128, 128, 128, 0.1);
 }
+/* -- FOLDER HATCH OVERRIDES -- */
+.folder-wrap-grid {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
+}
+
+.folder-tile {
+    padding: 0 !important;
+    align-items: stretch !important;
+}
+
+.folder-tile-main {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    flex: 1;
+    position: relative;
+    min-width: 0;
+}
+
+.folder-tile-hatch {
+    flex: 1;
+    display: flex;
+    border-left: 1px dashed rgba(128, 128, 128, 0.2);
+    background: rgba(0, 0, 0, 0.15);
+    min-width: 0;
+    max-width: 50%;
+}
+
+.hatch-subfolders {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 6px;
+    border-right: 1px solid rgba(128, 128, 128, 0.1);
+    background: rgba(255, 255, 255, 0.02);
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: none;
+    align-items: center;
+}
+.hatch-subfolders::-webkit-scrollbar {
+    display: none;
+}
+
+.hatch-subfolder-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    min-height: 20px;
+    border: 1px solid rgba(128, 128, 128, 0.3);
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(128, 128, 128, 0.8);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.hatch-subfolder-icon:hover {
+    background: var(--accent, #0088ff)22;
+    border-color: var(--accent, #0088ff);
+    color: var(--accent, #0088ff);
+    transform: scale(1.1);
+}
+
+.hatch-bookmarks {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    min-width: 0;
+}
+
+.hatch-bookmark-slide {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    display: flex;
+    flex-direction: column;
+    background: #000;
+}
+
+@keyframes slideFade {
+    0%, 5% { opacity: 0; }
+    10%, 28% { opacity: 1; }
+    33%, 100% { opacity: 0; }
+}
+
+.hatch-bookmark-slide.slide-1 { animation: slideFade 9s infinite; animation-delay: 0s; }
+.hatch-bookmark-slide.slide-2 { animation: slideFade 9s infinite; animation-delay: 3s; }
+.hatch-bookmark-slide.slide-3 { animation: slideFade 9s infinite; animation-delay: 6s; }
+
+.hatch-bookmark-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0.7;
+    transition: opacity 0.3s;
+}
+
+.folder-tile:hover .hatch-bookmark-image {
+    opacity: 1;
+}
+
+.hatch-bookmark-title {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(transparent, rgba(0,0,0,0.85) 40%, #000);
+    padding: 16px 8px 6px;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 10px;
+    font-weight: 500;
+    color: #eee;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: center;
+}
+.folder-tile-hatch.no-bookmarks {
+    flex: 0 0 auto;
+}
+.folder-tile-hatch.no-bookmarks .hatch-subfolders {
+    border-right: none;
+}
+.hatch-bookmark-slide.slide-single {
+    opacity: 1;
+    animation: none;
+}
+
+@keyframes slideFade2 {
+    0%, 15% { opacity: 0; }
+    25%, 50% { opacity: 1; }
+    60%, 100% { opacity: 0; }
+}
+.hatch-bookmark-slide.slide-2-total-1 { animation: slideFade2 6s infinite; animation-delay: 0s; }
+.hatch-bookmark-slide.slide-2-total-2 { animation: slideFade2 6s infinite; animation-delay: 3s; }
+
+.hatch-bookmark-slide.slide-3-total-1 { animation: slideFade 9s infinite; animation-delay: 0s; }
+.hatch-bookmark-slide.slide-3-total-2 { animation: slideFade 9s infinite; animation-delay: 3s; }
+.hatch-bookmark-slide.slide-3-total-3 { animation: slideFade 9s infinite; animation-delay: 6s; }
+.hatch-subfolders {
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    justify-content: flex-start !important;
+    align-items: flex-start !important;
+    align-content: flex-start !important;
+}
+/* -- UI TWEAKS -- */
+.folder-tile-hatch {
+    max-width: 35% !important;
+}
+.folder-tile-hatch.no-bookmarks {
+    max-width: none !important;
+}
+.hatch-bookmarks {
+    flex: 0 0 100px !important;
+    min-width: 100px !important;
+}
+.hatch-bookmark-title {
+    font-size: 8.5px !important;
+    padding: 12px 4px 4px !important;
+}
+/* -- UI TWEAKS 2 -- */
+.folder-wrap-grid {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)) !important;
+}
+.folder-tile {
+    max-width: 320px !important;
+}
