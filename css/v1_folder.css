@@ -382,7 +382,7 @@ body.bulk-active .folder-tile-edit-btn.bulk-scope-btn {
 
 /* ===== FOLDER HATCH (consolidated) ===== */
 .folder-wrap-grid {
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)) !important;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)) !important;
 }
 
 .folder-tile {
