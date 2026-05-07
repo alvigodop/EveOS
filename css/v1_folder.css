@@ -548,3 +548,34 @@ body.bulk-active .folder-tile-edit-btn.bulk-scope-btn {
 .folder-tile {
     max-width: 320px !important;
 }
+/* -- UI TWEAKS 3 -- */
+.folder-wrap-grid {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)) !important;
+}
+.folder-tile {
+    max-width: 260px !important;
+}
+/* -- UI TWEAKS 4 -- */
+.hatch-subfolder {
+    width: 20px !important;
+    height: 20px !important;
+    margin: 1px !important;
+}
+.hatch-subfolder svg {
+    width: 10px !important;
+    height: 10px !important;
+}
+.hatch-subfolders {
+    max-width: 68px !important;
+}
+.hatch-bookmarks {
+    flex: 0 0 70px !important;
+    min-width: 70px !important;
+}
+.hatch-bookmark-title {
+    font-size: 7.5px !important;
+    padding: 8px 2px 2px !important;
+}
+.folder-tile-main {
+    min-width: 80px !important;
+}

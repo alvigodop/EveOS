@@ -112,11 +112,11 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                         }
                         const jsLinkIdLiteral = `'${String(item.link.id || '').replace(/'/g, "\\'")}'`;
                         const hoverHandlers = `onmouseenter="if(typeof showBookmarkCoverHover==='function') showBookmarkCoverHover(event, ${jsLinkIdLiteral})" onmousemove="if(typeof moveBookmarkCoverHover==='function') moveBookmarkCoverHover(event)" onmouseleave="if(typeof hideBookmarkCoverHover==='function') hideBookmarkCoverHover()"`;
-                        const clickHandlers = `onclick="event.stopPropagation(); if(typeof openBookmarkFromDashboard==='function') openBookmarkFromDashboard(event, ${jsLinkIdLiteral}); else if(typeof openEdit==='function') openEdit(${jsLinkIdLiteral});" oncontextmenu="event.stopPropagation(); if(typeof showLinkContextMenu==='function') showLinkContextMenu(event, ${jsLinkIdLiteral})"`;
-                        return `<div class="hatch-bookmark-slide ${animationClass}" ${hoverHandlers} ${clickHandlers} style="cursor: pointer;">
+                        const clickHandlers = `onclick="event.stopPropagation(); return (typeof openBookmarkFromDashboard==='function') ? openBookmarkFromDashboard(event, ${jsLinkIdLiteral}) : true;" oncontextmenu="event.stopPropagation(); if(typeof showLinkContextMenu==='function') showLinkContextMenu(event, ${jsLinkIdLiteral})"`;
+                        return `<a href="${escapeCardHtml(item.link.url)}" class="hatch-bookmark-slide ${animationClass}" ${hoverHandlers} ${clickHandlers} style="cursor: pointer; display: block; text-decoration: none;">
                             <img class="hatch-bookmark-image" src="${escapeCardHtml(item.coverUrl)}" alt="" loading="lazy">
                             <div class="hatch-bookmark-title">${escapeCardHtml(title)}</div>
-                        </div>`;
+                        </a>`;
                     }).join('') + '</div>';
                 }
 
