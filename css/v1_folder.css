@@ -469,6 +469,7 @@ body.bulk-active .folder-tile-edit-btn.bulk-scope-btn {
     position: absolute;
     inset: 0;
     opacity: 0;
+    pointer-events: none;
     display: flex;
     flex-direction: column;
     background: #000;
@@ -476,17 +477,18 @@ body.bulk-active .folder-tile-edit-btn.bulk-scope-btn {
 .hatch-bookmark-slide.slide-single {
     opacity: 1;
     animation: none;
+    pointer-events: auto;
 }
 
 @keyframes slideFade {
-    0%, 5% { opacity: 0; }
-    10%, 28% { opacity: 1; }
-    33%, 100% { opacity: 0; }
+    0%, 5% { opacity: 0; pointer-events: none; }
+    10%, 28% { opacity: 1; pointer-events: auto; }
+    33%, 100% { opacity: 0; pointer-events: none; }
 }
 @keyframes slideFade2 {
-    0%, 15% { opacity: 0; }
-    25%, 50% { opacity: 1; }
-    60%, 100% { opacity: 0; }
+    0%, 15% { opacity: 0; pointer-events: none; }
+    25%, 50% { opacity: 1; pointer-events: auto; }
+    60%, 100% { opacity: 0; pointer-events: none; }
 }
 
 .hatch-bookmark-slide.slide-2-total-1 { animation: slideFade2 6s infinite; animation-delay: 0s; }
