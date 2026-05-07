@@ -122,7 +122,15 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                     hatchHtml = `<div class="folder-tile-hatch">${hatchBookmarksHtml}</div>`;
                 }
 
-                return `<div class="folder-tile${isGhost ? ' folder-tile-ghost' : ''}" data-category="${escapeCardHtml(categoryName)}" data-workspace="${escapeCardHtml(workspaceId)}" data-folder-id="${escapeCardHtml(folder.id)}" ${folderDropAttr} ${dragStartAttr} ${contextMenuAttr}>
+                let hatchToggleHtml = '';
+                if (subFolderHtml || hatchHtml) {
+                    hatchToggleHtml = `<div class="folder-tile-hatch-toggle" onclick="event.stopPropagation(); const tile = this.closest('.folder-tile'); const isCol = tile.classList.toggle('hatch-collapsed'); localStorage.setItem('eve_folder_hatch_collapsed_${escapeCardJs(workspaceId)}_${escapeCardJs(categoryName)}_${escapeCardJs(folder.id)}', isCol);" title="Toggle extra content"></div>`;
+                }
+
+                const isHatchCollapsed = localStorage.getItem(`eve_folder_hatch_collapsed_${workspaceId}_${categoryName}_${folder.id}`) === 'true';
+                const collapsedClass = isHatchCollapsed ? ' hatch-collapsed' : '';
+
+                return `<div class="folder-tile${isGhost ? ' folder-tile-ghost' : ''}${collapsedClass}" data-category="${escapeCardHtml(categoryName)}" data-workspace="${escapeCardHtml(workspaceId)}" data-folder-id="${escapeCardHtml(folder.id)}" ${folderDropAttr} ${dragStartAttr} ${contextMenuAttr}>
                     <div class="folder-tile-main" onclick="event.stopPropagation(); window.EveFolderViewV2.enterFolder(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(folder.id)}', '${escapeCardJs(workspaceId)}')">
                         <div class="folder-tile-left-bar"></div>
                         <div class="folder-icon-box"><svg width="14" height="14" viewBox="0 0 14 14" style="overflow: visible;"><rect x="0" y="3" width="14" height="10" rx="0" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.6" /><path d="M0,3 L4,3 L5.5,1 L9,1 L9,3" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.6" /></svg></div>
@@ -132,6 +140,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                         </div>
                         ${editButtonHtml}
                     </div>
+                    ${hatchToggleHtml}
                     ${subFolderHtml}
                     ${hatchHtml}
                 </div>`;
