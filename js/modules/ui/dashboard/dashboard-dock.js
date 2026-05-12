@@ -9,10 +9,17 @@ window.renderDock = function (_visibleLinks, dockContainer, focusCategory) {
         return;
     }
 
+    const configRef = window.eveState?.config || window.config || {};
+    const visibleWorkspaceIds = window._eveActiveVisibleWorkspaceIds instanceof Set
+        ? Array.from(window._eveActiveVisibleWorkspaceIds)
+        : [];
     const activePins = pinApi.getActiveDockPins({
-        activeWorkspace: window.eveState?.config?.activeWorkspace,
+        activeWorkspace: configRef.activeWorkspace,
         focusCategory: focusCategory || '',
-        includeDescendantPins: !focusCategory
+        includeDescendantPins: !focusCategory,
+        visibleWorkspaceIds,
+        groupOverviewRootMap: window._eveGroupOverviewRootMap instanceof Map ? window._eveGroupOverviewRootMap : null,
+        groupOverviewId: configRef.groupOverviewId || ''
     });
     const activePinIds = activePins.map((pin) => String(pin.id || '')).filter(Boolean);
 
@@ -126,15 +133,20 @@ window.renderDock = function (_visibleLinks, dockContainer, focusCategory) {
     activePins.forEach((pin, index) => {
         const item = document.createElement('div');
         item.className = `dock-item dock-item--${pin.targetType || 'bookmark'}`;
+        if (pin.isGroupOverviewPin) {
+            item.classList.add('dock-item--group-overview');
+        }
         if (pin.isInheritedPin) {
             item.classList.add('dock-item--inherited');
             item.classList.add('dock-item--depth-' + Math.min(Number(pin.inheritedDepth || 1), 4));
             item.dataset.inheritedFrom = String(pin.inheritedFromWorkspaceId || '');
         }
         item.dataset.pinId = String(pin.id || '');
-        item.title = String(pin.isInheritedPin
+        item.title = String(pin.isGroupOverviewPin
+            ? `Group overview pin from ${pin.inheritedPath || pin.inheritedFromWorkspaceId || 'group tab'}\n${pin.meta || pin.label || pin.targetId || 'Pinned'}`
+            : (pin.isInheritedPin
             ? `Inherited pin from ${pin.inheritedPath || pin.inheritedFromWorkspaceId || 'child tab'}\n${pin.meta || pin.label || pin.targetId || 'Pinned'}`
-            : (pin.meta || pin.label || pin.targetId || 'Pinned'));
+            : (pin.meta || pin.label || pin.targetId || 'Pinned')));
         if (pin.targetType === 'bookmark') {
             item.addEventListener('mouseenter', function (event) {
                 if (typeof window.showBookmarkCoverHover !== 'function') return;
@@ -167,7 +179,9 @@ window.renderDock = function (_visibleLinks, dockContainer, focusCategory) {
         const badge = document.createElement('div');
         const isBookmarkPin = pin.targetType === 'bookmark';
         badge.className = `dock-badge${isBookmarkPin ? ' dock-badge--link-jump' : ''}`;
-        badge.textContent = pin.isInheritedPin ? 'Child Link' : getTargetBadgeLabel(pin);
+        badge.textContent = pin.isInheritedPin
+            ? 'Child Link'
+            : (pin.isGroupOverviewPin ? `Group ${getTargetBadgeLabel(pin)}` : getTargetBadgeLabel(pin));
         if (isBookmarkPin) {
             badge.dataset.pinLinkAction = 'reveal';
             badge.setAttribute('role', 'button');

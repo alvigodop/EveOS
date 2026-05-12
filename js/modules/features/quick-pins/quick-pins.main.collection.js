@@ -74,6 +74,32 @@
         return Array.from(new Set(descendants));
     }
 
+    function getContextVisibleWorkspaceIdSet(context = {}) {
+        const provided = context.visibleWorkspaceIds;
+        if (provided instanceof Set) {
+            return new Set(Array.from(provided).map(normalizeWorkspaceId).filter(Boolean));
+        }
+        if (Array.isArray(provided)) {
+            return new Set(provided.map(normalizeWorkspaceId).filter(Boolean));
+        }
+        if (window._eveActiveVisibleWorkspaceIds instanceof Set) {
+            return new Set(Array.from(window._eveActiveVisibleWorkspaceIds).map(normalizeWorkspaceId).filter(Boolean));
+        }
+        return new Set();
+    }
+
+    function getContextGroupOverviewRootMap(context = {}) {
+        if (context.groupOverviewRootMap instanceof Map) return context.groupOverviewRootMap;
+        if (window._eveGroupOverviewRootMap instanceof Map) return window._eveGroupOverviewRootMap;
+        return null;
+    }
+
+    function isGroupOverviewContext(context = {}) {
+        const explicitGroupId = String(context.groupOverviewId || getConfig().groupOverviewId || '').trim();
+        const rootMap = getContextGroupOverviewRootMap(context);
+        return !!explicitGroupId || !!(rootMap && rootMap.size);
+    }
+
     function getInheritedPinMeta(resolved, activeWorkspace) {
         const sourcePath = getWorkspacePath(resolved?.workspaceId);
         const parentPath = getWorkspacePath(activeWorkspace);
@@ -87,12 +113,54 @@
         };
     }
 
+    function getGroupOverviewPinMeta(resolved, context = {}) {
+        const sourceWorkspaceId = normalizeWorkspaceId(resolved?.workspaceId);
+        const rootMap = getContextGroupOverviewRootMap(context);
+        const ownerRootId = normalizeWorkspaceId(rootMap?.get(sourceWorkspaceId) || sourceWorkspaceId);
+        const sourcePath = getWorkspacePath(sourceWorkspaceId);
+        const ownerPath = getWorkspacePath(ownerRootId);
+        const inheritedDepth = Math.max(
+            sourceWorkspaceId === ownerRootId ? 0 : 1,
+            sourcePath.length && ownerPath.length ? sourcePath.length - ownerPath.length : 0
+        );
+        const sourceLabel = sourcePath.length ? sourcePath.join(' > ') : sourceWorkspaceId;
+        const ownerLabel = ownerPath.length ? ownerPath.join(' > ') : ownerRootId;
+        return {
+            isGroupOverviewPin: true,
+            isInheritedPin: inheritedDepth > 0,
+            inheritedDepth: Math.max(1, inheritedDepth || 1),
+            inheritedFromWorkspaceId: sourceWorkspaceId,
+            inheritedPath: sourceLabel,
+            groupOverviewRootId: ownerRootId,
+            groupOverviewRootPath: ownerLabel
+        };
+    }
+
+    function isPinVisibleInGroupOverview(pin, resolved, context = {}) {
+        const activeCategory = toId(context.focusCategory) ? normalizeCategoryName(context.focusCategory) : '';
+        if (activeCategory) return false;
+
+        const visibleWorkspaceIds = getContextVisibleWorkspaceIdSet(context);
+        if (!visibleWorkspaceIds.size || !visibleWorkspaceIds.has(normalizeWorkspaceId(resolved?.workspaceId))) {
+            return false;
+        }
+
+        if (pin.targetType === 'bookmark') return true;
+        if (pin.targetType === 'card' || pin.targetType === 'folder') {
+            return normalizeTargetVisibilityScopeType(pin.scopeType) === 'tab';
+        }
+        return true;
+    }
+
     function isPinVisibleInContext(pin, context = {}) {
         const resolved = getTargetContext(pin);
         if (!resolved) return false;
         const activeWorkspace = normalizeWorkspaceId(context.activeWorkspace || getConfig().activeWorkspace);
         const rawFocusCategory = toId(context.focusCategory);
         const activeCategory = rawFocusCategory ? normalizeCategoryName(rawFocusCategory) : '';
+        if (isGroupOverviewContext(context)) {
+            return isPinVisibleInGroupOverview(pin, resolved, context);
+        }
         if (resolved.workspaceId !== activeWorkspace) {
             if (context.includeDescendantPins === false || activeCategory) return false;
             if (pin.targetType !== 'bookmark') return false;
@@ -114,20 +182,25 @@
 
     function getActiveDockPins(context = {}) {
         const activeWorkspace = normalizeWorkspaceId(context.activeWorkspace || getConfig().activeWorkspace);
+        const groupOverviewMode = isGroupOverviewContext(context);
         return getPins()
             .map((pin) => {
                 const resolved = getTargetContext(pin);
                 if (!resolved || !isPinVisibleInContext(pin, context)) return null;
-                const inheritedMeta = resolved.workspaceId !== activeWorkspace
+                const overviewMeta = groupOverviewMode
+                    ? getGroupOverviewPinMeta(resolved, context)
+                    : null;
+                const inheritedMeta = !overviewMeta && resolved.workspaceId !== activeWorkspace
                     ? getInheritedPinMeta(resolved, activeWorkspace)
                     : null;
                 const baseMeta = runtime.getPinMeta(pin);
+                const scopeMeta = overviewMeta || inheritedMeta;
                 return {
                     ...pin,
-                    ...(inheritedMeta || {}),
+                    ...(scopeMeta || {}),
                     label: runtime.getPinLabel(pin),
-                    meta: inheritedMeta
-                        ? `${baseMeta || ''}${baseMeta ? ' | ' : ''}From ${inheritedMeta.inheritedPath}`
+                    meta: scopeMeta
+                        ? `${baseMeta || ''}${baseMeta ? ' | ' : ''}From ${scopeMeta.inheritedPath}`
                         : baseMeta,
                     icon: runtime.getPinIcon(pin)
                 };

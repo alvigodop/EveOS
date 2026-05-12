@@ -68,6 +68,21 @@ html[data-native-scheme="light"] {
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--dock-inherited-accent) 14%, transparent 86%);
 }
 
+.dock-item--group-overview:not(.dock-item--inherited) {
+    --dock-group-accent: #f0c45c;
+    background: linear-gradient(145deg,
+        color-mix(in srgb, var(--dock-group-accent) 13%, transparent 87%),
+        color-mix(in srgb, var(--card-bg, #1f1f1f) 91%, transparent 9%));
+    border-color: color-mix(in srgb, var(--dock-group-accent) 38%, var(--border, rgba(255,255,255,0.15)) 62%);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--dock-group-accent) 12%, transparent 88%);
+}
+
+.dock-item--group-overview:not(.dock-item--inherited) .dock-badge {
+    color: color-mix(in srgb, var(--dock-group-accent) 78%, var(--text-main, #fff) 22%);
+    border-color: color-mix(in srgb, var(--dock-group-accent) 42%, transparent 58%);
+    background: color-mix(in srgb, var(--dock-group-accent) 15%, var(--dock-badge-bg) 85%);
+}
+
 .dock-item--inherited::before {
     content: "";
     position: absolute;
