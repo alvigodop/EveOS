@@ -353,17 +353,9 @@ window.showWsContext = function (e, id) {
     if (!m) return;
 
     const helpers = window.EveWorkspaceHelpers;
-    const groupsApi = window.EveSidebarGroups || null;
-    const groupCount = groupsApi && typeof groupsApi.getGroups === 'function'
-        ? groupsApi.getGroups(config).length
-        : 0;
     const ws = helpers
         ? helpers.findById(config.workspaces || [], id)
         : (config.workspaces || []).find(function (w) { return w.id === id; });
-    const isRootWorkspace = helpers ? !helpers.findParent(config.workspaces || [], id) : true;
-    const currentGroupId = isRootWorkspace && groupsApi && typeof groupsApi.getWorkspaceGroupId === 'function'
-        ? groupsApi.getWorkspaceGroupId(id, config)
-        : '';
 
     // Update hideSubTabs toggle label dynamically
     const hideToggle = document.getElementById('ctx-ws-hide-subtabs');
@@ -398,19 +390,6 @@ window.showWsContext = function (e, id) {
         inactiveToggle.innerHTML = ws.inactive
             ? '&#9989; Reactivate Tab'
             : '&#128683; Make Inactive';
-    }
-
-    const editGroupAction = document.getElementById('ctx-ws-edit-group');
-    if (editGroupAction) {
-        editGroupAction.style.display = isRootWorkspace && groupCount > 0 ? '' : 'none';
-        editGroupAction.innerHTML = currentGroupId
-            ? '&#128450; Change Group'
-            : '&#128450; Move To Group';
-    }
-
-    const clearGroupAction = document.getElementById('ctx-ws-clear-group');
-    if (clearGroupAction) {
-        clearGroupAction.style.display = isRootWorkspace && currentGroupId ? '' : 'none';
     }
 
     placeContextMenu(m, e);

@@ -27,20 +27,54 @@ function populateWorkspaceGroupSelect(selectedGroupId) {
     select.value = activeGroupId;
 }
 
-function setWorkspaceGroupRowVisible(isVisible, selectedGroupId) {
+function getWorkspaceGroupName(groupId) {
+    const groupsApi = getSidebarGroupsApi();
+    const normalizedGroupId = String(groupId || '').trim();
+    if (!groupsApi || !normalizedGroupId || typeof groupsApi.findGroupById !== 'function') return '';
+    const group = groupsApi.findGroupById(normalizedGroupId, config);
+    return group ? (group.name || normalizedGroupId) : normalizedGroupId;
+}
+
+function setWorkspaceGroupRowVisible(isVisible, selectedGroupId, options) {
     const row = document.getElementById('wsGroupRow');
     const select = document.getElementById('wsGroupId');
+    const status = document.getElementById('wsGroupStatus');
     if (!row || !select) return;
 
+    const opts = options && typeof options === 'object' ? options : {};
+    const mode = opts.mode || 'root';
+    const selected = String(selectedGroupId || '').trim();
+
     const groupsApi = getSidebarGroupsApi();
+    if (groupsApi && typeof groupsApi.ensureConfigDefaults === 'function') {
+        groupsApi.ensureConfigDefaults(config);
+    }
     const hasGroups = groupsApi ? groupsApi.getGroups(config).length > 0 : false;
-    const shouldShow = !!isVisible && (hasGroups || !!String(selectedGroupId || '').trim());
+    const shouldShow = !!isVisible;
+    const canEditGroup = shouldShow && mode === 'root' && hasGroups;
 
     row.style.display = shouldShow ? 'block' : 'none';
     if (shouldShow) {
-        populateWorkspaceGroupSelect(selectedGroupId);
+        populateWorkspaceGroupSelect(selected);
+        select.disabled = !canEditGroup;
+        if (status) {
+            if (mode === 'subtab') {
+                const inheritedName = getWorkspaceGroupName(opts.inheritedGroupId);
+                status.textContent = inheritedName
+                    ? `Sub-tabs follow their parent branch. This branch is under the "${inheritedName}" group.`
+                    : 'Sub-tabs follow their parent branch. Group membership is edited on the root tab.';
+            } else if (!hasGroups) {
+                status.textContent = 'No sidebar groups exist yet. Create a group from the sidebar group controls, then assign this root tab here.';
+            } else if (selected) {
+                status.textContent = `This root tab is assigned to "${getWorkspaceGroupName(selected)}".`;
+            } else {
+                status.textContent = 'This root tab is not assigned to a sidebar group.';
+            }
+        }
     } else {
         select.value = '';
+        select.disabled = true;
+        if (status) status.textContent = '';
     }
 }
 
@@ -52,6 +86,7 @@ window.openWorkspaceModal = function (id, options) {
     const helpers = window.EveWorkspaceHelpers;
     const parentIdInput = document.getElementById('wsParentId');
     const stateButton = document.getElementById('wsOpenStateBtn');
+    const stateRow = document.getElementById('wsStateRow');
 
     if (id) {
         const ws = helpers
@@ -63,20 +98,35 @@ window.openWorkspaceModal = function (id, options) {
             ? helpers.findParent(config.workspaces, id)
             : null;
         const isRootWorkspace = !parent;
+        const groupsApi = getSidebarGroupsApi();
+        const path = !isRootWorkspace && helpers && typeof helpers.getPath === 'function'
+            ? helpers.getPath(config.workspaces || [], id)
+            : [];
+        const rootWorkspace = path.length ? path[0] : parent;
+        const inheritedGroupId = !isRootWorkspace && groupsApi && typeof groupsApi.getWorkspaceGroupId === 'function'
+            ? groupsApi.getWorkspaceGroupId(rootWorkspace || parent.id, config)
+            : '';
 
         document.getElementById('wsName').value = ws.name || '';
         document.getElementById('wsIcon').value = ws.icon || '\u{1F4C1}';
         document.getElementById('wsEditId').value = id;
         if (stateButton) stateButton.style.display = '';
+        if (stateRow) stateRow.style.display = '';
         if (parentIdInput) parentIdInput.value = '';
-        setWorkspaceGroupRowVisible(isRootWorkspace, ws.groupId || '');
+        setWorkspaceGroupRowVisible(true, isRootWorkspace ? (ws.groupId || '') : '', {
+            mode: isRootWorkspace ? 'root' : 'subtab',
+            inheritedGroupId: inheritedGroupId
+        });
     } else {
         document.getElementById('wsName').value = '';
         document.getElementById('wsIcon').value = '\u{1F4C1}';
         document.getElementById('wsEditId').value = '';
         if (stateButton) stateButton.style.display = 'none';
+        if (stateRow) stateRow.style.display = 'none';
         if (parentIdInput) parentIdInput.value = opts.parentId || '';
-        setWorkspaceGroupRowVisible(!opts.parentId, opts.groupId || '');
+        setWorkspaceGroupRowVisible(true, opts.parentId ? '' : (opts.groupId || ''), {
+            mode: opts.parentId ? 'subtab' : 'root'
+        });
     }
 
     modal.style.display = 'flex';

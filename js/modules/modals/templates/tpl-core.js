@@ -239,12 +239,17 @@ window.modalTemplate = `
             <input type="text" id="wsIcon" placeholder="Icon" style="text-align:center; flex:1;">
             <button onclick="openEmojiPicker('wsIcon')">😊</button>
         </div>
-        <div id="wsGroupRow" style="display:none; margin-top:10px;">
+        <div id="wsGroupRow" style="display:none; margin-top:12px; border:1px solid rgba(255,255,255,0.12); border-radius:10px; padding:10px; background:rgba(0,0,0,0.16);">
+            <label id="wsGroupLabel" for="wsGroupId" style="font-size:0.82rem; opacity:0.86; display:block; margin-bottom:6px;">Sidebar Group</label>
             <select id="wsGroupId" style="width:100%;">
                 <option value="">Ungrouped</option>
             </select>
+            <div id="wsGroupStatus" style="font-size:0.76rem; opacity:0.72; line-height:1.35; margin-top:6px;"></div>
         </div>
-        <button type="button" id="wsOpenStateBtn" onclick="openWorkspaceStateGateway()" style="display:none;">View State</button>
+        <div id="wsStateRow" style="display:none; margin-top:12px; border:1px solid rgba(0,212,255,0.24); border-radius:10px; padding:10px; background:rgba(0,212,255,0.07);">
+            <button type="button" id="wsOpenStateBtn" onclick="openWorkspaceStateGateway()" style="width:100%; margin:0;">View State</button>
+            <div style="font-size:0.76rem; opacity:0.72; line-height:1.35; margin-top:6px;">Open the stratified live datapack view for this tab. This keeps JSON editing inside the tab edit flow instead of duplicating it in the right-click menu.</div>
+        </div>
         <button class="btn-primary" onclick="saveWorkspace()">Save</button>
         <button onclick="closeModals()">Cancel</button>
     </div>
