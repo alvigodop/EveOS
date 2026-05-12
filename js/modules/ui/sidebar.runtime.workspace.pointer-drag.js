@@ -79,7 +79,7 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
                 if (!pointerDrag || pointerDrag.pointerId !== event.pointerId) return;
                 var dx = Number(event.clientX) - pointerDrag.startX;
                 var dy = Number(event.clientY) - pointerDrag.startY;
-                if (!pointerDrag.started && Math.sqrt((dx * dx) + (dy * dy)) < 6) return;
+                if (!pointerDrag.started && Math.sqrt((dx * dx) + (dy * dy)) < 4) return;
 
                 beginPointerWorkspaceDrag(event);
                 maybeScrollPointerDrag(event);

@@ -112,7 +112,10 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         const folderApi = window.EveBookmarkFolders;
         if (!folderApi?.buildFolderView || typeof window.EveFolderViewV2.renderRootGrid !== 'function') return '';
         const categoryLinks = getCategoryLinks(workspaceId, categoryName);
-        const skipGhosts = !!window._evePerfMode || categoryLinks.length > 500;
+        // Folder exit is a user-driven state transition. Rebuild the root with
+        // System Views present even in perf mode so ghost folders do not vanish
+        // after navigating back from a sub-tab/parent-tab folder view.
+        const skipGhosts = false;
         const viewModel = folderApi.buildFolderView(workspaceId, categoryName, categoryLinks, { skipGhosts });
         viewModel.scopedLinks = categoryLinks;
         viewModel._skipGhosts = skipGhosts;

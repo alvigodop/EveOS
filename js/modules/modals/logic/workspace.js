@@ -51,6 +51,7 @@ window.openWorkspaceModal = function (id, options) {
     const opts = options && typeof options === 'object' ? options : {};
     const helpers = window.EveWorkspaceHelpers;
     const parentIdInput = document.getElementById('wsParentId');
+    const stateButton = document.getElementById('wsOpenStateBtn');
 
     if (id) {
         const ws = helpers
@@ -66,17 +67,29 @@ window.openWorkspaceModal = function (id, options) {
         document.getElementById('wsName').value = ws.name || '';
         document.getElementById('wsIcon').value = ws.icon || '\u{1F4C1}';
         document.getElementById('wsEditId').value = id;
+        if (stateButton) stateButton.style.display = '';
         if (parentIdInput) parentIdInput.value = '';
         setWorkspaceGroupRowVisible(isRootWorkspace, ws.groupId || '');
     } else {
         document.getElementById('wsName').value = '';
         document.getElementById('wsIcon').value = '\u{1F4C1}';
         document.getElementById('wsEditId').value = '';
+        if (stateButton) stateButton.style.display = 'none';
         if (parentIdInput) parentIdInput.value = opts.parentId || '';
         setWorkspaceGroupRowVisible(!opts.parentId, opts.groupId || '');
     }
 
     modal.style.display = 'flex';
+};
+
+window.openWorkspaceStateGateway = function () {
+    const workspaceId = String(document.getElementById('wsEditId')?.value || window.ctxWsId || config?.activeWorkspace || 'main').trim() || 'main';
+    const datapackView = window.EveOS?.SearchAdvanced?.DatapackView;
+    if (!datapackView?.openGateway) {
+        if (typeof showToast === 'function') showToast('Datapack View State is not loaded yet.', 'warning');
+        return;
+    }
+    datapackView.openGateway({ scope: { workspaceId } });
 };
 
 window.saveWorkspace = function () {

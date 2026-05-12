@@ -8,6 +8,109 @@ function getCategoryLiveLinks() {
     return [];
 }
 
+function setCategoryLiveLinks(nextLinks) {
+    if (typeof window.setLiveLinks === 'function') return window.setLiveLinks(nextLinks);
+    if (window.eveState) window.eveState.links = nextLinks;
+    window.links = nextLinks;
+    if (typeof links !== 'undefined') links = nextLinks;
+    return nextLinks;
+}
+
+function normalizeCategoryWorkspaceId(workspaceId) {
+    return String(workspaceId || 'main').trim() || 'main';
+}
+
+function normalizeCategoryNameValue(categoryName) {
+    return String(categoryName || 'Unsorted').trim() || 'Unsorted';
+}
+
+function buildCategoryScopeKey(workspaceId, categoryName) {
+    if (window.EveBookmarkFolders?.buildScopedKey) {
+        return window.EveBookmarkFolders.buildScopedKey(workspaceId, categoryName);
+    }
+    return normalizeCategoryWorkspaceId(workspaceId) + '::' + normalizeCategoryNameValue(categoryName);
+}
+
+function moveScopedObjectConfig(cfg, storeName, sourceKey, targetKey, options) {
+    if (!cfg || !cfg[storeName] || typeof cfg[storeName] !== 'object' || Array.isArray(cfg[storeName])) return false;
+    var store = cfg[storeName];
+    if (!Object.prototype.hasOwnProperty.call(store, sourceKey)) return false;
+    var sourceValue = store[sourceKey];
+    if (!Object.prototype.hasOwnProperty.call(store, targetKey)) {
+        store[targetKey] = sourceValue;
+    } else if (Array.isArray(store[targetKey]) && Array.isArray(sourceValue)) {
+        store[targetKey] = Array.from(new Set(store[targetKey].concat(sourceValue)));
+    } else if (store[targetKey] && typeof store[targetKey] === 'object' && sourceValue && typeof sourceValue === 'object' && !Array.isArray(sourceValue)) {
+        store[targetKey] = Object.assign({}, sourceValue, store[targetKey]);
+    } else if (!options || !options.preserveTargetPrimitive) {
+        store[targetKey] = store[targetKey] || sourceValue;
+    }
+    delete store[sourceKey];
+    return true;
+}
+
+function moveScopedArrayConfig(cfg, storeName, sourceKey, targetKey) {
+    if (!cfg || !Array.isArray(cfg[storeName])) return false;
+    var hadSource = cfg[storeName].includes(sourceKey);
+    if (!hadSource) return false;
+    cfg[storeName] = cfg[storeName].filter(function (entry) {
+        return entry !== sourceKey;
+    });
+    if (!cfg[storeName].includes(targetKey)) cfg[storeName].push(targetKey);
+    return true;
+}
+
+function moveScopedPrefixObjectConfig(cfg, storeName, sourcePrefix, targetPrefix) {
+    if (!cfg || !cfg[storeName] || typeof cfg[storeName] !== 'object' || Array.isArray(cfg[storeName])) return false;
+    var store = cfg[storeName];
+    var changed = false;
+    Object.keys(store).forEach(function (key) {
+        if (key !== sourcePrefix && key.indexOf(sourcePrefix + '::') !== 0) return;
+        var nextKey = targetPrefix + key.slice(sourcePrefix.length);
+        if (!Object.prototype.hasOwnProperty.call(store, nextKey)) {
+            store[nextKey] = store[key];
+        }
+        delete store[key];
+        changed = true;
+    });
+    return changed;
+}
+
+function transferCategoryScopedConfig(sourceWorkspaceId, sourceCategoryName, targetWorkspaceId, targetCategoryName) {
+    var cfg = window.eveState?.config
+        || window.config
+        || (typeof config !== 'undefined' && config ? config : {});
+    var sourceKey = buildCategoryScopeKey(sourceWorkspaceId, sourceCategoryName);
+    var targetKey = buildCategoryScopeKey(targetWorkspaceId, targetCategoryName);
+    if (sourceKey === targetKey) return false;
+    var changed = false;
+
+    ['cardDescriptions', 'cardHeaderButtonsVisible', 'cardBookmarkProgressiveReveal', 'customOrder', 'customOrderSort', 'trueValueSettings'].forEach(function (storeName) {
+        changed = moveScopedObjectConfig(cfg, storeName, sourceKey, targetKey, { preserveTargetPrimitive: true }) || changed;
+    });
+
+    ['customOrderEnabled', 'trueValueEnabled', 'smartCardWeights'].forEach(function (storeName) {
+        changed = moveScopedArrayConfig(cfg, storeName, sourceKey, targetKey) || changed;
+    });
+
+    changed = moveScopedPrefixObjectConfig(cfg, 'folderBookmarkProgressiveReveal', sourceKey, targetKey) || changed;
+    return changed;
+}
+
+function categoryHasContentInWorkspace(workspaceId, categoryName) {
+    var wsId = normalizeCategoryWorkspaceId(workspaceId);
+    var catName = normalizeCategoryNameValue(categoryName);
+    if (getCategoryLiveLinks().some(function (link) {
+        return normalizeCategoryWorkspaceId(link?.workspace) === wsId
+            && normalizeCategoryNameValue(link?.category) === catName;
+    })) return true;
+
+    var folderStore = window.eveState?.bookmarkFolders || window.bookmarkFolders || {};
+    if (Object.prototype.hasOwnProperty.call(folderStore, buildCategoryScopeKey(wsId, catName))) return true;
+
+    return !!(window.EveCategoryOrder?.hasCategory && window.EveCategoryOrder.hasCategory(wsId, catName));
+}
+
 function getCategoryStructureSummary() {
     const indexApi = window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
     if (!indexApi || typeof indexApi.getStructureSummary !== 'function') return null;
@@ -17,6 +120,107 @@ function getCategoryStructureSummary() {
     if (typeof indexApi.hasReadableStructureSnapshot !== 'function' && typeof indexApi.hasUsableSnapshot !== 'function' && Number(buildState?.builtAt || 0) <= 0) return null;
     return indexApi.getStructureSummary();
 }
+
+function moveCategoryCardToWorkspace(sourceWorkspaceId, categoryName, targetWorkspaceId, options) {
+    options = options || {};
+    var sourceWs = normalizeCategoryWorkspaceId(sourceWorkspaceId);
+    var sourceCat = normalizeCategoryNameValue(categoryName);
+    var targetWs = normalizeCategoryWorkspaceId(targetWorkspaceId);
+    var targetCat = normalizeCategoryNameValue(options.targetCategoryName || sourceCat);
+    if (!sourceCat || sourceWs === targetWs) return false;
+
+    var targetName = options.targetWorkspaceName || '';
+    var targetExists = categoryHasContentInWorkspace(targetWs, targetCat);
+    if (options.requireConfirm !== false && typeof window.confirm === 'function') {
+        var message = 'Move card "' + sourceCat + '" to ' + (targetName || ('tab ' + targetWs)) + '?';
+        if (targetExists) {
+            message += '\n\nA card with this name already exists there. Bookmarks will merge with matching title/URL entries, and folder/card settings will preserve the destination when both exist.';
+        }
+        if (!window.confirm(message)) return false;
+    }
+
+    var liveLinks = getCategoryLiveLinks();
+    var sourceLinks = liveLinks.filter(function (link) {
+        return normalizeCategoryWorkspaceId(link?.workspace) === sourceWs
+            && normalizeCategoryNameValue(link?.category) === sourceCat;
+    });
+
+    if (window.EveBookmarkFolders?.transferCategoryFolders) {
+        window.EveBookmarkFolders.transferCategoryFolders(sourceWs, sourceCat, targetWs, targetCat, { persist: false });
+    }
+
+    var mergeApi = window.EveBookmarkMerge;
+    var movedIds = [];
+    var mergedIds = [];
+    var removedIds = [];
+    sourceLinks.forEach(function (link) {
+        if (!link) return;
+        var folderId = String(link.folderId || '').trim();
+        if (mergeApi && typeof mergeApi.moveOrMergeLinkToScope === 'function') {
+            var result = mergeApi.moveOrMergeLinkToScope(link, {
+                workspaceId: targetWs,
+                categoryName: targetCat,
+                folderId: folderId
+            }, {
+                source: options.source || 'category-card-move',
+                links: liveLinks
+            });
+            if (result?.targetId) movedIds.push(String(result.targetId));
+            if (result?.merged && result.targetId) mergedIds.push(String(result.targetId));
+            if (Array.isArray(result?.removedIds)) removedIds.push.apply(removedIds, result.removedIds.map(String));
+            return;
+        }
+        link.workspace = targetWs;
+        link.category = targetCat;
+        movedIds.push(String(link.id));
+        if (typeof window.EveLibrary?.ConnectionsAPI?.syncFromLink === 'function') {
+            window.EveLibrary.ConnectionsAPI.syncFromLink(link.id);
+        }
+    });
+
+    setCategoryLiveLinks(liveLinks);
+    transferCategoryScopedConfig(sourceWs, sourceCat, targetWs, targetCat);
+
+    if (window.EveCategoryOrder?.removeCategory) window.EveCategoryOrder.removeCategory(sourceWs, sourceCat);
+    if (window.EveCategoryOrder?.ensureCategory) window.EveCategoryOrder.ensureCategory(targetWs, targetCat);
+    if (options.targetPositionCategoryName && window.EveCategoryOrder?.moveCategoryToPosition && window.EveCategoryOrder?.getOrder) {
+        var order = window.EveCategoryOrder.getOrder(targetWs, { persist: true });
+        var targetIndex = Array.isArray(order) ? order.indexOf(String(options.targetPositionCategoryName)) : -1;
+        if (targetIndex >= 0) window.EveCategoryOrder.moveCategoryToPosition(targetWs, targetCat, targetIndex + 1);
+    }
+
+    if (typeof saveConfig === 'function') {
+        saveConfig({
+            source: options.source || 'category-card-move',
+            meta: {
+                workspaceId: sourceWs,
+                categoryName: sourceCat,
+                targetWorkspaceId: targetWs,
+                targetCategoryName: targetCat
+            }
+        });
+    }
+    if (typeof saveData === 'function') {
+        saveData({
+            forceRender: true,
+            source: options.source || 'category-card-move',
+            meta: {
+                workspaceId: sourceWs,
+                categoryName: sourceCat,
+                targetWorkspaceId: targetWs,
+                targetCategoryName: targetCat,
+                linkIds: movedIds,
+                mergedLinkIds: mergedIds,
+                removedLinkIds: removedIds
+            }
+        });
+    } else if (typeof renderDashboard === 'function') {
+        renderDashboard();
+    }
+    return true;
+}
+
+window.moveCategoryCardToWorkspace = moveCategoryCardToWorkspace;
 
 function moveCategory(cat, direction, workspaceId) {
     workspaceId = String(workspaceId || config.activeWorkspace || 'main').trim() || 'main';

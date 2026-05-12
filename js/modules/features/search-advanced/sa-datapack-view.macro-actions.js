@@ -127,6 +127,17 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 renameFolderScopeFallback(workspaceId, oldCategoryName, nextCategoryName);
                 window.EveCategoryOrder?.renameCategory?.(workspaceId, oldCategoryName, nextCategoryName);
                 window.EveBookmarkFolders?.renameCardTaskScope?.(workspaceId, oldCategoryName, nextCategoryName);
+                const cfg = getConfig();
+                if (cfg.cardDescriptions && typeof cfg.cardDescriptions === 'object') {
+                    const oldDescriptionKey = buildFolderScopeKey(workspaceId, oldCategoryName);
+                    const nextDescriptionKey = buildFolderScopeKey(workspaceId, nextCategoryName);
+                    if (Object.prototype.hasOwnProperty.call(cfg.cardDescriptions, oldDescriptionKey)) {
+                        if (!Object.prototype.hasOwnProperty.call(cfg.cardDescriptions, nextDescriptionKey)) {
+                            cfg.cardDescriptions[nextDescriptionKey] = cfg.cardDescriptions[oldDescriptionKey];
+                        }
+                        delete cfg.cardDescriptions[oldDescriptionKey];
+                    }
+                }
                 renamed += 1;
             }
         });

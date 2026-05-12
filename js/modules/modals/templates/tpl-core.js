@@ -40,6 +40,14 @@ window.modalTemplate = `
             <div id="link-sources-container" style="display:flex; flex-direction:column; gap:5px; max-height: 150px; overflow-y: auto;"></div>
         </div>
 
+        <details class="settings-disclosure" style="margin-bottom:10px;">
+            <summary class="settings-disclosure-summary">&#128279; Related URLs</summary>
+            <div class="settings-disclosure-body" style="display:flex; flex-direction:column; gap:6px;">
+                <div style="font-size:0.8rem; opacity:0.72;">One related URL per line. These help duplicate detection and show related site icons, but they do not replace the main URL.</div>
+                <textarea id="newRelatedUrls" rows="3" placeholder="https://related.example/item&#10;https://mirror.example/item" style="width:100%; resize:vertical;"></textarea>
+            </div>
+        </details>
+
         <div style="display:flex; flex-direction:column; gap:5px;">
             <label for="newCategory" style="font-size:0.82rem; opacity:0.84;">Card (Category)</label>
             <div style="position:relative;">
@@ -236,6 +244,7 @@ window.modalTemplate = `
                 <option value="">Ungrouped</option>
             </select>
         </div>
+        <button type="button" id="wsOpenStateBtn" onclick="openWorkspaceStateGateway()" style="display:none;">View State</button>
         <button class="btn-primary" onclick="saveWorkspace()">Save</button>
         <button onclick="closeModals()">Cancel</button>
     </div>

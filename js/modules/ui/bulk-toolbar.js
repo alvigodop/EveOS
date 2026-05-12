@@ -317,7 +317,8 @@ window.EveBulkToolbar = window.EveBulkToolbar || {};
                 result = mergeApi.mergeDuplicateGroup(linkIds, {
                     source: 'bulk-bookmark-merge',
                     reason: 'Manual bulk merge with explicit base from Select toolbar.',
-                    baseLink: explicitBase
+                    baseLink: explicitBase,
+                    baseLinkId: explicitBase?.id
                 });
                 if (result?.removedIds?.length && sensorApi?._runtime?.mergeDuplicateGroup) {
                     // Trigger the sensor's writeStore + re-render path without re-merging.

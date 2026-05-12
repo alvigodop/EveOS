@@ -94,6 +94,17 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
         if (typeof closeAllMenus === 'function') closeAllMenus();
     };
 
+    window.ctxWsOpenState = function () {
+        const workspaceId = String(ctxWsId || config?.activeWorkspace || 'main').trim() || 'main';
+        const datapackView = window.EveOS?.SearchAdvanced?.DatapackView;
+        if (!datapackView?.openGateway) {
+            if (typeof showToast === 'function') showToast('Datapack View State is not loaded yet.', 'warning');
+            return;
+        }
+        datapackView.openGateway({ scope: { workspaceId } });
+        if (typeof closeAllMenus === 'function') closeAllMenus();
+    };
+
     window.ctxWsEditGroup = function () {
         if (!ctxWsId) return showToast('No workspace selected', 'error');
         if (typeof openWorkspaceModal === 'function') {

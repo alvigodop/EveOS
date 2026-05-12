@@ -53,12 +53,15 @@ var DEFAULT_CARD_HEADER_BUTTONS = ['add', 'folders', 'library', 'focus', 'launch
         overlay.style.left = Math.round(left) + 'px';
     }
 
-    function showCardTitleHover(event, titleText) {
+    function showCardTitleHover(event, titleText, descriptionText) {
         var target = event && event.currentTarget;
         if (!target || !titleText) return;
 
         var overlay = ensureCardTitleHoverOverlay();
-        overlay.textContent = String(titleText);
+        var description = String(descriptionText || target.dataset.description || '').trim();
+        overlay.innerHTML = ''
+            + '<div class="category-title-hover-title">' + escapeCardHtml(titleText) + '</div>'
+            + (description ? '<div class="category-title-hover-description">' + escapeCardHtml(description) + '</div>' : '');
         overlay.classList.add('is-visible');
         positionCardTitleHoverOverlay(target, overlay);
     }
@@ -145,8 +148,48 @@ var DEFAULT_CARD_HEADER_BUTTONS = ['add', 'folders', 'library', 'focus', 'launch
         return window.eveState.config.folderBookmarkProgressiveReveal;
     }
 
+    function getCardDescriptionStore() {
+        if (!window.eveState?.config) return {};
+        if (!window.eveState.config.cardDescriptions || typeof window.eveState.config.cardDescriptions !== 'object' || Array.isArray(window.eveState.config.cardDescriptions)) {
+            window.eveState.config.cardDescriptions = {};
+        }
+        return window.eveState.config.cardDescriptions;
+    }
+
     function buildScopedFolderKey(workspaceId, categoryName, folderId) {
         return buildScopedCategoryKey(workspaceId, categoryName) + '::' + String(folderId || '').trim();
+    }
+
+    function getCardDescription(workspaceId, categoryName) {
+        var scopedKey = buildScopedCategoryKey(workspaceId, categoryName);
+        return String(getCardDescriptionStore()[scopedKey] || '').trim();
+    }
+
+    function setCardDescription(workspaceId, categoryName, description) {
+        var resolvedWorkspaceId = String(workspaceId || 'main').trim() || 'main';
+        var resolvedCategoryName = String(categoryName || 'Unsorted').trim() || 'Unsorted';
+        var scopedKey = buildScopedCategoryKey(resolvedWorkspaceId, resolvedCategoryName);
+        var store = getCardDescriptionStore();
+        var nextValue = String(description || '').trim();
+        if (nextValue) store[scopedKey] = nextValue;
+        else delete store[scopedKey];
+
+        if (typeof saveConfig === 'function') {
+            saveConfig({
+                source: 'card-description',
+                meta: { kind: 'card-description', workspaceId: resolvedWorkspaceId, categoryName: resolvedCategoryName }
+            });
+        }
+        if (typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
+            window.dispatchEvent(new CustomEvent('eve:state-mutated', {
+                detail: {
+                    source: 'card-description',
+                    meta: { kind: 'card-description', workspaceId: resolvedWorkspaceId, categoryName: resolvedCategoryName }
+                }
+            }));
+        }
+        if (typeof renderDashboard === 'function') renderDashboard();
+        return getCardDescription(resolvedWorkspaceId, resolvedCategoryName);
     }
 
     function normalizeFolderBookmarkProgressiveRevealMode(mode) {
@@ -285,6 +328,9 @@ var DEFAULT_CARD_HEADER_BUTTONS = ['add', 'folders', 'library', 'focus', 'launch
         getCardHeaderButtonStore,
         getCardBookmarkRevealStore,
         getFolderBookmarkRevealStore,
+        getCardDescriptionStore,
+        getCardDescription,
+        setCardDescription,
         normalizeHeaderButtons,
         getCardHeaderButtonsForCategory,
         setCardHeaderButtonsForCategory,

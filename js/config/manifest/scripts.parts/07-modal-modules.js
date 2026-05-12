@@ -4,13 +4,13 @@ window.EveModuleManifestScriptChunks = window.EveModuleManifestScriptChunks || [
 
 window.EveModuleManifestScriptChunks.push([
     // Modal Modules
-    "js/modules/modals/templates/tpl-core.js?v=0.3.0",
+    "js/modules/modals/templates/tpl-core.js?v=0.3.1",
     "js/modules/modals/templates/tpl-settings.backup.js?v=0.2.7",
     "js/modules/modals/templates/tpl-settings.js?v=0.2.7",
     "js/modules/modals/templates/tpl-bulk.js?v=0.1.5",
     "js/modules/modals/templates/tpl-emoji.js",
     "js/modules/modals/templates/tpl-folder-actions.js",
-    "js/modules/modals/templates/tpl-category-settings.js?v=0.2.17",
+    "js/modules/modals/templates/tpl-category-settings.js?v=0.2.18",
     "js/modules/modals/templates/tpl-bookmark-focus.js?v=0.2.3",
     "js/modules/modals/modal-core.js",
     "js/modules/modals/emoji-picker.js",
@@ -34,13 +34,13 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/modals/modal-bulk.process.helpers.js?v=0.1.0",
     "js/modules/modals/modal-bulk.process.js?v=0.1.2",
     "js/modules/modals/modal-bulk.js?v=0.3.2",
-    "js/modules/modals/modal-category-settings.core.js?v=0.2.2",
+    "js/modules/modals/modal-category-settings.core.js?v=0.2.3",
     "js/modules/modals/modal-category-settings.folders.render-state.js?v=0.2.2",
     "js/modules/modals/modal-category-settings.folders.rows.js?v=0.2.2",
     "js/modules/modals/modal-category-settings.folders.panel.js?v=0.2.1",
     "js/modules/modals/modal-category-settings.folders.form.js?v=0.2.2",
     "js/modules/modals/modal-category-settings.folders.js?v=0.3.0",
-    "js/modules/modals/modal-category-settings.actions.js?v=0.2.3",
-    "js/modules/modals/modal-category-settings.helpers.js?v=0.3.0",
-    "js/modules/modals/modal-category-settings.js?v=0.3.2"
+    "js/modules/modals/modal-category-settings.actions.js?v=0.2.4",
+    "js/modules/modals/modal-category-settings.helpers.js?v=0.3.1",
+    "js/modules/modals/modal-category-settings.js?v=0.3.3"
 ]);

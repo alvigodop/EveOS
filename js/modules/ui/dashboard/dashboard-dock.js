@@ -1,6 +1,7 @@
 // --- DASHBOARD DOCK MODULE ---
 window.renderDock = function (_visibleLinks, dockContainer, focusCategory) {
     if (!dockContainer) return;
+    dockContainer.replaceChildren();
 
     const pinApi = window.EveQuickPins;
     if (!pinApi?.getActiveDockPins) {
@@ -10,7 +11,8 @@ window.renderDock = function (_visibleLinks, dockContainer, focusCategory) {
 
     const activePins = pinApi.getActiveDockPins({
         activeWorkspace: window.eveState?.config?.activeWorkspace,
-        focusCategory: focusCategory || ''
+        focusCategory: focusCategory || '',
+        includeDescendantPins: !focusCategory
     });
     const activePinIds = activePins.map((pin) => String(pin.id || '')).filter(Boolean);
 
@@ -124,8 +126,15 @@ window.renderDock = function (_visibleLinks, dockContainer, focusCategory) {
     activePins.forEach((pin, index) => {
         const item = document.createElement('div');
         item.className = `dock-item dock-item--${pin.targetType || 'bookmark'}`;
+        if (pin.isInheritedPin) {
+            item.classList.add('dock-item--inherited');
+            item.classList.add('dock-item--depth-' + Math.min(Number(pin.inheritedDepth || 1), 4));
+            item.dataset.inheritedFrom = String(pin.inheritedFromWorkspaceId || '');
+        }
         item.dataset.pinId = String(pin.id || '');
-        item.title = String(pin.meta || pin.label || pin.targetId || 'Pinned');
+        item.title = String(pin.isInheritedPin
+            ? `Inherited pin from ${pin.inheritedPath || pin.inheritedFromWorkspaceId || 'child tab'}\n${pin.meta || pin.label || pin.targetId || 'Pinned'}`
+            : (pin.meta || pin.label || pin.targetId || 'Pinned'));
         if (pin.targetType === 'bookmark') {
             item.addEventListener('mouseenter', function (event) {
                 if (typeof window.showBookmarkCoverHover !== 'function') return;
@@ -158,7 +167,7 @@ window.renderDock = function (_visibleLinks, dockContainer, focusCategory) {
         const badge = document.createElement('div');
         const isBookmarkPin = pin.targetType === 'bookmark';
         badge.className = `dock-badge${isBookmarkPin ? ' dock-badge--link-jump' : ''}`;
-        badge.textContent = getTargetBadgeLabel(pin);
+        badge.textContent = pin.isInheritedPin ? 'Child Link' : getTargetBadgeLabel(pin);
         if (isBookmarkPin) {
             badge.dataset.pinLinkAction = 'reveal';
             badge.setAttribute('role', 'button');

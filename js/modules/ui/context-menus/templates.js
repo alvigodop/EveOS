@@ -12,6 +12,7 @@ window.ContextMenus.template = `
 </div>
 <div id="sidebar-context-menu" class="context-menu">
     <div class="ctx-item" onclick="openWorkspaceModal(ctxWsId)">&#9998; Edit</div>
+    <div class="ctx-item" onclick="ctxWsOpenState()">View State</div>
     <div class="ctx-item" id="ctx-ws-edit-group" onclick="ctxWsEditGroup()">&#128450; Move To Group</div>
     <div class="ctx-item" id="ctx-ws-clear-group" onclick="ctxWsClearGroup()">&#128228; Remove From Group</div>
     <div class="ctx-item" onclick="ctxWsAddSubTab()">&#10133; Add Sub-Tab</div>

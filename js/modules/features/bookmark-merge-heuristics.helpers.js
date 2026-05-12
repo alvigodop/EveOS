@@ -23,6 +23,7 @@ const ARRAY_FIELDS = new Set([
         'aliases',
         'sourceUrls',
         'altUrls',
+        'relatedUrls',
         'providers'
     ]);
 const ENTRY_SKIP_FIELDS = new Set(['id', 'dateAdded', 'lastEdited']);
@@ -98,12 +99,77 @@ function normalizeUrl(value) {
     return raw.replace(/\/+$/, '').toLowerCase();
 }
 
+function normalizeRelatedUrlEntry(entry) {
+    if (!entry) return null;
+    const source = typeof entry === 'string' ? { url: entry } : entry;
+    const url = String(source?.url || source?.href || source?.sourceUrl || '').trim();
+    if (!url) return null;
+    const normalized = normalizeUrl(url);
+    if (!normalized) return null;
+    return {
+        id: String(source?.id || ('related-' + Math.abs(normalized.split('').reduce((hash, ch) => ((hash << 5) - hash) + ch.charCodeAt(0), 0)))).trim(),
+        url,
+        title: String(source?.title || source?.label || '').trim(),
+        label: String(source?.label || '').trim(),
+        icon: String(source?.icon || '').trim(),
+        notes: String(source?.notes || source?.note || '').trim(),
+        addedAt: String(source?.addedAt || new Date().toISOString()).trim(),
+        source: String(source?.source || 'bookmark-related-url').trim()
+    };
+}
+
+function getRelatedUrlEntries(link) {
+    const entries = [];
+    const pushValue = (value, source) => {
+        const normalized = normalizeRelatedUrlEntry(typeof value === 'string' ? { url: value, source } : { ...value, source: value?.source || source });
+        if (normalized) entries.push(normalized);
+    };
+    (Array.isArray(link?.relatedUrls) ? link.relatedUrls : []).forEach((entry) => pushValue(entry, 'relatedUrls'));
+    (Array.isArray(link?.altUrls) ? link.altUrls : []).forEach((entry) => pushValue(entry, 'altUrls'));
+    (Array.isArray(link?.sourceUrls) ? link.sourceUrls : []).forEach((entry) => pushValue(entry, 'sourceUrls'));
+    return entries;
+}
+
+function getIdentityUrlSet(link) {
+    const urls = new Set();
+    const canonical = normalizeUrl(link?.url);
+    if (canonical) urls.add(canonical);
+    getRelatedUrlEntries(link).forEach((entry) => {
+        const normalized = normalizeUrl(entry.url);
+        if (normalized) urls.add(normalized);
+    });
+    return urls;
+}
+
+function ensureRelatedUrl(targetLink, url, details = {}) {
+    const normalized = normalizeUrl(url);
+    if (!targetLink || !normalized) return false;
+    const canonical = normalizeUrl(targetLink.url);
+    if (canonical && canonical === normalized) return false;
+    const existing = getIdentityUrlSet(targetLink);
+    if (existing.has(normalized)) return false;
+    const entry = normalizeRelatedUrlEntry({
+        url,
+        title: details.title,
+        label: details.label,
+        icon: details.icon,
+        notes: details.notes,
+        source: details.source || 'bookmark-merge'
+    });
+    if (!entry) return false;
+    if (!Array.isArray(targetLink.relatedUrls)) targetLink.relatedUrls = [];
+    targetLink.relatedUrls.push(entry);
+    return true;
+}
+
 function valuesMatch(sourceLink, targetLink) {
     if (!sourceLink || !targetLink) return false;
     if (String(sourceLink.id) === String(targetLink.id)) return false;
-    const sourceUrl = normalizeUrl(sourceLink.url);
-    const targetUrl = normalizeUrl(targetLink.url);
-    if (sourceUrl && targetUrl && sourceUrl === targetUrl) return true;
+    const sourceUrls = getIdentityUrlSet(sourceLink);
+    const targetUrls = getIdentityUrlSet(targetLink);
+    for (const sourceUrl of sourceUrls) {
+        if (targetUrls.has(sourceUrl)) return true;
+    }
     const sourceTitle = normalizeTitle(sourceLink.title);
     const targetTitle = normalizeTitle(targetLink.title);
     return !!(sourceTitle && targetTitle && sourceTitle === targetTitle);
@@ -215,6 +281,12 @@ function mergeBookmarkFields(sourceLink, targetLink) {
     });
 
     if (sourceLink.done && !targetLink.done) targetLink.done = true;
+    ensureRelatedUrl(targetLink, sourceLink.url, {
+        title: sourceLink.title,
+        label: 'Merged canonical URL',
+        notes: 'Incoming bookmark canonical URL preserved as related evidence.',
+        source: 'bookmark-merge'
+    });
     return conflictLines;
 }
 

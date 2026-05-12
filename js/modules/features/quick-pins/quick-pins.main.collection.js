@@ -21,13 +21,83 @@
         normalizeTargetVisibilityScopeType
     } = core;
 
+    function getWorkspaceHelpers() {
+        return window.EveWorkspaceHelpers || null;
+    }
+
+    function getWorkspaces() {
+        const cfg = getConfig();
+        return Array.isArray(cfg?.workspaces) ? cfg.workspaces : [];
+    }
+
+    function getWorkspaceById(workspaceId) {
+        const normalizedId = normalizeWorkspaceId(workspaceId);
+        const helpers = getWorkspaceHelpers();
+        if (helpers && typeof helpers.findById === 'function') {
+            return helpers.findById(getWorkspaces(), normalizedId) || null;
+        }
+        return null;
+    }
+
+    function getWorkspacePath(workspaceId) {
+        const normalizedId = normalizeWorkspaceId(workspaceId);
+        const helpers = getWorkspaceHelpers();
+        if (helpers && typeof helpers.getPath === 'function') {
+            const path = helpers.getPath(getWorkspaces(), normalizedId) || [];
+            if (Array.isArray(path) && path.length) {
+                return path.map((workspace) => String(workspace?.name || workspace?.id || '').trim()).filter(Boolean);
+            }
+        }
+        const workspace = getWorkspaceById(normalizedId);
+        return [String(workspace?.name || normalizedId || '').trim()].filter(Boolean);
+    }
+
+    function getVisibleDescendantWorkspaceIds(workspaceId) {
+        const normalizedId = normalizeWorkspaceId(workspaceId);
+        const helpers = getWorkspaceHelpers();
+        const workspace = getWorkspaceById(normalizedId);
+        const visibleSet = window._eveActiveVisibleWorkspaceIds instanceof Set
+            ? window._eveActiveVisibleWorkspaceIds
+            : null;
+        let descendants = [];
+
+        if (workspace && helpers && typeof helpers.getVisibleDescendantIds === 'function') {
+            descendants = helpers.getVisibleDescendantIds(workspace) || [];
+        } else if (workspace && helpers && typeof helpers.getDescendantIds === 'function') {
+            descendants = helpers.getDescendantIds(workspace) || [];
+        }
+
+        descendants = descendants.map(normalizeWorkspaceId).filter((id) => id && id !== normalizedId);
+        if (visibleSet && visibleSet.size) {
+            descendants = descendants.filter((id) => visibleSet.has(id));
+        }
+        return Array.from(new Set(descendants));
+    }
+
+    function getInheritedPinMeta(resolved, activeWorkspace) {
+        const sourcePath = getWorkspacePath(resolved?.workspaceId);
+        const parentPath = getWorkspacePath(activeWorkspace);
+        const inheritedDepth = Math.max(1, Math.max(sourcePath.length - parentPath.length, 1));
+        const sourceLabel = sourcePath.length ? sourcePath.join(' > ') : normalizeWorkspaceId(resolved?.workspaceId);
+        return {
+            isInheritedPin: true,
+            inheritedDepth,
+            inheritedFromWorkspaceId: normalizeWorkspaceId(resolved?.workspaceId),
+            inheritedPath: sourceLabel
+        };
+    }
+
     function isPinVisibleInContext(pin, context = {}) {
         const resolved = getTargetContext(pin);
         if (!resolved) return false;
         const activeWorkspace = normalizeWorkspaceId(context.activeWorkspace || getConfig().activeWorkspace);
         const rawFocusCategory = toId(context.focusCategory);
         const activeCategory = rawFocusCategory ? normalizeCategoryName(rawFocusCategory) : '';
-        if (resolved.workspaceId !== activeWorkspace) return false;
+        if (resolved.workspaceId !== activeWorkspace) {
+            if (context.includeDescendantPins === false || activeCategory) return false;
+            if (pin.targetType !== 'bookmark') return false;
+            return getVisibleDescendantWorkspaceIds(activeWorkspace).includes(resolved.workspaceId);
+        }
         if (pin.targetType === 'bookmark') {
             if (pin.scopeType === 'tab') return true;
             if (pin.scopeType === 'card') return !activeCategory || activeCategory === resolved.categoryName;
@@ -43,14 +113,26 @@
     }
 
     function getActiveDockPins(context = {}) {
+        const activeWorkspace = normalizeWorkspaceId(context.activeWorkspace || getConfig().activeWorkspace);
         return getPins()
-            .filter((pin) => isPinVisibleInContext(pin, context))
-            .map((pin) => ({
-                ...pin,
-                label: runtime.getPinLabel(pin),
-                meta: runtime.getPinMeta(pin),
-                icon: runtime.getPinIcon(pin)
-            }))
+            .map((pin) => {
+                const resolved = getTargetContext(pin);
+                if (!resolved || !isPinVisibleInContext(pin, context)) return null;
+                const inheritedMeta = resolved.workspaceId !== activeWorkspace
+                    ? getInheritedPinMeta(resolved, activeWorkspace)
+                    : null;
+                const baseMeta = runtime.getPinMeta(pin);
+                return {
+                    ...pin,
+                    ...(inheritedMeta || {}),
+                    label: runtime.getPinLabel(pin),
+                    meta: inheritedMeta
+                        ? `${baseMeta || ''}${baseMeta ? ' | ' : ''}From ${inheritedMeta.inheritedPath}`
+                        : baseMeta,
+                    icon: runtime.getPinIcon(pin)
+                };
+            })
+            .filter(Boolean)
             .filter((pin) => pin.label);
     }
 

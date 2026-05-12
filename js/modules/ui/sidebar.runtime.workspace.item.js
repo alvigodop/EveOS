@@ -10,6 +10,31 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         var renderParentEntries = deps && deps.renderParentEntries;
         var handleSidebarWorkspaceDrop = deps && deps.handleSidebarWorkspaceDrop;
 
+        function isCategoryCardSidebarDrag(event) {
+            if (!event || !event.dataTransfer) return false;
+            if (typeof window.isCategoryCardDragPayload === 'function' && window.isCategoryCardDragPayload(event)) return true;
+            return Array.from(event.dataTransfer.types || []).includes('application/x-eve-category-card');
+        }
+
+        function getCategoryCardSidebarPayload(event) {
+            if (!event || !event.dataTransfer) return null;
+            if (typeof window.getCategoryCardDragPayload === 'function') {
+                var parsed = window.getCategoryCardDragPayload(event);
+                if (parsed) return parsed;
+            }
+            var raw = event.dataTransfer.getData('application/x-eve-category-card')
+                || event.dataTransfer.getData('application/json')
+                || event.dataTransfer.getData('text/plain');
+            if (!raw) return null;
+            try {
+                var payload = JSON.parse(raw);
+                if (payload?.type !== 'category-card') return null;
+                return payload;
+            } catch (error) {
+                return null;
+            }
+        }
+
 function renderWorkspaceItem(ctx, ws, container, depth, options) {
         var currentDepth = typeof depth === 'number' ? depth : 0;
         var renderOptions = options && typeof options === 'object' ? options : {};
@@ -197,6 +222,12 @@ function renderWorkspaceItem(ctx, ws, container, depth, options) {
 
         item.ondragover = function (e) {
             if (isInactive) return;
+            if (isCategoryCardSidebarDrag(e)) {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                item.classList.add('ws-drop-target', 'ws-drop-target-card');
+                return;
+            }
             if (!ctx.getDraggedWorkspaceId() && !ctx.canDropGroupIntoWorkspace(ws.id)) return;
             e.preventDefault();
             if (ctx.getDraggedWorkspaceId()) ctx.setHoveredWorkspaceTarget(ws.id);
@@ -204,6 +235,11 @@ function renderWorkspaceItem(ctx, ws, container, depth, options) {
         };
         item.ondragenter = function (e) {
             if (isInactive) return;
+            if (isCategoryCardSidebarDrag(e)) {
+                e.preventDefault();
+                item.classList.add('ws-drop-target', 'ws-drop-target-card');
+                return;
+            }
             if (!ctx.getDraggedWorkspaceId() && !ctx.canDropGroupIntoWorkspace(ws.id)) return;
             e.preventDefault();
             if (ctx.getDraggedWorkspaceId()) ctx.setHoveredWorkspaceTarget(ws.id);
@@ -213,7 +249,7 @@ function renderWorkspaceItem(ctx, ws, container, depth, options) {
             if (ctx.getHoveredWorkspaceTarget() === String(ws.id)) {
                 ctx.setHoveredWorkspaceTarget('');
             }
-            item.classList.remove('ws-drop-target');
+            item.classList.remove('ws-drop-target', 'ws-drop-target-card');
         };
 
         function applyWorkspaceDropTarget(dragId) {
@@ -263,7 +299,19 @@ function renderWorkspaceItem(ctx, ws, container, depth, options) {
             if (isInactive) return;
             e.preventDefault();
             e.stopPropagation();
-            item.classList.remove('ws-drop-target');
+            item.classList.remove('ws-drop-target', 'ws-drop-target-card');
+
+            var cardPayload = getCategoryCardSidebarPayload(e);
+            if (cardPayload?.type === 'category-card') {
+                if (typeof window.moveCategoryCardToWorkspace === 'function') {
+                    window.moveCategoryCardToWorkspace(cardPayload.workspaceId, cardPayload.categoryName, ws.id, {
+                        requireConfirm: true,
+                        targetWorkspaceName: ws.name || ws.id,
+                        source: 'category-card-dropped-on-sidebar-tab'
+                    });
+                }
+                return;
+            }
 
             var dragGroupId = ctx.getDraggedGroupId();
             if (dragGroupId) {
@@ -385,7 +433,7 @@ function renderWorkspaceItem(ctx, ws, container, depth, options) {
             item.appendChild(hiddenBadge);
         }
 
-        if (currentDepth > 0 && typeof rt.attachNestedWorkspacePointerDrag === 'function') {
+        if (typeof rt.attachNestedWorkspacePointerDrag === 'function') {
             rt.attachNestedWorkspacePointerDrag(ctx, item, ws);
         }
 

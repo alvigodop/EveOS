@@ -12,7 +12,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/search-advanced/sa-index.records.library.js?v=0.1.0",
     "js/modules/features/search-advanced/sa-index.records.folder-diagnostics.js?v=0.1.0",
     "js/modules/features/search-advanced/sa-index.records.folders.js?v=0.1.0",
-    "js/modules/features/search-advanced/sa-index.records.local.js?v=0.1.2",
+    "js/modules/features/search-advanced/sa-index.records.local.js?v=0.1.3",
     "js/modules/features/search-advanced/sa-index.records.sources.js?v=0.1.1",
     "js/modules/features/search-advanced/sa-index.runtime.integrity.js?v=0.1.3",
     "js/modules/features/search-advanced/sa-index.runtime.summary.js?v=0.1.0",
@@ -30,7 +30,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/search-advanced/sa-navigation.js?v=0.1.1",
     "js/modules/features/search-advanced/sa-debug-view.js?v=0.1.2",
     "js/modules/features/search-advanced/sa-datapack-view.micro.js?v=0.1.0",
-    "js/modules/features/search-advanced/sa-datapack-view.macro-actions.js?v=0.1.0",
+    "js/modules/features/search-advanced/sa-datapack-view.macro-actions.js?v=0.1.1",
     "js/modules/features/search-advanced/sa-datapack-view.js?v=0.1.0",
     "js/modules/features/search-advanced/sa-ui.form.template.js?v=0.4.1",
     "js/modules/features/search-advanced/sa-ui.form.fields.js?v=0.3.1",
@@ -48,5 +48,5 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/bookmark-identifiers.quick-panel.actions.js?v=0.1.0",
     "js/modules/features/bookmark-identifiers.quick-panel.js?v=0.2.0",
     "js/modules/features/bookmark-identifiers.js?v=0.3.0",
-    "js/modules/core/events.js?v=0.2.2"
+    "js/modules/core/events.js?v=0.2.3"
 ]);

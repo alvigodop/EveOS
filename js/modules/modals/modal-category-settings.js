@@ -6,6 +6,8 @@
 
     var renderCategoryBookmarkProgressiveSettings = helpers.renderCategoryBookmarkProgressiveSettings || function () {};
 
+    var renderCategoryDescriptionSettings = helpers.renderCategoryDescriptionSettings || function () {};
+
     var renderCategoryClickBehaviorSettings = helpers.renderCategoryClickBehaviorSettings || function () {};
 
     var renderCategoryPinSettings = helpers.renderCategoryPinSettings || function () {};
@@ -218,6 +220,7 @@
                 setTimeout(function () {
                     renderCategoryHeaderButtonSettings();
                     renderCategoryBookmarkProgressiveSettings();
+                    renderCategoryDescriptionSettings();
                     renderCategoryClickBehaviorSettings();
                     renderCategoryPinSettings();
 
@@ -289,6 +292,25 @@
                     })();
                 }, 0);
             });
+
+            return;
+
+        }
+
+        if (tabName === 'state') {
+
+            if (modalInner) {
+
+                modalInner.style.width = '620px';
+
+                modalInner.style.maxWidth = '94%';
+
+            }
+
+            var stateHint = document.getElementById('categoryStateGatewayHint');
+            if (stateHint) {
+                stateHint.textContent = 'Scope: ' + String(window.ctxWsId || 'main') + ' / ' + String(window.currentCategoryCtx || 'Unsorted');
+            }
 
             return;
 

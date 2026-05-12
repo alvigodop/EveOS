@@ -31,6 +31,43 @@ window.EveLinkForm = window.EveLinkForm || {};
         return nextLinks;
     }
 
+    function normalizeRelatedUrlEntry(entry) {
+        const source = typeof entry === 'string' ? { url: entry } : (entry || {});
+        const url = normalizeUrl(String(source.url || source.href || source.sourceUrl || '').trim());
+        if (!url) return null;
+        return {
+            id: String(source.id || ('related-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8))),
+            url,
+            title: String(source.title || source.label || '').trim(),
+            label: String(source.label || '').trim(),
+            icon: String(source.icon || '').trim(),
+            notes: String(source.notes || '').trim(),
+            addedAt: String(source.addedAt || new Date().toISOString()),
+            source: String(source.source || 'manual')
+        };
+    }
+
+    function parseRelatedUrlsValue(value) {
+        const seen = new Set();
+        return String(value || '')
+            .split(/\r?\n/)
+            .map((line) => normalizeRelatedUrlEntry(line.trim()))
+            .filter(Boolean)
+            .filter((entry) => {
+                const key = String(window.EveBookmarkMerge?.normalizeUrl?.(entry.url) || entry.url).toLowerCase();
+                if (!key || seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
+    }
+
+    function formatRelatedUrlsValue(entries) {
+        return (Array.isArray(entries) ? entries : [])
+            .map((entry) => String(entry?.url || entry || '').trim())
+            .filter(Boolean)
+            .join('\n');
+    }
+
     function renderAttachedSources() {
         if (typeof window.renderSourcesList === 'function') {
             window.renderSourcesList();
@@ -147,6 +184,8 @@ window.EveLinkForm = window.EveLinkForm || {};
         if (modal.newCoverImage) modal.newCoverImage.value = '';
         if (modal.newCoverImages) modal.newCoverImages.value = '';
         if (modal.newFixedCoverImage) modal.newFixedCoverImage.value = '';
+        const relatedUrlsInput = document.getElementById('newRelatedUrls');
+        if (relatedUrlsInput) relatedUrlsInput.value = '';
         resetCoverImageCandidateEditor();
         modal.newPriority.value = '';
         modal.newIcon.value = '';
@@ -193,6 +232,8 @@ window.EveLinkForm = window.EveLinkForm || {};
         if (modal.newCoverImage) modal.newCoverImage.value = String(link.coverImage || '').trim();
         if (modal.newCoverImages) modal.newCoverImages.value = Array.isArray(link.coverImages) ? link.coverImages.join('\n') : '';
         if (modal.newFixedCoverImage) modal.newFixedCoverImage.value = String(link.fixedCoverImage || '').trim();
+        const relatedUrlsInput = document.getElementById('newRelatedUrls');
+        if (relatedUrlsInput) relatedUrlsInput.value = formatRelatedUrlsValue(link.relatedUrls);
         resetCoverImageCandidateEditor();
         modal.newPriority.value = link.priority || '';
         modal.newIcon.value = normalizeManualIcon(link.icon);
@@ -228,6 +269,7 @@ window.EveLinkForm = window.EveLinkForm || {};
         const identifiers = window.EveBookmarkIdentifiers?.readModalEditorSelection
             ? window.EveBookmarkIdentifiers.readModalEditorSelection('newBookmarkIdentifiers')
             : [];
+        const relatedUrls = parseRelatedUrlsValue(document.getElementById('newRelatedUrls')?.value || '');
 
         if (!title || !url) return showToast('Missing Info', 'warning');
 
@@ -250,6 +292,8 @@ window.EveLinkForm = window.EveLinkForm || {};
                 else delete liveLinks[index].fixedCoverImage;
                 if (identifiers.length) liveLinks[index].identifiers = identifiers;
                 else delete liveLinks[index].identifiers;
+                if (relatedUrls.length) liveLinks[index].relatedUrls = relatedUrls;
+                else delete liveLinks[index].relatedUrls;
                 liveLinks[index].priority = priority;
                 liveLinks[index].icon = icon;
                 liveLinks[index].sources = [...window.tempSources];
@@ -267,6 +311,7 @@ window.EveLinkForm = window.EveLinkForm || {};
                 coverImages: coverImages.length ? coverImages : undefined,
                 fixedCoverImage: fixedCoverImage || undefined,
                 identifiers: identifiers.length ? identifiers : undefined,
+                relatedUrls: relatedUrls.length ? relatedUrls : undefined,
                 icon,
                 done: false,
                 priority,

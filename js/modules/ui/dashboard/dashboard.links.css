@@ -18,6 +18,7 @@ li {
     border: 1px solid var(--bookmark-row-border);
     border-left: 3px solid transparent;
     box-shadow: inset 0 1px 0 var(--bookmark-row-highlight), 0 1px 2px rgba(0, 0, 0, 0.08);
+    min-width: 0;
 }
 
 li:hover {
@@ -60,6 +61,32 @@ a {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    min-width: 0;
+}
+
+.bookmark-related-url-icons {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    flex: 0 0 auto;
+    max-width: 74px;
+    overflow: hidden;
+}
+
+.bookmark-related-url-icon {
+    width: 15px;
+    height: 15px;
+    border-radius: 4px;
+    object-fit: cover;
+    border: 1px solid rgba(255,255,255,0.16);
+    background: rgba(255,255,255,0.06);
+}
+
+.bookmark-related-url-icon--fallback {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.72rem;
 }
 
 .actions {

@@ -12,7 +12,7 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
     const isSearch = mergeHelpers.isSearchUrl;
     const parseNum = mergeHelpers.parseNum;
 
-    function mergeDuplicateGroup(linkIds) {
+    function mergeDuplicateGroup(linkIds, options = {}) {
         if (!Array.isArray(linkIds) || linkIds.length < 2) return null;
 
         const links = runtime.getLinks();
@@ -24,6 +24,8 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
             const sharedResult = sharedMerge.mergeDuplicateGroup(linkIds, {
                 source: 'duplicate-sensor-bookmark-merge',
                 links,
+                baseLinkId: options.baseLinkId || options.baseLink?.id,
+                baseLink: options.baseLink,
                 reason: 'Duplicate sensor merge matched bookmarks by title or URL.'
             });
             if (sharedResult?.removedIds?.length) {

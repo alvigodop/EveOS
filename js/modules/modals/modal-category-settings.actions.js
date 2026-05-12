@@ -15,6 +15,7 @@
         refreshCategoryPinViews,
         renderCategoryHeaderButtonSettings,
         renderCategoryBookmarkProgressiveSettings,
+        renderCategoryDescriptionSettings,
         renderCategoryClickBehaviorSettings,
         renderCategoryPinSettings
     } = core;
@@ -84,6 +85,58 @@
         renderCategoryBookmarkProgressiveSettings();
 
         showToast(enabled ? 'Card bookmark reveal limit enabled' : 'Card bookmark reveal limit disabled', 'success');
+
+    };
+
+    window.saveCategoryDescriptionSetting = function () {
+
+        const cardApi = getHeaderButtonApi();
+
+        if (!cardApi?.setCardDescription) return;
+
+        const categoryName = String(window.currentCategoryCtx || '').trim() || 'Unsorted';
+
+        const workspaceId = getCategorySettingsWorkspaceId();
+
+        const input = document.getElementById('categoryDescriptionInput');
+
+        cardApi.setCardDescription(workspaceId, categoryName, input?.value || '');
+
+        renderCategoryDescriptionSettings();
+
+        showToast('Card description updated', 'success');
+
+    };
+
+    window.openCategoryStateGateway = function () {
+
+        const datapackView = window.EveOS?.SearchAdvanced?.DatapackView;
+
+        if (!datapackView?.openGateway) {
+            showToast('Datapack View State is not loaded yet.', 'warning');
+            return;
+        }
+
+        const categoryName = String(window.currentCategoryCtx || '').trim() || 'Unsorted';
+
+        const workspaceId = getCategorySettingsWorkspaceId();
+
+        datapackView.openGateway({ scope: { workspaceId, categoryName } });
+
+        showToast('Opened card state gateway in Nexus.', 'success');
+
+    };
+
+    window.openCategoryStateInternals = function () {
+
+        const datapackView = window.EveOS?.SearchAdvanced?.DatapackView;
+
+        if (!datapackView?.openCardInternals) {
+            showToast('Datapack View State is not loaded yet.', 'warning');
+            return;
+        }
+
+        datapackView.openCardInternals(getCategorySettingsWorkspaceId(), String(window.currentCategoryCtx || '').trim() || 'Unsorted');
 
     };
 

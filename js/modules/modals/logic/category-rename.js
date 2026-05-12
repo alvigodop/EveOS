@@ -73,6 +73,16 @@ window.confirmRename = function () {
             config.hideStats = config.hideStats.filter(c => c !== o);
             config.hideStats.push(name);
         }
+        if (config.cardDescriptions && typeof config.cardDescriptions === 'object') {
+            const oldDescriptionKey = workspaceId + '::' + (String(o || 'Unsorted').trim() || 'Unsorted');
+            const nextDescriptionKey = workspaceId + '::' + (String(name || 'Unsorted').trim() || 'Unsorted');
+            if (Object.prototype.hasOwnProperty.call(config.cardDescriptions, oldDescriptionKey)) {
+                if (!Object.prototype.hasOwnProperty.call(config.cardDescriptions, nextDescriptionKey)) {
+                    config.cardDescriptions[nextDescriptionKey] = config.cardDescriptions[oldDescriptionKey];
+                }
+                delete config.cardDescriptions[oldDescriptionKey];
+            }
+        }
         saveConfig({
             source: 'category-rename-config',
             meta: { workspaceId: workspaceId, oldCategoryName: o, categoryName: name }

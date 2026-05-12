@@ -425,6 +425,24 @@ window.categoryFolderActionExpansion = window.categoryFolderActionExpansion || {
 
     }
 
+    function renderCategoryDescriptionSettings() {
+
+        const input = document.getElementById('categoryDescriptionInput');
+
+        if (!input) return;
+
+        const categoryName = String(window.currentCategoryCtx || '').trim() || 'Unsorted';
+
+        const workspaceId = getCategorySettingsWorkspaceId();
+
+        const cardApi = getHeaderButtonApi();
+
+        input.value = cardApi?.getCardDescription
+            ? cardApi.getCardDescription(workspaceId, categoryName)
+            : '';
+
+    }
+
 
 
     function refreshCategoryPinViews(categoryName) {
@@ -461,6 +479,7 @@ window.categoryFolderActionExpansion = window.categoryFolderActionExpansion || {
         isCategorySettingsVisibleFor,
         renderCategoryHeaderButtonSettings,
         renderCategoryBookmarkProgressiveSettings,
+        renderCategoryDescriptionSettings,
         renderCategoryClickBehaviorSettings,
         renderCategoryPinSettings,
         refreshCategoryPinViews

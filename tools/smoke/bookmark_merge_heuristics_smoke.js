@@ -216,10 +216,86 @@ function runDuplicateGroupCase() {
     assert(String(target.notes || '').includes('chapter: 4'), 'duplicate group should preserve incoming linked data in notes');
 }
 
+function runExplicitBaseDifferentTitleCase() {
+    installRuntime();
+    resetLinks([
+        {
+            id: 'keep',
+            title: 'Preferred Destination',
+            url: 'https://preferred.test/item',
+            workspace: 'main',
+            category: 'Target',
+            notes: 'keep note'
+        },
+        {
+            id: 'merge-a',
+            title: 'Different Incoming Title',
+            url: 'https://incoming.test/item',
+            workspace: 'main',
+            category: 'Target',
+            notes: 'incoming note',
+            relatedUrls: [{ url: 'https://preferred.test/item', label: 'same thing' }]
+        },
+        {
+            id: 'merge-b',
+            title: 'Another Variant',
+            url: 'https://variant.test/item',
+            workspace: 'main',
+            category: 'Target',
+            priority: 'review'
+        }
+    ]);
+
+    const result = window.EveBookmarkMerge.mergeDuplicateGroup(['merge-a', 'keep', 'merge-b'], {
+        baseLinkId: 'keep',
+        reason: 'Manual smoke merge with different titles.'
+    });
+    const kept = findLink('keep');
+
+    assert(result.mergedId === 'keep', 'explicit base should be kept even with different title order');
+    assert(!findLink('merge-a') && !findLink('merge-b'), 'all non-base bookmarks should be removed');
+    assert(window.eveState.links.length === 1, 'explicit base merge should leave one bookmark');
+    assert(kept.title === 'Preferred Destination', 'explicit base title should be preserved');
+    assert(kept.priority === 'review', 'non-conflicting scalar field should merge into base');
+    assert(String(kept.notes || '').includes('incoming note'), 'incoming notes should be preserved');
+    assert(String(kept.notes || '').includes('Different Incoming Title'), 'different incoming title should be preserved in notes');
+    assert(Array.isArray(kept.relatedUrls) && kept.relatedUrls.some((entry) => String(entry.url || '') === 'https://incoming.test/item'), 'incoming canonical URL should become related evidence');
+}
+
+function runRelatedUrlDuplicateDetectionCase() {
+    installRuntime();
+    resetLinks([
+        {
+            id: 'target',
+            title: 'Related Target',
+            url: 'https://target.test/item',
+            workspace: 'main',
+            category: 'Target'
+        },
+        {
+            id: 'source',
+            title: 'Different Related Source',
+            url: 'https://source.test/item',
+            workspace: 'main',
+            category: 'Source',
+            relatedUrls: [{ url: 'https://target.test/item' }]
+        }
+    ]);
+
+    const match = window.EveBookmarkMerge.findDuplicateInCard(findLink('source'), { workspaceId: 'main', categoryName: 'Target' });
+    const result = window.EveBookmarkMerge.moveOrMergeLinkToScope(findLink('source'), { workspaceId: 'main', categoryName: 'Target' });
+
+    assert(match && match.id === 'target', 'related URL overlap should be treated as duplicate evidence');
+    assert(result.merged, 'related URL duplicate should merge when moved into destination card');
+    assert(!findLink('source'), 'related URL duplicate source should be removed after merge');
+}
+
 runBothLinkedCase();
 runSourceLinkedInjectionCase();
 runTargetLinkedSourcePlainCase();
 runBothPlainPromotionCase();
 runDuplicateGroupCase();
+runExplicitBaseDifferentTitleCase();
+runRelatedUrlDuplicateDetectionCase();
 
 console.log('BOOKMARK_MERGE_HEURISTICS_SMOKE_OK');

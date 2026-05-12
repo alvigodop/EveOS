@@ -190,7 +190,15 @@ function buildMergeNote(details) {
             if (!candidate || ignoreIds.has(String(candidate.id))) continue;
             if (normalizeWorkspaceId(candidate.workspace) !== targetWorkspaceId) continue;
             if (normalizeCategoryName(candidate.category) !== targetCategoryName) continue;
-            if (normalizeUrl(sourceLink?.url) && normalizeUrl(sourceLink?.url) === normalizeUrl(candidate.url)) return candidate;
+            if (typeof getIdentityUrlSet === 'function') {
+                const sourceUrls = getIdentityUrlSet(sourceLink);
+                const candidateUrls = getIdentityUrlSet(candidate);
+                for (const sourceUrl of sourceUrls) {
+                    if (candidateUrls.has(sourceUrl)) return candidate;
+                }
+            } else if (normalizeUrl(sourceLink?.url) && normalizeUrl(sourceLink?.url) === normalizeUrl(candidate.url)) {
+                return candidate;
+            }
             if (!titleMatch && normalizeTitle(sourceLink?.title) && normalizeTitle(sourceLink?.title) === normalizeTitle(candidate.title)) {
                 titleMatch = candidate;
             }
@@ -267,7 +275,11 @@ function buildMergeNote(details) {
         const targetLinks = links.filter((link) => ids.includes(String(link?.id)));
         if (targetLinks.length < 2) return null;
 
-        const baseLink = options.baseLink || chooseGroupTarget(targetLinks);
+        const explicitBaseId = String(options.baseLinkId || options.baseLink?.id || '').trim();
+        const explicitBase = explicitBaseId
+            ? targetLinks.find((link) => String(link?.id || '') === explicitBaseId)
+            : null;
+        const baseLink = explicitBase || (targetLinks.includes(options.baseLink) ? options.baseLink : null) || chooseGroupTarget(targetLinks);
         if (!baseLink) return null;
 
         const removedIds = [];
@@ -307,6 +319,7 @@ function buildMergeNote(details) {
     Object.assign(api, {
         normalizeTitle,
         normalizeUrl,
+        getIdentityUrlSet,
         valuesMatch,
         findDuplicateInCard,
         mergeBookmarkIntoTarget,

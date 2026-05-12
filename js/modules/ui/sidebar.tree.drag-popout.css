@@ -125,6 +125,12 @@
     box-shadow: 0 0 12px rgba(168, 130, 255, 0.35) !important;
 }
 
+.ws-drop-target.ws-drop-target-card {
+    outline-color: rgba(0, 212, 255, 0.85) !important;
+    background: rgba(0, 212, 255, 0.13) !important;
+    box-shadow: 0 0 14px rgba(0, 212, 255, 0.32) !important;
+}
+
 .ws-add.ws-drop-target {
     border-color: rgba(168, 130, 255, 0.7) !important;
     color: rgba(168, 130, 255, 0.9) !important;

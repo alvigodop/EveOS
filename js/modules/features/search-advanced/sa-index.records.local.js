@@ -104,7 +104,11 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
 
     function buildCardRecords(categoryMap) {
         const locators = ns.Locators || {};
-        const activeWorkspace = text(readConfig().activeWorkspace, 'main');
+        const cfg = readConfig();
+        const activeWorkspace = text(cfg.activeWorkspace, 'main');
+        const cardDescriptions = cfg.cardDescriptions && typeof cfg.cardDescriptions === 'object'
+            ? cfg.cardDescriptions
+            : {};
         const records = [];
 
         Array.from(categoryMap.values()).forEach(function (category) {
@@ -123,13 +127,14 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                     pathLabel: category.categoryName
                 };
             const groupMeta = getWorkspaceGroupMeta(preferredWorkspaceId);
+            const cardDescription = text(cardDescriptions[category.scopedKey], '');
             const record = {
                 id: 'card::' + category.scopedKey,
                 type: 'card',
                 title: category.categoryName,
                 url: '',
                 displayUrl: '',
-                description: 'Card in ' + text(path.workspaceLabel, preferredWorkspaceId),
+                description: cardDescription || ('Card in ' + text(path.workspaceLabel, preferredWorkspaceId)),
                 provider: 'card',
                 sourceCard: category.categoryName,
                 sourceIdentity: {
@@ -147,12 +152,14 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 provenance: {
                     kind: 'card',
                     scopedKey: category.scopedKey,
-                    linkCount: category.linkCount
+                    linkCount: category.linkCount,
+                    cardDescription: cardDescription
                 }
             };
             record.baseHealth = deriveBaseHealth(record);
             record.searchableText = normalizeText([
                 record.title,
+                cardDescription,
                 path.workspaceLabel,
                 category.scopedKey
             ].join(' '));
@@ -242,6 +249,9 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             const folderId = text(path.folderId || link.folderId, '');
             const folderDiagnostic = folderDiagnostics.getBookmarkFolderDiagnostic(folderIntegrityCache, path.workspaceId, path.categoryName, folderId);
             const identifierMeta = buildBookmarkIdentifierMeta(link.identifiers, identifierMap);
+            const relatedUrls = toArray(link.relatedUrls).map(function (entry) {
+                return text(entry?.url || entry, '');
+            }).filter(Boolean);
             const record = {
                 id: 'bookmark::' + text(link.id, Math.random().toString(36).slice(2, 8)),
                 type: 'bookmark',
@@ -281,6 +291,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                     identifierQuickLinkTargets: identifierMeta.quickLinkTargets,
                     icon: text(link.icon, ''),
                     coverImage: text(link.coverImage, ''),
+                    relatedUrls: relatedUrls,
                     priority: text(link.priority, ''),
                     libraryLinked: !!library.linked,
                     libraryEntryId: library.entryId
@@ -291,6 +302,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             record.searchableText = normalizeText([
                 record.title,
                 record.url,
+                relatedUrls.join(' '),
                 record.description,
                 tags.join(' '),
                 identifierMeta.ids.join(' '),

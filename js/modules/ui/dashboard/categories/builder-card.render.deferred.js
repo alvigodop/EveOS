@@ -150,13 +150,37 @@ window.DashboardCategories = window.DashboardCategories || {};
             if (isDetachedParkingCard) {
                 shellCard.setAttribute('data-detached-parking-card', '1');
             }
+            shellCard.ondragover = function (event) {
+                if (typeof allowDrop === 'function') allowDrop(event);
+                if (typeof window.isCategoryCardDragPayload === 'function' && window.isCategoryCardDragPayload(event)) {
+                    shellCard.classList.add('card-drop-target');
+                }
+            };
+            shellCard.ondragenter = function (event) {
+                if (typeof window.isCategoryCardDragPayload === 'function' && window.isCategoryCardDragPayload(event)) {
+                    event.preventDefault();
+                    shellCard.classList.add('card-drop-target');
+                }
+            };
+            shellCard.ondragleave = function (event) {
+                if (!event.relatedTarget || !shellCard.contains(event.relatedTarget)) {
+                    shellCard.classList.remove('card-drop-target');
+                }
+            };
+            shellCard.ondrop = function (event) {
+                shellCard.classList.remove('card-drop-target');
+                if (typeof window.dropCategoryCardOnCard === 'function' && window.dropCategoryCardOnCard(event, cardWorkspaceId, cat)) {
+                    return;
+                }
+                if (typeof drop === 'function') drop(event, cat);
+            };
 
             shellCard.innerHTML = ''
                 + '<div class="cat-progress-bg"><div class="cat-progress-fill" style="width:0%"></div></div>'
                 + '<div class="category-header" oncontextmenu="showCategoryContextMenu(event, \'' + safeCatJs + '\', \'' + escapeCardJs(cardWorkspaceId) + '\')">'
                 + '<div class="cat-title-group">'
                 + '<span class="collapse-arrow" data-cat="' + safeCatHtml + '" onclick="toggleCollapse(this.dataset.cat)" title="Toggle Card">&#9660;</span>'
-                + '<div class="category-title-wrap" data-title="' + safeCatHtml + '">'
+                + '<div class="category-title-wrap" data-title="' + safeCatHtml + '" data-ws="' + escapeCardHtml(cardWorkspaceId) + '" data-cat="' + safeCatHtml + '" draggable="true" ondragstart="if(typeof dragCategoryCard===\'function\') dragCategoryCard(event, this.dataset.ws, this.dataset.cat)" ondragend="if(typeof endCategoryCardDrag===\'function\') endCategoryCardDrag(event)">'
                 + '<div class="category-title">' + safeCatHtml + '</div>'
                 + '</div>'
                 + '</div>'

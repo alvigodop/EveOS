@@ -52,9 +52,122 @@ function drag(ev, id) {
     ev.dataTransfer.setData("text/plain", payload);
 }
 
+function getCategoryCardDragPayload(ev) {
+    if (!ev || !ev.dataTransfer) return null;
+    var raw = ev.dataTransfer.getData("application/x-eve-category-card")
+        || ev.dataTransfer.getData("application/json")
+        || ev.dataTransfer.getData("text/plain");
+    if (!raw) return null;
+    try {
+        var payload = JSON.parse(raw);
+        if (!payload || payload.type !== 'category-card') return null;
+        var workspaceId = String(payload.workspaceId || '').trim();
+        var categoryName = String(payload.categoryName || '').trim();
+        if (!workspaceId || !categoryName) return null;
+        return {
+            type: 'category-card',
+            workspaceId,
+            categoryName
+        };
+    } catch (error) {
+        return null;
+    }
+}
+
+function isCategoryCardDragPayload(ev) {
+    if (!ev || !ev.dataTransfer) return false;
+    var types = Array.from(ev.dataTransfer.types || []);
+    return types.includes('application/x-eve-category-card')
+        || !!getCategoryCardDragPayload(ev);
+}
+
+function dragCategoryCard(ev, workspaceId, categoryName) {
+    if (!ev || !ev.dataTransfer) return;
+    var payload = {
+        type: 'category-card',
+        workspaceId: String(workspaceId || '').trim() || 'main',
+        categoryName: String(categoryName || '').trim() || 'Unsorted'
+    };
+    var serialized = JSON.stringify(payload);
+    ev.dataTransfer.setData('application/x-eve-category-card', serialized);
+    ev.dataTransfer.setData('application/json', serialized);
+    ev.dataTransfer.setData('text/plain', serialized);
+    ev.dataTransfer.effectAllowed = 'move';
+    var target = ev.currentTarget instanceof HTMLElement ? ev.currentTarget : null;
+    if (target) target.classList.add('is-card-title-dragging');
+}
+
+function endCategoryCardDrag(ev) {
+    var target = ev?.currentTarget instanceof HTMLElement ? ev.currentTarget : null;
+    if (target) target.classList.remove('is-card-title-dragging');
+    document.querySelectorAll('.category-card.card-drop-target, .ws-drop-target-card').forEach(function (node) {
+        node.classList.remove('card-drop-target', 'ws-drop-target-card');
+    });
+}
+
+function dropCategoryCardOnCard(ev, targetWorkspaceId, targetCategoryName) {
+    var payload = getCategoryCardDragPayload(ev);
+    if (!payload) return false;
+    ev.preventDefault();
+    ev.stopPropagation();
+
+    var targetWs = String(targetWorkspaceId || '').trim() || 'main';
+    var targetCat = String(targetCategoryName || '').trim() || 'Unsorted';
+    var sourceWs = String(payload.workspaceId || '').trim() || 'main';
+    var sourceCat = String(payload.categoryName || '').trim() || 'Unsorted';
+
+    var card = ev.currentTarget instanceof HTMLElement ? ev.currentTarget.closest('.category-card') : null;
+    if (card) card.classList.remove('card-drop-target');
+
+    if (sourceWs === targetWs) {
+        if (sourceCat === targetCat) return true;
+        var orderApi = window.EveCategoryOrder;
+        var order = orderApi && typeof orderApi.getOrder === 'function'
+            ? orderApi.getOrder(targetWs, { persist: true })
+            : [];
+        var targetIndex = Array.isArray(order) ? order.indexOf(targetCat) : -1;
+        if (targetIndex < 0 || !orderApi || typeof orderApi.moveCategoryToPosition !== 'function') return true;
+        if (orderApi.moveCategoryToPosition(sourceWs, sourceCat, targetIndex + 1)) {
+            if (typeof saveConfig === 'function') {
+                saveConfig({
+                    source: 'category-card-reorder',
+                    meta: {
+                        workspaceId: targetWs,
+                        categoryName: sourceCat,
+                        targetCategoryName: targetCat,
+                        targetPosition: targetIndex + 1
+                    }
+                });
+            }
+            if (typeof renderDashboard === 'function') renderDashboard();
+        }
+        return true;
+    }
+
+    if (typeof window.moveCategoryCardToWorkspace === 'function') {
+        window.moveCategoryCardToWorkspace(sourceWs, sourceCat, targetWs, {
+            requireConfirm: true,
+            targetCategoryName: sourceCat,
+            targetPositionCategoryName: targetCat,
+            source: 'category-card-dropped-on-card'
+        });
+    }
+    return true;
+}
+
+window.getCategoryCardDragPayload = getCategoryCardDragPayload;
+window.isCategoryCardDragPayload = isCategoryCardDragPayload;
+window.dragCategoryCard = dragCategoryCard;
+window.endCategoryCardDrag = endCategoryCardDrag;
+window.dropCategoryCardOnCard = dropCategoryCardOnCard;
+
 function drop(ev, newCategory) {
     ev.preventDefault();
     ev.currentTarget.classList.remove('drag-over');
+
+    if (dropCategoryCardOnCard(ev, ev.currentTarget.getAttribute('data-card-workspace'), newCategory)) {
+        return;
+    }
 
     const rawJson = ev.dataTransfer.getData("application/json") || ev.dataTransfer.getData("text/plain");
     let movedAny = false;

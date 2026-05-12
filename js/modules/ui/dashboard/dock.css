@@ -59,6 +59,43 @@ html[data-native-scheme="light"] {
     box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
 }
 
+.dock-item--inherited {
+    --dock-inherited-accent: #40e8d0;
+    background: linear-gradient(145deg,
+        color-mix(in srgb, var(--dock-inherited-accent) 14%, transparent 86%),
+        color-mix(in srgb, var(--card-bg, #1f1f1f) 90%, transparent 10%));
+    border-color: color-mix(in srgb, var(--dock-inherited-accent) 42%, var(--border, rgba(255,255,255,0.15)) 58%);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--dock-inherited-accent) 14%, transparent 86%);
+}
+
+.dock-item--inherited::before {
+    content: "";
+    position: absolute;
+    inset: 6px auto 6px 6px;
+    width: 3px;
+    border-radius: 999px;
+    background: var(--dock-inherited-accent);
+    opacity: 0.82;
+}
+
+.dock-item--depth-2 {
+    --dock-inherited-accent: #7aa8ff;
+}
+
+.dock-item--depth-3 {
+    --dock-inherited-accent: #d09cff;
+}
+
+.dock-item--depth-4 {
+    --dock-inherited-accent: #ffbf69;
+}
+
+.dock-item--inherited .dock-badge {
+    color: color-mix(in srgb, var(--dock-inherited-accent) 78%, var(--text-main, #fff) 22%);
+    border-color: color-mix(in srgb, var(--dock-inherited-accent) 45%, transparent 55%);
+    background: color-mix(in srgb, var(--dock-inherited-accent) 16%, var(--dock-badge-bg) 84%);
+}
+
 .dock-icon {
     width: 32px;
     height: 32px;

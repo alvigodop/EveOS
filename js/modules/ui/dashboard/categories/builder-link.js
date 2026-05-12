@@ -380,6 +380,25 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
     const identifierBadges = perfMode ? '' : (window.EveBookmarkIdentifiers?.getBadgeHtmlForLink?.(l)
         ? `<span class="bookmark-link-identifiers">${window.EveBookmarkIdentifiers.getBadgeHtmlForLink(l)}</span>`
         : '');
+    const relatedUrlIcons = (!perfMode && Array.isArray(l?.relatedUrls) && l.relatedUrls.length)
+        ? '<span class="bookmark-related-url-icons" title="Related URLs: ' + escapeAttr(l.relatedUrls.map((entry) => entry?.url || entry).filter(Boolean).join(' | ')) + '">'
+            + l.relatedUrls.slice(0, 4).map((entry) => {
+                const relatedUrl = String(entry?.url || entry || '').trim();
+                const relatedDomain = faviconUtils && typeof faviconUtils.getDomainFromUrl === 'function'
+                    ? faviconUtils.getDomainFromUrl(relatedUrl)
+                    : '';
+                const src = relatedDomain && faviconUtils && typeof faviconUtils.getBestEffortSrc === 'function'
+                    ? faviconUtils.getBestEffortSrc(relatedDomain, 16)
+                    : '';
+                const fallback = relatedDomain && faviconUtils && typeof faviconUtils.getFallbackSrc === 'function'
+                    ? faviconUtils.getFallbackSrc(relatedDomain, 16)
+                    : '';
+                return src
+                    ? `<img class="bookmark-related-url-icon" src="${escapeAttr(src)}" data-favicon-domain="${escapeAttr(relatedDomain)}" data-favicon-size="16"${fallback ? ` data-fallback-src="${escapeAttr(fallback)}"` : ''} alt="" loading="lazy" referrerpolicy="no-referrer" onerror="${fallbackOnError}">`
+                    : '<span class="bookmark-related-url-icon bookmark-related-url-icon--fallback">' + GLOBE_ICON + '</span>';
+            }).join('')
+            + '</span>'
+        : '';
     const isTaskEnabled = extraOptions.isTaskEnabled !== false;
     const doneClass = isTaskEnabled && l.done ? 'done' : '';
     const doneActionHtml = isTaskEnabled
@@ -422,7 +441,7 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
 
     return `<li class="${doneClass} ${isLocal ? 'is-local' : ''} ${pClass} ${pinnedClass}" data-link-id="${safeDataLinkId}" draggable="true" ondragstart="${dragStartHandler}" oncontextmenu="showLinkContextMenu(event, ${jsLinkIdLiteral})"${hoverHandlers}>
                 <input type="checkbox" class="bulk-check" data-bulk-id="${safeDataLinkId}" onclick="event.preventDefault();event.stopPropagation();toggleSelect(this, ${jsLinkIdLiteral}, event);return false;" ${isChecked}>
-                ${iconHtml} ${wsBadge} ${subTabBadge} ${folderBadge} ${detachedBadge} ${identifierBadges} <a href="${l.url}" target="_blank" rel="noopener noreferrer" onclick='return (typeof openBookmarkFromDashboard==="function") ? openBookmarkFromDashboard(event, decodeURIComponent("${encodedLinkId}")) : true;'>${l.title}</a>
+                ${iconHtml} ${wsBadge} ${subTabBadge} ${folderBadge} ${detachedBadge} ${identifierBadges} ${relatedUrlIcons} <a href="${l.url}" target="_blank" rel="noopener noreferrer" onclick='return (typeof openBookmarkFromDashboard==="function") ? openBookmarkFromDashboard(event, decodeURIComponent("${encodedLinkId}")) : true;'>${l.title}</a>
                 ${trueValueBadge || customOrderBadge}
                 <div class="actions">
                     <span class="icon-btn ${isPinned ? 'pin-active' : ''}" onclick="togglePin(${jsLinkIdLiteral})">${PIN_ICON}</span>

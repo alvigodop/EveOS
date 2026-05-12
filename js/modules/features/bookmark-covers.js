@@ -2,6 +2,9 @@ window.EveBookmarkCovers = window.EveBookmarkCovers || {};
 
 (function (ns) {
     const selectionCache = new Map();
+    const warmedCoverUrls = new Set();
+    const warmingCoverUrls = new Set();
+    let warmupTimer = 0;
 
     function toLinkId(value) {
         if (value === null || value === undefined) return '';
@@ -35,6 +38,20 @@ window.EveBookmarkCovers = window.EveBookmarkCovers || {};
             });
     }
 
+    function isReservedTestImageHost(url) {
+        try {
+            const host = new URL(url).hostname.toLowerCase();
+            return host === 'example.com'
+                || host.endsWith('.example.com')
+                || host === 'example.org'
+                || host.endsWith('.example.org')
+                || host === 'example.net'
+                || host.endsWith('.example.net');
+        } catch (error) {
+            return false;
+        }
+    }
+
     function getAdditionalCoverImages(link) {
         return uniqueUrls(link?.coverImages).filter(isRenderableCoverUrl);
     }
@@ -58,8 +75,14 @@ window.EveBookmarkCovers = window.EveBookmarkCovers || {};
             : (isRenderableCoverUrl(primaryFallback) ? primaryFallback : '');
         const candidates = getCoverCandidates(link);
         const fixed = getFixedCoverImage(link);
-        if (fixed) return fixed;
-        if (!candidates.length) return primary;
+        if (fixed) {
+            warmCoverUrl(fixed);
+            return fixed;
+        }
+        if (!candidates.length) {
+            warmCoverUrl(primary);
+            return primary;
+        }
 
         const linkId = toLinkId(link?.id);
         if (!linkId) return candidates[0];
@@ -72,7 +95,55 @@ window.EveBookmarkCovers = window.EveBookmarkCovers || {};
 
         const nextUrl = candidates[Math.floor(Math.random() * candidates.length)] || candidates[0];
         selectionCache.set(linkId, { key, url: nextUrl });
+        warmCoverUrl(nextUrl);
         return nextUrl;
+    }
+
+    function warmCoverUrl(url) {
+        const normalized = trimUrl(url);
+        if (!normalized || !/^https?:\/\//i.test(normalized)) return false;
+        if (isReservedTestImageHost(normalized)) return false;
+        if (typeof Image !== 'function') return false;
+        if (warmedCoverUrls.has(normalized) || warmingCoverUrls.has(normalized)) return false;
+        warmingCoverUrls.add(normalized);
+        const img = new Image();
+        img.decoding = 'async';
+        img.referrerPolicy = 'no-referrer';
+        img.onload = img.onerror = function () {
+            warmingCoverUrls.delete(normalized);
+            warmedCoverUrls.add(normalized);
+            if (warmedCoverUrls.size > 900) {
+                const first = warmedCoverUrls.values().next();
+                if (!first.done) warmedCoverUrls.delete(first.value);
+            }
+        };
+        img.src = normalized;
+        return true;
+    }
+
+    function warmupCoversForLinks(links, options = {}) {
+        const sourceLinks = Array.isArray(links) ? links : getLinks();
+        const limit = Math.max(0, Number(options.limit || 80) || 80);
+        if (!sourceLinks.length || !limit) return 0;
+        let count = 0;
+        sourceLinks.slice(0, limit).forEach(function (link) {
+            const urls = uniqueUrls([link?.fixedCoverImage, link?.coverImage].concat(Array.isArray(link?.coverImages) ? link.coverImages : []))
+                .filter(isRenderableCoverUrl)
+                .filter(function (url) { return /^https?:\/\//i.test(url); });
+            urls.slice(0, 3).forEach(function (url) {
+                if (warmCoverUrl(url)) count += 1;
+            });
+        });
+        return count;
+    }
+
+    function scheduleWarmup(links, options = {}) {
+        if (warmupTimer) return;
+        const delay = Math.max(300, Number(options.delayMs || 1200) || 1200);
+        warmupTimer = setTimeout(function () {
+            warmupTimer = 0;
+            warmupCoversForLinks(links, options);
+        }, delay);
     }
 
     function clearSelection(linkId) {
@@ -136,6 +207,9 @@ window.EveBookmarkCovers = window.EveBookmarkCovers || {};
         getDisplayCover,
         isRenderableCoverUrl,
         clearSelection,
+        warmCoverUrl,
+        warmupCoversForLinks,
+        scheduleWarmup,
         getLinkedBookmarkForLibraryEntry,
         getDisplayCoverForLibraryEntry
     });

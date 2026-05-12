@@ -47,8 +47,12 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
 
         const urlToNode = new Map();
         const titleToNode = new Map();
+        const mergeApi = window.EveBookmarkMerge || null;
         const nodes = scopeLinks.map((link, idx) => {
             const nUrl = runtime.normalizeUrl(link?.url);
+            const identityUrls = mergeApi && typeof mergeApi.getIdentityUrlSet === 'function'
+                ? Array.from(mergeApi.getIdentityUrlSet(link) || []).filter(Boolean)
+                : (nUrl ? [nUrl] : []);
             const nTitle = normalizeTitle(link?.title);
             const linkWorkspaceId = String(link?.workspace || 'main').trim() || 'main';
             const linkCategoryName = String(link?.category || 'Unsorted').trim() || 'Unsorted';
@@ -69,15 +73,17 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
                 folderId: String(link?.folderId || '').trim(),
                 folderLabel: folderLookup.getFolderLabel(link?.folderId),
                 nUrl,
+                identityUrls,
                 nTitle
             };
         });
 
         nodes.forEach((node) => {
-            if (node.nUrl) {
-                if (urlToNode.has(node.nUrl)) union(node.idx, urlToNode.get(node.nUrl));
-                else urlToNode.set(node.nUrl, node.idx);
-            }
+            (Array.isArray(node.identityUrls) && node.identityUrls.length ? node.identityUrls : (node.nUrl ? [node.nUrl] : [])).forEach((urlKey) => {
+                if (!urlKey) return;
+                if (urlToNode.has(urlKey)) union(node.idx, urlToNode.get(urlKey));
+                else urlToNode.set(urlKey, node.idx);
+            });
             if (node.nTitle) {
                 if (titleToNode.has(node.nTitle)) union(node.idx, titleToNode.get(node.nTitle));
                 else titleToNode.set(node.nTitle, node.idx);
@@ -94,7 +100,12 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
         const groups = Array.from(groupsByRoot.values())
             .filter((items) => items.length > 1)
             .map((items) => {
-                const uniqueUrls = new Set(items.map((item) => item.nUrl).filter(Boolean));
+                const uniqueUrls = new Set();
+                items.forEach((item) => {
+                    (Array.isArray(item.identityUrls) && item.identityUrls.length ? item.identityUrls : (item.nUrl ? [item.nUrl] : [])).forEach((urlKey) => {
+                        if (urlKey) uniqueUrls.add(urlKey);
+                    });
+                });
                 const uniqueTitles = new Set(items.map((item) => item.nTitle).filter(Boolean));
                 let mainLabel = Array.from(uniqueUrls)[0] || Array.from(uniqueTitles)[0] || 'Unknown';
                 if (uniqueUrls.size > 1) mainLabel = `${mainLabel} (+${uniqueUrls.size - 1} related)`;

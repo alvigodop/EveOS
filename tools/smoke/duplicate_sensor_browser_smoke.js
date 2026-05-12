@@ -44,6 +44,8 @@ function buildSeedPayload() {
             { id: 'tab-2', title: 'Tab Duplicate 2', url: 'https://example.com/tab-dup', workspace: 'main', category: 'Watching' },
             { id: 'global-1', title: 'Global Duplicate 1', url: 'https://example.com/global-dup', workspace: 'main', category: 'Watching' },
             { id: 'global-2', title: 'Global Duplicate 2', url: 'https://example.com/global-dup', workspace: 'alt', category: 'Reading' },
+            { id: 'related-1', title: 'Related URL Target', url: 'https://example.com/related-target', workspace: 'alt', category: 'Reading' },
+            { id: 'related-2', title: 'Different Related URL Source', url: 'https://example.com/related-source', relatedUrls: [{ url: 'https://example.com/related-target' }], workspace: 'alt', category: 'Reading' },
             { id: 'unique-1', title: 'Unique Entry', url: 'https://example.com/unique', workspace: 'main', category: 'Reading', folderId: 'f-b' }
         ],
         bookmarkFolders: {
@@ -203,8 +205,20 @@ async function runDuplicateSmoke(page) {
             summaryNode: fullSummaryNode,
             resultsNode: fullResultsNode
         });
-        if (full.report.duplicateGroups !== 4) {
+        if (full.report.duplicateGroups !== 5) {
             throw new Error(`Full duplicate mismatch: ${JSON.stringify(full)}`);
+        }
+
+        const mergeResult = window.EveDuplicateSensor.mergeDuplicateGroup(['related-1', 'related-2']);
+        await wait(200);
+        const kept = (window.getLiveLinks ? window.getLiveLinks() : window.links).find((link) => String(link.id) === String(mergeResult?.mergedId));
+        const removedExists = (window.getLiveLinks ? window.getLiveLinks() : window.links).some((link) => (
+            Array.isArray(mergeResult?.removedIds) && mergeResult.removedIds.includes(String(link.id))
+        ));
+        const removedId = String(mergeResult?.removedIds?.[0] || '');
+        const expectedIncomingTitle = removedId === 'related-1' ? 'Related URL Target' : 'Different Related URL Source';
+        if (mergeResult?.removedIds?.length !== 1 || removedExists || !String(kept?.notes || '').includes(expectedIncomingTitle)) {
+            throw new Error(`Related URL duplicate merge failed: ${JSON.stringify({ mergeResult, kept, removedExists, expectedIncomingTitle })}`);
         }
 
         return {
@@ -212,6 +226,7 @@ async function runDuplicateSmoke(page) {
             card: card.report.duplicateGroups,
             workspace: workspace.report.duplicateGroups,
             allTabs: full.report.duplicateGroups,
+            relatedMergeRemoved: mergeResult.removedIds.length,
             finalSummary: full.summary
         };
     });

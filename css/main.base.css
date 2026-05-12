@@ -196,13 +196,15 @@ body {
 
 /* --- GRID --- */
 .container {
+    --dashboard-card-min-width: clamp(320px, 24vw, 410px);
     display: grid;
-    gap: 20px;
-    max-width: 1600px;
+    gap: clamp(14px, 1.35vw, 22px);
+    max-width: none;
     margin: 0 auto;
-    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--dashboard-card-min-width)), 1fr));
     width: 100%;
     padding-bottom: 80px;
+    justify-content: center;
 }
 
 .container.list-mode {

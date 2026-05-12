@@ -9,6 +9,7 @@ window.modalTemplate += `
         <div class="modal-tabs">
             <button class="tab-btn active" onclick="switchCategoryTab('general')" id="tab-btn-general">General</button>
             <button class="tab-btn" onclick="switchCategoryTab('folders')" id="tab-btn-folders">Folders</button>
+            <button class="tab-btn" onclick="switchCategoryTab('state')" id="tab-btn-state">State</button>
             <button class="tab-btn" onclick="switchCategoryTab('search')" id="tab-btn-search">Search Unidex</button>
             <button class="tab-btn" onclick="switchCategoryTab('scraper')" id="tab-btn-scraper">Scraper</button>
         </div>
@@ -16,6 +17,14 @@ window.modalTemplate += `
         <div id="cat-tab-general" class="tab-content" style="display:block;">
             <div style="display:flex; flex-direction:column; gap:10px;">
                 <button onclick="closeModals(); openRenameModal(window.currentCategoryCtx)" style="width:100%;">&#9998; Rename Category</button>
+                <details class="settings-disclosure" open>
+                    <summary class="settings-disclosure-summary">&#128196; Card Description</summary>
+                    <div class="settings-disclosure-body" style="display:flex; flex-direction:column; gap:8px;">
+                        <div style="font-size:0.82rem; opacity:0.76;">Short placement note shown when hovering this card title.</div>
+                        <textarea id="categoryDescriptionInput" rows="3" placeholder="What this card is for..." style="width:100%; resize:vertical;"></textarea>
+                        <button type="button" onclick="saveCategoryDescriptionSetting()" style="width:100%;">Save Description</button>
+                    </div>
+                </details>
                 <button onclick="closeModals(); openBulkTitleModal(window.currentCategoryCtx)" style="width:100%;">&#127991; Auto-Title Links</button>
                 <button onclick="closeModals(); openBulkLibraryAutoModal(window.currentCategoryCtx)" style="width:100%;">&#128214; Auto-Add Library Entries</button>
                 <details class="settings-disclosure">
@@ -106,6 +115,15 @@ window.modalTemplate += `
                     <button onclick="closeModals(); openAddModal(window.currentCategoryCtx)" style="flex:1 1 180px;">&#10133; Add Root Bookmark</button>
                 </div>
                 <div id="category-folder-manager" style="display:flex; flex-direction:column; gap:8px; max-height:420px; overflow-y:auto;"></div>
+            </div>
+        </div>
+
+        <div id="cat-tab-state" class="tab-content" style="display:none;">
+            <div style="display:flex; flex-direction:column; gap:12px;">
+                <p style="opacity:0.75; font-size:0.9rem; margin:0;">Open the stratified Datapack View State for this card. Bookmark internals open separately so huge cards do not dump every bookmark inline.</p>
+                <button type="button" class="btn-primary" onclick="openCategoryStateGateway()">Open Structured State Gateway</button>
+                <button type="button" onclick="openCategoryStateInternals()">Open Bookmark/Folder Internals</button>
+                <div id="categoryStateGatewayHint" style="font-size:0.78rem; opacity:0.72;"></div>
             </div>
         </div>
 

@@ -462,6 +462,13 @@ function _renderDashboardCore(renderHint) {
         console.error('renderDock not found');
     }
 
+    if (window.EveBookmarkCovers && typeof window.EveBookmarkCovers.scheduleWarmup === 'function' && !window._eveMegaPerfMode) {
+        window.EveBookmarkCovers.scheduleWarmup(visibleLinks, {
+            limit: window._evePerfMode ? 36 : 96,
+            delayMs: window._evePerfMode ? 1800 : 900
+        });
+    }
+
     if (typeof window.renderCategories === 'function') {
         window.renderCategories(visibleLinks, grid, focusCategory, searchStr, _eveDashRenderGen, renderHint);
         // Defer masonry layout to after initial cards have painted

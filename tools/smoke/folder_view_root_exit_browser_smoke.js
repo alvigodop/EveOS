@@ -39,6 +39,10 @@ async function main() {
                     .some((node) => String(node.textContent || '').includes(text));
             }
 
+            function hasRootItem(linkId) {
+                return !!document.querySelector(`.v2-folder-root-container li[data-link-id="${CSS.escape(String(linkId))}"]`);
+            }
+
             const seededLinks = [
                 {
                     id: 'root-1',
@@ -77,6 +81,12 @@ async function main() {
                 }
             };
 
+            if (typeof window.EveDashboardPrefetch?.clearCache === 'function') {
+                window.EveDashboardPrefetch.clearCache();
+            }
+            if (typeof window.setLiveLinks === 'function') {
+                window.setLiveLinks(seededLinks);
+            }
             window.links = links = seededLinks;
             window.config = config = seededConfig;
             window.bookmarkFolders = bookmarkFolders = seededFolders;
@@ -86,11 +96,13 @@ async function main() {
                 window.eveState.bookmarkFolders = seededFolders;
             }
             window.EveFolderViewV2.invalidateAllCachedViewModels?.();
+            window.__eveDashboardRenderHint = { kind: 'workspace-switch', fromWorkspaceId: 'seed-reset', toWorkspaceId: 'main' };
             window.renderDashboard();
 
             await waitFor(() => (
                 hasText('.v2-folder-root-container', 'Root Exit Bookmark')
                 && hasText('.folder-tile-title', 'Folder A')
+                && hasText('.folder-tile-title', '[ System Views ]')
             ), 6000, 'root bookmark and folder tile');
 
             window.EveFolderViewV2.enterFolder(null, 'Reading', 'f-parent', 'main');
@@ -113,16 +125,21 @@ async function main() {
                 + '</div>'
                 + '</div>';
 
+            const previousPerfMode = !!window._evePerfMode;
+            window._evePerfMode = true;
             window.EveFolderViewV2.exitFolder(null, 'Reading', 'main');
+            window._evePerfMode = previousPerfMode;
             await waitFor(() => (
                 hasText('.v2-folder-root-container', 'Root Exit Bookmark')
+                && hasText('.folder-tile-title', '[ System Views ]')
                 && !document.querySelector('.v2-folder-container')
             ), 6000, 'fresh root content after exit');
 
             const activeKey = 'main::Reading';
             return {
-                rootBookmarkVisible: hasText('.v2-folder-root-container', 'Root Exit Bookmark'),
-                folderBookmarkHiddenAtRoot: !hasText('.v2-folder-root-container', 'Folder Bookmark'),
+                rootBookmarkVisible: hasRootItem('root-1'),
+                systemViewsVisible: hasText('.folder-tile-title', '[ System Views ]'),
+                folderBookmarkHiddenAtRoot: !hasRootItem('folder-1'),
                 activeFolderState: window.eveState?.config?.activeManhwaFolders?.[activeKey] || '',
                 cachedRootCount: window.EveFolderViewV2.getCachedViewModel('main', 'Reading')?.rootLinks?.length || 0
             };
@@ -130,6 +147,9 @@ async function main() {
 
         if (!result.rootBookmarkVisible) {
             throw new Error(`Expected root bookmark after folder exit: ${JSON.stringify(result)}`);
+        }
+        if (!result.systemViewsVisible) {
+            throw new Error(`Expected System Views after perf-mode folder exit: ${JSON.stringify(result)}`);
         }
         if (!result.folderBookmarkHiddenAtRoot) {
             throw new Error(`Folder bookmark leaked into root after folder exit: ${JSON.stringify(result)}`);

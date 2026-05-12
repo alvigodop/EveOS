@@ -175,8 +175,26 @@ function renderCardFull(catInput, catLinks, gridContainer, configOptions) {
 
         card.ondragover = function (event) {
             if (typeof allowDrop === 'function') allowDrop(event);
+            if (typeof window.isCategoryCardDragPayload === 'function' && window.isCategoryCardDragPayload(event)) {
+                card.classList.add('card-drop-target');
+            }
+        };
+        card.ondragenter = function (event) {
+            if (typeof window.isCategoryCardDragPayload === 'function' && window.isCategoryCardDragPayload(event)) {
+                event.preventDefault();
+                card.classList.add('card-drop-target');
+            }
+        };
+        card.ondragleave = function (event) {
+            if (!event.relatedTarget || !card.contains(event.relatedTarget)) {
+                card.classList.remove('card-drop-target');
+            }
         };
         card.ondrop = function (event) {
+            card.classList.remove('card-drop-target');
+            if (typeof window.dropCategoryCardOnCard === 'function' && window.dropCategoryCardOnCard(event, activeWorkspaceId, cat)) {
+                return;
+            }
             if (isDetachedParkingCard) {
                 if (window.EveConstellationMap && window.EveConstellationMap._detached && typeof window.EveConstellationMap._detached.handleDashboardParkingDrop === 'function') {
                     window.EveConstellationMap._detached.handleDashboardParkingDrop(event, activeWorkspaceId);
@@ -425,6 +443,10 @@ function renderCardFull(catInput, catLinks, gridContainer, configOptions) {
             + '</div>';
 
         var subTabSourcesHtml = api.buildSubTabSourcesHtml(catLinks, options, cardWorkspaceId, activeWorkspaceId, isDetachedParkingCard);
+        var cardDescription = api.getCardDescription
+            ? api.getCardDescription(activeWorkspaceId, cat)
+            : '';
+        var safeCardDescriptionHtml = escapeCardHtml(cardDescription);
 
         card.innerHTML = ''
             + '<div class="cat-progress-bg"><div class="cat-progress-fill ' + barClass + '" style="width:' + pct + '%"></div></div>'
@@ -433,7 +455,13 @@ function renderCardFull(catInput, catLinks, gridContainer, configOptions) {
             + titleControlsHtml
             + '<div class="category-title-wrap"'
             + ' data-title="' + safeCatHtml + '"'
-            + ' onmouseenter="showCardTitleHover(event, this.dataset.title)"'
+            + ' data-description="' + safeCardDescriptionHtml + '"'
+            + ' data-ws="' + escapeCardHtml(activeWorkspaceId) + '"'
+            + ' data-cat="' + safeCatHtml + '"'
+            + (isFocusMode ? '' : ' draggable="true"')
+            + (isFocusMode ? '' : ' ondragstart="if(typeof dragCategoryCard===\'function\') dragCategoryCard(event, this.dataset.ws, this.dataset.cat)"')
+            + (isFocusMode ? '' : ' ondragend="if(typeof endCategoryCardDrag===\'function\') endCategoryCardDrag(event)"')
+            + ' onmouseenter="showCardTitleHover(event, this.dataset.title, this.dataset.description)"'
             + ' onmousemove="moveCardTitleHover(event)"'
             + ' onmouseleave="hideCardTitleHover()">'
             + '<div class="category-title">' + safeCatHtml + '</div>'

@@ -115,7 +115,7 @@ function collectIndexedDashboardCardLinks(visibleLinkIdMap, workspaceId, categor
         ? function (linkId) { return indexApi.resolveBookmarkLink(linkId); }
         : null;
 
-    return indexApi.getExactBookmarkLinkIds({
+    var resolvedLinks = indexApi.getExactBookmarkLinkIds({
         workspaceId: workspaceId,
         categoryName: categoryName
     }).map(function (linkId) {
@@ -125,6 +125,7 @@ function collectIndexedDashboardCardLinks(visibleLinkIdMap, workspaceId, categor
             || (resolveIndexedLink ? resolveIndexedLink(normalizedId) : null)
             || null;
     }).filter(Boolean);
+    return resolvedLinks.length ? resolvedLinks : null;
 }
 
 function getIndexedDashboardCardSummaryBucket(summary, workspaceId, categoryName) {
