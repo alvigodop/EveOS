@@ -215,17 +215,42 @@ function saveSettingsBackupMode() {
 }
 
 // Collapsible settings sections — every .settings-section can be folded.
-// Per-section collapsed state is persisted in config.settingsCollapsedSections
-// (an array of section keys) so the user's layout survives page reloads.
+// Per-section collapsed state survives modal close/reopen and page reload.
+//
+// Storage strategy: localStorage is the primary durable source for this
+// preference — direct, synchronous, no signature debounce, no config-reference
+// scope concerns. We also mirror into config.settingsCollapsedSections so the
+// state lands in backup/export bundles.
+const SETTINGS_COLLAPSED_LS_KEY = 'eveSettingsCollapsedSections';
+
 function getCollapsedSectionsList() {
-    const stored = window.config?.settingsCollapsedSections;
-    return Array.isArray(stored) ? stored.map(String) : [];
+    try {
+        const raw = localStorage.getItem(SETTINGS_COLLAPSED_LS_KEY);
+        if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) return parsed.map(String).filter(Boolean);
+        }
+    } catch (error) {
+        // localStorage may be disabled (private mode, etc.) — fall through.
+    }
+    // Fall back to config (e.g. after restoring a backup that cleared LS).
+    if (typeof config !== 'undefined' && Array.isArray(config?.settingsCollapsedSections)) {
+        return config.settingsCollapsedSections.map(String).filter(Boolean);
+    }
+    return [];
 }
 
 function persistCollapsedSections(list) {
-    if (!window.config) return;
-    window.config.settingsCollapsedSections = Array.from(new Set(list.map(String))).filter(Boolean);
-    if (typeof saveConfig === 'function') saveConfig();
+    const next = Array.from(new Set(list.map(String))).filter(Boolean);
+    try {
+        localStorage.setItem(SETTINGS_COLLAPSED_LS_KEY, JSON.stringify(next));
+    } catch (error) {
+        // localStorage write failed — config mirror below is the fallback.
+    }
+    if (typeof config !== 'undefined' && config) {
+        config.settingsCollapsedSections = next;
+        if (typeof saveConfig === 'function') saveConfig({ immediate: true });
+    }
 }
 
 function toggleSettingsSection(buttonOrEl) {
@@ -256,6 +281,76 @@ function applySettingsSectionsCollapsedState() {
 
 window.toggleSettingsSection = toggleSettingsSection;
 window.applySettingsSectionsCollapsedState = applySettingsSectionsCollapsedState;
+
+// Cross-link helper: closes Settings, then opens the requested panel so the
+// target modal takes focus instead of stacking behind the open settings dialog.
+// Uses a registry so dot-path methods (EveConstellationMap.openCurrentViewMap,
+// LoadingIndicator.expand) and contextual launchers (library) can be wired
+// without inline JS in the template onclick.
+const settingsPanelLaunchers = {
+    'header-controls': () => window.openHeaderControlsModal?.(),
+    'social-manager': () => window.openSocialManagerModal?.(),
+    'expanded-search': () => window.openExpandedSearchModal?.(),
+    'bulk-operations': () => window.openBulkModal?.(),
+    'constellation-map': () => {
+        const api = window.EveConstellationMap;
+        if (api?.openCurrentViewMap) api.openCurrentViewMap();
+        else if (api?.openAllMap) api.openAllMap();
+        else if (typeof showToast === 'function') showToast('Constellation Map isn\'t loaded yet.', 'warning');
+    },
+    'gemini': () => {
+        // Gemini lives inside the search-monitor loading indicator;
+        // expanding the indicator reveals its panel.
+        const expand = window.LoadingIndicator?.expand;
+        if (typeof expand === 'function') {
+            expand();
+            setTimeout(() => {
+                document.getElementById('gemini-placeholder')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 200);
+        } else if (typeof window.__loadDeferredScriptsNow === 'function') {
+            // Loading indicator is deferred — rush-load it then try again.
+            window.__loadDeferredScriptsNow().then(() => {
+                setTimeout(() => window.LoadingIndicator?.expand?.(), 80);
+            }).catch(() => {});
+        } else if (typeof showToast === 'function') {
+            showToast('Gemini panel isn\'t loaded yet.', 'warning');
+        }
+    },
+    'scratchpad': () => window.toggleScratchpad?.(),
+    'library': () => {
+        // Library lives inside Unidex view — switching to Unidex exposes the
+        // whole datapack's library and lets the user navigate down into any
+        // card, folder, or bookmark from there.
+        if (typeof window.openUnidexView === 'function') {
+            window.openUnidexView();
+        } else if (typeof showToast === 'function') {
+            showToast('Library view isn\'t available yet.', 'warning');
+        }
+    }
+};
+
+function openSettingsLinkedPanel(targetKey) {
+    let launcher = null;
+    if (typeof targetKey === 'function') {
+        launcher = targetKey;
+    } else if (typeof targetKey === 'string') {
+        const key = targetKey.trim();
+        if (settingsPanelLaunchers[key]) {
+            launcher = settingsPanelLaunchers[key];
+        } else if (typeof window[key] === 'function') {
+            launcher = window[key];
+        }
+    }
+    if (typeof launcher !== 'function') {
+        if (typeof showToast === 'function') showToast('That panel isn\'t available yet.', 'warning');
+        return;
+    }
+    if (typeof closeModals === 'function') closeModals();
+    setTimeout(() => {
+        try { launcher(); } catch (error) { console.warn('[Settings] linked panel failed', error); }
+    }, 0);
+}
+window.openSettingsLinkedPanel = openSettingsLinkedPanel;
 
 function saveSettingsModularSyncEnabled() {
     config.modularStateSyncEnabled = !!document.getElementById('modularSyncToggle')?.checked;

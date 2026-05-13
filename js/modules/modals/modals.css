@@ -184,6 +184,88 @@ input:focus {
     pointer-events: none;
 }
 
+/* Other Panels — launcher tiles linking to scattered settings/feature panels. */
+.settings-panel-link-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 10px;
+    margin-top: 6px;
+}
+
+.settings-panel-link {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid color-mix(in srgb, var(--accent, #00d4ff) 22%, rgba(255, 255, 255, 0.08));
+    border-radius: 12px;
+    background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.025) 0%, transparent 100%),
+        rgba(0, 0, 0, 0.2);
+    color: var(--text-main, rgba(255, 255, 255, 0.9));
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease, transform 0.12s ease;
+}
+
+.settings-panel-link:hover {
+    border-color: color-mix(in srgb, var(--accent, #00d4ff) 55%, rgba(255, 255, 255, 0.12));
+    background:
+        radial-gradient(ellipse at left center, color-mix(in srgb, var(--accent, #00d4ff) 14%, transparent) 0%, transparent 65%),
+        rgba(0, 0, 0, 0.26);
+    box-shadow:
+        0 0 14px color-mix(in srgb, var(--accent, #00d4ff) 14%, transparent),
+        inset 0 0 14px color-mix(in srgb, var(--accent, #00d4ff) 8%, transparent);
+    transform: translateY(-1px);
+}
+
+.settings-panel-link:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--accent, #00d4ff) 60%, transparent);
+    outline-offset: 2px;
+}
+
+.settings-panel-link-icon {
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.05rem;
+    color: color-mix(in srgb, var(--accent, #00d4ff) 80%, var(--text-main, #fff));
+    border: 1px solid color-mix(in srgb, var(--accent, #00d4ff) 26%, rgba(255, 255, 255, 0.1));
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 8px;
+    transition: all 0.18s;
+}
+
+.settings-panel-link:hover .settings-panel-link-icon {
+    border-color: color-mix(in srgb, var(--accent, #00d4ff) 65%, transparent);
+    background: color-mix(in srgb, var(--accent, #00d4ff) 14%, transparent);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--accent, #00d4ff) 28%, transparent);
+}
+
+.settings-panel-link-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.settings-panel-link-title {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--text-main, #fff);
+}
+
+.settings-panel-link-desc {
+    font-size: 0.78rem;
+    opacity: 0.74;
+    line-height: 1.35;
+}
+
 .modal {
     background: var(--modal-bg, #1e1e1e);
     color: var(--modal-text, var(--text-main));

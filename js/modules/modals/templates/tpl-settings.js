@@ -123,14 +123,74 @@ window.modalTemplate += `
                 </div>
             </div>
 
-            <div class="settings-section" data-settings-section="header-readout">
+            <div class="settings-section" data-settings-section="other-panels">
                 <button type="button" class="settings-section-header" onclick="toggleSettingsSection(this)" aria-expanded="true">
-                    <h4 style="margin:0; color:var(--accent);">Header Readout</h4>
+                    <h4 style="margin:0; color:var(--accent);">Other Panels</h4>
                     <span class="settings-section-chevron" aria-hidden="true">&#9662;</span>
                 </button>
                 <div class="settings-section-body">
-                    <button type="button" onclick="openHeaderControlsModal()" style="width:100%;">Open Header Controls</button>
-                    <div style="font-size:0.8rem; opacity:0.75; margin-top:4px;">Adjust greeting/clock messages, font, color, and effects.</div>
+                    <div style="font-size:0.8rem; opacity:0.75;">Configuration panels and power-user tools that live elsewhere on the site.</div>
+                    <div class="settings-panel-link-grid">
+                        <button type="button" class="settings-panel-link" onclick="openSettingsLinkedPanel('header-controls')">
+                            <span class="settings-panel-link-icon" aria-hidden="true">&#9881;</span>
+                            <span class="settings-panel-link-body">
+                                <span class="settings-panel-link-title">Header Controls</span>
+                                <span class="settings-panel-link-desc">Greeting, clock, font, color, and effects.</span>
+                            </span>
+                        </button>
+                        <button type="button" class="settings-panel-link" onclick="openSettingsLinkedPanel('social-manager')">
+                            <span class="settings-panel-link-icon" aria-hidden="true">&#128241;</span>
+                            <span class="settings-panel-link-body">
+                                <span class="settings-panel-link-title">Social Manager</span>
+                                <span class="settings-panel-link-desc">Connect platform integrations and share targets.</span>
+                            </span>
+                        </button>
+                        <button type="button" class="settings-panel-link" onclick="openSettingsLinkedPanel('expanded-search')">
+                            <span class="settings-panel-link-icon" aria-hidden="true">&#128269;</span>
+                            <span class="settings-panel-link-body">
+                                <span class="settings-panel-link-title">Expanded Search</span>
+                                <span class="settings-panel-link-desc">Advanced search, scraper, API providers, saved filters.</span>
+                            </span>
+                        </button>
+                        <button type="button" class="settings-panel-link" onclick="openSettingsLinkedPanel('gemini')">
+                            <span class="settings-panel-link-icon" aria-hidden="true">&#10024;</span>
+                            <span class="settings-panel-link-body">
+                                <span class="settings-panel-link-title">Gemini</span>
+                                <span class="settings-panel-link-desc">Open the Gemini AI panel in the search monitor.</span>
+                            </span>
+                        </button>
+                        <button type="button" class="settings-panel-link" onclick="openSettingsLinkedPanel('library')">
+                            <span class="settings-panel-link-icon" aria-hidden="true">&#128218;</span>
+                            <span class="settings-panel-link-body">
+                                <span class="settings-panel-link-title">Library</span>
+                                <span class="settings-panel-link-desc">Open Unidex view — whole-datapack library with card and folder drill-down.</span>
+                            </span>
+                        </button>
+                        <button type="button" class="settings-panel-link" onclick="openSettingsLinkedPanel('constellation-map')">
+                            <span class="settings-panel-link-icon" aria-hidden="true">&#127756;</span>
+                            <span class="settings-panel-link-body">
+                                <span class="settings-panel-link-title">Constellation Map</span>
+                                <span class="settings-panel-link-desc">Visualize bookmarks and connections as a network.</span>
+                            </span>
+                        </button>
+                        <button type="button" class="settings-panel-link" onclick="openSettingsLinkedPanel('scratchpad')">
+                            <span class="settings-panel-link-icon" aria-hidden="true">&#128221;</span>
+                            <span class="settings-panel-link-body">
+                                <span class="settings-panel-link-title">Notes</span>
+                                <span class="settings-panel-link-desc">Floating scratchpad for quick thoughts.</span>
+                            </span>
+                        </button>
+                        <button type="button" class="settings-panel-link" onclick="openSettingsLinkedPanel('bulk-operations')">
+                            <span class="settings-panel-link-icon" aria-hidden="true">&#128230;</span>
+                            <span class="settings-panel-link-body">
+                                <span class="settings-panel-link-title">Bulk Operations</span>
+                                <span class="settings-panel-link-desc">Bulk import URL lists, auto-title, structured pipelines.</span>
+                            </span>
+                        </button>
+                    </div>
+                    <div style="font-size:0.78rem; opacity:0.72; margin-top:4px;">
+                        Per-card and per-folder settings live in their right-click context menus.
+                    </div>
                 </div>
             </div>
 
