@@ -74,7 +74,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                 let subFolderHtml = '';
                 if (subFolders.length > 0) {
                     subFolderHtml = '<div class="hatch-subfolders" onwheel="event.stopPropagation();">' + subFolders.map(sf => {
-                        return `<div class="hatch-subfolder-icon" title="${escapeCardHtml(sf.name)}" onclick="event.stopPropagation(); window.EveFolderViewV2.enterFolder(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(sf.id)}', '${escapeCardJs(workspaceId)}')"><svg width="10" height="10" viewBox="0 0 14 14" style="overflow: visible;"><rect x="0" y="3" width="14" height="10" rx="0" fill="none" stroke="currentColor" stroke-width="1.5" /><path d="M0,3 L4,3 L5.5,1 L9,1 L9,3" fill="none" stroke="currentColor" stroke-width="1.5" /></svg></div>`;
+                        return `<div class="hatch-subfolder-icon" data-folder-hover-kind="Subfolder" data-folder-hover-label="${escapeCardHtml(sf.name)}" data-folder-hover-meta="${escapeCardHtml(folder.name)} -> ${escapeCardHtml(sf.name)}" onclick="event.stopPropagation(); window.EveFolderViewV2.enterFolder(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(sf.id)}', '${escapeCardJs(workspaceId)}')"><svg width="10" height="10" viewBox="0 0 14 14" style="overflow: visible;"><rect x="0" y="3" width="14" height="10" rx="0" fill="none" stroke="currentColor" stroke-width="1.5" /><path d="M0,3 L4,3 L5.5,1 L9,1 L9,3" fill="none" stroke="currentColor" stroke-width="1.5" /></svg></div>`;
                     }).join('') + '</div>';
                 }
 
@@ -135,8 +135,8 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                         <div class="folder-tile-left-bar"></div>
                         <div class="folder-icon-box"><svg width="14" height="14" viewBox="0 0 14 14" style="overflow: visible;"><rect x="0" y="3" width="14" height="10" rx="0" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.6" /><path d="M0,3 L4,3 L5.5,1 L9,1 L9,3" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.6" /></svg></div>
                         <div class="folder-tile-content">
-                            <div class="folder-tile-title" title="${escapeCardHtml(folder.name)}">${escapeCardHtml(folder.name)}</div>
-                            <div class="folder-tile-stats" title="${escapeCardHtml(statsLabel)}">${escapeCardHtml(statsLabel)}</div>
+                            <div class="folder-tile-title" data-folder-hover-label="${escapeCardHtml(folder.name)}" data-folder-hover-meta="${escapeCardHtml(statsLabel)}">${escapeCardHtml(folder.name)}</div>
+                            <div class="folder-tile-stats">${escapeCardHtml(statsLabel)}</div>
                         </div>
                         ${editButtonHtml}
                     </div>

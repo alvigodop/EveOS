@@ -14,9 +14,15 @@ window.getModalStackZIndex = function () {
     }, 3000);
 };
 
-window.showConfirm = function (msg) {
+window.showConfirm = function (msg, options = {}) {
     return new Promise((resolve) => {
-        window.setupModal('Confirm', msg, false, (result) => resolve(result));
+        window.setupModal(options.title || 'Confirm', msg, false, (result) => resolve(!!result), '', options);
+    });
+};
+
+window.showConfirmWithTitle = function (title, msg, options = {}) {
+    return new Promise((resolve) => {
+        window.setupModal(title || 'Confirm', msg, false, (result) => resolve(!!result), '', options);
     });
 };
 
@@ -26,7 +32,7 @@ window.showPrompt = function (msg, defaultValue = '') {
     });
 };
 
-window.setupModal = function (title, msg, isPrompt, callback, defaultValue = '') {
+window.setupModal = function (title, msg, isPrompt, callback, defaultValue = '', options = {}) {
     const overlay = document.getElementById('custom-modal-overlay');
     const titleEl = document.getElementById('custom-modal-title');
     const msgEl = document.getElementById('custom-modal-msg');
@@ -37,9 +43,13 @@ window.setupModal = function (title, msg, isPrompt, callback, defaultValue = '')
 
     if (!overlay) return callback(false);
 
+    const modalOptions = options && typeof options === 'object' ? options : {};
+    overlay.dataset.modalKind = modalOptions.kind || (isPrompt ? 'prompt' : 'confirm');
     titleEl.innerText = title;
     msgEl.innerText = msg;
     msgEl.style.display = msg ? 'block' : 'none';
+    confirmBtn.innerText = modalOptions.confirmLabel || (isPrompt ? 'Save' : 'Confirm');
+    cancelBtn.innerText = modalOptions.cancelLabel || 'Cancel';
 
     if (isPrompt) {
         inputContainer.style.display = 'block';
@@ -68,6 +78,7 @@ window.setupModal = function (title, msg, isPrompt, callback, defaultValue = '')
         cancelBtn.onclick = null;
         input.onkeydown = null;
         overlay.onclick = null;
+        delete overlay.dataset.modalKind;
         document.removeEventListener('keydown', keyHandler);
     };
 

@@ -167,7 +167,7 @@ window.DashboardCategories = window.DashboardCategories || {};
 
                 + '<summary class="bookmark-folder-summary">'
                 + '<div class="bookmark-folder-summary-copy">'
-                + `<span class="bookmark-folder-title">${escapeCardHtml(node.name)}</span>`
+                + `<span class="bookmark-folder-title" data-folder-hover-label="${escapeCardHtml(node.name)}" data-folder-hover-meta="${escapeCardHtml(folderCountLabel)} | ${escapeCardHtml(childCountLabel)}">${escapeCardHtml(node.name)}</span>`
                 + `<span class="bookmark-folder-meta">${escapeCardHtml(folderCountLabel)} | ${escapeCardHtml(childCountLabel)}</span>`
                 + '</div>'
                 + summaryActionsHtml

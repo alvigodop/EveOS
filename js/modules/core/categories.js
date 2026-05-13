@@ -121,6 +121,32 @@ function getCategoryStructureSummary() {
     return indexApi.getStructureSummary();
 }
 
+function buildCategoryCardMoveConfirmMessage(sourceCat, targetName, targetWs, targetExists) {
+    var message = 'Move card "' + sourceCat + '" to ' + (targetName || ('tab ' + targetWs)) + '?';
+    if (targetExists) {
+        message += '\n\nA card with this name already exists there. Bookmarks will merge with matching title/URL entries, and folder/card settings will preserve the destination when both exist.';
+    }
+    return message;
+}
+
+function requestCategoryCardMoveConfirm(sourceCat, targetName, targetWs, targetExists) {
+    var message = buildCategoryCardMoveConfirmMessage(sourceCat, targetName, targetWs, targetExists);
+    var options = {
+        title: 'Move Card',
+        confirmLabel: 'Move Card',
+        cancelLabel: 'Keep Here',
+        kind: targetExists ? 'card-move-merge-confirm' : 'card-move-confirm'
+    };
+    if (typeof window.showConfirmWithTitle === 'function') {
+        return window.showConfirmWithTitle('Move Card', message, options);
+    }
+    if (typeof window.showConfirm === 'function') {
+        return window.showConfirm(message, options);
+    }
+    if (typeof window.confirm === 'function') return window.confirm(message);
+    return true;
+}
+
 function moveCategoryCardToWorkspace(sourceWorkspaceId, categoryName, targetWorkspaceId, options) {
     options = options || {};
     var sourceWs = normalizeCategoryWorkspaceId(sourceWorkspaceId);
@@ -131,93 +157,100 @@ function moveCategoryCardToWorkspace(sourceWorkspaceId, categoryName, targetWork
 
     var targetName = options.targetWorkspaceName || '';
     var targetExists = categoryHasContentInWorkspace(targetWs, targetCat);
-    if (options.requireConfirm !== false && typeof window.confirm === 'function') {
-        var message = 'Move card "' + sourceCat + '" to ' + (targetName || ('tab ' + targetWs)) + '?';
-        if (targetExists) {
-            message += '\n\nA card with this name already exists there. Bookmarks will merge with matching title/URL entries, and folder/card settings will preserve the destination when both exist.';
+
+    function applyCardMove() {
+        var liveLinks = getCategoryLiveLinks();
+        var sourceLinks = liveLinks.filter(function (link) {
+            return normalizeCategoryWorkspaceId(link?.workspace) === sourceWs
+                && normalizeCategoryNameValue(link?.category) === sourceCat;
+        });
+
+        if (window.EveBookmarkFolders?.transferCategoryFolders) {
+            window.EveBookmarkFolders.transferCategoryFolders(sourceWs, sourceCat, targetWs, targetCat, { persist: false });
         }
-        if (!window.confirm(message)) return false;
-    }
 
-    var liveLinks = getCategoryLiveLinks();
-    var sourceLinks = liveLinks.filter(function (link) {
-        return normalizeCategoryWorkspaceId(link?.workspace) === sourceWs
-            && normalizeCategoryNameValue(link?.category) === sourceCat;
-    });
+        var mergeApi = window.EveBookmarkMerge;
+        var movedIds = [];
+        var mergedIds = [];
+        var removedIds = [];
+        sourceLinks.forEach(function (link) {
+            if (!link) return;
+            var folderId = String(link.folderId || '').trim();
+            if (mergeApi && typeof mergeApi.moveOrMergeLinkToScope === 'function') {
+                var result = mergeApi.moveOrMergeLinkToScope(link, {
+                    workspaceId: targetWs,
+                    categoryName: targetCat,
+                    folderId: folderId
+                }, {
+                    source: options.source || 'category-card-move',
+                    links: liveLinks
+                });
+                if (result?.targetId) movedIds.push(String(result.targetId));
+                if (result?.merged && result.targetId) mergedIds.push(String(result.targetId));
+                if (Array.isArray(result?.removedIds)) removedIds.push.apply(removedIds, result.removedIds.map(String));
+                return;
+            }
+            link.workspace = targetWs;
+            link.category = targetCat;
+            movedIds.push(String(link.id));
+            if (typeof window.EveLibrary?.ConnectionsAPI?.syncFromLink === 'function') {
+                window.EveLibrary.ConnectionsAPI.syncFromLink(link.id);
+            }
+        });
 
-    if (window.EveBookmarkFolders?.transferCategoryFolders) {
-        window.EveBookmarkFolders.transferCategoryFolders(sourceWs, sourceCat, targetWs, targetCat, { persist: false });
-    }
+        setCategoryLiveLinks(liveLinks);
+        transferCategoryScopedConfig(sourceWs, sourceCat, targetWs, targetCat);
 
-    var mergeApi = window.EveBookmarkMerge;
-    var movedIds = [];
-    var mergedIds = [];
-    var removedIds = [];
-    sourceLinks.forEach(function (link) {
-        if (!link) return;
-        var folderId = String(link.folderId || '').trim();
-        if (mergeApi && typeof mergeApi.moveOrMergeLinkToScope === 'function') {
-            var result = mergeApi.moveOrMergeLinkToScope(link, {
-                workspaceId: targetWs,
-                categoryName: targetCat,
-                folderId: folderId
-            }, {
+        if (window.EveCategoryOrder?.removeCategory) window.EveCategoryOrder.removeCategory(sourceWs, sourceCat);
+        if (window.EveCategoryOrder?.ensureCategory) window.EveCategoryOrder.ensureCategory(targetWs, targetCat);
+        if (options.targetPositionCategoryName && window.EveCategoryOrder?.moveCategoryToPosition && window.EveCategoryOrder?.getOrder) {
+            var order = window.EveCategoryOrder.getOrder(targetWs, { persist: true });
+            var targetIndex = Array.isArray(order) ? order.indexOf(String(options.targetPositionCategoryName)) : -1;
+            if (targetIndex >= 0) window.EveCategoryOrder.moveCategoryToPosition(targetWs, targetCat, targetIndex + 1);
+        }
+
+        if (typeof saveConfig === 'function') {
+            saveConfig({
                 source: options.source || 'category-card-move',
-                links: liveLinks
+                meta: {
+                    workspaceId: sourceWs,
+                    categoryName: sourceCat,
+                    targetWorkspaceId: targetWs,
+                    targetCategoryName: targetCat
+                }
             });
-            if (result?.targetId) movedIds.push(String(result.targetId));
-            if (result?.merged && result.targetId) mergedIds.push(String(result.targetId));
-            if (Array.isArray(result?.removedIds)) removedIds.push.apply(removedIds, result.removedIds.map(String));
-            return;
         }
-        link.workspace = targetWs;
-        link.category = targetCat;
-        movedIds.push(String(link.id));
-        if (typeof window.EveLibrary?.ConnectionsAPI?.syncFromLink === 'function') {
-            window.EveLibrary.ConnectionsAPI.syncFromLink(link.id);
+        if (typeof saveData === 'function') {
+            saveData({
+                forceRender: true,
+                source: options.source || 'category-card-move',
+                meta: {
+                    workspaceId: sourceWs,
+                    categoryName: sourceCat,
+                    targetWorkspaceId: targetWs,
+                    targetCategoryName: targetCat,
+                    linkIds: movedIds,
+                    mergedLinkIds: mergedIds,
+                    removedLinkIds: removedIds
+                }
+            });
+        } else if (typeof renderDashboard === 'function') {
+            renderDashboard();
         }
-    });
-
-    setCategoryLiveLinks(liveLinks);
-    transferCategoryScopedConfig(sourceWs, sourceCat, targetWs, targetCat);
-
-    if (window.EveCategoryOrder?.removeCategory) window.EveCategoryOrder.removeCategory(sourceWs, sourceCat);
-    if (window.EveCategoryOrder?.ensureCategory) window.EveCategoryOrder.ensureCategory(targetWs, targetCat);
-    if (options.targetPositionCategoryName && window.EveCategoryOrder?.moveCategoryToPosition && window.EveCategoryOrder?.getOrder) {
-        var order = window.EveCategoryOrder.getOrder(targetWs, { persist: true });
-        var targetIndex = Array.isArray(order) ? order.indexOf(String(options.targetPositionCategoryName)) : -1;
-        if (targetIndex >= 0) window.EveCategoryOrder.moveCategoryToPosition(targetWs, targetCat, targetIndex + 1);
+        return true;
     }
 
-    if (typeof saveConfig === 'function') {
-        saveConfig({
-            source: options.source || 'category-card-move',
-            meta: {
-                workspaceId: sourceWs,
-                categoryName: sourceCat,
-                targetWorkspaceId: targetWs,
-                targetCategoryName: targetCat
-            }
-        });
+    if (options.requireConfirm !== false) {
+        var confirmation = requestCategoryCardMoveConfirm(sourceCat, targetName, targetWs, targetExists);
+        if (confirmation && typeof confirmation.then === 'function') {
+            return confirmation.then(function (confirmed) {
+                return confirmed ? applyCardMove() : false;
+            });
+        }
+        if (!confirmation) return false;
     }
-    if (typeof saveData === 'function') {
-        saveData({
-            forceRender: true,
-            source: options.source || 'category-card-move',
-            meta: {
-                workspaceId: sourceWs,
-                categoryName: sourceCat,
-                targetWorkspaceId: targetWs,
-                targetCategoryName: targetCat,
-                linkIds: movedIds,
-                mergedLinkIds: mergedIds,
-                removedLinkIds: removedIds
-            }
-        });
-    } else if (typeof renderDashboard === 'function') {
-        renderDashboard();
-    }
-    return true;
+
+    return applyCardMove();
 }
 
 window.moveCategoryCardToWorkspace = moveCategoryCardToWorkspace;

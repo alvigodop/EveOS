@@ -420,6 +420,34 @@ html[data-native-scheme="light"] option {
     /* Lighter dimming */
 }
 
+#custom-modal-overlay[data-modal-kind^="card-move"] {
+    background: radial-gradient(circle at 50% 35%, rgba(0, 212, 255, 0.14), rgba(0, 0, 0, 0.68) 58%);
+    backdrop-filter: blur(8px);
+}
+
+#custom-modal-overlay[data-modal-kind^="card-move"] #custom-modal-card {
+    width: min(430px, calc(100vw - 32px));
+    background:
+        linear-gradient(145deg, rgba(18, 34, 36, 0.98), rgba(11, 14, 17, 0.98)),
+        radial-gradient(circle at 12% 0%, rgba(0, 212, 255, 0.16), transparent 34%);
+    border-color: rgba(0, 212, 255, 0.32);
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.58), 0 0 0 1px rgba(255, 255, 255, 0.04) inset, 0 0 34px rgba(0, 212, 255, 0.14);
+}
+
+#custom-modal-overlay[data-modal-kind^="card-move"] #custom-modal-title {
+    color: var(--accent, #00d4ff);
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 1.35rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+#custom-modal-overlay[data-modal-kind^="card-move"] #custom-modal-msg {
+    color: rgba(235, 247, 247, 0.78);
+    line-height: 1.45;
+    white-space: pre-line;
+}
+
 .light-theme h2,
 .light-theme h3,
 .light-theme h4 {
