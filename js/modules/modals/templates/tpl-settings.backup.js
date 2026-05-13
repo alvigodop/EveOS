@@ -7,6 +7,11 @@ window.EveSettingsTemplates.backupPanel = `
                     <span class="settings-section-chevron" aria-hidden="true">&#9662;</span>
                 </button>
                 <div class="settings-section-body">
+                <div class="backup-reminder-row" style="display:flex; flex-direction:column; gap:4px; margin-bottom:10px;">
+                    <label for="backupReminderDays" style="font-size:0.85rem;">Backup Reminder Every (days):</label>
+                    <input type="number" id="backupReminderDays" min="0" max="365" step="1" placeholder="0 = off" onchange="saveSettingsBackupReminderDays()" style="width:120px;">
+                    <span style="font-size:0.76rem; opacity:0.7;">Set to 0 to disable. You'll see a one-time toast when a backup is overdue.</span>
+                </div>
                 <div class="backup-mode-row">
                     <label for="backupSettingsMode">Backup Process:</label>
                     <select id="backupSettingsMode" onchange="saveSettingsBackupMode()">

@@ -284,6 +284,14 @@ async function loadData() {
     }
 
     if (!['grid', 'list', 'unidex'].includes(config.viewMode)) config.viewMode = 'grid';
+    // Apply startup view preference (overrides last-used viewMode on every load).
+    const startupView = String(config.startupViewMode || '').toLowerCase();
+    if (['grid', 'list', 'unidex'].includes(startupView)) {
+        config.viewMode = startupView;
+    }
+    if (typeof config.reducedMotion === 'boolean' && config.reducedMotion && typeof document !== 'undefined' && document.body) {
+        document.body.classList.add('reduced-motion');
+    }
     if (window.EveLibrary?.Ratings?.ensureConfigDefaults) {
         window.EveLibrary.Ratings.ensureConfigDefaults(config);
     }
@@ -328,6 +336,26 @@ async function loadData() {
 
     // Apply settings
     if (typeof applySettings === 'function') applySettings();
+
+    // Optional: nudge the user if a full backup is overdue.
+    try {
+        const reminderDays = Math.max(0, Math.min(365, Number(config.backupReminderDays) || 0));
+        if (reminderDays > 0) {
+            const lastIso = String(config.lastBackupAt || '').trim();
+            const lastMs = lastIso ? Date.parse(lastIso) : 0;
+            const cutoff = Date.now() - reminderDays * 24 * 60 * 60 * 1000;
+            if (!Number.isFinite(lastMs) || !lastMs || lastMs < cutoff) {
+                setTimeout(() => {
+                    if (typeof showToast === 'function') {
+                        const sinceLine = lastMs ? `Last backup: ${new Date(lastMs).toLocaleDateString()}` : 'No backup recorded yet';
+                        showToast(`Backup overdue (>${reminderDays} day${reminderDays === 1 ? '' : 's'}). ${sinceLine}.`, 'warning');
+                    }
+                }, 3000);
+            }
+        }
+    } catch (error) {
+        console.warn('[Storage] Backup reminder check failed', error);
+    }
 
     // Load notes
     const notes = storage

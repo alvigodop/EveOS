@@ -40,8 +40,14 @@ window.UnidexViewModules = window.UnidexViewModules || {};
         const PROGRESSIVE_ENTRY_THRESHOLD = 900;
         const PROGRESSIVE_GRID_INITIAL_COUNT = 288;
         const PROGRESSIVE_ROW_INITIAL_COUNT = 180;
-        const PROGRESSIVE_CHUNK_SIZE = 220;
-        const PROGRESSIVE_GROUP_CHUNK_SIZE = 760;
+        // Chunk size honors config.paginationChunkSize when the user has set it.
+        function resolveChunkSize(defaultValue) {
+            const raw = Number(window.config?.paginationChunkSize);
+            if (!Number.isFinite(raw) || raw <= 0) return defaultValue;
+            return Math.max(20, Math.min(2000, Math.round(raw)));
+        }
+        const PROGRESSIVE_CHUNK_SIZE = resolveChunkSize(220);
+        const PROGRESSIVE_GROUP_CHUNK_SIZE = Math.max(PROGRESSIVE_CHUNK_SIZE * 3, resolveChunkSize(760));
         let progressiveEntriesToken = 0;
         const mapButtonHtml = '<button type="button" class="unidex-layout-btn unidex-map-btn" onclick="window.UnidexView.openConstellationMap()" title="Open Constellation Map for this layer">Map</button>';
         const nexusAllTabsBtn = '<button type="button" class="unidex-layout-btn unidex-nexus-btn" onclick="window.UnidexView.openNexusSearch()" title="Search across all tabs (bookmarks + scraper cache)">⚔ Nexus Search</button>';
@@ -263,7 +269,10 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 }
 
                 const sourceRows = payload.grouped && Array.isArray(payload.rows) ? payload.rows : entries;
-                const chunkSize = payload.grouped ? PROGRESSIVE_GROUP_CHUNK_SIZE : PROGRESSIVE_CHUNK_SIZE;
+                // Recompute per chunk so a fresh Settings change applies without reload.
+                const liveChunkBase = resolveChunkSize(220);
+                const liveGroupChunk = Math.max(liveChunkBase * 3, resolveChunkSize(760));
+                const chunkSize = payload.grouped ? liveGroupChunk : liveChunkBase;
                 const nextCount = Math.min(totalCount, renderedCount + chunkSize);
                 const chunk = sourceRows.slice(renderedCount, nextCount);
 

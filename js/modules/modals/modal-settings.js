@@ -165,6 +165,7 @@ function openSettings() {
         window.EveBookmarkIdentifiers.renderSettingsManager();
     }
     if (typeof applySettingsSectionsCollapsedState === 'function') applySettingsSectionsCollapsedState();
+    if (typeof populateNewSettingsInputs === 'function') populateNewSettingsInputs();
     refreshModalThemedControls(document.getElementById('settingsModal'));
 }
 
@@ -174,6 +175,123 @@ function saveSettingsScrollable() { config.scrollableCategories = document.getEl
 function saveSettingsUltraCollapseSidebar() { config.ultraCollapseSidebar = document.getElementById('ultraCollapseSidebar').checked; saveConfig(); if (typeof renderSidebar === 'function') renderSidebar(); }
 function saveSettingsSidebarHidden() { config.sidebarHidden = document.getElementById('sidebarHidden').checked; saveConfig(); if (typeof renderSidebar === 'function') renderSidebar(); }
 function saveSettingsName() { config.userName = document.getElementById('userName').value; saveConfig(); updateTimeAndGreeting(); }
+
+// --- New preference setters (Phase: settings expansion) -------------------
+
+function saveSettingsShowHiddenSidebarGroups() {
+    config.showHiddenSidebarGroups = !!document.getElementById('showHiddenSidebarGroupsToggle')?.checked;
+    saveConfig();
+    if (typeof renderSidebar === 'function') renderSidebar();
+}
+
+function saveSettingsShowInactiveTabs() {
+    config.showInactiveTabs = !!document.getElementById('showInactiveTabsToggle')?.checked;
+    saveConfig();
+    if (typeof renderSidebar === 'function') renderSidebar();
+}
+
+function saveSettingsReducedMotion() {
+    config.reducedMotion = !!document.getElementById('reducedMotionToggle')?.checked;
+    document.body.classList.toggle('reduced-motion', config.reducedMotion);
+    saveConfig();
+}
+
+function saveSettingsTimerDuration() {
+    const minutes = Number(document.getElementById('timerDurationMinutes')?.value) || 25;
+    const clamped = Math.max(1, Math.min(180, Math.round(minutes)));
+    config.timerDurationSeconds = clamped * 60;
+    saveConfig();
+    window.timerDuration = config.timerDurationSeconds;
+    if (typeof timerRunning !== 'undefined' && !timerRunning && typeof timerSeconds !== 'undefined') {
+        timerSeconds = window.timerDuration;
+        if (typeof updateTimerDisplay === 'function') updateTimerDisplay();
+    }
+}
+
+function saveSettingsStartupViewMode() {
+    const value = String(document.getElementById('startupViewModeSelect')?.value || '').toLowerCase();
+    config.startupViewMode = ['grid', 'list', 'unidex'].includes(value) ? value : '';
+    saveConfig();
+}
+
+function saveSettingsPaginationChunkSize() {
+    const raw = Number(document.getElementById('paginationChunkSize')?.value) || 220;
+    config.paginationChunkSize = Math.max(20, Math.min(2000, Math.round(raw)));
+    saveConfig();
+    if (typeof renderDashboard === 'function') renderDashboard();
+}
+
+function saveSettingsDefaultAddLinkCategory() {
+    config.defaultAddLinkCategory = String(document.getElementById('defaultAddLinkCategorySelect')?.value || '').trim();
+    saveConfig();
+}
+
+function saveSettingsConfirmBeforeSweep() {
+    config.confirmBeforeSweep = !!document.getElementById('confirmBeforeSweepToggle')?.checked;
+    saveConfig();
+}
+
+function saveSettingsBackupReminderDays() {
+    const raw = Number(document.getElementById('backupReminderDays')?.value) || 0;
+    config.backupReminderDays = Math.max(0, Math.min(365, Math.round(raw)));
+    saveConfig();
+}
+
+function populateNewSettingsInputs() {
+    const timerMins = Math.max(1, Math.round((Number(config.timerDurationSeconds) || 1500) / 60));
+    const timerInput = document.getElementById('timerDurationMinutes');
+    if (timerInput) timerInput.value = String(timerMins);
+
+    const viewSelect = document.getElementById('startupViewModeSelect');
+    if (viewSelect) viewSelect.value = ['grid', 'list', 'unidex'].includes(String(config.startupViewMode || '').toLowerCase())
+        ? config.startupViewMode
+        : '';
+
+    const chunkInput = document.getElementById('paginationChunkSize');
+    if (chunkInput) chunkInput.value = String(Math.max(20, Math.min(2000, Number(config.paginationChunkSize) || 220)));
+
+    const showHiddenGroupsCb = document.getElementById('showHiddenSidebarGroupsToggle');
+    if (showHiddenGroupsCb) showHiddenGroupsCb.checked = !!config.showHiddenSidebarGroups;
+
+    const showInactiveCb = document.getElementById('showInactiveTabsToggle');
+    if (showInactiveCb) showInactiveCb.checked = !!config.showInactiveTabs;
+
+    const reducedMotionCb = document.getElementById('reducedMotionToggle');
+    if (reducedMotionCb) reducedMotionCb.checked = !!config.reducedMotion;
+    document.body.classList.toggle('reduced-motion', !!config.reducedMotion);
+
+    const confirmSweepCb = document.getElementById('confirmBeforeSweepToggle');
+    if (confirmSweepCb) confirmSweepCb.checked = config.confirmBeforeSweep !== false; // default on
+
+    const backupReminder = document.getElementById('backupReminderDays');
+    if (backupReminder) backupReminder.value = String(Math.max(0, Math.min(365, Number(config.backupReminderDays) || 0)));
+
+    // Populate the Add Link default-card select with the active workspace's categories
+    const addLinkSelect = document.getElementById('defaultAddLinkCategorySelect');
+    if (addLinkSelect) {
+        const activeWs = String(config.activeWorkspace || 'main').trim() || 'main';
+        const categorySet = new Set();
+        (typeof getLiveLinks === 'function' ? getLiveLinks() : []).forEach((link) => {
+            if (!link) return;
+            if (String(link.workspace || 'main').trim() === activeWs) {
+                const name = String(link.category || 'Unsorted').trim() || 'Unsorted';
+                if (name) categorySet.add(name);
+            }
+        });
+        const sorted = Array.from(categorySet).sort((a, b) => a.localeCompare(b));
+        const current = String(config.defaultAddLinkCategory || '').trim();
+        addLinkSelect.innerHTML = '<option value="">First visible card / Unsorted</option>'
+            + sorted.map((name) => {
+                const safe = String(name).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                return `<option value="${safe}"${name === current ? ' selected' : ''}>${safe}</option>`;
+            }).join('');
+        if (current && !sorted.includes(current)) {
+            // Honor a stored value even if the card isn't currently in the active workspace
+            const safe = String(current).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            addLinkSelect.insertAdjacentHTML('beforeend', `<option value="${safe}" selected>${safe} (other workspace)</option>`);
+        }
+    }
+}
 
 function updateColorInputAvailability() {
     const isCustom = config.themeMode === 'custom';

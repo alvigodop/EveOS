@@ -30,6 +30,42 @@ window.modalTemplate += `
                                 style="width:20px; height:20px;">
                             <span>Hide Sidebar Completely</span>
                         </label>
+                        <label style="display:flex; gap:10px; align-items:center;" title="Show sidebar groups that have been marked hidden">
+                            <input type="checkbox" id="showHiddenSidebarGroupsToggle" onchange="saveSettingsShowHiddenSidebarGroups()"
+                                style="width:20px; height:20px;">
+                            <span>Show Hidden Sidebar Groups</span>
+                        </label>
+                        <label style="display:flex; gap:10px; align-items:center;" title="Reveal tabs that have been marked inactive">
+                            <input type="checkbox" id="showInactiveTabsToggle" onchange="saveSettingsShowInactiveTabs()"
+                                style="width:20px; height:20px;">
+                            <span>Show Inactive Tabs</span>
+                        </label>
+                        <label style="display:flex; gap:10px; align-items:center;" title="Disable transitions and animations for accessibility">
+                            <input type="checkbox" id="reducedMotionToggle" onchange="saveSettingsReducedMotion()"
+                                style="width:20px; height:20px;">
+                            <span>Reduce Motion</span>
+                        </label>
+                    </div>
+
+                    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px; margin-top:12px;">
+                        <label style="display:flex; flex-direction:column; gap:4px;">
+                            <span style="color:var(--accent);">Pomodoro Duration (minutes):</span>
+                            <input type="number" id="timerDurationMinutes" min="1" max="180" step="1" onchange="saveSettingsTimerDuration()" style="width:100%;">
+                        </label>
+                        <label style="display:flex; flex-direction:column; gap:4px;">
+                            <span style="color:var(--accent);">Default View on Startup:</span>
+                            <select id="startupViewModeSelect" onchange="saveSettingsStartupViewMode()" style="width:100%;">
+                                <option value="">Remember last used</option>
+                                <option value="grid">Grid</option>
+                                <option value="list">List</option>
+                                <option value="unidex">Unidex</option>
+                            </select>
+                        </label>
+                        <label style="display:flex; flex-direction:column; gap:4px;">
+                            <span style="color:var(--accent);">Pagination Chunk Size:</span>
+                            <input type="number" id="paginationChunkSize" min="20" max="2000" step="10" onchange="saveSettingsPaginationChunkSize()" style="width:100%;">
+                            <span style="font-size:0.78rem; opacity:0.7;">How many entries Unidex renders per chunk. Lower = better on slow devices.</span>
+                        </label>
                     </div>
                 </div>
             </div>
@@ -70,6 +106,18 @@ window.modalTemplate += `
                             </select>
                             <div style="font-size:0.8rem; opacity:0.75;">Internal View opens the site inside EveOS through the in-site popup viewer.</div>
                         </div>
+                        <div style="display:flex; flex-direction:column; gap:4px;">
+                            <label for="defaultAddLinkCategorySelect" style="color:var(--accent);">Default Card for Add Link:</label>
+                            <select id="defaultAddLinkCategorySelect" onchange="saveSettingsDefaultAddLinkCategory()" style="width:100%;">
+                                <option value="">First visible card / Unsorted</option>
+                            </select>
+                            <span style="font-size:0.8rem; opacity:0.75;">Where Add Link sends a bookmark when you don't pick a card explicitly.</span>
+                        </div>
+                        <label style="display:flex; gap:10px; align-items:center;" title="Always show a confirmation prompt before Sweep removes completed bookmarks">
+                            <input type="checkbox" id="confirmBeforeSweepToggle" onchange="saveSettingsConfirmBeforeSweep()"
+                                style="width:20px; height:20px;">
+                            <span>Confirm Before Sweep</span>
+                        </label>
                     </div>
                 </div>
             </div>

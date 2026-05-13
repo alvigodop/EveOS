@@ -46,7 +46,21 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         const exportState = captureFullExportState();
         downloadFullBackupJson(exportState);
         showToast('Full backup downloaded as JSON.', 'info');
+        if (typeof markFullBackupCompleted === 'function') markFullBackupCompleted();
     };
+
+    // Mark a full backup as completed so the optional reminder timer resets.
+    function markFullBackupCompleted() {
+        try {
+            if (typeof config === 'object' && config) {
+                config.lastBackupAt = new Date().toISOString();
+                if (typeof saveConfig === 'function') saveConfig();
+            }
+        } catch (error) {
+            console.warn('[DataTransfer] Failed to record backup timestamp', error);
+        }
+    }
+    window.markFullBackupCompleted = markFullBackupCompleted;
 
     window.exportData = async function () {
         const exportState = captureFullExportState();
@@ -70,6 +84,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
                     const bookmarksCount = Number(result?.summary?.bookmarks || 0);
                     const dataPackSummary = `${tabsCount} tabs, ${cardsCount} cards, ${bookmarksCount} bookmarks`;
                     showToast(`Data-pack folder backup created (${dataPackSummary}).`, 'success');
+                    markFullBackupCompleted();
                     return;
                 }
                 console.warn('[DataTransfer] Full pack backup failed in server mode, trying fallback:', result?.error);
@@ -86,6 +101,7 @@ window.EveDataTransfer = window.EveDataTransfer || {};
                 const bookmarksCount = Number(folderResult.bookmarksCount || 0);
                 const dataPackSummary = `${tabsCount} tabs, ${cardsCount} cards, ${bookmarksCount} bookmarks`;
                 showToast(`Backup created (${dataPackSummary}).`, 'success');
+                markFullBackupCompleted();
                 return;
             }
             if (folderResult?.error) {
@@ -101,5 +117,6 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         }
 
         downloadFullBackupJson(exportState);
+        markFullBackupCompleted();
     };
 })();

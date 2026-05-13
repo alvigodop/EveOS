@@ -149,14 +149,17 @@ window.EveLinkForm = window.EveLinkForm || {};
     };
 
     function resolveAddModalPrefs(preferredCategory) {
+        // When no explicit category is passed in, honor the user's Settings →
+        // General → "Default Card for Add Link" preference (config.defaultAddLinkCategory).
+        const fallback = String((typeof config !== 'undefined' && config) ? config.defaultAddLinkCategory : '').trim();
         if (preferredCategory && typeof preferredCategory === 'object') {
             return {
-                category: String(preferredCategory.category || preferredCategory.categoryName || '').trim(),
+                category: String(preferredCategory.category || preferredCategory.categoryName || '').trim() || fallback,
                 folderId: String(preferredCategory.folderId || '').trim()
             };
         }
         return {
-            category: String(preferredCategory || '').trim(),
+            category: String(preferredCategory || '').trim() || fallback,
             folderId: ''
         };
     }

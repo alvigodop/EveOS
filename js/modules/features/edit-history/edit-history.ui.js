@@ -64,14 +64,26 @@ window.EveEditHistory = window.EveEditHistory || {};
         return raw.slice(0, max - 1) + '…';
     }
 
+    // Format a value for the diff display. Don't pre-truncate strings — CSS
+    // clamps each line to one row by default and click-to-expand shows the
+    // full content. Only truncate JSON-serialized objects (which can be
+    // pathologically long).
     function formatVal(value) {
         if (value === null || value === undefined || value === '') return '∅';
         if (typeof value === 'boolean') return value ? 'on' : 'off';
-        if (Array.isArray(value)) return `[${value.length}]`;
-        if (typeof value === 'object') {
-            try { return truncate(JSON.stringify(value), 80); } catch { return '[object]'; }
+        if (Array.isArray(value)) {
+            try {
+                const json = JSON.stringify(value);
+                return json.length > 400 ? `[${value.length} items] ${truncate(json, 400)}` : json;
+            } catch { return `[${value.length} items]`; }
         }
-        return truncate(String(value), 80);
+        if (typeof value === 'object') {
+            try {
+                const json = JSON.stringify(value);
+                return json.length > 400 ? truncate(json, 400) : json;
+            } catch { return '[object]'; }
+        }
+        return String(value);
     }
 
     function countDelta(before, after) {
@@ -97,10 +109,29 @@ window.EveEditHistory = window.EveEditHistory || {};
         return value && typeof value === 'object' ? Object.keys(value) : [];
     }
 
+    // Skip fields that don't carry meaningful change info for the user (purely
+    // internal IDs / timestamps that wobble on every save).
+    const BOOKMARK_DIFF_SKIP = new Set(['id', 'dateAdded', 'lastEdited', 'updatedAt', 'createdAt']);
+    // Prefer this order at the top of the diff when present; remaining keys
+    // follow alphabetically so the output is stable.
+    const BOOKMARK_DIFF_PRIORITY = [
+        'title', 'url', 'category', 'workspace', 'folderId', 'done',
+        'priority', 'icon', 'coverImage', 'coverImages', 'notes', 'tags',
+        'identifiers', 'sources'
+    ];
+
     function describeBookmarkLinkDiff(before, after) {
         const lines = [];
-        const fields = ['title', 'url', 'category', 'workspace', 'folderId', 'done', 'priority', 'icon', 'coverImage', 'notes'];
-        fields.forEach((field) => {
+        const allKeys = new Set([
+            ...Object.keys(before || {}),
+            ...Object.keys(after || {})
+        ]);
+        const priorityKeys = BOOKMARK_DIFF_PRIORITY.filter((k) => allKeys.has(k));
+        const remainingKeys = Array.from(allKeys)
+            .filter((k) => !BOOKMARK_DIFF_PRIORITY.includes(k))
+            .sort((a, b) => a.localeCompare(b));
+        [...priorityKeys, ...remainingKeys].forEach((field) => {
+            if (BOOKMARK_DIFF_SKIP.has(field)) return;
             const bv = before?.[field];
             const av = after?.[field];
             if (JSON.stringify(bv) === JSON.stringify(av)) return;
@@ -121,18 +152,18 @@ window.EveEditHistory = window.EveEditHistory || {};
             lines.push(`Bookmarks: ${countDelta(arrLen(beforeLinks), arrLen(afterLinks))}`);
         }
         if (added.length) {
-            const sample = added.slice(0, 3).map((id) => {
+            const sample = added.slice(0, 5).map((id) => {
                 const link = (afterLinks || []).find((l) => String(l?.id) === id);
-                return truncate(link?.title || id, 32);
+                return String(link?.title || id);
             });
-            lines.push(`Added: ${sample.join(', ')}${added.length > 3 ? ` +${added.length - 3} more` : ''}`);
+            lines.push(`Added: ${sample.join(', ')}${added.length > 5 ? ` +${added.length - 5} more` : ''}`);
         }
         if (removed.length) {
-            const sample = removed.slice(0, 3).map((id) => {
+            const sample = removed.slice(0, 5).map((id) => {
                 const link = (beforeLinks || []).find((l) => String(l?.id) === id);
-                return truncate(link?.title || id, 32);
+                return String(link?.title || id);
             });
-            lines.push(`Removed: ${sample.join(', ')}${removed.length > 3 ? ` +${removed.length - 3} more` : ''}`);
+            lines.push(`Removed: ${sample.join(', ')}${removed.length > 5 ? ` +${removed.length - 5} more` : ''}`);
         }
         // Modified detection — same id, different content
         const beforeById = new Map((beforeLinks || []).map((l) => [String(l?.id || ''), l]));
@@ -143,11 +174,11 @@ window.EveEditHistory = window.EveEditHistory || {};
             if (!id || !beforeById.has(id)) return;
             if (JSON.stringify(beforeById.get(id)) !== JSON.stringify(link)) {
                 modified += 1;
-                if (modifiedSamples.length < 3) modifiedSamples.push(truncate(link?.title || id, 32));
+                if (modifiedSamples.length < 5) modifiedSamples.push(String(link?.title || id));
             }
         });
         if (modified) {
-            lines.push(`Modified: ${modifiedSamples.join(', ')}${modified > 3 ? ` +${modified - 3} more` : ''}`);
+            lines.push(`Modified: ${modifiedSamples.join(', ')}${modified > 5 ? ` +${modified - 5} more` : ''}`);
         }
         return lines;
     }
@@ -273,8 +304,8 @@ window.EveEditHistory = window.EveEditHistory || {};
         const parts = [];
         if (layer === 'bookmark') {
             const link = after.link || {};
-            if (link.title) parts.push(truncate(link.title, 36));
-            if (link.url) parts.push(truncate(link.url, 36));
+            if (link.title) parts.push(String(link.title));
+            if (link.url) parts.push(String(link.url));
         } else if (layer === 'folder') {
             parts.push(`${arrLen(after.nodes)} folder${arrLen(after.nodes) === 1 ? '' : 's'}`);
             parts.push(`${arrLen(after.links)} bookmark${arrLen(after.links) === 1 ? '' : 's'}`);
@@ -298,10 +329,15 @@ window.EveEditHistory = window.EveEditHistory || {};
 
     function renderChangeList(changes) {
         if (!changes.length) {
-            return '<div class="edit-history-changes-empty">No detectable differences in tracked fields.</div>';
+            return '<div class="edit-history-changes-empty">Tracked fields show no diff vs the previous snapshot.</div>';
         }
-        const items = changes.slice(0, 12).map((line) => `<li>${escapeHtml(line)}</li>`).join('');
-        const overflow = changes.length > 12 ? `<li class="edit-history-change-overflow">+${changes.length - 12} more</li>` : '';
+        const items = changes.slice(0, 24).map((line) => (
+            `<li class="edit-history-change-item" tabindex="0" `
+            + `onclick="this.classList.toggle('is-expanded')" `
+            + `onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.classList.toggle('is-expanded');}" `
+            + `title="Click to expand / collapse">${escapeHtml(line)}</li>`
+        )).join('');
+        const overflow = changes.length > 24 ? `<li class="edit-history-change-overflow">+${changes.length - 24} more</li>` : '';
         return `<ul class="edit-history-change-list">${items}${overflow}</ul>`;
     }
 
@@ -322,7 +358,7 @@ window.EveEditHistory = window.EveEditHistory || {};
                     <span>${escapeHtml(summarizeEntry(entry))}</span>
                     <span>Source: ${escapeHtml(entry?.source || 'edit')}</span>
                 </div>
-                ${contents ? `<div class="edit-history-row-contents">Contents: ${escapeHtml(contents)}</div>` : ''}
+                ${contents ? `<div class="edit-history-row-contents" onclick="this.classList.toggle('is-expanded')" tabindex="0" title="Click to expand / collapse">Contents: ${escapeHtml(contents)}</div>` : ''}
                 <details class="edit-history-row-details">
                     <summary>${changes.length ? `What changed (${changes.length})` : 'Show snapshot details'}</summary>
                     ${changesHtml}

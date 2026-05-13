@@ -184,6 +184,17 @@ input:focus {
     pointer-events: none;
 }
 
+/* Reduced motion — disables decorative transitions/animations site-wide.
+   Targets pseudo-elements too so chevrons, glows, scan beams settle instantly. */
+body.reduced-motion,
+body.reduced-motion *,
+body.reduced-motion *::before,
+body.reduced-motion *::after {
+    transition: none !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+}
+
 /* Other Panels — launcher tiles linking to scattered settings/feature panels. */
 .settings-panel-link-grid {
     display: grid;

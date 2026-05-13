@@ -5,6 +5,16 @@ window.initTimer = function () {
     const timerArea = document.getElementById('timer-area');
     if (!timerArea) return;
 
+    // Honor persisted duration preference (config.timerDurationSeconds).
+    const storedDuration = Number(config?.timerDurationSeconds);
+    if (Number.isFinite(storedDuration) && storedDuration > 0) {
+        window.timerDuration = Math.max(60, Math.min(180 * 60, Math.round(storedDuration)));
+        if (typeof timerSeconds !== 'undefined' && !timerRunning) {
+            timerSeconds = window.timerDuration;
+            if (typeof updateTimerDisplay === 'function') updateTimerDisplay();
+        }
+    }
+
     if (config.timerEnabled) {
         timerArea.style.display = 'flex';
         updateTimerButton();
@@ -68,6 +78,10 @@ window.editTimer = function () {
         if (!isNaN(val) && val > 0) {
             timerDuration = val * 60; // Save preference
             timerSeconds = timerDuration;
+            if (typeof config === 'object' && config) {
+                config.timerDurationSeconds = timerDuration;
+                if (typeof saveConfig === 'function') saveConfig();
+            }
             showToast(`Timer set to ${val} mins`, 'success');
         }
         updateTimerDisplay(); // Re-render span

@@ -88,6 +88,24 @@
     font-size: 0.74rem;
     letter-spacing: 0.04em;
     color: rgba(228, 248, 249, 0.6);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 4px;
+    transition: background 0.14s ease, white-space 0s;
+}
+
+.edit-history-row-contents:hover {
+    background: rgba(0, 229, 255, 0.06);
+    color: rgba(228, 248, 249, 0.82);
+}
+
+.edit-history-row-contents.is-expanded {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    background: rgba(0, 229, 255, 0.05);
 }
 
 .edit-history-row-details {
@@ -145,12 +163,37 @@
     font-size: 0.74rem;
     line-height: 1.4;
     color: rgba(228, 248, 249, 0.82);
+}
+
+.edit-history-change-list li.edit-history-change-item {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: background 0.14s ease;
+}
+
+.edit-history-change-list li.edit-history-change-item:hover,
+.edit-history-change-list li.edit-history-change-item:focus-visible {
+    background: rgba(0, 229, 255, 0.1);
+    color: rgba(255, 255, 255, 0.92);
+    outline: none;
+}
+
+.edit-history-change-list li.edit-history-change-item.is-expanded {
+    white-space: pre-wrap;
     overflow-wrap: anywhere;
+    background: rgba(0, 229, 255, 0.06);
+    color: rgba(255, 255, 255, 0.92);
 }
 
 .edit-history-change-list li.edit-history-change-overflow {
     color: rgba(228, 248, 249, 0.55);
     font-style: italic;
+    overflow-wrap: anywhere;
 }
 
 .edit-history-changes-empty {

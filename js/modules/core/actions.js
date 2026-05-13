@@ -208,7 +208,9 @@ async function sweepDone() {
     )).length;
     if (doneCount === 0) return showToast("Nothing to sweep!", "info");
 
-    if (await showConfirm(`Remove ${doneCount} completed items?`)) {
+    const requiresConfirm = config?.confirmBeforeSweep !== false;
+    const confirmed = requiresConfirm ? await showConfirm(`Remove ${doneCount} completed items?`) : true;
+    if (confirmed) {
         const removedIds = liveLinks
             .filter(l => (
                 l.done
