@@ -159,6 +159,207 @@ button.btn-primary:focus-visible,
     border-color: #d8d8d8;
 }
 
+.backup-mismatch-shell {
+    margin-top: 10px;
+    padding: 12px;
+    border: 1px solid rgba(0, 212, 255, 0.28);
+    border-radius: 12px;
+    background:
+        radial-gradient(circle at top left, rgba(0, 212, 255, 0.12), transparent 32%),
+        rgba(10, 28, 32, 0.42);
+}
+
+.backup-mismatch-toolbar,
+.backup-mismatch-actions,
+.backup-mismatch-summary,
+.backup-mismatch-counts,
+.backup-mismatch-row-head,
+.backup-mismatch-issues {
+    display: flex;
+    gap: 8px;
+}
+
+.backup-mismatch-toolbar {
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+}
+
+.backup-mismatch-toolbar strong {
+    display: block;
+    color: var(--accent);
+    font-size: 0.95rem;
+}
+
+.backup-mismatch-toolbar span,
+.backup-mismatch-results,
+.backup-mismatch-footer {
+    font-size: 0.78rem;
+    opacity: 0.82;
+}
+
+.backup-mismatch-actions {
+    flex-wrap: wrap;
+}
+
+.backup-mismatch-actions .btn-backup,
+.backup-mismatch-actions .btn-restore {
+    flex: 0 1 auto;
+    min-width: 120px;
+    padding: 6px 10px;
+    font-size: 0.78rem;
+}
+
+.backup-mismatch-results {
+    margin-top: 10px;
+}
+
+.backup-mismatch-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    margin-bottom: 10px;
+}
+
+.backup-mismatch-summary div {
+    padding: 9px 10px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.055);
+}
+
+.backup-mismatch-summary strong {
+    display: block;
+    font-size: 1.1rem;
+    color: var(--text-main);
+}
+
+.backup-mismatch-counts {
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+
+.backup-mismatch-counts span,
+.backup-mismatch-pill {
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 999px;
+    padding: 3px 8px;
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.backup-mismatch-report-issues {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.backup-mismatch-report-issues div,
+.backup-mismatch-row,
+.backup-mismatch-empty {
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    padding: 9px;
+    background: rgba(255, 255, 255, 0.045);
+}
+
+.backup-mismatch-report-issues div.warning,
+.backup-mismatch-row.warning {
+    border-color: rgba(255, 198, 41, 0.45);
+    background: rgba(255, 198, 41, 0.08);
+}
+
+.backup-mismatch-report-issues div.broken,
+.backup-mismatch-row.broken,
+.backup-mismatch-empty.broken {
+    border-color: rgba(255, 94, 94, 0.48);
+    background: rgba(255, 94, 94, 0.08);
+}
+
+.backup-mismatch-list {
+    display: grid;
+    gap: 8px;
+    max-height: 360px;
+    overflow: auto;
+    padding-right: 2px;
+}
+
+.backup-mismatch-row-head {
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.backup-mismatch-status {
+    color: #031014;
+    background: var(--accent);
+    border-radius: 999px;
+    padding: 2px 8px;
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+
+.backup-mismatch-row.warning .backup-mismatch-status {
+    background: #ffc629;
+}
+
+.backup-mismatch-row.broken .backup-mismatch-status {
+    background: #ff5e5e;
+}
+
+.backup-mismatch-path,
+.backup-mismatch-link {
+    display: block;
+    margin-top: 5px;
+    overflow-wrap: anywhere;
+}
+
+.backup-mismatch-link {
+    color: var(--accent);
+}
+
+.backup-mismatch-issues {
+    flex-wrap: wrap;
+    margin-top: 7px;
+}
+
+.backup-mismatch-pill.warning {
+    border-color: rgba(255, 198, 41, 0.55);
+    color: #ffd96b;
+}
+
+.backup-mismatch-pill.broken {
+    border-color: rgba(255, 94, 94, 0.6);
+    color: #ff9c9c;
+}
+
+.backup-mismatch-pill.healthy {
+    border-color: rgba(108, 255, 183, 0.4);
+    color: #9dffc9;
+}
+
+.light-theme .backup-mismatch-shell {
+    background: #eefbff;
+    border-color: #a9dbe8;
+}
+
+.light-theme .backup-mismatch-report-issues div,
+.light-theme .backup-mismatch-row,
+.light-theme .backup-mismatch-empty,
+.light-theme .backup-mismatch-summary div {
+    background: #fff;
+    border-color: #d8d8d8;
+}
+
+.light-theme .backup-mismatch-pill.warning {
+    color: #7b5c00;
+}
+
+.light-theme .backup-mismatch-pill.broken {
+    color: #8a1f1f;
+}
+
+.light-theme .backup-mismatch-pill.healthy {
+    color: #096c36;
+}
+
 .btn-backup,
 .btn-restore {
     flex: 1;

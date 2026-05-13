@@ -156,6 +156,7 @@ function openSettings() {
     if (typeof refreshFolderBackupList === 'function') refreshFolderBackupList();
     if (typeof refreshBookmarkBackupList === 'function') refreshBookmarkBackupList();
     if (typeof refreshIntegratedDuplicateSensorControls === 'function') refreshIntegratedDuplicateSensorControls();
+    if (typeof renderEditHistoryPanel === 'function') renderEditHistoryPanel();
 
     refreshModularLayerSelectors();
     refreshModularStorePathFromServer();

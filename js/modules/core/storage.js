@@ -70,6 +70,15 @@ function _saveDataImmediate(options = {}) {
 
     if (dirty) {
         const delta = buildCoreDataDelta(_lastCoreStateSnapshot, snapshot);
+        if (!options.meta?.skipEditHistory && window.EveEditHistory && typeof window.EveEditHistory.recordDataMutation === 'function') {
+            window.EveEditHistory.recordDataMutation({
+                before: _lastCoreStateSnapshot,
+                after: snapshot,
+                delta,
+                source: mutationSource,
+                meta: options.meta
+            });
+        }
         _lastCoreStateSignature = signature;
         _lastCoreStateSnapshot = cloneCoreStateForDelta(snapshot, signature);
         dispatchStateMutation(mutationSource, {
@@ -115,6 +124,15 @@ function saveData(options = {}) {
         const dirty = signature !== _lastCoreStateSignature;
         if (dirty) {
             const delta = buildCoreDataDelta(_lastCoreStateSnapshot, snapshot);
+            if (!mutationMeta?.skipEditHistory && window.EveEditHistory && typeof window.EveEditHistory.recordDataMutation === 'function') {
+                window.EveEditHistory.recordDataMutation({
+                    before: _lastCoreStateSnapshot,
+                    after: snapshot,
+                    delta,
+                    source: mutationSource,
+                    meta: mutationMeta
+                });
+            }
             _lastCoreStateSignature = signature;
             _lastCoreStateSnapshot = cloneCoreStateForDelta(snapshot, signature);
             dispatchStateMutation(mutationSource, {
@@ -162,9 +180,18 @@ function _saveConfigImmediate(options = {}) {
         return Promise.resolve(true);
     }
     var configDelta = buildConfigDelta(_lastConfigSnapshot, config || {});
+    var mutationSource = normalizeMutationSource(options.source || options.reason, 'saveConfig');
+    if (!options.meta?.skipEditHistory && window.EveEditHistory && typeof window.EveEditHistory.recordConfigMutation === 'function') {
+        window.EveEditHistory.recordConfigMutation({
+            before: _lastConfigSnapshot,
+            after: config || {},
+            delta: configDelta,
+            source: mutationSource,
+            meta: options.meta
+        });
+    }
     _lastConfigSignature = signature;
     _lastConfigSnapshot = cloneConfigForDelta(config || {}, signature);
-    var mutationSource = normalizeMutationSource(options.source || options.reason, 'saveConfig');
 
     var persistPromise = Promise.resolve(true);
     var storage = getCoreStorage();

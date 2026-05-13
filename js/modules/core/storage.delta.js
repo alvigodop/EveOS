@@ -174,7 +174,39 @@ function buildStoreSignatureMapForDelta(store) {
     return map;
 }
 
-function collectChangedFolderScopesForDelta(previousFolders, nextFolders, scopeMap) {
+function getDeltaFolderNodes(folderTree) {
+    if (Array.isArray(folderTree && folderTree.nodes)) return folderTree.nodes;
+    if (Array.isArray(folderTree)) return folderTree;
+    return [];
+}
+
+function buildFolderNodeSignatureMapForDelta(folderTree) {
+    var map = {};
+    getDeltaFolderNodes(folderTree).forEach(function (node) {
+        var id = normalizeDeltaText(node && node.id, '');
+        if (!id) return;
+        try {
+            map[id] = JSON.stringify(node);
+        } catch (error) {
+            map[id] = 'unstable';
+        }
+    });
+    return map;
+}
+
+function collectChangedFolderIdsForDelta(previousTree, nextTree, folderIds) {
+    var previousMap = buildFolderNodeSignatureMapForDelta(previousTree);
+    var nextMap = buildFolderNodeSignatureMapForDelta(nextTree);
+    var ids = {};
+    Object.keys(previousMap).forEach(function (id) { ids[id] = true; });
+    Object.keys(nextMap).forEach(function (id) { ids[id] = true; });
+    Object.keys(ids).forEach(function (id) {
+        if (previousMap[id] === nextMap[id]) return;
+        pushDeltaSet(folderIds, id);
+    });
+}
+
+function collectChangedFolderScopesForDelta(previousFolders, nextFolders, scopeMap, folderIds) {
     var previousMap = buildStoreSignatureMapForDelta(previousFolders);
     var nextMap = buildStoreSignatureMapForDelta(nextFolders);
     var changed = false;
@@ -186,8 +218,64 @@ function collectChangedFolderScopesForDelta(previousFolders, nextFolders, scopeM
         changed = true;
         var scope = splitDeltaScopedKey(scopedKey);
         addDeltaScope(scopeMap, scope.workspaceId, scope.categoryName);
+        collectChangedFolderIdsForDelta(previousFolders && previousFolders[scopedKey], nextFolders && nextFolders[scopedKey], folderIds);
     });
     return changed;
+}
+
+function buildQuickPinSignatureMapForDelta(pinList) {
+    var map = {};
+    (Array.isArray(pinList) ? pinList : []).forEach(function (pin) {
+        var key = normalizeDeltaText(pin && pin.targetType, 'bookmark') + '::' + normalizeDeltaText(pin && pin.targetId, '');
+        if (!key.endsWith('::')) {
+            try {
+                map[key] = JSON.stringify(pin);
+            } catch (error) {
+                map[key] = 'unstable';
+            }
+        }
+    });
+    return map;
+}
+
+function collectChangedQuickPinScopesForDelta(previousSnapshot, nextSnapshot, scopeMap, workspaceIds, folderIds, linkIds) {
+    var previousPins = buildQuickPinSignatureMapForDelta(previousSnapshot && previousSnapshot.quickPins);
+    var nextPins = buildQuickPinSignatureMapForDelta(nextSnapshot && nextSnapshot.quickPins);
+    var previousLinks = buildLinkMapForDelta(previousSnapshot && previousSnapshot.links);
+    var nextLinks = buildLinkMapForDelta(nextSnapshot && nextSnapshot.links);
+    var keys = {};
+    Object.keys(previousPins).forEach(function (key) { keys[key] = true; });
+    Object.keys(nextPins).forEach(function (key) { keys[key] = true; });
+    Object.keys(keys).forEach(function (key) {
+        if (previousPins[key] === nextPins[key]) return;
+        var parts = key.split('::');
+        var type = normalizeDeltaText(parts.shift(), 'bookmark').toLowerCase();
+        var targetId = normalizeDeltaText(parts.join('::'), '');
+        if (type === 'bookmark') {
+            pushDeltaSet(linkIds, targetId);
+            [previousLinks[targetId], nextLinks[targetId]].forEach(function (link) {
+                if (!link) return;
+                pushDeltaSet(workspaceIds, link.workspace || 'main');
+                addDeltaLinkScope(scopeMap, folderIds, link);
+            });
+            return;
+        }
+        if (type === 'card') {
+            var cardScope = splitDeltaScopedKey(targetId);
+            pushDeltaSet(workspaceIds, cardScope.workspaceId);
+            addDeltaScope(scopeMap, cardScope.workspaceId, cardScope.categoryName);
+            return;
+        }
+        if (type === 'folder') {
+            var folderParts = targetId.split('::');
+            var workspaceId = normalizeDeltaText(folderParts.shift(), 'main');
+            var categoryName = normalizeDeltaText(folderParts.shift(), 'Unsorted');
+            var folderId = normalizeDeltaText(folderParts.join('::'), '');
+            pushDeltaSet(workspaceIds, workspaceId);
+            addDeltaScope(scopeMap, workspaceId, categoryName);
+            pushDeltaSet(folderIds, folderId);
+        }
+    });
 }
 
 function buildCoreDataDelta(previousSnapshot, nextSnapshot) {
@@ -236,7 +324,8 @@ function buildCoreDataDelta(previousSnapshot, nextSnapshot) {
     var hasFolderStoreChanges = collectChangedFolderScopesForDelta(
         previousSnapshot && previousSnapshot.bookmarkFolders,
         nextSnapshot && nextSnapshot.bookmarkFolders,
-        scopeMap
+        scopeMap,
+        folderIds
     );
 
     var quickPinsChanged = false;
@@ -245,6 +334,9 @@ function buildCoreDataDelta(previousSnapshot, nextSnapshot) {
         quickPinsChanged = JSON.stringify(previousSnapshot && previousSnapshot.quickPins || []) !== JSON.stringify(nextSnapshot && nextSnapshot.quickPins || []);
     } catch (error) {
         quickPinsChanged = true;
+    }
+    if (quickPinsChanged) {
+        collectChangedQuickPinScopesForDelta(previousSnapshot, nextSnapshot, scopeMap, workspaceIds, folderIds, linkIds);
     }
     try {
         detachedChanged = JSON.stringify(previousSnapshot && previousSnapshot.constellationDetachedChains || {}) !== JSON.stringify(nextSnapshot && nextSnapshot.constellationDetachedChains || {});

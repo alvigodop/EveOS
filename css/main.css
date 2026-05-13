@@ -1,4 +1,5 @@
 /* Main CSS Facade */
 @import url("./main.base.css?v=0.1.1");
-@import url("./main.components.css");
+@import url("./main.components.css?v=0.1.1");
+@import url("./main.edit-history.css?v=0.1.0");
 @import url("./main.folders.css");

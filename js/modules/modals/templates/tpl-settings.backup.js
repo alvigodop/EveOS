@@ -30,6 +30,45 @@ window.EveSettingsTemplates.backupPanel = `
                     </div>
                     <button onclick="exportDataJsonOnly()" class="btn-backup" style="width:100%; margin-top:8px;">Backup All Data JSON Only</button>
                     <button onclick="importDataFolderBrowserOnly()" class="btn-restore" style="width:100%; border:none; margin-top:8px;">Restore Backup Folder</button>
+                    <div class="backup-mismatch-shell">
+                        <div class="backup-mismatch-toolbar">
+                            <div>
+                                <strong>Backup Mismatch Report</strong>
+                                <span>Validate a folder backup against the live datapack before restoring.</span>
+                            </div>
+                            <div class="backup-mismatch-actions">
+                                <button onclick="runBackupMismatchReportBrowserOnly()" class="btn-backup">Inspect Backup Folder</button>
+                                <button onclick="downloadBackupMismatchReportJson()" class="btn-restore" style="border:none;">Download Report</button>
+                                <button onclick="clearBackupMismatchReport()" class="btn-restore" style="border:none;">Clear</button>
+                            </div>
+                        </div>
+                        <div id="backupMismatchReportResults" class="backup-mismatch-results">
+                            Pick a folder backup to detect stale entity links, path fallback restores, orphaned folder bookmarks, broken folder parents, duplicate entities, and manifest count drift.
+                        </div>
+                    </div>
+                    <div class="edit-history-shell">
+                        <div class="edit-history-toolbar">
+                            <div>
+                                <strong>Local Edit History</strong>
+                                <span>Stores the last 5 scoped saves per datapack, tab, card, folder, and bookmark layer.</span>
+                            </div>
+                            <div class="edit-history-actions">
+                                <select id="editHistoryLayerFilter" onchange="renderEditHistoryPanel()">
+                                    <option value="all">All Layers</option>
+                                    <option value="datapack">Datapack</option>
+                                    <option value="workspace">Tabs</option>
+                                    <option value="card">Cards</option>
+                                    <option value="folder">Folders</option>
+                                    <option value="bookmark">Bookmarks</option>
+                                </select>
+                                <button onclick="renderEditHistoryPanel()" class="btn-backup">Refresh</button>
+                                <button onclick="clearEditHistoryPanel()" class="btn-restore" style="border:none;">Clear</button>
+                            </div>
+                        </div>
+                        <div id="editHistoryResults" class="edit-history-results">
+                            No local edit history has been captured yet.
+                        </div>
+                    </div>
                     <div class="btn-action-row" style="margin-top:8px;">
                         <button onclick="runDuplicateSensorForFullBackup()" class="btn-backup">Run Cross-Tab Duplicate Scan</button>
                         <button onclick="clearDuplicateSensorResults('full')" class="btn-restore" style="border:none;">Clear Scan</button>
