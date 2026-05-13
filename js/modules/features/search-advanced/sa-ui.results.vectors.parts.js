@@ -273,6 +273,10 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
             actions.push('<button type="button" class="nx-action-btn" data-nx-action="unidex" data-nx-id="' + escapeHtml(resultId) + '">Reveal in Unidex</button>');
             actions.push('<button type="button" class="nx-action-btn" data-nx-action="map" data-nx-id="' + escapeHtml(resultId) + '">Map</button>');
         }
+        if (item?.entityLink || item?.provenance?.entityLink) {
+            actions.push('<button type="button" class="nx-action-btn" data-nx-action="json-state" data-nx-id="' + escapeHtml(resultId) + '">Open JSON State</button>');
+            actions.push('<button type="button" class="nx-action-btn" data-nx-action="json-validate" data-nx-id="' + escapeHtml(resultId) + '">Validate Link</button>');
+        }
         if (item?.type === 'bookmark' && item?.path?.linkId) {
             actions.push('<button type="button" class="nx-action-btn" data-nx-action="focus" data-nx-id="' + escapeHtml(resultId) + '">Focus</button>');
         }

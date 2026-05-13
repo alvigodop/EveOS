@@ -52,6 +52,49 @@
     font-size: 0.72rem;
 }
 
+.nx-dv-diff {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px;
+    border: 1px solid color-mix(in srgb, var(--accent, #00d4ff) 24%, rgba(255, 255, 255, 0.08));
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--accent, #00d4ff) 6%, rgba(0, 0, 0, 0.18));
+}
+
+.nx-dv-diff[hidden] {
+    display: none !important;
+}
+
+.nx-dv-diff-title {
+    color: var(--accent, #00d4ff);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.nx-dv-diff-row {
+    display: grid;
+    grid-template-columns: minmax(92px, 0.35fr) minmax(0, 1fr) auto minmax(0, 1fr);
+    gap: 8px;
+    align-items: center;
+    color: var(--text-muted, rgba(210, 224, 242, 0.72));
+    font-size: 0.74rem;
+}
+
+.nx-dv-diff-row strong {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    color: var(--text-main, #f5f7fb);
+}
+
+.nx-dv-diff-errors {
+    color: #ff8d8d;
+    font-size: 0.74rem;
+    line-height: 1.35;
+}
+
 .nx-dv-btn,
 .nx-dv-close {
     border: 1px solid rgba(255, 255, 255, 0.12);
@@ -148,13 +191,27 @@
 }
 
 .nx-dv-card input,
-.nx-dv-bookmark-row input {
+.nx-dv-bookmark-row input,
+.nx-dv-bookmark-row select,
+.nx-dv-bookmark-row textarea {
     min-width: 0;
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 10px;
     background: rgba(0, 0, 0, 0.18);
     color: var(--text-main, #f5f7fb);
     padding: 8px 9px;
+}
+
+.nx-dv-bookmark-row select,
+.nx-dv-bookmark-row textarea {
+    width: 100%;
+    font: inherit;
+}
+
+.nx-dv-bookmark-row textarea {
+    resize: vertical;
+    min-height: 70px;
+    line-height: 1.35;
 }
 
 .nx-dv-json {

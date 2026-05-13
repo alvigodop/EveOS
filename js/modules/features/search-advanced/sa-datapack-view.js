@@ -343,6 +343,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             + '<div class="nx-dv-head">'
             + '<div><div class="nx-dv-kicker">Datapack View State</div><h3>Macro Gateway</h3></div>'
             + '<div class="nx-dv-actions">'
+            + '<button type="button" class="nx-dv-btn" data-nx-dv-action="preview-macro">Preview Diff</button>'
             + '<button type="button" class="nx-dv-btn nx-dv-primary" data-nx-dv-action="save-macro">Save Macro Changes</button>'
             + '<button type="button" class="nx-dv-btn" data-nx-dv-action="revert-macro">Revert</button>'
             + '<button type="button" class="nx-dv-btn" data-nx-dv-action="cancel">Cancel</button>'
@@ -353,6 +354,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             + '<span>' + state.counts.childTabRefs + ' child refs</span>'
             + '<span>' + state.counts.omittedCards + ' omitted by safety cap</span>'
             + '</div>'
+            + '<div class="nx-dv-diff" data-nx-dv-diff="macro" hidden></div>'
             + renderChildTabRefs(state.childTabRefs)
             + renderCardEditor(state.cards)
             + '<details class="nx-dv-json"><summary>Gateway JSON</summary><pre>' + escapeHtml(json) + '</pre></details>'
@@ -381,7 +383,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         return '<div class="nx-dv-section"><div class="nx-dv-section-title">Cards</div><div class="nx-dv-card-list">'
             + cards.map(function (card) {
                 const key = buildScopedKey(card.workspaceId, card.categoryName);
-                return '<article class="nx-dv-card" data-card-key="' + escapeHtml(key) + '" data-workspace-id="' + escapeHtml(card.workspaceId) + '" data-category-name="' + escapeHtml(card.categoryName) + '" data-entity-link="' + escapeHtml(card.entityLink) + '">'
+                return '<article class="nx-dv-card" data-card-key="' + escapeHtml(key) + '" data-workspace-id="' + escapeHtml(card.workspaceId) + '" data-category-name="' + escapeHtml(card.categoryName) + '" data-order="' + escapeHtml(card.order) + '" data-entity-link="' + escapeHtml(card.entityLink) + '">'
                     + '<div class="nx-dv-card-main">'
                     + '<label><span>Card Name</span><input type="text" data-nx-dv-field="categoryName" value="' + escapeHtml(card.categoryName) + '"></label>'
                     + '<label><span>Order</span><input type="number" min="1" step="1" data-nx-dv-field="order" value="' + escapeHtml(card.order) + '"></label>'
@@ -450,7 +452,10 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         const actionNode = event.target?.closest?.('[data-nx-dv-action]');
         if (!actionNode) return;
         const action = actionNode.getAttribute('data-nx-dv-action');
-        if (action === 'save-macro') {
+        if (action === 'preview-macro') {
+            event.preventDefault();
+            saveMacroChanges({ previewOnly: true });
+        } else if (action === 'save-macro') {
             event.preventDefault();
             saveMacroChanges();
         } else if (action === 'revert-macro') {
@@ -471,6 +476,9 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         } else if (action === 'close-micro') {
             event.preventDefault();
             closeCardInternals();
+        } else if (action === 'preview-micro') {
+            event.preventDefault();
+            saveMicroChanges(actionNode.closest('.nx-dv-micro-overlay'), { previewOnly: true });
         } else if (action === 'save-micro') {
             event.preventDefault();
             saveMicroChanges(actionNode.closest('.nx-dv-micro-overlay'));

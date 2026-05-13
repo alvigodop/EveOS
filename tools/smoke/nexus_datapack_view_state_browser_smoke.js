@@ -165,6 +165,13 @@ async function runSmoke(page) {
         if (!row) throw new Error('Missing Alpha card editor row');
         row.querySelector('[data-nx-dv-field="categoryName"]').value = 'Alpha Renamed';
         row.querySelector('[data-nx-dv-field="order"]').value = '2';
+        document.querySelector('[data-nx-dv-action="preview-macro"]').click();
+    });
+    await page.waitForFunction(() => {
+        const diff = document.querySelector('[data-nx-dv-diff="macro"]');
+        return diff && !diff.hidden && diff.textContent.includes('Alpha Renamed');
+    }, undefined, { timeout: 10000 });
+    await page.evaluate(() => {
         document.querySelector('[data-nx-dv-action="save-macro"]').click();
     });
     await page.waitForFunction(() => window.links.some((link) => link.category === 'Alpha Renamed'), undefined, { timeout: 10000 });
@@ -207,16 +214,34 @@ async function runSmoke(page) {
         const row = document.querySelector('.nx-dv-bookmark-row[data-link-id="a1"]');
         if (!row) throw new Error('Missing bookmark row for a1');
         row.querySelector('[data-nx-dv-field="bookmarkTitle"]').value = 'Alpha One Edited';
+        row.querySelector('[data-nx-dv-field="bookmarkUrl"]').value = 'https://example.com/a1-edited';
+        row.querySelector('[data-nx-dv-field="bookmarkNotes"]').value = 'Edited note from Nebula JSON transaction';
+        row.querySelector('[data-nx-dv-field="bookmarkIdentifiers"]').value = 'reading, favorite';
+        row.querySelector('[data-nx-dv-field="bookmarkFolderId"]').value = 'f1';
+        document.querySelector('[data-nx-dv-action="preview-micro"]').click();
+    });
+    await page.waitForFunction(() => {
+        const diff = document.querySelector('[data-nx-dv-diff="micro"]');
+        return diff && !diff.hidden && diff.textContent.includes('Alpha One Edited');
+    }, undefined, { timeout: 10000 });
+    await page.evaluate(() => {
         document.querySelector('[data-nx-dv-action="save-micro"]').click();
     });
     await page.waitForFunction(() => window.links.some((link) => link.id === 'a1' && link.title === 'Alpha One Edited'), undefined, { timeout: 10000 });
 
     const microResult = await page.evaluate(() => ({
-        editedTitle: window.links.find((link) => link.id === 'a1')?.title,
+        editedLink: window.links.find((link) => link.id === 'a1'),
         overlayOpen: !!document.querySelector('.nx-dv-micro-overlay'),
         saveDataCalls: window.__nexusDatapackViewSmoke.saveDataCalls
     }));
-    if (microResult.editedTitle !== 'Alpha One Edited' || microResult.overlayOpen) {
+    if (
+        microResult.editedLink?.title !== 'Alpha One Edited'
+        || microResult.editedLink?.url !== 'https://example.com/a1-edited'
+        || microResult.editedLink?.notes !== 'Edited note from Nebula JSON transaction'
+        || microResult.editedLink?.folderId !== 'f1'
+        || (microResult.editedLink?.identifiers || []).join('|') !== 'reading|favorite'
+        || microResult.overlayOpen
+    ) {
         throw new Error(`Micro save did not persist and close cleanly: ${JSON.stringify(microResult)}`);
     }
     if (microResult.saveDataCalls < 2) {

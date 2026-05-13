@@ -66,6 +66,22 @@ function bindResultActions(container) {
                     navigation.focusBookmark(result);
                     return;
                 }
+                if (action === 'json-state' || action === 'json-validate') {
+                    const linkApi = window.EveOS?.NebulaJsonLink
+                        || window.EveOS?.SearchAdvanced?.NebulaJsonLink
+                        || window.NebulaJsonLink
+                        || null;
+                    const entityLink = result.entityLink || result.provenance?.entityLink || '';
+                    if (!linkApi || !entityLink) {
+                        if (typeof showToast === 'function') showToast('No JSON link is available for this result.', 'warning');
+                        return;
+                    }
+                    const outcome = linkApi.executeAction(action === 'json-state' ? 'open-json-state' : 'validate', entityLink);
+                    if (action === 'json-validate' && typeof showToast === 'function') {
+                        showToast(outcome.valid || outcome.ok ? 'JSON link is valid.' : 'JSON link issue: ' + (outcome.errors || []).join(', '), outcome.valid || outcome.ok ? 'success' : 'warning');
+                    }
+                    return;
+                }
                 if (action === 'provenance' || action === 'visibility') {
                     const article = actionButton.closest('.nx-result-item');
                     const panel = article?.querySelector('[data-nx-panel="' + action + '"][data-nx-owner="' + resultId + '"]');

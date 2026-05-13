@@ -11,44 +11,62 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             normalizeCategoryName,
             getConfig,
             getCategoryNamesForWorkspace,
-            getLiveLinks,
-            setLiveLinks,
             resolveCurrentScope,
             renderGateway
         } = deps;
-    function buildFolderScopeKey(workspaceId, categoryName) {
-        return normalizeWorkspaceId(workspaceId) + '::' + normalizeCategoryName(categoryName);
+
+    function getPatchApi() {
+        return window.EveOS?.NebulaJsonPatch
+            || window.EveOS?.SearchAdvanced?.NebulaJsonPatch
+            || window.NebulaJsonPatch
+            || null;
     }
 
-    function getFolderStores() {
-        const stores = [];
-        const pushStore = function (store) {
-            if (!store || typeof store !== 'object' || stores.includes(store)) return;
-            stores.push(store);
-        };
-        pushStore(window.bookmarkFolders);
-        pushStore(window.eveState?.bookmarkFolders);
-        if (typeof bookmarkFolders !== 'undefined') pushStore(bookmarkFolders);
-        return stores;
+    function getLinkApi() {
+        return window.EveOS?.NebulaJsonLink
+            || window.EveOS?.SearchAdvanced?.NebulaJsonLink
+            || window.NebulaJsonLink
+            || null;
     }
 
-    function renameFolderScopeFallback(workspaceId, oldCategoryName, nextCategoryName) {
-        const oldKey = buildFolderScopeKey(workspaceId, oldCategoryName);
-        const nextKey = buildFolderScopeKey(workspaceId, nextCategoryName);
-        if (!oldKey || !nextKey || oldKey === nextKey) return false;
-        let changed = false;
-        getFolderStores().forEach(function (store) {
-            if (!Object.prototype.hasOwnProperty.call(store, oldKey)) return;
-            if (!Object.prototype.hasOwnProperty.call(store, nextKey)) {
-                store[nextKey] = store[oldKey];
-            }
-            delete store[oldKey];
-            changed = true;
-        });
-        return changed;
+    function createCardLink(workspaceId, categoryName) {
+        const api = getLinkApi();
+        return api?.createLink
+            ? api.createLink({ type: 'card', workspaceId, categoryName })
+            : '';
     }
 
-    function saveMacroChanges() {
+    function escapeHtml(value) {
+        return String(value == null ? '' : value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function renderPatchPreview(panel, preview) {
+        const target = panel?.querySelector?.('[data-nx-dv-diff="macro"]');
+        if (!target) return;
+        const rows = Array.isArray(preview?.previews) ? preview.previews : [];
+        const errors = Array.isArray(preview?.errors) ? preview.errors : [];
+        target.hidden = false;
+        target.innerHTML = '<div class="nx-dv-diff-title">Macro Diff Preview</div>'
+            + (rows.length
+                ? rows.map(function (row) {
+                    return '<div class="nx-dv-diff-row">'
+                        + '<span>' + escapeHtml(row.op || 'patch') + '</span>'
+                        + '<strong>' + escapeHtml(row.before || '') + '</strong>'
+                        + '<b>-></b>'
+                        + '<strong>' + escapeHtml(row.after || '') + '</strong>'
+                        + '</div>';
+                }).join('')
+                : '<div class="nx-dv-diff-row">No pending macro changes.</div>')
+            + (errors.length ? '<div class="nx-dv-diff-errors">' + errors.map(escapeHtml).join('<br>') + '</div>' : '');
+    }
+
+    function saveMacroChanges(options) {
+        options = options || {};
         const panel = document.getElementById('nxDatapackViewPanel');
         if (!panel) return false;
         const rows = Array.from(panel.querySelectorAll('.nx-dv-card[data-workspace-id][data-category-name]'));
@@ -57,11 +75,13 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             const oldCategoryName = normalizeCategoryName(row.getAttribute('data-category-name'));
             const rawCategoryName = String(row.querySelector('[data-nx-dv-field="categoryName"]')?.value || '').trim();
             const order = Math.max(1, Number(row.querySelector('[data-nx-dv-field="order"]')?.value) || 1);
+            const oldOrder = Math.max(1, Number(row.getAttribute('data-order')) || order);
             return {
                 workspaceId,
                 oldCategoryName,
                 nextCategoryName: rawCategoryName ? normalizeCategoryName(rawCategoryName) : '',
-                order
+                order,
+                oldOrder
             };
         });
         if (edits.some(function (edit) { return !edit.nextCategoryName; })) {
@@ -103,87 +123,67 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             if (typeof showToast === 'function') showToast(validationError, 'error');
             return false;
         }
-        const liveLinks = getLiveLinks();
-        const orderGroups = new Map();
+        const patchApi = getPatchApi();
+        if (!patchApi?.buildPatch || !patchApi?.buildTransaction || !patchApi?.applyTransaction) {
+            if (typeof showToast === 'function') showToast('Nebula JSON patch system is not loaded.', 'error');
+            return false;
+        }
+        const patches = [];
         let renamed = 0;
         let reordered = 0;
-
         edits.forEach(function (edit) {
             const workspaceId = edit.workspaceId;
             const oldCategoryName = edit.oldCategoryName;
             const nextCategoryName = edit.nextCategoryName;
             const order = edit.order;
-            if (!orderGroups.has(workspaceId)) orderGroups.set(workspaceId, []);
-            orderGroups.get(workspaceId).push({ oldCategoryName, nextCategoryName, order });
-
+            const cardLink = createCardLink(workspaceId, oldCategoryName);
+            if (order !== edit.oldOrder) {
+                patches.push(patchApi.buildPatch('reorder-card', cardLink, { order }, {
+                    source: 'nexus-datapack-view-macro',
+                    reason: 'macro-card-order'
+                }));
+                reordered += 1;
+            }
             if (nextCategoryName && nextCategoryName !== oldCategoryName) {
-                liveLinks.forEach(function (link) {
-                    if (normalizeWorkspaceId(link?.workspace) !== workspaceId) return;
-                    if (normalizeCategoryName(link?.category) !== oldCategoryName) return;
-                    link.category = nextCategoryName;
-                    window.EveLibrary?.ConnectionsAPI?.syncFromLink?.(link.id);
-                });
-                window.EveBookmarkFolders?.renameCategoryScope?.(workspaceId, oldCategoryName, nextCategoryName);
-                renameFolderScopeFallback(workspaceId, oldCategoryName, nextCategoryName);
-                window.EveCategoryOrder?.renameCategory?.(workspaceId, oldCategoryName, nextCategoryName);
-                window.EveBookmarkFolders?.renameCardTaskScope?.(workspaceId, oldCategoryName, nextCategoryName);
-                const cfg = getConfig();
-                if (cfg.cardDescriptions && typeof cfg.cardDescriptions === 'object') {
-                    const oldDescriptionKey = buildFolderScopeKey(workspaceId, oldCategoryName);
-                    const nextDescriptionKey = buildFolderScopeKey(workspaceId, nextCategoryName);
-                    if (Object.prototype.hasOwnProperty.call(cfg.cardDescriptions, oldDescriptionKey)) {
-                        if (!Object.prototype.hasOwnProperty.call(cfg.cardDescriptions, nextDescriptionKey)) {
-                            cfg.cardDescriptions[nextDescriptionKey] = cfg.cardDescriptions[oldDescriptionKey];
-                        }
-                        delete cfg.cardDescriptions[oldDescriptionKey];
-                    }
-                }
+                patches.push(patchApi.buildPatch('rename-card', cardLink, { name: nextCategoryName }, {
+                    source: 'nexus-datapack-view-macro',
+                    reason: 'macro-card-rename'
+                }));
                 renamed += 1;
             }
         });
 
-        setLiveLinks(liveLinks);
-        orderGroups.forEach(function (items, workspaceId) {
-            const cfg = getConfig();
-            if (!cfg.categoryOrderByWorkspace || typeof cfg.categoryOrderByWorkspace !== 'object') cfg.categoryOrderByWorkspace = {};
-            const existing = window.EveCategoryOrder?.getOrder
-                ? window.EveCategoryOrder.getOrder(workspaceId, { persist: true })
-                : (Array.isArray(cfg.categoryOrderByWorkspace[workspaceId]) ? cfg.categoryOrderByWorkspace[workspaceId] : []);
-            const shownNames = new Set(items.map(function (item) { return item.nextCategoryName; }));
-            const sortedShown = items.slice().sort(function (left, right) {
-                return left.order - right.order || left.nextCategoryName.localeCompare(right.nextCategoryName);
-            }).map(function (item) {
-                return item.nextCategoryName;
-            });
-            const rest = existing.map(function (name) {
-                const replacement = items.find(function (item) { return item.oldCategoryName === name; });
-                return replacement ? replacement.nextCategoryName : name;
-            }).filter(function (name) {
-                return !shownNames.has(name);
-            });
-            const nextOrder = Array.from(new Set(sortedShown.concat(rest)));
-            if (nextOrder.join('\n') !== existing.join('\n')) reordered += 1;
-            cfg.categoryOrderByWorkspace[workspaceId] = nextOrder;
-        });
-
-        if (!renamed && !reordered) {
+        if (!patches.length) {
+            if (options.previewOnly) {
+                renderPatchPreview(panel, { previews: [], errors: [] });
+                return true;
+            }
             if (typeof showToast === 'function') showToast('No macro changes to save.', 'info');
             return false;
         }
-        if (typeof saveConfig === 'function') {
-            saveConfig({
-                immediate: true,
-                source: 'nexus-datapack-view-macro-config',
-                meta: { renamed, reordered }
-            });
+        const transaction = patchApi.buildTransaction(patches, {
+            source: 'nexus-datapack-view-macro',
+            reason: 'macro gateway save'
+        });
+        if (options.previewOnly) {
+            const preview = patchApi.previewTransaction(transaction);
+            renderPatchPreview(panel, preview);
+            if (!preview.ok && typeof showToast === 'function') {
+                showToast('Macro diff has validation issues.', 'warning');
+            }
+            return preview.ok;
         }
-        if (typeof saveData === 'function') {
-            saveData({
-                immediate: true,
-                forceRender: true,
-                source: 'nexus-datapack-view-macro-data',
-                meta: { renamed, reordered }
-            });
+        const result = patchApi.applyTransaction(transaction, {
+            immediate: true,
+            forceRender: true,
+            source: 'nexus-datapack-view-macro'
+        });
+        window.EveOS.SearchAdvanced._lastDatapackMacroTransaction = { transaction, result };
+        if (!result.ok) {
+            if (typeof showToast === 'function') {
+                showToast('Macro changes blocked: ' + (result.errors || []).join(', '), 'error');
+            }
+            return false;
         }
         if (typeof renderSidebar === 'function') renderSidebar();
         if (typeof renderDashboard === 'function') renderDashboard();

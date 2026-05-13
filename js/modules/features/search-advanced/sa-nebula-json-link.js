@@ -46,11 +46,17 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     }
 
     function getLinks() {
-        if (typeof window.getLiveLinks === 'function') return window.getLiveLinks();
-        if (Array.isArray(window.eveState?.links)) return window.eveState.links;
-        if (Array.isArray(window.links)) return window.links;
-        if (typeof links !== 'undefined' && Array.isArray(links)) return links;
-        return [];
+        const live = typeof window.getLiveLinks === 'function' ? window.getLiveLinks() : null;
+        const candidates = [
+            Array.isArray(window.links) ? window.links : null,
+            typeof links !== 'undefined' && Array.isArray(links) ? links : null,
+            Array.isArray(window.eveState?.links) ? window.eveState.links : null,
+            Array.isArray(live) ? live : null
+        ].filter(Array.isArray);
+        if (!candidates.length) return [];
+        return candidates.sort(function (left, right) {
+            return right.length - left.length;
+        })[0];
     }
 
     function getFolderStore() {
@@ -514,12 +520,85 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         };
     }
 
+    function toNavigationResult(resolution) {
+        const path = resolution?.path || {};
+        const parsed = resolution?.parsed || {};
+        return {
+            type: resolution?.type || parsed.type || '',
+            title: text(resolution?.entity?.title || resolution?.entity?.name || path.categoryName || path.workspaceName, 'Entity'),
+            path: {
+                workspaceId: path.workspaceId || parsed.workspaceId || '',
+                workspaceLabel: path.workspaceName || '',
+                categoryName: path.categoryName || parsed.categoryName || '',
+                folderId: path.folderId || parsed.folderId || '',
+                folderLabel: path.folderPath || '',
+                pathLabel: path.breadcrumbLabel || '',
+                linkId: path.bookmarkId || parsed.bookmarkId || ''
+            },
+            provenance: {
+                kind: resolution?.type || parsed.type || '',
+                linkId: path.bookmarkId || parsed.bookmarkId || '',
+                folderId: path.folderId || parsed.folderId || '',
+                source: resolution?.provenance?.source || 'nebula-json-link',
+                entityLink: resolution?.link || parsed.canonical || ''
+            },
+            visibility: resolution?.visibility,
+            health: resolution?.health
+        };
+    }
+
+    function executeAction(actionId, value, options) {
+        const id = text(actionId, '');
+        const validation = validateLink(value);
+        const resolution = validation.resolution;
+        if (id === 'validate') return validation;
+        if (!resolution?.exists && id !== 'inspect-provenance') {
+            return { ok: false, action: id, errors: validation.errors.concat(['target_missing']), validation };
+        }
+
+        const navigation = root.SearchAdvanced?.Navigation || window.EveOS?.SearchAdvanced?.Navigation || null;
+        const navResult = toNavigationResult(resolution);
+        if (id === 'go-to-path') {
+            return { ok: !!navigation?.goToPath?.(navResult, options || {}), action: id, resolution };
+        }
+        if (id === 'open-card') {
+            return { ok: !!navigation?.openCard?.(navResult), action: id, resolution };
+        }
+        if (id === 'reveal-in-unidex') {
+            return { ok: !!navigation?.openInUnidex?.(navResult), action: id, resolution };
+        }
+        if (id === 'inspect-provenance') {
+            return { ok: true, action: id, resolution, provenance: resolution?.provenance || null };
+        }
+        if (id === 'open-json-state') {
+            const view = root.SearchAdvanced?.DatapackView || window.EveOS?.SearchAdvanced?.DatapackView || null;
+            if (!view) return { ok: false, action: id, errors: ['datapack_view_unavailable'], resolution };
+            const parsed = resolution.parsed || {};
+            if (parsed.type === 'workspace') {
+                view.openGateway?.({ scope: { workspaceId: parsed.workspaceId } });
+            } else if (parsed.type === 'card' || parsed.type === 'folder' || parsed.type === 'bookmark') {
+                view.openCardInternals?.(parsed.workspaceId, parsed.categoryName);
+            }
+            return { ok: true, action: id, resolution };
+        }
+        if (id === 'apply-patch') {
+            const patchApi = root.NebulaJsonPatch || searchNs.NebulaJsonPatch || window.NebulaJsonPatch || null;
+            const patch = options?.patch || null;
+            if (!patchApi?.applyPatch || !patch) {
+                return { ok: false, action: id, errors: ['missing_patch_or_patch_api'], resolution };
+            }
+            return patchApi.applyPatch(patch, options || {});
+        }
+        return { ok: false, action: id, errors: ['unsupported_action'], resolution };
+    }
+
     const api = {
         scheme: SCHEME,
         createLink,
         parseLink,
         resolveLink,
         validateLink,
+        executeAction,
         normalizeWorkspaceId,
         normalizeCategoryName
     };
