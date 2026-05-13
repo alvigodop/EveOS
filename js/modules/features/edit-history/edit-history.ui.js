@@ -73,14 +73,47 @@ window.EveEditHistory = window.EveEditHistory || {};
         `;
     }
 
+    // Map the Settings → Data Management → Backup Process selector to a single
+    // edit-history layer so we don't need a separate redundant dropdown.
+    const BACKUP_MODE_TO_LAYER = {
+        all: 'all',
+        full: 'all',
+        group: 'all',
+        modular: 'all',
+        layer: 'all',
+        workspace: 'workspace',
+        card: 'card',
+        folder: 'folder',
+        bookmark: 'bookmark'
+    };
+
+    const LAYER_LABELS = {
+        all: 'All Layers',
+        datapack: 'Datapack',
+        workspace: 'Tabs',
+        card: 'Cards',
+        folder: 'Folders',
+        bookmark: 'Bookmarks'
+    };
+
+    function resolveActiveLayer() {
+        const mode = String(document.getElementById('backupSettingsMode')?.value || '').toLowerCase();
+        if (mode && BACKUP_MODE_TO_LAYER[mode]) return BACKUP_MODE_TO_LAYER[mode];
+        // Fallback to stored config value if the select isn't in the DOM yet.
+        const stored = String(window.config?.backupSettingsMode || 'all').toLowerCase();
+        return BACKUP_MODE_TO_LAYER[stored] || 'all';
+    }
+
     function renderPanel(targetId = 'editHistoryResults') {
         const target = document.getElementById(targetId);
         if (!target) return false;
-        const layer = text(document.getElementById('editHistoryLayerFilter')?.value, 'all');
+        const layer = resolveActiveLayer();
         const entries = ns.getEntries(layer === 'all' ? {} : { layer }).slice(0, 80);
         target.innerHTML = entries.length
             ? `<div class="edit-history-list">${entries.map(renderEntry).join('')}</div>`
             : '<div class="edit-history-empty">No local edit history has been captured yet.</div>';
+        const label = document.getElementById('editHistoryLayerLabel');
+        if (label) label.textContent = `Layer: ${LAYER_LABELS[layer] || 'All Layers'}`;
         return true;
     }
 

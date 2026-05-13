@@ -211,7 +211,51 @@ function saveSettingsBackupMode() {
     config.backupSettingsMode = mode;
     saveConfig();
     applyBackupSettingsLayout(mode);
+    if (typeof renderEditHistoryPanel === 'function') renderEditHistoryPanel();
 }
+
+// Collapsible settings sections — every .settings-section can be folded.
+// Per-section collapsed state is persisted in config.settingsCollapsedSections
+// (an array of section keys) so the user's layout survives page reloads.
+function getCollapsedSectionsList() {
+    const stored = window.config?.settingsCollapsedSections;
+    return Array.isArray(stored) ? stored.map(String) : [];
+}
+
+function persistCollapsedSections(list) {
+    if (!window.config) return;
+    window.config.settingsCollapsedSections = Array.from(new Set(list.map(String))).filter(Boolean);
+    if (typeof saveConfig === 'function') saveConfig();
+}
+
+function toggleSettingsSection(buttonOrEl) {
+    const section = buttonOrEl?.closest ? buttonOrEl.closest('.settings-section') : null;
+    if (!section) return;
+    const isCollapsed = section.classList.toggle('is-collapsed');
+    const header = section.querySelector('.settings-section-header');
+    if (header) header.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');
+
+    const key = String(section.getAttribute('data-settings-section') || '').trim();
+    if (!key) return;
+    const current = new Set(getCollapsedSectionsList());
+    if (isCollapsed) current.add(key);
+    else current.delete(key);
+    persistCollapsedSections(Array.from(current));
+}
+
+function applySettingsSectionsCollapsedState() {
+    const collapsedKeys = new Set(getCollapsedSectionsList());
+    document.querySelectorAll('#settingsModal .settings-section[data-settings-section]').forEach((section) => {
+        const key = String(section.getAttribute('data-settings-section') || '').trim();
+        const shouldCollapse = key && collapsedKeys.has(key);
+        section.classList.toggle('is-collapsed', shouldCollapse);
+        const header = section.querySelector('.settings-section-header');
+        if (header) header.setAttribute('aria-expanded', shouldCollapse ? 'false' : 'true');
+    });
+}
+
+window.toggleSettingsSection = toggleSettingsSection;
+window.applySettingsSectionsCollapsedState = applySettingsSectionsCollapsedState;
 
 function saveSettingsModularSyncEnabled() {
     config.modularStateSyncEnabled = !!document.getElementById('modularSyncToggle')?.checked;

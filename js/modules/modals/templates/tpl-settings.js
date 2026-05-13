@@ -3,68 +3,97 @@ window.modalTemplate += `
 <div class="modal-overlay" id="settingsModal">
     <div class="modal">
         <h2>Settings</h2>
-        <div style="display:flex; flex-direction:column; gap:10px;">
-            <label style="display:flex; gap:10px; align-items:center;"><input type="checkbox" id="timerToggle"
-                    onchange="saveSettingsTimer()"><span>Show Timer</span></label>
-            <label style="display:flex; gap:10px; align-items:center;"><input type="checkbox" id="weatherToggle"
-                    onchange="saveSettingsWeather()"><span>Show Weather</span></label>
-            <label style="display:flex; gap:10px; align-items:center; margin-bottom:10px;">
-                <input type="checkbox" id="scrollableCats" onchange="saveSettingsScrollable()"
-                    style="width:20px; height:20px;">
-                <span>Limit Category Height (Scrollable)</span>
-            </label>
-            <label style="display:flex; gap:10px; align-items:center; margin-bottom:10px;">
-                <input type="checkbox" id="ultraCollapseSidebar" onchange="saveSettingsUltraCollapseSidebar()"
-                    style="width:20px; height:20px;">
-                <span>Ultra-Collapse Sidebar</span>
-            </label>
-            <label style="display:flex; gap:10px; align-items:center; margin-bottom:10px;">
-                <input type="checkbox" id="sidebarHidden" onchange="saveSettingsSidebarHidden()"
-                    style="width:20px; height:20px;">
-                <span>Hide Sidebar Completely</span>
-            </label>
-            <input type="text" id="userName" placeholder="Your Name" onchange="saveSettingsName()">
+        <div style="display:flex; flex-direction:column; gap:14px;">
+            <div class="settings-section" data-settings-section="display">
+                <button type="button" class="settings-section-header" onclick="toggleSettingsSection(this)" aria-expanded="true">
+                    <h4 style="margin:0; color:var(--accent);">Display</h4>
+                    <span class="settings-section-chevron" aria-hidden="true">&#9662;</span>
+                </button>
+                <div class="settings-section-body">
+                    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:8px 18px;">
+                        <label style="display:flex; gap:10px; align-items:center;"><input type="checkbox" id="timerToggle"
+                                onchange="saveSettingsTimer()"><span>Show Timer</span></label>
+                        <label style="display:flex; gap:10px; align-items:center;"><input type="checkbox" id="weatherToggle"
+                                onchange="saveSettingsWeather()"><span>Show Weather</span></label>
+                        <label style="display:flex; gap:10px; align-items:center;">
+                            <input type="checkbox" id="scrollableCats" onchange="saveSettingsScrollable()"
+                                style="width:20px; height:20px;">
+                            <span>Limit Category Height (Scrollable)</span>
+                        </label>
+                        <label style="display:flex; gap:10px; align-items:center;">
+                            <input type="checkbox" id="ultraCollapseSidebar" onchange="saveSettingsUltraCollapseSidebar()"
+                                style="width:20px; height:20px;">
+                            <span>Ultra-Collapse Sidebar</span>
+                        </label>
+                        <label style="display:flex; gap:10px; align-items:center;">
+                            <input type="checkbox" id="sidebarHidden" onchange="saveSettingsSidebarHidden()"
+                                style="width:20px; height:20px;">
+                            <span>Hide Sidebar Completely</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
 
-            <div>
-                <label style="color:var(--accent);">Search Engine:</label>
-                <select id="searchEngineSelect" onchange="saveSettingsEngine()" style="width:100%;">
-                    <option value="https://www.google.com/search?q=">Google</option>
-                    <option value="https://duckduckgo.com/?q=">DuckDuckGo</option>
-                    <option value="https://www.bing.com/search?q=">Bing</option>
-                </select>
+            <div class="settings-section" data-settings-section="general">
+                <button type="button" class="settings-section-header" onclick="toggleSettingsSection(this)" aria-expanded="true">
+                    <h4 style="margin:0; color:var(--accent);">General</h4>
+                    <span class="settings-section-chevron" aria-hidden="true">&#9662;</span>
+                </button>
+                <div class="settings-section-body">
+                    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:12px;">
+                        <div style="display:flex; flex-direction:column; gap:4px;">
+                            <label for="userName" style="color:var(--accent);">Your Name:</label>
+                            <input type="text" id="userName" placeholder="Your Name" onchange="saveSettingsName()">
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:4px;">
+                            <label style="color:var(--accent);">Search Engine:</label>
+                            <select id="searchEngineSelect" onchange="saveSettingsEngine()" style="width:100%;">
+                                <option value="https://www.google.com/search?q=">Google</option>
+                                <option value="https://duckduckgo.com/?q=">DuckDuckGo</option>
+                                <option value="https://www.bing.com/search?q=">Bing</option>
+                            </select>
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:4px;">
+                            <label style="color:var(--accent);">Main Search Mode:</label>
+                            <select id="searchModeSelect" onchange="saveSettingsSearchMode()" style="width:100%;">
+                                <option value="basic">Basic (Open engine in new tab)</option>
+                                <option value="expanded">Expanded (API modal)</option>
+                            </select>
+                            <div style="font-size:0.8rem; opacity:0.75;">Tip: Shift+Enter in search opens Expanded mode once.</div>
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:4px;">
+                            <label for="bookmarkClickBehaviorSelect" style="color:var(--accent);">Bookmark Click Behavior:</label>
+                            <select id="bookmarkClickBehaviorSelect" onchange="saveSettingsBookmarkClickBehavior()">
+                                <option value="focus_only">Popup Only</option>
+                                <option value="open_and_focus">Open in New Tab + Popup</option>
+                                <option value="internal_only">Open Internal View</option>
+                            </select>
+                            <div style="font-size:0.8rem; opacity:0.75;">Internal View opens the site inside EveOS through the in-site popup viewer.</div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div>
-                <label style="color:var(--accent);">Main Search Mode:</label>
-                <select id="searchModeSelect" onchange="saveSettingsSearchMode()" style="width:100%;">
-                    <option value="basic">Basic (Open engine in new tab)</option>
-                    <option value="expanded">Expanded (API modal)</option>
-                </select>
-                <div style="font-size:0.8rem; opacity:0.75; margin-top:4px;">Tip: press Shift+Enter in search to open Expanded mode once.</div>
-            </div>
-            <div style="display:flex; flex-direction:column; gap:4px;">
-                <label for="bookmarkClickBehaviorSelect" style="color:var(--accent);">Bookmark Click Behavior:</label>
-                <select id="bookmarkClickBehaviorSelect" onchange="saveSettingsBookmarkClickBehavior()">
-                    <option value="focus_only">Popup Only</option>
-                    <option value="open_and_focus">Open in New Tab + Popup</option>
-                    <option value="internal_only">Open Internal View</option>
-                </select>
-                <div style="font-size:0.8rem; opacity:0.75;">Internal View opens the site inside EveOS through the in-site popup viewer. Best results come with the popup bridge running.</div>
-            </div>
-            <div style="border-top:1px solid #444; padding-top:10px; margin-top:5px;">
-                <h4 style="margin:0 0 10px 0; color:var(--accent);">Library Derived Ratings</h4>
-                <label style="display:block; margin-bottom:8px;">Default Scale:
-                    <select id="ratingScaleModeSelect" onchange="saveRatingSettingsScale()" style="width:100%;">
-                        <option value="hybrid">Unified (Hybrid)</option>
-                        <option value="personal">Personal Only</option>
-                        <option value="api_weighted">API Weighted</option>
-                        <option value="api_average">API Average</option>
-                        <option value="confidence">Confidence</option>
-                    </select>
-                </label>
-                <label style="display:block; margin-bottom:10px;">Personal Weight in Unified (%):
-                    <input type="number" id="ratingPersonalWeight" min="0" max="100" step="5" onchange="saveRatingSettingsPersonalWeight()" style="width:100%;">
-                </label>
-                <div style="display:flex; flex-direction:column; gap:6px;">
+            <div class="settings-section" data-settings-section="library-ratings">
+                <button type="button" class="settings-section-header" onclick="toggleSettingsSection(this)" aria-expanded="true">
+                    <h4 style="margin:0; color:var(--accent);">Library Derived Ratings</h4>
+                    <span class="settings-section-chevron" aria-hidden="true">&#9662;</span>
+                </button>
+                <div class="settings-section-body">
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px; margin-bottom:10px;">
+                    <label style="display:flex; flex-direction:column; gap:4px;">Default Scale:
+                        <select id="ratingScaleModeSelect" onchange="saveRatingSettingsScale()" style="width:100%;">
+                            <option value="hybrid">Unified (Hybrid)</option>
+                            <option value="personal">Personal Only</option>
+                            <option value="api_weighted">API Weighted</option>
+                            <option value="api_average">API Average</option>
+                            <option value="confidence">Confidence</option>
+                        </select>
+                    </label>
+                    <label style="display:flex; flex-direction:column; gap:4px;">Personal Weight in Unified (%):
+                        <input type="number" id="ratingPersonalWeight" min="0" max="100" step="5" onchange="saveRatingSettingsPersonalWeight()" style="width:100%;">
+                    </label>
+                </div>
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:6px 12px;">
                     <div style="display:grid; grid-template-columns:auto 1fr auto; gap:8px; align-items:center;">
                         <label style="display:flex; gap:6px; align-items:center;">
                             <input type="checkbox" id="ratingProviderAniListEnabled" onchange="saveRatingProviderSettings()">
@@ -91,24 +120,41 @@ window.modalTemplate += `
                     </div>
                 </div>
                 <div style="font-size:0.78rem; opacity:0.75; margin-top:8px;">Unified = personalWeight * personal + (1 - personalWeight) * API weighted</div>
-            </div>
-            <div>
-                <label style="color:var(--accent);">Header Readout:</label>
-                <button type="button" onclick="openHeaderControlsModal()" style="width:100%;">Open Header Controls</button>
-                <div style="font-size:0.8rem; opacity:0.75; margin-top:4px;">Adjust greeting/clock messages, font, color, and effects.</div>
+                </div>
             </div>
 
-            <div style="border-top:1px solid #444; padding-top:10px; margin-top:5px;">
-                <h4 style="margin:0 0 10px 0; color:var(--accent);">Keyboard Shortcuts</h4>
-                <div id="settingsShortcutList" style="display:flex; flex-direction:column; gap:8px;"></div>
-                <div style="font-size:0.78rem; opacity:0.75; margin-top:8px;">Plain key shortcuts pause while you are typing into a field. Modifier shortcuts like Alt+B remain available globally.</div>
+            <div class="settings-section" data-settings-section="header-readout">
+                <button type="button" class="settings-section-header" onclick="toggleSettingsSection(this)" aria-expanded="true">
+                    <h4 style="margin:0; color:var(--accent);">Header Readout</h4>
+                    <span class="settings-section-chevron" aria-hidden="true">&#9662;</span>
+                </button>
+                <div class="settings-section-body">
+                    <button type="button" onclick="openHeaderControlsModal()" style="width:100%;">Open Header Controls</button>
+                    <div style="font-size:0.8rem; opacity:0.75; margin-top:4px;">Adjust greeting/clock messages, font, color, and effects.</div>
+                </div>
             </div>
 
-            <div style="border-top:1px solid #444; padding-top:10px; margin-top:5px;">
-                <h4 style="margin:0 0 10px 0; color:var(--accent);">Bookmark Identifiers</h4>
+            <div class="settings-section" data-settings-section="keyboard-shortcuts">
+                <button type="button" class="settings-section-header" onclick="toggleSettingsSection(this)" aria-expanded="true">
+                    <h4 style="margin:0; color:var(--accent);">Keyboard Shortcuts</h4>
+                    <span class="settings-section-chevron" aria-hidden="true">&#9662;</span>
+                </button>
+                <div class="settings-section-body">
+                    <div id="settingsShortcutList" style="display:flex; flex-direction:column; gap:8px;"></div>
+                    <div style="font-size:0.78rem; opacity:0.75; margin-top:8px;">Plain key shortcuts pause while you are typing into a field. Modifier shortcuts like Alt+B remain available globally.</div>
+                </div>
+            </div>
+
+            <div class="settings-section" data-settings-section="bookmark-identifiers">
+                <button type="button" class="settings-section-header" onclick="toggleSettingsSection(this)" aria-expanded="true">
+                    <h4 style="margin:0; color:var(--accent);">Bookmark Identifiers</h4>
+                    <span class="settings-section-chevron" aria-hidden="true">&#9662;</span>
+                </button>
+                <div class="settings-section-body">
                 <div style="font-size:0.8rem; opacity:0.75; margin-bottom:10px;">Reusable bookmark-level markers. They are centrally configured like labels or select options, not freeform tags, and they stay separate from Library metadata.</div>
                 <div id="bookmarkIdentifiersSettingsList" class="bookmark-identifier-settings-list"></div>
-                <div style="display:grid; grid-template-columns:minmax(0, 1.1fr) minmax(0, 0.8fr) auto; gap:8px; margin-top:12px; align-items:end;">
+
+                <div style="display:grid; grid-template-columns:minmax(140px, 1fr) minmax(120px, 0.8fr) minmax(110px, 0.55fr) minmax(220px, 2fr); gap:8px; margin-top:12px; align-items:end;">
                     <input type="hidden" id="bookmarkIdentifierEditId">
                     <div style="display:flex; flex-direction:column; gap:4px;">
                         <label for="bookmarkIdentifierLabel" style="font-size:0.78rem; opacity:0.82;">Label</label>
@@ -120,13 +166,14 @@ window.modalTemplate += `
                     </div>
                     <div style="display:flex; flex-direction:column; gap:4px;">
                         <label for="bookmarkIdentifierColor" style="font-size:0.78rem; opacity:0.82;">Color</label>
-                        <input type="color" id="bookmarkIdentifierColor" value="#4f8cff" style="height:38px;">
+                        <input type="color" id="bookmarkIdentifierColor" value="#4f8cff" style="height:38px; width:100%;">
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:4px;">
+                        <label for="bookmarkIdentifierDescription" style="font-size:0.78rem; opacity:0.82;">Description</label>
+                        <input type="text" id="bookmarkIdentifierDescription" placeholder="Long-form text, books, manga, or articles.">
                     </div>
                 </div>
-                <div style="display:flex; flex-direction:column; gap:4px; margin-top:8px;">
-                    <label for="bookmarkIdentifierDescription" style="font-size:0.78rem; opacity:0.82;">Description</label>
-                    <input type="text" id="bookmarkIdentifierDescription" placeholder="Long-form text, books, manga, or articles.">
-                </div>
+
                 <div class="bookmark-identifier-quicklink-editor">
                     <div class="bookmark-identifier-quicklink-heading">
                         <div>
@@ -145,12 +192,17 @@ window.modalTemplate += `
                     <button type="button" onclick="clearBookmarkIdentifierForm()">Clear</button>
                     <button type="button" onclick="resetBookmarkIdentifiersToDefaults()">Restore Defaults</button>
                 </div>
+                </div>
             </div>
 
             <!-- Styling Section -->
-            <div style="border-top:1px solid #444; padding-top:10px; margin-top:5px;">
-                <h4 style="margin:0 0 10px 0; color:var(--accent);">Styling</h4>
-                
+            <div class="settings-section" data-settings-section="styling">
+                <button type="button" class="settings-section-header" onclick="toggleSettingsSection(this)" aria-expanded="true">
+                    <h4 style="margin:0; color:var(--accent);">Styling</h4>
+                    <span class="settings-section-chevron" aria-hidden="true">&#9662;</span>
+                </button>
+                <div class="settings-section-body">
+
                 <!-- Theme Mode -->
                 <div style="margin-bottom:10px;">
                     <label style="display:block; margin-bottom:5px;">Theme Mode:</label>
@@ -187,14 +239,17 @@ window.modalTemplate += `
                         <span>Popup Color</span>
                     </label>
                 </div>
-            </div>
 
-            <input type="text" id="bgUrl" placeholder="Background Image URL" onchange="saveSettingsUrl()">
-            <label class="file-drop-zone">
-                📂 Upload Local Image
-                <input type="file" id="bgFileInput" accept="image/*" style="display: none;"
-                    onchange="saveSettingsFile(this)">
-            </label>
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:10px; align-items:stretch; margin-top:12px;">
+                    <input type="text" id="bgUrl" placeholder="Background Image URL" onchange="saveSettingsUrl()">
+                    <label class="file-drop-zone" style="margin:0;">
+                        📂 Upload Local Image
+                        <input type="file" id="bgFileInput" accept="image/*" style="display: none;"
+                            onchange="saveSettingsFile(this)">
+                    </label>
+                </div>
+                </div>
+            </div>
 
 ${window.EveSettingsTemplates.backupPanel || ''}
         </div>

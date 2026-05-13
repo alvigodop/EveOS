@@ -74,7 +74,8 @@ function createContext() {
     const before = createSnapshot();
     const elements = new Map([
         ['editHistoryResults', { innerHTML: '' }],
-        ['editHistoryLayerFilter', { value: 'bookmark' }]
+        ['editHistoryLayerLabel', { textContent: '' }],
+        ['backupSettingsMode', { value: 'bookmark' }]
     ]);
     const config = {
         workspaces: [

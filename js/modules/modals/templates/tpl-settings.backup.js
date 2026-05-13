@@ -1,8 +1,12 @@
 // --- MODAL TEMPLATES: SETTINGS BACKUP PANEL ---
 window.EveSettingsTemplates = window.EveSettingsTemplates || {};
 window.EveSettingsTemplates.backupPanel = `
-            <div style="border-top:1px solid #444; padding-top:10px; margin-top:10px;" class="settings-backup-shell">
-                <h4 style="margin:0 0 10px 0;">Data Management</h4>
+            <div class="settings-section settings-backup-shell" data-settings-section="data-management">
+                <button type="button" class="settings-section-header" onclick="toggleSettingsSection(this)" aria-expanded="true">
+                    <h4 style="margin:0;">Data Management</h4>
+                    <span class="settings-section-chevron" aria-hidden="true">&#9662;</span>
+                </button>
+                <div class="settings-section-body">
                 <div class="backup-mode-row">
                     <label for="backupSettingsMode">Backup Process:</label>
                     <select id="backupSettingsMode" onchange="saveSettingsBackupMode()">
@@ -44,29 +48,6 @@ window.EveSettingsTemplates.backupPanel = `
                         </div>
                         <div id="backupMismatchReportResults" class="backup-mismatch-results">
                             Pick a folder backup to detect stale entity links, path fallback restores, orphaned folder bookmarks, broken folder parents, duplicate entities, and manifest count drift.
-                        </div>
-                    </div>
-                    <div class="edit-history-shell">
-                        <div class="edit-history-toolbar">
-                            <div>
-                                <strong>Local Edit History</strong>
-                                <span>Stores the last 5 scoped saves per datapack, tab, card, folder, and bookmark layer.</span>
-                            </div>
-                            <div class="edit-history-actions">
-                                <select id="editHistoryLayerFilter" onchange="renderEditHistoryPanel()">
-                                    <option value="all">All Layers</option>
-                                    <option value="datapack">Datapack</option>
-                                    <option value="workspace">Tabs</option>
-                                    <option value="card">Cards</option>
-                                    <option value="folder">Folders</option>
-                                    <option value="bookmark">Bookmarks</option>
-                                </select>
-                                <button onclick="renderEditHistoryPanel()" class="btn-backup">Refresh</button>
-                                <button onclick="clearEditHistoryPanel()" class="btn-restore" style="border:none;">Clear</button>
-                            </div>
-                        </div>
-                        <div id="editHistoryResults" class="edit-history-results">
-                            No local edit history has been captured yet.
                         </div>
                     </div>
                     <div class="btn-action-row" style="margin-top:8px;">
@@ -239,6 +220,24 @@ window.EveSettingsTemplates.backupPanel = `
                     <div style="font-size:0.78rem; opacity:0.75;">
                         This path auto-fills from the active localhost data pack and updates as you switch between full pack, tab, card, folder, and bookmark scope.
                     </div>
+                </div>
+
+                <div class="edit-history-shell">
+                    <div class="edit-history-toolbar">
+                        <div>
+                            <strong>Local Edit History</strong>
+                            <span>Stores the last 5 scoped saves per datapack, tab, card, folder, and bookmark layer. Filter follows the <em>Backup Process</em> selector above.</span>
+                        </div>
+                        <div class="edit-history-actions">
+                            <span id="editHistoryLayerLabel" class="edit-history-layer-label">Layer: All</span>
+                            <button onclick="renderEditHistoryPanel()" class="btn-backup">Refresh</button>
+                            <button onclick="clearEditHistoryPanel()" class="btn-restore" style="border:none;">Clear</button>
+                        </div>
+                    </div>
+                    <div id="editHistoryResults" class="edit-history-results">
+                        No local edit history has been captured yet.
+                    </div>
+                </div>
                 </div>
             </div>
 

@@ -21,7 +21,7 @@ window.EveModuleManifestParts.styles = [
 
         // Feature Modules
         'js/modules/features/widgets.css',
-        'js/modules/features/bookmark-identifiers.css?v=0.2.1',
+        'js/modules/features/bookmark-identifiers.css?v=0.2.2',
         'js/modules/features/search.css',
         'js/modules/features/header-controls/hc.css',
         'js/modules/features/search-advanced/sa.css?v=0.1.2',
@@ -81,7 +81,7 @@ window.EveModuleManifestParts.styles = [
         'js/modules/features/scraper/utils/styles/utility.css?v=1.0.1',
 
         // Modal Modules
-        'js/modules/modals/modals.css?v=0.2.14',
+        'js/modules/modals/modals.css?v=0.2.16',
 
         // Gemini Integration Styles
         'css/modules/gemini/main_css_files.css',

@@ -164,6 +164,7 @@ function openSettings() {
     if (window.EveBookmarkIdentifiers?.renderSettingsManager) {
         window.EveBookmarkIdentifiers.renderSettingsManager();
     }
+    if (typeof applySettingsSectionsCollapsedState === 'function') applySettingsSectionsCollapsedState();
     refreshModalThemedControls(document.getElementById('settingsModal'));
 }
 

@@ -75,13 +75,14 @@ async function main() {
                 target.id = 'editHistoryResults';
                 document.body.appendChild(target);
             }
-            let filter = document.getElementById('editHistoryLayerFilter');
-            if (!filter) {
-                filter = document.createElement('select');
-                filter.id = 'editHistoryLayerFilter';
-                document.body.appendChild(filter);
+            let modeSelect = document.getElementById('backupSettingsMode');
+            if (!modeSelect) {
+                modeSelect = document.createElement('select');
+                modeSelect.id = 'backupSettingsMode';
+                document.body.appendChild(modeSelect);
             }
-            filter.value = 'bookmark';
+            modeSelect.innerHTML = '<option value="bookmark">Bookmark</option>';
+            modeSelect.value = 'bookmark';
 
             const api = window.EveEditHistory;
             api.clearHistory();
@@ -97,7 +98,8 @@ async function main() {
             const restoreResult = await api.restoreEntry(entry);
             return {
                 hasTemplateUi: window.EveSettingsTemplates.backupPanel.includes('Local Edit History')
-                    && window.EveSettingsTemplates.backupPanel.includes('editHistoryLayerFilter'),
+                    && window.EveSettingsTemplates.backupPanel.includes('editHistoryLayerLabel')
+                    && !window.EveSettingsTemplates.backupPanel.includes('editHistoryLayerFilter'),
                 hasRestoreButton: html.includes('Restore This Layer'),
                 entryCount: api.getEntries({ layer: 'bookmark' }).length,
                 restoreOk: !!restoreResult?.ok,

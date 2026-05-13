@@ -101,6 +101,89 @@ input:focus {
     z-index: 3002;
 }
 
+/* Settings modal gets significantly more breathing room than the default
+   .modal { max-width: 500px } cap — it holds a lot of dense controls. */
+#settingsModal .modal {
+    width: min(96vw, 980px);
+    max-width: 980px;
+    padding: 28px 32px;
+    gap: 18px;
+}
+
+@media (max-width: 720px) {
+    #settingsModal .modal {
+        width: 96vw;
+        max-width: 96vw;
+        padding: 20px;
+    }
+}
+
+/* Collapsible settings sections (h4-headed blocks) */
+.settings-section {
+    border-top: 1px solid #444;
+    padding-top: 6px;
+    margin-top: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.settings-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    padding: 8px 4px;
+    background: transparent;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    text-align: left;
+    font: inherit;
+}
+
+.settings-section-header:hover h4 {
+    text-shadow: 0 0 10px color-mix(in srgb, var(--accent, #00d4ff) 40%, transparent);
+}
+
+.settings-section-header h4 {
+    font-size: 1rem;
+    flex: 1;
+}
+
+.settings-section-chevron {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    color: color-mix(in srgb, var(--accent, #00d4ff) 80%, var(--text-main, #fff));
+    font-size: 0.9rem;
+    transition: transform 0.2s ease;
+}
+
+.settings-section.is-collapsed .settings-section-chevron {
+    transform: rotate(-90deg);
+}
+
+.settings-section-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow: hidden;
+    max-height: 4000px;
+    opacity: 1;
+    transition: max-height 0.25s ease, opacity 0.18s ease, margin 0.18s ease;
+}
+
+.settings-section.is-collapsed .settings-section-body {
+    max-height: 0;
+    opacity: 0;
+    margin: 0;
+    pointer-events: none;
+}
+
 .modal {
     background: var(--modal-bg, #1e1e1e);
     color: var(--modal-text, var(--text-main));

@@ -45,6 +45,19 @@
     padding: 7px 9px;
 }
 
+.edit-history-layer-label {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 10px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.75rem;
+    letter-spacing: 1.2px;
+    color: #dffcff;
+    background: rgba(0, 229, 255, 0.1);
+    border: 1px solid rgba(0, 229, 255, 0.32);
+    border-radius: 999px;
+}
+
 .edit-history-results {
     max-height: 300px;
     overflow: auto;
