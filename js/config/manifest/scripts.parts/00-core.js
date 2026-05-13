@@ -19,7 +19,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/edit-history/edit-history.core.js?v=0.1.0",
     "js/modules/features/edit-history/edit-history.config.js?v=0.1.0",
     "js/modules/features/edit-history/edit-history.restore.js?v=0.1.0",
-    "js/modules/features/edit-history/edit-history.ui.js?v=0.1.1",
+    "js/modules/features/edit-history/edit-history.ui.js?v=0.2.0",
     "js/modules/features/semantic-drift.js?v=0.1.1",
     "js/modules/features/bookmark-merge-heuristics.helpers.js?v=0.1.1",
     "js/modules/features/bookmark-merge-heuristics.js?v=0.1.1",

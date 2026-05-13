@@ -82,6 +82,84 @@
 .edit-history-row.folder { border-left-color: rgba(167, 135, 255, 0.86); }
 .edit-history-row.bookmark { border-left-color: rgba(255, 121, 121, 0.86); }
 
+.edit-history-row-contents {
+    margin-top: 4px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.74rem;
+    letter-spacing: 0.04em;
+    color: rgba(228, 248, 249, 0.6);
+}
+
+.edit-history-row-details {
+    margin-top: 6px;
+    border: 1px solid rgba(0, 229, 255, 0.16);
+    border-radius: 9px;
+    background: rgba(0, 0, 0, 0.18);
+    padding: 0;
+    overflow: hidden;
+}
+
+.edit-history-row-details summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 6px 10px;
+    font-size: 0.78rem;
+    color: rgba(223, 252, 255, 0.78);
+    user-select: none;
+    transition: background 0.14s ease, color 0.14s ease;
+}
+
+.edit-history-row-details summary::-webkit-details-marker {
+    display: none;
+}
+
+.edit-history-row-details summary::before {
+    content: '▸';
+    display: inline-block;
+    margin-right: 8px;
+    color: rgba(0, 229, 255, 0.7);
+    transition: transform 0.18s ease;
+}
+
+.edit-history-row-details[open] summary::before {
+    transform: rotate(90deg);
+}
+
+.edit-history-row-details summary:hover {
+    background: rgba(0, 229, 255, 0.06);
+    color: rgba(255, 255, 255, 0.92);
+}
+
+.edit-history-change-list {
+    list-style: none;
+    margin: 0;
+    padding: 8px 10px 10px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    border-top: 1px solid rgba(0, 229, 255, 0.12);
+}
+
+.edit-history-change-list li {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.74rem;
+    line-height: 1.4;
+    color: rgba(228, 248, 249, 0.82);
+    overflow-wrap: anywhere;
+}
+
+.edit-history-change-list li.edit-history-change-overflow {
+    color: rgba(228, 248, 249, 0.55);
+    font-style: italic;
+}
+
+.edit-history-changes-empty {
+    padding: 8px 10px;
+    font-size: 0.76rem;
+    color: rgba(228, 248, 249, 0.6);
+    border-top: 1px solid rgba(0, 229, 255, 0.12);
+}
+
 .edit-history-row-head,
 .edit-history-row-meta,
 .edit-history-row-actions {
