@@ -12,6 +12,8 @@ window.ContextMenus.template = `
 </div>
 <div id="sidebar-context-menu" class="context-menu">
     <div class="ctx-item" onclick="openWorkspaceModal(ctxWsId)">&#9998; Edit</div>
+    <div class="ctx-item" onclick="ctxWsOpenState()">&#123; Open JSON State</div>
+    <div class="ctx-item" onclick="ctxWsValidateJsonLink()">&#9989; Validate Entity Link</div>
     <div class="ctx-item" onclick="ctxWsAddSubTab()">&#10133; Add Sub-Tab</div>
     <div class="ctx-item" onclick="ctxWsCreateShortcut()">&#128279; Create Shortcut</div>
     <div class="ctx-item" id="ctx-ws-hide-subtabs" onclick="ctxWsToggleHideSubTabs()">&#128065; Hide Sub-Tab Content</div>
@@ -33,6 +35,8 @@ window.ContextMenus.template = `
 </div>
 <div id="link-context-menu" class="context-menu">
     <div class="ctx-item" onclick="ctxEdit()">&#9998; Edit</div>
+    <div class="ctx-item" onclick="ctxLinkOpenJsonState()">&#123; Open JSON State</div>
+    <div class="ctx-item" onclick="ctxLinkValidateJsonLink()">&#9989; Validate Entity Link</div>
     <div class="ctx-item" id="ctx-library-action" onclick="ctxToggleLibraryLink()">&#128218; Add To Library</div>
     <div class="ctx-item" id="ctx-pin-action" onclick="ctxTogglePin()">&#128204; Pin</div>
     <div class="ctx-item" id="ctx-pin-scope-tab" onclick="ctxSetPinScope('tab')" style="display:none;">&#128204; Pin Scope: This Tab</div>
@@ -48,6 +52,8 @@ window.ContextMenus.template = `
     <div class="ctx-item" onclick="ctxFolderAdd()">&#10133; Add Bookmark</div>
     <div class="ctx-item" onclick="ctxFolderSubfolder()">&#128193; New Subfolder</div>
     <div class="ctx-item" onclick="ctxFolderRename()">&#9998; Rename</div>
+    <div class="ctx-item" onclick="ctxFolderOpenJsonState()">&#123; Open JSON State</div>
+    <div class="ctx-item" onclick="ctxFolderValidateJsonLink()">&#9989; Validate Entity Link</div>
     <div class="ctx-divider"></div>
     <div class="ctx-item" onclick="ctxFolderMap()">&#127756; Constellation Map</div>
     <div class="ctx-item" onclick="ctxFolderAutoTitle()">&#127991; Auto-Title Links</div>

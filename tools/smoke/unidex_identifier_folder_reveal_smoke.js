@@ -17,6 +17,16 @@ function loadScript(relativePath) {
 }
 
 global.window = global;
+global.EveOS = {
+  NebulaJsonLink: {
+    createLink(link) {
+      const workspace = encodeURIComponent(String(link.workspace || 'main'));
+      const category = encodeURIComponent(String(link.category || 'Unsorted'));
+      const folder = String(link.folderId || '').trim();
+      return `eve://workspace/${workspace}/card/${category}${folder ? `/folder/${encodeURIComponent(folder)}` : ''}/bookmark/${encodeURIComponent(String(link.id || ''))}`;
+    }
+  }
+};
 global.config = { activeWorkspace: 'main' };
 global.eveState = { config: { activeWorkspace: 'main' }, links: [] };
 global.document = {
@@ -163,6 +173,9 @@ assert(groupedHtml.includes('is-density-atlas'), 'Identifier grouping should pre
 assert(groupedHtml.includes('No Identifier'), 'Unidentified group should render for unmarked bookmarks');
 assert(groupedHtml.includes('Folder: Arc One / Nested Folder'), 'Folder tag should show folder path label');
 assert(groupedHtml.includes('Folder: Arc One / Nested Folder'), 'Folder path should be available in hover/title text');
+assert(groupedHtml.includes('data-entity-link="eve://workspace/main/card/Alpha/folder/folder-1/bookmark/link-1"'), 'Unidex entries should expose canonical entity links');
+assert(groupedHtml.includes('openEntryJsonState'), 'Unidex entries should expose JSON State actions');
+assert(groupedHtml.includes('validateEntryJsonLink'), 'Unidex entries should expose entity-link validation actions');
 
 console.log(JSON.stringify({
   ok: true,

@@ -130,6 +130,8 @@ window.UnidexView = (function () {
             toggleEntriesLayout: function () { },
             openEntryDirect: function () { return false; },
             openEntry: function () { return false; },
+            openEntryJsonState: function () { return false; },
+            validateEntryJsonLink: function () { return false; },
             resetSelection: function () { }
         };
     }
@@ -190,6 +192,8 @@ window.UnidexView = (function () {
         toggleEntriesLayout: controls.toggleEntriesLayout,
         openEntryDirect: entryActions.openEntryDirect,
         openEntry: entryActions.openEntry,
+        openEntryJsonState: entryActions.openEntryJsonState,
+        validateEntryJsonLink: entryActions.validateEntryJsonLink,
         resetSelection: stages.resetSelection,
         getConstellationScope,
         openConstellationMap,

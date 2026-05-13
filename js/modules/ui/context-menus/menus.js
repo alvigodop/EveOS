@@ -329,6 +329,8 @@ window.showCategoryContextMenu = function (e, name, workspaceId) {
     m.innerHTML = `
         <div class="ctx-item" data-ws="${safeHtmlWs}" data-cat="${safeHtmlName}" onclick="if(window.EveConstellationMap) window.EveConstellationMap.openCardMap(this.dataset.ws, this.dataset.cat)">&#127756; Constellation Map</div>
         <div class="ctx-item" data-cat="${safeHtmlName}" data-ws="${safeHtmlWs}" onclick="openCategorySettings(this.dataset.cat, 'search', this.dataset.ws)">&#128269; Search & Settings</div>
+        <div class="ctx-item" onclick="ctxCatOpenJsonState()">&#123; Open JSON State</div>
+        <div class="ctx-item" onclick="ctxCatValidateJsonLink()">&#9989; Validate Entity Link</div>
         <div class="ctx-item" data-cat="${safeHtmlName}" data-ws="${safeHtmlWs}" onclick="window.ctxWsId=this.dataset.ws; openRenameModal(this.dataset.cat)">&#9998; Rename</div>
         <div class="ctx-item" data-cat="${safeHtmlName}" onclick="openBulkTitleModal(this.dataset.cat)">&#129668; Auto-Title Links</div>
         <div class="ctx-item" onclick="ctxCatFocus()">&#127919; Focus</div>

@@ -130,6 +130,12 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             function renderEntryItems(links) {
                 return (Array.isArray(links) ? links : []).map(function (link) {
                 const encodedId = encodeParam(link.id);
+                const entityLinkRaw = window.EveOS?.NebulaJsonLink?.createLink
+                    ? window.EveOS.NebulaJsonLink.createLink(link)
+                    : (window.EveOS?.SearchAdvanced?.NebulaJsonLink?.createLink
+                        ? window.EveOS.SearchAdvanced.NebulaJsonLink.createLink(link)
+                        : (window.NebulaJsonLink?.createLink ? window.NebulaJsonLink.createLink(link) : ''));
+                const safeEntityLink = escapeHtml(entityLinkRaw);
                 const safeTitle = escapeHtml(link.title || 'Untitled');
                 const hoverText = escapeHtml(truncateText(String(link.title || 'Untitled').toUpperCase(), 34));
                 const safeDomain = escapeHtml(getDomain(link.url));
@@ -257,7 +263,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
 
                 return `
                 <article class="unidex-entry-item has-visual-slot is-density-${normalizedDensity} ${taskMode && link.done ? 'is-done' : ''} ${isLibraryLinked ? 'is-library-linked' : 'is-bookmark-only'} ${safeCoverUrl ? 'has-cover-image' : 'has-no-cover-image'}"
-                    data-text="${hoverText}">
+                    data-text="${hoverText}" data-entity-link="${safeEntityLink}">
                     <button type="button"
                         class="unidex-entry-visual-btn"${visualButtonStyle}
                         onclick="return window.UnidexView.openEntryDirect('${encodedId}', event)"
@@ -281,6 +287,8 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                         </div>
                     </div>
                     <div class="unidex-entry-actions">
+                        ${entityLinkRaw ? `<button type="button" class="unidex-entry-btn" onclick="return window.UnidexView.openEntryJsonState('${encodedId}', event)" title="${safeEntityLink}">JSON</button>` : ''}
+                        ${entityLinkRaw ? `<button type="button" class="unidex-entry-btn" onclick="return window.UnidexView.validateEntryJsonLink('${encodedId}', event)">Validate</button>` : ''}
                         <button type="button" class="unidex-entry-btn" onclick="return window.UnidexView.openEntry('${encodedId}', event)">Open</button>
                     </div>
                 </article>

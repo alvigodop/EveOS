@@ -54,6 +54,55 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             return false;
         }
 
-        return { openEntry, openEntryDirect };
+        function getLinkApi() {
+            return window.EveOS?.NebulaJsonLink
+                || window.EveOS?.SearchAdvanced?.NebulaJsonLink
+                || window.NebulaJsonLink
+                || null;
+        }
+
+        function getEntryJsonLink(linkIdParam) {
+            const linkId = helpers.decodeParam(linkIdParam);
+            if (!linkId) return '';
+            const link = typeof helpers.resolveLinkById === 'function'
+                ? helpers.resolveLinkById(linkId)
+                : helpers.getAllLinks().find(function (item) {
+                    return String(item.id) === String(linkId);
+                });
+            const api = getLinkApi();
+            return link && api?.createLink ? api.createLink(link) : '';
+        }
+
+        function runJsonLinkAction(linkIdParam, event, actionId) {
+            if (event?.preventDefault) event.preventDefault();
+            if (event?.stopPropagation) event.stopPropagation();
+            const api = getLinkApi();
+            const entityLink = getEntryJsonLink(linkIdParam);
+            if (!api?.executeAction || !entityLink) {
+                if (typeof showToast === 'function') showToast('Unidex JSON link is not available for this bookmark.', 'warning');
+                return false;
+            }
+            const outcome = api.executeAction(actionId, entityLink);
+            if (actionId === 'validate') {
+                if (outcome?.valid || outcome?.ok) {
+                    if (typeof showToast === 'function') showToast('Unidex entity link is valid.', 'success');
+                } else if (typeof showToast === 'function') {
+                    showToast('Unidex entity link issue: ' + ((outcome?.errors || outcome?.warnings || []).join(', ') || 'invalid link'), 'warning');
+                }
+            } else if (!outcome?.ok && typeof showToast === 'function') {
+                showToast('Could not open JSON State from Unidex.', 'warning');
+            }
+            return false;
+        }
+
+        function openEntryJsonState(linkIdParam, event) {
+            return runJsonLinkAction(linkIdParam, event, 'open-json-state');
+        }
+
+        function validateEntryJsonLink(linkIdParam, event) {
+            return runJsonLinkAction(linkIdParam, event, 'validate');
+        }
+
+        return { openEntry, openEntryDirect, openEntryJsonState, validateEntryJsonLink };
     };
 })();
