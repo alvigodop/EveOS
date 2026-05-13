@@ -21,6 +21,15 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             resolveCurrentScope,
             renderGateway
         } = deps;
+
+    function createEntityLink(source) {
+        const api = window.EveOS?.NebulaJsonLink
+            || window.EveOS?.SearchAdvanced?.NebulaJsonLink
+            || window.NebulaJsonLink
+            || null;
+        return api && typeof api.createLink === 'function' ? api.createLink(source) : '';
+    }
+
     function buildCardInternals(workspaceId, categoryName) {
         const scopedLinks = getScopedLinks(workspaceId, categoryName);
         const folders = getFolderNodes(workspaceId, categoryName);
@@ -31,6 +40,13 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 id: String(link?.id || ''),
                 title: String(link?.title || 'Untitled'),
                 url: String(link?.url || ''),
+                entityLink: createEntityLink({
+                    type: 'bookmark',
+                    workspaceId,
+                    categoryName,
+                    folderId,
+                    bookmarkId: String(link?.id || '')
+                }),
                 folderId,
                 folderPath: getFolderPathLabel(workspaceId, categoryName, folderId),
                 identifiers: getIdentifierLabels(link),
@@ -41,6 +57,11 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         return {
             workspaceId: normalizeWorkspaceId(workspaceId),
             categoryName: normalizeCategoryName(categoryName),
+            entityLink: createEntityLink({
+                type: 'card',
+                workspaceId: normalizeWorkspaceId(workspaceId),
+                categoryName: normalizeCategoryName(categoryName)
+            }),
             counts: {
                 bookmarks: scopedLinks.length,
                 bookmarksShown: bookmarkRows.length,
@@ -52,6 +73,12 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 return {
                     id,
                     name: String(folder?.name || 'Folder'),
+                    entityLink: createEntityLink({
+                        type: 'folder',
+                        workspaceId,
+                        categoryName,
+                        folderId: id
+                    }),
                     parentId: normalizeFolderId(folder?.parentId),
                     path: getFolderPathLabel(workspaceId, categoryName, id),
                     bookmarks: scopedLinks.filter(function (link) {
@@ -74,6 +101,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             + '<div><div class="nx-dv-kicker">Card Internals</div><h3>' + escapeHtml(state.categoryName) + '</h3></div>'
             + '<button type="button" class="nx-dv-close" data-nx-dv-action="close-micro">X</button>'
             + '</div>'
+            + '<div class="nx-dv-json-link" title="' + escapeHtml(state.entityLink) + '">JSON Link: ' + escapeHtml(state.entityLink) + '</div>'
             + '<div class="nx-dv-summary">'
             + '<span>' + state.counts.bookmarks + ' bookmarks</span>'
             + '<span>' + state.counts.folders + ' folders</span>'
@@ -100,6 +128,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 return '<div class="nx-dv-folder-row">'
                     + '<strong>' + escapeHtml(folder.name) + '</strong>'
                     + '<span title="' + escapeHtml(folder.path) + '">' + escapeHtml(folder.path) + '</span>'
+                    + '<small title="' + escapeHtml(folder.entityLink) + '">JSON Link: ' + escapeHtml(folder.entityLink) + '</small>'
                     + '<small>' + folder.bookmarks + ' bookmarks</small>'
                     + '</div>';
             }).join('')
@@ -113,6 +142,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 return '<div class="nx-dv-bookmark-row" data-link-id="' + escapeHtml(bookmark.id) + '">'
                     + '<label><span>Title</span><input type="text" data-nx-dv-field="bookmarkTitle" value="' + escapeHtml(bookmark.title) + '"></label>'
                     + '<div class="nx-dv-bookmark-meta">'
+                    + '<span title="' + escapeHtml(bookmark.entityLink) + '">JSON Link: ' + escapeHtml(bookmark.entityLink) + '</span>'
                     + '<span title="' + escapeHtml(bookmark.url) + '">' + escapeHtml(bookmark.url || 'No URL') + '</span>'
                     + '<span title="' + escapeHtml(bookmark.folderPath) + '">Folder: ' + escapeHtml(bookmark.folderPath) + '</span>'
                     + (bookmark.identifiers.length ? '<span>Labels: ' + escapeHtml(bookmark.identifiers.join(', ')) + '</span>' : '')

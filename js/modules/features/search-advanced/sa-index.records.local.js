@@ -23,6 +23,14 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         buildFolderPathLabel
     } = shared;
 
+    function createEntityLink(source) {
+        const api = window.EveOS?.NebulaJsonLink
+            || window.EveOS?.SearchAdvanced?.NebulaJsonLink
+            || window.NebulaJsonLink
+            || null;
+        return api && typeof api.createLink === 'function' ? api.createLink(source) : '';
+    }
+
     function buildCategoryMap(links) {
         const map = new Map();
         links.forEach(function (link) {
@@ -128,9 +136,15 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 };
             const groupMeta = getWorkspaceGroupMeta(preferredWorkspaceId);
             const cardDescription = text(cardDescriptions[category.scopedKey], '');
+            const entityLink = createEntityLink({
+                type: 'card',
+                workspaceId: preferredWorkspaceId,
+                categoryName: category.categoryName
+            });
             const record = {
                 id: 'card::' + category.scopedKey,
                 type: 'card',
+                entityLink: entityLink,
                 title: category.categoryName,
                 url: '',
                 displayUrl: '',
@@ -152,6 +166,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 provenance: {
                     kind: 'card',
                     scopedKey: category.scopedKey,
+                    entityLink: entityLink,
                     linkCount: category.linkCount,
                     cardDescription: cardDescription
                 }
@@ -252,9 +267,17 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             const relatedUrls = toArray(link.relatedUrls).map(function (entry) {
                 return text(entry?.url || entry, '');
             }).filter(Boolean);
+            const entityLink = createEntityLink({
+                type: 'bookmark',
+                workspaceId: path.workspaceId,
+                categoryName: path.categoryName,
+                folderId: folderId,
+                bookmarkId: text(link.id, '')
+            });
             const record = {
                 id: 'bookmark::' + text(link.id, Math.random().toString(36).slice(2, 8)),
                 type: 'bookmark',
+                entityLink: entityLink,
                 title: text(link.title || link.name || link.url, 'Untitled'),
                 url: text(link.url, ''),
                 displayUrl: text(link.url, ''),
@@ -276,6 +299,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 provenance: {
                     kind: 'bookmark',
                     linkId: text(link.id, ''),
+                    entityLink: entityLink,
                     done: !!link.done,
                     orphaned: !knownWorkspaceIds.has(path.workspaceId),
                     missingFolder: folderDiagnostic.missingFolder,

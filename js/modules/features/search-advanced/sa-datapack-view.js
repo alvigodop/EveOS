@@ -70,6 +70,14 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         })[0];
     }
 
+    function createEntityLink(source) {
+        const api = window.EveOS?.NebulaJsonLink
+            || window.EveOS?.SearchAdvanced?.NebulaJsonLink
+            || window.NebulaJsonLink
+            || null;
+        return api && typeof api.createLink === 'function' ? api.createLink(source) : '';
+    }
+
     function buildScopedKey(workspaceId, categoryName) {
         return normalizeWorkspaceId(workspaceId) + '::' + normalizeCategoryName(categoryName);
     }
@@ -219,6 +227,11 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             workspaceId: normalizeWorkspaceId(workspaceId),
             workspaceLabel: getWorkspaceLabel(workspaceId),
             categoryName: normalizeCategoryName(categoryName),
+            entityLink: createEntityLink({
+                type: 'card',
+                workspaceId: normalizeWorkspaceId(workspaceId),
+                categoryName: normalizeCategoryName(categoryName)
+            }),
             order: orderIndex + 1,
             entity: 'card',
             internals: 'openable',
@@ -267,6 +280,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 return {
                     id,
                     name: String(workspace?.name || id).trim() || id,
+                    entityLink: createEntityLink({ type: 'workspace', workspaceId: id }),
                     path: getWorkspaceLabel(id),
                     childTabs: Array.isArray(workspace?.subTabs) ? workspace.subTabs.length : 0,
                     bookmarks: getLiveLinks().filter(function (link) {
@@ -281,6 +295,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         const workspaceRefs = workspaceIds.map(function (workspaceId) {
             return {
                 id: workspaceId,
+                entityLink: createEntityLink({ type: 'workspace', workspaceId: workspaceId }),
                 path: getWorkspaceLabel(workspaceId),
                 cards: getCategoryNamesForWorkspace(workspaceId).length,
                 bookmarks: getLiveLinks().filter(function (link) {
@@ -296,6 +311,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             scope: {
                 mode: scope.all ? 'all-tabs' : 'current',
                 workspaceId: rootWorkspaceId,
+                entityLink: rootWorkspaceId ? createEntityLink({ type: 'workspace', workspaceId: rootWorkspaceId }) : '',
                 workspaceIds,
                 categoryName: categoryFilter || null
             },
@@ -353,6 +369,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 return '<button type="button" class="nx-dv-ref" data-nx-dv-action="open-tab" data-workspace-id="' + escapeHtml(tab.id) + '">'
                     + '<strong>' + escapeHtml(tab.name) + '</strong>'
                     + '<span>' + escapeHtml(tab.path) + '</span>'
+                    + '<small title="' + escapeHtml(tab.entityLink) + '">JSON Link: ' + escapeHtml(tab.entityLink) + '</small>'
                     + '<small>' + tab.cards + ' cards / ' + tab.bookmarks + ' bookmarks / ' + tab.childTabs + ' child tabs</small>'
                     + '</button>';
             }).join('')
@@ -364,7 +381,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         return '<div class="nx-dv-section"><div class="nx-dv-section-title">Cards</div><div class="nx-dv-card-list">'
             + cards.map(function (card) {
                 const key = buildScopedKey(card.workspaceId, card.categoryName);
-                return '<article class="nx-dv-card" data-card-key="' + escapeHtml(key) + '" data-workspace-id="' + escapeHtml(card.workspaceId) + '" data-category-name="' + escapeHtml(card.categoryName) + '">'
+                return '<article class="nx-dv-card" data-card-key="' + escapeHtml(key) + '" data-workspace-id="' + escapeHtml(card.workspaceId) + '" data-category-name="' + escapeHtml(card.categoryName) + '" data-entity-link="' + escapeHtml(card.entityLink) + '">'
                     + '<div class="nx-dv-card-main">'
                     + '<label><span>Card Name</span><input type="text" data-nx-dv-field="categoryName" value="' + escapeHtml(card.categoryName) + '"></label>'
                     + '<label><span>Order</span><input type="number" min="1" step="1" data-nx-dv-field="order" value="' + escapeHtml(card.order) + '"></label>'
@@ -377,6 +394,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                     + '</div>'
                     + '<div class="nx-dv-card-foot">'
                     + '<span>' + escapeHtml(card.workspaceLabel) + '</span>'
+                    + '<small title="' + escapeHtml(card.entityLink) + '">JSON Link: ' + escapeHtml(card.entityLink) + '</small>'
                     + '<button type="button" class="nx-dv-btn" data-nx-dv-action="open-card" data-workspace-id="' + escapeHtml(card.workspaceId) + '" data-category-name="' + escapeHtml(card.categoryName) + '">Open Internals</button>'
                     + '</div>'
                     + '</article>';

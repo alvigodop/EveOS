@@ -24,6 +24,15 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
         const writeBookmarkPayloadAtPath = bookmarkHelpers.writeBookmarkPayloadAtPath;
         const writeFolderBranch = bookmarkHelpers.writeFolderBranch;
 
+        function createEntityLink(source) {
+            const api = window.EveOS?.NebulaJsonLink
+                || window.EveOS?.SearchAdvanced?.NebulaJsonLink
+                || window.NebulaJsonLink
+                || null;
+            if (api && typeof api.createLink === 'function') return api.createLink(source);
+            return '';
+        }
+
         function normalizeKnowledgeContextKey(value) {
             const normalized = String(value || '').trim().toLowerCase().replace(/\s+/g, '_');
             return normalized || '__global__';
@@ -82,6 +91,9 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
 
             await writeJsonFileToFolder(rootHandle, `${cardRootPath}/card.json`, {
                 schema: 'eveos.card.v2',
+                entityLink: createEntityLink({ type: 'card', workspaceId, categoryName }),
+                entityId: categoryName,
+                displayName: categoryName,
                 workspaceId,
                 categoryName,
                 title: categoryName,
@@ -207,6 +219,9 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
 
                     await writeJsonFileToFolder(rootHandle, `${tabRootPath}/tab.json`, {
                         schema: 'eveos.tab.v1',
+                        entityLink: createEntityLink({ type: 'workspace', workspaceId }),
+                        entityId: workspaceId,
+                        displayName: workspace?.name || workspaceId,
                         id: workspaceId,
                         name: workspace?.name || workspaceId,
                         icon: workspace?.icon || 'folder',
@@ -250,6 +265,8 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
                 // Write group metadata
                 await writeJsonFileToFolder(rootHandle, `${groupPath}/group.json`, {
                     schema: 'eveos.group.v1',
+                    entityId: group.id,
+                    displayName: group.name || 'Unnamed Group',
                     id: group.id,
                     name: group.name || 'Unnamed Group',
                     color: group.color || '#00d4ff',

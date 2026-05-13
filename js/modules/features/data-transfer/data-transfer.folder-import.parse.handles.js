@@ -18,6 +18,34 @@ window.EveDataTransfer = window.EveDataTransfer || {};
     const inferCategoryFromFolderName = ns.inferCategoryFromFolderName;
     const makePlaceholderBookmark = ns.makePlaceholderBookmark;
 
+    function parseEntityLink(value) {
+        const raw = String(value || '').trim();
+        if (!raw) return null;
+        const api = window.EveOS?.NebulaJsonLink
+            || window.EveOS?.SearchAdvanced?.NebulaJsonLink
+            || window.NebulaJsonLink
+            || null;
+        if (api && typeof api.parseLink === 'function') {
+            const parsed = api.parseLink(raw);
+            if (parsed?.ok) return parsed;
+        }
+        if (!raw.toLowerCase().startsWith('eve://')) return null;
+        try {
+            const segments = raw.slice('eve://'.length).split(/[?#]/, 1)[0].split('/').filter(Boolean).map(decodeURIComponent);
+            const parsed = { workspaceId: '', categoryName: '', folderId: '', bookmarkId: '' };
+            if (segments[0] === 'workspace') parsed.workspaceId = String(segments[1] || '').trim();
+            const cardIndex = segments.indexOf('card');
+            const folderIndex = segments.indexOf('folder');
+            const bookmarkIndex = segments.indexOf('bookmark');
+            if (cardIndex >= 0) parsed.categoryName = String(segments[cardIndex + 1] || '').trim();
+            if (folderIndex >= 0) parsed.folderId = String(segments[folderIndex + 1] || '').trim();
+            if (bookmarkIndex >= 0) parsed.bookmarkId = String(segments[bookmarkIndex + 1] || '').trim();
+            return parsed;
+        } catch {
+            return null;
+        }
+    }
+
  function normalizeClickBehaviorMode(value) {
      const normalized = String(value || '').trim().toLowerCase();
      return ['inherit', 'invert', 'focus_only', 'internal_only', 'open_and_focus', 'open_only'].includes(normalized)
@@ -41,16 +69,18 @@ window.EveDataTransfer = window.EveDataTransfer || {};
 
     function normalizeFolderNode(rawNode, folderName, parentId = null, fallbackIndex = 0) {
         const source = rawNode && typeof rawNode === 'object' ? rawNode : {};
+        const linked = parseEntityLink(source.entityLink);
         const fallbackName = String(folderName || 'Folder').trim() || 'Folder';
-        const name = String(source.name || source.title || fallbackName).trim() || fallbackName;
+        const name = String(source.name || source.title || source.displayName || fallbackName).trim() || fallbackName;
         const parsedOrder = Number(source.order);
         const order = Number.isFinite(parsedOrder) ? parsedOrder : 0;
-        let id = String(source.id || '').trim();
+        let id = String(source.id || source.entityId || linked?.folderId || '').trim();
         if (!id) {
             id = `folder-${String(parentId || 'root')}-${fallbackIndex}`;
         }
         return {
             id,
+            entityLink: String(source.entityLink || '').trim(),
             parentId: parentId || (String(source.parentId || '').trim() || null),
             name,
          order,
@@ -79,9 +109,10 @@ window.EveDataTransfer = window.EveDataTransfer || {};
                 ? { ...payload.bookmark }
                 : (payload && typeof payload === 'object' ? { ...payload } : null);
             if (!bookmark) continue;
+            const linked = parseEntityLink(payload?.entityLink || bookmark.entityLink);
             if (!bookmark.id) {
                 const fallbackId = String(name || '').replace(/\.json$/i, '').trim();
-                bookmark.id = fallbackId || `bookmark-${Date.now().toString(36)}`;
+                bookmark.id = String(payload?.entityId || linked?.bookmarkId || fallbackId || `bookmark-${Date.now().toString(36)}`).trim();
             }
             bookmark.workspace = workspaceId;
             bookmark.category = categoryName;
@@ -130,8 +161,9 @@ window.EveDataTransfer = window.EveDataTransfer || {};
 
     async function parseCardFolderHandle(cardFolderHandle, defaults = {}) {
         const cardJson = await readJsonFileIfExists(cardFolderHandle, 'card.json');
-        const workspaceId = String(cardJson?.workspaceId || defaults.workspaceId || inferWorkspaceIdFromFolderName(defaults.workspaceFolderName || '', 'main') || 'main').trim() || 'main';
-        const categoryName = String(cardJson?.categoryName || cardJson?.name || cardJson?.title || defaults.categoryName || inferCategoryFromFolderName(cardFolderHandle.name, 'Unsorted')).trim() || 'Unsorted';
+        const linkedCard = parseEntityLink(cardJson?.entityLink);
+        const workspaceId = String(cardJson?.workspaceId || linkedCard?.workspaceId || defaults.workspaceId || inferWorkspaceIdFromFolderName(defaults.workspaceFolderName || '', 'main') || 'main').trim() || 'main';
+        const categoryName = String(cardJson?.categoryName || linkedCard?.categoryName || cardJson?.entityId || cardJson?.name || cardJson?.title || cardJson?.displayName || defaults.categoryName || inferCategoryFromFolderName(cardFolderHandle.name, 'Unsorted')).trim() || 'Unsorted';
         const dataType = String(cardJson?.dataType || 'graphicNovels').trim() || 'graphicNovels';
         const bookmarkFolderName = String(cardJson?.bookmarkFolder || 'entries').trim() || 'entries';
         
@@ -216,8 +248,9 @@ window.EveDataTransfer = window.EveDataTransfer || {};
 
     async function parseTabFolderHandle(tabFolderHandle, defaults = {}) {
         const tabJson = await readJsonFileIfExists(tabFolderHandle, 'tab.json');
-        const workspaceId = String(tabJson?.id || defaults.workspaceId || inferWorkspaceIdFromFolderName(tabFolderHandle.name, 'main')).trim() || 'main';
-        const workspaceName = String(tabJson?.name || defaults.workspaceName || workspaceId).trim() || workspaceId;
+        const linkedTab = parseEntityLink(tabJson?.entityLink);
+        const workspaceId = String(tabJson?.id || tabJson?.entityId || linkedTab?.workspaceId || defaults.workspaceId || inferWorkspaceIdFromFolderName(tabFolderHandle.name, 'main')).trim() || 'main';
+        const workspaceName = String(tabJson?.name || tabJson?.displayName || defaults.workspaceName || workspaceId).trim() || workspaceId;
         const workspaceIcon = tabJson?.icon || defaults.workspaceIcon || 'folder';
         const parentWorkspaceId = String(defaults.parentWorkspaceId || '').trim();
         const groupId = String(tabJson?.groupId || defaults.groupId || '').trim();

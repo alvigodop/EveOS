@@ -12,7 +12,16 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
         const BACKUP_DIRS = fsHelpers.BACKUP_DIRS;
         const buildFolderDirName = treeHelpers.buildFolderDirName;
         const normalizeClickBehaviorMode = treeHelpers.normalizeClickBehaviorMode;
-        const normalizeTaskMode = treeHelpers.normalizeTaskMode;
+        const normalizeTaskMode = treeHelpers.normalizeTaskMode;
+
+        function createEntityLink(source) {
+            const api = window.EveOS?.NebulaJsonLink
+                || window.EveOS?.SearchAdvanced?.NebulaJsonLink
+                || window.NebulaJsonLink
+                || null;
+            if (api && typeof api.createLink === 'function') return api.createLink(source);
+            return '';
+        }
 
         async function writeBookmarkPayloadAtPath(
             rootHandle,
@@ -30,7 +39,19 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
             if (entryId) usedEntryIds.add(String(entryId));
             const libraryEntry = findLibraryEntryById(categories, workspaceId, categoryName, entryId);
             const bookmarkPayload = {
-                schema: 'eveos.bookmark.v1',
+                schema: 'eveos.bookmark.v1',
+
+                entityLink: createEntityLink({
+                    type: 'bookmark',
+                    workspaceId,
+                    categoryName,
+                    folderId: String(link?.folderId || '').trim(),
+                    bookmarkId: linkId
+                }),
+
+                entityId: linkId,
+
+                displayName: String(link?.title || link?.url || linkId || 'Bookmark'),
                 bookmark: link,
                 library: {
                     linked: !!libraryEntry,
@@ -62,7 +83,18 @@ window.EveDataTransfer.ExportModules = window.EveDataTransfer.ExportModules || {
             for (const node of childNodes) {
                 const folderRootPath = `${cardRootPath}/${BACKUP_DIRS.folders}/${buildFolderDirName(node)}`;
                 await writeJsonFileToFolder(rootHandle, `${folderRootPath}/folder.json`, {
-                    schema: 'eveos.bookmark-folder.v1',
+                    schema: 'eveos.bookmark-folder.v1',
+
+                    entityLink: createEntityLink({
+                        type: 'folder',
+                        workspaceId,
+                        categoryName,
+                        folderId: node.id
+                    }),
+
+                    entityId: node.id,
+
+                    displayName: node.name,
                     workspaceId,
                     categoryName,
                     id: node.id,

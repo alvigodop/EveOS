@@ -19,6 +19,14 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         buildFolderPathLabel
     } = shared;
 
+    function createEntityLink(source) {
+        const api = window.EveOS?.NebulaJsonLink
+            || window.EveOS?.SearchAdvanced?.NebulaJsonLink
+            || window.NebulaJsonLink
+            || null;
+        return api && typeof api.createLink === 'function' ? api.createLink(source) : '';
+    }
+
     function buildLinksByScopedKey(links) {
         const map = new Map();
         toArray(links).forEach(function (link) {
@@ -110,9 +118,16 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                         folderLabel: folderLabel,
                         pathLabel: [workspaceId, categoryName, folderLabel].filter(Boolean).join(' > ')
                     };
+                const entityLink = createEntityLink({
+                    type: 'folder',
+                    workspaceId: workspaceId,
+                    categoryName: categoryName,
+                    folderId: folderId
+                });
                 const record = {
                     id: 'folder::' + scopedKey + '::' + folderId,
                     type: 'folder',
+                    entityLink: entityLink,
                     title: text(folderNode?.name, folderLabel || 'Folder'),
                     url: '',
                     displayUrl: '',
@@ -139,6 +154,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                     provenance: {
                         kind: 'folder',
                         folderId: folderId,
+                        entityLink: entityLink,
                         parentFolderId: text(parentFolderId, ''),
                         orphaned: !knownWorkspaceIds.has(workspaceId),
                         missingParent: issueFlags.folderUnreachable || issueFlags.folderParentBroken,
