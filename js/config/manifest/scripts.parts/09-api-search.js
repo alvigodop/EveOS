@@ -8,7 +8,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/api-search/api-cache.storage.js?v=0.1.0",
     "js/modules/features/api-search/api-cache.query.js?v=0.1.0",
     "js/modules/features/api-search/api-cache.js?v=0.1.2",
-    "js/modules/features/api-search/api-core.shared.js?v=0.1.0",
+    "js/modules/features/api-search/api-core.shared.js?v=0.2.0",
     "js/modules/features/api-search/api-core.fetch.js?v=0.1.0",
     "js/modules/features/api-search/api-core.wikimedia.js?v=0.1.0",
     "js/modules/features/api-search/api-core.js?v=0.3.0",

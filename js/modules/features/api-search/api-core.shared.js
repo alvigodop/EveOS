@@ -5,19 +5,55 @@ window.EveOS.API = window.EveOS.API || {};
     const rt = api.CoreRuntime = api.CoreRuntime || {};
     if (rt.sharedReady) return;
 
-    rt.PROXY_URL = 'https://corsproxy.io/?';
-    rt.CODETABS_PROXY_URL = 'https://api.codetabs.com/v1/proxy/?quest=';
-    rt.LOCAL_HOST = '127.0.0.1';
-    rt.BRIDGE_PORT = 3037;
-    rt.CAMOFOX_BRIDGE_PORT = 3038;
-    rt.WIKIMEDIA_BRIDGE_PORT = 3039;
-    rt.POPUP_BRIDGE_PORT = 3040;
-    rt.SERVER_PORT = 3000;
-    rt.LIGHTPANDA_BASE = `http://${rt.LOCAL_HOST}:${rt.BRIDGE_PORT}`;
-    rt.CAMOFOX_BASE = `http://${rt.LOCAL_HOST}:${rt.CAMOFOX_BRIDGE_PORT}`;
-    rt.WIKIMEDIA_BASE = `http://${rt.LOCAL_HOST}:${rt.WIKIMEDIA_BRIDGE_PORT}`;
-    rt.POPUP_BRIDGE_BASE = `http://${rt.LOCAL_HOST}:${rt.POPUP_BRIDGE_PORT}`;
-    rt.SERVER_BASE = `http://${rt.LOCAL_HOST}:${rt.SERVER_PORT}`;
+    // Defaults — overridable via Settings → Integrations (config.bridges.*).
+    const BRIDGE_DEFAULTS = {
+        proxyUrl: 'https://corsproxy.io/?',
+        codetabsProxyUrl: 'https://api.codetabs.com/v1/proxy/?quest=',
+        localHost: '127.0.0.1',
+        bridgePort: 3037,
+        camofoxPort: 3038,
+        wikimediaPort: 3039,
+        popupPort: 3040,
+        serverPort: 3000,
+        statusTimeoutMs: 350
+    };
+
+    function resolvePort(configValue, fallback) {
+        const num = Number(configValue);
+        if (!Number.isFinite(num) || num < 1 || num > 65535) return fallback;
+        return Math.round(num);
+    }
+
+    function resolveString(configValue, fallback) {
+        const raw = String(configValue == null ? '' : configValue).trim();
+        return raw || fallback;
+    }
+
+    // Apply current config.bridges overrides to rt.* base URLs. Called at init
+    // and exposed as rt.refreshBridgeConfig() so a Settings change can hot-apply
+    // without a page reload.
+    rt.refreshBridgeConfig = function refreshBridgeConfig() {
+        const overrides = (typeof config === 'object' && config && config.bridges && typeof config.bridges === 'object') ? config.bridges : {};
+        rt.PROXY_URL = resolveString(overrides.corsProxyUrl, BRIDGE_DEFAULTS.proxyUrl);
+        rt.CODETABS_PROXY_URL = resolveString(overrides.codetabsProxyUrl, BRIDGE_DEFAULTS.codetabsProxyUrl);
+        rt.LOCAL_HOST = BRIDGE_DEFAULTS.localHost;
+        rt.BRIDGE_PORT = resolvePort(overrides.lightpandaPort, BRIDGE_DEFAULTS.bridgePort);
+        rt.CAMOFOX_BRIDGE_PORT = resolvePort(overrides.camofoxPort, BRIDGE_DEFAULTS.camofoxPort);
+        rt.WIKIMEDIA_BRIDGE_PORT = resolvePort(overrides.wikimediaPort, BRIDGE_DEFAULTS.wikimediaPort);
+        rt.POPUP_BRIDGE_PORT = resolvePort(overrides.popupPort, BRIDGE_DEFAULTS.popupPort);
+        rt.SERVER_PORT = resolvePort(overrides.serverPort, BRIDGE_DEFAULTS.serverPort);
+        rt.LIGHTPANDA_BASE = `http://${rt.LOCAL_HOST}:${rt.BRIDGE_PORT}`;
+        rt.CAMOFOX_BASE = `http://${rt.LOCAL_HOST}:${rt.CAMOFOX_BRIDGE_PORT}`;
+        rt.WIKIMEDIA_BASE = `http://${rt.LOCAL_HOST}:${rt.WIKIMEDIA_BRIDGE_PORT}`;
+        rt.POPUP_BRIDGE_BASE = `http://${rt.LOCAL_HOST}:${rt.POPUP_BRIDGE_PORT}`;
+        rt.SERVER_BASE = `http://${rt.LOCAL_HOST}:${rt.SERVER_PORT}`;
+        const statusTimeout = Number(overrides.statusTimeoutMs);
+        rt.BRIDGE_STATUS_TIMEOUT_MS = Number.isFinite(statusTimeout) && statusTimeout >= 50 && statusTimeout <= 10000
+            ? Math.round(statusTimeout)
+            : BRIDGE_DEFAULTS.statusTimeoutMs;
+    };
+
+    rt.refreshBridgeConfig();
 
     if (typeof rt._activeProxyBase !== 'string') rt._activeProxyBase = '';
     rt._serviceProbePromise = rt._serviceProbePromise || null;
@@ -30,7 +66,8 @@ window.EveOS.API = window.EveOS.API || {};
     };
 
     rt.SERVER_STATUS_TIMEOUT_MS = 1500;
-    rt.BRIDGE_STATUS_TIMEOUT_MS = 350;
+    // BRIDGE_STATUS_TIMEOUT_MS is set by refreshBridgeConfig() above so the
+    // user's Integrations override wins; default falls back to 350.
     rt.OPTIMISTIC_LOCAL_PROXY_TIMEOUT_MS = 1000;
     rt.BLOCKED_TEXT_TOKENS = [
         'just a moment',

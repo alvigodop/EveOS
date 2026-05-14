@@ -237,6 +237,47 @@ function saveSettingsBackupReminderDays() {
     saveConfig();
 }
 
+// Integrations — Google Custom Search keys are stored on the existing
+// config.expandedSearch bucket so the Expanded Search modal stays in sync.
+function saveSettingsIntegrationsGoogle() {
+    if (!config.expandedSearch || typeof config.expandedSearch !== 'object') {
+        config.expandedSearch = {};
+    }
+    config.expandedSearch.apiKey = String(document.getElementById('integrationsGoogleApiKey')?.value || '').trim();
+    config.expandedSearch.cx = String(document.getElementById('integrationsGoogleCx')?.value || '').trim();
+    saveConfig();
+}
+
+// Integrations — bridge ports + CORS proxy + probe timeout. Empty inputs
+// reset back to defaults via api-core.refreshBridgeConfig().
+function saveSettingsIntegrationsBridges() {
+    if (!config.bridges || typeof config.bridges !== 'object') config.bridges = {};
+    const readPort = (id) => {
+        const raw = String(document.getElementById(id)?.value || '').trim();
+        if (!raw) return 0; // 0 = use default in refreshBridgeConfig
+        const num = Number(raw);
+        if (!Number.isFinite(num) || num < 1 || num > 65535) return 0;
+        return Math.round(num);
+    };
+    const readString = (id) => String(document.getElementById(id)?.value || '').trim();
+    config.bridges.serverPort = readPort('integrationsServerPort');
+    config.bridges.lightpandaPort = readPort('integrationsLightpandaPort');
+    config.bridges.camofoxPort = readPort('integrationsCamofoxPort');
+    config.bridges.wikimediaPort = readPort('integrationsWikimediaPort');
+    config.bridges.popupPort = readPort('integrationsPopupPort');
+    const rawTimeout = String(document.getElementById('integrationsStatusTimeoutMs')?.value || '').trim();
+    const timeoutNum = Number(rawTimeout);
+    config.bridges.statusTimeoutMs = (rawTimeout && Number.isFinite(timeoutNum) && timeoutNum >= 50 && timeoutNum <= 10000)
+        ? Math.round(timeoutNum)
+        : 0;
+    config.bridges.corsProxyUrl = readString('integrationsCorsProxyUrl');
+    config.bridges.codetabsProxyUrl = readString('integrationsCodetabsProxyUrl');
+    saveConfig();
+    // Hot-apply: rebuild rt.* base URLs without requiring a reload.
+    const refresh = window.EveOS?.API?.CoreRuntime?.refreshBridgeConfig;
+    if (typeof refresh === 'function') refresh();
+}
+
 function populateNewSettingsInputs() {
     const timerMins = Math.max(1, Math.round((Number(config.timerDurationSeconds) || 1500) / 60));
     const timerInput = document.getElementById('timerDurationMinutes');
@@ -265,6 +306,32 @@ function populateNewSettingsInputs() {
 
     const backupReminder = document.getElementById('backupReminderDays');
     if (backupReminder) backupReminder.value = String(Math.max(0, Math.min(365, Number(config.backupReminderDays) || 0)));
+
+    // Integrations — Google Custom Search
+    const exp = (config.expandedSearch && typeof config.expandedSearch === 'object') ? config.expandedSearch : {};
+    const googleKey = document.getElementById('integrationsGoogleApiKey');
+    if (googleKey) googleKey.value = String(exp.apiKey || '');
+    const googleCx = document.getElementById('integrationsGoogleCx');
+    if (googleCx) googleCx.value = String(exp.cx || '');
+
+    // Integrations — Local Bridges + Proxies (empty input means "use default")
+    const bridges = (config.bridges && typeof config.bridges === 'object') ? config.bridges : {};
+    const setBridgeNum = (id, value) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const num = Number(value);
+        el.value = Number.isFinite(num) && num > 0 ? String(num) : '';
+    };
+    setBridgeNum('integrationsServerPort', bridges.serverPort);
+    setBridgeNum('integrationsLightpandaPort', bridges.lightpandaPort);
+    setBridgeNum('integrationsCamofoxPort', bridges.camofoxPort);
+    setBridgeNum('integrationsWikimediaPort', bridges.wikimediaPort);
+    setBridgeNum('integrationsPopupPort', bridges.popupPort);
+    setBridgeNum('integrationsStatusTimeoutMs', bridges.statusTimeoutMs);
+    const corsInput = document.getElementById('integrationsCorsProxyUrl');
+    if (corsInput) corsInput.value = String(bridges.corsProxyUrl || '');
+    const codetabsInput = document.getElementById('integrationsCodetabsProxyUrl');
+    if (codetabsInput) codetabsInput.value = String(bridges.codetabsProxyUrl || '');
 
     // Populate the Add Link default-card select with the active workspace's categories
     const addLinkSelect = document.getElementById('defaultAddLinkCategorySelect');

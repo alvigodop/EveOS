@@ -56,6 +56,16 @@ let config = {
     confirmBeforeSweep: true,
     backupReminderDays: 0,
     lastBackupAt: "",
+    bridges: {
+        serverPort: 3000,
+        lightpandaPort: 3037,
+        camofoxPort: 3038,
+        wikimediaPort: 3039,
+        popupPort: 3040,
+        corsProxyUrl: "",
+        codetabsProxyUrl: "",
+        statusTimeoutMs: 350
+    },
     activeWorkspace: "main",
     bookmarkFolderToolbarExpanded: [],
     cardHeaderButtonsVisible: {},

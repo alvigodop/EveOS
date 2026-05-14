@@ -171,6 +171,71 @@ window.modalTemplate += `
                 </div>
             </div>
 
+            <div class="settings-section" data-settings-section="integrations">
+                <button type="button" class="settings-section-header" onclick="toggleSettingsSection(this)" aria-expanded="true">
+                    <h4 style="margin:0; color:var(--accent);">Integrations</h4>
+                    <span class="settings-section-chevron" aria-hidden="true">&#9662;</span>
+                </button>
+                <div class="settings-section-body">
+                    <div style="font-size:0.8rem; opacity:0.75; margin-bottom:6px;">API keys and local bridge ports used by Expanded Search, the scraper, and the popup viewer. Defaults work out of the box — only fill these in if you've changed something or need a personal key.</div>
+
+                    <h5 style="margin:8px 0 4px 0; font-size:0.85rem; color:var(--accent);">Google Custom Search</h5>
+                    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:10px;">
+                        <label style="display:flex; flex-direction:column; gap:4px;">
+                            <span style="font-size:0.78rem; opacity:0.82;">API Key</span>
+                            <input type="text" id="integrationsGoogleApiKey" placeholder="AIza..." onchange="saveSettingsIntegrationsGoogle()">
+                        </label>
+                        <label style="display:flex; flex-direction:column; gap:4px;">
+                            <span style="font-size:0.78rem; opacity:0.82;">Search Engine ID (CX)</span>
+                            <input type="text" id="integrationsGoogleCx" placeholder="cse cx id" onchange="saveSettingsIntegrationsGoogle()">
+                        </label>
+                    </div>
+                    <div style="font-size:0.76rem; opacity:0.7; margin-top:4px;">Used by Expanded Search's Google vector. Same keys the Expanded Search modal reads.</div>
+
+                    <h5 style="margin:14px 0 4px 0; font-size:0.85rem; color:var(--accent);">Local Bridges</h5>
+                    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:10px;">
+                        <label style="display:flex; flex-direction:column; gap:4px;">
+                            <span style="font-size:0.78rem; opacity:0.82;">Python Server Port</span>
+                            <input type="number" id="integrationsServerPort" min="1" max="65535" step="1" placeholder="3000" onchange="saveSettingsIntegrationsBridges()">
+                        </label>
+                        <label style="display:flex; flex-direction:column; gap:4px;">
+                            <span style="font-size:0.78rem; opacity:0.82;">Lightpanda Port</span>
+                            <input type="number" id="integrationsLightpandaPort" min="1" max="65535" step="1" placeholder="3037" onchange="saveSettingsIntegrationsBridges()">
+                        </label>
+                        <label style="display:flex; flex-direction:column; gap:4px;">
+                            <span style="font-size:0.78rem; opacity:0.82;">Camofox Port</span>
+                            <input type="number" id="integrationsCamofoxPort" min="1" max="65535" step="1" placeholder="3038" onchange="saveSettingsIntegrationsBridges()">
+                        </label>
+                        <label style="display:flex; flex-direction:column; gap:4px;">
+                            <span style="font-size:0.78rem; opacity:0.82;">Wikimedia Port</span>
+                            <input type="number" id="integrationsWikimediaPort" min="1" max="65535" step="1" placeholder="3039" onchange="saveSettingsIntegrationsBridges()">
+                        </label>
+                        <label style="display:flex; flex-direction:column; gap:4px;">
+                            <span style="font-size:0.78rem; opacity:0.82;">Popup Viewer Port</span>
+                            <input type="number" id="integrationsPopupPort" min="1" max="65535" step="1" placeholder="3040" onchange="saveSettingsIntegrationsBridges()">
+                        </label>
+                        <label style="display:flex; flex-direction:column; gap:4px;">
+                            <span style="font-size:0.78rem; opacity:0.82;">Probe Timeout (ms)</span>
+                            <input type="number" id="integrationsStatusTimeoutMs" min="50" max="10000" step="50" placeholder="350" onchange="saveSettingsIntegrationsBridges()">
+                        </label>
+                    </div>
+                    <div style="font-size:0.76rem; opacity:0.7; margin-top:4px;">Change these only if you've reconfigured the matching <code>start-*.bat</code> / <code>python-server.py</code> ports. Leave blank for defaults.</div>
+
+                    <h5 style="margin:14px 0 4px 0; font-size:0.85rem; color:var(--accent);">CORS Proxy</h5>
+                    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:10px;">
+                        <label style="display:flex; flex-direction:column; gap:4px;">
+                            <span style="font-size:0.78rem; opacity:0.82;">Primary Proxy URL</span>
+                            <input type="text" id="integrationsCorsProxyUrl" placeholder="https://corsproxy.io/?" onchange="saveSettingsIntegrationsBridges()">
+                        </label>
+                        <label style="display:flex; flex-direction:column; gap:4px;">
+                            <span style="font-size:0.78rem; opacity:0.82;">Fallback (CodeTabs) URL</span>
+                            <input type="text" id="integrationsCodetabsProxyUrl" placeholder="https://api.codetabs.com/v1/proxy/?quest=" onchange="saveSettingsIntegrationsBridges()">
+                        </label>
+                    </div>
+                    <div style="font-size:0.76rem; opacity:0.7; margin-top:4px;">External CORS bypass used when local bridges are offline. Leave blank to use the built-in defaults.</div>
+                </div>
+            </div>
+
             <div class="settings-section" data-settings-section="other-panels">
                 <button type="button" class="settings-section-header" onclick="toggleSettingsSection(this)" aria-expanded="true">
                     <h4 style="margin:0; color:var(--accent);">Other Panels</h4>
