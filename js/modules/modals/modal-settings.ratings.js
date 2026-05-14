@@ -1,4 +1,48 @@
 // --- SETTINGS RATING ACTIONS ---
+// All 10 providers supported by the Library Ratings engine, grouped by the
+// media category they primarily cover. The settings UI is rendered from this
+// list so adding a future provider only needs one entry here + the matching
+// engine support.
+const RATING_PROVIDER_GROUPS = [
+    {
+        id: 'manga-anime',
+        label: 'Manga & Anime',
+        providers: [
+            { key: 'anilist', label: 'AniList' },
+            { key: 'myanimelist', label: 'MyAnimeList' },
+            { key: 'mangadex', label: 'MangaDex' },
+            { key: 'kitsu', label: 'Kitsu' },
+            { key: 'mangaupdates', label: 'MangaUpdates' },
+            { key: 'comick', label: 'ComicK' }
+        ]
+    },
+    {
+        id: 'books-novels',
+        label: 'Books & Novels',
+        providers: [
+            { key: 'openlibrary', label: 'Open Library' },
+            { key: 'wlnupdates', label: 'WLN Updates' }
+        ]
+    },
+    {
+        id: 'films-tv',
+        label: 'Films & TV',
+        providers: [
+            { key: 'tvmaze', label: 'TVmaze' },
+            { key: 'itunes', label: 'iTunes' }
+        ]
+    }
+];
+
+const RATING_PROVIDER_KEYS = RATING_PROVIDER_GROUPS.flatMap((g) => g.providers.map((p) => p.key));
+
+function ratingProviderInputIds(key) {
+    return {
+        enabled: `ratingProviderEnabled_${key}`,
+        weight: `ratingProviderWeight_${key}`
+    };
+}
+
 function clampNumber(value, min, max) {
     const n = Number(value);
     if (!Number.isFinite(n)) return min;
@@ -9,51 +53,67 @@ function getRatingSettings() {
     if (window.EveLibrary?.Ratings?.ensureConfigDefaults) {
         window.EveLibrary.Ratings.ensureConfigDefaults(config);
     }
-    return window.EveLibrary?.Ratings?.getSettings
-        ? window.EveLibrary.Ratings.getSettings(config)
-        : {
-            activeScale: "hybrid",
-            personalWeight: 0.5,
-            enabledProviders: { anilist: true, myanimelist: true, mangadex: true },
-            providerWeights: { anilist: 1, myanimelist: 1, mangadex: 1 }
-        };
+    if (window.EveLibrary?.Ratings?.getSettings) {
+        return window.EveLibrary.Ratings.getSettings(config);
+    }
+    // Defensive fallback (engine not loaded yet) — assume all providers on.
+    const enabled = {};
+    const weights = {};
+    RATING_PROVIDER_KEYS.forEach((key) => { enabled[key] = true; weights[key] = 1; });
+    return {
+        activeScale: 'hybrid',
+        personalWeight: 0.5,
+        enabledProviders: enabled,
+        providerWeights: weights
+    };
+}
+
+function ensureRatingProvidersContainer() {
+    const container = document.getElementById('ratingProvidersContainer');
+    if (!container) return null;
+    if (container.dataset.populated !== '1') {
+        container.innerHTML = buildRatingProviderRowsHtml();
+        container.dataset.populated = '1';
+    }
+    return container;
 }
 
 function loadRatingSettingsInputs() {
+    ensureRatingProvidersContainer();
     const settings = getRatingSettings();
     const scale = document.getElementById('ratingScaleModeSelect');
     const personalWeight = document.getElementById('ratingPersonalWeight');
-    const anilistEnabled = document.getElementById('ratingProviderAniListEnabled');
-    const malEnabled = document.getElementById('ratingProviderMALEnabled');
-    const mangadexEnabled = document.getElementById('ratingProviderMangaDexEnabled');
-    const anilistWeight = document.getElementById('ratingProviderAniListWeight');
-    const malWeight = document.getElementById('ratingProviderMALWeight');
-    const mangadexWeight = document.getElementById('ratingProviderMangaDexWeight');
-
     if (scale) scale.value = settings.activeScale || 'hybrid';
     if (personalWeight) personalWeight.value = Math.round((settings.personalWeight ?? 0.5) * 100);
-    if (anilistEnabled) anilistEnabled.checked = settings.enabledProviders?.anilist !== false;
-    if (malEnabled) malEnabled.checked = settings.enabledProviders?.myanimelist !== false;
-    if (mangadexEnabled) mangadexEnabled.checked = settings.enabledProviders?.mangadex !== false;
-    if (anilistWeight) anilistWeight.value = settings.providerWeights?.anilist ?? 1;
-    if (malWeight) malWeight.value = settings.providerWeights?.myanimelist ?? 1;
-    if (mangadexWeight) mangadexWeight.value = settings.providerWeights?.mangadex ?? 1;
+
+    RATING_PROVIDER_KEYS.forEach((key) => {
+        const ids = ratingProviderInputIds(key);
+        const enabledEl = document.getElementById(ids.enabled);
+        if (enabledEl) enabledEl.checked = settings.enabledProviders?.[key] !== false;
+        const weightEl = document.getElementById(ids.weight);
+        if (weightEl) weightEl.value = settings.providerWeights?.[key] ?? 1;
+    });
 }
 
 function saveDerivedRatingSettingsFromInputs() {
     const current = getRatingSettings();
     const scale = document.getElementById('ratingScaleModeSelect')?.value || current.activeScale || 'hybrid';
-    const personalWeightPercent = clampNumber(document.getElementById('ratingPersonalWeight')?.value ?? (current.personalWeight * 100), 0, 100);
-    const enabledProviders = {
-        anilist: !!document.getElementById('ratingProviderAniListEnabled')?.checked,
-        myanimelist: !!document.getElementById('ratingProviderMALEnabled')?.checked,
-        mangadex: !!document.getElementById('ratingProviderMangaDexEnabled')?.checked
-    };
-    const providerWeights = {
-        anilist: clampNumber(document.getElementById('ratingProviderAniListWeight')?.value ?? current.providerWeights.anilist, 0, 100),
-        myanimelist: clampNumber(document.getElementById('ratingProviderMALWeight')?.value ?? current.providerWeights.myanimelist, 0, 100),
-        mangadex: clampNumber(document.getElementById('ratingProviderMangaDexWeight')?.value ?? current.providerWeights.mangadex, 0, 100)
-    };
+    const personalWeightPercent = clampNumber(
+        document.getElementById('ratingPersonalWeight')?.value ?? (current.personalWeight * 100),
+        0,
+        100
+    );
+
+    const enabledProviders = {};
+    const providerWeights = {};
+    RATING_PROVIDER_KEYS.forEach((key) => {
+        const ids = ratingProviderInputIds(key);
+        const enabledEl = document.getElementById(ids.enabled);
+        const weightEl = document.getElementById(ids.weight);
+        enabledProviders[key] = enabledEl ? !!enabledEl.checked : (current.enabledProviders?.[key] !== false);
+        const fallbackWeight = current.providerWeights?.[key] ?? 1;
+        providerWeights[key] = clampNumber(weightEl?.value ?? fallbackWeight, 0, 100);
+    });
 
     config.ratingSettings = {
         ...current,
@@ -71,3 +131,32 @@ function saveDerivedRatingSettingsFromInputs() {
 function saveRatingSettingsScale() { saveDerivedRatingSettingsFromInputs(); }
 function saveRatingSettingsPersonalWeight() { saveDerivedRatingSettingsFromInputs(); }
 function saveRatingProviderSettings() { saveDerivedRatingSettingsFromInputs(); }
+
+// Build the provider rows HTML used inside the Library Derived Ratings
+// section of tpl-settings.js. Called at modal-init time before the template
+// concatenation so the markup is data-driven from RATING_PROVIDER_GROUPS.
+function buildRatingProviderRowsHtml() {
+    return RATING_PROVIDER_GROUPS.map((group) => {
+        const rows = group.providers.map((p) => {
+            const ids = ratingProviderInputIds(p.key);
+            return (
+                `<div class="rating-provider-row" style="display:grid; grid-template-columns:auto 1fr auto; gap:8px; align-items:center;">`
+                + `<label style="display:flex; gap:6px; align-items:center;">`
+                + `<input type="checkbox" id="${ids.enabled}" onchange="saveRatingProviderSettings()">`
+                + `<span>${p.label}</span>`
+                + `</label>`
+                + `<div></div>`
+                + `<input type="number" id="${ids.weight}" min="0" max="100" step="0.5" `
+                + `onchange="saveRatingProviderSettings()" style="width:76px;" title="${p.label} Weight">`
+                + `</div>`
+            );
+        }).join('');
+        return (
+            `<div class="rating-provider-group" data-rating-group="${group.id}" style="display:flex; flex-direction:column; gap:6px;">`
+            + `<h5 style="margin:8px 0 2px 0; font-size:0.78rem; letter-spacing:0.8px; opacity:0.78; text-transform:uppercase;">${group.label}</h5>`
+            + `<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:6px 12px;">${rows}</div>`
+            + `</div>`
+        );
+    }).join('');
+}
+window.buildRatingProviderRowsHtml = buildRatingProviderRowsHtml;

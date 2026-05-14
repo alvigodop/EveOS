@@ -2,8 +2,8 @@ window.EveLinkForm = window.EveLinkForm || {};
 
 (function (ns) {
     if (ns.modalReady) return;
-    if (!ns.coverImagesReady) {
-        console.warn('[LinkForm] Cover image helpers missing; modal controller not initialized.');
+    if (!ns.coverImagesReady || !ns.relatedUrlsReady) {
+        console.warn('[LinkForm] Modal helpers missing; modal controller not initialized.');
         return;
     }
 
@@ -12,7 +12,11 @@ window.EveLinkForm = window.EveLinkForm || {};
         normalizeCoverImageUrl,
         parseCoverImagesValue,
         bindCoverImagesInputs,
-        resetCoverImageCandidateEditor
+        resetCoverImageCandidateEditor,
+        parseRelatedUrlsValue,
+        formatRelatedUrlsValue,
+        bindRelatedUrlsInputs,
+        resetRelatedUrlCandidateEditor
     } = ns;
 
     function getLiveLinks() {
@@ -29,43 +33,6 @@ window.EveLinkForm = window.EveLinkForm || {};
         window.links = nextLinks;
         if (typeof links !== 'undefined') links = nextLinks;
         return nextLinks;
-    }
-
-    function normalizeRelatedUrlEntry(entry) {
-        const source = typeof entry === 'string' ? { url: entry } : (entry || {});
-        const url = normalizeUrl(String(source.url || source.href || source.sourceUrl || '').trim());
-        if (!url) return null;
-        return {
-            id: String(source.id || ('related-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8))),
-            url,
-            title: String(source.title || source.label || '').trim(),
-            label: String(source.label || '').trim(),
-            icon: String(source.icon || '').trim(),
-            notes: String(source.notes || '').trim(),
-            addedAt: String(source.addedAt || new Date().toISOString()),
-            source: String(source.source || 'manual')
-        };
-    }
-
-    function parseRelatedUrlsValue(value) {
-        const seen = new Set();
-        return String(value || '')
-            .split(/\r?\n/)
-            .map((line) => normalizeRelatedUrlEntry(line.trim()))
-            .filter(Boolean)
-            .filter((entry) => {
-                const key = String(window.EveBookmarkMerge?.normalizeUrl?.(entry.url) || entry.url).toLowerCase();
-                if (!key || seen.has(key)) return false;
-                seen.add(key);
-                return true;
-            });
-    }
-
-    function formatRelatedUrlsValue(entries) {
-        return (Array.isArray(entries) ? entries : [])
-            .map((entry) => String(entry?.url || entry || '').trim())
-            .filter(Boolean)
-            .join('\n');
     }
 
     function renderAttachedSources() {
@@ -190,9 +157,11 @@ window.EveLinkForm = window.EveLinkForm || {};
         const relatedUrlsInput = document.getElementById('newRelatedUrls');
         if (relatedUrlsInput) relatedUrlsInput.value = '';
         resetCoverImageCandidateEditor();
+        resetRelatedUrlCandidateEditor();
         modal.newPriority.value = '';
         modal.newIcon.value = '';
         bindCoverImagesInputs();
+        bindRelatedUrlsInputs();
 
         window.tempSources = [];
         renderAttachedSources();
@@ -238,9 +207,11 @@ window.EveLinkForm = window.EveLinkForm || {};
         const relatedUrlsInput = document.getElementById('newRelatedUrls');
         if (relatedUrlsInput) relatedUrlsInput.value = formatRelatedUrlsValue(link.relatedUrls);
         resetCoverImageCandidateEditor();
+        resetRelatedUrlCandidateEditor();
         modal.newPriority.value = link.priority || '';
         modal.newIcon.value = normalizeManualIcon(link.icon);
         bindCoverImagesInputs();
+        bindRelatedUrlsInputs();
 
         window.tempSources = link.sources ? [...link.sources] : [];
         renderAttachedSources();

@@ -4,9 +4,9 @@ window.EveModuleManifestScriptChunks = window.EveModuleManifestScriptChunks || [
 
 window.EveModuleManifestScriptChunks.push([
     // Modal Modules
-    "js/modules/modals/templates/tpl-core.js?v=0.3.1",
+    "js/modules/modals/templates/tpl-core.js?v=0.3.2",
     "js/modules/modals/templates/tpl-settings.backup.js?v=0.3.2",
-    "js/modules/modals/templates/tpl-settings.js?v=0.3.6",
+    "js/modules/modals/templates/tpl-settings.js?v=0.3.7",
     "js/modules/modals/templates/tpl-bulk.js?v=0.1.5",
     "js/modules/modals/templates/tpl-emoji.js",
     "js/modules/modals/templates/tpl-folder-actions.js",

@@ -41,10 +41,19 @@ window.modalTemplate = `
         </div>
 
         <details class="settings-disclosure" style="margin-bottom:10px;">
-            <summary class="settings-disclosure-summary">&#128279; Related URLs</summary>
-            <div class="settings-disclosure-body" style="display:flex; flex-direction:column; gap:6px;">
-                <div style="font-size:0.8rem; opacity:0.72;">One related URL per line. These help duplicate detection and show related site icons, but they do not replace the main URL.</div>
-                <textarea id="newRelatedUrls" rows="3" placeholder="https://related.example/item&#10;https://mirror.example/item" style="width:100%; resize:vertical;"></textarea>
+            <summary class="settings-disclosure-summary settings-disclosure-summary--split">
+                <span class="settings-disclosure-summary__label">&#128279; Related URLs</span>
+                <span id="newRelatedUrlsSummary" class="settings-disclosure-summary__meta">0 related</span>
+            </summary>
+            <div class="settings-disclosure-body related-url-editor">
+                <div class="related-url-editor-copy">Attach mirrors, source pages, references, or alternate listings. They power duplicate evidence and render as clickable site icons on the bookmark.</div>
+                <div class="related-url-add-row">
+                    <input type="url" id="newRelatedUrlCandidate" placeholder="https://related.example/item">
+                    <input type="text" id="newRelatedUrlLabel" placeholder="Label (optional)">
+                    <button type="button" id="newRelatedUrlAddBtn" onclick="addRelatedUrlEntryCandidate()">Add</button>
+                </div>
+                <div id="newRelatedUrlsList" class="bookmark-related-url-editor-list"></div>
+                <textarea id="newRelatedUrls" style="display:none;"></textarea>
             </div>
         </details>
 

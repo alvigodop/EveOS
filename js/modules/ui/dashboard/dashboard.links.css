@@ -67,10 +67,33 @@ a {
 .bookmark-related-url-icons {
     display: inline-flex;
     align-items: center;
-    gap: 2px;
+    gap: 3px;
     flex: 0 0 auto;
-    max-width: 74px;
+    max-width: 92px;
     overflow: hidden;
+}
+
+.bookmark-related-url-action {
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px;
+    border-radius: 7px;
+    border: 1px solid transparent;
+    background: transparent;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.bookmark-related-url-action:hover,
+.bookmark-related-url-action:focus-visible {
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+    border-color: color-mix(in srgb, var(--accent) 42%, rgba(255, 255, 255, 0.16));
+    transform: translateY(-1px);
+    outline: none;
 }
 
 .bookmark-related-url-icon {
@@ -80,6 +103,7 @@ a {
     object-fit: cover;
     border: 1px solid rgba(255,255,255,0.16);
     background: rgba(255,255,255,0.06);
+    pointer-events: none;
 }
 
 .bookmark-related-url-icon--fallback {

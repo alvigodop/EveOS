@@ -302,14 +302,34 @@ window.EveBookmarkFocus = window.EveBookmarkFocus || {};
         return true;
     }
 
-    function refreshHeader(link) {
+    function normalizeTargetOverride(link, options) {
+        const rawUrl = String(options?.overrideUrl || options?.targetUrl || options?.url || '').trim();
+        const safeUrl = rawUrl ? normalizeUrl(rawUrl) : '';
+        if (!safeUrl) return null;
+        const linkUrl = normalizeUrl(String(link?.url || '').trim());
+        return {
+            linkId: toId(link?.id),
+            url: safeUrl,
+            title: String(options?.overrideTitle || options?.targetTitle || options?.title || safeUrl).trim() || safeUrl,
+            label: String(options?.targetLabel || options?.label || 'Related URL').trim() || 'Related URL',
+            isDifferentTarget: safeUrl !== linkUrl
+        };
+    }
+
+    function refreshHeader(link, options) {
         const titleElement = document.getElementById('bookmarkFocusTitle');
         const urlElement = document.getElementById('bookmarkFocusUrl');
+        const targetOverride = normalizeTargetOverride(link, options);
         if (titleElement) titleElement.textContent = link?.title || 'Untitled';
         if (urlElement) {
-            const safeUrl = normalizeUrl(String(link?.url || '').trim());
-            urlElement.textContent = safeUrl || '';
+            const safeUrl = targetOverride?.url || normalizeUrl(String(link?.url || '').trim());
+            urlElement.textContent = targetOverride?.isDifferentTarget
+                ? targetOverride.label + ': ' + safeUrl
+                : (safeUrl || '');
             urlElement.href = safeUrl || '#';
+            urlElement.title = targetOverride?.isDifferentTarget
+                ? (targetOverride.title + ' - ' + safeUrl)
+                : (safeUrl || '');
         }
     }
 
@@ -446,6 +466,7 @@ window.EveBookmarkFocus = window.EveBookmarkFocus || {};
         ensurePopupViewerRuntime,
         openInternalView,
         openBookmarkTarget,
+        normalizeTargetOverride,
         refreshHeader,
         refreshActionButtons,
         loadLinkedRecord

@@ -141,33 +141,8 @@ window.modalTemplate += `
                         <input type="number" id="ratingPersonalWeight" min="0" max="100" step="5" onchange="saveRatingSettingsPersonalWeight()" style="width:100%;">
                     </label>
                 </div>
-                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:6px 12px;">
-                    <div style="display:grid; grid-template-columns:auto 1fr auto; gap:8px; align-items:center;">
-                        <label style="display:flex; gap:6px; align-items:center;">
-                            <input type="checkbox" id="ratingProviderAniListEnabled" onchange="saveRatingProviderSettings()">
-                            <span>AniList</span>
-                        </label>
-                        <div></div>
-                        <input type="number" id="ratingProviderAniListWeight" min="0" max="100" step="0.5" onchange="saveRatingProviderSettings()" style="width:76px;" title="AniList Weight">
-                    </div>
-                    <div style="display:grid; grid-template-columns:auto 1fr auto; gap:8px; align-items:center;">
-                        <label style="display:flex; gap:6px; align-items:center;">
-                            <input type="checkbox" id="ratingProviderMALEnabled" onchange="saveRatingProviderSettings()">
-                            <span>MyAnimeList</span>
-                        </label>
-                        <div></div>
-                        <input type="number" id="ratingProviderMALWeight" min="0" max="100" step="0.5" onchange="saveRatingProviderSettings()" style="width:76px;" title="MyAnimeList Weight">
-                    </div>
-                    <div style="display:grid; grid-template-columns:auto 1fr auto; gap:8px; align-items:center;">
-                        <label style="display:flex; gap:6px; align-items:center;">
-                            <input type="checkbox" id="ratingProviderMangaDexEnabled" onchange="saveRatingProviderSettings()">
-                            <span>MangaDex</span>
-                        </label>
-                        <div></div>
-                        <input type="number" id="ratingProviderMangaDexWeight" min="0" max="100" step="0.5" onchange="saveRatingProviderSettings()" style="width:76px;" title="MangaDex Weight">
-                    </div>
-                </div>
-                <div style="font-size:0.78rem; opacity:0.75; margin-top:8px;">Unified = personalWeight * personal + (1 - personalWeight) * API weighted</div>
+                <div id="ratingProvidersContainer" style="display:flex; flex-direction:column; gap:8px;"></div>
+                <div style="font-size:0.78rem; opacity:0.75; margin-top:8px;">Unified = personalWeight * personal + (1 - personalWeight) * API weighted. Disable providers that aren't relevant to your library (e.g. uncheck TVmaze/iTunes if you only track manga).</div>
                 </div>
             </div>
 

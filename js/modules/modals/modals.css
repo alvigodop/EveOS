@@ -460,6 +460,124 @@ html[data-native-scheme="light"] #settingsModal .modal option {
     background: color-mix(in srgb, var(--modal-bg) 92%, var(--input-bg) 8%);
 }
 
+.related-url-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.related-url-editor-copy {
+    font-size: 0.8rem;
+    line-height: 1.4;
+    color: var(--text-muted);
+}
+
+.related-url-add-row {
+    display: grid;
+    grid-template-columns: minmax(180px, 1fr) minmax(120px, 0.6fr) auto;
+    gap: 8px;
+    align-items: center;
+}
+
+.bookmark-related-url-editor-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.bookmark-related-url-editor-empty {
+    border: 1px dashed rgba(128, 128, 128, 0.3);
+    border-radius: 10px;
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    padding: 10px 12px;
+    text-align: center;
+}
+
+.bookmark-related-url-editor-row {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: start;
+    padding: 10px;
+    border: 1px solid rgba(128, 128, 128, 0.26);
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--input-bg) 82%, transparent);
+}
+
+.bookmark-related-url-editor-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border: 1px solid rgba(128, 128, 128, 0.24);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.bookmark-related-url-editor-icon img {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    object-fit: cover;
+}
+
+.bookmark-related-url-editor-fallback {
+    font-size: 0.62rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.bookmark-related-url-editor-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+}
+
+.bookmark-related-url-editor-grid {
+    display: grid;
+    grid-template-columns: minmax(180px, 1fr) minmax(120px, 0.55fr);
+    gap: 8px;
+}
+
+.bookmark-related-url-editor-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+}
+
+.bookmark-related-url-editor-field input,
+.bookmark-related-url-editor-field textarea {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.bookmark-related-url-editor-remove {
+    padding: 5px 8px;
+    font-size: 0.75rem;
+    border-color: rgba(255, 108, 108, 0.26);
+    color: #ffb1b1;
+}
+
+@media (max-width: 680px) {
+    .related-url-add-row,
+    .bookmark-related-url-editor-row,
+    .bookmark-related-url-editor-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .bookmark-related-url-editor-icon {
+        display: none;
+    }
+}
+
 .bookmark-folder-manager-row__info {
     flex: 1 1 180px;
 }

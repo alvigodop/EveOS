@@ -216,6 +216,25 @@ window.DashboardCategories = window.DashboardCategories || {};
     window.showBookmarkCoverHover = showBookmarkCoverHover;
     window.moveBookmarkCoverHover = moveBookmarkCoverHover;
     window.hideBookmarkCoverHover = hideBookmarkCoverHover;
+
+    window.openRelatedUrlFromDashboard = function (event, linkId, relatedUrl, relatedTitle) {
+        if (event?.preventDefault) event.preventDefault();
+        if (event?.stopPropagation) event.stopPropagation();
+        const safeUrl = typeof normalizeUrl === 'function'
+            ? normalizeUrl(String(relatedUrl || '').trim())
+            : String(relatedUrl || '').trim();
+        if (!safeUrl) return false;
+        const safeTitle = String(relatedTitle || safeUrl).trim() || safeUrl;
+        if (typeof window.openBookmarkFromDashboard === 'function') {
+            return window.openBookmarkFromDashboard(event, linkId, {
+                overrideUrl: safeUrl,
+                overrideTitle: safeTitle,
+                targetLabel: 'Related URL'
+            });
+        }
+        window.open(safeUrl, '_blank', 'noopener,noreferrer');
+        return false;
+    };
 })();
 
 window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspace, workspaces, options) {
@@ -229,6 +248,12 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
         .replace(/"/g, '&quot;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
+    const escapeJsString = (value) => String(value ?? '')
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'")
+        .replace(/\r/g, '\\r')
+        .replace(/\n/g, '\\n')
+        .replace(/</g, '\\x3C');
     const badgeWorkspaceId = String(extraOptions.dashboardWorkspaceId || activeWorkspace || '').trim()
         || String(activeWorkspace || '').trim();
     const cardWorkspaceId = String(extraOptions.cardWorkspaceId || activeWorkspace || '').trim()
@@ -384,18 +409,26 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
         ? '<span class="bookmark-related-url-icons" title="Related URLs: ' + escapeAttr(l.relatedUrls.map((entry) => entry?.url || entry).filter(Boolean).join(' | ')) + '">'
             + l.relatedUrls.slice(0, 4).map((entry) => {
                 const relatedUrl = String(entry?.url || entry || '').trim();
+                if (!relatedUrl) return '';
                 const relatedDomain = faviconUtils && typeof faviconUtils.getDomainFromUrl === 'function'
                     ? faviconUtils.getDomainFromUrl(relatedUrl)
                     : '';
+                const relatedTitle = String(entry?.label || entry?.title || relatedDomain || relatedUrl).trim();
                 const src = relatedDomain && faviconUtils && typeof faviconUtils.getBestEffortSrc === 'function'
                     ? faviconUtils.getBestEffortSrc(relatedDomain, 16)
                     : '';
                 const fallback = relatedDomain && faviconUtils && typeof faviconUtils.getFallbackSrc === 'function'
                     ? faviconUtils.getFallbackSrc(relatedDomain, 16)
                     : '';
-                return src
+                const iconMarkup = src
                     ? `<img class="bookmark-related-url-icon" src="${escapeAttr(src)}" data-favicon-domain="${escapeAttr(relatedDomain)}" data-favicon-size="16"${fallback ? ` data-fallback-src="${escapeAttr(fallback)}"` : ''} alt="" loading="lazy" referrerpolicy="no-referrer" onerror="${fallbackOnError}">`
                     : '<span class="bookmark-related-url-icon bookmark-related-url-icon--fallback">' + GLOBE_ICON + '</span>';
+                return '<button type="button" class="bookmark-related-url-action"'
+                    + ' title="Open related URL: ' + escapeAttr(relatedTitle) + '"'
+                    + ' aria-label="Open related URL: ' + escapeAttr(relatedTitle) + '"'
+                    + ' onclick="return window.openRelatedUrlFromDashboard ? window.openRelatedUrlFromDashboard(event, ' + jsLinkIdLiteral + ', \'' + escapeJsString(relatedUrl) + '\', \'' + escapeJsString(relatedTitle) + '\') : false;">'
+                    + iconMarkup
+                    + '</button>';
             }).join('')
             + '</span>'
         : '';

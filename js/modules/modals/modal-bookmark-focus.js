@@ -12,6 +12,7 @@
     const ensureModalAvailable = focus.ensureModalAvailable;
     const openInNewTab = focus.openInNewTab;
     const openBookmarkTarget = focus.openBookmarkTarget || openInNewTab;
+    const normalizeTargetOverride = focus.normalizeTargetOverride;
     const refreshHeader = focus.refreshHeader;
     const refreshActionButtons = focus.refreshActionButtons;
     const loadLinkedRecord = focus.loadLinkedRecord;
@@ -71,7 +72,7 @@
         }
     }
 
-    window.openBookmarkFocusModal = function (linkId) {
+    window.openBookmarkFocusModal = function (linkId, options) {
         const modal = ensureModalAvailable();
         const link = findLinkById(linkId);
         if (!modal || !link) return false;
@@ -79,7 +80,10 @@
         const focusId = document.getElementById('bookmarkFocusId');
         if (focusId) focusId.value = toId(link.id);
 
-        refreshHeader(link);
+        focus.currentTargetOverride = normalizeTargetOverride
+            ? normalizeTargetOverride(link, options)
+            : null;
+        refreshHeader(link, focus.currentTargetOverride);
         refreshActionButtons(link);
         refreshPinControls(link);
         refreshClickBehaviorControls(link);
@@ -95,6 +99,7 @@
     window.closeBookmarkFocusModal = function () {
         const modal = document.getElementById(MODAL_ID);
         if (modal) modal.style.display = 'none';
+        focus.currentTargetOverride = null;
     };
 
     window.handleBookmarkFocusOverlayClick = function (event) {
@@ -103,12 +108,17 @@
         }
     };
 
-    window.openBookmarkFromDashboard = function (event, linkId) {
+    window.openBookmarkFromDashboard = function (event, linkId, options) {
         if (event?.preventDefault) event.preventDefault();
         if (event?.stopPropagation) event.stopPropagation();
 
         const link = findLinkById(linkId);
         if (!link) return false;
+        const targetOverride = normalizeTargetOverride
+            ? normalizeTargetOverride(link, options)
+            : null;
+        const targetUrl = targetOverride?.url || link.url;
+        const targetTitle = targetOverride?.title || link.title;
 
         const resolution = clickBehaviorApi?.resolveBehaviorForLink
             ? clickBehaviorApi.resolveBehaviorForLink(link)
@@ -118,10 +128,10 @@
                 openFocus: true
             };
         if (resolution.openTarget && resolution.openTarget !== 'none') {
-            openBookmarkTarget(link.url, link.title, resolution.openTarget);
+            openBookmarkTarget(targetUrl, targetTitle, resolution.openTarget);
         }
         if (resolution.openFocus) {
-            window.openBookmarkFocusModal(link.id);
+            window.openBookmarkFocusModal(link.id, targetOverride);
         }
         return false;
     };
@@ -186,13 +196,16 @@
         if (!linkId) return;
         const link = findLinkById(linkId);
         if (!link) return;
+        const targetOverride = focus.currentTargetOverride?.linkId === toId(linkId)
+            ? focus.currentTargetOverride
+            : null;
         const resolution = clickBehaviorApi?.resolveBehaviorForLink
             ? clickBehaviorApi.resolveBehaviorForLink(link)
             : null;
         const openTarget = resolution?.openTarget && resolution.openTarget !== 'none'
             ? resolution.openTarget
             : 'newtab';
-        openBookmarkTarget(link.url, link.title, openTarget);
+        openBookmarkTarget(targetOverride?.url || link.url, targetOverride?.title || link.title, openTarget);
     };
 
     window.bookmarkFocusDelete = async function () {
@@ -277,7 +290,7 @@
         if (!currentId || !eventId || currentId !== eventId) return;
 
         const link = findLinkById(currentId);
-        refreshHeader(link);
+        refreshHeader(link, focus.currentTargetOverride);
         refreshActionButtons(link);
         refreshPinControls(link);
         refreshClickBehaviorControls(link);
