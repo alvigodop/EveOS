@@ -496,13 +496,24 @@ html[data-native-scheme="light"] #settingsModal .modal option {
 
 .bookmark-related-url-editor-row {
     display: grid;
-    grid-template-columns: 34px minmax(0, 1fr) auto;
+    grid-template-columns: 34px minmax(0, 1fr);
+    grid-template-areas:
+        "icon fields"
+        ".    remove";
     gap: 10px;
     align-items: start;
     padding: 10px;
     border: 1px solid rgba(128, 128, 128, 0.26);
     border-radius: 12px;
     background: color-mix(in srgb, var(--input-bg) 82%, transparent);
+}
+
+.bookmark-related-url-editor-row > .bookmark-related-url-editor-icon { grid-area: icon; }
+.bookmark-related-url-editor-row > .bookmark-related-url-editor-fields { grid-area: fields; }
+.bookmark-related-url-editor-row > .bookmark-related-url-editor-remove {
+    grid-area: remove;
+    justify-self: end;
+    margin-top: 2px;
 }
 
 .bookmark-related-url-editor-icon {
