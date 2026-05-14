@@ -42,6 +42,15 @@ window.EveBookmarkFocus = window.EveBookmarkFocus || {};
         return String(value);
     }
 
+    function escapeHtml(value) {
+        return String(value || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
     function getDatapackIndexApi() {
         return window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
     }
@@ -307,13 +316,115 @@ window.EveBookmarkFocus = window.EveBookmarkFocus || {};
         const safeUrl = rawUrl ? normalizeUrl(rawUrl) : '';
         if (!safeUrl) return null;
         const linkUrl = normalizeUrl(String(link?.url || '').trim());
+        const relatedIndex = Number.parseInt(options?.relatedIndex ?? options?.index ?? '', 10);
         return {
             linkId: toId(link?.id),
             url: safeUrl,
             title: String(options?.overrideTitle || options?.targetTitle || options?.title || safeUrl).trim() || safeUrl,
             label: String(options?.targetLabel || options?.label || 'Related URL').trim() || 'Related URL',
+            relatedIndex: Number.isInteger(relatedIndex) && relatedIndex >= 0 ? relatedIndex : null,
+            targetKey: String(options?.targetKey || '').trim(),
             isDifferentTarget: safeUrl !== linkUrl
         };
+    }
+
+    function getDomainFromUrl(url) {
+        try {
+            return new URL(normalizeUrl(String(url || '').trim())).hostname.replace(/^www\./i, '');
+        } catch (error) {
+            return '';
+        }
+    }
+
+    function getRelatedUrlTargets(link) {
+        const targets = [];
+        const mainUrl = normalizeUrl(String(link?.url || '').trim());
+        if (mainUrl) {
+            targets.push({
+                key: 'main',
+                kind: 'main',
+                index: -1,
+                url: mainUrl,
+                title: String(link?.title || mainUrl).trim() || mainUrl,
+                label: 'Main URL'
+            });
+        }
+        const seen = new Set(mainUrl ? [mainUrl.toLowerCase()] : []);
+        (Array.isArray(link?.relatedUrls) ? link.relatedUrls : []).forEach((entry) => {
+            const url = normalizeUrl(String(entry?.url || entry || '').trim());
+            if (!url) return;
+            const key = url.toLowerCase();
+            if (seen.has(key)) return;
+            seen.add(key);
+            const index = targets.filter((item) => item.kind === 'related').length;
+            const domain = getDomainFromUrl(url);
+            const title = String(entry?.label || entry?.title || domain || url).trim() || url;
+            targets.push({
+                key: 'related:' + index,
+                kind: 'related',
+                index,
+                url,
+                title,
+                label: title
+            });
+        });
+        return targets;
+    }
+
+    function getTargetKeyForOverride(link, options) {
+        const targetOverride = normalizeTargetOverride(link, options);
+        if (!targetOverride?.isDifferentTarget) return 'main';
+        const targets = getRelatedUrlTargets(link);
+        if (targetOverride.targetKey && targets.some((target) => target.key === targetOverride.targetKey)) {
+            return targetOverride.targetKey;
+        }
+        if (Number.isInteger(targetOverride.relatedIndex)) {
+            const indexKey = 'related:' + targetOverride.relatedIndex;
+            if (targets.some((target) => target.key === indexKey)) return indexKey;
+        }
+        const match = targets.find((target) => target.kind === 'related' && target.url === targetOverride.url);
+        return match?.key || 'main';
+    }
+
+    function getTargetOverrideForOption(link, targetKey) {
+        const normalizedKey = String(targetKey || 'main').trim() || 'main';
+        if (normalizedKey === 'main') return null;
+        const target = getRelatedUrlTargets(link).find((item) => item.key === normalizedKey);
+        if (!target || target.kind !== 'related') return null;
+        return normalizeTargetOverride(link, {
+            overrideUrl: target.url,
+            overrideTitle: target.title,
+            targetLabel: 'Related URL',
+            relatedIndex: target.index,
+            targetKey: target.key
+        });
+    }
+
+    function refreshTargetSwitcher(link, options) {
+        const wrap = document.getElementById('bookmarkFocusTargetSwitcher');
+        const select = document.getElementById('bookmarkFocusTargetSelect');
+        const hint = document.getElementById('bookmarkFocusTargetHint');
+        if (!wrap || !select) return;
+        const targets = getRelatedUrlTargets(link);
+        if (targets.length <= 1) {
+            wrap.hidden = true;
+            select.innerHTML = '';
+            if (hint) hint.textContent = '';
+            return;
+        }
+        const selectedKey = getTargetKeyForOverride(link, options);
+        select.innerHTML = targets.map((target) => {
+            const prefix = target.kind === 'main' ? 'Main' : 'Related';
+            return '<option value="' + escapeHtml(target.key) + '">' + escapeHtml(prefix + ': ' + target.title) + '</option>';
+        }).join('');
+        select.value = targets.some((target) => target.key === selectedKey) ? selectedKey : 'main';
+        if (hint) {
+            const selected = targets.find((target) => target.key === select.value) || targets[0];
+            hint.textContent = selected.kind === 'main'
+                ? 'Opening the bookmark main URL.'
+                : 'Opening related URL: ' + selected.url;
+        }
+        wrap.hidden = false;
     }
 
     function refreshHeader(link, options) {
@@ -467,6 +578,8 @@ window.EveBookmarkFocus = window.EveBookmarkFocus || {};
         openInternalView,
         openBookmarkTarget,
         normalizeTargetOverride,
+        getTargetOverrideForOption,
+        refreshTargetSwitcher,
         refreshHeader,
         refreshActionButtons,
         loadLinkedRecord

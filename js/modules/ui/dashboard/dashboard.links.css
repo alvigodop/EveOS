@@ -69,8 +69,11 @@ a {
     align-items: center;
     gap: 3px;
     flex: 0 0 auto;
-    max-width: 92px;
+    width: 24px;
+    min-width: 24px;
+    max-width: 24px;
     overflow: hidden;
+    position: relative;
 }
 
 .bookmark-related-url-action {
@@ -94,6 +97,14 @@ a {
     border-color: color-mix(in srgb, var(--accent) 42%, rgba(255, 255, 255, 0.16));
     transform: translateY(-1px);
     outline: none;
+}
+
+.bookmark-related-url-icons.is-cycling .bookmark-related-url-action {
+    display: none;
+}
+
+.bookmark-related-url-icons.is-cycling .bookmark-related-url-action.is-active {
+    display: inline-flex;
 }
 
 .bookmark-related-url-icon {

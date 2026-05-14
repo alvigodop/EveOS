@@ -8,6 +8,11 @@ window.modalTemplate += `
             <div id="bookmarkFocusTitle" style="font-weight:600; font-size:1.05rem;"></div>
             <a id="bookmarkFocusUrl" href="#" target="_blank" rel="noopener noreferrer" style="font-size:0.82rem; opacity:0.8; word-break:break-all;"></a>
         </div>
+        <div id="bookmarkFocusTargetSwitcher" class="bookmark-focus-target-switcher" hidden>
+            <label for="bookmarkFocusTargetSelect">Open Target</label>
+            <select id="bookmarkFocusTargetSelect" onchange="bookmarkFocusChangeTarget(this.value)"></select>
+            <div id="bookmarkFocusTargetHint" class="bookmark-focus-target-hint"></div>
+        </div>
 
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
             <button type="button" id="bookmarkFocusPinBtn" onclick="bookmarkFocusTogglePin()">Pin</button>

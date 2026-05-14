@@ -13,6 +13,8 @@
     const openInNewTab = focus.openInNewTab;
     const openBookmarkTarget = focus.openBookmarkTarget || openInNewTab;
     const normalizeTargetOverride = focus.normalizeTargetOverride;
+    const getTargetOverrideForOption = focus.getTargetOverrideForOption;
+    const refreshTargetSwitcher = focus.refreshTargetSwitcher;
     const refreshHeader = focus.refreshHeader;
     const refreshActionButtons = focus.refreshActionButtons;
     const loadLinkedRecord = focus.loadLinkedRecord;
@@ -84,6 +86,7 @@
             ? normalizeTargetOverride(link, options)
             : null;
         refreshHeader(link, focus.currentTargetOverride);
+        refreshTargetSwitcher?.(link, focus.currentTargetOverride);
         refreshActionButtons(link);
         refreshPinControls(link);
         refreshClickBehaviorControls(link);
@@ -138,6 +141,18 @@
 
     window.handleLinkClick = function (event, linkId) {
         return window.openBookmarkFromDashboard(event, linkId);
+    };
+
+    window.bookmarkFocusChangeTarget = function (targetKey) {
+        const linkId = getCurrentLinkId();
+        if (!linkId) return;
+        const link = findLinkById(linkId);
+        if (!link) return;
+        focus.currentTargetOverride = getTargetOverrideForOption
+            ? getTargetOverrideForOption(link, targetKey)
+            : null;
+        refreshHeader(link, focus.currentTargetOverride);
+        refreshTargetSwitcher?.(link, focus.currentTargetOverride);
     };
 
     window.bookmarkFocusSaveClickBehavior = function (mode) {
@@ -291,6 +306,7 @@
 
         const link = findLinkById(currentId);
         refreshHeader(link, focus.currentTargetOverride);
+        refreshTargetSwitcher?.(link, focus.currentTargetOverride);
         refreshActionButtons(link);
         refreshPinControls(link);
         refreshClickBehaviorControls(link);

@@ -566,6 +566,35 @@ html[data-native-scheme="light"] #settingsModal .modal option {
     color: #ffb1b1;
 }
 
+.bookmark-focus-target-switcher {
+    display: grid;
+    grid-template-columns: auto minmax(180px, 1fr);
+    gap: 6px 10px;
+    align-items: center;
+    padding: 8px 10px;
+    border: 1px solid color-mix(in srgb, var(--accent) 28%, rgba(128, 128, 128, 0.26));
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--accent) 9%, transparent);
+}
+
+.bookmark-focus-target-switcher[hidden] {
+    display: none;
+}
+
+.bookmark-focus-target-switcher label {
+    font-size: 0.74rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.bookmark-focus-target-hint {
+    grid-column: 1 / -1;
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    overflow-wrap: anywhere;
+}
+
 @media (max-width: 680px) {
     .related-url-add-row,
     .bookmark-related-url-editor-row,

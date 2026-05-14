@@ -2,11 +2,13 @@ window.DashboardCategories = window.DashboardCategories || {};
 
 (function () {
     const BOOKMARK_HOVER_SHOW_DELAY_MS = 110;
+    const RELATED_URL_ICON_CYCLE_MS = 3600;
     let bookmarkCoverHoverShowTimer = 0;
     let bookmarkCoverHoverMoveRaf = 0;
     let bookmarkCoverHoverActiveLinkId = '';
     let bookmarkCoverHoverPendingLinkId = '';
     let bookmarkCoverHoverActiveTarget = null;
+    let relatedUrlIconCycleTimer = 0;
 
     function toLinkId(value) {
         if (value === null || value === undefined) return '';
@@ -213,11 +215,42 @@ window.DashboardCategories = window.DashboardCategories || {};
         overlay.classList.remove('is-imageless');
     }
 
+    function cycleRelatedUrlIconSlot(slot) {
+        if (!slot || slot.matches(':hover') || slot.querySelector(':focus')) return false;
+        const buttons = Array.from(slot.querySelectorAll('.bookmark-related-url-action'));
+        if (buttons.length <= 1) return false;
+        const currentIndex = buttons.findIndex((button) => button.classList.contains('is-active'));
+        const safeCurrentIndex = currentIndex >= 0 ? currentIndex : 0;
+        let nextIndex = Math.floor(Math.random() * buttons.length);
+        if (nextIndex === safeCurrentIndex) {
+            nextIndex = (safeCurrentIndex + 1) % buttons.length;
+        }
+        buttons.forEach((button, index) => {
+            const isActive = index === nextIndex;
+            button.classList.toggle('is-active', isActive);
+            button.setAttribute('aria-hidden', isActive ? 'false' : 'true');
+            button.tabIndex = isActive ? 0 : -1;
+        });
+        slot.dataset.relatedUrlCycleIndex = String(nextIndex);
+        return true;
+    }
+
+    function cycleRelatedUrlIconSlots() {
+        if (document.hidden) return;
+        document.querySelectorAll('.bookmark-related-url-icons[data-related-url-cycle="1"]').forEach(cycleRelatedUrlIconSlot);
+    }
+
+    function startRelatedUrlIconCycler() {
+        if (relatedUrlIconCycleTimer) return;
+        relatedUrlIconCycleTimer = window.setInterval(cycleRelatedUrlIconSlots, RELATED_URL_ICON_CYCLE_MS);
+    }
+
     window.showBookmarkCoverHover = showBookmarkCoverHover;
     window.moveBookmarkCoverHover = moveBookmarkCoverHover;
     window.hideBookmarkCoverHover = hideBookmarkCoverHover;
+    window.cycleRelatedUrlIconsNow = cycleRelatedUrlIconSlots;
 
-    window.openRelatedUrlFromDashboard = function (event, linkId, relatedUrl, relatedTitle) {
+    window.openRelatedUrlFromDashboard = function (event, linkId, relatedUrl, relatedTitle, relatedIndex) {
         if (event?.preventDefault) event.preventDefault();
         if (event?.stopPropagation) event.stopPropagation();
         const safeUrl = typeof normalizeUrl === 'function'
@@ -229,12 +262,15 @@ window.DashboardCategories = window.DashboardCategories || {};
             return window.openBookmarkFromDashboard(event, linkId, {
                 overrideUrl: safeUrl,
                 overrideTitle: safeTitle,
-                targetLabel: 'Related URL'
+                targetLabel: 'Related URL',
+                relatedIndex
             });
         }
         window.open(safeUrl, '_blank', 'noopener,noreferrer');
         return false;
     };
+
+    startRelatedUrlIconCycler();
 })();
 
 window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspace, workspaces, options) {
@@ -405,10 +441,15 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
     const identifierBadges = perfMode ? '' : (window.EveBookmarkIdentifiers?.getBadgeHtmlForLink?.(l)
         ? `<span class="bookmark-link-identifiers">${window.EveBookmarkIdentifiers.getBadgeHtmlForLink(l)}</span>`
         : '');
-    const relatedUrlIcons = (!perfMode && Array.isArray(l?.relatedUrls) && l.relatedUrls.length)
-        ? '<span class="bookmark-related-url-icons" title="Related URLs: ' + escapeAttr(l.relatedUrls.map((entry) => entry?.url || entry).filter(Boolean).join(' | ')) + '">'
-            + l.relatedUrls.slice(0, 4).map((entry) => {
-                const relatedUrl = String(entry?.url || entry || '').trim();
+    const relatedUrlEntries = Array.isArray(l?.relatedUrls)
+        ? l.relatedUrls.map((entry) => ({
+            entry,
+            url: String(entry?.url || entry || '').trim()
+        })).filter((item) => item.url).slice(0, 8)
+        : [];
+    const relatedUrlIcons = (!perfMode && relatedUrlEntries.length)
+        ? '<span class="bookmark-related-url-icons is-cycling" data-related-url-cycle="1" data-related-url-cycle-index="0" title="Related URLs rotate every few seconds. Hover to pause, then click the current icon.">'
+            + relatedUrlEntries.map(({ entry, url: relatedUrl }, index) => {
                 if (!relatedUrl) return '';
                 const relatedDomain = faviconUtils && typeof faviconUtils.getDomainFromUrl === 'function'
                     ? faviconUtils.getDomainFromUrl(relatedUrl)
@@ -423,10 +464,11 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
                 const iconMarkup = src
                     ? `<img class="bookmark-related-url-icon" src="${escapeAttr(src)}" data-favicon-domain="${escapeAttr(relatedDomain)}" data-favicon-size="16"${fallback ? ` data-fallback-src="${escapeAttr(fallback)}"` : ''} alt="" loading="lazy" referrerpolicy="no-referrer" onerror="${fallbackOnError}">`
                     : '<span class="bookmark-related-url-icon bookmark-related-url-icon--fallback">' + GLOBE_ICON + '</span>';
-                return '<button type="button" class="bookmark-related-url-action"'
+                return '<button type="button" class="bookmark-related-url-action' + (index === 0 ? ' is-active' : '') + '"'
+                    + (index === 0 ? ' tabindex="0"' : ' tabindex="-1" aria-hidden="true"')
                     + ' title="Open related URL: ' + escapeAttr(relatedTitle) + '"'
                     + ' aria-label="Open related URL: ' + escapeAttr(relatedTitle) + '"'
-                    + ' onclick="return window.openRelatedUrlFromDashboard ? window.openRelatedUrlFromDashboard(event, ' + jsLinkIdLiteral + ', \'' + escapeJsString(relatedUrl) + '\', \'' + escapeJsString(relatedTitle) + '\') : false;">'
+                    + ' onclick="return window.openRelatedUrlFromDashboard ? window.openRelatedUrlFromDashboard(event, ' + jsLinkIdLiteral + ', \'' + escapeJsString(relatedUrl) + '\', \'' + escapeJsString(relatedTitle) + '\', ' + index + ') : false;">'
                     + iconMarkup
                     + '</button>';
             }).join('')

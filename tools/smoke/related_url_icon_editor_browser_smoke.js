@@ -52,6 +52,12 @@ async function main() {
                         url: relatedUrl,
                         label: 'Mirror',
                         notes: 'Existing related URL'
+                    },
+                    {
+                        id: 'related-smoke-2',
+                        url: secondUrl,
+                        label: 'Mirror 2',
+                        notes: 'Second existing related URL'
                     }
                 ]
             });
@@ -67,16 +73,27 @@ async function main() {
             host.innerHTML = window.DashboardCategories.buildLinkHtml(links.find((entry) => String(entry.id) === linkId), '', 'main', window.config?.workspaces || []);
             document.body.appendChild(host);
 
-            const button = host.querySelector('.bookmark-related-url-action');
+            const buttons = Array.from(host.querySelectorAll('.bookmark-related-url-action'));
+            const activeBefore = host.querySelector('.bookmark-related-url-action.is-active')?.getAttribute('title') || '';
+            window.cycleRelatedUrlIconsNow();
+            await new Promise((resolve) => setTimeout(resolve, 80));
+            const activeButtonsAfterCycle = Array.from(host.querySelectorAll('.bookmark-related-url-action.is-active'));
+            const activeAfter = activeButtonsAfterCycle[0]?.getAttribute('title') || '';
+            const button = activeButtonsAfterCycle[0];
             const clickEvent = new MouseEvent('click', { bubbles: true, cancelable: true });
             const clickResult = button?.dispatchEvent(clickEvent);
             await new Promise((resolve) => setTimeout(resolve, 150));
 
             const focusModal = document.getElementById('bookmarkFocusModal');
             const focusUrl = document.getElementById('bookmarkFocusUrl');
+            const targetSwitcher = document.getElementById('bookmarkFocusTargetSwitcher');
+            const targetSelect = document.getElementById('bookmarkFocusTargetSelect');
             const modalVisible = focusModal ? window.getComputedStyle(focusModal).display !== 'none' : false;
             const headerText = focusUrl?.textContent || '';
             const headerHref = focusUrl?.href || '';
+            const targetSwitcherVisible = !!targetSwitcher && targetSwitcher.hidden === false;
+            const targetOptions = targetSelect ? Array.from(targetSelect.options).map((option) => ({ value: option.value, text: option.textContent })) : [];
+            const selectedTargetBeforeChange = targetSelect?.value || '';
 
             const openCalls = [];
             const originalOpen = window.open;
@@ -84,6 +101,12 @@ async function main() {
                 openCalls.push({ url, target });
                 return null;
             };
+            window.bookmarkFocusOpenAgain();
+            window.bookmarkFocusChangeTarget('related:0');
+            const headerHrefAfterSwitch = focusUrl?.href || '';
+            window.bookmarkFocusOpenAgain();
+            window.bookmarkFocusChangeTarget('main');
+            const headerHrefAfterMain = focusUrl?.href || '';
             window.bookmarkFocusOpenAgain();
             window.open = originalOpen;
 
@@ -93,8 +116,8 @@ async function main() {
             const initialRows = document.querySelectorAll('#newRelatedUrlsList .bookmark-related-url-editor-row').length;
             const summaryBefore = document.getElementById('newRelatedUrlsSummary')?.textContent || '';
 
-            document.getElementById('newRelatedUrlCandidate').value = secondUrl;
-            document.getElementById('newRelatedUrlLabel').value = 'Mirror 2';
+            document.getElementById('newRelatedUrlCandidate').value = 'https://third.example.com/smoke-target';
+            document.getElementById('newRelatedUrlLabel').value = 'Mirror 3';
             window.addRelatedUrlEntryCandidate();
             await new Promise((resolve) => setTimeout(resolve, 80));
 
@@ -121,38 +144,77 @@ async function main() {
                 summaryBefore,
                 summaryAfter,
                 labelsAfterAdd,
-                urlsAfterAdd
+                urlsAfterAdd,
+                activeBefore,
+                activeAfter,
+                activeCountAfterCycle: activeButtonsAfterCycle.length,
+                buttonCount: buttons.length,
+                targetSwitcherVisible,
+                targetOptions,
+                selectedTargetBeforeChange,
+                headerHrefAfterSwitch,
+                headerHrefAfterMain
             };
         });
 
         assert(result.hasButton, 'Expected related URL icon button to render');
+        assert(result.buttonCount === 2, `Expected two rotating related URL icon buttons, got: ${result.buttonCount}`);
+        assert(result.activeCountAfterCycle === 1, `Expected one active rotating related URL icon after cycle, got: ${result.activeCountAfterCycle}`);
+        assert(
+            result.activeBefore !== result.activeAfter,
+            `Expected related URL icon cycler to switch active icon, got before=${result.activeBefore} after=${result.activeAfter}`
+        );
         assert(result.clickResult === false, 'Expected related URL icon click to cancel default navigation');
         assert(result.modalVisible === true, 'Expected related URL click to open the normal bookmark popup in focus-only mode');
         assert(
-            result.headerText.includes('Related URL') && result.headerText.includes('https://related.example.com/smoke-target'),
+            result.headerText.includes('Related URL') && result.headerText.includes('https://mirror.example.com/smoke-target'),
             `Expected popup header to show the related URL target, got: ${result.headerText}`
         );
         assert(
-            result.headerHref === 'https://related.example.com/smoke-target',
+            result.headerHref === 'https://mirror.example.com/smoke-target',
             `Expected popup link href to target the related URL, got: ${result.headerHref}`
         );
         assert(
-            result.openCalls.length === 1 && result.openCalls[0].url === 'https://related.example.com/smoke-target',
+            result.targetSwitcherVisible === true,
+            'Expected Bookmark Focus related target switcher to be visible for bookmarks with related URLs'
+        );
+        assert(
+            result.targetOptions.length === 3
+                && result.targetOptions.some((option) => option.value === 'main')
+                && result.targetOptions.some((option) => option.value === 'related:0')
+                && result.targetOptions.some((option) => option.value === 'related:1'),
+            `Expected target switcher to expose main and related URL targets, got: ${JSON.stringify(result.targetOptions)}`
+        );
+        assert(
+            result.selectedTargetBeforeChange === 'related:1',
+            `Expected clicked rotating icon to select related:1 in focus target switcher, got: ${result.selectedTargetBeforeChange}`
+        );
+        assert(
+            result.openCalls.length === 3
+                && result.openCalls[0].url === 'https://mirror.example.com/smoke-target'
+                && result.openCalls[1].url === 'https://related.example.com/smoke-target'
+                && result.openCalls[2].url === 'https://base.example.com/smoke-base',
             `Expected Bookmark Focus Open to use the related URL target, got: ${JSON.stringify(result.openCalls)}`
         );
-        assert(result.initialRows === 1, `Expected editor to render the existing related URL row, got: ${result.initialRows}`);
-        assert(result.rowsAfterAdd === 2, `Expected editor add flow to render two related URL rows, got: ${result.rowsAfterAdd}`);
+        assert(
+            result.headerHrefAfterSwitch === 'https://related.example.com/smoke-target'
+                && result.headerHrefAfterMain === 'https://base.example.com/smoke-base',
+            `Expected focus target switcher to update header hrefs, got related=${result.headerHrefAfterSwitch} main=${result.headerHrefAfterMain}`
+        );
+        assert(result.initialRows === 2, `Expected editor to render the existing related URL rows, got: ${result.initialRows}`);
+        assert(result.rowsAfterAdd === 3, `Expected editor add flow to render three related URL rows, got: ${result.rowsAfterAdd}`);
         assert(
             result.urlsAfterAdd.includes('https://related.example.com/smoke-target')
-                && result.urlsAfterAdd.includes('https://mirror.example.com/smoke-target'),
+                && result.urlsAfterAdd.includes('https://mirror.example.com/smoke-target')
+                && result.urlsAfterAdd.includes('https://third.example.com/smoke-target'),
             `Expected hidden store to serialize both related URLs, got: ${JSON.stringify(result.urlsAfterAdd)}`
         );
         assert(
-            result.labelsAfterAdd.includes('Mirror') && result.labelsAfterAdd.includes('Mirror 2'),
+            result.labelsAfterAdd.includes('Mirror') && result.labelsAfterAdd.includes('Mirror 2') && result.labelsAfterAdd.includes('Mirror 3'),
             `Expected structured labels to survive editor serialization, got: ${JSON.stringify(result.labelsAfterAdd)}`
         );
         assert(
-            result.summaryBefore === '1 related' && result.summaryAfter === '2 related',
+            result.summaryBefore === '2 related' && result.summaryAfter === '3 related',
             `Expected related URL summaries to update, got before=${result.summaryBefore} after=${result.summaryAfter}`
         );
 
