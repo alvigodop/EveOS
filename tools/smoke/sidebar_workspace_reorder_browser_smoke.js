@@ -77,6 +77,9 @@ async function runSmoke(page) {
             clientX: 48,
             clientY: 180
         }));
+        const rootPreview = document.querySelector('.ws-pointer-drag-preview');
+        const previewDuringRootDrag = !!rootPreview
+            && rootPreview.textContent.includes('Gamma');
         source.dispatchEvent(new PointerEvent('pointerup', {
             bubbles: true,
             cancelable: true,
@@ -88,6 +91,7 @@ async function runSmoke(page) {
 
         document.elementFromPoint = originalElementFromPoint;
         await new Promise(resolve => setTimeout(resolve, 120));
+        const previewAfterRootDrag = !!document.querySelector('.ws-pointer-drag-preview');
 
         window.renderSidebar();
         await new Promise(resolve => requestAnimationFrame(resolve));
@@ -139,6 +143,8 @@ async function runSmoke(page) {
             sourceDraggable: source.draggable,
             betaSourceDraggable: betaSource.draggable,
             nativeDragStartCount,
+            previewDuringRootDrag,
+            previewAfterRootDrag,
             order: config.workspaces.map((ws) => ws.id),
             alphaChildren: Array.isArray(alphaNode && alphaNode.subTabs)
                 ? alphaNode.subTabs.map((ws) => ws.id)
@@ -151,6 +157,9 @@ async function runSmoke(page) {
     }
     if (result.sourceDraggable || result.betaSourceDraggable || result.nativeDragStartCount !== 0) {
         throw new Error(`Expected workspace reorder to avoid native drag ghost: ${JSON.stringify(result, null, 2)}`);
+    }
+    if (!result.previewDuringRootDrag || result.previewAfterRootDrag) {
+        throw new Error(`Expected custom pointer drag preview during normal drag only: ${JSON.stringify(result, null, 2)}`);
     }
     const order = result.order;
     if (order.join('|') !== 'main|gamma|alpha') {

@@ -30,7 +30,17 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
                 pointerDrag.timer = 0;
             }
 
+            function destroyPointerDragPreview(drag) {
+                var state = drag || pointerDrag;
+                if (!state || !state.preview) return;
+                if (state.preview.parentNode) {
+                    state.preview.parentNode.removeChild(state.preview);
+                }
+                state.preview = null;
+            }
+
             function clearPointerDrag() {
+                destroyPointerDragPreview(pointerDrag);
                 clearPointerDropTarget();
                 clearPointerDragTimer();
                 pointerDrag = null;
@@ -66,6 +76,44 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
                 else if (y > rect.bottom - edge) host.scrollTop += 14;
             }
 
+            function updatePointerDragPreview(event) {
+                if (!pointerDrag || !pointerDrag.preview || !event) return;
+                var x = Number(event.clientX) - Number(pointerDrag.previewOffsetX || 0);
+                var y = Number(event.clientY) - Number(pointerDrag.previewOffsetY || 0);
+                if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+                pointerDrag.preview.style.transform = 'translate3d(' + x + 'px, ' + y + 'px, 0)';
+            }
+
+            function createPointerDragPreview(event) {
+                if (!pointerDrag || pointerDrag.preview || !document.body) return;
+                var rect = typeof item.getBoundingClientRect === 'function' ? item.getBoundingClientRect() : null;
+                var preview = item.cloneNode(true);
+                preview.classList.remove('ws-dragging', 'ws-pointer-dragging', 'ws-drop-target', 'ws-drop-target-card');
+                preview.classList.add('ws-pointer-drag-preview');
+                preview.removeAttribute('id');
+                preview.removeAttribute('aria-label');
+                preview.setAttribute('aria-hidden', 'true');
+                preview.draggable = false;
+                preview.querySelectorAll('[draggable]').forEach(function (node) {
+                    node.setAttribute('draggable', 'false');
+                    node.draggable = false;
+                });
+
+                if (rect && rect.width > 0) {
+                    preview.style.width = rect.width + 'px';
+                    preview.style.minWidth = rect.width + 'px';
+                }
+                if (rect && rect.height > 0) {
+                    preview.style.height = rect.height + 'px';
+                }
+
+                pointerDrag.previewOffsetX = rect ? (Number(event.clientX) - rect.left) : 16;
+                pointerDrag.previewOffsetY = rect ? (Number(event.clientY) - rect.top) : 16;
+                document.body.appendChild(preview);
+                pointerDrag.preview = preview;
+                updatePointerDragPreview(event);
+            }
+
             function beginPointerWorkspaceDrag(event) {
                 if (!pointerDrag || pointerDrag.started) return;
                 pointerDrag.started = true;
@@ -78,6 +126,7 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
                 ctx.setDragState('workspace', ws.id);
                 item.classList.add('ws-dragging');
                 item.classList.add('ws-pointer-dragging');
+                createPointerDragPreview(event);
                 if (typeof item.setPointerCapture === 'function') {
                     try { item.setPointerCapture(pointerDrag.pointerId); } catch (err) { /* ignore lost capture */ }
                 }
@@ -115,6 +164,7 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
                 if (!pointerDrag.started && Math.sqrt((dx * dx) + (dy * dy)) < threshold) return;
 
                 beginPointerWorkspaceDrag(event);
+                updatePointerDragPreview(event);
                 maybeScrollPointerDrag(event);
 
                 var nextTarget = resolvePointerDropTarget(event);
@@ -132,6 +182,7 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
                 var dropTarget = activeDrag.dropTarget || (activeDrag.started ? resolvePointerDropTarget(event) : null);
                 clearPointerDropTarget();
                 clearPointerDragTimer();
+                destroyPointerDragPreview(activeDrag);
                 pointerDrag = null;
                 if (typeof item.releasePointerCapture === 'function') {
                     try { item.releasePointerCapture(activeDrag.pointerId); } catch (err) { /* ignore lost capture */ }
@@ -157,6 +208,7 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
                 if (!pointerDrag || pointerDrag.pointerId !== event.pointerId) return;
                 clearPointerDragTimer();
                 clearPointerDropTarget();
+                destroyPointerDragPreview(pointerDrag);
                 pointerDrag = null;
                 item.classList.remove('ws-dragging');
                 item.classList.remove('ws-pointer-dragging');
