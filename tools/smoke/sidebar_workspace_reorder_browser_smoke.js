@@ -40,12 +40,124 @@ async function seedState(page) {
 }
 
 async function runSmoke(page) {
-    await page.dragAndDrop('#sidebar .ws-item[data-ws-id="gamma"]', '#sidebar .ws-item[data-ws-id="alpha"]', { force: true });
-    await page.waitForTimeout(400);
+    const result = await page.evaluate(async () => {
+        const source = document.querySelector('#sidebar .ws-item[data-ws-id="gamma"]');
+        const alpha = document.querySelector('#sidebar .ws-item[data-ws-id="alpha"]');
+        const alphaBlock = alpha ? alpha.closest('.ws-top-order-block') : null;
+        const targetSlot = alphaBlock ? alphaBlock.querySelector('.ws-order-slot') : null;
+        if (!source || !targetSlot) {
+            return {
+                ok: false,
+                reason: 'Missing source or alpha order slot',
+                sourceFound: !!source,
+                targetSlotFound: !!targetSlot
+            };
+        }
 
-    const order = await page.evaluate(() => config.workspaces.map((ws) => ws.id));
-    if (order.join('|') !== 'main|gamma|alpha|beta') {
+        let nativeDragStartCount = 0;
+        source.addEventListener('dragstart', () => { nativeDragStartCount += 1; });
+
+        const originalElementFromPoint = document.elementFromPoint.bind(document);
+        document.elementFromPoint = function () { return targetSlot; };
+
+        source.dispatchEvent(new PointerEvent('pointerdown', {
+            bubbles: true,
+            cancelable: true,
+            pointerId: 21,
+            button: 0,
+            clientX: 36,
+            clientY: 220
+        }));
+        await new Promise(resolve => setTimeout(resolve, 140));
+        source.dispatchEvent(new PointerEvent('pointermove', {
+            bubbles: true,
+            cancelable: true,
+            pointerId: 21,
+            button: 0,
+            clientX: 48,
+            clientY: 180
+        }));
+        source.dispatchEvent(new PointerEvent('pointerup', {
+            bubbles: true,
+            cancelable: true,
+            pointerId: 21,
+            button: 0,
+            clientX: 48,
+            clientY: 180
+        }));
+
+        document.elementFromPoint = originalElementFromPoint;
+        await new Promise(resolve => setTimeout(resolve, 120));
+
+        window.renderSidebar();
+        await new Promise(resolve => requestAnimationFrame(resolve));
+
+        const betaSource = document.querySelector('#sidebar .ws-item[data-ws-id="beta"]');
+        const alphaTarget = document.querySelector('#sidebar .ws-item[data-ws-id="alpha"]');
+        if (!betaSource || !alphaTarget) {
+            return {
+                ok: false,
+                reason: 'Missing beta source or alpha nesting target after reorder',
+                sourceDraggable: source.draggable,
+                nativeDragStartCount,
+                order: config.workspaces.map((ws) => ws.id)
+            };
+        }
+
+        document.elementFromPoint = function () { return alphaTarget; };
+        betaSource.dispatchEvent(new PointerEvent('pointerdown', {
+            bubbles: true,
+            cancelable: true,
+            pointerId: 22,
+            button: 0,
+            clientX: 36,
+            clientY: 260
+        }));
+        await new Promise(resolve => setTimeout(resolve, 140));
+        betaSource.dispatchEvent(new PointerEvent('pointermove', {
+            bubbles: true,
+            cancelable: true,
+            pointerId: 22,
+            button: 0,
+            clientX: 48,
+            clientY: 185
+        }));
+        betaSource.dispatchEvent(new PointerEvent('pointerup', {
+            bubbles: true,
+            cancelable: true,
+            pointerId: 22,
+            button: 0,
+            clientX: 48,
+            clientY: 185
+        }));
+        document.elementFromPoint = originalElementFromPoint;
+        await new Promise(resolve => setTimeout(resolve, 120));
+
+        const alphaNode = window.EveWorkspaceHelpers.findById(config.workspaces, 'alpha');
+        return {
+            ok: true,
+            sourceDraggable: source.draggable,
+            betaSourceDraggable: betaSource.draggable,
+            nativeDragStartCount,
+            order: config.workspaces.map((ws) => ws.id),
+            alphaChildren: Array.isArray(alphaNode && alphaNode.subTabs)
+                ? alphaNode.subTabs.map((ws) => ws.id)
+                : []
+        };
+    });
+
+    if (!result.ok) {
+        throw new Error(`Sidebar root pointer reorder setup failed: ${JSON.stringify(result, null, 2)}`);
+    }
+    if (result.sourceDraggable || result.betaSourceDraggable || result.nativeDragStartCount !== 0) {
+        throw new Error(`Expected workspace reorder to avoid native drag ghost: ${JSON.stringify(result, null, 2)}`);
+    }
+    const order = result.order;
+    if (order.join('|') !== 'main|gamma|alpha') {
         throw new Error(`Unexpected sidebar root order after drag reorder: ${order.join(' | ')}`);
+    }
+    if (result.alphaChildren.join('|') !== 'beta') {
+        throw new Error(`Expected dropping a tab on another tab to nest it: ${JSON.stringify(result, null, 2)}`);
     }
 }
 

@@ -8,9 +8,9 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
 
     rt.attachNestedWorkspacePointerDrag = function attachNestedWorkspacePointerDrag(ctx, item, ws) {
             var pointerDrag = null;
-            var LONG_PRESS_DRAG_MS = 175;
+            var LONG_PRESS_DRAG_MS = 120;
             var SORT_MODE_DRAG_MS = 45;
-            var NORMAL_MOVE_THRESHOLD_PX = 3;
+            var NORMAL_MOVE_THRESHOLD_PX = 2;
             var SORT_MODE_MOVE_THRESHOLD_PX = 1;
 
             function isSortModeActive() {

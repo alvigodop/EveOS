@@ -186,7 +186,7 @@ async function runSmoke(page) {
             && !result.deepParentId
             && result.grandChildren.length === 0
             && !staleGrandOrder.includes('workspace:deep')
-            && result.sourceDraggable
+            && !result.sourceDraggable
             && result.sourceHasPointerMove
             && result.groupHeaderHasPointerDrop;
 

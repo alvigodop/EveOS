@@ -53,7 +53,7 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         var isGroupOverviewActive = !!String(config.groupOverviewId || '').trim();
         var isWorkspaceActive = config.viewMode !== 'unidex' && config.activeWorkspace === ws.id && !isGroupOverviewActive;
         var isInactive = ctx.isWorkspaceEffectivelyInactive(ws);
-        var nativeWorkspaceDragEnabled = !isSortModeActive();
+        var nativeWorkspaceDragEnabled = false;
 
         if (isInactive && !ctx.shouldShowInactiveTabs() && !renderOptions.renderInactive) return;
 
@@ -267,41 +267,8 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             if (isInactive) return false;
             var workspaceId = String(dragId || '').trim();
             if (!workspaceId || workspaceId === String(ws.id)) return false;
-            if (renderOptions.groupPreview
-                && String(renderOptions.groupId || '').trim()
-                && currentDepth === renderOptions.groupPreviewBaseDepth) {
-                var isRootWorkspaceDrag = !!(ctx.groupsApi
-                    && typeof ctx.groupsApi.isRootWorkspace === 'function'
-                    && ctx.groupsApi.isRootWorkspace(workspaceId, config));
-                var targetHasChildren = !!(
-                    (Array.isArray(ws.subTabs) && ws.subTabs.length > 0)
-                    || (ctx.groupsApi && typeof ctx.groupsApi.getGroupsForParent === 'function'
-                        && ctx.groupsApi.getGroupsForParent(ws.id, config).length > 0)
-                );
-                if (isRootWorkspaceDrag && targetHasChildren) {
-                    return ctx.moveWorkspaceIntoGroup(workspaceId, renderOptions.groupId, ws.id);
-                }
-                var targetEntries = ctx.getVisibleParentEntries(ws.id);
-                return ctx.moveWorkspaceToParentContext(workspaceId, ws.id, null, targetEntries, targetEntries.length);
-            }
-
-            var targetParentId = String(renderOptions.parentWorkspaceId || '').trim();
-            if (targetParentId) {
-                var dragParent = ctx.helpers && typeof ctx.helpers.findParent === 'function'
-                    ? ctx.helpers.findParent(config.workspaces, workspaceId)
-                    : null;
-                var dragParentId = String(dragParent && dragParent.id || '').trim();
-                if (dragParentId !== targetParentId) {
-                    var childEntries = ctx.getVisibleParentEntries(ws.id);
-                    return ctx.moveWorkspaceToParentContext(workspaceId, ws.id, null, childEntries, childEntries.length);
-                }
-            }
-            var siblingEntries = Array.isArray(renderOptions.orderedEntries)
-                ? renderOptions.orderedEntries
-                : ctx.getVisibleParentEntries(targetParentId);
-            var siblingIndex = typeof renderOptions.entryIndex === 'number' ? renderOptions.entryIndex : siblingEntries.length;
-            var beforeEntry = renderOptions.beforeEntry || null;
-            return ctx.moveWorkspaceToParentContext(workspaceId, targetParentId, beforeEntry, siblingEntries, siblingIndex);
+            var childEntries = ctx.getVisibleParentEntries(ws.id);
+            return ctx.moveWorkspaceToParentContext(workspaceId, ws.id, null, childEntries, childEntries.length);
         }
 
         item.__eveSidebarApplyPointerDrop = applyWorkspaceDropTarget;

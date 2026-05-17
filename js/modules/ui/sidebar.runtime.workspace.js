@@ -127,20 +127,13 @@ function handleSidebarWorkspaceDrop(ctx, dragId, targetWorkspaceId) {
 
     function renderRootTree(ctx) {
         var orderedEntries = ctx.getVisibleParentEntries('');
-        if (ctx.isManualSidebarOrder()) {
-            var treeHost = document.createElement('div');
-            treeHost.className = 'ws-tree-host';
-            renderParentEntries(ctx, '', treeHost, 0, {
-                manualSlots: true,
-                rootBlocks: true
-            });
-            ctx.sb.appendChild(treeHost);
-            return;
-        }
-
-        orderedEntries.forEach(function (entry) {
-            renderEntry(ctx, entry, ctx.sb, 0, { manualSlots: false });
+        var treeHost = document.createElement('div');
+        treeHost.className = 'ws-tree-host';
+        renderParentEntries(ctx, '', treeHost, 0, {
+            manualSlots: true,
+            rootBlocks: true
         });
+        ctx.sb.appendChild(treeHost);
     }
 
     rt.renderEntry = renderEntry;

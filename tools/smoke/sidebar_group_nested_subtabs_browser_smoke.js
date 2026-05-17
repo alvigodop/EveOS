@@ -45,14 +45,84 @@ async function seedState(page, mode) {
 }
 
 async function performNestedDrag(page) {
-    await page.dragAndDrop('#sidebar .ws-item[data-ws-id="beta"]', '#sidebar .ws-item[data-ws-id="alpha"]', { force: true });
+    await page.evaluate(async () => {
+        async function pointerDropOnTab(sourceId, targetId, pointerId) {
+            const source = document.querySelector(`#sidebar .ws-item[data-ws-id="${sourceId}"]`);
+            const target = document.querySelector(`#sidebar .ws-item[data-ws-id="${targetId}"]`);
+            if (!source || !target) throw new Error(`Missing source ${sourceId} or target ${targetId}`);
+            const originalElementFromPoint = document.elementFromPoint.bind(document);
+            document.elementFromPoint = function () { return target; };
+            source.dispatchEvent(new PointerEvent('pointerdown', {
+                bubbles: true,
+                cancelable: true,
+                pointerId,
+                button: 0,
+                clientX: 40,
+                clientY: 180
+            }));
+            await new Promise(resolve => setTimeout(resolve, 140));
+            source.dispatchEvent(new PointerEvent('pointermove', {
+                bubbles: true,
+                cancelable: true,
+                pointerId,
+                button: 0,
+                clientX: 60,
+                clientY: 210
+            }));
+            source.dispatchEvent(new PointerEvent('pointerup', {
+                bubbles: true,
+                cancelable: true,
+                pointerId,
+                button: 0,
+                clientX: 60,
+                clientY: 210
+            }));
+            document.elementFromPoint = originalElementFromPoint;
+            await new Promise(resolve => setTimeout(resolve, 120));
+        }
+
+        await pointerDropOnTab('beta', 'alpha', 31);
+    });
     await page.waitForFunction(() => {
         const helpers = window.EveWorkspaceHelpers;
         const betaParent = helpers.findParent(config.workspaces, 'beta');
         return betaParent && betaParent.id === 'alpha'
             && !!document.querySelector('#sidebar .ws-node-wrapper[data-ws-id="beta"] > .ws-item');
     }, undefined, { timeout: 10000 });
-    await page.dragAndDrop('#sidebar .ws-item[data-ws-id="gamma"]', '#sidebar .ws-item[data-ws-id="beta"]', { force: true });
+    await page.evaluate(async () => {
+        const source = document.querySelector('#sidebar .ws-item[data-ws-id="gamma"]');
+        const target = document.querySelector('#sidebar .ws-item[data-ws-id="beta"]');
+        if (!source || !target) throw new Error('Missing gamma source or beta target');
+        const originalElementFromPoint = document.elementFromPoint.bind(document);
+        document.elementFromPoint = function () { return target; };
+        source.dispatchEvent(new PointerEvent('pointerdown', {
+            bubbles: true,
+            cancelable: true,
+            pointerId: 32,
+            button: 0,
+            clientX: 40,
+            clientY: 260
+        }));
+        await new Promise(resolve => setTimeout(resolve, 140));
+        source.dispatchEvent(new PointerEvent('pointermove', {
+            bubbles: true,
+            cancelable: true,
+            pointerId: 32,
+            button: 0,
+            clientX: 60,
+            clientY: 300
+        }));
+        source.dispatchEvent(new PointerEvent('pointerup', {
+            bubbles: true,
+            cancelable: true,
+            pointerId: 32,
+            button: 0,
+            clientX: 60,
+            clientY: 300
+        }));
+        document.elementFromPoint = originalElementFromPoint;
+        await new Promise(resolve => setTimeout(resolve, 120));
+    });
     await page.waitForFunction(() => {
         const helpers = window.EveWorkspaceHelpers;
         const gammaParent = helpers.findParent(config.workspaces, 'gamma');

@@ -337,10 +337,9 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             }
 
             function canAcceptDrop() {
-                if (!ctx.isManualSidebarOrder()) return false;
-
                 var dragGroupId = ctx.getDraggedGroupId();
                 if (dragGroupId) {
+                    if (!ctx.isManualSidebarOrder()) return false;
                     if (!groupsApi || typeof groupsApi.canPlaceGroupUnderWorkspace !== 'function') return false;
                     return groupsApi.canPlaceGroupUnderWorkspace(dragGroupId, opts.parentWorkspaceId || '', config);
                 }

@@ -200,7 +200,7 @@ async function runSmoke(page) {
                 && !leaf1Parent
                 && groupRoots.join('|') === 'groupRoot|leaf1'
                 && manualOrder.join('|') === 'workspace:leaf2'
-                && source.draggable
+                && !source.draggable
                 && typeof source.onpointermove === 'function'
                 && typeof firstSlot.__eveSidebarApplyPointerDrop === 'function'
                 && groupHeaderHasPointerDrop,

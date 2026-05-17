@@ -45,16 +45,95 @@ async function seedState(page) {
 }
 
 async function runSmoke(page) {
-    await page.dragAndDrop('#sidebar .ws-group-section[data-group-id="group-1"] .ws-item[data-ws-id="gamma"]', '#sidebar .ws-group-section[data-group-id="group-1"] .ws-item[data-ws-id="alpha"]', { force: true });
-    await page.waitForTimeout(400);
+    await page.evaluate(async () => {
+        async function pointerDropOnSlot(sourceSelector, slot, pointerId) {
+            const source = document.querySelector(sourceSelector);
+            if (!source || !slot) throw new Error(`Missing pointer reorder source or slot for ${sourceSelector}`);
+            const originalElementFromPoint = document.elementFromPoint.bind(document);
+            document.elementFromPoint = function () { return slot; };
+            source.dispatchEvent(new PointerEvent('pointerdown', {
+                bubbles: true,
+                cancelable: true,
+                pointerId,
+                button: 0,
+                clientX: 40,
+                clientY: 220
+            }));
+            await new Promise(resolve => setTimeout(resolve, 140));
+            source.dispatchEvent(new PointerEvent('pointermove', {
+                bubbles: true,
+                cancelable: true,
+                pointerId,
+                button: 0,
+                clientX: 54,
+                clientY: 190
+            }));
+            source.dispatchEvent(new PointerEvent('pointerup', {
+                bubbles: true,
+                cancelable: true,
+                pointerId,
+                button: 0,
+                clientX: 54,
+                clientY: 190
+            }));
+            document.elementFromPoint = originalElementFromPoint;
+            await new Promise(resolve => setTimeout(resolve, 140));
+        }
+
+        const alphaWrapper = document.querySelector('#sidebar .ws-group-section[data-group-id="group-1"] .ws-node-wrapper[data-ws-id="alpha"]');
+        const beforeAlphaSlot = alphaWrapper ? alphaWrapper.previousElementSibling : null;
+        await pointerDropOnSlot(
+            '#sidebar .ws-group-section[data-group-id="group-1"] .ws-item[data-ws-id="gamma"]',
+            beforeAlphaSlot,
+            41
+        );
+    });
 
     const order = await page.evaluate(() => config.workspaces.map((ws) => `${ws.id}:${ws.groupId || ''}`));
     if (order.join('|') !== 'main:|gamma:group-1|alpha:group-1|beta:group-1') {
         throw new Error(`Unexpected grouped sidebar order after drag reorder: ${order.join(' | ')}`);
     }
 
-    await page.dragAndDrop('#sidebar .ws-group-section[data-group-id="group-1"] .ws-node-wrapper[data-ws-id="alpha"] > .ws-node-children .ws-item[data-ws-id="alpha-2"]', '#sidebar .ws-group-section[data-group-id="group-1"] .ws-node-wrapper[data-ws-id="alpha"] > .ws-node-children .ws-item[data-ws-id="alpha-1"]', { force: true });
-    await page.waitForTimeout(400);
+    await page.evaluate(async () => {
+        const alphaWrapper = document.querySelector('#sidebar .ws-group-section[data-group-id="group-1"] .ws-node-wrapper[data-ws-id="alpha"]');
+        const alphaOneWrapper = alphaWrapper
+            ? alphaWrapper.querySelector('.ws-node-wrapper[data-ws-id="alpha-1"]')
+            : null;
+        const beforeAlphaOneSlot = alphaOneWrapper ? alphaOneWrapper.previousElementSibling : null;
+        const source = alphaWrapper
+            ? alphaWrapper.querySelector('.ws-node-wrapper[data-ws-id="alpha-2"] > .ws-item')
+            : null;
+        if (!source || !beforeAlphaOneSlot) throw new Error('Missing nested source or nested slot');
+        const originalElementFromPoint = document.elementFromPoint.bind(document);
+        document.elementFromPoint = function () { return beforeAlphaOneSlot; };
+        source.dispatchEvent(new PointerEvent('pointerdown', {
+            bubbles: true,
+            cancelable: true,
+            pointerId: 42,
+            button: 0,
+            clientX: 42,
+            clientY: 300
+        }));
+        await new Promise(resolve => setTimeout(resolve, 140));
+        source.dispatchEvent(new PointerEvent('pointermove', {
+            bubbles: true,
+            cancelable: true,
+            pointerId: 42,
+            button: 0,
+            clientX: 55,
+            clientY: 260
+        }));
+        source.dispatchEvent(new PointerEvent('pointerup', {
+            bubbles: true,
+            cancelable: true,
+            pointerId: 42,
+            button: 0,
+            clientX: 55,
+            clientY: 260
+        }));
+        document.elementFromPoint = originalElementFromPoint;
+        await new Promise(resolve => setTimeout(resolve, 140));
+    });
 
     const nestedOrder = await page.evaluate(() => {
         const alpha = config.workspaces.find((ws) => ws.id === 'alpha');

@@ -160,6 +160,20 @@
     box-shadow: 0 0 14px rgba(0, 212, 255, 0.32) !important;
 }
 
+#sidebar.ws-drag-active .ws-item.ws-drop-target:not(.ws-drop-target-card)::after,
+#sidebar.ws-sort-mode-active .ws-item.ws-drop-target:not(.ws-drop-target-card)::after {
+    content: '';
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    bottom: 3px;
+    height: 3px;
+    border-radius: 999px;
+    background: rgba(0, 212, 255, 0.95);
+    box-shadow: 0 0 10px rgba(0, 212, 255, 0.55);
+    pointer-events: none;
+}
+
 .ws-add.ws-drop-target {
     border-color: rgba(168, 130, 255, 0.7) !important;
     color: rgba(168, 130, 255, 0.9) !important;

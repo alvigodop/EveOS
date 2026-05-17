@@ -93,7 +93,8 @@
     min-width: 0;
     box-sizing: border-box;
     max-width: 100%;
-    -webkit-user-drag: element;
+    -webkit-user-drag: none;
+    user-drag: none;
 }
 
 .ws-item:hover,

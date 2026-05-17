@@ -242,7 +242,7 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
                 renderGroupMembers(ctx, visibleWorkspaces, body, {
                     groupId: groupId,
                     depth: currentDepth + 1,
-                    manualSlots: manualMode,
+                    manualSlots: manualMode || !!opts.manualSlots,
                     groupColor: groupColor,
                     renderInactive: isHiddenGroup
                 });
