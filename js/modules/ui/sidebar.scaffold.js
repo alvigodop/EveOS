@@ -68,6 +68,11 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             if (!dragId) return;
             if (ctx.promoteToRoot(dragId, null, [], 0)) ctx.saveAndRefresh(true);
         };
+        addBtn.__eveSidebarApplyPointerDrop = function (dragId) {
+            var workspaceId = String(dragId || '').trim();
+            if (!workspaceId) return false;
+            return ctx.promoteToRoot(workspaceId, null, [], 0);
+        };
         return addBtn;
     }
 

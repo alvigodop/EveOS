@@ -50,6 +50,10 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
                 if (!event || typeof document.elementFromPoint !== 'function') return null;
                 var pointTarget = document.elementFromPoint(event.clientX, event.clientY);
                 if (!(pointTarget instanceof Element)) return null;
+                var addTarget = pointTarget.closest('.ws-add');
+                if (addTarget && typeof addTarget.__eveSidebarApplyPointerDrop === 'function') {
+                    return addTarget;
+                }
                 var slotTarget = pointTarget.closest('.ws-order-slot');
                 if (slotTarget && typeof slotTarget.__eveSidebarApplyPointerDrop === 'function') {
                     return slotTarget;
