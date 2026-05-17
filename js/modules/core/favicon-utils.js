@@ -199,6 +199,10 @@
             if (cachedSrc && !hasDomainFailure(normalized)) return cachedSrc;
         }
 
+        if (window._eveStartupBookmarkPaintActive || window._eveMegaPerfMode) {
+            return getFallbackSrc(normalized, size || 32);
+        }
+
         if (hasDomainFailure(normalized)) return getFallbackSrc(normalized, size || 32);
         return buildRemoteUrl(normalized, size || 32);
     }
@@ -209,6 +213,10 @@
 
         const src = getSrc(normalized, size);
         if (src) return src;
+
+        if (window._eveStartupBookmarkPaintActive || window._eveMegaPerfMode) {
+            return getFallbackSrc(normalized, size || 32);
+        }
 
         if (hasDomainFailure(normalized)) return getFallbackSrc(normalized, size || 32);
         return buildRemoteUrl(normalized, size || 32);

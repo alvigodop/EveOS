@@ -123,6 +123,7 @@ window.DashboardCategories = window.DashboardCategories || {};
         var HEAVY_CARD_THRESHOLD = 80;
         var shouldForceDeferredShell = !!options._forceDeferredShell;
         var hydrationDelayMs = Math.max(0, Number(options._deferredHydrationDelayMs || 0));
+        var useIdleHydration = !!options._deferredUseIdle;
         var cardLinkCount = resolveDeferredLinkCount(catLinks, options);
         var cardWorkspaceId = typeof catInput === 'object' && catInput
             ? (catInput.workspaceId || options.activeWorkspace || 'main')
@@ -218,6 +219,17 @@ window.DashboardCategories = window.DashboardCategories || {};
                 return resolvedCatLinks;
             }
 
+            function scheduleDeferredWork(callback, delayMs, timeoutMs) {
+                var safeDelay = Math.max(0, Number(delayMs || 0) || 0);
+                window.setTimeout(function () {
+                    if (useIdleHydration && typeof window.requestIdleCallback === 'function') {
+                        window.requestIdleCallback(callback, { timeout: Math.max(300, Number(timeoutMs || 1200) || 1200) });
+                    } else {
+                        callback();
+                    }
+                }, safeDelay);
+            }
+
             function doDeferredBuild() {
                 if (cardGen != null && window._eveDashRenderGen !== cardGen) return;
                 if (!shellCard.parentNode) return;
@@ -261,7 +273,7 @@ window.DashboardCategories = window.DashboardCategories || {};
 
                 if (!isMega) return;
 
-                setTimeout(function ghostHydrationStep() {
+                scheduleDeferredWork(function ghostHydrationStep() {
                     if (cardGen != null && window._eveDashRenderGen !== cardGen) return;
                     if (!fullCard.parentNode) return;
 
@@ -292,10 +304,10 @@ window.DashboardCategories = window.DashboardCategories || {};
                             }
                         }
                     }
-                }, 300);
+                }, 300, 1600);
             }
 
-            setTimeout(doDeferredBuild, hydrationDelayMs);
+            scheduleDeferredWork(doDeferredBuild, hydrationDelayMs, 1400);
             return;
         }
 

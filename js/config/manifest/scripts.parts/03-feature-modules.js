@@ -4,7 +4,7 @@ window.EveModuleManifestScriptChunks = window.EveModuleManifestScriptChunks || [
 
 window.EveModuleManifestScriptChunks.push([
     // Feature Modules (Consolidated)
-    "js/modules/features/favicon-cache.js?v=0.1.0",
+    "js/modules/features/favicon-cache.js?v=0.1.1",
     "js/modules/features/weather.js",
     "js/modules/features/timer.js",
     "js/modules/features/custom-order.js",

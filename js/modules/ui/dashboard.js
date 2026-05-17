@@ -47,6 +47,10 @@ function shouldSkipDashboardCardScrollPreserve(renderHint) {
     );
 }
 
+function isDashboardStartupRenderHint(renderHint) {
+    return !!(renderHint && renderHint.kind === 'startup');
+}
+
 function getDashboardLiveLinkMap(sourceLinks) {
     var linksList = Array.isArray(sourceLinks) ? sourceLinks : [];
     var firstId = linksList.length ? String(linksList[0]?.id || '').trim() : '';
@@ -164,13 +168,14 @@ function collectIndexedDashboardVisibleLinks(sourceLinks, scope, matcher) {
 function _renderDashboardImmediate() {
     var renderHint = consumeDashboardRenderHint();
     var isWsSwitch = shouldSkipDashboardCardScrollPreserve(renderHint);
+    var isStartupRender = isDashboardStartupRenderHint(renderHint);
 
     // Fast path for workspace switches: skip all scroll preservation overhead
     // (layout reflow from scrollHeight measurement, spacer div, card scroll queries)
-    if (isWsSwitch) {
+    if (isWsSwitch || isStartupRender) {
         clearDashboardScrollPreservation();
         _renderDashboardCore(renderHint);
-        window.scrollTo(0, 0);
+        if (isWsSwitch) window.scrollTo(0, 0);
         return;
     }
 
@@ -239,6 +244,7 @@ function _renderDashboardCore(renderHint) {
     const isSearchActive = searchTerms.length > 0;
     const isListMode = config.viewMode === 'list';
     const isUnidexMode = config.viewMode === 'unidex';
+    const isStartupRender = isDashboardStartupRenderHint(renderHint);
 
     // --- Workspace DOM Cache: save outgoing, try restore incoming ---
     var cache = window.EveDashboardCache || null;
@@ -437,6 +443,19 @@ function _renderDashboardCore(renderHint) {
     // Level 2: Mega Perf Mode (1500+) - strip icons, strip hovers, max throttling
     window._evePerfMode = visibleLinks.length > 600;
     window._eveMegaPerfMode = visibleLinks.length > 1500;
+    if (isStartupRender) {
+        window._eveStartupBookmarkPaintActive = true;
+        window.__eveStartupBookmarkPaintGen = _eveDashRenderGen;
+        if (window.__eveStartupBookmarkPaintTimer) {
+            clearTimeout(window.__eveStartupBookmarkPaintTimer);
+        }
+        window.__eveStartupBookmarkPaintTimer = setTimeout(function () {
+            if (window.__eveStartupBookmarkPaintGen === _eveDashRenderGen) {
+                window._eveStartupBookmarkPaintActive = false;
+            }
+            window.__eveStartupBookmarkPaintTimer = 0;
+        }, 7200);
+    }
 
     if (isUnidexMode) {
         if (focusBanner) focusBanner.style.display = 'none';
@@ -464,8 +483,8 @@ function _renderDashboardCore(renderHint) {
 
     if (window.EveBookmarkCovers && typeof window.EveBookmarkCovers.scheduleWarmup === 'function' && !window._eveMegaPerfMode) {
         window.EveBookmarkCovers.scheduleWarmup(visibleLinks, {
-            limit: window._evePerfMode ? 36 : 96,
-            delayMs: window._evePerfMode ? 1800 : 900
+            limit: isStartupRender ? (window._evePerfMode ? 18 : 42) : (window._evePerfMode ? 36 : 96),
+            delayMs: isStartupRender ? 2800 : (window._evePerfMode ? 1800 : 900)
         });
     }
 
@@ -476,13 +495,20 @@ function _renderDashboardCore(renderHint) {
         setTimeout(function () {
             if (_eveDashRenderGen !== _masonryGen) return;
             applyDashboardLayoutMaintenance(grid);
-        }, 100);
+        }, isStartupRender ? 180 : 100);
     } else {
         console.error('renderCategories not found');
     }
 
     // Schedule prefetch of adjacent tabs during idle time
     if (window.EveDashboardPrefetch && typeof window.EveDashboardPrefetch.schedulePrefetch === 'function') {
-        window.EveDashboardPrefetch.schedulePrefetch();
+        if (isStartupRender) {
+            setTimeout(function () {
+                if (_eveDashRenderGen !== window.__eveStartupBookmarkPaintGen && window._eveStartupBookmarkPaintActive) return;
+                window.EveDashboardPrefetch.schedulePrefetch();
+            }, 2200);
+        } else {
+            window.EveDashboardPrefetch.schedulePrefetch();
+        }
     }
 }

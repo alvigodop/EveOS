@@ -6,6 +6,10 @@
     const TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
     const FAVICON_PROVIDER_BASE = 'https://icons.duckduckgo.com/ip3';
     const MAX_MEMORY = 500; // In-memory LRU cap
+    const RENDER_MISS_FETCH_BUDGET = 80;
+    const QUEUED_FETCH_BATCH = 3;
+    const QUEUED_FETCH_GAP_MS = 180;
+    const DEFAULT_WARMUP_MAX_UNCACHED = 120;
     const placeholderCache = new Map();
 
     // ── In-memory fast-path cache ──
@@ -15,6 +19,14 @@
     let diskLoaded = false;
     let diskLoadPromise = null;
     let _warmupScheduled = false;
+    let _renderMissFetchBudget = RENDER_MISS_FETCH_BUDGET;
+    let _renderMissFetchBudgetResetAt = Date.now();
+    let _fetchQueueTimer = 0;
+    let _fetchQueueRunning = false;
+    const queuedFetches = [];
+    const queuedFetchKeys = new Set();
+    const pendingDomIconUpdates = new Map();
+    let domIconUpdateTimer = 0;
 
     // ── Core: load disk cache from IDB ──
     async function loadDiskCache() {
@@ -192,6 +204,82 @@
         return getPlaceholderFavicon(key, size || 32);
     }
 
+    function delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, Math.max(0, Number(ms || 0) || 0)));
+    }
+
+    function isStartupPaintActive() {
+        return !!window._eveStartupBookmarkPaintActive;
+    }
+
+    function shouldDeferRenderMissFetch() {
+        return isStartupPaintActive()
+            || !!window._eveMegaPerfMode
+            || (typeof document !== 'undefined' && document.visibilityState === 'hidden');
+    }
+
+    function scheduleDomIconUpdate(domain, src) {
+        const key = normalizeDomain(domain);
+        if (!key || !src || typeof document === 'undefined') return;
+        pendingDomIconUpdates.set(key, src);
+        if (domIconUpdateTimer) return;
+        domIconUpdateTimer = setTimeout(function flushDomIconUpdates() {
+            domIconUpdateTimer = 0;
+            if (!pendingDomIconUpdates.size) return;
+            const updates = new Map(pendingDomIconUpdates);
+            pendingDomIconUpdates.clear();
+            const images = document.querySelectorAll('img[data-favicon-domain]');
+            images.forEach(function (image) {
+                const imageDomain = normalizeDomain(image.dataset?.faviconDomain || '');
+                const nextSrc = updates.get(imageDomain);
+                if (!nextSrc || image.src === nextSrc) return;
+                image.dataset.fallbackApplied = '';
+                image.src = nextSrc;
+            });
+        }, 220);
+    }
+
+    function runQueuedFetchesSoon() {
+        if (_fetchQueueRunning || _fetchQueueTimer || !queuedFetches.length) return;
+        _fetchQueueTimer = setTimeout(async function processQueuedFetches() {
+            _fetchQueueTimer = 0;
+            if (_fetchQueueRunning) return;
+            _fetchQueueRunning = true;
+            try {
+                await loadDiskCache();
+                while (queuedFetches.length) {
+                    const batch = queuedFetches.splice(0, QUEUED_FETCH_BATCH);
+                    batch.forEach(item => queuedFetchKeys.delete(item.key));
+                    await Promise.allSettled(batch.map(item => fetchAndCache(item.key, item.size)));
+                    if (queuedFetches.length) await delay(QUEUED_FETCH_GAP_MS);
+                }
+            } finally {
+                _fetchQueueRunning = false;
+            }
+        }, isStartupPaintActive() ? 1800 : 650);
+    }
+
+    function queueFetch(domain, size, source) {
+        const key = normalizeDomain(domain);
+        if (!key || getCachedIcon(key) || _inFlight.has(key) || queuedFetchKeys.has(key)) return false;
+
+        const isWarmup = source === 'warmup';
+        if (!isWarmup) {
+            if (Date.now() - _renderMissFetchBudgetResetAt > 60000) {
+                _renderMissFetchBudget = RENDER_MISS_FETCH_BUDGET;
+                _renderMissFetchBudgetResetAt = Date.now();
+            }
+            if (shouldDeferRenderMissFetch()) return false;
+            if (_renderMissFetchBudget <= 0) return false;
+            _renderMissFetchBudget -= 1;
+        }
+
+        queuedFetchKeys.add(key);
+        queuedFetches.push({ key, size: size || 32 });
+        runQueuedFetchesSoon();
+        return true;
+    }
+
     function fetchFaviconDataUri(domain, size) {
         const sz = size || 32;
         const url = buildRemoteUrl(domain, sz);
@@ -247,14 +335,14 @@
         if (!canFetchRemoteFavicons()) return getPlaceholderFavicon(key, 32);
 
         // Miss — schedule background fetch (non-blocking)
-        fetchAndCache(key, 32);
+        queueFetch(key, 32, 'get-miss');
 
         return ''; // Caller should use fallback
     }
 
     /**
      * Get the favicon URL to use in an <img> src attribute.
-     * Returns cached data URI if available, otherwise returns the live Google URL.
+     * Returns cached data URI if available, otherwise returns a local placeholder.
      * This is the primary integration point — call this instead of building Google URLs.
      */
     function getSrc(domain, size) {
@@ -266,11 +354,12 @@
         const cached = getCachedIcon(key);
         if (cached) return cached;
 
-        // Schedule background cache
-        fetchAndCache(key, sz);
+        // Do not put remote provider URLs directly into first-paint DOM.
+        // They create many parallel image requests on large datapacks. Queue a
+        // bounded background cache fill and render a stable local placeholder.
+        queueFetch(key, sz, 'render-miss');
 
-        // Return provider URL as temporary fallback (browser cache will help after first hit)
-        return buildRemoteUrl(key, sz);
+        return getFallbackSrc(key, sz);
     }
 
     /**
@@ -311,6 +400,7 @@
                 trimMemory();
                 diskCache[key] = { dataUri, ts: Date.now() };
                 saveDiskCache();
+                scheduleDomIconUpdate(key, dataUri);
             }
 
             return dataUri || '';
@@ -337,9 +427,25 @@
      * Warmup: pre-cache favicons for all visible bookmarks.
      * Called once after dashboard first renders.
      */
-    function warmup() {
+    function collectRenderedFaviconDomains() {
+        const result = [];
+        const seen = new Set();
+        if (typeof document === 'undefined') return result;
+        document.querySelectorAll('img[data-favicon-domain]').forEach(function (image) {
+            const key = normalizeDomain(image.dataset?.faviconDomain || '');
+            if (!key || seen.has(key) || getCachedIcon(key)) return;
+            seen.add(key);
+            result.push(key);
+        });
+        return result;
+    }
+
+    function warmup(options) {
         if (_warmupScheduled || !canFetchRemoteFavicons()) return;
         _warmupScheduled = true;
+        const opts = options || {};
+        const warmupDelayMs = Math.max(1500, Number(opts.delayMs || 4200) || 4200);
+        const maxUncached = Math.max(12, Number(opts.maxUncached || DEFAULT_WARMUP_MAX_UNCACHED) || DEFAULT_WARMUP_MAX_UNCACHED);
 
         // Delay warmup to not compete with initial render
         setTimeout(async function () {
@@ -348,38 +454,44 @@
             const allLinks = typeof window.getLiveLinks === 'function'
                 ? window.getLiveLinks()
                 : (window.eveState?.links || (typeof links !== 'undefined' ? links : []));
-            if (!Array.isArray(allLinks)) return;
+            if (!Array.isArray(allLinks)) {
+                _warmupScheduled = false;
+                return;
+            }
 
             // Collect unique domains that need caching
             const needed = new Set();
+            collectRenderedFaviconDomains().forEach(function (domain) {
+                if (needed.size < maxUncached) needed.add(domain);
+            });
             for (let i = 0; i < allLinks.length; i++) {
+                if (needed.size >= maxUncached) break;
                 const link = allLinks[i];
                 if (!link || !link.url) continue;
                 // Skip if link already has a custom icon
                 if (link.icon && link.icon !== '\u{1F517}') continue;
-                try {
-                    const hostname = new URL(link.url).hostname;
-                    if (!hostname || !hostname.includes('.')) continue;
-                    const key = hostname.toLowerCase().replace(/^www\./, '');
-                    if (!memoryCache.has(key)) needed.add(key);
-                } catch (e) { /* skip invalid URLs */ }
+                const key = getDomainFromUrl(link.url);
+                if (!key || !key.includes('.')) continue;
+                if (!memoryCache.has(key)) needed.add(key);
             }
 
-            if (needed.size === 0) return;
-            console.log(`[FaviconCache] Warming up ${needed.size} uncached favicons...`);
+            if (needed.size === 0) {
+                _warmupScheduled = false;
+                return;
+            }
+            console.log(`[FaviconCache] Warming up ${needed.size} uncached favicons (${opts.reason || 'background'})...`);
 
             // Process in small batches to avoid network flooding
-            const BATCH = 6;
+            const BATCH = QUEUED_FETCH_BATCH;
             const domains = Array.from(needed);
             for (let i = 0; i < domains.length; i += BATCH) {
                 const batch = domains.slice(i, i + BATCH);
                 await Promise.allSettled(batch.map(d => fetchAndCache(d, 32)));
-                // Tiny yield between batches
-                await new Promise(r => setTimeout(r, 50));
+                if (i + BATCH < domains.length) await delay(QUEUED_FETCH_GAP_MS);
             }
 
             console.log(`[FaviconCache] Warmup complete. ${memoryCache.size} domains cached.`);
-        }, 3000);
+        }, warmupDelayMs);
     }
 
     /**
@@ -406,6 +518,9 @@
             memorySize: memoryCache.size,
             diskSize: diskCache ? Object.keys(diskCache).length : 0,
             diskLoaded: diskLoaded,
+            queuedFetches: queuedFetches.length,
+            renderMissFetchBudget: _renderMissFetchBudget,
+            startupPaintActive: isStartupPaintActive(),
             remoteFetchEnabled: canFetchRemoteFavicons()
         };
     }

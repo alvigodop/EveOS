@@ -389,15 +389,29 @@ async function loadData() {
     if (typeof renderSidebar === 'function') renderSidebar();
 
     setTimeout(function () {
+        window._eveStartupBookmarkPaintActive = true;
+        window.__eveDashboardRenderHint = {
+            kind: 'startup',
+            source: 'storage-load',
+            linkCount: Array.isArray(links) ? links.length : 0,
+            startedAt: Date.now()
+        };
         if (typeof renderDashboard === 'function') renderDashboard();
         // Defer suggestions even further — they're not visible initially
         setTimeout(function () {
             if (typeof updateSuggestions === 'function') updateSuggestions();
             // Warm up favicon cache in background after initial render
             if (window.EveFaviconCache && typeof window.EveFaviconCache.warmup === 'function') {
-                window.EveFaviconCache.warmup();
+                window.EveFaviconCache.warmup({
+                    reason: 'startup',
+                    delayMs: 5200,
+                    maxUncached: 120
+                });
             }
         }, 100);
+        setTimeout(function () {
+            window._eveStartupBookmarkPaintActive = false;
+        }, 9000);
     }, 0);
 
     if (typeof updateTimeAndGreeting === 'function') {

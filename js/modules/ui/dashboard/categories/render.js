@@ -66,6 +66,7 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
         && String(renderHint.toWorkspaceId || '').trim()
         && String(renderHint.fromWorkspaceId || '').trim() !== String(renderHint.toWorkspaceId || '').trim()
     );
+    const isStartupRender = !!(renderHint && renderHint.kind === 'startup');
 
     // Only build category/link indexes on demand so workspace-switch paints do not pay
     // the full per-category exact-link resolution cost up front.
@@ -103,11 +104,15 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
         return indexedCardLinks || getCategoryLiveLinks(workspaceId, categoryName);
     }
 
-    var aggressiveDeferredCards = isCrossWorkspaceSwitchRender
+    var aggressiveDeferredCards = isStartupRender
+        || isCrossWorkspaceSwitchRender
         || (!searchStr && !focusCategory && (visibleLinks.length > 150 || categoryCount > 6));
     var CARD_CAP = aggressiveDeferredCards
         ? (visibleLinks.length > 500 ? 6 : 5)
         : (visibleLinks.length > 500 ? 2 : (visibleLinks.length > 200 ? 3 : 8));
+    if (isStartupRender) {
+        CARD_CAP = visibleLinks.length > 1000 ? 3 : (visibleLinks.length > 500 ? 4 : 5);
+    }
     if (isCrossWorkspaceSwitchRender) {
         CARD_CAP = Math.min(CARD_CAP, 0);
     }
@@ -185,9 +190,12 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
         var buildConfig = Object.assign({}, sharedBuildConfig);
         if ((aggressiveDeferredCards && desc.catLinkCount > 0) || isCrossWorkspaceSwitchRender) {
             buildConfig._forceDeferredShell = true;
-            buildConfig._deferredHydrationDelayMs = isCrossWorkspaceSwitchRender
+            buildConfig._deferredUseIdle = isStartupRender;
+            buildConfig._deferredHydrationDelayMs = isStartupRender
+                ? (renderCount < CARD_CAP ? 90 + (renderCount * 40) : 260 + (renderCount * 38))
+                : (isCrossWorkspaceSwitchRender
                 ? Math.min(120, 12 + (renderCount * 10))
-                : (renderCount < CARD_CAP ? 0 : 12);
+                : (renderCount < CARD_CAP ? 0 : 12));
         }
         if (desc.canUseLazyDeferredLinks) {
             buildConfig._deferredLinkCount = desc.catLinkCount;
@@ -255,10 +263,10 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
                 }
                 batchIdx = end;
                 if (batchIdx < deferredCards.length) {
-                    setTimeout(renderNextBatch, 0);
+                    setTimeout(renderNextBatch, isStartupRender ? 36 : 0);
                 }
             }
-            setTimeout(renderNextBatch, 0);
+            setTimeout(renderNextBatch, isStartupRender ? 56 : 0);
         }
     }
 };
