@@ -84,11 +84,11 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/ui/sidebar.runtime.shared.js?v=0.1.3",
     "js/modules/ui/sidebar.runtime.interactions.js?v=0.1.1",
     "js/modules/ui/sidebar.runtime.groups.js?v=0.1.2",
-    "js/modules/ui/sidebar.runtime.workspace.pointer-drag.js?v=0.1.5",
+    "js/modules/ui/sidebar.runtime.workspace.pointer-drag.js?v=0.1.6",
     "js/modules/ui/sidebar.runtime.workspace.item.js?v=0.1.4",
     "js/modules/ui/sidebar.runtime.workspace.js?v=0.1.1",
     "js/modules/ui/sidebar.popout.js?v=0.1.0",
-    "js/modules/ui/sidebar.scaffold.js?v=0.1.1",
+    "js/modules/ui/sidebar.scaffold.js?v=0.1.2",
     "js/modules/ui/sidebar.js?v=0.4.1",
     "js/modules/ui/dashboard/dashboard-dock.js?v=0.2.6"
 ]);
