@@ -35,7 +35,8 @@ async function waitForApp(page) {
                 collapsedTabs: [],
                 workspaces: [
                     { id: 'main', name: 'Main', icon: 'M', subTabs: [
-                        { id: 'child-a', name: 'Child A', icon: 'A', subTabs: [] }
+                        { id: 'child-a', name: 'Child A', icon: 'A', subTabs: [] },
+                        { id: 'child-b', name: 'Child B', icon: 'B', subTabs: [] }
                     ] },
                     { id: 'alt', name: 'Alt', icon: 'B', groupId: 'grp-reading', subTabs: [] }
                 ]
@@ -56,14 +57,57 @@ async function waitForApp(page) {
 
             const sidebar = document.getElementById('sidebar');
             const childItem = sidebar.querySelector('.ws-item[data-ws-id="child-a"]');
+            const childBItem = sidebar.querySelector('.ws-item[data-ws-id="child-b"]');
             const groupHeader = sidebar.querySelector('.ws-group-header');
             if (!childItem) throw new Error('Child tab item missing');
+            if (!childBItem) throw new Error('Second child tab item missing');
             if (!groupHeader) throw new Error('Group header missing');
 
+            const childHost = sidebar.querySelector('.ws-node-wrapper[data-ws-id="main"] > .ws-node-children');
+            const firstChildSlot = childHost
+                ? Array.from(childHost.children).find(element => element.classList.contains('ws-order-slot'))
+                : null;
+            if (!firstChildSlot) throw new Error('Child sort slot missing');
+
+            let nativeDragStartCount = 0;
+            childBItem.addEventListener('dragstart', () => { nativeDragStartCount += 1; });
+            const originalElementFromPoint = document.elementFromPoint.bind(document);
+            document.elementFromPoint = function () { return firstChildSlot; };
+            childBItem.dispatchEvent(new PointerEvent('pointerdown', {
+                bubbles: true,
+                cancelable: true,
+                pointerId: 10,
+                button: 0,
+                clientX: 40,
+                clientY: 140
+            }));
+            childBItem.dispatchEvent(new PointerEvent('pointermove', {
+                bubbles: true,
+                cancelable: true,
+                pointerId: 10,
+                button: 0,
+                clientX: 43,
+                clientY: 144
+            }));
+            childBItem.dispatchEvent(new PointerEvent('pointerup', {
+                bubbles: true,
+                cancelable: true,
+                pointerId: 10,
+                button: 0,
+                clientX: 43,
+                clientY: 144
+            }));
+            document.elementFromPoint = originalElementFromPoint;
+            await new Promise(resolve => setTimeout(resolve, 120));
+
+            const childOrderAfterPointerSort = config.workspaces[0].subTabs.map(tab => tab.id);
+
             const beforeClickWorkspace = config.activeWorkspace;
-            childItem.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 }));
-            childItem.click();
-            groupHeader.click();
+            const childItemAfterSort = sidebar.querySelector('.ws-item[data-ws-id="child-a"]');
+            const groupHeaderAfterSort = sidebar.querySelector('.ws-group-header');
+            childItemAfterSort.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 }));
+            childItemAfterSort.click();
+            groupHeaderAfterSort.click();
             await new Promise(resolve => setTimeout(resolve, 80));
 
             const afterSortClickWorkspace = config.activeWorkspace;
@@ -79,6 +123,9 @@ async function waitForApp(page) {
                     const styles = getComputedStyle(slot);
                     return styles.pointerEvents !== 'none' && Number(styles.opacity || 0) > 0.3;
                 }).length,
+                childItemNativeDraggable: childBItem.draggable,
+                nativeDragStartCount,
+                childOrderAfterPointerSort,
                 beforeClickWorkspace,
                 afterSortClickWorkspace,
                 afterSortClickOverview
@@ -112,6 +159,12 @@ async function waitForApp(page) {
         }
         if (!result.stateDuringSort.hasSortClass || result.stateDuringSort.visibleOrderSlotCount < 2) {
             throw new Error(`Expected visible sort slots in sidebar: ${JSON.stringify(result)}`);
+        }
+        if (result.stateDuringSort.childItemNativeDraggable || result.stateDuringSort.nativeDragStartCount !== 0) {
+            throw new Error(`Expected sort mode to suppress native tab drag image: ${JSON.stringify(result)}`);
+        }
+        if (result.stateDuringSort.childOrderAfterPointerSort.join('|') !== 'child-b|child-a') {
+            throw new Error(`Expected pointer sort mode to reorder child tabs: ${JSON.stringify(result)}`);
         }
         if (result.stateDuringSort.afterSortClickWorkspace !== result.stateDuringSort.beforeClickWorkspace) {
             throw new Error(`Expected sort-mode tab click not to navigate: ${JSON.stringify(result)}`);

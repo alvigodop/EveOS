@@ -16,6 +16,10 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             return Array.from(event.dataTransfer.types || []).includes('application/x-eve-category-card');
         }
 
+        function isSortModeActive() {
+            return !!(rt.isSidebarSortModeActive && rt.isSidebarSortModeActive());
+        }
+
         function getCategoryCardSidebarPayload(event) {
             if (!event || !event.dataTransfer) return null;
             if (typeof window.getCategoryCardDragPayload === 'function') {
@@ -35,7 +39,7 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             }
         }
 
-function renderWorkspaceItem(ctx, ws, container, depth, options) {
+        function renderWorkspaceItem(ctx, ws, container, depth, options) {
         var currentDepth = typeof depth === 'number' ? depth : 0;
         var renderOptions = options && typeof options === 'object' ? options : {};
         var hasChildren = !!(
@@ -49,6 +53,7 @@ function renderWorkspaceItem(ctx, ws, container, depth, options) {
         var isGroupOverviewActive = !!String(config.groupOverviewId || '').trim();
         var isWorkspaceActive = config.viewMode !== 'unidex' && config.activeWorkspace === ws.id && !isGroupOverviewActive;
         var isInactive = ctx.isWorkspaceEffectivelyInactive(ws);
+        var nativeWorkspaceDragEnabled = !isSortModeActive();
 
         if (isInactive && !ctx.shouldShowInactiveTabs() && !renderOptions.renderInactive) return;
 
@@ -180,6 +185,11 @@ function renderWorkspaceItem(ctx, ws, container, depth, options) {
         }
 
         function startWorkspaceDrag(e) {
+            if (isSortModeActive()) {
+                if (e && typeof e.preventDefault === 'function') e.preventDefault();
+                if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+                return false;
+            }
             rt._lastWorkspaceDragStartTime = Date.now();
             rt._isDraggingWorkspace = true;
             if (typeof ctx.markRecentWorkspaceDragGesture === 'function') {
@@ -189,6 +199,7 @@ function renderWorkspaceItem(ctx, ws, container, depth, options) {
             e.dataTransfer.setData('text/plain', ws.id);
             e.dataTransfer.effectAllowed = 'move';
             item.classList.add('ws-dragging');
+            return true;
         }
 
         function endWorkspaceDrag(e) {
@@ -211,8 +222,8 @@ function renderWorkspaceItem(ctx, ws, container, depth, options) {
 
         // Keep visible tabs draggable even when their branch is marked inactive.
         // Inactive should block open/select behavior, not reorder gestures.
-        item.setAttribute('draggable', 'true');
-        item.draggable = true;
+        item.setAttribute('draggable', nativeWorkspaceDragEnabled ? 'true' : 'false');
+        item.draggable = nativeWorkspaceDragEnabled;
         item.dataset.wsId = ws.id;
         if (typeof rt.registerWorkspaceItemElement === 'function') {
             rt.registerWorkspaceItemElement(ws.id, item);
@@ -352,11 +363,11 @@ function renderWorkspaceItem(ctx, ws, container, depth, options) {
         var iconSpan = document.createElement('span');
         iconSpan.className = 'ws-icon';
         iconSpan.textContent = ws.icon || '\u{1F4C1}';
-        iconSpan.setAttribute('draggable', 'true');
-        iconSpan.draggable = true;
+        iconSpan.setAttribute('draggable', nativeWorkspaceDragEnabled ? 'true' : 'false');
+        iconSpan.draggable = nativeWorkspaceDragEnabled;
         iconSpan.ondragstart = function (e) {
             e.stopPropagation();
-            startWorkspaceDrag(e);
+            return startWorkspaceDrag(e);
         };
         iconSpan.ondragend = function (e) {
             e.stopPropagation();
@@ -367,11 +378,11 @@ function renderWorkspaceItem(ctx, ws, container, depth, options) {
         var label = document.createElement('span');
         label.className = 'ws-label';
         label.textContent = ws.name;
-        label.setAttribute('draggable', 'true');
-        label.draggable = true;
+        label.setAttribute('draggable', nativeWorkspaceDragEnabled ? 'true' : 'false');
+        label.draggable = nativeWorkspaceDragEnabled;
         label.ondragstart = function (e) {
             e.stopPropagation();
-            startWorkspaceDrag(e);
+            return startWorkspaceDrag(e);
         };
         label.ondragend = function (e) {
             e.stopPropagation();
@@ -385,11 +396,11 @@ function renderWorkspaceItem(ctx, ws, container, depth, options) {
         if (workspaceSummary) {
             var summary = document.createElement('span');
             summary.className = 'ws-summary';
-            summary.setAttribute('draggable', 'true');
-            summary.draggable = true;
+            summary.setAttribute('draggable', nativeWorkspaceDragEnabled ? 'true' : 'false');
+            summary.draggable = nativeWorkspaceDragEnabled;
             summary.ondragstart = function (e) {
                 e.stopPropagation();
-                startWorkspaceDrag(e);
+                return startWorkspaceDrag(e);
             };
             summary.ondragend = function (e) {
                 e.stopPropagation();
@@ -420,11 +431,11 @@ function renderWorkspaceItem(ctx, ws, container, depth, options) {
             hiddenBadge.className = 'ws-hidden-badge';
             hiddenBadge.textContent = 'Hidden';
             hiddenBadge.title = 'Hidden from parent tab view';
-            hiddenBadge.setAttribute('draggable', 'true');
-            hiddenBadge.draggable = true;
+            hiddenBadge.setAttribute('draggable', nativeWorkspaceDragEnabled ? 'true' : 'false');
+            hiddenBadge.draggable = nativeWorkspaceDragEnabled;
             hiddenBadge.ondragstart = function (e) {
                 e.stopPropagation();
-                startWorkspaceDrag(e);
+                return startWorkspaceDrag(e);
             };
             hiddenBadge.ondragend = function (e) {
                 e.stopPropagation();

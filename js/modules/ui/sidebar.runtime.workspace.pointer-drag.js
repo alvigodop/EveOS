@@ -93,21 +93,25 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
                     pointerId: event.pointerId,
                     startX: event.clientX,
                     startY: event.clientY,
+                    sortMode: isSortModeActive(),
                     started: false,
                     dropTarget: null,
                     timer: 0
                 };
+                if (pointerDrag.sortMode && typeof event.preventDefault === 'function') {
+                    event.preventDefault();
+                }
                 pointerDrag.timer = setTimeout(function () {
                     if (!pointerDrag || pointerDrag.pointerId !== event.pointerId || pointerDrag.started) return;
                     beginPointerWorkspaceDrag(event);
-                }, isSortModeActive() ? SORT_MODE_DRAG_MS : LONG_PRESS_DRAG_MS);
+                }, pointerDrag.sortMode ? SORT_MODE_DRAG_MS : LONG_PRESS_DRAG_MS);
             };
 
             item.onpointermove = function (event) {
                 if (!pointerDrag || pointerDrag.pointerId !== event.pointerId) return;
                 var dx = Number(event.clientX) - pointerDrag.startX;
                 var dy = Number(event.clientY) - pointerDrag.startY;
-                var threshold = isSortModeActive() ? SORT_MODE_MOVE_THRESHOLD_PX : NORMAL_MOVE_THRESHOLD_PX;
+                var threshold = pointerDrag.sortMode ? SORT_MODE_MOVE_THRESHOLD_PX : NORMAL_MOVE_THRESHOLD_PX;
                 if (!pointerDrag.started && Math.sqrt((dx * dx) + (dy * dy)) < threshold) return;
 
                 beginPointerWorkspaceDrag(event);
