@@ -339,50 +339,47 @@
 .eve-folder-hover-card {
     position: fixed;
     z-index: 12050;
-    width: min(320px, calc(100vw - 24px));
+    width: min(280px, calc(100vw - 24px));
     pointer-events: none;
     opacity: 0;
-    transform: translateY(5px) scale(0.98);
-    transition: opacity 0.12s ease, transform 0.12s ease;
-    padding: 12px 14px;
-    border: 1px solid rgba(0, 212, 255, 0.28);
-    border-radius: 13px;
-    background:
-        linear-gradient(145deg, rgba(16, 38, 39, 0.96), rgba(13, 15, 18, 0.96)),
-        radial-gradient(circle at 14% 0%, rgba(0, 212, 255, 0.18), transparent 38%);
-    box-shadow: 0 18px 38px rgba(0, 0, 0, 0.5), 0 0 24px rgba(0, 212, 255, 0.12), inset 0 0 0 1px rgba(255, 255, 255, 0.035);
-    backdrop-filter: blur(10px);
+    transform: translateY(3px);
+    transition: opacity 0.1s ease, transform 0.1s ease;
+    padding: 9px 11px;
+    border: 1px solid rgba(128, 160, 160, 0.24);
+    border-radius: 10px;
+    background: rgba(18, 28, 30, 0.94);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.34), inset 0 0 0 1px rgba(255, 255, 255, 0.025);
+    backdrop-filter: blur(6px);
 }
 
 .eve-folder-hover-card.is-visible {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateY(0);
 }
 
 .eve-folder-hover-card__kicker {
-    margin-bottom: 4px;
-    color: var(--accent, #00d4ff);
+    margin-bottom: 3px;
+    color: rgba(180, 220, 220, 0.62);
     font-family: 'Share Tech Mono', monospace;
-    font-size: 9px;
-    letter-spacing: 0.18em;
+    font-size: 8px;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
-    opacity: 0.82;
 }
 
 .eve-folder-hover-card__name {
-    color: var(--text-main, #f8ffff);
+    color: rgba(240, 252, 252, 0.94);
     font-family: 'Rajdhani', sans-serif;
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 700;
     line-height: 1.15;
     overflow-wrap: anywhere;
 }
 
 .eve-folder-hover-card__meta {
-    margin-top: 7px;
-    color: rgba(229, 245, 245, 0.68);
+    margin-top: 5px;
+    color: rgba(218, 236, 236, 0.58);
     font-family: 'Share Tech Mono', monospace;
-    font-size: 10px;
+    font-size: 9px;
     line-height: 1.35;
 }
 

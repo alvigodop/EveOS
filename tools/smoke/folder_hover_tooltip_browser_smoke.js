@@ -44,6 +44,14 @@ async function main() {
         assert(state.meta === '12 items | 3 folders', `Expected folder tooltip meta, saw ${JSON.stringify(state)}`);
         assert(state.pointerEvents === 'none', `Tooltip should not intercept folder clicks: ${JSON.stringify(state)}`);
 
+        await page.mouse.move(20, 20);
+        await page.waitForFunction(() => !document.querySelector('.eve-folder-hover-card.is-visible'), undefined, { timeout: 5000 });
+
+        await page.hover('#folder-tooltip-smoke-target');
+        await page.waitForSelector('.eve-folder-hover-card.is-visible', { timeout: 5000 });
+        await page.evaluate(() => document.getElementById('folder-tooltip-smoke-target')?.remove());
+        await page.waitForFunction(() => !document.querySelector('.eve-folder-hover-card.is-visible'), undefined, { timeout: 5000 });
+
         console.log('FOLDER_HOVER_TOOLTIP_BROWSER_SMOKE_OK');
     } finally {
         await browser.close();

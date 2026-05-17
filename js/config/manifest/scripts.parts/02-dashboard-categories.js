@@ -34,7 +34,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/ui/dashboard/categories/detached-card.js?v=0.1.0",
     "js/modules/ui/dashboard/categories/render.helpers.js?v=0.1.0",
     "js/modules/ui/dashboard/categories/render.js?v=0.2.47",
-    "js/modules/ui/dashboard/folder-hover-tooltip.js?v=0.1.0",
+    "js/modules/ui/dashboard/folder-hover-tooltip.js?v=0.1.1",
     "js/modules/ui/dashboard/unidex-view.builders.panels.js?v=0.2.3",
     "js/modules/ui/dashboard/unidex-view.builders.entries.js?v=0.2.13",
     "js/modules/ui/dashboard/unidex-view.builders.js?v=0.2.2",

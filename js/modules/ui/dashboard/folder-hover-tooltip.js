@@ -4,6 +4,8 @@
     let tooltip = null;
     let activeTarget = null;
     let hideTimer = null;
+    let repositionRaf = 0;
+    let validationTimer = 0;
 
     function getTarget(eventTarget) {
         if (!eventTarget || typeof eventTarget.closest !== 'function') return null;
@@ -35,6 +37,10 @@
 
     function positionTooltip(target) {
         if (!target || !tooltip) return;
+        if (!document.body.contains(target)) {
+            hide(true);
+            return;
+        }
         const rect = target.getBoundingClientRect();
         const gap = 10;
         const tooltipRect = tooltip.getBoundingClientRect();
@@ -49,9 +55,50 @@
         tooltip.style.top = Math.max(12, top) + 'px';
     }
 
+    function isTargetStillActive(target) {
+        if (!target || !document.body.contains(target)) return false;
+        if (target.matches(':hover')) return true;
+        const focused = document.activeElement;
+        return !!(focused && target.contains(focused));
+    }
+
+    function clearHideTimer() {
+        if (hideTimer) {
+            window.clearTimeout(hideTimer);
+            hideTimer = null;
+        }
+    }
+
+    function schedulePosition(target) {
+        if (repositionRaf) window.cancelAnimationFrame(repositionRaf);
+        repositionRaf = window.requestAnimationFrame(function () {
+            repositionRaf = 0;
+            if (target !== activeTarget || !isTargetStillActive(target)) {
+                hide(true);
+                return;
+            }
+            positionTooltip(target);
+        });
+    }
+
+    function startValidationTimer() {
+        if (validationTimer) return;
+        validationTimer = window.setInterval(function () {
+            if (activeTarget && !isTargetStillActive(activeTarget)) {
+                hide(true);
+            }
+        }, 180);
+    }
+
+    function stopValidationTimer() {
+        if (!validationTimer) return;
+        window.clearInterval(validationTimer);
+        validationTimer = 0;
+    }
+
     function show(target) {
         if (!target) return;
-        window.clearTimeout(hideTimer);
+        clearHideTimer();
         activeTarget = target;
         const el = ensureTooltip();
         const name = String(target.dataset.folderHoverLabel || '').trim();
@@ -63,17 +110,26 @@
         metaEl.textContent = meta;
         metaEl.style.display = meta ? 'block' : 'none';
         el.classList.add('is-visible');
-        requestAnimationFrame(function () {
-            positionTooltip(target);
-        });
+        startValidationTimer();
+        schedulePosition(target);
     }
 
-    function hide() {
-        window.clearTimeout(hideTimer);
-        hideTimer = window.setTimeout(function () {
+    function hide(immediate) {
+        clearHideTimer();
+        const clear = function () {
             activeTarget = null;
+            stopValidationTimer();
             if (tooltip) tooltip.classList.remove('is-visible');
-        }, 80);
+        };
+        if (repositionRaf) {
+            window.cancelAnimationFrame(repositionRaf);
+            repositionRaf = 0;
+        }
+        if (immediate) {
+            clear();
+            return;
+        }
+        hideTimer = window.setTimeout(clear, 45);
     }
 
     document.addEventListener('mouseover', function (event) {
@@ -88,6 +144,16 @@
         hide();
     }, true);
 
+    document.addEventListener('pointermove', function (event) {
+        if (!activeTarget) return;
+        if (activeTarget.contains(event.target) || isTargetStillActive(activeTarget)) return;
+        hide(true);
+    }, true);
+
+    document.addEventListener('pointerdown', function () {
+        if (activeTarget) hide(true);
+    }, true);
+
     document.addEventListener('focusin', function (event) {
         const target = getTarget(event.target);
         if (target) show(target);
@@ -99,11 +165,24 @@
     }, true);
 
     window.addEventListener('scroll', function () {
-        if (activeTarget) positionTooltip(activeTarget);
+        if (!activeTarget) return;
+        if (!isTargetStillActive(activeTarget)) {
+            hide(true);
+            return;
+        }
+        positionTooltip(activeTarget);
     }, true);
 
     window.addEventListener('resize', function () {
-        if (activeTarget) positionTooltip(activeTarget);
+        if (activeTarget) hide(true);
+    });
+
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && activeTarget) hide(true);
+    }, true);
+
+    document.addEventListener('visibilitychange', function () {
+        if (document.hidden && activeTarget) hide(true);
     });
 
     window.EveFolderHoverTooltip = {
