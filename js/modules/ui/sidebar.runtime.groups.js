@@ -107,6 +107,13 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         function toggleOverview(e) {
             if (e) e.stopPropagation();
             if (isInactiveGroup) return;
+            if (rt.isSidebarSortModeActive && rt.isSidebarSortModeActive()) {
+                if (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+                return;
+            }
 
             var current = String(config.groupOverviewId || '').trim();
             var next = current === groupId ? '' : groupId;
@@ -132,6 +139,10 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         header.draggable = manualMode && !isInactiveGroup;
         if (manualMode && !isInactiveGroup) {
             header.ondragstart = function (e) {
+                rt._lastWorkspaceDragStartTime = Date.now();
+                if (typeof ctx.markRecentWorkspaceDragGesture === 'function') {
+                    ctx.markRecentWorkspaceDragGesture(420);
+                }
                 ctx.setDragState('group', groupId);
                 e.dataTransfer.setData('text/plain', groupId);
                 e.dataTransfer.effectAllowed = 'move';
@@ -139,6 +150,9 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             };
             header.ondragend = function () {
                 header.classList.remove('ws-group-header--dragging');
+                if (typeof ctx.markRecentWorkspaceDragGesture === 'function') {
+                    ctx.markRecentWorkspaceDragGesture(260);
+                }
                 ctx.clearDragState();
             };
         }

@@ -91,8 +91,13 @@ function estimateWorkspaceTreeNodeCount() {
         sb.classList.toggle('ultra-collapsed', !!config.ultraCollapseSidebar);
         sb.classList.toggle('hidden-completely', !!config.sidebarHidden);
         sb.classList.toggle('ws-hover-reveal-active', !!(rt.isHoverRevealActive && rt.isHoverRevealActive()));
+        sb.classList.toggle('ws-sort-mode-active', !!(rt.isSidebarSortModeActive && rt.isSidebarSortModeActive()));
         sb.classList.toggle('ws-heavy', densityFlags.isHeavy);
         sb.setAttribute('aria-expanded', config.sidebarExpanded ? 'true' : 'false');
+        sb.setAttribute(
+            'data-sidebar-sort-mode',
+            (rt.isSidebarSortModeActive && rt.isSidebarSortModeActive()) ? 'active' : 'inactive'
+        );
     }
 
     window.toggleSidebarVisibility = function () {

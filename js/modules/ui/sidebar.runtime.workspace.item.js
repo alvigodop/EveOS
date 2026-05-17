@@ -443,6 +443,15 @@ function renderWorkspaceItem(ctx, ws, container, depth, options) {
                 item.dataset.mousedownTime = String(Date.now());
             };
             item.onclick = function (event) {
+                if (rt.isSidebarSortModeActive && rt.isSidebarSortModeActive()) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (typeof ctx.markRecentWorkspaceDragGesture === 'function') {
+                        ctx.markRecentWorkspaceDragGesture(220);
+                    }
+                    return;
+                }
+
                 var mousedownTime = Number(item.dataset.mousedownTime || 0);
                 var clickDuration = Date.now() - mousedownTime;
 

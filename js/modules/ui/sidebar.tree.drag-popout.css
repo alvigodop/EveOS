@@ -60,10 +60,22 @@
     transform: scaleY(1);
 }
 
+#sidebar.ws-sort-mode-active .ws-order-slot {
+    opacity: 0.72;
+    pointer-events: auto;
+    transform: scaleY(1);
+}
+
 #sidebar.ws-drag-active .ws-order-slot--nested {
     opacity: 0.9;
     pointer-events: auto;
     transform: scaleY(1.2);
+}
+
+#sidebar.ws-sort-mode-active .ws-order-slot--nested {
+    opacity: 0.72;
+    pointer-events: auto;
+    transform: scaleY(1.12);
 }
 
 #sidebar.is-expanded .ws-order-slot {
@@ -108,6 +120,23 @@
 }
 
 /* --- Drag-and-Drop Feedback --- */
+#sidebar.ws-sort-mode-active .ws-item[data-ws-id],
+#sidebar.ws-sort-mode-active .ws-group-header {
+    cursor: grab;
+    user-select: none;
+}
+
+#sidebar.ws-sort-mode-active .ws-item[data-ws-id]:active,
+#sidebar.ws-sort-mode-active .ws-group-header:active {
+    cursor: grabbing;
+}
+
+#sidebar.ws-sort-mode-active .ws-item.active {
+    box-shadow:
+        inset 0 0 0 1px rgba(0, 212, 255, 0.26),
+        0 0 10px rgba(0, 212, 255, 0.12);
+}
+
 .ws-dragging {
     opacity: 0.35;
     transform: scale(0.92);

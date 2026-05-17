@@ -411,6 +411,13 @@
     color: var(--accent, #00d4ff);
 }
 
+.tab-nav-sidebar-tool-btn.is-active {
+    background: linear-gradient(135deg, rgba(0, 212, 255, 0.2), rgba(168, 130, 255, 0.16));
+    border-color: color-mix(in srgb, var(--accent, #00d4ff) 64%, rgba(255, 255, 255, 0.14));
+    color: var(--accent, #00d4ff);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent, #00d4ff) 18%, transparent);
+}
+
 .tab-nav-sidebar-tool-btn:active {
     transform: scale(0.98);
 }

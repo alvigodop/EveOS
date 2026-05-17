@@ -94,6 +94,7 @@
             + '<div class="tab-nav-sidebar-tools tab-nav-sidebar-tools--order">'
             +   '<div class="tab-nav-sidebar-tools-label">Ordering</div>'
             +   '<div class="tab-nav-sidebar-tools-grid">'
+            +       '<button class="tab-nav-sidebar-tool-btn" type="button" data-tab-nav-action="toggle-sort-mode"></button>'
             +       '<button class="tab-nav-sidebar-tool-btn" type="button" data-tab-nav-action="toggle-order-mode"></button>'
             +       '<button class="tab-nav-sidebar-tool-btn" type="button" data-tab-nav-action="reset-order"></button>'
             +   '</div>'
@@ -166,6 +167,8 @@
                 rt.expandAllGroups();
             } else if (action === 'toggle-hidden-groups') {
                 rt.toggleShowHiddenGroups();
+            } else if (action === 'toggle-sort-mode') {
+                rt.toggleSidebarSortMode();
             } else if (action === 'toggle-order-mode') {
                 rt.toggleSidebarOrderMode();
             } else if (action === 'reset-order') {

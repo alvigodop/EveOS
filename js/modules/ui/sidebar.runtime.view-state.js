@@ -11,6 +11,9 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         hideTimer: 0,
         hoverRevealPreviewOptions: null
     });
+    var sortModeState = rt.sortModeState || (rt.sortModeState = {
+        active: false
+    });
 
     function normalizeHoverRevealOptions(options) {
         var opts = options && typeof options === 'object' ? options : null;
@@ -42,6 +45,13 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         if (previewButton) previewButton.classList.toggle('active', isActive);
     }
 
+    function syncSidebarSortModeUiState() {
+        var sb = document.getElementById('sidebar');
+        if (!sb) return;
+        sb.classList.toggle('ws-sort-mode-active', !!sortModeState.active);
+        sb.setAttribute('data-sidebar-sort-mode', sortModeState.active ? 'active' : 'inactive');
+    }
+
     function setHoverRevealActive(nextValue, options) {
         previewState.hoverRevealActive = !!nextValue;
         previewState.hoverRevealPreviewOptions = previewState.hoverRevealActive
@@ -58,6 +68,16 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
     function getHoverRevealPreviewOptions() {
         if (!previewState.hoverRevealActive) return null;
         return normalizeHoverRevealOptions(previewState.hoverRevealPreviewOptions);
+    }
+
+    function setSidebarSortModeActive(nextValue) {
+        sortModeState.active = !!nextValue;
+        syncSidebarSortModeUiState();
+        return sortModeState.active;
+    }
+
+    function isSidebarSortModeActive() {
+        return !!sortModeState.active;
     }
 
     function createSidebarElementRegistry() {
@@ -210,9 +230,12 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
     }
 
     rt.syncHoverRevealUiState = syncHoverRevealUiState;
+    rt.syncSidebarSortModeUiState = syncSidebarSortModeUiState;
     rt.setHoverRevealActive = setHoverRevealActive;
     rt.isHoverRevealActive = isHoverRevealActive;
     rt.getHoverRevealPreviewOptions = getHoverRevealPreviewOptions;
+    rt.setSidebarSortModeActive = setSidebarSortModeActive;
+    rt.isSidebarSortModeActive = isSidebarSortModeActive;
     rt.resetSidebarElementRegistry = resetSidebarElementRegistry;
     rt.registerWorkspaceItemElement = registerWorkspaceItemElement;
     rt.registerGroupSectionElement = registerGroupSectionElement;

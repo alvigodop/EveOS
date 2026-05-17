@@ -302,12 +302,46 @@
         groupsApi.ensureConfigDefaults(configRef);
         var nextMode = groupsApi.getSidebarOrderMode(configRef) === 'manual' ? 'auto' : 'manual';
         groupsApi.setSidebarOrderMode(nextMode, configRef);
+        if (nextMode !== 'manual' && window.EveSidebarRuntime?.setSidebarSortModeActive) {
+            window.EveSidebarRuntime.setSidebarSortModeActive(false);
+        }
         saveAndRefreshSidebar();
         if (typeof window.showToast === 'function') {
             window.showToast(
                 nextMode === 'manual'
                     ? 'Manual sidebar order enabled. Drag groups, tabs, and sub-tabs to reposition them.'
                     : 'Sidebar order returned to automatic mode',
+                'info'
+            );
+        }
+        updatePopover();
+    }
+
+    function toggleSidebarSortMode() {
+        var configRef = getConfigRef();
+        var groupsApi = getSidebarGroupsApi();
+        var sidebarRuntime = window.EveSidebarRuntime || null;
+        if (!configRef || !groupsApi || !sidebarRuntime?.setSidebarSortModeActive) return;
+
+        groupsApi.ensureConfigDefaults(configRef);
+        var nextActive = !(sidebarRuntime.isSidebarSortModeActive && sidebarRuntime.isSidebarSortModeActive());
+        if (nextActive) {
+            groupsApi.setSidebarOrderMode('manual', configRef);
+            configRef.sidebarExpanded = true;
+            configRef.sidebarHidden = false;
+        }
+
+        sidebarRuntime.setSidebarSortModeActive(nextActive);
+        saveAndRefreshSidebar();
+        if (typeof sidebarRuntime.syncSidebarSortModeUiState === 'function') {
+            sidebarRuntime.syncSidebarSortModeUiState();
+        }
+
+        if (typeof window.showToast === 'function') {
+            window.showToast(
+                nextActive
+                    ? 'Sidebar sorting mode enabled. Clicks no longer open tabs; drag tabs or groups to reorder.'
+                    : 'Sidebar sorting mode disabled',
                 'info'
             );
         }
@@ -372,6 +406,19 @@
             if (resetOrderBtn) {
                 resetOrderBtn.style.display = orderMode === 'manual' ? '' : 'none';
                 resetOrderBtn.innerHTML = '&#8635; Reset Manual Layout';
+            }
+
+            var sortModeBtn = pop.querySelector('[data-tab-nav-action="toggle-sort-mode"]');
+            if (sortModeBtn) {
+                var sortActive = !!(window.EveSidebarRuntime?.isSidebarSortModeActive
+                    && window.EveSidebarRuntime.isSidebarSortModeActive());
+                sortModeBtn.innerHTML = sortActive
+                    ? '&#10005; Exit Sorting Mode'
+                    : '&#8645; Enter Sorting Mode';
+                sortModeBtn.classList.toggle('is-active', sortActive);
+                sortModeBtn.title = sortActive
+                    ? 'Return sidebar tabs to normal click navigation.'
+                    : 'Enable manual order, show drop slots, and make sidebar tabs drag-first.';
             }
         }
     }
@@ -484,6 +531,7 @@
         beginSidebarHoverPreview: beginSidebarHoverPreview,
         endSidebarHoverPreview: endSidebarHoverPreview,
         toggleSidebarOrderMode: toggleSidebarOrderMode,
+        toggleSidebarSortMode: toggleSidebarSortMode,
         resetManualSidebarOrder: resetManualSidebarOrder,
         updateSidebarActionLabels: updateSidebarActionLabels,
         getWorkspaceSearchItems: getWorkspaceSearchItems,

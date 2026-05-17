@@ -176,8 +176,8 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/quick-pins/quick-pins.main.collection.js?v=0.1.1",
     "js/modules/features/quick-pins/quick-pins.main.js?v=0.4.1",
     "js/modules/core/actions.js?v=0.2.8",
-    "js/modules/ui/tab-nav-history.shared.js?v=0.1.1",
-    "js/modules/ui/tab-nav-history.popover.js?v=0.1.1",
+    "js/modules/ui/tab-nav-history.shared.js?v=0.1.2",
+    "js/modules/ui/tab-nav-history.popover.js?v=0.1.2",
     "js/modules/ui/tab-nav-history.routepeek.js?v=0.1.0",
     "js/modules/ui/tab-nav-history.js?v=0.4.6",
     "js/modules/core/categories.js?v=0.1.2"
