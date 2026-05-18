@@ -34,7 +34,7 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
             <div class="nx-sidebar" id="nxSidebar">
                 <button type="button" class="nx-sidebar-toggle" id="nxSidebarToggle" title="Collapse sidebar">◀</button>
                 <!-- Search Input -->
-                <div class="nx-section">
+                <div class="nx-section nx-section-query" id="nxQuerySection">
                     <label class="nx-section-label">⌕ QUERY</label>
                     <div class="nx-typeahead-wrap">
                         <input type="text" id="esQuery" class="nx-input nx-query-input" placeholder="Search across all vectors..." autocomplete="off" aria-autocomplete="list" aria-controls="nxTypeahead" aria-expanded="false">
@@ -42,8 +42,17 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
                     </div>
                 </div>
 
+                <nav class="nx-jump-rail" id="nxJumpRail" aria-label="Nexus panel navigation">
+                    <button type="button" class="nx-jump-btn nx-jump-active" data-nx-jump="query">Query</button>
+                    <button type="button" class="nx-jump-btn" data-nx-jump="vectors">Vectors</button>
+                    <button type="button" class="nx-jump-btn" data-nx-jump="filters">Filters</button>
+                    <button type="button" class="nx-jump-btn" data-nx-jump="debug">Debug</button>
+                    <button type="button" class="nx-jump-btn" data-nx-jump="state">View State</button>
+                    <button type="button" class="nx-jump-btn" data-nx-jump="results">Results</button>
+                </nav>
+
                 <!-- Search Vectors (RPG Skill Slots) -->
-                <div class="nx-section">
+                <div class="nx-section" id="nxVectorSection">
                     <label class="nx-section-label">⚡ SEARCH VECTORS</label>
                     <div class="nx-vector-grid">
                         <button type="button" class="nx-vector-slot nx-active" id="nxVectorGoogle" data-vector="google" title="Google Custom Search">
@@ -191,7 +200,7 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
                 </details>
 
                 <!-- Action Buttons -->
-                <div class="nx-actions">
+                <div class="nx-actions" id="nxActionSection">
                     <button class="nx-btn nx-btn-primary" id="esRunBtn">⚔ Search</button>
                     <button class="nx-btn nx-btn-secondary" id="esClearBtn">↺ Clear</button>
                     <button type="button" class="nx-btn nx-btn-secondary" id="nxDatapackViewBtn" title="Open scoped datapack macro state">View State</button>
@@ -208,7 +217,7 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
 
             <!-- Right Column: Results -->
             <div class="nx-results-panel">
-                <div class="nx-results-header">
+                <div class="nx-results-header" id="nxResultsHeader">
                     <span class="nx-results-title">RESULTS</span>
                     <span class="nx-scope-indicator" id="esScopeIndicator" style="display:none"></span>
                     <div class="nx-results-mode nx-scope-mode" id="nxScopeModeToggle" role="group" aria-label="Search scope mode">
@@ -225,7 +234,7 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
                     </div>
                     <span class="nx-results-meta" id="esMeta">Activate vectors and search.</span>
                 </div>
-                <div class="nx-results-body" id="esResults"></div>
+                <div class="nx-results-body" id="esResults" tabindex="-1"></div>
             </div>
         </div>
 

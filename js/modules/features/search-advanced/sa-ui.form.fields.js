@@ -123,6 +123,90 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
             });
         }
 
+        function setActiveNexusJump(kind) {
+            document.querySelectorAll('.nx-jump-btn[data-nx-jump]').forEach(function (button) {
+                button.classList.toggle('nx-jump-active', button.getAttribute('data-nx-jump') === kind);
+            });
+        }
+
+        function expandSidebarIfNeeded() {
+            const sidebar = byId('nxSidebar');
+            const toggleBtn = byId('nxSidebarToggle');
+            if (!sidebar || !sidebar.classList.contains('nx-collapsed')) return;
+            sidebar.classList.remove('nx-collapsed');
+            if (toggleBtn) {
+                toggleBtn.textContent = 'â—€';
+                toggleBtn.title = 'Collapse sidebar';
+            }
+        }
+
+        function openDetailsSection(detailsEl, shouldRefresh) {
+            if (!detailsEl) return;
+            const wasOpen = detailsEl.open;
+            detailsEl.open = true;
+            if (shouldRefresh && wasOpen) {
+                detailsEl.dispatchEvent(new Event('toggle'));
+            }
+        }
+
+        function scrollSidebarTarget(target) {
+            expandSidebarIfNeeded();
+            if (!target) return;
+            target.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' });
+        }
+
+        function jumpToResults() {
+            const results = byId('esResults');
+            if (!results) return;
+            results.scrollTo({ top: 0, behavior: 'smooth' });
+            results.focus({ preventScroll: true });
+        }
+
+        function handleNexusJump(kind) {
+            const normalized = kind || 'query';
+            setActiveNexusJump(normalized);
+            if (normalized === 'query') {
+                scrollSidebarTarget(byId('nxQuerySection'));
+                byId('esQuery')?.focus();
+                return;
+            }
+            if (normalized === 'vectors') {
+                scrollSidebarTarget(byId('nxVectorSection'));
+                return;
+            }
+            if (normalized === 'filters') {
+                const filters = byId('nxFiltersConfig');
+                openDetailsSection(filters, false);
+                scrollSidebarTarget(filters);
+                return;
+            }
+            if (normalized === 'debug') {
+                const debug = byId('nxDebugSection');
+                openDetailsSection(debug, true);
+                scrollSidebarTarget(debug);
+                return;
+            }
+            if (normalized === 'state') {
+                const viewStateButton = byId('nxDatapackViewBtn');
+                if (viewStateButton) viewStateButton.click();
+                setTimeout(jumpToResults, 80);
+                return;
+            }
+            if (normalized === 'results') {
+                jumpToResults();
+            }
+        }
+
+        function initNexusNavigation() {
+            document.querySelectorAll('.nx-jump-btn[data-nx-jump]').forEach(function (button) {
+                if (button.__nxJumpBound) return;
+                button.__nxJumpBound = true;
+                button.addEventListener('click', function () {
+                    handleNexusJump(button.getAttribute('data-nx-jump'));
+                });
+            });
+        }
+
         function initVectorToggles() {
             const slots = document.querySelectorAll('.nx-vector-slot[data-vector]');
             slots.forEach(function (slot) {
@@ -179,6 +263,7 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
 
             initScopeModeToggle();
             initResultsModeToggle();
+            initNexusNavigation();
         }
 
         function applyVectorStates(vectors) {
@@ -377,6 +462,7 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
             applySettingsToForm,
             resetFilters,
             initVectorToggles,
+            initNexusNavigation,
             applyResultsMode,
             collectResultsMode,
             applyVectorStates,
