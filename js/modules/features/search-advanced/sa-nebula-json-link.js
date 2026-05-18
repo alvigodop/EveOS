@@ -186,17 +186,11 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         const prefix = ws + '::';
         Object.keys(getFolderStore()).forEach(function (key) {
             if (String(key).startsWith(prefix)) {
-                names.add(normalizeCategoryName(String(key).slice(prefix.length)));
+                const tree = getFolderStore()[key];
+                const nodes = Array.isArray(tree?.nodes) ? tree.nodes : (Array.isArray(tree) ? tree : []);
+                if (nodes.length) names.add(normalizeCategoryName(String(key).slice(prefix.length)));
             }
         });
-        const descriptions = getConfig().cardDescriptions;
-        if (descriptions && typeof descriptions === 'object' && !Array.isArray(descriptions)) {
-            Object.keys(descriptions).forEach(function (key) {
-                if (String(key).startsWith(prefix)) {
-                    names.add(normalizeCategoryName(String(key).slice(prefix.length)));
-                }
-            });
-        }
         return Array.from(names);
     }
 

@@ -445,6 +445,15 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         State.updateSettings(ui.collectSettings());
     }
 
+    function refreshVisibleDatapackViewState() {
+        const panel = byId('nxDatapackViewPanel');
+        if (!panel) return false;
+        const datapackView = window.EveOS?.SearchAdvanced?.DatapackView;
+        if (!datapackView || typeof datapackView.renderGateway !== 'function') return false;
+        datapackView.renderGateway();
+        return true;
+    }
+
     function openExpandedSearchModal(options) {
         const ui = getUiHelpers();
         ui.createModalIfNeeded();
@@ -470,6 +479,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         if (modal) modal.style.display = 'flex';
 
         refreshScopeIndicator();
+        refreshVisibleDatapackViewState();
 
         if (typeof ui.updateFooterStats === 'function') ui.updateFooterStats();
 

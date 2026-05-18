@@ -57,6 +57,12 @@ function buildSeedPayload() {
                     { id: 'f1', parentId: '', name: 'Folder One', order: 0 }
                 ],
                 settings: { clickBehaviorMode: 'inherit' }
+            },
+            'group-root::Beta': {
+                nodes: [
+                    { id: 'beta-folder', parentId: '', name: 'Beta Folder', order: 0 }
+                ],
+                settings: { clickBehaviorMode: 'inherit' }
             }
         }
     };

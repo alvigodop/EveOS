@@ -147,6 +147,9 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         const folderOnlyNames = [];
         Object.keys(getFolderStore()).forEach(function (scopedKey) {
             if (!String(scopedKey).startsWith(prefix)) return;
+            const tree = getFolderStore()[scopedKey];
+            const nodes = Array.isArray(tree?.nodes) ? tree.nodes : (Array.isArray(tree) ? tree : []);
+            if (!nodes.length) return;
             folderOnlyNames.push(normalizeCategoryName(String(scopedKey).slice(prefix.length)));
         });
         folderOnlyNames.sort(function (left, right) {

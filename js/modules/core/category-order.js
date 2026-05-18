@@ -22,10 +22,12 @@ window.EveCategoryOrder = window.EveCategoryOrder || {};
     function getDatapackStructureSummary() {
         var indexApi = getDatapackIndexApi();
         if (!indexApi || typeof indexApi.getStructureSummary !== 'function') return null;
-        if (typeof indexApi.hasReadableStructureSnapshot === 'function' && !indexApi.hasReadableStructureSnapshot()) return null;
-        if (typeof indexApi.hasReadableStructureSnapshot !== 'function' && typeof indexApi.hasUsableSnapshot === 'function' && !indexApi.hasUsableSnapshot()) return null;
         var buildState = typeof indexApi.getBuildState === 'function' ? indexApi.getBuildState() : null;
-        if (!indexApi.hasReadableStructureSnapshot && !indexApi.hasUsableSnapshot && Number(buildState?.builtAt || 0) <= 0) return null;
+        if (typeof indexApi.hasUsableSnapshot === 'function') {
+            if (!indexApi.hasUsableSnapshot()) return null;
+        } else if (buildState?.dirty || Number(buildState?.builtAt || 0) <= 0) {
+            return null;
+        }
         return indexApi.getStructureSummary();
     }
 
@@ -149,7 +151,7 @@ window.EveCategoryOrder = window.EveCategoryOrder || {};
         const knownSet = new Set(knownCategories);
         const baseOrder = storedOrder
             ? storedOrder.filter(function (categoryName) {
-                return knownSet.has(categoryName) || !isLikelyTransientPrefixCategory(categoryName, knownCategories);
+                return knownSet.has(categoryName) && !isLikelyTransientPrefixCategory(categoryName, knownCategories);
             })
             : buildDerivedWorkspaceOrder(normalizedWorkspaceId);
 
@@ -211,9 +213,21 @@ window.EveCategoryOrder = window.EveCategoryOrder || {};
         const previousName = normalizeCategoryName(oldName);
         const nextName = normalizeCategoryName(newName);
         const store = getWorkspaceOrderStore();
-        const order = getOrder(normalizedWorkspaceId, { persist: true }).map(function (name) {
+        const rawOrder = Array.isArray(store[normalizedWorkspaceId])
+            ? dedupeNormalizedCategoryList(store[normalizedWorkspaceId])
+            : getOrder(normalizedWorkspaceId, { persist: true });
+        const knownCategories = Array.from(getKnownCategories(normalizedWorkspaceId));
+        const knownSet = new Set(knownCategories);
+        knownSet.add(nextName);
+        const order = dedupeNormalizedCategoryList(rawOrder.map(function (name) {
             return name === previousName ? nextName : name;
+        })).filter(function (name) {
+            return knownSet.has(name) && !isLikelyTransientPrefixCategory(name, knownCategories.concat([nextName]));
         });
+        knownCategories.forEach(function (categoryName) {
+            if (categoryName !== previousName && !order.includes(categoryName)) order.push(categoryName);
+        });
+        if (!order.includes(nextName)) order.push(nextName);
         store[normalizedWorkspaceId] = dedupeNormalizedCategoryList(order);
         syncLegacyCategoryOrder();
         return true;
