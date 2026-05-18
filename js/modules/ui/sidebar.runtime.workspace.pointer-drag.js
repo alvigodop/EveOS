@@ -30,6 +30,31 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
                 pointerDrag.timer = 0;
             }
 
+            function clearPointerCancelTimer() {
+                if (!pointerDrag || !pointerDrag.cancelTimer) return;
+                clearTimeout(pointerDrag.cancelTimer);
+                pointerDrag.cancelTimer = 0;
+            }
+
+            function addDocumentPointerGuards() {
+                if (!pointerDrag || pointerDrag.documentGuardsAttached || !document) return;
+                document.addEventListener('pointermove', handlePointerMove, true);
+                document.addEventListener('pointerup', handlePointerUp, true);
+                document.addEventListener('pointercancel', handlePointerCancel, true);
+                window.addEventListener('blur', handleWindowBlur, true);
+                pointerDrag.documentGuardsAttached = true;
+            }
+
+            function removeDocumentPointerGuards(state) {
+                var drag = state || pointerDrag;
+                if (!drag || !drag.documentGuardsAttached || !document) return;
+                document.removeEventListener('pointermove', handlePointerMove, true);
+                document.removeEventListener('pointerup', handlePointerUp, true);
+                document.removeEventListener('pointercancel', handlePointerCancel, true);
+                window.removeEventListener('blur', handleWindowBlur, true);
+                drag.documentGuardsAttached = false;
+            }
+
             function destroyPointerDragPreview(drag) {
                 var state = drag || pointerDrag;
                 if (!state || !state.preview) return;
@@ -43,10 +68,43 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
                 destroyPointerDragPreview(pointerDrag);
                 clearPointerDropTarget();
                 clearPointerDragTimer();
+                clearPointerCancelTimer();
+                removeDocumentPointerGuards(pointerDrag);
                 if (pointerDrag && pointerDrag.pointerCaptured && typeof item.releasePointerCapture === 'function') {
                     try { item.releasePointerCapture(pointerDrag.pointerId); } catch (err) { /* ignore lost capture */ }
                 }
                 pointerDrag = null;
+            }
+
+            function finishPointerCancel(event) {
+                if (!pointerDrag || pointerDrag.pointerId !== event.pointerId) return;
+                clearPointerDragTimer();
+                clearPointerCancelTimer();
+                clearPointerDropTarget();
+                destroyPointerDragPreview(pointerDrag);
+                removeDocumentPointerGuards(pointerDrag);
+                if (pointerDrag.pointerCaptured && typeof item.releasePointerCapture === 'function') {
+                    try { item.releasePointerCapture(pointerDrag.pointerId); } catch (err) { /* ignore lost capture */ }
+                }
+                pointerDrag = null;
+                item.classList.remove('ws-dragging');
+                item.classList.remove('ws-pointer-dragging');
+                rt._isDraggingWorkspace = false;
+                ctx.clearDragState();
+            }
+
+            function schedulePointerCancel(event) {
+                if (!pointerDrag || pointerDrag.pointerId !== event.pointerId) return;
+                if (!pointerDrag.started) {
+                    finishPointerCancel(event);
+                    return;
+                }
+                clearPointerCancelTimer();
+                var cancelPointerId = event.pointerId;
+                pointerDrag.cancelTimer = setTimeout(function () {
+                    if (!pointerDrag || pointerDrag.pointerId !== cancelPointerId) return;
+                    finishPointerCancel({ pointerId: cancelPointerId });
+                }, 650);
             }
 
             function resolvePointerDropTarget(event) {
@@ -184,8 +242,11 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
                     started: false,
                     dropTarget: null,
                     timer: 0,
+                    cancelTimer: 0,
+                    documentGuardsAttached: false,
                     pointerCaptured: false
                 };
+                addDocumentPointerGuards();
                 if (typeof item.setPointerCapture === 'function') {
                     try {
                         item.setPointerCapture(pointerDrag.pointerId);
@@ -205,8 +266,9 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
                 }, pointerDrag.sortMode ? SORT_MODE_DRAG_MS : LONG_PRESS_DRAG_MS);
             };
 
-            item.onpointermove = function (event) {
+            function handlePointerMove(event) {
                 if (!pointerDrag || pointerDrag.pointerId !== event.pointerId) return;
+                clearPointerCancelTimer();
                 pointerDrag.lastX = event.clientX;
                 pointerDrag.lastY = event.clientY;
                 var originX = pointerDrag.sortMode ? pointerDrag.startX : pointerDrag.armedX;
@@ -233,15 +295,17 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
                     if (nextTarget && nextTarget.classList) nextTarget.classList.add('ws-drop-target');
                 }
                 event.preventDefault();
-            };
+            }
 
-            item.onpointerup = function (event) {
+            function handlePointerUp(event) {
                 if (!pointerDrag || pointerDrag.pointerId !== event.pointerId) return;
                 var activeDrag = pointerDrag;
                 var dropTarget = activeDrag.dropTarget || (activeDrag.started ? resolvePointerDropTarget(event) : null);
                 clearPointerDropTarget();
                 clearPointerDragTimer();
+                clearPointerCancelTimer();
                 destroyPointerDragPreview(activeDrag);
+                removeDocumentPointerGuards(activeDrag);
                 pointerDrag = null;
                 if (activeDrag.pointerCaptured && typeof item.releasePointerCapture === 'function') {
                     try { item.releasePointerCapture(activeDrag.pointerId); } catch (err) { /* ignore lost capture */ }
@@ -268,21 +332,34 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
                     return;
                 }
                 ctx.clearDragState();
-            };
+            }
 
-            item.onpointercancel = function (event) {
+            function handlePointerCancel(event) {
                 if (!pointerDrag || pointerDrag.pointerId !== event.pointerId) return;
-                clearPointerDragTimer();
-                clearPointerDropTarget();
-                destroyPointerDragPreview(pointerDrag);
-                if (pointerDrag.pointerCaptured && typeof item.releasePointerCapture === 'function') {
-                    try { item.releasePointerCapture(pointerDrag.pointerId); } catch (err) { /* ignore lost capture */ }
+                schedulePointerCancel(event);
+            }
+
+            function handleWindowBlur() {
+                if (!pointerDrag) return;
+                finishPointerCancel({ pointerId: pointerDrag.pointerId });
+            }
+
+            item.onpointermove = handlePointerMove;
+            item.onpointerup = handlePointerUp;
+            item.onpointercancel = handlePointerCancel;
+
+            item.onlostpointercapture = function (event) {
+                if (!pointerDrag || pointerDrag.pointerId !== event.pointerId) return;
+                pointerDrag.pointerCaptured = false;
+                if (!pointerDrag.started) return;
+                if (typeof item.setPointerCapture === 'function') {
+                    try {
+                        item.setPointerCapture(pointerDrag.pointerId);
+                        pointerDrag.pointerCaptured = true;
+                        return;
+                    } catch (err) { /* fall through to soft cancel */ }
                 }
-                pointerDrag = null;
-                item.classList.remove('ws-dragging');
-                item.classList.remove('ws-pointer-dragging');
-                rt._isDraggingWorkspace = false;
-                ctx.clearDragState();
+                schedulePointerCancel(event);
             };
     };
 

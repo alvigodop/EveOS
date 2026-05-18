@@ -90,6 +90,35 @@ async function runSmoke(page) {
         const workspaceAfterJitterClick = config.activeWorkspace;
         config.activeWorkspace = 'main';
 
+        source.dispatchEvent(new PointerEvent('pointerdown', {
+            bubbles: true,
+            cancelable: true,
+            pointerId: 23,
+            button: 0,
+            clientX: 36,
+            clientY: 220
+        }));
+        await new Promise(resolve => setTimeout(resolve, 220));
+        source.dispatchEvent(new PointerEvent('pointercancel', {
+            bubbles: true,
+            cancelable: true,
+            pointerId: 23,
+            button: 0,
+            clientX: 36,
+            clientY: 220
+        }));
+        const previewAfterSoftCancel = !!document.querySelector('.ws-pointer-drag-preview');
+        const dragActiveAfterSoftCancel = document.getElementById('sidebar').classList.contains('ws-drag-active');
+        source.dispatchEvent(new PointerEvent('pointerup', {
+            bubbles: true,
+            cancelable: true,
+            pointerId: 23,
+            button: 0,
+            clientX: 36,
+            clientY: 220
+        }));
+        await new Promise(resolve => setTimeout(resolve, 80));
+
         document.elementFromPoint = function () { return targetSlot; };
 
         source.dispatchEvent(new PointerEvent('pointerdown', {
@@ -101,7 +130,7 @@ async function runSmoke(page) {
             clientY: 220
         }));
         await new Promise(resolve => setTimeout(resolve, 380));
-        source.dispatchEvent(new PointerEvent('pointermove', {
+        document.dispatchEvent(new PointerEvent('pointermove', {
             bubbles: true,
             cancelable: true,
             pointerId: 21,
@@ -112,7 +141,7 @@ async function runSmoke(page) {
         const rootPreview = document.querySelector('.ws-pointer-drag-preview');
         const previewDuringRootDrag = !!rootPreview
             && rootPreview.textContent.includes('Gamma');
-        source.dispatchEvent(new PointerEvent('pointerup', {
+        document.dispatchEvent(new PointerEvent('pointerup', {
             bubbles: true,
             cancelable: true,
             pointerId: 21,
@@ -177,6 +206,8 @@ async function runSmoke(page) {
             nativeDragStartCount,
             previewDuringJitter,
             workspaceAfterJitterClick,
+            previewAfterSoftCancel,
+            dragActiveAfterSoftCancel,
             previewDuringRootDrag,
             previewAfterRootDrag,
             order: config.workspaces.map((ws) => ws.id),
@@ -194,6 +225,9 @@ async function runSmoke(page) {
     }
     if (result.workspaceAfterJitterClick !== 'gamma') {
         throw new Error(`Expected normal-route hold jitter to remain clickable without applying a drag: ${JSON.stringify(result, null, 2)}`);
+    }
+    if (!result.previewAfterSoftCancel || !result.dragActiveAfterSoftCancel) {
+        throw new Error(`Expected active pointercancel to preserve drag UI briefly: ${JSON.stringify(result, null, 2)}`);
     }
     if (!result.previewDuringRootDrag || result.previewAfterRootDrag) {
         throw new Error(`Expected custom pointer drag preview during normal drag only: ${JSON.stringify(result, null, 2)}`);

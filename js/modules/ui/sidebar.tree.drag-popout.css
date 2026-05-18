@@ -126,6 +126,11 @@
     user-select: none;
 }
 
+#sidebar .ws-item[data-ws-id],
+#sidebar .ws-group-header {
+    touch-action: none;
+}
+
 #sidebar.ws-sort-mode-active .ws-item[data-ws-id]:active,
 #sidebar.ws-sort-mode-active .ws-group-header:active {
     cursor: grabbing;
