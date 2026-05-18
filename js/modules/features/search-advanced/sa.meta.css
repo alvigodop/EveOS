@@ -243,13 +243,30 @@
     display: flex;
     align-items: center;
     gap: 6px;
+    width: 100%;
     padding: 4px 6px;
+    border: 0;
     border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    font-family: inherit;
     font-size: 0.73rem;
+    text-align: left;
 }
 
 .nx-debug-ws-row:hover {
     background: rgba(255, 255, 255, 0.04);
+}
+
+.nx-debug-ws-row:focus-visible {
+    outline: 1px solid rgba(0, 204, 255, 0.55);
+    outline-offset: -1px;
+}
+
+.nx-debug-ws-selected {
+    background: linear-gradient(90deg, rgba(0, 204, 255, 0.16), rgba(255, 211, 107, 0.06));
+    border-left: 2px solid var(--accent, #0af);
 }
 
 .nx-debug-orphan {
@@ -276,6 +293,16 @@
     text-align: right;
 }
 
+.nx-debug-ws-chip {
+    flex-shrink: 0;
+    font-size: 0.62rem;
+    color: rgba(196, 226, 250, 0.72);
+    background: rgba(255, 255, 255, 0.055);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 999px;
+    padding: 1px 6px;
+}
+
 .nx-debug-ws-badge {
     flex-shrink: 0;
     font-size: 0.62rem;
@@ -286,6 +313,114 @@
     padding: 1px 5px;
     text-transform: uppercase;
     letter-spacing: 0.04em;
+}
+
+.nx-debug-ws-detail {
+    margin-top: 10px;
+    padding: 10px;
+    border: 1px solid rgba(0, 204, 255, 0.16);
+    border-radius: 10px;
+    background:
+        radial-gradient(circle at top left, rgba(0, 204, 255, 0.09), transparent 42%),
+        rgba(255, 255, 255, 0.035);
+}
+
+.nx-debug-ws-detail-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.nx-debug-ws-detail-title {
+    color: rgba(235, 247, 255, 0.95);
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+
+.nx-debug-ws-detail-path,
+.nx-debug-ws-linked,
+.nx-debug-ws-empty {
+    color: rgba(190, 210, 230, 0.68);
+    font-size: 0.68rem;
+    line-height: 1.35;
+}
+
+.nx-debug-ws-linked {
+    margin: 4px 0 8px;
+    color: rgba(255, 211, 107, 0.82);
+}
+
+.nx-debug-ws-detail-badges {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 4px;
+}
+
+.nx-debug-ws-detail-badges span {
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 999px;
+    color: rgba(196, 226, 250, 0.76);
+    background: rgba(0, 0, 0, 0.18);
+    font-size: 0.6rem;
+    padding: 2px 6px;
+}
+
+.nx-debug-ws-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+    gap: 6px;
+    margin: 8px 0;
+}
+
+.nx-debug-ws-stat {
+    display: grid;
+    gap: 2px;
+    padding: 6px;
+    border-radius: 7px;
+    background: rgba(0, 0, 0, 0.16);
+    border: 1px solid rgba(255, 255, 255, 0.055);
+}
+
+.nx-debug-ws-stat span {
+    color: rgba(180, 190, 205, 0.72);
+    font-size: 0.62rem;
+}
+
+.nx-debug-ws-stat strong {
+    color: var(--accent, #0af);
+    font-size: 0.82rem;
+}
+
+.nx-debug-ws-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 8px 0 10px;
+}
+
+.nx-debug-ws-subtitle {
+    margin: 10px 0 5px;
+    color: rgba(255, 211, 107, 0.82);
+    font-size: 0.66rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.nx-debug-ws-child {
+    width: 100%;
+    border: 0;
+    cursor: pointer;
+    color: inherit;
+    font-family: inherit;
+    text-align: left;
+}
+
+.nx-debug-ws-child:hover {
+    border-color: rgba(0, 204, 255, 0.28);
+    background: rgba(0, 204, 255, 0.075);
 }
 
 .nx-debug-mini-list {

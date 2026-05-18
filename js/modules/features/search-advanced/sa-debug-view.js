@@ -11,6 +11,11 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             .replace(/>/g, '&gt;');
     }
 
+    function text(value, fallback) {
+        const normalized = String(value ?? '').trim();
+        return normalized || String(fallback ?? '').trim();
+    }
+
     function getAllLinks() {
         if (typeof window.getLiveLinks === 'function') {
             return window.getLiveLinks();
@@ -68,52 +73,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             folderViewCacheSize: Object.keys(window.EveFolderViewV2?._viewModelCache || {}).length,
             configKeys: Object.keys(cfg).length
         };
-    }
-
-    function collectWorkspaceBreakdown() {
-        const links = getAllLinks();
-        const workspaces = getWorkspaces();
-        const helpers = window.EveWorkspaceHelpers;
-        const allWsIds = helpers?.flattenIds ? new Set(helpers.flattenIds(workspaces)) : new Set();
-        const rows = [];
-        const counts = {};
-
-        links.forEach(function (link) {
-            if (!link) return;
-            const ws = String(link.workspace || 'main').trim();
-            counts[ws] = (counts[ws] || 0) + 1;
-        });
-
-        const flat = helpers?.flatten ? helpers.flatten(workspaces) : workspaces;
-        flat.forEach(function (workspace) {
-            if (!workspace) return;
-            const id = String(workspace.id);
-            rows.push({
-                id: id,
-                name: workspace.name || id,
-                icon: workspace.icon || 'folder',
-                linkCount: counts[id] || 0,
-                status: 'active',
-                depth: helpers?.getDepth ? helpers.getDepth(workspaces, id) : 0
-            });
-        });
-
-        Object.keys(counts).forEach(function (wsId) {
-            if (!allWsIds.has(wsId) && !rows.some(function (row) { return row.id === wsId; })) {
-                rows.push({
-                    id: wsId,
-                    name: wsId,
-                    icon: 'ghost',
-                    linkCount: counts[wsId],
-                    status: 'orphaned',
-                    depth: 0
-                });
-            }
-        });
-
-        return rows.sort(function (left, right) {
-            return Number(right.linkCount || 0) - Number(left.linkCount || 0);
-        });
     }
 
     function collectPerformanceInfo() {
@@ -239,14 +198,38 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         return html;
     }
 
+    function collectWorkspaceBreakdown() {
+        return ns.DebugWorkspace?.collectWorkspaceBreakdown?.() || [];
+    }
+
+    async function collectWorkspaceDetail(workspaceId, options = {}) {
+        return await ns.DebugWorkspace?.collectWorkspaceDetail?.(workspaceId, options) || null;
+    }
+
     async function renderDebugPanel(container) {
         if (!container) return;
         container.innerHTML = '<div class="nx-debug-placeholder" style="padding:12px; text-align:center; color:rgba(128,128,128,0.6); font-size:0.78rem;">Loading diagnostics...</div>';
 
+        const workspaceDebug = ns.DebugWorkspace || {};
+        const workspaceState = workspaceDebug.debugState || (ns.DebugViewState = ns.DebugViewState || { selectedWorkspaceId: '' });
         const overview = collectOverview();
         const wsBreakdown = collectWorkspaceBreakdown();
         const perf = collectPerformanceInfo();
         const spine = await collectDatapackSpineInfo();
+        const activeWorkspaceId = text(getConfig().activeWorkspace, 'main');
+        const hasSelectedWorkspace = wsBreakdown.some(function (workspace) {
+            return workspace.id === workspaceState.selectedWorkspaceId;
+        });
+        if (!workspaceState.selectedWorkspaceId || !hasSelectedWorkspace) {
+            workspaceState.selectedWorkspaceId = wsBreakdown.some(function (workspace) { return workspace.id === activeWorkspaceId; })
+                ? activeWorkspaceId
+                : text(wsBreakdown[0]?.id, '');
+        }
+        const selectedWorkspaceDetail = workspaceState.selectedWorkspaceId
+            ? await collectWorkspaceDetail(workspaceState.selectedWorkspaceId, {
+                snapshot: window.EveOS?.SearchAdvanced?.Index?.getSnapshot?.()
+            })
+            : null;
 
         let html = '<div class="nx-debug-panel">';
 
@@ -282,6 +265,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         html += '<tr><td>Nexus Indexed Cards</td><td>' + perf.nexusIndexedCards + '</td></tr>';
         html += '<tr><td>Nexus Indexed Providers</td><td>' + perf.nexusIndexedProviders + '</td></tr>';
         html += '</table></div>';
+        html += ns.DebugDrilldowns?.renderPerformanceHints?.(perf, overview) || '';
 
         html += '<div class="nx-debug-section"><div class="nx-debug-section-title">DATAPACK SPINE</div>';
         if (spine.integrity) {
@@ -303,24 +287,16 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 return escHtml(entry[0]) + ':' + entry[1];
             }).join(' · ') + '</td></tr>';
             html += '</table>';
-            html += renderMiniList(spine.topWorkspaces);
-            html += renderMiniList(Object.entries(spine.integrity.byReason || {})
-                .sort(function (left, right) {
-                    return Number(right[1] || 0) - Number(left[1] || 0);
-                })
-                .slice(0, 5));
-            html += renderIssueList(spine.integrity.issues || [], spine.integrity.truncatedIssueCount || 0);
-            if (spine.folderIntegrity?.issueCount) {
-                html += '<div class="nx-debug-section-title">FOLDER PATH DISTURBANCES</div>';
-                html += renderIssueList((spine.folderIntegrity.folders || []).concat(spine.folderIntegrity.bookmarks || []).map(function (issue) {
-                    return {
-                        severity: 'error',
-                        type: issue.linkId ? 'bookmark-folder' : 'folder',
-                        title: issue.title || issue.name || issue.folderId || 'Folder issue',
-                        pathLabel: [issue.workspaceId, issue.categoryName, issue.folderId].filter(Boolean).join(' > '),
-                        reasons: issue.reasons || []
-                    };
-                }), 0);
+            if (ns.DebugDrilldowns?.renderSpineDrilldowns) {
+                html += ns.DebugDrilldowns.renderSpineDrilldowns(spine);
+            } else {
+                html += renderMiniList(spine.topWorkspaces);
+                html += renderMiniList(Object.entries(spine.integrity.byReason || {})
+                    .sort(function (left, right) {
+                        return Number(right[1] || 0) - Number(left[1] || 0);
+                    })
+                    .slice(0, 5));
+                html += renderIssueList(spine.integrity.issues || [], spine.integrity.truncatedIssueCount || 0);
             }
         } else {
             html += '<div style="font-size:0.74rem; color:rgba(140,170,205,0.7);">Nexus index is unavailable.</div>';
@@ -328,18 +304,17 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         html += '</div>';
 
         html += '<div class="nx-debug-section"><div class="nx-debug-section-title">WORKSPACE BREAKDOWN</div>';
-        html += '<div class="nx-debug-ws-list">';
-        wsBreakdown.forEach(function (workspace) {
-            const depthPad = workspace.depth > 0 ? ' style="padding-left:' + (workspace.depth * 12) + 'px"' : '';
-            const statusClass = workspace.status === 'orphaned' ? ' nx-debug-orphan' : '';
-            html += '<div class="nx-debug-ws-row' + statusClass + '"' + depthPad + '>';
-            html += '<span class="nx-debug-ws-icon">' + escHtml(workspace.icon) + '</span>';
-            html += '<span class="nx-debug-ws-name">' + escHtml(workspace.name) + '</span>';
-            html += '<span class="nx-debug-ws-count">' + workspace.linkCount + '</span>';
-            if (workspace.status === 'orphaned') html += '<span class="nx-debug-ws-badge">ghost</span>';
-            html += '</div>';
-        });
-        html += '</div></div>';
+        if (workspaceDebug.renderWorkspaceBreakdown) {
+            html += workspaceDebug.renderWorkspaceBreakdown(wsBreakdown, workspaceState.selectedWorkspaceId);
+            html += workspaceDebug.renderWorkspaceDetail
+                ? workspaceDebug.renderWorkspaceDetail(selectedWorkspaceDetail)
+                : '';
+        } else {
+            html += renderMiniList(wsBreakdown.map(function (workspace) {
+                return [workspace.name || workspace.id, workspace.linkCount || 0];
+            }));
+        }
+        html += '</div>';
 
         html += '<div class="nx-debug-section"><div class="nx-debug-section-title">ACTIONS</div>';
         html += '<div class="nx-debug-actions">';
@@ -354,6 +329,9 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
 
         html += '</div>';
         container.innerHTML = html;
+
+        workspaceDebug.bindWorkspaceInteractions?.(container, renderDebugPanel);
+        ns.DebugDrilldowns?.bindDrilldownInteractions?.(container, renderDebugPanel);
 
         const rescueBtn = document.getElementById('nxDebugRescueBtn');
         if (rescueBtn) {
@@ -446,6 +424,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     ns.DebugView = {
         collectOverview,
         collectWorkspaceBreakdown,
+        collectWorkspaceDetail,
         collectPerformanceInfo,
         collectDatapackSpineInfo,
         renderDebugPanel

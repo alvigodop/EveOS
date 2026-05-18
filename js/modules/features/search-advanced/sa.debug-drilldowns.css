@@ -1,0 +1,155 @@
+.nx-debug-drill {
+    margin-top: 10px;
+    display: grid;
+    gap: 9px;
+}
+
+.nx-debug-drill-subtitle,
+.nx-debug-drill-label {
+    color: rgba(255, 211, 107, 0.82);
+    font-size: 0.66rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.nx-debug-drill-label {
+    margin: 4px 0;
+    color: rgba(196, 226, 250, 0.72);
+}
+
+.nx-debug-drill-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 8px;
+}
+
+.nx-debug-drill-row {
+    width: 100%;
+    border: 0;
+    color: inherit;
+    cursor: pointer;
+    font-family: inherit;
+    text-align: left;
+}
+
+.nx-debug-drill-row:hover,
+.nx-debug-drill-selected {
+    background: rgba(0, 204, 255, 0.075);
+    border-color: rgba(0, 204, 255, 0.28);
+}
+
+.nx-debug-drill-folder-row {
+    background: rgba(255, 100, 60, 0.055);
+}
+
+.nx-debug-drill-panel {
+    padding: 9px;
+    border: 1px solid rgba(0, 204, 255, 0.14);
+    border-radius: 10px;
+    background:
+        radial-gradient(circle at top left, rgba(0, 204, 255, 0.08), transparent 40%),
+        rgba(255, 255, 255, 0.035);
+}
+
+.nx-debug-drill-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+    color: rgba(235, 247, 255, 0.92);
+    font-size: 0.75rem;
+}
+
+.nx-debug-drill-clear {
+    border: 1px solid rgba(255, 255, 255, 0.11);
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.18);
+    color: rgba(210, 225, 240, 0.82);
+    cursor: pointer;
+    font-size: 0.65rem;
+    padding: 3px 8px;
+}
+
+.nx-debug-drill-cards {
+    display: grid;
+    gap: 7px;
+}
+
+.nx-debug-drill-card {
+    display: grid;
+    gap: 5px;
+    padding: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.14);
+}
+
+.nx-debug-drill-error {
+    border-color: rgba(255, 94, 94, 0.28);
+}
+
+.nx-debug-drill-warning {
+    border-color: rgba(255, 211, 107, 0.26);
+}
+
+.nx-debug-drill-card-title {
+    color: rgba(235, 247, 255, 0.93);
+    font-size: 0.73rem;
+    font-weight: 700;
+}
+
+.nx-debug-drill-card-path,
+.nx-debug-drill-reason,
+.nx-debug-drill-empty {
+    color: rgba(190, 210, 230, 0.7);
+    font-size: 0.66rem;
+    line-height: 1.35;
+}
+
+.nx-debug-drill-reason {
+    padding-left: 7px;
+    border-left: 2px solid rgba(0, 204, 255, 0.2);
+}
+
+.nx-debug-drill-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.nx-debug-drill-provenance {
+    display: grid;
+    gap: 4px;
+    margin-top: 2px;
+    padding: 7px;
+    border-radius: 7px;
+    background: rgba(0, 0, 0, 0.18);
+    border: 1px solid rgba(0, 204, 255, 0.13);
+}
+
+.nx-debug-drill-provenance div {
+    display: grid;
+    grid-template-columns: minmax(70px, 0.38fr) 1fr;
+    gap: 6px;
+    color: rgba(190, 210, 230, 0.74);
+    font-size: 0.64rem;
+}
+
+.nx-debug-drill-provenance span {
+    color: rgba(140, 170, 205, 0.7);
+}
+
+.nx-debug-drill-provenance strong {
+    color: rgba(235, 247, 255, 0.9);
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.nx-debug-perf-hints {
+    display: grid;
+    gap: 5px;
+    margin-top: 8px;
+    color: rgba(190, 210, 230, 0.68);
+    font-size: 0.66rem;
+}

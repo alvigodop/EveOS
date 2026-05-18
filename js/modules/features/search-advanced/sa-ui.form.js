@@ -14,6 +14,69 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
             ? modules.createUiFormTemplate()
             : '';
 
+        function getSearchMonitor() {
+            return document.getElementById('loadingIndicator');
+        }
+
+        function forceMonitorVisible() {
+            const indicator = getSearchMonitor();
+            if (!indicator) return false;
+            indicator.style.display = '';
+            indicator.classList.add('visible');
+            indicator.classList.remove('compact');
+            if (window.LoadingIndicator) {
+                window.LoadingIndicator._loadingIndicatorCompact = false;
+            }
+            return true;
+        }
+
+        function expandSearchMonitor() {
+            if (window.SearchMonitorBoot?.expand) {
+                window.SearchMonitorBoot.expand();
+                return forceMonitorVisible();
+            }
+            if (window.LoadingIndicator?.expand) {
+                window.LoadingIndicator.expand();
+                return forceMonitorVisible();
+            }
+            return forceMonitorVisible();
+        }
+
+        function openGeminiWorkspace() {
+            const expanded = expandSearchMonitor();
+            const root = document.getElementById('gemini-ui-root');
+            if (root) {
+                const fullViewBtn = root.querySelector('[data-gemini-monitor-view-btn="full"]');
+                if (fullViewBtn && !fullViewBtn.classList.contains('active')) {
+                    fullViewBtn.click();
+                } else if (typeof window.__loadGeminiScriptsNow === 'function') {
+                    window.__loadGeminiScriptsNow();
+                }
+                window.setTimeout(function () {
+                    root.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    root.focus?.({ preventScroll: true });
+                }, 120);
+                return true;
+            }
+
+            if (typeof window.__loadGeminiScriptsNow === 'function') {
+                window.__loadGeminiScriptsNow();
+            }
+            const placeholder = document.getElementById('gemini-placeholder');
+            if (placeholder) {
+                window.setTimeout(function () {
+                    placeholder.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, 120);
+            }
+            return expanded || !!placeholder;
+        }
+
+        function setGeminiButtonLoading(button, isLoading) {
+            if (!button) return;
+            button.disabled = !!isLoading;
+            button.textContent = isLoading ? 'Loading Gemini...' : 'Gemini';
+        }
+
         function bindEvents() {
             const runBtn = fields.byId?.('esRunBtn');
             const clearBtn = fields.byId?.('esClearBtn');
@@ -44,7 +107,7 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
                 });
             }
 
-            // Wire debug diagnostics panel — render on first expand
+            // Wire debug diagnostics panel - render on first expand.
             const debugSection = fields.byId?.('nxDebugSection');
             if (debugSection) {
                 debugSection.addEventListener('toggle', function () {
@@ -60,36 +123,20 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
                 });
             }
 
-            // Wire Gemini Link button — opens search monitor with Gemini UI
+            // Wire Gemini Link button - opens Search Monitor with the Gemini workspace.
             const geminiBtn = fields.byId?.('nxGeminiLinkBtn');
             if (geminiBtn) {
                 geminiBtn.addEventListener('click', function () {
-                    function doExpand() {
-                        if (window.LoadingIndicator && typeof LoadingIndicator.expand === 'function') {
-                            LoadingIndicator.expand();
-                            setTimeout(function () {
-                                const placeholder = document.getElementById('gemini-placeholder');
-                                if (placeholder) placeholder.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                            }, 200);
-                            return true;
-                        }
-                        return false;
-                    }
+                    if (openGeminiWorkspace()) return;
 
-                    if (doExpand()) return;
-
-                    // LoadingIndicator is a deferred script — rush-load it
+                    // LoadingIndicator can still be deferred; rush-load then retry once.
                     if (typeof window.__loadDeferredScriptsNow === 'function') {
-                        geminiBtn.disabled = true;
-                        geminiBtn.textContent = '⟳ Loading…';
+                        setGeminiButtonLoading(geminiBtn, true);
                         window.__loadDeferredScriptsNow().then(function () {
-                            geminiBtn.disabled = false;
-                            geminiBtn.textContent = '✦ Gemini';
-                            // Retry after deferred scripts finish
-                            setTimeout(doExpand, 100);
+                            setGeminiButtonLoading(geminiBtn, false);
+                            setTimeout(openGeminiWorkspace, 100);
                         }).catch(function () {
-                            geminiBtn.disabled = false;
-                            geminiBtn.textContent = '✦ Gemini';
+                            setGeminiButtonLoading(geminiBtn, false);
                         });
                     }
                 });
@@ -100,7 +147,7 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
             if (fields.byId?.('expandedSearchModal')) return;
             document.body.insertAdjacentHTML('beforeend', modalTemplate);
             bindEvents();
-            // Initialize Nexus Search vector toggles and stats
+            // Initialize Nexus Search vector toggles and stats.
             if (typeof fields.initVectorToggles === 'function') fields.initVectorToggles();
             if (typeof fields.updateFooterStats === 'function') fields.updateFooterStats();
         }
