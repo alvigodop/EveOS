@@ -173,24 +173,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         };
     }
 
-    async function tryBuildGraphDataFromNexusProjection(scope, scopedLinks, context, centerX, centerY, width, height) {
-        const projectionLoader = typeof ns.getNexusGraphProjection === 'function'
-            ? ns.getNexusGraphProjection.bind(ns)
-            : (window.EveOS?.DatapackIndex?.buildGraphProjection
-                ? function (inputScope) { return window.EveOS.DatapackIndex.buildGraphProjection({ scope: inputScope || null }); }
-                : (window.EveOS?.SearchAdvanced?.Index?.buildGraphProjection
-                    ? function (inputScope) { return window.EveOS.SearchAdvanced.Index.buildGraphProjection({ scope: inputScope || null }); }
-                    : null));
-        if (!projectionLoader) return false;
-
-        let projection = null;
-        try {
-            projection = await projectionLoader(scope);
-        } catch (error) {
-            console.warn('[ConstellationMap] Nexus projection load failed, falling back to raw graph:', error);
-            return false;
-        }
-
+    function buildGraphDataFromProjection(projection, scope, scopedLinks, context, centerX, centerY, width, height) {
         const projectionNodes = Array.isArray(projection?.nodes) ? projection.nodes : [];
         const projectionEdges = Array.isArray(projection?.edges) ? projection.edges : [];
         if (!projectionNodes.length) return false;
@@ -364,6 +347,39 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         return true;
     }
 
+    function tryBuildGraphDataFromNexusProjection(scope, scopedLinks, context, centerX, centerY, width, height) {
+        const projectionLoader = typeof ns.getNexusGraphProjection === 'function'
+            ? ns.getNexusGraphProjection.bind(ns)
+            : (window.EveOS?.DatapackIndex?.buildGraphProjection
+                ? function (inputScope) { return window.EveOS.DatapackIndex.buildGraphProjection({ scope: inputScope || null }); }
+                : (window.EveOS?.SearchAdvanced?.Index?.buildGraphProjection
+                    ? function (inputScope) { return window.EveOS.SearchAdvanced.Index.buildGraphProjection({ scope: inputScope || null }); }
+                    : null));
+        if (!projectionLoader) return false;
+
+        let projection = null;
+        try {
+            projection = projectionLoader(scope);
+        } catch (error) {
+            console.warn('[ConstellationMap] Nexus projection load failed, falling back to raw graph:', error);
+            return false;
+        }
+        if (projection && typeof projection.then === 'function') {
+            return projection
+                .then(function (resolvedProjection) {
+                    return buildGraphDataFromProjection(resolvedProjection, scope, scopedLinks, context, centerX, centerY, width, height);
+                })
+                .catch(function (error) {
+                    console.warn('[ConstellationMap] Nexus projection load failed, falling back to raw graph:', error);
+                    return false;
+                });
+        }
+        return buildGraphDataFromProjection(projection, scope, scopedLinks, context, centerX, centerY, width, height);
+    }
+
     const graphProjection = ns._graphProjection = ns._graphProjection || {};
-    Object.assign(graphProjection, { tryBuildGraphDataFromNexusProjection });
+    Object.assign(graphProjection, {
+        tryBuildGraphDataFromNexusProjection,
+        buildGraphDataFromProjection
+    });
 })(window.EveConstellationMap);

@@ -42,9 +42,18 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         };
     }
 
-    async function buildGraphProjection(options) {
-        const snapshot = options?.snapshot || await ensureFresh();
+    function buildGraphProjection(options) {
+        const currentSnapshot = options?.snapshot || shared.state?.snapshot || null;
         const scope = options?.scope || null;
+        if (currentSnapshot && Number(currentSnapshot.builtAt || 0) > 0 && (!shared.state?.dirty || options?.allowStale === true)) {
+            return buildGraphProjectionFromSnapshot(currentSnapshot, scope);
+        }
+        return Promise.resolve(ensureFresh()).then(function (snapshot) {
+            return buildGraphProjectionFromSnapshot(snapshot, scope);
+        });
+    }
+
+    function buildGraphProjectionFromSnapshot(snapshot, scope) {
         const inScope = typeof buildScopeRecordMatcher === 'function'
             ? buildScopeRecordMatcher(snapshot, scope)
             : function (record) { return matchesScope(record, scope); };
@@ -299,7 +308,8 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         };
     }
         return {
-            buildGraphProjection
+            buildGraphProjection,
+            buildGraphProjectionFromSnapshot
         };
     }
 

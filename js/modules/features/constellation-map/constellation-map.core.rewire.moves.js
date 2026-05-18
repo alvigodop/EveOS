@@ -256,6 +256,28 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         return true;
     }
 
+    function ensureDetachedParkingEntryVisible(entry, sourceNode) {
+        const entryId = text(entry?.id, '');
+        if (!entryId || !Array.isArray(state.nodes)) return;
+        const alreadyVisible = state.nodes.some(function (node) {
+            return text(node?.data?.detachedEntryId, '') === entryId;
+        });
+        if (alreadyVisible) return;
+
+        const graphDetached = ns._graphDetached || {};
+        const position = {
+            x: Number(sourceNode?.x) || 0,
+            y: Number(sourceNode?.y) || 0
+        };
+
+        if (entry?.kind === 'folder' && typeof graphDetached.addDetachedFolderBranch === 'function') {
+            graphDetached.addDetachedFolderBranch(entry, position);
+        } else if (typeof graphDetached.addDetachedLinkNode === 'function') {
+            graphDetached.addDetachedLinkNode(entry, position);
+        }
+        requestDraw();
+    }
+
     function detachNodeToParking(node, options = {}) {
         if (!canDetachNodeToParking(node)) return false;
 
@@ -277,6 +299,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         refreshGraphAfterMove(entry.kind === 'folder'
             ? 'detached_folder_' + text(entry.id, '') + '_' + text(entry.folder?.rootId, '')
             : 'detached_link_' + text(entry.id, ''));
+        ensureDetachedParkingEntryVisible(entry, node);
         if (!options.silent) {
             showRewireToast('Chain detached into parking.');
         }
@@ -369,6 +392,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
         moveFolderToTarget,
         commitArmedSourceToTarget,
         detachNodeToRoot,
+        ensureDetachedParkingEntryVisible,
         detachNodeToParking,
         beginRewireDrag,
         updateRewireDrag,

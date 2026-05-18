@@ -45,7 +45,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     const graphProjection = ns._graphProjection || {};
     const { tryBuildGraphDataFromNexusProjection } = graphProjection;
 
-async function buildGraphData(scopeOption, options = {}) {
+function buildGraphData(scopeOption, options = {}) {
         const scope = normalizeScope(scopeOption);
         const preserveLocks = options?.preserveLocks === true;
         const scopedLinks = getScopedLinks(scope);
@@ -79,8 +79,16 @@ async function buildGraphData(scopeOption, options = {}) {
             resetStaticLocks();
         }
 
-        const usedProjection = await tryBuildGraphDataFromNexusProjection(scope, scopedLinks, context, centerX, centerY, width, height);
-        if (usedProjection) return;
+        if (!options?.skipNexusProjection) {
+            const usedProjection = tryBuildGraphDataFromNexusProjection(scope, scopedLinks, context, centerX, centerY, width, height);
+            if (usedProjection && typeof usedProjection.then === 'function') {
+                return usedProjection.then(function (resolvedUsedProjection) {
+                    if (resolvedUsedProjection) return true;
+                    return buildGraphData(scope, Object.assign({}, options, { skipNexusProjection: true }));
+                });
+            }
+            if (usedProjection) return true;
+        }
 
         if (scope.scope === 'all') {
             const wsHelpers = window.EveWorkspaceHelpers;
@@ -329,6 +337,7 @@ async function buildGraphData(scopeOption, options = {}) {
         });
 
         initializeWorldField(centerX, centerY);
+        return true;
     }
 
     const graph = ns._graph = ns._graph || {};
