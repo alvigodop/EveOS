@@ -60,7 +60,7 @@ async function performNestedDrag(page) {
                 clientX: 40,
                 clientY: 180
             }));
-            await new Promise(resolve => setTimeout(resolve, 140));
+            await new Promise(resolve => setTimeout(resolve, 380));
             source.dispatchEvent(new PointerEvent('pointermove', {
                 bubbles: true,
                 cancelable: true,
@@ -103,7 +103,7 @@ async function performNestedDrag(page) {
             clientX: 40,
             clientY: 260
         }));
-        await new Promise(resolve => setTimeout(resolve, 140));
+        await new Promise(resolve => setTimeout(resolve, 380));
         source.dispatchEvent(new PointerEvent('pointermove', {
             bubbles: true,
             cancelable: true,
@@ -119,6 +119,49 @@ async function performNestedDrag(page) {
             button: 0,
             clientX: 60,
             clientY: 300
+        }));
+        document.elementFromPoint = originalElementFromPoint;
+        await new Promise(resolve => setTimeout(resolve, 120));
+    });
+    await page.waitForFunction(() => {
+        const helpers = window.EveWorkspaceHelpers;
+        const gammaParent = helpers.findParent(config.workspaces, 'gamma');
+        return gammaParent && gammaParent.id === 'beta';
+    }, undefined, { timeout: 10000 });
+    await page.evaluate(async () => {
+        const source = document.querySelector('#sidebar .ws-item[data-ws-id="gamma"]');
+        const groupBody = document.querySelector('#sidebar .ws-group-section[data-group-id] > .ws-group-body');
+        if (!source || !groupBody) throw new Error('Missing gamma source or group body target');
+        if (typeof groupBody.__eveSidebarApplyPointerDrop !== 'function') {
+            throw new Error('Group body is missing pointer drop handler');
+        }
+
+        const originalElementFromPoint = document.elementFromPoint.bind(document);
+        document.elementFromPoint = function () { return groupBody; };
+        source.dispatchEvent(new PointerEvent('pointerdown', {
+            bubbles: true,
+            cancelable: true,
+            pointerId: 33,
+            button: 0,
+            clientX: 42,
+            clientY: 300
+        }));
+        await new Promise(resolve => setTimeout(resolve, 380));
+        source.dispatchEvent(new PointerEvent('pointermove', {
+            bubbles: true,
+            cancelable: true,
+            pointerId: 33,
+            button: 0,
+            clientX: 58,
+            clientY: 330
+        }));
+        source.dispatchEvent(new PointerEvent('pointerup', {
+            bubbles: true,
+            cancelable: true,
+            pointerId: 33,
+            button: 0,
+            clientX: 58,
+            clientY: 330
         }));
         document.elementFromPoint = originalElementFromPoint;
         await new Promise(resolve => setTimeout(resolve, 120));

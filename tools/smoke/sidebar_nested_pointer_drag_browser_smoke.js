@@ -129,6 +129,7 @@ async function runSmoke(page) {
             clientX: 20,
             clientY: 80
         }));
+        await new Promise(resolve => setTimeout(resolve, 380));
         source.dispatchEvent(new PointerEvent('pointermove', {
             bubbles: true,
             pointerId: 1,
@@ -160,6 +161,7 @@ async function runSmoke(page) {
                 clientX: 20,
                 clientY: 120
             }));
+            await new Promise(resolve => setTimeout(resolve, 380));
             promotedSource.dispatchEvent(new PointerEvent('pointermove', {
                 bubbles: true,
                 pointerId: 2,

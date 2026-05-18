@@ -155,6 +155,22 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             return ctx.canMoveWorkspaceIntoGroup(ctx.getDraggedWorkspaceId(), groupId);
         };
 
+        ctx.isWorkspaceNestedInsideGroup = function (workspaceId, groupId) {
+            var dragId = String(workspaceId || '').trim();
+            var targetGroupId = String(groupId || '').trim();
+            if (!dragId || !targetGroupId || !helpers || typeof helpers.getPath !== 'function') return false;
+
+            var path = helpers.getPath(config.workspaces || [], dragId);
+            if (!Array.isArray(path) || path.length < 2) return false;
+
+            var rootWorkspace = path[0];
+            var rootGroupId = groupsApi && typeof groupsApi.getWorkspaceGroupId === 'function'
+                ? groupsApi.getWorkspaceGroupId(rootWorkspace, config)
+                : String(rootWorkspace && rootWorkspace.groupId || '').trim();
+
+            return !!rootGroupId && rootGroupId === targetGroupId;
+        };
+
         ctx.moveWorkspaceIntoGroup = function (dragId, groupId, beforeWorkspaceId) {
             if (!helpers || !groupsApi || typeof helpers.moveToPosition !== 'function') return false;
             var targetGroupId = String(groupId || '').trim();
@@ -244,14 +260,22 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
 
         ctx.attachGroupMemberDropTarget = function (element, groupId) {
             if (!element) return;
+            var isGroupBodyTarget = element.classList && element.classList.contains('ws-group-body');
+
+            function canAcceptWorkspaceDrop(workspaceId) {
+                var targetWorkspaceId = String(workspaceId || '').trim();
+                if (!targetWorkspaceId || !ctx.canMoveWorkspaceIntoGroup(targetWorkspaceId, groupId)) return false;
+                if (isGroupBodyTarget && ctx.isWorkspaceNestedInsideGroup(targetWorkspaceId, groupId)) return false;
+                return true;
+            }
 
             element.ondragover = function (e) {
-                if (!ctx.canDropWorkspaceIntoGroup(groupId)) return;
+                if (!canAcceptWorkspaceDrop(ctx.getDraggedWorkspaceId())) return;
                 e.preventDefault();
                 e.dataTransfer.dropEffect = 'move';
             };
             element.ondragenter = function (e) {
-                if (!ctx.canDropWorkspaceIntoGroup(groupId)) return;
+                if (!canAcceptWorkspaceDrop(ctx.getDraggedWorkspaceId())) return;
                 e.preventDefault();
                 element.classList.add('ws-drop-target');
             };
@@ -266,12 +290,12 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
                 var dragDuration = Date.now() - (rt._lastWorkspaceDragStartTime || 0);
                 if (dragDuration < 150) return; // Ignore instant buffered drops
                 var dragId = String(ctx.getDraggedWorkspaceId() || e.dataTransfer.getData('text/plain') || '').trim();
-                if (!dragId || !ctx.canDropWorkspaceIntoGroup(groupId)) return;
+                if (!canAcceptWorkspaceDrop(dragId)) return;
                 if (ctx.moveWorkspaceIntoGroup(dragId, groupId, '')) ctx.saveAndRefresh(true);
             };
             element.__eveSidebarApplyPointerDrop = function (dragId) {
                 var workspaceId = String(dragId || '').trim();
-                if (!workspaceId || !ctx.canMoveWorkspaceIntoGroup(workspaceId, groupId)) return false;
+                if (!canAcceptWorkspaceDrop(workspaceId)) return false;
                 return ctx.moveWorkspaceIntoGroup(workspaceId, groupId, '');
             };
         };

@@ -58,6 +58,38 @@ async function runSmoke(page) {
         source.addEventListener('dragstart', () => { nativeDragStartCount += 1; });
 
         const originalElementFromPoint = document.elementFromPoint.bind(document);
+
+        source.dispatchEvent(new PointerEvent('pointerdown', {
+            bubbles: true,
+            cancelable: true,
+            pointerId: 20,
+            button: 0,
+            clientX: 36,
+            clientY: 220
+        }));
+        await new Promise(resolve => setTimeout(resolve, 260));
+        source.dispatchEvent(new PointerEvent('pointermove', {
+            bubbles: true,
+            cancelable: true,
+            pointerId: 20,
+            button: 0,
+            clientX: 39,
+            clientY: 222
+        }));
+        const previewDuringJitter = !!document.querySelector('.ws-pointer-drag-preview');
+        source.dispatchEvent(new PointerEvent('pointerup', {
+            bubbles: true,
+            cancelable: true,
+            pointerId: 20,
+            button: 0,
+            clientX: 39,
+            clientY: 222
+        }));
+        source.click();
+        await new Promise(resolve => setTimeout(resolve, 80));
+        const workspaceAfterJitterClick = config.activeWorkspace;
+        config.activeWorkspace = 'main';
+
         document.elementFromPoint = function () { return targetSlot; };
 
         source.dispatchEvent(new PointerEvent('pointerdown', {
@@ -68,7 +100,7 @@ async function runSmoke(page) {
             clientX: 36,
             clientY: 220
         }));
-        await new Promise(resolve => setTimeout(resolve, 140));
+        await new Promise(resolve => setTimeout(resolve, 380));
         source.dispatchEvent(new PointerEvent('pointermove', {
             bubbles: true,
             cancelable: true,
@@ -117,7 +149,7 @@ async function runSmoke(page) {
             clientX: 36,
             clientY: 260
         }));
-        await new Promise(resolve => setTimeout(resolve, 140));
+        await new Promise(resolve => setTimeout(resolve, 380));
         betaSource.dispatchEvent(new PointerEvent('pointermove', {
             bubbles: true,
             cancelable: true,
@@ -143,6 +175,8 @@ async function runSmoke(page) {
             sourceDraggable: source.draggable,
             betaSourceDraggable: betaSource.draggable,
             nativeDragStartCount,
+            previewDuringJitter,
+            workspaceAfterJitterClick,
             previewDuringRootDrag,
             previewAfterRootDrag,
             order: config.workspaces.map((ws) => ws.id),
@@ -157,6 +191,9 @@ async function runSmoke(page) {
     }
     if (result.sourceDraggable || result.betaSourceDraggable || result.nativeDragStartCount !== 0) {
         throw new Error(`Expected workspace reorder to avoid native drag ghost: ${JSON.stringify(result, null, 2)}`);
+    }
+    if (result.workspaceAfterJitterClick !== 'gamma') {
+        throw new Error(`Expected normal-route hold jitter to remain clickable without applying a drag: ${JSON.stringify(result, null, 2)}`);
     }
     if (!result.previewDuringRootDrag || result.previewAfterRootDrag) {
         throw new Error(`Expected custom pointer drag preview during normal drag only: ${JSON.stringify(result, null, 2)}`);

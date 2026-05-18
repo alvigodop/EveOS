@@ -89,7 +89,7 @@ async function runSmoke(page) {
             clientX: 40,
             clientY: 260
         }));
-        await new Promise(resolve => setTimeout(resolve, 140));
+        await new Promise(resolve => setTimeout(resolve, 380));
         source.dispatchEvent(new PointerEvent('pointermove', {
             bubbles: true,
             cancelable: true,

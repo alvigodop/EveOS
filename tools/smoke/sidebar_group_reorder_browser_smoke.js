@@ -59,7 +59,7 @@ async function runSmoke(page) {
                 clientX: 40,
                 clientY: 220
             }));
-            await new Promise(resolve => setTimeout(resolve, 140));
+            await new Promise(resolve => setTimeout(resolve, 380));
             source.dispatchEvent(new PointerEvent('pointermove', {
                 bubbles: true,
                 cancelable: true,
@@ -77,7 +77,7 @@ async function runSmoke(page) {
                 clientY: 190
             }));
             document.elementFromPoint = originalElementFromPoint;
-            await new Promise(resolve => setTimeout(resolve, 140));
+            await new Promise(resolve => setTimeout(resolve, 380));
         }
 
         const alphaWrapper = document.querySelector('#sidebar .ws-group-section[data-group-id="group-1"] .ws-node-wrapper[data-ws-id="alpha"]');
@@ -114,7 +114,7 @@ async function runSmoke(page) {
             clientX: 42,
             clientY: 300
         }));
-        await new Promise(resolve => setTimeout(resolve, 140));
+        await new Promise(resolve => setTimeout(resolve, 380));
         source.dispatchEvent(new PointerEvent('pointermove', {
             bubbles: true,
             cancelable: true,
@@ -132,7 +132,7 @@ async function runSmoke(page) {
             clientY: 260
         }));
         document.elementFromPoint = originalElementFromPoint;
-        await new Promise(resolve => setTimeout(resolve, 140));
+        await new Promise(resolve => setTimeout(resolve, 380));
     });
 
     const nestedOrder = await page.evaluate(() => {
