@@ -22,16 +22,22 @@ async function main() {
             typeof window.openExpandedSearchModal === 'function'
             && typeof window.renderDashboard === 'function'
             && !!window.EveOS?.SearchAdvanced?.DatapackView
+            && !!window.EveOS?.SearchAdvanced?.Index
             && !!window.EveCategoryOrder
+            && !!window.EveLibrary?.State
         ), undefined, { timeout: 180000 });
 
         await page.evaluate(() => {
             window.config = config = {
                 activeWorkspace: 'main',
                 viewMode: 'grid',
-                workspaces: [{ id: 'main', name: 'Main', icon: 'home', subTabs: [] }],
+                workspaces: [
+                    { id: 'main', name: 'Main', icon: 'home', subTabs: [] },
+                    { id: 'other-tab', name: 'Other Tab', icon: 'folder', subTabs: [] }
+                ],
                 categoryOrderByWorkspace: {
-                    main: ['Browser', 'Detached Nodes', 'NewTest', 'Start']
+                    main: ['Browser', 'Detached Nodes', 'NewTest', 'Start'],
+                    'other-tab': ['NewTest']
                 },
                 categoryOrder: ['Browser', 'Detached Nodes', 'NewTest', 'Start'],
                 collapsed: [],
@@ -53,12 +59,26 @@ async function main() {
                     url: 'https://example.com/start',
                     workspace: 'main',
                     category: 'Start'
+                },
+                {
+                    id: 'other-newtest-link',
+                    title: 'Other Tab NewTest Bookmark',
+                    url: 'https://example.com/other-newtest',
+                    workspace: 'other-tab',
+                    category: 'NewTest'
                 }
             ];
             window.bookmarkFolders = bookmarkFolders = {
                 'main::Detached Nodes': { nodes: [], settings: { staleGhost: true } },
                 'main::NewTest': { nodes: [] }
             };
+            window.EveLibrary.State.setAllLibraries({
+                'main::NewTest': {
+                    dataType: 'graphicNovels',
+                    entries: [{ id: 'library-only-newtest', title: 'Library Only NewTest' }],
+                    folderView: { root: 'all', chain: [], expanded: false }
+                }
+            });
             if (window.eveState) {
                 window.eveState.config = config;
                 window.eveState.links = links;
@@ -69,6 +89,12 @@ async function main() {
                 meta: { changedKeys: ['links', 'bookmarkFolders', 'categoryOrderByWorkspace'] }
             });
             window.renderDashboard();
+        });
+        await page.evaluate(async () => {
+            await window.EveOS.SearchAdvanced.Index.rebuild({
+                force: true,
+                reason: 'nexus-macro-no-ghost-smoke'
+            });
         });
 
         await page.evaluate(() => window.openExpandedSearchModal({ autoSearch: false }));

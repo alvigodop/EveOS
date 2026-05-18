@@ -70,6 +70,13 @@ window.EveCategoryOrder = window.EveCategoryOrder || {};
         });
     }
 
+    function isMaterialSummaryCard(bucket) {
+        return !!bucket && (
+            Number(bucket.bookmarkCount || 0) > 0
+            || Number(bucket.folderCount || 0) > 0
+        );
+    }
+
     function getWorkspaceOrderStore() {
         const config = getConfig();
         if (!config.categoryOrderByWorkspace || typeof config.categoryOrderByWorkspace !== 'object') {
@@ -86,6 +93,7 @@ window.EveCategoryOrder = window.EveCategoryOrder || {};
         if (summary?.cards && typeof summary.cards === 'object') {
             Object.keys(summary.cards).forEach(function (cardKey) {
                 if (String(cardKey || '').indexOf(normalizedWorkspaceId + '::') !== 0) return;
+                if (!isMaterialSummaryCard(summary.cards[cardKey])) return;
                 const categoryName = normalizeCategoryName(String(cardKey).slice((normalizedWorkspaceId + '::').length));
                 if (categoryName) names.add(categoryName);
             });

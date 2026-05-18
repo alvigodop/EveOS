@@ -82,6 +82,60 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         return normalizeWorkspaceId(workspaceId) + '::' + normalizeCategoryName(categoryName);
     }
 
+    function getDatapackIndexApi() {
+        return window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
+    }
+
+    function getStructureSummary() {
+        const indexApi = getDatapackIndexApi();
+        if (!indexApi || typeof indexApi.getStructureSummary !== 'function') return null;
+        const buildState = typeof indexApi.getBuildState === 'function' ? indexApi.getBuildState() : null;
+        const hasReadableSnapshot = typeof indexApi.hasReadableStructureSnapshot === 'function'
+            ? indexApi.hasReadableStructureSnapshot()
+            : (typeof indexApi.hasUsableSnapshot === 'function'
+                ? indexApi.hasUsableSnapshot()
+                : (!buildState?.dirty && Number(buildState?.builtAt || 0) > 0));
+        if (!hasReadableSnapshot) return null;
+        return indexApi.getStructureSummary() || null;
+    }
+
+    function getCategoryOrderHints(workspaceId) {
+        const ws = normalizeWorkspaceId(workspaceId);
+        const cfg = getConfig();
+        const hints = [];
+        function addList(list) {
+            (Array.isArray(list) ? list : []).forEach(function (categoryName) {
+                const normalized = normalizeCategoryName(categoryName);
+                if (hints.indexOf(normalized) === -1) hints.push(normalized);
+            });
+        }
+        addList(cfg.categoryOrderByWorkspace && Array.isArray(cfg.categoryOrderByWorkspace[ws])
+            ? cfg.categoryOrderByWorkspace[ws]
+            : []);
+        addList(cfg.categoryOrder);
+        if (window.EveCategoryOrder?.getOrder) {
+            addList(window.EveCategoryOrder.getOrder(ws));
+        }
+        return hints;
+    }
+
+    function sortMaterialCategoryNames(workspaceId, materialNames) {
+        const material = new Set(Array.from(materialNames || []).map(normalizeCategoryName));
+        const ordered = [];
+        getCategoryOrderHints(workspaceId).forEach(function (categoryName) {
+            if (!material.has(categoryName) || ordered.indexOf(categoryName) !== -1) return;
+            ordered.push(categoryName);
+        });
+        Array.from(material)
+            .sort(function (left, right) {
+                return left.localeCompare(right, undefined, { sensitivity: 'base' });
+            })
+            .forEach(function (categoryName) {
+                if (ordered.indexOf(categoryName) === -1) ordered.push(categoryName);
+            });
+        return ordered;
+    }
+
     function getWorkspaces() {
         return Array.isArray(getConfig().workspaces) ? getConfig().workspaces : [];
     }
@@ -102,6 +156,65 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         }
         const workspace = getWorkspaceById(workspaceId);
         return String(workspace?.name || workspaceId || 'main').trim() || 'main';
+    }
+
+    function getWorkspaceName(workspaceId) {
+        const workspace = getWorkspaceById(workspaceId);
+        return String(workspace?.name || workspaceId || 'Tab').trim() || 'Tab';
+    }
+
+    function countWorkspaceBookmarks(workspaceId) {
+        const ws = normalizeWorkspaceId(workspaceId);
+        return getLiveLinks().filter(function (link) {
+            return normalizeWorkspaceId(link?.workspace) === ws;
+        }).length;
+    }
+
+    function buildWorkspaceRef(workspace) {
+        const id = normalizeWorkspaceId(workspace?.id);
+        const linkedTargetId = normalizeWorkspaceId(workspace?.linkedTo || '');
+        const linkedTarget = workspace?.linkedTo ? getWorkspaceById(linkedTargetId) : null;
+        const ref = {
+            id,
+            name: String(workspace?.name || id).trim() || id,
+            entityLink: createEntityLink({ type: 'workspace', workspaceId: id }),
+            path: getWorkspaceLabel(id),
+            childTabs: Array.isArray(workspace?.subTabs) ? workspace.subTabs.length : 0,
+            bookmarks: countWorkspaceBookmarks(id),
+            cards: getCategoryNamesForWorkspace(id).length,
+            open: 'openable-reference',
+            isShortcut: !!linkedTarget,
+            linkedTo: linkedTarget ? normalizeWorkspaceId(linkedTarget.id) : '',
+            linkedTargetName: linkedTarget ? getWorkspaceName(linkedTarget.id) : '',
+            linkedTargetPath: linkedTarget ? getWorkspaceLabel(linkedTarget.id) : '',
+            linkedEntityLink: linkedTarget ? createEntityLink({ type: 'workspace', workspaceId: normalizeWorkspaceId(linkedTarget.id) }) : '',
+            sourceCards: linkedTarget ? getCategoryNamesForWorkspace(linkedTarget.id).length : 0,
+            sourceBookmarks: linkedTarget ? countWorkspaceBookmarks(linkedTarget.id) : 0
+        };
+        return ref;
+    }
+
+    function buildLinkedSourceRef(shortcutWorkspace) {
+        if (!shortcutWorkspace?.linkedTo) return null;
+        const linkedTarget = getWorkspaceById(shortcutWorkspace.linkedTo);
+        if (!linkedTarget) return null;
+        const sourceId = normalizeWorkspaceId(linkedTarget.id);
+        const shortcutId = normalizeWorkspaceId(shortcutWorkspace.id);
+        return {
+            id: sourceId,
+            name: getWorkspaceName(sourceId),
+            entityLink: createEntityLink({ type: 'workspace', workspaceId: sourceId }),
+            path: getWorkspaceLabel(sourceId),
+            cards: getCategoryNamesForWorkspace(sourceId).length,
+            bookmarks: countWorkspaceBookmarks(sourceId),
+            childTabs: Array.isArray(linkedTarget.subTabs) ? linkedTarget.subTabs.length : 0,
+            viaShortcutId: shortcutId,
+            viaShortcutName: getWorkspaceName(shortcutId),
+            viaShortcutPath: getWorkspaceLabel(shortcutId),
+            localCards: getCategoryNamesForWorkspace(shortcutId).length,
+            localBookmarks: countWorkspaceBookmarks(shortcutId),
+            open: 'openable-linked-source'
+        };
     }
 
     function getWorkspaceIdsInScope(scope) {
@@ -125,25 +238,27 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     }
 
     function getCategoryNamesForWorkspace(workspaceId) {
-        const ordered = [];
-        const seen = new Set();
-        function addName(categoryName) {
+        const ws = normalizeWorkspaceId(workspaceId);
+        const materialNames = new Set();
+        function addMaterialName(categoryName) {
             const normalized = normalizeCategoryName(categoryName);
-            if (seen.has(normalized)) return;
-            seen.add(normalized);
-            ordered.push(normalized);
-        }
-        if (window.EveCategoryOrder?.getOrder) {
-            window.EveCategoryOrder.getOrder(workspaceId).forEach(function (categoryName) {
-                addName(categoryName);
-            });
+            if (normalized) materialNames.add(normalized);
         }
         getLiveLinks().forEach(function (link) {
-            if (normalizeWorkspaceId(link?.workspace) === normalizeWorkspaceId(workspaceId)) {
-                addName(link?.category);
+            if (normalizeWorkspaceId(link?.workspace) === ws) {
+                addMaterialName(link?.category);
             }
         });
-        const prefix = normalizeWorkspaceId(workspaceId) + '::';
+        const summary = getStructureSummary();
+        if (summary?.cards && typeof summary.cards === 'object') {
+            Object.keys(summary.cards).forEach(function (cardKey) {
+                const bucket = summary.cards[cardKey];
+                if (normalizeWorkspaceId(bucket?.workspaceId) !== ws) return;
+                if (Number(bucket?.bookmarkCount || 0) <= 0 && Number(bucket?.folderCount || 0) <= 0) return;
+                addMaterialName(bucket?.categoryName || String(cardKey).slice((ws + '::').length));
+            });
+        }
+        const prefix = ws + '::';
         const folderOnlyNames = [];
         Object.keys(getFolderStore()).forEach(function (scopedKey) {
             if (!String(scopedKey).startsWith(prefix)) return;
@@ -152,12 +267,8 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             if (!nodes.length) return;
             folderOnlyNames.push(normalizeCategoryName(String(scopedKey).slice(prefix.length)));
         });
-        folderOnlyNames.sort(function (left, right) {
-            return left.localeCompare(right, undefined, { sensitivity: 'base' });
-        }).forEach(function (categoryName) {
-            addName(categoryName);
-        });
-        return ordered;
+        folderOnlyNames.forEach(addMaterialName);
+        return sortMaterialCategoryNames(ws, materialNames);
     }
 
     function getFolderNodes(workspaceId, categoryName) {
@@ -279,20 +390,12 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         const rootWorkspace = rootWorkspaceId ? getWorkspaceById(rootWorkspaceId) : null;
         const childTabRefs = Array.isArray(rootWorkspace?.subTabs)
             ? rootWorkspace.subTabs.map(function (workspace) {
-                const id = normalizeWorkspaceId(workspace?.id);
-                return {
-                    id,
-                    name: String(workspace?.name || id).trim() || id,
-                    entityLink: createEntityLink({ type: 'workspace', workspaceId: id }),
-                    path: getWorkspaceLabel(id),
-                    childTabs: Array.isArray(workspace?.subTabs) ? workspace.subTabs.length : 0,
-                    bookmarks: getLiveLinks().filter(function (link) {
-                        return normalizeWorkspaceId(link?.workspace) === id;
-                    }).length,
-                    cards: getCategoryNamesForWorkspace(id).length,
-                    open: 'openable-reference'
-                };
+                return buildWorkspaceRef(workspace);
             })
+            : [];
+
+        const linkedSourceRefs = rootWorkspace?.linkedTo
+            ? [buildLinkedSourceRef(rootWorkspace)].filter(Boolean)
             : [];
 
         const workspaceRefs = workspaceIds.map(function (workspaceId) {
@@ -301,9 +404,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 entityLink: createEntityLink({ type: 'workspace', workspaceId: workspaceId }),
                 path: getWorkspaceLabel(workspaceId),
                 cards: getCategoryNamesForWorkspace(workspaceId).length,
-                bookmarks: getLiveLinks().filter(function (link) {
-                    return normalizeWorkspaceId(link?.workspace) === workspaceId;
-                }).length
+                bookmarks: countWorkspaceBookmarks(workspaceId)
             };
         });
 
@@ -321,12 +422,14 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             counts: {
                 workspaces: workspaceRefs.length,
                 childTabRefs: childTabRefs.length,
+                linkedSourceRefs: linkedSourceRefs.length,
                 cards: cards.length,
                 cardsShown: visibleCards.length,
                 omittedCards: Math.max(0, cards.length - visibleCards.length)
             },
             workspaces: workspaceRefs,
             childTabRefs,
+            linkedSourceRefs,
             cards: visibleCards,
             omitted: {
                 bookmarks: 'Open a card internals popup. Bookmark arrays are intentionally not dumped in the Nexus gateway.',
@@ -355,10 +458,12 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             + '<span>' + state.counts.workspaces + ' tabs in scope</span>'
             + '<span>' + state.counts.cards + ' cards</span>'
             + '<span>' + state.counts.childTabRefs + ' child refs</span>'
+            + '<span>' + state.counts.linkedSourceRefs + ' linked source refs</span>'
             + '<span>' + state.counts.omittedCards + ' omitted by safety cap</span>'
             + '</div>'
             + '<div class="nx-dv-diff" data-nx-dv-diff="macro" hidden></div>'
             + renderChildTabRefs(state.childTabRefs)
+            + renderLinkedSourceRefs(state.linkedSourceRefs)
             + renderCardEditor(state.cards)
             + '<details class="nx-dv-json"><summary>Gateway JSON</summary><pre>' + escapeHtml(json) + '</pre></details>'
             + '</section>';
@@ -371,11 +476,31 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         if (!childTabRefs.length) return '<div class="nx-dv-empty">No child tab references in this scope.</div>';
         return '<div class="nx-dv-section"><div class="nx-dv-section-title">Child Tab References</div><div class="nx-dv-ref-grid">'
             + childTabRefs.map(function (tab) {
+                const shortcutHtml = tab.isShortcut
+                    ? '<small>Shortcut source: ' + escapeHtml(tab.linkedTargetPath || tab.linkedTargetName || tab.linkedTo)
+                        + ' · source ' + tab.sourceCards + ' cards / ' + tab.sourceBookmarks + ' bookmarks'
+                        + ' · local ' + tab.cards + ' cards / ' + tab.bookmarks + ' bookmarks</small>'
+                    : '<small>' + tab.cards + ' cards / ' + tab.bookmarks + ' bookmarks / ' + tab.childTabs + ' child tabs</small>';
                 return '<button type="button" class="nx-dv-ref" data-nx-dv-action="open-tab" data-workspace-id="' + escapeHtml(tab.id) + '">'
                     + '<strong>' + escapeHtml(tab.name) + '</strong>'
                     + '<span>' + escapeHtml(tab.path) + '</span>'
                     + '<small title="' + escapeHtml(tab.entityLink) + '">JSON Link: ' + escapeHtml(tab.entityLink) + '</small>'
-                    + '<small>' + tab.cards + ' cards / ' + tab.bookmarks + ' bookmarks / ' + tab.childTabs + ' child tabs</small>'
+                    + shortcutHtml
+                    + '</button>';
+            }).join('')
+            + '</div></div>';
+    }
+
+    function renderLinkedSourceRefs(linkedSourceRefs) {
+        if (!linkedSourceRefs || !linkedSourceRefs.length) return '';
+        return '<div class="nx-dv-section"><div class="nx-dv-section-title">Linked Source Tab</div><div class="nx-dv-ref-grid">'
+            + linkedSourceRefs.map(function (tab) {
+                return '<button type="button" class="nx-dv-ref nx-dv-ref--linked-source" data-nx-dv-action="open-tab" data-workspace-id="' + escapeHtml(tab.id) + '">'
+                    + '<strong>' + escapeHtml(tab.name) + '</strong>'
+                    + '<span>' + escapeHtml(tab.path) + '</span>'
+                    + '<small title="' + escapeHtml(tab.entityLink) + '">JSON Link: ' + escapeHtml(tab.entityLink) + '</small>'
+                    + '<small>Source ' + tab.cards + ' cards / ' + tab.bookmarks + ' bookmarks / ' + tab.childTabs + ' child tabs</small>'
+                    + '<small>Viewed through shortcut: ' + escapeHtml(tab.viaShortcutPath || tab.viaShortcutName) + ' · local shortcut ' + tab.localCards + ' cards / ' + tab.localBookmarks + ' bookmarks</small>'
                     + '</button>';
             }).join('')
             + '</div></div>';
