@@ -45,6 +45,56 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             return ctx.getSiblingListLength(targetParentId);
         };
 
+        ctx.isWorkspacePlacementNoop = function (dragId, parentWorkspaceId, beforeEntry, orderedEntries, entryIndex) {
+            if (!helpers || typeof helpers.findSiblingContext !== 'function') return false;
+            var workspaceId = String(dragId || '').trim();
+            if (!workspaceId) return false;
+
+            var targetParentId = String(parentWorkspaceId || '').trim();
+            var sourceContext = helpers.findSiblingContext(config.workspaces, workspaceId);
+            if (!sourceContext || String(sourceContext.parentId || '').trim() !== targetParentId) return false;
+
+            var targetIndex = ctx.resolveWorkspaceInsertIndex(
+                targetParentId,
+                beforeEntry || null,
+                orderedEntries || [],
+                typeof entryIndex === 'number' ? entryIndex : 0
+            );
+            if (sourceContext.index < targetIndex) targetIndex -= 1;
+            return targetIndex === sourceContext.index;
+        };
+
+        ctx.isGroupWorkspacePlacementNoop = function (dragId, groupId, beforeWorkspaceId) {
+            if (!groupsApi) return false;
+            var workspaceId = String(dragId || '').trim();
+            var targetGroupId = String(groupId || '').trim();
+            var beforeId = String(beforeWorkspaceId || '').trim();
+            if (!workspaceId || !targetGroupId) return false;
+            if (beforeId === workspaceId) return true;
+
+            var isRootWorkspace = typeof groupsApi.isRootWorkspace === 'function'
+                && groupsApi.isRootWorkspace(workspaceId, config);
+            if (!isRootWorkspace) return false;
+
+            var currentGroupId = typeof groupsApi.getWorkspaceGroupId === 'function'
+                ? groupsApi.getWorkspaceGroupId(workspaceId, config)
+                : '';
+            if (currentGroupId !== targetGroupId) return false;
+
+            if (!beforeId) return true;
+
+            var roots = Array.isArray(config.workspaces) ? config.workspaces : [];
+            var groupRoots = roots.filter(function (workspace) {
+                return workspace && groupsApi.getWorkspaceGroupId(workspace, config) === targetGroupId;
+            });
+            var sourceIndex = groupRoots.findIndex(function (workspace) {
+                return workspace && String(workspace.id || '') === workspaceId;
+            });
+            if (sourceIndex === -1) return false;
+            var nextWorkspace = groupRoots[sourceIndex + 1] || null;
+            return !!nextWorkspace && String(nextWorkspace.id || '') === beforeId;
+        };
+
         ctx.promoteToRoot = function (dragId, beforeEntry, orderedEntries, entryIndex) {
             if (!helpers || typeof helpers.moveToPosition !== 'function') return false;
             var dragNode = helpers.findById(config.workspaces, dragId);
@@ -53,6 +103,8 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             var currentGroupId = groupsApi && typeof groupsApi.getWorkspaceGroupId === 'function'
                 ? groupsApi.getWorkspaceGroupId(dragId, config)
                 : String(dragNode.groupId || '').trim();
+
+            if (ctx.isWorkspacePlacementNoop(dragId, '', beforeEntry, orderedEntries || [], entryIndex)) return false;
 
             var targetIndex = ctx.resolveWorkspaceInsertIndex('', beforeEntry, orderedEntries || [], typeof entryIndex === 'number' ? entryIndex : 0);
             var previousWorkspaces = config.workspaces;
@@ -94,6 +146,8 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             }
 
             if (!targetParentId) return ctx.promoteToRoot(dragId, beforeEntry, orderedEntries, entryIndex);
+
+            if (ctx.isWorkspacePlacementNoop(dragId, targetParentId, beforeEntry, orderedEntries || [], entryIndex)) return false;
 
             var targetIndex = ctx.resolveWorkspaceInsertIndex(targetParentId, beforeEntry, orderedEntries || [], typeof entryIndex === 'number' ? entryIndex : 0);
             var previousWorkspaces = config.workspaces;
@@ -180,6 +234,7 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             var existingGroupId = groupsApi.getWorkspaceGroupId(dragId, config);
             var isRootWorkspace = typeof groupsApi.isRootWorkspace === 'function'
                 && groupsApi.isRootWorkspace(dragId, config);
+            if (ctx.isGroupWorkspacePlacementNoop(dragId, targetGroupId, beforeWorkspaceId || '')) return false;
             if (existingGroupId === targetGroupId && isRootWorkspace && !beforeWorkspaceId) {
                 ctx.markWorkspaceDropApplied();
                 return true;

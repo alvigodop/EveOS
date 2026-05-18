@@ -59,6 +59,36 @@ async function runSmoke(page) {
 
         const originalElementFromPoint = document.elementFromPoint.bind(document);
 
+        document.elementFromPoint = function () { return targetSlot; };
+        alpha.dispatchEvent(new PointerEvent('pointerdown', {
+            bubbles: true,
+            cancelable: true,
+            pointerId: 24,
+            button: 0,
+            clientX: 36,
+            clientY: 180
+        }));
+        await new Promise(resolve => setTimeout(resolve, 220));
+        document.dispatchEvent(new PointerEvent('pointermove', {
+            bubbles: true,
+            cancelable: true,
+            pointerId: 24,
+            button: 0,
+            clientX: 46,
+            clientY: 170
+        }));
+        document.dispatchEvent(new PointerEvent('pointerup', {
+            bubbles: true,
+            cancelable: true,
+            pointerId: 24,
+            button: 0,
+            clientX: 46,
+            clientY: 170
+        }));
+        document.elementFromPoint = originalElementFromPoint;
+        await new Promise(resolve => setTimeout(resolve, 520));
+        const orderAfterOwnSlotNoop = config.workspaces.map((ws) => ws.id);
+
         source.dispatchEvent(new PointerEvent('pointerdown', {
             bubbles: true,
             cancelable: true,
@@ -208,6 +238,7 @@ async function runSmoke(page) {
             workspaceAfterJitterClick,
             previewAfterSoftCancel,
             dragActiveAfterSoftCancel,
+            orderAfterOwnSlotNoop,
             previewDuringRootDrag,
             previewAfterRootDrag,
             order: config.workspaces.map((ws) => ws.id),
@@ -228,6 +259,9 @@ async function runSmoke(page) {
     }
     if (!result.previewAfterSoftCancel || !result.dragActiveAfterSoftCancel) {
         throw new Error(`Expected active pointercancel to preserve drag UI briefly: ${JSON.stringify(result, null, 2)}`);
+    }
+    if (result.orderAfterOwnSlotNoop.join('|') !== 'main|alpha|beta|gamma') {
+        throw new Error(`Expected dropping a tab before itself to be a no-op: ${JSON.stringify(result, null, 2)}`);
     }
     if (!result.previewDuringRootDrag || result.previewAfterRootDrag) {
         throw new Error(`Expected custom pointer drag preview during normal drag only: ${JSON.stringify(result, null, 2)}`);

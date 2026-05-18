@@ -81,6 +81,47 @@ async function performNestedDrag(page) {
             await new Promise(resolve => setTimeout(resolve, 120));
         }
 
+        const betaSource = document.querySelector('#sidebar .ws-item[data-ws-id="beta"]');
+        const betaWrapper = betaSource ? betaSource.closest('.ws-node-wrapper[data-ws-id="beta"]') : null;
+        const betaOwnSlot = betaWrapper ? betaWrapper.previousElementSibling : null;
+        if (!betaSource || !betaOwnSlot || !betaOwnSlot.classList.contains('ws-order-slot')) {
+            throw new Error('Missing beta source or own group order slot');
+        }
+        const originalElementFromPoint = document.elementFromPoint.bind(document);
+        document.elementFromPoint = function () { return betaOwnSlot; };
+        betaSource.dispatchEvent(new PointerEvent('pointerdown', {
+            bubbles: true,
+            cancelable: true,
+            pointerId: 30,
+            button: 0,
+            clientX: 42,
+            clientY: 210
+        }));
+        await new Promise(resolve => setTimeout(resolve, 380));
+        document.dispatchEvent(new PointerEvent('pointermove', {
+            bubbles: true,
+            cancelable: true,
+            pointerId: 30,
+            button: 0,
+            clientX: 58,
+            clientY: 225
+        }));
+        document.dispatchEvent(new PointerEvent('pointerup', {
+            bubbles: true,
+            cancelable: true,
+            pointerId: 30,
+            button: 0,
+            clientX: 58,
+            clientY: 225
+        }));
+        document.elementFromPoint = originalElementFromPoint;
+        await new Promise(resolve => setTimeout(resolve, 120));
+        const rootsAfterNoop = config.workspaces.map((workspace) => workspace.id).join('|');
+        const betaParentAfterNoop = window.EveWorkspaceHelpers.findParent(config.workspaces, 'beta');
+        if (rootsAfterNoop !== 'main|alpha|beta|gamma' || betaParentAfterNoop) {
+            throw new Error(`Expected grouped beta own-slot drop to be a no-op, got ${rootsAfterNoop}`);
+        }
+
         await pointerDropOnTab('beta', 'alpha', 31);
     });
     await page.waitForFunction(() => {
