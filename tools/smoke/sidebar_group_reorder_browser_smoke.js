@@ -60,7 +60,7 @@ async function runSmoke(page) {
                 clientY: 220
             }));
             await new Promise(resolve => setTimeout(resolve, 380));
-            source.dispatchEvent(new PointerEvent('pointermove', {
+            document.dispatchEvent(new PointerEvent('pointermove', {
                 bubbles: true,
                 cancelable: true,
                 pointerId,
@@ -68,7 +68,7 @@ async function runSmoke(page) {
                 clientX: 54,
                 clientY: 190
             }));
-            source.dispatchEvent(new PointerEvent('pointerup', {
+            document.dispatchEvent(new PointerEvent('pointerup', {
                 bubbles: true,
                 cancelable: true,
                 pointerId,
@@ -115,7 +115,7 @@ async function runSmoke(page) {
             clientY: 300
         }));
         await new Promise(resolve => setTimeout(resolve, 380));
-        source.dispatchEvent(new PointerEvent('pointermove', {
+        document.dispatchEvent(new PointerEvent('pointermove', {
             bubbles: true,
             cancelable: true,
             pointerId: 42,
@@ -123,7 +123,7 @@ async function runSmoke(page) {
             clientX: 55,
             clientY: 260
         }));
-        source.dispatchEvent(new PointerEvent('pointerup', {
+        document.dispatchEvent(new PointerEvent('pointerup', {
             bubbles: true,
             cancelable: true,
             pointerId: 42,

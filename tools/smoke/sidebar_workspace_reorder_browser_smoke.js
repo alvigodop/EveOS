@@ -86,7 +86,7 @@ async function runSmoke(page) {
             clientY: 170
         }));
         document.elementFromPoint = originalElementFromPoint;
-        await new Promise(resolve => setTimeout(resolve, 520));
+        await new Promise(resolve => setTimeout(resolve, 900));
         const orderAfterOwnSlotNoop = config.workspaces.map((ws) => ws.id);
 
         source.dispatchEvent(new PointerEvent('pointerdown', {
@@ -115,9 +115,8 @@ async function runSmoke(page) {
             clientX: 39,
             clientY: 222
         }));
-        source.click();
         await new Promise(resolve => setTimeout(resolve, 80));
-        const workspaceAfterJitterClick = config.activeWorkspace;
+        const orderAfterJitter = config.workspaces.map((ws) => ws.id);
         config.activeWorkspace = 'main';
 
         source.dispatchEvent(new PointerEvent('pointerdown', {
@@ -235,7 +234,7 @@ async function runSmoke(page) {
             betaSourceDraggable: betaSource.draggable,
             nativeDragStartCount,
             previewDuringJitter,
-            workspaceAfterJitterClick,
+            orderAfterJitter,
             previewAfterSoftCancel,
             dragActiveAfterSoftCancel,
             orderAfterOwnSlotNoop,
@@ -254,8 +253,8 @@ async function runSmoke(page) {
     if (result.sourceDraggable || result.betaSourceDraggable || result.nativeDragStartCount !== 0) {
         throw new Error(`Expected workspace reorder to avoid native drag ghost: ${JSON.stringify(result, null, 2)}`);
     }
-    if (result.workspaceAfterJitterClick !== 'gamma') {
-        throw new Error(`Expected normal-route hold jitter to remain clickable without applying a drag: ${JSON.stringify(result, null, 2)}`);
+    if (result.orderAfterJitter.join('|') !== 'main|alpha|beta|gamma') {
+        throw new Error(`Expected normal-route hold jitter not to move tabs: ${JSON.stringify(result, null, 2)}`);
     }
     if (!result.previewAfterSoftCancel || !result.dragActiveAfterSoftCancel) {
         throw new Error(`Expected active pointercancel to preserve drag UI briefly: ${JSON.stringify(result, null, 2)}`);

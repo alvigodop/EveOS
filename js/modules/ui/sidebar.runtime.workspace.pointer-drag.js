@@ -159,6 +159,8 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
                 preview.removeAttribute('aria-label');
                 preview.setAttribute('aria-hidden', 'true');
                 preview.draggable = false;
+                preview.style.transition = 'none';
+                preview.style.animation = 'none';
                 preview.querySelectorAll('[draggable]').forEach(function (node) {
                     node.setAttribute('draggable', 'false');
                     node.draggable = false;
@@ -344,9 +346,18 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
                 finishPointerCancel({ pointerId: pointerDrag.pointerId });
             }
 
-            item.onpointermove = handlePointerMove;
-            item.onpointerup = handlePointerUp;
-            item.onpointercancel = handlePointerCancel;
+            item.onpointermove = function (event) {
+                if (pointerDrag && pointerDrag.documentGuardsAttached) return;
+                handlePointerMove(event);
+            };
+            item.onpointerup = function (event) {
+                if (pointerDrag && pointerDrag.documentGuardsAttached) return;
+                handlePointerUp(event);
+            };
+            item.onpointercancel = function (event) {
+                if (pointerDrag && pointerDrag.documentGuardsAttached) return;
+                handlePointerCancel(event);
+            };
 
             item.onlostpointercapture = function (event) {
                 if (!pointerDrag || pointerDrag.pointerId !== event.pointerId) return;

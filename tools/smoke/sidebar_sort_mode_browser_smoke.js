@@ -90,6 +90,7 @@ async function waitForApp(page) {
                 clientY: 144
             }));
             const pointerPreview = document.querySelector('.ws-pointer-drag-preview');
+            const pointerPreviewCount = document.querySelectorAll('.ws-pointer-drag-preview').length;
             const previewDuringPointerSort = !!pointerPreview
                 && pointerPreview.textContent.includes('Child B');
             childBItem.dispatchEvent(new PointerEvent('pointerup', {
@@ -130,6 +131,7 @@ async function waitForApp(page) {
                 childItemNativeDraggable: childBItem.draggable,
                 nativeDragStartCount,
                 previewDuringPointerSort,
+                pointerPreviewCount,
                 previewAfterPointerSort,
                 childOrderAfterPointerSort,
                 beforeClickWorkspace,
@@ -169,7 +171,7 @@ async function waitForApp(page) {
         if (result.stateDuringSort.childItemNativeDraggable || result.stateDuringSort.nativeDragStartCount !== 0) {
             throw new Error(`Expected sort mode to suppress native tab drag image: ${JSON.stringify(result)}`);
         }
-        if (!result.stateDuringSort.previewDuringPointerSort || result.stateDuringSort.previewAfterPointerSort) {
+        if (!result.stateDuringSort.previewDuringPointerSort || result.stateDuringSort.pointerPreviewCount !== 1 || result.stateDuringSort.previewAfterPointerSort) {
             throw new Error(`Expected custom pointer drag preview during sort only: ${JSON.stringify(result)}`);
         }
         if (result.stateDuringSort.childOrderAfterPointerSort.join('|') !== 'child-b|child-a') {
