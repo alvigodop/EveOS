@@ -6,15 +6,25 @@
     color: var(--text-main, #f5f7fb);
 }
 
+.nx-dv-panel *,
+.nx-dv-micro *,
+.nx-dv-micro {
+    box-sizing: border-box;
+}
+
 .nx-dv-head,
-.nx-dv-card-foot,
 .nx-dv-micro-head,
 .nx-dv-micro-actions {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
+    align-items: center;
     gap: 12px;
     flex-wrap: wrap;
+}
+
+.nx-dv-head > div:first-child,
+.nx-dv-micro-head > div:first-child {
+    min-width: 0;
 }
 
 .nx-dv-kicker,
@@ -30,6 +40,7 @@
 .nx-dv-micro-head h3 {
     margin: 2px 0 0;
     font-size: 1.08rem;
+    overflow-wrap: anywhere;
 }
 
 .nx-dv-actions,
@@ -40,16 +51,24 @@
     flex-wrap: wrap;
 }
 
+.nx-dv-actions {
+    justify-content: flex-end;
+}
+
 .nx-dv-summary span,
 .nx-dv-card-stats span,
 .nx-dv-bookmark-meta span,
 .nx-dv-bookmark-meta small {
+    min-width: 0;
+    max-width: 100%;
     padding: 4px 8px;
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.035);
     color: var(--text-muted, rgba(210, 224, 242, 0.72));
     font-size: 0.72rem;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
 }
 
 .nx-dv-diff {
@@ -137,6 +156,10 @@
     grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
 }
 
+.nx-dv-card-list {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+}
+
 .nx-dv-ref,
 .nx-dv-card,
 .nx-dv-folder-row,
@@ -171,12 +194,13 @@
     display: flex;
     flex-direction: column;
     gap: 9px;
+    min-width: 0;
     padding: 11px;
 }
 
 .nx-dv-card-main {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 86px;
+    grid-template-columns: minmax(180px, 1fr) minmax(72px, 96px);
     gap: 9px;
 }
 
@@ -194,6 +218,7 @@
 .nx-dv-bookmark-row input,
 .nx-dv-bookmark-row select,
 .nx-dv-bookmark-row textarea {
+    width: 100%;
     min-width: 0;
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 10px;
@@ -214,17 +239,44 @@
     line-height: 1.35;
 }
 
+.nx-dv-json-link {
+    min-width: 0;
+    max-width: 100%;
+    padding: 8px 10px;
+    border: 1px solid rgba(0, 212, 255, 0.14);
+    border-radius: 10px;
+    background: rgba(0, 212, 255, 0.055);
+    color: rgba(216, 247, 255, 0.82);
+    font-family: "Share Tech Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
+    font-size: 0.74rem;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+}
+
 .nx-dv-json {
     padding: 10px;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.nx-dv-json summary {
+    cursor: pointer;
+    color: var(--accent, #00d4ff);
+    font-size: 0.76rem;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
 }
 
 .nx-dv-json pre {
     max-height: 340px;
     overflow: auto;
     margin: 10px 0 0;
+    max-width: 100%;
     color: rgba(222, 235, 250, 0.86);
     font-size: 0.76rem;
-    white-space: pre-wrap;
+    line-height: 1.45;
+    white-space: pre;
 }
 
 .nx-dv-empty {
@@ -246,7 +298,7 @@
 }
 
 .nx-dv-micro {
-    width: min(900px, calc(100vw - 32px));
+    width: min(1120px, calc(100vw - 32px));
     max-height: min(780px, calc(100vh - 32px));
     display: flex;
     flex-direction: column;
@@ -263,10 +315,12 @@
 
 .nx-dv-micro-body {
     display: grid;
-    grid-template-columns: minmax(180px, 0.45fr) minmax(0, 1fr);
+    grid-template-columns: minmax(220px, 0.36fr) minmax(420px, 1fr);
     gap: 12px;
+    flex: 1 1 auto;
     min-height: 0;
-    overflow: auto;
+    overflow: hidden;
+    align-items: stretch;
 }
 
 .nx-dv-micro-section {
@@ -274,25 +328,100 @@
     flex-direction: column;
     gap: 8px;
     min-width: 0;
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+    padding-right: 2px;
 }
 
 .nx-dv-folder-row,
 .nx-dv-bookmark-row {
-    display: flex;
-    flex-direction: column;
     gap: 6px;
     padding: 10px;
+    min-width: 0;
+}
+
+.nx-dv-folder-row {
+    display: flex;
+    flex-direction: column;
+}
+
+.nx-dv-folder-row strong,
+.nx-dv-folder-row span,
+.nx-dv-folder-row small {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+}
+
+.nx-dv-bookmark-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    column-gap: 10px;
+    row-gap: 9px;
+}
+
+.nx-dv-bookmark-row label:nth-of-type(1),
+.nx-dv-bookmark-row label:nth-of-type(2),
+.nx-dv-bookmark-row label:nth-of-type(5),
+.nx-dv-bookmark-meta {
+    grid-column: 1 / -1;
 }
 
 .nx-dv-bookmark-meta {
     display: flex;
     gap: 6px;
     flex-wrap: wrap;
+    min-width: 0;
+}
+
+.nx-dv-card-foot {
+    display: grid;
+    grid-template-columns: minmax(82px, auto) minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.nx-dv-card-foot small {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.nx-dv-micro-actions {
+    flex-shrink: 0;
+    justify-content: flex-end;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.nx-dv-close {
+    flex-shrink: 0;
 }
 
 @media (max-width: 760px) {
     .nx-dv-card-main,
-    .nx-dv-micro-body {
+    .nx-dv-micro-body,
+    .nx-dv-bookmark-row,
+    .nx-dv-card-foot {
         grid-template-columns: 1fr;
+    }
+
+    .nx-dv-card-foot small {
+        white-space: normal;
+    }
+
+    .nx-dv-micro {
+        width: calc(100vw - 20px);
+        max-height: calc(100vh - 20px);
+        padding: 12px;
+    }
+
+    .nx-dv-micro-section {
+        max-height: none;
     }
 }
