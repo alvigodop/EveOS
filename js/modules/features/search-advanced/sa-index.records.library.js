@@ -28,6 +28,20 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         return 0;
     }
 
+    function findConnectionForLibraryEntry(entryId) {
+        const normalizedEntryId = text(entryId, '');
+        if (!normalizedEntryId) return null;
+        const core = window.EveLibrary?.ConnectionsCore;
+        if (typeof core?.findConnectionByLibraryEntryId === 'function') {
+            return core.findConnectionByLibraryEntryId(normalizedEntryId) || null;
+        }
+        const api = window.EveLibrary?.ConnectionsAPI;
+        const connections = typeof api?.getAll === 'function' ? api.getAll() : [];
+        return toArray(connections).find(function (connection) {
+            return text(connection?.libraryEntryId || connection?.entryId, '') === normalizedEntryId;
+        }) || null;
+    }
+
     function buildLibraryRecords() {
         const stateApi = window.EveLibrary?.State;
         if (!stateApi?.getAllLibraries || !stateApi?.parseScopedCategoryKey) return [];
@@ -57,6 +71,9 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             const groupMeta = getWorkspaceGroupMeta(path.workspaceId);
 
             toArray(library?.entries).forEach(function (libraryEntry, index) {
+                const entryId = text(libraryEntry?.id, '');
+                const connection = findConnectionForLibraryEntry(entryId);
+                const linkedLinkId = text(connection?.linkId, '');
                 const aliases = []
                     .concat(toArray(libraryEntry?.aliases))
                     .concat(toArray(libraryEntry?.alternativeTitles))
@@ -74,8 +91,9 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                     sourceCard: categoryName,
                     sourceIdentity: {
                         kind: 'library',
-                        entryId: text(libraryEntry?.id, ''),
-                        categoryName: categoryName
+                        entryId: entryId,
+                        categoryName: categoryName,
+                        linkId: linkedLinkId
                     },
                     workspaceId: path.workspaceId,
                     workspaceIds: [path.workspaceId],
@@ -87,14 +105,16 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                     groupHidden: groupMeta.hidden,
                     provenance: {
                         kind: 'library',
-                        entryId: text(libraryEntry?.id, ''),
+                        entryId: entryId,
+                        linkId: linkedLinkId,
                         status: text(libraryEntry?.status, ''),
                         mediaType: text(libraryEntry?.mediaType || library?.dataType, ''),
                         aliases: aliases
                     },
                     library: {
                         linked: true,
-                        entryId: text(libraryEntry?.id, ''),
+                        entryId: entryId,
+                        linkId: linkedLinkId,
                         categoryName: categoryName,
                         workspaceId: path.workspaceId,
                         title: text(libraryEntry?.title, ''),

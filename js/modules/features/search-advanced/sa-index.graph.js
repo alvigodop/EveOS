@@ -97,7 +97,22 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             return 'folder::' + text(workspaceId, 'main') + '::' + text(categoryName, 'Unsorted') + '::' + text(folderId, '');
         }
 
+        function getRecordLinkId(record) {
+            return text(record?.path?.linkId || record?.provenance?.linkId || record?.sourceIdentity?.linkId || record?.library?.linkId, '');
+        }
+
+        const bookmarkLinkIds = new Set(records.filter(function (record) {
+            return record?.type === 'bookmark';
+        }).map(getRecordLinkId).filter(Boolean));
+
+        function isLinkedLibraryShadowRecord(record) {
+            return record?.type === 'library'
+                && !!getRecordLinkId(record)
+                && bookmarkLinkIds.has(getRecordLinkId(record));
+        }
+
         records.forEach(function (record) {
+            if (isLinkedLibraryShadowRecord(record)) return;
             const workspaceId = text(record?.workspaceId, '');
             const categoryName = text(record?.categoryName, '');
             if (!workspaceId || !categoryName) return;
@@ -178,14 +193,16 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 workspaceId: workspaceId,
                 categoryName: categoryName,
                 folderId: text(record?.path?.folderId, ''),
-                linkId: text(record?.path?.linkId || record?.provenance?.linkId, ''),
+                linkId: getRecordLinkId(record),
                 url: text(record?.url, ''),
                 healthState: text(record?.healthState || record?.baseHealth?.state, 'healthy'),
                 visibilityState: text(record?.visibilityState || visibility.state, 'visible'),
                 freshnessState: freshness.state,
                 orphaned: !!record?.provenance?.orphaned,
                 pathLabel: text(record?.path?.pathLabel, ''),
-                meta: text(record?.description, '')
+                meta: text(record?.description, ''),
+                libraryLinked: !!(record?.library?.linked || record?.provenance?.libraryLinked),
+                library: record?.library && typeof record.library === 'object' ? record.library : undefined
             });
         });
 
@@ -207,6 +224,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         });
 
         records.forEach(function (record) {
+            if (isLinkedLibraryShadowRecord(record)) return;
             const workspaceId = text(record?.workspaceId, '');
             const categoryName = text(record?.categoryName, '');
             if (!workspaceId || !categoryName) return;
@@ -232,6 +250,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         });
 
         records.forEach(function (record) {
+            if (isLinkedLibraryShadowRecord(record)) return;
             const workspaceId = text(record?.workspaceId, '');
             const categoryName = text(record?.categoryName, '');
             if (!workspaceId || !categoryName || record.type === 'card' || record.type === 'folder') return;

@@ -305,6 +305,8 @@ window.EveConstellationMap = window.EveConstellationMap || {};
                     visibilityState: text(projectionNode?.visibilityState, ''),
                     healthState: text(projectionNode?.healthState, ''),
                     sourceType: text(projectionNode?.sourceType || projectionNode?.kind, ''),
+                    libraryLinked: !!projectionNode?.libraryLinked,
+                    library: projectionNode?.library && typeof projectionNode.library === 'object' ? projectionNode.library : null,
                     nexusId: projectionId,
                     pathLabel: text(projectionNode?.pathLabel, '')
                 }

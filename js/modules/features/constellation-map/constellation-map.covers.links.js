@@ -12,6 +12,8 @@ function hasResolvedCover(link) {
 
 function getLinkColor(link) {
 
+        if (getLinkedLibraryEntry(link)) return '#ffd36b';
+
         if (link?.done) return getResolvedMapThemeColorValue('bookmarkDoneColor');
 
         if (hasResolvedCover(link)) return getResolvedMapThemeColorValue('bookmarkCoveredColor');
@@ -47,6 +49,32 @@ function getLinkMeta(workspaceId, categoryName, link) {
         })(), '');
 
         if (host) segments.push(host);
+
+        const libraryEntry = getLinkedLibraryEntry(link);
+
+        if (libraryEntry) {
+
+            const libraryBits = [text(libraryEntry?.title, '') || 'Library Linked'];
+
+            const status = text(libraryEntry?.status, '');
+
+            const chapter = text(libraryEntry?.chapter, '');
+
+            const episode = text(libraryEntry?.episode, '');
+
+            const rating = text(libraryEntry?.rating || libraryEntry?.selectedRating || libraryEntry?.personal10Rating, '');
+
+            if (status) libraryBits.push(status);
+
+            if (chapter) libraryBits.push('Ch. ' + chapter);
+
+            if (episode) libraryBits.push('Ep. ' + episode);
+
+            if (rating) libraryBits.push('Rating ' + rating);
+
+            segments.push('Library: ' + libraryBits.join(' | '));
+
+        }
 
         return segments.join(' / ');
 
