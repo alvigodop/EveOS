@@ -9,20 +9,22 @@ window.EveLibrary = window.EveLibrary || {};
             entriesCount,
             totalCount,
             kpis,
+            labels,
             formatAverage,
             formatPercent,
             escapeHtml
         } = params || {};
 
         const safeKpis = kpis || {};
+        const copy = labels || {};
         const cards = [
             {
-                label: 'Total Series',
+                label: copy.totalLabel || 'Total Series',
                 value: String(safeKpis.totalSeries || 0),
                 hint: `${entriesCount || 0} shown / ${totalCount || 0} total`
             },
             {
-                label: 'Chapters / Episodes Read',
+                label: copy.progressKpi || 'Chapters / Episodes Read',
                 value: String(safeKpis.totalProgressUnits || 0),
                 hint: 'Total progress tracked'
             },

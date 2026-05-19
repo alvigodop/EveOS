@@ -104,7 +104,7 @@
 }
 
 .container.focus-mode .lib-entries-grid {
-    grid-template-columns: repeat(3, minmax(0, 235px)) !important;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 235px)) !important;
     justify-content: center;
     gap: 9px !important;
     width: 100%;
@@ -117,7 +117,7 @@
     width: 100%;
     max-width: 235px;
     min-width: 0;
-    padding: 16px;
+    padding: 14px;
 }
 
 .container.focus-mode .lib-entry-image {
@@ -267,3 +267,9 @@
     background: color-mix(in srgb, var(--input-bg, #2c2c2c) 72%, var(--accent, #00d4ff) 28%);
 }
 
+@media (max-width: 900px) {
+    .container.focus-mode .lib-entries-grid {
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)) !important;
+        justify-content: stretch;
+    }
+}

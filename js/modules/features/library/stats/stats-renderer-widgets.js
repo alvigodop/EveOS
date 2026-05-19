@@ -31,10 +31,10 @@ window.EveLibrary = window.EveLibrary || {};
     }
 
     function renderActiveCards(params) {
-        const { categoryName, items, escapeHtml } = params || {};
+        const { categoryName, items, emptyLabel, escapeHtml } = params || {};
         const safeItems = Array.isArray(items) ? items : [];
         if (!safeItems.length) {
-            return '<div class="lib-active-empty">No in-progress series right now.</div>';
+            return '<div class="lib-active-empty">' + (escapeHtml ? escapeHtml(emptyLabel || 'No in-progress entries right now.') : String(emptyLabel || 'No in-progress entries right now.')) + '</div>';
         }
 
         const safeCategory = sanitizeForInlineJs(categoryName);

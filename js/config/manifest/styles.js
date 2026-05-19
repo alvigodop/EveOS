@@ -11,7 +11,7 @@ window.EveModuleManifestParts.styles = [
         'js/modules/ui/dashboard/unidex-view.entries.css?v=0.2.17',
         'js/modules/ui/dashboard/unidex-view.theme.css?v=0.2.3',
         'js/modules/ui/dashboard/unidex-view.responsive.css?v=0.2.5',
-        'js/modules/ui/dashboard/categories/focused-card.css?v=0.2.68',
+        'js/modules/ui/dashboard/categories/focused-card.css?v=0.2.69',
         'js/modules/ui/dashboard/dock.css?v=0.2.6',
         'js/modules/ui/bulk-toolbar.css?v=0.2.7',
         'js/modules/ui/scratchpad.css?v=0.1.1',
@@ -28,7 +28,7 @@ window.EveModuleManifestParts.styles = [
         'js/modules/features/api-search/search-results.css?v=0.1.1',
         'js/modules/features/api-search/card-settings.css?v=0.1.8',
         'js/modules/features/sources/sources.css',
-        'js/modules/features/library/library.css?v=0.2.18',
+        'js/modules/features/library/library.css?v=0.2.19',
         'css/modules/constellation-map.css?v=0.1.3',
 
         // --- Scraper Feature Styles (Ported) ---

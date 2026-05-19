@@ -48,6 +48,7 @@ window.EveLibrary = window.EveLibrary || {};
 
     function updateCharts(categoryName) {
         const { entries } = getEntriesForStats(categoryName);
+        const labels = getStatsCopy(categoryName, entries);
         Charts?.renderCharts?.({
             categoryName,
             entries,
@@ -58,6 +59,7 @@ window.EveLibrary = window.EveLibrary || {};
             StatsCalc,
             ChartUtils,
             widgets: Widgets,
+            labels,
             escapeHtml
         });
     }
@@ -70,6 +72,37 @@ window.EveLibrary = window.EveLibrary || {};
     function setBreakdownMode(categoryName, mode) {
         breakdownModeByCategory[categoryName] = String(mode || '').toLowerCase() === 'origin' ? 'origin' : 'status';
         updateCharts(categoryName);
+    }
+
+    function getStatsCopy(categoryName, entries) {
+        const safeEntries = Array.isArray(entries) ? entries : [];
+        const dataType = State?.getCategoryDataType?.(categoryName, getWorkspaceId()) || '';
+        const filmLikeCount = safeEntries.filter(isFilmLikeEntry).length;
+        const isFilms = dataType === 'films' || (filmLikeCount > 0 && filmLikeCount >= Math.ceil(safeEntries.length / 2));
+        if (isFilms) {
+            return {
+                activeTitle: 'Currently Watching',
+                activeEmpty: 'No in-progress shows or films right now.',
+                totalLabel: 'Total Films / Shows',
+                progressKpi: 'Episodes Watched',
+                habitsTitle: 'Watching Habits (Last 30 Days)',
+                monthlyTitle: 'Watching Progress (Monthly Episodes)',
+                progressDataset: 'Episodes Watched',
+                monthlyDataset: 'Episodes Watched',
+                scatterAxis: 'Episodes Watched'
+            };
+        }
+        return {
+            activeTitle: 'Currently Reading',
+            activeEmpty: 'No in-progress series right now.',
+            totalLabel: 'Total Series',
+            progressKpi: 'Chapters / Episodes Read',
+            habitsTitle: 'Reading Habits (Last 30 Days)',
+            monthlyTitle: 'Reading Progress (Monthly Chapters)',
+            progressDataset: 'Chapters / Episodes Read',
+            monthlyDataset: 'Chapters Read',
+            scatterAxis: 'Chapters / Episodes Read'
+        };
     }
 
     function renderStats(categoryName, container) {
@@ -89,17 +122,19 @@ window.EveLibrary = window.EveLibrary || {};
         const hotTakes = StatsCalc.calcRatingDiscrepancies
             ? StatsCalc.calcRatingDiscrepancies(entries, 3)
             : { totalCompared: 0, lovedByMe: [] };
+        const labels = getStatsCopy(categoryName, entries);
 
         container.innerHTML = `
             <div class="lib-stats-grid lib-stats-grid-advanced">
                 <div class="lib-stat-card lib-stat-card-span-2">
                     <div class="lib-stat-head">
-                        <h4>Currently Reading</h4>
+                        <h4>${labels.activeTitle}</h4>
                         <span class="lib-stat-summary">${activeEntries.length} active</span>
                     </div>
                     ${Widgets?.renderActiveCards ? Widgets.renderActiveCards({
                         categoryName,
                         items: activeEntries,
+                        emptyLabel: labels.activeEmpty,
                         escapeHtml
                     }) : ''}
                 </div>
@@ -111,6 +146,7 @@ window.EveLibrary = window.EveLibrary || {};
                             entriesCount: entries.length,
                             totalCount: allTypeEntries.length,
                             kpis,
+                            labels,
                             formatAverage,
                             formatPercent,
                             escapeHtml
@@ -146,8 +182,8 @@ window.EveLibrary = window.EveLibrary || {};
                 <div class="lib-stat-card"><h4>Completeness Funnel</h4><div class="lib-chart-wrapper"><canvas id="${prefix}funnelChart"></canvas></div></div>
                 <div class="lib-stat-card"><h4>Demographic Split</h4><div class="lib-chart-wrapper"><canvas id="${prefix}demographicChart"></canvas></div></div>
                 <div class="lib-stat-card lib-stat-card-span-2"><h4>Tag Cloud</h4><div id="${prefix}tagCloud" class="lib-tag-cloud"></div></div>
-                <div class="lib-stat-card lib-stat-card-span-2"><h4>Reading Habits (Last 30 Days)</h4><div class="lib-chart-wrapper"><canvas id="${prefix}habitsChart"></canvas></div></div>
-                <div class="lib-stat-card lib-stat-card-span-2"><h4>Reading Progress (Monthly Chapters)</h4><div class="lib-chart-wrapper"><canvas id="${prefix}monthlyProgressChart"></canvas></div></div>
+                <div class="lib-stat-card lib-stat-card-span-2"><h4>${labels.habitsTitle}</h4><div class="lib-chart-wrapper"><canvas id="${prefix}habitsChart"></canvas></div></div>
+                <div class="lib-stat-card lib-stat-card-span-2"><h4>${labels.monthlyTitle}</h4><div class="lib-chart-wrapper"><canvas id="${prefix}monthlyProgressChart"></canvas></div></div>
                 <div class="lib-stat-card lib-stat-card-span-2"><h4>Length vs Quality</h4><div class="lib-chart-wrapper lib-chart-wrapper-tall"><canvas id="${prefix}scatterChart"></canvas></div></div>
 
                 <div class="lib-stat-card">

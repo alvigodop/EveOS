@@ -1,9 +1,10 @@
 /* Statistics */
 .lib-stats-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
     gap: 12px;
     margin-bottom: 20px;
+    min-width: 0;
 }
 
 .lib-stats-grid-advanced {
@@ -16,6 +17,8 @@
     border-radius: 6px;
     padding: 10px;
     text-align: center;
+    min-width: 0;
+    overflow: hidden;
 }
 
 .lib-stat-card-span-2 {
@@ -60,6 +63,8 @@
     height: 180px;
     position: relative;
     width: 100%;
+    min-width: 0;
+    overflow: hidden;
 }
 
 .lib-chart-wrapper-wide {
@@ -79,8 +84,9 @@
 
 .lib-kpi-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
     gap: 8px;
+    min-width: 0;
 }
 
 .lib-kpi-card {
@@ -142,7 +148,7 @@
 }
 
 .lib-active-card {
-    min-width: 260px;
+    min-width: min(260px, 100%);
     max-width: 290px;
     display: grid;
     grid-template-columns: 86px 1fr;
@@ -374,3 +380,18 @@
     }
 }
 
+@media (max-width: 620px) {
+    .lib-stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .lib-active-card {
+        max-width: none;
+        grid-template-columns: 72px minmax(0, 1fr);
+    }
+
+    .lib-active-cover-wrap {
+        width: 72px;
+        height: 104px;
+    }
+}

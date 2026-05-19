@@ -246,7 +246,8 @@ window.EveLibrary.UIModules = window.EveLibrary.UIModules || {};
             const isHidden = panel.style.display === 'none';
             panel.style.display = isHidden ? 'block' : 'none';
             if (isFocusedCard) {
-                parentCard.classList.toggle('focus-library-only', isHidden);
+                parentCard.classList.toggle('focus-library-expanded', isHidden);
+                parentCard.classList.remove('focus-library-only');
             }
             if (isHidden) {
                 // Show skeleton while library panel builds
