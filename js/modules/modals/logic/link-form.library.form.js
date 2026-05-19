@@ -50,13 +50,61 @@ window.EveLinkForm = window.EveLinkForm || {};
             };
         };
 
-        ns.fillLibraryForm = function (entry) {
+        ns.getSelectedLibraryMediaTypes = function () {
+            const mediaTypes = [];
+            if (document.getElementById('libTypeGraphic')?.checked) mediaTypes.push('graphicNovels');
+            if (document.getElementById('libTypeFilms')?.checked) mediaTypes.push('films');
+            if (document.getElementById('libTypeNovels')?.checked) mediaTypes.push('novels');
+            return mediaTypes;
+        };
+
+        function getCategoryFallbackDataType(categoryName) {
+            const state = window.EveLibrary?.State;
+            return state?.getCategoryDataType?.(categoryName || 'Unsorted') || 'graphicNovels';
+        }
+
+        function getStatusOptions(categoryName, mediaTypes) {
+            const state = window.EveLibrary?.State;
+            const fallbackType = getCategoryFallbackDataType(categoryName);
+            if (state?.getStatusOptionsForMediaTypes) {
+                return state.getStatusOptionsForMediaTypes(mediaTypes, fallbackType);
+            }
+            const type = state?.getDataType?.(fallbackType);
+            return (type?.statuses && type.statuses.length > 0)
+                ? type.statuses.slice()
+                : ['Reading', 'Completed', 'On Hold', 'Dropped', 'Plan to Read', 'Hiatus'];
+        }
+
+        function replaceStatusOptions(select, statuses, previous) {
+            if (!select) return;
+            const safeStatuses = Array.isArray(statuses) ? statuses.slice() : [];
+            const previousValue = String(previous || '').trim();
+            if (previousValue && !safeStatuses.includes(previousValue)) safeStatuses.unshift(previousValue);
+            while (select.firstChild) select.removeChild(select.firstChild);
+            const blank = document.createElement('option');
+            blank.value = '';
+            blank.textContent = 'Status';
+            select.appendChild(blank);
+            safeStatuses.forEach(function (status) {
+                const option = document.createElement('option');
+                option.value = status;
+                option.textContent = status;
+                select.appendChild(option);
+            });
+            select.value = previousValue;
+        }
+
+        ns.fillLibraryForm = function (entry, categoryName) {
             const mediaTypes = Array.isArray(entry?.mediaTypes) && entry.mediaTypes.length > 0
                 ? entry.mediaTypes
                 : ['graphicNovels'];
             document.getElementById('libTypeGraphic').checked = mediaTypes.includes('graphicNovels');
             document.getElementById('libTypeFilms').checked = mediaTypes.includes('films');
             document.getElementById('libTypeNovels').checked = mediaTypes.includes('novels');
+            ns.refreshLibraryStatusOptions(categoryName, {
+                mediaTypes,
+                preferredValue: entry?.status || ''
+            });
             document.getElementById('libAuthor').value = entry?.author || '';
             document.getElementById('libAuthorAltNames').value = ns.normalizeEntryListValue(entry?.authorAltNames);
             document.getElementById('libArtist').value = ns.normalizeEntryListValue(entry?.artist);
@@ -86,7 +134,7 @@ window.EveLinkForm = window.EveLinkForm || {};
             if (addedMeta) addedMeta.textContent = `Added: ${ns.formatLibraryTimestamp(entry?.dateAdded)}`;
             if (editedMeta) editedMeta.textContent = `Last Edited: ${ns.formatLibraryTimestamp(entry?.lastEdited || entry?.dateAdded)}`;
             ns.refreshDerivedRatingsPreview(entry);
-            ns.updateLibraryProgressFieldVisibility();
+            ns.updateLibraryProgressFieldVisibility(categoryName);
         };
 
         ns.resetLibraryForm = function () {
@@ -96,22 +144,15 @@ window.EveLinkForm = window.EveLinkForm || {};
             ns.fillLibraryForm(null);
         };
 
-        ns.refreshLibraryStatusOptions = function (categoryName) {
+        ns.refreshLibraryStatusOptions = function (categoryName, options) {
             const select = document.getElementById('libStatus');
             if (!select) return;
-            const state = window.EveLibrary?.State;
-            const fallback = ['Reading', 'Completed', 'On Hold', 'Dropped', 'Plan to Read', 'Hiatus'];
-            let statuses = fallback;
-            if (state) {
-                const dataType = state.getCategoryDataType(categoryName || 'Unsorted');
-                const type = state.getDataType(dataType);
-                statuses = (type?.statuses && type.statuses.length > 0) ? type.statuses : fallback;
-            }
-            const previous = select.value;
-            select.innerHTML = '<option value="">Status</option>' + statuses.map(s => `<option value="${s}">${s}</option>`).join('');
-            if (statuses.includes(previous)) {
-                select.value = previous;
-            }
+            const config = options && typeof options === 'object' ? options : {};
+            const mediaTypes = Array.isArray(config.mediaTypes)
+                ? config.mediaTypes
+                : ns.getSelectedLibraryMediaTypes();
+            const previous = String(config.preferredValue || select.value || '').trim();
+            replaceStatusOptions(select, getStatusOptions(categoryName, mediaTypes), previous);
             ns.updateLibraryProgressFieldVisibility(categoryName);
         };
 

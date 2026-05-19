@@ -34,7 +34,9 @@ window.EveLinkForm = window.EveLinkForm || {};
             }
 
             const onTypesChanged = function () {
-                ns.updateLibraryProgressFieldVisibility(categoryInput?.value?.trim() || 'Unsorted');
+                const categoryName = categoryInput?.value?.trim() || 'Unsorted';
+                ns.refreshLibraryStatusOptions(categoryName);
+                ns.updateLibraryProgressFieldVisibility(categoryName);
             };
             if (typeGraphic) typeGraphic.onchange = onTypesChanged;
             if (typeFilms) typeFilms.onchange = onTypesChanged;
@@ -159,7 +161,7 @@ window.EveLinkForm = window.EveLinkForm || {};
                 toggle.checked = true;
                 ns.setLibraryFieldsCollapsed(false);
                 ns.setLibraryFieldsVisibility(true);
-                ns.fillLibraryForm(linked.entry);
+                ns.fillLibraryForm(linked.entry, categoryName);
                 const linkedUrl = linked.entry.sourceUrl || '';
                 const newUrlInput = document.getElementById('newUrl');
                 if (linkedUrl && newUrlInput && !newUrlInput.matches(':focus')) {

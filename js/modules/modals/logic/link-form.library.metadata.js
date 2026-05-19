@@ -99,6 +99,18 @@ window.EveLinkForm = window.EveLinkForm || {};
 
         const statusSelect = document.getElementById('libStatus');
         if (statusSelect && !statusSelect.value && meta.status) {
+            const availableStatuses = Array.from(statusSelect.options || [])
+                .map(option => String(option.value || '').trim())
+                .filter(Boolean);
+            const pickAvailableStatus = function (candidates) {
+                for (const candidate of candidates) {
+                    const match = availableStatuses.find(value =>
+                        ns.toTrimmedLower(value) === ns.toTrimmedLower(candidate)
+                    );
+                    if (match) return match;
+                }
+                return '';
+            };
             const statusMatch = Array.from(statusSelect.options || []).find(option =>
                 ns.toTrimmedLower(option.value) === ns.toTrimmedLower(meta.status)
             );
@@ -109,9 +121,11 @@ window.EveLinkForm = window.EveLinkForm || {};
                 const mappedStatusValue = (function mapSourceStatusToLibraryStatus(value) {
                     const normalized = ns.toTrimmedLower(value);
                     if (!normalized) return '';
-                    if (normalized === 'completed') return 'Completed';
-                    if (normalized === 'ongoing' || normalized === 'hiatus' || normalized === 'upcoming') return 'Reading';
-                    if (normalized === 'cancelled') return 'Dropped';
+                    if (normalized === 'completed') return pickAvailableStatus(['Completed']);
+                    if (normalized === 'ongoing') return pickAvailableStatus(['Watching', 'Reading']);
+                    if (normalized === 'upcoming') return pickAvailableStatus(['Plan to Watch', 'Plan to Read', 'Watching', 'Reading']);
+                    if (normalized === 'hiatus') return pickAvailableStatus(['Hiatus', 'On Hold']);
+                    if (normalized === 'cancelled') return pickAvailableStatus(['Dropped']);
                     return '';
                 })(sourceStatus);
                 if (mappedStatusValue) {

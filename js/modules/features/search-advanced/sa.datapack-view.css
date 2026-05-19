@@ -365,7 +365,8 @@
 .nx-dv-bookmark-row label:nth-of-type(1),
 .nx-dv-bookmark-row label:nth-of-type(2),
 .nx-dv-bookmark-row label:nth-of-type(5),
-.nx-dv-bookmark-meta {
+.nx-dv-bookmark-meta,
+.nx-dv-library-summary {
     grid-column: 1 / -1;
 }
 
@@ -374,6 +375,67 @@
     gap: 6px;
     flex-wrap: wrap;
     min-width: 0;
+}
+
+.nx-dv-library-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    min-width: 0;
+    padding: 9px;
+    border: 1px solid rgba(255, 211, 102, 0.18);
+    border-radius: 12px;
+    background:
+        linear-gradient(135deg, rgba(255, 211, 102, 0.08), rgba(0, 212, 255, 0.045)),
+        rgba(0, 0, 0, 0.16);
+}
+
+.nx-dv-library-title,
+.nx-dv-library-foot,
+.nx-dv-library-chips {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    min-width: 0;
+}
+
+.nx-dv-library-title {
+    align-items: baseline;
+}
+
+.nx-dv-library-title strong {
+    color: #ffd36a;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.nx-dv-library-title span,
+.nx-dv-library-foot span,
+.nx-dv-library-chips span {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+}
+
+.nx-dv-library-title span {
+    color: var(--text-main, #f5f7fb);
+    font-weight: 800;
+}
+
+.nx-dv-library-chips span,
+.nx-dv-library-foot span {
+    padding: 4px 7px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.035);
+    color: var(--text-muted, rgba(210, 224, 242, 0.72));
+    font-size: 0.71rem;
+    line-height: 1.35;
+}
+
+.nx-dv-library-chips b {
+    color: rgba(255, 225, 142, 0.95);
 }
 
 .nx-dv-card-foot {

@@ -82,6 +82,22 @@ window.EveLibrary.UIModules = window.EveLibrary.UIModules || {};
             if (lastEditedMeta) lastEditedMeta.textContent = 'Last Edited: -';
         }
 
+        function ensureStatusOption(categoryName, value) {
+            const statusValue = String(value || '').trim();
+            if (!statusValue) return;
+            const prefix = getPrefix(categoryName);
+            const select = document.getElementById(prefix + 'status');
+            if (!select) return;
+            const exists = Array.from(select.options || []).some(option => option.value === statusValue);
+            if (!exists) {
+                const option = document.createElement('option');
+                option.value = statusValue;
+                option.textContent = statusValue;
+                select.insertBefore(option, select.firstChild || null);
+            }
+            select.value = statusValue;
+        }
+
         function fillForm(categoryName, entry) {
             const prefix = getPrefix(categoryName);
             const summaryValue = entry?.summary || '';
@@ -119,6 +135,7 @@ window.EveLibrary.UIModules = window.EveLibrary.UIModules || {};
             setValue('api-rating-openlibrary', formatOptionalScore(entry?.apiRatings?.openlibrary));
             setValue('api-rating-wlnupdates', formatOptionalScore(entry?.apiRatings?.wlnupdates));
             setValue('api-rating-itunes', formatOptionalScore(entry?.apiRatings?.itunes));
+            ensureStatusOption(categoryName, entry?.status || '');
             setValue('status', entry?.status || '');
 
             const dateAddedMeta = document.getElementById(prefix + 'date-added-meta');

@@ -46,34 +46,41 @@ window.EveLibrary = window.EveLibrary || {};
     }
 
     function updateStatusOptions(categoryName) {
-        const lib = State.getCategoryLibrary(categoryName);
-        const dataType = lib.dataType || 'graphicNovels';
-        const typeConfig = State.getDataType(dataType);
         const prefix = `lib-${categoryName.replace(/[^a-zA-Z0-9]/g, '_')}-`;
+        const statuses = State.getStatusOptionsForCategory
+            ? State.getStatusOptionsForCategory(categoryName)
+            : (State.getDataType('graphicNovels')?.statuses || []);
+
+        function refillSelect(select, options, config) {
+            if (!select) return;
+            const selected = String(select.value || '').trim();
+            const includeBlank = !!config?.includeBlank;
+            const blankText = config?.blankText || '';
+            while (select.firstChild) select.removeChild(select.firstChild);
+            if (includeBlank) {
+                const blank = document.createElement('option');
+                blank.value = '';
+                blank.textContent = blankText;
+                select.appendChild(blank);
+            }
+            const list = Array.isArray(options) ? options.slice() : [];
+            if (selected && !list.includes(selected)) list.unshift(selected);
+            list.forEach(st => {
+                const option = document.createElement('option');
+                option.value = st;
+                option.textContent = st;
+                select.appendChild(option);
+            });
+            if (selected) select.value = selected;
+        }
 
         // Status in form
         const statusSelect = document.getElementById(prefix + 'status');
-        if (statusSelect) {
-            statusSelect.innerHTML = '';
-            (typeConfig?.statuses || []).forEach(st => {
-                const option = document.createElement('option');
-                option.value = st;
-                option.textContent = st;
-                statusSelect.appendChild(option);
-            });
-        }
+        refillSelect(statusSelect, statuses);
 
         // Status in search
         const searchStatusSelect = document.getElementById(prefix + 'search-status');
-        if (searchStatusSelect) {
-            searchStatusSelect.innerHTML = '<option value="">All Statuses</option>';
-            (typeConfig?.statuses || []).forEach(st => {
-                const option = document.createElement('option');
-                option.value = st;
-                option.textContent = st;
-                searchStatusSelect.appendChild(option);
-            });
-        }
+        refillSelect(searchStatusSelect, statuses, { includeBlank: true, blankText: 'All Statuses' });
     }
 
     function updateSortByOptions(categoryName) {

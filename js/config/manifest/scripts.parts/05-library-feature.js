@@ -4,7 +4,7 @@ window.EveModuleManifestScriptChunks = window.EveModuleManifestScriptChunks || [
 
 window.EveModuleManifestScriptChunks.push([
     // Library Feature (Category-based entry management)
-    "js/modules/features/library/library-state.js?v=0.2.2",
+    "js/modules/features/library/library-state.js?v=0.2.3",
     "js/modules/features/library/ratings/engine-components/engine-foundation.base.js?v=0.2.1",
     "js/modules/features/library/ratings/engine-components/engine-foundation.sources.js?v=0.2.1",
     "js/modules/features/library/ratings/engine-components/engine-foundation.js?v=0.2.5",
@@ -27,7 +27,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/library/search-filters.helpers.js?v=0.2.2",
     "js/modules/features/library/search-filters.pipeline.js?v=0.2.1",
     "js/modules/features/library/search-filters.js?v=0.2.3",
-    "js/modules/features/library/options-updaters.js?v=0.2.2",
+    "js/modules/features/library/options-updaters.js?v=0.2.3",
     "js/modules/features/library/entries-renderer.helpers.js?v=0.2.1",
     "js/modules/features/library/entries-renderer.templates.js?v=0.2.2",
     "js/modules/features/library/entries-renderer.js?v=0.2.7",

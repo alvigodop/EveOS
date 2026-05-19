@@ -33,7 +33,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/search-advanced/sa-debug-view.workspace.js?v=0.1.0",
     "js/modules/features/search-advanced/sa-debug-view.drilldowns.js?v=0.1.0",
     "js/modules/features/search-advanced/sa-debug-view.js?v=0.1.2",
-    "js/modules/features/search-advanced/sa-datapack-view.micro.js?v=0.2.0",
+    "js/modules/features/search-advanced/sa-datapack-view.micro.js?v=0.2.1",
     "js/modules/features/search-advanced/sa-datapack-view.macro-actions.js?v=0.2.0",
     "js/modules/features/search-advanced/sa-datapack-view.js?v=0.2.0",
     "js/modules/features/search-advanced/sa-ui.form.template.js?v=0.4.1",

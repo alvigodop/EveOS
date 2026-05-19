@@ -25,7 +25,7 @@ window.EveLibrary = window.EveLibrary || {};
             fields: ['chapter']
         },
         films: {
-            label: 'Films',
+            label: 'Films / Shows',
             statuses: ['Watching', 'Completed', 'On Hold', 'Dropped', 'Plan to Watch', 'Hiatus'],
             sortOptions: ['title', 'author', 'genre', 'rating', 'selectedRating', 'apiAverageRating', 'apiWeightedRating', 'hybridRating', 'personal10Rating', 'confidenceRating', 'status', 'dateAdded', 'lastEdited', 'season', 'episode'],
             fields: ['season', 'episode']
@@ -36,6 +36,28 @@ window.EveLibrary = window.EveLibrary || {};
             sortOptions: ['title', 'author', 'genre', 'rating', 'selectedRating', 'apiAverageRating', 'apiWeightedRating', 'hybridRating', 'personal10Rating', 'confidenceRating', 'status', 'dateAdded', 'lastEdited', 'chapter'],
             fields: ['chapter']
         }
+    };
+
+    const mediaTypeAliases = {
+        graphicnovel: 'graphicNovels',
+        graphicnovels: 'graphicNovels',
+        manga: 'graphicNovels',
+        manhua: 'graphicNovels',
+        manhwa: 'graphicNovels',
+        comic: 'graphicNovels',
+        comics: 'graphicNovels',
+        film: 'films',
+        films: 'films',
+        movie: 'films',
+        movies: 'films',
+        show: 'films',
+        shows: 'films',
+        tv: 'films',
+        anime: 'films',
+        novel: 'novels',
+        novels: 'novels',
+        book: 'novels',
+        books: 'novels'
     };
 
     // Pagination state per category
@@ -224,9 +246,47 @@ window.EveLibrary = window.EveLibrary || {};
     function getDataTypes() { return dataTypes; }
     function getDataType(typeName) { return dataTypes[typeName]; }
 
+    function normalizeMediaType(value) {
+        const key = String(value || '').trim();
+        if (!key) return '';
+        if (dataTypes[key]) return key;
+        return mediaTypeAliases[key.toLowerCase().replace(/[^a-z0-9]/g, '')] || '';
+    }
+
+    function normalizeMediaTypes(mediaTypes, fallbackType) {
+        const source = Array.isArray(mediaTypes) ? mediaTypes : [mediaTypes];
+        const normalized = [];
+        source.forEach((value) => {
+            const mediaType = normalizeMediaType(value);
+            if (mediaType && !normalized.includes(mediaType)) normalized.push(mediaType);
+        });
+        const fallback = normalizeMediaType(fallbackType || DEFAULT_DATA_TYPE) || DEFAULT_DATA_TYPE;
+        if (!normalized.length) normalized.push(fallback);
+        return normalized;
+    }
+
+    function getStatusOptionsForDataType(typeName) {
+        const type = getDataType(normalizeMediaType(typeName) || DEFAULT_DATA_TYPE) || getDataType(DEFAULT_DATA_TYPE);
+        return Array.isArray(type?.statuses) ? type.statuses.slice() : [];
+    }
+
+    function getStatusOptionsForMediaTypes(mediaTypes, fallbackType) {
+        const statusOptions = [];
+        normalizeMediaTypes(mediaTypes, fallbackType).forEach((mediaType) => {
+            getStatusOptionsForDataType(mediaType).forEach((status) => {
+                if (!statusOptions.includes(status)) statusOptions.push(status);
+            });
+        });
+        return statusOptions;
+    }
+
     function getCategoryDataType(categoryName, workspaceId) {
         const lib = getExistingCategoryLibrary(categoryName, workspaceId);
         return lib?.dataType || DEFAULT_DATA_TYPE;
+    }
+
+    function getStatusOptionsForCategory(categoryName, workspaceId) {
+        return getStatusOptionsForDataType(getCategoryDataType(categoryName, workspaceId));
     }
 
     function setCategoryDataType(categoryName, typeName, workspaceId) {
@@ -294,6 +354,11 @@ window.EveLibrary = window.EveLibrary || {};
         getEntriesPerPage,
         buildScopedCategoryKey,
         parseScopedCategoryKey,
-        getCurrentWorkspaceId
+        getCurrentWorkspaceId,
+        normalizeMediaType,
+        normalizeMediaTypes,
+        getStatusOptionsForDataType,
+        getStatusOptionsForMediaTypes,
+        getStatusOptionsForCategory
     };
 })();

@@ -51,6 +51,91 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         });
     }
 
+    function normalizeTextList(value) {
+        const source = Array.isArray(value)
+            ? value
+            : String(value == null ? '' : value).split(/[|,;]/);
+        const seen = new Set();
+        return source.map(function (entry) {
+            return String(entry == null ? '' : entry).trim();
+        }).filter(function (entry) {
+            const key = entry.toLowerCase();
+            if (!entry || seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
+    }
+
+    function formatOptionalScore(value) {
+        const n = Number(value);
+        if (!Number.isFinite(n)) return '';
+        return n.toFixed(2).replace(/\.?0+$/, '');
+    }
+
+    function formatOptionalDate(value) {
+        if (!value) return '';
+        const parsed = new Date(value);
+        if (Number.isNaN(parsed.getTime())) return '';
+        return parsed.toLocaleString(undefined, {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit'
+        });
+    }
+
+    function getMediaTypeLabel(mediaType) {
+        const state = window.EveLibrary?.State;
+        const normalized = state?.normalizeMediaType?.(mediaType) || String(mediaType || '').trim();
+        return state?.getDataType?.(normalized)?.label || normalized || '';
+    }
+
+    function getLinkedLibrarySummary(link, workspaceId, categoryName) {
+        const linked = window.EveLibrary?.ConnectionsAPI?.getLinkedEntry?.(String(link?.id || ''));
+        if (!linked?.entry) return null;
+        const entry = linked.entry;
+        const connection = linked.connection || {};
+        const state = window.EveLibrary?.State;
+        const fallbackType = state?.getCategoryDataType?.(connection.categoryName || categoryName, connection.workspace || workspaceId) || 'graphicNovels';
+        const mediaTypes = state?.normalizeMediaTypes
+            ? state.normalizeMediaTypes(entry.mediaTypes || entry.mediaType, fallbackType)
+            : normalizeTextList(entry.mediaTypes || entry.mediaType || fallbackType);
+        const progress = [];
+        const graphicChapter = entry.graphicChapter ?? entry.chapter;
+        const novelChapter = entry.novelChapter;
+        if (Number(graphicChapter || 0) > 0) progress.push('Chapter ' + Number(graphicChapter || 0));
+        if (Number(novelChapter || 0) > 0 && Number(novelChapter || 0) !== Number(graphicChapter || 0)) {
+            progress.push('Novel Ch ' + Number(novelChapter || 0));
+        }
+        if (Number(entry.season || 0) > 0) progress.push('Season ' + Number(entry.season || 0));
+        if (Number(entry.episode || 0) > 0) progress.push('Episode ' + Number(entry.episode || 0));
+        const derived = entry.derivedRatings || {};
+        return {
+            linked: true,
+            entryId: String(entry.id || ''),
+            title: String(entry.title || link?.title || 'Library Entry'),
+            workspaceId: String(connection.workspace || workspaceId || ''),
+            categoryName: String(connection.categoryName || categoryName || ''),
+            mediaTypes: mediaTypes.map(getMediaTypeLabel).filter(Boolean),
+            status: String(entry.status || ''),
+            sourceStatus: String(entry.sourceStatus || ''),
+            progress,
+            rating: String(entry.rating || ''),
+            apiAverage: formatOptionalScore(derived.apiAverage10),
+            apiWeighted: formatOptionalScore(derived.apiWeighted10),
+            unified: formatOptionalScore(derived.hybrid10),
+            confidence: formatOptionalScore(derived.confidence),
+            sourceUrl: String(entry.sourceUrl || ''),
+            author: normalizeTextList(entry.author),
+            artist: normalizeTextList(entry.artist),
+            genre: normalizeTextList(entry.genre).slice(0, 5),
+            tags: normalizeTextList(entry.tags).slice(0, 5),
+            language: String(entry.language || ''),
+            lastEdited: formatOptionalDate(entry.lastEdited || entry.dateAdded)
+        };
+    }
+
     function renderPatchPreview(panel, preview) {
         const target = panel?.querySelector?.('[data-nx-dv-diff="micro"]');
         if (!target) return;
@@ -78,6 +163,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             const folderId = normalizeFolderId(link?.folderId);
             const notes = String(link?.notes || '').trim();
             const identifierIds = normalizeIdentifierList(link?.identifiers);
+            const library = getLinkedLibrarySummary(link, workspaceId, categoryName);
             return {
                 id: String(link?.id || ''),
                 title: String(link?.title || 'Untitled'),
@@ -95,7 +181,8 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 identifierIds,
                 notes,
                 notesSummary: notes ? notes.slice(0, 180) : '',
-                linkedLibrary: !!window.EveLibrary?.ConnectionsAPI?.getLinkedEntry?.(String(link?.id || ''))?.entry
+                linkedLibrary: !!library,
+                library
             };
         });
         return {
@@ -202,9 +289,42 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                     + (bookmark.linkedLibrary ? '<span>Library linked</span>' : '')
                     + (bookmark.notesSummary ? '<small>' + escapeHtml(bookmark.notesSummary) + '</small>' : '')
                     + '</div>'
+                    + renderLibrarySummary(bookmark.library)
                     + '</div>';
             }).join('')
             + '</div></section>';
+    }
+
+    function renderLibrarySummary(library) {
+        if (!library?.linked) return '';
+        const chips = [];
+        function addChip(label, value) {
+            const text = String(value || '').trim();
+            if (text) chips.push('<span><b>' + escapeHtml(label) + '</b> ' + escapeHtml(text) + '</span>');
+        }
+        addChip('Type', library.mediaTypes.join(', '));
+        addChip('Status', library.status);
+        addChip('Source Status', library.sourceStatus);
+        addChip('Progress', library.progress.join(' / '));
+        addChip('Rating', library.rating);
+        addChip('Unified', library.unified);
+        addChip('Confidence', library.confidence);
+        addChip('API Avg', library.apiAverage);
+        addChip('Language', library.language);
+        addChip('Genres', library.genre.join(', '));
+        addChip('Tags', library.tags.join(', '));
+        addChip('Last Edited', library.lastEdited);
+        return '<div class="nx-dv-library-summary">'
+            + '<div class="nx-dv-library-title">'
+            + '<strong>Library</strong>'
+            + '<span title="' + escapeHtml(library.title) + '">' + escapeHtml(library.title) + '</span>'
+            + '</div>'
+            + '<div class="nx-dv-library-chips">' + (chips.length ? chips.join('') : '<span>No library fields set</span>') + '</div>'
+            + '<div class="nx-dv-library-foot">'
+            + '<span>' + escapeHtml(library.workspaceId + ' / ' + library.categoryName) + '</span>'
+            + (library.sourceUrl ? '<span title="' + escapeHtml(library.sourceUrl) + '">' + escapeHtml(library.sourceUrl) + '</span>' : '')
+            + '</div>'
+            + '</div>';
     }
 
     function closeCardInternals() {

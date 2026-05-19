@@ -93,7 +93,7 @@ window.modalTemplate = `
                     </label>
                     <label style="display:flex; gap:6px; align-items:center; font-size:0.85rem;">
                         <input type="checkbox" id="libTypeFilms">
-                        <span>Films</span>
+                        <span>Films / Shows</span>
                     </label>
                     <label style="display:flex; gap:6px; align-items:center; font-size:0.85rem;">
                         <input type="checkbox" id="libTypeNovels">
