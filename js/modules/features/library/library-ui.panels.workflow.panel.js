@@ -237,6 +237,46 @@ window.EveLibrary.UIModules = window.EveLibrary.UIModules || {};
             EntriesRenderer.renderEntries(categoryName, entriesContainer);
         }
 
+        function scheduleCardLayoutRefresh(panel) {
+            const grid = panel?.closest('#dashboard-grid') || getDocument()?.getElementById('dashboard-grid');
+            if (grid && typeof window.scheduleDashboardMasonryLayout === 'function') {
+                window.scheduleDashboardMasonryLayout(grid);
+            }
+        }
+
+        function getLibraryScrollHost() {
+            const doc = getDocument();
+            const mainContent = doc?.getElementById('main-content');
+            if (mainContent && mainContent.scrollHeight > mainContent.clientHeight) return mainContent;
+            return doc?.scrollingElement || doc?.documentElement || doc?.body || null;
+        }
+
+        function getHostScrollTop(host) {
+            if (!host) return 0;
+            if (host === document.body || host === document.documentElement) {
+                return window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+            }
+            return Number(host.scrollTop || 0);
+        }
+
+        function restoreHostScrollTop(host, scrollY) {
+            if (!host || !Number.isFinite(scrollY)) return;
+            if (host === document.body || host === document.documentElement) {
+                window.scrollTo(0, scrollY);
+                return;
+            }
+            host.scrollTop = scrollY;
+        }
+
+        function restoreScrollIfUserDidNotMove(scrollHost, scrollY, scrollSeq) {
+            const currentSeq = Number(window._dashboardScrollActivitySeq || 0);
+            if (currentSeq !== scrollSeq || !Number.isFinite(scrollY)) return;
+            if (typeof window.markDashboardProgrammaticScrollWindow === 'function') {
+                window.markDashboardProgrammaticScrollWindow(24);
+            }
+            restoreHostScrollTop(scrollHost, scrollY);
+        }
+
         function toggleLibraryPanel(categoryName) {
             const prefix = forms.getPrefix(categoryName);
             const panel = document.getElementById(prefix + 'panel');
@@ -244,10 +284,23 @@ window.EveLibrary.UIModules = window.EveLibrary.UIModules || {};
             const parentCard = panel.closest('.category-card');
             const isFocusedCard = !!parentCard?.classList.contains('is-focus-mode');
             const isHidden = panel.style.display === 'none';
+            const scrollHost = getLibraryScrollHost();
+            const scrollY = getHostScrollTop(scrollHost);
+            const scrollSeq = Number(window._dashboardScrollActivitySeq || 0);
             panel.style.display = isHidden ? 'block' : 'none';
+            if (parentCard) {
+                parentCard.classList.toggle('has-library-expanded', isHidden);
+            }
             if (isFocusedCard) {
                 parentCard.classList.toggle('focus-library-expanded', isHidden);
                 parentCard.classList.remove('focus-library-only');
+            }
+            if (!isHidden) {
+                scheduleCardLayoutRefresh(panel);
+                requestAnimationFrame(function () {
+                    restoreScrollIfUserDidNotMove(scrollHost, scrollY, scrollSeq);
+                });
+                return;
             }
             if (isHidden) {
                 // Show skeleton while library panel builds
@@ -263,6 +316,10 @@ window.EveLibrary.UIModules = window.EveLibrary.UIModules || {};
                 requestAnimationFrame(function () {
                     setTimeout(function () {
                         initLibraryPanel(categoryName);
+                        scheduleCardLayoutRefresh(panel);
+                        requestAnimationFrame(function () {
+                            restoreScrollIfUserDidNotMove(scrollHost, scrollY, scrollSeq);
+                        });
                     }, 0);
                 });
             }
