@@ -44,6 +44,40 @@ var _dashboardScrollableSelectors = [
     '.focused-category-entries'
 ];
 
+function getDashboardPrimaryScrollHost() {
+    var mainContent = document.getElementById('main-content');
+    if (mainContent && mainContent.scrollHeight > mainContent.clientHeight) return mainContent;
+    return document.scrollingElement || document.documentElement || document.body || null;
+}
+window.getDashboardPrimaryScrollHost = getDashboardPrimaryScrollHost;
+
+function getDashboardScrollTop() {
+    var host = getDashboardPrimaryScrollHost();
+    if (!host) return 0;
+    if (host === document.body || host === document.documentElement) {
+        return Math.max(
+            window.pageYOffset || 0,
+            document.documentElement.scrollTop || 0,
+            document.body.scrollTop || 0,
+            window.scrollY || 0
+        );
+    }
+    return Number(host.scrollTop || 0);
+}
+window.getDashboardScrollTop = getDashboardScrollTop;
+
+function setDashboardScrollTop(top) {
+    var nextTop = Math.max(0, Number(top || 0));
+    var host = getDashboardPrimaryScrollHost();
+    if (!host) return;
+    if (host === document.body || host === document.documentElement) {
+        window.scrollTo(0, nextTop);
+        return;
+    }
+    host.scrollTop = nextTop;
+}
+window.setDashboardScrollTop = setDashboardScrollTop;
+
 function escapeDashboardSelectorValue(value) {
     return String(value).replace(/["\\]/g, '\\$&');
 }

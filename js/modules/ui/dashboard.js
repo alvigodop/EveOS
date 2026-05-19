@@ -11,12 +11,23 @@ function renderDashboard() {
 }
 
 function _getRobustScrollTop() {
+    if (typeof window.getDashboardScrollTop === 'function') {
+        return window.getDashboardScrollTop();
+    }
     return Math.max(
         window.pageYOffset || 0,
         document.documentElement.scrollTop || 0,
         document.body.scrollTop || 0,
         window.scrollY || 0
     );
+}
+
+function _setRobustScrollTop(top) {
+    if (typeof window.setDashboardScrollTop === 'function') {
+        window.setDashboardScrollTop(top);
+        return;
+    }
+    window.scrollTo(0, Math.max(0, Number(top || 0)));
 }
 
 function getDashboardLiveLinks() {
@@ -145,6 +156,86 @@ function mergeDashboardPreferredLinks(preferredLinks, liveLinks) {
     return merged;
 }
 
+function restoreDashboardOpenLibrarySurface(surface) {
+    if (!surface || surface.kind !== 'card-library') return;
+    var categoryName = String(surface.categoryName || '').trim();
+    if (!categoryName) return;
+    var panelId = 'lib-' + categoryName.replace(/[^a-zA-Z0-9]/g, '_') + '-panel';
+    var panel = document.getElementById(panelId);
+    if (!panel) return;
+    var parentCard = panel.closest('.category-card');
+    var isFocusedCard = !!parentCard?.classList.contains('is-focus-mode');
+    panel.style.display = 'block';
+    if (!isFocusedCard) {
+        panel.style.maxHeight = 'min(74vh, 760px)';
+        panel.style.overflowY = 'auto';
+        panel.style.overscrollBehavior = 'contain';
+    }
+    if (parentCard) {
+        parentCard.classList.add('has-library-expanded');
+        if (isFocusedCard) parentCard.classList.add('focus-library-expanded');
+    }
+    wireDashboardOpenLibrarySurfaceScrollBridge(panel);
+    if (!panel.children.length && window.EveLibrary?.UI?.initLibraryPanel) {
+        window.EveLibrary.UI.initLibraryPanel(categoryName);
+    }
+    window.__eveOpenCardLibrarySurface = {
+        kind: 'card-library',
+        categoryName: categoryName,
+        cardTargetId: String(parentCard?.getAttribute('data-card-target-id') || surface.cardTargetId || ''),
+        panel: panel,
+        openedAt: surface.openedAt || Date.now()
+    };
+}
+
+function wireDashboardOpenLibrarySurfaceScrollBridge(panel) {
+    if (!panel || panel.dataset.dashboardLibraryScrollBridge === '1') return;
+    panel.dataset.dashboardLibraryScrollBridge = '1';
+    panel.addEventListener('wheel', function (event) {
+        if (typeof window.noteDashboardUserScrollActivity === 'function') {
+            window.noteDashboardUserScrollActivity({ force: true });
+        }
+        var deltaY = Number(event?.deltaY || 0);
+        if (!deltaY) return;
+        var panelCanScroll = panel.scrollHeight > panel.clientHeight + 2;
+        if (!panelCanScroll) return;
+        var atTop = panel.scrollTop <= 1;
+        var atBottom = panel.scrollTop + panel.clientHeight >= panel.scrollHeight - 1;
+        var shouldHandOff = (deltaY < 0 && atTop) || (deltaY > 0 && atBottom);
+        if (!shouldHandOff) return;
+        var scrollHost = typeof window.getDashboardPrimaryScrollHost === 'function'
+            ? window.getDashboardPrimaryScrollHost()
+            : (document.scrollingElement || document.documentElement || document.body);
+        if (!scrollHost || scrollHost === panel) return;
+        event.preventDefault();
+        var currentTop = typeof window.getDashboardScrollTop === 'function'
+            ? window.getDashboardScrollTop()
+            : (window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0);
+        if (typeof window.setDashboardScrollTop === 'function') {
+            window.setDashboardScrollTop(currentTop + deltaY);
+        } else {
+            window.scrollTo(0, currentTop + deltaY);
+        }
+    }, { passive: false });
+}
+
+function scheduleDashboardOpenLibrarySurfaceRestore(surface) {
+    if (!surface || surface.kind !== 'card-library') return;
+    window.requestAnimationFrame(function () {
+        restoreDashboardOpenLibrarySurface(surface);
+    });
+    window.setTimeout(function () {
+        restoreDashboardOpenLibrarySurface(surface);
+    }, 120);
+    window.setTimeout(function () {
+        restoreDashboardOpenLibrarySurface(surface);
+    }, 320);
+}
+
+function hasDashboardOpenCardLibrarySurface(surface) {
+    return !!(surface && surface.kind === 'card-library');
+}
+
 function collectIndexedDashboardVisibleLinks(sourceLinks, scope, matcher) {
     var indexApi = getDashboardDatapackIndexApi();
     if (!indexApi || typeof indexApi.getScopedBookmarkLinkIds !== 'function' || !hasDashboardReadableLinkSnapshot(indexApi)) {
@@ -169,13 +260,19 @@ function _renderDashboardImmediate() {
     var renderHint = consumeDashboardRenderHint();
     var isWsSwitch = shouldSkipDashboardCardScrollPreserve(renderHint);
     var isStartupRender = isDashboardStartupRenderHint(renderHint);
+    var openLibrarySurface = window.__eveOpenCardLibrarySurface || null;
 
     // Fast path for workspace switches: skip all scroll preservation overhead
     // (layout reflow from scrollHeight measurement, spacer div, card scroll queries)
     if (isWsSwitch || isStartupRender) {
         clearDashboardScrollPreservation();
+        if (hasDashboardOpenCardLibrarySurface(openLibrarySurface)) {
+            markDashboardProgrammaticScrollWindow(700);
+        }
         _renderDashboardCore(renderHint);
-        if (isWsSwitch) window.scrollTo(0, 0);
+        restoreDashboardOpenLibrarySurface(openLibrarySurface);
+        scheduleDashboardOpenLibrarySurfaceRestore(openLibrarySurface);
+        if (isWsSwitch) _setRobustScrollTop(0);
         return;
     }
 
@@ -186,9 +283,14 @@ function _renderDashboardImmediate() {
     if (isDataMutation) {
         var scrollY = _getRobustScrollTop();
         clearDashboardScrollPreservation();
+        if (hasDashboardOpenCardLibrarySurface(openLibrarySurface)) {
+            markDashboardProgrammaticScrollWindow(700);
+        }
         _renderDashboardCore(renderHint);
+        restoreDashboardOpenLibrarySurface(openLibrarySurface);
+        scheduleDashboardOpenLibrarySurfaceRestore(openLibrarySurface);
         markDashboardProgrammaticScrollWindow(24);
-        window.scrollTo(0, scrollY);
+        _setRobustScrollTop(scrollY);
         return;
     }
 
@@ -202,31 +304,59 @@ function _renderDashboardImmediate() {
         _scrollSave = _getRobustScrollTop();
     }
     if (_scrollSave > 0 && !_scrollSpacer) {
+        var scrollHost = typeof window.getDashboardPrimaryScrollHost === 'function'
+            ? window.getDashboardPrimaryScrollHost()
+            : null;
+        var hostIsDocument = !scrollHost || scrollHost === document.body || scrollHost === document.documentElement;
+        var spacerHeight = Math.max(
+            scrollHost?.scrollHeight || 0,
+            document.documentElement.scrollHeight || 0,
+            document.body.scrollHeight || 0
+        );
         _scrollSpacer = document.createElement('div');
-        _scrollSpacer.style.cssText = 'height:' + Math.max(document.documentElement.scrollHeight, document.body.scrollHeight) + 'px; width:100%; position:absolute; top:0; left:0; z-index:-1; pointer-events:none; visibility:hidden; display:block;';
-        document.body.appendChild(_scrollSpacer);
+        if (hostIsDocument) {
+            _scrollSpacer.style.cssText = 'height:' + spacerHeight + 'px; width:100%; position:absolute; top:0; left:0; z-index:-1; pointer-events:none; visibility:hidden; display:block;';
+            document.body.appendChild(_scrollSpacer);
+        } else {
+            _scrollSpacer.style.cssText = 'height:' + spacerHeight + 'px; width:1px; flex:0 0 auto; pointer-events:none; visibility:hidden; display:block;';
+            scrollHost.appendChild(_scrollSpacer);
+        }
     }
 
     // Run render synchronously â€” DOM is rebuilt immediately but Masonry takes later frames
+    if (hasDashboardOpenCardLibrarySurface(openLibrarySurface)) {
+        markDashboardProgrammaticScrollWindow(700);
+    }
     _renderDashboardCore(renderHint);
+    restoreDashboardOpenLibrarySurface(openLibrarySurface);
+    scheduleDashboardOpenLibrarySurfaceRestore(openLibrarySurface);
 
     // Restore scroll position immediately
     markDashboardProgrammaticScrollWindow(24);
-    window.scrollTo(0, _scrollSave);
+    _setRobustScrollTop(_scrollSave);
     restoreDashboardCardScrollState(cardScrollState);
 
     // Remove spacer and affirm scroll position AFTER Masonry has likely finished
     // 300ms is generous enough to span typical reflows and transitions
     var target = _scrollSave;
+    function affirmDashboardScrollTarget() {
+        restoreDashboardOpenLibrarySurface(openLibrarySurface);
+        markDashboardProgrammaticScrollWindow(24);
+        _setRobustScrollTop(target);
+        restoreDashboardCardScrollState(cardScrollState);
+    }
     _scrollRafId = setTimeout(function () {
         if (_dashboardScrollActivitySeq !== scrollActivitySeqAtCapture) {
             clearDashboardScrollPreservation();
             return;
         }
-        markDashboardProgrammaticScrollWindow(24);
-        window.scrollTo(0, target);
-        restoreDashboardCardScrollState(cardScrollState);
-        clearDashboardScrollPreservation();
+        affirmDashboardScrollTarget();
+        _scrollRafId = setTimeout(function () {
+            if (_dashboardScrollActivitySeq === scrollActivitySeqAtCapture) {
+                affirmDashboardScrollTarget();
+            }
+            clearDashboardScrollPreservation();
+        }, 140);
     }, 350);
 }
 

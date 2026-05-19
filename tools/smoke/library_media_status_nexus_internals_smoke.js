@@ -41,7 +41,16 @@ async function main() {
                     category: 'Films Card',
                     done: false
                 };
-                window.links = links = [filmLink];
+                const plainLink = {
+                    id: 'plain-link',
+                    title: 'Plain Bookmark',
+                    url: 'https://example.test/plain',
+                    workspace: 'main',
+                    category: 'Films Card',
+                    done: false,
+                    notes: 'plain bookmark notes should not be editable here'
+                };
+                window.links = links = [filmLink, plainLink];
                 window.bookmarkFolders = bookmarkFolders = {};
                 window.config = config = Object.assign({}, window.config || {}, {
                     activeWorkspace: 'main',
@@ -103,7 +112,15 @@ async function main() {
                 window.EveOS.SearchAdvanced.DatapackView.openCardInternals('main', 'Films Card');
                 const overlay = document.querySelector('.nx-dv-micro-overlay');
                 const text = overlay?.textContent || '';
-                const librarySummary = overlay?.querySelector('.nx-dv-library-summary')?.textContent || '';
+                const librarySummary = overlay?.querySelector('.nx-dv-library-editor')?.textContent || '';
+                const plainRow = overlay?.querySelector('[data-link-id="plain-link"]');
+                const plainHasNotesEditor = !!plainRow?.querySelector('[data-nx-dv-field="bookmarkNotes"]');
+                const libraryStatusInput = overlay?.querySelector('[data-link-id="film-link"] [data-nx-dv-library-field="status"]');
+                const libraryEpisodeInput = overlay?.querySelector('[data-link-id="film-link"] [data-nx-dv-library-field="episode"]');
+                if (libraryStatusInput) libraryStatusInput.value = 'Completed';
+                if (libraryEpisodeInput) libraryEpisodeInput.value = '12';
+                window.EveOS.SearchAdvanced.DatapackView.saveMicroChanges(overlay);
+                const updated = window.EveLibrary.ConnectionsAPI.getLinkedEntry('film-link')?.entry || {};
 
                 return {
                     optionsAfterEdit,
@@ -112,7 +129,10 @@ async function main() {
                     seasonVisible,
                     episodeVisible,
                     text,
-                    librarySummary
+                    librarySummary,
+                    plainHasNotesEditor,
+                    updatedStatus: updated.status,
+                    updatedEpisode: updated.episode
                 };
             } finally {
                 window.saveData = originalSaveData;
@@ -142,10 +162,18 @@ async function main() {
         if (!result.librarySummary.includes('Unified') || !result.librarySummary.includes('Confidence')) {
             throw new Error(`Nexus card internals did not render library rating values: ${JSON.stringify(result.librarySummary)}`);
         }
+        if (result.plainHasNotesEditor) {
+            throw new Error(`Nexus card internals should not expose bookmark notes editor for non-library bookmarks: ${JSON.stringify(result)}`);
+        }
+        if (result.updatedStatus !== 'Completed' || Number(result.updatedEpisode) !== 12) {
+            throw new Error(`Nexus card internals did not save linked library edits: ${JSON.stringify(result)}`);
+        }
 
         console.log('LIBRARY_MEDIA_STATUS_NEXUS_INTERNALS_SMOKE_OK ' + JSON.stringify({
             selectedAfterEdit: result.selectedAfterEdit,
-            librarySummary: result.librarySummary
+            librarySummary: result.librarySummary,
+            updatedStatus: result.updatedStatus,
+            updatedEpisode: result.updatedEpisode
         }));
     } finally {
         await browser.close();

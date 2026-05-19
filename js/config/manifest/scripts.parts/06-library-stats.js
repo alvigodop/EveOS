@@ -26,7 +26,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/library/stats/stats-renderer.actions.js?v=0.2.1",
     "js/modules/features/library/stats/stats-renderer.js?v=0.2.10",
     "js/modules/features/library/library-ui.forms.js",
-    "js/modules/features/library/library-ui.panels.workflow.panel.js?v=0.2.5",
+    "js/modules/features/library/library-ui.panels.workflow.panel.js?v=0.2.6",
     "js/modules/features/library/library-ui.panels.workflow.actions.js?v=0.2.2",
     "js/modules/features/library/library-ui.panels.workflow.js?v=0.2.2",
     "js/modules/features/library/library-ui.panels.backups.js?v=0.2.1",

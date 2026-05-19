@@ -110,15 +110,21 @@ async function main() {
                 const panel = document.getElementById('lib-Test-panel');
                 const card = panel?.closest('.category-card');
                 const panelStyle = panel ? getComputedStyle(panel) : null;
+                const panelMaxHeight = panelStyle?.maxHeight || '';
+                const panelOverflowY = panelStyle?.overflowY || '';
 
                 scrollHost.scrollTop = Math.max(0, scrollHost.scrollTop - 650);
                 await new Promise(resolve => setTimeout(resolve, 80));
                 const afterUserScrollY = scrollHost.scrollTop || 0;
                 await new Promise(resolve => setTimeout(resolve, 520));
                 const afterStableY = scrollHost.scrollTop || 0;
-                if (panel) panel.scrollTop = 0;
+                window.renderDashboard();
+                await new Promise(resolve => setTimeout(resolve, 520));
+                const afterRenderY = scrollHost.scrollTop || 0;
+                const currentPanel = document.getElementById('lib-Test-panel') || panel;
+                if (currentPanel) currentPanel.scrollTop = 0;
                 const beforePanelWheelY = scrollHost.scrollTop || 0;
-                panel?.dispatchEvent(new WheelEvent('wheel', {
+                currentPanel?.dispatchEvent(new WheelEvent('wheel', {
                     deltaY: -420,
                     bubbles: true,
                     cancelable: true
@@ -131,12 +137,13 @@ async function main() {
                     afterOpenY,
                     afterUserScrollY,
                     afterStableY,
+                    afterRenderY,
                     beforePanelWheelY,
                     afterPanelWheelY,
                     cardClasses: card?.className || '',
                     panelDisplay: panel?.style.display || '',
-                    panelMaxHeight: panelStyle?.maxHeight || '',
-                    panelOverflowY: panelStyle?.overflowY || '',
+                    panelMaxHeight,
+                    panelOverflowY,
                     openSurfaceKind: window.__eveOpenCardLibrarySurface?.kind || '',
                     openSurfaceCard: window.__eveOpenCardLibrarySurface?.cardTargetId || '',
                     bodyHeight: document.documentElement.scrollHeight || document.body.scrollHeight,
@@ -160,6 +167,9 @@ async function main() {
         }
         if (Math.abs(result.afterStableY - result.afterUserScrollY) > 80) {
             throw new Error(`Delayed library/masonry work should not pull page back down: ${JSON.stringify(result)}`);
+        }
+        if (Math.abs(result.afterRenderY - result.afterStableY) > 80) {
+            throw new Error(`Dashboard render while card library is open should preserve main-content scroll: ${JSON.stringify(result)}`);
         }
         if (result.openSurfaceKind !== 'card-library' || !result.openSurfaceCard.includes('Test')) {
             throw new Error(`Open card library should register an embedded scroll surface: ${JSON.stringify(result)}`);

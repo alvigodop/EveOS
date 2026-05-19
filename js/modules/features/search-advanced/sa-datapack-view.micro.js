@@ -37,6 +37,10 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             || null;
     }
 
+    function getLibraryMicroApi() {
+        return window.EveOS?.SearchAdvanced?.DatapackViewMicroLibrary || null;
+    }
+
     function normalizeIdentifierList(value) {
         const source = Array.isArray(value)
             ? value
@@ -118,19 +122,28 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             workspaceId: String(connection.workspace || workspaceId || ''),
             categoryName: String(connection.categoryName || categoryName || ''),
             mediaTypes: mediaTypes.map(getMediaTypeLabel).filter(Boolean),
+            mediaTypeIds: mediaTypes,
             status: String(entry.status || ''),
             sourceStatus: String(entry.sourceStatus || ''),
             progress,
+            chapter: entry.chapter ?? '',
+            graphicChapter: entry.graphicChapter ?? entry.chapter ?? '',
+            novelChapter: entry.novelChapter ?? '',
+            season: entry.season ?? '',
+            episode: entry.episode ?? '',
             rating: String(entry.rating || ''),
             apiAverage: formatOptionalScore(derived.apiAverage10),
             apiWeighted: formatOptionalScore(derived.apiWeighted10),
             unified: formatOptionalScore(derived.hybrid10),
             confidence: formatOptionalScore(derived.confidence),
             sourceUrl: String(entry.sourceUrl || ''),
+            imageUrl: String(entry.imageUrl || ''),
             author: normalizeTextList(entry.author),
+            authorAltNames: normalizeTextList(entry.authorAltNames),
             artist: normalizeTextList(entry.artist),
             genre: normalizeTextList(entry.genre).slice(0, 5),
             tags: normalizeTextList(entry.tags).slice(0, 5),
+            summary: String(entry.summary || ''),
             language: String(entry.language || ''),
             lastEdited: formatOptionalDate(entry.lastEdited || entry.dateAdded)
         };
@@ -280,7 +293,9 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                     + '<label><span>URL</span><input type="url" data-nx-dv-field="bookmarkUrl" value="' + escapeHtml(bookmark.url) + '"></label>'
                     + '<label><span>Folder</span><select data-nx-dv-field="bookmarkFolderId" data-current-folder-id="' + escapeHtml(bookmark.folderId) + '">' + folderOptions.replace('value="' + escapeHtml(bookmark.folderId) + '"', 'value="' + escapeHtml(bookmark.folderId) + '" selected') + '</select></label>'
                     + '<label><span>Identifier IDs</span><input type="text" data-nx-dv-field="bookmarkIdentifiers" value="' + escapeHtml(bookmark.identifierIds.join(', ')) + '" placeholder="comma,separated,ids"></label>'
-                    + '<label><span>Notes</span><textarea data-nx-dv-field="bookmarkNotes" rows="3">' + escapeHtml(bookmark.notes) + '</textarea></label>'
+                    + (bookmark.linkedLibrary
+                        ? '<label><span>Bookmark Notes</span><textarea data-nx-dv-field="bookmarkNotes" rows="3">' + escapeHtml(bookmark.notes) + '</textarea></label>'
+                        : '<div class="nx-dv-bookmark-readonly-note">Bookmark notes are only exposed here when this bookmark is linked to Library.</div>')
                     + '<div class="nx-dv-bookmark-meta">'
                     + '<span title="' + escapeHtml(bookmark.entityLink) + '">JSON Link: ' + escapeHtml(bookmark.entityLink) + '</span>'
                     + '<span title="' + escapeHtml(bookmark.url) + '">' + escapeHtml(bookmark.url || 'No URL') + '</span>'
@@ -289,42 +304,12 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                     + (bookmark.linkedLibrary ? '<span>Library linked</span>' : '')
                     + (bookmark.notesSummary ? '<small>' + escapeHtml(bookmark.notesSummary) + '</small>' : '')
                     + '</div>'
-                    + renderLibrarySummary(bookmark.library)
+                    + (getLibraryMicroApi()?.renderLibraryEditor
+                        ? getLibraryMicroApi().renderLibraryEditor(bookmark.library, escapeHtml)
+                        : '')
                     + '</div>';
             }).join('')
             + '</div></section>';
-    }
-
-    function renderLibrarySummary(library) {
-        if (!library?.linked) return '';
-        const chips = [];
-        function addChip(label, value) {
-            const text = String(value || '').trim();
-            if (text) chips.push('<span><b>' + escapeHtml(label) + '</b> ' + escapeHtml(text) + '</span>');
-        }
-        addChip('Type', library.mediaTypes.join(', '));
-        addChip('Status', library.status);
-        addChip('Source Status', library.sourceStatus);
-        addChip('Progress', library.progress.join(' / '));
-        addChip('Rating', library.rating);
-        addChip('Unified', library.unified);
-        addChip('Confidence', library.confidence);
-        addChip('API Avg', library.apiAverage);
-        addChip('Language', library.language);
-        addChip('Genres', library.genre.join(', '));
-        addChip('Tags', library.tags.join(', '));
-        addChip('Last Edited', library.lastEdited);
-        return '<div class="nx-dv-library-summary">'
-            + '<div class="nx-dv-library-title">'
-            + '<strong>Library</strong>'
-            + '<span title="' + escapeHtml(library.title) + '">' + escapeHtml(library.title) + '</span>'
-            + '</div>'
-            + '<div class="nx-dv-library-chips">' + (chips.length ? chips.join('') : '<span>No library fields set</span>') + '</div>'
-            + '<div class="nx-dv-library-foot">'
-            + '<span>' + escapeHtml(library.workspaceId + ' / ' + library.categoryName) + '</span>'
-            + (library.sourceUrl ? '<span title="' + escapeHtml(library.sourceUrl) + '">' + escapeHtml(library.sourceUrl) + '</span>' : '')
-            + '</div>'
-            + '</div>';
     }
 
     function closeCardInternals() {
@@ -348,7 +333,8 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             const linkId = String(row.getAttribute('data-link-id') || '').trim();
             const title = String(row.querySelector('[data-nx-dv-field="bookmarkTitle"]')?.value || '').trim();
             const url = String(row.querySelector('[data-nx-dv-field="bookmarkUrl"]')?.value || '').trim();
-            const notes = String(row.querySelector('[data-nx-dv-field="bookmarkNotes"]')?.value || '');
+            const notesField = row.querySelector('[data-nx-dv-field="bookmarkNotes"]');
+            const notes = String(notesField?.value || '');
             const folderId = normalizeFolderId(row.querySelector('[data-nx-dv-field="bookmarkFolderId"]')?.value || '');
             const identifiers = normalizeIdentifierList(row.querySelector('[data-nx-dv-field="bookmarkIdentifiers"]')?.value || '');
             const link = liveLinks.find(function (candidate) {
@@ -374,7 +360,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                     reason: 'micro-bookmark-url'
                 }));
             }
-            if (String(link.notes || '') !== notes) {
+            if (notesField && String(link.notes || '') !== notes) {
                 patches.push(patchApi.buildPatch('set-bookmark-notes', target, { notes }, {
                     source: 'nexus-datapack-view-micro',
                     reason: 'micro-bookmark-notes'
@@ -392,6 +378,8 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                     reason: 'micro-bookmark-folder'
                 }));
             }
+            const libraryPatch = getLibraryMicroApi()?.collectLibraryPatch?.(row, patchApi, target);
+            if (libraryPatch) patches.push(libraryPatch);
         });
         if (!patches.length) {
             if (options.previewOnly) {

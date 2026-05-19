@@ -64,7 +64,9 @@ window.EveDashboardMasonryHelpers = window.EveDashboardMasonryHelpers || {};
             return;
         }
 
-        var scrollPos = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+        var scrollPos = typeof window.getDashboardScrollTop === 'function'
+            ? window.getDashboardScrollTop()
+            : (window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0);
         var scrollActivitySeqAtCapture = Number(window._dashboardScrollActivitySeq || 0);
         var currentHeight = grid.offsetHeight;
         if (currentHeight > 100) {
@@ -88,8 +90,15 @@ window.EveDashboardMasonryHelpers = window.EveDashboardMasonryHelpers || {};
         requestAnimationFrame(function () {
             grid.style.minHeight = '';
             if (Number(window._dashboardScrollActivitySeq || 0) !== scrollActivitySeqAtCapture) return;
-            if (Math.abs((window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0) - scrollPos) > 10) {
-                window.scrollTo(0, scrollPos);
+            var nextScrollPos = typeof window.getDashboardScrollTop === 'function'
+                ? window.getDashboardScrollTop()
+                : (window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0);
+            if (Math.abs(nextScrollPos - scrollPos) > 10) {
+                if (typeof window.setDashboardScrollTop === 'function') {
+                    window.setDashboardScrollTop(scrollPos);
+                } else {
+                    window.scrollTo(0, scrollPos);
+                }
             }
         });
     }

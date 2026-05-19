@@ -335,6 +335,15 @@ window.EveLibrary.UIModules = window.EveLibrary.UIModules || {};
             if (parentCard) {
                 parentCard.classList.toggle('has-library-expanded', isHidden);
             }
+            if (isHidden && !isFocusedCard) {
+                panel.style.maxHeight = 'min(74vh, 760px)';
+                panel.style.overflowY = 'auto';
+                panel.style.overscrollBehavior = 'contain';
+            } else if (isFocusedCard) {
+                panel.style.maxHeight = '';
+                panel.style.overflowY = '';
+                panel.style.overscrollBehavior = '';
+            }
             if (isFocusedCard) {
                 parentCard.classList.toggle('focus-library-expanded', isHidden);
                 parentCard.classList.remove('focus-library-only');

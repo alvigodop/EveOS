@@ -16,7 +16,8 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         'set-bookmark-url',
         'set-bookmark-notes',
         'set-bookmark-folder',
-        'set-bookmark-identifiers'
+        'set-bookmark-identifiers',
+        'set-linked-library-fields'
     ]);
 
     function text(value, fallback) {
@@ -46,6 +47,21 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         }).filter(function (entry) {
             if (!entry || seen.has(entry)) return false;
             seen.add(entry);
+            return true;
+        });
+    }
+
+    function normalizeTextList(value) {
+        const source = Array.isArray(value)
+            ? value
+            : String(value == null ? '' : value).split(/[|,;]/);
+        const seen = new Set();
+        return source.map(function (entry) {
+            return String(entry == null ? '' : entry).trim();
+        }).filter(function (entry) {
+            const key = entry.toLowerCase();
+            if (!entry || seen.has(key)) return false;
+            seen.add(key);
             return true;
         });
     }
@@ -108,6 +124,45 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         add(window.bookmarkFolders);
         if (typeof bookmarkFolders !== 'undefined') add(bookmarkFolders);
         return stores;
+    }
+
+    function getLinkedLibraryForBookmark(bookmarkId) {
+        const normalizedId = String(bookmarkId || '').trim();
+        if (!normalizedId) return null;
+        const api = window.EveLibrary?.ConnectionsAPI;
+        const state = window.EveLibrary?.State;
+        const conn = api?.findConnectionByLinkId?.(normalizedId);
+        if (!conn || !state) return null;
+        const found = window.EveLibrary?.ConnectionsCore?.findEntryByConnection?.(conn);
+        if (found?.entry) {
+            return { connection: conn, entry: found.entry, categoryName: found.categoryName, workspaceId: found.workspaceId };
+        }
+        const lib = state.getCategoryLibrary(conn.categoryName, conn.workspace);
+        const entry = (lib?.entries || []).find(function (candidate) {
+            return String(candidate?.id || '') === String(conn.libraryEntryId || '');
+        });
+        return entry ? { connection: conn, entry, categoryName: conn.categoryName, workspaceId: conn.workspace } : null;
+    }
+
+    function normalizeLibraryPatchFields(changes) {
+        const source = changes && typeof changes === 'object' ? changes : {};
+        const next = {};
+        ['title', 'author', 'status', 'sourceStatus', 'rating', 'sourceUrl', 'imageUrl', 'language', 'summary'].forEach(function (field) {
+            if (Object.prototype.hasOwnProperty.call(source, field)) {
+                next[field] = String(source[field] == null ? '' : source[field]).trim();
+            }
+        });
+        ['chapter', 'graphicChapter', 'novelChapter', 'season', 'episode'].forEach(function (field) {
+            if (!Object.prototype.hasOwnProperty.call(source, field)) return;
+            const value = Number(source[field] || 0);
+            next[field] = Number.isFinite(value) && value > 0 ? value : 0;
+        });
+        if (Object.prototype.hasOwnProperty.call(source, 'mediaTypes')) next.mediaTypes = normalizeTextList(source.mediaTypes);
+        if (Object.prototype.hasOwnProperty.call(source, 'authorAltNames')) next.authorAltNames = normalizeTextList(source.authorAltNames);
+        if (Object.prototype.hasOwnProperty.call(source, 'artist')) next.artist = normalizeTextList(source.artist);
+        if (Object.prototype.hasOwnProperty.call(source, 'genre')) next.genre = normalizeTextList(source.genre);
+        if (Object.prototype.hasOwnProperty.call(source, 'tags')) next.tags = normalizeTextList(source.tags);
+        return next;
     }
 
     function getScopedKey(workspaceId, categoryName) {
@@ -293,6 +348,14 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             ['bookmark_workspace_mismatch', 'bookmark_card_mismatch', 'bookmark_folder_mismatch'].forEach(function (warning) {
                 if (warnings.includes(warning)) errors.push(warning);
             });
+        } else if (op === 'set-linked-library-fields') {
+            if (parsed?.type !== 'bookmark') errors.push('target_type_mismatch');
+            ['bookmark_workspace_mismatch', 'bookmark_card_mismatch', 'bookmark_folder_mismatch'].forEach(function (warning) {
+                if (warnings.includes(warning)) errors.push(warning);
+            });
+            if (!getLinkedLibraryForBookmark(parsed?.bookmarkId)) errors.push('linked_library_missing');
+            const normalized = normalizeLibraryPatchFields(changes);
+            if (!Object.keys(normalized).length) errors.push('missing_library_changes');
         }
 
         return {
@@ -344,6 +407,10 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         } else if (validation.op === 'set-bookmark-identifiers') {
             before = normalizeIdentifierList(resolution?.entity?.identifiers).join(', ');
             after = normalizeIdentifierList(changes.identifiers).join(', ');
+        } else if (validation.op === 'set-linked-library-fields') {
+            const linked = getLinkedLibraryForBookmark(parsed.bookmarkId);
+            before = text(linked?.entry?.title, parsed.bookmarkId);
+            after = text(changes.title, before);
         }
 
         return {
@@ -541,8 +608,33 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         return { dataChanged: true, configChanged: false, changed: 1 };
     }
 
+    function applySetLinkedLibraryFields(validation) {
+        const parsed = validation.resolution.parsed;
+        const linked = getLinkedLibraryForBookmark(parsed.bookmarkId);
+        if (!linked?.entry) return { dataChanged: false, configChanged: false, libraryChanged: false, changed: 0 };
+        const entry = linked.entry;
+        const next = normalizeLibraryPatchFields(validation.patch.changes);
+        let changed = 0;
+        Object.keys(next).forEach(function (field) {
+            const value = next[field];
+            const current = Array.isArray(entry[field]) ? entry[field].join('\n') : String(entry[field] == null ? '' : entry[field]);
+            const incoming = Array.isArray(value) ? value.join('\n') : String(value == null ? '' : value);
+            if (current === incoming) return;
+            entry[field] = Array.isArray(value) ? value.slice() : value;
+            changed += 1;
+        });
+        if (!changed) return { dataChanged: false, configChanged: false, libraryChanged: false, changed: 0 };
+        entry.lastEdited = new Date().toISOString();
+        window.EveLibrary?.Ratings?.applyDerivedRatings?.(entry);
+        window.EveLibrary?.ConnectionsAPI?.syncFromLibraryEntry?.(linked.categoryName, entry, linked.workspaceId || linked.connection?.workspace);
+        return { dataChanged: false, configChanged: false, libraryChanged: true, changed };
+    }
+
     function persistAndRender(result, options) {
         if (options?.persist === false) return;
+        if (result.libraryChanged && window.EveLibrary?.Storage?.saveLibrary) {
+            window.EveLibrary.Storage.saveLibrary();
+        }
         if (result.configChanged && typeof saveConfig === 'function') {
             saveConfig({
                 immediate: true,
@@ -589,14 +681,16 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         if (validation.op === 'set-bookmark-notes') mutation = applySetBookmarkNotes(validation);
         if (validation.op === 'set-bookmark-folder') mutation = applySetBookmarkFolder(validation);
         if (validation.op === 'set-bookmark-identifiers') mutation = applySetBookmarkIdentifiers(validation);
+        if (validation.op === 'set-linked-library-fields') mutation = applySetLinkedLibraryFields(validation);
 
         const result = {
             ok: true,
-            applied: mutation.changed > 0 || mutation.configChanged || mutation.dataChanged,
+            applied: mutation.changed > 0 || mutation.configChanged || mutation.dataChanged || mutation.libraryChanged,
             op: validation.op,
             changed: mutation.changed,
             dataChanged: mutation.dataChanged,
             configChanged: mutation.configChanged,
+            libraryChanged: mutation.libraryChanged,
             validation,
             preview,
             errors: [],
@@ -612,6 +706,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             configRef: cfg,
             configSnapshot: cloneData(cfg),
             linksSnapshot: cloneData(getLiveLinks()),
+            librarySnapshot: cloneData(window.EveLibrary?.State?.getAllLibraries?.() || {}),
             folderSnapshots: getFolderStores().map(function (store) {
                 return { ref: store, snapshot: cloneData(store) };
             })
@@ -630,6 +725,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         if (!snapshot) return;
         restoreObject(snapshot.configRef, snapshot.configSnapshot);
         setLiveLinks(cloneData(snapshot.linksSnapshot) || []);
+        window.EveLibrary?.State?.setAllLibraries?.(cloneData(snapshot.librarySnapshot) || {});
         (snapshot.folderSnapshots || []).forEach(function (entry) {
             restoreObject(entry.ref, entry.snapshot);
         });
@@ -705,7 +801,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
 
         const snapshot = snapshotMutableState();
         const results = [];
-        let aggregate = { dataChanged: false, configChanged: false, changed: 0 };
+        let aggregate = { dataChanged: false, configChanged: false, libraryChanged: false, changed: 0 };
         try {
             tx.patches.forEach(function (patch) {
                 const result = applyPatch(patch, { persist: false, skipRender: true });
@@ -713,6 +809,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 if (!result.ok) throw new Error((result.errors || ['patch_apply_failed']).join(','));
                 aggregate.dataChanged = aggregate.dataChanged || !!result.dataChanged;
                 aggregate.configChanged = aggregate.configChanged || !!result.configChanged;
+                aggregate.libraryChanged = aggregate.libraryChanged || !!result.libraryChanged;
                 aggregate.changed += Number(result.changed || 0);
             });
         } catch (error) {
@@ -732,7 +829,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
 
         const result = {
             ok: true,
-            applied: aggregate.changed > 0 || aggregate.dataChanged || aggregate.configChanged,
+            applied: aggregate.changed > 0 || aggregate.dataChanged || aggregate.configChanged || aggregate.libraryChanged,
             transaction: tx,
             validation,
             preview,
@@ -741,6 +838,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             changed: aggregate.changed,
             dataChanged: aggregate.dataChanged,
             configChanged: aggregate.configChanged,
+            libraryChanged: aggregate.libraryChanged,
             op: 'transaction',
             errors: [],
             warnings: validation.warnings
