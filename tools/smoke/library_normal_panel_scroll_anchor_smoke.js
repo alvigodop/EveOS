@@ -116,16 +116,29 @@ async function main() {
                 const afterUserScrollY = scrollHost.scrollTop || 0;
                 await new Promise(resolve => setTimeout(resolve, 520));
                 const afterStableY = scrollHost.scrollTop || 0;
+                if (panel) panel.scrollTop = 0;
+                const beforePanelWheelY = scrollHost.scrollTop || 0;
+                panel?.dispatchEvent(new WheelEvent('wheel', {
+                    deltaY: -420,
+                    bubbles: true,
+                    cancelable: true
+                }));
+                await new Promise(resolve => setTimeout(resolve, 80));
+                const afterPanelWheelY = scrollHost.scrollTop || 0;
 
                 return {
                     beforeOpenY,
                     afterOpenY,
                     afterUserScrollY,
                     afterStableY,
+                    beforePanelWheelY,
+                    afterPanelWheelY,
                     cardClasses: card?.className || '',
                     panelDisplay: panel?.style.display || '',
                     panelMaxHeight: panelStyle?.maxHeight || '',
                     panelOverflowY: panelStyle?.overflowY || '',
+                    openSurfaceKind: window.__eveOpenCardLibrarySurface?.kind || '',
+                    openSurfaceCard: window.__eveOpenCardLibrarySurface?.cardTargetId || '',
                     bodyHeight: document.documentElement.scrollHeight || document.body.scrollHeight,
                     hostHeight: scrollHost.scrollHeight,
                     hostClientHeight: scrollHost.clientHeight
@@ -147,6 +160,12 @@ async function main() {
         }
         if (Math.abs(result.afterStableY - result.afterUserScrollY) > 80) {
             throw new Error(`Delayed library/masonry work should not pull page back down: ${JSON.stringify(result)}`);
+        }
+        if (result.openSurfaceKind !== 'card-library' || !result.openSurfaceCard.includes('Test')) {
+            throw new Error(`Open card library should register an embedded scroll surface: ${JSON.stringify(result)}`);
+        }
+        if (!(result.afterPanelWheelY < result.beforePanelWheelY - 100)) {
+            throw new Error(`Wheel up at top of open library panel should hand off to site scroll: ${JSON.stringify(result)}`);
         }
 
         console.log('LIBRARY_NORMAL_PANEL_SCROLL_ANCHOR_SMOKE_OK ' + JSON.stringify(result));

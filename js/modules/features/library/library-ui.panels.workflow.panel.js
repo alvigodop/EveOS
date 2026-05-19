@@ -277,6 +277,49 @@ window.EveLibrary.UIModules = window.EveLibrary.UIModules || {};
             restoreHostScrollTop(scrollHost, scrollY);
         }
 
+        function setOpenLibrarySurface(panel, categoryName, isOpen) {
+            if (!isOpen) {
+                if (window.__eveOpenCardLibrarySurface?.panel === panel) {
+                    window.__eveOpenCardLibrarySurface = null;
+                }
+                return;
+            }
+            const parentCard = panel?.closest('.category-card');
+            window.__eveOpenCardLibrarySurface = {
+                kind: 'card-library',
+                categoryName: String(categoryName || ''),
+                cardTargetId: String(parentCard?.getAttribute('data-card-target-id') || ''),
+                panel,
+                openedAt: Date.now()
+            };
+        }
+
+        function wireLibraryPanelScrollBridge(panel) {
+            if (!panel || panel.dataset.libraryScrollBridge === '1') return;
+            panel.dataset.libraryScrollBridge = '1';
+            panel.addEventListener('wheel', function (event) {
+                if (typeof window.noteDashboardUserScrollActivity === 'function') {
+                    window.noteDashboardUserScrollActivity({ force: true });
+                }
+
+                const deltaY = Number(event?.deltaY || 0);
+                if (!deltaY) return;
+                const scrollHost = getLibraryScrollHost();
+                if (!scrollHost || scrollHost === panel) return;
+
+                const panelCanScroll = panel.scrollHeight > panel.clientHeight + 2;
+                if (!panelCanScroll) return;
+
+                const atTop = panel.scrollTop <= 1;
+                const atBottom = panel.scrollTop + panel.clientHeight >= panel.scrollHeight - 1;
+                const shouldHandOff = (deltaY < 0 && atTop) || (deltaY > 0 && atBottom);
+                if (!shouldHandOff) return;
+
+                event.preventDefault();
+                restoreHostScrollTop(scrollHost, getHostScrollTop(scrollHost) + deltaY);
+            }, { passive: false });
+        }
+
         function toggleLibraryPanel(categoryName) {
             const prefix = forms.getPrefix(categoryName);
             const panel = document.getElementById(prefix + 'panel');
@@ -288,6 +331,7 @@ window.EveLibrary.UIModules = window.EveLibrary.UIModules || {};
             const scrollY = getHostScrollTop(scrollHost);
             const scrollSeq = Number(window._dashboardScrollActivitySeq || 0);
             panel.style.display = isHidden ? 'block' : 'none';
+            setOpenLibrarySurface(panel, categoryName, isHidden);
             if (parentCard) {
                 parentCard.classList.toggle('has-library-expanded', isHidden);
             }
@@ -303,6 +347,7 @@ window.EveLibrary.UIModules = window.EveLibrary.UIModules || {};
                 return;
             }
             if (isHidden) {
+                wireLibraryPanelScrollBridge(panel);
                 // Show skeleton while library panel builds
                 panel.innerHTML = ''
                     + '<div style="display:flex; flex-direction:column; gap:10px; padding:12px;">'

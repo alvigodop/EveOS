@@ -90,6 +90,7 @@ function markDashboardProgrammaticScrollWindow(durationMs) {
     var safeDurationMs = Math.max(8, Number(durationMs || 0) || 16);
     _dashboardIgnoreScrollActivityUntil = Math.max(_dashboardIgnoreScrollActivityUntil, Date.now() + safeDurationMs);
 }
+window.markDashboardProgrammaticScrollWindow = markDashboardProgrammaticScrollWindow;
 
 function clearDashboardScrollPreservation() {
     if (_scrollRafId) {
@@ -107,11 +108,19 @@ function hasDashboardScrollPreservation() {
     return !!(_scrollRafId || _scrollSpacer || _scrollSave >= 0);
 }
 
-function cancelDashboardScrollPreservationForUserInput() {
-    if (!hasDashboardScrollPreservation()) return;
+function noteDashboardUserScrollActivity(options) {
+    var opts = options && typeof options === 'object' ? options : {};
+    if (!opts.force && Date.now() <= _dashboardIgnoreScrollActivityUntil) return;
     _dashboardScrollActivitySeq += 1;
     window._dashboardScrollActivitySeq = _dashboardScrollActivitySeq;
-    clearDashboardScrollPreservation();
+    if (opts.clearPreservation !== false && hasDashboardScrollPreservation()) {
+        clearDashboardScrollPreservation();
+    }
+}
+window.noteDashboardUserScrollActivity = noteDashboardUserScrollActivity;
+
+function cancelDashboardScrollPreservationForUserInput() {
+    noteDashboardUserScrollActivity({ force: true });
 }
 
 function isDashboardScrollKey(event) {
@@ -129,12 +138,7 @@ function isDashboardScrollKey(event) {
 if (!window.__dashboardScrollCaptureBound) {
     window.__dashboardScrollCaptureBound = true;
     document.addEventListener('scroll', function () {
-        if (Date.now() <= _dashboardIgnoreScrollActivityUntil) return;
-        _dashboardScrollActivitySeq += 1;
-        window._dashboardScrollActivitySeq = _dashboardScrollActivitySeq;
-        if (_scrollRafId || _scrollSpacer || _scrollSave >= 0) {
-            clearDashboardScrollPreservation();
-        }
+        noteDashboardUserScrollActivity();
     }, true);
     window.addEventListener('wheel', function () {
         cancelDashboardScrollPreservationForUserInput();
