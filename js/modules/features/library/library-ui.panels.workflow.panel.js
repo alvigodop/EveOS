@@ -244,8 +244,13 @@ window.EveLibrary.UIModules = window.EveLibrary.UIModules || {};
             }
         }
 
-        function getLibraryScrollHost() {
+        function getLibraryScrollHost(panel) {
             const doc = getDocument();
+            if (typeof window.getDashboardNearestScrollHost === 'function') {
+                const activePanel = panel || window.__eveOpenCardLibrarySurface?.panel || null;
+                const resolved = window.getDashboardNearestScrollHost(activePanel, { skipNode: activePanel });
+                if (resolved) return resolved;
+            }
             const mainContent = doc?.getElementById('main-content');
             if (mainContent && mainContent.scrollHeight > mainContent.clientHeight) return mainContent;
             return doc?.scrollingElement || doc?.documentElement || doc?.body || null;
@@ -289,6 +294,7 @@ window.EveLibrary.UIModules = window.EveLibrary.UIModules || {};
                 kind: 'card-library',
                 categoryName: String(categoryName || ''),
                 cardTargetId: String(parentCard?.getAttribute('data-card-target-id') || ''),
+                isFocusedCard: !!parentCard?.classList.contains('is-focus-mode'),
                 panel,
                 openedAt: Date.now()
             };
@@ -304,8 +310,16 @@ window.EveLibrary.UIModules = window.EveLibrary.UIModules || {};
 
                 const deltaY = Number(event?.deltaY || 0);
                 if (!deltaY) return;
-                const scrollHost = getLibraryScrollHost();
+                const scrollHost = getLibraryScrollHost(panel);
                 if (!scrollHost || scrollHost === panel) return;
+
+                const parentCard = panel.closest('.category-card');
+                const isNormalCardLibrary = !!parentCard && !parentCard.classList.contains('is-focus-mode');
+                if (isNormalCardLibrary) {
+                    event.preventDefault();
+                    restoreHostScrollTop(scrollHost, getHostScrollTop(scrollHost) + deltaY);
+                    return;
+                }
 
                 const panelCanScroll = panel.scrollHeight > panel.clientHeight + 2;
                 if (!panelCanScroll) return;
@@ -317,7 +331,7 @@ window.EveLibrary.UIModules = window.EveLibrary.UIModules || {};
 
                 event.preventDefault();
                 restoreHostScrollTop(scrollHost, getHostScrollTop(scrollHost) + deltaY);
-            }, { passive: false });
+            }, { passive: false, capture: true });
         }
 
         function toggleLibraryPanel(categoryName) {
@@ -327,7 +341,7 @@ window.EveLibrary.UIModules = window.EveLibrary.UIModules || {};
             const parentCard = panel.closest('.category-card');
             const isFocusedCard = !!parentCard?.classList.contains('is-focus-mode');
             const isHidden = panel.style.display === 'none';
-            const scrollHost = getLibraryScrollHost();
+            const scrollHost = getLibraryScrollHost(panel);
             const scrollY = getHostScrollTop(scrollHost);
             const scrollSeq = Number(window._dashboardScrollActivitySeq || 0);
             panel.style.display = isHidden ? 'block' : 'none';
@@ -337,10 +351,15 @@ window.EveLibrary.UIModules = window.EveLibrary.UIModules || {};
             }
             if (isHidden && !isFocusedCard) {
                 panel.style.maxHeight = 'min(74vh, 760px)';
+                panel.style.overflow = '';
+                panel.style.overflowX = 'hidden';
                 panel.style.overflowY = 'auto';
-                panel.style.overscrollBehavior = 'contain';
+                panel.style.overscrollBehavior = 'auto';
+                panel.scrollTop = 0;
             } else if (isFocusedCard) {
                 panel.style.maxHeight = '';
+                panel.style.overflow = '';
+                panel.style.overflowX = '';
                 panel.style.overflowY = '';
                 panel.style.overscrollBehavior = '';
             }
@@ -372,7 +391,9 @@ window.EveLibrary.UIModules = window.EveLibrary.UIModules || {};
                         initLibraryPanel(categoryName);
                         scheduleCardLayoutRefresh(panel);
                         requestAnimationFrame(function () {
-                            restoreScrollIfUserDidNotMove(scrollHost, scrollY, scrollSeq);
+                            if (isFocusedCard) {
+                                restoreScrollIfUserDidNotMove(scrollHost, scrollY, scrollSeq);
+                            }
                         });
                     }, 0);
                 });

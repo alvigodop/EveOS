@@ -51,6 +51,27 @@ function getDashboardPrimaryScrollHost() {
 }
 window.getDashboardPrimaryScrollHost = getDashboardPrimaryScrollHost;
 
+function isDashboardScrollableElement(node) {
+    if (!node || node === document || node === window) return false;
+    var style = window.getComputedStyle ? window.getComputedStyle(node) : null;
+    var overflowY = String(style?.overflowY || style?.overflow || '').toLowerCase();
+    var canScroll = /(auto|scroll|overlay)/.test(overflowY);
+    return canScroll && node.scrollHeight > node.clientHeight + 2;
+}
+window.isDashboardScrollableElement = isDashboardScrollableElement;
+
+function getDashboardNearestScrollHost(fromNode, options) {
+    var opts = options && typeof options === 'object' ? options : {};
+    var skipNode = opts.skipNode || null;
+    var node = fromNode?.parentElement || null;
+    while (node && node !== document.body && node !== document.documentElement) {
+        if (node !== skipNode && isDashboardScrollableElement(node)) return node;
+        node = node.parentElement;
+    }
+    return getDashboardPrimaryScrollHost();
+}
+window.getDashboardNearestScrollHost = getDashboardNearestScrollHost;
+
 function getDashboardScrollTop() {
     var host = getDashboardPrimaryScrollHost();
     if (!host) return 0;
@@ -77,6 +98,38 @@ function setDashboardScrollTop(top) {
     host.scrollTop = nextTop;
 }
 window.setDashboardScrollTop = setDashboardScrollTop;
+
+function getDashboardLibrarySurfacePanel(surface) {
+    if (!surface || surface.kind !== 'card-library') return null;
+    if (surface.panel && document.body.contains(surface.panel)) return surface.panel;
+    var categoryName = String(surface.categoryName || '').trim();
+    if (!categoryName) return null;
+    var panelId = 'lib-' + categoryName.replace(/[^a-zA-Z0-9]/g, '_') + '-panel';
+    return document.getElementById(panelId);
+}
+window.getDashboardLibrarySurfacePanel = getDashboardLibrarySurfacePanel;
+
+function isDashboardFocusedCardLibrarySurface(surface) {
+    if (!surface || surface.kind !== 'card-library') return false;
+    if (surface.isFocusedCard === true) return true;
+    var panel = getDashboardLibrarySurfacePanel(surface);
+    return !!panel?.closest('.category-card.is-focus-mode');
+}
+window.isDashboardFocusedCardLibrarySurface = isDashboardFocusedCardLibrarySurface;
+
+function isDashboardInlineCardLibrarySurface(surface) {
+    if (!surface || surface.kind !== 'card-library') return false;
+    var panel = getDashboardLibrarySurfacePanel(surface);
+    if (!panel) return surface.isFocusedCard === false;
+    var card = panel.closest('.category-card');
+    return !!card && !card.classList.contains('is-focus-mode');
+}
+window.isDashboardInlineCardLibrarySurface = isDashboardInlineCardLibrarySurface;
+
+function isDashboardInlineCardLibrarySurfaceActive() {
+    return isDashboardInlineCardLibrarySurface(window.__eveOpenCardLibrarySurface || null);
+}
+window.isDashboardInlineCardLibrarySurfaceActive = isDashboardInlineCardLibrarySurfaceActive;
 
 function escapeDashboardSelectorValue(value) {
     return String(value).replace(/["\\]/g, '\\$&');

@@ -113,10 +113,16 @@
 
 .category-card.has-library-expanded:not(.is-focus-mode) .lib-panel {
     max-height: min(74vh, 760px);
+    overflow-x: hidden;
     overflow-y: auto;
-    overscroll-behavior: contain;
+    overscroll-behavior: auto;
     scrollbar-width: thin;
     scrollbar-color: color-mix(in srgb, var(--accent, #00d4ff) 55%, transparent) transparent;
+}
+
+.category-card.has-library-expanded:not(.is-focus-mode),
+.category-card.has-library-expanded:not(.is-focus-mode) * {
+    overflow-anchor: none;
 }
 
 .category-card.has-library-expanded:not(.is-focus-mode) .lib-panel::-webkit-scrollbar {
@@ -130,6 +136,11 @@
 .category-card.has-library-expanded:not(.is-focus-mode) .lib-panel::-webkit-scrollbar-thumb {
     background: color-mix(in srgb, var(--accent, #00d4ff) 40%, transparent);
     border-radius: 999px;
+}
+
+.category-card.has-library-expanded:not(.is-focus-mode) .lib-panel .lib-entries-grid {
+    max-height: none;
+    overflow: visible;
 }
 
 /* Buttons */

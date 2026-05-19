@@ -112,6 +112,10 @@ async function main() {
                 const panelStyle = panel ? getComputedStyle(panel) : null;
                 const panelMaxHeight = panelStyle?.maxHeight || '';
                 const panelOverflowY = panelStyle?.overflowY || '';
+                const entriesGrid = panel?.querySelector('.lib-entries-grid');
+                const entriesStyle = entriesGrid ? getComputedStyle(entriesGrid) : null;
+                const entriesMaxHeight = entriesStyle?.maxHeight || '';
+                const entriesOverflowY = entriesStyle?.overflowY || '';
 
                 scrollHost.scrollTop = Math.max(0, scrollHost.scrollTop - 650);
                 await new Promise(resolve => setTimeout(resolve, 80));
@@ -131,6 +135,19 @@ async function main() {
                 }));
                 await new Promise(resolve => setTimeout(resolve, 80));
                 const afterPanelWheelY = scrollHost.scrollTop || 0;
+                const beforeEntriesWheelY = scrollHost.scrollTop || 0;
+                const currentEntriesGrid = (document.getElementById('lib-Test-panel') || currentPanel)?.querySelector('.lib-entries-grid') || entriesGrid;
+                const currentLibraryPanel = document.getElementById('lib-Test-panel') || currentPanel;
+                if (currentLibraryPanel) currentLibraryPanel.scrollTop = 180;
+                const beforeEntriesPanelScrollTop = currentLibraryPanel?.scrollTop || 0;
+                currentEntriesGrid?.dispatchEvent(new WheelEvent('wheel', {
+                    deltaY: -420,
+                    bubbles: true,
+                    cancelable: true
+                }));
+                await new Promise(resolve => setTimeout(resolve, 80));
+                const afterEntriesWheelY = scrollHost.scrollTop || 0;
+                const afterEntriesPanelScrollTop = currentLibraryPanel?.scrollTop || 0;
 
                 return {
                     beforeOpenY,
@@ -140,10 +157,16 @@ async function main() {
                     afterRenderY,
                     beforePanelWheelY,
                     afterPanelWheelY,
+                    beforeEntriesWheelY,
+                    afterEntriesWheelY,
+                    beforeEntriesPanelScrollTop,
+                    afterEntriesPanelScrollTop,
                     cardClasses: card?.className || '',
                     panelDisplay: panel?.style.display || '',
                     panelMaxHeight,
                     panelOverflowY,
+                    entriesMaxHeight,
+                    entriesOverflowY,
                     openSurfaceKind: window.__eveOpenCardLibrarySurface?.kind || '',
                     openSurfaceCard: window.__eveOpenCardLibrarySurface?.cardTargetId || '',
                     bodyHeight: document.documentElement.scrollHeight || document.body.scrollHeight,
@@ -159,8 +182,11 @@ async function main() {
         if (!result.cardClasses.includes('has-library-expanded') || result.panelDisplay !== 'block') {
             throw new Error(`Normal card should be marked with stable expanded library state: ${JSON.stringify(result)}`);
         }
-        if (result.panelOverflowY !== 'auto') {
-            throw new Error(`Normal card library panel should be internally scrollable: ${JSON.stringify(result)}`);
+        if (result.panelOverflowY !== 'auto' || !result.panelMaxHeight || result.panelMaxHeight === 'none') {
+            throw new Error(`Normal card library panel should stay visually wrapped while forwarding wheel scroll: ${JSON.stringify(result)}`);
+        }
+        if (result.entriesOverflowY !== 'visible' || result.entriesMaxHeight !== 'none') {
+            throw new Error(`Normal card library entries should not create a nested scroll trap: ${JSON.stringify(result)}`);
         }
         if (!(result.afterUserScrollY < result.afterOpenY - 100)) {
             throw new Error(`User scroll should move page upward after library expansion: ${JSON.stringify(result)}`);
@@ -176,6 +202,12 @@ async function main() {
         }
         if (!(result.afterPanelWheelY < result.beforePanelWheelY - 100)) {
             throw new Error(`Wheel up at top of open library panel should hand off to site scroll: ${JSON.stringify(result)}`);
+        }
+        if (!(result.afterEntriesWheelY < result.beforeEntriesWheelY - 100)) {
+            throw new Error(`Wheel up over library entries should hand off through the panel to site scroll: ${JSON.stringify(result)}`);
+        }
+        if (Math.abs(result.afterEntriesPanelScrollTop - result.beforeEntriesPanelScrollTop) > 5) {
+            throw new Error(`Normal card library wheel should not trap movement inside the panel: ${JSON.stringify(result)}`);
         }
 
         console.log('LIBRARY_NORMAL_PANEL_SCROLL_ANCHOR_SMOKE_OK ' + JSON.stringify(result));

@@ -89,6 +89,7 @@ window.EveDashboardMasonryHelpers = window.EveDashboardMasonryHelpers || {};
 
         requestAnimationFrame(function () {
             grid.style.minHeight = '';
+            if (typeof window.isDashboardInlineCardLibrarySurfaceActive === 'function' && window.isDashboardInlineCardLibrarySurfaceActive()) return;
             if (Number(window._dashboardScrollActivitySeq || 0) !== scrollActivitySeqAtCapture) return;
             var nextScrollPos = typeof window.getDashboardScrollTop === 'function'
                 ? window.getDashboardScrollTop()
