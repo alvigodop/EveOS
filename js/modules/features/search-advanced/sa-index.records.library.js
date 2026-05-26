@@ -77,6 +77,8 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 const aliases = []
                     .concat(toArray(libraryEntry?.aliases))
                     .concat(toArray(libraryEntry?.alternativeTitles))
+                    .concat(toArray(libraryEntry?.altTitles))
+                    .concat(toArray(libraryEntry?.titleAltNames))
                     .map(function (value) { return text(value, ''); })
                     .filter(Boolean);
                 const sourceUrl = text(libraryEntry?.sourceUrl || libraryEntry?.url, '');

@@ -141,6 +141,8 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         const aliases = []
             .concat(toArray(entry?.aliases))
             .concat(toArray(entry?.alternativeTitles))
+            .concat(toArray(entry?.altTitles))
+            .concat(toArray(entry?.titleAltNames))
             .map(function (value) { return text(value, ''); })
             .filter(Boolean);
 

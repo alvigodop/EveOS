@@ -108,6 +108,38 @@ function hasDashboardReadableLinkSnapshot(indexApi) {
 }
 
 function buildDashboardVisibleLinkMatcher(visibleWorkspaceIds, searchTerms, folderPathLabelBuilder) {
+    var linkedLibrarySearchCache = new Map();
+    function buildLinkedLibrarySearchText(link) {
+        var linkId = String(link?.id || '').trim();
+        if (!linkId || !window.EveLibrary?.ConnectionsAPI?.getLinkedEntry) return '';
+        if (linkedLibrarySearchCache.has(linkId)) return linkedLibrarySearchCache.get(linkId);
+        const linked = window.EveLibrary.ConnectionsAPI.getLinkedEntry(linkId);
+        const entry = linked?.entry;
+        if (!entry) {
+            linkedLibrarySearchCache.set(linkId, '');
+            return '';
+        }
+        const list = function (value) {
+            return Array.isArray(value) ? value : String(value || '').split(/[|,;]/);
+        };
+        const searchText = [
+            entry.title,
+            entry.author,
+            entry.artist,
+            entry.genre,
+            entry.status,
+            entry.summary,
+            list(entry.aliases).join(' '),
+            list(entry.alternativeTitles).join(' '),
+            list(entry.altTitles).join(' '),
+            list(entry.titleAltNames).join(' '),
+            list(entry.authorAltNames).join(' '),
+            list(entry.tags).join(' ')
+        ].join(' ').toLowerCase();
+        linkedLibrarySearchCache.set(linkId, searchText);
+        return searchText;
+    }
+
     return function (link) {
         if (!visibleWorkspaceIds.has(String(link?.workspace || 'main').trim())) return false;
         if (!searchTerms.length) return true;
@@ -124,6 +156,7 @@ function buildDashboardVisibleLinkMatcher(visibleWorkspaceIds, searchTerms, fold
         var tagsStr = Array.isArray(link?.tags)
             ? link.tags.map(function (tag) { return String(tag || '').trim(); }).filter(Boolean).join(' ').toLowerCase()
             : '';
+        var libraryStr = buildLinkedLibrarySearchText(link);
 
         return searchTerms.every(function (term) {
             return titleStr.includes(term)
@@ -133,9 +166,22 @@ function buildDashboardVisibleLinkMatcher(visibleWorkspaceIds, searchTerms, fold
                 || folderStr.includes(term)
                 || folderLabelStr.includes(term)
                 || notesStr.includes(term)
-                || tagsStr.includes(term);
+                || tagsStr.includes(term)
+                || libraryStr.includes(term);
         });
     };
+}
+
+function scheduleDashboardFaviconRefresh(reason, options) {
+    if (!window.EveFaviconCache || typeof window.EveFaviconCache.refreshRendered !== 'function') return;
+    var opts = options || {};
+    window.EveFaviconCache.refreshRendered({
+        reason: reason || 'dashboard-render',
+        delayMs: opts.delayMs,
+        maxFetch: opts.maxFetch
+    }).catch(function (error) {
+        console.warn('[Dashboard] Favicon refresh failed:', error);
+    });
 }
 
 function mergeDashboardPreferredLinks(preferredLinks, liveLinks) {
@@ -523,6 +569,7 @@ function _renderDashboardCore(renderHint) {
             if (window.EveDashboardPrefetch && typeof window.EveDashboardPrefetch.schedulePrefetch === 'function') {
                 window.EveDashboardPrefetch.schedulePrefetch();
             }
+            scheduleDashboardFaviconRefresh('workspace-cache-restore', { delayMs: 80, maxFetch: 32 });
             return;
         }
     }
@@ -702,6 +749,7 @@ function _renderDashboardCore(renderHint) {
             grid.innerHTML = '<div class="unidex-empty-state"><h3>Unidex View Module Missing</h3><p>Reload to retry.</p></div>';
         }
         applyDashboardLayoutMaintenance(grid);
+        scheduleDashboardFaviconRefresh('unidex-render', { delayMs: 100, maxFetch: 32 });
         return;
     }
 
@@ -746,4 +794,8 @@ function _renderDashboardCore(renderHint) {
             window.EveDashboardPrefetch.schedulePrefetch();
         }
     }
+    scheduleDashboardFaviconRefresh('dashboard-render', {
+        delayMs: isStartupRender ? 1500 : 120,
+        maxFetch: window._evePerfMode ? 24 : 64
+    });
 }

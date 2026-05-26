@@ -138,6 +138,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             confidence: formatOptionalScore(derived.confidence),
             sourceUrl: String(entry.sourceUrl || ''),
             imageUrl: String(entry.imageUrl || ''),
+            titleAltNames: normalizeTextList(entry.titleAltNames || entry.altTitles),
             author: normalizeTextList(entry.author),
             authorAltNames: normalizeTextList(entry.authorAltNames),
             artist: normalizeTextList(entry.artist),

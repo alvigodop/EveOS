@@ -196,7 +196,7 @@ function buildMergeNote(details) {
                 for (const sourceUrl of sourceUrls) {
                     if (candidateUrls.has(sourceUrl)) return candidate;
                 }
-            } else if (normalizeUrl(sourceLink?.url) && normalizeUrl(sourceLink?.url) === normalizeUrl(candidate.url)) {
+            } else if (normalizeIdentityUrl(sourceLink?.url) && normalizeIdentityUrl(sourceLink?.url) === normalizeIdentityUrl(candidate.url)) {
                 return candidate;
             }
             if (!titleMatch && normalizeTitle(sourceLink?.title) && normalizeTitle(sourceLink?.title) === normalizeTitle(candidate.title)) {
@@ -261,8 +261,8 @@ function buildMergeNote(details) {
             const aLinked = hasLinkedEntry(a.id) ? 1 : 0;
             const bLinked = hasLinkedEntry(b.id) ? 1 : 0;
             if (aLinked !== bLinked) return bLinked - aLinked;
-            const aUrl = normalizeUrl(a.url) && !/\/search[/?]|[?&]q=/.test(normalizeUrl(a.url)) ? String(a.url || '').length : 0;
-            const bUrl = normalizeUrl(b.url) && !/\/search[/?]|[?&]q=/.test(normalizeUrl(b.url)) ? String(b.url || '').length : 0;
+            const aUrl = normalizeIdentityUrl(a.url) && !/\/search[/?]|[?&]q=/.test(normalizeIdentityUrl(a.url)) ? String(a.url || '').length : 0;
+            const bUrl = normalizeIdentityUrl(b.url) && !/\/search[/?]|[?&]q=/.test(normalizeIdentityUrl(b.url)) ? String(b.url || '').length : 0;
             if (aUrl !== bUrl) return bUrl - aUrl;
             return String(b.title || '').length - String(a.title || '').length;
         })[0] || null;
@@ -318,7 +318,7 @@ function buildMergeNote(details) {
 
     Object.assign(api, {
         normalizeTitle,
-        normalizeUrl,
+        normalizeUrl: normalizeIdentityUrl,
         getIdentityUrlSet,
         valuesMatch,
         findDuplicateInCard,

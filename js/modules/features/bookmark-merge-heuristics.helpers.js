@@ -82,7 +82,7 @@ function normalizeTitle(value) {
         .replace(/\s+/g, ' ');
 }
 
-function normalizeUrl(value) {
+function normalizeIdentityUrl(value) {
     let raw = String(value || '').trim();
     if (!raw) return '';
     try {
@@ -104,7 +104,7 @@ function normalizeRelatedUrlEntry(entry) {
     const source = typeof entry === 'string' ? { url: entry } : entry;
     const url = String(source?.url || source?.href || source?.sourceUrl || '').trim();
     if (!url) return null;
-    const normalized = normalizeUrl(url);
+    const normalized = normalizeIdentityUrl(url);
     if (!normalized) return null;
     return {
         id: String(source?.id || ('related-' + Math.abs(normalized.split('').reduce((hash, ch) => ((hash << 5) - hash) + ch.charCodeAt(0), 0)))).trim(),
@@ -132,19 +132,19 @@ function getRelatedUrlEntries(link) {
 
 function getIdentityUrlSet(link) {
     const urls = new Set();
-    const canonical = normalizeUrl(link?.url);
+    const canonical = normalizeIdentityUrl(link?.url);
     if (canonical) urls.add(canonical);
     getRelatedUrlEntries(link).forEach((entry) => {
-        const normalized = normalizeUrl(entry.url);
+        const normalized = normalizeIdentityUrl(entry.url);
         if (normalized) urls.add(normalized);
     });
     return urls;
 }
 
 function ensureRelatedUrl(targetLink, url, details = {}) {
-    const normalized = normalizeUrl(url);
+    const normalized = normalizeIdentityUrl(url);
     if (!targetLink || !normalized) return false;
-    const canonical = normalizeUrl(targetLink.url);
+    const canonical = normalizeIdentityUrl(targetLink.url);
     if (canonical && canonical === normalized) return false;
     const existing = getIdentityUrlSet(targetLink);
     if (existing.has(normalized)) return false;

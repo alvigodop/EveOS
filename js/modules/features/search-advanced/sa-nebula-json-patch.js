@@ -158,6 +158,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             next[field] = Number.isFinite(value) && value > 0 ? value : 0;
         });
         if (Object.prototype.hasOwnProperty.call(source, 'mediaTypes')) next.mediaTypes = normalizeTextList(source.mediaTypes);
+        if (Object.prototype.hasOwnProperty.call(source, 'titleAltNames')) next.titleAltNames = normalizeTextList(source.titleAltNames);
         if (Object.prototype.hasOwnProperty.call(source, 'authorAltNames')) next.authorAltNames = normalizeTextList(source.authorAltNames);
         if (Object.prototype.hasOwnProperty.call(source, 'artist')) next.artist = normalizeTextList(source.artist);
         if (Object.prototype.hasOwnProperty.call(source, 'genre')) next.genre = normalizeTextList(source.genre);

@@ -40,6 +40,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         if (!library?.linked) return '';
         const initial = {
             title: library.title || '',
+            titleAltNames: list(library.titleAltNames || library.altTitles),
             author: list(library.author),
             authorAltNames: list(library.authorAltNames),
             artist: list(library.artist),
@@ -84,6 +85,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             + '</div>'
             + '<div class="nx-dv-library-grid">'
             + input(escapeHtml, 'Title', 'title', initial.title)
+            + input(escapeHtml, 'Title Aliases', 'titleAltNames', initial.titleAltNames)
             + input(escapeHtml, 'Author', 'author', initial.author)
             + input(escapeHtml, 'Author Aliases', 'authorAltNames', initial.authorAltNames)
             + input(escapeHtml, 'Artist', 'artist', initial.artist)
@@ -123,7 +125,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     function collectLibraryPatch(row, patchApi, target) {
         const editor = row?.querySelector?.('[data-nx-dv-library-entry-id]');
         if (!editor || !patchApi?.buildPatch || !target) return null;
-        const fields = ['title', 'author', 'authorAltNames', 'artist', 'mediaTypes', 'status', 'sourceStatus', 'chapter', 'graphicChapter', 'novelChapter', 'season', 'episode', 'rating', 'sourceUrl', 'imageUrl', 'language', 'genre', 'tags', 'summary'];
+        const fields = ['title', 'titleAltNames', 'author', 'authorAltNames', 'artist', 'mediaTypes', 'status', 'sourceStatus', 'chapter', 'graphicChapter', 'novelChapter', 'season', 'episode', 'rating', 'sourceUrl', 'imageUrl', 'language', 'genre', 'tags', 'summary'];
         const changes = {};
         fields.forEach(function (field) {
             const value = getField(row, field);

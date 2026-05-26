@@ -440,6 +440,40 @@
         return result;
     }
 
+    async function refreshRendered(options) {
+        if (typeof document === 'undefined') return { updated: 0, queued: 0 };
+        const opts = options || {};
+        const delayMs = Math.max(0, Number(opts.delayMs || 0) || 0);
+        const maxFetch = Math.max(0, Number(opts.maxFetch || 24) || 0);
+        if (delayMs) await delay(delayMs);
+        await loadDiskCache();
+
+        let updated = 0;
+        let queued = 0;
+        const seenMisses = new Set();
+        const images = Array.from(document.querySelectorAll('img[data-favicon-domain]'));
+        images.forEach(function (image) {
+            const key = normalizeDomain(image.dataset?.faviconDomain || '');
+            if (!key) return;
+            const cached = getCachedIcon(key);
+            if (cached) {
+                image.dataset.fallbackApplied = '';
+                image.style.display = '';
+                if (image.src !== cached) {
+                    image.src = cached;
+                    updated += 1;
+                }
+                return;
+            }
+            if (queued >= maxFetch || seenMisses.has(key)) return;
+            seenMisses.add(key);
+            if (queueFetch(key, Number(image.dataset?.faviconSize || 32) || 32, 'refresh-rendered')) {
+                queued += 1;
+            }
+        });
+        return { updated, queued };
+    }
+
     function warmup(options) {
         if (_warmupScheduled || !canFetchRemoteFavicons()) return;
         _warmupScheduled = true;
@@ -534,6 +568,7 @@
         getSrc,
         fetchAndCache,
         warmup,
+        refreshRendered,
         clearAll,
         getStats,
         canFetchRemote: canFetchRemoteFavicons
