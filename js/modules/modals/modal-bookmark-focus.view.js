@@ -51,6 +51,56 @@ window.EveBookmarkFocus = window.EveBookmarkFocus || {};
             .replace(/'/g, '&#39;');
     }
 
+    function normalizeList(values) {
+        const source = [];
+        function collect(value) {
+            if (Array.isArray(value)) {
+                value.forEach(collect);
+                return;
+            }
+            if (value && typeof value === 'object') {
+                Object.values(value).forEach(collect);
+                return;
+            }
+            String(value || '').split(/[|,;]/).forEach(item => source.push(item));
+        }
+        collect(values);
+        const seen = new Set();
+        return source
+            .map(item => String(item || '').trim())
+            .filter(Boolean)
+            .filter(item => {
+                const key = item.toLowerCase();
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
+    }
+
+    function mergeUniqueLists() {
+        const seen = new Set();
+        const output = [];
+        Array.from(arguments).forEach((list) => {
+            normalizeList(list).forEach((item) => {
+                const key = item.toLowerCase();
+                if (seen.has(key)) return;
+                seen.add(key);
+                output.push(item);
+            });
+        });
+        return output;
+    }
+
+    function getEntryTitleAliases(entry) {
+        const primaryTitle = String(entry?.title || '').trim().toLowerCase();
+        return mergeUniqueLists(
+            entry?.titleAltNames,
+            entry?.altTitles,
+            entry?.alternativeTitles,
+            entry?.aliases
+        ).filter((item) => item.toLowerCase() !== primaryTitle);
+    }
+
     function getDatapackIndexApi() {
         return window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
     }
@@ -556,6 +606,11 @@ window.EveBookmarkFocus = window.EveBookmarkFocus || {};
         const season = document.getElementById('bookmarkFocusSeason');
         const episode = document.getElementById('bookmarkFocusEpisode');
         const summary = document.getElementById('bookmarkFocusSummary');
+        const primaryTitle = document.getElementById('bookmarkFocusPrimaryTitle');
+        const titleAltNames = document.getElementById('bookmarkFocusTitleAltNames');
+        const aliasHint = document.getElementById('bookmarkFocusAliasHint');
+        const aliasSection = document.getElementById('bookmarkFocusAliasSection');
+        const aliasSummary = document.getElementById('bookmarkFocusAliasSummary');
 
         if (rating) rating.value = entry.rating || '';
         if (graphic) graphic.value = entry.graphicChapter ?? entry.chapter ?? 0;
@@ -563,6 +618,23 @@ window.EveBookmarkFocus = window.EveBookmarkFocus || {};
         if (season) season.value = entry.season ?? 0;
         if (episode) episode.value = entry.episode ?? 0;
         if (summary) summary.value = entry.summary || '';
+        if (primaryTitle) primaryTitle.value = entry.title || '';
+        if (titleAltNames) {
+            const aliases = getEntryTitleAliases(entry);
+            titleAltNames.value = aliases.join(', ');
+            if (aliasSection) aliasSection.open = false;
+            if (aliasSummary) {
+                const primary = String(entry.title || '').trim() || 'Untitled';
+                aliasSummary.textContent = aliases.length
+                    ? `${primary} | ${aliases.length} alias${aliases.length === 1 ? '' : 'es'}`
+                    : primary;
+            }
+            if (aliasHint) {
+                aliasHint.textContent = aliases.length
+                    ? `${aliases.length} alternate name${aliases.length === 1 ? '' : 's'} attached to this library entry.`
+                    : 'No alternate names yet. Add translated, romanized, or source-specific titles here.';
+            }
+        }
 
         updateProgressVisibility(entry, categoryName);
         return linkedRecord;

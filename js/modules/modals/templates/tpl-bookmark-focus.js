@@ -58,6 +58,26 @@ window.modalTemplate += `
             <div id="bookmarkFocusLibraryMissing" style="font-size:0.85rem; opacity:0.78;">This bookmark is not linked to a library entry yet.</div>
 
             <div id="bookmarkFocusLibraryFields" style="display:none; flex-direction:column; gap:8px;">
+                <details id="bookmarkFocusAliasSection" class="settings-disclosure" style="margin:0;">
+                    <summary class="settings-disclosure-summary settings-disclosure-summary--split">
+                        <span class="settings-disclosure-summary__label">Other Names / Aliases</span>
+                        <span id="bookmarkFocusAliasSummary" class="settings-disclosure-summary__meta"></span>
+                    </summary>
+                    <div class="settings-disclosure-body" style="display:flex; flex-direction:column; gap:8px;">
+                        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                            <div style="display:flex; flex-direction:column; gap:3px; flex:1; min-width:180px;">
+                                <label for="bookmarkFocusPrimaryTitle" style="font-size:0.75rem; opacity:0.8;">Current Library Name</label>
+                                <input type="text" id="bookmarkFocusPrimaryTitle" readonly>
+                            </div>
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:3px;">
+                            <label for="bookmarkFocusTitleAltNames" style="font-size:0.75rem; opacity:0.8;">Other Names / Aliases</label>
+                            <textarea id="bookmarkFocusTitleAltNames" rows="2" placeholder="Comma-separated alternate names, translated titles, romanized titles..."></textarea>
+                            <div id="bookmarkFocusAliasHint" style="font-size:0.76rem; opacity:0.66;">Alternate names are searchable and stay attached to the linked library entry.</div>
+                        </div>
+                    </div>
+                </details>
+
                 <div style="display:flex; gap:8px; flex-wrap:wrap;">
                     <div style="display:flex; flex-direction:column; gap:3px; flex:1; min-width:170px;">
                         <label for="bookmarkFocusStatus" style="font-size:0.75rem; opacity:0.8;">Status</label>

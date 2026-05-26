@@ -21,18 +21,33 @@ window.EveBookmarkFocus = window.EveBookmarkFocus || {};
 
     function normalizeList(values) {
         const formApi = window.EveLinkForm || {};
-        if (Array.isArray(values)) {
-            return values
-                .map(item => String(item || '').trim())
-                .filter(Boolean);
+        const source = [];
+        function collect(value) {
+            if (Array.isArray(value)) {
+                value.forEach(collect);
+                return;
+            }
+            if (value && typeof value === 'object') {
+                Object.values(value).forEach(collect);
+                return;
+            }
+            source.push(value);
         }
+        collect(values);
         if (typeof formApi.parseUniqueCsvList === 'function') {
-            return formApi.parseUniqueCsvList(values || '');
+            return formApi.parseUniqueCsvList(source.join(', '));
         }
-        return String(values || '')
+        const seen = new Set();
+        return source.join(', ')
             .split(',')
             .map(item => item.trim())
-            .filter(Boolean);
+            .filter(Boolean)
+            .filter(item => {
+                const key = item.toLowerCase();
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
     }
 
     function mergeUnique(existing, incoming) {
@@ -60,6 +75,7 @@ window.EveBookmarkFocus = window.EveBookmarkFocus || {};
         const season = parseIntOrZero(document.getElementById('bookmarkFocusSeason')?.value);
         const episode = parseIntOrZero(document.getElementById('bookmarkFocusEpisode')?.value);
         const summary = document.getElementById('bookmarkFocusSummary')?.value.trim() || '';
+        const titleAltNames = normalizeList(document.getElementById('bookmarkFocusTitleAltNames')?.value || '');
 
         const patch = {
             status,
@@ -69,7 +85,8 @@ window.EveBookmarkFocus = window.EveBookmarkFocus || {};
             season,
             episode,
             chapter: graphicChapter > 0 ? graphicChapter : novelChapter,
-            summary
+            summary,
+            titleAltNames
         };
 
         if (Array.isArray(entry?.mediaTypes) && entry.mediaTypes.length) {
