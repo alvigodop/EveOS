@@ -110,9 +110,11 @@
         clearHideTimer();
         activeTarget = target;
         const el = ensureTooltip();
+        const isCompact = !!target.closest('.hatch-subfolders-inline, .folder-tile-hatch-panel');
         const name = String(target.dataset.folderHoverLabel || '').trim();
         const meta = String(target.dataset.folderHoverMeta || '').trim();
         const kind = String(target.dataset.folderHoverKind || 'Folder').trim() || 'Folder';
+        el.classList.toggle('is-compact', isCompact);
         el.querySelector('.eve-folder-hover-card__kicker').textContent = kind;
         el.querySelector('.eve-folder-hover-card__name').textContent = name || 'Untitled folder';
         const metaEl = el.querySelector('.eve-folder-hover-card__meta');
