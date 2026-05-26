@@ -272,6 +272,117 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         });
         breadcrumbsHtml += `</div>${folderHeaderActionsHtml}</div>${folderHeaderActionTrayHtml}`;
 
+        function getTotalNestedCount(targetFolderId, seenFolders) {
+            const seen = seenFolders || new Set();
+            if (!targetFolderId || seen.has(targetFolderId)) return 0;
+            seen.add(targetFolderId);
+            const directCount = (viewModel.folderLinks.get(targetFolderId) || []).length;
+            const children = viewModel.childrenMap.get(targetFolderId) || [];
+            return directCount + children.reduce(function (sum, child) {
+                return sum + getTotalNestedCount(child.id, seen);
+            }, 0);
+        }
+
+        function getFolderPreviewLinks(targetFolderId, limit) {
+            const output = [];
+            const seenFolders = new Set();
+            function visit(id) {
+                if (!id || seenFolders.has(id) || output.length >= limit) return;
+                seenFolders.add(id);
+                (viewModel.folderLinks.get(id) || []).forEach(function (link) {
+                    if (output.length < limit) output.push(link);
+                });
+                (viewModel.childrenMap.get(id) || []).forEach(function (child) {
+                    visit(child.id);
+                });
+            }
+            visit(targetFolderId);
+            return output;
+        }
+
+        function getBookmarkPreviewVisual(link) {
+            const libraryEntry = window.EveLibrary?.ConnectionsAPI?.getLinkedEntry?.(link.id)?.entry || null;
+            const rawCoverUrl = String(
+                window.EveBookmarkCovers?.getDisplayCover?.(link, libraryEntry?.image || libraryEntry?.imageUrl)
+                || link?.coverImage
+                || libraryEntry?.image
+                || libraryEntry?.imageUrl
+                || ''
+            ).trim();
+            const coverUrl = (typeof window.EveBookmarkCovers?.isRenderableCoverUrl === 'function' && !window.EveBookmarkCovers.isRenderableCoverUrl(rawCoverUrl)) ? '' : rawCoverUrl;
+            if (coverUrl) return `<img class="hatch-bookmark-image" src="${escapeCardHtml(coverUrl)}" alt="" loading="lazy">`;
+            const faviconUtils = window.EveFaviconUtils || null;
+            const faviconDomain = faviconUtils && typeof faviconUtils.getDomainFromUrl === 'function'
+                ? faviconUtils.getDomainFromUrl(link.url)
+                : '';
+            const faviconSrc = faviconDomain && faviconUtils && typeof faviconUtils.getBestEffortSrc === 'function'
+                ? faviconUtils.getBestEffortSrc(faviconDomain, 32)
+                : '';
+            const faviconFallbackSrc = faviconDomain && faviconUtils && typeof faviconUtils.getFallbackSrc === 'function'
+                ? faviconUtils.getFallbackSrc(faviconDomain, 32)
+                : '';
+            const faviconAttrs = faviconDomain
+                ? ` data-favicon-domain="${escapeCardHtml(faviconDomain)}" data-favicon-size="32"${faviconFallbackSrc ? ` data-fallback-src="${escapeCardHtml(faviconFallbackSrc)}"` : ''}`
+                : '';
+            const faviconOnError = "if(window.EveFaviconUtils&&typeof window.EveFaviconUtils.handleImageError==='function'){window.EveFaviconUtils.handleImageError(this);return;}this.style.display='';";
+            return `<div class="hatch-bookmark-icon-fallback"><img src="${escapeCardHtml(faviconSrc || faviconFallbackSrc)}" alt="" class="hatch-favicon"${faviconAttrs} loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="${faviconOnError}"></div>`;
+        }
+
+        function buildHatchBookmarkSlides(sourceLinks, options) {
+            const opts = options || {};
+            const links = (Array.isArray(sourceLinks) ? sourceLinks : []).slice(0, Number(opts.limit || 3) || 3);
+            if (!links.length) return '';
+            const totalSlides = links.length;
+            const nestedClass = opts.nested ? ' hatch-bookmark-slide-nested' : '';
+            return '<div class="hatch-bookmarks' + (opts.nested ? ' hatch-bookmarks-nested' : '') + '">' + links.map(function (link, idx) {
+                const title = link.title || 'Untitled';
+                const animationClass = (totalSlides === 1) ? 'slide-single' : (totalSlides === 2 ? `slide-2-total-${idx + 1}` : `slide-3-total-${idx + 1}`);
+                const jsLinkIdLiteral = `'${String(link.id || '').replace(/'/g, "\\'")}'`;
+                const hoverHandlers = `onmouseenter="if(typeof showBookmarkCoverHover==='function') showBookmarkCoverHover(event, ${jsLinkIdLiteral})" onmousemove="if(typeof moveBookmarkCoverHover==='function') moveBookmarkCoverHover(event)" onmouseleave="if(typeof hideBookmarkCoverHover==='function') hideBookmarkCoverHover()"`;
+                const clickHandlers = `onclick="event.stopPropagation(); return (typeof openBookmarkFromDashboard==='function') ? openBookmarkFromDashboard(event, ${jsLinkIdLiteral}) : true;" oncontextmenu="event.stopPropagation(); if(typeof showLinkContextMenu==='function') showLinkContextMenu(event, ${jsLinkIdLiteral})"`;
+                return `<a href="${escapeCardHtml(link.url)}" class="hatch-bookmark-slide${nestedClass} ${animationClass}" ${hoverHandlers} ${clickHandlers} style="cursor: pointer; display: block; text-decoration: none;">
+                    ${getBookmarkPreviewVisual(link)}
+                    <div class="hatch-bookmark-title">${escapeCardHtml(title)}</div>
+                </a>`;
+            }).join('') + '</div>';
+        }
+
+        function buildNestedSubfolderPreview(folder, depth) {
+            if (!folder || depth > 3) return '';
+            const nestedFolderId = folder.id;
+            const directLinks = viewModel.folderLinks.get(nestedFolderId) || [];
+            const children = viewModel.childrenMap.get(nestedFolderId) || [];
+            const previewLinks = getFolderPreviewLinks(nestedFolderId, 3);
+            const nestedHtml = children.slice(0, 6).map(function (child) {
+                return buildNestedSubfolderPreview(child, depth + 1);
+            }).join('');
+            const meta = `${directLinks.length} direct | ${getTotalNestedCount(nestedFolderId)} branch | ${children.length} folders`;
+            return `<details class="hatch-subfolder-node hatch-subfolder-depth-${Math.min(depth, 3)}" onclick="event.stopPropagation();">
+                <summary class="hatch-subfolder-summary" data-folder-hover-kind="Subfolder" data-folder-hover-label="${escapeCardHtml(folder.name)}" data-folder-hover-meta="${escapeCardHtml(meta)}" title="${escapeCardHtml(folder.name)}">
+                    <span class="hatch-subfolder-glyph"><svg width="10" height="10" viewBox="0 0 14 14" style="overflow: visible;"><rect x="0" y="3" width="14" height="10" rx="0" fill="none" stroke="currentColor" stroke-width="1.5" /><path d="M0,3 L4,3 L5.5,1 L9,1 L9,3" fill="none" stroke="currentColor" stroke-width="1.5" /></svg></span>
+                    <span class="hatch-subfolder-name">${escapeCardHtml(folder.name)}</span>
+                    <span class="hatch-subfolder-count">${escapeCardHtml(meta)}</span>
+                    <button type="button" class="hatch-subfolder-open" title="Open folder" onclick="event.preventDefault(); event.stopPropagation(); window.EveFolderViewV2.enterFolder(event, '${escapeCardJs(resolvedCategoryName)}', '${escapeCardJs(nestedFolderId)}', '${escapeCardJs(resolvedWorkspaceId)}')">Open</button>
+                </summary>
+                <div class="hatch-subfolder-body">
+                    ${buildHatchBookmarkSlides(previewLinks, { nested: true, limit: 3 })}
+                    ${nestedHtml}
+                </div>
+            </details>`;
+        }
+
+        function buildInlineSubfolderRail(folders) {
+            const list = Array.isArray(folders) ? folders : [];
+            if (!list.length) return '';
+            return '<div class="hatch-subfolders hatch-subfolders-inline" onwheel="event.stopPropagation();">'
+                + list.map(function (sf) {
+                    const nestedFolderId = sf.id;
+                    const meta = `${viewModel.folderLinks.get(nestedFolderId)?.length || 0} direct | ${getTotalNestedCount(nestedFolderId)} branch`;
+                    return `<button type="button" class="hatch-subfolder-icon" data-folder-hover-kind="Subfolder" data-folder-hover-label="${escapeCardHtml(sf.name)}" data-folder-hover-meta="${escapeCardHtml(meta)}" title="${escapeCardHtml(sf.name)}" onclick="event.preventDefault(); event.stopPropagation(); window.EveFolderViewV2.enterFolder(event, '${escapeCardJs(resolvedCategoryName)}', '${escapeCardJs(nestedFolderId)}', '${escapeCardJs(resolvedWorkspaceId)}')"><svg width="10" height="10" viewBox="0 0 14 14" style="overflow: visible;"><rect x="0" y="3" width="14" height="10" rx="0" fill="none" stroke="currentColor" stroke-width="1.5" /><path d="M0,3 L4,3 L5.5,1 L9,1 L9,3" fill="none" stroke="currentColor" stroke-width="1.5" /></svg></button>`;
+                }).join('')
+                + '</div>';
+        }
+
         let subFoldersHtml = '';
         if (subFolders.length > 0) {
             subFoldersHtml += `<div class="manhwa-divider folders-divider">FOLDERS</div><div class="folder-wrap-grid">${subFolders.map((folder) => {
@@ -296,7 +407,33 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                 const editButtonHtml = isGhost
                     ? `<div class="folder-tile-action-buttons"><button type="button" class="folder-tile-edit-btn bulk-scope-btn" data-scope-category="${escapeCardHtml(resolvedCategoryName)}" data-scope-workspace="${escapeCardHtml(resolvedWorkspaceId)}" data-scope-folder-id="${escapeCardHtml(folder.id)}" title="Select Matching Bookmarks" onclick="event.preventDefault(); event.stopPropagation(); bulkToggleFolderScopeSelection('${escapeCardJs(resolvedCategoryName)}', '${escapeCardJs(resolvedWorkspaceId)}', '${escapeCardJs(folder.id)}');">&#9745;</button>${deleteSmartViewButton}</div>`
                     : `<div class="folder-tile-action-buttons"><button type="button" class="folder-tile-edit-btn bulk-scope-btn" data-scope-category="${escapeCardHtml(resolvedCategoryName)}" data-scope-workspace="${escapeCardHtml(resolvedWorkspaceId)}" data-scope-folder-id="${escapeCardHtml(folder.id)}" title="Select Folder Subtree" onclick="event.preventDefault(); event.stopPropagation(); bulkToggleFolderScopeSelection('${escapeCardJs(resolvedCategoryName)}', '${escapeCardJs(resolvedWorkspaceId)}', '${escapeCardJs(folder.id)}');">&#9745;</button><button type="button" class="folder-tile-edit-btn" title="Edit Folder" onclick="event.preventDefault(); event.stopPropagation(); if(typeof window.showFolderContextMenu === 'function') window.showFolderContextMenu(event, '${escapeCardJs(resolvedCategoryName)}', '${escapeCardJs(folder.id)}', '${escapeCardJs(resolvedWorkspaceId)}');">&#9998;</button></div>`;
-                return `<div class="folder-tile${isGhost ? ' folder-tile-ghost' : ''}" ${folderDropAttr} ${dragStartAttr} onclick="window.EveFolderViewV2.enterFolder(event, '${escapeCardJs(resolvedCategoryName)}', '${escapeCardJs(folder.id)}', '${escapeCardJs(resolvedWorkspaceId)}')" ${contextMenuAttr}><div class="folder-tile-left-bar"></div><div class="folder-icon-box"><svg width="14" height="14" viewBox="0 0 14 14" style="overflow: visible;"><rect x="0" y="3" width="14" height="10" rx="0" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.6" /><path d="M0,3 L4,3 L5.5,1 L9,1 L9,3" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.6" /></svg></div><div class="folder-tile-content"><div class="folder-tile-title" data-folder-hover-label="${escapeCardHtml(folder.name)}" data-folder-hover-meta="${escapeCardHtml(hoverMeta)}" title="${escapeCardHtml(hoverMeta)}">${escapeCardHtml(folder.name)}</div><div class="folder-tile-stats">${escapeCardHtml(statsLabel)}</div></div>${editButtonHtml}</div>`;
+                const childFolders = viewModel.childrenMap.get(folder.id) || [];
+                const subFolderInlineHtml = buildInlineSubfolderRail(childFolders);
+                const nestedSubFolderHtml = childFolders.length > 0
+                    ? '<div class="hatch-subfolders hatch-subfolders-recursive" onwheel="event.stopPropagation();">' + childFolders.map(function (child) { return buildNestedSubfolderPreview(child, 1); }).join('') + '</div>'
+                    : '';
+                const hatchBookmarksHtml = buildHatchBookmarkSlides(viewModel.folderLinks.get(folder.id) || [], { limit: 3 });
+                const hatchHtml = hatchBookmarksHtml ? `<div class="folder-tile-hatch">${hatchBookmarksHtml}</div>` : '';
+                const hatchStoredState = localStorage.getItem(`eve_folder_hatch_collapsed_${resolvedWorkspaceId}_${resolvedCategoryName}_${folder.id}`);
+                const collapsedClass = (hatchStoredState === null ? true : hatchStoredState === 'true') ? ' hatch-collapsed' : '';
+                const hatchToggleHtml = (nestedSubFolderHtml || hatchHtml)
+                    ? `<div class="folder-tile-hatch-toggle" onclick="event.stopPropagation(); const tile = this.closest('.folder-tile'); const isCol = tile.classList.toggle('hatch-collapsed'); localStorage.setItem('eve_folder_hatch_collapsed_${escapeCardJs(resolvedWorkspaceId)}_${escapeCardJs(resolvedCategoryName)}_${escapeCardJs(folder.id)}', isCol);" title="Toggle folder covers and subfolders"></div>`
+                    : '';
+                const hatchPanelHtml = nestedSubFolderHtml || hatchHtml
+                    ? `<div class="folder-tile-hatch-panel" onclick="event.stopPropagation();" onwheel="event.stopPropagation();">${nestedSubFolderHtml}${hatchHtml}</div>`
+                    : '';
+                return `<div class="folder-tile${isGhost ? ' folder-tile-ghost' : ''}${collapsedClass}" data-category="${escapeCardHtml(resolvedCategoryName)}" data-workspace="${escapeCardHtml(resolvedWorkspaceId)}" data-folder-id="${escapeCardHtml(folder.id)}" ${folderDropAttr} ${dragStartAttr} ${contextMenuAttr}>
+                    <div class="folder-tile-main" onclick="event.stopPropagation(); window.EveFolderViewV2.enterFolder(event, '${escapeCardJs(resolvedCategoryName)}', '${escapeCardJs(folder.id)}', '${escapeCardJs(resolvedWorkspaceId)}')">
+                        <div class="folder-tile-left-bar"></div>
+                        <div class="folder-icon-box"><svg width="14" height="14" viewBox="0 0 14 14" style="overflow: visible;"><rect x="0" y="3" width="14" height="10" rx="0" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.6" /><path d="M0,3 L4,3 L5.5,1 L9,1 L9,3" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.6" /></svg></div>
+                        <div class="folder-tile-content"><div class="folder-tile-title" data-folder-hover-label="${escapeCardHtml(folder.name)}" data-folder-hover-meta="${escapeCardHtml(hoverMeta)}" title="${escapeCardHtml(hoverMeta)}">${escapeCardHtml(folder.name)}</div><div class="folder-tile-stats">${escapeCardHtml(statsLabel)}</div></div>
+                        ${editButtonHtml}
+                    </div>
+                    ${subFolderInlineHtml}
+                    ${hatchHtml}
+                    ${hatchToggleHtml}
+                    ${hatchPanelHtml}
+                </div>`;
             }).join('')}</div>`;
         }
 
