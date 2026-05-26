@@ -42,6 +42,7 @@ window.EveLibrary.UIShared = window.EveLibrary.UIShared || {};
                 <h4 id="${prefix}form-title">Add New Entry</h4>
                 <div class="lib-form-grid">
                     <label>Title: <input type="text" id="${prefix}title" required></label>
+                    <label>Alternative Titles: <input type="text" id="${prefix}title-alt-names" placeholder="comma separated"></label>
                     <label>Author: <input type="text" id="${prefix}author"></label>
                     <label>Author Alt Names: <input type="text" id="${prefix}author-alt-names" placeholder="comma separated"></label>
                     <label>Artist: <input type="text" id="${prefix}artist" placeholder="comma separated"></label>

@@ -467,26 +467,38 @@ window.EveBookmarkFocus = window.EveBookmarkFocus || {};
         if (recalibrateBtn) recalibrateBtn.disabled = !isEnabled;
     }
 
-    function getStatusOptions(categoryName) {
+    function getStatusOptions(categoryName, entry) {
         const state = window.EveLibrary?.State;
         const fallback = ['Reading', 'Completed', 'On Hold', 'Dropped', 'Plan to Read', 'Hiatus'];
         if (!state) return fallback;
+        const fallbackType = state.getCategoryDataType(categoryName || 'Unsorted');
+        const mediaTypes = Array.isArray(entry?.mediaTypes) && entry.mediaTypes.length
+            ? entry.mediaTypes
+            : [fallbackType];
+        if (typeof state.getStatusOptionsForMediaTypes === 'function') {
+            const options = state.getStatusOptionsForMediaTypes(mediaTypes, fallbackType);
+            return options.length ? options : fallback;
+        }
         const dataTypeName = state.getCategoryDataType(categoryName || 'Unsorted');
         const dataType = state.getDataType(dataTypeName);
         const options = Array.isArray(dataType?.statuses) ? dataType.statuses : [];
         return options.length ? options : fallback;
     }
 
-    function renderStatusOptions(categoryName, selectedStatus) {
+    function renderStatusOptions(categoryName, selectedStatus, entry) {
         const select = document.getElementById('bookmarkFocusStatus');
         if (!select) return;
-        const options = getStatusOptions(categoryName);
+        const options = getStatusOptions(categoryName, entry);
         const normalizedSelected = String(selectedStatus || '').trim().toLowerCase();
+        const safeOptions = options.slice();
+        if (normalizedSelected && !safeOptions.some(status => status.trim().toLowerCase() === normalizedSelected)) {
+            safeOptions.unshift(String(selectedStatus || '').trim());
+        }
         const html = ['<option value="">Status</option>']
-            .concat(options.map(status => `<option value="${status}">${status}</option>`))
+            .concat(safeOptions.map(status => `<option value="${status}">${status}</option>`))
             .join('');
         select.innerHTML = html;
-        const selectedMatch = options.find(status => status.trim().toLowerCase() === normalizedSelected);
+        const selectedMatch = safeOptions.find(status => status.trim().toLowerCase() === normalizedSelected);
         if (selectedMatch) select.value = selectedMatch;
     }
 
@@ -536,7 +548,7 @@ window.EveBookmarkFocus = window.EveBookmarkFocus || {};
         if (categoryLabel) categoryLabel.textContent = `Category: ${categoryName}`;
         setLibraryControlsEnabled(true);
 
-        renderStatusOptions(categoryName, entry.status || '');
+        renderStatusOptions(categoryName, entry.status || '', entry);
 
         const rating = document.getElementById('bookmarkFocusRating');
         const graphic = document.getElementById('bookmarkFocusGraphicChapter');

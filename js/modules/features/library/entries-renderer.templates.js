@@ -44,11 +44,13 @@ window.EveLibrary.Modules = window.EveLibrary.Modules || {};
             const safeSourceUrl = sourceUrl.replace(/'/g, "\\'");
             const displayImage = window.EveBookmarkCovers?.getDisplayCoverForLibraryEntry?.(categoryName, entry) || entry.image || entry.imageUrl || '';
             const safeDisplayImage = String(displayImage || '').replace(/'/g, "\\'");
+            const titleAltNames = toUniqueList(entry.titleAltNames || entry.altTitles);
             const authorAltNames = toUniqueList(entry.authorAltNames);
             const artistValue = toDisplayCsv(entry.artist);
             const genreValue = toDisplayCsv(entry.genre);
             const tags = toUniqueList(entry.tags);
             const sourceStatus = String(entry.sourceStatus || '').trim();
+            const titleAltHtml = buildExpandableDetail('Title Alt', titleAltNames.join(', '), `${safeEntryIdBase}-title-alt`, 84);
             const authorAltHtml = buildExpandableDetail('Author Alt', authorAltNames.join(', '), `${safeEntryIdBase}-author-alt`, 84);
             const tagsHtml = buildExpandableDetail('Tags', tags.join(', '), `${safeEntryIdBase}-tags`, 92);
             const notesHtml = buildExpandableDetail('Notes', entry.summary || '', `${safeEntryIdBase}-notes`, 96);
@@ -96,6 +98,7 @@ window.EveLibrary.Modules = window.EveLibrary.Modules || {};
                     ${sourceStatus ? `<p><strong>Source Status:</strong> ${sourceStatus}</p>` : ''}
                     ${renderTypeFields(entry, dataType)}
                     <p><strong>Rating:</strong> ${entry.rating || 'N/A'}</p>
+                    ${titleAltHtml}
                     ${authorAltHtml}
                     ${artistValue ? `<p><strong>Artist:</strong> ${artistValue}</p>` : ''}
                     <p><strong>Genre:</strong> ${genreValue || 'N/A'}</p>

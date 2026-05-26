@@ -21,6 +21,7 @@ window.EveLibrary.EntryManagerModules = window.EveLibrary.EntryManagerModules ||
             const newEntry = {
                 id: generateUniqueId(),
                 title: data.title,
+                titleAltNames: data.titleAltNames,
                 mediaTypes: [dataType],
                 author: data.author,
                 authorAltNames: data.authorAltNames,
@@ -69,6 +70,7 @@ window.EveLibrary.EntryManagerModules = window.EveLibrary.EntryManagerModules ||
             const nowIso = new Date().toISOString();
 
             entry.title = data.title;
+            entry.titleAltNames = data.titleAltNames;
             entry.author = data.author;
             entry.authorAltNames = data.authorAltNames;
             entry.artist = data.artist;

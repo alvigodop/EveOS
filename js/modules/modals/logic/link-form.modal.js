@@ -229,7 +229,9 @@ window.EveLinkForm = window.EveLinkForm || {};
         if (!modal) return;
 
         const title = modal.newTitle.value.trim();
-        const url = normalizeUrl(modal.newUrl.value);
+        const url = ns.normalizeStoredUrl
+            ? ns.normalizeStoredUrl(modal.newUrl.value)
+            : normalizeUrl(modal.newUrl.value);
         const category = modal.newCategory.value.trim() || 'Unsorted';
         const folderId = String(modal.newFolderId?.value || '').trim();
         const coverImage = normalizeCoverImageUrl(modal.newCoverImage?.value);
@@ -301,6 +303,12 @@ window.EveLinkForm = window.EveLinkForm || {};
 
         if (window.EveBookmarkCovers?.clearSelection && targetId) {
             window.EveBookmarkCovers.clearSelection(targetId);
+        }
+        if (window.EveFaviconCache?.fetchAndCache && window.EveFaviconUtils?.getDomainFromUrl) {
+            [url].concat(relatedUrls.map((entry) => entry?.url)).forEach((candidateUrl) => {
+                const domain = window.EveFaviconUtils.getDomainFromUrl(candidateUrl);
+                if (domain) window.EveFaviconCache.fetchAndCache(domain, 32);
+            });
         }
 
         saveData({

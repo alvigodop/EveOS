@@ -45,6 +45,9 @@ window.EveLibrary.EntryManagerModules = window.EveLibrary.EntryManagerModules ||
             const author = document.getElementById(prefix + 'author')?.value.trim() || '';
             const authorAltNames = parseUniqueCsvList(document.getElementById(prefix + 'author-alt-names')?.value || '')
                 .filter(name => name.toLowerCase() !== author.toLowerCase());
+            const title = document.getElementById(prefix + 'title')?.value.trim() || '';
+            const titleAltNames = parseUniqueCsvList(document.getElementById(prefix + 'title-alt-names')?.value || '')
+                .filter(name => name.toLowerCase() !== title.toLowerCase());
             const allProviders = (window.EveLibrary?.RatingsEngineFoundation?.PROVIDERS)
                 || ['anilist', 'myanimelist', 'mangadex', 'kitsu', 'tvmaze', 'mangaupdates', 'comick', 'openlibrary', 'wlnupdates', 'itunes'];
             const apiRatingFieldMap = {};
@@ -54,7 +57,8 @@ window.EveLibrary.EntryManagerModules = window.EveLibrary.EntryManagerModules ||
             allProviders.forEach(function (p) { rawApiRatings[p] = document.getElementById(apiRatingFieldMap[p])?.value ?? null; });
             const apiRatings = Ratings?.sanitizeApiRatings ? Ratings.sanitizeApiRatings(rawApiRatings) : rawApiRatings;
             return {
-                title: document.getElementById(prefix + 'title')?.value.trim() || '',
+                title,
+                titleAltNames,
                 author,
                 authorAltNames,
                 artist: normalizeCommaSeparatedValue(document.getElementById(prefix + 'artist')?.value || ''),
@@ -66,7 +70,9 @@ window.EveLibrary.EntryManagerModules = window.EveLibrary.EntryManagerModules ||
                 summary: document.getElementById(prefix + 'summary')?.value.trim() || '',
                 rating: document.getElementById(prefix + 'rating')?.value || '',
                 language: document.getElementById(prefix + 'language')?.value.trim() || '',
-                sourceUrl: rawSourceUrl ? normalizeUrl(rawSourceUrl) : '',
+                sourceUrl: rawSourceUrl
+                    ? (window.EveLinkForm?.normalizeStoredUrl ? window.EveLinkForm.normalizeStoredUrl(rawSourceUrl) : normalizeUrl(rawSourceUrl))
+                    : '',
                 tags: parseUniqueCsvList(document.getElementById(prefix + 'tags')?.value || ''),
                 imageUrl: document.getElementById(prefix + 'image-url')?.value.trim() || '',
                 apiRatings,

@@ -79,16 +79,16 @@ window.EveLibrary = window.EveLibrary || {};
         const nextSourceStatus = metadata.sourceStatus
             || (Ratings?.normalizeSourceStatus ? Ratings.normalizeSourceStatus(currentEntry?.sourceStatus || '') : (currentEntry?.sourceStatus || ''));
         const existingStatus = String(currentEntry?.status || '').trim();
-        const mappedStatus = Utils.mapSourceStatusToLibraryStatus(nextSourceStatus);
+        const nextMediaTypes = Utils.inferMediaTypes(matchedSources, currentEntry?.mediaTypes);
+        const mappedStatus = Utils.mapSourceStatusToLibraryStatus(nextSourceStatus, nextMediaTypes);
         const nextStatus = existingStatus || mappedStatus || '';
         const nextRating = String(currentEntry?.rating ?? '').trim() ? String(currentEntry.rating) : '0';
-        const nextMediaTypes = Utils.inferMediaTypes(matchedSources, currentEntry?.mediaTypes);
 
         const existingUrl = String(link.url || currentEntry?.sourceUrl || '').trim();
         const isGenericSearch = existingUrl.includes('google.com/search');
         const nextSourceUrl = (!existingUrl || isGenericSearch) && metadata.sourceUrl
             ? metadata.sourceUrl
-            : normalizeUrl(existingUrl);
+            : (window.EveLinkForm?.normalizeStoredUrl ? window.EveLinkForm.normalizeStoredUrl(existingUrl) : normalizeUrl(existingUrl));
 
         const nextTags = metadata.tags.length
             ? metadata.tags
@@ -96,6 +96,9 @@ window.EveLibrary = window.EveLibrary || {};
 
         const patch = {
             title: link.title || currentEntry?.title || 'Untitled',
+            titleAltNames: metadata.titleAltNames?.length
+                ? metadata.titleAltNames
+                : (Array.isArray(currentEntry?.titleAltNames) ? currentEntry.titleAltNames : []),
             rating: nextRating,
             mediaTypes: nextMediaTypes,
             author: metadata.author || currentEntry?.author || '',

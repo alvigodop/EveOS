@@ -29,6 +29,14 @@ window.EveLinkForm = window.EveLinkForm || {};
         return ns.parseUniqueCsvList(value).join(', ');
     };
 
+    ns.normalizeStoredUrl = function (value) {
+        const raw = String(value || '').trim();
+        if (!raw) return '';
+        if (/^\/\//.test(raw)) return 'https:' + raw;
+        if (/^(?:[a-z][a-z0-9+.-]*:|#|\/|\.{1,2}\/)/i.test(raw)) return raw;
+        return 'https://' + raw;
+    };
+
     ns.mergeUniqueValues = function (existing, incoming) {
         const seen = new Set();
         const merged = [];
@@ -58,6 +66,57 @@ window.EveLinkForm = window.EveLinkForm || {};
             return ns.mergeUniqueValues([], value.map(item => String(item || '').trim()));
         }
         return ns.parseUniqueCsvList(value || '');
+    };
+
+    ns.extractSourceTitleAltNames = function (source) {
+        const values = [];
+        const pushValue = function (value) {
+            if (Array.isArray(value)) {
+                value.forEach(pushValue);
+                return;
+            }
+            if (value && typeof value === 'object') {
+                ['title', 'name', 'value', 'text', 'label'].forEach((key) => pushValue(value[key]));
+                Object.values(value).forEach((entry) => {
+                    if (typeof entry === 'string') pushValue(entry);
+                });
+                return;
+            }
+            const text = String(value || '').trim();
+            if (!text || /^https?:\/\//i.test(text)) return;
+            values.push(text);
+        };
+
+        [
+            'synonyms',
+            'altTitles',
+            'alternativeTitles',
+            'alternativeNames',
+            'aliases',
+            'titleSynonyms',
+            'titles',
+            'names',
+            'associatedTitles'
+        ].forEach((field) => pushValue(source?.[field]));
+
+        [
+            'englishTitle',
+            'nativeTitle',
+            'romajiTitle',
+            'originalTitle',
+            'titleEnglish',
+            'titleNative',
+            'titleRomaji',
+            'canonicalTitle'
+        ].forEach((field) => pushValue(source?.[field]));
+
+        const mainTitleKeys = new Set(ns.mergeUniqueValues([], [
+            source?.title,
+            source?.name
+        ]).map((item) => ns.toTrimmedLower(item)));
+
+        return ns.mergeUniqueValues([], values)
+            .filter((item) => !mainTitleKeys.has(ns.toTrimmedLower(item)));
     };
 
     ns.normalizeEntryListValue = function (value) {
@@ -140,8 +199,9 @@ window.EveLinkForm = window.EveLinkForm || {};
             ns.normalizeSourceList(source?.synonyms)
         );
         const language = ns.normalizeLanguageFromCountryCode(source?.countryOfOrigin);
-        const sourceUrl = normalizeUrl(String(source?.providerUrl || source?.url || '').trim());
-        const imageUrl = isPlaceholderImage ? '' : normalizeUrl(rawImageUrl);
+        const sourceUrl = ns.normalizeStoredUrl(String(source?.providerUrl || source?.url || '').trim());
+        const imageUrl = isPlaceholderImage ? '' : ns.normalizeStoredUrl(rawImageUrl);
+        const titleAltNames = ns.extractSourceTitleAltNames(source);
         const status = String(source?.status || '').trim();
         const ratingsApi = window.EveLibrary?.Ratings || null;
         const provider = ratingsApi?.sourceNameToProvider?.(source?.source);
@@ -163,7 +223,7 @@ window.EveLinkForm = window.EveLinkForm || {};
             apiRatings[provider] = normalizedScore;
         }
         const summary = String(source?.description || '').trim();
-        return { authors, artists, genres, tags, language, sourceUrl, imageUrl, status, sourceStatus, apiRatings, sourceSignals, summary };
+        return { authors, artists, genres, tags, titleAltNames, language, sourceUrl, imageUrl, status, sourceStatus, apiRatings, sourceSignals, summary };
     };
 
     ns.getAttachedSourceByIndex = function (index) {

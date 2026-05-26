@@ -14,13 +14,30 @@ window.EveLibrary.BulkAutoModules = window.EveLibrary.BulkAutoModules || {};
         const isPlaceholderImageUrl = base.isPlaceholderImageUrl;
         const emptyApiRatings = base.emptyApiRatings;
 
-        function mapSourceStatusToLibraryStatus(sourceStatus) {
+        function mapSourceStatusToLibraryStatus(sourceStatus, mediaTypes) {
             const normalized = String(sourceStatus || '').trim().toLowerCase();
             if (!normalized) return '';
+            const typeList = Array.isArray(mediaTypes) ? mediaTypes : [];
+            const hasFilms = typeList.includes('films');
             if (normalized === 'completed') return 'Completed';
             if (normalized === 'cancelled') return 'Dropped';
-            if (normalized === 'ongoing' || normalized === 'hiatus' || normalized === 'upcoming') return 'Reading';
+            if (normalized === 'ongoing') return hasFilms ? 'Watching' : 'Reading';
+            if (normalized === 'upcoming') return hasFilms ? 'Plan to Watch' : 'Plan to Read';
+            if (normalized === 'hiatus') return 'Hiatus';
             return '';
+        }
+
+        function extractTitleAltNames(source) {
+            const formApi = window.EveLinkForm || null;
+            if (formApi?.extractSourceTitleAltNames) {
+                return formApi.extractSourceTitleAltNames(source);
+            }
+            const primary = String(source?.title || source?.name || '').trim().toLowerCase();
+            return uniqStrings([
+                ...(Array.isArray(source?.synonyms) ? source.synonyms : []),
+                ...(Array.isArray(source?.altTitles) ? source.altTitles : []),
+                ...(Array.isArray(source?.alternativeTitles) ? source.alternativeTitles : [])
+            ]).filter(name => String(name || '').trim().toLowerCase() !== primary);
         }
 
         function inferMediaTypes(sources, fallbackTypes) {
@@ -58,6 +75,7 @@ window.EveLibrary.BulkAutoModules = window.EveLibrary.BulkAutoModules || {};
             let artists = [];
             let genres = [];
             let tags = [];
+            let titleAltNames = [];
             let language = '';
             let sourceUrl = '';
             let imageUrl = '';
@@ -72,6 +90,7 @@ window.EveLibrary.BulkAutoModules = window.EveLibrary.BulkAutoModules || {};
             (Array.isArray(sources) ? sources : []).forEach(source => {
                 authors = uniqStrings([...authors, ...splitPeopleNames(source?.author)]);
                 artists = uniqStrings([...artists, ...splitPeopleNames(source?.artist)]);
+                titleAltNames = uniqStrings([...titleAltNames, ...extractTitleAltNames(source)]);
                 genres = uniqStrings([...genres, ...(Array.isArray(source?.genres) ? source.genres : [])]);
                 tags = uniqStrings([
                     ...tags,
@@ -83,10 +102,16 @@ window.EveLibrary.BulkAutoModules = window.EveLibrary.BulkAutoModules || {};
                     language = normalizeLanguageFromCountryCode(source?.countryOfOrigin);
                 }
                 if (!sourceUrl) {
-                    sourceUrl = normalizeUrl(String(source?.providerUrl || source?.url || '').trim());
+                    const rawSourceUrl = String(source?.providerUrl || source?.url || '').trim();
+                    sourceUrl = window.EveLinkForm?.normalizeStoredUrl
+                        ? window.EveLinkForm.normalizeStoredUrl(rawSourceUrl)
+                        : normalizeUrl(rawSourceUrl);
                 }
                 if (!imageUrl) {
-                    const candidate = normalizeUrl(String(source?.coverUrl || '').trim());
+                    const rawCoverUrl = String(source?.coverUrl || '').trim();
+                    const candidate = window.EveLinkForm?.normalizeStoredUrl
+                        ? window.EveLinkForm.normalizeStoredUrl(rawCoverUrl)
+                        : normalizeUrl(rawCoverUrl);
                     if (candidate && !isPlaceholderImageUrl(candidate)) {
                         imageUrl = candidate;
                     }
@@ -133,6 +158,7 @@ window.EveLibrary.BulkAutoModules = window.EveLibrary.BulkAutoModules || {};
             return {
                 author,
                 authorAltNames,
+                titleAltNames: titleAltNames.slice(0, 32),
                 artist: artists.join(', '),
                 genre: genres.join(', '),
                 tags: tags.slice(0, 40),

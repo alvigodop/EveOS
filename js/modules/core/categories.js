@@ -209,6 +209,32 @@ function moveCategoryCardToWorkspace(sourceWorkspaceId, categoryName, targetWork
             if (targetIndex >= 0) window.EveCategoryOrder.moveCategoryToPosition(targetWs, targetCat, targetIndex + 1);
         }
 
+        var moveMutationMeta = {
+            kind: 'category-card-move',
+            workspaceId: sourceWs,
+            categoryName: sourceCat,
+            dataDelta: {
+                complete: false,
+                workspaceIds: [sourceWs, targetWs],
+                categoryNames: [sourceCat, targetCat],
+                linkIds: movedIds,
+                removedLinkIds: removedIds,
+                affectedScopes: [
+                    { workspaceId: sourceWs, categoryName: sourceCat },
+                    { workspaceId: targetWs, categoryName: targetCat }
+                ],
+                hasFolderStoreChanges: true
+            }
+        };
+        var indexApi = window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
+        if (indexApi && typeof indexApi.markDirty === 'function') {
+            indexApi.markDirty(options.source || 'category-card-move', moveMutationMeta);
+        }
+        if (window.EveFolderViewV2?.invalidateCachedViewModel) {
+            window.EveFolderViewV2.invalidateCachedViewModel(sourceWs, sourceCat);
+            window.EveFolderViewV2.invalidateCachedViewModel(targetWs, targetCat);
+        }
+
         if (typeof saveConfig === 'function') {
             saveConfig({
                 source: options.source || 'category-card-move',
@@ -231,7 +257,8 @@ function moveCategoryCardToWorkspace(sourceWorkspaceId, categoryName, targetWork
                     targetCategoryName: targetCat,
                     linkIds: movedIds,
                     mergedLinkIds: mergedIds,
-                    removedLinkIds: removedIds
+                    removedLinkIds: removedIds,
+                    dataDelta: moveMutationMeta.dataDelta
                 }
             });
         } else if (typeof renderDashboard === 'function') {
@@ -483,9 +510,17 @@ function clearFocus() {
 }
 
 async function launchCategory(catName) {
+    const seen = new Set();
     const urls = getCategoryLiveLinks()
         .filter(l => l.category === catName && !l.done && l.workspace === config.activeWorkspace)
-        .map(l => l.url);
+        .map(l => normalizeUrl(String(l.url || '').trim()))
+        .filter(function (url) {
+            if (!url) return false;
+            var key = url.toLowerCase();
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
     if (urls.length === 0) return;
 
     // Safety check for many tabs
@@ -493,5 +528,24 @@ async function launchCategory(catName) {
         if (!(await showConfirm(`Open ${urls.length} tabs?`))) return;
     }
 
-    urls.forEach(u => window.open(u, '_blank'));
+    let launched = 0;
+    urls.forEach(function (url, index) {
+        try {
+            const anchor = document.createElement('a');
+            anchor.href = url;
+            anchor.target = '_blank';
+            anchor.rel = 'noopener noreferrer';
+            anchor.style.display = 'none';
+            document.body.appendChild(anchor);
+            anchor.click();
+            anchor.remove();
+            launched++;
+        } catch (error) {
+            const opened = window.open(url, '_blank_' + Date.now() + '_' + index, 'noopener,noreferrer');
+            if (opened) launched++;
+        }
+    });
+    if (launched < urls.length && typeof showToast === 'function') {
+        showToast('Some tabs may have been blocked. Allow popups for EveOS to launch full cards.', 'warning');
+    }
 }

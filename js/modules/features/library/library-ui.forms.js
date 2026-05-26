@@ -41,6 +41,7 @@ window.EveLibrary.UIModules = window.EveLibrary.UIModules || {};
 
             [
                 'title',
+                'title-alt-names',
                 'author',
                 'author-alt-names',
                 'artist',
@@ -105,6 +106,9 @@ window.EveLibrary.UIModules = window.EveLibrary.UIModules || {};
             const authorAltNames = Array.isArray(entry?.authorAltNames)
                 ? entry.authorAltNames
                 : (entry?.authorAltNames ? String(entry.authorAltNames).split(',') : []);
+            const titleAltNames = Array.isArray(entry?.titleAltNames)
+                ? entry.titleAltNames
+                : (entry?.titleAltNames || entry?.altTitles ? String(entry?.titleAltNames || entry?.altTitles).split(',') : []);
 
             const setValue = (field, value) => {
                 const element = document.getElementById(prefix + field);
@@ -112,6 +116,7 @@ window.EveLibrary.UIModules = window.EveLibrary.UIModules || {};
             };
 
             setValue('title', entry?.title || '');
+            setValue('title-alt-names', normalizeListForInput(titleAltNames));
             setValue('author', entry?.author || '');
             setValue('author-alt-names', normalizeListForInput(authorAltNames));
             setValue('artist', normalizeListForInput(entry?.artist));

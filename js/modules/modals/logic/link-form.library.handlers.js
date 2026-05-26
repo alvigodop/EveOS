@@ -205,7 +205,9 @@ window.EveLinkForm = window.EveLinkForm || {};
             }
             patch.chapter = patch.graphicChapter || patch.novelChapter || 0;
             patch.title = title;
-            if (!patch.sourceUrl && url) patch.sourceUrl = normalizeUrl(url);
+            if (!patch.sourceUrl && url) {
+                patch.sourceUrl = ns.normalizeStoredUrl ? ns.normalizeStoredUrl(url) : normalizeUrl(url);
+            }
             patch.image = ns.normalizeLibraryImageUrl(document.getElementById('newCoverImage')?.value || patch.image || '');
             api.updateLinkedEntry?.(linkId, patch);
         };

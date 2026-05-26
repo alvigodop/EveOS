@@ -34,6 +34,7 @@ window.EveLinkForm = window.EveLinkForm || {};
 
         const authorInput = document.getElementById('libAuthor');
         const altAuthorsInput = document.getElementById('libAuthorAltNames');
+        const altTitlesInput = document.getElementById('libTitleAltNames');
         const existingAuthor = String(authorInput?.value || '').trim();
         let primaryAuthor = existingAuthor;
         if (!primaryAuthor && meta.authors.length > 0) {
@@ -49,6 +50,14 @@ window.EveLinkForm = window.EveLinkForm || {};
         if (altAuthorsInput) altAuthorsInput.value = nextAltAuthors.join(', ');
         updates.author = primaryAuthor;
         updates.authorAltNames = nextAltAuthors;
+
+        const titleInput = document.getElementById('newTitle');
+        const titleKey = ns.toTrimmedLower(titleInput?.value || linkedEntry?.title || '');
+        const existingAltTitles = ns.parseUniqueCsvList(altTitlesInput?.value || '');
+        const mergedAltTitles = ns.mergeUniqueValues(existingAltTitles, meta.titleAltNames || [])
+            .filter(name => ns.toTrimmedLower(name) !== titleKey);
+        if (altTitlesInput) altTitlesInput.value = mergedAltTitles.join(', ');
+        updates.titleAltNames = mergedAltTitles;
 
         const artistInput = document.getElementById('libArtist');
         const existingArtists = ns.parseUniqueCsvList(artistInput?.value || '');
@@ -185,6 +194,7 @@ window.EveLinkForm = window.EveLinkForm || {};
         if (addedNotes > 0) summaryBits.push(`${addedNotes} new note segment${addedNotes !== 1 ? 's' : ''}`);
         if (meta.tags.length) summaryBits.push(`${meta.tags.length} tags`);
         if (meta.genres.length) summaryBits.push(`${meta.genres.length} genres`);
+        if (meta.titleAltNames?.length) summaryBits.push(`${meta.titleAltNames.length} alternate titles`);
         if (meta.authors.length) summaryBits.push(`${meta.authors.length} authors`);
         if (meta.artists.length) summaryBits.push(`${meta.artists.length} artists`);
         if (derived?.apiAverage10 !== null) summaryBits.push(`API avg ${ns.formatRating(derived.apiAverage10)}`);

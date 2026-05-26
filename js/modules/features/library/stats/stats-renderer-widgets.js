@@ -49,7 +49,12 @@ window.EveLibrary = window.EveLibrary || {};
                 ? `${item?.unitLabel || 'Ch.'} ${currentUnits} / ${totalUnits}`
                 : `${item?.unitLabel || 'Ch.'} ${currentUnits} / ?`;
             const percent = Math.max(0, Math.min(100, Number(item?.percent) || 0));
-            const safeImage = String(item?.image || '').trim();
+            const safeImage = String(
+                window.EveBookmarkCovers?.getDisplayCoverForLibraryEntry?.(categoryName, item)
+                || item?.image
+                || item?.imageUrl
+                || ''
+            ).trim();
             const image = safeImage || placeholder;
             const unitWord = (item?.unitLabel || 'Ch.') === 'Ep.' ? 'Episode' : 'Chapter';
             const encodedId = encodeURIComponent(String(item?.id || ''));

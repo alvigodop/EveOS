@@ -56,8 +56,13 @@ window.EveLibrary.SearchModules = window.EveLibrary.SearchModules || {};
                 ...toArray(entry.authorAltNames),
                 ...parseUniqueCsvList(entry.artist)
             ].map(value => String(value || '').toLowerCase());
+            const searchableTitleFields = [
+                entry.title,
+                ...toArray(entry.titleAltNames),
+                ...toArray(entry.altTitles)
+            ].map(value => String(value || '').toLowerCase());
 
-            if (titleFilter && !String(entry.title || '').toLowerCase().includes(titleFilter)) return false;
+            if (titleFilter && !searchableTitleFields.some(value => value.includes(titleFilter))) return false;
             if (authorFilter && !searchableAuthorFields.some(value => value.includes(authorFilter))) return false;
             if (genreFilter && !entryGenres.includes(String(genreFilter).toLowerCase())) return false;
             if (ratingFilter && entry.rating?.toString() !== ratingFilter) return false;

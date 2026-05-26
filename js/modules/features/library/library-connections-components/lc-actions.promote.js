@@ -41,6 +41,7 @@ window.EveLibrary.ConnectionsCoreModules = window.EveLibrary.ConnectionsCoreModu
             const newEntry = {
                 id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
                 title: safeData.title || link.title || 'Untitled',
+                titleAltNames: Array.isArray(safeData.titleAltNames) ? safeData.titleAltNames.slice() : [],
                 mediaTypes: safeData.mediaTypes || ['graphicNovels'],
                 author: '',
                 authorAltNames: [],

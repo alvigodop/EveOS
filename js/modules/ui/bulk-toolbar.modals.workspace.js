@@ -447,8 +447,6 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
             });
 
             const folderApi = window.EveBookmarkFolders;
-            const selectedIdSet = getSelectedIds();
-            const normFolder = (value) => String(value || '').trim();
             sourceScopes.forEach(scope => {
                 const sWs = scope.workspaceId;
                 const sCat = scope.categoryName;
@@ -458,37 +456,12 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
                 const selectedLinksInSource = selectedLinks.filter(l => l.workspace === sWs && (l.category || 'Unsorted') === sCat);
                 const isWholeCardMove = allLinksInSource.length > 0 && selectedLinksInSource.length === allLinksInSource.length;
 
-                if (typeof folderApi?.transferCategoryFolders === 'function') {
-                    // Always ensure target has the folder structure.
-                    // If it's a partial move, we keep it in source too (mergeOnly: true).
-                    // Skip cloning when the user explicitly picked a destination folder —
-                    // bookmarks land in that folder and we don't want to replicate the
-                    // source's folder hierarchy on top of it.
+                if (isWholeCardMove && typeof folderApi?.transferCategoryFolders === 'function') {
+                    // Whole-card moves carry folder structure; partial bookmark moves must not.
                     if (!targetFolderId) {
                         folderApi.transferCategoryFolders(sWs, sCat, targetWorkspaceId, targetCategoryName, {
-                            mergeOnly: !isWholeCardMove
+                            mergeOnly: false
                         });
-                    }
-                }
-
-                // For partial-card moves where individual folders are *fully* covered by the
-                // selection, the mergeOnly clone above leaves an empty copy of those folders in
-                // the source. Remove them now so the source card doesn't keep ghost folders.
-                if (!isWholeCardMove && typeof folderApi?.removeFolderNodesById === 'function') {
-                    const folderIdsInSelection = new Set();
-                    selectedLinksInSource.forEach((link) => {
-                        const fid = normFolder(link.folderId);
-                        if (fid) folderIdsInSelection.add(fid);
-                    });
-                    const fullyCovered = [];
-                    folderIdsInSelection.forEach((fid) => {
-                        const allInFolder = allLinksInSource.filter((link) => normFolder(link.folderId) === fid);
-                        if (!allInFolder.length) return;
-                        const allCovered = allInFolder.every((link) => selectedIdSet.has(toBulkId(link.id)));
-                        if (allCovered) fullyCovered.push(fid);
-                    });
-                    if (fullyCovered.length) {
-                        folderApi.removeFolderNodesById(sWs, sCat, fullyCovered, { persist: false });
                     }
                 }
             });

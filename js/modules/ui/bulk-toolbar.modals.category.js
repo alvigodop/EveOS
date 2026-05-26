@@ -222,52 +222,13 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
             const allLinks = getLinks();
             const selectedIdSet = getSelectedIds();
             const selectedLinkIds = Array.from(selectedIdSet).map(toBulkId);
-            const selectedLinks = allLinks.filter((link) => selectedIdSet.has(toBulkId(link?.id)));
 
             const normWs = (value) => String(value || 'main').trim() || 'main';
             const normCat = (value) => String(value || 'Unsorted').trim() || 'Unsorted';
             const normFolder = (value) => String(value || '').trim();
 
-            // 1) Per source scope, transfer folders that are fully covered by the selection.
-            //    transferFolderToCategory moves the folder + descendants + their links atomically,
-            //    so the per-link loop below will see them as already-at-target and skip.
-            //    The user-picked target folder becomes the targetParentId, so a fully-evacuated
-            //    folder lands as a child of the chosen folder.
-            const sourceScopes = new Map();
-            selectedLinks.forEach((link) => {
-                const sWs = normWs(link.workspace);
-                const sCat = normCat(link.category);
-                sourceScopes.set(sWs + '::' + sCat, { workspaceId: sWs, categoryName: sCat });
-            });
-
-            sourceScopes.forEach((scope) => {
-                const sWs = scope.workspaceId;
-                const sCat = scope.categoryName;
-                const tWs = sWs; // card-move keeps the workspace
-                const tCat = categoryName;
-                if (sWs === tWs && sCat === tCat) return;
-                if (typeof folderApi?.transferFolderToCategory !== 'function') return;
-
-                const folderIdsInSelection = new Set();
-                selectedLinks.forEach((link) => {
-                    if (normWs(link.workspace) !== sWs || normCat(link.category) !== sCat) return;
-                    const fid = normFolder(link.folderId);
-                    if (fid) folderIdsInSelection.add(fid);
-                });
-                if (!folderIdsInSelection.size) return;
-
-                folderIdsInSelection.forEach((fid) => {
-                    const allInFolder = allLinks.filter((link) => (
-                        normWs(link.workspace) === sWs
-                        && normCat(link.category) === sCat
-                        && normFolder(link.folderId) === fid
-                    ));
-                    if (!allInFolder.length) return;
-                    const allCovered = allInFolder.every((link) => selectedIdSet.has(toBulkId(link.id)));
-                    if (!allCovered) return;
-                    folderApi.transferFolderToCategory(fid, sWs, sCat, tWs, tCat, targetFolderId);
-                });
-            });
+            // Bookmark moves should not implicitly drag source-card folder trees.
+            // Whole-folder moves are handled by folder-specific drag/drop flows.
 
             const movedLinkIds = [];
             const mergedLinkIds = [];

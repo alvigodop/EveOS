@@ -247,18 +247,18 @@
             markDomainFailure(domain);
         }
 
-        if (image.dataset.fallbackApplied === '1') {
-            const fallbackNode = createFallbackNode(image);
-            image.replaceWith(fallbackNode);
-            return false;
-        }
-
-        image.dataset.fallbackApplied = '1';
-
         if (fallbackSrc) {
+            if (image.dataset.fallbackApplied === '1') {
+                image.onerror = null;
+                image.style.display = '';
+                if (image.src !== fallbackSrc) image.src = fallbackSrc;
+                return true;
+            }
+            image.dataset.fallbackApplied = '1';
             image.onerror = function () {
-                const fallbackNode = createFallbackNode(image);
-                image.replaceWith(fallbackNode);
+                image.onerror = null;
+                image.style.display = '';
+                if (image.src !== fallbackSrc) image.src = fallbackSrc;
             };
             image.src = fallbackSrc;
             return true;

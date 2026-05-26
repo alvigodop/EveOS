@@ -15,7 +15,9 @@ window.EveLinkForm = window.EveLinkForm || {};
     function normalizeRelatedUrl(urlValue) {
         const value = String(urlValue || '').trim();
         if (!value) return '';
-        return typeof normalizeUrl === 'function' ? normalizeUrl(value) : value;
+        return ns.normalizeStoredUrl
+            ? ns.normalizeStoredUrl(value)
+            : (typeof normalizeUrl === 'function' ? normalizeUrl(value) : value);
     }
 
     function makeRelatedUrlId() {

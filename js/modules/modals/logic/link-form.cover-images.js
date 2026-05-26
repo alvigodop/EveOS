@@ -18,7 +18,7 @@ window.EveLinkForm = window.EveLinkForm || {};
         const value = String(urlValue || '').trim();
         if (!value) return '';
         if (/^(?:https?:\/\/|file:\/\/|data:|blob:)/i.test(value)) return value;
-        return normalizeUrl(value);
+        return ns.normalizeStoredUrl ? ns.normalizeStoredUrl(value) : normalizeUrl(value);
     }
 
     function parseCoverImagesValue(rawValue, primaryCoverImage) {

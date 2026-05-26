@@ -6,7 +6,7 @@ window.EveLinkForm = window.EveLinkForm || {};
             const raw = String(value || '').trim();
             if (!raw) return '';
             if (/^(?:https?:\/\/|file:\/\/|data:|blob:)/i.test(raw)) return raw;
-            return normalizeUrl(raw);
+            return ns.normalizeStoredUrl ? ns.normalizeStoredUrl(raw) : normalizeUrl(raw);
         };
 
         ns.readLibraryFormPatch = function () {
@@ -18,6 +18,9 @@ window.EveLinkForm = window.EveLinkForm || {};
             const author = document.getElementById('libAuthor')?.value.trim() || '';
             const authorAltNames = ns.parseUniqueCsvList(document.getElementById('libAuthorAltNames')?.value || '')
                 .filter(name => name.toLowerCase() !== author.toLowerCase());
+            const bookmarkTitle = document.getElementById('newTitle')?.value.trim() || '';
+            const titleAltNames = ns.parseUniqueCsvList(document.getElementById('libTitleAltNames')?.value || '')
+                .filter(name => name.toLowerCase() !== bookmarkTitle.toLowerCase());
 
             const mediaTypes = [];
             if (document.getElementById('libTypeGraphic')?.checked) mediaTypes.push('graphicNovels');
@@ -31,6 +34,7 @@ window.EveLinkForm = window.EveLinkForm || {};
             return {
                 author,
                 authorAltNames,
+                titleAltNames,
                 artist: ns.normalizeCommaSeparatedValue(document.getElementById('libArtist')?.value || ''),
                 genre: ns.normalizeCommaSeparatedValue(document.getElementById('libGenre')?.value || ''),
                 status: document.getElementById('libStatus')?.value || '',
@@ -40,7 +44,9 @@ window.EveLinkForm = window.EveLinkForm || {};
                 season: toInt('libSeason'),
                 episode: toInt('libEpisode'),
                 language: document.getElementById('libLanguage')?.value.trim() || '',
-                sourceUrl: normalizeUrl(document.getElementById('libSourceUrl')?.value.trim() || ''),
+                sourceUrl: ns.normalizeStoredUrl
+                    ? ns.normalizeStoredUrl(document.getElementById('libSourceUrl')?.value.trim() || '')
+                    : normalizeUrl(document.getElementById('libSourceUrl')?.value.trim() || ''),
                 image: resolvedImage,
                 tags: ns.parseUniqueCsvList(document.getElementById('libTags')?.value || ''),
                 summary: document.getElementById('libSummary')?.value.trim() || '',
@@ -107,6 +113,8 @@ window.EveLinkForm = window.EveLinkForm || {};
             });
             document.getElementById('libAuthor').value = entry?.author || '';
             document.getElementById('libAuthorAltNames').value = ns.normalizeEntryListValue(entry?.authorAltNames);
+            const titleAltInput = document.getElementById('libTitleAltNames');
+            if (titleAltInput) titleAltInput.value = ns.normalizeEntryListValue(entry?.titleAltNames || entry?.altTitles);
             document.getElementById('libArtist').value = ns.normalizeEntryListValue(entry?.artist);
             document.getElementById('libGenre').value = ns.normalizeEntryListValue(entry?.genre);
             document.getElementById('libStatus').value = entry?.status || '';

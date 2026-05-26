@@ -96,6 +96,7 @@ window.EveBookmarkFocus = window.EveBookmarkFocus || {};
         const sources = Array.isArray(link?.sources) ? link.sources : [];
 
         let authors = mergeUnique(normalizeList(entry?.author ? [entry.author] : []), normalizeList(entry?.authorAltNames));
+        let titleAltNames = normalizeList(entry?.titleAltNames || entry?.altTitles);
         let artists = normalizeList(entry?.artist);
         let genres = normalizeList(entry?.genre);
         let tags = normalizeList(entry?.tags);
@@ -112,6 +113,7 @@ window.EveBookmarkFocus = window.EveBookmarkFocus || {};
             if (!metadata) return;
 
             authors = mergeUnique(authors, normalizeList(metadata.authors));
+            titleAltNames = mergeUnique(titleAltNames, normalizeList(metadata.titleAltNames));
             artists = mergeUnique(artists, normalizeList(metadata.artists));
             genres = mergeUnique(genres, normalizeList(metadata.genres));
             tags = mergeUnique(tags, normalizeList(metadata.tags));
@@ -142,11 +144,14 @@ window.EveBookmarkFocus = window.EveBookmarkFocus || {};
         const patch = {
             author,
             authorAltNames,
+            titleAltNames,
             artist: artists.join(', '),
             genre: genres.join(', '),
             tags,
             language,
-            sourceUrl: sourceUrl || normalizeUrl(String(link?.url || '').trim()),
+            sourceUrl: sourceUrl || (window.EveLinkForm?.normalizeStoredUrl
+                ? window.EveLinkForm.normalizeStoredUrl(String(link?.url || '').trim())
+                : normalizeUrl(String(link?.url || '').trim())),
             image,
             apiRatings
         };
