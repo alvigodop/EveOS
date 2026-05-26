@@ -5,6 +5,7 @@
     const IDB_KEY = 'eveFaviconCache';
     const TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
     const FAVICON_PROVIDER_BASE = 'https://icons.duckduckgo.com/ip3';
+    const GOOGLE_FAVICON_PROVIDER_BASE = 'https://www.google.com/s2/favicons';
     const MAX_MEMORY = 500; // In-memory LRU cap
     const RENDER_MISS_FETCH_BUDGET = 80;
     const QUEUED_FETCH_BATCH = 3;
@@ -142,7 +143,10 @@
     }
 
     function isSupportedRemoteIconUrl(value) {
-        return String(value || '').toLowerCase().includes('icons.duckduckgo.com/ip3/');
+        const text = String(value || '').toLowerCase();
+        return text.includes('icons.duckduckgo.com/ip3/')
+            || text.includes('google.com/s2/favicons')
+            || text.includes('gstatic.com/faviconv2');
     }
 
     function isUsableCachedIcon(value) {
@@ -232,8 +236,10 @@
             images.forEach(function (image) {
                 const imageDomain = normalizeDomain(image.dataset?.faviconDomain || '');
                 const nextSrc = updates.get(imageDomain);
-                if (!nextSrc || image.src === nextSrc) return;
+                if (!nextSrc) return;
                 image.dataset.fallbackApplied = '';
+                image.style.display = '';
+                if (image.src === nextSrc) return;
                 image.src = nextSrc;
             });
         }, 220);
@@ -280,9 +286,8 @@
         return true;
     }
 
-    function fetchFaviconDataUri(domain, size) {
+    function loadIconUrlAsDataUri(url, size) {
         const sz = size || 32;
-        const url = buildRemoteUrl(domain, sz);
 
         return new Promise(function (resolve) {
             const img = new Image();
@@ -311,10 +316,27 @@
         });
     }
 
-    function buildRemoteUrl(domain, size) {
+    async function fetchFaviconDataUri(domain, size) {
+        const urls = buildRemoteUrls(domain, size || 32);
+        for (let i = 0; i < urls.length; i += 1) {
+            const dataUri = await loadIconUrlAsDataUri(urls[i], size || 32);
+            if (dataUri) return dataUri;
+        }
+        return '';
+    }
+
+    function buildRemoteUrls(domain, size) {
         const key = normalizeDomain(domain);
-        if (!key) return '';
-        return `${FAVICON_PROVIDER_BASE}/${encodeURIComponent(key)}.ico`;
+        const sz = size || 32;
+        if (!key) return [];
+        return [
+            `${FAVICON_PROVIDER_BASE}/${encodeURIComponent(key)}.ico`,
+            `${GOOGLE_FAVICON_PROVIDER_BASE}?domain=${encodeURIComponent(key)}&sz=${encodeURIComponent(String(sz))}`
+        ];
+    }
+
+    function buildRemoteUrl(domain, size) {
+        return buildRemoteUrls(domain, size || 32)[0] || '';
     }
 
     // ── Public API ──
@@ -455,19 +477,31 @@
         images.forEach(function (image) {
             const key = normalizeDomain(image.dataset?.faviconDomain || '');
             if (!key) return;
+            const size = Number(image.dataset?.faviconSize || image.width || image.height || 32) || 32;
+            const fallbackSrc = String(image.dataset?.fallbackSrc || '').trim() || getFallbackSrc(key, size);
+            const src = String(image.currentSrc || image.src || '').trim();
+            const imageHidden = image.style.display === 'none';
+            const imageBroken = image.complete && image.naturalWidth === 0 && image.naturalHeight === 0;
+            image.style.display = '';
             const cached = getCachedIcon(key);
             if (cached) {
                 image.dataset.fallbackApplied = '';
-                image.style.display = '';
                 if (image.src !== cached) {
                     image.src = cached;
                     updated += 1;
                 }
                 return;
             }
+            if (fallbackSrc && (imageHidden || imageBroken || !src)) {
+                image.dataset.fallbackApplied = '1';
+                if (image.src !== fallbackSrc) {
+                    image.src = fallbackSrc;
+                    updated += 1;
+                }
+            }
             if (queued >= maxFetch || seenMisses.has(key)) return;
             seenMisses.add(key);
-            if (queueFetch(key, Number(image.dataset?.faviconSize || 32) || 32, 'refresh-rendered')) {
+            if (queueFetch(key, size, 'refresh-rendered')) {
                 queued += 1;
             }
         });
@@ -559,6 +593,19 @@
         };
     }
 
+    function handleImageError(image) {
+        if (!image) return false;
+        const key = normalizeDomain(image.dataset?.faviconDomain || image.dataset?.domain || '');
+        const size = Number(image.dataset?.faviconSize || image.width || image.height || 32) || 32;
+        const fallbackSrc = String(image.dataset?.fallbackSrc || '').trim() || getFallbackSrc(key, size);
+        image.style.display = '';
+        if (!fallbackSrc) return false;
+        image.dataset.fallbackApplied = '1';
+        image.onerror = null;
+        if (image.src !== fallbackSrc) image.src = fallbackSrc;
+        return true;
+    }
+
     // Boot: start loading disk cache early
     loadDiskCache();
 
@@ -582,7 +629,8 @@
             getFallbackSrc,
             buildPlaceholderSrc: getPlaceholderFavicon,
             buildRemoteUrl,
-            isLocalContext
+            isLocalContext,
+            handleImageError
         };
     }
 })();

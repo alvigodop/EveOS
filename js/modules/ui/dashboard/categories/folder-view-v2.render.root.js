@@ -104,12 +104,23 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                         const jsLinkIdLiteral = `'${String(item.link.id || '').replace(/'/g, "\\'")}'`;
                         const hoverHandlers = `onmouseenter="if(typeof showBookmarkCoverHover==='function') showBookmarkCoverHover(event, ${jsLinkIdLiteral})" onmousemove="if(typeof moveBookmarkCoverHover==='function') moveBookmarkCoverHover(event)" onmouseleave="if(typeof hideBookmarkCoverHover==='function') hideBookmarkCoverHover()"`;
                         const clickHandlers = `onclick="event.stopPropagation(); return (typeof openBookmarkFromDashboard==='function') ? openBookmarkFromDashboard(event, ${jsLinkIdLiteral}) : true;" oncontextmenu="event.stopPropagation(); if(typeof showLinkContextMenu==='function') showLinkContextMenu(event, ${jsLinkIdLiteral})"`;
-                        let faviconUrl = '';
-                        try { faviconUrl = new URL(item.link.url).origin + '/favicon.ico'; } catch(e) {}
-                        const googleFavicon = faviconUrl ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(new URL(item.link.url).hostname)}&sz=64` : '';
+                        const faviconUtils = window.EveFaviconUtils || null;
+                        const faviconDomain = faviconUtils && typeof faviconUtils.getDomainFromUrl === 'function'
+                            ? faviconUtils.getDomainFromUrl(item.link.url)
+                            : '';
+                        const faviconSrc = faviconDomain && faviconUtils && typeof faviconUtils.getBestEffortSrc === 'function'
+                            ? faviconUtils.getBestEffortSrc(faviconDomain, 32)
+                            : '';
+                        const faviconFallbackSrc = faviconDomain && faviconUtils && typeof faviconUtils.getFallbackSrc === 'function'
+                            ? faviconUtils.getFallbackSrc(faviconDomain, 32)
+                            : '';
+                        const faviconAttrs = faviconDomain
+                            ? ` data-favicon-domain="${escapeCardHtml(faviconDomain)}" data-favicon-size="32"${faviconFallbackSrc ? ` data-fallback-src="${escapeCardHtml(faviconFallbackSrc)}"` : ''}`
+                            : '';
+                        const faviconOnError = "if(window.EveFaviconUtils&&typeof window.EveFaviconUtils.handleImageError==='function'){window.EveFaviconUtils.handleImageError(this);return;}this.style.display='';";
                         const visualHtml = item.coverUrl
                             ? `<img class="hatch-bookmark-image" src="${escapeCardHtml(item.coverUrl)}" alt="" loading="lazy">`
-                            : `<div class="hatch-bookmark-icon-fallback"><img src="${escapeCardHtml(googleFavicon)}" alt="" class="hatch-favicon" onerror="this.style.display='none'"></div>`;
+                            : `<div class="hatch-bookmark-icon-fallback"><img src="${escapeCardHtml(faviconSrc || faviconFallbackSrc)}" alt="" class="hatch-favicon"${faviconAttrs} loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="${faviconOnError}"></div>`;
                         return `<a href="${escapeCardHtml(item.link.url)}" class="hatch-bookmark-slide ${animationClass}" ${hoverHandlers} ${clickHandlers} style="cursor: pointer; display: block; text-decoration: none;">
                             ${visualHtml}
                             <div class="hatch-bookmark-title">${escapeCardHtml(title)}</div>

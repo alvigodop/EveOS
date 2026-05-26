@@ -133,7 +133,7 @@ window.EveLinkForm = window.EveLinkForm || {};
         const fallbackAttr = fallback ? ' data-fallback-src="' + escapeHtml(fallback) + '"' : '';
         return '<img src="' + escapeHtml(src) + '" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer"'
             + ' data-favicon-domain="' + escapeHtml(domain) + '" data-favicon-size="16"' + fallbackAttr
-            + ' onerror="if(window.EveFaviconUtils&&typeof window.EveFaviconUtils.handleImageError===\'function\'){window.EveFaviconUtils.handleImageError(this);return;}this.style.display=\'none\';">';
+            + ' onerror="if(window.EveFaviconUtils&&typeof window.EveFaviconUtils.handleImageError===\'function\'){window.EveFaviconUtils.handleImageError(this);return;}this.style.display=\'\';">';
     }
 
     function resetRelatedUrlCandidateEditor() {

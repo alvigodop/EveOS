@@ -233,6 +233,7 @@
 
     function handleImageError(image) {
         if (!image) return false;
+        image.style.display = '';
 
         const domain = normalizeDomain(
             image.dataset?.faviconDomain
