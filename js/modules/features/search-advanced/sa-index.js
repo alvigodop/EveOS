@@ -56,7 +56,8 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         'categoryOrderByWorkspace',
         'hideStats',
         'smartCardWeights',
-        'bookmarkIdentifiers'
+        'bookmarkIdentifiers',
+        'smartViews'
     ]);
 
     const persistenceRuntime = persistenceFactory.create({

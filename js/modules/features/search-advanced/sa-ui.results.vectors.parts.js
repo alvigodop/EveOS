@@ -261,6 +261,10 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
 
     function renderActions(item, resultId) {
         const actions = [];
+        if (item?.type === 'smartView') {
+            actions.push('<button type="button" class="nx-action-btn nx-action-btn-primary" data-nx-action="open-smart-view" data-nx-id="' + escapeHtml(resultId) + '">Open Smart View</button>');
+            actions.push('<button type="button" class="nx-action-btn" data-nx-action="provenance" data-nx-id="' + escapeHtml(resultId) + '">Inspect Criteria</button>');
+        }
         if (item?.url) {
             actions.push('<button type="button" class="nx-action-btn" data-nx-action="newtab" data-nx-id="' + escapeHtml(resultId) + '">Open</button>');
         }
@@ -284,7 +288,7 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
             const label = item?.visibility?.state === 'visible' ? 'Visibility' : 'Why Not Visible?';
             actions.push('<button type="button" class="nx-action-btn" data-nx-action="visibility" data-nx-id="' + escapeHtml(resultId) + '">' + escapeHtml(label) + '</button>');
         }
-        if (item?.provenance) {
+        if (item?.provenance && item?.type !== 'smartView') {
             actions.push('<button type="button" class="nx-action-btn" data-nx-action="provenance" data-nx-id="' + escapeHtml(resultId) + '">Inspect Provenance</button>');
         }
         return actions.length ? '<div class="nx-result-actions">' + actions.join('') + '</div>' : '';

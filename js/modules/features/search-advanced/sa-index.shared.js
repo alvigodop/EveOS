@@ -9,8 +9,8 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     const STORAGE_KEY = 'eve.nexusIndex.v2';
     const STORAGE_MANAGER_KEY = 'nexusIndexV2';
     const SNAPSHOT_MAX_AGE_MS = 15 * 60 * 1000;
-    const LOCAL_TYPES = new Set(['bookmark', 'card', 'folder', 'library', 'knowledge', 'cached']);
-    const INCREMENTAL_LOCAL_RECORD_TYPES = new Set(['bookmark', 'card', 'folder', 'library']);
+    const LOCAL_TYPES = new Set(['bookmark', 'card', 'folder', 'smartView', 'library', 'knowledge', 'cached']);
+    const INCREMENTAL_LOCAL_RECORD_TYPES = new Set(['bookmark', 'card', 'folder', 'smartView', 'library']);
     const SEARCH_STORAGE_KEYS = new Set(['wikiEntries', 'fandomDomains', 'wikiCacheStore', 'wikiDataStore', 'fandomCacheIndex', 'wikiCategories']);
 
     const state = {
@@ -285,6 +285,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             sidebarManualOrder: cfg.sidebarManualOrder || {},
             categoryOrder: cfg.categoryOrder || [],
             categoryOrderByWorkspace: cfg.categoryOrderByWorkspace || {},
+            smartViews: cfg.smartViews || {},
             showHiddenSidebarGroups: !!cfg.showHiddenSidebarGroups,
             showInactiveTabs: !!cfg.showInactiveTabs
         };

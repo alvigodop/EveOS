@@ -10,6 +10,7 @@ window.EveLinkForm = window.EveLinkForm || {};
         };
 
         ns.readLibraryFormPatch = function () {
+            window.EveLibraryNotesSections?.syncLibraryRawNotesFromHuman?.();
             const toInt = function (id) {
                 const raw = document.getElementById(id)?.value;
                 const parsed = parseInt(raw, 10);
@@ -137,6 +138,7 @@ window.EveLinkForm = window.EveLinkForm || {};
             ns.writeApiRatingsToInputs(entry?.apiRatings || null);
             const summaryValue = entry?.summary || '';
             document.getElementById('libSummary').value = ns.isAutoSourceSummary(summaryValue) ? '' : summaryValue;
+            window.EveLibraryNotesSections?.syncLibraryNotesUiFromRaw?.();
             const addedMeta = document.getElementById('libDateAddedMeta');
             const editedMeta = document.getElementById('libLastEditedMeta');
             if (addedMeta) addedMeta.textContent = `Added: ${ns.formatLibraryTimestamp(entry?.dateAdded)}`;

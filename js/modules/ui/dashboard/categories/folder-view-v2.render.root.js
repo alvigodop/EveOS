@@ -12,6 +12,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         const toolbarHtml = ''
             + `<div class="bookmark-folder-toolbar${toolbarExpanded ? ' is-visible' : ''}">`
             + `<button type="button" class="bookmark-folder-toolbar-btn" onclick="promptCreateBookmarkFolder('${escapeCardJs(categoryName)}', '', '${escapeCardJs(workspaceId)}')">New Folder</button>`
+            + `<button type="button" class="bookmark-folder-toolbar-btn" onclick="if(window.promptCreateSmartView)window.promptCreateSmartView('${escapeCardJs(categoryName)}', '${escapeCardJs(workspaceId)}')">New Smart View</button>`
             + `<button type="button" class="bookmark-folder-toolbar-btn" onclick="openBookmarkFolders('${escapeCardJs(categoryName)}')">Manage Folders</button>`
             + '</div>';
 
@@ -65,9 +66,18 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                 const statsLabel = isGhost
                     ? (childCount > 0 ? `${matchCount} matches | ${childCount} views` : `${matchCount} matches`)
                     : (childCount > 0 ? `${matchCount} items | ${childCount} folders` : `${matchCount} items`);
+                const ghostWhy = isGhost
+                    ? String(folder._smartViewWhy || folder._ghostFilterChain?.map?.((item) => item.label).filter(Boolean).join(' > ') || '').trim()
+                    : '';
+                const hoverMeta = isGhost && ghostWhy
+                    ? `${statsLabel} | Why included: ${ghostWhy}`
+                    : statsLabel;
                 const contextMenuAttr = isGhost ? '' : `oncontextmenu="if(typeof window.showFolderContextMenu === 'function') window.showFolderContextMenu(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(folder.id)}', '${escapeCardJs(workspaceId)}');"`;
+                const deleteSmartViewButton = isGhost && folder._smartViewUserId
+                    ? `<button type="button" class="folder-tile-edit-btn" title="Delete Smart View" onclick="window.deleteSmartViewFromTile?.(event, '${escapeCardJs(workspaceId)}', '${escapeCardJs(categoryName)}', '${escapeCardJs(folder._smartViewUserId)}', '${escapeCardJs(folder.name)}');">&#128465;</button>`
+                    : '';
                 const editButtonHtml = isGhost
-                    ? `<div class="folder-tile-action-buttons"><button type="button" class="folder-tile-edit-btn bulk-scope-btn" data-scope-category="${escapeCardHtml(categoryName)}" data-scope-workspace="${escapeCardHtml(workspaceId)}" data-scope-folder-id="${escapeCardHtml(folder.id)}" title="Select Matching Bookmarks" onclick="event.preventDefault(); event.stopPropagation(); bulkToggleFolderScopeSelection('${escapeCardJs(categoryName)}', '${escapeCardJs(workspaceId)}', '${escapeCardJs(folder.id)}');">&#9744;</button></div>`
+                    ? `<div class="folder-tile-action-buttons"><button type="button" class="folder-tile-edit-btn bulk-scope-btn" data-scope-category="${escapeCardHtml(categoryName)}" data-scope-workspace="${escapeCardHtml(workspaceId)}" data-scope-folder-id="${escapeCardHtml(folder.id)}" title="Select Matching Bookmarks" onclick="event.preventDefault(); event.stopPropagation(); bulkToggleFolderScopeSelection('${escapeCardJs(categoryName)}', '${escapeCardJs(workspaceId)}', '${escapeCardJs(folder.id)}');">&#9744;</button>${deleteSmartViewButton}</div>`
                     : `<div class="folder-tile-action-buttons"><button type="button" class="folder-tile-edit-btn bulk-scope-btn" data-scope-category="${escapeCardHtml(categoryName)}" data-scope-workspace="${escapeCardHtml(workspaceId)}" data-scope-folder-id="${escapeCardHtml(folder.id)}" title="Select Folder Subtree" onclick="event.preventDefault(); event.stopPropagation(); bulkToggleFolderScopeSelection('${escapeCardJs(categoryName)}', '${escapeCardJs(workspaceId)}', '${escapeCardJs(folder.id)}');">&#9744;</button><button type="button" class="folder-tile-edit-btn" title="Edit Folder" onclick="event.preventDefault(); event.stopPropagation(); if(typeof window.showFolderContextMenu === 'function') window.showFolderContextMenu(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(folder.id)}', '${escapeCardJs(workspaceId)}');">&#9998;</button></div>`;
                 // Get subfolders for the hatch
                 const subFolders = viewModel.childrenMap.get(folder.id) || [];
@@ -146,7 +156,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                         <div class="folder-tile-left-bar"></div>
                         <div class="folder-icon-box"><svg width="14" height="14" viewBox="0 0 14 14" style="overflow: visible;"><rect x="0" y="3" width="14" height="10" rx="0" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.6" /><path d="M0,3 L4,3 L5.5,1 L9,1 L9,3" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.6" /></svg></div>
                         <div class="folder-tile-content">
-                            <div class="folder-tile-title" data-folder-hover-label="${escapeCardHtml(folder.name)}" data-folder-hover-meta="${escapeCardHtml(statsLabel)}">${escapeCardHtml(folder.name)}</div>
+                            <div class="folder-tile-title" data-folder-hover-label="${escapeCardHtml(folder.name)}" data-folder-hover-meta="${escapeCardHtml(hoverMeta)}" title="${escapeCardHtml(hoverMeta)}">${escapeCardHtml(folder.name)}</div>
                             <div class="folder-tile-stats">${escapeCardHtml(statsLabel)}</div>
                         </div>
                         ${editButtonHtml}

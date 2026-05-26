@@ -357,6 +357,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         buildCardRecords,
         buildBookmarkRecords,
         buildFolderRecords: folderBuilders.buildFolderRecords,
+        buildSmartViewRecords: folderBuilders.buildSmartViewRecords,
         normalizeEntryTimestamp,
         buildLibraryRecords
     };

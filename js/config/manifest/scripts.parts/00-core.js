@@ -31,6 +31,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/bookmark-folders/bookmark-folders.shared.derived.buckets.js?v=0.1.0",
     "js/modules/features/bookmark-folders/bookmark-folders.shared.derived.js?v=0.2.0",
     "js/modules/features/bookmark-folders/bookmark-folders.shared.js?v=0.3.0",
+    "js/modules/features/bookmark-folders/smart-view-registry.js?v=0.1.0",
     "js/modules/features/bookmark-folders/bookmark-folders.ghost-sensors.helpers.js?v=0.1.0",
     "js/modules/features/bookmark-folders/bookmark-folders.ghost-sensors.js?v=0.1.0",
     "js/modules/features/bookmark-folders/bookmark-folders.ghost-recursion.helpers.js?v=0.1.0",

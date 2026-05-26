@@ -85,7 +85,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             })
         });
         return result.records.filter(function (record) {
-            return record.type === 'bookmark' || record.type === 'card' || record.type === 'folder' || record.type === 'library';
+            return record.type === 'bookmark' || record.type === 'card' || record.type === 'folder' || record.type === 'smartView' || record.type === 'library';
         });
     }
 
@@ -180,6 +180,9 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         const folderRecords = localSearchResult.records.filter(function (record) {
             return record.type === 'folder';
         });
+        const smartViewRecords = localSearchResult.records.filter(function (record) {
+            return record.type === 'smartView';
+        });
         const knowledgeRecords = localSearchResult.records.filter(function (record) {
             return record.type === 'knowledge';
         });
@@ -198,7 +201,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         trace.vectors.bookmarks = {
             status: vectors.bookmarks ? 'ok' : 'disabled',
             durationMs: vectors.bookmarks ? localDurationMs : 0,
-            resultCount: vectors.bookmarks ? bookmarkRecords.length + libraryRecords.length + cardRecords.length + folderRecords.length : 0
+            resultCount: vectors.bookmarks ? bookmarkRecords.length + libraryRecords.length + cardRecords.length + folderRecords.length + smartViewRecords.length : 0
         };
         trace.vectors.knowledge = {
             status: vectors.knowledge ? 'ok' : 'disabled',
@@ -240,6 +243,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
 
         const allResults = []
             .concat(cardRecords)
+            .concat(smartViewRecords)
             .concat(folderRecords)
             .concat(bookmarkRecords)
             .concat(libraryRecords)
@@ -249,6 +253,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
 
         const typePriority = {
             card: 440,
+            smartView: 432,
             folder: 420,
             bookmark: 400,
             library: 388,
@@ -271,6 +276,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
 
         const stats = {
             cards: cardRecords.length,
+            smartViews: smartViewRecords.length,
             folders: folderRecords.length,
             bookmarks: bookmarkRecords.length,
             library: libraryRecords.length,

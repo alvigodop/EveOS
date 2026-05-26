@@ -26,6 +26,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         buildCardRecords,
         buildBookmarkRecords,
         buildFolderRecords,
+        buildSmartViewRecords,
         buildLibraryRecords
     } = local;
 
@@ -101,6 +102,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         const records = []
             .concat(buildCardRecords(categoryMap))
             .concat(buildFolderRecords(links, categoryMap))
+            .concat(buildSmartViewRecords ? buildSmartViewRecords(links, categoryMap) : [])
             .concat(buildBookmarkRecords(links))
             .concat(buildLibraryRecords());
         return {
@@ -162,6 +164,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         const records = []
             .concat(buildCardRecords(scopedCategoryMap))
             .concat(buildFolderRecords(allLinks, scopedCategoryMap))
+            .concat(buildSmartViewRecords ? buildSmartViewRecords(allLinks, scopedCategoryMap) : [])
             .concat(buildBookmarkRecords(scopedLinks))
             .concat(scopedLibraryRecords);
 
@@ -182,6 +185,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             totalRecords: toArray(records).length,
             cardCount: 0,
             folderCount: 0,
+            smartViewCount: 0,
             bookmarkCount: 0,
             libraryCount: 0,
             knowledgeCount: 0,
@@ -194,6 +198,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             const type = text(record?.type, '');
             if (type === 'card') stats.cardCount += 1;
             if (type === 'folder') stats.folderCount += 1;
+            if (type === 'smartView') stats.smartViewCount += 1;
             if (type === 'bookmark') stats.bookmarkCount += 1;
             if (type === 'library') stats.libraryCount += 1;
             if (type === 'knowledge') stats.knowledgeCount += 1;

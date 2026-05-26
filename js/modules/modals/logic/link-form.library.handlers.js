@@ -170,6 +170,13 @@ window.EveLinkForm = window.EveLinkForm || {};
                 if (linked.entry.status) {
                     document.getElementById('libStatus').value = linked.entry.status;
                 }
+                const link = (typeof getLiveLinks === 'function' ? getLiveLinks() : []).find((item) => String(item?.id) === String(linkId));
+                const linkNotes = String(link?.notes || '').trim();
+                const summaryInput = document.getElementById('libSummary');
+                if (summaryInput && linkNotes && linkNotes.includes('=== Bookmark Merge ===') && !summaryInput.value.includes(linkNotes)) {
+                    summaryInput.value = [summaryInput.value.trim(), linkNotes].filter(Boolean).join('\n\n');
+                    window.EveLibraryNotesSections?.syncLibraryNotesUiFromRaw?.();
+                }
                 return;
             }
 

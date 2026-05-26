@@ -68,6 +68,7 @@ window.EveBookmarkFocus = window.EveBookmarkFocus || {};
     }
 
     function buildLibraryPatch(entry) {
+        window.EveLibraryNotesSections?.syncFocusRawFromHuman?.();
         const status = document.getElementById('bookmarkFocusStatus')?.value || '';
         const rating = document.getElementById('bookmarkFocusRating')?.value || '';
         const graphicChapter = parseIntOrZero(document.getElementById('bookmarkFocusGraphicChapter')?.value);

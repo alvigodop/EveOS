@@ -574,6 +574,23 @@ window.EveBookmarkFocus = window.EveBookmarkFocus || {};
         if (episodeWrap) episodeWrap.style.display = hasFilms ? 'flex' : 'none';
     }
 
+    function findLiveLink(linkId) {
+        const links = typeof getLiveLinks === 'function'
+            ? getLiveLinks()
+            : (Array.isArray(window.eveState?.links) ? window.eveState.links : []);
+        return (Array.isArray(links) ? links : []).find((link) => String(link?.id) === String(linkId));
+    }
+
+    function mergeBookmarkNotesIntoFocusSummary(linkId) {
+        const summary = document.getElementById('bookmarkFocusSummary');
+        const linkNotes = String(findLiveLink(linkId)?.notes || '').trim();
+        if (!summary || !linkNotes || !linkNotes.includes('=== Bookmark Merge ===')) return;
+        if (!summary.value.includes(linkNotes)) {
+            summary.value = [summary.value.trim(), linkNotes].filter(Boolean).join('\n\n');
+        }
+        window.EveLibraryNotesSections?.syncFocusFromRaw?.();
+    }
+
     function fillLibraryFields(linkedRecord) {
         const sectionWrap = document.getElementById('bookmarkFocusLibrarySection');
         const fieldsWrap = document.getElementById('bookmarkFocusLibraryFields');
@@ -618,6 +635,8 @@ window.EveBookmarkFocus = window.EveBookmarkFocus || {};
         if (season) season.value = entry.season ?? 0;
         if (episode) episode.value = entry.episode ?? 0;
         if (summary) summary.value = entry.summary || '';
+        window.EveLibraryNotesSections?.syncFocusFromRaw?.();
+        mergeBookmarkNotesIntoFocusSummary(linkedRecord?.connection?.linkId || linkedRecord?.linkId);
         if (primaryTitle) primaryTitle.value = entry.title || '';
         if (titleAltNames) {
             const aliases = getEntryTitleAliases(entry);

@@ -66,6 +66,13 @@ function bindResultActions(container) {
                     navigation.focusBookmark(result);
                     return;
                 }
+                if (action === 'open-smart-view') {
+                    const opened = window.EveSmartViewRegistry?.openSmartViewRecord
+                        ? window.EveSmartViewRegistry.openSmartViewRecord(result)
+                        : false;
+                    if (!opened && navigation?.goToPath) navigation.goToPath(result);
+                    return;
+                }
                 if (action === 'json-state' || action === 'json-validate') {
                     const linkApi = window.EveOS?.NebulaJsonLink
                         || window.EveOS?.SearchAdvanced?.NebulaJsonLink
@@ -131,7 +138,7 @@ function bindResultActions(container) {
     }
 
     function renderSegmentedResults(searchResult, resultMap) {
-        const groups = { card: [], folder: [], bookmark: [], library: [], knowledge: [], cached: [], google: [], diagnostic: [] };
+        const groups = { card: [], smartView: [], folder: [], bookmark: [], library: [], knowledge: [], cached: [], google: [], diagnostic: [] };
         searchResult.results.forEach(function (result) {
             const key = String(result?.type || 'cached').trim() || 'cached';
             if (!groups[key]) groups[key] = [];
@@ -140,6 +147,7 @@ function bindResultActions(container) {
 
         const orderedGroups = [
             { key: 'card', label: 'Cards' },
+            { key: 'smartView', label: 'Smart Views' },
             { key: 'folder', label: 'Folders' },
             { key: 'bookmark', label: 'Bookmarks' },
             { key: 'library', label: 'Library Entries' },

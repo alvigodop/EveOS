@@ -327,6 +327,15 @@ function applyLinkedLibraryPolicy(sourceLink, targetLink, sourceLinked, targetLi
     const targetHasLinked = !!targetLinked?.entry;
 
     if (targetHasLinked) {
+        const currentSummary = String(targetLinked?.entry?.summary || '').trim();
+        const incomingNote = String(noteText || '').trim();
+        if (incomingNote && typeof connectionsApi.updateLinkedEntry === 'function') {
+            connectionsApi.updateLinkedEntry(targetLink.id, {
+                summary: currentSummary
+                    ? (currentSummary.includes(incomingNote) ? currentSummary : `${currentSummary}\n\n${incomingNote}`)
+                    : incomingNote
+            });
+        }
         return sourceHasLinked ? 'both-linked-notes-only' : 'target-linked-notes-only';
     }
 

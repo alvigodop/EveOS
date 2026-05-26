@@ -197,7 +197,183 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         return records;
     }
 
+    function buildDerivedGhostId(prefix, parts) {
+        const helper = window.EveBookmarkFolders?._ghostRecursionHelpers?.buildDerivedGhostId;
+        if (typeof helper === 'function') return helper(prefix, parts);
+        return '__ghost_' + prefix + '_' + parts.map(function (part) {
+            return String(part || '').replace(/[^a-zA-Z0-9]+/g, '_');
+        }).join('_') + '__';
+    }
+
+    function buildSmartViewRecords(links, categoryMap) {
+        const registry = window.EveSmartViewRegistry;
+        const folderApi = window.EveBookmarkFolders;
+        if (!registry || !folderApi?.buildFolderView) return [];
+
+        const locators = ns.Locators || {};
+        const linksByScopedKey = buildLinksByScopedKey(links);
+        const records = [];
+        const catalog = typeof registry.getBuiltInCatalog === 'function'
+            ? registry.getBuiltInCatalog()
+            : [];
+        const legacyCategoryIds = {
+            linkHealth: '__ghost_cat_linkHealth__',
+            domains: '__ghost_cat_domains__',
+            readingStatus: '__ghost_cat_readingStatus__',
+            taskStatus: '__ghost_cat_taskStatus__',
+            maintenance: '__ghost_cat_maintenance__',
+            activity: '__ghost_cat_activity__',
+            insights: '__ghost_cat_insights__',
+            trueValue: '__ghost_cat_trueValue__',
+            indexes: '__ghost_cat_indexes__'
+        };
+
+        Array.from(categoryMap.values()).forEach(function (category) {
+            const workspaceId = text(category.workspaceId, 'main');
+            const categoryName = text(category.categoryName, 'Unsorted');
+            const scopedKey = getScopedKey(workspaceId, categoryName);
+            const categoryLinks = linksByScopedKey.get(scopedKey) || [];
+            const groupMeta = getWorkspaceGroupMeta(workspaceId);
+            const viewModel = folderApi.buildFolderView(workspaceId, categoryName, categoryLinks, { skipGhosts: true });
+            const getCachedEntry = function (link) {
+                return folderApi?._shared?.getLibraryEntryForLink
+                    ? folderApi._shared.getLibraryEntryForLink(workspaceId, categoryName, link?.id)
+                    : null;
+            };
+            const pathBase = locators.buildPathMeta
+                ? locators.buildPathMeta({ workspaceId: workspaceId, workspaceIds: [workspaceId], categoryName: categoryName })
+                : {
+                    workspaceId: workspaceId,
+                    workspaceIds: [workspaceId],
+                    categoryName: categoryName,
+                    pathLabel: [workspaceId, categoryName].filter(Boolean).join(' > ')
+                };
+
+            toArray(catalog).forEach(function (item) {
+                const folderId = legacyCategoryIds[text(item?.id, '')] || '';
+                if (!folderId) return;
+                const title = text(item?.label, 'Smart View');
+                const record = {
+                    id: 'smartView::catalog::' + scopedKey + '::' + text(item?.id, ''),
+                    type: 'smartView',
+                    title: title,
+                    url: '',
+                    displayUrl: '',
+                    description: 'Built-in Smart View. Criteria: ' + text(item?.criteria, ''),
+                    provider: 'smart-view',
+                    sourceCard: categoryName,
+                    sourceIdentity: { kind: 'smartView', smartViewId: text(item?.id, '') },
+                    workspaceId: workspaceId,
+                    workspaceIds: [workspaceId],
+                    categoryName: categoryName,
+                    path: Object.assign({}, pathBase, {
+                        folderId: folderId,
+                        folderLabel: title,
+                        pathLabel: [pathBase.pathLabel || workspaceId, 'System Views', title].filter(Boolean).join(' > ')
+                    }),
+                    updatedAt: 0,
+                    groupId: groupMeta.groupId,
+                    groupName: groupMeta.groupName,
+                    groupHidden: groupMeta.hidden,
+                    provenance: {
+                        kind: 'smartView',
+                        virtual: true,
+                        builtIn: true,
+                        smartViewId: text(item?.id, ''),
+                        smartViewFolderId: folderId,
+                        category: text(item?.category, ''),
+                        criteria: text(item?.criteria, ''),
+                        matchCount: categoryLinks.length
+                    }
+                };
+                record.baseHealth = deriveBaseHealth(record);
+                record.searchableText = normalizeText([
+                    record.title,
+                    record.description,
+                    record.provenance.category,
+                    record.provenance.criteria,
+                    categoryName,
+                    record.path.pathLabel
+                ].join(' '));
+                records.push(record);
+            });
+
+            const groups = typeof registry.buildGhostGroups === 'function'
+                ? registry.buildGhostGroups({
+                    workspaceId: workspaceId,
+                    categoryName: categoryName,
+                    activeLinks: categoryLinks,
+                    scopedNodes: viewModel.nodes || [],
+                    getCachedEntry: getCachedEntry
+                })
+                : [];
+
+            toArray(groups).forEach(function (group, groupIndex) {
+                const catKey = text(group?.categoryKey, 'smartViews');
+                const groupKey = text(group?.groupKey, 'smartViews');
+                toArray(group?.buckets).forEach(function (bucket, bucketIndex) {
+                    if (!Array.isArray(bucket?.links) || (!bucket.links.length && !bucket.keepWhenEmpty)) return;
+                    const bucketKey = text(bucket?.key || bucketIndex, '');
+                    const folderId = buildDerivedGhostId('registry_value', [catKey, groupKey || groupIndex, bucketKey.toLowerCase()]);
+                    const title = text(bucket?.label, 'Smart View');
+                    const criteriaLabel = typeof registry.describeCriteria === 'function'
+                        ? registry.describeCriteria(bucket.criteria || {})
+                        : text(bucket?.criteria, '');
+                    const record = {
+                        id: 'smartView::' + scopedKey + '::' + catKey + '::' + groupKey + '::' + bucketKey,
+                        type: 'smartView',
+                        title: title,
+                        url: '',
+                        displayUrl: '',
+                        description: bucket.links.length + ' matching bookmark' + (bucket.links.length === 1 ? '' : 's') + '. ' + text(bucket?.why || ('Criteria: ' + criteriaLabel), ''),
+                        provider: 'smart-view',
+                        sourceCard: categoryName,
+                        sourceIdentity: { kind: 'smartView', smartViewId: bucketKey, smartViewGroup: groupKey },
+                        workspaceId: workspaceId,
+                        workspaceIds: [workspaceId],
+                        categoryName: categoryName,
+                        path: Object.assign({}, pathBase, {
+                            folderId: folderId,
+                            folderLabel: title,
+                            pathLabel: [pathBase.pathLabel || workspaceId, 'System Views', text(group?.groupLabel, 'Smart Views'), title].filter(Boolean).join(' > ')
+                        }),
+                        updatedAt: 0,
+                        groupId: groupMeta.groupId,
+                        groupName: groupMeta.groupName,
+                        groupHidden: groupMeta.hidden,
+                        provenance: {
+                            kind: 'smartView',
+                            virtual: true,
+                            smartViewId: bucketKey,
+                            smartViewFolderId: folderId,
+                            smartViewGroup: groupKey,
+                            category: catKey,
+                            criteria: bucket.criteria || {},
+                            criteriaLabel: criteriaLabel,
+                            whyIncluded: text(bucket?.why, ''),
+                            matchCount: bucket.links.length
+                        }
+                    };
+                    record.baseHealth = deriveBaseHealth(record);
+                    record.searchableText = normalizeText([
+                        record.title,
+                        record.description,
+                        record.provenance.category,
+                        record.provenance.smartViewGroup,
+                        criteriaLabel,
+                        categoryName,
+                        record.path.pathLabel
+                    ].join(' '));
+                    records.push(record);
+                });
+            });
+        });
+
+        return records;
+    }
+
     ns.IndexRecordBuildersFolders = {
-        buildFolderRecords
+        buildFolderRecords,
+        buildSmartViewRecords
     };
 })();

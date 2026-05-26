@@ -169,6 +169,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             if (scope?.workspaceId && matchesScope(record, { workspaceId: scope.workspaceId })) score += 14;
             if (scope?.categoryName && text(record?.categoryName, '') === text(scope.categoryName, '')) score += 18;
             if (record?.type === 'card') score += 22;
+            if (record?.type === 'smartView') score += 20;
             if (record?.type === 'folder') score += 18;
             if (record?.type === 'bookmark') score += 16;
             if (record?.type === 'library') score += 14;
@@ -330,6 +331,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 allowedTypes.add('bookmark');
                 allowedTypes.add('card');
                 allowedTypes.add('folder');
+                allowedTypes.add('smartView');
                 allowedTypes.add('library');
             }
             if (vectors.knowledge) allowedTypes.add('knowledge');

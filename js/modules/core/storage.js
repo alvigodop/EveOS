@@ -324,6 +324,12 @@ async function loadData() {
     if (typeof config.unidexStagePersisted !== 'boolean') config.unidexStagePersisted = false;
     config.unidexSelectedWorkspaceId = String(config.unidexSelectedWorkspaceId || '').trim();
     config.unidexSelectedCategory = String(config.unidexSelectedCategory || '').trim();
+    if (window.EveSmartViewRegistry?.ensureStore) {
+        window.EveSmartViewRegistry.ensureStore(config);
+    } else {
+        if (!config.smartViews || typeof config.smartViews !== 'object') config.smartViews = { version: 1, cardViews: {} };
+        if (!config.smartViews.cardViews || typeof config.smartViews.cardViews !== 'object') config.smartViews.cardViews = {};
+    }
 
     // Custom bookmark ordering defaults
     if (!config.customOrder || typeof config.customOrder !== 'object') config.customOrder = {};

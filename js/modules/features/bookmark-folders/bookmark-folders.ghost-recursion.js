@@ -261,6 +261,84 @@ rootRecursiveTasks.push({ id, links: linksArray, chain: [{ dimension: catKey, va
 }
 }
 
+function ensureGhostCategory(catKey, name) {
+if (!catKey) return null;
+if (!ghostCategories[catKey]) {
+ghostCategories[catKey] = {
+id: `__ghost_cat_${String(catKey).replace(/[^a-zA-Z0-9_]/g, '_')}__`,
+name: name || `[ ${catKey} ]`,
+links: []
+};
+}
+return ghostCategories[catKey];
+}
+
+function addRegistrySmartViewGroups() {
+const registry = window.EveSmartViewRegistry;
+if (!registry || typeof registry.buildGhostGroups !== 'function') return;
+let groups = [];
+try {
+groups = registry.buildGhostGroups(env) || [];
+} catch (error) {
+console.warn('[SmartViewRegistry] Failed to build smart view groups', error);
+return;
+}
+groups.forEach((group, groupIndex) => {
+const catKey = String(group?.categoryKey || 'smartViews').trim();
+const category = ensureGhostCategory(catKey, group?.categoryName || '[ Smart Views ]');
+if (!category) return;
+const buckets = (Array.isArray(group?.buckets) ? group.buckets : []).filter((bucket) => {
+return Array.isArray(bucket?.links) && (bucket.links.length > 0 || bucket.keepWhenEmpty);
+});
+if (!buckets.length || !isGhostEnabled(group?.enabledKey || group?.groupKey || catKey)) return;
+category._hasActiveChildren = true;
+const groupId = buildDerivedGhostId('registry_group', [catKey, group?.groupKey || groupIndex]);
+activeSubGhosts.push({
+id: groupId,
+name: group?.groupLabel || '[ Smart View ]',
+parentId: category.id,
+isGhost: true,
+isGhostDerivedGroup: true,
+isGhostDerivedValue: false,
+_ghostLinks: [],
+_ghostFilterChain: [],
+_ghostScopeCount: activeLinks.length,
+_ghostScopeRootId: activeRealFolderId || null,
+_smartViewGroup: group?.groupKey || catKey
+});
+derivedGhostNodeBudget.count += 1;
+buckets.slice(0, derivedValueLimit).forEach((bucket, bucketIndex) => {
+if (derivedGhostNodeBudget.count >= derivedGhostNodeBudget.max) return;
+const bucketKey = String(bucket?.key || bucket?.label || bucketIndex).trim().toLowerCase();
+const valueId = buildDerivedGhostId('registry_value', [catKey, group?.groupKey || groupIndex, bucketKey]);
+const chain = [{
+dimension: group?.groupKey || catKey,
+valueKey: bucketKey,
+label: bucket?.label || '[ Smart View ]'
+}];
+activeSubGhosts.push({
+id: valueId,
+name: bucket?.label || '[ Smart View ]',
+parentId: groupId,
+isGhost: true,
+isGhostDerivedGroup: false,
+isGhostDerivedValue: true,
+_ghostLinks: bucket.links,
+_ghostFilterChain: chain,
+_ghostScopeCount: bucket.links.length,
+_ghostScopeRootId: activeRealFolderId || null,
+_smartViewGroup: group?.groupKey || catKey,
+_smartViewCriteria: bucket.criteria || null,
+_smartViewWhy: bucket.why || '',
+_smartViewUserId: bucket.userSmartViewId || ''
+});
+derivedGhostNodeBudget.count += 1;
+if (!bucket.links.length) return;
+rootRecursiveTasks.push({ id: valueId, links: bucket.links, chain });
+});
+});
+}
+
 function addRecursiveGhostGroups(parentId, links, chain, depth) {
 if (!Array.isArray(links) || links.length < 1) return [];
 if (depth >= derivedDepthLimit) return [];
@@ -437,6 +515,8 @@ addGhost('trueValue', '__ghost_tv_below__', '[ Below True (<95%) ]', tvBelowTrue
 addGhost('insights', '__ghost_linked__', '[ Library-Linked ]', linkedLinks || [], 'library_linked', 'library_linked');
 addGhost('insights', '__ghost_low_confidence__', '[ Low Confidence ]', lowConfidenceLinks || [], 'low_confidence', 'low_confidence');
 addGhost('insights', '__ghost_high_confidence__', '[ High Confidence ]', highConfidenceLinks || [], 'high_confidence', 'high_confidence');
+
+addRegistrySmartViewGroups();
 
 const derivedExpansionRoots = [];
 if (derivedDimensionDefinitions.some((definition) => isGhostEnabled(definition.key))) derivedExpansionRoots.push({ id: ghostCategories.indexes.id, links: activeLinks, chain: [], depth: 0 });
