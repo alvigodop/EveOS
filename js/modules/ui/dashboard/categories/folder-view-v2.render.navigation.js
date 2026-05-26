@@ -266,7 +266,8 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                 ? `window.EveFolderViewV2.enterFolder(event, '${escapeCardJs(resolvedCategoryName)}', '${escapeCardJs(trailEntry.id)}', '${escapeCardJs(resolvedWorkspaceId)}')`
                 : `window.EveFolderViewV2.exitFolder(event, '${escapeCardJs(resolvedCategoryName)}', '${escapeCardJs(resolvedWorkspaceId)}')`;
             const dropAction = `ondragover="if(typeof allowDrop==='function')allowDrop(event);${breadcrumbHoverOn}" ondrop="${breadcrumbHoverClear} if(typeof window.EveFolderViewV2.handleFolderDrop==='function') window.EveFolderViewV2.handleFolderDrop(event, '${escapeCardJs(resolvedCategoryName)}', '${escapeCardJs(trailEntry.id || '')}', '${escapeCardJs(resolvedWorkspaceId)}')" ondragenter="${breadcrumbHoverOn}" ondragleave="${breadcrumbHoverOff}"`;
-            breadcrumbsHtml += `<span class="breadcrumb-item ${isLast ? 'active' : ''}" onclick="${isLast ? '' : clickAction}" ${dropAction}>${escapeCardHtml(trailEntry.label.toUpperCase())}</span>`;
+            const crumbLabel = String(trailEntry.label || '');
+            breadcrumbsHtml += `<span class="breadcrumb-item ${isLast ? 'active' : ''}" title="${escapeCardHtml(crumbLabel)}" data-folder-hover-kind="Folder Path" data-folder-hover-label="${escapeCardHtml(crumbLabel)}" data-folder-hover-meta="${escapeCardHtml(trail.map((item) => item.label).slice(0, index + 1).join(' / '))}" onclick="${isLast ? '' : clickAction}" ${dropAction}>${escapeCardHtml(crumbLabel.toUpperCase())}</span>`;
             if (isLast) breadcrumbsHtml += '<span class="breadcrumb-cursor"></span>';
         });
         breadcrumbsHtml += `</div>${folderHeaderActionsHtml}</div>${folderHeaderActionTrayHtml}`;

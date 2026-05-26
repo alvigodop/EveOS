@@ -73,6 +73,26 @@ function bindResultActions(container) {
                     if (!opened && navigation?.goToPath) navigation.goToPath(result);
                     return;
                 }
+                if (action === 'reveal-smart-view') {
+                    const outcome = window.EveSmartViewRegistry?.revealSmartViewRecord
+                        ? window.EveSmartViewRegistry.revealSmartViewRecord(result)
+                        : { ok: false, error: 'Smart View reveal actions are not available yet.' };
+                    if (!outcome.ok && typeof showToast === 'function') {
+                        showToast(outcome.error || 'Could not reveal Smart View matches.', outcome.opened ? 'info' : 'warning');
+                    }
+                    return;
+                }
+                if (action === 'save-smart-view') {
+                    const outcome = window.EveSmartViewRegistry?.saveSmartViewRecordAsCardView
+                        ? window.EveSmartViewRegistry.saveSmartViewRecordAsCardView(result)
+                        : { ok: false, error: 'Smart View save actions are not available yet.' };
+                    if (outcome.alreadySaved && typeof showToast === 'function') {
+                        showToast('This Smart View is already saved in the card.', 'info');
+                    } else if (!outcome.ok && typeof showToast === 'function') {
+                        showToast(outcome.error || 'Could not convert this result into a saved Smart View.', 'warning');
+                    }
+                    return;
+                }
                 if (action === 'json-state' || action === 'json-validate') {
                     const linkApi = window.EveOS?.NebulaJsonLink
                         || window.EveOS?.SearchAdvanced?.NebulaJsonLink

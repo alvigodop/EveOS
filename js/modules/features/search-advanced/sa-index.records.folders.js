@@ -351,6 +351,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                             criteria: bucket.criteria || {},
                             criteriaLabel: criteriaLabel,
                             whyIncluded: text(bucket?.why, ''),
+                            smartViewUserId: text(bucket?.userSmartViewId, ''),
                             matchCount: bucket.links.length
                         }
                     };

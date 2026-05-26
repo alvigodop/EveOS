@@ -115,33 +115,39 @@ window.modalTemplate += `
                     </div>
                 </div>
 
-                <div class="library-notes-stack" style="display:flex; flex-direction:column; gap:6px;">
-                    <details class="settings-disclosure library-notes-disclosure">
-                        <summary class="settings-disclosure-summary settings-disclosure-summary--split">
-                            <span class="settings-disclosure-summary__label">My Notes</span>
-                            <span id="bookmarkFocusHumanNotesSummary" class="settings-disclosure-summary__meta">empty</span>
-                        </summary>
-                        <div class="settings-disclosure-body" style="display:flex; flex-direction:column; gap:6px;">
-                            <textarea id="bookmarkFocusHumanNotes" rows="3" placeholder="Only personal notes you wrote. Structured merge data stays in Raw Notes."></textarea>
-                        </div>
-                    </details>
-                    <details class="settings-disclosure library-notes-disclosure">
-                        <summary class="settings-disclosure-summary settings-disclosure-summary--split">
-                            <span class="settings-disclosure-summary__label">Bookmark Merge History</span>
-                            <span id="bookmarkFocusMergedNotesSummary" class="settings-disclosure-summary__meta">0 merges</span>
-                        </summary>
-                        <div id="bookmarkFocusMergeNotesView" class="settings-disclosure-body library-notes-merge-view"></div>
-                    </details>
-                    <details class="settings-disclosure library-notes-disclosure">
-                        <summary class="settings-disclosure-summary settings-disclosure-summary--split">
-                            <span class="settings-disclosure-summary__label">Raw Notes State</span>
-                            <span id="bookmarkFocusRawNotesSummary" class="settings-disclosure-summary__meta">0 chars</span>
-                        </summary>
-                        <div class="settings-disclosure-body" style="display:flex; flex-direction:column; gap:6px;">
-                            <textarea id="bookmarkFocusSummary" rows="3" placeholder="Summary or notes raw state..."></textarea>
-                        </div>
-                    </details>
-                </div>
+                <details class="settings-disclosure library-notes-disclosure library-notes-shell">
+                    <summary class="settings-disclosure-summary settings-disclosure-summary--split">
+                        <span class="settings-disclosure-summary__label">Notes</span>
+                        <span id="bookmarkFocusNotesSummary" class="settings-disclosure-summary__meta">empty</span>
+                    </summary>
+                    <div class="settings-disclosure-body library-notes-stack" style="display:flex; flex-direction:column; gap:6px;">
+                        <details class="settings-disclosure library-notes-disclosure">
+                            <summary class="settings-disclosure-summary settings-disclosure-summary--split">
+                                <span class="settings-disclosure-summary__label">My Notes</span>
+                                <span id="bookmarkFocusHumanNotesSummary" class="settings-disclosure-summary__meta">empty</span>
+                            </summary>
+                            <div class="settings-disclosure-body" style="display:flex; flex-direction:column; gap:6px;">
+                                <textarea id="bookmarkFocusHumanNotes" rows="3" placeholder="Only personal notes you wrote. Structured merge data stays in Raw Notes."></textarea>
+                            </div>
+                        </details>
+                        <details id="bookmarkFocusMergeNotesDisclosure" class="settings-disclosure library-notes-disclosure" style="display:none;">
+                            <summary class="settings-disclosure-summary settings-disclosure-summary--split">
+                                <span class="settings-disclosure-summary__label">Bookmark Merge History</span>
+                                <span id="bookmarkFocusMergedNotesSummary" class="settings-disclosure-summary__meta">0 merges</span>
+                            </summary>
+                            <div id="bookmarkFocusMergeNotesView" class="settings-disclosure-body library-notes-merge-view"></div>
+                        </details>
+                        <details class="settings-disclosure library-notes-disclosure">
+                            <summary class="settings-disclosure-summary settings-disclosure-summary--split">
+                                <span class="settings-disclosure-summary__label">Raw Notes State</span>
+                                <span id="bookmarkFocusRawNotesSummary" class="settings-disclosure-summary__meta">0 chars</span>
+                            </summary>
+                            <div class="settings-disclosure-body" style="display:flex; flex-direction:column; gap:6px;">
+                                <textarea id="bookmarkFocusSummary" rows="3" placeholder="Summary or notes raw state..."></textarea>
+                            </div>
+                        </details>
+                    </div>
+                </details>
             </div>
 
             <div style="display:flex; gap:8px; flex-wrap:wrap;">

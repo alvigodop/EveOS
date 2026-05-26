@@ -62,6 +62,15 @@
         return !!(focused && target.contains(focused));
     }
 
+    function isPointerStillInsideTarget(event, target) {
+        if (!event || !target || !document.body.contains(target)) return false;
+        const rect = target.getBoundingClientRect();
+        const x = Number(event.clientX);
+        const y = Number(event.clientY);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
+        return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+    }
+
     function clearHideTimer() {
         if (hideTimer) {
             window.clearTimeout(hideTimer);
@@ -134,19 +143,24 @@
 
     document.addEventListener('mouseover', function (event) {
         const target = getTarget(event.target);
-        if (!target || target === activeTarget) return;
+        if (!target) {
+            if (activeTarget) hide(true);
+            return;
+        }
+        if (target === activeTarget) return;
         show(target);
     }, true);
 
     document.addEventListener('mouseout', function (event) {
         const target = getTarget(event.target);
         if (!target || (event.relatedTarget && target.contains(event.relatedTarget))) return;
+        if (target === activeTarget && isPointerStillInsideTarget(event, target)) return;
         hide();
     }, true);
 
     document.addEventListener('pointermove', function (event) {
         if (!activeTarget) return;
-        if (activeTarget.contains(event.target) || isTargetStillActive(activeTarget)) return;
+        if (activeTarget.contains(event.target) || isPointerStillInsideTarget(event, activeTarget)) return;
         hide(true);
     }, true);
 

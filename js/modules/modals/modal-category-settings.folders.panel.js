@@ -38,6 +38,24 @@
                 ]
             },
             {
+                title: 'Bookmark Identifiers',
+                types: [
+                    { id: 'identifier_labels', label: '[ By Bookmark Identifiers ]' }
+                ]
+            },
+            {
+                title: 'Saved Smart Views',
+                types: [
+                    { id: 'user_smart_views', label: '[ User-Created Smart Views ]' }
+                ]
+            },
+            {
+                title: 'Covers',
+                types: [
+                    { id: 'cover_state', label: '[ Has Covers / Additional Covers ]' }
+                ]
+            },
+            {
                 title: 'Reading Status',
                 types: [
                     { id: 'unread', label: '[ Plan to Read / Unread ]' },
@@ -74,6 +92,14 @@
                     { id: 'recent', label: '[ Recently Updated ]' },
                     { id: 'recently_visited', label: '[ Recently Visited ]' },
                     { id: 'stale', label: '[ Stale Bookmarks ]' }
+                ]
+            },
+            {
+                title: 'Source',
+                types: [
+                    { id: 'related_urls', label: '[ Related URLs ]' },
+                    { id: 'source_provider', label: '[ Source Provider ]' },
+                    { id: 'source_freshness', label: '[ Source Freshness ]' }
                 ]
             },
             {
@@ -116,6 +142,15 @@
                     { id: 'truevalue_index', label: '[ By True Value Bracket ]' },
                     { id: 'task_index', label: '[ By Task Completion ]' }
                 ]
+            },
+            {
+                title: 'Debug / Integrity',
+                types: [
+                    { id: 'folder_health', label: '[ Folder Health ]' },
+                    { id: 'origin_scope', label: '[ Origin Scope ]' },
+                    { id: 'pin_scope', label: '[ Pin Scope ]' },
+                    { id: 'merge_state', label: '[ Merge State ]' }
+                ]
             }
         ];
 
@@ -125,7 +160,7 @@
                     <div style="display:flex; justify-content:space-between; align-items:center;">
                         <div style="display:flex; flex-direction:column; gap:4px;">
                             <div style="font-weight:600;">Smart Ghost Folders</div>
-                            <div style="font-size:0.84rem; opacity:0.76;">Toggle which auto-generated views appear inside [ System Views ].</div>
+                            <div style="font-size:0.84rem; opacity:0.76;">Toggle which auto-generated and registry Smart Views appear inside [ System Views ].</div>
                             ${driftDisabledNote}
                         </div>
                         <button class="btn-primary" onclick="if(window.EveSemanticDrift) { window.EveSemanticDrift.forceRefreshScan(); }" ${driftCanScanLive ? '' : 'disabled title="Semantic Drift live scans are disabled on file://."'} style="font-size: 0.7rem; padding: 4px 8px; ${driftCanScanLive ? '' : 'opacity:0.55; cursor:not-allowed;'}">Refresh Drift Scan</button>

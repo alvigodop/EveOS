@@ -112,6 +112,8 @@ window.EveLibraryNotesSections = window.EveLibraryNotesSections || {};
             rawId: 'libSummary',
             humanId: 'libHumanNotes',
             mergeId: 'libMergedNotesView',
+            shellMetaId: 'libNotesSummary',
+            mergeDisclosureId: 'libMergeNotesDisclosure',
             humanMetaId: 'libHumanNotesSummary',
             mergeMetaId: 'libMergedNotesSummary',
             rawMetaId: 'libRawNotesSummary'
@@ -120,6 +122,8 @@ window.EveLibraryNotesSections = window.EveLibraryNotesSections || {};
             rawId: 'bookmarkFocusSummary',
             humanId: 'bookmarkFocusHumanNotes',
             mergeId: 'bookmarkFocusMergeNotesView',
+            shellMetaId: 'bookmarkFocusNotesSummary',
+            mergeDisclosureId: 'bookmarkFocusMergeNotesDisclosure',
             humanMetaId: 'bookmarkFocusHumanNotesSummary',
             mergeMetaId: 'bookmarkFocusMergedNotesSummary',
             rawMetaId: 'bookmarkFocusRawNotesSummary'
@@ -133,13 +137,32 @@ window.EveLibraryNotesSections = window.EveLibraryNotesSections || {};
     }
 
     function updateMeta(profile, split) {
+        const shellMeta = document.getElementById(profile.shellMetaId);
         const humanMeta = document.getElementById(profile.humanMetaId);
         const mergeMeta = document.getElementById(profile.mergeMetaId);
         const rawMeta = document.getElementById(profile.rawMetaId);
+        const mergeDisclosure = document.getElementById(profile.mergeDisclosureId);
         const humanLength = split.human.trim().length;
+        const rawLength = text(document.getElementById(profile.rawId)?.value || '').trim().length;
+        if (shellMeta) {
+            const parts = [];
+            if (humanLength) parts.push(humanLength + ' personal chars');
+            if (split.blocks.length) parts.push(split.blocks.length + ' merge' + (split.blocks.length === 1 ? '' : 's'));
+            if (!parts.length && rawLength) parts.push(rawLength + ' raw chars');
+            shellMeta.textContent = parts.join(' / ') || 'empty';
+        }
         if (humanMeta) humanMeta.textContent = humanLength ? humanLength + ' chars' : 'empty';
         if (mergeMeta) mergeMeta.textContent = split.blocks.length + ' merge' + (split.blocks.length === 1 ? '' : 's');
-        if (rawMeta) rawMeta.textContent = text(document.getElementById(profile.rawId)?.value || '').trim().length + ' chars';
+        if (rawMeta) rawMeta.textContent = rawLength + ' chars';
+        if (mergeDisclosure) {
+            mergeDisclosure.style.display = split.blocks.length ? '' : 'none';
+            if (!split.blocks.length) mergeDisclosure.open = false;
+        }
+    }
+
+    function stopGlobalShortcutCapture(event) {
+        if (!event) return;
+        event.stopPropagation();
     }
 
     function syncFromRaw(profileName) {
@@ -184,10 +207,12 @@ window.EveLibraryNotesSections = window.EveLibraryNotesSections || {};
         if (raw && !raw.dataset.libraryNotesBound) {
             raw.dataset.libraryNotesBound = '1';
             raw.addEventListener('input', () => syncFromRaw(profileName));
+            raw.addEventListener('keydown', stopGlobalShortcutCapture);
         }
         if (human && !human.dataset.libraryNotesBound) {
             human.dataset.libraryNotesBound = '1';
             human.addEventListener('input', () => syncRawFromHuman(profileName));
+            human.addEventListener('keydown', stopGlobalShortcutCapture);
         }
         syncFromRaw(profileName);
     }

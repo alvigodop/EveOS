@@ -119,6 +119,35 @@ window.EveSmartViewRegistry = window.EveSmartViewRegistry || {};
             .filter((entry) => entry && entry.url);
     }
 
+    function isRenderableCoverValue(value) {
+        const url = text(value, '');
+        if (!url) return false;
+        if (window.EveBookmarkCovers && typeof window.EveBookmarkCovers.isRenderableCoverUrl === 'function') {
+            return !!window.EveBookmarkCovers.isRenderableCoverUrl(url);
+        }
+        return !/^(?:null|undefined|none|n\/a)$/i.test(url);
+    }
+
+    function getCoverStateValues(link, entry) {
+        const coverApi = window.EveBookmarkCovers;
+        const additional = coverApi && typeof coverApi.getAdditionalCoverImages === 'function'
+            ? coverApi.getAdditionalCoverImages(link)
+            : (Array.isArray(link?.coverImages) ? link.coverImages : []).map((value) => text(value, '')).filter(isRenderableCoverValue);
+        const primary = [
+            link?.fixedCoverImage,
+            link?.coverImage,
+            entry?.image,
+            entry?.imageUrl,
+            entry?.coverImage,
+            entry?.bannerImage
+        ].map((value) => text(value, '')).filter(isRenderableCoverValue);
+        const values = [];
+        if (primary.length || additional.length) values.push('Has Cover');
+        if (additional.length > 0) values.push('Has Additional Covers');
+        if (!values.length) values.push('Missing Cover');
+        return values;
+    }
+
     function domainFromUrl(url) {
         try {
             const parsed = new URL(String(url || ''), window.location?.origin || 'https://eve.local');
@@ -353,6 +382,7 @@ window.EveSmartViewRegistry = window.EveSmartViewRegistry || {};
             { id: 'folder_health', label: 'Folder Health', category: 'Debug', criteria: 'broken parent, hidden parent, orphaned, detached chain' },
             { id: 'origin_scope', label: 'Origin Scope', category: 'Debug', criteria: 'direct card, child tab, shortcut, group overview' },
             { id: 'pin_scope', label: 'Pin Scope', category: 'Organize', criteria: 'card pin, child pin, inherited pin, stale target' },
+            { id: 'cover_state', label: 'Cover State', category: 'Organize', criteria: 'bookmarks with covers, additional covers, or missing cover art' },
             { id: 'merge_state', label: 'Merge State', category: 'Debug', criteria: 'merge history, duplicate suspect, injected merge, notes-only merge' }
         ].map((view) => Object.assign({
             scope: 'card',
@@ -399,6 +429,9 @@ window.EveSmartViewRegistry = window.EveSmartViewRegistry || {};
         groups.push(makeGroup('organize', '[ Organize ]', 'pin_scope', '[ Pin Scope ]',
             bucketize(activeLinks, getPinScopeValues, { getCachedEntry }),
             { why: 'Quick-pin metadata resolves to this pin scope.' }));
+        groups.push(makeGroup('organize', '[ Organize ]', 'cover_state', '[ Cover State ]',
+            bucketize(activeLinks, getCoverStateValues, { getCachedEntry }),
+            { why: 'Bookmark cover fields or additional cover rotation fields resolve to this cover state.' }));
         groups.push(makeGroup('debug', '[ Debug ]', 'merge_state', '[ Merge State ]',
             bucketize(activeLinks, (link, entry) => getMergeStateValues(link, entry, duplicateUrlCounts), { getCachedEntry }),
             { why: 'Merge metadata in notes or duplicate evidence matches this state.' }));
@@ -504,9 +537,10 @@ window.EveSmartViewRegistry = window.EveSmartViewRegistry || {};
             if (!normalizedMatch(getMergeStateValues(link, entry, buildDuplicateUrlCounts(context?.activeLinks || [])), c.mergeState)) return false;
         }
         if (c.pinned === true && getPinScopeValues(link).includes('Not Pinned')) return false;
+        if (c.hasCover === true && !getCoverStateValues(link, entry).includes('Has Cover')) return false;
+        if (c.hasAdditionalCovers === true && !getCoverStateValues(link, entry).includes('Has Additional Covers')) return false;
         if (c.missingCover === true) {
-            const hasCover = !!(link?.coverImage || entry?.image || entry?.imageUrl);
-            if (hasCover) return false;
+            if (!getCoverStateValues(link, entry).includes('Missing Cover')) return false;
         }
         return true;
     }
@@ -573,11 +607,172 @@ window.EveSmartViewRegistry = window.EveSmartViewRegistry || {};
             else if (key === 'merge') criteria.mergeState = val.replace(/_/g, ' ');
             else if (key === 'pin') criteria.pinned = val !== 'false' && val !== 'none';
             else if (key === 'missing' && val.toLowerCase() === 'cover') criteria.missingCover = true;
+            else if (key === 'has' && val.toLowerCase() === 'cover') criteria.hasCover = true;
+            else if (key === 'has' && ['covers', 'additional_cover', 'additional_covers', 'extra_cover', 'extra_covers'].includes(val.toLowerCase())) criteria.hasAdditionalCovers = true;
             else if (key === 'has' && val.toLowerCase() === 'related') criteria.hasRelatedUrls = true;
             else queryParts.push(clean);
         });
         if (queryParts.length) criteria.query = queryParts.join(' ');
         return criteria;
+    }
+
+    function getLiveLinks() {
+        if (typeof window.getLiveLinks === 'function') return window.getLiveLinks();
+        if (Array.isArray(window.eveState?.links)) return window.eveState.links;
+        if (Array.isArray(window.links)) return window.links;
+        if (typeof links !== 'undefined' && Array.isArray(links)) return links;
+        return [];
+    }
+
+    function getScopedNodes(workspaceId, categoryName) {
+        const folderApi = window.EveBookmarkFolders;
+        const storeApi = folderApi?._shared || folderApi;
+        return typeof storeApi?.getScopedNodes === 'function'
+            ? (storeApi.getScopedNodes(workspaceId, categoryName) || [])
+            : [];
+    }
+
+    function getCachedEntryResolver(workspaceId, categoryName) {
+        const shared = window.EveBookmarkFolders?._shared || {};
+        return function (link) {
+            return typeof shared.getLibraryEntryForLink === 'function'
+                ? shared.getLibraryEntryForLink(workspaceId, categoryName, link?.id)
+                : null;
+        };
+    }
+
+    function getRecordScope(record) {
+        const workspaceId = text(record?.workspaceId || record?.path?.workspaceId, 'main');
+        const categoryName = text(record?.categoryName || record?.path?.categoryName, 'Unsorted');
+        const folderId = text(
+            record?.provenance?.smartViewFolderId
+            || record?.path?.folderId
+            || record?.provenance?.smartViewId,
+            ''
+        );
+        return { workspaceId, categoryName, folderId };
+    }
+
+    function getRecordCriteria(record) {
+        const criteria = record?.provenance?.criteria;
+        if (criteria && typeof criteria === 'object' && !Array.isArray(criteria)) {
+            return Object.assign({}, criteria);
+        }
+        if (typeof criteria === 'string' && criteria.trim()) {
+            if (record?.provenance?.builtIn) return null;
+            const parsed = parseCriteriaPrompt(criteria);
+            return Object.keys(parsed).length ? parsed : null;
+        }
+        return null;
+    }
+
+    function getSmartViewRecordLinkIds(record) {
+        const scope = getRecordScope(record);
+        if (!scope.workspaceId || !scope.categoryName) return [];
+        if (scope.folderId && window.EveBulkToolbar?.getScopeLinkIdsForFolder) {
+            const ids = window.EveBulkToolbar.getScopeLinkIdsForFolder(scope.categoryName, scope.workspaceId, scope.folderId)
+                .map((id) => text(id, ''))
+                .filter(Boolean);
+            if (ids.length) return ids;
+        }
+        if (scope.folderId && window.EveFolderViewV2?.getFolderScopedLinkIds) {
+            const ids = window.EveFolderViewV2.getFolderScopedLinkIds(scope.workspaceId, scope.categoryName, scope.folderId)
+                .map((id) => text(id, ''))
+                .filter(Boolean);
+            if (ids.length) return ids;
+        }
+
+        const criteria = getRecordCriteria(record);
+        if (!criteria) return [];
+        const activeLinks = getLiveLinks().filter((link) => (
+            text(link?.workspace, 'main') === scope.workspaceId
+            && text(link?.category, 'Unsorted') === scope.categoryName
+        ));
+        const matches = evaluateView(
+            { criteria },
+            {
+                workspaceId: scope.workspaceId,
+                categoryName: scope.categoryName,
+                activeLinks,
+                scopedNodes: getScopedNodes(scope.workspaceId, scope.categoryName),
+                getCachedEntry: getCachedEntryResolver(scope.workspaceId, scope.categoryName)
+            }
+        );
+        return matches.map((link) => text(link?.id, '')).filter(Boolean);
+    }
+
+    function revealSmartViewRecord(record, options) {
+        const scope = getRecordScope(record);
+        if (!scope.workspaceId || !scope.categoryName) {
+            return { ok: false, error: 'Smart View scope is missing.' };
+        }
+        const linkIds = getSmartViewRecordLinkIds(record);
+        if (!linkIds.length) {
+            openSmartViewRecord(record);
+            return { ok: false, opened: true, error: 'No matching bookmarks were found for this Smart View.' };
+        }
+
+        openSmartViewRecord(record);
+        window.setTimeout(() => {
+            const bulkApi = window.EveBulkToolbar;
+            if (bulkApi?.clearSelection && bulkApi?.addSelectedIds) {
+                bulkApi.clearSelection();
+                bulkApi.addSelectedIds(linkIds);
+                if (bulkApi.setBulkMode) bulkApi.setBulkMode(true);
+            } else {
+                window.selectedIds = window.selectedIds instanceof Set ? window.selectedIds : new Set();
+                window.selectedIds.clear();
+                linkIds.forEach((id) => window.selectedIds.add(String(id)));
+                window.bulkMode = true;
+            }
+            document.body?.classList?.add('bulk-active');
+            if (bulkApi?.updateBulkUI) bulkApi.updateBulkUI();
+            if (typeof showToast === 'function' && options?.toast !== false) {
+                showToast('Selected ' + linkIds.length + ' matching bookmark' + (linkIds.length === 1 ? '' : 's') + '.', 'success');
+            }
+        }, 140);
+        return { ok: true, count: linkIds.length, linkIds };
+    }
+
+    function buildSavedViewIdFromRecord(record) {
+        const scope = getRecordScope(record);
+        const raw = [
+            'nexus',
+            scope.workspaceId,
+            scope.categoryName,
+            record?.provenance?.category,
+            record?.provenance?.smartViewGroup,
+            record?.provenance?.smartViewId || record?.title
+        ].map((part) => normalizeKey(part)).filter(Boolean).join('_');
+        return 'sv_' + raw.slice(0, 96);
+    }
+
+    function saveSmartViewRecordAsCardView(record, options) {
+        const scope = getRecordScope(record);
+        const existingId = text(record?.provenance?.smartViewUserId, '');
+        if (existingId) {
+            return { ok: true, alreadySaved: true, viewId: existingId };
+        }
+        const criteria = getRecordCriteria(record);
+        if (!criteria) {
+            return { ok: false, error: 'This Nexus Smart View does not expose reusable criteria yet.' };
+        }
+        const label = text(options?.label || record?.title, 'Nexus Smart View').replace(/^\[\s*|\s*\]$/g, '');
+        const result = saveCardView(scope.workspaceId, scope.categoryName, {
+            id: buildSavedViewIdFromRecord(record),
+            label,
+            scope: 'card',
+            criteria,
+            sort: { by: 'title', direction: 'asc' },
+            presentation: { layout: 'folder', source: 'nexus' }
+        });
+        if (result.ok && typeof showToast === 'function' && options?.toast !== false) {
+            showToast('Saved Smart View: ' + result.view.label, 'success');
+        } else if (!result.ok && typeof showToast === 'function' && options?.toast !== false) {
+            showToast(result.error || 'Could not save Smart View.', 'warning');
+        }
+        if (result.ok && typeof renderDashboard === 'function') renderDashboard();
+        return result;
     }
 
     function promptCreateSmartView(workspaceId, categoryName) {
@@ -654,6 +849,9 @@ window.EveSmartViewRegistry = window.EveSmartViewRegistry || {};
         promptCreateSmartView,
         openSmartView,
         openSmartViewRecord,
+        getSmartViewRecordLinkIds,
+        revealSmartViewRecord,
+        saveSmartViewRecordAsCardView,
         deleteSmartViewFromTile
     });
 

@@ -455,6 +455,18 @@ button.btn-primary:focus-visible,
     background: color-mix(in srgb, var(--modal-bg, #1e1e1e) 88%, var(--accent) 12%);
 }
 
+.library-notes-shell {
+    margin-top: 6px;
+}
+
+.library-notes-shell > .settings-disclosure-summary {
+    border-color: color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+.library-notes-shell[open] > .settings-disclosure-summary {
+    color: var(--accent);
+}
+
 .library-notes-merge-view {
     display: flex;
     flex-direction: column;

@@ -263,6 +263,8 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
         const actions = [];
         if (item?.type === 'smartView') {
             actions.push('<button type="button" class="nx-action-btn nx-action-btn-primary" data-nx-action="open-smart-view" data-nx-id="' + escapeHtml(resultId) + '">Open Smart View</button>');
+            actions.push('<button type="button" class="nx-action-btn" data-nx-action="reveal-smart-view" data-nx-id="' + escapeHtml(resultId) + '">Reveal Matching Bookmarks</button>');
+            actions.push('<button type="button" class="nx-action-btn" data-nx-action="save-smart-view" data-nx-id="' + escapeHtml(resultId) + '">Convert To Saved View</button>');
             actions.push('<button type="button" class="nx-action-btn" data-nx-action="provenance" data-nx-id="' + escapeHtml(resultId) + '">Inspect Criteria</button>');
         }
         if (item?.url) {
