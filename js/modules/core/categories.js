@@ -147,6 +147,152 @@ function requestCategoryCardMoveConfirm(sourceCat, targetName, targetWs, targetE
     return true;
 }
 
+function scheduleCategoryCardMoveRefresh(sourceWs, sourceCat, targetWs, targetCat, options) {
+    var opts = options || {};
+    var activeWorkspaceId = normalizeCategoryWorkspaceId(window.eveState?.config?.activeWorkspace || (typeof config !== 'undefined' ? config.activeWorkspace : 'main'));
+    var shouldRefreshDashboard = activeWorkspaceId === sourceWs || activeWorkspaceId === targetWs || !!opts.forceRender;
+    var activeSourceOnly = activeWorkspaceId === sourceWs && activeWorkspaceId !== targetWs && !opts.forceRender;
+    var activeTarget = activeWorkspaceId === targetWs || !!opts.forceRender;
+    var movedLinkCount = Math.max(0, Number(opts.movedLinkCount || opts.linkCount || 0) || 0);
+    var liveLinkCount = Array.isArray(window.eveState?.links) ? window.eveState.links.length : getCategoryLiveLinks().length;
+    var isLargeDashboard = !!window._eveMegaPerfMode || liveLinkCount > 1500;
+    var largeDashboardRenderDelay = 4200;
+    if (liveLinkCount > 8000) {
+        largeDashboardRenderDelay = activeSourceOnly ? 18000 : (activeTarget ? 6200 : 9000);
+    } else if (liveLinkCount > 4500) {
+        largeDashboardRenderDelay = activeSourceOnly ? 12000 : (activeTarget ? 4800 : 7000);
+    } else if (liveLinkCount > 1500) {
+        largeDashboardRenderDelay = activeSourceOnly ? 7200 : (activeTarget ? 3200 : 4200);
+    }
+    var defaultRenderDelay = isLargeDashboard
+        ? largeDashboardRenderDelay
+        : (movedLinkCount > 100 ? 900 : 650);
+    var renderDelayMs = Math.max(300, Number(opts.renderDelayMs || defaultRenderDelay) || defaultRenderDelay);
+    var skipFullRenderAfterSourceRemoval = activeSourceOnly && isLargeDashboard && !opts.forceRender;
+    var renderFn = function () {
+        if (!shouldRefreshDashboard || typeof renderDashboard !== 'function') return;
+        var remainingMutationMs = Math.max(0, Number(window.__eveLargeMutationActiveUntil || 0) - Date.now());
+        if (remainingMutationMs > 80 && !opts.forceRender) {
+            setTimeout(renderFn, Math.min(remainingMutationMs + 40, 1800));
+            return;
+        }
+        window.__eveDashboardRenderHint = {
+            kind: 'data-mutation',
+            source: 'category-card-move',
+            workspaceId: sourceWs,
+            targetWorkspaceId: targetWs,
+            categoryName: sourceCat,
+            targetCategoryName: targetCat
+        };
+        renderDashboard();
+    };
+
+    if (shouldRefreshDashboard && activeSourceOnly) {
+        try {
+            var selector = '.category-card[data-card-workspace="' + CSS.escape(sourceWs) + '"][data-card-category="' + CSS.escape(sourceCat) + '"]';
+            var sourceCard = document.querySelector(selector);
+            if (sourceCard) {
+                sourceCard.classList.add('category-card-moving-out');
+                setTimeout(function () {
+                    if (sourceCard && sourceCard.parentNode) sourceCard.remove();
+                    var grid = document.getElementById('dashboard-grid');
+                    if (grid && typeof window.scheduleDashboardMasonryLayout === 'function') {
+                        window.scheduleDashboardMasonryLayout(grid);
+                    }
+                }, 80);
+            }
+        } catch (error) {
+            // Direct DOM cleanup is a best-effort responsiveness path; scheduled render remains authoritative.
+        }
+    }
+
+    if (typeof renderSidebar === 'function') {
+        setTimeout(function () {
+            try { renderSidebar(); } catch (error) { console.warn('[Categories] Sidebar refresh after card move failed:', error); }
+        }, 80);
+    }
+
+    // Large card moves should not immediately kick the favicon queue while the
+    // dashboard is still rebuilding. The normal refresh path resumes shortly.
+    window.__eveSuppressFaviconRefreshUntil = Math.max(
+        Number(window.__eveSuppressFaviconRefreshUntil || 0),
+        Date.now() + (skipFullRenderAfterSourceRemoval ? 2400 : Math.max(1200, renderDelayMs + 900))
+    );
+    window.__eveLargeMutationActiveUntil = Math.max(
+        Number(window.__eveLargeMutationActiveUntil || 0),
+        Date.now() + (skipFullRenderAfterSourceRemoval ? 3200 : Math.max(2800, renderDelayMs + 2200))
+    );
+
+    // requestIdleCallback can fire immediately after the data move, which puts
+    // a full dashboard rebuild back inside the drag/drop transaction.
+    if (!skipFullRenderAfterSourceRemoval) {
+        setTimeout(renderFn, renderDelayMs);
+    }
+}
+
+function syncMovedCategoryLibraryLinks(linkIds, source, defer) {
+    var ids = Array.from(new Set((Array.isArray(linkIds) ? linkIds : [])
+        .map(function (id) { return String(id || '').trim(); })
+        .filter(Boolean)));
+    if (!ids.length || !window.EveLibrary?.ConnectionsAPI) return;
+
+    var runSync = function () {
+        var syncResult = null;
+        var usedFallback = false;
+        var finishPerf = window.EvePerformanceMonitor?.startOperation?.('category-library-sync', {
+            source: source || 'category-card-move',
+            linkCount: ids.length,
+            deferred: !!defer
+        });
+        try {
+            if (typeof window.EveLibrary.ConnectionsAPI.syncFromLinks === 'function') {
+                syncResult = window.EveLibrary.ConnectionsAPI.syncFromLinks(ids, {
+                    source: source || 'category-card-move',
+                    deferEvents: true,
+                    async: !!defer,
+                    chunkSize: 8,
+                    timeoutMs: 900
+                });
+            } else if (typeof window.EveLibrary.ConnectionsAPI.syncFromLink === 'function') {
+                usedFallback = true;
+                ids.forEach(function (linkId) {
+                    window.EveLibrary.ConnectionsAPI.syncFromLink(linkId, {
+                        source: source || 'category-card-move',
+                        deferEvents: true
+                    });
+                });
+            }
+        } finally {
+            window.__eveLastCategoryLibrarySync = {
+                at: Date.now(),
+                linkCount: ids.length,
+                deferred: !!defer,
+                fallback: usedFallback,
+                scheduled: !!syncResult?.scheduled,
+                checked: Number(syncResult?.checked || 0) || ids.length,
+                changed: Number(syncResult?.changed || 0) || 0,
+                moved: Number(syncResult?.moved || 0) || 0
+            };
+            finishPerf?.({
+                linkCount: ids.length,
+                scheduled: !!syncResult?.scheduled,
+                checked: Number(syncResult?.checked || 0) || ids.length,
+                fallback: usedFallback
+            });
+        }
+    };
+
+    if (!defer) {
+        runSync();
+        return;
+    }
+    if (typeof window.requestIdleCallback === 'function') {
+        window.requestIdleCallback(runSync, { timeout: 1600 });
+    } else {
+        setTimeout(runSync, 80);
+    }
+}
+
 function moveCategoryCardToWorkspace(sourceWorkspaceId, categoryName, targetWorkspaceId, options) {
     options = options || {};
     var sourceWs = normalizeCategoryWorkspaceId(sourceWorkspaceId);
@@ -159,6 +305,17 @@ function moveCategoryCardToWorkspace(sourceWorkspaceId, categoryName, targetWork
     var targetExists = categoryHasContentInWorkspace(targetWs, targetCat);
 
     function applyCardMove() {
+        var finishPerf = window.EvePerformanceMonitor?.startOperation?.('category-card-move', {
+            source: options.source || 'category-card-move',
+            workspaceId: sourceWs,
+            targetWorkspaceId: targetWs,
+            categoryName: sourceCat,
+            targetCategoryName: targetCat
+        });
+        window.__eveLargeMutationActiveUntil = Math.max(
+            Number(window.__eveLargeMutationActiveUntil || 0),
+            Date.now() + 5000
+        );
         var liveLinks = getCategoryLiveLinks();
         var sourceLinks = liveLinks.filter(function (link) {
             return normalizeCategoryWorkspaceId(link?.workspace) === sourceWs
@@ -170,6 +327,12 @@ function moveCategoryCardToWorkspace(sourceWorkspaceId, categoryName, targetWork
         }
 
         var mergeApi = window.EveBookmarkMerge;
+        var duplicateLookup = mergeApi && typeof mergeApi.buildDuplicateLookupForScope === 'function'
+            ? mergeApi.buildDuplicateLookupForScope(liveLinks, {
+                workspaceId: targetWs,
+                categoryName: targetCat
+            })
+            : null;
         var movedIds = [];
         var mergedIds = [];
         var removedIds = [];
@@ -183,22 +346,35 @@ function moveCategoryCardToWorkspace(sourceWorkspaceId, categoryName, targetWork
                     folderId: folderId
                 }, {
                     source: options.source || 'category-card-move',
-                    links: liveLinks
+                    links: liveLinks,
+                    duplicateLookup: duplicateLookup,
+                    deferLibrarySync: true
                 });
                 if (result?.targetId) movedIds.push(String(result.targetId));
                 if (result?.merged && result.targetId) mergedIds.push(String(result.targetId));
                 if (Array.isArray(result?.removedIds)) removedIds.push.apply(removedIds, result.removedIds.map(String));
+                if (duplicateLookup && typeof mergeApi.addLinkToDuplicateLookup === 'function') {
+                    var lookupTarget = result?.targetId
+                        ? liveLinks.find(function (candidate) { return String(candidate?.id || '') === String(result.targetId); })
+                        : link;
+                    mergeApi.addLinkToDuplicateLookup(duplicateLookup, lookupTarget || link);
+                }
                 return;
             }
             link.workspace = targetWs;
             link.category = targetCat;
             movedIds.push(String(link.id));
-            if (typeof window.EveLibrary?.ConnectionsAPI?.syncFromLink === 'function') {
-                window.EveLibrary.ConnectionsAPI.syncFromLink(link.id);
+            if (duplicateLookup && typeof mergeApi?.addLinkToDuplicateLookup === 'function') {
+                mergeApi.addLinkToDuplicateLookup(duplicateLookup, link);
             }
         });
 
         setCategoryLiveLinks(liveLinks);
+        syncMovedCategoryLibraryLinks(
+            movedIds,
+            options.source || 'category-card-move',
+            sourceLinks.length > 20 || liveLinks.length > 1500
+        );
         transferCategoryScopedConfig(sourceWs, sourceCat, targetWs, targetCat);
 
         if (window.EveCategoryOrder?.removeCategory) window.EveCategoryOrder.removeCategory(sourceWs, sourceCat);
@@ -248,7 +424,8 @@ function moveCategoryCardToWorkspace(sourceWorkspaceId, categoryName, targetWork
         }
         if (typeof saveData === 'function') {
             saveData({
-                forceRender: true,
+                skipRender: true,
+                skipSuggestions: true,
                 source: options.source || 'category-card-move',
                 meta: {
                     workspaceId: sourceWs,
@@ -258,12 +435,28 @@ function moveCategoryCardToWorkspace(sourceWorkspaceId, categoryName, targetWork
                     linkIds: movedIds,
                     mergedLinkIds: mergedIds,
                     removedLinkIds: removedIds,
-                    dataDelta: moveMutationMeta.dataDelta
+                    dataDelta: moveMutationMeta.dataDelta,
+                    editHistory: {
+                        scopedOnly: true,
+                        cards: true,
+                        workspaces: false,
+                        folders: false,
+                        bookmarks: false
+                    }
                 }
             });
+            scheduleCategoryCardMoveRefresh(sourceWs, sourceCat, targetWs, targetCat, Object.assign({}, options, {
+                movedLinkCount: sourceLinks.length
+            }));
         } else if (typeof renderDashboard === 'function') {
             renderDashboard();
         }
+        finishPerf?.({
+            linkCount: sourceLinks.length,
+            movedCount: movedIds.length,
+            mergedCount: mergedIds.length,
+            removedCount: removedIds.length
+        });
         return true;
     }
 

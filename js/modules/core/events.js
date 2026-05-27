@@ -229,6 +229,12 @@ function drop(ev, newCategory) {
 
     const targetLinks = getDropTargetLinks();
     const mergeApi = window.EveBookmarkMerge;
+    const duplicateLookup = mergeApi && typeof mergeApi.buildDuplicateLookupForScope === 'function'
+        ? mergeApi.buildDuplicateLookupForScope(targetLinks, {
+            workspaceId: targetWorkspace,
+            categoryName: newCategory
+        })
+        : null;
     const movedIds = [];
     const mergedIds = [];
     const removedIds = [];
@@ -248,13 +254,20 @@ function drop(ev, newCategory) {
                 folderId: ''
             }, {
                 source: 'bookmark-dropped-to-category',
-                links: targetLinks
+                links: targetLinks,
+                duplicateLookup
             });
             if (result?.moved || result?.merged) {
                 movedAny = true;
                 movedIds.push(String(result.targetId || id));
                 if (result.merged) mergedIds.push(String(result.targetId || ''));
                 if (Array.isArray(result.removedIds)) removedIds.push(...result.removedIds);
+                if (duplicateLookup && typeof mergeApi.addLinkToDuplicateLookup === 'function') {
+                    const lookupTarget = result?.targetId
+                        ? targetLinks.find((candidate) => String(candidate?.id || '') === String(result.targetId))
+                        : link;
+                    mergeApi.addLinkToDuplicateLookup(duplicateLookup, lookupTarget || link);
+                }
             }
             return;
         }
@@ -263,6 +276,9 @@ function drop(ev, newCategory) {
         link.category = newCategory;
         window.EveBookmarkFolders?.clearLinkFolderAssignment?.(link);
         window.EveLibrary?.ConnectionsAPI?.syncFromLink?.(link.id);
+        if (duplicateLookup && typeof mergeApi?.addLinkToDuplicateLookup === 'function') {
+            mergeApi.addLinkToDuplicateLookup(duplicateLookup, link);
+        }
         movedIds.push(String(link.id));
         movedAny = true;
     });

@@ -96,24 +96,40 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
                 .filter((link) => toMoveIds.has(normalizeFolderId(link.folderId)))
                 .map((link) => String(link.id));
             const mergeApi = window.EveBookmarkMerge;
+            const duplicateLookup = mergeApi && typeof mergeApi.buildDuplicateLookupForScope === 'function'
+                ? mergeApi.buildDuplicateLookupForScope(liveLinks, {
+                    workspaceId: tWs,
+                    categoryName: tCat
+                })
+                : null;
             movedFolderLinkIds.forEach((linkId) => {
                 const link = liveLinks.find((candidate) => String(candidate?.id) === linkId);
                 if (!link) return;
                 if (mergeApi && typeof mergeApi.moveOrMergeLinkToScope === 'function') {
-                    mergeApi.moveOrMergeLinkToScope(link, {
+                    const result = mergeApi.moveOrMergeLinkToScope(link, {
                         workspaceId: tWs,
                         categoryName: tCat,
                         folderId: normalizeFolderId(link.folderId)
                     }, {
                         source: 'bookmark-folder-transfer-links-moved',
-                        links: liveLinks
+                        links: liveLinks,
+                        duplicateLookup
                     });
+                    if (duplicateLookup && typeof mergeApi.addLinkToDuplicateLookup === 'function') {
+                        const lookupTarget = result?.targetId
+                            ? liveLinks.find((candidate) => String(candidate?.id || '') === String(result.targetId))
+                            : link;
+                        mergeApi.addLinkToDuplicateLookup(duplicateLookup, lookupTarget || link);
+                    }
                     return;
                 }
                 link.workspace = tWs;
                 link.category = tCat;
                 if (typeof window.EveLibrary?.ConnectionsAPI?.syncFromLink === 'function') {
                     window.EveLibrary.ConnectionsAPI.syncFromLink(link.id);
+                }
+                if (duplicateLookup && typeof mergeApi?.addLinkToDuplicateLookup === 'function') {
+                    mergeApi.addLinkToDuplicateLookup(duplicateLookup, link);
                 }
             });
             setLiveLinks(liveLinks);

@@ -77,6 +77,10 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
 
     function collectPerformanceInfo() {
         const indexStats = window.EveOS?.SearchAdvanced?.Index?.getStats?.() || {};
+        const appPerf = window.EvePerformanceMonitor?.getStats?.() || {};
+        const faviconStats = window.EveFaviconCache?.getStats?.() || {};
+        const deferredState = window.__EVE_DEFERRED_SCRIPT_STATE || {};
+        const geminiState = window.__GEMINI_BOOT_STATE || {};
         return {
             perfMode: !!window._evePerfMode,
             masonryDisabled: !!window._evePerfMode,
@@ -90,7 +94,30 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 : 'N/A',
             nexusIndexedRecords: indexStats.totalRecords || 0,
             nexusIndexedCards: indexStats.cardCount || 0,
-            nexusIndexedProviders: indexStats.providerCount || 0
+            nexusIndexedProviders: indexStats.providerCount || 0,
+            longTaskCount: appPerf.longTaskCount || 0,
+            worstLongTaskMs: Number(appPerf.worstLongTask?.duration || 0),
+            worstOperationName: text(appPerf.worstOperation?.name, 'N/A'),
+            worstOperationMs: Number(appPerf.worstOperation?.duration || 0),
+            recentOperations: Array.isArray(appPerf.recentOperations) ? appPerf.recentOperations : [],
+            faviconFailureCooldowns: faviconStats.failureSize || 0,
+            faviconQueuedFetches: faviconStats.queuedFetches || 0,
+            deferredScripts: {
+                loaded: Number(deferredState.loaded || 0),
+                total: Number(deferredState.total || 0),
+                remaining: Number(deferredState.remaining || 0),
+                batchSize: Number(deferredState.batchSize || 0),
+                phase: text(deferredState.phase, 'idle'),
+                pausedReason: text(deferredState.pausedReason, ''),
+                lastPauseMs: Number(deferredState.lastPauseMs || 0)
+            },
+            geminiBoot: {
+                loaded: Number(geminiState.loaded || 0),
+                total: Number(geminiState.total || 0),
+                remaining: Number(geminiState.remaining || 0),
+                pausedReason: text(geminiState.pausedReason, ''),
+                active: !!window.__GEMINI_BOOT_STARTED && !geminiState.completedAt
+            }
         };
     }
 
@@ -264,7 +291,30 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         html += '<tr><td>Nexus Indexed Records</td><td>' + perf.nexusIndexedRecords + '</td></tr>';
         html += '<tr><td>Nexus Indexed Cards</td><td>' + perf.nexusIndexedCards + '</td></tr>';
         html += '<tr><td>Nexus Indexed Providers</td><td>' + perf.nexusIndexedProviders + '</td></tr>';
+        html += '<tr><td>Long Tasks Seen</td><td>' + perf.longTaskCount + '</td></tr>';
+        html += '<tr><td>Worst Long Task</td><td>' + perf.worstLongTaskMs.toFixed(1) + ' ms</td></tr>';
+        html += '<tr><td>Worst Operation</td><td>' + escHtml(perf.worstOperationName) + ' (' + perf.worstOperationMs.toFixed(1) + ' ms)</td></tr>';
+        html += '<tr><td>Favicon Queue / Cooldowns</td><td>' + perf.faviconQueuedFetches + ' / ' + perf.faviconFailureCooldowns + '</td></tr>';
+        if (perf.deferredScripts.total > 0) {
+            html += '<tr><td>Deferred Loader</td><td>' + perf.deferredScripts.loaded + '/' + perf.deferredScripts.total
+                + ' · batch ' + perf.deferredScripts.batchSize
+                + ' · ' + escHtml(perf.deferredScripts.phase)
+                + (perf.deferredScripts.pausedReason ? ' · paused: ' + escHtml(perf.deferredScripts.pausedReason) : '')
+                + '</td></tr>';
+        }
+        if (perf.geminiBoot.total > 0 || perf.geminiBoot.active) {
+            html += '<tr><td>Gemini Loader</td><td>' + perf.geminiBoot.loaded + '/' + perf.geminiBoot.total
+                + (perf.geminiBoot.pausedReason ? ' · paused: ' + escHtml(perf.geminiBoot.pausedReason) : '')
+                + '</td></tr>';
+        }
         html += '</table></div>';
+        if (perf.recentOperations.length) {
+            html += '<div class="nx-debug-section"><div class="nx-debug-section-title">RECENT PERFORMANCE OPERATIONS</div>';
+            html += renderMiniList(perf.recentOperations.slice(-8).map(function (entry) {
+                return [entry.name || 'operation', Number(entry.duration || 0).toFixed(1) + ' ms'];
+            }));
+            html += '</div>';
+        }
         html += ns.DebugDrilldowns?.renderPerformanceHints?.(perf, overview) || '';
 
         html += '<div class="nx-debug-section"><div class="nx-debug-section-title">DATAPACK SPINE</div>';

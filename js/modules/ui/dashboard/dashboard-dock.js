@@ -58,7 +58,12 @@ window.renderDock = function (_visibleLinks, dockContainer, focusCategory) {
 
         const manualIcon = String(pin.icon || '').trim();
         if (manualIcon && manualIcon !== '\u{1F517}') {
-            if (/^(?:https?:\/\/|data:)/i.test(manualIcon) || manualIcon.startsWith('/')) {
+            const manualIconIsImage = /^(?:https?:\/\/|data:)/i.test(manualIcon) || manualIcon.startsWith('/');
+            const manualIconIsReserved = manualIconIsImage
+                && faviconUtils
+                && typeof faviconUtils.isReservedIconUrl === 'function'
+                && faviconUtils.isReservedIconUrl(manualIcon);
+            if (manualIconIsImage && !manualIconIsReserved) {
                 const img = document.createElement('img');
                 img.src = manualIcon;
                 img.width = 24;
@@ -77,10 +82,12 @@ window.renderDock = function (_visibleLinks, dockContainer, focusCategory) {
                 });
                 return img;
             }
-            const span = document.createElement('span');
-            span.style.fontSize = '1.35rem';
-            span.textContent = manualIcon;
-            return span;
+            if (!manualIconIsImage) {
+                const span = document.createElement('span');
+                span.style.fontSize = '1.35rem';
+                span.textContent = manualIcon;
+                return span;
+            }
         }
 
         if (isLocal) {

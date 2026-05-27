@@ -178,7 +178,66 @@ function buildMergeNote(details) {
         return result;
     }
 
+    function addLinkToDuplicateLookup(lookup, link, options = {}) {
+        if (!lookup || !link) return lookup;
+        const ignoreIds = lookup.ignoreIds instanceof Set ? lookup.ignoreIds : new Set();
+        const linkId = String(link?.id || '');
+        if (!linkId || ignoreIds.has(linkId)) return lookup;
+        if (normalizeWorkspaceId(link.workspace) !== lookup.workspaceId) return lookup;
+        if (normalizeCategoryName(link.category) !== lookup.categoryName) return lookup;
+
+        const urlMap = lookup.urlMap || (lookup.urlMap = new Map());
+        const titleMap = lookup.titleMap || (lookup.titleMap = new Map());
+        const preferExisting = options.preferExisting !== false;
+        getIdentityUrlSet(link).forEach((url) => {
+            if (!url) return;
+            if (!preferExisting || !urlMap.has(url)) urlMap.set(url, link);
+        });
+        const normalizedTitle = normalizeTitle(link?.title);
+        if (normalizedTitle && (!preferExisting || !titleMap.has(normalizedTitle))) {
+            titleMap.set(normalizedTitle, link);
+        }
+        return lookup;
+    }
+
+    function buildDuplicateLookupForScope(links, targetScope, options = {}) {
+        const lookup = {
+            workspaceId: normalizeWorkspaceId(targetScope?.workspaceId),
+            categoryName: normalizeCategoryName(targetScope?.categoryName),
+            ignoreIds: new Set((options.ignoreIds || []).map((id) => String(id))),
+            urlMap: new Map(),
+            titleMap: new Map()
+        };
+        (Array.isArray(links) ? links : getLiveLinks()).forEach((link) => {
+            addLinkToDuplicateLookup(lookup, link, { preferExisting: true });
+        });
+        return lookup;
+    }
+
+    function findDuplicateFromLookup(sourceLink, lookup) {
+        if (!sourceLink || !lookup) return null;
+        const sourceId = String(sourceLink?.id || '');
+        const ignoreIds = lookup.ignoreIds instanceof Set ? lookup.ignoreIds : new Set();
+        for (const sourceUrl of getIdentityUrlSet(sourceLink)) {
+            const candidate = lookup.urlMap?.get(sourceUrl);
+            if (candidate && String(candidate.id) !== sourceId && !ignoreIds.has(String(candidate.id))) {
+                return candidate;
+            }
+        }
+        const normalizedTitle = normalizeTitle(sourceLink?.title);
+        if (normalizedTitle) {
+            const candidate = lookup.titleMap?.get(normalizedTitle);
+            if (candidate && String(candidate.id) !== sourceId && !ignoreIds.has(String(candidate.id))) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
     function findDuplicateInCard(sourceLink, targetScope, options = {}) {
+        if (options.duplicateLookup) {
+            return findDuplicateFromLookup(sourceLink, options.duplicateLookup);
+        }
         const links = Array.isArray(options.links) ? options.links : getLiveLinks();
         const targetWorkspaceId = normalizeWorkspaceId(targetScope?.workspaceId);
         const targetCategoryName = normalizeCategoryName(targetScope?.categoryName);
@@ -223,7 +282,10 @@ function buildMergeNote(details) {
             && sourceScope.categoryName === nextScope.categoryName
             && sourceScope.folderId === nextScope.folderId;
 
-        const duplicate = findDuplicateInCard(sourceLink, nextScope, { links });
+        const duplicate = findDuplicateInCard(sourceLink, nextScope, {
+            links,
+            duplicateLookup: options.duplicateLookup
+        });
         if (duplicate) {
             return mergeBookmarkIntoTarget(sourceLink, duplicate, {
                 ...options,
@@ -241,7 +303,7 @@ function buildMergeNote(details) {
         sourceLink.category = nextScope.categoryName;
         if (nextScope.folderId) sourceLink.folderId = nextScope.folderId;
         else delete sourceLink.folderId;
-        if (typeof window.EveLibrary?.ConnectionsAPI?.syncFromLink === 'function') {
+        if (!options.deferLibrarySync && typeof window.EveLibrary?.ConnectionsAPI?.syncFromLink === 'function') {
             window.EveLibrary.ConnectionsAPI.syncFromLink(sourceLink.id);
         }
         return {
@@ -322,6 +384,8 @@ function buildMergeNote(details) {
         getIdentityUrlSet,
         valuesMatch,
         findDuplicateInCard,
+        buildDuplicateLookupForScope,
+        addLinkToDuplicateLookup,
         mergeBookmarkIntoTarget,
         moveOrMergeLinkToScope,
         mergeDuplicateGroup,

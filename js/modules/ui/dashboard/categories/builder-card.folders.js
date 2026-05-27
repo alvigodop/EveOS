@@ -24,6 +24,10 @@ window.DashboardCategories = window.DashboardCategories || {};
         }
 
         const workspaceId = String(options.activeWorkspace || window.eveState?.config?.activeWorkspace || 'main').trim() || 'main';
+        const activeFolderStateKey = `${workspaceId}::${categoryName}`;
+        const hasActiveFolderState = !!window.eveState?.config?.activeManhwaFolders?.[activeFolderStateKey];
+        const preferActiveFolderShell = !!options?._preferActiveFolderShell && hasActiveFolderState && !virtualFolderViewModel;
+        const requestedSkipGhosts = !!options?.skipGhosts || preferActiveFolderShell;
         
         let viewModel = virtualFolderViewModel;
         if (!viewModel) {
@@ -40,11 +44,12 @@ window.DashboardCategories = window.DashboardCategories || {};
                 // Ensure real folder node count matches (detects newly created folders)
                 && cached.nodes && cached.nodes.filter(n => !n.isGhost).length === currentRealNodes.length;
 
-            if (isCachedValid && (options?.skipGhosts || !cached._skipGhosts)) {
+            const cacheMatchesGhostMode = !!cached && (requestedSkipGhosts ? !!cached._skipGhosts : !cached._skipGhosts);
+            if (isCachedValid && cacheMatchesGhostMode) {
                 viewModel = cached;
             } else {
-                viewModel = folderApi.buildFolderView(workspaceId, categoryName, linksForCard, { skipGhosts: !!options?.skipGhosts });
-                viewModel._skipGhosts = !!options?.skipGhosts;
+                viewModel = folderApi.buildFolderView(workspaceId, categoryName, linksForCard, { skipGhosts: requestedSkipGhosts });
+                viewModel._skipGhosts = requestedSkipGhosts;
                 if (window.EveFolderViewV2?.setCachedViewModel) {
                     window.EveFolderViewV2.setCachedViewModel(workspaceId, categoryName, Object.assign(viewModel, { scopedLinks: linksForCard }));
                 }
@@ -52,8 +57,6 @@ window.DashboardCategories = window.DashboardCategories || {};
         }
 
         const isSubTabInParentView = !!options?.isSubTabInParentView;
-        const activeFolderStateKey = `${workspaceId}::${categoryName}`;
-        const hasActiveFolderState = !!window.eveState?.config?.activeManhwaFolders?.[activeFolderStateKey];
         if (!isDetachedParkingCard && !readOnlyFolders && !hasActiveFolderState && window.EveFolderViewV2 && window.EveFolderViewV2.isManhwaModeEnabled(workspaceId, categoryName)) {
             return window.EveFolderViewV2.renderRootGrid(workspaceId, categoryName, viewModel, renderer);
         }
@@ -196,6 +199,12 @@ window.DashboardCategories = window.DashboardCategories || {};
             + `<button type="button" class="bookmark-folder-toolbar-btn" onclick="promptCreateBookmarkFolder('${safeCategoryJs}', '', '${safeWorkspaceJs}')">New Folder</button>`
             + `<button type="button" class="bookmark-folder-toolbar-btn" onclick="openBookmarkFolders('${safeCategoryJs}')">Manage Folders</button>`
             + '</div>';
+        if (preferActiveFolderShell) {
+            return toolbarHtml
+                + '<div class="bookmark-folder-sections active-folder-restore-shell" data-active-folder-restore-shell="1">'
+                + '<div class="bookmark-folder-empty">Restoring selected Smart View...</div>'
+                + '</div>';
+        }
 
         const isRootSubfoldersCollapsed = !!(window.eveState?.config?.subfoldersCollapsed || []).includes(`${safeWorkspaceJs}::__root__::${categoryName}`);
         const isRootSublinksCollapsed = !!(window.eveState?.config?.sublinksCollapsed || []).includes(`${safeWorkspaceJs}::__root__::${categoryName}`);

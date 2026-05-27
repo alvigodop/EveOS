@@ -24,6 +24,7 @@ window.EveLibrary = window.EveLibrary || {};
         removeByLibraryEntry: Core.removeByLibraryEntry,
         syncFromLibraryEntry: Core.syncFromLibraryEntry,
         syncFromLink: Core.syncFromLink,
+        syncFromLinks: Core.syncFromLinks,
         getLinkedEntry: Core.getLinkedEntry,
         updateLinkedEntry: Core.updateLinkedEntry,
         moveLinkedEntryToScope: Core.moveLinkedEntryToScope,

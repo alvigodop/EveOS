@@ -61,7 +61,7 @@ window.EveLibrary.ConnectionsCoreModules = window.EveLibrary.ConnectionsCoreModu
             linked.forEach(conn => Core.emitLinkedEntryUpdated(conn.linkId, normalizedCategory, entry, conn.workspace));
         }
 
-        function moveLinkedEntryToScope(linkId, nextCategoryName, nextWorkspaceId) {
+        function moveLinkedEntryToScope(linkId, nextCategoryName, nextWorkspaceId, options = {}) {
             const conn = Core.findConnectionByLinkId(linkId);
             if (!conn) return false;
             const categoryName = Core.normalizeCategoryName(nextCategoryName);
@@ -89,41 +89,122 @@ window.EveLibrary.ConnectionsCoreModules = window.EveLibrary.ConnectionsCoreModu
 
             conn.categoryName = categoryName;
             conn.workspace = workspaceId;
-            Core.saveConnections();
-            if (entry) window.EveLibrary.Storage?.saveLibrary?.();
+            if (!options.deferPersist) {
+                Core.saveConnections();
+                if (entry) window.EveLibrary.Storage?.saveLibrary?.();
+            }
             return true;
         }
 
-        function syncFromLink(linkId) {
+        function syncFromLink(linkId, options = {}) {
             let conn = Core.findConnectionByLinkId(linkId);
-            if (!conn) return;
+            if (!conn) return { ok: false, changed: false, moved: false };
             const link = Core.findLinkById(linkId);
-            if (!link) return;
+            if (!link) return { ok: false, changed: false, moved: false };
 
             const currentWorkspace = Core.normalizeWorkspaceId(conn.workspace);
             const currentCategory = Core.normalizeCategoryName(conn.categoryName);
             const nextWorkspace = Core.normalizeWorkspaceId(link.workspace || Core.getConfig().activeWorkspace || currentWorkspace);
             const nextCategory = Core.normalizeCategoryName(link.category || currentCategory);
+            let moved = false;
             if (nextCategory !== currentCategory || nextWorkspace !== currentWorkspace) {
-                moveLinkedEntryToScope(linkId, nextCategory, nextWorkspace);
+                moved = moveLinkedEntryToScope(linkId, nextCategory, nextWorkspace, options) !== false;
                 conn = Core.findConnectionByLinkId(linkId);
-                if (!conn) return;
+                if (!conn) return { ok: false, changed: moved, moved };
             }
 
             const found = Core.findEntryByConnection(conn);
-            if (!found?.entry) return;
+            if (!found?.entry) return { ok: true, changed: moved, moved };
             const entry = found.entry;
-            entry.title = link.title || entry.title;
-            if (link.url) entry.sourceUrl = link.url;
-            const coverImage = String(link.coverImage || '').trim();
-            if (coverImage) {
-                entry.image = coverImage;
-            } else if (!hasExplicitBookmarkCover(link) && !String(entry.image || entry.imageUrl || '').trim()) {
-                delete entry.image;
+            let entryChanged = false;
+            if (link.title && entry.title !== link.title) {
+                entry.title = link.title;
+                entryChanged = true;
             }
-            entry.lastEdited = new Date().toISOString();
-            window.EveLibrary.Storage?.saveLibrary?.();
-            Core.emitLinkedEntryUpdated(linkId, found.categoryName, entry, conn.workspace);
+            if (link.url && entry.sourceUrl !== link.url) {
+                entry.sourceUrl = link.url;
+                entryChanged = true;
+            }
+            const coverImage = String(link.coverImage || '').trim();
+            if (coverImage && entry.image !== coverImage) {
+                entry.image = coverImage;
+                entryChanged = true;
+            } else if (!coverImage && !hasExplicitBookmarkCover(link) && !String(entry.image || entry.imageUrl || '').trim() && entry.image) {
+                delete entry.image;
+                entryChanged = true;
+            }
+            if (moved || entryChanged) {
+                entry.lastEdited = new Date().toISOString();
+            }
+            const changed = moved || entryChanged;
+            if (changed && !options.deferPersist) {
+                window.EveLibrary.Storage?.saveLibrary?.();
+            }
+            if (!options.deferEvents) {
+                Core.emitLinkedEntryUpdated(linkId, found.categoryName, entry, conn.workspace);
+            }
+            return { ok: true, changed, moved };
+        }
+
+        function syncFromLinks(linkIds, options = {}) {
+            const ids = Array.isArray(linkIds) ? Array.from(new Set(linkIds.map(id => String(id || '')).filter(Boolean))) : [];
+            let changedCount = 0;
+            let movedCount = 0;
+
+            const syncOne = (linkId) => {
+                const result = syncFromLink(linkId, {
+                    ...options,
+                    deferPersist: true
+                });
+                if (result?.changed) changedCount += 1;
+                if (result?.moved) movedCount += 1;
+            };
+
+            const persistChanges = () => {
+                if (options.deferPersist || !(changedCount || movedCount)) return;
+                if (movedCount) Core.saveConnections();
+                window.EveLibrary.Storage?.saveLibrary?.();
+            };
+
+            if (options.async && ids.length > 1) {
+                const chunkSize = Math.max(1, Number(options.chunkSize || 8) || 8);
+                let cursor = 0;
+                const schedule = (callback) => {
+                    if (typeof window.requestIdleCallback === 'function') {
+                        window.requestIdleCallback(callback, { timeout: Math.max(250, Number(options.timeoutMs || 900) || 900) });
+                    } else {
+                        setTimeout(callback, Math.max(0, Number(options.yieldMs || 16) || 16));
+                    }
+                };
+                const runChunk = () => {
+                    const end = Math.min(cursor + chunkSize, ids.length);
+                    for (; cursor < end; cursor += 1) {
+                        syncOne(ids[cursor]);
+                    }
+                    if (cursor < ids.length) {
+                        schedule(runChunk);
+                        return;
+                    }
+                    persistChanges();
+                };
+                schedule(runChunk);
+                return {
+                    ok: true,
+                    scheduled: true,
+                    checked: ids.length,
+                    changed: 0,
+                    moved: 0
+                };
+            }
+
+            ids.forEach(syncOne);
+            persistChanges();
+            return {
+                ok: true,
+                checked: ids.length,
+                changed: changedCount,
+                moved: movedCount
+            };
         }
 
         function getLinkedEntry(linkId) {
@@ -162,6 +243,7 @@ window.EveLibrary.ConnectionsCoreModules = window.EveLibrary.ConnectionsCoreModu
         return {
             syncFromLibraryEntry,
             syncFromLink,
+            syncFromLinks,
             getLinkedEntry,
             updateLinkedEntry,
             moveLinkedEntryToScope,

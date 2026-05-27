@@ -4,6 +4,8 @@ window.EveBookmarkCovers = window.EveBookmarkCovers || {};
     const selectionCache = new Map();
     const warmedCoverUrls = new Set();
     const warmingCoverUrls = new Set();
+    const failedCoverUrls = new Map();
+    const COVER_FAILURE_TTL_MS = 12 * 60 * 60 * 1000;
     let warmupTimer = 0;
 
     function toLinkId(value) {
@@ -41,7 +43,13 @@ window.EveBookmarkCovers = window.EveBookmarkCovers || {};
     function isReservedTestImageHost(url) {
         try {
             const host = new URL(url).hostname.toLowerCase();
-            return host === 'example.com'
+            return host === 'example'
+                || host.endsWith('.example')
+                || host === 'test'
+                || host.endsWith('.test')
+                || host === 'invalid'
+                || host.endsWith('.invalid')
+                || host === 'example.com'
                 || host.endsWith('.example.com')
                 || host === 'example.org'
                 || host.endsWith('.example.org')
@@ -50,6 +58,39 @@ window.EveBookmarkCovers = window.EveBookmarkCovers || {};
         } catch (error) {
             return false;
         }
+    }
+
+    function normalizeCoverFailureKey(value) {
+        return trimUrl(value);
+    }
+
+    function isCoverFailureCoolingDown(url) {
+        const key = normalizeCoverFailureKey(url);
+        if (!key) return false;
+        const failedAt = Number(failedCoverUrls.get(key) || 0);
+        if (!failedAt) return false;
+        if (Date.now() - failedAt <= COVER_FAILURE_TTL_MS) return true;
+        failedCoverUrls.delete(key);
+        return false;
+    }
+
+    function markCoverFailure(url) {
+        const key = normalizeCoverFailureKey(url);
+        if (!key) return false;
+        failedCoverUrls.set(key, Date.now());
+        if (failedCoverUrls.size > 1200) {
+            const first = failedCoverUrls.keys().next();
+            if (!first.done) failedCoverUrls.delete(first.value);
+        }
+        return true;
+    }
+
+    function isDisplayableCoverUrl(value) {
+        const normalized = trimUrl(value);
+        if (!isRenderableCoverUrl(normalized)) return false;
+        if (isReservedTestImageHost(normalized)) return false;
+        if (isCoverFailureCoolingDown(normalized)) return false;
+        return true;
     }
 
     function getAdditionalCoverImages(link) {
@@ -70,12 +111,12 @@ window.EveBookmarkCovers = window.EveBookmarkCovers || {};
     function getDisplayCover(link, fallbackImage) {
         const primaryLink = trimUrl(link?.coverImage);
         const primaryFallback = trimUrl(fallbackImage);
-        const primary = isRenderableCoverUrl(primaryLink)
+        const primary = isDisplayableCoverUrl(primaryLink)
             ? primaryLink
-            : (isRenderableCoverUrl(primaryFallback) ? primaryFallback : '');
-        const candidates = getCoverCandidates(link);
+            : (isDisplayableCoverUrl(primaryFallback) ? primaryFallback : '');
+        const candidates = getCoverCandidates(link).filter(isDisplayableCoverUrl);
         const fixed = getFixedCoverImage(link);
-        if (fixed) {
+        if (fixed && isDisplayableCoverUrl(fixed)) {
             warmCoverUrl(fixed);
             return fixed;
         }
@@ -111,6 +152,9 @@ window.EveBookmarkCovers = window.EveBookmarkCovers || {};
         img.referrerPolicy = 'no-referrer';
         img.onload = img.onerror = function () {
             warmingCoverUrls.delete(normalized);
+            if (img.naturalWidth === 0 && img.naturalHeight === 0) {
+                markCoverFailure(normalized);
+            }
             warmedCoverUrls.add(normalized);
             if (warmedCoverUrls.size > 900) {
                 const first = warmedCoverUrls.values().next();
@@ -128,13 +172,25 @@ window.EveBookmarkCovers = window.EveBookmarkCovers || {};
         let count = 0;
         sourceLinks.slice(0, limit).forEach(function (link) {
             const urls = uniqueUrls([link?.fixedCoverImage, link?.coverImage].concat(Array.isArray(link?.coverImages) ? link.coverImages : []))
-                .filter(isRenderableCoverUrl)
+                .filter(isDisplayableCoverUrl)
                 .filter(function (url) { return /^https?:\/\//i.test(url); });
             urls.slice(0, 3).forEach(function (url) {
                 if (warmCoverUrl(url)) count += 1;
             });
         });
         return count;
+    }
+
+    function handleCoverImageError(image) {
+        if (!image) return false;
+        const src = trimUrl(image.currentSrc || image.src || image.dataset?.coverUrl || '');
+        markCoverFailure(src);
+        image.onerror = null;
+        image.removeAttribute('src');
+        image.style.display = 'none';
+        const coverSlot = image.closest?.('.unidex-entry-cover-slot, .hatch-bookmark-cover, .folder-tile-hatch-cover');
+        if (coverSlot) coverSlot.classList.add('is-cover-error');
+        return true;
     }
 
     function scheduleWarmup(links, options = {}) {
@@ -206,6 +262,9 @@ window.EveBookmarkCovers = window.EveBookmarkCovers || {};
         getCoverCandidates,
         getDisplayCover,
         isRenderableCoverUrl,
+        isDisplayableCoverUrl,
+        markCoverFailure,
+        handleCoverImageError,
         clearSelection,
         warmCoverUrl,
         warmupCoversForLinks,

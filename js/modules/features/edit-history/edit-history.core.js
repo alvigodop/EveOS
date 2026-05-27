@@ -11,6 +11,7 @@ window.EveEditHistory = window.EveEditHistory || {};
     const MAX_TOTAL = 800;
     let store = { schema: SCHEMA, maxPerScope: MAX_PER_SCOPE, buckets: {} };
     let loaded = false;
+    let persistTimer = 0;
 
     function nowIso() {
         return new Date().toISOString();
@@ -55,9 +56,17 @@ window.EveEditHistory = window.EveEditHistory || {};
         return normalized;
     }
 
-    function persistStore() {
+    function persistStore(options = {}) {
         const payload = normalizeStore(store);
         store = payload;
+        if (!options.immediate) {
+            if (persistTimer) clearTimeout(persistTimer);
+            persistTimer = setTimeout(() => {
+                persistTimer = 0;
+                persistStore({ immediate: true });
+            }, 450);
+            return;
+        }
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
         } catch {}
@@ -69,6 +78,14 @@ window.EveEditHistory = window.EveEditHistory || {};
                 mirrorPruneRatio: 0.05
             }).catch((error) => console.warn('[EditHistory] Failed to persist edit history:', error));
         }
+    }
+
+    function flushPersistStore() {
+        if (persistTimer) {
+            clearTimeout(persistTimer);
+            persistTimer = 0;
+        }
+        persistStore({ immediate: true });
     }
 
     function loadStore() {
@@ -262,7 +279,7 @@ window.EveEditHistory = window.EveEditHistory || {};
     }
 
 
-    function pushEntry(entry) {
+    function pushEntry(entry, options = {}) {
         if (!entry?.scope || signature(entry.before) === signature(entry.after)) return false;
         loadStore();
         const key = bucketKey(entry.scope);
@@ -270,7 +287,7 @@ window.EveEditHistory = window.EveEditHistory || {};
         list.push(entry);
         store.buckets[key] = list.slice(-MAX_PER_SCOPE);
         pruneTotal();
-        persistStore();
+        if (options.persist !== false) persistStore(options);
         return true;
     }
 
@@ -304,24 +321,46 @@ window.EveEditHistory = window.EveEditHistory || {};
         const delta = args.delta || {};
         const source = args.source || 'saveData';
         const meta = args.meta || {};
-        let recorded = pushEntry(makeEntry('data', { layer: 'datapack', key: '__all__', label: 'Data Pack' }, args.before, args.after, source, meta));
+        const historyOptions = meta.editHistory && typeof meta.editHistory === 'object' ? meta.editHistory : {};
+        const scopedOnly = !!historyOptions.scopedOnly || !!meta.scopedOnlyEditHistory;
+        const includeDatapack = !scopedOnly && historyOptions.datapack !== false;
+        const includeWorkspaces = !scopedOnly && historyOptions.workspaces !== false;
+        const includeCards = historyOptions.cards !== false;
+        const includeFolders = !scopedOnly && historyOptions.folders !== false;
+        const includeBookmarks = !scopedOnly && historyOptions.bookmarks !== false;
+        const changedScopes = changedScopesFromDelta(delta);
+        let recorded = false;
+        if (includeDatapack) {
+            recorded = pushEntry(makeEntry('data', { layer: 'datapack', key: '__all__', label: 'Data Pack' }, args.before, args.after, source, meta), { persist: false });
+        }
 
         const workspaceIds = new Set(delta.workspaceIds || []);
-        changedScopesFromDelta(delta).forEach((scope) => workspaceIds.add(scope.workspaceId));
-        workspaceIds.forEach((workspaceId) => {
-            recorded = pushEntry(makeEntry('data', { layer: 'workspace', key: workspaceId, label: `Tab ${workspaceId}` }, captureWorkspaceData(args.before, workspaceId), captureWorkspaceData(args.after, workspaceId), source, meta)) || recorded;
-        });
-        changedScopesFromDelta(delta).forEach((scope) => {
-            const key = scopedKey(scope.workspaceId, scope.categoryName);
-            recorded = pushEntry(makeEntry('data', { layer: 'card', key, label: `Card ${key}` }, captureCardData(args.before, scope.workspaceId, scope.categoryName), captureCardData(args.after, scope.workspaceId, scope.categoryName), source, meta)) || recorded;
-            (delta.folderIds || []).forEach((folderId) => {
-                const folderKey = `${key}::${folderId}`;
-                recorded = pushEntry(makeEntry('data', { layer: 'folder', key: folderKey, label: `Folder ${folderKey}` }, captureFolderData(args.before, scope.workspaceId, scope.categoryName, folderId), captureFolderData(args.after, scope.workspaceId, scope.categoryName, folderId), source, meta)) || recorded;
+        changedScopes.forEach((scope) => workspaceIds.add(scope.workspaceId));
+        if (includeWorkspaces) {
+            workspaceIds.forEach((workspaceId) => {
+                recorded = pushEntry(makeEntry('data', { layer: 'workspace', key: workspaceId, label: `Tab ${workspaceId}` }, captureWorkspaceData(args.before, workspaceId), captureWorkspaceData(args.after, workspaceId), source, meta), { persist: false }) || recorded;
             });
-        });
-        (delta.linkIds || []).forEach((linkId) => {
-            recorded = pushEntry(makeEntry('data', { layer: 'bookmark', key: linkId, label: `Bookmark ${linkId}` }, captureBookmarkData(args.before, linkId), captureBookmarkData(args.after, linkId), source, meta)) || recorded;
-        });
+        }
+        if (includeCards || includeFolders) {
+            changedScopes.forEach((scope) => {
+                const key = scopedKey(scope.workspaceId, scope.categoryName);
+                if (includeCards) {
+                    recorded = pushEntry(makeEntry('data', { layer: 'card', key, label: `Card ${key}` }, captureCardData(args.before, scope.workspaceId, scope.categoryName), captureCardData(args.after, scope.workspaceId, scope.categoryName), source, meta), { persist: false }) || recorded;
+                }
+                if (includeFolders) {
+                    (delta.folderIds || []).forEach((folderId) => {
+                        const folderKey = `${key}::${folderId}`;
+                        recorded = pushEntry(makeEntry('data', { layer: 'folder', key: folderKey, label: `Folder ${folderKey}` }, captureFolderData(args.before, scope.workspaceId, scope.categoryName, folderId), captureFolderData(args.after, scope.workspaceId, scope.categoryName, folderId), source, meta), { persist: false }) || recorded;
+                    });
+                }
+            });
+        }
+        if (includeBookmarks) {
+            (delta.linkIds || []).forEach((linkId) => {
+                recorded = pushEntry(makeEntry('data', { layer: 'bookmark', key: linkId, label: `Bookmark ${linkId}` }, captureBookmarkData(args.before, linkId), captureBookmarkData(args.after, linkId), source, meta), { persist: false }) || recorded;
+            });
+        }
+        if (recorded) persistStore();
         return recorded;
     }
 
@@ -329,19 +368,20 @@ window.EveEditHistory = window.EveEditHistory || {};
         if (args?.meta?.skipEditHistory || !args.before || !args.after) return false;
         const source = args.source || 'saveConfig';
         const meta = args.meta || {};
-        let recorded = pushEntry(makeEntry('config', { layer: 'datapack', key: '__config__', label: 'Data Pack Config' }, { config: args.before }, { config: args.after }, source, meta));
+        let recorded = pushEntry(makeEntry('config', { layer: 'datapack', key: '__config__', label: 'Data Pack Config' }, { config: args.before }, { config: args.after }, source, meta), { persist: false });
         (args.delta?.workspaceIds || []).forEach((workspaceId) => {
-            recorded = pushEntry(makeEntry('config', { layer: 'workspace', key: workspaceId, label: `Tab ${workspaceId}` }, captureWorkspaceConfig(args.before, workspaceId), captureWorkspaceConfig(args.after, workspaceId), source, meta)) || recorded;
+            recorded = pushEntry(makeEntry('config', { layer: 'workspace', key: workspaceId, label: `Tab ${workspaceId}` }, captureWorkspaceConfig(args.before, workspaceId), captureWorkspaceConfig(args.after, workspaceId), source, meta), { persist: false }) || recorded;
         });
         const configHistory = ns._configHistory || {};
         (configHistory.collectChangedCardConfigScopes?.(args.before, args.after, args.delta) || []).forEach((scope) => {
             const key = scopedKey(scope.workspaceId, scope.categoryName);
-            recorded = pushEntry(makeEntry('config', { layer: 'card', key, label: `Card Config ${key}` }, configHistory.captureCardConfig(args.before, scope.workspaceId, scope.categoryName), configHistory.captureCardConfig(args.after, scope.workspaceId, scope.categoryName), source, meta)) || recorded;
+            recorded = pushEntry(makeEntry('config', { layer: 'card', key, label: `Card Config ${key}` }, configHistory.captureCardConfig(args.before, scope.workspaceId, scope.categoryName), configHistory.captureCardConfig(args.after, scope.workspaceId, scope.categoryName), source, meta), { persist: false }) || recorded;
         });
         (configHistory.collectChangedFolderConfigScopes?.(args.before, args.after, args.delta) || []).forEach((scope) => {
             const key = configHistory.folderScopedKey(scope.workspaceId, scope.categoryName, scope.folderId);
-            recorded = pushEntry(makeEntry('config', { layer: 'folder', key, label: `Folder Config ${key}` }, configHistory.captureFolderConfig(args.before, scope.workspaceId, scope.categoryName, scope.folderId), configHistory.captureFolderConfig(args.after, scope.workspaceId, scope.categoryName, scope.folderId), source, meta)) || recorded;
+            recorded = pushEntry(makeEntry('config', { layer: 'folder', key, label: `Folder Config ${key}` }, configHistory.captureFolderConfig(args.before, scope.workspaceId, scope.categoryName, scope.folderId), configHistory.captureFolderConfig(args.after, scope.workspaceId, scope.categoryName, scope.folderId), source, meta), { persist: false }) || recorded;
         });
+        if (recorded) persistStore();
         return recorded;
     }
 
@@ -360,13 +400,18 @@ window.EveEditHistory = window.EveEditHistory || {};
 
     function clearHistory() {
         store = { schema: SCHEMA, maxPerScope: MAX_PER_SCOPE, buckets: {} };
-        persistStore();
+        persistStore({ immediate: true });
+    }
+
+    if (typeof window.addEventListener === 'function') {
+        window.addEventListener('pagehide', flushPersistStore);
     }
 
     Object.assign(ns, {
         STORAGE_KEY,
         MAX_PER_SCOPE,
         loadStore,
+        flushPersistStore,
         getEntries,
         findEntry,
         clearHistory,

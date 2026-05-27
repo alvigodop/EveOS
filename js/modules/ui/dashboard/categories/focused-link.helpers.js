@@ -49,6 +49,26 @@ window.DashboardCategoriesModules = window.DashboardCategoriesModules || {};
         }
     }
 
+    function isReservedIconUrl(value) {
+        const text = String(value || '').trim();
+        if (!text) return false;
+        const faviconUtils = window.EveFaviconUtils || null;
+        if (faviconUtils && typeof faviconUtils.isReservedIconUrl === 'function') {
+            return !!faviconUtils.isReservedIconUrl(text);
+        }
+        try {
+            const host = new URL(text).hostname.toLowerCase();
+            return host === 'example'
+                || host.endsWith('.example')
+                || host === 'test'
+                || host.endsWith('.test')
+                || host === 'invalid'
+                || host.endsWith('.invalid');
+        } catch (error) {
+            return false;
+        }
+    }
+
     function getLinkById(linkId) {
         const normalized = normalizeId(linkId);
         if (!normalized) return null;
@@ -100,7 +120,8 @@ window.DashboardCategoriesModules = window.DashboardCategoriesModules || {};
         const iconRaw = String(link?.icon || '').trim();
         const iconNormalized = iconRaw.replace(/\uFE0F/g, '');
         const isLegacyLinkIcon = iconNormalized === linkIcon;
-        const hasCustomIcon = !!iconNormalized && !isLegacyLinkIcon;
+        const customIconIsImage = /^(?:https?:\/\/|data:)/i.test(iconRaw) || iconRaw.startsWith('/');
+        const hasCustomIcon = !!iconNormalized && !isLegacyLinkIcon && !(customIconIsImage && isReservedIconUrl(iconRaw));
         const fallbackDomain = faviconUtils && typeof faviconUtils.getDomainFromUrl === 'function'
             ? faviconUtils.getDomainFromUrl(link?.url)
             : getDomain(link?.url);
@@ -114,7 +135,7 @@ window.DashboardCategoriesModules = window.DashboardCategoriesModules || {};
         const fallbackOnError = "if(window.EveFaviconUtils&&typeof window.EveFaviconUtils.handleImageError==='function'){window.EveFaviconUtils.handleImageError(this);return;}this.onerror=null;this.replaceWith(document.createTextNode(String.fromCodePoint(0x1F310)));";
 
         if (hasCustomIcon) {
-            if (/^(?:https?:\/\/|data:)/i.test(iconRaw) || iconRaw.startsWith('/')) {
+            if (customIconIsImage) {
                 const safeIconUrl = escapeHtml(iconRaw);
                 return '<img class="unidex-entry-bookmark-icon-img" src="' + safeIconUrl + '" alt="' + safeTitle + ' icon"' + fallbackAttr + faviconDomainAttr + faviconSizeAttr + ' loading="lazy" referrerpolicy="no-referrer" onerror="' + fallbackOnError + '">';
             }

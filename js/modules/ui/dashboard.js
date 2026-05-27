@@ -6,7 +6,13 @@ function renderDashboard() {
     window._eveDashRenderPending = true;
     requestAnimationFrame(function () {
         window._eveDashRenderPending = false;
+        var finishPerf = window.EvePerformanceMonitor?.startOperation?.('renderDashboard', {
+            source: window.__eveDashboardRenderHint?.source || window.__eveDashboardRenderHint?.kind || 'render'
+        });
         _renderDashboardImmediate();
+        finishPerf?.({
+            dirty: !!window._evePerfMode
+        });
     });
 }
 
@@ -174,12 +180,52 @@ function buildDashboardVisibleLinkMatcher(visibleWorkspaceIds, searchTerms, fold
 
 function scheduleDashboardFaviconRefresh(reason, options) {
     if (!window.EveFaviconCache || typeof window.EveFaviconCache.refreshRendered !== 'function') return;
+    var normalizedReason = reason || 'dashboard-render';
+    if (Date.now() < Number(window.__eveSuppressFaviconRefreshUntil || 0)) {
+        window.EvePerformanceMonitor?.recordOperation?.('favicon-refresh', 0, {
+            reason: normalizedReason,
+            suppressed: true
+        });
+        return;
+    }
     var opts = options || {};
+    var renderedImageCount = typeof document !== 'undefined' && document.images
+        ? Number(document.images.length || 0)
+        : 0;
+    if (renderedImageCount > 2500 && !opts.force) {
+        window.EvePerformanceMonitor?.recordOperation?.('favicon-refresh', 0, {
+            reason: normalizedReason,
+            suppressed: true,
+            total: renderedImageCount
+        });
+        return;
+    }
+    if ((window._evePerfMode || window._eveMegaPerfMode) && !opts.force) {
+        window.EvePerformanceMonitor?.recordOperation?.('favicon-refresh', 0, {
+            reason: normalizedReason,
+            suppressed: true
+        });
+        return;
+    }
+    var finishPerf = window.EvePerformanceMonitor?.startOperation?.('favicon-refresh', {
+        reason: normalizedReason
+    });
     window.EveFaviconCache.refreshRendered({
-        reason: reason || 'dashboard-render',
+        reason: normalizedReason,
         delayMs: opts.delayMs,
-        maxFetch: opts.maxFetch
+        maxFetch: opts.maxFetch,
+        maxUpdate: opts.maxUpdate
+    }).then(function (result) {
+        finishPerf?.({
+            updated: result?.updated || 0,
+            queued: result?.queued || 0,
+            scanned: result?.scanned || 0,
+            total: result?.total || 0,
+            aborted: !!result?.aborted,
+            suppressed: !!result?.suppressed
+        });
     }).catch(function (error) {
+        finishPerf?.({ source: 'error' });
         console.warn('[Dashboard] Favicon refresh failed:', error);
     });
 }

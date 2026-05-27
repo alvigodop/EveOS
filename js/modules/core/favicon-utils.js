@@ -12,6 +12,16 @@
         return String(domain || '').toLowerCase().replace(/^www\./, '');
     }
 
+    function isReservedTestDomain(domain) {
+        const normalized = normalizeDomain(domain);
+        return normalized === 'example'
+            || normalized.endsWith('.example')
+            || normalized === 'test'
+            || normalized.endsWith('.test')
+            || normalized === 'invalid'
+            || normalized.endsWith('.invalid');
+    }
+
     function getDomainFromUrl(rawUrl) {
         const text = String(rawUrl || '').trim();
         if (!text) return '';
@@ -50,7 +60,7 @@
 
     function buildRemoteUrl(domain, size) {
         const normalized = normalizeDomain(domain);
-        if (!normalized) return '';
+        if (!normalized || isReservedTestDomain(normalized)) return '';
         return `${FAVICON_PROVIDER_BASE}/${encodeURIComponent(normalized)}.ico`;
     }
 
@@ -189,6 +199,7 @@
     function getSrc(domain, size) {
         const normalized = normalizeDomain(domain);
         if (!normalized) return '';
+        if (isReservedTestDomain(normalized)) return getFallbackSrc(normalized, size || 32);
 
         if (window.EveFaviconCache && typeof window.EveFaviconCache.getSrc === 'function') {
             const cachedSrc = window.EveFaviconCache.getSrc(normalized, size || 32);
@@ -196,15 +207,9 @@
                 clearDomainFailure(normalized);
                 return cachedSrc;
             }
-            if (cachedSrc && !hasDomainFailure(normalized)) return cachedSrc;
         }
 
-        if (window._eveStartupBookmarkPaintActive || window._eveMegaPerfMode) {
-            return getFallbackSrc(normalized, size || 32);
-        }
-
-        if (hasDomainFailure(normalized)) return getFallbackSrc(normalized, size || 32);
-        return buildRemoteUrl(normalized, size || 32);
+        return getFallbackSrc(normalized, size || 32);
     }
 
     function getBestEffortSrc(domain, size) {
@@ -214,12 +219,7 @@
         const src = getSrc(normalized, size);
         if (src) return src;
 
-        if (window._eveStartupBookmarkPaintActive || window._eveMegaPerfMode) {
-            return getFallbackSrc(normalized, size || 32);
-        }
-
-        if (hasDomainFailure(normalized)) return getFallbackSrc(normalized, size || 32);
-        return buildRemoteUrl(normalized, size || 32);
+        return getFallbackSrc(normalized, size || 32);
     }
 
     function createFallbackNode(image) {
@@ -278,6 +278,7 @@
         buildPlaceholderSrc,
         buildRemoteUrl,
         isLocalContext,
+        isReservedTestDomain,
         hasDomainFailure,
         markDomainFailure,
         clearDomainFailure,

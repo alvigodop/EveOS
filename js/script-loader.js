@@ -12,6 +12,15 @@
     const DEFERRED_BATCH_SIZE = 4;
     const DEFERRED_BATCH_PAUSE_MS = 300;
     const DEFERRED_QUIET_WINDOW_MS = 2000;
+    const DEFERRED_PRESSURE_DOM_NODES = 12000;
+    const DEFERRED_HEAVY_DOM_NODES = 24000;
+    const DEFERRED_PRESSURE_IMAGES = 1200;
+    const DEFERRED_HEAVY_IMAGES = 2400;
+    const DEFERRED_BUSY_PAUSE_MS = 650;
+    const DEFERRED_PRESSURE_PAUSE_MS = 900;
+    const DEFERRED_HEAVY_PAUSE_MS = 1400;
+    const DEFERRED_LARGE_PACK_LINKS = 1000;
+    const DEFERRED_LARGE_PACK_HOLD_MS = 26000;
     let lastUserInteractionAt = Date.now();
 
     if (!window.EveModuleManifest) {
@@ -137,6 +146,76 @@
         return new Promise((resolve) => window.setTimeout(resolve, ms));
     }
 
+    function nowMs() {
+        return (typeof performance !== 'undefined' && performance.now)
+            ? performance.now()
+            : Date.now();
+    }
+
+    function getDomPressure() {
+        try {
+            return {
+                domNodes: document.body ? document.body.getElementsByTagName('*').length : 0,
+                images: document.images ? document.images.length : 0
+            };
+        } catch {
+            return { domNodes: 0, images: 0 };
+        }
+    }
+
+    function getDeferredBusyReason(pressure) {
+        const now = Date.now();
+        if (document.visibilityState === 'hidden') return 'hidden';
+        if (window._eveDashRenderPending) return 'dashboard-render';
+        if (Number(window.__eveLargeMutationActiveUntil || 0) > now) return 'large-mutation';
+        if (Number(window.__eveSuppressFaviconRefreshUntil || 0) > now) return 'favicon-suppressed';
+        const startedAt = Number(window.__EVE_DEFERRED_SCRIPT_STATE?.startedAt || 0);
+        const liveLinkCount = typeof window.getLiveLinks === 'function'
+            ? (window.getLiveLinks() || []).length
+            : (Array.isArray(window.eveState?.links) ? window.eveState.links.length : 0);
+        if (
+            !window.__RUSH_DEFERRED_LOAD
+            && liveLinkCount >= DEFERRED_LARGE_PACK_LINKS
+            && startedAt > 0
+            && now - startedAt < DEFERRED_LARGE_PACK_HOLD_MS
+        ) {
+            return 'large-pack-startup-hold';
+        }
+        const domNodes = Number(pressure?.domNodes || 0);
+        const images = Number(pressure?.images || 0);
+        if (window._eveStartupBookmarkPaintActive && (domNodes > 6000 || images > 700)) return 'startup-paint';
+        if ((domNodes > DEFERRED_PRESSURE_DOM_NODES || images > DEFERRED_PRESSURE_IMAGES)
+            && document.querySelector('[data-card-hydrating="1"]')) {
+            return 'card-hydration';
+        }
+        return '';
+    }
+
+    function getDeferredBatchPlan() {
+        const pressure = getDomPressure();
+        let batchSize = DEFERRED_BATCH_SIZE;
+        let pauseMs = DEFERRED_BATCH_PAUSE_MS;
+        let phase = 'normal';
+
+        if (pressure.domNodes > DEFERRED_HEAVY_DOM_NODES || pressure.images > DEFERRED_HEAVY_IMAGES) {
+            batchSize = 1;
+            pauseMs = DEFERRED_HEAVY_PAUSE_MS;
+            phase = 'heavy-dom-pressure';
+        } else if (pressure.domNodes > DEFERRED_PRESSURE_DOM_NODES || pressure.images > DEFERRED_PRESSURE_IMAGES) {
+            batchSize = Math.min(batchSize, 2);
+            pauseMs = DEFERRED_PRESSURE_PAUSE_MS;
+            phase = 'dom-pressure';
+        }
+
+        return {
+            batchSize: Math.max(1, batchSize),
+            pauseMs: Math.max(0, pauseMs),
+            phase,
+            domNodes: pressure.domNodes,
+            images: pressure.images
+        };
+    }
+
     async function loadScriptsInBatches(scriptSources, batchSize, pauseMs = 0) {
         if (!Array.isArray(scriptSources) || !scriptSources.length) return;
         const size = Math.max(1, Number(batchSize) || 1);
@@ -168,10 +247,18 @@
             if (window.__RUSH_DEFERRED_LOAD) return;
             const quietForMs = Date.now() - lastUserInteractionAt;
             const isVisible = document.visibilityState !== 'hidden';
-            if (isVisible && quietForMs >= DEFERRED_QUIET_WINDOW_MS) {
+            const pressure = getDomPressure();
+            const busyReason = getDeferredBusyReason(pressure);
+            if (window.__EVE_DEFERRED_SCRIPT_STATE) {
+                window.__EVE_DEFERRED_SCRIPT_STATE.pausedReason = busyReason || (isVisible ? '' : 'hidden');
+                window.__EVE_DEFERRED_SCRIPT_STATE.domNodes = pressure.domNodes;
+                window.__EVE_DEFERRED_SCRIPT_STATE.images = pressure.images;
+            }
+            if (isVisible && quietForMs >= DEFERRED_QUIET_WINDOW_MS && !busyReason) {
                 return;
             }
-            await sleep(Math.max(200, DEFERRED_QUIET_WINDOW_MS - quietForMs));
+            const quietWait = Math.max(200, DEFERRED_QUIET_WINDOW_MS - quietForMs);
+            await sleep(busyReason ? Math.max(DEFERRED_BUSY_PAUSE_MS, Math.min(quietWait, 1200)) : quietWait);
         }
     }
 
@@ -182,17 +269,30 @@
             total: deferredScripts.length,
             loaded: 0,
             failed: 0,
-            startedAt: Date.now()
+            startedAt: Date.now(),
+            batchSize: DEFERRED_BATCH_SIZE,
+            lastPauseMs: 0,
+            phase: 'pending',
+            pausedReason: ''
         };
 
         console.log(`Loading deferred scripts in background (${deferredScripts.length})...`);
 
-        for (let i = 0; i < deferredScripts.length; i += DEFERRED_BATCH_SIZE) {
+        for (let i = 0; i < deferredScripts.length;) {
             await waitForQuietWindow();
             await waitForIdleTask();
 
-            const batch = deferredScripts.slice(i, i + DEFERRED_BATCH_SIZE);
+            const plan = getDeferredBatchPlan();
+            const batch = deferredScripts.slice(i, i + plan.batchSize);
+            const batchStarted = nowMs();
+            window.__EVE_DEFERRED_SCRIPT_STATE.batchSize = batch.length;
+            window.__EVE_DEFERRED_SCRIPT_STATE.phase = plan.phase;
+            window.__EVE_DEFERRED_SCRIPT_STATE.domNodes = plan.domNodes;
+            window.__EVE_DEFERRED_SCRIPT_STATE.images = plan.images;
+            window.__EVE_DEFERRED_SCRIPT_STATE.remaining = Math.max(0, deferredScripts.length - i);
             const results = await Promise.allSettled(batch.map((src) => loadScript(src)));
+            const batchDuration = nowMs() - batchStarted;
+            i += batch.length;
 
             results.forEach((result) => {
                 if (result.status === 'fulfilled') {
@@ -201,9 +301,23 @@
                     window.__EVE_DEFERRED_SCRIPT_STATE.failed += 1;
                 }
             });
+            window.__EVE_DEFERRED_SCRIPT_STATE.loadedAt = Date.now();
+            window.__EVE_DEFERRED_SCRIPT_STATE.remaining = Math.max(0, deferredScripts.length - i);
 
-            if (i + DEFERRED_BATCH_SIZE < deferredScripts.length) {
-                await sleep(window.__RUSH_DEFERRED_LOAD ? 0 : DEFERRED_BATCH_PAUSE_MS);
+            window.EvePerformanceMonitor?.recordOperation?.('deferred-script-batch', batchDuration, {
+                source: 'script-loader',
+                batchSize: batch.length,
+                remaining: Math.max(0, deferredScripts.length - i),
+                total: deferredScripts.length,
+                domNodes: plan.domNodes,
+                images: plan.images,
+                phase: plan.phase
+            });
+
+            if (i < deferredScripts.length) {
+                const pauseMs = window.__RUSH_DEFERRED_LOAD ? 0 : plan.pauseMs;
+                window.__EVE_DEFERRED_SCRIPT_STATE.lastPauseMs = pauseMs;
+                if (pauseMs > 0) await sleep(pauseMs);
             }
         }
 

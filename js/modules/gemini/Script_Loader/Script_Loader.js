@@ -80,6 +80,7 @@ const masterScriptList = [
 ];
 
 let bootStarted = false;
+let bootPromise = null;
 
 function normalizeScriptPath(path) {
     return String(path || '').replace(/^https?:\/\/[^/]+\//i, '/');
@@ -106,7 +107,82 @@ function shouldEagerBoot() {
     }
 }
 
-function loadAllScripts() {
+function sleep(ms) {
+    return new Promise(resolve => window.setTimeout(resolve, ms));
+}
+
+function nowMs() {
+    return (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+}
+
+function getBootPressure() {
+    try {
+        return {
+            domNodes: document.body ? document.body.getElementsByTagName('*').length : 0,
+            images: document.images ? document.images.length : 0
+        };
+    } catch (e) {
+        return { domNodes: 0, images: 0 };
+    }
+}
+
+function isAppBusyForGeminiBoot(pressure) {
+    const now = Date.now();
+    if (window._eveDashRenderPending) return 'dashboard-render';
+    if (Number(window.__eveLargeMutationActiveUntil || 0) > now) return 'large-mutation';
+    if (Number(window.__eveSuppressFaviconRefreshUntil || 0) > now) return 'favicon-suppressed';
+    const liveLinkCount = typeof window.getLiveLinks === 'function'
+        ? (window.getLiveLinks() || []).length
+        : (Array.isArray(window.eveState?.links) ? window.eveState.links.length : 0);
+    if (
+        !window.__GEMINI_FORCE_BOOT_NOW
+        && liveLinkCount >= 1000
+        && window.__GEMINI_BOOT_STATE?.startedAt
+        && now - Number(window.__GEMINI_BOOT_STATE.startedAt || 0) < 26000
+    ) {
+        return 'large-pack-startup-hold';
+    }
+    if (window._eveStartupBookmarkPaintActive && (pressure.domNodes > 6000 || pressure.images > 700)) return 'startup-paint';
+    return '';
+}
+
+async function waitForGeminiLoadWindow() {
+    while (true) {
+        const pressure = getBootPressure();
+        const busyReason = isAppBusyForGeminiBoot(pressure);
+        if (window.__GEMINI_BOOT_STATE) {
+            window.__GEMINI_BOOT_STATE.pausedReason = busyReason;
+            window.__GEMINI_BOOT_STATE.domNodes = pressure.domNodes;
+            window.__GEMINI_BOOT_STATE.images = pressure.images;
+        }
+        if (!busyReason || window.__GEMINI_FORCE_BOOT_NOW) return pressure;
+        await sleep(700);
+    }
+}
+
+function getGeminiPauseMs(pressure) {
+    if (!pressure) return 120;
+    if (pressure.domNodes > 24000 || pressure.images > 2400) return 900;
+    if (pressure.domNodes > 12000 || pressure.images > 1200) return 450;
+    return 120;
+}
+
+function loadScriptElement(scriptPath) {
+    return new Promise((resolve, reject) => {
+        if (hasScriptTag(scriptPath)) {
+            resolve('cached');
+            return;
+        }
+        const script = document.createElement('script');
+        script.src = scriptPath;
+        script.async = false;
+        script.onload = () => resolve('loaded');
+        script.onerror = (e) => reject(e);
+        document.head.appendChild(script);
+    });
+}
+
+async function loadAllScripts(reason) {
     debugBootLog('Script_Loader: Starting to load all application scripts...');
 
     const deduped = [];
@@ -119,47 +195,67 @@ function loadAllScripts() {
     }
 
     let loadedCount = 0;
+    let failedCount = 0;
     const totalScripts = deduped.length;
+    window.__GEMINI_BOOT_STATE = {
+        total: totalScripts,
+        loaded: 0,
+        failed: 0,
+        reason: reason || 'manual',
+        startedAt: Date.now(),
+        pausedReason: ''
+    };
 
-    deduped.forEach(scriptPath => {
-        if (hasScriptTag(scriptPath)) {
+    for (const scriptPath of deduped) {
+        const pressure = await waitForGeminiLoadWindow();
+        const started = nowMs();
+        try {
+            await loadScriptElement(scriptPath);
             loadedCount++;
-            return;
-        }
-
-        const script = document.createElement('script');
-        script.src = scriptPath;
-        script.defer = true;
-
-        script.onload = () => {
-            loadedCount++;
-            if (loadedCount % 5 === 0 || loadedCount === totalScripts) {
-                debugBootLog(`Script_Loader: Progress ${loadedCount}/${totalScripts}`);
-            }
-        };
-
-        script.onerror = (e) => {
+        } catch (e) {
+            failedCount++;
             console.error(`ERROR: Failed to load script: ${scriptPath}`, e);
-        };
+        }
+        window.__GEMINI_BOOT_STATE.loaded = loadedCount;
+        window.__GEMINI_BOOT_STATE.failed = failedCount;
+        window.__GEMINI_BOOT_STATE.remaining = Math.max(0, totalScripts - loadedCount - failedCount);
+        window.EvePerformanceMonitor?.recordOperation?.('gemini-script-load', nowMs() - started, {
+            source: 'gemini-loader',
+            total: totalScripts,
+            remaining: window.__GEMINI_BOOT_STATE.remaining,
+            domNodes: pressure.domNodes,
+            images: pressure.images,
+            phase: reason || 'manual'
+        });
+        if (loadedCount % 5 === 0 || loadedCount + failedCount === totalScripts) {
+            debugBootLog(`Script_Loader: Progress ${loadedCount}/${totalScripts}`);
+        }
+        if (loadedCount + failedCount < totalScripts) {
+            await sleep(getGeminiPauseMs(pressure));
+        }
+    }
 
-        document.head.appendChild(script);
-    });
-
-    debugBootLog(`Script_Loader: All ${totalScripts} script tags appended to head.`);
+    window.__GEMINI_BOOT_STATE.completedAt = Date.now();
+    debugBootLog(`Script_Loader: Gemini boot complete (${loadedCount}/${totalScripts}).`);
 }
 
 function startGeminiBoot(reason) {
-    if (bootStarted) return;
+    if (bootPromise) return bootPromise;
     bootStarted = true;
     window.__GEMINI_BOOT_STARTED = true;
     debugBootLog(`Script_Loader: Starting Gemini module load (${reason || 'auto'})`);
-    loadAllScripts();
+    bootPromise = loadAllScripts(reason).catch(error => {
+        console.error('Gemini boot failed:', error);
+        throw error;
+    });
+    return bootPromise;
 }
 
 // Expose manual trigger for on-demand startup from gemini-init.js.
 window.__loadGeminiScriptsNow = function () {
     window.__GEMINI_BOOT_REQUESTED = true;
-    startGeminiBoot('manual');
+    window.__GEMINI_FORCE_BOOT_NOW = true;
+    return startGeminiBoot('manual');
 };
 
 if (window.__GEMINI_BOOT_REQUESTED || shouldEagerBoot()) {

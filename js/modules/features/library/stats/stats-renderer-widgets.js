@@ -38,7 +38,7 @@ window.EveLibrary = window.EveLibrary || {};
         }
 
         const safeCategory = sanitizeForInlineJs(categoryName);
-        const placeholder = 'https://via.placeholder.com/96x132?text=No+Cover';
+        const placeholder = 'data:image/svg+xml;charset=UTF-8,%3Csvg xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22 width%3D%2296%22 height%3D%22132%22 viewBox%3D%220 0 96 132%22%3E%3Crect width%3D%2296%22 height%3D%22132%22 rx%3D%2212%22 fill%3D%22%23142624%22%2F%3E%3Cpath d%3D%22M25 29h33c7 0 13 6 13 13v61H34c-5 0-9-4-9-9V29z%22 fill%3D%22%23264742%22 stroke%3D%22%236c8d83%22%2F%3E%3Ctext x%3D%2248%22 y%3D%2271%22 text-anchor%3D%22middle%22 fill%3D%22%23b8d2c9%22 font-family%3D%22Segoe UI%2CArial%22 font-size%3D%2211%22%3ENo Cover%3C%2Ftext%3E%3C%2Fsvg%3E';
 
         const cards = safeItems.map(item => {
             const title = escapeHtml ? escapeHtml(item?.title || 'Untitled') : String(item?.title || 'Untitled');
@@ -49,12 +49,15 @@ window.EveLibrary = window.EveLibrary || {};
                 ? `${item?.unitLabel || 'Ch.'} ${currentUnits} / ${totalUnits}`
                 : `${item?.unitLabel || 'Ch.'} ${currentUnits} / ?`;
             const percent = Math.max(0, Math.min(100, Number(item?.percent) || 0));
-            const safeImage = String(
+            const rawImage = String(
                 window.EveBookmarkCovers?.getDisplayCoverForLibraryEntry?.(categoryName, item)
                 || item?.image
                 || item?.imageUrl
                 || ''
             ).trim();
+            const safeImage = typeof window.EveBookmarkCovers?.isDisplayableCoverUrl === 'function'
+                ? (window.EveBookmarkCovers.isDisplayableCoverUrl(rawImage) ? rawImage : '')
+                : rawImage;
             const image = safeImage || placeholder;
             const unitWord = (item?.unitLabel || 'Ch.') === 'Ep.' ? 'Episode' : 'Chapter';
             const encodedId = encodeURIComponent(String(item?.id || ''));
@@ -63,7 +66,7 @@ window.EveLibrary = window.EveLibrary || {};
             return `
                 <article class="lib-active-card">
                     <div class="lib-active-cover-wrap">
-                        <img class="lib-active-cover" src="${escapeHtml ? escapeHtml(image) : image}" alt="${title}" loading="lazy">
+                        <img class="lib-active-cover" src="${escapeHtml ? escapeHtml(image) : image}" alt="${title}" loading="lazy" decoding="async" fetchpriority="low" referrerpolicy="no-referrer" onerror="if(window.EveBookmarkCovers&&typeof window.EveBookmarkCovers.handleCoverImageError==='function'){window.EveBookmarkCovers.handleCoverImageError(this);return;}this.removeAttribute('src');this.style.display='none';">
                     </div>
                     <div class="lib-active-main">
                         <h5 class="lib-active-title">${title}</h5>

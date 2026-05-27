@@ -114,7 +114,11 @@ function renderCardFull(catInput, catLinks, gridContainer, configOptions) {
         var progressiveBookmarkRevealEnabled = typeof isCardBookmarkProgressiveRevealEnabled === 'function'
             ? isCardBookmarkProgressiveRevealEnabled(activeWorkspaceId, cat)
             : true;
-        var progressiveBookmarkRenderCap = window._evePerfMode ? 20 : 50;
+        var progressiveBookmarkRenderCap = window._eveMegaPerfMode ? 12 : (window._evePerfMode ? 20 : 50);
+        var cardProgressiveRenderBudget = (!isFocusMode && (isMegaCard || window._eveMegaPerfMode))
+            ? (window._eveMegaPerfMode ? 80 : 120)
+            : Number.MAX_SAFE_INTEGER;
+        var cardProgressiveRendered = 0;
         var customOrderEnabled = !isMegaCard && customOrderApi ? customOrderApi.isEnabled(activeWorkspaceId, cat) : false;
         if (customOrderEnabled) {
             card.classList.add('custom-order');
@@ -219,9 +223,15 @@ function renderCardFull(catInput, catLinks, gridContainer, configOptions) {
                 ? 'folder_' + String(context.folderId || '').trim()
                 : (Object.prototype.hasOwnProperty.call(context, 'folderId') ? 'root' : 'card');
             var collectionProgressiveRevealEnabled = resolveProgressiveRevealForCollection(renderContext);
-            var renderCap = collectionProgressiveRevealEnabled
+            var baseRenderCap = collectionProgressiveRevealEnabled
                 ? progressiveBookmarkRenderCap
                 : Number.MAX_SAFE_INTEGER;
+            var renderCap = baseRenderCap;
+            if (collectionProgressiveRevealEnabled && Number.isFinite(cardProgressiveRenderBudget)) {
+                var remainingCardBudget = Math.max(0, cardProgressiveRenderBudget - cardProgressiveRendered);
+                renderCap = Math.min(baseRenderCap, remainingCardBudget);
+                cardProgressiveRendered += Math.min(renderCap, linksForRender.length);
+            }
             if (isFocusMode && typeof window.DashboardCategories.buildFocusedLinkHtml === 'function') {
                 var cappedFocusLinks = linksForRender.slice(0, renderCap);
                 var focusedHtml = cappedFocusLinks.map(function (link) {

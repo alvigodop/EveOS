@@ -4,6 +4,31 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
     const shared = window.EveFolderViewV2._shared || {};
     const { escapeCardHtml, escapeCardJs } = shared;
 
+    window.EveFolderViewV2.toggleFolderHatch = window.EveFolderViewV2.toggleFolderHatch || function (event, workspaceId, categoryName, folderId) {
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+        const tile = event?.currentTarget?.closest?.('.folder-tile') || null;
+        const storageKey = `eve_folder_hatch_collapsed_${workspaceId}_${categoryName}_${folderId}`;
+        const wasCollapsed = tile ? tile.classList.contains('hatch-collapsed') : true;
+        const nextCollapsed = !wasCollapsed;
+        try {
+            localStorage.setItem(storageKey, String(nextCollapsed));
+        } catch (error) {
+            // Ignore storage errors in restricted contexts.
+        }
+        if (tile) tile.classList.toggle('hatch-collapsed', nextCollapsed);
+        if (!nextCollapsed && tile && !tile.querySelector('.folder-tile-hatch-panel')) {
+            // Collapsed hatches intentionally do not keep nested previews in the DOM.
+            // Re-render only when the user expands one.
+            if (typeof window.renderDashboard === 'function') {
+                window.__eveDashboardRenderHint = { immediate: true, source: 'folder-hatch-expand' };
+                window.renderDashboard();
+            }
+        }
+    };
+
     window.EveFolderViewV2.renderRootGrid = function (workspaceId, categoryName, viewModel, defaultRenderer) {
         const topLevelFolders = viewModel.topLevelFolders || [];
         const rootLinks = viewModel.rootLinks || [];
@@ -81,8 +106,10 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                     || libraryEntry?.imageUrl
                     || ''
                 ).trim();
-                const coverUrl = (typeof window.EveBookmarkCovers?.isRenderableCoverUrl === 'function' && !window.EveBookmarkCovers.isRenderableCoverUrl(rawCoverUrl)) ? '' : rawCoverUrl;
-                if (coverUrl) return `<img class="hatch-bookmark-image" src="${escapeCardHtml(coverUrl)}" alt="" loading="lazy">`;
+                const coverUrl = (typeof window.EveBookmarkCovers?.isDisplayableCoverUrl === 'function')
+                    ? (window.EveBookmarkCovers.isDisplayableCoverUrl(rawCoverUrl) ? rawCoverUrl : '')
+                    : ((typeof window.EveBookmarkCovers?.isRenderableCoverUrl === 'function' && !window.EveBookmarkCovers.isRenderableCoverUrl(rawCoverUrl)) ? '' : rawCoverUrl);
+                if (coverUrl) return `<img class="hatch-bookmark-image" src="${escapeCardHtml(coverUrl)}" alt="" loading="lazy" decoding="async" fetchpriority="low" referrerpolicy="no-referrer" onerror="if(window.EveBookmarkCovers&&typeof window.EveBookmarkCovers.handleCoverImageError==='function'){window.EveBookmarkCovers.handleCoverImageError(this);return;}this.removeAttribute('src');this.style.display='none';">`;
                 const faviconUtils = window.EveFaviconUtils || null;
                 const faviconDomain = faviconUtils && typeof faviconUtils.getDomainFromUrl === 'function'
                     ? faviconUtils.getDomainFromUrl(link.url)
@@ -174,29 +201,32 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                 const editButtonHtml = isGhost
                     ? `<div class="folder-tile-action-buttons"><button type="button" class="folder-tile-edit-btn bulk-scope-btn" data-scope-category="${escapeCardHtml(categoryName)}" data-scope-workspace="${escapeCardHtml(workspaceId)}" data-scope-folder-id="${escapeCardHtml(folder.id)}" title="Select Matching Bookmarks" onclick="event.preventDefault(); event.stopPropagation(); bulkToggleFolderScopeSelection('${escapeCardJs(categoryName)}', '${escapeCardJs(workspaceId)}', '${escapeCardJs(folder.id)}');">&#9744;</button>${deleteSmartViewButton}</div>`
                     : `<div class="folder-tile-action-buttons"><button type="button" class="folder-tile-edit-btn bulk-scope-btn" data-scope-category="${escapeCardHtml(categoryName)}" data-scope-workspace="${escapeCardHtml(workspaceId)}" data-scope-folder-id="${escapeCardHtml(folder.id)}" title="Select Folder Subtree" onclick="event.preventDefault(); event.stopPropagation(); bulkToggleFolderScopeSelection('${escapeCardJs(categoryName)}', '${escapeCardJs(workspaceId)}', '${escapeCardJs(folder.id)}');">&#9744;</button><button type="button" class="folder-tile-edit-btn" title="Edit Folder" onclick="event.preventDefault(); event.stopPropagation(); if(typeof window.showFolderContextMenu === 'function') window.showFolderContextMenu(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(folder.id)}', '${escapeCardJs(workspaceId)}');">&#9998;</button></div>`;
-                // Get subfolders for the hatch
                 const subFolders = viewModel.childrenMap.get(folder.id) || [];
-                const subFolderInlineHtml = buildInlineSubfolderRail(subFolders);
+                const folderLinks = viewModel.folderLinks.get(folder.id) || [];
+                const hatchStoredState = localStorage.getItem(`eve_folder_hatch_collapsed_${workspaceId}_${categoryName}_${folder.id}`);
+                const isHatchCollapsed = hatchStoredState === null ? true : hatchStoredState === 'true';
+                const collapsedClass = isHatchCollapsed ? ' hatch-collapsed' : '';
+                const hasHatchContent = subFolders.length > 0 || folderLinks.length > 0;
+                const subFolderInlineHtml = (!isHatchCollapsed && subFolders.length > 0)
+                    ? buildInlineSubfolderRail(subFolders)
+                    : '';
                 let subFolderHtml = '';
-                if (subFolders.length > 0) {
+                if (!isHatchCollapsed && subFolders.length > 0) {
                     subFolderHtml = '<div class="hatch-subfolders hatch-subfolders-recursive" onwheel="event.stopPropagation();">' + subFolders.map((sf) => buildNestedSubfolderPreview(sf, 1)).join('') + '</div>';
                 }
 
-                // Get bookmarks for the hatch (up to 3)
-                const folderLinks = viewModel.folderLinks.get(folder.id) || [];
-                const hatchBookmarksHtml = buildHatchBookmarkSlides(folderLinks, { limit: 3 });
+                const hatchBookmarksHtml = !isHatchCollapsed
+                    ? buildHatchBookmarkSlides(folderLinks, { limit: 3 })
+                    : '';
 
                 let hatchHtml = '';
                 if (hatchBookmarksHtml) {
                     hatchHtml = `<div class="folder-tile-hatch">${hatchBookmarksHtml}</div>`;
                 }
 
-                const hatchStoredState = localStorage.getItem(`eve_folder_hatch_collapsed_${workspaceId}_${categoryName}_${folder.id}`);
-                const isHatchCollapsed = hatchStoredState === null ? true : hatchStoredState === 'true';
-                const collapsedClass = isHatchCollapsed ? ' hatch-collapsed' : '';
                 let hatchToggleHtml = '';
-                if (subFolderHtml || hatchHtml) {
-                    hatchToggleHtml = `<div class="folder-tile-hatch-toggle" onclick="event.stopPropagation(); const tile = this.closest('.folder-tile'); const isCol = tile.classList.toggle('hatch-collapsed'); localStorage.setItem('eve_folder_hatch_collapsed_${escapeCardJs(workspaceId)}_${escapeCardJs(categoryName)}_${escapeCardJs(folder.id)}', isCol);" title="Toggle folder covers and subfolders"></div>`;
+                if (hasHatchContent) {
+                    hatchToggleHtml = `<div class="folder-tile-hatch-toggle" onclick="window.EveFolderViewV2.toggleFolderHatch(event, '${escapeCardJs(workspaceId)}', '${escapeCardJs(categoryName)}', '${escapeCardJs(folder.id)}')" title="Toggle folder covers and subfolders"></div>`;
                 }
 
                 const hatchPanelHtml = subFolderHtml || hatchHtml

@@ -309,8 +309,10 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                 || libraryEntry?.imageUrl
                 || ''
             ).trim();
-            const coverUrl = (typeof window.EveBookmarkCovers?.isRenderableCoverUrl === 'function' && !window.EveBookmarkCovers.isRenderableCoverUrl(rawCoverUrl)) ? '' : rawCoverUrl;
-            if (coverUrl) return `<img class="hatch-bookmark-image" src="${escapeCardHtml(coverUrl)}" alt="" loading="lazy">`;
+            const coverUrl = (typeof window.EveBookmarkCovers?.isDisplayableCoverUrl === 'function')
+                ? (window.EveBookmarkCovers.isDisplayableCoverUrl(rawCoverUrl) ? rawCoverUrl : '')
+                : ((typeof window.EveBookmarkCovers?.isRenderableCoverUrl === 'function' && !window.EveBookmarkCovers.isRenderableCoverUrl(rawCoverUrl)) ? '' : rawCoverUrl);
+            if (coverUrl) return `<img class="hatch-bookmark-image" src="${escapeCardHtml(coverUrl)}" alt="" loading="lazy" decoding="async" fetchpriority="low" referrerpolicy="no-referrer" onerror="if(window.EveBookmarkCovers&&typeof window.EveBookmarkCovers.handleCoverImageError==='function'){window.EveBookmarkCovers.handleCoverImageError(this);return;}this.removeAttribute('src');this.style.display='none';">`;
             const faviconUtils = window.EveFaviconUtils || null;
             const faviconDomain = faviconUtils && typeof faviconUtils.getDomainFromUrl === 'function'
                 ? faviconUtils.getDomainFromUrl(link.url)
@@ -408,16 +410,23 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                     ? `<div class="folder-tile-action-buttons"><button type="button" class="folder-tile-edit-btn bulk-scope-btn" data-scope-category="${escapeCardHtml(resolvedCategoryName)}" data-scope-workspace="${escapeCardHtml(resolvedWorkspaceId)}" data-scope-folder-id="${escapeCardHtml(folder.id)}" title="Select Matching Bookmarks" onclick="event.preventDefault(); event.stopPropagation(); bulkToggleFolderScopeSelection('${escapeCardJs(resolvedCategoryName)}', '${escapeCardJs(resolvedWorkspaceId)}', '${escapeCardJs(folder.id)}');">&#9745;</button>${deleteSmartViewButton}</div>`
                     : `<div class="folder-tile-action-buttons"><button type="button" class="folder-tile-edit-btn bulk-scope-btn" data-scope-category="${escapeCardHtml(resolvedCategoryName)}" data-scope-workspace="${escapeCardHtml(resolvedWorkspaceId)}" data-scope-folder-id="${escapeCardHtml(folder.id)}" title="Select Folder Subtree" onclick="event.preventDefault(); event.stopPropagation(); bulkToggleFolderScopeSelection('${escapeCardJs(resolvedCategoryName)}', '${escapeCardJs(resolvedWorkspaceId)}', '${escapeCardJs(folder.id)}');">&#9745;</button><button type="button" class="folder-tile-edit-btn" title="Edit Folder" onclick="event.preventDefault(); event.stopPropagation(); if(typeof window.showFolderContextMenu === 'function') window.showFolderContextMenu(event, '${escapeCardJs(resolvedCategoryName)}', '${escapeCardJs(folder.id)}', '${escapeCardJs(resolvedWorkspaceId)}');">&#9998;</button></div>`;
                 const childFolders = viewModel.childrenMap.get(folder.id) || [];
-                const subFolderInlineHtml = buildInlineSubfolderRail(childFolders);
-                const nestedSubFolderHtml = childFolders.length > 0
+                const folderLinksForHatch = viewModel.folderLinks.get(folder.id) || [];
+                const hatchStoredState = localStorage.getItem(`eve_folder_hatch_collapsed_${resolvedWorkspaceId}_${resolvedCategoryName}_${folder.id}`);
+                const isHatchCollapsed = hatchStoredState === null ? true : hatchStoredState === 'true';
+                const collapsedClass = isHatchCollapsed ? ' hatch-collapsed' : '';
+                const hasHatchContent = childFolders.length > 0 || folderLinksForHatch.length > 0;
+                const subFolderInlineHtml = (!isHatchCollapsed && childFolders.length > 0)
+                    ? buildInlineSubfolderRail(childFolders)
+                    : '';
+                const nestedSubFolderHtml = (!isHatchCollapsed && childFolders.length > 0)
                     ? '<div class="hatch-subfolders hatch-subfolders-recursive" onwheel="event.stopPropagation();">' + childFolders.map(function (child) { return buildNestedSubfolderPreview(child, 1); }).join('') + '</div>'
                     : '';
-                const hatchBookmarksHtml = buildHatchBookmarkSlides(viewModel.folderLinks.get(folder.id) || [], { limit: 3 });
+                const hatchBookmarksHtml = !isHatchCollapsed
+                    ? buildHatchBookmarkSlides(folderLinksForHatch, { limit: 3 })
+                    : '';
                 const hatchHtml = hatchBookmarksHtml ? `<div class="folder-tile-hatch">${hatchBookmarksHtml}</div>` : '';
-                const hatchStoredState = localStorage.getItem(`eve_folder_hatch_collapsed_${resolvedWorkspaceId}_${resolvedCategoryName}_${folder.id}`);
-                const collapsedClass = (hatchStoredState === null ? true : hatchStoredState === 'true') ? ' hatch-collapsed' : '';
-                const hatchToggleHtml = (nestedSubFolderHtml || hatchHtml)
-                    ? `<div class="folder-tile-hatch-toggle" onclick="event.stopPropagation(); const tile = this.closest('.folder-tile'); const isCol = tile.classList.toggle('hatch-collapsed'); localStorage.setItem('eve_folder_hatch_collapsed_${escapeCardJs(resolvedWorkspaceId)}_${escapeCardJs(resolvedCategoryName)}_${escapeCardJs(folder.id)}', isCol);" title="Toggle folder covers and subfolders"></div>`
+                const hatchToggleHtml = hasHatchContent
+                    ? `<div class="folder-tile-hatch-toggle" onclick="window.EveFolderViewV2.toggleFolderHatch(event, '${escapeCardJs(resolvedWorkspaceId)}', '${escapeCardJs(resolvedCategoryName)}', '${escapeCardJs(folder.id)}')" title="Toggle folder covers and subfolders"></div>`
                     : '';
                 const hatchPanelHtml = nestedSubFolderHtml || hatchHtml
                     ? `<div class="folder-tile-hatch-panel" onclick="event.stopPropagation();" onwheel="event.stopPropagation();">${nestedSubFolderHtml}${hatchHtml}</div>`

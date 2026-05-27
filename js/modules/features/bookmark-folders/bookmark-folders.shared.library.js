@@ -125,7 +125,12 @@ function getLibraryEntryForLink(workspaceId, categoryName, linkId) {
 
         const isLegacyLinkIcon = iconNormalized === '\u{1F517}';
 
-        if (iconNormalized && !isLegacyLinkIcon) return true;
+        const iconIsImage = /^(?:https?:\/\/|data:)/i.test(iconRaw) || iconRaw.startsWith('/');
+        const iconIsReserved = iconIsImage
+            && typeof window.EveFaviconUtils?.isReservedIconUrl === 'function'
+            && window.EveFaviconUtils.isReservedIconUrl(iconRaw);
+
+        if (iconNormalized && !isLegacyLinkIcon && !iconIsReserved) return true;
 
 
 

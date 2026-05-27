@@ -121,10 +121,20 @@ window.DashboardCategories = window.DashboardCategories || {};
         var isDetachedParkingCard = !!options.detachedParkingCard;
         var isFocusMode = !!options.focusMode;
         var HEAVY_CARD_THRESHOLD = 80;
-        var shouldForceDeferredShell = !!options._forceDeferredShell;
-        var hydrationDelayMs = Math.max(0, Number(options._deferredHydrationDelayMs || 0));
-        var useIdleHydration = !!options._deferredUseIdle;
-        var cardLinkCount = resolveDeferredLinkCount(catLinks, options);
+            var shouldForceDeferredShell = !!options._forceDeferredShell;
+            var hydrationDelayMs = Math.max(0, Number(options._deferredHydrationDelayMs || 0));
+            var useIdleHydration = !!options._deferredUseIdle;
+            var totalLiveLinksForCardRender = Array.isArray(window.eveState?.links)
+                ? window.eveState.links.length
+                : (typeof getLiveLinks === 'function'
+                    ? getLiveLinks().length
+                    : (Array.isArray(window.links) ? window.links.length : 0));
+            var hydrateOnDemand = !!options._deferredHydrateOnDemand
+                || (!!shouldForceDeferredShell
+                    && !options.focusMode
+                    && !options.searchStr
+                    && totalLiveLinksForCardRender > 1500);
+            var cardLinkCount = resolveDeferredLinkCount(catLinks, options);
         var cardWorkspaceId = typeof catInput === 'object' && catInput
             ? (catInput.workspaceId || options.activeWorkspace || 'main')
             : (options.activeWorkspace || 'main');
@@ -198,8 +208,12 @@ window.DashboardCategories = window.DashboardCategories || {};
             var skeletonLabel = shellCard.querySelector('.eve-card-deferred-skeleton > div');
             if (skeletonLabel) {
                 skeletonLabel.innerHTML = ''
-                    + '<span class="eve-skeleton-spinner" style="display:inline-block; width:14px; height:14px; border:2px solid rgba(80,200,255,0.15); border-top-color:rgba(80,200,255,0.5); border-radius:50%; animation:spin 0.8s linear infinite;"></span>'
-                    + 'Loading ' + cardLinkCount + ' bookmarks...';
+                    + (hydrateOnDemand
+                        ? '<span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:rgba(80,200,255,0.55);"></span>'
+                        : '<span class="eve-skeleton-spinner" style="display:inline-block; width:14px; height:14px; border:2px solid rgba(80,200,255,0.15); border-top-color:rgba(80,200,255,0.5); border-radius:50%; animation:spin 0.8s linear infinite;"></span>')
+                    + (hydrateOnDemand
+                        ? 'Ready - hover to load ' + cardLinkCount + ' bookmarks'
+                        : 'Loading ' + cardLinkCount + ' bookmarks...');
             }
 
             gridContainer.appendChild(shellCard);
@@ -210,7 +224,9 @@ window.DashboardCategories = window.DashboardCategories || {};
 
             var cardGen = options._renderGen;
             var MEGA_THRESHOLD = 500;
-            var isMega = cardLinkCount > MEGA_THRESHOLD;
+            var deferGhostHydration = !!options._deferGhostHydration;
+            var skipDeferredGhostHydration = !!options._skipDeferredGhostHydration;
+            var isMega = cardLinkCount > MEGA_THRESHOLD || deferGhostHydration;
             var resolvedCatLinks = null;
 
             function getResolvedCatLinks() {
@@ -271,7 +287,7 @@ window.DashboardCategories = window.DashboardCategories || {};
                     }
                 }
 
-                if (!isMega) return;
+                if (!isMega || skipDeferredGhostHydration) return;
 
                 scheduleDeferredWork(function ghostHydrationStep() {
                     if (cardGen != null && window._eveDashRenderGen !== cardGen) return;
@@ -305,6 +321,22 @@ window.DashboardCategories = window.DashboardCategories || {};
                         }
                     }
                 }, 300, 1600);
+            }
+
+            if (hydrateOnDemand) {
+                shellCard.removeAttribute('data-card-hydrating');
+                shellCard.setAttribute('data-card-hydrate-on-demand', '1');
+                var hydrateStarted = false;
+                var triggerDemandHydration = function () {
+                    if (hydrateStarted) return;
+                    hydrateStarted = true;
+                    shellCard.setAttribute('data-card-hydrating', '1');
+                    scheduleDeferredWork(doDeferredBuild, 0, 1600);
+                };
+                shellCard.addEventListener('mouseenter', triggerDemandHydration, { once: true });
+                shellCard.addEventListener('focusin', triggerDemandHydration, { once: true });
+                shellCard.addEventListener('dblclick', triggerDemandHydration, { once: true });
+                return;
             }
 
             scheduleDeferredWork(doDeferredBuild, hydrationDelayMs, 1400);

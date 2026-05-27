@@ -94,7 +94,10 @@ window.DashboardCategoriesModules = window.DashboardCategoriesModules || {};
         const libraryLanguage = escapeHtml(libraryLanguageRaw);
         const libraryMediaType = escapeHtml(libraryMediaTypeRaw);
         const libraryProgress = escapeHtml(progressRaw);
-        const safeCoverUrl = escapeHtml(coverUrlRaw);
+        const canDisplayCover = typeof window.EveBookmarkCovers?.isDisplayableCoverUrl === 'function'
+            ? window.EveBookmarkCovers.isDisplayableCoverUrl(coverUrlRaw)
+            : (typeof window.EveBookmarkCovers?.isRenderableCoverUrl !== 'function' || window.EveBookmarkCovers.isRenderableCoverUrl(coverUrlRaw));
+        const safeCoverUrl = canDisplayCover ? escapeHtml(coverUrlRaw) : '';
 
         const libraryChips = [];
         if (libraryStatusRaw) libraryChips.push('<span class="unidex-entry-chip">' + libraryStatus + '</span>');
@@ -114,7 +117,7 @@ window.DashboardCategoriesModules = window.DashboardCategoriesModules || {};
 
         const visualHtml = safeCoverUrl
             ? '<div class="unidex-entry-cover-slot">'
-                + '<img class="unidex-entry-cover" src="' + safeCoverUrl + '" alt="' + safeTitle + ' cover" loading="lazy" decoding="async" referrerpolicy="no-referrer">'
+                + '<img class="unidex-entry-cover" src="' + safeCoverUrl + '" alt="' + safeTitle + ' cover" loading="lazy" decoding="async" fetchpriority="low" referrerpolicy="no-referrer" onerror="if(window.EveBookmarkCovers&&typeof window.EveBookmarkCovers.handleCoverImageError===\'function\'){window.EveBookmarkCovers.handleCoverImageError(this);return;}this.removeAttribute(\'src\');">'
                 + '<div class="unidex-entry-icon-overlay" style="position: absolute; bottom: 8px; right: 8px; z-index: 2; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.45); backdrop-filter: blur(4px); border-radius: 4px; border: 1px solid rgba(255, 255, 255, 0.2); pointer-events: none;">'
                     + buildBookmarkIconHtml(link, safeTitle)
                 + '</div>'

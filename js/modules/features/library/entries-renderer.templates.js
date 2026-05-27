@@ -42,7 +42,10 @@ window.EveLibrary.Modules = window.EveLibrary.Modules || {};
             const lastEditedText = formatLastEdited(entry.lastEdited || entry.dateAdded);
             const sourceUrl = entry.sourceUrl || '';
             const safeSourceUrl = sourceUrl.replace(/'/g, "\\'");
-            const displayImage = window.EveBookmarkCovers?.getDisplayCoverForLibraryEntry?.(categoryName, entry) || entry.image || entry.imageUrl || '';
+            const rawDisplayImage = window.EveBookmarkCovers?.getDisplayCoverForLibraryEntry?.(categoryName, entry) || entry.image || entry.imageUrl || '';
+            const displayImage = typeof window.EveBookmarkCovers?.isDisplayableCoverUrl === 'function'
+                ? (window.EveBookmarkCovers.isDisplayableCoverUrl(rawDisplayImage) ? rawDisplayImage : '')
+                : rawDisplayImage;
             const safeDisplayImage = String(displayImage || '').replace(/'/g, "\\'");
             const titleAltNames = toUniqueList(entry.titleAltNames || entry.altTitles);
             const authorAltNames = toUniqueList(entry.authorAltNames);
@@ -89,7 +92,7 @@ window.EveLibrary.Modules = window.EveLibrary.Modules || {};
                 <div class="lib-entry-select">
                    <input type="checkbox" class="lib-batch-checkbox" data-category="${safeCat}" data-id="${safeId}">
                 </div>
-                ${displayImage ? `<img class="lib-entry-image" src="${displayImage}" alt="${entry.title}" onclick="window.EveLibrary.UI.openLightbox('${safeDisplayImage}')" title="View Fullsize">` : ''}
+                ${displayImage ? `<img class="lib-entry-image" src="${displayImage}" alt="${entry.title}" loading="lazy" decoding="async" fetchpriority="low" referrerpolicy="no-referrer" onclick="window.EveLibrary.UI.openLightbox('${safeDisplayImage}')" onerror="if(window.EveBookmarkCovers&&typeof window.EveBookmarkCovers.handleCoverImageError==='function'){window.EveBookmarkCovers.handleCoverImageError(this);return;}this.removeAttribute('src');this.style.display='none';" title="View Fullsize">` : ''}
                 ${titleHtml}
                 ${identifierTagsHtml}
                 <div class="lib-entry-details">

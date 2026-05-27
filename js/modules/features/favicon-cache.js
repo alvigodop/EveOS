@@ -4,6 +4,7 @@
 
     const IDB_KEY = 'eveFaviconCache';
     const TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+    const FAILURE_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
     const FAVICON_PROVIDER_BASE = 'https://icons.duckduckgo.com/ip3';
     const GOOGLE_FAVICON_PROVIDER_BASE = 'https://www.google.com/s2/favicons';
     const MAX_MEMORY = 500; // In-memory LRU cap
@@ -11,11 +12,13 @@
     const QUEUED_FETCH_BATCH = 3;
     const QUEUED_FETCH_GAP_MS = 180;
     const DEFAULT_WARMUP_MAX_UNCACHED = 120;
+    const MAX_DOM_ICON_UPDATES_PER_FLUSH = 160;
     const placeholderCache = new Map();
 
     // ── In-memory fast-path cache ──
     // Populated from IDB on boot, used synchronously during render
     const memoryCache = new Map();
+    const failureCache = new Map();
     let diskCache = null; // { [domain]: { dataUri, ts } }
     let diskLoaded = false;
     let diskLoadPromise = null;
@@ -53,6 +56,10 @@
             const now = Date.now();
             const entries = Object.entries(diskCache);
             for (const [domain, entry] of entries) {
+                if (entry?.failedAt && now - (entry.failedAt || 0) <= FAILURE_TTL_MS) {
+                    failureCache.set(domain, entry.failedAt);
+                    continue;
+                }
                 if (!entry || !entry.dataUri) continue;
                 if (now - (entry.ts || 0) > TTL_MS) continue; // expired
                 if (isUsableCachedIcon(entry.dataUri)) {
@@ -63,8 +70,13 @@
             // Evict expired entries from disk
             let dirty = false;
             for (const [domain, entry] of entries) {
-                if (!entry || now - (entry.ts || 0) > TTL_MS) {
+                if (entry?.failedAt && now - (entry.failedAt || 0) <= FAILURE_TTL_MS) {
+                    failureCache.set(domain, entry.failedAt);
+                    continue;
+                }
+                if (!entry || now - (entry.ts || 0) > TTL_MS || (entry.failedAt && now - (entry.failedAt || 0) > FAILURE_TTL_MS)) {
                     delete diskCache[domain];
+                    failureCache.delete(domain);
                     dirty = true;
                 }
             }
@@ -96,6 +108,26 @@
     // ── Fetch a favicon and convert to data URI ──
     function normalizeDomain(domain) {
         return String(domain || '').toLowerCase().replace(/^www\./, '');
+    }
+
+    function isReservedTestDomain(domain) {
+        const key = normalizeDomain(domain);
+        return key === 'example'
+            || key.endsWith('.example')
+            || key === 'test'
+            || key.endsWith('.test')
+            || key === 'invalid'
+            || key.endsWith('.invalid');
+    }
+
+    function isReservedIconUrl(value) {
+        const text = String(value || '').trim();
+        if (!text) return false;
+        try {
+            return isReservedTestDomain(new URL(text, window.location?.href || undefined).hostname || '');
+        } catch (error) {
+            return isReservedTestDomain(getDomainFromUrl(text));
+        }
     }
 
     function getDomainFromUrl(rawUrl) {
@@ -159,6 +191,25 @@
         if (!memoryCache.has(key)) return '';
         const cached = memoryCache.get(key);
         return isUsableCachedIcon(cached) ? cached : '';
+    }
+
+    function isFailureCoolingDown(key) {
+        const failedAt = Number(failureCache.get(normalizeDomain(key)) || 0);
+        if (!failedAt) return false;
+        if (Date.now() - failedAt <= FAILURE_TTL_MS) return true;
+        failureCache.delete(normalizeDomain(key));
+        return false;
+    }
+
+    function markFailure(key) {
+        const normalized = normalizeDomain(key);
+        if (!normalized) return;
+        const failedAt = Date.now();
+        failureCache.set(normalized, failedAt);
+        if (diskCache) {
+            diskCache[normalized] = { dataUri: '', ts: failedAt, failedAt };
+            saveDiskCache();
+        }
     }
 
     function hashString(value) {
@@ -232,15 +283,19 @@
             if (!pendingDomIconUpdates.size) return;
             const updates = new Map(pendingDomIconUpdates);
             pendingDomIconUpdates.clear();
+            if (document.images && Number(document.images.length || 0) > 2500) return;
             const images = document.querySelectorAll('img[data-favicon-domain]');
+            let applied = 0;
             images.forEach(function (image) {
+                if (applied >= MAX_DOM_ICON_UPDATES_PER_FLUSH) return;
                 const imageDomain = normalizeDomain(image.dataset?.faviconDomain || '');
                 const nextSrc = updates.get(imageDomain);
                 if (!nextSrc) return;
                 image.dataset.fallbackApplied = '';
-                image.style.display = '';
                 if (image.src === nextSrc) return;
+                if (image.style.display === 'none') image.style.display = '';
                 image.src = nextSrc;
+                applied += 1;
             });
         }, 220);
     }
@@ -267,7 +322,11 @@
 
     function queueFetch(domain, size, source) {
         const key = normalizeDomain(domain);
-        if (!key || getCachedIcon(key) || _inFlight.has(key) || queuedFetchKeys.has(key)) return false;
+        if (isReservedTestDomain(key)) {
+            markFailure(key);
+            return false;
+        }
+        if (!key || getCachedIcon(key) || isFailureCoolingDown(key) || _inFlight.has(key) || queuedFetchKeys.has(key)) return false;
 
         const isWarmup = source === 'warmup';
         if (!isWarmup) {
@@ -328,7 +387,7 @@
     function buildRemoteUrls(domain, size) {
         const key = normalizeDomain(domain);
         const sz = size || 32;
-        if (!key) return [];
+        if (!key || isReservedTestDomain(key)) return [];
         return [
             `${FAVICON_PROVIDER_BASE}/${encodeURIComponent(key)}.ico`,
             `${GOOGLE_FAVICON_PROVIDER_BASE}?domain=${encodeURIComponent(key)}&sz=${encodeURIComponent(String(sz))}`
@@ -392,8 +451,13 @@
     async function fetchAndCache(domain, size) {
         const key = normalizeDomain(domain);
         if (!key) return '';
+        if (isReservedTestDomain(key)) {
+            markFailure(key);
+            return '';
+        }
         const cached = getCachedIcon(key);
         if (cached) return cached;
+        if (isFailureCoolingDown(key)) return '';
         if (_inFlight.has(key)) return _inFlight.get(key);
         const promise = (async () => {
             // Wait for disk cache to be ready
@@ -406,6 +470,7 @@
             const existing = diskCache[key];
             if (
                 existing
+                && !existing.failedAt
                 && existing.dataUri
                 && (Date.now() - (existing.ts || 0) < TTL_MS)
                 && isUsableCachedIcon(existing.dataUri)
@@ -418,11 +483,14 @@
             // Fetch fresh
             const dataUri = await fetchFaviconDataUri(key, size || 32);
             if (dataUri) {
+                failureCache.delete(key);
                 memoryCache.set(key, dataUri);
                 trimMemory();
                 diskCache[key] = { dataUri, ts: Date.now() };
                 saveDiskCache();
                 scheduleDomIconUpdate(key, dataUri);
+            } else {
+                markFailure(key);
             }
 
             return dataUri || '';
@@ -467,6 +535,7 @@
         const opts = options || {};
         const delayMs = Math.max(0, Number(opts.delayMs || 0) || 0);
         const maxFetch = Math.max(0, Number(opts.maxFetch || 24) || 0);
+        const maxUpdate = Math.max(24, Number(opts.maxUpdate || 220) || 220);
         if (delayMs) await delay(delayMs);
         await loadDiskCache();
 
@@ -474,6 +543,7 @@
         let queued = 0;
         const seenMisses = new Set();
         const images = Array.from(document.querySelectorAll('img[data-favicon-domain]'));
+        const total = images.length;
         images.forEach(function (image) {
             const key = normalizeDomain(image.dataset?.faviconDomain || '');
             if (!key) return;
@@ -482,18 +552,19 @@
             const src = String(image.currentSrc || image.src || '').trim();
             const imageHidden = image.style.display === 'none';
             const imageBroken = image.complete && image.naturalWidth === 0 && image.naturalHeight === 0;
-            image.style.display = '';
             const cached = getCachedIcon(key);
             if (cached) {
                 image.dataset.fallbackApplied = '';
-                if (image.src !== cached) {
+                if (image.src !== cached && updated < maxUpdate) {
+                    if (imageHidden) image.style.display = '';
                     image.src = cached;
                     updated += 1;
                 }
                 return;
             }
-            if (fallbackSrc && (imageHidden || imageBroken || !src)) {
+            if (fallbackSrc && (imageHidden || imageBroken || !src) && updated < maxUpdate) {
                 image.dataset.fallbackApplied = '1';
+                if (imageHidden) image.style.display = '';
                 if (image.src !== fallbackSrc) {
                     image.src = fallbackSrc;
                     updated += 1;
@@ -505,7 +576,7 @@
                 queued += 1;
             }
         });
-        return { updated, queued };
+        return { updated, queued, scanned: total, total };
     }
 
     function warmup(options) {
@@ -537,7 +608,7 @@
                 const link = allLinks[i];
                 if (!link || !link.url) continue;
                 // Skip if link already has a custom icon
-                if (link.icon && link.icon !== '\u{1F517}') continue;
+                if (link.icon && link.icon !== '\u{1F517}' && !isReservedIconUrl(link.icon)) continue;
                 const key = getDomainFromUrl(link.url);
                 if (!key || !key.includes('.')) continue;
                 if (!memoryCache.has(key)) needed.add(key);
@@ -584,6 +655,7 @@
     function getStats() {
         return {
             memorySize: memoryCache.size,
+            failureSize: failureCache.size,
             diskSize: diskCache ? Object.keys(diskCache).length : 0,
             diskLoaded: diskLoaded,
             queuedFetches: queuedFetches.length,
@@ -621,16 +693,17 @@
         canFetchRemote: canFetchRemoteFavicons
     };
 
-    if (!window.EveFaviconUtils) {
-        window.EveFaviconUtils = {
-            getDomainFromUrl,
-            getSrc,
-            getBestEffortSrc: getSrc,
-            getFallbackSrc,
-            buildPlaceholderSrc: getPlaceholderFavicon,
-            buildRemoteUrl,
-            isLocalContext,
-            handleImageError
-        };
-    }
+    window.EveFaviconUtils = window.EveFaviconUtils || {};
+    Object.assign(window.EveFaviconUtils, {
+        getDomainFromUrl,
+        getSrc,
+        getBestEffortSrc: getSrc,
+        getFallbackSrc,
+        buildPlaceholderSrc: getPlaceholderFavicon,
+        buildRemoteUrl,
+        isLocalContext,
+        isReservedTestDomain,
+        isReservedIconUrl,
+        handleImageError
+    });
 })();

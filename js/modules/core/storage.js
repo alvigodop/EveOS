@@ -64,12 +64,18 @@ function _saveDataImmediate(options = {}) {
     const skipSuggestions = !!options.skipSuggestions;
     const forceRender = !!options.forceRender;
     const mutationSource = normalizeMutationSource(options.source || options.reason, 'saveData');
+    const finishPerf = window.EvePerformanceMonitor?.startOperation?.('saveData', {
+        source: mutationSource,
+        skipRender
+    });
     const snapshot = buildCoreStateSnapshot();
     const signature = buildStateSignature(snapshot);
     const dirty = signature !== _lastCoreStateSignature;
 
     if (dirty) {
-        const delta = buildCoreDataDelta(_lastCoreStateSnapshot, snapshot);
+        const delta = (options.meta && options.meta.dataDelta && typeof options.meta.dataDelta === 'object')
+            ? options.meta.dataDelta
+            : buildCoreDataDelta(_lastCoreStateSnapshot, snapshot);
         if (!options.meta?.skipEditHistory && window.EveEditHistory && typeof window.EveEditHistory.recordDataMutation === 'function') {
             window.EveEditHistory.recordDataMutation({
                 before: _lastCoreStateSnapshot,
@@ -92,13 +98,17 @@ function _saveDataImmediate(options = {}) {
     const shouldRefresh = dirty || forceRender;
 
     // In perf mode, skip the full DOM rebuild â€” actions handle their own UI updates
-    if (window._evePerfMode && !forceRender) return persistPromise;
+    if (window._evePerfMode && !forceRender) {
+        finishPerf?.({ dirty, skippedByPerfMode: true });
+        return persistPromise;
+    }
 
     if (shouldRefresh && !skipRender && typeof renderDashboard === 'function') {
         window.__eveDashboardRenderHint = { kind: 'data-mutation' };
         renderDashboard();
     }
     if (shouldRefresh && !skipSuggestions && typeof updateSuggestions === 'function') updateSuggestions();
+    finishPerf?.({ dirty });
     return persistPromise;
 }
 
@@ -118,12 +128,18 @@ function saveData(options = {}) {
 
     // Debounce the expensive work: sanitize + persist + render
     _saveDataTimer = setTimeout(function () {
+        const finishPerf = window.EvePerformanceMonitor?.startOperation?.('saveData', {
+            source: mutationSource,
+            skipRender
+        });
         _saveDataTimer = 0;
         const snapshot = buildCoreStateSnapshot();
         const signature = buildStateSignature(snapshot);
         const dirty = signature !== _lastCoreStateSignature;
         if (dirty) {
-            const delta = buildCoreDataDelta(_lastCoreStateSnapshot, snapshot);
+            const delta = (mutationMeta && mutationMeta.dataDelta && typeof mutationMeta.dataDelta === 'object')
+                ? mutationMeta.dataDelta
+                : buildCoreDataDelta(_lastCoreStateSnapshot, snapshot);
             if (!mutationMeta?.skipEditHistory && window.EveEditHistory && typeof window.EveEditHistory.recordDataMutation === 'function') {
                 window.EveEditHistory.recordDataMutation({
                     before: _lastCoreStateSnapshot,
@@ -145,7 +161,10 @@ function saveData(options = {}) {
         const shouldRefresh = dirty || forceRender;
 
         // In perf mode, skip the full DOM rebuild — actions handle their own UI updates
-        if (window._evePerfMode && !forceRender) return;
+        if (window._evePerfMode && !forceRender) {
+            finishPerf?.({ dirty, skippedByPerfMode: true });
+            return;
+        }
 
         if (shouldRefresh && !skipRender && typeof renderDashboard === 'function') {
             // Tag as data-mutation so the render skips expensive scroll preservation
@@ -153,6 +172,7 @@ function saveData(options = {}) {
             renderDashboard();
         }
         if (shouldRefresh && !skipSuggestions && typeof updateSuggestions === 'function') updateSuggestions();
+        finishPerf?.({ dirty });
     }, 100);
 }
 
@@ -175,12 +195,16 @@ function saveConfig(options) {
 }
 
 function _saveConfigImmediate(options = {}) {
+    var mutationSource = normalizeMutationSource(options.source || options.reason, 'saveConfig');
+    var finishPerf = window.EvePerformanceMonitor?.startOperation?.('saveConfig', {
+        source: mutationSource
+    });
     var signature = buildStateSignature(config || {});
     if (signature === _lastConfigSignature) {
+        finishPerf?.({ dirty: false });
         return Promise.resolve(true);
     }
     var configDelta = buildConfigDelta(_lastConfigSnapshot, config || {});
-    var mutationSource = normalizeMutationSource(options.source || options.reason, 'saveConfig');
     if (!options.meta?.skipEditHistory && window.EveEditHistory && typeof window.EveEditHistory.recordConfigMutation === 'function') {
         window.EveEditHistory.recordConfigMutation({
             before: _lastConfigSnapshot,
@@ -226,6 +250,7 @@ function _saveConfigImmediate(options = {}) {
         immediate: !!options.immediate,
         meta: buildStateMutationMeta(options.meta, null, configDelta)
     });
+    finishPerf?.({ dirty: true });
     return persistPromise;
 }
 

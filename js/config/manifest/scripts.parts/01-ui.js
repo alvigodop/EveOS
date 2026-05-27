@@ -90,5 +90,5 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/ui/sidebar.popout.js?v=0.1.0",
     "js/modules/ui/sidebar.scaffold.js?v=0.1.2",
     "js/modules/ui/sidebar.js?v=0.4.1",
-    "js/modules/ui/dashboard/dashboard-dock.js?v=0.2.6"
+    "js/modules/ui/dashboard/dashboard-dock.js?v=0.2.7"
 ]);

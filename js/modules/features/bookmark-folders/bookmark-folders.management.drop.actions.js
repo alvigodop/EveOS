@@ -126,6 +126,12 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         const touchedScopes = new Map();
         const syncLinked = window.EveLibrary?.ConnectionsAPI?.syncFromLink;
         const mergeApi = window.EveBookmarkMerge;
+        const duplicateLookup = mergeApi && typeof mergeApi.buildDuplicateLookupForScope === 'function'
+            ? mergeApi.buildDuplicateLookupForScope(liveLinks, {
+                workspaceId: targetWorkspaceId,
+                categoryName: targetCategoryName
+            })
+            : null;
 
         linkIds.forEach((linkId) => {
             const link = liveLinks.find((candidate) => String(candidate?.id) === String(linkId));
@@ -149,18 +155,28 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
                     folderId: validFolderId
                 }, {
                     source: 'bookmark-folder-links-moved',
-                    links: liveLinks
+                    links: liveLinks,
+                    duplicateLookup
                 });
                 if (!result?.moved && !result?.merged) return;
                 movedIds.push(String(result.targetId || link.id));
                 if (result.merged) mergedIds.push(String(result.targetId || ''));
                 if (Array.isArray(result.removedIds)) removedIds.push(...result.removedIds);
+                if (duplicateLookup && typeof mergeApi.addLinkToDuplicateLookup === 'function') {
+                    const lookupTarget = result?.targetId
+                        ? liveLinks.find((candidate) => String(candidate?.id || '') === String(result.targetId))
+                        : link;
+                    mergeApi.addLinkToDuplicateLookup(duplicateLookup, lookupTarget || link);
+                }
             } else {
                 link.workspace = nextWorkspaceId;
                 link.category = nextCategoryName;
                 if (validFolderId) link.folderId = validFolderId;
                 else delete link.folderId;
                 if (typeof syncLinked === 'function') syncLinked(link.id);
+                if (duplicateLookup && typeof mergeApi?.addLinkToDuplicateLookup === 'function') {
+                    mergeApi.addLinkToDuplicateLookup(duplicateLookup, link);
+                }
                 movedIds.push(String(link.id));
             }
             addTouchedScope(touchedScopes, nextWorkspaceId, nextCategoryName);

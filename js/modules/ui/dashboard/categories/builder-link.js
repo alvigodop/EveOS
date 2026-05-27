@@ -51,9 +51,9 @@ window.DashboardCategories = window.DashboardCategories || {};
             || libraryEntry?.imageUrl
             || ''
         ).trim();
-        const coverUrl = (typeof window.EveBookmarkCovers?.isRenderableCoverUrl === 'function' && !window.EveBookmarkCovers.isRenderableCoverUrl(rawCoverUrl))
-            ? ''
-            : rawCoverUrl;
+        const coverUrl = (typeof window.EveBookmarkCovers?.isDisplayableCoverUrl === 'function')
+            ? (window.EveBookmarkCovers.isDisplayableCoverUrl(rawCoverUrl) ? rawCoverUrl : '')
+            : ((typeof window.EveBookmarkCovers?.isRenderableCoverUrl === 'function' && !window.EveBookmarkCovers.isRenderableCoverUrl(rawCoverUrl)) ? '' : rawCoverUrl);
         if (!coverUrl) return null;
 
         let domain = '';
@@ -290,6 +290,19 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
         .replace(/\r/g, '\\r')
         .replace(/\n/g, '\\n')
         .replace(/</g, '\\x3C');
+    const isReservedRemoteImageUrl = (value) => {
+        try {
+            const host = new URL(String(value || '')).hostname.toLowerCase();
+            return host === 'example'
+                || host.endsWith('.example')
+                || host === 'test'
+                || host.endsWith('.test')
+                || host === 'invalid'
+                || host.endsWith('.invalid');
+        } catch (error) {
+            return false;
+        }
+    };
     const badgeWorkspaceId = String(extraOptions.dashboardWorkspaceId || activeWorkspace || '').trim()
         || String(activeWorkspace || '').trim();
     const cardWorkspaceId = String(extraOptions.cardWorkspaceId || activeWorkspace || '').trim()
@@ -337,8 +350,11 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
     const faviconSizeAttr = ' data-favicon-size="32"';
     const fallbackOnError = `if(window.EveFaviconUtils&&typeof window.EveFaviconUtils.handleImageError==='function'){window.EveFaviconUtils.handleImageError(this);return;}this.onerror=null;this.replaceWith('${GLOBE_ICON}');`;
 
-    let iconHtml = (l.icon && l.icon !== LINK_ICON)
-        ? (/^(?:https?:\/\/|data:)/i.test(String(l.icon)) || String(l.icon).startsWith('/')
+    const customIconText = String(l.icon || '');
+    const customIconIsImage = /^(?:https?:\/\/|data:)/i.test(customIconText) || customIconText.startsWith('/');
+    const useCustomIcon = !!(l.icon && l.icon !== LINK_ICON && !(customIconIsImage && isReservedRemoteImageUrl(customIconText)));
+    let iconHtml = useCustomIcon
+        ? (customIconIsImage
             ? (megaPerfMode ? `<span style="font-size:1.2rem; margin-right:8px;">${GLOBE_ICON}</span>` : `<img src="${escapeAttr(l.icon)}"${fallbackAttr}${faviconDomainAttr}${faviconSizeAttr} width="16" height="16" style="margin-right:8px;" loading="lazy" referrerpolicy="no-referrer" onerror="${fallbackOnError}">`)
             : `<span style="font-size:1.2rem; margin-right:8px;">${l.icon}</span>`)
         : (useFavicon

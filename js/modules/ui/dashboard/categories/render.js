@@ -59,6 +59,12 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
         : null;
     const categories = collectDashboardCategories(visibleLinks, activeWorkspace, workspaceCategoryOrder, detachedModel, searchStr);
     const categoryCount = categories.length;
+    const totalLiveLinksForRender = Array.isArray(window.eveState?.links)
+        ? window.eveState.links.length
+        : (typeof getLiveLinks === 'function'
+            ? getLiveLinks().length
+            : (Array.isArray(window.links) ? window.links.length : visibleLinks.length));
+    const isLargeDatapackRender = totalLiveLinksForRender > 1500;
     const isCrossWorkspaceSwitchRender = !!(
         renderHint
         && renderHint.kind === 'workspace-switch'
@@ -67,6 +73,9 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
         && String(renderHint.fromWorkspaceId || '').trim() !== String(renderHint.toWorkspaceId || '').trim()
     );
     const isStartupRender = !!(renderHint && renderHint.kind === 'startup');
+    const shouldGuardGhostHydration = !searchStr
+        && !focusCategory
+        && (isLargeDatapackRender || visibleLinks.length > 1000 || categoryCount > 8 || isStartupRender || isCrossWorkspaceSwitchRender);
 
     // Only build category/link indexes on demand so workspace-switch paints do not pay
     // the full per-category exact-link resolution cost up front.
@@ -106,7 +115,7 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
 
     var aggressiveDeferredCards = isStartupRender
         || isCrossWorkspaceSwitchRender
-        || (!searchStr && !focusCategory && (visibleLinks.length > 150 || categoryCount > 6));
+        || (!searchStr && !focusCategory && (isLargeDatapackRender || visibleLinks.length > 150 || categoryCount > 6));
     var CARD_CAP = aggressiveDeferredCards
         ? (visibleLinks.length > 500 ? 6 : 5)
         : (visibleLinks.length > 500 ? 2 : (visibleLinks.length > 200 ? 3 : 8));
@@ -115,6 +124,9 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
     }
     if (isCrossWorkspaceSwitchRender) {
         CARD_CAP = Math.min(CARD_CAP, 0);
+    }
+    if (!isCrossWorkspaceSwitchRender && !searchStr && !focusCategory && (isLargeDatapackRender || visibleLinks.length > 3000)) {
+        CARD_CAP = 0;
     }
     var renderCount = 0;
     var deferredCards = [];
@@ -133,7 +145,8 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
         focusMode: !!focusCategory,
         _renderGen: renderGen,
         _dashboardRenderHint: renderHint || null,
-        _dashboardRenderContext: dashboardRenderContext
+        _dashboardRenderContext: dashboardRenderContext,
+        _preferActiveFolderShell: !!focusCategory && isLargeDatapackRender
     };
 
     // Pre-collect category render descriptors to avoid synchronous DOM work in the loop
@@ -173,6 +186,8 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
                 catObj: catObj,
                 catLinks: catLinks,
                 catLinkCount: catLinkCount,
+                hasFolderContent: hasFolderContent,
+                shouldRenderEmptyCard: shouldRenderEmptyCard,
                 canUseLazyDeferredLinks: canUseLazyDeferredLinks,
                 catWsId: catWsId,
                 cat: cat,
@@ -188,14 +203,25 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
 
     function buildCardConfig(desc) {
         var buildConfig = Object.assign({}, sharedBuildConfig);
-        if ((aggressiveDeferredCards && desc.catLinkCount > 0) || isCrossWorkspaceSwitchRender) {
+        if ((aggressiveDeferredCards && (desc.catLinkCount > 0 || desc.hasFolderContent)) || isCrossWorkspaceSwitchRender) {
             buildConfig._forceDeferredShell = true;
-            buildConfig._deferredUseIdle = isStartupRender;
+            buildConfig._deferredUseIdle = true;
+            buildConfig._deferredHydrateOnDemand = !!(
+                !isCrossWorkspaceSwitchRender
+                && !searchStr
+                && !focusCategory
+                && (isLargeDatapackRender || visibleLinks.length > 1000 || categoryCount > 8)
+                && renderCount >= CARD_CAP
+            );
+            if (shouldGuardGhostHydration) {
+                buildConfig._deferGhostHydration = true;
+                buildConfig._skipDeferredGhostHydration = isLargeDatapackRender || visibleLinks.length > 1000 || categoryCount > 10;
+            }
             buildConfig._deferredHydrationDelayMs = isStartupRender
                 ? (renderCount < CARD_CAP ? 90 + (renderCount * 40) : 260 + (renderCount * 38))
                 : (isCrossWorkspaceSwitchRender
-                ? Math.min(120, 12 + (renderCount * 10))
-                : (renderCount < CARD_CAP ? 0 : 12));
+                    ? Math.min(420, 90 + (renderCount * 35))
+                    : Math.min(1200, 160 + (renderCount * 70)));
         }
         if (desc.canUseLazyDeferredLinks) {
             buildConfig._deferredLinkCount = desc.catLinkCount;
