@@ -850,3 +850,164 @@ body.bulk-active .folder-tile-edit-btn.bulk-scope-btn {
 .folder-tile:hover .hatch-favicon {
     opacity: 1;
 }
+
+/* -- Smart View Builder -- */
+.smart-view-builder-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100050;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 22px;
+    background: rgba(0, 0, 0, 0.54);
+    backdrop-filter: blur(5px);
+}
+
+.smart-view-builder-modal {
+    width: min(640px, calc(100vw - 32px));
+    max-height: min(760px, calc(100vh - 34px));
+    overflow: auto;
+    padding: 18px;
+    border: 1px solid color-mix(in srgb, var(--accent, #00d5ff) 36%, rgba(255, 255, 255, 0.2) 64%);
+    border-radius: 18px;
+    background:
+        radial-gradient(circle at top left, color-mix(in srgb, var(--accent, #00d5ff) 18%, transparent 82%), transparent 34%),
+        color-mix(in srgb, var(--modal-bg, #151a1d) 92%, #061b24 8%);
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.44);
+    color: var(--modal-text, #eaf8ff);
+}
+
+.smart-view-builder-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 10px;
+}
+
+.smart-view-builder-header h3 {
+    margin: 1px 0 0;
+    font-size: 20px;
+    letter-spacing: 0.04em;
+}
+
+.smart-view-builder-kicker,
+.smart-view-builder-scope,
+.smart-view-builder-preview {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: color-mix(in srgb, var(--accent, #00d5ff) 70%, var(--modal-text, #fff) 30%);
+    text-transform: uppercase;
+}
+
+.smart-view-builder-close {
+    width: 32px;
+    height: 32px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.06);
+    color: inherit;
+    cursor: pointer;
+}
+
+.smart-view-builder-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin-top: 10px;
+    min-width: 0;
+}
+
+.smart-view-builder-field span {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    opacity: 0.78;
+}
+
+.smart-view-builder-field input,
+.smart-view-builder-field select,
+.smart-view-builder-advanced textarea {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 10px;
+    padding: 9px 10px;
+    background: rgba(0, 0, 0, 0.22);
+    color: inherit;
+    outline: none;
+}
+
+.smart-view-builder-field input:focus,
+.smart-view-builder-field select:focus,
+.smart-view-builder-advanced textarea:focus {
+    border-color: color-mix(in srgb, var(--accent, #00d5ff) 72%, white 28%);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent, #00d5ff) 18%, transparent 82%);
+}
+
+.smart-view-builder-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 8px 10px;
+}
+
+.smart-view-builder-checks {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 12px 0;
+}
+
+.smart-view-builder-checks label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 999px;
+    padding: 6px 9px;
+    background: rgba(255, 255, 255, 0.04);
+    font-size: 11px;
+}
+
+.smart-view-builder-advanced {
+    margin: 8px 0 10px;
+    border: 1px solid rgba(255, 255, 255, 0.11);
+    border-radius: 12px;
+    padding: 8px 10px;
+}
+
+.smart-view-builder-advanced summary {
+    cursor: pointer;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    opacity: 0.82;
+}
+
+.smart-view-builder-preview {
+    margin-top: 10px;
+    padding: 9px 10px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.18);
+    text-transform: none;
+}
+
+.smart-view-builder-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 9px;
+    margin-top: 14px;
+}
+
+.smart-view-builder-actions button {
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 999px;
+    padding: 8px 13px;
+    background: rgba(255, 255, 255, 0.06);
+    color: inherit;
+    cursor: pointer;
+}
+
+.smart-view-builder-actions button[type="submit"] {
+    border-color: color-mix(in srgb, var(--accent, #00d5ff) 70%, white 30%);
+    background: color-mix(in srgb, var(--accent, #00d5ff) 18%, rgba(255, 255, 255, 0.06) 82%);
+}

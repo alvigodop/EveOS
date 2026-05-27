@@ -203,7 +203,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                     ? `<div class="folder-tile-hatch-panel" onclick="event.stopPropagation();" onwheel="event.stopPropagation();">${subFolderHtml}${hatchHtml}</div>`
                     : '';
 
-                return `<div class="folder-tile${isGhost ? ' folder-tile-ghost' : ''}${collapsedClass}" data-category="${escapeCardHtml(categoryName)}" data-workspace="${escapeCardHtml(workspaceId)}" data-folder-id="${escapeCardHtml(folder.id)}" ${folderDropAttr} ${dragStartAttr} ${contextMenuAttr}>
+                return `<div class="folder-tile${isGhost ? ' folder-tile-ghost' : ''}${collapsedClass}" data-category="${escapeCardHtml(categoryName)}" data-workspace="${escapeCardHtml(workspaceId)}" data-folder-id="${escapeCardHtml(folder.id)}" ${folderDropAttr} ${dragStartAttr} onclick="window.EveFolderViewV2.enterFolder(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(folder.id)}', '${escapeCardJs(workspaceId)}')" ${contextMenuAttr}>
                     <div class="folder-tile-main" onclick="event.stopPropagation(); window.EveFolderViewV2.enterFolder(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(folder.id)}', '${escapeCardJs(workspaceId)}')">
                         <div class="folder-tile-left-bar"></div>
                         <div class="folder-icon-box"><svg width="14" height="14" viewBox="0 0 14 14" style="overflow: visible;"><rect x="0" y="3" width="14" height="10" rx="0" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.6" /><path d="M0,3 L4,3 L5.5,1 L9,1 L9,3" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.6" /></svg></div>

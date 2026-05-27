@@ -12,6 +12,15 @@ window.EveSmartViewRegistry = window.EveSmartViewRegistry || {};
         return raw || String(fallback || '').trim();
     }
 
+    function escapeHtml(value) {
+        return String(value == null ? '' : value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
     function normalizeKey(value) {
         return text(value, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'other';
     }
@@ -47,12 +56,16 @@ window.EveSmartViewRegistry = window.EveSmartViewRegistry || {};
         });
     }
 
-    function normalizedMatch(values, wanted) {
+    function normalizedMatch(values, wanted, options = {}) {
         const needle = normalizeKey(wanted);
         if (!needle) return true;
+        const exact = !!options.exact;
         return (Array.isArray(values) ? values : [values]).some((value) => {
             const hay = normalizeKey(value);
-            return hay === needle || hay.includes(needle) || needle.includes(hay);
+            if (!hay) return false;
+            if (hay === needle) return true;
+            if (exact) return false;
+            return hay.includes(needle);
         });
     }
 
@@ -305,6 +318,43 @@ window.EveSmartViewRegistry = window.EveSmartViewRegistry || {};
         return values.length ? values : ['No Merge History'];
     }
 
+    function cleanBucketValue(value) {
+        return text(value, '').replace(/^\[\s*|\s*\]$/g, '').trim();
+    }
+
+    function normalizeReusableCriteria(criteria) {
+        const source = criteria && typeof criteria === 'object' && !Array.isArray(criteria) ? criteria : {};
+        const c = Object.assign({}, source);
+        const dimension = normalizeKey(c.dimension || '');
+        const rawValue = cleanBucketValue(c.value || c.label || '');
+        if (dimension && rawValue) {
+            if (dimension === 'identifier_labels') c.identifiers = normalizeList([c.identifiers, rawValue]);
+            else if (dimension === 'related_urls') {
+                c.hasRelatedUrls = true;
+                if (normalizeKey(rawValue) !== 'has_related_urls') c.query = [c.query, rawValue].filter(Boolean).join(' ');
+            } else if (dimension === 'source_provider') c.provider = rawValue;
+            else if (dimension === 'source_freshness') c.sourceFreshness = rawValue;
+            else if (dimension === 'folder_health') c.folderHealth = rawValue;
+            else if (dimension === 'origin_scope') c.originScope = rawValue;
+            else if (dimension === 'pin_scope') c.pinScope = rawValue;
+            else if (dimension === 'cover_state') {
+                const coverKey = normalizeKey(rawValue);
+                if (coverKey === 'has_cover') c.hasCover = true;
+                else if (coverKey === 'has_additional_covers') c.hasAdditionalCovers = true;
+                else if (coverKey === 'missing_cover') c.missingCover = true;
+            } else if (dimension === 'merge_state') c.mergeState = rawValue;
+        }
+        delete c.dimension;
+        delete c.value;
+        delete c.label;
+        Object.keys(c).forEach((key) => {
+            const value = c[key];
+            if (value === undefined || value === null || value === '' || value === false) delete c[key];
+            if (Array.isArray(value) && !value.length) delete c[key];
+        });
+        return c;
+    }
+
     function normalizeIdentityUrl(url) {
         try {
             const parsed = new URL(String(url || ''), window.location?.origin || 'https://eve.local');
@@ -504,7 +554,7 @@ window.EveSmartViewRegistry = window.EveSmartViewRegistry || {};
     }
 
     function matchesCriteria(link, entry, criteria, context) {
-        const c = criteria && typeof criteria === 'object' ? criteria : {};
+        const c = normalizeReusableCriteria(criteria);
         const haystack = [
             link?.title, link?.url, link?.notes,
             entry?.title, entry?.summary, entry?.author, entry?.genre,
@@ -526,15 +576,22 @@ window.EveSmartViewRegistry = window.EveSmartViewRegistry || {};
         if (c.provider) {
             if (!normalizedMatch(getSourceProviderValues(link, entry), c.provider)) return false;
         }
-        if (c.status && !normalizedMatch([entry?.status, entry?.libraryStatus?.label, entry?.libraryStatus?.id], c.status)) return false;
+        if (c.status && !normalizedMatch([entry?.status, entry?.libraryStatus?.label, entry?.libraryStatus?.id], c.status, { exact: true })) return false;
         if (c.sourceFreshness) {
-            if (!normalizedMatch(getSourceFreshnessBuckets(link, entry, Date.now()), c.sourceFreshness)) return false;
+            if (!normalizedMatch(getSourceFreshnessBuckets(link, entry, Date.now()), c.sourceFreshness, { exact: true })) return false;
         }
         if (c.folderHealth) {
-            if (!normalizedMatch(buildFolderHealthResolver(context)(link), c.folderHealth)) return false;
+            if (!normalizedMatch(buildFolderHealthResolver(context)(link), c.folderHealth, { exact: true })) return false;
+        }
+        if (c.originScope) {
+            if (!normalizedMatch(getOriginScopeValues(link, context), c.originScope, { exact: true })) return false;
         }
         if (c.mergeState) {
-            if (!normalizedMatch(getMergeStateValues(link, entry, buildDuplicateUrlCounts(context?.activeLinks || [])), c.mergeState)) return false;
+            const duplicateUrlCounts = context?.duplicateUrlCounts || buildDuplicateUrlCounts(context?.activeLinks || []);
+            if (!normalizedMatch(getMergeStateValues(link, entry, duplicateUrlCounts), c.mergeState, { exact: true })) return false;
+        }
+        if (c.pinScope) {
+            if (!normalizedMatch(getPinScopeValues(link), c.pinScope, { exact: true })) return false;
         }
         if (c.pinned === true && getPinScopeValues(link).includes('Not Pinned')) return false;
         if (c.hasCover === true && !getCoverStateValues(link, entry).includes('Has Cover')) return false;
@@ -548,7 +605,28 @@ window.EveSmartViewRegistry = window.EveSmartViewRegistry || {};
     function evaluateView(view, context) {
         const links = Array.isArray(context?.activeLinks) ? context.activeLinks : [];
         const getCachedEntry = typeof context?.getCachedEntry === 'function' ? context.getCachedEntry : () => null;
-        return links.filter((link) => matchesCriteria(link, getCachedEntry(link), view?.criteria, context));
+        const evaluationContext = Object.assign({}, context, {
+            activeLinks: links,
+            duplicateUrlCounts: context?.duplicateUrlCounts || buildDuplicateUrlCounts(links)
+        });
+        return links.filter((link) => matchesCriteria(link, getCachedEntry(link), view?.criteria, evaluationContext));
+    }
+
+    function evaluateViewFromIndex(view, context) {
+        const indexedRecords = getIndexedBookmarkRecords(context);
+        if (!indexedRecords) return null;
+        const liveLinks = Array.isArray(context?.activeLinks) ? context.activeLinks : getLiveLinks();
+        const liveById = buildLiveLinkMap(liveLinks);
+        const getCachedEntry = typeof context?.getCachedEntry === 'function' ? context.getCachedEntry : () => null;
+        const evaluationContext = Object.assign({}, context, {
+            activeLinks: liveLinks,
+            duplicateUrlCounts: context?.duplicateUrlCounts || buildDuplicateUrlCounts(liveLinks)
+        });
+        return indexedRecords.map(({ linkId, record }) => {
+            const link = liveById.get(linkId) || buildIndexedLinkFallback(record, linkId);
+            const entry = getCachedEntry(link) || buildIndexedEntryFallback(record);
+            return matchesCriteria(link, entry, view?.criteria, evaluationContext) ? link : null;
+        }).filter(Boolean);
     }
 
     function buildUserSmartViewGroup(context) {
@@ -624,6 +702,77 @@ window.EveSmartViewRegistry = window.EveSmartViewRegistry || {};
         return [];
     }
 
+    function buildLiveLinkMap(links) {
+        const map = new Map();
+        (Array.isArray(links) ? links : []).forEach((link) => {
+            const id = text(link?.id, '');
+            if (id && !map.has(id)) map.set(id, link);
+        });
+        return map;
+    }
+
+    function getDatapackIndex() {
+        return window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
+    }
+
+    function buildIndexedLinkFallback(record, linkId) {
+        const relatedUrls = normalizeList(record?.provenance?.relatedUrls)
+            .map((url) => ({ url, label: '' }));
+        return {
+            id: text(linkId || record?.path?.linkId || record?.provenance?.linkId || record?.sourceIdentity?.linkId, ''),
+            title: text(record?.title, 'Untitled'),
+            url: text(record?.url, ''),
+            workspace: text(record?.workspaceId || record?.path?.workspaceId, 'main'),
+            category: text(record?.categoryName || record?.path?.categoryName, 'Unsorted'),
+            folderId: text(record?.path?.folderId, ''),
+            notes: text(record?.description, ''),
+            tags: normalizeList(record?.provenance?.tags),
+            identifiers: normalizeList(record?.provenance?.identifiers),
+            icon: text(record?.provenance?.icon, ''),
+            coverImage: text(record?.provenance?.coverImage, ''),
+            relatedUrls,
+            done: !!record?.provenance?.done
+        };
+    }
+
+    function buildIndexedEntryFallback(record) {
+        const library = record?.library || {};
+        return {
+            id: text(library.entryId, ''),
+            title: text(library.title || record?.title, ''),
+            summary: text(library.summary || record?.description, ''),
+            notes: text(library.summary, ''),
+            author: text(library.author, ''),
+            genre: text(library.genre, ''),
+            status: text(library.status, ''),
+            mediaType: text(library.mediaType, ''),
+            altTitles: normalizeList(library.aliases),
+            titleAltNames: normalizeList(library.aliases)
+        };
+    }
+
+    function getIndexedBookmarkRecords(scope) {
+        const indexApi = getDatapackIndex();
+        if (!indexApi || typeof indexApi.getExactBookmarkLinkIds !== 'function' || typeof indexApi.getIndexedBookmarkRecordByLinkId !== 'function') {
+            return null;
+        }
+        if (typeof indexApi.hasReadableLinkSnapshot === 'function' && !indexApi.hasReadableLinkSnapshot()) {
+            return null;
+        }
+        const linkIds = indexApi.getExactBookmarkLinkIds({
+            workspaceId: text(scope?.workspaceId, ''),
+            categoryName: text(scope?.categoryName, ''),
+            folderId: text(scope?.folderId, '')
+        });
+        if (!Array.isArray(linkIds)) return null;
+        const records = [];
+        linkIds.forEach((linkId) => {
+            const record = indexApi.getIndexedBookmarkRecordByLinkId(linkId);
+            if (record) records.push({ linkId: text(linkId, ''), record });
+        });
+        return records;
+    }
+
     function getScopedNodes(workspaceId, categoryName) {
         const folderApi = window.EveBookmarkFolders;
         const storeApi = folderApi?._shared || folderApi;
@@ -688,16 +837,16 @@ window.EveSmartViewRegistry = window.EveSmartViewRegistry || {};
             text(link?.workspace, 'main') === scope.workspaceId
             && text(link?.category, 'Unsorted') === scope.categoryName
         ));
-        const matches = evaluateView(
-            { criteria },
-            {
-                workspaceId: scope.workspaceId,
-                categoryName: scope.categoryName,
-                activeLinks,
-                scopedNodes: getScopedNodes(scope.workspaceId, scope.categoryName),
-                getCachedEntry: getCachedEntryResolver(scope.workspaceId, scope.categoryName)
-            }
-        );
+        const evaluationContext = {
+            workspaceId: scope.workspaceId,
+            categoryName: scope.categoryName,
+            folderId: scope.folderId,
+            activeLinks,
+            scopedNodes: getScopedNodes(scope.workspaceId, scope.categoryName),
+            getCachedEntry: getCachedEntryResolver(scope.workspaceId, scope.categoryName)
+        };
+        const matches = evaluateViewFromIndex({ criteria }, evaluationContext)
+            || evaluateView({ criteria }, evaluationContext);
         return matches.map((link) => text(link?.id, '')).filter(Boolean);
     }
 
@@ -753,8 +902,8 @@ window.EveSmartViewRegistry = window.EveSmartViewRegistry || {};
         if (existingId) {
             return { ok: true, alreadySaved: true, viewId: existingId };
         }
-        const criteria = getRecordCriteria(record);
-        if (!criteria) {
+        const criteria = normalizeReusableCriteria(getRecordCriteria(record));
+        if (!criteria || !Object.keys(criteria).length) {
             return { ok: false, error: 'This Nexus Smart View does not expose reusable criteria yet.' };
         }
         const label = text(options?.label || record?.title, 'Nexus Smart View').replace(/^\[\s*|\s*\]$/g, '');
@@ -775,13 +924,47 @@ window.EveSmartViewRegistry = window.EveSmartViewRegistry || {};
         return result;
     }
 
-    function promptCreateSmartView(workspaceId, categoryName) {
-        const label = window.prompt('Smart View name');
-        if (!text(label, '')) return null;
-        const criteriaText = window.prompt('Criteria. Examples: label:Reading provider:MangaDex missing:cover, has:related, merge:Merge_History, or plain search text.', '');
+    function cleanupCriteria(criteria) {
+        const next = {};
+        Object.keys(criteria || {}).forEach((key) => {
+            const value = criteria[key];
+            if (value === undefined || value === null || value === '' || value === false) return;
+            if (Array.isArray(value) && !value.length) return;
+            next[key] = value;
+        });
+        return next;
+    }
+
+    function buildCriteriaFromBuilder(form) {
+        const criteria = parseCriteriaPrompt(form.querySelector('[data-sv-field="tokens"]')?.value || '');
+        const query = text(form.querySelector('[data-sv-field="query"]')?.value, '');
+        const identifiers = normalizeList(form.querySelector('[data-sv-field="identifiers"]')?.value || '');
+        const provider = text(form.querySelector('[data-sv-field="provider"]')?.value, '');
+        const status = text(form.querySelector('[data-sv-field="status"]')?.value, '');
+        const sourceFreshness = text(form.querySelector('[data-sv-field="sourceFreshness"]')?.value, '');
+        const folderHealth = text(form.querySelector('[data-sv-field="folderHealth"]')?.value, '');
+        const mergeState = text(form.querySelector('[data-sv-field="mergeState"]')?.value, '');
+
+        if (query) criteria.query = [criteria.query, query].filter(Boolean).join(' ');
+        if (identifiers.length) criteria.identifiers = normalizeList([criteria.identifiers, identifiers]);
+        if (provider) criteria.provider = provider;
+        if (status) criteria.status = status;
+        if (sourceFreshness) criteria.sourceFreshness = sourceFreshness;
+        if (folderHealth) criteria.folderHealth = folderHealth;
+        if (mergeState) criteria.mergeState = mergeState;
+        ['hasRelatedUrls', 'pinned', 'hasCover', 'hasAdditionalCovers', 'missingCover'].forEach((key) => {
+            if (form.querySelector('[data-sv-bool="' + key + '"]')?.checked) criteria[key] = true;
+        });
+        return cleanupCriteria(criteria);
+    }
+
+    function saveSmartViewFromBuilder(workspaceId, categoryName, form) {
+        const label = text(form.querySelector('[data-sv-field="label"]')?.value, '');
+        if (!label) return { ok: false, error: 'Smart View name is required.' };
+        const criteria = buildCriteriaFromBuilder(form);
         const result = saveCardView(workspaceId, categoryName, {
             label: text(label, 'Smart View'),
-            criteria: parseCriteriaPrompt(criteriaText || '')
+            criteria
         });
         if (result.ok) {
             if (typeof showToast === 'function') showToast('Smart View saved: ' + result.view.label, 'success');
@@ -790,6 +973,89 @@ window.EveSmartViewRegistry = window.EveSmartViewRegistry || {};
             showToast(result.error || 'Could not save Smart View.', 'warning');
         }
         return result;
+    }
+
+    function getIdentifierOptionText() {
+        return Array.from(getDefinitionsById().values())
+            .map((definition) => definition.label || definition.id)
+            .join(', ');
+    }
+
+    function buildSmartViewBuilderHtml(workspaceId, categoryName) {
+        const identifierHint = getIdentifierOptionText();
+        return ''
+            + '<div class="smart-view-builder-overlay" data-smart-view-builder>'
+            + '<form class="smart-view-builder-modal">'
+            + '<div class="smart-view-builder-header">'
+            + '<div><div class="smart-view-builder-kicker">Smart View Builder</div><h3>New Smart View</h3></div>'
+            + '<button type="button" class="smart-view-builder-close" data-sv-close aria-label="Close">×</button>'
+            + '</div>'
+            + '<div class="smart-view-builder-scope">' + escapeHtml(text(workspaceId, 'main')) + ' / ' + escapeHtml(text(categoryName, 'Unsorted')) + '</div>'
+            + '<label class="smart-view-builder-field"><span>Name</span><input data-sv-field="label" required maxlength="80" placeholder="Reading + MangaDex + Covers"></label>'
+            + '<label class="smart-view-builder-field"><span>Search text</span><input data-sv-field="query" placeholder="Title, URL, notes, alias, tag..."></label>'
+            + '<label class="smart-view-builder-field"><span>Identifiers / Labels</span><input data-sv-field="identifiers" placeholder="' + escapeHtml(identifierHint || 'Reading, Watching, Listening') + '"></label>'
+            + '<div class="smart-view-builder-grid">'
+            + '<label class="smart-view-builder-field"><span>Provider</span><input data-sv-field="provider" placeholder="MangaDex, AniList, TVMaze"></label>'
+            + '<label class="smart-view-builder-field"><span>Status</span><input data-sv-field="status" placeholder="Reading, Watching, Completed"></label>'
+            + '<label class="smart-view-builder-field"><span>Freshness</span><select data-sv-field="sourceFreshness"><option value="">Any</option><option>Fresh Source</option><option>Stale Source</option><option>Cache Only / Unknown</option><option>No Source</option></select></label>'
+            + '<label class="smart-view-builder-field"><span>Folder Health</span><select data-sv-field="folderHealth"><option value="">Any</option><option>Healthy Folder Path</option><option>Broken Parent Chain</option><option>Hidden Parent</option><option>Orphaned Bookmark Folder</option><option>Detached Chain</option></select></label>'
+            + '<label class="smart-view-builder-field"><span>Merge State</span><select data-sv-field="mergeState"><option value="">Any</option><option>Merge History</option><option>Duplicate Suspect</option><option>Injected Library Merge</option><option>Notes-Only Merge</option><option>No Merge History</option></select></label>'
+            + '</div>'
+            + '<div class="smart-view-builder-checks">'
+            + '<label><input type="checkbox" data-sv-bool="hasRelatedUrls"> Related URLs</label>'
+            + '<label><input type="checkbox" data-sv-bool="pinned"> Pinned</label>'
+            + '<label><input type="checkbox" data-sv-bool="hasCover"> Has cover</label>'
+            + '<label><input type="checkbox" data-sv-bool="hasAdditionalCovers"> Additional covers</label>'
+            + '<label><input type="checkbox" data-sv-bool="missingCover"> Missing cover</label>'
+            + '</div>'
+            + '<details class="smart-view-builder-advanced"><summary>Token criteria</summary><textarea data-sv-field="tokens" rows="3" placeholder="label:Reading provider:MangaDex missing:cover has:related merge:Merge_History"></textarea></details>'
+            + '<div class="smart-view-builder-preview" data-sv-preview>Criteria: all card bookmarks</div>'
+            + '<div class="smart-view-builder-actions"><button type="button" data-sv-close>Cancel</button><button type="submit">Save Smart View</button></div>'
+            + '</form></div>';
+    }
+
+    function showSmartViewBuilder(workspaceId, categoryName) {
+        if (!document?.body) return null;
+        document.querySelectorAll('[data-smart-view-builder]').forEach((node) => node.remove());
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = buildSmartViewBuilderHtml(workspaceId, categoryName);
+        const overlay = wrapper.firstElementChild;
+        const form = overlay.querySelector('form');
+        const preview = overlay.querySelector('[data-sv-preview]');
+        function close() {
+            overlay.remove();
+            document.removeEventListener('keydown', onKeyDown);
+        }
+        function onKeyDown(event) {
+            if (event.key === 'Escape') close();
+        }
+        function refreshPreview() {
+            const criteria = buildCriteriaFromBuilder(form);
+            if (preview) preview.textContent = 'Criteria: ' + describeCriteria(criteria);
+        }
+        overlay.addEventListener('click', (event) => {
+            if (event.target === overlay || event.target.closest('[data-sv-close]')) {
+                event.preventDefault();
+                close();
+            }
+        });
+        form.addEventListener('input', refreshPreview);
+        form.addEventListener('change', refreshPreview);
+        form.addEventListener('submit', (event) => {
+            event.preventDefault();
+            const result = saveSmartViewFromBuilder(workspaceId, categoryName, form);
+            if (result.ok) close();
+            else if (typeof showToast === 'function') showToast(result.error || 'Could not save Smart View.', 'warning');
+        });
+        document.addEventListener('keydown', onKeyDown);
+        document.body.appendChild(overlay);
+        window.setTimeout(() => form.querySelector('[data-sv-field="label"]')?.focus(), 0);
+        refreshPreview();
+        return overlay;
+    }
+
+    function promptCreateSmartView(workspaceId, categoryName) {
+        return showSmartViewBuilder(workspaceId, categoryName);
     }
 
     function openSmartView(workspaceId, categoryName, smartViewId) {
@@ -843,9 +1109,14 @@ window.EveSmartViewRegistry = window.EveSmartViewRegistry || {};
         saveCardView,
         deleteCardView,
         evaluateView,
+        evaluateViewFromIndex,
         matchesCriteria,
         describeCriteria,
         parseCriteriaPrompt,
+        normalizeReusableCriteria,
+        buildCriteriaFromBuilder,
+        saveSmartViewFromBuilder,
+        showSmartViewBuilder,
         promptCreateSmartView,
         openSmartView,
         openSmartViewRecord,
