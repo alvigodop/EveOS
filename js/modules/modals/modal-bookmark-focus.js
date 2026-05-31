@@ -15,6 +15,7 @@
     const normalizeTargetOverride = focus.normalizeTargetOverride;
     const getTargetOverrideForOption = focus.getTargetOverrideForOption;
     const refreshTargetSwitcher = focus.refreshTargetSwitcher;
+    const refreshFocusContext = focus.refreshFocusContext;
     const refreshHeader = focus.refreshHeader;
     const refreshActionButtons = focus.refreshActionButtons;
     const loadLinkedRecord = focus.loadLinkedRecord;
@@ -87,6 +88,7 @@
             : null;
         refreshHeader(link, focus.currentTargetOverride);
         refreshTargetSwitcher?.(link, focus.currentTargetOverride);
+        refreshFocusContext?.(link, focus.currentTargetOverride);
         refreshActionButtons(link);
         refreshPinControls(link);
         refreshClickBehaviorControls(link);
@@ -153,6 +155,7 @@
             : null;
         refreshHeader(link, focus.currentTargetOverride);
         refreshTargetSwitcher?.(link, focus.currentTargetOverride);
+        refreshFocusContext?.(link, focus.currentTargetOverride);
     };
 
     window.bookmarkFocusSaveClickBehavior = function (mode) {
@@ -307,6 +310,7 @@
         const link = findLinkById(currentId);
         refreshHeader(link, focus.currentTargetOverride);
         refreshTargetSwitcher?.(link, focus.currentTargetOverride);
+        refreshFocusContext?.(link, focus.currentTargetOverride);
         refreshActionButtons(link);
         refreshPinControls(link);
         refreshClickBehaviorControls(link);

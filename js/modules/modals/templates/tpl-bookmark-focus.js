@@ -14,6 +14,23 @@ window.modalTemplate += `
             <div id="bookmarkFocusTargetHint" class="bookmark-focus-target-hint"></div>
         </div>
 
+        <details id="bookmarkFocusContextSection" class="settings-disclosure bookmark-focus-context">
+            <summary class="settings-disclosure-summary settings-disclosure-summary--split">
+                <span class="settings-disclosure-summary__label">Bookmark Labels & Related URLs</span>
+                <span id="bookmarkFocusContextSummary" class="settings-disclosure-summary__meta">0 labels - 0 related URLs</span>
+            </summary>
+            <div class="settings-disclosure-body bookmark-focus-context-body">
+                <div class="bookmark-focus-context-group">
+                    <div class="bookmark-focus-context-heading">Labels</div>
+                    <div id="bookmarkFocusIdentifierPanel" class="bookmark-focus-label-list"></div>
+                </div>
+                <div class="bookmark-focus-context-group">
+                    <div class="bookmark-focus-context-heading">Related URLs</div>
+                    <div id="bookmarkFocusRelatedUrlPanel" class="bookmark-focus-related-list"></div>
+                </div>
+            </div>
+        </details>
+
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
             <button type="button" id="bookmarkFocusPinBtn" onclick="bookmarkFocusTogglePin()">Pin</button>
             <button type="button" id="bookmarkFocusDoneBtn" onclick="bookmarkFocusToggleDone()">Mark Done</button>

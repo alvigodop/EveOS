@@ -16,7 +16,7 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         if (rt._structureSummaryWarmPromise) return;
         var warmReason = String(reason || 'sidebar-structure-summary');
         var warmPromise = typeof indexApi.ensureFresh === 'function'
-            ? indexApi.ensureFresh({ reason: warmReason })
+            ? indexApi.ensureFresh({ reason: warmReason, allowStale: true, deferMs: 1400 })
             : indexApi.rebuild({ reason: warmReason });
 
         rt._structureSummaryWarmPromise = Promise.resolve(warmPromise)
@@ -117,8 +117,10 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
                     : (!buildState?.dirty && Number(buildState?.builtAt || 0) > 0));
             if (!hasUsableSnapshot) {
                 queueStructureSummaryWarmup('sidebar-structure-summary', window.renderSidebar);
-                structureSummaryUnavailable = true;
-                return null;
+                if (Number(buildState?.builtAt || 0) <= 0) {
+                    structureSummaryUnavailable = true;
+                    return null;
+                }
             }
             var summary = indexApi.getStructureSummary();
             if (summary && Number(summary.builtAt || 0) > 0) {

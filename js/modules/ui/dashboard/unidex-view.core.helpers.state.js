@@ -27,7 +27,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             if (!indexApi || (typeof indexApi.ensureFresh !== 'function' && typeof indexApi.rebuild !== 'function')) return;
             if (state.datapackIndexWarmPromise) return;
             const warmPromise = typeof indexApi.ensureFresh === 'function'
-                ? indexApi.ensureFresh({ reason: 'unidex-summary' })
+                ? indexApi.ensureFresh({ reason: 'unidex-summary', allowStale: true, deferMs: 1400 })
                 : indexApi.rebuild({ reason: 'unidex-summary' });
 
             state.datapackIndexWarmPromise = Promise.resolve(warmPromise)
@@ -43,12 +43,13 @@ window.UnidexViewModules = window.UnidexViewModules || {};
         function getDatapackStructureSummary() {
             const indexApi = getDatapackIndexApi();
             if (!indexApi || typeof indexApi.getStructureSummary !== 'function') return null;
+            const buildState = typeof indexApi.getBuildState === 'function' ? indexApi.getBuildState() : null;
             const hasReadableStructure = typeof indexApi.hasReadableStructureSnapshot === 'function'
                 ? !!indexApi.hasReadableStructureSnapshot()
                 : hasUsableDatapackSnapshot(indexApi);
             if (!hasReadableStructure) {
                 warmDatapackIndex();
-                return null;
+                if (Number(buildState?.builtAt || 0) <= 0) return null;
             }
             const summary = indexApi.getStructureSummary();
             if (summary?.builtAt) return summary;

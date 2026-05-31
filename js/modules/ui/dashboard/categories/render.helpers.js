@@ -22,7 +22,7 @@ function queueDashboardCategorySummaryWarmup() {
     if (dashboardCategorySummaryWarmPromise) return;
     var scrollSeqAtRequest = Number(window._dashboardScrollActivitySeq || 0);
     var warmPromise = typeof indexApi.ensureFresh === 'function'
-        ? indexApi.ensureFresh({ reason: 'dashboard-categories' })
+        ? indexApi.ensureFresh({ reason: 'dashboard-categories', allowStale: true, deferMs: 1400 })
         : indexApi.rebuild({ reason: 'dashboard-categories' });
 
     dashboardCategorySummaryWarmPromise = Promise.resolve(warmPromise)
@@ -47,7 +47,7 @@ function getDashboardStructureSummary() {
             : (!buildState?.dirty && Number(buildState?.builtAt || 0) > 0));
     if (!hasUsableSnapshot) {
         queueDashboardCategorySummaryWarmup();
-        return null;
+        if (Number(buildState?.builtAt || 0) <= 0) return null;
     }
     var summary = indexApi.getStructureSummary();
     if (summary?.builtAt) return summary;

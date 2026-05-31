@@ -12,7 +12,7 @@ window.DashboardCategories = window.DashboardCategories || {};
         if (cardSummaryWarmPromise) return;
         var scrollSeqAtRequest = Number(window._dashboardScrollActivitySeq || 0);
         var warmPromise = typeof indexApi.ensureFresh === 'function'
-            ? indexApi.ensureFresh({ reason: 'dashboard-card-summary' })
+            ? indexApi.ensureFresh({ reason: 'dashboard-card-summary', allowStale: true, deferMs: 1400 })
             : indexApi.rebuild({ reason: 'dashboard-card-summary' });
 
         cardSummaryWarmPromise = Promise.resolve(warmPromise)
@@ -37,7 +37,7 @@ window.DashboardCategories = window.DashboardCategories || {};
                 : (!buildState?.dirty && Number(buildState?.builtAt || 0) > 0));
         if (!hasUsableSnapshot) {
             queueCardSummaryWarmup();
-            return null;
+            if (Number(buildState?.builtAt || 0) <= 0) return null;
         }
         var summary = indexApi.getCardSummary(workspaceId, categoryName);
         if (summary) return summary;

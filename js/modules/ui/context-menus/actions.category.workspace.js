@@ -167,6 +167,9 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
 
         const nextInactive = !ws.inactive;
         ns.setWorkspaceBranchInactive?.(ws, nextInactive, helpers);
+        if (typeof window.EveSidebarRuntime?.syncSidebarAvailabilityState === 'function') {
+            window.EveSidebarRuntime.syncSidebarAvailabilityState();
+        }
 
         let nextWorkspaceId = '';
         if (nextInactive) {
@@ -192,7 +195,11 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
         if (nextWorkspaceId && typeof switchWorkspace === 'function') {
             switchWorkspace(nextWorkspaceId, { forceRender: true });
         } else {
-            saveConfig();
+            saveConfig({
+                immediate: true,
+                source: 'workspace-toggle-inactive',
+                meta: { workspaceId: String(ws.id || ctxWsId || '').trim(), inactive: nextInactive }
+            });
             if (typeof renderSidebar === 'function') renderSidebar();
             if (typeof renderDashboard === 'function') renderDashboard();
         }

@@ -108,6 +108,22 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         }, 0);
     }
 
+    let deferredFreshTimer = 0;
+
+    function scheduleDeferredBuild(reason, mutationMeta, delayMs) {
+        if (state.buildPromise || deferredFreshTimer || !state.dirty) return;
+        const delay = Math.max(50, Number(delayMs || 900) || 900);
+        deferredFreshTimer = setTimeout(function () {
+            deferredFreshTimer = 0;
+            if (!state.buildPromise && state.dirty) {
+                ensureFresh({
+                    reason: reason,
+                    mutationMeta: mutationMeta
+                });
+            }
+        }, delay);
+    }
+
     function buildIncrementalSnapshot(reason) {
         const localBundle = buildLocalRecordBundle();
         const preservedSourceRecords = rehydrateSourceRecords(
@@ -224,27 +240,41 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     async function ensureFresh(options) {
         await loadPersistedSnapshot();
         const force = !!options?.force;
+        const forceFull = !!options?.forceFull || options?.incremental === false;
         const mutationMeta = normalizeMutationMeta(options?.mutationMeta || state.lastMutationMeta);
         const reason = text(options?.reason || state.lastReason, 'manual');
         const invalidationPlan = classifyInvalidationPlan(reason, mutationMeta);
         const snapshotAge = state.snapshot ? (now() - Number(state.snapshot.builtAt || 0)) : Number.POSITIVE_INFINITY;
+        if (options?.allowStale && state.snapshot && state.dirty && !forceFull) {
+            scheduleDeferredBuild(reason, mutationMeta, options?.deferMs);
+            return state.snapshot;
+        }
+        if (force && !forceFull && state.snapshot && !state.dirty) {
+            if (!options?.verifyFingerprint) return state.snapshot;
+            const currentFingerprint = buildDatapackStateFingerprint();
+            const snapshotFingerprint = text(state.snapshot?.datapackFingerprint, '');
+            if (!currentFingerprint || (snapshotFingerprint && snapshotFingerprint === currentFingerprint)) {
+                return state.snapshot;
+            }
+            state.dirty = true;
+            state.lastReason = 'datapack-fingerprint-mismatch';
+            state.datapackFingerprint = currentFingerprint;
+        }
         if (!force && state.snapshot && !state.dirty && snapshotAge < SNAPSHOT_MAX_AGE_MS) {
             return state.snapshot;
         }
         if (
-            !force
+            ((!force && snapshotAge < SNAPSHOT_MAX_AGE_MS) || (force && !forceFull))
             && state.snapshot
             && state.dirty
-            && snapshotAge < SNAPSHOT_MAX_AGE_MS
             && invalidationPlan.mode === 'local-scope'
         ) {
             return rebuild(Object.assign({}, options, { incremental: 'local-scope', mutationMeta: mutationMeta }));
         }
         if (
-            !force
+            ((!force && snapshotAge < SNAPSHOT_MAX_AGE_MS) || (force && !forceFull))
             && state.snapshot
             && state.dirty
-            && snapshotAge < SNAPSHOT_MAX_AGE_MS
             && invalidationPlan.mode === 'source'
         ) {
             return rebuild(Object.assign({}, options, {
@@ -253,10 +283,9 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             }));
         }
         if (
-            !force
+            ((!force && snapshotAge < SNAPSHOT_MAX_AGE_MS) || (force && !forceFull))
             && state.snapshot
             && state.dirty
-            && snapshotAge < SNAPSHOT_MAX_AGE_MS
             && invalidationPlan.mode === 'local'
         ) {
             return rebuild(Object.assign({}, options, { incremental: true, mutationMeta: mutationMeta }));

@@ -606,6 +606,129 @@ html[data-native-scheme="light"] #settingsModal .modal option {
     overflow-wrap: anywhere;
 }
 
+.bookmark-focus-context {
+    margin: 0;
+}
+
+.bookmark-focus-context-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.bookmark-focus-context-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+
+.bookmark-focus-context-heading {
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.bookmark-focus-context-empty {
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    opacity: 0.78;
+}
+
+.bookmark-focus-label-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.bookmark-focus-label-card {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-width: 100%;
+    min-width: 0;
+    padding: 6px 8px;
+    border: 1px solid rgba(128, 128, 128, 0.28);
+    border-radius: 10px;
+}
+
+.bookmark-focus-label-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.bookmark-focus-label-desc {
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    line-height: 1.25;
+}
+
+.bookmark-focus-related-list {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.bookmark-focus-related-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: start;
+    padding: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.035);
+}
+
+.bookmark-focus-related-row.is-active {
+    border-color: color-mix(in srgb, var(--accent) 52%, rgba(255, 255, 255, 0.18));
+    background: color-mix(in srgb, var(--accent) 10%, rgba(255, 255, 255, 0.035));
+}
+
+.bookmark-focus-related-main {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.bookmark-focus-related-head {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-wrap: wrap;
+    min-width: 0;
+    font-size: 0.79rem;
+}
+
+.bookmark-focus-related-head span {
+    color: var(--text-muted);
+    font-size: 0.72rem;
+}
+
+.bookmark-focus-related-main a {
+    color: var(--text-muted);
+    font-size: 0.76rem;
+    overflow-wrap: anywhere;
+}
+
+.bookmark-focus-related-notes {
+    color: var(--text-primary);
+    font-size: 0.77rem;
+    line-height: 1.32;
+    overflow-wrap: anywhere;
+}
+
+.bookmark-focus-related-notes.is-empty {
+    color: var(--text-muted);
+    opacity: 0.72;
+}
+
 @media (max-width: 680px) {
     .related-url-add-row,
     .bookmark-related-url-editor-row,
@@ -615,6 +738,10 @@ html[data-native-scheme="light"] #settingsModal .modal option {
 
     .bookmark-related-url-editor-icon {
         display: none;
+    }
+
+    .bookmark-focus-related-row {
+        grid-template-columns: 1fr;
     }
 }
 

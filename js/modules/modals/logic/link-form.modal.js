@@ -252,9 +252,15 @@ window.EveLinkForm = window.EveLinkForm || {};
         let targetId = null;
         const editId = modal.editId.value;
         const liveLinks = getLiveLinks();
+        let previousWorkspaceId = String(config?.activeWorkspace || 'main').trim() || 'main';
+        let previousCategoryName = category;
+        let previousFolderId = '';
         if (editId) {
             const index = liveLinks.findIndex((item) => item.id == editId);
             if (index > -1) {
+                previousWorkspaceId = String(liveLinks[index].workspace || previousWorkspaceId).trim() || previousWorkspaceId;
+                previousCategoryName = String(liveLinks[index].category || previousCategoryName).trim() || previousCategoryName;
+                previousFolderId = String(liveLinks[index].folderId || '').trim();
                 liveLinks[index].title = title;
                 liveLinks[index].url = url;
                 liveLinks[index].category = category;
@@ -305,21 +311,54 @@ window.EveLinkForm = window.EveLinkForm || {};
             window.EveBookmarkCovers.clearSelection(targetId);
         }
         if (window.EveFaviconCache?.fetchAndCache && window.EveFaviconUtils?.getDomainFromUrl) {
-            [url].concat(relatedUrls.map((entry) => entry?.url)).forEach((candidateUrl) => {
-                const domain = window.EveFaviconUtils.getDomainFromUrl(candidateUrl);
-                if (domain) window.EveFaviconCache.fetchAndCache(domain, 32);
-            });
+            const warmFavicons = () => {
+                [url].concat(relatedUrls.map((entry) => entry?.url)).forEach((candidateUrl) => {
+                    const domain = window.EveFaviconUtils.getDomainFromUrl(candidateUrl);
+                    if (domain) window.EveFaviconCache.fetchAndCache(domain, 32);
+                });
+            };
+            if (typeof window.requestIdleCallback === 'function') {
+                window.requestIdleCallback(warmFavicons, { timeout: 1200 });
+            } else {
+                setTimeout(warmFavicons, 250);
+            }
         }
+
+        const currentWorkspaceId = String(editId ? previousWorkspaceId : (config?.activeWorkspace || previousWorkspaceId || 'main')).trim() || 'main';
+        const affectedScopes = [
+            { workspaceId: previousWorkspaceId, categoryName: previousCategoryName },
+            { workspaceId: currentWorkspaceId, categoryName: category }
+        ].filter((scope, index, all) => {
+            const key = `${scope.workspaceId}::${scope.categoryName}`;
+            return scope.workspaceId && scope.categoryName
+                && all.findIndex((item) => `${item.workspaceId}::${item.categoryName}` === key) === index;
+        });
+        const dataDelta = {
+            complete: false,
+            workspaceIds: Array.from(new Set(affectedScopes.map((scope) => scope.workspaceId))),
+            categoryNames: Array.from(new Set(affectedScopes.map((scope) => scope.categoryName))),
+            linkIds: [String(targetId || '').trim()].filter(Boolean),
+            updatedLinkIds: editId ? [String(targetId || '').trim()].filter(Boolean) : [],
+            addedLinkIds: editId ? [] : [String(targetId || '').trim()].filter(Boolean),
+            affectedScopes,
+            folderIds: Array.from(new Set([previousFolderId, folderId || ''].map((id) => String(id || '').trim()).filter(Boolean))),
+            hasFolderStoreChanges: false
+        };
 
         saveData({
             forceRender: true,
+            skipSuggestions: true,
             source: editId ? 'bookmark-edit' : 'bookmark-create',
             meta: {
                 kind: editId ? 'bookmark-edit' : 'bookmark-create',
                 linkId: String(targetId || '').trim(),
-                workspaceId: String(config?.activeWorkspace || 'main').trim() || 'main',
+                workspaceId: currentWorkspaceId,
                 categoryName: category,
-                folderId: folderId || ''
+                folderId: folderId || '',
+                previousWorkspaceId,
+                previousCategoryName,
+                previousFolderId,
+                dataDelta
             }
         });
 

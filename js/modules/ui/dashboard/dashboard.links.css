@@ -358,6 +358,68 @@ html[data-native-scheme="light"] .subtab-origin-badge {
     border-color: rgba(120, 80, 220, 0.2);
 }
 
+@container (max-width: 360px) {
+    .category-card ul li {
+        gap: 6px;
+        padding: 6px;
+    }
+
+    .category-card ul li > img,
+    .category-card ul li > span[style*="font-size:1.2rem"] {
+        margin-right: 2px !important;
+    }
+
+    .category-card ul li > a {
+        flex: 1 1 9ch;
+        min-width: 8ch;
+    }
+
+    .category-card .bookmark-link-identifiers {
+        flex-wrap: nowrap;
+        max-width: 74px;
+        overflow: hidden;
+        gap: 3px;
+        margin-right: 2px;
+    }
+
+    .category-card .bookmark-identifier-badge {
+        max-width: 34px;
+        padding: 1px 5px;
+        font-size: 0;
+        gap: 0;
+    }
+
+    .category-card .bookmark-identifier-badge__icon {
+        font-size: 0.58rem;
+    }
+
+    .category-card .bookmark-folder-link-badge,
+    .category-card .subtab-origin-badge {
+        max-width: 56px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        padding: 1px 5px;
+        font-size: 0.58rem;
+        margin-right: 1px;
+    }
+
+    .category-card .bookmark-related-url-icons {
+        width: 18px;
+        min-width: 18px;
+        max-width: 18px;
+    }
+
+    .category-card .bookmark-related-url-action {
+        width: 18px;
+        height: 18px;
+        padding: 1px;
+    }
+
+    .category-card .actions {
+        gap: 5px;
+    }
+}
+
 .subtab-parent-folder-wrap-grid {
     width: 100%;
     min-width: 0;

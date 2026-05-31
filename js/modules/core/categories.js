@@ -158,11 +158,11 @@ function scheduleCategoryCardMoveRefresh(sourceWs, sourceCat, targetWs, targetCa
     var isLargeDashboard = !!window._eveMegaPerfMode || liveLinkCount > 1500;
     var largeDashboardRenderDelay = 4200;
     if (liveLinkCount > 8000) {
-        largeDashboardRenderDelay = activeSourceOnly ? 18000 : (activeTarget ? 6200 : 9000);
+        largeDashboardRenderDelay = activeSourceOnly ? 18000 : (activeTarget ? 1200 : 9000);
     } else if (liveLinkCount > 4500) {
-        largeDashboardRenderDelay = activeSourceOnly ? 12000 : (activeTarget ? 4800 : 7000);
+        largeDashboardRenderDelay = activeSourceOnly ? 12000 : (activeTarget ? 900 : 7000);
     } else if (liveLinkCount > 1500) {
-        largeDashboardRenderDelay = activeSourceOnly ? 7200 : (activeTarget ? 3200 : 4200);
+        largeDashboardRenderDelay = activeSourceOnly ? 7200 : (activeTarget ? 700 : 4200);
     }
     var defaultRenderDelay = isLargeDashboard
         ? largeDashboardRenderDelay
@@ -172,7 +172,8 @@ function scheduleCategoryCardMoveRefresh(sourceWs, sourceCat, targetWs, targetCa
     var renderFn = function () {
         if (!shouldRefreshDashboard || typeof renderDashboard !== 'function') return;
         var remainingMutationMs = Math.max(0, Number(window.__eveLargeMutationActiveUntil || 0) - Date.now());
-        if (remainingMutationMs > 80 && !opts.forceRender) {
+        var canRenderActiveTarget = activeTarget && !activeSourceOnly;
+        if (remainingMutationMs > 80 && !opts.forceRender && !canRenderActiveTarget) {
             setTimeout(renderFn, Math.min(remainingMutationMs + 40, 1800));
             return;
         }
@@ -216,11 +217,11 @@ function scheduleCategoryCardMoveRefresh(sourceWs, sourceCat, targetWs, targetCa
     // dashboard is still rebuilding. The normal refresh path resumes shortly.
     window.__eveSuppressFaviconRefreshUntil = Math.max(
         Number(window.__eveSuppressFaviconRefreshUntil || 0),
-        Date.now() + (skipFullRenderAfterSourceRemoval ? 2400 : Math.max(1200, renderDelayMs + 900))
+        Date.now() + (skipFullRenderAfterSourceRemoval ? 2400 : (activeTarget ? Math.max(900, renderDelayMs + 450) : Math.max(1200, renderDelayMs + 900)))
     );
     window.__eveLargeMutationActiveUntil = Math.max(
         Number(window.__eveLargeMutationActiveUntil || 0),
-        Date.now() + (skipFullRenderAfterSourceRemoval ? 3200 : Math.max(2800, renderDelayMs + 2200))
+        Date.now() + (skipFullRenderAfterSourceRemoval ? 3200 : (activeTarget ? Math.max(1200, renderDelayMs + 700) : Math.max(2800, renderDelayMs + 2200)))
     );
 
     // requestIdleCallback can fire immediately after the data move, which puts
@@ -312,15 +313,18 @@ function moveCategoryCardToWorkspace(sourceWorkspaceId, categoryName, targetWork
             categoryName: sourceCat,
             targetCategoryName: targetCat
         });
-        window.__eveLargeMutationActiveUntil = Math.max(
-            Number(window.__eveLargeMutationActiveUntil || 0),
-            Date.now() + 5000
-        );
         var liveLinks = getCategoryLiveLinks();
         var sourceLinks = liveLinks.filter(function (link) {
             return normalizeCategoryWorkspaceId(link?.workspace) === sourceWs
                 && normalizeCategoryNameValue(link?.category) === sourceCat;
         });
+        var mutationHoldMs = (liveLinks.length > 8000 || sourceLinks.length > 1500)
+            ? 4200
+            : (sourceLinks.length > 250 ? 2400 : 1400);
+        window.__eveLargeMutationActiveUntil = Math.max(
+            Number(window.__eveLargeMutationActiveUntil || 0),
+            Date.now() + mutationHoldMs
+        );
 
         if (window.EveBookmarkFolders?.transferCategoryFolders) {
             window.EveBookmarkFolders.transferCategoryFolders(sourceWs, sourceCat, targetWs, targetCat, { persist: false });

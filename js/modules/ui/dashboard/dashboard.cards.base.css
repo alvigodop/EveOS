@@ -27,6 +27,7 @@ html[data-native-scheme="light"] {
     min-width: 0;
     max-width: 620px;
     justify-self: stretch;
+    container-type: inline-size;
 }
 
 .category-card.card-drop-target {

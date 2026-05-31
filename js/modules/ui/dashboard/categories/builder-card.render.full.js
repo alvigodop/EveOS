@@ -222,6 +222,7 @@ function renderCardFull(catInput, catLinks, gridContainer, configOptions) {
             var showMoreScope = String(context.folderId || '').trim()
                 ? 'folder_' + String(context.folderId || '').trim()
                 : (Object.prototype.hasOwnProperty.call(context, 'folderId') ? 'root' : 'card');
+            var showMoreStateKey = activeWorkspaceId + '::' + cat + '::' + showMoreScope;
             var collectionProgressiveRevealEnabled = resolveProgressiveRevealForCollection(renderContext);
             var baseRenderCap = collectionProgressiveRevealEnabled
                 ? progressiveBookmarkRenderCap
@@ -231,6 +232,9 @@ function renderCardFull(catInput, catLinks, gridContainer, configOptions) {
                 var remainingCardBudget = Math.max(0, cardProgressiveRenderBudget - cardProgressiveRendered);
                 renderCap = Math.min(baseRenderCap, remainingCardBudget);
                 cardProgressiveRendered += Math.min(renderCap, linksForRender.length);
+            }
+            if (collectionProgressiveRevealEnabled && typeof api.getProgressiveVisibleCount === 'function') {
+                renderCap = api.getProgressiveVisibleCount(showMoreStateKey, renderCap, linksForRender.length, cat);
             }
             if (isFocusMode && typeof window.DashboardCategories.buildFocusedLinkHtml === 'function') {
                 var cappedFocusLinks = linksForRender.slice(0, renderCap);
@@ -250,7 +254,7 @@ function renderCardFull(catInput, catLinks, gridContainer, configOptions) {
                 }
 
                 if (collectionProgressiveRevealEnabled && linksForRender.length > renderCap) {
-                    focusedHtml += api.buildShowMoreButton(cat, linksForRender, renderCap, true, showMoreScope);
+                    focusedHtml += api.buildShowMoreButton(cat, linksForRender, renderCap, true, showMoreStateKey);
                 }
                 return '<section class="unidex-entries is-row-layout focused-category-entries" aria-label="' + safeCatHtml + ' bookmarks">' + focusedHtml + '</section>';
             }
@@ -309,7 +313,7 @@ function renderCardFull(catInput, catLinks, gridContainer, configOptions) {
             }).join('');
 
             if (collectionProgressiveRevealEnabled && linksForRender.length > renderCap) {
-                flatHtml += api.buildShowMoreButton(cat, linksForRender, renderCap, false, showMoreScope);
+                flatHtml += api.buildShowMoreButton(cat, linksForRender, renderCap, false, showMoreStateKey);
             }
 
             return '<ul class="' + (options.scrollableCategories ? 'category-scrollable' : '') + '">' + flatHtml + '</ul>';

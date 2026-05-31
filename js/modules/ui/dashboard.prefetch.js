@@ -56,7 +56,7 @@
         if (_indexWarmPromise) return;
         var warmReason = String(reason || 'dashboard-prefetch');
         var warmPromise = typeof indexApi.ensureFresh === 'function'
-            ? indexApi.ensureFresh({ reason: warmReason })
+            ? indexApi.ensureFresh({ reason: warmReason, allowStale: true, deferMs: 1400 })
             : indexApi.rebuild({ reason: warmReason });
         _indexWarmPromise = Promise.resolve(warmPromise)
             .catch(function () {

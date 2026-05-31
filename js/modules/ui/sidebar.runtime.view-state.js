@@ -229,6 +229,29 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         return true;
     }
 
+    function syncSidebarAvailabilityState() {
+        var sb = document.getElementById('sidebar');
+        if (!sb) return false;
+        var helpers = window.EveWorkspaceHelpers || null;
+        var groupsApi = window.EveSidebarGroups || null;
+        var workspaces = Array.isArray(config?.workspaces) ? config.workspaces : [];
+
+        sb.querySelectorAll('.ws-item[data-ws-id]').forEach(function (element) {
+            var workspaceId = String(element.dataset?.wsId || '').trim();
+            if (!workspaceId) return;
+            var workspace = helpers && typeof helpers.findById === 'function'
+                ? helpers.findById(workspaces, workspaceId)
+                : null;
+            if (!workspace) return;
+            var inactive = groupsApi && typeof groupsApi.isWorkspaceEffectivelyInactive === 'function'
+                ? groupsApi.isWorkspaceEffectivelyInactive(workspace, config)
+                : !!workspace.inactive;
+            element.classList.toggle('ws-inactive', !!inactive);
+            element.setAttribute('aria-label', String(workspace.name || workspaceId) + (inactive ? ' (Inactive)' : ''));
+        });
+        return true;
+    }
+
     rt.syncHoverRevealUiState = syncHoverRevealUiState;
     rt.syncSidebarSortModeUiState = syncSidebarSortModeUiState;
     rt.setHoverRevealActive = setHoverRevealActive;
@@ -242,5 +265,6 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
     rt.registerUnidexButtonElement = registerUnidexButtonElement;
     rt.captureSidebarViewState = captureSidebarViewState;
     rt.syncSidebarViewState = syncSidebarViewState;
+    rt.syncSidebarAvailabilityState = syncSidebarAvailabilityState;
     rt.viewStateReady = true;
 })();

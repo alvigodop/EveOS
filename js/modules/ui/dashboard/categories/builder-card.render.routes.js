@@ -54,11 +54,17 @@ window.DashboardCategories = window.DashboardCategories || {};
     function buildSubTabSourcesHtml(catLinks, options, cardWorkspaceId, activeWorkspaceId, isDetachedParkingCard) {
         if (isDetachedParkingCard) return '';
 
+        var activeOptionWorkspace = String(options.activeWorkspace || '').trim();
+        var parentDashboardWorkspace = String(options._parentDashboardWorkspace || '').trim();
+        var cardWorkspace = String(cardWorkspaceId || '').trim();
+        var shouldUseParentRoute = !!parentDashboardWorkspace
+            && parentDashboardWorkspace !== cardWorkspace
+            && activeOptionWorkspace !== cardWorkspace;
         var displayWorkspaceId = String(
             options._markerRouteWorkspace
-            || options._parentDashboardWorkspace
-            || options.activeWorkspace
-            || cardWorkspaceId
+            || (shouldUseParentRoute ? parentDashboardWorkspace : '')
+            || activeOptionWorkspace
+            || cardWorkspace
             || ''
         ).trim();
         if (!displayWorkspaceId) return '';

@@ -19,20 +19,82 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         } = shared;
     function normalizeMutationMeta(meta) {
         if (!meta || typeof meta !== 'object') return null;
-        const categoryName = text(meta.categoryName, '');
+        const categoryName = text(meta.categoryName || meta.targetCategoryName || meta.targetScope?.categoryName, '');
         const sourceKey = text(meta.sourceKey, '');
         const query = text(meta.query, '');
-        const workspaceId = text(meta.workspaceId, '');
-        const folderId = text(meta.folderId, '');
-        const linkId = text(meta.linkId, '');
+        const workspaceId = text(meta.workspaceId || meta.targetWorkspaceId || meta.targetScope?.workspaceId, '');
+        const folderId = text(meta.folderId || meta.targetScope?.folderId, '');
+        const linkId = text(meta.linkId || meta.targetId || meta.mergedId, '');
         const kind = text(meta.kind, '');
         const dragType = text(meta.dragType, '');
         const dragId = text(meta.dragId, '');
         const nonIndexing = !!meta.nonIndexing;
         const quickPins = !!meta.quickPins;
         const constellation = !!meta.constellation;
-        const dataDelta = meta.dataDelta && typeof meta.dataDelta === 'object' ? meta.dataDelta : null;
+        let dataDelta = meta.dataDelta && typeof meta.dataDelta === 'object' ? meta.dataDelta : null;
         const configDelta = meta.configDelta && typeof meta.configDelta === 'object' ? meta.configDelta : null;
+        const flatLinkIds = [];
+        const flatRemovedLinkIds = [];
+        const flatUpdatedLinkIds = [];
+        const flatAddedLinkIds = [];
+        const flatAffectedScopes = [];
+        function pushText(output, value) {
+            const normalized = text(value, '');
+            if (!normalized || output.includes(normalized)) return;
+            output.push(normalized);
+        }
+        function pushScope(scope) {
+            const scopeWorkspaceId = text(scope?.workspaceId, '');
+            const scopeCategoryName = text(scope?.categoryName, '');
+            const scopeFolderId = text(scope?.folderId, '');
+            if (!scopeWorkspaceId && !scopeCategoryName && !scopeFolderId) return;
+            if (flatAffectedScopes.some(function (item) {
+                return text(item.workspaceId, '') === scopeWorkspaceId
+                    && text(item.categoryName, '') === scopeCategoryName
+                    && text(item.folderId, '') === scopeFolderId;
+            })) return;
+            flatAffectedScopes.push({
+                workspaceId: scopeWorkspaceId,
+                categoryName: scopeCategoryName,
+                folderId: scopeFolderId
+            });
+        }
+        toArray(meta.linkIds).forEach(function (value) { pushText(flatLinkIds, value); });
+        toArray(meta.updatedLinkIds).forEach(function (value) {
+            pushText(flatUpdatedLinkIds, value);
+            pushText(flatLinkIds, value);
+        });
+        toArray(meta.addedLinkIds).forEach(function (value) {
+            pushText(flatAddedLinkIds, value);
+            pushText(flatLinkIds, value);
+        });
+        toArray(meta.removedLinkIds).concat(toArray(meta.removedIds)).forEach(function (value) {
+            pushText(flatRemovedLinkIds, value);
+            pushText(flatLinkIds, value);
+        });
+        pushText(flatLinkIds, linkId);
+        if (linkId) pushText(flatUpdatedLinkIds, linkId);
+        toArray(meta.affectedScopes).forEach(pushScope);
+        pushScope(meta.sourceScope);
+        pushScope(meta.targetScope);
+        if (workspaceId || categoryName || folderId) pushScope({ workspaceId: workspaceId, categoryName: categoryName, folderId: folderId });
+        if (!dataDelta && (flatLinkIds.length || flatAffectedScopes.length)) {
+            dataDelta = {
+                kind: 'core-data-delta',
+                complete: true,
+                linkIds: flatLinkIds,
+                addedLinkIds: flatAddedLinkIds,
+                updatedLinkIds: flatUpdatedLinkIds,
+                removedLinkIds: flatRemovedLinkIds,
+                workspaceIds: Array.from(new Set(flatAffectedScopes.map(function (scope) { return text(scope.workspaceId, ''); }).filter(Boolean))),
+                categoryNames: Array.from(new Set(flatAffectedScopes.map(function (scope) { return text(scope.categoryName, ''); }).filter(Boolean))),
+                folderIds: Array.from(new Set(flatAffectedScopes.map(function (scope) { return text(scope.folderId, ''); }).filter(Boolean))),
+                affectedScopes: flatAffectedScopes,
+                hasFolderStoreChanges: false,
+                hasQuickPinChanges: !!quickPins,
+                hasConstellationChanges: !!constellation
+            };
+        }
         if (!categoryName && !sourceKey && !query && !workspaceId && !folderId && !linkId && !kind && !dragType && !dragId && !nonIndexing && !quickPins && !constellation && !dataDelta && !configDelta) return null;
         return {
             categoryName: categoryName,

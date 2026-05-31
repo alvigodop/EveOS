@@ -61,7 +61,27 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         return state.snapshot;
     }
 
-    async function persistSnapshot(snapshot) {
+    let pendingPersistSnapshot = null;
+    let pendingPersistTimer = 0;
+    let pendingIdleHandle = 0;
+    let persistInFlight = null;
+
+    function getSnapshotRecordCount(snapshot) {
+        return Array.isArray(snapshot?.records) ? snapshot.records.length : 0;
+    }
+
+    function clearPendingPersistTimers() {
+        if (pendingPersistTimer) {
+            clearTimeout(pendingPersistTimer);
+            pendingPersistTimer = 0;
+        }
+        if (pendingIdleHandle && typeof window.cancelIdleCallback === 'function') {
+            window.cancelIdleCallback(pendingIdleHandle);
+        }
+        pendingIdleHandle = 0;
+    }
+
+    async function writeSnapshot(snapshot) {
         let savedToPrimaryStorage = false;
         try {
             if (window.StorageManager?.saveDataAsync) {
@@ -82,9 +102,61 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             }
         }
     }
+
+    function flushPendingPersistSnapshot() {
+        const snapshot = pendingPersistSnapshot;
+        pendingPersistSnapshot = null;
+        clearPendingPersistTimers();
+        if (!snapshot) return Promise.resolve(false);
+        persistInFlight = writeSnapshot(snapshot)
+            .catch(function (error) {
+                console.warn('[NexusIndex] Deferred snapshot save failed:', error);
+                return false;
+            })
+            .finally(function () {
+                persistInFlight = null;
+                if (pendingPersistSnapshot) scheduleDeferredPersist(pendingPersistSnapshot);
+            });
+        return persistInFlight;
+    }
+
+    function scheduleDeferredPersist(snapshot) {
+        pendingPersistSnapshot = snapshot;
+        clearPendingPersistTimers();
+        const recordCount = getSnapshotRecordCount(snapshot);
+        const largeMutationActive = Number(window.__eveLargeMutationActiveUntil || 0) > Date.now();
+        const delayMs = largeMutationActive || recordCount > 5000 ? 1800 : 650;
+        pendingPersistTimer = setTimeout(function () {
+            pendingPersistTimer = 0;
+            const run = function () { flushPendingPersistSnapshot(); };
+            if (typeof window.requestIdleCallback === 'function') {
+                pendingIdleHandle = window.requestIdleCallback(function () {
+                    pendingIdleHandle = 0;
+                    run();
+                }, { timeout: 2500 });
+            } else {
+                setTimeout(run, 0);
+            }
+        }, delayMs);
+    }
+
+    async function persistSnapshot(snapshot) {
+        const recordCount = getSnapshotRecordCount(snapshot);
+        const largeMutationActive = Number(window.__eveLargeMutationActiveUntil || 0) > Date.now();
+        if (recordCount > 2500 || largeMutationActive) {
+            scheduleDeferredPersist(snapshot);
+            return true;
+        }
+        if (persistInFlight) {
+            scheduleDeferredPersist(snapshot);
+            return true;
+        }
+        return writeSnapshot(snapshot);
+    }
         return {
             loadPersistedSnapshot,
-            persistSnapshot
+            persistSnapshot,
+            flushPendingPersistSnapshot
         };
     }
 
