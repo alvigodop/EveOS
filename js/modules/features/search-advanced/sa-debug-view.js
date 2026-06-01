@@ -1,21 +1,17 @@
-window.EveOS = window.EveOS || {};
+﻿window.EveOS = window.EveOS || {};
 window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
-
 (function () {
     const ns = window.EveOS.SearchAdvanced;
-
     function escHtml(value) {
         return String(value || '')
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;');
     }
-
     function text(value, fallback) {
         const normalized = String(value ?? '').trim();
         return normalized || String(fallback ?? '').trim();
     }
-
     function getAllLinks() {
         if (typeof window.getLiveLinks === 'function') {
             return window.getLiveLinks();
@@ -24,15 +20,12 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             ? window.eveState.links
             : (typeof window.links !== 'undefined' ? window.links : []);
     }
-
     function getConfig() {
         return window.eveState?.config || (typeof config !== 'undefined' ? config : {});
     }
-
     function getWorkspaces() {
         return getConfig().workspaces || [];
     }
-
     function collectOverview() {
         const links = getAllLinks();
         const cfg = getConfig();
@@ -42,13 +35,11 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             ? new Set(helpers.flattenIds(workspaces))
             : new Set(workspaces.map(function (workspace) { return workspace?.id; }).filter(Boolean));
         if (allWsIds.size === 0) allWsIds.add('main');
-
         const orphanCount = links.filter(function (link) {
             return link && !allWsIds.has(String(link.workspace || 'main').trim());
         }).length;
         const categorySet = new Set();
         const workspaceLinkCounts = {};
-
         links.forEach(function (link) {
             if (!link) return;
             const ws = String(link.workspace || 'main').trim();
@@ -56,11 +47,9 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             categorySet.add(cat);
             workspaceLinkCounts[ws] = (workspaceLinkCounts[ws] || 0) + 1;
         });
-
         const largestWs = Object.entries(workspaceLinkCounts).sort(function (left, right) {
             return Number(right[1] || 0) - Number(left[1] || 0);
         })[0];
-
         return {
             totalLinks: links.length,
             totalWorkspaces: allWsIds.size,
@@ -74,7 +63,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             configKeys: Object.keys(cfg).length
         };
     }
-
     function collectPerformanceInfo() {
         const indexStats = window.EveOS?.SearchAdvanced?.Index?.getStats?.() || {};
         const appPerf = window.EvePerformanceMonitor?.getStats?.() || {};
@@ -120,14 +108,12 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             }
         };
     }
-
     async function collectDatapackSpineInfo() {
         const scopeApi = window.EveOS?.SearchAdvanced?.UI;
         const indexApi = window.EveOS?.SearchAdvanced?.Index;
         const scopeMode = scopeApi?.getCurrentScopeMode?.() || 'current';
         const scope = scopeApi?.getResolvedScope?.(scopeMode) || null;
         const scopeLabel = scopeApi?.getScopeLabel?.(scopeMode) || (scopeMode === 'all' ? 'All Tabs' : 'Current Scope');
-
         if (!indexApi?.ensureFresh) {
             return {
                 scopeMode,
@@ -138,7 +124,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 topWorkspaces: []
             };
         }
-
         const snapshot = await indexApi.ensureFresh();
         const integrity = indexApi.getIntegrityReport
             ? await indexApi.getIntegrityReport({ snapshot, scope })
@@ -159,7 +144,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 return Number(right[1] || 0) - Number(left[1] || 0) || String(left[0]).localeCompare(String(right[0]));
             })
             .slice(0, 5);
-
         return {
             scopeMode,
             scope,
@@ -174,7 +158,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             topWorkspaces
         };
     }
-
     function openScopeMap(scope) {
         const mapApi = window.EveConstellationMap;
         if (!mapApi) return false;
@@ -195,14 +178,12 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         }
         return false;
     }
-
     function renderMiniList(entries) {
         if (!entries.length) return '';
         return '<div class="nx-debug-mini-list">' + entries.map(function (entry) {
             return '<div class="nx-debug-mini-row"><span>' + escHtml(entry[0]) + '</span><span>' + entry[1] + '</span></div>';
         }).join('') + '</div>';
     }
-
     function renderIssueList(issues, truncatedCount) {
         const rows = (Array.isArray(issues) ? issues : []).slice(0, 8);
         if (!rows.length && !truncatedCount) return '';
@@ -224,19 +205,15 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         html += '</div>';
         return html;
     }
-
     function collectWorkspaceBreakdown() {
         return ns.DebugWorkspace?.collectWorkspaceBreakdown?.() || [];
     }
-
     async function collectWorkspaceDetail(workspaceId, options = {}) {
         return await ns.DebugWorkspace?.collectWorkspaceDetail?.(workspaceId, options) || null;
     }
-
     async function renderDebugPanel(container) {
         if (!container) return;
         container.innerHTML = '<div class="nx-debug-placeholder" style="padding:12px; text-align:center; color:rgba(128,128,128,0.6); font-size:0.78rem;">Loading diagnostics...</div>';
-
         const workspaceDebug = ns.DebugWorkspace || {};
         const workspaceState = workspaceDebug.debugState || (ns.DebugViewState = ns.DebugViewState || { selectedWorkspaceId: '' });
         const overview = collectOverview();
@@ -257,9 +234,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 snapshot: window.EveOS?.SearchAdvanced?.Index?.getSnapshot?.()
             })
             : null;
-
         let html = '<div class="nx-debug-panel">';
-
         html += '<div class="nx-debug-section"><div class="nx-debug-section-title">DATA OVERVIEW</div>';
         html += '<table class="nx-debug-table">';
         html += '<tr><td>Total Links</td><td>' + overview.totalLinks + '</td></tr>';
@@ -272,7 +247,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             html += '<tr><td>Largest Tab</td><td>' + escHtml(overview.largestWorkspace.id) + ' (' + overview.largestWorkspace.count + ' links)</td></tr>';
         }
         html += '</table></div>';
-
         if (overview.orphanedLinks > 0) {
             html += '<div class="nx-debug-section nx-debug-alert">';
             html += '<div class="nx-debug-section-title">ORPHANED BOOKMARKS</div>';
@@ -280,7 +254,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             html += '<button type="button" class="nx-debug-action-btn" id="nxDebugRescueBtn">Rescue Orphans</button>';
             html += '</div>';
         }
-
         html += '<div class="nx-debug-section"><div class="nx-debug-section-title">PERFORMANCE</div>';
         html += '<table class="nx-debug-table">';
         html += '<tr><td>Perf Mode</td><td class="' + (perf.perfMode ? 'nx-debug-on' : 'nx-debug-off') + '">' + (perf.perfMode ? 'ACTIVE' : 'OFF') + '</td></tr>';
@@ -297,14 +270,14 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         html += '<tr><td>Favicon Queue / Cooldowns</td><td>' + perf.faviconQueuedFetches + ' / ' + perf.faviconFailureCooldowns + '</td></tr>';
         if (perf.deferredScripts.total > 0) {
             html += '<tr><td>Deferred Loader</td><td>' + perf.deferredScripts.loaded + '/' + perf.deferredScripts.total
-                + ' · batch ' + perf.deferredScripts.batchSize
-                + ' · ' + escHtml(perf.deferredScripts.phase)
-                + (perf.deferredScripts.pausedReason ? ' · paused: ' + escHtml(perf.deferredScripts.pausedReason) : '')
+                + ' Â· batch ' + perf.deferredScripts.batchSize
+                + ' Â· ' + escHtml(perf.deferredScripts.phase)
+                + (perf.deferredScripts.pausedReason ? ' Â· paused: ' + escHtml(perf.deferredScripts.pausedReason) : '')
                 + '</td></tr>';
         }
         if (perf.geminiBoot.total > 0 || perf.geminiBoot.active) {
             html += '<tr><td>Gemini Loader</td><td>' + perf.geminiBoot.loaded + '/' + perf.geminiBoot.total
-                + (perf.geminiBoot.pausedReason ? ' · paused: ' + escHtml(perf.geminiBoot.pausedReason) : '')
+                + (perf.geminiBoot.pausedReason ? ' Â· paused: ' + escHtml(perf.geminiBoot.pausedReason) : '')
                 + '</td></tr>';
         }
         html += '</table></div>';
@@ -316,7 +289,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             html += '</div>';
         }
         html += ns.DebugDrilldowns?.renderPerformanceHints?.(perf, overview) || '';
-
         html += '<div class="nx-debug-section"><div class="nx-debug-section-title">DATAPACK SPINE</div>';
         if (spine.integrity) {
             html += '<table class="nx-debug-table">';
@@ -335,7 +307,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             html += '<tr><td>Graph Nodes / Edges</td><td>' + spine.graph.nodeCount + ' / ' + spine.graph.edgeCount + '</td></tr>';
             html += '<tr><td>Graph Kinds</td><td>' + Object.entries(spine.graph.kindCounts).map(function (entry) {
                 return escHtml(entry[0]) + ':' + entry[1];
-            }).join(' · ') + '</td></tr>';
+            }).join(' Â· ') + '</td></tr>';
             html += '</table>';
             if (ns.DebugDrilldowns?.renderSpineDrilldowns) {
                 html += ns.DebugDrilldowns.renderSpineDrilldowns(spine);
@@ -352,7 +324,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             html += '<div style="font-size:0.74rem; color:rgba(140,170,205,0.7);">Nexus index is unavailable.</div>';
         }
         html += '</div>';
-
         html += '<div class="nx-debug-section"><div class="nx-debug-section-title">WORKSPACE BREAKDOWN</div>';
         if (workspaceDebug.renderWorkspaceBreakdown) {
             html += workspaceDebug.renderWorkspaceBreakdown(wsBreakdown, workspaceState.selectedWorkspaceId);
@@ -365,7 +336,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             }));
         }
         html += '</div>';
-
         html += '<div class="nx-debug-section"><div class="nx-debug-section-title">ACTIONS</div>';
         html += '<div class="nx-debug-actions">';
         html += '<button type="button" class="nx-debug-action-btn" id="nxDebugClearFolderCache">Clear Folder Cache</button>';
@@ -376,13 +346,10 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         html += '<button type="button" class="nx-debug-action-btn" id="nxDebugOpenScopeMap">Open Scope Map</button>';
         html += '<button type="button" class="nx-debug-action-btn" id="nxDebugRefreshDiag">Refresh Diagnostics</button>';
         html += '</div></div>';
-
         html += '</div>';
         container.innerHTML = html;
-
         workspaceDebug.bindWorkspaceInteractions?.(container, renderDebugPanel);
         ns.DebugDrilldowns?.bindDrilldownInteractions?.(container, renderDebugPanel);
-
         const rescueBtn = document.getElementById('nxDebugRescueBtn');
         if (rescueBtn) {
             rescueBtn.onclick = function () {
@@ -395,7 +362,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 renderDebugPanel(container);
             };
         }
-
         const clearCacheBtn = document.getElementById('nxDebugClearFolderCache');
         if (clearCacheBtn) {
             clearCacheBtn.onclick = function () {
@@ -404,7 +370,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 renderDebugPanel(container);
             };
         }
-
         const forceRenderBtn = document.getElementById('nxDebugForceRender');
         if (forceRenderBtn) {
             forceRenderBtn.onclick = function () {
@@ -412,7 +377,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 if (typeof showToast === 'function') showToast('Dashboard re-rendered', 'info');
             };
         }
-
         const resetLoadingBtn = document.getElementById('nxDebugResetLoading');
         if (resetLoadingBtn) {
             resetLoadingBtn.onclick = function () {
@@ -424,14 +388,12 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 }
             };
         }
-
         const refreshBtn = document.getElementById('nxDebugRefreshDiag');
         if (refreshBtn) {
             refreshBtn.onclick = function () {
                 renderDebugPanel(container);
             };
         }
-
         const openScopeMapBtn = document.getElementById('nxDebugOpenScopeMap');
         if (openScopeMapBtn) {
             openScopeMapBtn.onclick = function () {
@@ -442,7 +404,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 }
             };
         }
-
         const reindexBtn = document.getElementById('nxDebugReindexNexus');
         if (reindexBtn) {
             reindexBtn.onclick = async function () {
@@ -451,7 +412,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 renderDebugPanel(container);
             };
         }
-
         const repairFoldersBtn = document.getElementById('nxDebugRepairFolders');
         if (repairFoldersBtn) {
             repairFoldersBtn.onclick = async function () {
@@ -470,7 +430,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             };
         }
     }
-
     ns.DebugView = {
         collectOverview,
         collectWorkspaceBreakdown,

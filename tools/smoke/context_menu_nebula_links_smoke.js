@@ -109,6 +109,8 @@ function createContext() {
 function main() {
     const context = createContext();
     [
+        'js/modules/features/search-advanced/sa-nebula-json-link.shared.js',
+        'js/modules/features/search-advanced/sa-nebula-json-link.runtime.js',
         'js/modules/features/search-advanced/sa-nebula-json-link.js',
         'js/modules/ui/context-menus/actions.json-link.js'
     ].forEach((relativePath) => {

@@ -1,0 +1,212 @@
+
+.bookmark-focus-related-notes.is-empty {
+    color: var(--text-muted);
+    opacity: 0.72;
+}
+
+@media (max-width: 680px) {
+    .related-url-add-row,
+    .bookmark-related-url-editor-row,
+    .bookmark-related-url-editor-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .bookmark-related-url-editor-icon {
+        display: none;
+    }
+
+    .bookmark-focus-related-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+.bookmark-folder-manager-row__info {
+    flex: 1 1 180px;
+}
+
+.bookmark-folder-row-edit-toggle {
+    min-width: 34px;
+    min-height: 30px;
+    padding: 5px 8px;
+    font-size: 0.9rem;
+    line-height: 1;
+}
+
+.bookmark-folder-row-actions {
+    align-items: flex-start;
+    justify-content: flex-end;
+}
+
+/* Emoji Picker */
+#emoji-picker-modal {
+    width: 90%;
+    max-width: 500px;
+    height: 60vh;
+    padding: 0;
+    overflow: hidden;
+}
+
+.emoji-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+    gap: 4px;
+    overflow-y: auto;
+    padding: 10px;
+    flex-grow: 1;
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+.emoji-item {
+    cursor: pointer;
+    font-size: 1.5rem;
+    line-height: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 6px;
+    border-radius: 4px;
+    transition: 0.1s;
+}
+
+.emoji-item:hover {
+    background: var(--accent);
+    transform: scale(1.15);
+}
+
+.emoji-header {
+    padding: 15px;
+    border-bottom: 1px solid #333;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.emoji-close {
+    cursor: pointer;
+    font-size: 1.5rem;
+    color: #666;
+}
+
+.emoji-close:hover {
+    color: white;
+}
+
+.emoji-tabs-bar {
+    display: flex;
+    align-items: stretch;
+    border-bottom: 1px solid #333;
+    background: #111;
+    flex-shrink: 0;
+}
+.emoji-tabs {
+    display: flex;
+    overflow-x: auto;
+    background: transparent;
+    scrollbar-width: none;
+    flex: 1 1 auto;
+    min-width: 0;
+    scroll-behavior: smooth;
+}
+.emoji-tabs::-webkit-scrollbar {
+    display: none;
+}
+.emoji-tabs-arrow {
+    flex: 0 0 auto;
+    width: 28px;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.85rem;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.15s, background 0.15s, opacity 0.15s;
+    outline: none;
+}
+.emoji-tabs-arrow:hover:not(.disabled) {
+    color: var(--text-main);
+    background: rgba(255, 255, 255, 0.05);
+}
+.emoji-tabs-arrow.disabled {
+    opacity: 0.25;
+    cursor: default;
+    pointer-events: none;
+}
+.emoji-tabs-arrow-left {
+    border-right: 1px solid #222;
+}
+.emoji-tabs-arrow-right {
+    border-left: 1px solid #222;
+}
+.emoji-tab {
+    padding: 10px 15px;
+    cursor: pointer;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    white-space: nowrap;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+    outline: none;
+}
+.emoji-tab:hover {
+    color: var(--text-main);
+    background: rgba(255, 255, 255, 0.05);
+}
+.emoji-tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+    background: rgba(0, 212, 255, 0.08);
+}
+
+/* Bulk Mode Segmented Picker */
+.bulk-mode-container {
+    display: flex;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 4px;
+    margin-bottom: 20px;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+.bulk-mode-label {
+    flex: 1;
+    position: relative;
+    cursor: pointer;
+    margin: 0;
+}
+.bulk-mode-label input[type="radio"] {
+    display: none;
+}
+.bulk-mode-tab {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 8px 6px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: #888;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+    user-select: none;
+    border: 1px solid transparent;
+    white-space: nowrap;
+}
+.bulk-mode-label:hover .bulk-mode-tab {
+    background: rgba(255, 255, 255, 0.05);
+    color: #ccc;
+}
+.bulk-mode-label input[type="radio"]:checked + .bulk-mode-tab {
+    background: #222;
+    color: var(--accent, #00d4ff);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    border: 1px solid #444;
+}

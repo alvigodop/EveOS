@@ -1,0 +1,148 @@
+
+.tab-nav-sidebar-tool-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 34px;
+    padding: 7px 10px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-main, #e0e0e0);
+    font-size: 0.8rem;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+
+.tab-nav-sidebar-tool-btn:hover {
+    background: color-mix(in srgb, var(--accent, #00d4ff) 18%, rgba(255, 255, 255, 0.08));
+    border-color: color-mix(in srgb, var(--accent, #00d4ff) 45%, rgba(255, 255, 255, 0.12));
+    color: var(--accent, #00d4ff);
+    transform: translateY(-1px);
+}
+
+.tab-nav-sidebar-tool-btn[data-tab-nav-hover-preview] {
+    position: relative;
+}
+
+.tab-nav-sidebar-tool-btn[data-tab-nav-hover-preview]::after {
+    content: "preview";
+    margin-left: auto;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: rgba(0, 212, 255, 0.1);
+    border: 1px solid rgba(0, 212, 255, 0.18);
+    color: rgba(149, 230, 255, 0.78);
+    font-size: 0.58rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.tab-nav-sidebar-tool-btn.is-hover-previewing {
+    background: color-mix(in srgb, var(--accent, #00d4ff) 24%, rgba(255, 255, 255, 0.08));
+    border-color: color-mix(in srgb, var(--accent, #00d4ff) 60%, rgba(255, 255, 255, 0.12));
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent, #00d4ff) 18%, transparent);
+    color: var(--accent, #00d4ff);
+}
+
+.tab-nav-sidebar-tool-btn.is-active {
+    background: linear-gradient(135deg, rgba(0, 212, 255, 0.2), rgba(168, 130, 255, 0.16));
+    border-color: color-mix(in srgb, var(--accent, #00d4ff) 64%, rgba(255, 255, 255, 0.14));
+    color: var(--accent, #00d4ff);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent, #00d4ff) 18%, transparent);
+}
+
+.tab-nav-sidebar-tool-btn:active {
+    transform: scale(0.98);
+}
+
+/* --- Light Mode --- */
+html[data-native-scheme="light"] .tab-nav-popover {
+    background: rgba(255, 255, 255, 0.92);
+    border-color: rgba(0, 0, 0, 0.1);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12), inset 0 0 0 1px rgba(0, 0, 0, 0.04);
+}
+
+html[data-native-scheme="light"] .tab-nav-crumb {
+    background: rgba(0, 0, 0, 0.05);
+    color: #555;
+}
+
+html[data-native-scheme="light"] .tab-nav-crumb:hover {
+    background: rgba(0, 0, 0, 0.08);
+}
+
+html[data-native-scheme="light"] .tab-nav-search-shell {
+    border-color: rgba(0, 0, 0, 0.12);
+    background: rgba(0, 0, 0, 0.03);
+}
+
+html[data-native-scheme="light"] .tab-nav-search-input {
+    color: #333;
+}
+
+html[data-native-scheme="light"] .tab-nav-search-results::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.14);
+}
+
+html[data-native-scheme="light"] .tab-nav-search-empty {
+    border-color: rgba(0, 0, 0, 0.12);
+    color: rgba(0, 0, 0, 0.48);
+}
+
+html[data-native-scheme="light"] .tab-nav-search-result {
+    border-color: rgba(0, 0, 0, 0.12);
+    background: rgba(0, 0, 0, 0.03);
+    color: #333;
+}
+
+html[data-native-scheme="light"] .tab-nav-search-result--inactive:hover,
+html[data-native-scheme="light"] .tab-nav-search-result:disabled:hover {
+    background: rgba(0, 0, 0, 0.03);
+    border-color: rgba(0, 0, 0, 0.12);
+}
+
+html[data-native-scheme="light"] .tab-nav-search-result-name {
+    color: #222;
+}
+
+html[data-native-scheme="light"] .tab-nav-search-result-path {
+    color: rgba(0, 0, 0, 0.5);
+}
+
+html[data-native-scheme="light"] .tab-nav-search-result-meta {
+    background: rgba(0, 0, 0, 0.05);
+    color: rgba(0, 0, 0, 0.58);
+}
+
+html[data-native-scheme="light"] .tab-nav-search-result[data-tab-nav-search-depth]:not([data-tab-nav-search-depth="0"]) .tab-nav-search-result-branch {
+    border-left-color: rgba(0, 0, 0, 0.14);
+    border-bottom-color: rgba(0, 0, 0, 0.14);
+}
+
+html[data-native-scheme="light"] .tab-nav-sep {
+    color: rgba(0, 0, 0, 0.18);
+}
+
+html[data-native-scheme="light"] .tab-nav-controls {
+    border-top-color: rgba(0, 0, 0, 0.08);
+}
+
+html[data-native-scheme="light"] .tab-nav-btn {
+    border-color: rgba(0, 0, 0, 0.12);
+    background: rgba(0, 0, 0, 0.03);
+    color: #333;
+}
+
+html[data-native-scheme="light"] .tab-nav-sidebar-tools {
+    border-top-color: rgba(0, 0, 0, 0.08);
+}
+
+html[data-native-scheme="light"] .tab-nav-sidebar-tool-btn {
+    border-color: rgba(0, 0, 0, 0.12);
+    background: rgba(0, 0, 0, 0.03);
+    color: #333;
+}

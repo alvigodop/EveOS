@@ -4,6 +4,8 @@ const vm = require('vm');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const MODULES = [
+    'js/modules/features/search-advanced/sa-nebula-json-link.shared.js',
+    'js/modules/features/search-advanced/sa-nebula-json-link.runtime.js',
     'js/modules/features/search-advanced/sa-nebula-json-link.js',
     'js/modules/features/data-transfer/data-transfer.export.folder.writer.bookmarks.js',
     'js/modules/features/data-transfer/data-transfer.export.folder.writer.backups.js'

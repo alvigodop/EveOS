@@ -1,28 +1,23 @@
-window.EveOS = window.EveOS || {};
+﻿window.EveOS = window.EveOS || {};
 window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
-
 (function () {
     const ns = window.EveOS.SearchAdvanced;
     const debugState = ns.DebugViewState = ns.DebugViewState || {
         selectedWorkspaceId: ''
     };
-
     function escHtml(value) {
         return String(value || '')
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;');
     }
-
     function escAttr(value) {
         return escHtml(value).replace(/"/g, '&quot;');
     }
-
     function text(value, fallback) {
         const normalized = String(value ?? '').trim();
         return normalized || String(fallback ?? '').trim();
     }
-
     function getAllLinks() {
         if (typeof window.getLiveLinks === 'function') {
             return window.getLiveLinks();
@@ -31,15 +26,12 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             ? window.eveState.links
             : (typeof window.links !== 'undefined' ? window.links : []);
     }
-
     function getConfig() {
         return window.eveState?.config || (typeof config !== 'undefined' ? config : {});
     }
-
     function getWorkspaces() {
         return getConfig().workspaces || [];
     }
-
     function getWorkspaceById(workspaceId) {
         const helpers = window.EveWorkspaceHelpers;
         const workspaces = getWorkspaces();
@@ -48,7 +40,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             return text(workspace?.id, '') === text(workspaceId, '');
         }) || null;
     }
-
     function getWorkspacePathLabel(workspaceId) {
         const helpers = window.EveWorkspaceHelpers;
         const workspaces = getWorkspaces();
@@ -61,7 +52,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         const workspace = getWorkspaceById(workspaceId);
         return workspace ? text(workspace.name, workspace.id) : text(workspaceId, 'Unknown tab');
     }
-
     function getDescendantWorkspaceIds(workspace) {
         const helpers = window.EveWorkspaceHelpers;
         if (helpers?.getDescendantIds) {
@@ -77,27 +67,23 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         });
         return ids;
     }
-
     function getFolderStore() {
         if (window.eveState?.bookmarkFolders && typeof window.eveState.bookmarkFolders === 'object') return window.eveState.bookmarkFolders;
         if (window.bookmarkFolders && typeof window.bookmarkFolders === 'object') return window.bookmarkFolders;
         if (typeof bookmarkFolders !== 'undefined' && bookmarkFolders && typeof bookmarkFolders === 'object') return bookmarkFolders;
         return {};
     }
-
     function buildFolderScopedKey(workspaceId, categoryName) {
         if (typeof window.EveBookmarkFolders?.buildScopedKey === 'function') {
             return window.EveBookmarkFolders.buildScopedKey(workspaceId, categoryName);
         }
         return text(workspaceId, 'main') + '::' + text(categoryName, 'Unsorted');
     }
-
     function getFolderNodesForCard(workspaceId, categoryName) {
         const tree = getFolderStore()[buildFolderScopedKey(workspaceId, categoryName)];
         if (Array.isArray(tree)) return tree;
         return Array.isArray(tree?.nodes) ? tree.nodes : [];
     }
-
     function getCategoryNamesForWorkspace(workspaceId, workspaceLinks) {
         const cfg = getConfig();
         const ws = text(workspaceId, 'main');
@@ -120,13 +106,11 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         });
         return names;
     }
-
     function countBookmarkIdentifiers(link) {
         const ids = Array.isArray(link?.identifierIds) ? link.identifierIds : (Array.isArray(link?.bookmarkIdentifierIds) ? link.bookmarkIdentifierIds : []);
         const tags = Array.isArray(link?.tags) ? link.tags : [];
         return ids.length + tags.length;
     }
-
     function collectWorkspaceBreakdown() {
         const links = getAllLinks();
         const workspaces = getWorkspaces();
@@ -134,13 +118,11 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         const allWsIds = helpers?.flattenIds ? new Set(helpers.flattenIds(workspaces)) : new Set();
         const rows = [];
         const counts = {};
-
         links.forEach(function (link) {
             if (!link) return;
             const ws = String(link.workspace || 'main').trim();
             counts[ws] = (counts[ws] || 0) + 1;
         });
-
         const flat = helpers?.flatten ? helpers.flatten(workspaces) : workspaces;
         flat.forEach(function (workspace) {
             if (!workspace) return;
@@ -158,7 +140,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 hiddenInParent: !!workspace.hiddenInParent
             });
         });
-
         Object.keys(counts).forEach(function (wsId) {
             if (!allWsIds.has(wsId) && !rows.some(function (row) { return row.id === wsId; })) {
                 rows.push({
@@ -175,16 +156,13 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 });
             }
         });
-
         return rows.sort(function (left, right) {
             return Number(right.linkCount || 0) - Number(left.linkCount || 0);
         });
     }
-
     async function collectWorkspaceDetail(workspaceId, options = {}) {
         const wsId = text(workspaceId, '');
         if (!wsId) return null;
-
         const workspace = getWorkspaceById(wsId);
         const links = getAllLinks();
         const directLinks = links.filter(function (link) {
@@ -220,7 +198,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         }).sort(function (left, right) {
             return Number(right.bookmarks || 0) - Number(left.bookmarks || 0) || left.name.localeCompare(right.name);
         });
-
         const childTabs = Array.isArray(workspace?.subTabs)
             ? workspace.subTabs.map(function (child) {
                 const childId = text(child?.id, '');
@@ -236,7 +213,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 };
             })
             : [];
-
         const indexApi = window.EveOS?.SearchAdvanced?.Index;
         const snapshot = options.snapshot || indexApi?.getSnapshot?.() || null;
         const integrity = indexApi?.getIntegrityReport
@@ -246,7 +222,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             ? window.EveBookmarkFolders.collectFolderIntegrity({ workspaceId: wsId })
             : null;
         const linkedTarget = workspace?.linkedTo ? getWorkspaceById(workspace.linkedTo) : null;
-
         return {
             id: wsId,
             name: workspace ? text(workspace.name, wsId) : wsId,
@@ -275,7 +250,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             issues: (Array.isArray(integrity?.issues) ? integrity.issues : []).slice(0, 6)
         };
     }
-
     function renderIssueList(issues, truncatedCount) {
         const rows = (Array.isArray(issues) ? issues : []).slice(0, 8);
         if (!rows.length && !truncatedCount) return '';
@@ -297,7 +271,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         html += '</div>';
         return html;
     }
-
     function renderWorkspaceBreakdown(rows, selectedWorkspaceId) {
         let html = '<div class="nx-debug-ws-list">';
         rows.forEach(function (workspace) {
@@ -325,12 +298,10 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         html += '</div>';
         return html;
     }
-
     function renderWorkspaceDetail(detail) {
         if (!detail) {
             return '<div class="nx-debug-ws-empty">Select a tab above to inspect its live Nexus contents.</div>';
         }
-
         let html = '<div class="nx-debug-ws-detail" data-workspace-id="' + escAttr(detail.id) + '">';
         html += '<div class="nx-debug-ws-detail-head">';
         html += '<div>';
@@ -344,13 +315,11 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         if (detail.linkedTo) html += '<span>shortcut</span>';
         html += '</div>';
         html += '</div>';
-
         if (detail.linkedTo) {
             html += '<div class="nx-debug-ws-linked">Shortcut source: '
                 + escHtml(detail.linkedTargetPath || detail.linkedTo)
                 + '</div>';
         }
-
         html += '<div class="nx-debug-ws-stats">';
         [
             ['Direct bookmarks', detail.directBookmarks],
@@ -369,14 +338,12 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             html += '<div class="nx-debug-ws-stat"><span>' + escHtml(item[0]) + '</span><strong>' + escHtml(item[1]) + '</strong></div>';
         });
         html += '</div>';
-
         html += '<div class="nx-debug-ws-actions">';
         html += '<button type="button" class="nx-debug-action-btn" data-nx-debug-action="open-workspace" data-workspace-id="' + escAttr(detail.id) + '">Open Tab</button>';
         html += '<button type="button" class="nx-debug-action-btn" data-nx-debug-action="scope-workspace" data-workspace-id="' + escAttr(detail.id) + '">Scope Nexus Here</button>';
         html += '<button type="button" class="nx-debug-action-btn" data-nx-debug-action="view-state" data-workspace-id="' + escAttr(detail.id) + '">Open View State</button>';
         html += '<button type="button" class="nx-debug-action-btn" data-nx-debug-action="open-map" data-workspace-id="' + escAttr(detail.id) + '">Open Map</button>';
         html += '</div>';
-
         if (detail.childTabs.length) {
             html += '<div class="nx-debug-ws-subtitle">Child Tabs</div>';
             html += '<div class="nx-debug-mini-list">';
@@ -396,7 +363,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             }
             html += '</div>';
         }
-
         html += '<div class="nx-debug-ws-subtitle">Cards In This Tab</div>';
         if (detail.cards.length) {
             html += '<div class="nx-debug-mini-list">';
@@ -416,19 +382,15 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         } else {
             html += '<div class="nx-debug-ws-empty">No direct cards/bookmarks are stored in this tab.</div>';
         }
-
         if (detail.issues.length) {
             html += '<div class="nx-debug-ws-subtitle">Top Issues</div>';
             html += renderIssueList(detail.issues, Math.max(0, Number(detail.integrity?.issueCount || 0) - detail.issues.length));
         }
-
         html += '</div>';
         return html;
     }
-
     function bindWorkspaceInteractions(container, renderDebugPanel) {
         if (!container || typeof renderDebugPanel !== 'function') return;
-
         container.querySelectorAll('.nx-debug-ws-row[data-workspace-id], .nx-debug-ws-child[data-workspace-id]').forEach(function (row) {
             row.onclick = function () {
                 const workspaceId = text(row.getAttribute('data-workspace-id'), '');
@@ -437,7 +399,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 renderDebugPanel(container);
             };
         });
-
         container.querySelectorAll('[data-nx-debug-action]').forEach(function (actionNode) {
             actionNode.onclick = function (event) {
                 if (event?.stopPropagation) event.stopPropagation();
@@ -470,7 +431,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             };
         });
     }
-
     ns.DebugWorkspace = {
         debugState,
         escHtml,

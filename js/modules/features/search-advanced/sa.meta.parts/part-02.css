@@ -1,0 +1,104 @@
+
+.nx-debug-ws-detail-badges span {
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 999px;
+    color: rgba(196, 226, 250, 0.76);
+    background: rgba(0, 0, 0, 0.18);
+    font-size: 0.6rem;
+    padding: 2px 6px;
+}
+
+.nx-debug-ws-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+    gap: 6px;
+    margin: 8px 0;
+}
+
+.nx-debug-ws-stat {
+    display: grid;
+    gap: 2px;
+    padding: 6px;
+    border-radius: 7px;
+    background: rgba(0, 0, 0, 0.16);
+    border: 1px solid rgba(255, 255, 255, 0.055);
+}
+
+.nx-debug-ws-stat span {
+    color: rgba(180, 190, 205, 0.72);
+    font-size: 0.62rem;
+}
+
+.nx-debug-ws-stat strong {
+    color: var(--accent, #0af);
+    font-size: 0.82rem;
+}
+
+.nx-debug-ws-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 8px 0 10px;
+}
+
+.nx-debug-ws-subtitle {
+    margin: 10px 0 5px;
+    color: rgba(255, 211, 107, 0.82);
+    font-size: 0.66rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.nx-debug-ws-child {
+    width: 100%;
+    border: 0;
+    cursor: pointer;
+    color: inherit;
+    font-family: inherit;
+    text-align: left;
+}
+
+.nx-debug-ws-child:hover {
+    border-color: rgba(0, 204, 255, 0.28);
+    background: rgba(0, 204, 255, 0.075);
+}
+
+.nx-debug-mini-list {
+    margin-top: 10px;
+    display: grid;
+    gap: 4px;
+}
+
+.nx-debug-mini-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 4px 6px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.03);
+    font-size: 0.72rem;
+}
+
+.nx-debug-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.nx-debug-action-btn {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 5px;
+    color: var(--text-main, #e0e0e0);
+    padding: 6px 10px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.72rem;
+    transition: background 0.15s ease;
+}
+
+.nx-debug-action-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: var(--accent, #0af);
+}

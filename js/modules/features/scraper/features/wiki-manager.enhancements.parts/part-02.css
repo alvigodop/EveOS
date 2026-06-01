@@ -1,0 +1,90 @@
+
+.reload-btn-premium:hover {
+    background: linear-gradient(135deg, rgba(0, 212, 255, 0.25), rgba(110, 231, 255, 0.15)) !important;
+    border-color: rgba(0, 212, 255, 0.45) !important;
+    box-shadow: 0 0 15px rgba(0, 212, 255, 0.14) !important;
+}
+
+.reload-btn-premium .btn-icon {
+    width: 14px;
+    height: 14px;
+    stroke: #00d4ff;
+    transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.reload-btn-premium:hover .btn-icon {
+    transform: rotate(180deg);
+}
+
+.reload-btn-premium.is-loading .btn-icon {
+    animation: spin 0.8s linear infinite;
+}
+
+/* Clear Cache Premium Style (Amber/Gold) */
+.clear-cache-btn-premium {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(251, 191, 36, 0.08)) !important;
+    border-color: rgba(245, 158, 11, 0.2) !important;
+    color: #fef3c7 !important;
+}
+
+.clear-cache-btn-premium:hover {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(251, 191, 36, 0.12)) !important;
+    border-color: rgba(245, 158, 11, 0.4) !important;
+    box-shadow: 0 0 15px rgba(245, 158, 11, 0.1) !important;
+}
+
+.clear-cache-btn-premium .btn-icon {
+    width: 14px;
+    height: 14px;
+    stroke: #fbbf24;
+}
+
+/* Shimmer effect for clear cache on hover */
+.clear-cache-btn-premium::after {
+    content: "";
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: linear-gradient(
+        45deg,
+        transparent,
+        rgba(251, 191, 36, 0.05),
+        transparent
+    );
+    transform: rotate(45deg);
+    transition: 0.5s;
+    pointer-events: none;
+    opacity: 0;
+}
+
+.clear-cache-btn-premium:hover::after {
+    left: 100%;
+    opacity: 1;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* Tooltip/Helper for Clear Cache */
+.clear-cache-btn-premium::before {
+    content: "PURGE DATA";
+    position: absolute;
+    bottom: -20px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 8px;
+    letter-spacing: 1px;
+    color: #fbbf24;
+    opacity: 0;
+    transition: opacity 0.2s;
+    font-family: 'Share Tech Mono', monospace;
+    white-space: nowrap;
+}
+
+.clear-cache-btn-premium:hover::before {
+    opacity: 0.6;
+}

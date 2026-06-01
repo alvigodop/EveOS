@@ -1,35 +1,13 @@
-window.EveOS = window.EveOS || {};
+﻿window.EveOS = window.EveOS || {};
 window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
-
 (function () {
     const ns = window.EveOS.SearchAdvanced;
     if (ns.IndexRecordBuildersSources) return;
-
     const shared = ns.IndexShared;
     const local = ns.IndexRecordBuildersLocal;
     if (!shared || !local) return;
-
-    const {
-        INDEX_VERSION,
-        LOCAL_TYPES,
-        now,
-        text,
-        normalizeText,
-        toArray,
-        readConfig,
-        readLinks,
-        getWorkspaceGroupMeta,
-        deriveBaseHealth
-    } = shared;
-    const {
-        buildCategoryMap,
-        buildCardRecords,
-        buildBookmarkRecords,
-        buildFolderRecords,
-        buildSmartViewRecords,
-        buildLibraryRecords
-    } = local;
-
+    const { INDEX_VERSION, LOCAL_TYPES, now, text, normalizeText, toArray, readConfig, readLinks, getWorkspaceGroupMeta, deriveBaseHealth } = shared;
+    const { buildCategoryMap, buildCardRecords, buildBookmarkRecords, buildFolderRecords, buildSmartViewRecords, buildLibraryRecords } = local;
     function buildCategoryScopeMap(categoryMap) {
         const groupedByCategory = new Map();
         Array.from(categoryMap.values()).forEach(function (entry) {
@@ -48,7 +26,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         });
         return groupedByCategory;
     }
-
     function filterCategoryMap(categoryMap, categoryNames) {
         const allowedNames = new Set(
             toArray(categoryNames)
@@ -62,7 +39,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             })
         );
     }
-
     function buildCategoryScopeMeta(categoryName, workspaceIds) {
         const locators = ns.Locators || {};
         const normalizedWorkspaceIds = (Array.isArray(workspaceIds)
@@ -95,7 +71,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             groupMeta: groupMeta
         };
     }
-
     function buildLocalRecordBundle() {
         const links = readLinks().filter(Boolean);
         const categoryMap = buildCategoryMap(links);
@@ -111,11 +86,9 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             records: records
         };
     }
-
     function normalizeScopeKey(workspaceId, categoryName) {
         return text(workspaceId, 'main') + '::' + text(categoryName, 'Unsorted');
     }
-
     function buildScopedLocalRecordBundle(options) {
         const allLinks = readLinks().filter(Boolean);
         const allCategoryMap = buildCategoryMap(allLinks);
@@ -126,7 +99,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 .filter(Boolean)
         );
         const scopeKeys = new Set();
-
         explicitScopes.forEach(function (scope) {
             const workspaceId = text(scope?.workspaceId, '');
             const categoryName = text(scope?.categoryName, '');
@@ -141,14 +113,12 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 scopeKeys.add(normalizeScopeKey(entry.workspaceId, entry.categoryName));
             });
         });
-
         if (explicitLinkIds.size) {
             allLinks.forEach(function (link) {
                 if (!explicitLinkIds.has(text(link?.id, ''))) return;
                 scopeKeys.add(normalizeScopeKey(link?.workspace, link?.category));
             });
         }
-
         const scopedCategoryMap = new Map(
             Array.from(allCategoryMap.entries()).filter(function (entryPair) {
                 return scopeKeys.has(text(entryPair?.[0], ''));
@@ -167,7 +137,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             .concat(buildSmartViewRecords ? buildSmartViewRecords(allLinks, scopedCategoryMap) : [])
             .concat(buildBookmarkRecords(scopedLinks))
             .concat(scopedLibraryRecords);
-
         return {
             links: scopedLinks,
             categoryMap: allCategoryMap,
@@ -177,7 +146,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             records: records
         };
     }
-
     function buildSnapshotStats(records) {
         const providers = new Set();
         const workspaceIds = new Set();
@@ -193,7 +161,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             providerCount: 0,
             workspaceCount: 0
         };
-
         toArray(records).forEach(function (record) {
             const type = text(record?.type, '');
             if (type === 'card') stats.cardCount += 1;
@@ -203,19 +170,16 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             if (type === 'library') stats.libraryCount += 1;
             if (type === 'knowledge') stats.knowledgeCount += 1;
             if (type === 'cached') stats.cachedCount += 1;
-
             if (record?.provider && !LOCAL_TYPES.has(record.provider)) providers.add(record.provider);
             toArray(record?.provenance?.providers).forEach(function (provider) {
                 if (provider) providers.add(provider);
             });
             if (record?.workspaceId) workspaceIds.add(record.workspaceId);
         });
-
         stats.providerCount = providers.size;
         stats.workspaceCount = workspaceIds.size;
         return stats;
     }
-
     function rebuildSourceSearchableText(record) {
         if (text(record?.type, '') === 'cached') {
             return normalizeText([
@@ -228,7 +192,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 record?.path?.pathLabel
             ].join(' '));
         }
-
         return normalizeText([
             record.title,
             record.description,
@@ -239,19 +202,16 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             record?.path?.pathLabel
         ].join(' '));
     }
-
     function rehydrateSourceRecords(records, categoryMap) {
         const sourceScopeMap = buildCategoryScopeMap(categoryMap);
         return toArray(records).map(function (record) {
             const type = text(record?.type, '');
             if (type !== 'knowledge' && type !== 'cached') return null;
-
             const scopeMeta = buildCategoryScopeMeta(
                 text(record?.categoryName, ''),
                 sourceScopeMap.get(text(record?.categoryName, ''))?.workspaceIds
             );
             if (!scopeMeta.workspaceIds.length) return null;
-
             const refreshedRecord = Object.assign({}, record, {
                 workspaceId: scopeMeta.preferredWorkspaceId,
                 workspaceIds: scopeMeta.workspaceIds,
@@ -267,7 +227,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             return refreshedRecord;
         }).filter(Boolean);
     }
-
     async function buildSourceRecordBundle(categoryMap, options = {}) {
         const includeKnowledge = options?.includeKnowledge !== false;
         const includeCached = options?.includeCached !== false;
@@ -283,15 +242,12 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             records: knowledgeRecords.concat(cachedRecords)
         };
     }
-
     async function buildCachedRecords(categoryMap) {
         const cache = window.EveOS?.API?.Cache;
         const cacheRuntime = window.EveOS?.API?.CacheRuntime || {};
         if (!cache?.loadPool) return [];
-
         const records = [];
         const groupedByCategory = buildCategoryScopeMap(categoryMap);
-
         for (const category of groupedByCategory.values()) {
             try {
                 const scopeMeta = buildCategoryScopeMeta(
@@ -311,7 +267,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                     const providerKeys = cacheRuntime.getSearchableProviderKeys
                         ? cacheRuntime.getSearchableProviderKeys()
                         : Object.keys(perSource || {});
-
                     providerKeys.forEach(function (providerKey) {
                         const items = cacheRuntime.getProviderList
                             ? cacheRuntime.getProviderList(entry.sources || {}, providerKey)
@@ -382,17 +337,13 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 console.warn('[NexusIndex] Failed to index cache pool for', category.categoryName, error);
             }
         }
-
         return records;
     }
-
     async function buildKnowledgeRecords(categoryMap) {
         const searchInternals = window.EveOS?.API?.SearchInternals;
         if (!searchInternals?.buildSourceCacheGroups) return [];
-
         const records = [];
         const groupedByCategory = buildCategoryScopeMap(categoryMap);
-
         for (const category of groupedByCategory.values()) {
             try {
                 const scopeMeta = buildCategoryScopeMeta(
@@ -455,17 +406,14 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 console.warn('[NexusIndex] Failed to index source graph for', category.categoryName, error);
             }
         }
-
         return records;
     }
-
     async function buildSnapshot(reason) {
         const localBundle = buildLocalRecordBundle();
         const sourceBundle = await buildSourceRecordBundle(localBundle.categoryMap);
         const records = []
             .concat(localBundle.records)
             .concat(sourceBundle.records);
-
         return {
             version: INDEX_VERSION,
             builtAt: now(),
@@ -474,7 +422,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             records: records
         };
     }
-
     ns.IndexRecordBuildersSources = {
         buildCachedRecords,
         buildKnowledgeRecords,

@@ -1,25 +1,19 @@
-window.EveSidebarRuntime = window.EveSidebarRuntime || {};
-
+﻿window.EveSidebarRuntime = window.EveSidebarRuntime || {};
 (function () {
     'use strict';
-
     var rt = window.EveSidebarRuntime;
     if (rt.workspaceItemReady) return;
-
     rt.createWorkspaceItemRenderer = function createWorkspaceItemRenderer(deps) {
         var renderParentEntries = deps && deps.renderParentEntries;
         var handleSidebarWorkspaceDrop = deps && deps.handleSidebarWorkspaceDrop;
-
         function isCategoryCardSidebarDrag(event) {
             if (!event || !event.dataTransfer) return false;
             if (typeof window.isCategoryCardDragPayload === 'function' && window.isCategoryCardDragPayload(event)) return true;
             return Array.from(event.dataTransfer.types || []).includes('application/x-eve-category-card');
         }
-
         function isSortModeActive() {
             return !!(rt.isSidebarSortModeActive && rt.isSidebarSortModeActive());
         }
-
         function getCategoryCardSidebarPayload(event) {
             if (!event || !event.dataTransfer) return null;
             if (typeof window.getCategoryCardDragPayload === 'function') {
@@ -38,7 +32,6 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
                 return null;
             }
         }
-
         function renderWorkspaceItem(ctx, ws, container, depth, options) {
         var currentDepth = typeof depth === 'number' ? depth : 0;
         var renderOptions = options && typeof options === 'object' ? options : {};
@@ -54,9 +47,7 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         var isWorkspaceActive = config.viewMode !== 'unidex' && config.activeWorkspace === ws.id && !isGroupOverviewActive;
         var isInactive = ctx.isWorkspaceEffectivelyInactive(ws);
         var nativeWorkspaceDragEnabled = false;
-
         if (isInactive && !ctx.shouldShowInactiveTabs() && !renderOptions.renderInactive) return;
-
         var wrapper = document.createElement('div');
         wrapper.className = 'ws-node-wrapper';
         if (currentDepth > 0) {
@@ -69,11 +60,9 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         }
         wrapper.dataset.wsId = String(ws.id || '');
         wrapper.dataset.wsDepth = String(currentDepth);
-
         var childHost = null;
         var childBranchRendered = false;
         var toggle = null;
-
         function syncToggleUi(nextCollapsed) {
             if (!toggle) return;
             var isNowCollapsed = !!nextCollapsed;
@@ -82,7 +71,6 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             toggle.setAttribute('aria-label', isNowCollapsed ? 'Expand sub tabs' : 'Collapse sub tabs');
             toggle.title = isNowCollapsed ? 'Expand sub tabs' : 'Collapse sub tabs';
         }
-
         function ensureChildHost() {
             if (!hasChildren) return null;
             if (!childHost) {
@@ -92,7 +80,6 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             }
             return childHost;
         }
-
         function renderChildBranch(force) {
             var host = ensureChildHost();
             if (!host) return null;
@@ -109,7 +96,6 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             childBranchRendered = true;
             return host;
         }
-
         function syncHoverRevealPreviewAfterBranchChange() {
             if (typeof rt.invalidateHoverRevealPreview !== 'function') return;
             var previewState = rt.previewState || null;
@@ -120,13 +106,11 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
                 queue: false
             });
         }
-
         function toggleWorkspaceBranch(event) {
             if (event) {
                 event.preventDefault();
                 event.stopPropagation();
             }
-
             var nextCollapsed = typeof ctx.setWorkspaceCollapsed === 'function'
                 ? ctx.setWorkspaceCollapsed(ws.id)
                 : !config.collapsedTabs.includes(ws.id);
@@ -138,25 +122,21 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
                 }
             }
             saveConfig();
-
             syncToggleUi(nextCollapsed);
             wrapper.classList.toggle('is-collapsed', nextCollapsed);
             var host = ensureChildHost();
             if (!host) return;
-
             if (nextCollapsed) {
                 host.hidden = true;
                 host.classList.add('is-collapsed');
                 syncHoverRevealPreviewAfterBranchChange();
                 return;
             }
-
             renderChildBranch(false);
             host.hidden = false;
             host.classList.remove('is-collapsed');
             syncHoverRevealPreviewAfterBranchChange();
         }
-
         function shouldTreatRowClickAsToggle(event) {
             if (!hasChildren || !toggle || !event) return false;
             var sidebar = document.getElementById('sidebar');
@@ -174,7 +154,6 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             var toggleZoneRight = Math.max(28, (toggleRect.right - itemRect.left) + 4);
             return relativeX <= Math.min(toggleZoneRight, itemRect.width);
         }
-
         var item = document.createElement('div');
         item.className = 'ws-item ' + (isWorkspaceActive ? 'active' : '');
         if (currentDepth > 0) item.classList.add('ws-sub-item');
@@ -183,7 +162,6 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             item.classList.add('ws-group-member-item');
             item.style.setProperty('--ws-group-color', renderOptions.groupColor || '#00d4ff');
         }
-
         function startWorkspaceDrag(e) {
             if (isSortModeActive()) {
                 if (e && typeof e.preventDefault === 'function') e.preventDefault();
@@ -201,7 +179,6 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             item.classList.add('ws-dragging');
             return true;
         }
-
         function endWorkspaceDrag(e) {
             rt._isDraggingWorkspace = false;
             item.classList.remove('ws-dragging');
@@ -219,7 +196,6 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             }
             ctx.clearDragState();
         }
-
         // Keep visible tabs draggable even when their branch is marked inactive.
         // Inactive should block open/select behavior, not reorder gestures.
         item.setAttribute('draggable', nativeWorkspaceDragEnabled ? 'true' : 'false');
@@ -230,7 +206,6 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         }
         item.ondragstart = startWorkspaceDrag;
         item.ondragend = endWorkspaceDrag;
-
         item.ondragover = function (e) {
             if (isInactive) return;
             if (isCategoryCardSidebarDrag(e)) {
@@ -262,7 +237,6 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             }
             item.classList.remove('ws-drop-target', 'ws-drop-target-card');
         };
-
         function applyWorkspaceDropTarget(dragId) {
             if (isInactive) return false;
             var workspaceId = String(dragId || '').trim();
@@ -270,15 +244,12 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             var childEntries = ctx.getVisibleParentEntries(ws.id);
             return ctx.moveWorkspaceToParentContext(workspaceId, ws.id, null, childEntries, childEntries.length);
         }
-
         item.__eveSidebarApplyPointerDrop = applyWorkspaceDropTarget;
-
         item.ondrop = function (e) {
             if (isInactive) return;
             e.preventDefault();
             e.stopPropagation();
             item.classList.remove('ws-drop-target', 'ws-drop-target-card');
-
             var cardPayload = getCategoryCardSidebarPayload(e);
             if (cardPayload?.type === 'category-card') {
                 if (typeof window.moveCategoryCardToWorkspace === 'function') {
@@ -290,17 +261,14 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
                 }
                 return;
             }
-
             var dragGroupId = ctx.getDraggedGroupId();
             if (dragGroupId) {
                 if (ctx.moveGroupToParentContext(dragGroupId, ws.id, null)) ctx.saveAndRefresh(false);
                 return;
             }
-
             var dragId = String(ctx.getDraggedWorkspaceId() || e.dataTransfer.getData('text/plain') || '').trim();
             if (applyWorkspaceDropTarget(dragId)) ctx.saveAndRefresh(true);
         };
-
         if (hasChildren) {
             toggle = document.createElement('button');
             toggle.type = 'button';
@@ -326,7 +294,6 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             spacer.className = 'ws-spacer';
             item.appendChild(spacer);
         }
-
         var iconSpan = document.createElement('span');
         iconSpan.className = 'ws-icon';
         iconSpan.textContent = ws.icon || '\u{1F4C1}';
@@ -341,7 +308,6 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             endWorkspaceDrag(e);
         };
         item.appendChild(iconSpan);
-
         var label = document.createElement('span');
         label.className = 'ws-label';
         label.textContent = ws.name;
@@ -356,7 +322,6 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             endWorkspaceDrag(e);
         };
         item.appendChild(label);
-
         var workspaceSummary = ctx.shouldShowDatapackBadges()
             ? ctx.getWorkspaceSummary(String(ws.id || ''))
             : null;
@@ -373,13 +338,11 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
                 e.stopPropagation();
                 endWorkspaceDrag(e);
             };
-
             var bookmarkChip = document.createElement('span');
             bookmarkChip.className = 'ws-summary-chip';
             bookmarkChip.textContent = String(Number(workspaceSummary.bookmarkCount || 0)) + 'B';
             bookmarkChip.title = String(Number(workspaceSummary.bookmarkCount || 0)) + ' bookmarks in this tab';
             summary.appendChild(bookmarkChip);
-
             var issueCount = Number(workspaceSummary.localIssueCount || 0);
             if (issueCount > 0) {
                 var issueChip = document.createElement('span');
@@ -388,10 +351,8 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
                 issueChip.title = issueCount + ' datapack issue' + (issueCount === 1 ? '' : 's') + ' in this tab';
                 summary.appendChild(issueChip);
             }
-
             item.appendChild(summary);
         }
-
         if (ws.hiddenInParent && currentDepth > 0) {
             item.classList.add('ws-hidden-in-parent');
             var hiddenBadge = document.createElement('span');
@@ -410,11 +371,9 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             };
             item.appendChild(hiddenBadge);
         }
-
         if (typeof rt.attachNestedWorkspacePointerDrag === 'function') {
             rt.attachNestedWorkspacePointerDrag(ctx, item, ws);
         }
-
         if (!isInactive) {
             item.onmousedown = function (e) {
                 if (e.button !== 0) return; // Only track left clicks
@@ -429,17 +388,14 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
                     }
                     return;
                 }
-
                 var mousedownTime = Number(item.dataset.mousedownTime || 0);
                 var clickDuration = Date.now() - mousedownTime;
-
                 // If the click took longer than 350ms, it was a drag or a long-press. Suppress it.
                 if (mousedownTime > 0 && clickDuration > 350) {
                     event.preventDefault();
                     event.stopPropagation();
                     return;
                 }
-
                 if (typeof ctx.shouldSuppressWorkspaceClick === 'function' && ctx.shouldSuppressWorkspaceClick()) {
                     event.preventDefault();
                     event.stopPropagation();
@@ -460,16 +416,13 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
                 switchWorkspace(ws.id, { forceRender: exitingUnidex });
             };
         }
-
         item.oncontextmenu = function (e) {
             if (typeof showWsContext === 'function') showWsContext(e, ws.id);
         };
-
         item.setAttribute('aria-label', isInactive ? (ws.name + ' (Inactive)') : ws.name);
         item.removeAttribute('title');
         item.addEventListener('mouseenter', function (e) { showWsPopout(e, ws); });
         item.addEventListener('mouseleave', hideWsPopout);
-
         wrapper.appendChild(item);
         if (hasChildren) {
             var initialChildHost = ensureChildHost();
@@ -487,11 +440,7 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         }
         container.appendChild(wrapper);
     }
-
-    
-
         return renderWorkspaceItem;
     };
-
     rt.workspaceItemReady = true;
 })();

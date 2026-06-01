@@ -1,4 +1,4 @@
-async function runApiSearchScenario(page) {
+﻿async function runApiSearchScenario(page) {
     return page.evaluate(async () => {
             const providers = [
                 ['MangaDex', 'searchMangaDex', () => ({ data: [{ id: 'md-1', title: "JoJo's Kingdom" }] })],
@@ -15,7 +15,6 @@ async function runApiSearchScenario(page) {
                 ['OpenLibrary', 'searchOpenLibrary', () => ({ docs: [{ key: '/works/OL1W', title: 'Kingdom Atlas' }] })],
                 ['ComicK', 'searchComicK', () => ([])]
             ];
-
             window.__apiSmokeProviderCalls = 0;
             providers.forEach(([namespace, method, factory]) => {
                 window.EveOS.API[namespace] = window.EveOS.API[namespace] || {};
@@ -24,7 +23,6 @@ async function runApiSearchScenario(page) {
                     return factory();
                 };
             });
-
             window.currentCategoryCtx = 'Alpha';
             if (window.StorageManager?.setCategoryContext) {
                 window.StorageManager.setCategoryContext('Alpha');
@@ -108,7 +106,6 @@ async function runApiSearchScenario(page) {
                     rating: 8.8
                 }]);
             }
-
             window.__knowledgeLiveCalls = {
                 wikipediaEntry: 0,
                 fandomDomainSearch: 0,
@@ -135,7 +132,6 @@ async function runApiSearchScenario(page) {
                     return originalFetchLiveFandomPageDetails.apply(this, arguments);
                 };
             }
-
             window.openCategorySettings('Alpha', 'search');
             await new Promise((resolve) => setTimeout(resolve, 500));
             if (window.WikiManager?.refreshCacheStores) {
@@ -144,7 +140,6 @@ async function runApiSearchScenario(page) {
             if (window.WikiManager?.renderFandomDomainList) {
                 await window.WikiManager.renderFandomDomainList(true);
             }
-
             const modal = document.getElementById('categorySettingsModal');
             const searchInput = modal.querySelector('.api-search-input');
             const searchButton = modal.querySelector('.api-search-btn');
@@ -157,21 +152,17 @@ async function runApiSearchScenario(page) {
             const searchCachePool = modal.querySelector('.api-cache-pool-list');
             const searchResults = document.getElementById('modal-api-results-container');
             const searchTabLabel = document.getElementById('tab-btn-search')?.textContent?.trim() || '';
-
             if (!searchInput || !searchButton || !searchHybridToggle || !searchLiveToggle || !searchTtlSelect || !searchPopupRadio || !searchNewTabRadio || !openUnidexButton || !searchCachePool || !searchResults) {
                 throw new Error('Search tab API UI failed to render');
             }
-
             searchHybridToggle.checked = true;
             searchHybridToggle.dispatchEvent(new Event('change', { bubbles: true }));
             searchLiveToggle.checked = false;
             searchLiveToggle.dispatchEvent(new Event('change', { bubbles: true }));
             searchTtlSelect.value = String(60 * 60 * 1000);
             searchTtlSelect.dispatchEvent(new Event('change', { bubbles: true }));
-
             searchInput.value = 'kingdom';
             searchButton.click();
-
             await new Promise((resolve, reject) => {
                 const started = Date.now();
                 const timer = window.setInterval(() => {
@@ -193,7 +184,6 @@ async function runApiSearchScenario(page) {
                     }
                 }, 200);
             });
-
             const providerCallsAfterHybridMiss = window.__apiSmokeProviderCalls;
             const alphaCacheEntry = await window.EveOS.API.Cache.getQuery('kingdom', 'Alpha');
             const betaCacheEntry = await window.EveOS.API.Cache.getQuery('kingdom', 'Beta');
@@ -236,7 +226,6 @@ async function runApiSearchScenario(page) {
             const dataPopupText = String(document.getElementById('dataPopupContent')?.textContent || '').trim();
             const dataPopupParentTag = String(document.getElementById('dataPopup')?.parentElement?.tagName || '');
             document.getElementById('dataPopup').style.display = 'none';
-
             const originalPopupOpen = window.PopupManager?.openPopup;
             const originalWindowOpen = window.open;
             const originalResolvePopupUrl = window.EveOS?.API?.Core?.getPopupViewerUrl;
@@ -255,22 +244,18 @@ async function runApiSearchScenario(page) {
                     return `http://127.0.0.1:3037/api/lightpanda?url=${encodeURIComponent(url)}`;       
                 };
             }
-
             const firstResultLink = searchResults.querySelector('.manga-title a');
             if (!firstResultLink) {
                 throw new Error('Expected an API result title link');
             }
-
             searchPopupRadio.checked = true;
             searchPopupRadio.dispatchEvent(new Event('change', { bubbles: true }));
             firstResultLink.click();
             await new Promise((resolve) => setTimeout(resolve, 80));
-
             searchNewTabRadio.checked = true;
             searchNewTabRadio.dispatchEvent(new Event('change', { bubbles: true }));
             firstResultLink.click();
             await new Promise((resolve) => setTimeout(resolve, 80));
-
             const popupCalls = window.__apiPopupCalls.slice();
             const newTabCalls = window.__apiNewTabCalls.slice();
             window.PopupManager.openPopup = originalPopupOpen;
@@ -278,7 +263,6 @@ async function runApiSearchScenario(page) {
             if (window.EveOS?.API?.Core) {
                 window.EveOS.API.Core.getPopupViewerUrl = originalResolvePopupUrl;
             }
-
             searchHybridToggle.checked = true;
             searchHybridToggle.dispatchEvent(new Event('change', { bubbles: true }));
             searchLiveToggle.checked = false;
@@ -317,7 +301,6 @@ async function runApiSearchScenario(page) {
             const unifiedApiText = searchResults.querySelector('[data-unidex-section="api"]')?.textContent || '';
             const unifiedWikiTitles = Array.from(searchResults.querySelectorAll('[data-unidex-section="wikipedia"] .unidex-search-card-title')).slice(0, 8).map((node) => node.textContent.trim());
             const fandomTitleRepaired = unifiedFandomText.includes('Naruto Uzumaki') && !unifiedFandomText.includes('Naruto WikiNarutopedia');
-
             searchHybridToggle.checked = false;
             searchHybridToggle.dispatchEvent(new Event('change', { bubbles: true }));
             searchLiveToggle.checked = false;
@@ -325,7 +308,6 @@ async function runApiSearchScenario(page) {
             searchButton.click();
             await new Promise((resolve) => setTimeout(resolve, 300));
             const providerCallsAfterCacheOnlyHit = window.__apiSmokeProviderCalls;
-
             window.__knowledgeLiveCalls = {
                 wikipediaEntry: 0,
                 fandomDomainSearch: 0,
@@ -358,7 +340,6 @@ async function runApiSearchScenario(page) {
             const ninjaWikiText = searchResults.querySelector('[data-unidex-section="wikipedia"]')?.textContent || '';
             const ninjaFandomText = searchResults.querySelector('[data-unidex-section="fandom"]')?.textContent || '';
             const ninjaApiText = searchResults.querySelector('[data-unidex-section="api"]')?.textContent || '';
-
             openUnidexButton.click();
             await new Promise((resolve, reject) => {
                 const started = Date.now();
@@ -376,7 +357,6 @@ async function runApiSearchScenario(page) {
                 }, 80);
             });
             await new Promise((resolve) => setTimeout(resolve, 800));
-
             if (typeof window.updateSource === 'function') {
                 window.updateSource('fandom');
             }
@@ -429,7 +409,6 @@ async function runApiSearchScenario(page) {
                 throw new Error('Expected Fandom sidebar card to expose a View Cache button');
             }
             const fandomSidebarHasViewButton = !!fandomSidebarViewButton;
-
         return {
             alphaCacheSummary: alphaCacheEntry?.summary || null,
             alphaPrefsAfterSearch,
@@ -466,7 +445,6 @@ async function runApiSearchScenario(page) {
         };
     });
 }
-
 module.exports = {
     runApiSearchScenario
 };

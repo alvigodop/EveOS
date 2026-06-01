@@ -1,38 +1,32 @@
-window.EveOS = window.EveOS || {};
+﻿window.EveOS = window.EveOS || {};
 window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
 window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
-
 (function () {
     if (window.EveOS.SearchAdvanced.Modules.createUiFormFields) return;
-
     window.EveOS.SearchAdvanced.Modules.createUiFormFields = function createUiFormFields() {
         function byId(id) {
             return document.getElementById(id);
         }
-
         function setLoading(isLoading) {
             const runBtn = byId('esRunBtn');
             const results = byId('esResults');
             if (runBtn) {
                 runBtn.disabled = !!isLoading;
-                runBtn.textContent = isLoading ? '⏳ Searching...' : '⚔ Search';
+                runBtn.textContent = isLoading ? 'â³ Searching...' : 'âš” Search';
             }
             if (isLoading && results) {
                 results.innerHTML = '<div class="nx-loader"></div>';
             }
         }
-
         function setMeta(text, isError) {
             const meta = byId('esMeta');
             if (!meta) return;
             meta.textContent = text || '';
             meta.classList.toggle('is-error', !!isError);
         }
-
         function getFieldValue(id) {
             return (byId(id)?.value || '').trim();
         }
-
         function collectSettings() {
             return {
                 apiKey: getFieldValue('esApiKey'),
@@ -53,17 +47,14 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
                 activeVectors: collectVectorStates()
             };
         }
-
         function collectScopeMode() {
             const activeButton = document.querySelector('.nx-mode-btn.nx-mode-btn-active[data-scope-mode]');
             return activeButton?.getAttribute('data-scope-mode') === 'all' ? 'all' : 'current';
         }
-
         function collectResultsMode() {
             const activeButton = document.querySelector('.nx-mode-btn.nx-mode-btn-active[data-results-mode]');
             return activeButton?.getAttribute('data-results-mode') || 'segmented';
         }
-
         function collectVectorStates() {
             const vectors = {};
             const slots = document.querySelectorAll('.nx-vector-slot[data-vector]');
@@ -77,21 +68,18 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
             }
             return vectors;
         }
-
         function applyScopeMode(mode) {
             const normalizedMode = mode === 'all' ? 'all' : 'current';
             document.querySelectorAll('.nx-mode-btn[data-scope-mode]').forEach(function (button) {
                 button.classList.toggle('nx-mode-btn-active', button.getAttribute('data-scope-mode') === normalizedMode);
             });
         }
-
         function applyResultsMode(mode) {
             const normalizedMode = mode === 'merged' ? 'merged' : 'segmented';
             document.querySelectorAll('.nx-mode-btn[data-results-mode]').forEach(function (button) {
                 button.classList.toggle('nx-mode-btn-active', button.getAttribute('data-results-mode') === normalizedMode);
             });
         }
-
         function initScopeModeToggle() {
             document.querySelectorAll('.nx-mode-btn[data-scope-mode]').forEach(function (button) {
                 button.addEventListener('click', function () {
@@ -104,7 +92,6 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
                 });
             });
         }
-
         function initResultsModeToggle() {
             document.querySelectorAll('.nx-mode-btn[data-results-mode]').forEach(function (button) {
                 button.addEventListener('click', function () {
@@ -122,24 +109,21 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
                 });
             });
         }
-
         function setActiveNexusJump(kind) {
             document.querySelectorAll('.nx-jump-btn[data-nx-jump]').forEach(function (button) {
                 button.classList.toggle('nx-jump-active', button.getAttribute('data-nx-jump') === kind);
             });
         }
-
         function expandSidebarIfNeeded() {
             const sidebar = byId('nxSidebar');
             const toggleBtn = byId('nxSidebarToggle');
             if (!sidebar || !sidebar.classList.contains('nx-collapsed')) return;
             sidebar.classList.remove('nx-collapsed');
             if (toggleBtn) {
-                toggleBtn.textContent = 'â—€';
+                toggleBtn.textContent = 'Ã¢â€”â‚¬';
                 toggleBtn.title = 'Collapse sidebar';
             }
         }
-
         function openDetailsSection(detailsEl, shouldRefresh) {
             if (!detailsEl) return;
             const wasOpen = detailsEl.open;
@@ -148,20 +132,17 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
                 detailsEl.dispatchEvent(new Event('toggle'));
             }
         }
-
         function scrollSidebarTarget(target) {
             expandSidebarIfNeeded();
             if (!target) return;
             target.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' });
         }
-
         function jumpToResults() {
             const results = byId('esResults');
             if (!results) return;
             results.scrollTo({ top: 0, behavior: 'smooth' });
             results.focus({ preventScroll: true });
         }
-
         function handleNexusJump(kind) {
             const normalized = kind || 'query';
             setActiveNexusJump(normalized);
@@ -196,7 +177,6 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
                 jumpToResults();
             }
         }
-
         function initNexusNavigation() {
             document.querySelectorAll('.nx-jump-btn[data-nx-jump]').forEach(function (button) {
                 if (button.__nxJumpBound) return;
@@ -206,7 +186,6 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
                 });
             });
         }
-
         function initVectorToggles() {
             const slots = document.querySelectorAll('.nx-vector-slot[data-vector]');
             slots.forEach(function (slot) {
@@ -217,14 +196,13 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
                     setTimeout(function () { slot.classList.remove('nx-pulse'); }, 500);
                 });
             });
-
             // Sidebar collapse/expand toggle
             const toggleBtn = byId('nxSidebarToggle');
             const sidebar = byId('nxSidebar');
             if (toggleBtn && sidebar) {
                 toggleBtn.addEventListener('click', function () {
                     const isCollapsed = sidebar.classList.toggle('nx-collapsed');
-                    toggleBtn.textContent = isCollapsed ? '▶' : '◀';
+                    toggleBtn.textContent = isCollapsed ? 'â–¶' : 'â—€';
                     toggleBtn.title = isCollapsed ? 'Expand sidebar' : 'Collapse sidebar';
                     // Sync query value to inline input when collapsing
                     const mainQuery = byId('esQuery');
@@ -234,7 +212,6 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
                     }
                 });
             }
-
             // Inline search input sync
             const inlineQuery = byId('nxInlineQuery');
             const mainQuery = byId('esQuery');
@@ -260,12 +237,10 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
                     if (searchBtn) searchBtn.click();
                 });
             }
-
             initScopeModeToggle();
             initResultsModeToggle();
             initNexusNavigation();
         }
-
         function applyVectorStates(vectors) {
             if (!vectors || typeof vectors !== 'object') return;
             Object.keys(vectors).forEach(function (key) {
@@ -275,7 +250,6 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
                 }
             });
         }
-
         function applySettingsToForm(settings, query) {
             const current = settings || {};
             if (byId('esApiKey')) byId('esApiKey').value = current.apiKey || '';
@@ -296,7 +270,6 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
             applyScopeMode(current.scopeMode || 'current');
             applyResultsMode(current.resultsMode || 'segmented');
         }
-
         function resetFilters() {
             if (byId('esSort')) byId('esSort').value = '';
             if (byId('esSite')) byId('esSite').value = '';
@@ -310,7 +283,6 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
             if (byId('esExactTerms')) byId('esExactTerms').value = '';
             if (byId('esExcludeTerms')) byId('esExcludeTerms').value = '';
         }
-
         async function updateFooterStats() {
             try {
                 const indexApi = window.EveOS.SearchAdvanced?.Index;
@@ -330,7 +302,6 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
                 if (cardEl) cardEl.textContent = String(cardCount) + ' cards';
                 const activeVectors = document.querySelectorAll('.nx-vector-slot.nx-active').length;
                 if (vecEl) vecEl.textContent = String(activeVectors) + ' active';
-
                 // Orphan detection
                 if (Agg && typeof Agg.detectOrphanedLinks === 'function') {
                     const orphanReport = Agg.detectOrphanedLinks();
@@ -340,28 +311,23 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
                 console.warn('[NexusSearch] Footer stats error:', err);
             }
         }
-
         function updateOrphanBanner(report) {
             const banner = byId('nxOrphanBanner');
             const textEl = byId('nxOrphanText');
             if (!banner) return;
-
             const totalOrphaned = Number(report?.totalOrphaned || report?.orphaned?.length || 0);
             const ghostWorkspaces = Array.isArray(report?.ghostWorkspaces)
                 ? report.ghostWorkspaces
                 : Object.keys(report?.orphanedByWorkspace || {});
-
             if (!report || totalOrphaned <= 0 || ghostWorkspaces.length === 0) {
                 banner.style.display = 'none';
                 return;
             }
-
             banner.style.display = 'flex';
             const ghostList = ghostWorkspaces.map(function (id) { return '"' + id + '"'; }).join(', ');
             if (textEl) {
                 textEl.textContent = totalOrphaned + ' orphaned bookmarks from ' + ghostWorkspaces.length + ' deleted workspace(s): ' + ghostList;
             }
-
             // Bind View button
             const viewBtn = byId('nxOrphanViewBtn');
             if (viewBtn) {
@@ -369,7 +335,6 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
                     renderOrphanList(report);
                 };
             }
-
             // Bind Rescue button
             const rescueBtn = byId('nxOrphanRescueBtn');
             if (rescueBtn) {
@@ -387,7 +352,6 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
                     updateFooterStats();
                 };
             }
-
             // Bind Dismiss button
             const dismissBtn = byId('nxOrphanDismissBtn');
             if (dismissBtn) {
@@ -396,7 +360,6 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
                 };
             }
         }
-
         function renderOrphanList(report) {
             const resultsEl = byId('esResults');
             if (!resultsEl || !report) return;
@@ -407,28 +370,24 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
             report.totalOrphaned = totalOrphaned;
             report.ghostWorkspaces = ghostWorkspaces;
             report.orphanedByWorkspace = report.orphanedByWorkspace || {};
-
-            let html = '<div class="nx-results-stats">⚠ ' + report.totalOrphaned + ' orphaned bookmarks from ' + report.ghostWorkspaces.length + ' ghost workspace(s)</div>';
-
+            let html = '<div class="nx-results-stats">âš  ' + report.totalOrphaned + ' orphaned bookmarks from ' + report.ghostWorkspaces.length + ' ghost workspace(s)</div>';
             report.ghostWorkspaces.forEach(function (wsId) {
                 const items = report.orphanedByWorkspace[wsId] || [];
                 html += '<div class="nx-result-group">';
                 html += '<div class="nx-group-header nx-group-toggle" data-nx-collapse-group>'
-                    + '<span class="nx-group-arrow">▾</span>'
-                    + '<span class="nx-group-title">👻 Ghost Workspace: "' + wsId + '"</span>'
+                    + '<span class="nx-group-arrow">â–¾</span>'
+                    + '<span class="nx-group-title">ðŸ‘» Ghost Workspace: "' + wsId + '"</span>'
                     + '<span class="nx-group-count">' + items.length + '</span>'
                     + '</div>';
                 html += '<div class="nx-group-body">';
-
                 items.forEach(function (link) {
                     const title = link.title || link.name || link.url || 'Untitled';
                     const url = link.url || '';
                     const category = link.category || 'Unsorted';
-
                     html += '<article class="nx-result-item nx-result-bookmark">'
                         + '<div class="nx-result-header">'
-                        + '<span class="nx-badge nx-badge-bookmark">👻 Orphan</span>'
-                        + '<span class="nx-card-tag">📋 ' + category + '</span>'
+                        + '<span class="nx-badge nx-badge-bookmark">ðŸ‘» Orphan</span>'
+                        + '<span class="nx-card-tag">ðŸ“‹ ' + category + '</span>'
                         + '<span class="nx-provider-tag">ws: ' + wsId + '</span>'
                         + '</div>'
                         + '<h4 class="nx-result-title">'
@@ -437,13 +396,10 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
                         + (url ? '<div class="nx-result-url">' + url + '</div>' : '')
                         + '</article>';
                 });
-
                 html += '</div>'; // .nx-group-body
                 html += '</div>'; // .nx-result-group
             });
-
             resultsEl.innerHTML = html;
-
             // Wire collapse toggles
             resultsEl.querySelectorAll('[data-nx-collapse-group]').forEach(function (header) {
                 header.addEventListener('click', function () {
@@ -453,7 +409,6 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
             });
             setMeta(report.totalOrphaned + ' orphaned bookmarks found', false);
         }
-
         return {
             byId,
             setLoading,

@@ -3,7 +3,11 @@ const path = require('path');
 const vm = require('vm');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
-const MODULE_PATH = path.join(REPO_ROOT, 'js/modules/features/search-advanced/sa-nebula-json-link.js');
+const MODULE_PATHS = [
+    'js/modules/features/search-advanced/sa-nebula-json-link.shared.js',
+    'js/modules/features/search-advanced/sa-nebula-json-link.runtime.js',
+    'js/modules/features/search-advanced/sa-nebula-json-link.js'
+].map((relativePath) => path.join(REPO_ROOT, relativePath));
 
 function assert(condition, message) {
     if (!condition) throw new Error(message);
@@ -35,8 +39,10 @@ function createHelpers() {
 }
 
 function loadModule(context) {
-    const source = fs.readFileSync(MODULE_PATH, 'utf8');
-    vm.runInNewContext(source, context, { filename: MODULE_PATH });
+    MODULE_PATHS.forEach((modulePath) => {
+        const source = fs.readFileSync(modulePath, 'utf8');
+        vm.runInNewContext(source, context, { filename: modulePath });
+    });
     return context.window.EveOS.NebulaJsonLink;
 }
 

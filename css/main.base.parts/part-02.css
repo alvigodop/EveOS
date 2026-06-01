@@ -1,0 +1,84 @@
+
+/* Light Mode Overrides */
+.light-theme body {
+    background-color: var(--bg-color);
+    color: var(--text-main);
+}
+
+.light-theme .card,
+.light-theme .search-wrapper {
+    background: var(--card-bg);
+    color: var(--text-main);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border: 1px solid var(--border-color);
+}
+
+.light-theme .modal {
+    background: var(--modal-bg);
+    color: var(--modal-text);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border: 1px solid var(--modal-border);
+}
+
+.light-theme input,
+.light-theme select {
+    background: #fff;
+    color: #333;
+    border: 1px solid #ccc;
+}
+
+.light-theme .search-wrapper input {
+    border: none;
+    /* Reset for search bar */
+}
+
+.light-theme button {
+    color: var(--text-main);
+    border: 1px solid var(--border-color);
+    background: var(--input-bg);
+}
+
+.light-theme button:hover {
+    background: color-mix(in srgb, var(--input-bg) 86%, var(--accent) 14%);
+    border-color: color-mix(in srgb, var(--accent) 55%, var(--border-color) 45%);
+    color: var(--text-main);
+}
+
+.light-theme .modal-overlay {
+    background-color: rgba(0, 0, 0, 0.4);
+    /* Lighter dimming */
+}
+
+#custom-modal-overlay[data-modal-kind^="card-move"] {
+    background: radial-gradient(circle at 50% 35%, rgba(0, 212, 255, 0.14), rgba(0, 0, 0, 0.68) 58%);
+    backdrop-filter: blur(8px);
+}
+
+#custom-modal-overlay[data-modal-kind^="card-move"] #custom-modal-card {
+    width: min(430px, calc(100vw - 32px));
+    background:
+        linear-gradient(145deg, rgba(18, 34, 36, 0.98), rgba(11, 14, 17, 0.98)),
+        radial-gradient(circle at 12% 0%, rgba(0, 212, 255, 0.16), transparent 34%);
+    border-color: rgba(0, 212, 255, 0.32);
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.58), 0 0 0 1px rgba(255, 255, 255, 0.04) inset, 0 0 34px rgba(0, 212, 255, 0.14);
+}
+
+#custom-modal-overlay[data-modal-kind^="card-move"] #custom-modal-title {
+    color: var(--accent, #00d4ff);
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 1.35rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+#custom-modal-overlay[data-modal-kind^="card-move"] #custom-modal-msg {
+    color: rgba(235, 247, 247, 0.78);
+    line-height: 1.45;
+    white-space: pre-line;
+}
+
+.light-theme h2,
+.light-theme h3,
+.light-theme h4 {
+    color: #222;
+}

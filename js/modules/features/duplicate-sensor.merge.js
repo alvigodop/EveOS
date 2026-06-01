@@ -1,5 +1,4 @@
-window.EveDuplicateSensor = window.EveDuplicateSensor || {};
-
+﻿window.EveDuplicateSensor = window.EveDuplicateSensor || {};
 (function () {
     const ns = window.EveDuplicateSensor;
     const runtime = ns._runtime = ns._runtime || {};
@@ -11,14 +10,11 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
     const isRawUrl = mergeHelpers.isRawTitle;
     const isSearch = mergeHelpers.isSearchUrl;
     const parseNum = mergeHelpers.parseNum;
-
     function mergeDuplicateGroup(linkIds, options = {}) {
         if (!Array.isArray(linkIds) || linkIds.length < 2) return null;
-
         const links = runtime.getLinks();
         const targetLinks = links.filter((link) => linkIds.includes(String(link.id)));
         if (targetLinks.length < 2) return null;
-
         const sharedMerge = window.EveBookmarkMerge;
         if (sharedMerge && typeof sharedMerge.mergeDuplicateGroup === 'function') {
             const sharedResult = sharedMerge.mergeDuplicateGroup(linkIds, {
@@ -39,7 +35,6 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
                         mergeModes: sharedResult.modes || []
                     }
                 });
-
                 if (typeof window.renderSidebar === 'function') window.renderSidebar();
                 if (typeof window.renderDashboard === 'function') window.renderDashboard();
                 if (window.EveLibrary?.UI && typeof window.EveLibrary.UI.renderLibrary === 'function') {
@@ -47,11 +42,9 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
                 } else if (typeof window.renderLibrary === 'function') {
                     window.renderLibrary();
                 }
-
                 return { mergedId: sharedResult.mergedId, removedIds: sharedResult.removedIds };
             }
         }
-
         const nonSearchLinks = targetLinks.filter((link) => !isSearch(link.url));
         const bestUrlLink = (nonSearchLinks.length > 0 ? nonSearchLinks : targetLinks)
             .reduce((best, current) => (String(current.url).length > String(best.url).length ? current : best));
@@ -59,7 +52,6 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
         const baseLinkId = String(bestUrlLink.id);
         const baseLink = links.find((link) => String(link.id) === baseLinkId);
         if (!baseLink) return null;
-
         const nonRawUrlTitles = targetLinks.filter((link) => !isRawUrl(link.title));
         const bestTitleLink = (nonRawUrlTitles.length > 0 ? nonRawUrlTitles : targetLinks)
             .reduce((best, current) => (String(current.title).length > String(best.title).length ? current : best));
@@ -68,7 +60,6 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
         if (seasonMatch) {
             bestTitle = bestTitle.substring(0, seasonMatch.index).trim();
         }
-
         const discardedUrls = new Set();
         const discardedTitles = new Set();
         targetLinks.forEach((link) => {
@@ -77,19 +68,16 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
             const currentTitle = String(link.title || '').trim();
             if (currentTitle && currentTitle !== bestTitle && !isRawUrl(currentTitle)) discardedTitles.add(currentTitle);
         });
-
         const firstWithIcon = targetLinks.find((link) => !!String(link.icon || '').trim());
         const firstWithPriority = targetLinks.find((link) => !!String(link.priority || '').trim());
         const firstWithFixedCover = targetLinks.find((link) => !!String(link.fixedCoverImage || '').trim());
         const allMainCovers = targetLinks.map((link) => String(link.coverImage || '').trim()).filter(Boolean);
-
         baseLink.url = bestUrl;
         baseLink.title = bestTitle;
         if (firstWithIcon && !String(baseLink.icon || '').trim()) baseLink.icon = firstWithIcon.icon;
         if (firstWithPriority && !String(baseLink.priority || '').trim()) baseLink.priority = firstWithPriority.priority;
         if (firstWithFixedCover && !String(baseLink.fixedCoverImage || '').trim()) baseLink.fixedCoverImage = firstWithFixedCover.fixedCoverImage;
         if (allMainCovers.length > 0 && !String(baseLink.coverImage || '').trim()) baseLink.coverImage = allMainCovers[0];
-
         const mergedCoverImages = new Set(Array.isArray(baseLink.coverImages) ? baseLink.coverImages : []);
         targetLinks.forEach((link) => {
             if (Array.isArray(link.coverImages)) link.coverImages.forEach((image) => mergedCoverImages.add(image));
@@ -97,7 +85,6 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
             if (mainCover && mainCover !== String(baseLink.coverImage || '').trim()) mergedCoverImages.add(mainCover);
         });
         if (mergedCoverImages.size > 0) baseLink.coverImages = Array.from(mergedCoverImages);
-
         const mergedSourcesMap = new Map();
         if (Array.isArray(baseLink.sources)) {
             baseLink.sources.forEach((source) => {
@@ -115,7 +102,6 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
             });
         });
         if (mergedSourcesMap.size > 0) baseLink.sources = Array.from(mergedSourcesMap.values());
-
         const connectionsApi = window.EveLibrary?.ConnectionsAPI;
         let maxProgress = null;
         let maxProgressKey = null;
@@ -131,17 +117,14 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
         let bestConnection = null;
         let maxEntryKeys = -1;
         let mergedEntryData = {};
-
         if (connectionsApi) {
             targetLinks.forEach((link) => {
                 const connection = connectionsApi.findConnectionByLinkId?.(String(link.id));
                 const linked = connectionsApi.getLinkedEntry(String(link.id));
                 const entry = linked?.entry;
-
                 if (String(link.id) === baseLinkId && connection) {
                     baseHasConnection = true;
                 }
-
                 if (connection && entry) {
                     let keysCount = 0;
                     for (const [key, value] of Object.entries(entry)) {
@@ -152,7 +135,6 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
                         maxEntryKeys = keysCount;
                         bestConnection = connection;
                     }
-
                     for (const [key, value] of Object.entries(entry)) {
                         if (key === 'id' || key === 'dateAdded' || key === 'lastEdited') continue;
                         if (value === null || value === '' || (Array.isArray(value) && value.length === 0)) continue;
@@ -175,14 +157,11 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
                         }
                     }
                 }
-
                 if (!entry) return;
-
                 const season = parseNum(entry.season);
                 const episode = parseNum(entry.episode);
                 const chapter = parseNum(entry.chapter);
                 const progress = parseNum(entry.progress);
-
                 if (season !== null) {
                     const pairString = `Season ${season}` + (episode !== null ? `, Episode ${episode}` : '');
                     detectedSeasonPairs.add(pairString);
@@ -193,7 +172,6 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
                         maxSeasonPairedEpisode = episode;
                     }
                 }
-
                 let localMaxProgress = null;
                 let localProgressKey = null;
                 if (episode !== null && episode > (localMaxProgress || -1)) { localMaxProgress = episode; localProgressKey = 'episode'; }
@@ -203,7 +181,6 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
                     maxProgress = localMaxProgress;
                     maxProgressKey = localProgressKey;
                 }
-
                 const rating = parseNum(entry.rating);
                 const score = parseNum(entry.score);
                 let localMaxScore = null;
@@ -214,15 +191,12 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
                     maxScore = localMaxScore;
                     maxScoreKey = localScoreKey;
                 }
-
                 if (!mergedStatus && entry.status) mergedStatus = entry.status;
                 if (!mergedLibImage && entry.image) mergedLibImage = entry.image;
-
                 const summary = String(entry.summary || '').trim();
                 if (summary && !notesLines.includes(summary)) notesLines.push(summary);
             });
         }
-
         if (discardedTitles.size > 0) {
             notesLines.push(`=== Other Titles ===\n${Array.from(discardedTitles).join('\n')}`);
         }
@@ -237,7 +211,6 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
             }
         }
         const finalSummary = notesLines.join('\n\n').trim();
-
         if (connectionsApi) {
             if (bestConnection && bestConnection.linkId !== baseLinkId) {
                 if (baseHasConnection) {
@@ -256,14 +229,12 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
                     baseHasConnection = true;
                 }
             }
-
             if (baseHasConnection) {
                 delete mergedEntryData.progress;
                 delete mergedEntryData.chapter;
                 delete mergedEntryData.episode;
                 delete mergedEntryData.score;
                 delete mergedEntryData.rating;
-
                 const patchData = {
                     ...mergedEntryData,
                     title: bestTitle,
@@ -278,7 +249,6 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
                 if (mergedStatus) patchData.status = mergedStatus;
                 if (mergedLibImage) patchData.image = mergedLibImage;
                 if (finalSummary) patchData.summary = finalSummary;
-
                 if (connectionsApi.updateLinkedEntry) {
                     connectionsApi.updateLinkedEntry(baseLinkId, patchData);
                 } else if (connectionsApi.promoteLinkWithData) {
@@ -286,7 +256,6 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
                 }
             }
         }
-
         const idsToRemove = targetLinks.map((link) => String(link.id)).filter((id) => id !== baseLinkId);
         if (idsToRemove.length > 0) {
             for (let index = links.length - 1; index >= 0; index--) {
@@ -300,15 +269,12 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
                 idsToRemove.forEach((id) => connectionsApi.removeByLinkId(id));
             }
         }
-
         // Standardized sync using the same logic as folder merge
         const writeStore = buildStoreWriter(runtime);
-
         writeStore(runtime.getFolderTrees(), {
             source: 'duplicate-sensor-bookmark-merge',
             meta: { linkId: baseLinkId, linkIds: [baseLinkId].concat(idsToRemove), removedLinkIds: idsToRemove }
         });
-        
         if (typeof window.renderSidebar === 'function') window.renderSidebar();
         if (typeof window.renderDashboard === 'function') window.renderDashboard();
         if (window.EveLibrary?.UI && typeof window.EveLibrary.UI.renderLibrary === 'function') {
@@ -316,18 +282,13 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
         } else if (typeof window.renderLibrary === 'function') {
             window.renderLibrary();
         }
-
         return { mergedId: baseLinkId, removedIds: idsToRemove };
     }
-
     function mergeDuplicateFolderGroup(folderIds) {
         if (!Array.isArray(folderIds) || folderIds.length < 2) return null;
-
         const folderTrees = runtime.getFolderTrees();
-        
         // Use the official writeStore if available, or fallback to the manual sync
         const writeStore = buildStoreWriter(runtime);
-
         const allNodes = [];
         Object.entries(folderTrees).forEach(([scopedKey, tree]) => {
             const [wsId, ...catParts] = scopedKey.split('::');
@@ -337,24 +298,18 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
                 if (node && node.id) allNodes.push({ ...node, workspaceId: wsId, categoryName: catName });
             });
         });
-
         const targetFolders = allNodes.filter(f => folderIds.includes(f.id));
         if (targetFolders.length < 2) return null;
-
         // Base folder priority: shortest path length, else oldest folder
         const nodeLookup = new Map();
         allNodes.forEach(n => nodeLookup.set(n.id, n));
-        
         targetFolders.forEach(f => f._depth = getFolderDepth(f.id, nodeLookup));
         targetFolders.sort((a, b) => a._depth - b._depth || (a.createdAt || 0) - (b.createdAt || 0));
-        
         const baseFolder = targetFolders[0];
         const removedIds = targetFolders.slice(1).map(f => f.id);
-
         const nextStore = JSON.parse(JSON.stringify(folderTrees));
         const baseScopedKey = `${baseFolder.workspaceId}::${baseFolder.categoryName}`;
         if (!nextStore[baseScopedKey]) nextStore[baseScopedKey] = { nodes: [], settings: { clickBehaviorMode: 'inherit' } };
-
         // 1. Reparent Links
         const links = runtime.getLinks();
         if (Array.isArray(links)) {
@@ -370,24 +325,20 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
                 }
             });
         }
-
         // 2. Helper for recursive subtree migration
         // 3. Reparent Folders
         Object.entries(nextStore).forEach(([scopedKey, tree]) => {
             const nodes = Array.isArray(tree?.nodes) ? tree.nodes : (Array.isArray(tree) ? tree : []);
             const nodesToKeep = [];
             const nodesToMoveWithKeys = []; // Array of {node, originalScopedKey}
-            
             nodes.forEach(node => {
                 // If it is one of the duplicated folders themselves, DELETE IT completely.
                 if (removedIds.includes(node.id)) return;
-                
                 // If its parent is one of the duplicates, it now belongs to the baseFolder
                 const pId = String(node.parentId || '').trim();
                 if (removedIds.includes(pId)) {
                     node.parentId = baseFolder.id;
                     node.updatedAt = Date.now();
-                    
                     if (scopedKey !== baseScopedKey) {
                         nodesToMoveWithKeys.push({ node, key: scopedKey });
                         // Also must recursively find all its descendants and tag them for moving!
@@ -403,14 +354,11 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
                     nodesToKeep.push(node);
                 }
             });
-            
             // Clean up the moved items from this specific tree
             const movedIds = new Set(nodesToMoveWithKeys.map(m => m.node.id));
             const finalNodes = nodesToKeep.filter(n => !movedIds.has(n.id));
-
             if (Array.isArray(tree?.nodes)) tree.nodes = finalNodes;
             else nextStore[scopedKey] = finalNodes;
-
             // Perform the global move
             nodesToMoveWithKeys.forEach(({ node }) => {
                 const targetTree = nextStore[baseScopedKey];
@@ -421,7 +369,6 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
                 }
             });
         });
-
         // Cleanup empty trees
         Object.keys(nextStore).forEach(key => {
             const tree = nextStore[key];
@@ -431,7 +378,6 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
                 delete nextStore[key];
             }
         });
-
         writeStore(nextStore, {
             source: 'duplicate-sensor-folder-merge',
             meta: {
@@ -441,16 +387,13 @@ window.EveDuplicateSensor = window.EveDuplicateSensor || {};
                 folderIds: [baseFolder.id].concat(removedIds)
             }
         });
-
         if (typeof window.renderSidebar === 'function') window.renderSidebar();
         if (typeof window.renderDashboard === 'function') window.renderDashboard();
         if (window.EveBookmarkFolders?.refreshEditorFolderSelect) {
             window.EveBookmarkFolders.refreshEditorFolderSelect();
         }
-
         return { mergedId: baseFolder.id, removedIds };
     }
-
     Object.assign(runtime, { mergeDuplicateGroup, mergeDuplicateFolderGroup });
     runtime.mergeLoaded = true;
 })();

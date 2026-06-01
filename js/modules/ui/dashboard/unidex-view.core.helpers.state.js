@@ -1,13 +1,10 @@
-window.UnidexViewModules = window.UnidexViewModules || {};
-
+﻿window.UnidexViewModules = window.UnidexViewModules || {};
 (function () {
     window.UnidexViewModules.createCoreHelperState = function createCoreHelperState(deps) {
         const state = deps.state;
-
         function getDatapackIndexApi() {
             return window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
         }
-
         function hasUsableDatapackSnapshot(indexApi) {
             if (!indexApi) return false;
             const buildState = typeof indexApi.getBuildState === 'function' ? indexApi.getBuildState() : null;
@@ -15,13 +12,11 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 ? indexApi.hasUsableSnapshot()
                 : (!buildState?.dirty && Number(buildState?.builtAt || 0) > 0);
         }
-
         function hasReadableDatapackLinkSnapshot(indexApi) {
             if (!indexApi) return false;
             if (typeof indexApi.hasReadableLinkSnapshot === 'function') return !!indexApi.hasReadableLinkSnapshot();
             return hasUsableDatapackSnapshot(indexApi);
         }
-
         function warmDatapackIndex() {
             const indexApi = getDatapackIndexApi();
             if (!indexApi || (typeof indexApi.ensureFresh !== 'function' && typeof indexApi.rebuild !== 'function')) return;
@@ -29,7 +24,6 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             const warmPromise = typeof indexApi.ensureFresh === 'function'
                 ? indexApi.ensureFresh({ reason: 'unidex-summary', allowStale: true, deferMs: 1400 })
                 : indexApi.rebuild({ reason: 'unidex-summary' });
-
             state.datapackIndexWarmPromise = Promise.resolve(warmPromise)
                 .catch(function () {
                     // Keep raw-link fallback active if the datapack spine is not ready.
@@ -39,7 +33,6 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                     if (typeof renderDashboard === 'function') renderDashboard();
                 });
         }
-
         function getDatapackStructureSummary() {
             const indexApi = getDatapackIndexApi();
             if (!indexApi || typeof indexApi.getStructureSummary !== 'function') return null;
@@ -56,7 +49,6 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             warmDatapackIndex();
             return null;
         }
-
         function getAllLinks() {
             if (typeof window.getLiveLinks === 'function') return window.getLiveLinks();
             if (Array.isArray(window.eveState?.links)) return window.eveState.links;
@@ -64,7 +56,6 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             if (typeof links !== 'undefined' && Array.isArray(links)) return links;
             return [];
         }
-
         function resolveLinkById(linkId) {
             const normalizedId = String(linkId || '').trim();
             if (!normalizedId) return null;
@@ -77,7 +68,6 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 return String(link?.id || '').trim() === normalizedId;
             }) || null;
         }
-
         function buildLinkIdMap(sourceLinks) {
             const map = new Map();
             (Array.isArray(sourceLinks) ? sourceLinks : []).forEach(function (link) {
@@ -86,7 +76,6 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             });
             return map;
         }
-
         function collectIndexedLinks(getIds, sourceLinks) {
             if (typeof getIds !== 'function') return null;
             const indexApi = getDatapackIndexApi();
@@ -102,11 +91,9 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 return linkIdMap.get(normalizedId) || (resolveIndexedLink ? resolveIndexedLink(normalizedId) : null) || null;
             }).filter(Boolean);
         }
-
         function mergePreferredLinks(preferredLinks, liveLinks) {
             const merged = [];
             const seen = new Set();
-
             function pushLinks(items) {
                 (Array.isArray(items) ? items : []).forEach(function (link) {
                     const linkId = String(link?.id || '').trim();
@@ -115,12 +102,10 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                     merged.push(link);
                 });
             }
-
             pushLinks(preferredLinks);
             pushLinks(liveLinks);
             return merged;
         }
-
         function preferIndexedLinks(indexedLinks, rawLinks) {
             if (!Array.isArray(indexedLinks)) return rawLinks;
             if (indexedLinks.length === 0 && Array.isArray(rawLinks) && rawLinks.length > 0) {
@@ -133,7 +118,6 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             }
             return indexedLinks;
         }
-
         function getIndexedScopedLinks(scope) {
             const indexApi = getDatapackIndexApi();
             if (!indexApi || typeof indexApi.getScopedBookmarkLinkIds !== 'function') return null;
@@ -145,7 +129,6 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 return indexApi.getScopedBookmarkLinkIds(scope || null);
             }, getAllLinks());
         }
-
         function getIndexedWorkspaceLinks(workspaceId) {
             const indexApi = getDatapackIndexApi();
             if (!indexApi || typeof indexApi.getExactBookmarkLinkIds !== 'function') return null;
@@ -157,7 +140,6 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 return indexApi.getExactBookmarkLinkIds({ workspaceId: workspaceId });
             }, getAllLinks());
         }
-
         function getIndexedAllWorkspaceLinks() {
             const indexApi = getDatapackIndexApi();
             if (!indexApi || typeof indexApi.getScopedBookmarkLinkIds !== 'function') return null;
@@ -169,7 +151,6 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 return indexApi.getScopedBookmarkLinkIds(null);
             }, getAllLinks());
         }
-
         function matchesSearch(link, search) {
             if (!search) return true;
             const query = search.toLowerCase();
@@ -178,7 +159,6 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             const category = String(link.category || '').toLowerCase();
             return title.includes(query) || url.includes(query) || category.includes(query);
         }
-
         function getWorkspaceById(workspaceId) {
             const helpers = window.EveWorkspaceHelpers;
             if (helpers && helpers.findById) {
@@ -188,7 +168,6 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 return String(workspace.id) === String(workspaceId);
             }) || null;
         }
-
         function getWorkspaceLinks(workspaceId, searchStr) {
             const rawLinks = getAllLinks().filter(function (link) {
                 return String(link.workspace) === String(workspaceId) && matchesSearch(link, searchStr);
@@ -201,7 +180,6 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             if (!String(searchStr || '').trim()) return preferIndexedLinks(filteredIndexedLinks, rawLinks);
             return mergePreferredLinks(filteredIndexedLinks, rawLinks);
         }
-
         function getWorkspaceAndSubTabLinks(workspaceId, searchStr) {
             var helpers = window.EveWorkspaceHelpers;
             var workspace = getWorkspaceById(workspaceId);
@@ -228,7 +206,6 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             }
             return { links: mergePreferredLinks(filteredIndexedLinks, rawLinks), subTabIds: subTabIds };
         }
-
         function getAllWorkspaceLinks(searchStr) {
             const rawLinks = getAllLinks().filter(function (link) {
                 const hasWorkspace = getWorkspaceById(link.workspace);
@@ -243,13 +220,11 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             if (!String(searchStr || '').trim()) return preferIndexedLinks(filteredIndexedLinks, rawLinks);
             return mergePreferredLinks(filteredIndexedLinks, rawLinks);
         }
-
         function getWorkspaceLabel(workspaceId) {
             const workspace = getWorkspaceById(workspaceId);
             if (!workspace) return 'Unknown Tab';
             return String(workspace.name || 'Unnamed Tab');
         }
-
         function isTaskModeCategory(workspaceId, categoryName) {
             if (window.EveBookmarkFolders?.isCardTaskEnabled) {
                 return !!window.EveBookmarkFolders.isCardTaskEnabled(workspaceId, categoryName);
@@ -257,13 +232,11 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             const hidden = Array.isArray(config.hideStats) ? config.hideStats : [];
             return !hidden.includes(categoryName);
         }
-
         function getWorkspaceCategoryOrder(workspaceId) {
             return window.EveCategoryOrder?.getOrder
                 ? window.EveCategoryOrder.getOrder(workspaceId)
                 : (config.categoryOrder || []);
         }
-
         function sortCategoryNames(categoryNames, workspaceId) {
             const unique = Array.from(new Set((Array.isArray(categoryNames) ? categoryNames : [])
                 .map(function (category) { return category || 'Unsorted'; })));
@@ -271,7 +244,6 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             const orderIndex = new Map(order.map(function (category, index) {
                 return [String(category || 'Unsorted'), index];
             }));
-
             return unique.sort(function (left, right) {
                 const leftIndex = orderIndex.has(left) ? orderIndex.get(left) : Number.POSITIVE_INFINITY;
                 const rightIndex = orderIndex.has(right) ? orderIndex.get(right) : Number.POSITIVE_INFINITY;
@@ -279,14 +251,12 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 return String(left).localeCompare(String(right));
             });
         }
-
         function getSortedCategories(workspaceLinks) {
             const workspaceId = String(workspaceLinks[0]?.workspace || config.activeWorkspace || 'main').trim() || 'main';
             return sortCategoryNames(workspaceLinks.map(function (link) {
                 return link.category || 'Unsorted';
             }), workspaceId);
         }
-
         function getCategoryModels(workspaceLinks) {
             const workspaceId = String(workspaceLinks[0]?.workspace || config.activeWorkspace || 'main').trim() || 'main';
             return getSortedCategories(workspaceLinks).map(function (category) {
@@ -294,7 +264,6 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                     return (link.category || 'Unsorted') === category;
                 });
                 const doneCount = categoryLinks.filter(function (link) { return !!link.done; }).length;
-
                 return {
                     category: category,
                     total: categoryLinks.length,
@@ -304,11 +273,9 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 };
             });
         }
-
         function getWorkspaceBookmarkCount(workspaceId, searchStr, workspaceLinks) {
             const search = String(searchStr || '').trim();
             if (Array.isArray(workspaceLinks)) return workspaceLinks.length;
-
             if (!search) {
                 const summary = getDatapackStructureSummary();
                 const bucket = summary?.workspaces?.[String(workspaceId || '')];
@@ -316,10 +283,8 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                     return Number(bucket.bookmarkCount || 0);
                 }
             }
-
             return getWorkspaceLinks(workspaceId, searchStr).length;
         }
-
         function getCategoryModelsForWorkspace(workspaceId, searchStr, workspaceLinks) {
             const search = String(searchStr || '').trim();
             if (!search) {
@@ -331,7 +296,6 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                         .map(function (key) { return summary.cards[key]; })
                         .filter(function (bucket) { return Number(bucket?.bookmarkCount || 0) > 0; })
                     : null;
-
                 if (cardBuckets) {
                     const bucketsByCategory = new Map(cardBuckets.map(function (bucket) {
                         return [String(bucket.categoryName || 'Unsorted'), bucket];
@@ -350,21 +314,17 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                     });
                 }
             }
-
             const sourceLinks = Array.isArray(workspaceLinks) ? workspaceLinks : getWorkspaceLinks(workspaceId, searchStr);
             return getCategoryModels(sourceLinks);
         }
-
         function getLinkedRecord(linkId) {
             const api = window.EveLibrary?.ConnectionsAPI;
             if (!api?.getLinkedEntry) return null;
             return api.getLinkedEntry(linkId);
         }
-
         function getLinkedLibraryEntry(linkId) {
             return getLinkedRecord(linkId)?.entry || null;
         }
-
         function getEntryConfidence(entry) {
             if (!entry || typeof entry !== 'object') return null;
             const ratingsApi = window.EveLibrary?.Ratings;
@@ -375,13 +335,11 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             if (!Number.isFinite(value)) return null;
             return Math.max(0, Math.min(1, value));
         }
-
         function clearEntriesRetryTimer() {
             if (!state.entriesRetryTimer) return;
             clearTimeout(state.entriesRetryTimer);
             state.entriesRetryTimer = null;
         }
-
         function scheduleEntriesRetry() {
             if (state.entriesRetryTimer) return;
             state.entriesRetryTimer = setTimeout(function () {
@@ -394,17 +352,14 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 if (typeof renderDashboard === 'function') renderDashboard();
             }, state.LIBRARY_READY_RETRY_MS);
         }
-
         function resetLibraryReadyWait() {
             state.libraryReadyWaitStartedAt = 0;
             clearEntriesRetryTimer();
         }
-
         function ensureLibraryReadyForEntries() {
             const lib = window.EveLibrary;
             const api = lib?.ConnectionsAPI;
             const stateApi = lib?.State;
-
             if (api?.loadConnections && !Array.isArray(lib?.Connections)) {
                 try {
                     api.loadConnections();
@@ -412,27 +367,21 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                     // best-effort; retry shortly
                 }
             }
-
             const ready = !!(api?.getLinkedEntry && stateApi && Array.isArray(lib?.Connections));
-
             if (ready) {
                 resetLibraryReadyWait();
                 return true;
             }
-
             if (!state.libraryReadyWaitStartedAt) {
                 state.libraryReadyWaitStartedAt = Date.now();
             }
-
             const elapsed = Date.now() - state.libraryReadyWaitStartedAt;
             return elapsed >= state.LIBRARY_READY_MAX_WAIT_MS;
         }
-
         function shouldShowLibraryLoadingHint() {
             if (!state.libraryReadyWaitStartedAt) return false;
             return (Date.now() - state.libraryReadyWaitStartedAt) >= state.LIBRARY_READY_HINT_DELAY_MS;
         }
-
         return {
             getAllLinks,
             resolveLinkById,

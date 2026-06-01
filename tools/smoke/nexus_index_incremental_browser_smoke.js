@@ -1,9 +1,7 @@
-const path = require('path');
+﻿const path = require('path');
 const { chromium } = require('playwright');
-
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const FILE_URL = 'file:///' + path.join(REPO_ROOT, 'EveOS.html').replace(/\\/g, '/');
-
 async function waitForApp(page) {
     await page.waitForFunction(() => (
         typeof window.saveData === 'function'
@@ -14,16 +12,13 @@ async function waitForApp(page) {
     ), undefined, { timeout: 240000 });
     await page.waitForTimeout(1500);
 }
-
 async function main() {
     const browser = await chromium.launch({ headless: true });
     const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
     const page = await context.newPage();
-
     try {
         await page.goto(FILE_URL, { waitUntil: 'load', timeout: 240000 });
         await waitForApp(page);
-
         const result = await page.evaluate(async () => {
             const indexApi = window.EveOS?.DatapackIndex;
             const shared = window.EveOS?.SearchAdvanced?.IndexShared;
@@ -33,7 +28,6 @@ async function main() {
             if (!indexApi || !shared || !cacheApi || !searchInternals) {
                 throw new Error('Datapack index APIs are not ready.');
             }
-
             const originalLoadPool = cacheApi.loadPool.bind(cacheApi);
             const originalGetSearchableProviderKeys = typeof cacheRuntime.getSearchableProviderKeys === 'function'
                 ? cacheRuntime.getSearchableProviderKeys.bind(cacheRuntime)
@@ -58,13 +52,11 @@ async function main() {
                 Alpha: 1,
                 Beta: 1
             };
-
             function applyConfig(nextConfig) {
                 window.config = nextConfig;
                 window.eveState = window.eveState || {};
                 window.eveState.config = nextConfig;
             }
-
             function applyLinks(nextLinks) {
                 const clonedLinks = nextLinks.map(function (link) {
                     return Object.assign({}, link);
@@ -77,7 +69,6 @@ async function main() {
                 window.eveState = window.eveState || {};
                 window.eveState.links = clonedLinks;
             }
-
             function cloneCounts() {
                 return {
                     cacheLoadPool: callCounts.cacheLoadPool,
@@ -86,7 +77,6 @@ async function main() {
                     knowledgeByCategory: Object.assign({}, callCounts.knowledgeByCategory)
                 };
             }
-
             try {
                 cacheApi.loadPool = async function (categoryName) {
                     callCounts.cacheLoadPool += 1;
@@ -145,14 +135,12 @@ async function main() {
                         aniList: Array.isArray(entries) ? entries.length : 0
                     };
                 };
-
                 shared.state.snapshot = null;
                 shared.state.buildPromise = null;
                 shared.state.loaded = true;
                 shared.state.dirty = true;
                 shared.state.lastReason = 'smoke-reset';
                 shared.state.revision = 0;
-
                 applyConfig(Object.assign({}, window.config || {}, {
                     activeWorkspace: 'main',
                     workspaces: [
@@ -178,10 +166,8 @@ async function main() {
                         done: false
                     }
                 ]);
-
                 await Promise.resolve(window.saveConfig({ immediate: true }));
                 await Promise.resolve(window.saveData({ skipRender: true, skipSuggestions: true, immediate: true }));
-
                 const firstSnapshot = await indexApi.rebuild({ reason: 'smoke-full' });
                 const firstCounts = cloneCounts();
                 const firstKnowledge = firstSnapshot.records.find(function (record) {
@@ -196,7 +182,6 @@ async function main() {
                 const firstBetaCached = firstSnapshot.records.find(function (record) {
                     return record?.type === 'cached' && record?.categoryName === 'Beta';
                 });
-
                 applyConfig(Object.assign({}, window.config || {}, {
                     activeWorkspace: 'alt',
                     workspaces: [
@@ -222,10 +207,8 @@ async function main() {
                         done: false
                     }
                 ]);
-
                 await Promise.resolve(window.saveConfig({ immediate: true }));
                 await Promise.resolve(window.saveData({ skipRender: true, skipSuggestions: true, immediate: true }));
-
                 const secondSnapshot = await indexApi.ensureFresh();
                 const secondCounts = cloneCounts();
                 const secondBookmark = secondSnapshot.records.find(function (record) {
@@ -243,13 +226,11 @@ async function main() {
                 const secondBetaCached = secondSnapshot.records.find(function (record) {
                     return record?.type === 'cached' && record?.categoryName === 'Beta';
                 });
-
                 sourceVersions.Alpha = 2;
                 if (typeof originalSaveScopedStorageValueAsync !== 'function') {
                     throw new Error('SearchInternals.saveScopedStorageValueAsync is not available.');
                 }
                 await originalSaveScopedStorageValueAsync('wikiEntries', [{ title: 'Alpha Source Refresh' }], 'Alpha');
-
                 const thirdSnapshot = await indexApi.ensureFresh();
                 const thirdCounts = cloneCounts();
                 const thirdAlphaKnowledge = thirdSnapshot.records.find(function (record) {
@@ -264,11 +245,9 @@ async function main() {
                 const thirdBetaCached = thirdSnapshot.records.find(function (record) {
                     return record?.type === 'cached' && record?.categoryName === 'Beta';
                 });
-
                 sourceVersions.Alpha = 3;
                 window.currentCategoryCtx = 'Alpha';
                 await originalSaveScopedStorageValueAsync('wikiEntries', [{ title: 'Alpha Source Refresh Again' }]);
-
                 const fourthSnapshot = await indexApi.ensureFresh();
                 const fourthCounts = cloneCounts();
                 const fourthAlphaKnowledge = fourthSnapshot.records.find(function (record) {
@@ -283,7 +262,6 @@ async function main() {
                 const fourthBetaCached = fourthSnapshot.records.find(function (record) {
                     return record?.type === 'cached' && record?.categoryName === 'Beta';
                 });
-
                 return {
                     firstCounts: firstCounts,
                     secondCounts: secondCounts,
@@ -380,7 +358,6 @@ async function main() {
                 }
             }
         });
-
         if (result.firstCounts.cacheLoadPool < 1 || result.firstCounts.knowledgeGroups < 1) {
             throw new Error(`Expected initial full build to hit heavy source builders: ${JSON.stringify(result)}`);
         }
@@ -459,14 +436,12 @@ async function main() {
         if (!result.fourthStats || result.fourthStats.knowledgeCount !== 2 || result.fourthStats.cachedCount !== 2) {
             throw new Error(`Expected implicit-category source incremental snapshot stats to preserve both categories: ${JSON.stringify(result)}`);
         }
-
         console.log(`NEXUS_INDEX_INCREMENTAL_BROWSER_SMOKE_OK ${JSON.stringify(result)}`);
     } finally {
         await context.close();
         await browser.close();
     }
 }
-
 main().catch((error) => {
     console.error(error && error.stack ? error.stack : String(error));
     process.exitCode = 1;

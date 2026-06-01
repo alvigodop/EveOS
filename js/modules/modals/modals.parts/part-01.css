@@ -1,0 +1,361 @@
+/* --- UI ELEMENTS (Generic Buttons/Inputs used in modals) --- */
+button {
+    border: 1px solid rgba(128, 128, 128, 0.3);
+    border-radius: 8px;
+    padding: 8px 12px;
+    cursor: pointer;
+    background: var(--input-bg);
+    color: var(--text-main);
+    transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+button:hover {
+    background: color-mix(in srgb, var(--input-bg) 82%, var(--accent) 18%);
+    border-color: color-mix(in srgb, var(--accent) 55%, rgba(128, 128, 128, 0.3) 45%);
+    color: var(--text-main);
+}
+
+button.btn-primary,
+.btn-primary {
+    background: var(--btn-primary-bg);
+    color: var(--btn-primary-text);
+    border-color: var(--btn-primary-border);
+    box-shadow: var(--btn-primary-shadow);
+}
+
+button.btn-primary:hover,
+.btn-primary:hover {
+    background: var(--btn-primary-bg-hover);
+    border-color: color-mix(in srgb, var(--accent) 58%, var(--btn-primary-border) 42%);
+    color: var(--btn-primary-text);
+}
+
+button.btn-primary:focus-visible,
+.btn-primary:focus-visible {
+    outline: none;
+    border-color: color-mix(in srgb, var(--accent) 68%, var(--btn-primary-border) 32%);
+    box-shadow:
+        0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent),
+        var(--btn-primary-shadow);
+}
+
+input,
+select {
+    padding: 10px;
+    border-radius: 6px;
+    border: 1px solid rgba(128, 128, 128, 0.35);
+    background-color: var(--input-bg);
+    color: var(--text-main);
+    outline: none;
+}
+
+select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-color: var(--input-bg);
+    background-image:
+        linear-gradient(45deg, transparent 50%, currentColor 50%),
+        linear-gradient(135deg, currentColor 50%, transparent 50%);
+    background-position:
+        calc(100% - 16px) calc(50% - 1px),
+        calc(100% - 11px) calc(50% - 1px);
+    background-size: 6px 6px, 6px 6px;
+    background-repeat: no-repeat;
+    padding-right: 34px;
+}
+
+select::-ms-expand {
+    display: none;
+}
+
+option {
+    background-color: var(--input-bg);
+    color: var(--text-main);
+}
+
+input::placeholder {
+    color: var(--text-muted);
+}
+
+select:focus,
+input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.14);
+}
+
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 3000;
+}
+
+#settingsModal {
+    z-index: 3002;
+}
+
+/* Settings modal gets significantly more breathing room than the default
+   .modal { max-width: 500px } cap — it holds a lot of dense controls. */
+#settingsModal .modal {
+    width: min(96vw, 980px);
+    max-width: 980px;
+    padding: 28px 32px;
+    gap: 18px;
+}
+
+@media (max-width: 720px) {
+    #settingsModal .modal {
+        width: 96vw;
+        max-width: 96vw;
+        padding: 20px;
+    }
+}
+
+/* Collapsible settings sections (h4-headed blocks) */
+.settings-section {
+    border-top: 1px solid #444;
+    padding-top: 6px;
+    margin-top: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.settings-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    padding: 8px 4px;
+    background: transparent;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    text-align: left;
+    font: inherit;
+}
+
+.settings-section-header:hover h4 {
+    text-shadow: 0 0 10px color-mix(in srgb, var(--accent, #00d4ff) 40%, transparent);
+}
+
+.settings-section-header h4 {
+    font-size: 1rem;
+    flex: 1;
+}
+
+.settings-section-chevron {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    color: color-mix(in srgb, var(--accent, #00d4ff) 80%, var(--text-main, #fff));
+    font-size: 0.9rem;
+    transition: transform 0.2s ease;
+}
+
+.settings-section.is-collapsed .settings-section-chevron {
+    transform: rotate(-90deg);
+}
+
+.settings-section-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow: hidden;
+    max-height: 4000px;
+    opacity: 1;
+    transition: max-height 0.25s ease, opacity 0.18s ease, margin 0.18s ease;
+}
+
+.settings-section.is-collapsed .settings-section-body {
+    max-height: 0;
+    opacity: 0;
+    margin: 0;
+    pointer-events: none;
+}
+
+/* Reduced motion — disables decorative transitions/animations site-wide.
+   Targets pseudo-elements too so chevrons, glows, scan beams settle instantly. */
+body.reduced-motion,
+body.reduced-motion *,
+body.reduced-motion *::before,
+body.reduced-motion *::after {
+    transition: none !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+}
+
+/* Other Panels — launcher tiles linking to scattered settings/feature panels. */
+.settings-panel-link-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 10px;
+    margin-top: 6px;
+}
+
+.settings-panel-link {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid color-mix(in srgb, var(--accent, #00d4ff) 22%, rgba(255, 255, 255, 0.08));
+    border-radius: 12px;
+    background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.025) 0%, transparent 100%),
+        rgba(0, 0, 0, 0.2);
+    color: var(--text-main, rgba(255, 255, 255, 0.9));
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease, transform 0.12s ease;
+}
+
+.settings-panel-link:hover {
+    border-color: color-mix(in srgb, var(--accent, #00d4ff) 55%, rgba(255, 255, 255, 0.12));
+    background:
+        radial-gradient(ellipse at left center, color-mix(in srgb, var(--accent, #00d4ff) 14%, transparent) 0%, transparent 65%),
+        rgba(0, 0, 0, 0.26);
+    box-shadow:
+        0 0 14px color-mix(in srgb, var(--accent, #00d4ff) 14%, transparent),
+        inset 0 0 14px color-mix(in srgb, var(--accent, #00d4ff) 8%, transparent);
+    transform: translateY(-1px);
+}
+
+.settings-panel-link:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--accent, #00d4ff) 60%, transparent);
+    outline-offset: 2px;
+}
+
+.settings-panel-link-icon {
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.05rem;
+    color: color-mix(in srgb, var(--accent, #00d4ff) 80%, var(--text-main, #fff));
+    border: 1px solid color-mix(in srgb, var(--accent, #00d4ff) 26%, rgba(255, 255, 255, 0.1));
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 8px;
+    transition: all 0.18s;
+}
+
+.settings-panel-link:hover .settings-panel-link-icon {
+    border-color: color-mix(in srgb, var(--accent, #00d4ff) 65%, transparent);
+    background: color-mix(in srgb, var(--accent, #00d4ff) 14%, transparent);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--accent, #00d4ff) 28%, transparent);
+}
+
+.settings-panel-link-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.settings-panel-link-title {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--text-main, #fff);
+}
+
+.settings-panel-link-desc {
+    font-size: 0.78rem;
+    opacity: 0.74;
+    line-height: 1.35;
+}
+
+.modal {
+    background: var(--modal-bg, #1e1e1e);
+    color: var(--modal-text, var(--text-main));
+    padding: 30px;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 500px;
+    border: 1px solid var(--modal-border, #555);
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    position: relative;
+    max-height: 90vh;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+#settingsModal .modal input,
+#settingsModal .modal select,
+#settingsModal .modal textarea {
+    background-color: var(--input-bg) !important;
+    color: var(--text-main) !important;
+    border: 1px solid rgba(128, 128, 128, 0.35) !important;
+}
+
+#settingsModal .modal select {
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    color-scheme: inherit !important;
+    padding-right: 34px !important;
+    background-image:
+        linear-gradient(45deg, transparent 50%, currentColor 50%),
+        linear-gradient(135deg, currentColor 50%, transparent 50%) !important;
+    background-position:
+        calc(100% - 16px) calc(50% - 1px),
+        calc(100% - 11px) calc(50% - 1px) !important;
+    background-size: 6px 6px, 6px 6px !important;
+    background-repeat: no-repeat !important;
+}
+
+#settingsModal .modal option {
+    background-color: var(--input-bg) !important;
+    color: var(--text-main) !important;
+}
+
+.light-theme #settingsModal .modal input,
+.light-theme #settingsModal .modal select,
+.light-theme #settingsModal .modal textarea,
+html[data-native-scheme="light"] #settingsModal .modal input,
+html[data-native-scheme="light"] #settingsModal .modal select,
+html[data-native-scheme="light"] #settingsModal .modal textarea {
+    background-color: #fff !important;
+    color: #222 !important;
+    border: 1px solid #ccc !important;
+    color-scheme: light !important;
+}
+
+.light-theme #settingsModal .modal option,
+html[data-native-scheme="light"] #settingsModal .modal option {
+    background-color: #fff !important;
+    color: #222 !important;
+    color-scheme: light !important;
+}
+
+.modal::-webkit-scrollbar {
+    width: 6px;
+}
+
+.modal::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+}
+
+.modal::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 3px;
+}
+
+.modal::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+}

@@ -1,0 +1,190 @@
+
+.bulk-target-row:hover .bulk-target-row-bar {
+    width: 3px;
+    background: linear-gradient(180deg, transparent 0%, var(--accent, #00d4ff) 50%, transparent 100%);
+    box-shadow: 0 0 10px var(--accent, #00d4ff);
+}
+
+.bulk-target-row.is-selected {
+    border-color: color-mix(in srgb, var(--accent, #00d4ff) 80%, transparent);
+    background:
+        radial-gradient(ellipse at center, color-mix(in srgb, var(--accent, #00d4ff) 22%, transparent) 0%, color-mix(in srgb, var(--accent, #00d4ff) 6%, transparent) 60%, rgba(0, 0, 0, 0.18) 100%);
+    box-shadow:
+        0 0 0 1px color-mix(in srgb, var(--accent, #00d4ff) 35%, transparent),
+        0 8px 22px color-mix(in srgb, var(--accent, #00d4ff) 18%, transparent),
+        inset 0 0 18px color-mix(in srgb, var(--accent, #00d4ff) 10%, transparent);
+}
+
+.bulk-target-row.is-selected .bulk-target-row-bar {
+    width: 3px;
+    background: linear-gradient(180deg, var(--accent, #00d4ff) 0%, color-mix(in srgb, var(--accent, #00d4ff) 60%, transparent) 100%);
+    box-shadow: 0 0 12px var(--accent, #00d4ff);
+}
+
+.bulk-target-row.is-selected .bulk-target-row-icon {
+    border-color: color-mix(in srgb, var(--accent, #00d4ff) 75%, transparent);
+    background: color-mix(in srgb, var(--accent, #00d4ff) 22%, rgba(0, 0, 0, 0.4));
+    color: var(--text-main, #fff);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--accent, #00d4ff) 30%, transparent);
+}
+
+.bulk-target-row-icon {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 0.5px;
+    color: color-mix(in srgb, var(--accent, #00d4ff) 75%, var(--text-main, #fff));
+    border: 1px solid rgba(128, 128, 128, 0.22);
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 4px;
+    transition: all 0.18s;
+}
+
+.bulk-target-row:hover .bulk-target-row-icon {
+    border-color: color-mix(in srgb, var(--accent, #00d4ff) 70%, transparent);
+    background: color-mix(in srgb, var(--accent, #00d4ff) 14%, transparent);
+    box-shadow: 0 0 8px color-mix(in srgb, var(--accent, #00d4ff) 28%, transparent);
+}
+
+.bulk-target-row-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    overflow: hidden;
+}
+
+.bulk-target-row-title {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    letter-spacing: 0.6px;
+    color: var(--text-main, rgba(255, 255, 255, 0.92));
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.bulk-target-row.is-selected .bulk-target-row-title {
+    color: var(--text-main, #fff);
+    text-shadow: 0 0 8px color-mix(in srgb, var(--accent, #00d4ff) 60%, transparent);
+}
+
+.bulk-target-row-meta {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.42);
+}
+
+.bulk-target-row-count {
+    flex-shrink: 0;
+    min-width: 36px;
+    padding: 2px 8px;
+    text-align: center;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: color-mix(in srgb, var(--accent, #00d4ff) 80%, var(--text-main, #fff));
+    border: 1px solid color-mix(in srgb, var(--accent, #00d4ff) 28%, rgba(255, 255, 255, 0.08));
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent, #00d4ff) 6%, rgba(0, 0, 0, 0.25));
+    transition: all 0.18s;
+}
+
+.bulk-target-row:hover .bulk-target-row-count,
+.bulk-target-row.is-selected .bulk-target-row-count {
+    border-color: color-mix(in srgb, var(--accent, #00d4ff) 60%, transparent);
+    background: color-mix(in srgb, var(--accent, #00d4ff) 14%, rgba(0, 0, 0, 0.28));
+    color: var(--text-main, #fff);
+    box-shadow: 0 0 8px color-mix(in srgb, var(--accent, #00d4ff) 28%, transparent);
+}
+
+/* Tree: nested subtab nodes inside the picker */
+.bulk-target-node {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.bulk-target-row-wrap {
+    position: relative;
+    display: flex;
+    align-items: stretch;
+    gap: 6px;
+}
+
+.bulk-target-row-wrap > .bulk-target-row {
+    flex: 1;
+    min-width: 0;
+}
+
+.bulk-target-tree-toggle {
+    flex-shrink: 0;
+    width: 32px;
+    border: 1px solid color-mix(in srgb, var(--accent, #00d4ff) 22%, rgba(255, 255, 255, 0.1));
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.22);
+    color: color-mix(in srgb, var(--accent, #00d4ff) 75%, var(--text-main, #fff));
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.18s ease;
+}
+
+.bulk-target-tree-toggle:hover {
+    border-color: color-mix(in srgb, var(--accent, #00d4ff) 60%, transparent);
+    background: color-mix(in srgb, var(--accent, #00d4ff) 12%, transparent);
+    color: var(--text-main, #fff);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--accent, #00d4ff) 24%, transparent);
+}
+
+.bulk-target-tree-toggle .bulk-section-chevron {
+    transform: rotate(-90deg);
+    transition: transform 0.18s ease;
+}
+
+.bulk-target-node.is-expanded > .bulk-target-row-wrap > .bulk-target-tree-toggle .bulk-section-chevron {
+    transform: rotate(0deg);
+}
+
+.bulk-target-children {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 2px;
+    padding-left: 12px;
+    border-left: 1px dashed color-mix(in srgb, var(--accent, #00d4ff) 24%, rgba(255, 255, 255, 0.08));
+}
+
+.bulk-target-children[hidden] {
+    display: none;
+}
+
+#bulk-move-modal select:focus-visible,
+#bulk-move-modal input:focus-visible,
+#bulk-tab-modal select:focus-visible,
+#bulk-tab-modal input:focus-visible,
+#bulk-merge-modal select:focus-visible,
+#bulk-merge-modal input:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--accent, #00d4ff) 52%, transparent);
+    outline-offset: 1px;
+}
+
+#bulk-move-modal .bulk-move-actions,
+#bulk-tab-modal .bulk-move-actions,
+#bulk-merge-modal .bulk-move-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 6px;
+}

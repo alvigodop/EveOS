@@ -1,20 +1,16 @@
-// --- Data Transfer Shared Core ---
+﻿// --- Data Transfer Shared Core ---
 window.EveDataTransfer = window.EveDataTransfer || {};
-
 (function () {
     const ns = window.EveDataTransfer;
     if (ns.sharedCoreReady) return;
-
     function getDataStore() {
         return window.EveDataStore?.Store || null;
     }
-
     function getAppConfig() {
         if (window.eveState?.config) return window.eveState.config;
         if (typeof config !== 'undefined') return config;
         return {};
     }
-
     function getAppLinks() {
         if (typeof window.getLiveLinks === 'function') return window.getLiveLinks();
         if (Array.isArray(window.eveState?.links)) return window.eveState.links;
@@ -22,60 +18,46 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         if (typeof links !== 'undefined' && Array.isArray(links)) return links;
         return [];
     }
-
     function getWorkspaceSelect() {
         return document.getElementById('tabBackupSelect');
     }
-
     function getGroupSelect() {
         return document.getElementById('groupBackupSelect');
     }
-
     function getCardWorkspaceSelect() {
         return document.getElementById('cardBackupWorkspaceSelect');
     }
-
     function getCardCategorySelect() {
         return document.getElementById('cardBackupCategorySelect');
     }
-
     function getBookmarkWorkspaceSelect() {
         return document.getElementById('bookmarkBackupWorkspaceSelect');
     }
-
     function getBookmarkCategorySelect() {
         return document.getElementById('bookmarkBackupCategorySelect');
     }
-
     function getBookmarkLinkSelect() {
         return document.getElementById('bookmarkBackupLinkSelect');
     }
-
     function getBookmarkLocationSelect() {
         return document.getElementById('bookmarkBackupLocationSelect');
     }
-
     function getFolderWorkspaceSelect() {
         return document.getElementById('folderBackupWorkspaceSelect');
     }
-
     function getFolderCategorySelect() {
         return document.getElementById('folderBackupCategorySelect');
     }
-
     function getFolderSelect() {
         return document.getElementById('folderBackupFolderSelect');
     }
-
     function getLayerPathInput() {
         return document.getElementById('modularLayerPathInput');
     }
-
     function getSidebarGroups() {
         const appConfig = getAppConfig();
         return Array.isArray(appConfig.sidebarGroups) ? appConfig.sidebarGroups : [];
     }
-
     function countGroupRootWorkspaces(groupId) {
         const appConfig = getAppConfig();
         const workspaces = Array.isArray(appConfig.workspaces) ? appConfig.workspaces : [];
@@ -83,20 +65,16 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         if (!targetGroupId) return 0;
         return workspaces.filter((workspace) => String(workspace?.groupId || '').trim() === targetGroupId).length;
     }
-
     function isHttpContext() {
         return /^https?:$/i.test(window.location.protocol || '');
     }
-
     function canUseServerFolderBackups(modularSync = window.EveDataStore?.ModularSync) {
         return isHttpContext() && typeof modularSync?.backupLayer === 'function';
     }
-
     function buildBookmarkLocationValue(folderId) {
         const normalizedFolderId = String(folderId || '').trim();
         return normalizedFolderId ? `folder:${normalizedFolderId}` : 'root';
     }
-
     function parseBookmarkLocationValue(value) {
         const rawValue = String(value || '').trim();
         if (rawValue.startsWith('folder:')) {
@@ -110,19 +88,16 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             folderId: ''
         };
     }
-
     function getBookmarkFolderNodesForScope(workspaceId, categoryName) {
         const stateModule = window.EveLibrary?.State;
         if (!stateModule?.getBookmarkFolderNodes) return [];
         const nodes = stateModule.getBookmarkFolderNodes(categoryName, workspaceId);
         return Array.isArray(nodes) ? nodes.map((node) => ({ ...(node || {}) })) : [];
     }
-
     function getBookmarkFolderScopedKeys() {
         const store = window.eveState?.bookmarkFolders || window.bookmarkFolders || {};
         return store && typeof store === 'object' ? Object.keys(store) : [];
     }
-
     function buildFolderOptionLabel(node, nodeById) {
         const parts = [];
         let current = node && typeof node === 'object' ? node : null;
@@ -135,7 +110,6 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         }
         return parts.join(' / ') || String(node?.id || 'Folder');
     }
-
     function populateFolderSelect(folderSelect, workspaceId, categoryName, selectedFolderId) {
         if (!folderSelect) return;
         const nodes = getBookmarkFolderNodesForScope(workspaceId, categoryName);
@@ -157,19 +131,16 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             folderSelect.value = hasSelected ? String(selectedFolderId || '').trim() : String(nodes[0]?.id || '').trim();
         }
     }
-
     function populateBookmarkLocationSelect(locationSelect, workspaceId, categoryName, selectedValue) {
         if (!locationSelect) return buildBookmarkLocationValue('');
         const nodes = getBookmarkFolderNodesForScope(workspaceId, categoryName);
         const nodeById = new Map(nodes.map((node) => [String(node?.id || '').trim(), node]));
         const normalizedSelectedValue = String(selectedValue || '').trim() || buildBookmarkLocationValue('');
         locationSelect.innerHTML = '';
-
         const rootOption = document.createElement('option');
         rootOption.value = buildBookmarkLocationValue('');
         rootOption.textContent = 'Root Bookmarks Only';
         locationSelect.appendChild(rootOption);
-
         nodes
             .slice()
             .sort((a, b) => buildFolderOptionLabel(a, nodeById).localeCompare(buildFolderOptionLabel(b, nodeById)))
@@ -181,22 +152,18 @@ window.EveDataTransfer = window.EveDataTransfer || {};
                 option.textContent = `Folder: ${buildFolderOptionLabel(node, nodeById)}`;
                 locationSelect.appendChild(option);
             });
-
         const hasSelected = Array.from(locationSelect.options).some((option) => option.value === normalizedSelectedValue);
         locationSelect.value = hasSelected ? normalizedSelectedValue : buildBookmarkLocationValue('');
         return locationSelect.value;
     }
-
     function refreshCardBackupList() {
         const wsSelect = getCardWorkspaceSelect();
         const categorySelect = getCardCategorySelect();
         if (!wsSelect || !categorySelect) return;
-
         const appConfig = getAppConfig();
         const allLinks = getAppLinks();
         const workspaces = appConfig.workspaces || [];
         const activeWorkspace = wsSelect.value || appConfig.activeWorkspace || workspaces[0]?.id || '';
-
         wsSelect.innerHTML = '';
         workspaces.forEach((ws) => {
             const option = document.createElement('option');
@@ -205,7 +172,6 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             wsSelect.appendChild(option);
         });
         wsSelect.value = activeWorkspace;
-
         const categories = [...new Set(
             []
                 .concat(
@@ -220,7 +186,6 @@ window.EveDataTransfer = window.EveDataTransfer || {};
                         .map((parts) => parts.slice(1).join('::') || 'Unsorted')
                 )
         )].sort((a, b) => a.localeCompare(b));
-
         categorySelect.innerHTML = '<option value="">(Create New Card)</option>';
         categories.forEach((cat) => {
             const option = document.createElement('option');
@@ -230,14 +195,12 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         });
         categorySelect.value = '';
     }
-
     function refreshBookmarkBackupList() {
         const wsSelect = getBookmarkWorkspaceSelect();
         const categorySelect = getBookmarkCategorySelect();
         const locationSelect = getBookmarkLocationSelect();
         const linkSelect = getBookmarkLinkSelect();
         if (!wsSelect || !categorySelect || !locationSelect || !linkSelect) return;
-
         const appConfig = getAppConfig();
         const allLinks = getAppLinks();
         const workspaces = appConfig.workspaces || [];
@@ -245,7 +208,6 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         const selectedCategory = categorySelect.value || 'Unsorted';
         const selectedLocation = locationSelect.value || buildBookmarkLocationValue('');
         const selectedLinkId = linkSelect.value || '';
-
         wsSelect.innerHTML = '';
         workspaces.forEach((ws) => {
             const option = document.createElement('option');
@@ -254,13 +216,11 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             wsSelect.appendChild(option);
         });
         wsSelect.value = selectedWorkspace;
-
         const categories = [...new Set(
             allLinks
                 .filter((entry) => entry.workspace === selectedWorkspace)
                 .map((entry) => entry.category || 'Unsorted')
         )].sort((a, b) => a.localeCompare(b));
-
         categorySelect.innerHTML = '';
         categories.forEach((cat) => {
             const option = document.createElement('option');
@@ -271,7 +231,6 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         if (categories.length > 0) {
             categorySelect.value = categories.includes(selectedCategory) ? selectedCategory : categories[0];
         }
-
         const activeCategory = categorySelect.value || categories[0] || '';
         const activeLocationValue = populateBookmarkLocationSelect(
             locationSelect,
@@ -288,7 +247,6 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             ))
             .slice()
             .sort((a, b) => String(a.title || '').localeCompare(String(b.title || '')));
-
         linkSelect.innerHTML = '';
         bookmarkLinks.forEach((link) => {
             const option = document.createElement('option');
@@ -301,20 +259,17 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             linkSelect.value = hasExistingSelection ? String(selectedLinkId) : String(bookmarkLinks[0].id);
         }
     }
-
     function refreshFolderBackupList() {
         const wsSelect = getFolderWorkspaceSelect();
         const categorySelect = getFolderCategorySelect();
         const folderSelect = getFolderSelect();
         if (!wsSelect || !categorySelect || !folderSelect) return;
-
         const appConfig = getAppConfig();
         const allLinks = getAppLinks();
         const workspaces = appConfig.workspaces || [];
         const selectedWorkspace = wsSelect.value || appConfig.activeWorkspace || workspaces[0]?.id || '';
         const selectedCategory = categorySelect.value || 'Unsorted';
         const selectedFolderId = folderSelect.value || '';
-
         wsSelect.innerHTML = '';
         workspaces.forEach((ws) => {
             const option = document.createElement('option');
@@ -323,7 +278,6 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             wsSelect.appendChild(option);
         });
         wsSelect.value = selectedWorkspace;
-
         const categories = [...new Set(
             []
                 .concat(
@@ -338,7 +292,6 @@ window.EveDataTransfer = window.EveDataTransfer || {};
                         .map((parts) => parts.slice(1).join('::') || 'Unsorted')
                 )
         )].sort((a, b) => a.localeCompare(b));
-
         categorySelect.innerHTML = '';
         categories.forEach((cat) => {
             const option = document.createElement('option');
@@ -349,10 +302,8 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         if (categories.length > 0) {
             categorySelect.value = categories.includes(selectedCategory) ? selectedCategory : categories[0];
         }
-
         populateFolderSelect(folderSelect, selectedWorkspace, categorySelect.value || categories[0] || '', selectedFolderId);
     }
-
     function refreshGroupBackupList() {
         const select = getGroupSelect();
         if (!select) return;
@@ -375,7 +326,6 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             select.value = hasPrevious ? previousValue : String(groups[0]?.id || '').trim();
         }
     }
-
     function refreshWorkspaceBackupList() {
         const select = getWorkspaceSelect();
         if (!select) {
@@ -424,7 +374,6 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             folderCategorySelect.onchange = refreshFolderBackupList;
         }
     }
-
     Object.assign(ns, {
         getDataStore,
         getAppConfig,
@@ -457,12 +406,10 @@ window.EveDataTransfer = window.EveDataTransfer || {};
         refreshGroupBackupList,
         refreshWorkspaceBackupList
     });
-
     window.refreshWorkspaceBackupList = refreshWorkspaceBackupList;
     window.refreshGroupBackupList = refreshGroupBackupList;
     window.refreshCardBackupList = refreshCardBackupList;
     window.refreshBookmarkBackupList = refreshBookmarkBackupList;
     window.refreshFolderBackupList = refreshFolderBackupList;
-
     ns.sharedCoreReady = true;
 })();

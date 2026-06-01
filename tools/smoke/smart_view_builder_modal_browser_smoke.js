@@ -34,7 +34,16 @@ async function main() {
       window.renderDashboard = () => { window.renderDashboardCalls += 1; };
       window.showToast = (message, kind) => window.toastCalls.push({ message, kind });
     });
-    await page.addScriptTag({ path: path.join(REPO_ROOT, 'js/modules/features/bookmark-folders/smart-view-registry.js') });
+    for (const relativePath of [
+      'js/modules/features/bookmark-folders/smart-view-registry.shared.js',
+      'js/modules/features/bookmark-folders/smart-view-registry.groups.js',
+      'js/modules/features/bookmark-folders/smart-view-registry.store.js',
+      'js/modules/features/bookmark-folders/smart-view-registry.records.js',
+      'js/modules/features/bookmark-folders/smart-view-registry.builder.js',
+      'js/modules/features/bookmark-folders/smart-view-registry.js'
+    ]) {
+      await page.addScriptTag({ path: path.join(REPO_ROOT, relativePath) });
+    }
 
     await page.evaluate(() => {
       window.EveSmartViewRegistry.promptCreateSmartView('main', 'Card');

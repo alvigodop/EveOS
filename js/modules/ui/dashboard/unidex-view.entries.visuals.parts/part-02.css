@@ -1,0 +1,177 @@
+
+.unidex-entry-item.has-cover-image .unidex-entry-cover-slot:hover {
+    border-color: rgba(0, 212, 255, 0.42);
+    box-shadow: 0 0 0 1px rgba(0, 212, 255, 0.16);
+}
+
+.unidex-entry-item.has-cover-image .unidex-entry-cover-slot:hover .unidex-entry-cover,
+.unidex-entry-item.has-cover-image .unidex-entry-visual-btn:hover .unidex-entry-cover {
+    animation: unidex-cover-hover-burst 620ms cubic-bezier(0.18, 0.78, 0.2, 1) forwards;
+    filter: saturate(1.13) contrast(1.04) brightness(1.03);
+}
+
+.unidex-entries.is-row-layout .unidex-entry-item.has-cover-image .unidex-entry-cover-slot:hover .unidex-entry-cover,
+.unidex-entries.is-row-layout .unidex-entry-item.has-cover-image .unidex-entry-visual-btn:hover .unidex-entry-cover {
+    animation: unidex-cover-hover-burst-row 660ms cubic-bezier(0.18, 0.78, 0.2, 1) forwards;
+}
+
+.unidex-entries.is-layout-stabilizing .unidex-entry-item.has-cover-image .unidex-entry-cover-slot:hover .unidex-entry-cover {
+    animation: none !important;
+    transform: none;
+    filter: none;
+}
+
+.unidex-entry-cover-fallback {
+    font-size: 1.35rem;
+    opacity: 0.72;
+}
+
+.unidex-entry-cover-slot.is-bookmark-only {
+    min-height: 84px;
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.unidex-entry-bookmark-icon-wrap {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background: rgba(0, 0, 0, 0.18);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.unidex-entry-bookmark-icon-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.unidex-entry-bookmark-icon-emoji,
+.unidex-entry-bookmark-icon-fallback {
+    font-size: 1.15rem;
+    line-height: 1;
+    opacity: 0.88;
+}
+
+.unidex-entries.is-density-compact {
+    gap: 8px !important;
+}
+
+.unidex-entries.is-density-atlas {
+    gap: 6px !important;
+}
+
+.unidex-entries.is-grid-layout.is-density-compact {
+    grid-template-columns: repeat(auto-fill, minmax(190px, 220px)) !important;
+    grid-auto-rows: 8px !important;
+    gap: 10px !important;
+}
+
+.unidex-entries.is-grid-layout.is-large-entry-set.is-flat-entry-set.is-density-compact,
+.unidex-entries.is-grid-layout.is-large-entry-set.is-grouped-entry-set.is-density-compact .unidex-identifier-group-body {
+    --unidex-entry-span: 25;
+    --unidex-large-cover-height: 176px;
+    --unidex-large-card-height: 390px;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 220px)) !important;
+    gap: 10px !important;
+}
+
+.unidex-entries.is-grid-layout.is-large-entry-set.is-density-compact .unidex-entry-tags {
+    max-height: 58px;
+}
+
+.unidex-entries.is-grid-layout.is-density-atlas {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 180px)) !important;
+    grid-auto-rows: 8px !important;
+    gap: 8px !important;
+}
+
+.unidex-entries.is-grid-layout.is-large-entry-set.is-flat-entry-set.is-density-atlas,
+.unidex-entries.is-grid-layout.is-large-entry-set.is-grouped-entry-set.is-density-atlas .unidex-identifier-group-body {
+    --unidex-entry-span: 22;
+    --unidex-large-cover-height: 144px;
+    --unidex-large-card-height: 340px;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 180px)) !important;
+    gap: 8px !important;
+}
+
+.unidex-entries.is-grid-layout.is-large-entry-set.is-density-atlas .unidex-entry-tags {
+    max-height: 44px;
+}
+
+.unidex-entries.is-grid-layout.is-large-entry-set .unidex-entry-item.is-density-atlas .unidex-entry-domain,
+.unidex-entries.is-grid-layout.is-large-entry-set .unidex-entry-item.is-density-atlas .unidex-entry-library-author,
+.unidex-entries.is-grid-layout.is-large-entry-set .unidex-entry-item.is-density-atlas .unidex-entry-library-genre,
+.unidex-entries.is-grid-layout.is-large-entry-set .unidex-entry-item.is-density-atlas .unidex-entry-library-summary {
+    display: none;
+}
+
+.unidex-entry-item.is-density-compact {
+    padding: 10px;
+    gap: 10px;
+    border-radius: 11px;
+}
+
+.unidex-entry-item.has-visual-slot.is-density-compact {
+    grid-template-columns: 69px minmax(0, 1fr) auto !important;
+    gap: 10px;
+}
+
+.unidex-entry-item.is-density-atlas {
+    padding: 8px;
+    gap: 8px;
+    border-radius: 10px;
+}
+
+.unidex-entry-item.has-visual-slot.is-density-atlas {
+    grid-template-columns: 57px minmax(0, 1fr) auto !important;
+    gap: 8px;
+}
+
+.unidex-entry-item.is-density-compact .unidex-entry-title {
+    font-size: 0.92rem;
+}
+
+.unidex-entry-item.is-density-atlas .unidex-entry-title {
+    font-size: 0.84rem;
+}
+
+.unidex-entry-item.is-density-atlas .unidex-entry-domain,
+.unidex-entry-item.is-density-atlas .unidex-entry-library-author,
+.unidex-entry-item.is-density-atlas .unidex-entry-library-genre,
+.unidex-entry-item.is-density-atlas .unidex-entry-library-summary {
+    display: none;
+}
+
+.unidex-entry-item.is-density-atlas .unidex-entry-tags {
+    margin-top: 5px;
+    gap: 4px;
+}
+
+.unidex-entry-item.is-density-atlas .unidex-entry-tag {
+    padding: 2px 6px;
+    font-size: 0.64rem;
+}
+
+.unidex-entry-item.is-density-atlas .unidex-entry-actions {
+    align-self: center;
+}
+
+.unidex-entry-item.is-density-atlas .unidex-entry-btn {
+    padding: 5px 8px;
+    font-size: 0.68rem;
+}
+
+.unidex-entries.is-grid-layout .unidex-entry-item.is-density-compact.has-visual-slot,
+.unidex-entries.is-grid-layout .unidex-entry-item.is-density-atlas.has-visual-slot {
+    grid-template-columns: minmax(0, 1fr) !important;
+}
+
+.unidex-entries.is-grid-layout .unidex-entry-item.is-density-atlas .unidex-entry-actions {
+    width: 100%;
+}
+

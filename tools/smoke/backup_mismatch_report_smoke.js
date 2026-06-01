@@ -197,6 +197,8 @@ function buildBackupFolder() {
 async function main() {
     const context = createContext();
     [
+        'js/modules/features/search-advanced/sa-nebula-json-link.shared.js',
+        'js/modules/features/search-advanced/sa-nebula-json-link.runtime.js',
         'js/modules/features/search-advanced/sa-nebula-json-link.js',
         'js/modules/features/data-transfer/data-transfer.shared.core.js',
         'js/modules/features/data-transfer/data-transfer.shared.restore.js',

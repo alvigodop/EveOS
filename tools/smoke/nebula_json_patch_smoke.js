@@ -3,8 +3,18 @@ const path = require('path');
 const vm = require('vm');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
-const LINK_MODULE_PATH = path.join(REPO_ROOT, 'js/modules/features/search-advanced/sa-nebula-json-link.js');
-const PATCH_MODULE_PATH = path.join(REPO_ROOT, 'js/modules/features/search-advanced/sa-nebula-json-patch.js');
+const LINK_MODULE_PATHS = [
+    'js/modules/features/search-advanced/sa-nebula-json-link.shared.js',
+    'js/modules/features/search-advanced/sa-nebula-json-link.runtime.js',
+    'js/modules/features/search-advanced/sa-nebula-json-link.js'
+].map((relativePath) => path.join(REPO_ROOT, relativePath));
+const PATCH_MODULE_PATHS = [
+    'js/modules/features/search-advanced/sa-nebula-json-patch.shared.js',
+    'js/modules/features/search-advanced/sa-nebula-json-patch.validate.js',
+    'js/modules/features/search-advanced/sa-nebula-json-patch.apply.js',
+    'js/modules/features/search-advanced/sa-nebula-json-patch.transaction.js',
+    'js/modules/features/search-advanced/sa-nebula-json-patch.js'
+].map((relativePath) => path.join(REPO_ROOT, relativePath));
 
 function assert(condition, message) {
     if (!condition) throw new Error(message);
@@ -133,8 +143,7 @@ function createContext() {
 
 function main() {
     const context = createContext();
-    loadModule(context, LINK_MODULE_PATH);
-    loadModule(context, PATCH_MODULE_PATH);
+    LINK_MODULE_PATHS.concat(PATCH_MODULE_PATHS).forEach((modulePath) => loadModule(context, modulePath));
 
     const linkApi = context.window.EveOS.NebulaJsonLink;
     const patchApi = context.window.EveOS.NebulaJsonPatch;

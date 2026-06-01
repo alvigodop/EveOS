@@ -1,10 +1,8 @@
-window.EveOS = window.EveOS || {};
+﻿window.EveOS = window.EveOS || {};
 window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
-
 (function () {
     const ns = window.EveOS.SearchAdvanced;
     if (ns.IndexSearchRuntime) return;
-
     function create(deps) {
         const shared = deps?.shared || {};
         const runtimeIntegrity = deps?.runtimeIntegrity || {};
@@ -25,7 +23,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             computeHealth,
             diagnoseRecord
         } = runtimeIntegrity;
-
         function looseFuzzyMatch(haystack, needle) {
             if (!haystack || !needle || needle.length < 3) return false;
             let h = 0;
@@ -36,27 +33,23 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             }
             return n === needle.length;
         }
-
         function tokenizeSearchText(value) {
             return normalizeText(value)
                 .split(/[^a-z0-9]+/i)
                 .map(function (token) { return text(token, ''); })
                 .filter(Boolean);
         }
-
         function buildAcronym(value) {
             return tokenizeSearchText(value).map(function (token) {
                 return token.charAt(0);
             }).join('');
         }
-
         function getTypoDistanceLimit(token) {
             const length = String(token || '').length;
             if (length < 4) return 0;
             if (length <= 6) return 1;
             return 2;
         }
-
         function boundedEditDistance(left, right, maxDistance) {
             const a = text(left, '');
             const b = text(right, '');
@@ -64,11 +57,9 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             if (!a || !b) return limit + 1;
             if (a === b) return 0;
             if (Math.abs(a.length - b.length) > limit) return limit + 1;
-
             let previous = new Array(b.length + 1);
             let current = new Array(b.length + 1);
             for (let j = 0; j <= b.length; j += 1) previous[j] = j;
-
             for (let i = 1; i <= a.length; i += 1) {
                 current[0] = i;
                 let rowMin = current[0];
@@ -87,15 +78,12 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 previous = current;
                 current = temp;
             }
-
             return previous[b.length];
         }
-
         function tokenMatchScore(fieldTokens, queryTokens) {
             if (!fieldTokens.length || !queryTokens.length) return 0;
             let score = 0;
             let matched = 0;
-
             queryTokens.forEach(function (queryToken) {
                 let best = 0;
                 fieldTokens.forEach(function (fieldToken) {
@@ -114,11 +102,9 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                     score += best;
                 }
             });
-
             if (matched === queryTokens.length && queryTokens.length > 1) score += 24;
             return score;
         }
-
         function scoreField(value, query, options) {
             if (!value || !query) return 0;
             if (value === query) return 140;
@@ -136,11 +122,9 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             if (looseFuzzyMatch(value, query)) return 18;
             return 0;
         }
-
         function computeScore(record, query, scope) {
             const q = normalizeText(query);
             if (!q) return 0;
-
             let score = 0;
             const title = normalizeText(record?.title);
             const description = normalizeText(record?.description);
@@ -148,7 +132,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             const pathLabel = normalizeText(record?.path?.pathLabel);
             const provider = normalizeText(record?.provider);
             const searchText = normalizeText(record?.searchableText);
-
             const titleScore = scoreField(title, q, { acronym: true });
             const pathScore = scoreField(pathLabel, q);
             score += titleScore;
@@ -156,16 +139,13 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             score += Math.floor(scoreField(displayUrl, q) * 0.45);
             score += Math.floor(scoreField(description, q) * 0.35);
             score += Math.floor(scoreField(provider, q) * 0.2);
-
             if (!score && searchText.includes(q)) score += 26;
             if (!score && looseFuzzyMatch(searchText.replace(/\s+/g, ''), q.replace(/\s+/g, ''))) score += 12;
             if (score <= 0) return 0;
-
             if (titleScore >= 140) score += 70;
             if (pathScore >= 140) score += 48;
             if (titleScore >= 96 && record?.type !== 'cached') score += 24;
             if (pathScore >= 96 && record?.type !== 'cached') score += 20;
-
             if (scope?.workspaceId && matchesScope(record, { workspaceId: scope.workspaceId })) score += 14;
             if (scope?.categoryName && text(record?.categoryName, '') === text(scope.categoryName, '')) score += 18;
             if (record?.type === 'card') score += 22;
@@ -175,10 +155,8 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             if (record?.type === 'library') score += 14;
             if (record?.library?.linked) score += 8;
             if (record?.provenance?.done) score -= 4;
-
             return score;
         }
-
         function parseQueryIntent(query) {
             const raw = text(query, '');
             const filters = {};
@@ -192,7 +170,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 if (normalizedPhrase) phrases.push(normalizedPhrase);
                 return ' ';
             });
-
             remainder.split(/\s+/).map(function (token) {
                 return text(token, '');
             }).filter(Boolean).forEach(function (token) {
@@ -215,7 +192,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 else if (required) requiredTerms.push(normalizedToken);
                 else terms.push(normalizedToken);
             });
-
             const searchText = phrases.concat(requiredTerms).concat(terms).join(' ');
             return {
                 raw: raw,
@@ -228,7 +204,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 hasFilters: Object.keys(filters).length > 0
             };
         }
-
         function recordSearchHaystack(record) {
             return normalizeText([
                 record?.title,
@@ -242,7 +217,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 record?.searchableText
             ].join(' '));
         }
-
         function matchesAnyFilterValue(value, filters) {
             const normalizedValue = normalizeText(value);
             return toArray(filters).some(function (filterValue) {
@@ -250,7 +224,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 return normalizedValue === normalizedFilter || normalizedValue.includes(normalizedFilter);
             });
         }
-
         function matchesFlagFilter(record, visibility, health, freshness, filters) {
             if (!toArray(filters).length) return true;
             return toArray(filters).some(function (filterValue) {
@@ -264,7 +237,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 return false;
             });
         }
-
         function matchesQueryIntent(record, intent, visibility, health, freshness) {
             const filters = intent?.filters || {};
             const haystack = recordSearchHaystack(record);
@@ -282,7 +254,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             if (filters.flag && !matchesFlagFilter(record, visibility, health, freshness, filters.flag)) return false;
             return true;
         }
-
         function buildFacets(records) {
             const facets = {
                 tabs: {},
@@ -294,7 +265,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 health: {},
                 flags: {}
             };
-
             records.forEach(function (record) {
                 const workspaceLabel = text(record?.path?.workspaceLabel, record?.workspaceId);
                 const cardLabel = text(record?.categoryName, 'Unsorted');
@@ -303,7 +273,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 const freshnessLabel = text(record?.freshness?.label, 'Unknown');
                 const visibilityLabel = text(record?.visibility?.label, 'Visible');
                 const healthLabel = text(record?.health?.label, 'Healthy');
-
                 facets.tabs[workspaceLabel] = (facets.tabs[workspaceLabel] || 0) + 1;
                 facets.cards[cardLabel] = (facets.cards[cardLabel] || 0) + 1;
                 facets.sourceTypes[typeLabel] = (facets.sourceTypes[typeLabel] || 0) + 1;
@@ -311,16 +280,13 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 facets.freshness[freshnessLabel] = (facets.freshness[freshnessLabel] || 0) + 1;
                 facets.visibility[visibilityLabel] = (facets.visibility[visibilityLabel] || 0) + 1;
                 facets.health[healthLabel] = (facets.health[healthLabel] || 0) + 1;
-
                 if (record?.provenance?.orphaned) facets.flags.Orphaned = (facets.flags.Orphaned || 0) + 1;
                 if (record?.health?.state === 'broken' || record?.visibility?.state === 'broken') {
                     facets.flags['Broken Path'] = (facets.flags['Broken Path'] || 0) + 1;
                 }
             });
-
             return facets;
         }
-
         function buildAllowedTypes(settings) {
             const allowedTypes = new Set();
             const hasExplicitVectors = !!(settings?.activeVectors && typeof settings.activeVectors === 'object');
@@ -338,19 +304,16 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             if (vectors.cachedResults) allowedTypes.add('cached');
             return allowedTypes;
         }
-
         function compareRankedRecords(left, right) {
             return Number(right.score || 0) - Number(left.score || 0)
                 || Number(right.updatedAt || 0) - Number(left.updatedAt || 0)
                 || text(left.title, '').localeCompare(text(right.title, ''));
         }
-
         async function search(query, scope, settings) {
             const snapshot = await ensureFresh();
             const intent = parseQueryIntent(query);
             const q = normalizeText(intent.searchText);
             if (!q && !intent.hasFilters) return { records: [], facets: {}, stats: {}, snapshot: snapshot };
-
             const allowedTypes = buildAllowedTypes(settings);
             const records = [];
             snapshot.records.forEach(function (record) {
@@ -381,9 +344,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                     diagnostic: diagnostic
                 }));
             });
-
             records.sort(compareRankedRecords);
-
             return {
                 records: records,
                 facets: buildFacets(records),
@@ -392,14 +353,12 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 queryIntent: intent
             };
         }
-
         function buildSuggestionSubtitle(record) {
             return text(record?.path?.pathLabel, '')
                 || text(record?.displayUrl || record?.url, '')
                 || text(record?.provider, '')
                 || text(record?.categoryName, '');
         }
-
         function buildSuggestionRecord(record, score) {
             const visibility = computeVisibility(record);
             const freshness = computeFreshness(record?.updatedAt);
@@ -421,46 +380,38 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 freshnessState: freshness.state
             };
         }
-
         async function getSuggestionSnapshot() {
             await loadPersistedSnapshot();
             const snapshotAge = state.snapshot ? (now() - Number(state.snapshot.builtAt || 0)) : Number.POSITIVE_INFINITY;
             if (state.snapshot && !state.dirty && snapshotAge < SNAPSHOT_MAX_AGE_MS) return state.snapshot;
             return ensureFresh();
         }
-
         async function suggest(query, scope, settings) {
             const snapshot = await getSuggestionSnapshot();
             const q = normalizeText(query);
             if (!q || q.length < 2) {
                 return { suggestions: [], stats: snapshot?.stats || {}, snapshot: snapshot };
             }
-
             const allowedTypes = buildAllowedTypes(settings);
             const maxSuggestions = Math.max(1, Math.min(20, Number(settings?.maxSuggestions || 8)));
             const suggestions = [];
-
             toArray(snapshot?.records).forEach(function (record) {
                 if (!record || !allowedTypes.has(record.type) || !matchesScope(record, scope)) return;
                 const score = computeScore(record, q, scope);
                 if (score <= 0) return;
-
                 suggestions.push(buildSuggestionRecord(record, score));
                 if (suggestions.length > maxSuggestions) {
                     suggestions.sort(compareRankedRecords);
                     suggestions.length = maxSuggestions;
                 }
             });
-
             suggestions.sort(compareRankedRecords);
-
             return {
                 suggestions: suggestions,
                 stats: snapshot?.stats || {},
                 snapshot: snapshot
             };
         }
-
         return {
             search,
             suggest,
@@ -469,6 +420,5 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             buildFacets
         };
     }
-
     ns.IndexSearchRuntime = { create };
 })();
