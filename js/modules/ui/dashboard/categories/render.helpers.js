@@ -69,12 +69,19 @@ function collectIndexedDashboardLinkedCategories(activeWorkspaceId, categoryOrde
     var summary = getDashboardStructureSummary();
     if (!summary?.cards) return null;
 
-    var visibleWorkspaceIds = new Set(getVisibleDashboardWorkspaceIds(activeWorkspaceId));
+    var visibleWorkspaceIds = getVisibleDashboardWorkspaceIds(activeWorkspaceId);
+    var lowercasedVisibleIds = new Set();
+    if (visibleWorkspaceIds) {
+        visibleWorkspaceIds.forEach(function (id) {
+            lowercasedVisibleIds.add(String(id || '').trim().toLowerCase());
+        });
+    }
+
     var fauxLinks = Object.keys(summary.cards)
         .map(function (key) { return summary.cards[key]; })
         .filter(function (bucket) {
             return !!bucket
-                && visibleWorkspaceIds.has(String(bucket.workspaceId || '').trim())
+                && lowercasedVisibleIds.has(String(bucket.workspaceId || '').trim().toLowerCase())
                 && Number(bucket.bookmarkCount || 0) > 0;
         })
         .map(function (bucket) {
@@ -131,9 +138,22 @@ function collectIndexedDashboardCardLinks(visibleLinkIdMap, workspaceId, categor
 
 function getIndexedDashboardCardSummaryBucket(summary, workspaceId, categoryName) {
     if (!summary?.cards) return null;
-    var normalizedWorkspaceId = String(workspaceId || 'main').trim() || 'main';
-    var normalizedCategoryName = String(categoryName || 'Unsorted').trim() || 'Unsorted';
-    return summary.cards[normalizedWorkspaceId + '::' + normalizedCategoryName] || null;
+    var normalizedWorkspaceId = String(workspaceId || 'main').trim().toLowerCase();
+    var normalizedCategoryName = String(categoryName || 'Unsorted').trim().toLowerCase();
+    var targetKey = normalizedWorkspaceId + '::' + normalizedCategoryName;
+
+    // Direct lookup first (fast path)
+    var directKey = String(workspaceId || 'main').trim() + '::' + String(categoryName || 'Unsorted').trim();
+    if (summary.cards[directKey]) return summary.cards[directKey];
+
+    // Case-insensitive lookup fallback
+    var keys = Object.keys(summary.cards);
+    for (var i = 0; i < keys.length; i++) {
+        if (keys[i].toLowerCase() === targetKey) {
+            return summary.cards[keys[i]];
+        }
+    }
+    return null;
 }
 
 function createDashboardRenderContext(activeWorkspaceId) {

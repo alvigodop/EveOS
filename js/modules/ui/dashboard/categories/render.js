@@ -28,7 +28,10 @@ function collectDashboardCategories(visibleLinks, activeWorkspaceId, categoryOrd
 
     function addCategory(catObj) {
         const normalizedCat = String(catObj.category || 'Unsorted').trim() || 'Unsorted';
-        const wsId = String(catObj.workspaceId || catObj.workspace || 'main').trim();
+        let wsId = String(catObj.workspaceId || catObj.workspace || 'main').trim();
+        if (wsId.toLowerCase() === activeWorkspaceId.toLowerCase()) {
+            wsId = activeWorkspaceId;
+        }
         const key = `${wsId.toLowerCase()}::${normalizedCat.toLowerCase()}`;
         if (seen.has(key)) return;
         seen.add(key);
@@ -176,9 +179,11 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
                 if (!link) return;
                 var linkWs = String(link.workspace || 'main').trim();
                 var cardWs = String(catWsId || 'main').trim();
-                if (linkWs.toLowerCase() !== cardWs.toLowerCase()) {
+                if (linkWs !== cardWs) {
                     var isLegitimate = false;
-                    if (dashboardRenderContext) {
+                    if (linkWs.toLowerCase() === cardWs.toLowerCase()) {
+                        isLegitimate = false; // force healing casing to match exactly
+                    } else if (dashboardRenderContext) {
                         var descendants = dashboardRenderContext.getVisibleDescendantIds(cardWs) || [];
                         var linkedTabs = dashboardRenderContext.getLinkedTabsByTarget(cardWs) || [];
                         if (descendants.some(function(id) { return String(id).toLowerCase() === linkWs.toLowerCase(); }) ||
