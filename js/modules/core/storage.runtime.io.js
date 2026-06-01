@@ -9,6 +9,29 @@
     const cloneStoredValue = runtime.cloneStoredValue || function (value) { return value; };
     const themeBootKey = String(runtime.EVE_THEME_BOOT_KEY || 'eveV22ThemeBoot');
 
+    function hasStoredContent(value) {
+        if (Array.isArray(value)) return value.length > 0;
+        if (value && typeof value === 'object') return Object.keys(value).length > 0;
+        return value !== undefined && value !== null && String(value || '').trim() !== '';
+    }
+
+    function readFirstLegacyJson(storage, legacyKeys, defaultValue) {
+        for (let index = 0; index < legacyKeys.length; index += 1) {
+            const legacyKey = legacyKeys[index];
+            if (!legacyKey) continue;
+            try {
+                if (localStorage.getItem(legacyKey) == null) continue;
+            } catch (error) {
+                continue;
+            }
+            return {
+                found: true,
+                value: storage._readLocalJson(legacyKey, defaultValue)
+            };
+        }
+        return { found: false, value: cloneStoredValue(defaultValue) };
+    }
+
     Object.assign(coreStorage, {
         saveJson: async function (key, value, options = {}) {
             const storageKey = String(key || '').trim();
@@ -86,6 +109,9 @@
         loadJson: async function (key, defaultValue, options = {}) {
             const storageKey = String(key || '').trim();
             if (!storageKey) return cloneStoredValue(defaultValue);
+            const legacyKeys = Array.isArray(options.legacyKeys) && options.legacyKeys.length
+                ? options.legacyKeys.slice()
+                : [options.localFallbackKey || storageKey];
 
             if (Object.prototype.hasOwnProperty.call(this._memoryFallback, storageKey)) {
                 return cloneStoredValue(this._memoryFallback[storageKey]);
@@ -96,6 +122,18 @@
                 try {
                     const value = await window.IDBStore.get(this._idbKey(storageKey));
                     if (value !== undefined) {
+                        if (options.preferNonEmptyLegacy && !hasStoredContent(value)) {
+                            const legacy = readFirstLegacyJson(this, legacyKeys, defaultValue);
+                            if (legacy.found && hasStoredContent(legacy.value)) {
+                                void this.saveJson(storageKey, legacy.value, {
+                                    localFallbackKey: options.localFallbackKey || storageKey,
+                                    cleanupLocalKeys: legacyKeys,
+                                    mirrorLocalKey: options.mirrorLocalKey,
+                                    mirrorValue: options.mirrorValue
+                                });
+                                return cloneStoredValue(legacy.value);
+                            }
+                        }
                         return cloneStoredValue(value);
                     }
                 } catch (error) {
@@ -109,24 +147,9 @@
                 }
             }
 
-            const legacyKeys = Array.isArray(options.legacyKeys) && options.legacyKeys.length
-                ? options.legacyKeys.slice()
-                : [options.localFallbackKey || storageKey];
-            let found = false;
-            let localValue = cloneStoredValue(defaultValue);
-
-            for (let index = 0; index < legacyKeys.length; index += 1) {
-                const legacyKey = legacyKeys[index];
-                if (!legacyKey) continue;
-                try {
-                    if (localStorage.getItem(legacyKey) == null) continue;
-                } catch (error) {
-                    continue;
-                }
-                localValue = this._readLocalJson(legacyKey, defaultValue);
-                found = true;
-                break;
-            }
+            const legacy = readFirstLegacyJson(this, legacyKeys, defaultValue);
+            const found = legacy.found;
+            const localValue = legacy.value;
 
             if (found) {
                 if (canUseIdb && options.migrateLegacy !== false) {

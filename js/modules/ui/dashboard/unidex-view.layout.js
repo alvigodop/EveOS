@@ -304,7 +304,13 @@ window.UnidexViewModules = window.UnidexViewModules || {};
         }
 
         const geometryHelpers = window.UnidexViewModules.createUnidexGeometryHelpers({
-            scheduleEntriesMasonry
+            scheduleEntriesMasonry,
+            updateLargeEntrySetClasses,
+            getLargeMasonryContainers,
+            measureLargeViewportWindow,
+            scheduleVisibleLargeMasonry,
+            clearEntriesMasonrySpans,
+            stopLargeMasonryMaintenance
         });
         const { forceEntriesLayoutPass } = geometryHelpers;
         function stabilizeEntriesLayout(gridContainer, layoutMode) {

@@ -4,19 +4,23 @@
     const shared = window.EveFolderViewV2._shared || {};
     const { escapeCardHtml, escapeCardJs, cloneGhostFilterChain } = shared;
     const nav = window.EveFolderViewV2._navigation || {};
-    const { findCategoryCard, buildFreshRootContentHtml } = nav;
+    const { findCategoryCard, getCategoryLinks, buildFreshRootContentHtml } = nav;
     let pendingFolderEntryRetryKey = '';
 
     window.EveFolderViewV2.enterFolder = function (event, categoryName, folderId, workspaceId, enterOptions) {
         const options = enterOptions && typeof enterOptions === 'object' ? enterOptions : {};
         const preservePageScroll = options.preservePageScroll !== false;
         if (event) {
+            window.__eveUserInteractedBeforeStartupRender = true;
             event.preventDefault();
             event.stopPropagation();
         }
 
         const resolvedCategoryName = String(categoryName || '').trim();
         const resolvedWorkspaceId = String(workspaceId || '').trim();
+        if (typeof window.cancelPendingDashboardRender === 'function') {
+            window.cancelPendingDashboardRender();
+        }
         const card = findCategoryCard(resolvedWorkspaceId, resolvedCategoryName);
 
         if (!card) {
@@ -83,7 +87,10 @@
         if (!targetNode) return;
 
         const subFolders = viewModel.childrenMap.get(targetNode.id) || [];
-        const folderItems = viewModel.folderLinks.get(targetNode.id) || [];
+        let folderItems = viewModel.folderLinks.get(targetNode.id) || [];
+        if (!targetNode.isGhost && scopeRootId === folderId && !folderItems.length && Array.isArray(viewModel.rootLinks)) {
+            folderItems = viewModel.rootLinks;
+        }
         const headerActionsExpanded = folderId ? window.EveFolderViewV2.isHeaderActionsExpanded(resolvedWorkspaceId, resolvedCategoryName, folderId) : false;
 
         // Section stats helper for Manhwa view
@@ -291,7 +298,7 @@
                 const isHatchCollapsed = hatchStoredState === null ? true : hatchStoredState === 'true';
                 const collapsedClass = isHatchCollapsed ? ' hatch-collapsed' : '';
                 const hasHatchContent = childFolders.length > 0 || folderLinksForHatch.length > 0;
-                const subFolderInlineHtml = (!isHatchCollapsed && childFolders.length > 0)
+                const subFolderInlineHtml = childFolders.length > 0
                     ? buildInlineSubfolderRail(childFolders)
                     : '';
                 const nestedSubFolderHtml = (!isHatchCollapsed && childFolders.length > 0)

@@ -103,6 +103,38 @@ window.DashboardCategories = window.DashboardCategories || {};
     api.applyCardPlaceholderSizing = applyCardPlaceholderSizing;
     api.captureRenderedCardHeight = captureRenderedCardHeight;
 
+    function adoptDeferredCardNode(targetCard, sourceCard) {
+        if (!targetCard || !sourceCard) return sourceCard || targetCard;
+
+        var preservedMinHeight = sourceCard.style.minHeight || targetCard.style.minHeight || '';
+        var preservedIntrinsicSize = sourceCard.style.containIntrinsicSize || targetCard.style.containIntrinsicSize || '';
+        var wasHeavyLayout = sourceCard.getAttribute('data-card-heavy-layout') === '1'
+            || targetCard.getAttribute('data-card-heavy-layout') === '1';
+
+        Array.from(targetCard.attributes || []).forEach(function (attr) {
+            targetCard.removeAttribute(attr.name);
+        });
+        Array.from(sourceCard.attributes || []).forEach(function (attr) {
+            targetCard.setAttribute(attr.name, attr.value);
+        });
+
+        targetCard.innerHTML = sourceCard.innerHTML;
+        targetCard.ondragover = sourceCard.ondragover || null;
+        targetCard.ondragenter = sourceCard.ondragenter || null;
+        targetCard.ondragleave = sourceCard.ondragleave || null;
+        targetCard.ondrop = sourceCard.ondrop || null;
+        targetCard.style.cssText = sourceCard.style.cssText || '';
+        targetCard.style.opacity = '1';
+        targetCard.style.transition = '';
+        if (preservedMinHeight) targetCard.style.minHeight = preservedMinHeight;
+        if (preservedIntrinsicSize) targetCard.style.containIntrinsicSize = preservedIntrinsicSize;
+        if (wasHeavyLayout) {
+            targetCard.style.contentVisibility = 'visible';
+            targetCard.setAttribute('data-card-heavy-layout', '1');
+        }
+        return targetCard;
+    }
+
     function renderCard(catInput, catLinks, gridContainer, configOptions) {
         var options = configOptions || {};
         var cat = typeof catInput === 'object' && catInput ? catInput.category : catInput;
@@ -139,7 +171,7 @@ window.DashboardCategories = window.DashboardCategories || {};
             ? (catInput.workspaceId || options.activeWorkspace || 'main')
             : (options.activeWorkspace || 'main');
 
-        if (shouldForceDeferredShell || cardLinkCount > HEAVY_CARD_THRESHOLD) {
+        if (!options._disableDeferredShell && (shouldForceDeferredShell || cardLinkCount > HEAVY_CARD_THRESHOLD)) {
             var safeCatHtml = escapeCardHtml(cat || 'Unsorted');
             var safeCatJs = escapeCardJs(cat || 'Unsorted');
             var cardTargetId = window.EveQuickPins?.buildCardTargetId
@@ -251,76 +283,114 @@ window.DashboardCategories = window.DashboardCategories || {};
                 if (!shellCard.parentNode) return;
                 if (shellCard.classList.contains('collapsed')) return;
 
-                var hydratedCatLinks = getResolvedCatLinks();
-                var phase1Options = isMega
-                    ? Object.assign({}, configOptions, { _skipGhosts: true, _skipFolderRestore: true })
-                    : Object.assign({}, configOptions, { _skipFolderRestore: true });
-                var tempContainer = document.createDocumentFragment();
-                api._renderCardFull(cat, hydratedCatLinks, tempContainer, phase1Options);
-                var fullCard = tempContainer.firstChild;
-                if (!fullCard) return;
+                try {
+                    var hydratedCatLinks = getResolvedCatLinks();
+                    var phase1Options = isMega
+                        ? Object.assign({}, configOptions, { _skipGhosts: true, _skipFolderRestore: true })
+                        : Object.assign({}, configOptions, { _skipFolderRestore: true });
+                    var tempContainer = document.createDocumentFragment();
+                    api._renderCardFull(cat, hydratedCatLinks, tempContainer, phase1Options);
+                    var fullCard = tempContainer.firstChild;
+                    if (!fullCard) {
+                        shellCard.removeAttribute('data-card-hydrating');
+                        return;
+                    }
 
-                fullCard.setAttribute('data-card-hydrating', '1');
-                fullCard.style.minHeight = shellCard.style.minHeight || '';
-                fullCard.style.containIntrinsicSize = shellCard.style.containIntrinsicSize || '';
-                if (shellCard.getAttribute('data-card-heavy-layout') === '1') {
-                    fullCard.style.contentVisibility = 'visible';
-                    fullCard.setAttribute('data-card-heavy-layout', '1');
-                }
-                shellCard.replaceWith(fullCard);
-                fullCard.style.opacity = '0';
-                fullCard.style.transition = 'opacity 0.2s ease';
-                requestAnimationFrame(function () {
+                    fullCard.setAttribute('data-card-hydrating', '1');
+                    fullCard.style.minHeight = shellCard.style.minHeight || '';
+                    fullCard.style.containIntrinsicSize = shellCard.style.containIntrinsicSize || '';
                     fullCard.style.opacity = '1';
-                });
-                captureRenderedCardHeight(fullCard, cardWorkspaceId, cat);
-                if (window.EveFolderViewV2 && window.EveFolderViewV2.restoreActiveFolderState) {
-                    var workspaceId = fullCard.getAttribute('data-card-workspace') || cardWorkspaceId;
-                    if (fullCard.getAttribute('data-card-subtab-parent-view') === '1'
-                        && typeof window.EveFolderViewV2.queueRestoreActiveFolderState === 'function') {
-                        window.EveFolderViewV2.queueRestoreActiveFolderState(workspaceId, cat, {
-                            delayMs: 24,
-                            visibleOnly: true
-                        });
-                    } else {
-                        window.EveFolderViewV2.restoreActiveFolderState(workspaceId, cat);
+                    fullCard.style.transition = '';
+                    if (shellCard.getAttribute('data-card-heavy-layout') === '1') {
+                        fullCard.style.contentVisibility = 'visible';
+                        fullCard.setAttribute('data-card-heavy-layout', '1');
                     }
-                }
-
-                if (!isMega || skipDeferredGhostHydration) return;
-
-                scheduleDeferredWork(function ghostHydrationStep() {
-                    if (cardGen != null && window._eveDashRenderGen !== cardGen) return;
-                    if (!fullCard.parentNode) return;
-
-                    var ghostContainer = document.createDocumentFragment();
-                    var phase2Options = Object.assign({}, configOptions, { _skipGhosts: false, _skipFolderRestore: true });
-                    api._renderCardFull(cat, getResolvedCatLinks(), ghostContainer, phase2Options);
-                    var ghostCard = ghostContainer.firstChild;
-                    if (ghostCard && fullCard.parentNode) {
-                        ghostCard.setAttribute('data-card-hydrating', '1');
-                        ghostCard.style.minHeight = fullCard.style.minHeight || '';
-                        ghostCard.style.containIntrinsicSize = fullCard.style.containIntrinsicSize || '';
-                        if (fullCard.getAttribute('data-card-heavy-layout') === '1') {
-                            ghostCard.style.contentVisibility = 'visible';
-                            ghostCard.setAttribute('data-card-heavy-layout', '1');
+                    fullCard = adoptDeferredCardNode(shellCard, fullCard);
+                    captureRenderedCardHeight(fullCard, cardWorkspaceId, cat);
+                    if (window.EveDashboardMasonryHelpers?.scheduleDashboardMasonryLayout) {
+                        window.EveDashboardMasonryHelpers.scheduleDashboardMasonryLayout(fullCard.closest('#dashboard-grid'));
+                    }
+                    if (window.EveFolderViewV2 && window.EveFolderViewV2.restoreActiveFolderState) {
+                        var workspaceId = fullCard.getAttribute('data-card-workspace') || cardWorkspaceId;
+                        if (fullCard.getAttribute('data-card-subtab-parent-view') === '1'
+                            && typeof window.EveFolderViewV2.queueRestoreActiveFolderState === 'function') {
+                            window.EveFolderViewV2.queueRestoreActiveFolderState(workspaceId, cat, {
+                                delayMs: 24,
+                                visibleOnly: true
+                            });
+                        } else {
+                            window.EveFolderViewV2.restoreActiveFolderState(workspaceId, cat);
                         }
-                        fullCard.replaceWith(ghostCard);
-                        captureRenderedCardHeight(ghostCard, cardWorkspaceId, cat);
-                        if (window.EveFolderViewV2 && window.EveFolderViewV2.restoreActiveFolderState) {
-                            var workspaceId = ghostCard.getAttribute('data-card-workspace') || cardWorkspaceId;
-                            if (ghostCard.getAttribute('data-card-subtab-parent-view') === '1'
-                                && typeof window.EveFolderViewV2.queueRestoreActiveFolderState === 'function') {
-                                window.EveFolderViewV2.queueRestoreActiveFolderState(workspaceId, cat, {
-                                    delayMs: 24,
-                                    visibleOnly: true
-                                });
-                            } else {
-                                window.EveFolderViewV2.restoreActiveFolderState(workspaceId, cat);
+                    }
+
+                    if (!isMega || skipDeferredGhostHydration) return;
+
+                    scheduleDeferredWork(function ghostHydrationStep() {
+                        if (cardGen != null && window._eveDashRenderGen !== cardGen) return;
+                        if (!fullCard.parentNode) return;
+
+                        try {
+                            var ghostContainer = document.createDocumentFragment();
+                            var phase2Options = Object.assign({}, configOptions, { _skipGhosts: false, _skipFolderRestore: true });
+                            api._renderCardFull(cat, getResolvedCatLinks(), ghostContainer, phase2Options);
+                            var ghostCard = ghostContainer.firstChild;
+                            if (ghostCard && fullCard.parentNode) {
+                                ghostCard.setAttribute('data-card-hydrating', '1');
+                                ghostCard.style.minHeight = fullCard.style.minHeight || '';
+                                ghostCard.style.containIntrinsicSize = fullCard.style.containIntrinsicSize || '';
+                                ghostCard.style.opacity = '1';
+                                ghostCard.style.transition = '';
+                                if (fullCard.getAttribute('data-card-heavy-layout') === '1') {
+                                    ghostCard.style.contentVisibility = 'visible';
+                                    ghostCard.setAttribute('data-card-heavy-layout', '1');
+                                }
+                                fullCard = adoptDeferredCardNode(fullCard, ghostCard);
+                                captureRenderedCardHeight(fullCard, cardWorkspaceId, cat);
+                                if (window.EveDashboardMasonryHelpers?.scheduleDashboardMasonryLayout) {
+                                    window.EveDashboardMasonryHelpers.scheduleDashboardMasonryLayout(fullCard.closest('#dashboard-grid'));
+                                }
+                                if (window.EveFolderViewV2 && window.EveFolderViewV2.restoreActiveFolderState) {
+                                    var workspaceId = fullCard.getAttribute('data-card-workspace') || cardWorkspaceId;
+                                    if (fullCard.getAttribute('data-card-subtab-parent-view') === '1'
+                                        && typeof window.EveFolderViewV2.queueRestoreActiveFolderState === 'function') {
+                                        window.EveFolderViewV2.queueRestoreActiveFolderState(workspaceId, cat, {
+                                            delayMs: 24,
+                                            visibleOnly: true
+                                        });
+                                    } else {
+                                        window.EveFolderViewV2.restoreActiveFolderState(workspaceId, cat);
+                                    }
+                                }
                             }
+                        } catch (error) {
+                            console.warn('[Dashboard] Deferred ghost hydration failed; keeping current card.', {
+                                workspaceId: cardWorkspaceId,
+                                category: cat,
+                                error
+                            });
+                            fullCard.removeAttribute('data-card-hydrating');
                         }
+                    }, 300, 1600);
+                } catch (error) {
+                    console.warn('[Dashboard] Deferred card hydration failed; keeping shell visible.', {
+                        workspaceId: cardWorkspaceId,
+                        category: cat,
+                        error
+                    });
+                    shellCard.removeAttribute('data-card-hydrating');
+                    shellCard.setAttribute('data-card-hydration-error', '1');
+                    var label = shellCard.querySelector('.eve-card-deferred-skeleton > div');
+                    if (label) {
+                        label.textContent = 'Could not load this card yet - click or reload to retry';
                     }
-                }, 300, 1600);
+                    var retryHydration = function () {
+                        shellCard.removeAttribute('data-card-hydration-error');
+                        shellCard.setAttribute('data-card-hydrating', '1');
+                        scheduleDeferredWork(doDeferredBuild, 0, 1600);
+                    };
+                    shellCard.addEventListener('click', retryHydration, { once: true });
+                    return;
+                }
             }
 
             if (hydrateOnDemand) {

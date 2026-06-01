@@ -319,9 +319,28 @@ function _renderDashboardCore(renderHint) {
         const indexedVisibleLinks = shouldPreferIndexedVisibleLinks
             ? collectIndexedDashboardVisibleLinks(liveLinks, visibleScope, searchTerms.length > 0 ? matchesVisibleLink : null)
             : null;
-        visibleLinks = Array.isArray(indexedVisibleLinks)
-            ? indexedVisibleLinks
-            : liveLinks.filter(matchesVisibleLink);
+        if (Array.isArray(indexedVisibleLinks)) {
+            visibleLinks = indexedVisibleLinks;
+            const visibleWorkspaceIdLookup = new Set(Array.from(visibleWorkspaceIds).map(function (id) {
+                return String(id || '').trim().toLowerCase();
+            }));
+            const scopedLiveCount = liveLinks.reduce(function (count, link) {
+                if (!link) return count;
+                const linkWorkspace = (String(link.workspace || 'main').trim() || 'main').toLowerCase();
+                return visibleWorkspaceIdLookup.has(linkWorkspace) ? count + 1 : count;
+            }, 0);
+            if (visibleLinks.length === 0 && scopedLiveCount > 0) {
+                console.warn('[Dashboard] Indexed visible-link result was empty while live scoped links exist; falling back to live scan.', {
+                    activeWorkspaceId,
+                    scopedLiveCount,
+                    liveLinkCount: liveLinks.length,
+                    visibleWorkspaceIds: Array.from(visibleWorkspaceIds)
+                });
+                visibleLinks = liveLinks.filter(matchesVisibleLink);
+            }
+        } else {
+            visibleLinks = liveLinks.filter(matchesVisibleLink);
+        }
     }
     // Level 1: Standard Perf Mode (600+) - degraded animations, basic throttling
     // Level 2: Mega Perf Mode (1500+) - strip icons, strip hovers, max throttling

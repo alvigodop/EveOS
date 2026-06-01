@@ -2,10 +2,12 @@
     const core = window.EveFaviconCacheCore;
     if (!core) return;
     const {
+        TTL_MS, QUEUED_FETCH_BATCH, QUEUED_FETCH_GAP_MS,
         normalizeDomain, isReservedTestDomain, isReservedIconUrl, getDomainFromUrl, isLocalContext,
         canFetchRemoteFavicons, getCachedIcon, isFailureCoolingDown, markFailure, getPlaceholderFavicon,
         getFallbackSrc, isStartupPaintActive, shouldDeferRenderMissFetch, scheduleDomIconUpdate,
-        queueFetch, fetchFaviconDataUri, buildRemoteUrls, buildRemoteUrl, loadDiskCache, saveDiskCache
+        queueFetch, fetchFaviconDataUri, buildRemoteUrls, buildRemoteUrl, loadDiskCache, saveDiskCache,
+        isUsableCachedIcon, delay
     } = core;
 
     function get(domain) {

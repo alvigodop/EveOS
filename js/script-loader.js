@@ -20,7 +20,7 @@
     const DEFERRED_PRESSURE_PAUSE_MS = 900;
     const DEFERRED_HEAVY_PAUSE_MS = 1400;
     const DEFERRED_LARGE_PACK_LINKS = 1000;
-    const DEFERRED_LARGE_PACK_HOLD_MS = 26000;
+    const DEFERRED_LARGE_PACK_HOLD_MS = 6000;
     let lastUserInteractionAt = Date.now();
 
     if (!window.EveModuleManifest) {
@@ -58,6 +58,70 @@
         } catch {
             // Ignore storage errors in restricted browser modes.
         }
+    }
+
+    function getRenderedBootContentCounts() {
+        try {
+            const grid = document.getElementById('dashboard-grid')
+                || document.getElementById('categoryGrid')
+                || document.querySelector('.dashboard-grid, .categories-grid, [data-dashboard-grid]');
+            if (!grid) return { cards: 0, links: 0 };
+            return {
+                cards: grid.querySelectorAll('.category-card, [data-category-name], [data-card-id]').length,
+                links: grid.querySelectorAll('[data-link-id], .bookmark-item, .bookmark-card').length
+            };
+        } catch {
+            return { cards: 0, links: 0 };
+        }
+    }
+
+    function getLiveBootLinkCount() {
+        try {
+            if (typeof window.getLiveLinks === 'function') {
+                const links = window.getLiveLinks();
+                return Array.isArray(links) ? links.length : 0;
+            }
+            if (Array.isArray(window.eveState?.links)) return window.eveState.links.length;
+        } catch {
+            // Ignore live-state read errors while handling bootstrap failures.
+        }
+        return 0;
+    }
+
+    function hasRecoverableBootContent() {
+        const rendered = getRenderedBootContentCounts();
+        if (rendered.cards > 0 || rendered.links > 0) return true;
+        if (window.__eveCoreDataLoaded && getLiveBootLinkCount() > 0) return true;
+        const summary = window.__eveLastCoreDataLoadSummary;
+        return !!summary && Number(summary.realLinkCount || summary.linkCount || 0) > 0;
+    }
+
+    function preserveVisibleBootstrapState(err, failedSrc) {
+        const warning = {
+            failedSrc,
+            reason: err?.reason || 'error',
+            recordedAt: new Date().toISOString(),
+            rendered: getRenderedBootContentCounts(),
+            liveLinks: getLiveBootLinkCount()
+        };
+        window.__eveBootstrapLoadWarning = warning;
+        clearReloadAttempts();
+        try {
+            window.dispatchEvent(new CustomEvent('eve:bootstrap-warning', {
+                detail: warning
+            }));
+        } catch {
+            // Event dispatch is best effort only.
+        }
+        console.warn('[ScriptLoader] Preserved visible EveOS state after bootstrap warning.', warning);
+    }
+
+    function attachGlobalBodyListeners() {
+        if (!document.body || window.__eveScriptLoaderBodyListenersAttached) return;
+        window.__eveScriptLoaderBodyListenersAttached = true;
+        document.body.onclick = () => {
+            if (typeof closeAllMenus === 'function') closeAllMenus();
+        };
     }
 
     function isExternalScript(src) {
@@ -361,13 +425,11 @@
                 ScraperInit.init();
             }
 
-            // Initialize Data
-            if (typeof loadData === 'function') loadData();
+            // Attach global listeners before data hydration so a preserved post-render warning stays interactive.
+            attachGlobalBodyListeners();
 
-            // Attach global listeners that were on body
-            document.body.onclick = (e) => {
-                if (typeof closeAllMenus === 'function') closeAllMenus();
-            };
+            // Initialize Data
+            if (typeof loadData === 'function') await loadData();
 
             const runDeferredLoad = async () => {
                 if (!hasDeferredScripts) {
@@ -403,6 +465,11 @@
             const failedSrc = err?.src || err?.event?.target?.src || 'unknown script';
             const reloadAttempts = previousReloadAttempts;
             console.warn(`[ScriptLoader] Failed to load ${failedSrc} (${err?.reason || 'error'}).`, err?.event || err);
+
+            if (hasRecoverableBootContent()) {
+                preserveVisibleBootstrapState(err, failedSrc);
+                return;
+            }
 
             if (reloadAttempts < MAX_BOOTSTRAP_RELOADS) {
                 const nextAttempt = reloadAttempts + 1;

@@ -12,6 +12,8 @@
     const evaluateViewFromIndex = (...args) => api.evaluateViewFromIndex(...args);
     const saveCardView = (...args) => api.saveCardView(...args);
     const describeCriteria = (...args) => api.describeCriteria(...args);
+    const parseCriteriaPrompt = (...args) => api.parseCriteriaPrompt(...args);
+    const openSmartViewRecord = (...args) => api.openSmartViewRecord(...args);
 
     function getLiveLinks() {
         if (typeof window.getLiveLinks === 'function') return window.getLiveLinks();

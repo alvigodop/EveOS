@@ -23,9 +23,24 @@ window.EveDataStore = window.EveDataStore || {};
         lastUploadedHash: '',
         lastSyncedLocalHash: '',
         lastRemoteCheckAt: 0,
+        lastRejectedRemoteAt: 0,
+        rejectedRemoteReason: '',
+        rejectedRemoteSignature: '',
         applyingRemoteState: false,
-        syncInFlight: false
+        syncInFlight: false,
+        // Local-state hash memo. Bumping localStateEpoch (on mutation / remote
+        // apply) invalidates the cached hash so idle 5s sync ticks don't
+        // re-capture+stringify+hash the entire datapack when nothing changed.
+        localStateEpoch: 0,
+        hashCacheEpoch: -1,
+        hashCacheValue: '',
+        hashCacheAt: 0
     }, ns.state || {});
+
+    const HASH_CACHE_TTL_MS = 60000;
+    // Volatile metadata keys are stripped from the content hash so timestamp
+    // churn doesn't produce spurious "dirty" signals.
+    const VOLATILE_HASH_KEYS = new Set(['date', 'generatedAt', 'lastUpdated']);
 
     function getStore() {
         return window.EveDataStore?.Store || null;
@@ -81,28 +96,26 @@ window.EveDataStore = window.EveDataStore || {};
     }
 
     function normalizeStateForHash(sourceState) {
+        // Retained for API compatibility; hashState no longer clones via this.
         if (!sourceState || typeof sourceState !== 'object') return {};
-        let normalized = null;
-        try {
-            normalized = JSON.parse(JSON.stringify(sourceState));
-        } catch {
-            return sourceState;
-        }
-
-        if (normalized.metadata && typeof normalized.metadata === 'object') {
-            delete normalized.metadata.date;
-            delete normalized.metadata.generatedAt;
-            delete normalized.metadata.lastUpdated;
-        }
-        return normalized;
+        return sourceState;
     }
 
     function hashState(sourceState) {
+        if (!sourceState || typeof sourceState !== 'object') return '';
         try {
-            return hashString(JSON.stringify(normalizeStateForHash(sourceState)));
+            // Single-pass stringify with a replacer that drops volatile metadata
+            // keys — no deep clone, no double-stringify (was 3 full passes).
+            return hashString(JSON.stringify(sourceState, function (key, value) {
+                return VOLATILE_HASH_KEYS.has(key) ? undefined : value;
+            }));
         } catch {
             return '';
         }
+    }
+
+    function invalidateLocalStateHash() {
+        state.localStateEpoch = (Number(state.localStateEpoch) || 0) + 1;
     }
 
     function shouldRunIdleRemoteCheck() {
@@ -111,10 +124,23 @@ window.EveDataStore = window.EveDataStore || {};
     }
 
     function captureStateHash() {
+        // Memoized by localStateEpoch: idle sync ticks (no mutation since last
+        // capture) return the cached hash instantly instead of cloning +
+        // stringifying + hashing the whole datapack. TTL forces a periodic
+        // recompute as a safety net against any unbroadcast mutation.
+        if (state.hashCacheEpoch === state.localStateEpoch
+            && state.hashCacheValue
+            && (Date.now() - (Number(state.hashCacheAt) || 0)) < HASH_CACHE_TTL_MS) {
+            return state.hashCacheValue;
+        }
         const store = getStore();
         if (!store?.captureState) return '';
         try {
-            return hashState(store.captureState());
+            const hash = hashState(store.captureState());
+            state.hashCacheEpoch = state.localStateEpoch;
+            state.hashCacheValue = hash;
+            state.hashCacheAt = Date.now();
+            return hash;
         } catch {
             return '';
         }
@@ -266,6 +292,7 @@ window.EveDataStore = window.EveDataStore || {};
         hashString,
         normalizeStateForHash,
         hashState,
+        invalidateLocalStateHash,
         shouldRunIdleRemoteCheck,
         captureStateHash,
         refreshUiAfterRemoteApply,

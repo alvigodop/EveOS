@@ -4,8 +4,9 @@ function renderDashboard() {
     // Coalesce rapid-fire render calls into a single frame
     if (window._eveDashRenderPending) return;
     window._eveDashRenderPending = true;
-    requestAnimationFrame(function () {
+    window._eveDashRenderRafId = requestAnimationFrame(function () {
         window._eveDashRenderPending = false;
+        window._eveDashRenderRafId = 0;
         var finishPerf = window.EvePerformanceMonitor?.startOperation?.('renderDashboard', {
             source: window.__eveDashboardRenderHint?.source || window.__eveDashboardRenderHint?.kind || 'render'
         });
@@ -15,6 +16,14 @@ function renderDashboard() {
         });
     });
 }
+
+window.cancelPendingDashboardRender = function cancelPendingDashboardRender() {
+    if (window._eveDashRenderPending && window._eveDashRenderRafId) {
+        cancelAnimationFrame(window._eveDashRenderRafId);
+    }
+    window._eveDashRenderPending = false;
+    window._eveDashRenderRafId = 0;
+};
 
 function _getRobustScrollTop() {
     if (typeof window.getDashboardScrollTop === 'function') {

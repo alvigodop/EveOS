@@ -26,15 +26,15 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
     }
 
     function getSourceLinks() {
-        return typeof window.getModalLinks === 'function'
-            ? window.getModalLinks()
-            : (typeof window.getLiveLinks === 'function'
-                ? window.getLiveLinks()
-                : (Array.isArray(window.eveState?.links)
-                    ? window.eveState.links
-                    : (Array.isArray(window.links)
-                        ? window.links
-                        : (typeof links !== 'undefined' && Array.isArray(links) ? links : []))));
+        return typeof window.getLiveLinks === 'function'
+            ? window.getLiveLinks()
+            : (Array.isArray(window.eveState?.links)
+                ? window.eveState.links
+                : (Array.isArray(window.links)
+                    ? window.links
+                    : (typeof links !== 'undefined' && Array.isArray(links)
+                        ? links
+                        : (typeof window.getModalLinks === 'function' ? window.getModalLinks() : []))));
     }
 
     function getDatapackIndexApi() {
@@ -83,9 +83,9 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
             workspaceId: workspaceId,
             categoryName: categoryName
         }, sourceLinks);
-        if (indexedLinks) return indexedLinks;
         const normalizedWorkspaceId = String(workspaceId || 'main').trim() || 'main';
         const normalizedCategoryName = String(categoryName || 'Unsorted').trim() || 'Unsorted';
+        if (indexedLinks && indexedLinks.length) return indexedLinks;
         return sourceLinks.filter((link) => (
             String(link?.workspace || 'main').trim() === normalizedWorkspaceId
             && String(link?.category || 'Unsorted').trim() === normalizedCategoryName

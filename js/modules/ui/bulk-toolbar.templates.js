@@ -72,6 +72,7 @@ window.EveBulkToolbar = window.EveBulkToolbar || {};
             ${sectionHeader('<input type="radio" name="bulkTabMode" value="existing" checked onchange="setBulkTabMode(\'existing\')"><span>Move to existing tab</span>')}
             <div class="bulk-section-body">
                 <input type="search" id="bulk-tab-workspace-filter" class="bulk-target-filter" placeholder="Filter destination tabs" oninput="renderBulkTabOptions()">
+                <select id="bulk-tab-existing-select" class="bulk-compat-select" aria-label="Destination tab compatibility select" onchange="const l=document.getElementById('bulk-tab-existing-list');if(l){l.dataset.selected=this.value;if(window.renderBulkTabCardOptions)window.renderBulkTabCardOptions();}"></select>
                 <div id="bulk-tab-existing-list" class="bulk-target-list" role="listbox" aria-label="Destination tab" data-selected=""></div>
             </div>
         </div>
@@ -87,6 +88,7 @@ window.EveBulkToolbar = window.EveBulkToolbar || {};
             ${sectionHeader('<input type="radio" name="bulkTabCardMode" value="existing" checked onchange="setBulkTabCardMode(\'existing\')"><span>Move into existing card in destination tab</span>')}
             <div class="bulk-section-body">
                 <input type="search" id="bulk-tab-card-filter" class="bulk-target-filter" placeholder="Filter destination cards" oninput="renderBulkTabCardOptions()">
+                <select id="bulk-tab-card-existing-select" class="bulk-compat-select" aria-label="Destination card compatibility select" onchange="const l=document.getElementById('bulk-tab-card-existing-list');if(l){l.dataset.selected=this.value;l.dataset.selectedCard=this.value;l.dataset.selectedFolder='';}"></select>
                 <div id="bulk-tab-card-existing-list" class="bulk-target-list" role="listbox" aria-label="Destination card in tab" data-selected=""></div>
             </div>
         </div>

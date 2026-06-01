@@ -2,7 +2,13 @@
 
 (function () {
     const ns = window.EveBulkToolbar;
-    const { getConfig, getLinks, getSelectedLinks } = ns;
+    const {
+        getConfig,
+        getLinks,
+        getSelectedLinks,
+        getDatapackIndexApi,
+        getDatapackStructureSummary
+    } = ns;
 
     function getAllCategoryNames(workspaceId) {
         const scopedWorkspaceId = String(workspaceId || '').trim();

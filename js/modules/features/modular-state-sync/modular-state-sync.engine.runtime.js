@@ -29,6 +29,9 @@ window.EveDataStore = window.EveDataStore || {};
     }
 
     function onStateMutation() {
+        // Local state changed — invalidate the memoized hash so the next sync
+        // recomputes. Done even when sync is disabled so the memo stays honest.
+        if (typeof ns.invalidateLocalStateHash === 'function') ns.invalidateLocalStateHash();
         if (!ns.isEnabled() || state.applyingRemoteState) return;
         if (state.mutationTimer) clearTimeout(state.mutationTimer);
         state.mutationTimer = setTimeout(() => {
@@ -41,6 +44,18 @@ window.EveDataStore = window.EveDataStore || {};
         window.addEventListener('eve:state-mutated', onStateMutation);
     }
 
+    async function waitForCoreDataBeforeSync(timeoutMs = 120000) {
+        const deadline = Date.now() + Math.max(500, Number(timeoutMs) || 120000);
+        while (!window.__eveCoreDataLoaded && Date.now() < deadline) {
+            if (typeof window.__eveWaitForCoreData === 'function') {
+                await window.__eveWaitForCoreData(Math.max(500, deadline - Date.now()));
+                return !!window.__eveCoreDataLoaded;
+            }
+            await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+        return !!window.__eveCoreDataLoaded;
+    }
+
     async function init() {
         if (state.initialized) return;
         state.initialized = true;
@@ -50,6 +65,8 @@ window.EveDataStore = window.EveDataStore || {};
             console.log('[ModularStateSync] Disabled (file:// context).');
             return;
         }
+
+        await waitForCoreDataBeforeSync(120000);
 
         bindMutationListeners();
         await ns.bootstrap();

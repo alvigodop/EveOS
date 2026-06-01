@@ -207,7 +207,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                 const isHatchCollapsed = hatchStoredState === null ? true : hatchStoredState === 'true';
                 const collapsedClass = isHatchCollapsed ? ' hatch-collapsed' : '';
                 const hasHatchContent = subFolders.length > 0 || folderLinks.length > 0;
-                const subFolderInlineHtml = (!isHatchCollapsed && subFolders.length > 0)
+                const subFolderInlineHtml = subFolders.length > 0
                     ? buildInlineSubfolderRail(subFolders)
                     : '';
                 let subFolderHtml = '';

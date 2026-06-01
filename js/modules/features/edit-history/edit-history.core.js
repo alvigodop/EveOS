@@ -9,6 +9,12 @@ window.EveEditHistory = window.EveEditHistory || {};
     const SCHEMA = 'eveos.edit-history.v1';
     const MAX_PER_SCOPE = 5;
     const MAX_TOTAL = 800;
+    // Above this link count, the whole-datapack and per-tab "data" layers store
+    // full before/after copies of the entire state on every save — multi-MB JSON
+    // clone+stringify that freezes large datapacks. We auto-skip those heavy
+    // layers above the cap and keep the cheap scoped card/folder/bookmark layers
+    // (the ones used for granular restore). Override via config.editHistoryFullStateMaxLinks.
+    const FULL_STATE_LINK_CAP_DEFAULT = 2500;
     let store = { schema: SCHEMA, maxPerScope: MAX_PER_SCOPE, buckets: {} };
     let loaded = false;
     let persistTimer = 0;
@@ -279,8 +285,31 @@ window.EveEditHistory = window.EveEditHistory || {};
     }
 
 
+    function getFullStateLinkCap() {
+        const cfg = (window.config && typeof window.config === 'object')
+            ? window.config
+            : (typeof config !== 'undefined' && config ? config : {});
+        const raw = Number(cfg?.editHistoryFullStateMaxLinks);
+        if (Number.isFinite(raw) && raw >= 0) return raw;
+        return FULL_STATE_LINK_CAP_DEFAULT;
+    }
+
+    function countLinksForWorkspace(snapshot, workspaceId) {
+        const ws = text(workspaceId, 'main');
+        const list = Array.isArray(snapshot?.links) ? snapshot.links : [];
+        let count = 0;
+        for (let i = 0; i < list.length; i += 1) {
+            if (text(list[i]?.workspace, 'main') === ws) count += 1;
+        }
+        return count;
+    }
+
     function pushEntry(entry, options = {}) {
-        if (!entry?.scope || signature(entry.before) === signature(entry.after)) return false;
+        if (!entry?.scope) return false;
+        // The equality guard re-stringifies before+after; for whole-state layers
+        // that's a redundant multi-MB pass since the caller already knows the
+        // state is dirty. Callers pass skipEqualityCheck for those layers.
+        if (!options.skipEqualityCheck && signature(entry.before) === signature(entry.after)) return false;
         loadStore();
         const key = bucketKey(entry.scope);
         const list = Array.isArray(store.buckets[key]) ? store.buckets[key] : [];
@@ -323,7 +352,15 @@ window.EveEditHistory = window.EveEditHistory || {};
         const meta = args.meta || {};
         const historyOptions = meta.editHistory && typeof meta.editHistory === 'object' ? meta.editHistory : {};
         const scopedOnly = !!historyOptions.scopedOnly || !!meta.scopedOnlyEditHistory;
-        const includeDatapack = !scopedOnly && historyOptions.datapack !== false;
+
+        // Scale guard: skip the heavy whole-state layers when the datapack is
+        // large. `historyOptions.datapack === true` (explicit) still forces it.
+        const fullStateCap = getFullStateLinkCap();
+        const afterLinkCount = Array.isArray(args.after?.links) ? args.after.links.length : 0;
+        const datapackTooLarge = afterLinkCount > fullStateCap;
+
+        const includeDatapack = !scopedOnly
+            && (historyOptions.datapack === true || (historyOptions.datapack !== false && !datapackTooLarge));
         const includeWorkspaces = !scopedOnly && historyOptions.workspaces !== false;
         const includeCards = historyOptions.cards !== false;
         const includeFolders = !scopedOnly && historyOptions.folders !== false;
@@ -331,14 +368,19 @@ window.EveEditHistory = window.EveEditHistory || {};
         const changedScopes = changedScopesFromDelta(delta);
         let recorded = false;
         if (includeDatapack) {
-            recorded = pushEntry(makeEntry('data', { layer: 'datapack', key: '__all__', label: 'Data Pack' }, args.before, args.after, source, meta), { persist: false });
+            recorded = pushEntry(makeEntry('data', { layer: 'datapack', key: '__all__', label: 'Data Pack' }, args.before, args.after, source, meta), { persist: false, skipEqualityCheck: true });
         }
 
         const workspaceIds = new Set(delta.workspaceIds || []);
         changedScopes.forEach((scope) => workspaceIds.add(scope.workspaceId));
         if (includeWorkspaces) {
+            const forceWorkspaces = historyOptions.workspaces === true;
             workspaceIds.forEach((workspaceId) => {
-                recorded = pushEntry(makeEntry('data', { layer: 'workspace', key: workspaceId, label: `Tab ${workspaceId}` }, captureWorkspaceData(args.before, workspaceId), captureWorkspaceData(args.after, workspaceId), source, meta), { persist: false }) || recorded;
+                // Per-tab data layer is gated individually so modest tabs keep
+                // their history even inside a huge datapack, while a single
+                // oversized tab is skipped instead of cloned wholesale.
+                if (!forceWorkspaces && countLinksForWorkspace(args.after, workspaceId) > fullStateCap) return;
+                recorded = pushEntry(makeEntry('data', { layer: 'workspace', key: workspaceId, label: `Tab ${workspaceId}` }, captureWorkspaceData(args.before, workspaceId), captureWorkspaceData(args.after, workspaceId), source, meta), { persist: false, skipEqualityCheck: true }) || recorded;
             });
         }
         if (includeCards || includeFolders) {

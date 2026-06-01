@@ -11,9 +11,18 @@
         getIndexedRootLinkIds,
         addSelectedIds,
         removeSelectedIds,
+        getSelectedIds,
         areAllIdsSelected,
         addTouchedScope
     } = ns;
+    let _scopeIndex = null;
+    let _scopeIndexGen = 0;
+
+    function getSelectedSet() {
+        return typeof getSelectedIds === 'function'
+            ? getSelectedIds()
+            : (window.selectedIds instanceof Set ? window.selectedIds : new Set());
+    }
 
     function _getScopeIndex() {
         const currentLinks = getLinks();
@@ -176,13 +185,13 @@
 
     function toggleScopeSelection(ids) {
         const normalized = Array.from(new Set((Array.isArray(ids) ? ids : []).map(toBulkId).filter(Boolean)));
-        if (!normalized.length) return selectedIds;
+        if (!normalized.length) return getSelectedSet();
         if (areAllIdsSelected(normalized)) {
             removeSelectedIds(normalized);
         } else {
             addSelectedIds(normalized);
         }
-        return selectedIds;
+        return getSelectedSet();
     }
 
     // â”€â”€ Debounced bulk UI update â”€â”€
@@ -196,6 +205,7 @@
 
     function _updateBulkUIImmediate() {
         _bulkUIRafId = 0;
+        const selectedIds = getSelectedSet();
         const el = document.getElementById('bulk-count');
         if (el) el.innerText = `${selectedIds.size} Selected`;
         

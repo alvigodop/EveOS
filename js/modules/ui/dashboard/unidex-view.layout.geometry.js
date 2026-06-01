@@ -3,6 +3,12 @@
 (function () {
     window.UnidexViewModules.createUnidexGeometryHelpers = function createUnidexGeometryHelpers(deps) {
         const scheduleEntriesMasonry = deps?.scheduleEntriesMasonry;
+        const updateLargeEntrySetClasses = deps?.updateLargeEntrySetClasses;
+        const getLargeMasonryContainers = deps?.getLargeMasonryContainers;
+        const measureLargeViewportWindow = deps?.measureLargeViewportWindow;
+        const scheduleVisibleLargeMasonry = deps?.scheduleVisibleLargeMasonry;
+        const clearEntriesMasonrySpans = deps?.clearEntriesMasonrySpans;
+        const stopLargeMasonryMaintenance = deps?.stopLargeMasonryMaintenance;
 
         function forceEntriesLayoutPass(gridContainer, layoutMode) {
             if (!gridContainer) return;

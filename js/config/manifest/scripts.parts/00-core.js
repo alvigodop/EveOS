@@ -18,7 +18,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/core/storage.delta.js?v=0.1.1",
     "js/modules/core/storage.js?v=0.4.0",
     "js/modules/core/storage.load.js?v=0.1.0",
-    "js/modules/features/edit-history/edit-history.core.js?v=0.1.1",
+    "js/modules/features/edit-history/edit-history.core.js?v=0.2.0",
     "js/modules/features/edit-history/edit-history.config.js?v=0.1.0",
     "js/modules/features/edit-history/edit-history.restore.js?v=0.1.0",
     "js/modules/features/edit-history/edit-history.ui.js?v=0.2.1",

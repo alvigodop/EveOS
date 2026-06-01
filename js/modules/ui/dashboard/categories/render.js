@@ -78,8 +78,13 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
         && String(renderHint.fromWorkspaceId || '').trim() !== String(renderHint.toWorkspaceId || '').trim()
     );
     const isStartupRender = !!(renderHint && renderHint.kind === 'startup');
+    const isBulkSelectionRender = !!(
+        document.body?.classList?.contains('bulk-active')
+        || (renderHint && renderHint.kind === 'bulk-select')
+    );
     const shouldGuardGhostHydration = !searchStr
         && !focusCategory
+        && !isBulkSelectionRender
         && (isLargeDatapackRender || visibleLinks.length > 1000 || categoryCount > 8 || isStartupRender || isCrossWorkspaceSwitchRender);
 
     // Only build category/link indexes on demand so workspace-switch paints do not pay
@@ -118,9 +123,11 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
         return indexedCardLinks || getCategoryLiveLinks(workspaceId, categoryName);
     }
 
-    var aggressiveDeferredCards = isStartupRender
+    var aggressiveDeferredCards = !isBulkSelectionRender && (
+        isStartupRender
         || isCrossWorkspaceSwitchRender
-        || (!searchStr && !focusCategory && (isLargeDatapackRender || visibleLinks.length > 150 || categoryCount > 6));
+        || (!searchStr && !focusCategory && (isLargeDatapackRender || visibleLinks.length > 150 || categoryCount > 6))
+    );
     var CARD_CAP = aggressiveDeferredCards
         ? (visibleLinks.length > 500 ? 6 : 5)
         : (visibleLinks.length > 500 ? 2 : (visibleLinks.length > 200 ? 3 : 8));
@@ -130,7 +137,7 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
     if (isCrossWorkspaceSwitchRender) {
         CARD_CAP = Math.min(CARD_CAP, 0);
     }
-    if (!isCrossWorkspaceSwitchRender && !searchStr && !focusCategory && (isLargeDatapackRender || visibleLinks.length > 3000)) {
+    if (!isStartupRender && !isBulkSelectionRender && !isCrossWorkspaceSwitchRender && !searchStr && !focusCategory && (isLargeDatapackRender || visibleLinks.length > 3000)) {
         CARD_CAP = 0;
     }
     var renderCount = 0;
@@ -151,7 +158,8 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
         _renderGen: renderGen,
         _dashboardRenderHint: renderHint || null,
         _dashboardRenderContext: dashboardRenderContext,
-        _preferActiveFolderShell: !!focusCategory && isLargeDatapackRender
+        _preferActiveFolderShell: !!focusCategory && isLargeDatapackRender,
+        _disableDeferredShell: isBulkSelectionRender
     };
 
     // Pre-collect category render descriptors to avoid synchronous DOM work in the loop

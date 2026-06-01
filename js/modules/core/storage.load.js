@@ -1,19 +1,63 @@
+function finishCoreDataLoad(ok) {
+    window.__eveCoreDataLoaded = !!ok;
+    window.__eveCoreDataLoading = false;
+    if (typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
+        window.dispatchEvent(new CustomEvent('eve:core-data-loaded', {
+            detail: {
+                ok: !!ok,
+                links: Array.isArray(links) ? links.length : 0
+            }
+        }));
+    }
+    return !!ok;
+}
+
+window.__eveWaitForCoreData = function waitForCoreData(timeoutMs = 15000) {
+    if (window.__eveCoreDataLoaded) return Promise.resolve(true);
+    return new Promise((resolve) => {
+        let settled = false;
+        let timer = null;
+        const finish = (value) => {
+            if (settled) return;
+            settled = true;
+            if (timer) clearTimeout(timer);
+            window.removeEventListener?.('eve:core-data-loaded', onLoaded);
+            resolve(!!value);
+        };
+        const onLoaded = (event) => finish(event?.detail?.ok || window.__eveCoreDataLoaded);
+        timer = setTimeout(() => finish(false), Math.max(500, Number(timeoutMs) || 15000));
+        window.addEventListener('eve:core-data-loaded', onLoaded, { once: true });
+    });
+};
+
 async function loadData() {
+    if (window.__eveCoreDataLoading) {
+        return window.__eveWaitForCoreData(120000);
+    }
+    window.__eveCoreDataLoading = true;
+    try {
     const storage = getCoreStorage();
     const loadedLinks = storage
-        ? await storage.loadJson(EVE_LINKS_KEY, [], { legacyKeys: [EVE_LINKS_KEY] })
+        ? await storage.loadJson(EVE_LINKS_KEY, [], { legacyKeys: [EVE_LINKS_KEY], preferNonEmptyLegacy: true })
         : [];
     if (Array.isArray(loadedLinks)) {
         links = loadedLinks;
     }
+    window.__eveLastCoreDataLoadSummary = {
+        startedAt: Date.now(),
+        linkCount: Array.isArray(links) ? links.length : 0,
+        realLinkCount: Array.isArray(links)
+            ? links.filter((link) => link && !(String(link?.title || '') === 'Welcome' && String(link?.url || '') === '#')).length
+            : 0
+    };
 
     const loadedBookmarkFolders = storage
-        ? await storage.loadJson(EVE_BOOKMARK_FOLDERS_KEY, {}, { legacyKeys: [EVE_BOOKMARK_FOLDERS_KEY] })
+        ? await storage.loadJson(EVE_BOOKMARK_FOLDERS_KEY, {}, { legacyKeys: [EVE_BOOKMARK_FOLDERS_KEY], preferNonEmptyLegacy: true })
         : {};
     bookmarkFolders = (loadedBookmarkFolders && typeof loadedBookmarkFolders === 'object') ? loadedBookmarkFolders : {};
 
     const loadedQuickPins = storage
-        ? await storage.loadJson(EVE_QUICK_PINS_KEY, [], { legacyKeys: [EVE_QUICK_PINS_KEY] })
+        ? await storage.loadJson(EVE_QUICK_PINS_KEY, [], { legacyKeys: [EVE_QUICK_PINS_KEY], preferNonEmptyLegacy: true })
         : [];
     quickPins = Array.isArray(loadedQuickPins) ? loadedQuickPins : [];
 
@@ -29,7 +73,8 @@ async function loadData() {
         ? await storage.loadJson(EVE_CONFIG_KEY, {}, {
             legacyKeys: [EVE_CONFIG_KEY],
             mirrorLocalKey: EVE_THEME_BOOT_KEY,
-            mirrorValue: storage.getThemeBootConfig(config)
+            mirrorValue: storage.getThemeBootConfig(config),
+            preferNonEmptyLegacy: true
         })
         : {};
     if (loadedConfig && typeof loadedConfig === 'object') {
@@ -137,6 +182,14 @@ async function loadData() {
     if (links.length === 0) {
         links = [{ id: 1, title: 'Welcome', url: '#', category: 'Start', done: false, workspace: 'main', icon: '\u{1F44B}' }];
     }
+    window.__eveLastCoreDataLoadSummary = {
+        ...(window.__eveLastCoreDataLoadSummary || {}),
+        completedAt: Date.now(),
+        linkCount: Array.isArray(links) ? links.length : 0,
+        realLinkCount: Array.isArray(links)
+            ? links.filter((link) => link && !(String(link?.title || '') === 'Welcome' && String(link?.url || '') === '#')).length
+            : 0
+    };
 
     if (window.EveQuickPins?.migrateLegacyPins) {
         window.EveQuickPins.migrateLegacyPins();
@@ -157,15 +210,22 @@ async function loadData() {
     // Use setTimeout(0) to push to back of macrotask queue (rAF still competes with paint)
     if (typeof renderSidebar === 'function') renderSidebar();
 
-    setTimeout(function () {
-        window._eveStartupBookmarkPaintActive = true;
-        window.__eveDashboardRenderHint = {
-            kind: 'startup',
-            source: 'storage-load',
-            linkCount: Array.isArray(links) ? links.length : 0,
-            startedAt: Date.now()
-        };
-        if (typeof renderDashboard === 'function') renderDashboard();
+    const startupRenderDone = new Promise((resolve) => {
+        setTimeout(function () {
+            try {
+                const grid = document.getElementById('dashboard-grid');
+                if (window.__eveUserInteractedBeforeStartupRender && grid && grid.children.length > 0) {
+                    window._eveStartupBookmarkPaintActive = false;
+                    return;
+                }
+                window._eveStartupBookmarkPaintActive = true;
+                window.__eveDashboardRenderHint = {
+                    kind: 'startup',
+                    source: 'storage-load',
+                    linkCount: Array.isArray(links) ? links.length : 0,
+                    startedAt: Date.now()
+                };
+                if (typeof renderDashboard === 'function') renderDashboard();
         // Defer suggestions even further — they're not visible initially
         setTimeout(function () {
             if (typeof updateSuggestions === 'function') updateSuggestions();
@@ -181,11 +241,24 @@ async function loadData() {
         setTimeout(function () {
             window._eveStartupBookmarkPaintActive = false;
         }, 9000);
-    }, 0);
+            } catch (error) {
+                console.warn('[Storage] Startup dashboard render failed', error);
+            } finally {
+                finishCoreDataLoad(true);
+                resolve(true);
+            }
+        }, 0);
+    });
 
     if (typeof updateTimeAndGreeting === 'function') {
         updateTimeAndGreeting();
         setInterval(updateTimeAndGreeting, 1000);
+    }
+
+    return startupRenderDone;
+    } catch (error) {
+        finishCoreDataLoad(false);
+        throw error;
     }
 }
 

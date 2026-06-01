@@ -92,9 +92,9 @@
 
 .unidex-entries.is-grid-layout.is-large-entry-set.is-flat-entry-set.is-density-atlas,
 .unidex-entries.is-grid-layout.is-large-entry-set.is-grouped-entry-set.is-density-atlas .unidex-identifier-group-body {
-    --unidex-entry-span: 22;
+    --unidex-entry-span: 25;
     --unidex-large-cover-height: 144px;
-    --unidex-large-card-height: 340px;
+    --unidex-large-card-height: 390px;
     grid-template-columns: repeat(auto-fill, minmax(160px, 180px)) !important;
     gap: 8px !important;
 }

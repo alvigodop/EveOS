@@ -4,10 +4,12 @@
     const h = api._shared || {};
     const {
         text,
+        normalizeList,
         normalizeKey,
         normalizedMatch,
         ensureStore,
         getScopedKey,
+        getDefinitionsById,
         getIdentifierIds,
         getRelatedUrlEntries,
         getSourceProviderValues,
@@ -17,8 +19,108 @@
         getPinScopeValues,
         getMergeStateValues,
         getCoverStateValues,
-        normalizeReusableCriteria
+        normalizeReusableCriteria,
+        buildDuplicateUrlCounts
     } = h;
+
+    function getLiveLinks() {
+        if (typeof window.getLiveLinks === 'function') return window.getLiveLinks();
+        if (Array.isArray(window.eveState?.links)) return window.eveState.links;
+        if (Array.isArray(window.links)) return window.links;
+        if (typeof links !== 'undefined' && Array.isArray(links)) return links;
+        return [];
+    }
+
+    function buildLiveLinkMap(links) {
+        const map = new Map();
+        (Array.isArray(links) ? links : []).forEach((link) => {
+            const id = text(link?.id, '');
+            if (id && !map.has(id)) map.set(id, link);
+        });
+        return map;
+    }
+
+    function getDatapackIndex() {
+        return window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
+    }
+
+    function buildIndexedLinkFallback(record, linkId) {
+        const relatedUrls = normalizeList(record?.provenance?.relatedUrls)
+            .map((url) => ({ url, label: '' }));
+        return {
+            id: text(linkId || record?.path?.linkId || record?.provenance?.linkId || record?.sourceIdentity?.linkId, ''),
+            title: text(record?.title, 'Untitled'),
+            url: text(record?.url, ''),
+            workspace: text(record?.workspaceId || record?.path?.workspaceId, 'main'),
+            category: text(record?.categoryName || record?.path?.categoryName, 'Unsorted'),
+            folderId: text(record?.path?.folderId, ''),
+            notes: text(record?.description, ''),
+            tags: normalizeList(record?.provenance?.tags),
+            identifiers: normalizeList(record?.provenance?.identifiers),
+            icon: text(record?.provenance?.icon, ''),
+            coverImage: text(record?.provenance?.coverImage, ''),
+            relatedUrls,
+            done: !!record?.provenance?.done
+        };
+    }
+
+    function buildIndexedEntryFallback(record) {
+        const library = record?.library || {};
+        return {
+            id: text(library.entryId, ''),
+            title: text(library.title || record?.title, ''),
+            summary: text(library.summary || record?.description, ''),
+            notes: text(library.summary, ''),
+            author: text(library.author, ''),
+            genre: text(library.genre, ''),
+            status: text(library.status, ''),
+            mediaType: text(library.mediaType, ''),
+            altTitles: normalizeList(library.aliases),
+            titleAltNames: normalizeList(library.aliases)
+        };
+    }
+
+    function getIndexedBookmarkRecords(scope) {
+        const indexApi = getDatapackIndex();
+        if (!indexApi || typeof indexApi.getExactBookmarkLinkIds !== 'function' || typeof indexApi.getIndexedBookmarkRecordByLinkId !== 'function') {
+            return null;
+        }
+        if (typeof indexApi.hasReadableLinkSnapshot === 'function' && !indexApi.hasReadableLinkSnapshot()) {
+            return null;
+        }
+        const linkIds = indexApi.getExactBookmarkLinkIds({
+            workspaceId: text(scope?.workspaceId, ''),
+            categoryName: text(scope?.categoryName, ''),
+            folderId: text(scope?.folderId, '')
+        });
+        if (!Array.isArray(linkIds)) return null;
+        const records = [];
+        linkIds.forEach((linkId) => {
+            const record = indexApi.getIndexedBookmarkRecordByLinkId(linkId);
+            if (record) records.push({ linkId: text(linkId, ''), record });
+        });
+        return records;
+    }
+
+    function makeGroup(categoryKey, categoryName, groupKey, groupLabel, buckets, options = {}) {
+        return {
+            categoryKey,
+            categoryName,
+            groupKey,
+            groupLabel,
+            enabledKey: options.enabledKey || groupKey,
+            relatedDimensions: options.relatedDimensions || [groupKey],
+            buckets: (Array.isArray(buckets) ? buckets : []).map((bucket) => ({
+                key: bucket.key,
+                label: bucket.label,
+                links: bucket.links || [],
+                why: bucket.why || options.why || '',
+                criteria: bucket.criteria || { dimension: groupKey, value: bucket.label },
+                keepWhenEmpty: !!bucket.keepWhenEmpty,
+                userSmartViewId: bucket.userSmartViewId || ''
+            }))
+        };
+    }
 
     function listCardViews(workspaceId, categoryName) {
         const store = ensureStore();

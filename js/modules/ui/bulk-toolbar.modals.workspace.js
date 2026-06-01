@@ -215,6 +215,8 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
             if (!filteredTree.length) {
                 list.innerHTML = '<div class="bulk-target-empty">No matching tabs</div>';
                 list.dataset.selected = '';
+                const select = document.getElementById('bulk-tab-existing-select');
+                if (select) select.innerHTML = '';
                 renderBulkTabCardOptions();
                 return;
             }
@@ -229,6 +231,12 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
             }
             list.innerHTML = filteredTree.map((node) => buildWorkspaceTreeRowHtml(node, preferred, 0, autoExpandIds)).join('');
             list.dataset.selected = preferred;
+            const select = document.getElementById('bulk-tab-existing-select');
+            if (select) {
+                const names = new Map(getWorkspaceList().map((item) => [String(item.id), String(item.name || item.id)]));
+                select.innerHTML = allIds.map((id) => '<option value="' + escapeBulkMoveHtml(id) + '">' + escapeBulkMoveHtml(names.get(id) || id) + '</option>').join('');
+                select.value = preferred;
+            }
             renderBulkTabCardOptions();
         }
         function setBulkTabMode(mode) {
@@ -289,6 +297,8 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
                 list.dataset.selected = '';
                 list.dataset.selectedCard = '';
                 list.dataset.selectedFolder = '';
+                const select = document.getElementById('bulk-tab-card-existing-select');
+                if (select) select.innerHTML = '';
                 list.dataset.bulkAutoCardMode = 'new';
                 setBulkTabCardMode('new');
                 const input = document.getElementById('bulk-tab-card-new-input');
@@ -307,6 +317,11 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
             list.dataset.selected = preferredCard;
             list.dataset.selectedCard = preferredCard;
             list.dataset.selectedFolder = preferredFolder;
+            const select = document.getElementById('bulk-tab-card-existing-select');
+            if (select) {
+                select.innerHTML = cardNames.map((name) => '<option value="' + escapeBulkMoveHtml(name) + '">' + escapeBulkMoveHtml(name) + '</option>').join('');
+                select.value = preferredCard;
+            }
             if (list.dataset.bulkAutoCardMode === 'new') {
                 delete list.dataset.bulkAutoCardMode;
                 setBulkTabCardMode('existing');

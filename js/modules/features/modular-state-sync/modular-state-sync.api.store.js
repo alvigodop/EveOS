@@ -87,7 +87,11 @@ window.EveDataStore = window.EveDataStore || {};
         if (bootstrap) {
             const fileCount = Number(payload?.status?.fileCount || 0);
             if (fileCount > 0) {
-                const pulled = await ns.pullRemoteState(true, payload?.status?.signature || '', { ignoreEnabled: true });
+                const pulled = await ns.pullRemoteState(true, payload?.status?.signature || '', {
+                    ignoreEnabled: true,
+                    allowEmptyRemoteApply: true,
+                    allowDestructiveRemoteApply: true
+                });
                 if (!pulled) {
                     state.remoteSignature = payload?.status?.signature || state.remoteSignature;
                     const currentHash = ns.captureStateHash();
@@ -167,7 +171,11 @@ window.EveDataStore = window.EveDataStore || {};
             return { ok: false, error: payload?.error || 'Failed to import modular layer.' };
         }
 
-        await ns.pullRemoteState(true, payload?.status?.signature || '', { ignoreEnabled: true });
+        await ns.pullRemoteState(true, payload?.status?.signature || '', {
+            ignoreEnabled: true,
+            allowEmptyRemoteApply: true,
+            allowDestructiveRemoteApply: true
+        });
         return {
             ok: true,
             layer: payload.layer,

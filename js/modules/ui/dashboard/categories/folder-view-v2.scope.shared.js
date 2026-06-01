@@ -73,9 +73,39 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         if (typeof window.renderDashboard === 'function') window.renderDashboard();
     }
 
+    ns.buildHeaderActionTrayHtml = function (workspaceId, categoryName, folderId, isGhost) {
+        const ws = escapeCardJs(workspaceId);
+        const cat = escapeCardJs(categoryName);
+        const fid = escapeCardJs(folderId);
+        const safeWs = escapeCardHtml(workspaceId);
+        const safeCat = escapeCardHtml(categoryName);
+        const safeFid = escapeCardHtml(folderId);
+        const editFolderButtonHtml = isGhost
+            ? ''
+            : `<button type="button" class="folder-breadcrumb-action-btn" title="Edit Current Folder" onclick="event.preventDefault(); event.stopPropagation(); if(typeof window.showFolderContextMenu === 'function') window.showFolderContextMenu(event, '${cat}', '${fid}', '${ws}');">&#9998; Edit Folder</button>`;
+        return `<div class="folder-breadcrumb-action-tray">${editFolderButtonHtml}<button type="button" class="folder-breadcrumb-action-btn bulk-scope-btn" data-scope-category="${safeCat}" data-scope-workspace="${safeWs}" data-scope-folder-id="${safeFid}" title="Select Folder Subtree" onclick="event.preventDefault(); event.stopPropagation(); bulkToggleFolderScopeSelection('${cat}', '${ws}', '${fid}');">&#9744; Select Subtree</button><button type="button" class="folder-breadcrumb-action-btn" title="Auto-Title Links" onclick="event.preventDefault(); event.stopPropagation(); window.EveFolderViewV2.openFolderBulkTitle('${cat}', '${fid}', '${ws}');">&#127991; Auto-Title</button><button type="button" class="folder-breadcrumb-action-btn" title="Auto-Add Library Entries" onclick="event.preventDefault(); event.stopPropagation(); window.EveFolderViewV2.openFolderBulkLibraryAuto('${cat}', '${fid}', '${ws}');">&#128214; Auto-Library</button></div>`;
+    };
+
+    function toggleHeaderActionsInPlace(workspaceId, categoryName, folderId, expanded) {
+        const card = document.querySelector(`.category-card[data-card-workspace="${CSS.escape(String(workspaceId || ''))}"][data-card-category="${CSS.escape(String(categoryName || ''))}"]`);
+        const breadcrumbs = card?.querySelector?.('.folder-breadcrumbs');
+        if (!breadcrumbs) return false;
+        const existingTray = card.querySelector('.folder-breadcrumb-action-tray');
+        if (existingTray) existingTray.remove();
+        const actionButton = breadcrumbs.querySelector('.folder-breadcrumb-icon-btn[title="Folder Actions"]');
+        if (actionButton) actionButton.classList.toggle('active', !!expanded);
+        if (expanded) {
+            const viewModel = ns.getCachedViewModel(workspaceId, categoryName);
+            const targetNode = viewModel?.nodes?.find((node) => String(node?.id || '') === String(folderId || ''));
+            breadcrumbs.insertAdjacentHTML('afterend', ns.buildHeaderActionTrayHtml(workspaceId, categoryName, folderId, !!targetNode?.isGhost));
+        }
+        return true;
+    }
+
     ns.toggleHeaderActions = function (workspaceId, categoryName, folderId) {
         const key = buildHeaderActionKey(workspaceId, categoryName, folderId);
         ns._headerActionState[key] = !ns._headerActionState[key];
+        if (toggleHeaderActionsInPlace(workspaceId, categoryName, folderId, ns._headerActionState[key])) return;
         rerenderActiveFolderView(workspaceId, categoryName);
     };
 

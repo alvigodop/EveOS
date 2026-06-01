@@ -15,6 +15,9 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             return Math.max(20, Math.min(2000, Math.round(raw)));
         }
         const PROGRESSIVE_CHUNK_SIZE = resolveChunkSize(220);
+        const PROGRESSIVE_ENTRY_THRESHOLD = 500;
+        const PROGRESSIVE_GRID_INITIAL_COUNT = 240;
+        const PROGRESSIVE_ROW_INITIAL_COUNT = 220;
         const PROGRESSIVE_GROUP_CHUNK_SIZE = Math.max(PROGRESSIVE_CHUNK_SIZE * 3, resolveChunkSize(760));
         let progressiveEntriesToken = 0;
         const mapButtonHtml = '<button type="button" class="unidex-layout-btn unidex-map-btn" onclick="window.UnidexView.openConstellationMap()" title="Open Constellation Map for this layer">Map</button>';

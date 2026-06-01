@@ -56,6 +56,7 @@ let config = {
     confirmBeforeSweep: true,
     backupReminderDays: 0,
     lastBackupAt: "",
+    editHistoryFullStateMaxLinks: 2500,
     bridges: {
         serverPort: 3000,
         lightpandaPort: 3037,

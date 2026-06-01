@@ -84,6 +84,10 @@ window.EveBulkToolbar = window.EveBulkToolbar || {};
         if (!nextMode) {
             closeAllModals();
         }
+        if (nextMode && typeof window._renderDashboardImmediate === 'function') {
+            window.__eveDashboardRenderHint = { kind: 'bulk-select', source: 'bulk-select-mode' };
+            window._renderDashboardImmediate();
+        }
         updateBulkUI();
     }
 

@@ -269,6 +269,14 @@ body.bulk-active .bulk-scope-btn {
     margin-bottom: 2px;
 }
 
+.bulk-compat-select {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+
 /* Manhua-style scrollable picker — replaces the native <select> */
 .bulk-target-list {
     display: flex;

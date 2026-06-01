@@ -46,7 +46,11 @@ window.EveDataStore = window.EveDataStore || {};
     async function pullNow(force = true) {
         if (!ns.isHttpContext()) return false;
         const remoteStatus = await ns.getRemoteStatus();
-        return ns.pullRemoteState(!!force, remoteStatus?.signature || '', { ignoreEnabled: true });
+        return ns.pullRemoteState(!!force, remoteStatus?.signature || '', {
+            ignoreEnabled: true,
+            allowEmptyRemoteApply: true,
+            allowDestructiveRemoteApply: true
+        });
     }
 
     async function normalizeBookmarkFilenames() {
@@ -61,7 +65,11 @@ window.EveDataStore = window.EveDataStore || {};
             return { ok: false, error: payload?.error || 'Failed to normalize modular bookmark filenames.' };
         }
 
-        await ns.pullRemoteState(true, payload?.status?.signature || '', { ignoreEnabled: true });
+        await ns.pullRemoteState(true, payload?.status?.signature || '', {
+            ignoreEnabled: true,
+            allowEmptyRemoteApply: true,
+            allowDestructiveRemoteApply: true
+        });
         return { ok: true, status: payload?.status || null };
     }
 
