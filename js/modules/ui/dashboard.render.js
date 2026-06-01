@@ -121,6 +121,7 @@ function _renderDashboardCore(renderHint) {
     const mainContent = document.getElementById('main-content');
 
     if (!grid) return;
+    window.__eveDashboardLastRenderAt = Date.now();
 
     const searchStr = searchInput ? searchInput.value.toLowerCase() : '';
     const searchTerms = searchStr ? searchStr.split(/\s+/).filter(Boolean) : [];

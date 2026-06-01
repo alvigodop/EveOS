@@ -10,7 +10,24 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         return window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
     }
 
+    function getLiveLinkCount() {
+        if (Array.isArray(window.eveState?.links)) return window.eveState.links.length;
+        if (typeof getLiveLinks === 'function') return getLiveLinks().length;
+        if (Array.isArray(window.links)) return window.links.length;
+        return 0;
+    }
+
     function queueStructureSummaryWarmup(reason, rerender) {
+        var linkCount = getLiveLinkCount();
+        if (linkCount > 3500) {
+            rt._structureSummaryWarmSuppressed = {
+                at: Date.now(),
+                reason: String(reason || 'sidebar-structure-summary'),
+                linkCount: linkCount,
+                cap: 3500
+            };
+            return;
+        }
         var indexApi = getDatapackIndexApi();
         if (!indexApi || (typeof indexApi.ensureFresh !== 'function' && typeof indexApi.rebuild !== 'function')) return;
         if (rt._structureSummaryWarmPromise) return;

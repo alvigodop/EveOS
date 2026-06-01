@@ -126,6 +126,8 @@ function buildPayload() {
                 shells: document.querySelectorAll('.category-card[data-card-deferred="1"]').length,
                 gen: window._eveDashRenderGen || 0,
                 skippedWarmup: window.__eveDashboardSummaryWarmupSkippedRefresh || null,
+                delayedWarmup: window.__eveDashboardSummaryWarmupDelayed || null,
+                suppressedWarmup: window.__eveDashboardSummaryWarmupSuppressed || null,
                 renderEvents: window.__delayedUnloadRenderEvents || [],
                 blankAfterPaint,
                 gridEvents: gridEvents.slice(-40),
@@ -139,8 +141,8 @@ function buildPayload() {
         if (result.blankAfterPaint.length > 0) {
             throw new Error(`Dashboard grid went blank after first paint: ${JSON.stringify(result)}`);
         }
-        if (!result.skippedWarmup) {
-            throw new Error(`Expected summary warmup refresh to be skipped over painted dashboard: ${JSON.stringify(result)}`);
+        if (!result.skippedWarmup && !result.delayedWarmup && !result.suppressedWarmup) {
+            throw new Error(`Expected summary warmup refresh to be skipped, delayed, or suppressed over painted dashboard: ${JSON.stringify(result)}`);
         }
 
         console.log('DASHBOARD_DELAYED_UNLOAD_GUARD_BROWSER_SMOKE_OK', JSON.stringify({
@@ -148,6 +150,8 @@ function buildPayload() {
             shells: result.shells,
             gen: result.gen,
             skippedWarmup: result.skippedWarmup,
+            delayedWarmup: result.delayedWarmup,
+            suppressedWarmup: result.suppressedWarmup,
             renderEvents: result.renderEvents.length,
             warnings: warnings.slice(-5)
         }));

@@ -11,9 +11,66 @@ function getDashboardActiveWorkspace() {
 }
 
 var dashboardCategorySummaryWarmPromise = null;
+var dashboardCategorySummaryWarmTimer = 0;
+var DASHBOARD_AUTO_INDEX_WARM_LINK_CAP = 3500;
 
 function getDashboardDatapackIndexApi() {
     return window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
+}
+
+function getDashboardSummaryWarmupLiveLinkCount() {
+    if (Array.isArray(window.eveState?.links)) return window.eveState.links.length;
+    if (typeof getLiveLinks === 'function') return getLiveLinks().length;
+    if (Array.isArray(window.links)) return window.links.length;
+    return 0;
+}
+
+function shouldDelayDashboardSummaryWarmupBuild() {
+    if (window._eveStartupBookmarkPaintActive || window.__eveCoreDataLoading) return true;
+    return getDashboardSummaryWarmupLiveLinkCount() > DASHBOARD_AUTO_INDEX_WARM_LINK_CAP && Number(window.__eveDashboardLastRenderAt || 0) > Date.now() - 3500;
+}
+
+function shouldSuppressDashboardSummaryAutoWarmup() {
+    return getDashboardSummaryWarmupLiveLinkCount() > DASHBOARD_AUTO_INDEX_WARM_LINK_CAP;
+}
+
+function scheduleDashboardCategorySummaryWarmupLater(reason) {
+    if (dashboardCategorySummaryWarmTimer || dashboardCategorySummaryWarmPromise) return;
+    var requestedAt = Date.now();
+    var scrollSeqAtRequest = Number(window._dashboardScrollActivitySeq || 0);
+    var linkCount = getDashboardSummaryWarmupLiveLinkCount();
+    if (linkCount > DASHBOARD_AUTO_INDEX_WARM_LINK_CAP) {
+        window.__eveDashboardSummaryWarmupSuppressed = {
+            at: requestedAt,
+            reason: String(reason || 'dashboard-categories'),
+            linkCount: linkCount,
+            cap: DASHBOARD_AUTO_INDEX_WARM_LINK_CAP
+        };
+        return;
+    }
+    var delayMs = window._eveStartupBookmarkPaintActive || window.__eveCoreDataLoading
+        ? 10200
+        : 1200;
+
+    window.__eveDashboardSummaryWarmupDelayed = {
+        at: requestedAt,
+        reason: String(reason || 'dashboard-categories'),
+        delayMs: delayMs,
+        linkCount: linkCount
+    };
+    dashboardCategorySummaryWarmTimer = setTimeout(function () {
+        dashboardCategorySummaryWarmTimer = 0;
+        var scrollChanged = Number(window._dashboardScrollActivitySeq || 0) !== scrollSeqAtRequest;
+        if (scrollChanged && Date.now() - requestedAt < 30000) {
+            scheduleDashboardCategorySummaryWarmupLater('scroll-active');
+            return;
+        }
+        if (shouldDelayDashboardSummaryWarmupBuild()) {
+            scheduleDashboardCategorySummaryWarmupLater(reason || 'startup-active');
+            return;
+        }
+        queueDashboardCategorySummaryWarmup({ forceNow: true, source: reason || 'deferred-startup-idle' });
+    }, delayMs);
 }
 
 function shouldSkipDashboardSummaryWarmupRefresh() {
@@ -34,13 +91,22 @@ function shouldSkipDashboardSummaryWarmupRefresh() {
     return hasDeferredCards;
 }
 
-function queueDashboardCategorySummaryWarmup() {
+function queueDashboardCategorySummaryWarmup(options) {
+    var opts = options && typeof options === 'object' ? options : {};
+    if (!opts.forceNow && shouldSuppressDashboardSummaryAutoWarmup()) {
+        scheduleDashboardCategorySummaryWarmupLater(opts.source || 'dashboard-categories');
+        return;
+    }
+    if (!opts.forceNow && shouldDelayDashboardSummaryWarmupBuild()) {
+        scheduleDashboardCategorySummaryWarmupLater(opts.source || 'dashboard-categories');
+        return;
+    }
     var indexApi = getDashboardDatapackIndexApi();
     if (!indexApi || (typeof indexApi.ensureFresh !== 'function' && typeof indexApi.rebuild !== 'function')) return;
     if (dashboardCategorySummaryWarmPromise) return;
     var scrollSeqAtRequest = Number(window._dashboardScrollActivitySeq || 0);
     var warmPromise = typeof indexApi.ensureFresh === 'function'
-        ? indexApi.ensureFresh({ reason: 'dashboard-categories', allowStale: true, deferMs: 1400 })
+        ? indexApi.ensureFresh({ reason: 'dashboard-categories', allowStale: true, deferMs: 1800 })
         : indexApi.rebuild({ reason: 'dashboard-categories' });
 
     dashboardCategorySummaryWarmPromise = Promise.resolve(warmPromise)

@@ -10,6 +10,8 @@
     var _PREFETCH_MAX = 10;
     var _prefetchIdleId = 0;
     var _prefetchGeneration = 0;
+    var _indexWarmDelayTimer = 0;
+    var _AUTO_INDEX_WARM_LINK_CAP = 3500;
 
     function clearPrefetchCache() {
         _prefetchCache.clear();
@@ -50,13 +52,75 @@
 
     var _indexWarmPromise = null;
 
-    function warmDatapackIndex(reason) {
+    function getLiveLinkCount() {
+        if (Array.isArray(window.eveState?.links)) return window.eveState.links.length;
+        if (typeof getDashboardLiveLinks === 'function') return getDashboardLiveLinks().length;
+        if (Array.isArray(window.links)) return window.links.length;
+        return 0;
+    }
+
+    function shouldDelayIndexWarmup() {
+        if (window._eveStartupBookmarkPaintActive || window.__eveCoreDataLoading) return true;
+        return getLiveLinkCount() > _AUTO_INDEX_WARM_LINK_CAP && Number(window.__eveDashboardLastRenderAt || 0) > Date.now() - 3500;
+    }
+
+    function shouldSuppressAutoIndexWarmup() {
+        return getLiveLinkCount() > _AUTO_INDEX_WARM_LINK_CAP;
+    }
+
+    function scheduleDelayedIndexWarmup(reason) {
+        if (_indexWarmDelayTimer || _indexWarmPromise) return;
+        var requestedAt = Date.now();
+        var scrollSeqAtRequest = Number(window._dashboardScrollActivitySeq || 0);
+        var linkCount = getLiveLinkCount();
+        if (linkCount > _AUTO_INDEX_WARM_LINK_CAP) {
+            window.__eveDashboardPrefetchIndexWarmupSuppressed = {
+                at: requestedAt,
+                reason: String(reason || 'dashboard-prefetch'),
+                linkCount: linkCount,
+                cap: _AUTO_INDEX_WARM_LINK_CAP
+            };
+            return;
+        }
+        var delayMs = window._eveStartupBookmarkPaintActive || window.__eveCoreDataLoading
+            ? 10400
+            : 1200;
+        window.__eveDashboardPrefetchIndexWarmupDelayed = {
+            at: requestedAt,
+            reason: String(reason || 'dashboard-prefetch'),
+            delayMs: delayMs,
+            linkCount: linkCount
+        };
+        _indexWarmDelayTimer = setTimeout(function () {
+            _indexWarmDelayTimer = 0;
+            var scrollChanged = Number(window._dashboardScrollActivitySeq || 0) !== scrollSeqAtRequest;
+            if (scrollChanged && Date.now() - requestedAt < 30000) {
+                scheduleDelayedIndexWarmup('scroll-active');
+                return;
+            }
+            if (shouldDelayIndexWarmup()) {
+                scheduleDelayedIndexWarmup(reason || 'startup-active');
+                return;
+            }
+            warmDatapackIndex(reason || 'deferred-startup-idle', { forceNow: true });
+        }, delayMs);
+    }
+
+    function warmDatapackIndex(reason, options) {
+        if (!options?.forceNow && shouldSuppressAutoIndexWarmup()) {
+            scheduleDelayedIndexWarmup(reason || 'dashboard-prefetch');
+            return;
+        }
+        if (!options?.forceNow && shouldDelayIndexWarmup()) {
+            scheduleDelayedIndexWarmup(reason || 'dashboard-prefetch');
+            return;
+        }
         var indexApi = getDatapackIndexApi();
         if (!indexApi || (typeof indexApi.ensureFresh !== 'function' && typeof indexApi.rebuild !== 'function')) return;
         if (_indexWarmPromise) return;
         var warmReason = String(reason || 'dashboard-prefetch');
         var warmPromise = typeof indexApi.ensureFresh === 'function'
-            ? indexApi.ensureFresh({ reason: warmReason, allowStale: true, deferMs: 1400 })
+            ? indexApi.ensureFresh({ reason: warmReason, allowStale: true, deferMs: 1900 })
             : indexApi.rebuild({ reason: warmReason });
         _indexWarmPromise = Promise.resolve(warmPromise)
             .catch(function () {

@@ -6,7 +6,24 @@ window.DashboardCategories = window.DashboardCategories || {};
 
     var cardSummaryWarmPromise = null;
 
+    function getLiveLinkCount() {
+        if (Array.isArray(window.eveState?.links)) return window.eveState.links.length;
+        if (typeof getLiveLinks === 'function') return getLiveLinks().length;
+        if (Array.isArray(window.links)) return window.links.length;
+        return 0;
+    }
+
     function queueCardSummaryWarmup() {
+        var linkCount = getLiveLinkCount();
+        if (linkCount > 3500) {
+            window.__eveDashboardCardSummaryWarmupSuppressed = {
+                at: Date.now(),
+                reason: 'dashboard-card-summary',
+                linkCount: linkCount,
+                cap: 3500
+            };
+            return;
+        }
         var indexApi = window.EveOS?.SearchAdvanced?.Index;
         if (!indexApi || (typeof indexApi.ensureFresh !== 'function' && typeof indexApi.rebuild !== 'function')) return;
         if (cardSummaryWarmPromise) return;

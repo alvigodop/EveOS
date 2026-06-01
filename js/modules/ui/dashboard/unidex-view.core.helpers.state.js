@@ -17,7 +17,24 @@
             if (typeof indexApi.hasReadableLinkSnapshot === 'function') return !!indexApi.hasReadableLinkSnapshot();
             return hasUsableDatapackSnapshot(indexApi);
         }
+        function getLiveLinkCount() {
+            if (typeof window.getLiveLinks === 'function') return window.getLiveLinks().length;
+            if (Array.isArray(window.eveState?.links)) return window.eveState.links.length;
+            if (Array.isArray(window.links)) return window.links.length;
+            return 0;
+        }
         function warmDatapackIndex() {
+            const linkCount = getLiveLinkCount();
+            if (linkCount > 3500) {
+                state.datapackIndexWarmSuppressed = {
+                    at: Date.now(),
+                    reason: 'unidex-summary',
+                    linkCount,
+                    cap: 3500
+                };
+                window.__eveUnidexIndexWarmupSuppressed = state.datapackIndexWarmSuppressed;
+                return;
+            }
             const indexApi = getDatapackIndexApi();
             if (!indexApi || (typeof indexApi.ensureFresh !== 'function' && typeof indexApi.rebuild !== 'function')) return;
             if (state.datapackIndexWarmPromise) return;

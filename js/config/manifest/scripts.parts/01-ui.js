@@ -81,7 +81,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/ui/sidebar-groups.mutations.js?v=0.1.1",
     "js/modules/ui/sidebar-groups.js?v=0.1.4",
     "js/modules/ui/sidebar.runtime.view-state.js?v=0.1.3",
-    "js/modules/ui/sidebar.runtime.shared.js?v=0.1.4",
+    "js/modules/ui/sidebar.runtime.shared.js?v=0.1.5",
     "js/modules/ui/sidebar.runtime.interactions.js?v=0.1.1",
     "js/modules/ui/sidebar.runtime.groups.js?v=0.1.2",
     "js/modules/ui/sidebar.runtime.workspace.pointer-drag.js?v=0.1.9",
