@@ -12,8 +12,58 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             STORAGE_KEY,
             STORAGE_MANAGER_KEY,
             state,
+            readConfig,
             text
         } = shared;
+    const PERSIST_RECORD_CAP_DEFAULT = 15000;
+
+    function readPersistRecordCap() {
+        const cfg = typeof readConfig === 'function' ? readConfig() : {};
+        const raw = Number(cfg?.nexusIndexPersistMaxRecords);
+        if (Number.isFinite(raw) && raw >= 0) return raw;
+        return PERSIST_RECORD_CAP_DEFAULT;
+    }
+
+    function getSnapshotRecordCount(snapshot) {
+        return Array.isArray(snapshot?.records) ? snapshot.records.length : 0;
+    }
+
+    function shouldSkipPersistSnapshot(snapshot) {
+        const maxRecords = readPersistRecordCap();
+        if (maxRecords <= 0) return false;
+        return getSnapshotRecordCount(snapshot) > maxRecords;
+    }
+
+    function recordPersistSkipped(snapshot, reason) {
+        state.lastPersistSkipped = {
+            reason: text(reason, 'large-snapshot'),
+            recordCount: getSnapshotRecordCount(snapshot),
+            maxRecords: readPersistRecordCap(),
+            datapackFingerprint: text(snapshot?.datapackFingerprint, ''),
+            at: Date.now()
+        };
+    }
+
+    async function clearPersistedSnapshot(reason) {
+        try {
+            localStorage.removeItem(STORAGE_KEY);
+            localStorage.removeItem('global_' + STORAGE_MANAGER_KEY);
+        } catch (error) {
+            console.warn('[NexusIndex] Persisted snapshot cleanup failed:', error);
+        }
+
+        try {
+            if (window.StorageManager?.deleteHeavyData) {
+                await window.StorageManager.deleteHeavyData(STORAGE_MANAGER_KEY);
+            } else if (window.StorageManager?.deleteData) {
+                window.StorageManager.deleteData(STORAGE_MANAGER_KEY, null, { backend: 'localstorage' });
+            }
+        } catch (error) {
+            console.warn('[NexusIndex] StorageManager cleanup failed:', error);
+        }
+        state.lastPersistCleanupReason = text(reason, 'large-snapshot');
+    }
+
     async function loadPersistedSnapshot() {
         if (state.loaded) return state.snapshot;
         state.loaded = true;
@@ -37,6 +87,14 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         }
 
         if (snapshot?.version === shared.INDEX_VERSION && Array.isArray(snapshot.records)) {
+            if (shouldSkipPersistSnapshot(snapshot)) {
+                recordPersistSkipped(snapshot, 'persisted-snapshot-too-large');
+                await clearPersistedSnapshot('persisted-snapshot-too-large');
+                state.snapshot = null;
+                state.dirty = true;
+                state.lastReason = 'persisted-snapshot-too-large';
+                return state.snapshot;
+            }
             const currentFingerprint = buildDatapackStateFingerprint();
             const snapshotFingerprint = text(snapshot.datapackFingerprint, '');
             if (currentFingerprint && snapshotFingerprint && snapshotFingerprint !== currentFingerprint) {
@@ -66,10 +124,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     let pendingIdleHandle = 0;
     let persistInFlight = null;
 
-    function getSnapshotRecordCount(snapshot) {
-        return Array.isArray(snapshot?.records) ? snapshot.records.length : 0;
-    }
-
     function clearPendingPersistTimers() {
         if (pendingPersistTimer) {
             clearTimeout(pendingPersistTimer);
@@ -82,6 +136,12 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     }
 
     async function writeSnapshot(snapshot) {
+        if (shouldSkipPersistSnapshot(snapshot)) {
+            recordPersistSkipped(snapshot, 'snapshot-too-large');
+            await clearPersistedSnapshot('snapshot-too-large');
+            return true;
+        }
+        state.lastPersistSkipped = null;
         let savedToPrimaryStorage = false;
         try {
             if (window.StorageManager?.saveDataAsync) {
@@ -142,6 +202,13 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
 
     async function persistSnapshot(snapshot) {
         const recordCount = getSnapshotRecordCount(snapshot);
+        if (shouldSkipPersistSnapshot(snapshot)) {
+            pendingPersistSnapshot = null;
+            clearPendingPersistTimers();
+            recordPersistSkipped(snapshot, 'snapshot-too-large');
+            await clearPersistedSnapshot('snapshot-too-large');
+            return true;
+        }
         const largeMutationActive = Number(window.__eveLargeMutationActiveUntil || 0) > Date.now();
         if (recordCount > 2500 || largeMutationActive) {
             scheduleDeferredPersist(snapshot);

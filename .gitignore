@@ -152,6 +152,7 @@ __pycache__/
 # Build outputs (general)
 dist/
 build/
+output/playwright/
 
 # System
 Thumbs.db

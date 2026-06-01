@@ -19,17 +19,16 @@
     const DEFERRED_BUSY_PAUSE_MS = 650;
     const DEFERRED_PRESSURE_PAUSE_MS = 900;
     const DEFERRED_HEAVY_PAUSE_MS = 1400;
-    const DEFERRED_LARGE_PACK_LINKS = 1000;
-    const DEFERRED_LARGE_PACK_HOLD_MS = 6000;
+    const DEFERRED_LARGE_PACK_LINKS = 3500;
+    const DEFERRED_LARGE_PACK_HOLD_MS = 45000;
+    const DEFERRED_LARGE_PACK_BATCH_SIZE = 1, DEFERRED_LARGE_PACK_PAUSE_MS = 1500;
     let lastUserInteractionAt = Date.now();
 
     if (!window.EveModuleManifest) {
         console.error("EveOS Manifest not found! Scripts will not load.");
     }
 
-    function noteUserInteraction() {
-        lastUserInteractionAt = Date.now();
-    }
+    function noteUserInteraction() { lastUserInteractionAt = Date.now(); }
 
     ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach((eventName) => {
         window.addEventListener(eventName, noteUserInteraction, { passive: true });
@@ -47,17 +46,13 @@
     function setReloadAttempts(value) {
         try {
             sessionStorage.setItem(RELOAD_ATTEMPT_KEY, String(Math.max(0, Number(value) || 0)));
-        } catch {
-            // Ignore storage errors in restricted browser modes.
-        }
+        } catch {}
     }
 
     function clearReloadAttempts() {
         try {
             sessionStorage.removeItem(RELOAD_ATTEMPT_KEY);
-        } catch {
-            // Ignore storage errors in restricted browser modes.
-        }
+        } catch {}
     }
 
     function getRenderedBootContentCounts() {
@@ -206,15 +201,9 @@
         });
     }
 
-    function sleep(ms) {
-        return new Promise((resolve) => window.setTimeout(resolve, ms));
-    }
+    function sleep(ms) { return new Promise((resolve) => window.setTimeout(resolve, ms)); }
 
-    function nowMs() {
-        return (typeof performance !== 'undefined' && performance.now)
-            ? performance.now()
-            : Date.now();
-    }
+    function nowMs() { return (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now(); }
 
     function getDomPressure() {
         try {
@@ -227,6 +216,19 @@
         }
     }
 
+    function getDeferredLiveLinkCount() {
+        try {
+            if (typeof window.getLiveLinks === 'function') {
+                const links = window.getLiveLinks();
+                return Array.isArray(links) ? links.length : 0;
+            }
+            if (Array.isArray(window.eveState?.links)) return window.eveState.links.length;
+        } catch {
+            // Ignore transient state access errors during bootstrap.
+        }
+        return 0;
+    }
+
     function getDeferredBusyReason(pressure) {
         const now = Date.now();
         if (document.visibilityState === 'hidden') return 'hidden';
@@ -234,9 +236,7 @@
         if (Number(window.__eveLargeMutationActiveUntil || 0) > now) return 'large-mutation';
         if (Number(window.__eveSuppressFaviconRefreshUntil || 0) > now) return 'favicon-suppressed';
         const startedAt = Number(window.__EVE_DEFERRED_SCRIPT_STATE?.startedAt || 0);
-        const liveLinkCount = typeof window.getLiveLinks === 'function'
-            ? (window.getLiveLinks() || []).length
-            : (Array.isArray(window.eveState?.links) ? window.eveState.links.length : 0);
+        const liveLinkCount = getDeferredLiveLinkCount();
         if (
             !window.__RUSH_DEFERRED_LOAD
             && liveLinkCount >= DEFERRED_LARGE_PACK_LINKS
@@ -260,8 +260,13 @@
         let batchSize = DEFERRED_BATCH_SIZE;
         let pauseMs = DEFERRED_BATCH_PAUSE_MS;
         let phase = 'normal';
+        const liveLinkCount = getDeferredLiveLinkCount();
 
-        if (pressure.domNodes > DEFERRED_HEAVY_DOM_NODES || pressure.images > DEFERRED_HEAVY_IMAGES) {
+        if (!window.__RUSH_DEFERRED_LOAD && liveLinkCount >= DEFERRED_LARGE_PACK_LINKS) {
+            batchSize = DEFERRED_LARGE_PACK_BATCH_SIZE;
+            pauseMs = DEFERRED_LARGE_PACK_PAUSE_MS;
+            phase = 'large-pack-background';
+        } else if (pressure.domNodes > DEFERRED_HEAVY_DOM_NODES || pressure.images > DEFERRED_HEAVY_IMAGES) {
             batchSize = 1;
             pauseMs = DEFERRED_HEAVY_PAUSE_MS;
             phase = 'heavy-dom-pressure';
@@ -276,7 +281,8 @@
             pauseMs: Math.max(0, pauseMs),
             phase,
             domNodes: pressure.domNodes,
-            images: pressure.images
+            images: pressure.images,
+            liveLinkCount
         };
     }
 
@@ -375,7 +381,8 @@
                 total: deferredScripts.length,
                 domNodes: plan.domNodes,
                 images: plan.images,
-                phase: plan.phase
+                phase: plan.phase,
+                liveLinkCount: plan.liveLinkCount
             });
 
             if (i < deferredScripts.length) {

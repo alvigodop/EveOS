@@ -133,8 +133,8 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         });
         const records = []
             .concat(buildCardRecords(scopedCategoryMap))
-            .concat(buildFolderRecords(allLinks, scopedCategoryMap))
-            .concat(buildSmartViewRecords ? buildSmartViewRecords(allLinks, scopedCategoryMap) : [])
+            .concat(buildFolderRecords(scopedLinks, scopedCategoryMap))
+            .concat(buildSmartViewRecords ? buildSmartViewRecords(scopedLinks, scopedCategoryMap) : [])
             .concat(buildBookmarkRecords(scopedLinks))
             .concat(scopedLibraryRecords);
         return {

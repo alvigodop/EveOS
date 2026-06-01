@@ -57,6 +57,7 @@ let config = {
     backupReminderDays: 0,
     lastBackupAt: "",
     editHistoryFullStateMaxLinks: 2500,
+    nexusIndexPersistMaxRecords: 15000,
     bridges: {
         serverPort: 3000,
         lightpandaPort: 3037,

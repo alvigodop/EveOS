@@ -335,7 +335,8 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             lastReason: text(state.lastReason, ''),
             lastMutationMeta: normalizeMutationMeta(state.lastMutationMeta),
             lastInvalidationPlan: state.lastInvalidationPlan || classifyInvalidationPlan(state.lastReason, state.lastMutationMeta),
-            datapackFingerprint: text(state.datapackFingerprint || state.snapshot?.datapackFingerprint, '')
+            datapackFingerprint: text(state.datapackFingerprint || state.snapshot?.datapackFingerprint, ''),
+            lastPersistSkipped: state.lastPersistSkipped || null, lastPersistCleanupReason: text(state.lastPersistCleanupReason, '')
         };
     }
     function getInvalidationPlan(reason, mutationMeta) {

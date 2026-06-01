@@ -64,7 +64,9 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         };
     }
     function collectPerformanceInfo() {
-        const indexStats = window.EveOS?.SearchAdvanced?.Index?.getStats?.() || {};
+        const indexApi = window.EveOS?.SearchAdvanced?.Index || {};
+        const indexStats = indexApi.getStats?.() || {};
+        const indexBuildState = indexApi.getBuildState?.() || {};
         const appPerf = window.EvePerformanceMonitor?.getStats?.() || {};
         const faviconStats = window.EveFaviconCache?.getStats?.() || {};
         const deferredState = window.__EVE_DEFERRED_SCRIPT_STATE || {};
@@ -99,6 +101,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 pausedReason: text(deferredState.pausedReason, ''),
                 lastPauseMs: Number(deferredState.lastPauseMs || 0)
             },
+            nexusPersistSkipped: indexBuildState.lastPersistSkipped || null,
             geminiBoot: {
                 loaded: Number(geminiState.loaded || 0),
                 total: Number(geminiState.total || 0),
@@ -264,6 +267,9 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         html += '<tr><td>Nexus Indexed Records</td><td>' + perf.nexusIndexedRecords + '</td></tr>';
         html += '<tr><td>Nexus Indexed Cards</td><td>' + perf.nexusIndexedCards + '</td></tr>';
         html += '<tr><td>Nexus Indexed Providers</td><td>' + perf.nexusIndexedProviders + '</td></tr>';
+        if (perf.nexusPersistSkipped) {
+            html += '<tr><td>Nexus Index Persistence</td><td>Skipped ' + Number(perf.nexusPersistSkipped.recordCount || 0) + ' records over cap ' + Number(perf.nexusPersistSkipped.maxRecords || 0) + '</td></tr>';
+        }
         html += '<tr><td>Long Tasks Seen</td><td>' + perf.longTaskCount + '</td></tr>';
         html += '<tr><td>Worst Long Task</td><td>' + perf.worstLongTaskMs.toFixed(1) + ' ms</td></tr>';
         html += '<tr><td>Worst Operation</td><td>' + escHtml(perf.worstOperationName) + ' (' + perf.worstOperationMs.toFixed(1) + ' ms)</td></tr>';
