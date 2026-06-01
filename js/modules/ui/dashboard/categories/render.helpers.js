@@ -40,14 +40,14 @@ function getDashboardStructureSummary() {
     var indexApi = getDashboardDatapackIndexApi();
     if (!indexApi || typeof indexApi.getStructureSummary !== 'function') return null;
     var buildState = typeof indexApi.getBuildState === 'function' ? indexApi.getBuildState() : null;
-    var hasUsableSnapshot = typeof indexApi.hasReadableStructureSnapshot === 'function'
+    var hasReadableStructureSnapshot = typeof indexApi.hasReadableStructureSnapshot === 'function'
         ? indexApi.hasReadableStructureSnapshot()
         : (typeof indexApi.hasUsableSnapshot === 'function'
             ? indexApi.hasUsableSnapshot()
             : (!buildState?.dirty && Number(buildState?.builtAt || 0) > 0));
-    if (!hasUsableSnapshot) {
+    if (!hasReadableStructureSnapshot) {
         queueDashboardCategorySummaryWarmup();
-        if (Number(buildState?.builtAt || 0) <= 0) return null;
+        return null;
     }
     var summary = indexApi.getStructureSummary();
     if (summary?.builtAt) return summary;
@@ -84,7 +84,7 @@ function collectIndexedDashboardLinkedCategories(activeWorkspaceId, categoryOrde
             };
         });
 
-    return window.DashboardCategories.sort(fauxLinks, categoryOrder);
+    return fauxLinks.length ? window.DashboardCategories.sort(fauxLinks, categoryOrder) : null;
 }
 
 function buildDashboardLinkIdMap(visibleLinks) {

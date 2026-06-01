@@ -122,11 +122,31 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         return text(fallbackContext, '');
     }
 
+    function isReadableOnlyDirtyReason(reason) {
+        const normalizedReason = text(reason, '');
+        return normalizedReason === 'saveConfig'
+            || normalizedReason === 'library-link-updated'
+            || isSourceDrivenReason(normalizedReason);
+    }
+
+    function shouldPreservePendingDataDirtyReason(nextReason, nextMeta) {
+        if (!state.dirty || !state.lastReason) return false;
+        if (!isReadableOnlyDirtyReason(nextReason)) return false;
+        if (isReadableOnlyDirtyReason(state.lastReason)) return false;
+        return !!getMutationDataDelta(state.lastMutationMeta) && !getMutationDataDelta(nextMeta);
+    }
+
     function markDirty(reason, mutationMeta) {
         const normalizedMeta = normalizeMutationMeta(mutationMeta);
         const invalidationPlan = classifyInvalidationPlan(reason, normalizedMeta);
+        const previousPlan = state.lastInvalidationPlan;
         state.lastInvalidationPlan = invalidationPlan;
         if (!invalidationPlan.dirty) return;
+        if (shouldPreservePendingDataDirtyReason(reason, normalizedMeta)) {
+            state.revision = Number(state.revision || 0) + 1;
+            state.lastInvalidationPlan = previousPlan || classifyInvalidationPlan(state.lastReason, state.lastMutationMeta);
+            return;
+        }
         state.revision = Number(state.revision || 0) + 1;
         state.dirty = true;
         state.lastReason = text(reason, 'state-mutated');

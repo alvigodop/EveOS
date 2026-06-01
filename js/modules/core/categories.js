@@ -147,6 +147,23 @@ function requestCategoryCardMoveConfirm(sourceCat, targetName, targetWs, targetE
     return true;
 }
 
+function invalidateCategoryCardMoveViewCaches() {
+    try {
+        if (window.EveDashboardCache && typeof window.EveDashboardCache.clear === 'function') {
+            window.EveDashboardCache.clear();
+        }
+    } catch (error) {
+        console.warn('[Categories] Dashboard cache invalidation after card move failed:', error);
+    }
+    try {
+        if (window.EveDashboardPrefetch && typeof window.EveDashboardPrefetch.clearCache === 'function') {
+            window.EveDashboardPrefetch.clearCache();
+        }
+    } catch (error) {
+        console.warn('[Categories] Dashboard prefetch invalidation after card move failed:', error);
+    }
+}
+
 function scheduleCategoryCardMoveRefresh(sourceWs, sourceCat, targetWs, targetCat, options) {
     var opts = options || {};
     var activeWorkspaceId = normalizeCategoryWorkspaceId(window.eveState?.config?.activeWorkspace || (typeof config !== 'undefined' ? config.activeWorkspace : 'main'));
@@ -168,6 +185,9 @@ function scheduleCategoryCardMoveRefresh(sourceWs, sourceCat, targetWs, targetCa
         ? largeDashboardRenderDelay
         : (movedLinkCount > 100 ? 900 : 650);
     var renderDelayMs = Math.max(300, Number(opts.renderDelayMs || defaultRenderDelay) || defaultRenderDelay);
+    if (activeTarget && !activeSourceOnly && !opts.forceSlowRender) {
+        renderDelayMs = Math.min(renderDelayMs, movedLinkCount > 500 ? 520 : 220);
+    }
     var skipFullRenderAfterSourceRemoval = activeSourceOnly && isLargeDashboard && !opts.forceRender;
     var renderFn = function () {
         if (!shouldRefreshDashboard || typeof renderDashboard !== 'function') return;
@@ -374,6 +394,7 @@ function moveCategoryCardToWorkspace(sourceWorkspaceId, categoryName, targetWork
         });
 
         setCategoryLiveLinks(liveLinks);
+        invalidateCategoryCardMoveViewCaches();
         syncMovedCategoryLibraryLinks(
             movedIds,
             options.source || 'category-card-move',
@@ -394,6 +415,7 @@ function moveCategoryCardToWorkspace(sourceWorkspaceId, categoryName, targetWork
             workspaceId: sourceWs,
             categoryName: sourceCat,
             dataDelta: {
+                kind: 'core-data-delta',
                 complete: false,
                 workspaceIds: [sourceWs, targetWs],
                 categoryNames: [sourceCat, targetCat],

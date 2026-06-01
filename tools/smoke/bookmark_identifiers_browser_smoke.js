@@ -101,6 +101,13 @@ async function main() {
                     category: 'Currently Reading',
                     folderId: 'quick-folder'
                 });
+                window.links.push({
+                    id: 'copy-shelf-anchor',
+                    title: 'Copy Shelf Anchor',
+                    url: 'https://example.com/copy-shelf-anchor',
+                    workspace: 'main',
+                    category: 'Copy Shelf'
+                });
 
                 window.openSettings();
                 window.editBookmarkIdentifierDefinition('reading');
@@ -149,10 +156,17 @@ async function main() {
                 const badgeText = badgeNode ? badgeNode.textContent.replace(/\s+/g, ' ').trim() : '';
                 const readingBadge = document.querySelector(readingBadgeSelector);
                 if (!readingBadge) throw new Error('Reading badge with quick panel attributes missing');
+                if (readingBadge.hasAttribute('title')) {
+                    throw new Error('Interactive identifier badge should not show the native title tooltip over the custom panel');
+                }
                 readingBadge.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, relatedTarget: null }));
                 const quickPanel = document.getElementById('bookmarkIdentifierQuickPanel');
                 if (!quickPanel || !quickPanel.classList.contains('is-open')) {
                     throw new Error('Quick panel did not open from label hover');
+                }
+                const summaryRect = quickPanel.getBoundingClientRect();
+                if (summaryRect.width > 380) {
+                    throw new Error('Quick panel summary is wider than the compact target: ' + summaryRect.width);
                 }
                 const quickButtons = quickPanel.querySelectorAll('[data-bi-action="quick"]');
                 if (quickButtons.length !== 1) {
@@ -161,6 +175,10 @@ async function main() {
                 const quickButton = quickButtons[0];
                 if (!quickButton) throw new Error('Quick Links button missing');
                 quickButton.click();
+                const quickRect = quickPanel.getBoundingClientRect();
+                if (quickRect.width > 380 || quickRect.height > 540) {
+                    throw new Error('Quick panel browser view exceeded compact bounds: ' + quickRect.width + 'x' + quickRect.height);
+                }
                 const copyCard = Array.from(quickPanel.querySelectorAll('[data-bi-action="card"]'))
                     .find(button => button.textContent.includes('Copy Shelf'));
                 if (!copyCard) throw new Error('Copy Shelf quick-link card missing');
@@ -209,7 +227,9 @@ async function main() {
                     copiedCategory: copiedLink.category,
                     movedCategory: movedLink.category,
                     movedFolderId: movedLink.folderId,
-                    recentDestinations: (window.config.bookmarkIdentifierQuickLinkRecents || []).length
+                    recentDestinations: (window.config.bookmarkIdentifierQuickLinkRecents || []).length,
+                    summaryPanelWidth: Math.round(summaryRect.width),
+                    quickPanelSize: `${Math.round(quickRect.width)}x${Math.round(quickRect.height)}`
                 };
             } finally {
                 window.saveData = originalSaveData;

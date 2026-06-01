@@ -393,10 +393,10 @@ window.EveBookmarkIdentifiers = window.EveBookmarkIdentifiers || {};
         return normalizeIdentifierIds(identifierIds).map((id) => {
             const definition = definitions.get(id);
             if (!definition) return '';
-            const title = definition.description ? ` title="${escapeHtml(definition.description)}"` : '';
             const linkAttrs = linkId
                 ? ` data-bookmark-identifier-id="${escapeHtml(id)}" data-bookmark-id="${escapeHtml(linkId)}" tabindex="0" role="button" aria-label="${escapeHtml(definition.label)} quick label panel"`
                 : '';
+            const title = (!linkId && definition.description) ? ` title="${escapeHtml(definition.description)}"` : '';
             const iconHtml = definition.icon
                 ? `<span class="bookmark-identifier-badge__icon">${escapeHtml(definition.icon)}</span>`
                 : '';

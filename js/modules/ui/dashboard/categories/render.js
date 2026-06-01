@@ -16,9 +16,11 @@ function hasFolderBackedCategory(workspaceId, categoryName) {
 }
 
 function collectDashboardCategories(visibleLinks, activeWorkspaceId, categoryOrder, detachedModel, searchStr) {
-    const linkedCategories = !searchStr
-        ? (collectIndexedDashboardLinkedCategories(activeWorkspaceId, categoryOrder)
-            || window.DashboardCategories.sort(visibleLinks, categoryOrder))
+    const indexedCategories = !searchStr
+        ? collectIndexedDashboardLinkedCategories(activeWorkspaceId, categoryOrder)
+        : null;
+    const linkedCategories = Array.isArray(indexedCategories) && indexedCategories.length
+        ? indexedCategories
         : window.DashboardCategories.sort(visibleLinks, categoryOrder);
     const folderCategories = getFolderBackedCategories(activeWorkspaceId); 
     const ordered = [];
