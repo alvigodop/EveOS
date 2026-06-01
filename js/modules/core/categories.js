@@ -439,6 +439,7 @@ function moveCategoryCardToWorkspace(sourceWorkspaceId, categoryName, targetWork
 
         if (typeof saveConfig === 'function') {
             saveConfig({
+                immediate: true,
                 source: options.source || 'category-card-move',
                 meta: {
                     workspaceId: sourceWs,
@@ -450,6 +451,7 @@ function moveCategoryCardToWorkspace(sourceWorkspaceId, categoryName, targetWork
         }
         if (typeof saveData === 'function') {
             saveData({
+                immediate: true,
                 skipRender: true,
                 skipSuggestions: true,
                 source: options.source || 'category-card-move',
@@ -471,6 +473,12 @@ function moveCategoryCardToWorkspace(sourceWorkspaceId, categoryName, targetWork
                     }
                 }
             });
+
+            // Force synchronous push to modular state sync backend immediately
+            if (window.EveDataStore?._modularSync && typeof window.EveDataStore._modularSync.pushLocalState === 'function') {
+                window.EveDataStore._modularSync.pushLocalState(true);
+            }
+
             scheduleCategoryCardMoveRefresh(sourceWs, sourceCat, targetWs, targetCat, Object.assign({}, options, {
                 movedLinkCount: sourceLinks.length
             }));

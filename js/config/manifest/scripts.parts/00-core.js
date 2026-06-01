@@ -5,7 +5,7 @@ window.EveModuleManifestScriptChunks = window.EveModuleManifestScriptChunks || [
 window.EveModuleManifestScriptChunks.push([
     // Core Modules (Ordered by Dependency)
     "js/modules/core/state.js?v=0.2.10",
-    "js/modules/core/workspace-helpers.js?v=0.1.1",
+    "js/modules/core/workspace-helpers.js?v=0.1.2",
     "js/modules/core/category-order.js?v=0.1.1",
     "js/modules/core/utils.js?v=0.2.1",
     "js/modules/core/favicon-utils.js?v=0.1.2",
@@ -182,5 +182,5 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/ui/tab-nav-history.popover.js?v=0.1.2",
     "js/modules/ui/tab-nav-history.routepeek.js?v=0.1.0",
     "js/modules/ui/tab-nav-history.js?v=0.4.6",
-    "js/modules/core/categories.js?v=0.1.16"
+    "js/modules/core/categories.js?v=0.1.17"
 ]);
