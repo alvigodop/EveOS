@@ -57,12 +57,9 @@ window.DashboardCategories = window.DashboardCategories || {};
         var activeOptionWorkspace = String(options.activeWorkspace || '').trim();
         var parentDashboardWorkspace = String(options._parentDashboardWorkspace || '').trim();
         var cardWorkspace = String(cardWorkspaceId || '').trim();
-        var shouldUseParentRoute = !!parentDashboardWorkspace
-            && parentDashboardWorkspace !== cardWorkspace
-            && activeOptionWorkspace !== cardWorkspace;
         var displayWorkspaceId = String(
             options._markerRouteWorkspace
-            || (shouldUseParentRoute ? parentDashboardWorkspace : '')
+            || parentDashboardWorkspace
             || activeOptionWorkspace
             || cardWorkspace
             || ''

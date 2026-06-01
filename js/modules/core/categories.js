@@ -101,8 +101,8 @@ function categoryHasContentInWorkspace(workspaceId, categoryName) {
     var wsId = normalizeCategoryWorkspaceId(workspaceId);
     var catName = normalizeCategoryNameValue(categoryName);
     if (getCategoryLiveLinks().some(function (link) {
-        return normalizeCategoryWorkspaceId(link?.workspace) === wsId
-            && normalizeCategoryNameValue(link?.category) === catName;
+        return normalizeCategoryWorkspaceId(link?.workspace).toLowerCase() === wsId.toLowerCase()
+            && normalizeCategoryNameValue(link?.category).toLowerCase() === catName.toLowerCase();
     })) return true;
 
     var folderStore = window.eveState?.bookmarkFolders || window.bookmarkFolders || {};
@@ -335,8 +335,8 @@ function moveCategoryCardToWorkspace(sourceWorkspaceId, categoryName, targetWork
         });
         var liveLinks = getCategoryLiveLinks();
         var sourceLinks = liveLinks.filter(function (link) {
-            return normalizeCategoryWorkspaceId(link?.workspace) === sourceWs
-                && normalizeCategoryNameValue(link?.category) === sourceCat;
+            return normalizeCategoryWorkspaceId(link?.workspace).toLowerCase() === sourceWs.toLowerCase()
+                && normalizeCategoryNameValue(link?.category).toLowerCase() === sourceCat.toLowerCase();
         });
         var mutationHoldMs = (liveLinks.length > 8000 || sourceLinks.length > 1500)
             ? 4200
@@ -416,7 +416,7 @@ function moveCategoryCardToWorkspace(sourceWorkspaceId, categoryName, targetWork
             categoryName: sourceCat,
             dataDelta: {
                 kind: 'core-data-delta',
-                complete: false,
+                complete: true,
                 workspaceIds: [sourceWs, targetWs],
                 categoryNames: [sourceCat, targetCat],
                 linkIds: movedIds,

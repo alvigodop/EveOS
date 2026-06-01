@@ -80,7 +80,8 @@ function collectIndexedDashboardLinkedCategories(activeWorkspaceId, categoryOrde
         .map(function (bucket) {
             return {
                 category: String(bucket.categoryName || 'Unsorted').trim() || 'Unsorted',
-                workspace: String(bucket.workspaceId || 'main').trim() || 'main'
+                workspace: String(bucket.workspaceId || 'main').trim() || 'main',
+                workspaceId: String(bucket.workspaceId || 'main').trim() || 'main'
             };
         });
 

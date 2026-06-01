@@ -28,8 +28,8 @@ function collectDashboardCategories(visibleLinks, activeWorkspaceId, categoryOrd
 
     function addCategory(catObj) {
         const normalizedCat = String(catObj.category || 'Unsorted').trim() || 'Unsorted';
-        const wsId = String(catObj.workspaceId || 'main').trim();
-        const key = `${wsId}::${normalizedCat}`;
+        const wsId = String(catObj.workspaceId || catObj.workspace || 'main').trim();
+        const key = `${wsId.toLowerCase()}::${normalizedCat.toLowerCase()}`;
         if (seen.has(key)) return;
         seen.add(key);
         ordered.push({ category: normalizedCat, workspaceId: wsId });
@@ -91,7 +91,7 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
         for (var i = 0; i < visibleLinks.length; i++) {
             var cat = String(visibleLinks[i].category || 'Unsorted').trim() || 'Unsorted';
             var ws = String(visibleLinks[i].workspace || 'main').trim() || 'main';
-            var key = `${ws}::${cat}`;
+            var key = `${ws.toLowerCase()}::${cat.toLowerCase()}`;
             if (!linksByCatWs.has(key)) linksByCatWs.set(key, []);
             linksByCatWs.get(key).push(visibleLinks[i]);
         }
@@ -105,7 +105,7 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
     }
 
     function getCategoryLiveLinks(workspaceId, categoryName) {
-        return getLinksByCatWs().get(`${workspaceId}::${categoryName}`) || [];
+        return getLinksByCatWs().get(`${workspaceId.toLowerCase()}::${categoryName.toLowerCase()}`) || [];
     }
 
     function resolveCategoryLinks(workspaceId, categoryName) {
@@ -168,6 +168,48 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
         var catLinks = isDetachedParkingCard
             ? detachedModel.links.slice()
             : (canUseLazyDeferredLinks ? [] : resolveCategoryLinks(catWsId, cat));
+
+        if (!isDetachedParkingCard && Array.isArray(catLinks) && catLinks.length > 0) {
+            var changedAny = false;
+            var helpers = window.EveWorkspaceHelpers;
+            catLinks.forEach(function (link) {
+                if (!link) return;
+                var linkWs = String(link.workspace || 'main').trim();
+                var cardWs = String(catWsId || 'main').trim();
+                if (linkWs.toLowerCase() !== cardWs.toLowerCase()) {
+                    var isLegitimate = false;
+                    if (dashboardRenderContext) {
+                        var descendants = dashboardRenderContext.getVisibleDescendantIds(cardWs) || [];
+                        var linkedTabs = dashboardRenderContext.getLinkedTabsByTarget(cardWs) || [];
+                        if (descendants.some(function(id) { return String(id).toLowerCase() === linkWs.toLowerCase(); }) ||
+                            linkedTabs.some(function(tab) { return String(tab.id).toLowerCase() === linkWs.toLowerCase(); })) {
+                            isLegitimate = true;
+                        }
+                    } else if (helpers && typeof config !== 'undefined' && config && config.workspaces) {
+                        var cardWsRecord = helpers.findById(config.workspaces, cardWs);
+                        if (cardWsRecord) {
+                            var descendants = helpers.getVisibleDescendantIds(cardWsRecord) || [];
+                            if (descendants.some(function(id) { return String(id).toLowerCase() === linkWs.toLowerCase(); })) {
+                                isLegitimate = true;
+                            }
+                        }
+                    }
+                    if (!isLegitimate) {
+                        link.workspace = cardWs;
+                        changedAny = true;
+                    }
+                }
+            });
+            if (changedAny && typeof saveData === 'function') {
+                saveData({
+                    skipRender: true,
+                    skipSuggestions: true,
+                    source: 'dashboard-self-healing',
+                    meta: { skipEditHistory: true }
+                });
+            }
+        }
+
         var catLinkCount = isDetachedParkingCard
             ? catLinks.length
             : (canUseLazyDeferredLinks

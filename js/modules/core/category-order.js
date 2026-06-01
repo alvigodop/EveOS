@@ -100,7 +100,7 @@ window.EveCategoryOrder = window.EveCategoryOrder || {};
         }
 
         getLinksSource().forEach(function (link) {
-            if (normalizeWorkspaceId(link?.workspace) !== normalizedWorkspaceId) return;
+            if (normalizeWorkspaceId(link?.workspace).toLowerCase() !== normalizedWorkspaceId.toLowerCase()) return;
             names.add(normalizeCategoryName(link?.category));
         });
 
