@@ -118,7 +118,7 @@ window.DashboardCategories = window.DashboardCategories || {};
             var routes = [];
             var colorIndex = 0;
 
-            if (workspaceId === displayWorkspaceId) {
+            if (workspaceId.toLowerCase() === displayWorkspaceId.toLowerCase()) {
                 routes.push({
                     type: 'native',
                     color: routeColors[colorIndex++ % routeColors.length],
@@ -145,7 +145,7 @@ window.DashboardCategories = window.DashboardCategories || {};
                 });
             });
 
-            if (routes.length === 0 && workspaceId !== displayWorkspaceId) {
+            if (routes.length === 0 && workspaceId.toLowerCase() !== displayWorkspaceId.toLowerCase()) {
                 routes.push({
                     type: 'direct',
                     color: routeColors[0],
@@ -153,7 +153,7 @@ window.DashboardCategories = window.DashboardCategories || {};
                 });
             }
 
-            if (workspaceId === displayWorkspaceId && routes.length === 1 && routes[0].type === 'native') {
+            if (workspaceId.toLowerCase() === displayWorkspaceId.toLowerCase() && routes.length === 1 && routes[0].type === 'native') {
                 return;
             }
 

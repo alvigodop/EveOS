@@ -5,6 +5,31 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
     const { escapeCardHtml, escapeCardJs, cloneGhostFilterChain } = shared;
     let pendingFolderEntryRetryKey = '';
 
+    function findCategoryCard(workspaceId, categoryName) {
+        if (!categoryName) return null;
+        const wsLower = String(workspaceId || 'main').trim().toLowerCase();
+        const catLower = String(categoryName || 'Unsorted').trim().toLowerCase();
+        const cards = document.querySelectorAll('.category-card');
+        
+        for (let i = 0; i < cards.length; i++) {
+            const card = cards[i];
+            const cWs = (card.getAttribute('data-card-workspace') || '').trim().toLowerCase();
+            const cCat = (card.getAttribute('data-card-category') || '').trim().toLowerCase();
+            if ((cWs === wsLower || (!cWs && wsLower === 'main')) && cCat === catLower) {
+                return card;
+            }
+        }
+        
+        for (let i = 0; i < cards.length; i++) {
+            const card = cards[i];
+            const cCat = (card.getAttribute('data-card-category') || '').trim().toLowerCase();
+            if (cCat === catLower) {
+                return card;
+            }
+        }
+        return null;
+    }
+
     function getCategoryLinks(workspaceId, categoryName) {
         const scopeShared = window.EveFolderViewV2._shared || {};
         if (typeof scopeShared.getCategoryLinks === 'function') {
@@ -141,7 +166,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
 
         const resolvedCategoryName = String(categoryName || '').trim();
         const resolvedWorkspaceId = String(workspaceId || '').trim();
-        const card = document.querySelector(`.category-card[data-card-category="${CSS.escape(resolvedCategoryName)}"][data-card-workspace="${CSS.escape(resolvedWorkspaceId)}"]`);
+        const card = findCategoryCard(resolvedWorkspaceId, resolvedCategoryName);
 
         if (!card) {
             // If the card is mid-rerender, retry once after forcing a fresh dashboard pass.
@@ -546,7 +571,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
 
         window.EveFolderViewV2.saveActiveFolderState(resolvedWorkspaceId, resolvedCategoryName, null, null, null);
 
-        const card = document.querySelector(`.category-card[data-card-category="${CSS.escape(resolvedCategoryName)}"][data-card-workspace="${CSS.escape(resolvedWorkspaceId)}"]`);
+        const card = findCategoryCard(resolvedWorkspaceId, resolvedCategoryName);
         if (!card) {
             if (!window._evePerfMode && typeof window.renderDashboard === 'function') window.renderDashboard();
             return;

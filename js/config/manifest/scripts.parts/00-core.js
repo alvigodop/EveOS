@@ -182,5 +182,5 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/ui/tab-nav-history.popover.js?v=0.1.2",
     "js/modules/ui/tab-nav-history.routepeek.js?v=0.1.0",
     "js/modules/ui/tab-nav-history.js?v=0.4.6",
-    "js/modules/core/categories.js?v=0.1.17"
+    "js/modules/core/categories.js?v=0.1.18"
 ]);

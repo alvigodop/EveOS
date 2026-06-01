@@ -24,6 +24,34 @@ function normalizeCategoryNameValue(categoryName) {
     return String(categoryName || 'Unsorted').trim() || 'Unsorted';
 }
 
+function findCategoryCard(workspaceId, categoryName) {
+    if (!categoryName) return null;
+    var wsLower = normalizeCategoryWorkspaceId(workspaceId).toLowerCase();
+    var catLower = normalizeCategoryNameValue(categoryName).toLowerCase();
+    var cards = document.querySelectorAll('.category-card');
+    
+    // First, try exact case-insensitive match for both workspace and category
+    for (var i = 0; i < cards.length; i++) {
+        var card = cards[i];
+        var cWs = (card.getAttribute('data-card-workspace') || '').trim().toLowerCase();
+        var cCat = (card.getAttribute('data-card-category') || '').trim().toLowerCase();
+        if ((cWs === wsLower || (!cWs && wsLower === 'main')) && cCat === catLower) {
+            return card;
+        }
+    }
+    
+    // Second, try fallback: match category only (case-insensitively)
+    for (var i = 0; i < cards.length; i++) {
+        var card = cards[i];
+        var cCat = (card.getAttribute('data-card-category') || '').trim().toLowerCase();
+        if (cCat === catLower) {
+            return card;
+        }
+    }
+    
+    return null;
+}
+
 function buildCategoryScopeKey(workspaceId, categoryName) {
     if (window.EveBookmarkFolders?.buildScopedKey) {
         return window.EveBookmarkFolders.buildScopedKey(workspaceId, categoryName);
@@ -210,8 +238,7 @@ function scheduleCategoryCardMoveRefresh(sourceWs, sourceCat, targetWs, targetCa
 
     if (shouldRefreshDashboard && activeSourceOnly) {
         try {
-            var selector = '.category-card[data-card-workspace="' + CSS.escape(sourceWs) + '"][data-card-category="' + CSS.escape(sourceCat) + '"]';
-            var sourceCard = document.querySelector(selector);
+            var sourceCard = findCategoryCard(sourceWs, sourceCat);
             if (sourceCard) {
                 sourceCard.classList.add('category-card-moving-out');
                 setTimeout(function () {
@@ -608,8 +635,7 @@ function toggleCollapse(cat, workspaceId) {
     saveConfig();
 
     // Direct DOM toggle — avoid full re-render for a CSS-only change
-    var card = document.querySelector('.category-card[data-card-category="' + CSS.escape(cat) + '"][data-card-workspace="' + CSS.escape(wsId) + '"]') 
-            || document.querySelector('.category-card[data-card-category="' + CSS.escape(cat) + '"]');
+    var card = findCategoryCard(wsId, cat);
     if (card) {
         card.classList.toggle('collapsed', !wasCollapsed);
         // If expanding a deferred card, trigger its full build
@@ -634,8 +660,7 @@ function toggleFolderCollapse(cat, workspaceId) {
     saveConfig();
 
     // Direct DOM toggle — avoid full re-render for a CSS-only change
-    var card = document.querySelector('.category-card[data-card-category="' + CSS.escape(cat) + '"][data-card-workspace="' + CSS.escape(wsId) + '"]')
-            || document.querySelector('.category-card[data-card-category="' + CSS.escape(cat) + '"]');
+    var card = findCategoryCard(wsId, cat);
     if (card) {
         card.classList.toggle('folders-collapsed', !wasCollapsed);
     } else {
@@ -656,8 +681,7 @@ function toggleLinksCollapse(cat, workspaceId) {
     saveConfig();
 
     // Direct DOM toggle — avoid full re-render for a CSS-only change
-    var card = document.querySelector('.category-card[data-card-category="' + CSS.escape(cat) + '"][data-card-workspace="' + CSS.escape(wsId) + '"]')
-            || document.querySelector('.category-card[data-card-category="' + CSS.escape(cat) + '"]');
+    var card = findCategoryCard(wsId, cat);
     if (card) {
         card.classList.toggle('links-collapsed', !wasCollapsed);
     } else {

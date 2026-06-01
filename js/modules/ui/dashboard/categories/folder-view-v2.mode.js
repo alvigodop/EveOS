@@ -1,9 +1,34 @@
-﻿window.EveFolderViewV2 = window.EveFolderViewV2 || {};
+window.EveFolderViewV2 = window.EveFolderViewV2 || {};
 
 (function () {
     const shared = window.EveFolderViewV2._shared || {};
     const { cloneGhostFilterChain } = shared;
     window.EveFolderViewV2._restoreTimers = window.EveFolderViewV2._restoreTimers || {};
+
+    function findCategoryCard(workspaceId, categoryName) {
+        if (!categoryName) return null;
+        const wsLower = String(workspaceId || 'main').trim().toLowerCase();
+        const catLower = String(categoryName || 'Unsorted').trim().toLowerCase();
+        const cards = document.querySelectorAll('.category-card');
+        
+        for (let i = 0; i < cards.length; i++) {
+            const card = cards[i];
+            const cWs = (card.getAttribute('data-card-workspace') || '').trim().toLowerCase();
+            const cCat = (card.getAttribute('data-card-category') || '').trim().toLowerCase();
+            if ((cWs === wsLower || (!cWs && wsLower === 'main')) && cCat === catLower) {
+                return card;
+            }
+        }
+        
+        for (let i = 0; i < cards.length; i++) {
+            const card = cards[i];
+            const cCat = (card.getAttribute('data-card-category') || '').trim().toLowerCase();
+            if (cCat === catLower) {
+                return card;
+            }
+        }
+        return null;
+    }
 
     window.EveFolderViewV2.isManhwaModeEnabled = function (workspaceId, categoryName) {
         if (!window.eveState?.config) return true;
@@ -117,7 +142,7 @@
 
         const runRestore = function () {
             if (queueOptions.visibleOnly) {
-                const card = document.querySelector(`.category-card[data-card-category="${CSS.escape(resolvedCategoryName)}"][data-card-workspace="${CSS.escape(resolvedWorkspaceId)}"]`);
+                const card = findCategoryCard(resolvedWorkspaceId, resolvedCategoryName);
                 if (!card || !card.isConnected) return;
             }
             window.EveFolderViewV2.restoreActiveFolderState(resolvedWorkspaceId, resolvedCategoryName);
