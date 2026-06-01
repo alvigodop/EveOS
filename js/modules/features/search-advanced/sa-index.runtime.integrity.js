@@ -21,11 +21,17 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         if (!scope || (!scope.workspaceId && !scope.categoryName && !toArray(scope?.workspaceIds).length)) return true;
         const workspaceIds = getWorkspaceIdsInScope(scope);
         const recordWorkspaceIds = toArray(record.workspaceIds).length
-            ? toArray(record.workspaceIds).map(function (value) { return text(value, ''); })
-            : [text(record.workspaceId, '')];
+            ? toArray(record.workspaceIds).map(function (value) { return text(value, '').toLowerCase(); })
+            : [text(record.workspaceId, '').toLowerCase()];
 
-        if (workspaceIds && !recordWorkspaceIds.some(function (workspaceId) { return workspaceIds.has(workspaceId); })) {
-            return false;
+        if (workspaceIds) {
+            const lowercasedInScope = new Set();
+            workspaceIds.forEach(function (id) {
+                lowercasedInScope.add(text(id, '').toLowerCase());
+            });
+            if (!recordWorkspaceIds.some(function (workspaceId) { return lowercasedInScope.has(workspaceId); })) {
+                return false;
+            }
         }
         if (scope.categoryName && text(record.categoryName, 'Unsorted') !== text(scope.categoryName, 'Unsorted')) {
             return false;

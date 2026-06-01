@@ -7,11 +7,11 @@ window.EveWorkspaceHelpers = (function () {
      */
     function findById(workspaces, id) {
         if (!Array.isArray(workspaces) || !id) return null;
-        const targetId = String(id);
+        const targetId = String(id).toLowerCase();
         for (let i = 0; i < workspaces.length; i++) {
             const ws = workspaces[i];
             if (!ws) continue;
-            if (String(ws.id) === targetId) return ws;
+            if (String(ws.id).toLowerCase() === targetId) return ws;
             if (Array.isArray(ws.subTabs)) {
                 const found = findById(ws.subTabs, targetId);
                 if (found) return found;
@@ -26,11 +26,11 @@ window.EveWorkspaceHelpers = (function () {
      */
     function findParent(workspaces, id, parent) {
         if (!Array.isArray(workspaces) || !id) return null;
-        const targetId = String(id);
+        const targetId = String(id).toLowerCase();
         for (let i = 0; i < workspaces.length; i++) {
             const ws = workspaces[i];
             if (!ws) continue;
-            if (String(ws.id) === targetId) return parent || null;
+            if (String(ws.id).toLowerCase() === targetId) return parent || null;
             if (Array.isArray(ws.subTabs)) {
                 const found = findParent(ws.subTabs, targetId, ws);
                 if (found) return found;
@@ -46,11 +46,11 @@ window.EveWorkspaceHelpers = (function () {
     function getDepth(workspaces, id, currentDepth) {
         if (!Array.isArray(workspaces) || !id) return -1;
         const depth = typeof currentDepth === 'number' ? currentDepth : 0;
-        const targetId = String(id);
+        const targetId = String(id).toLowerCase();
         for (let i = 0; i < workspaces.length; i++) {
             const ws = workspaces[i];
             if (!ws) continue;
-            if (String(ws.id) === targetId) return depth;
+            if (String(ws.id).toLowerCase() === targetId) return depth;
             if (Array.isArray(ws.subTabs)) {
                 const found = getDepth(ws.subTabs, targetId, depth + 1);
                 if (found !== -1) return found;
@@ -367,11 +367,11 @@ window.EveWorkspaceHelpers = (function () {
     function getPath(workspaces, id, currentPath) {
         if (!Array.isArray(workspaces) || !id) return [];
         var path = currentPath || [];
-        var targetId = String(id);
+        var targetId = String(id).toLowerCase();
         for (var i = 0; i < workspaces.length; i++) {
             var ws = workspaces[i];
             if (!ws) continue;
-            if (String(ws.id) === targetId) return path.concat([ws]);
+            if (String(ws.id).toLowerCase() === targetId) return path.concat([ws]);
             if (Array.isArray(ws.subTabs)) {
                 var found = getPath(ws.subTabs, targetId, path.concat([ws]));
                 if (found.length > 0) return found;

@@ -9,13 +9,13 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         if (Array.isArray(scope?.workspaceIds) && scope.workspaceIds.length) {
             const explicitIds = new Set();
             scope.workspaceIds.forEach(function (workspaceId) {
-                const id = String(workspaceId || '').trim();
+                const id = String(workspaceId || '').trim().toLowerCase();
                 if (id) explicitIds.add(id);
             });
             return explicitIds.size ? explicitIds : null;
         }
         if (!scope?.workspaceId) return null;
-        const wsId = String(scope.workspaceId).trim();
+        const wsId = String(scope.workspaceId).trim().toLowerCase();
         const ids = new Set([wsId]);
         const helpers = window.EveWorkspaceHelpers;
         const workspaces = window.eveState?.config?.workspaces
@@ -23,7 +23,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             || [];
         if (helpers?.findById && helpers?.getDescendantIds) {
             const ws = helpers.findById(workspaces, wsId);
-            if (ws) helpers.getDescendantIds(ws).forEach(function (id) { ids.add(id); });
+            if (ws) helpers.getDescendantIds(ws).forEach(function (id) { ids.add(String(id || '').trim().toLowerCase()); });
         }
         return ids;
     }
@@ -79,7 +79,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
 
     function matchesSnapshotScope(record, wsIds, catFilter) {
         if (!record) return false;
-        if (wsIds && !getRecordWorkspaceIds(record).some(function (workspaceId) { return wsIds.has(workspaceId); })) {
+        if (wsIds && !getRecordWorkspaceIds(record).some(function (workspaceId) { return wsIds.has(workspaceId.toLowerCase()); })) {
             return false;
         }
         if (catFilter) {
@@ -108,7 +108,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
 
         return links.filter(function (link) {
             if (!link) return false;
-            if (wsIds && !wsIds.has(String(link.workspace || 'main').trim())) return false;
+            if (wsIds && !wsIds.has(String(link.workspace || 'main').trim().toLowerCase())) return false;
             if (catFilter && String(link.category || 'Unsorted').trim() !== catFilter) return false;
             return true;
         });

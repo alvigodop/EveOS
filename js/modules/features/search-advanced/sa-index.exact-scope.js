@@ -97,16 +97,15 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     }
 
     function getExactScopeCardKeys(scopeIndex, workspaceId, categoryName) {
-        if (workspaceId && categoryName) {
-            const key = workspaceId + '::' + categoryName;
-            return scopeIndex.cardKeySet.has(key) ? [key] : [];
-        }
+        const lowerWsId = String(workspaceId || '').trim().toLowerCase();
+        const lowerCatName = String(categoryName || '').trim().toLowerCase();
+
         return scopeIndex.cardKeys.filter(function (cardKey) {
             const separatorIndex = cardKey.indexOf('::');
             const keyWorkspaceId = separatorIndex >= 0 ? cardKey.slice(0, separatorIndex) : cardKey;
             const keyCategoryName = separatorIndex >= 0 ? cardKey.slice(separatorIndex + 2) : '';
-            if (workspaceId && keyWorkspaceId !== workspaceId) return false;
-            if (categoryName && keyCategoryName !== categoryName) return false;
+            if (lowerWsId && keyWorkspaceId.toLowerCase() !== lowerWsId) return false;
+            if (lowerCatName && keyCategoryName.toLowerCase() !== lowerCatName) return false;
             return true;
         });
     }

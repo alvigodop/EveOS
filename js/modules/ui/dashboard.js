@@ -115,6 +115,17 @@ function hasDashboardReadableLinkSnapshot(indexApi) {
 
 function buildDashboardVisibleLinkMatcher(visibleWorkspaceIds, searchTerms, folderPathLabelBuilder) {
     var linkedLibrarySearchCache = new Map();
+    var lowercasedVisibleIds = new Set();
+    if (visibleWorkspaceIds && typeof visibleWorkspaceIds.forEach === 'function') {
+        visibleWorkspaceIds.forEach(function (id) {
+            lowercasedVisibleIds.add(String(id || '').trim().toLowerCase());
+        });
+    } else if (Array.isArray(visibleWorkspaceIds)) {
+        visibleWorkspaceIds.forEach(function (id) {
+            lowercasedVisibleIds.add(String(id || '').trim().toLowerCase());
+        });
+    }
+
     function buildLinkedLibrarySearchText(link) {
         var linkId = String(link?.id || '').trim();
         if (!linkId || !window.EveLibrary?.ConnectionsAPI?.getLinkedEntry) return '';
@@ -147,7 +158,7 @@ function buildDashboardVisibleLinkMatcher(visibleWorkspaceIds, searchTerms, fold
     }
 
     return function (link) {
-        if (!visibleWorkspaceIds.has(String(link?.workspace || 'main').trim())) return false;
+        if (!lowercasedVisibleIds.has(String(link?.workspace || 'main').trim().toLowerCase())) return false;
         if (!searchTerms.length) return true;
 
         var titleStr = String(link?.title || link?.name || '').toLowerCase();
