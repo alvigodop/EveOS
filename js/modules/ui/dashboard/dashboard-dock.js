@@ -255,7 +255,11 @@ window.renderDock = function (_visibleLinks, dockContainer, focusCategory) {
     window.__eveDashboardDockQuickPinsBound = true;
 
     let pending = false;
-    window.addEventListener('eve:quick-pins-updated', function () {
+    window.addEventListener('eve:quick-pins-updated', function (event) {
+        const source = String(event?.detail?.source || '');
+        if (source === 'storage-load' || (window.__eveCoreDataLoading && !window.__eveCoreDataLoaded)) {
+            return;
+        }
         if (pending) return;
         pending = true;
         const schedule = typeof window.requestAnimationFrame === 'function'

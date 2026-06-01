@@ -16,6 +16,24 @@ function getDashboardDatapackIndexApi() {
     return window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index || null;
 }
 
+function shouldSkipDashboardSummaryWarmupRefresh() {
+    var grid = document.getElementById('dashboard-grid');
+    if (!grid) return false;
+
+    var hasRenderedCards = !!grid.querySelector('.category-card');
+    if (!hasRenderedCards) return false;
+
+    // The live-link fallback already painted the dashboard. Re-rendering only
+    // because the index warmed would clear the grid, invalidate startup/deferred
+    // batches, and briefly unload visible cards on large datapacks.
+    if (window._eveStartupBookmarkPaintActive) return true;
+
+    var hasDeferredCards = !!grid.querySelector(
+        '.category-card[data-card-hydrating="1"], .category-card[data-card-hydrate-on-demand="1"], .category-card[data-card-deferred="1"]'
+    );
+    return hasDeferredCards;
+}
+
 function queueDashboardCategorySummaryWarmup() {
     var indexApi = getDashboardDatapackIndexApi();
     if (!indexApi || (typeof indexApi.ensureFresh !== 'function' && typeof indexApi.rebuild !== 'function')) return;
@@ -32,7 +50,17 @@ function queueDashboardCategorySummaryWarmup() {
         .finally(function () {
             dashboardCategorySummaryWarmPromise = null;
             if (Number(window._dashboardScrollActivitySeq || 0) !== scrollSeqAtRequest) return;
-            if (typeof renderDashboard === 'function') renderDashboard();
+            if (shouldSkipDashboardSummaryWarmupRefresh()) {
+                window.__eveDashboardSummaryWarmupSkippedRefresh = {
+                    at: Date.now(),
+                    reason: window._eveStartupBookmarkPaintActive ? 'startup-paint-active' : 'deferred-cards-active'
+                };
+                return;
+            }
+            if (typeof renderDashboard === 'function') {
+                window.__eveDashboardRenderHint = { kind: 'index-warmup', source: 'dashboard-categories' };
+                renderDashboard();
+            }
         });
 }
 
