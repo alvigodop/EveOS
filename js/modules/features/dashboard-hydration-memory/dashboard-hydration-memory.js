@@ -352,7 +352,7 @@ window.EveDashboardHydrationMemory = window.EveDashboardHydrationMemory || {};
         else if (!input.wouldHydrateOnDemand) decision.reason = 'not-on-demand';
         else if (!activeMatch) decision.reason = 'inactive-workspace';
         else if (Number(input.totalLinks || session.totalLinks || 0) < memory.minLargeDatapackLinks) decision.reason = 'small-pack';
-        else if (input.searchStr || input.focusMode || input.isBulkSelectionRender || input.isCrossWorkspaceSwitchRender) decision.reason = 'interactive-render';
+        else if (input.searchStr || input.focusMode || input.isBulkSelectionRender) decision.reason = 'interactive-render';
         else if (!workspaceHot && !cardHot) {
             session.skippedByColdScore += 1;
             decision.reason = 'cold-score';
