@@ -239,11 +239,34 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         };
     }
 
-    function buildBookmarkRecords(links) {
+    function getKnownWorkspaceIdsForBookmarkRecords() {
+        const cfg = readConfig();
+        const workspaces = Array.isArray(cfg.workspaces) ? cfg.workspaces : [];
+        const helpers = window.EveWorkspaceHelpers;
+        if (helpers?.flattenIds) {
+            const ids = new Set(helpers.flattenIds(workspaces).map(function (value) { return text(value, ''); }).filter(Boolean));
+            ids.add(text(cfg.activeWorkspace, 'main'));
+            if (!ids.size) ids.add('main');
+            return ids;
+        }
+        const ids = new Set();
+        function visit(items) {
+            toArray(items).forEach(function (workspace) {
+                const id = text(workspace?.id, '');
+                if (!id) return;
+                ids.add(id);
+                visit(workspace.subTabs);
+            });
+        }
+        visit(workspaces);
+        ids.add(text(cfg.activeWorkspace, 'main'));
+        if (!ids.size) ids.add('main');
+        return ids;
+    }
+
+    function buildBookmarkRecordPayloads(links) {
         const locators = ns.Locators || {};
-        const knownWorkspaceIds = window.EveOS?.SearchAdvanced?.CacheAggregator?.getKnownWorkspaceIds
-            ? window.EveOS.SearchAdvanced.CacheAggregator.getKnownWorkspaceIds()
-            : new Set(['main']);
+        const knownWorkspaceIds = getKnownWorkspaceIdsForBookmarkRecords();
         const identifierMap = buildBookmarkIdentifierMap();
         const folderIntegrityCache = new Map();
         return links.filter(Boolean).map(function (link) {
@@ -274,16 +297,54 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 folderId: folderId,
                 bookmarkId: text(link.id, '')
             });
-            const record = {
-                id: 'bookmark::' + text(link.id, Math.random().toString(36).slice(2, 8)),
-                type: 'bookmark',
+            return {
+                link: {
+                    id: text(link.id, ''),
+                    title: text(link.title, ''),
+                    name: text(link.name, ''),
+                    url: text(link.url, ''),
+                    notes: text(link.notes, ''),
+                    category: text(link.category, 'Unsorted'),
+                    done: !!link.done,
+                    icon: text(link.icon, ''),
+                    coverImage: text(link.coverImage, ''),
+                    priority: text(link.priority, '')
+                },
+                recordId: 'bookmark::' + text(link.id, Math.random().toString(36).slice(2, 8)),
+                path: path,
+                library: library,
+                groupMeta: groupMeta,
+                tags: tags,
+                folderId: folderId,
+                folderDiagnostic: folderDiagnostic,
+                identifierMeta: identifierMeta,
+                relatedUrls: relatedUrls,
                 entityLink: entityLink,
+                orphaned: !knownWorkspaceIds.has(path.workspaceId)
+            };
+        });
+    }
+
+    function buildBookmarkRecordFromPayload(payload) {
+        const link = payload?.link || {};
+        const path = payload?.path || {};
+        const library = payload?.library || {};
+        const groupMeta = payload?.groupMeta || {};
+        const folderDiagnostic = payload?.folderDiagnostic || {};
+        const identifierMeta = payload?.identifierMeta || {};
+        const relatedUrls = toArray(payload?.relatedUrls).map(function (value) { return text(value, ''); }).filter(Boolean);
+        const tags = toArray(payload?.tags).map(function (value) { return text(value, ''); }).filter(Boolean);
+        const folderId = text(payload?.folderId || path.folderId, '');
+        const record = {
+                id: text(payload?.recordId, '') || ('bookmark::' + text(link.id, Math.random().toString(36).slice(2, 8))),
+                type: 'bookmark',
+                entityLink: text(payload?.entityLink, ''),
                 title: text(link.title || link.name || link.url, 'Untitled'),
                 url: text(link.url, ''),
                 displayUrl: text(link.url, ''),
                 description: text(link.notes || library.summary, ''),
                 provider: 'bookmark',
-                sourceCard: text(link.category, 'Unsorted'),
+                sourceCard: text(link.category || path.categoryName, 'Unsorted'),
                 sourceIdentity: {
                     kind: 'bookmark',
                     linkId: text(link.id, '')
@@ -299,9 +360,9 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 provenance: {
                     kind: 'bookmark',
                     linkId: text(link.id, ''),
-                    entityLink: entityLink,
+                    entityLink: text(payload?.entityLink, ''),
                     done: !!link.done,
-                    orphaned: !knownWorkspaceIds.has(path.workspaceId),
+                    orphaned: !!payload?.orphaned,
                     missingFolder: folderDiagnostic.missingFolder,
                     missingParent: folderDiagnostic.missingParent,
                     folderUnreachable: folderDiagnostic.folderUnreachable,
@@ -343,7 +404,10 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 path.pathLabel
             ].join(' '));
             return record;
-        });
+    }
+
+    function buildBookmarkRecords(links) {
+        return buildBookmarkRecordPayloads(links).map(buildBookmarkRecordFromPayload);
     }
 
     const libraryBuilders = ns.IndexRecordBuildersLibrary;
@@ -356,6 +420,8 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         buildCategoryMap,
         buildCardRecords,
         buildBookmarkRecords,
+        buildBookmarkRecordPayloads,
+        buildBookmarkRecordFromPayload,
         buildFolderRecords: folderBuilders.buildFolderRecords,
         buildSmartViewRecords: folderBuilders.buildSmartViewRecords,
         normalizeEntryTimestamp,

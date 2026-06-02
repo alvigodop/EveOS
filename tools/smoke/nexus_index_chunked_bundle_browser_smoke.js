@@ -47,7 +47,7 @@ async function waitForStatus(url, timeoutMs = 30000) {
 function buildSeedPayload() {
   const now = Date.now();
   const links = [];
-  for (let index = 0; index < 920; index += 1) {
+  for (let index = 0; index < 1220; index += 1) {
     const workspace = index % 3 === 0 ? 'main' : (index % 3 === 1 ? 'ws-a' : 'ws-b');
     const category = index % 4 === 0 ? 'Alpha' : (index % 4 === 1 ? 'Beta' : (index % 4 === 2 ? 'Gamma' : 'Delta'));
     const folderId = index % 5 === 0 ? `folder-${category.toLowerCase()}` : '';
@@ -122,7 +122,7 @@ async function main() {
 
     const result = await page.evaluate(async (seedPayload) => {
       window.eveState = window.eveState || {};
-      window.eveState.config = Object.assign({}, seedPayload.config, window.eveState.config || {});
+      window.eveState.config = Object.assign({}, window.eveState.config || {}, seedPayload.config);
       window.eveState.links = seedPayload.links.slice();
       window.eveState.bookmarkFolders = JSON.parse(JSON.stringify(seedPayload.bookmarkFolders));
       window.links = window.eveState.links;
@@ -134,6 +134,39 @@ async function main() {
       const chunkedBundle = await builders.buildLocalRecordBundleChunked();
       const syncIds = syncBundle.records.map((record) => `${record.type}::${record.id}`).sort();
       const chunkedIds = chunkedBundle.records.map((record) => `${record.type}::${record.id}`).sort();
+      const sampleBookmarkIds = ['chunk-link-0', 'chunk-link-154', 'chunk-link-915', 'chunk-link-1219'];
+      const syncBookmarkMap = new Map(syncBundle.records
+        .filter((record) => record.type === 'bookmark')
+        .map((record) => [String(record.sourceIdentity?.linkId || ''), record]));
+      const chunkedBookmarkMap = new Map(chunkedBundle.records
+        .filter((record) => record.type === 'bookmark')
+        .map((record) => [String(record.sourceIdentity?.linkId || ''), record]));
+      const sampleDifferences = [];
+      const sampleParity = sampleBookmarkIds.every((id) => {
+        const syncRecord = syncBookmarkMap.get(id);
+        const chunkedRecord = chunkedBookmarkMap.get(id);
+        const ok = !!syncRecord
+          && !!chunkedRecord
+          && syncRecord.title === chunkedRecord.title
+          && syncRecord.url === chunkedRecord.url
+          && syncRecord.searchableText === chunkedRecord.searchableText
+          && JSON.stringify(syncRecord.baseHealth) === JSON.stringify(chunkedRecord.baseHealth);
+        if (!ok) {
+          sampleDifferences.push({
+            id,
+            syncTitle: syncRecord?.title,
+            chunkedTitle: chunkedRecord?.title,
+            syncUrl: syncRecord?.url,
+            chunkedUrl: chunkedRecord?.url,
+            syncHealth: syncRecord?.baseHealth,
+            chunkedHealth: chunkedRecord?.baseHealth,
+            syncText: syncRecord?.searchableText,
+            chunkedText: chunkedRecord?.searchableText
+          });
+        }
+        return ok;
+      });
+      const workerStats = window.EveOS.SearchAdvanced._lastIndexWorkerStats || null;
       const typeCounts = (records) => records.reduce((acc, record) => {
         const key = String(record?.type || 'unknown');
         acc[key] = (acc[key] || 0) + 1;
@@ -143,16 +176,24 @@ async function main() {
         syncCount: syncIds.length,
         chunkedCount: chunkedIds.length,
         sameIds: JSON.stringify(syncIds) === JSON.stringify(chunkedIds),
+        sampleParity,
+        sampleDifferences,
         syncTypes: typeCounts(syncBundle.records),
         chunkedTypes: typeCounts(chunkedBundle.records),
-        chunkSize: window.eveState.config.nexusIndexBuildChunkSize
+        chunkSize: window.eveState.config.nexusIndexBuildChunkSize,
+        workerStats
       };
     }, seed);
 
-    assert(result.syncCount > 900, `Expected bookmark plus structural records: ${JSON.stringify(result)}`);
+    assert(result.syncCount > 1220, `Expected bookmark plus structural records: ${JSON.stringify(result)}`);
     assert(result.syncCount === result.chunkedCount, `Chunked count mismatch: ${JSON.stringify(result)}`);
     assert(result.sameIds, `Chunked index changed record identities: ${JSON.stringify(result)}`);
+    assert(result.sampleParity, `Worker bookmark sample parity failed: ${JSON.stringify(result)}`);
     assert(JSON.stringify(result.syncTypes) === JSON.stringify(result.chunkedTypes), `Chunked type counts mismatch: ${JSON.stringify(result)}`);
+    assert(result.workerStats?.attempted, `Worker path was not attempted: ${JSON.stringify(result)}`);
+    assert(result.workerStats?.used, `Worker path was not used: ${JSON.stringify(result)}`);
+    assert(result.workerStats?.mode === 'raw', `Worker raw-link mode was not used: ${JSON.stringify(result)}`);
+    assert(!result.workerStats?.failed, `Worker path failed and fell back: ${JSON.stringify(result)}`);
 
     console.log(`NEXUS_INDEX_CHUNKED_BUNDLE_BROWSER_SMOKE_OK ${JSON.stringify(result)}`);
   } catch (error) {
