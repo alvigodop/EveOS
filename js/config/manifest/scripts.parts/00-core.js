@@ -14,9 +14,9 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/core/indexeddb-store.js",
     "js/modules/core/storage.runtime.shared.js?v=0.1.0",
     "js/modules/core/storage.runtime.backend.js?v=0.1.0",
-    "js/modules/core/storage.runtime.io.js?v=0.1.0",
+    "js/modules/core/storage.runtime.io.js?v=0.1.1",
     "js/modules/core/storage.delta.js?v=0.1.1",
-    "js/modules/core/storage.js?v=0.4.0",
+    "js/modules/core/storage.js?v=0.4.1",
     "js/modules/core/storage.load.js?v=0.1.0",
     "js/modules/features/edit-history/edit-history.core.js?v=0.2.0",
     "js/modules/features/edit-history/edit-history.config.js?v=0.1.0",
@@ -193,7 +193,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/ui/tab-nav-history.routepeek.js?v=0.1.0",
     "js/modules/ui/tab-nav-history.js?v=0.4.6",
     "js/modules/core/categories.shared.js?v=0.1.0",
-    "js/modules/core/categories.move.js?v=0.1.0",
+    "js/modules/core/categories.move.js?v=0.1.1",
     "js/modules/core/categories.ui.js?v=0.1.0",
     "js/modules/core/categories.js?v=0.2.0"
 ]);

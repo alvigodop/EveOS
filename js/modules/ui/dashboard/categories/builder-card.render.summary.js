@@ -39,6 +39,16 @@ window.DashboardCategories = window.DashboardCategories || {};
             .finally(function () {
                 cardSummaryWarmPromise = null;
                 if (Number(window._dashboardScrollActivitySeq || 0) !== scrollSeqAtRequest) return;
+                var grid = document.getElementById('dashboard-grid');
+                if (grid && grid.querySelector('.category-card')) {
+                    window.__eveDashboardCardSummaryWarmupSkippedRefresh = {
+                        at: Date.now(),
+                        reason: window._eveStartupBookmarkPaintActive
+                            ? 'startup-paint-active'
+                            : 'painted-dashboard-active'
+                    };
+                    return;
+                }
                 if (typeof renderDashboard === 'function') renderDashboard();
             });
     }

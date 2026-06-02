@@ -37,7 +37,10 @@ function persistCoreStateAsync(coreSnapshot) {
     return Promise.all([
         storage.saveJson(EVE_LINKS_KEY, snapshot.links || [], {
             localFallbackKey: EVE_LINKS_KEY,
-            cleanupLocalKeys: [EVE_LINKS_KEY]
+            cleanupLocalKeys: [EVE_LINKS_KEY],
+            // snapshot.links is already a sanitized detached array, so avoid a
+            // second full JSON clone before IndexedDB structured-clones it.
+            skipClone: true
         }),
         storage.saveJson(EVE_BOOKMARK_FOLDERS_KEY, snapshot.bookmarkFolders || {}, {
             localFallbackKey: EVE_BOOKMARK_FOLDERS_KEY,

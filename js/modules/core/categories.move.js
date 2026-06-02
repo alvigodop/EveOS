@@ -164,6 +164,81 @@ function syncMovedCategoryLibraryLinks(linkIds, source, defer) {
     }
 }
 
+var categoryCardMoveModularSyncTimer = 0;
+
+function scheduleCategoryCardMoveModularSyncPush(liveLinkCount, movedLinkCount, source) {
+    var syncApi = window.EveDataStore?._modularSync;
+    if (!syncApi || typeof syncApi.pushLocalState !== 'function') return;
+
+    var totalLinks = Math.max(0, Number(liveLinkCount || 0) || 0);
+    var movedLinks = Math.max(0, Number(movedLinkCount || 0) || 0);
+    var isLargeMove = totalLinks > 1500 || movedLinks > 100;
+    var delayMs = totalLinks > 8000
+        ? 2600
+        : (totalLinks > 4500 ? 1800 : (isLargeMove ? 900 : 80));
+    var syncSource = String(source || 'category-card-move').trim() || 'category-card-move';
+
+    if (categoryCardMoveModularSyncTimer) {
+        clearTimeout(categoryCardMoveModularSyncTimer);
+        categoryCardMoveModularSyncTimer = 0;
+    }
+
+    window.__eveLastCategoryModularSyncPush = {
+        at: Date.now(),
+        source: syncSource,
+        scheduled: true,
+        liveLinkCount: totalLinks,
+        movedCount: movedLinks,
+        delayMs: delayMs
+    };
+
+    function runPush() {
+        categoryCardMoveModularSyncTimer = 0;
+        var remainingMutationMs = Math.max(0, Number(window.__eveLargeMutationActiveUntil || 0) - Date.now());
+        if (isLargeMove && remainingMutationMs > 80) {
+            categoryCardMoveModularSyncTimer = setTimeout(runPush, Math.min(remainingMutationMs + 80, 1800));
+            return;
+        }
+
+        var finishPerf = window.EvePerformanceMonitor?.startOperation?.('category-card-move-modular-sync', {
+            source: syncSource,
+            linkCount: totalLinks,
+            movedCount: movedLinks,
+            deferred: true
+        });
+
+        Promise.resolve()
+            .then(function () { return syncApi.pushLocalState(true); })
+            .then(function (ok) {
+                window.__eveLastCategoryModularSyncPush = Object.assign({}, window.__eveLastCategoryModularSyncPush || {}, {
+                    at: Date.now(),
+                    scheduled: false,
+                    completed: true,
+                    ok: !!ok
+                });
+                finishPerf?.({ dirty: !!ok });
+            })
+            .catch(function (error) {
+                window.__eveLastCategoryModularSyncPush = Object.assign({}, window.__eveLastCategoryModularSyncPush || {}, {
+                    at: Date.now(),
+                    scheduled: false,
+                    completed: false,
+                    error: String(error?.message || error || 'modular sync push failed')
+                });
+                finishPerf?.({ aborted: true });
+                console.warn('[Categories] Deferred modular sync push after card move failed:', error);
+            });
+    }
+
+    categoryCardMoveModularSyncTimer = setTimeout(function () {
+        if (isLargeMove && typeof window.requestIdleCallback === 'function') {
+            window.requestIdleCallback(runPush, { timeout: 4200 });
+        } else {
+            runPush();
+        }
+    }, delayMs);
+}
+
 function moveCategoryCardToWorkspace(sourceWorkspaceId, categoryName, targetWorkspaceId, options) {
     options = options || {};
     var sourceWs = normalizeCategoryWorkspaceId(sourceWorkspaceId);
@@ -324,10 +399,7 @@ function moveCategoryCardToWorkspace(sourceWorkspaceId, categoryName, targetWork
                 }
             });
 
-            // Force synchronous push to modular state sync backend immediately
-            if (window.EveDataStore?._modularSync && typeof window.EveDataStore._modularSync.pushLocalState === 'function') {
-                window.EveDataStore._modularSync.pushLocalState(true);
-            }
+            scheduleCategoryCardMoveModularSyncPush(liveLinks.length, sourceLinks.length, options.source || 'category-card-move');
 
             scheduleCategoryCardMoveRefresh(sourceWs, sourceCat, targetWs, targetCat, Object.assign({}, options, {
                 movedLinkCount: sourceLinks.length

@@ -237,42 +237,54 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         return text(window.EveBookmarkFolders.buildFolderPathLabel(workspaceId, categoryName, folderId), '');
     }
 
-    function stableStringify(value, seen) {
-        if (value == null) return 'null';
-        const type = typeof value;
-        if (type === 'string' || type === 'number' || type === 'boolean') return JSON.stringify(value);
-        if (type === 'undefined' || type === 'function' || type === 'symbol') return 'null';
-
-        const activeSeen = seen || new Set();
-        if (activeSeen.has(value)) return '"[Circular]"';
-        activeSeen.add(value);
-
-        if (Array.isArray(value)) {
-            const output = '[' + value.map(function (item) {
-                return stableStringify(item, activeSeen);
-            }).join(',') + ']';
-            activeSeen.delete(value);
-            return output;
+    function mixHash(hash, value) {
+        const input = String(value == null ? '' : value);
+        let nextHash = hash >>> 0;
+        for (let index = 0; index < input.length; index += 1) {
+            nextHash ^= input.charCodeAt(index);
+            nextHash = Math.imul(nextHash, 16777619);
         }
-
-        const keys = Object.keys(value).sort();
-        const output = '{' + keys.map(function (key) {
-            const entryValue = value[key];
-            if (typeof entryValue === 'undefined' || typeof entryValue === 'function' || typeof entryValue === 'symbol') return '';
-            return JSON.stringify(key) + ':' + stableStringify(entryValue, activeSeen);
-        }).filter(Boolean).join(',') + '}';
-        activeSeen.delete(value);
-        return output;
+        nextHash ^= 31;
+        return Math.imul(nextHash, 16777619) >>> 0;
     }
 
-    function hashText(value) {
-        const input = String(value || '');
-        let hash = 2166136261;
-        for (let i = 0; i < input.length; i += 1) {
-            hash ^= input.charCodeAt(i);
-            hash = Math.imul(hash, 16777619);
+    function hashStableValue(hash, value, seen) {
+        if (value == null) return mixHash(hash, 'null');
+        const type = typeof value;
+        if (type === 'string' || type === 'number' || type === 'boolean') {
+            return mixHash(mixHash(hash, type), value);
         }
-        return (hash >>> 0).toString(36);
+        if (type === 'undefined' || type === 'function' || type === 'symbol') return mixHash(hash, 'null');
+
+        const activeSeen = seen || new Set();
+        if (activeSeen.has(value)) return mixHash(hash, '[Circular]');
+        activeSeen.add(value);
+
+        let outputHash = hash >>> 0;
+        if (Array.isArray(value)) {
+            outputHash = mixHash(mixHash(outputHash, 'array'), value.length);
+            for (let index = 0; index < value.length; index += 1) {
+                outputHash = hashStableValue(outputHash, value[index], activeSeen);
+            }
+            activeSeen.delete(value);
+            return outputHash >>> 0;
+        }
+
+        outputHash = mixHash(outputHash, 'object');
+        const keys = Object.keys(value).sort();
+        outputHash = mixHash(outputHash, keys.length);
+        keys.forEach(function (key) {
+            const entryValue = value[key];
+            if (typeof entryValue === 'undefined' || typeof entryValue === 'function' || typeof entryValue === 'symbol') return;
+            outputHash = mixHash(outputHash, key);
+            outputHash = hashStableValue(outputHash, entryValue, activeSeen);
+        });
+        activeSeen.delete(value);
+        return outputHash >>> 0;
+    }
+
+    function buildStreamingFingerprint(value) {
+        return (hashStableValue(2166136261, value) >>> 0).toString(36);
     }
 
     function pickConfigFingerprintSource(configRef) {
@@ -308,7 +320,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             config: pickConfigFingerprintSource(readConfig()),
             libraries: readLibraryFingerprintSource()
         };
-        return 'dp1:' + hashText(stableStringify(payload));
+        return 'dp2:' + buildStreamingFingerprint(payload);
     }
 
     ns.IndexShared = {

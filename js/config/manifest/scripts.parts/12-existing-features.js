@@ -16,7 +16,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/search-advanced/sa-nebula-json-patch.apply.js?v=0.1.0",
     "js/modules/features/search-advanced/sa-nebula-json-patch.transaction.js?v=0.1.0",
     "js/modules/features/search-advanced/sa-nebula-json-patch.js?v=0.3.0",
-    "js/modules/features/search-advanced/sa-index.shared.js?v=0.1.2",
+    "js/modules/features/search-advanced/sa-index.shared.js?v=0.1.3",
     "js/modules/features/search-advanced/sa-index.records.library.js?v=0.1.0",
     "js/modules/features/search-advanced/sa-index.records.folder-diagnostics.js?v=0.1.0",
     "js/modules/features/search-advanced/sa-index.records.folders.js?v=0.1.2",

@@ -45,7 +45,7 @@
             const localFallbackKey = String(options.localFallbackKey || storageKey).trim();
 
             return await this._enqueueWrite(storageKey, async () => {
-                const clonedValue = cloneStoredValue(value);
+                const clonedValue = options.skipClone ? value : cloneStoredValue(value);
                 const canUseIdb = await this.canUseIndexedDb();
 
                 if (canUseIdb) {

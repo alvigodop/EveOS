@@ -73,22 +73,29 @@ function scheduleDashboardCategorySummaryWarmupLater(reason) {
     }, delayMs);
 }
 
-function shouldSkipDashboardSummaryWarmupRefresh() {
+function getDashboardSummaryWarmupRefreshSkipReason() {
     var grid = document.getElementById('dashboard-grid');
-    if (!grid) return false;
+    if (!grid) return '';
 
     var hasRenderedCards = !!grid.querySelector('.category-card');
-    if (!hasRenderedCards) return false;
+    if (!hasRenderedCards) return '';
 
     // The live-link fallback already painted the dashboard. Re-rendering only
     // because the index warmed would clear the grid, invalidate startup/deferred
-    // batches, and briefly unload visible cards on large datapacks.
-    if (window._eveStartupBookmarkPaintActive) return true;
+    // batches, and briefly unload visible cards. Keep the painted dashboard in
+    // place; summary chips will refresh on the next real render.
+    if (window._eveStartupBookmarkPaintActive) return 'startup-paint-active';
 
     var hasDeferredCards = !!grid.querySelector(
         '.category-card[data-card-hydrating="1"], .category-card[data-card-hydrate-on-demand="1"], .category-card[data-card-deferred="1"]'
     );
-    return hasDeferredCards;
+    if (hasDeferredCards) return 'deferred-cards-active';
+
+    return 'painted-dashboard-active';
+}
+
+function shouldSkipDashboardSummaryWarmupRefresh() {
+    return !!getDashboardSummaryWarmupRefreshSkipReason();
 }
 
 function queueDashboardCategorySummaryWarmup(options) {
@@ -116,10 +123,11 @@ function queueDashboardCategorySummaryWarmup(options) {
         .finally(function () {
             dashboardCategorySummaryWarmPromise = null;
             if (Number(window._dashboardScrollActivitySeq || 0) !== scrollSeqAtRequest) return;
-            if (shouldSkipDashboardSummaryWarmupRefresh()) {
+            var skipReason = getDashboardSummaryWarmupRefreshSkipReason();
+            if (skipReason) {
                 window.__eveDashboardSummaryWarmupSkippedRefresh = {
                     at: Date.now(),
-                    reason: window._eveStartupBookmarkPaintActive ? 'startup-paint-active' : 'deferred-cards-active'
+                    reason: skipReason
                 };
                 return;
             }
