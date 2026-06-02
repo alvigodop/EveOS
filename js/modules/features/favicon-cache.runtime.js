@@ -142,13 +142,16 @@
         const delayMs = Math.max(0, Number(opts.delayMs || 0) || 0);
         const maxFetch = Math.max(0, Number(opts.maxFetch || 24) || 0);
         const maxUpdate = Math.max(24, Number(opts.maxUpdate || 220) || 220);
+        const root = opts.root && typeof opts.root.querySelectorAll === 'function' ? opts.root : document;
+        const forceFetch = !!opts.forceFetch || !!opts.force;
         if (delayMs) await delay(delayMs);
         await loadDiskCache();
 
         let updated = 0;
         let queued = 0;
         const seenMisses = new Set();
-        const images = Array.from(document.querySelectorAll('img[data-favicon-domain]'));
+        const images = Array.from(root.querySelectorAll('img[data-favicon-domain]'));
+        if (root.matches && root.matches('img[data-favicon-domain]')) images.unshift(root);
         const total = images.length;
         images.forEach(function (image) {
             const key = normalizeDomain(image.dataset?.faviconDomain || '');
@@ -178,7 +181,7 @@
             }
             if (queued >= maxFetch || seenMisses.has(key)) return;
             seenMisses.add(key);
-            if (queueFetch(key, size, 'refresh-rendered')) {
+            if (queueFetch(key, size, forceFetch ? 'forced-refresh' : 'refresh-rendered')) {
                 queued += 1;
             }
         });

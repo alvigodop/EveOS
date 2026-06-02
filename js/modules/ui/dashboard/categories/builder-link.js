@@ -4,7 +4,7 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
     const extraOptions = options || {};
     const renderContext = extraOptions._dashboardRenderContext || null;
     const perfMode = !!window._evePerfMode;
-    const megaPerfMode = !!window._eveMegaPerfMode;
+    const megaPerfMode = !!window._eveMegaPerfMode && !extraOptions.forceFaviconImages;
     const faviconUtils = window.EveFaviconUtils || null;
     const escapeAttr = (value) => String(value ?? '')
         .replace(/&/g, '&amp;')

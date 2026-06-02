@@ -103,38 +103,6 @@ window.DashboardCategories = window.DashboardCategories || {};
     api.applyCardPlaceholderSizing = applyCardPlaceholderSizing;
     api.captureRenderedCardHeight = captureRenderedCardHeight;
 
-    function adoptDeferredCardNode(targetCard, sourceCard) {
-        if (!targetCard || !sourceCard) return sourceCard || targetCard;
-
-        var preservedMinHeight = sourceCard.style.minHeight || targetCard.style.minHeight || '';
-        var preservedIntrinsicSize = sourceCard.style.containIntrinsicSize || targetCard.style.containIntrinsicSize || '';
-        var wasHeavyLayout = sourceCard.getAttribute('data-card-heavy-layout') === '1'
-            || targetCard.getAttribute('data-card-heavy-layout') === '1';
-
-        Array.from(targetCard.attributes || []).forEach(function (attr) {
-            targetCard.removeAttribute(attr.name);
-        });
-        Array.from(sourceCard.attributes || []).forEach(function (attr) {
-            targetCard.setAttribute(attr.name, attr.value);
-        });
-
-        targetCard.innerHTML = sourceCard.innerHTML;
-        targetCard.ondragover = sourceCard.ondragover || null;
-        targetCard.ondragenter = sourceCard.ondragenter || null;
-        targetCard.ondragleave = sourceCard.ondragleave || null;
-        targetCard.ondrop = sourceCard.ondrop || null;
-        targetCard.style.cssText = sourceCard.style.cssText || '';
-        targetCard.style.opacity = '1';
-        targetCard.style.transition = '';
-        if (preservedMinHeight) targetCard.style.minHeight = preservedMinHeight;
-        if (preservedIntrinsicSize) targetCard.style.containIntrinsicSize = preservedIntrinsicSize;
-        if (wasHeavyLayout) {
-            targetCard.style.contentVisibility = 'visible';
-            targetCard.setAttribute('data-card-heavy-layout', '1');
-        }
-        return targetCard;
-    }
-
     function renderCard(catInput, catLinks, gridContainer, configOptions) {
         var options = configOptions || {};
         var cat = typeof catInput === 'object' && catInput ? catInput.category : catInput;
@@ -297,9 +265,10 @@ window.DashboardCategories = window.DashboardCategories || {};
 
                 try {
                     var hydratedCatLinks = getResolvedCatLinks();
+                    var forceFaviconImages = cardLinkCount <= 120;
                     var phase1Options = isMega
-                        ? Object.assign({}, configOptions, { _skipGhosts: true, _skipFolderRestore: true })
-                        : Object.assign({}, configOptions, { _skipFolderRestore: true });
+                        ? Object.assign({}, configOptions, { _skipGhosts: true, _skipFolderRestore: true, _forceFaviconImages: forceFaviconImages })
+                        : Object.assign({}, configOptions, { _skipFolderRestore: true, _forceFaviconImages: forceFaviconImages });
                     var tempContainer = document.createDocumentFragment();
                     api._renderCardFull(cat, hydratedCatLinks, tempContainer, phase1Options);
                     var fullCard = tempContainer.firstChild;
@@ -321,8 +290,12 @@ window.DashboardCategories = window.DashboardCategories || {};
                         fullCard.style.contentVisibility = 'visible';
                         fullCard.setAttribute('data-card-heavy-layout', '1');
                     }
-                    fullCard = adoptDeferredCardNode(shellCard, fullCard);
+                    fullCard = api.adoptDeferredCardNode(shellCard, fullCard);
                     captureRenderedCardHeight(fullCard, cardWorkspaceId, cat);
+                    api.scheduleDeferredCardFaviconRefresh?.(fullCard, autoHydrate ? 'deferred-auto-hydration' : 'deferred-hover-hydration', {
+                        maxFetch: isMega ? 18 : 32,
+                        maxUpdate: isMega ? 160 : 240
+                    });
                     if (window.EveDashboardMasonryHelpers?.scheduleDashboardMasonryLayout) {
                         window.EveDashboardMasonryHelpers.scheduleDashboardMasonryLayout(fullCard.closest('#dashboard-grid'));
                     }
@@ -357,7 +330,7 @@ window.DashboardCategories = window.DashboardCategories || {};
 
                         try {
                             var ghostContainer = document.createDocumentFragment();
-                            var phase2Options = Object.assign({}, configOptions, { _skipGhosts: false, _skipFolderRestore: true });
+                            var phase2Options = Object.assign({}, configOptions, { _skipGhosts: false, _skipFolderRestore: true, _forceFaviconImages: cardLinkCount <= 120 });
                             api._renderCardFull(cat, getResolvedCatLinks(), ghostContainer, phase2Options);
                             var ghostCard = ghostContainer.firstChild;
                             if (ghostCard && fullCard.parentNode) {
@@ -374,8 +347,12 @@ window.DashboardCategories = window.DashboardCategories || {};
                                     ghostCard.style.contentVisibility = 'visible';
                                     ghostCard.setAttribute('data-card-heavy-layout', '1');
                                 }
-                                fullCard = adoptDeferredCardNode(fullCard, ghostCard);
+                                fullCard = api.adoptDeferredCardNode(fullCard, ghostCard);
                                 captureRenderedCardHeight(fullCard, cardWorkspaceId, cat);
+                                api.scheduleDeferredCardFaviconRefresh?.(fullCard, 'deferred-ghost-hydration', {
+                                    maxFetch: 12,
+                                    maxUpdate: 160
+                                });
                                 if (window.EveDashboardMasonryHelpers?.scheduleDashboardMasonryLayout) {
                                     window.EveDashboardMasonryHelpers.scheduleDashboardMasonryLayout(fullCard.closest('#dashboard-grid'));
                                 }

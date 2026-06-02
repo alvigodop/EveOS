@@ -123,7 +123,8 @@
                     customOrderWsId: activeWorkspaceId,
                     customOrderCategory: cat,
                     trueValueEnabled: trueValueEnabled,
-                    trueValueData: trueValueData
+                    trueValueData: trueValueData,
+                    forceFaviconImages: !!options._forceFaviconImages
                 });
             }).join('');
 

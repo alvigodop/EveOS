@@ -328,7 +328,8 @@
         if (!key || getCachedIcon(key) || isFailureCoolingDown(key) || window.EveFaviconCacheCore?.inFlight?.has(key) || queuedFetchKeys.has(key)) return false;
 
         const isWarmup = source === 'warmup';
-        if (!isWarmup) {
+        const isForcedRefresh = source === 'forced-refresh';
+        if (!isWarmup && !isForcedRefresh) {
             if (Date.now() - _renderMissFetchBudgetResetAt > 60000) {
                 _renderMissFetchBudget = RENDER_MISS_FETCH_BUDGET;
                 _renderMissFetchBudgetResetAt = Date.now();
