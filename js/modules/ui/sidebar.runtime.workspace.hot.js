@@ -9,8 +9,9 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
     function makeDragSafeBadge(text, title, nativeDragEnabled, startWorkspaceDrag, endWorkspaceDrag) {
         var badge = document.createElement('span');
         badge.className = 'ws-summary-chip ws-summary-chip--frequent';
-        badge.textContent = text;
+        badge.textContent = text || '';
         badge.title = title;
+        badge.setAttribute('aria-label', title);
         badge.setAttribute('draggable', nativeDragEnabled ? 'true' : 'false');
         badge.draggable = nativeDragEnabled;
         badge.ondragstart = function (e) {
@@ -27,7 +28,7 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
         if (!isFrequentWorkspace(ws)) return false;
         item.classList.add('ws-frequent');
         item.appendChild(makeDragSafeBadge(
-            'hot',
+            '',
             'Frequent tab: EveOS may auto-load remembered cards here.',
             nativeDragEnabled,
             startWorkspaceDrag,

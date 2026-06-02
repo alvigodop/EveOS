@@ -196,6 +196,22 @@ function saveSettingsReducedMotion() {
     saveConfig();
 }
 
+function saveSettingsHydrationMarkerVisibility() {
+    if (!config.dashboardHydrationMemory || typeof config.dashboardHydrationMemory !== 'object') {
+        config.dashboardHydrationMemory = {};
+    }
+    config.dashboardHydrationMemory.showCardMarkers = !!document.getElementById('hydrationCardMarkersToggle')?.checked;
+    config.dashboardHydrationMemory.showBookmarkMarkers = !!document.getElementById('hydrationBookmarkMarkersToggle')?.checked;
+    if (window.EveDashboardHydrationMemory?.setMarkerVisibility) {
+        window.EveDashboardHydrationMemory.setMarkerVisibility('card', config.dashboardHydrationMemory.showCardMarkers, { skipSave: true });
+        window.EveDashboardHydrationMemory.setMarkerVisibility('bookmark', config.dashboardHydrationMemory.showBookmarkMarkers, { skipSave: true });
+    } else {
+        document.body.classList.toggle('show-hydration-card-markers', config.dashboardHydrationMemory.showCardMarkers);
+        document.body.classList.toggle('show-hydration-bookmark-markers', config.dashboardHydrationMemory.showBookmarkMarkers);
+    }
+    saveConfig();
+}
+
 function saveSettingsTimerDuration() {
     const minutes = Number(document.getElementById('timerDurationMinutes')?.value) || 25;
     const clamped = Math.max(1, Math.min(180, Math.round(minutes)));
@@ -300,6 +316,14 @@ function populateNewSettingsInputs() {
     const reducedMotionCb = document.getElementById('reducedMotionToggle');
     if (reducedMotionCb) reducedMotionCb.checked = !!config.reducedMotion;
     document.body.classList.toggle('reduced-motion', !!config.reducedMotion);
+
+    const hydrationMemory = config.dashboardHydrationMemory && typeof config.dashboardHydrationMemory === 'object'
+        ? config.dashboardHydrationMemory
+        : {};
+    const cardMarkerCb = document.getElementById('hydrationCardMarkersToggle');
+    if (cardMarkerCb) cardMarkerCb.checked = hydrationMemory.showCardMarkers === true;
+    const bookmarkMarkerCb = document.getElementById('hydrationBookmarkMarkersToggle');
+    if (bookmarkMarkerCb) bookmarkMarkerCb.checked = hydrationMemory.showBookmarkMarkers === true;
 
     const confirmSweepCb = document.getElementById('confirmBeforeSweepToggle');
     if (confirmSweepCb) confirmSweepCb.checked = config.confirmBeforeSweep !== false; // default on

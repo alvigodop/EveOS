@@ -55,24 +55,29 @@ html[data-native-scheme="light"] {
     min-height: 84px;
 }
 
-.category-card[data-card-auto-hydrate="1"] {
+body.show-hydration-card-markers .category-card[data-card-auto-hydrate="1"] {
     border-color: rgba(255, 205, 96, 0.28);
 }
 
-.category-card[data-card-auto-hydrate="1"]::after {
-    content: "frequent";
+body.show-hydration-card-markers .category-card[data-card-auto-hydrate="1"]::after {
+    content: "";
     position: absolute;
     top: 10px;
     right: 12px;
-    padding: 2px 7px;
+    width: 9px;
+    height: 9px;
+    padding: 0;
     border-radius: 999px;
-    font-size: 0.58rem;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
     color: rgba(255, 232, 178, 0.9);
     background: rgba(255, 205, 96, 0.11);
     border: 1px solid rgba(255, 205, 96, 0.22);
+    box-shadow: 0 0 10px rgba(255, 205, 96, 0.2);
     pointer-events: none;
+}
+
+body:not(.show-hydration-bookmark-markers) .bookmark-hydration-marker,
+body:not(.show-hydration-bookmark-markers) [data-bookmark-hydration-marker="1"] {
+    display: none !important;
 }
 
 #dashboard-grid:not(.masonry-layout) .category-card {

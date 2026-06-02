@@ -18,6 +18,8 @@ window.EveDashboardHydrationMemory = window.EveDashboardHydrationMemory || {};
         autoHydrateCardLimit: 4,
         autoHydrateBookmarkBudget: 820,
         maxAutoHydrateLinksPerCard: 420,
+        showCardMarkers: false,
+        showBookmarkMarkers: false,
         workspaces: {},
         cards: {},
         recentWorkspaceVisits: [],
@@ -109,6 +111,8 @@ window.EveDashboardHydrationMemory = window.EveDashboardHydrationMemory || {};
         memory.autoHydrateCardLimit = clampNumber(memory.autoHydrateCardLimit, DEFAULTS.autoHydrateCardLimit, 1, 16);
         memory.autoHydrateBookmarkBudget = clampNumber(memory.autoHydrateBookmarkBudget, DEFAULTS.autoHydrateBookmarkBudget, 100, 3000);
         memory.maxAutoHydrateLinksPerCard = clampNumber(memory.maxAutoHydrateLinksPerCard, DEFAULTS.maxAutoHydrateLinksPerCard, 80, 1200);
+        memory.showCardMarkers = raw.showCardMarkers === true;
+        memory.showBookmarkMarkers = raw.showBookmarkMarkers === true;
         memory.recentWorkspaceVisits = boundedList(memory.recentWorkspaceVisits, memory.workspaceVisitWindowLimit)
             .map(function (entry) {
                 const dwellMs = Number(entry?.dwellMs || 0) || 0;
@@ -141,6 +145,7 @@ window.EveDashboardHydrationMemory = window.EveDashboardHydrationMemory || {};
         memory.cards = pruneMap(memory.cards, 320, 'score');
         reconcileStats(memory);
         cfg.dashboardHydrationMemory = memory;
+        ns.applyMarkerPreferences?.(memory);
         return memory;
     }
     function scheduleSave(source) {
@@ -401,6 +406,8 @@ window.EveDashboardHydrationMemory = window.EveDashboardHydrationMemory || {};
         return {
             enabled: memory.enabled,
             mode: memory.mode,
+            showCardMarkers: !!memory.showCardMarkers,
+            showBookmarkMarkers: !!memory.showBookmarkMarkers,
             recentWorkspaceVisits: memory.recentWorkspaceVisits.length,
             recentCardInteractions: memory.recentCardInteractions.length,
             hotWorkspaces,
@@ -428,23 +435,12 @@ window.EveDashboardHydrationMemory = window.EveDashboardHydrationMemory || {};
         recordWorkspaceVisit(cfg.activeWorkspace || 'main', { source: 'startup' });
     }
     window.addEventListener?.('eve:core-data-loaded', recordStartupVisit, { once: true });
-    window.setTimeout(function () {
-        if (window.__eveCoreDataLoaded) recordStartupVisit();
-    }, 0);
+    window.setTimeout(function () { if (window.__eveCoreDataLoaded) recordStartupVisit(); }, 0);
 
     Object.assign(ns, {
-        ensureMemory,
-        recordWorkspaceVisit,
-        recordCardInteraction,
-        flushActiveCardDwell,
-        noteAutoHydrated,
-        beginRender,
-        shouldAutoHydrateCard,
-        isWorkspaceFrequent,
-        isCardFrequent,
-        getDiagnostics,
-        clear,
-        buildCardKey: cardKey,
+        ensureMemory, recordWorkspaceVisit, recordCardInteraction, flushActiveCardDwell,
+        noteAutoHydrated, beginRender, shouldAutoHydrateCard, isWorkspaceFrequent,
+        isCardFrequent, scheduleSave, getDiagnostics, clear, buildCardKey: cardKey,
         ready: true
     });
 })();

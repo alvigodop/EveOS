@@ -135,12 +135,42 @@ async function runCase(seedMemory) {
             const autoCards = cards.filter(card => card.getAttribute('data-card-auto-hydrate') === '1');
             const onDemandCards = cards.filter(card => card.getAttribute('data-card-hydrate-on-demand') === '1');
             const hydratedMemoryCard = document.querySelector('.category-card[data-card-category="Memory Cat 1"]');
+            const firstAutoCard = autoCards[0] || null;
+            const defaultAfterContent = firstAutoCard
+                ? getComputedStyle(firstAutoCard, '::after').content
+                : '';
+            const markerDefaults = {
+                cardMarkerClass: document.body.classList.contains('show-hydration-card-markers'),
+                bookmarkMarkerClass: document.body.classList.contains('show-hydration-bookmark-markers'),
+                defaultAfterContent
+            };
+            let settingsToggleResult = null;
+            if (typeof window.openSettings === 'function' && typeof window.saveSettingsHydrationMarkerVisibility === 'function') {
+                window.openSettings();
+                const cardToggle = document.getElementById('hydrationCardMarkersToggle');
+                const bookmarkToggle = document.getElementById('hydrationBookmarkMarkersToggle');
+                settingsToggleResult = {
+                    cardDefaultChecked: !!cardToggle?.checked,
+                    bookmarkDefaultChecked: !!bookmarkToggle?.checked
+                };
+                if (cardToggle) cardToggle.checked = true;
+                if (bookmarkToggle) bookmarkToggle.checked = true;
+                window.saveSettingsHydrationMarkerVisibility();
+                const liveConfig = window.eveState?.config || window.config || {};
+                settingsToggleResult.cardClassAfterEnable = document.body.classList.contains('show-hydration-card-markers');
+                settingsToggleResult.bookmarkClassAfterEnable = document.body.classList.contains('show-hydration-bookmark-markers');
+                settingsToggleResult.cardConfigAfterEnable = liveConfig.dashboardHydrationMemory?.showCardMarkers === true;
+                settingsToggleResult.bookmarkConfigAfterEnable = liveConfig.dashboardHydrationMemory?.showBookmarkMarkers === true;
+                if (typeof window.closeModals === 'function') window.closeModals();
+            }
             return {
                 cards: cards.length,
                 autoCount: autoCards.length,
                 onDemandCount: onDemandCards.length,
                 hydratedMemoryLinks: hydratedMemoryCard ? hydratedMemoryCard.querySelectorAll('[data-link-id]').length : 0,
                 memoryDiagnostics: window.EveDashboardHydrationMemory?.getDiagnostics?.() || null,
+                markerDefaults,
+                settingsToggleResult,
                 warnings: []
             };
         });
@@ -157,6 +187,19 @@ async function runCase(seedMemory) {
     }
     if (!hot.memoryDiagnostics?.hotWorkspaces?.length || !hot.memoryDiagnostics?.hotCards?.length) {
         throw new Error(`Expected hydration diagnostics to expose hot places: ${JSON.stringify(hot.memoryDiagnostics)}`);
+    }
+    if (hot.markerDefaults?.cardMarkerClass || hot.markerDefaults?.bookmarkMarkerClass || hot.markerDefaults?.defaultAfterContent !== 'none') {
+        throw new Error(`Expected adaptive hydration markers to default hidden: ${JSON.stringify(hot.markerDefaults)}`);
+    }
+    if (hot.settingsToggleResult && (
+        hot.settingsToggleResult.cardDefaultChecked
+        || hot.settingsToggleResult.bookmarkDefaultChecked
+        || !hot.settingsToggleResult.cardClassAfterEnable
+        || !hot.settingsToggleResult.bookmarkClassAfterEnable
+        || !hot.settingsToggleResult.cardConfigAfterEnable
+        || !hot.settingsToggleResult.bookmarkConfigAfterEnable
+    )) {
+        throw new Error(`Expected marker settings toggles to default off and enable marker classes: ${JSON.stringify(hot.settingsToggleResult)}`);
     }
     const stale = await runCase('stale');
 

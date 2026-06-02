@@ -219,7 +219,7 @@ window.DashboardCategories = window.DashboardCategories || {};
                         ? '<span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:rgba(80,200,255,0.55);"></span>'
                         : '<span class="eve-skeleton-spinner" style="display:inline-block; width:14px; height:14px; border:2px solid rgba(80,200,255,0.15); border-top-color:rgba(80,200,255,0.5); border-radius:50%; animation:spin 0.8s linear infinite;"></span>')
                     + (autoHydrate
-                        ? 'Auto-loading frequent place (' + cardLinkCount + ' bookmarks)'
+                        ? 'Auto-loading remembered card (' + cardLinkCount + ' bookmarks)'
                         : hydrateOnDemand
                         ? 'Ready - hover to load ' + cardLinkCount + ' bookmarks'
                         : 'Loading ' + cardLinkCount + ' bookmarks...');

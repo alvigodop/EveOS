@@ -3,9 +3,9 @@ window.EveModuleManifestParts = window.EveModuleManifestParts || {};
 window.EveModuleManifestParts.styles = [
         // UI Modules
         'css/v1_folder.css?v=0.3.1',
-        'js/modules/ui/sidebar.css?v=0.3.10',
+        'js/modules/ui/sidebar.css?v=0.3.11',
         'js/modules/ui/tab-nav-history.css?v=0.4.7',
-        'js/modules/ui/dashboard/dashboard.css?v=0.2.19',
+        'js/modules/ui/dashboard/dashboard.css?v=0.2.20',
         'js/modules/ui/dashboard/unidex-view.css?v=0.2.40',
         'js/modules/ui/dashboard/unidex-view.base.css?v=0.2.6',
         'js/modules/ui/dashboard/unidex-view.entries.css?v=0.2.17',

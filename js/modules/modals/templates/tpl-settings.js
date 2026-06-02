@@ -45,6 +45,16 @@ window.modalTemplate += `
                                 style="width:20px; height:20px;">
                             <span>Reduce Motion</span>
                         </label>
+                        <label style="display:flex; gap:10px; align-items:center;" title="Show the small adaptive hydration marker on cards EveOS auto-loads from usage memory">
+                            <input type="checkbox" id="hydrationCardMarkersToggle" onchange="saveSettingsHydrationMarkerVisibility()"
+                                style="width:20px; height:20px;">
+                            <span>Show Frequent Card Markers</span>
+                        </label>
+                        <label style="display:flex; gap:10px; align-items:center;" title="Show bookmark-level adaptive hydration markers when a view supports them">
+                            <input type="checkbox" id="hydrationBookmarkMarkersToggle" onchange="saveSettingsHydrationMarkerVisibility()"
+                                style="width:20px; height:20px;">
+                            <span>Show Frequent Bookmark Markers</span>
+                        </label>
                     </div>
 
                     <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px; margin-top:12px;">

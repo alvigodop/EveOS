@@ -72,6 +72,8 @@ let config = {
         autoHydrateCardLimit: 4,
         autoHydrateBookmarkBudget: 820,
         maxAutoHydrateLinksPerCard: 420,
+        showCardMarkers: false,
+        showBookmarkMarkers: false,
         workspaces: {},
         cards: {},
         recentWorkspaceVisits: [],
