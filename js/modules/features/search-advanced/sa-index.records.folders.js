@@ -94,6 +94,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             function visit(folderNode, parentFolderId) {
                 const folderId = text(folderNode?.id, '');
                 if (!folderId || visitedFolderIds.has(folderId)) return;
+                if (folderNode?.isGhost) return;
                 visitedFolderIds.add(folderId);
 
                 const folderIssue = folderIssuesById.get(folderId) || { issueTypes: [], reasons: [] };

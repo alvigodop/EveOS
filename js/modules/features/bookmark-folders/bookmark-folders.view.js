@@ -82,6 +82,68 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
 
 
 
+    function buildViewNodeMap(nodes) {
+
+        const normalizedMap = buildNodeMap(nodes);
+
+        const rawById = new Map();
+
+        (Array.isArray(nodes) ? nodes : []).forEach((node) => {
+
+            const id = normalizeFolderId(node?.id);
+
+            if (id && !rawById.has(id)) rawById.set(id, node);
+
+        });
+
+        const map = new Map();
+
+        normalizedMap.forEach((node, id) => {
+
+            map.set(id, Object.assign({}, rawById.get(id) || {}, node));
+
+        });
+
+        return map;
+
+    }
+
+
+
+    function buildViewChildrenMap(nodes) {
+
+        const map = new Map();
+
+        buildViewNodeMap(nodes).forEach((node) => {
+
+            const parentId = normalizeFolderId(node?.parentId) || null;
+
+            if (!map.has(parentId)) map.set(parentId, []);
+
+            map.get(parentId).push(node);
+
+        });
+
+        map.forEach((siblings) => {
+
+            siblings.sort((a, b) => {
+
+                const orderDiff = (Number(a?.order) || 0) - (Number(b?.order) || 0);
+
+                if (orderDiff !== 0) return orderDiff;
+
+                return String(a?.name || '').localeCompare(String(b?.name || ''), undefined, { sensitivity: 'base' });
+
+            });
+
+        });
+
+        return map;
+
+    }
+
+
+
     function buildFolderView(workspaceId, categoryName, cardLinks, options) {
 
         let scopedNodes = getScopedNodes(workspaceId, categoryName);
@@ -115,7 +177,17 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         var ghostFolders;
         if (options && options.skipGhosts) {
             activeLinks = Array.isArray(cardLinks) ? cardLinks : [];
-            ghostFolders = [];
+            ghostFolders = [{
+                id: '__ghost_master__',
+                name: '[ System Views ]',
+                parentId: activeRealFolderId || null,
+                isGhost: true,
+                isMasterGhost: true,
+                isGhostPlaceholder: true,
+                _ghostLinks: [],
+                _ghostScopeRootId: activeRealFolderId || null
+            }];
+            scopedNodes = [...ghostFolders, ...scopedNodes];
         } else {
 
             const ghostScope = buildGhostAugmentedScope({
@@ -150,9 +222,9 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
 
 
 
-        const nodeMap = buildNodeMap(scopedNodes);
+        const nodeMap = buildViewNodeMap(scopedNodes);
 
-        const childrenMap = buildChildrenMap(scopedNodes);
+        const childrenMap = buildViewChildrenMap(scopedNodes);
 
         const folderLinks = new Map();
 

@@ -8,6 +8,10 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     if (!shared || !local) return;
     const { INDEX_VERSION, LOCAL_TYPES, now, text, normalizeText, toArray, readConfig, readLinks, getWorkspaceGroupMeta, deriveBaseHealth } = shared;
     const { buildCategoryMap, buildCardRecords, buildBookmarkRecords, buildFolderRecords, buildSmartViewRecords, buildLibraryRecords } = local;
+    const chunking = ns.IndexRecordChunking?.create
+        ? ns.IndexRecordChunking.create({ shared, local })
+        : null;
+    const buildLocalRecordBundleChunked = chunking?.buildLocalRecordBundleChunked || async function () { return buildLocalRecordBundle(); };
     function buildCategoryScopeMap(categoryMap) {
         const groupedByCategory = new Map();
         Array.from(categoryMap.values()).forEach(function (entry) {
@@ -86,6 +90,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             records: records
         };
     }
+
     function normalizeScopeKey(workspaceId, categoryName) {
         return text(workspaceId, 'main') + '::' + text(categoryName, 'Unsorted');
     }
@@ -409,7 +414,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         return records;
     }
     async function buildSnapshot(reason) {
-        const localBundle = buildLocalRecordBundle();
+        const localBundle = await buildLocalRecordBundleChunked();
         const sourceBundle = await buildSourceRecordBundle(localBundle.categoryMap);
         const records = []
             .concat(localBundle.records)
@@ -426,6 +431,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         buildCachedRecords,
         buildKnowledgeRecords,
         buildLocalRecordBundle,
+        buildLocalRecordBundleChunked,
         buildScopedLocalRecordBundle,
         buildSourceRecordBundle,
         buildSnapshotStats,

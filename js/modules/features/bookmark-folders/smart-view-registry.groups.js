@@ -4,6 +4,7 @@
     const h = api._shared || {};
     const {
         text,
+        domainFromUrl,
         bucketize,
         getIdentifierIds,
         getRelatedUrlEntries,
