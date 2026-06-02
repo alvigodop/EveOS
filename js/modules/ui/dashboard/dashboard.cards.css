@@ -1,4 +1,4 @@
 /* Dashboard Cards CSS Facade */
-@import url('./dashboard.cards.base.css?v=0.1.1');
+@import url('./dashboard.cards.base.css?v=0.1.2');
 @import url('./dashboard.cards.routes.css');
 @import url('./dashboard.cards.interactions.css');

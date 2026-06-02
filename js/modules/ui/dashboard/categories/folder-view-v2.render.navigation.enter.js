@@ -18,6 +18,9 @@
 
         const resolvedCategoryName = String(categoryName || '').trim();
         const resolvedWorkspaceId = String(workspaceId || '').trim();
+        if (window.EveDashboardHydrationMemory?.recordCardInteraction) {
+            window.EveDashboardHydrationMemory.recordCardInteraction(resolvedWorkspaceId, resolvedCategoryName, 'folder');
+        }
         if (typeof window.cancelPendingDashboardRender === 'function') {
             window.cancelPendingDashboardRender();
         }

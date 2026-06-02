@@ -214,10 +214,14 @@ function toggleSublinksCollapse(folderId, workspaceId) {
 
 function setFocus(cat) {
     focusCategory = cat;
+    if (window.EveDashboardHydrationMemory?.recordCardInteraction) {
+        window.EveDashboardHydrationMemory.recordCardInteraction(config.activeWorkspace || 'main', cat, 'focus');
+    }
     if (typeof renderDashboard === 'function') renderDashboard();
 }
 
 function clearFocus() {
+    window.EveDashboardHydrationMemory?.flushActiveCardDwell?.('dashboard-hydration-memory-focus-dwell');
     focusCategory = null;
     if (typeof renderDashboard === 'function') renderDashboard();
 }

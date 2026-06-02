@@ -79,6 +79,11 @@
         const modal = ensureModalAvailable();
         const link = findLinkById(linkId);
         if (!modal || !link) return false;
+        if (window.EveDashboardHydrationMemory?.recordCardInteraction) {
+            const activeWs = window.eveState?.config?.activeWorkspace
+                || (typeof config !== 'undefined' ? config.activeWorkspace : 'main');
+            window.EveDashboardHydrationMemory.recordCardInteraction(link.workspace || activeWs || 'main', link.category || 'Unsorted', 'open');
+        }
 
         const focusId = document.getElementById('bookmarkFocusId');
         if (focusId) focusId.value = toId(link.id);

@@ -63,6 +63,12 @@ function switchWorkspace(id, options = {}) {
     if (wasInGroupOverview) config.groupOverviewId = '';
 
     config.activeWorkspace = nextWorkspaceId;
+    if (window.EveDashboardHydrationMemory?.recordWorkspaceVisit) {
+        window.EveDashboardHydrationMemory.recordWorkspaceVisit(nextWorkspaceId, {
+            source: 'switchWorkspace',
+            name: nextWorkspace?.name || nextWorkspaceId
+        });
+    }
 
     // --- AUTO-EXPAND SIDEBAR PATH ---
     // Ensure all ancestors are expanded so the new active tab is visible in the hierarchy

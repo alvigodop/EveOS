@@ -46,6 +46,7 @@
         var isGroupOverviewActive = !!String(config.groupOverviewId || '').trim();
         var isWorkspaceActive = config.viewMode !== 'unidex' && config.activeWorkspace === ws.id && !isGroupOverviewActive;
         var isInactive = ctx.isWorkspaceEffectivelyInactive(ws);
+        var isFrequentWorkspace = !!rt.isFrequentWorkspace?.(ws);
         var nativeWorkspaceDragEnabled = false;
         if (isInactive && !ctx.shouldShowInactiveTabs() && !renderOptions.renderInactive) return;
         var wrapper = document.createElement('div');
@@ -158,6 +159,7 @@
         item.className = 'ws-item ' + (isWorkspaceActive ? 'active' : '');
         if (currentDepth > 0) item.classList.add('ws-sub-item');
         if (isInactive) item.classList.add('ws-inactive');
+        if (isFrequentWorkspace) item.classList.add('ws-frequent');
         if (renderOptions.groupPreview && currentDepth === renderOptions.groupPreviewBaseDepth) {
             item.classList.add('ws-group-member-item');
             item.style.setProperty('--ws-group-color', renderOptions.groupColor || '#00d4ff');
@@ -353,6 +355,7 @@
             }
             item.appendChild(summary);
         }
+        rt.appendFrequentWorkspaceBadge?.(item, ws, nativeWorkspaceDragEnabled, startWorkspaceDrag, endWorkspaceDrag);
         if (ws.hiddenInParent && currentDepth > 0) {
             item.classList.add('ws-hidden-in-parent');
             var hiddenBadge = document.createElement('span');

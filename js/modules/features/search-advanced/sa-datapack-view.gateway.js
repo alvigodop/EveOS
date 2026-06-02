@@ -20,7 +20,8 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         buildLinkedSourceRef,
         getCategoryNamesForWorkspace,
         buildCardSummary,
-        buildScopedKey
+        buildScopedKey,
+        resolveCurrentScope
     } = shared;
 
     function buildGatewayState(scopeInput) {

@@ -185,6 +185,18 @@
     border-color: rgba(255, 166, 0, 0.24);
 }
 
+.ws-summary-chip--frequent {
+    color: #ffe9b0;
+    background: rgba(255, 205, 96, 0.13);
+    border-color: rgba(255, 205, 96, 0.28);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.ws-item.ws-frequent .ws-icon {
+    filter: drop-shadow(0 0 6px rgba(255, 205, 96, 0.26));
+}
+
 #sidebar.is-expanded .ws-item {
     width: var(--ws-expanded-row-width);
     max-width: var(--ws-expanded-row-width);

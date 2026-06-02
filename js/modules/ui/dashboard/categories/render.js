@@ -142,6 +142,17 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
     }
     var renderCount = 0;
     var deferredCards = [];
+    var hydrationMemory = window.EveDashboardHydrationMemory || null;
+    if (hydrationMemory && typeof hydrationMemory.beginRender === 'function') {
+        hydrationMemory.beginRender({
+            renderGen,
+            workspaceId: activeWorkspace,
+            totalLinks: totalLiveLinksForRender,
+            visibleLinks: visibleLinks.length,
+            categoryCount,
+            hint: renderHint || null
+        });
+    }
 
     // Extract only needed config props instead of spreading the entire config per card
     var sharedBuildConfig = {
@@ -279,6 +290,40 @@ window.renderCategories = function (visibleLinks, gridContainer, focusCategory, 
                 : (isCrossWorkspaceSwitchRender
                     ? Math.min(420, 90 + (renderCount * 35))
                     : Math.min(1200, 160 + (renderCount * 70)));
+            var wouldHydrateOnDemand = !!buildConfig._deferredHydrateOnDemand
+                || (!!buildConfig._forceDeferredShell
+                    && !buildConfig.focusMode
+                    && !buildConfig.searchStr
+                    && totalLiveLinksForRender > 1500);
+            if (wouldHydrateOnDemand
+                && hydrationMemory
+                && typeof hydrationMemory.shouldAutoHydrateCard === 'function') {
+                var hydrationDecision = hydrationMemory.shouldAutoHydrateCard({
+                    renderGen,
+                    workspaceId: desc.catWsId,
+                    categoryName: desc.cat,
+                    activeWorkspaceId: activeWorkspace,
+                    linkCount: desc.catLinkCount,
+                    totalLinks: totalLiveLinksForRender,
+                    visibleLinks: visibleLinks.length,
+                    categoryCount,
+                    renderOrdinal: renderCount,
+                    wouldHydrateOnDemand,
+                    isStartupRender,
+                    isCrossWorkspaceSwitchRender,
+                    isBulkSelectionRender,
+                    searchStr,
+                    focusMode: !!focusCategory
+                });
+                if (hydrationDecision?.autoHydrate) {
+                    buildConfig._deferredAutoHydrate = true;
+                    buildConfig._deferredAutoHydrateReason = hydrationDecision.reason;
+                    buildConfig._deferredHydrationDelayMs = Math.max(
+                        Number(buildConfig._deferredHydrationDelayMs || 0),
+                        620 + (Number(hydrationDecision.linkCount || 0) > 240 ? 180 : 0) + (renderCount * 90)
+                    );
+                }
+            }
         }
         if (desc.canUseLazyDeferredLinks) {
             buildConfig._deferredLinkCount = desc.catLinkCount;

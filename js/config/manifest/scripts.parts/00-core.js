@@ -4,7 +4,7 @@ window.EveModuleManifestScriptChunks = window.EveModuleManifestScriptChunks || [
 
 window.EveModuleManifestScriptChunks.push([
     // Core Modules (Ordered by Dependency)
-    "js/modules/core/state.js?v=0.2.10",
+    "js/modules/core/state.js?v=0.2.12",
     "js/modules/core/workspace-helpers.js?v=0.1.2",
     "js/modules/core/category-order.js?v=0.1.1",
     "js/modules/core/utils.js?v=0.2.1",
@@ -184,7 +184,8 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/quick-pins/quick-pins.main.activation.js?v=0.1.3",
     "js/modules/features/quick-pins/quick-pins.main.collection.js?v=0.1.1",
     "js/modules/features/quick-pins/quick-pins.main.js?v=0.4.1",
-    "js/modules/core/actions.js?v=0.2.8",
+    "js/modules/features/dashboard-hydration-memory/dashboard-hydration-memory.js?v=0.1.1",
+    "js/modules/core/actions.js?v=0.2.9",
     "js/modules/ui/tab-nav-history.shared.core.js?v=0.1.0",
     "js/modules/ui/tab-nav-history.shared.actions.js?v=0.1.0",
     "js/modules/ui/tab-nav-history.shared.search.js?v=0.1.0",
@@ -194,6 +195,6 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/ui/tab-nav-history.js?v=0.4.6",
     "js/modules/core/categories.shared.js?v=0.1.0",
     "js/modules/core/categories.move.js?v=0.1.1",
-    "js/modules/core/categories.ui.js?v=0.1.0",
+    "js/modules/core/categories.ui.js?v=0.1.1",
     "js/modules/core/categories.js?v=0.2.0"
 ]);

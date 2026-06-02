@@ -23,13 +23,10 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     function getConfig() {
         return window.eveState?.config || (typeof config !== 'undefined' ? config : {});
     }
-    function getWorkspaces() {
-        return getConfig().workspaces || [];
-    }
     function collectOverview() {
         const links = getAllLinks();
         const cfg = getConfig();
-        const workspaces = getWorkspaces();
+        const workspaces = cfg.workspaces || [];
         const helpers = window.EveWorkspaceHelpers;
         const allWsIds = helpers?.flattenIds
             ? new Set(helpers.flattenIds(workspaces))
@@ -71,6 +68,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         const faviconStats = window.EveFaviconCache?.getStats?.() || {};
         const deferredState = window.__EVE_DEFERRED_SCRIPT_STATE || {};
         const geminiState = window.__GEMINI_BOOT_STATE || {};
+        const hydrationMemory = window.EveDashboardHydrationMemory?.getDiagnostics?.() || null;
         return {
             perfMode: !!window._evePerfMode,
             masonryDisabled: !!window._evePerfMode,
@@ -92,6 +90,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             recentOperations: Array.isArray(appPerf.recentOperations) ? appPerf.recentOperations : [],
             faviconFailureCooldowns: faviconStats.failureSize || 0,
             faviconQueuedFetches: faviconStats.queuedFetches || 0,
+            hydrationMemory,
             deferredScripts: {
                 loaded: Number(deferredState.loaded || 0),
                 total: Number(deferredState.total || 0),
@@ -274,6 +273,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         html += '<tr><td>Worst Long Task</td><td>' + perf.worstLongTaskMs.toFixed(1) + ' ms</td></tr>';
         html += '<tr><td>Worst Operation</td><td>' + escHtml(perf.worstOperationName) + ' (' + perf.worstOperationMs.toFixed(1) + ' ms)</td></tr>';
         html += '<tr><td>Favicon Queue / Cooldowns</td><td>' + perf.faviconQueuedFetches + ' / ' + perf.faviconFailureCooldowns + '</td></tr>';
+        html += ns.DebugHydrationMemory?.renderPerfRows?.(perf.hydrationMemory, escHtml) || '';
         if (perf.deferredScripts.total > 0) {
             html += '<tr><td>Deferred Loader</td><td>' + perf.deferredScripts.loaded + '/' + perf.deferredScripts.total
                 + ' Â· batch ' + perf.deferredScripts.batchSize
@@ -294,6 +294,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             }));
             html += '</div>';
         }
+        html += ns.DebugHydrationMemory?.renderFrequentPlaces?.(perf.hydrationMemory, renderMiniList, escHtml) || '';
         html += ns.DebugDrilldowns?.renderPerformanceHints?.(perf, overview) || '';
         html += '<div class="nx-debug-section"><div class="nx-debug-section-title">DATAPACK SPINE</div>';
         if (spine.integrity) {

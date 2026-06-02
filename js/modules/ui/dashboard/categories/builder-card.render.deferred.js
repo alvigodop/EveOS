@@ -161,11 +161,12 @@ window.DashboardCategories = window.DashboardCategories || {};
                 : (typeof getLiveLinks === 'function'
                     ? getLiveLinks().length
                     : (Array.isArray(window.links) ? window.links.length : 0));
-            var hydrateOnDemand = !!options._deferredHydrateOnDemand
+            var autoHydrate = !!options._deferredAutoHydrate;
+            var hydrateOnDemand = !autoHydrate && (!!options._deferredHydrateOnDemand
                 || (!!shouldForceDeferredShell
                     && !options.focusMode
                     && !options.searchStr
-                    && totalLiveLinksForCardRender > 1500);
+                    && totalLiveLinksForCardRender > 1500));
             var cardLinkCount = resolveDeferredLinkCount(catLinks, options);
         var cardWorkspaceId = typeof catInput === 'object' && catInput
             ? (catInput.workspaceId || options.activeWorkspace || 'main')
@@ -189,6 +190,10 @@ window.DashboardCategories = window.DashboardCategories || {};
             shellCard.setAttribute('data-card-workspace', cardWorkspaceId);
             shellCard.setAttribute('data-card-deferred', '1');
             shellCard.setAttribute('data-card-hydrating', '1');
+            if (autoHydrate) {
+                shellCard.setAttribute('data-card-auto-hydrate', '1');
+                shellCard.setAttribute('data-card-auto-hydrate-reason', String(options._deferredAutoHydrateReason || 'frequent-place'));
+            }
             shellCard.style.minHeight = applyCardPlaceholderSizing(shellCard, cardWorkspaceId, cat, catLinks, options) + 'px';
             if (isDetachedParkingCard) {
                 shellCard.setAttribute('data-detached-parking-card', '1');
@@ -240,10 +245,14 @@ window.DashboardCategories = window.DashboardCategories || {};
             var skeletonLabel = shellCard.querySelector('.eve-card-deferred-skeleton > div');
             if (skeletonLabel) {
                 skeletonLabel.innerHTML = ''
-                    + (hydrateOnDemand
+                    + (autoHydrate
+                        ? '<span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:rgba(255,202,96,0.72); box-shadow:0 0 10px rgba(255,202,96,0.35);"></span>'
+                        : hydrateOnDemand
                         ? '<span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:rgba(80,200,255,0.55);"></span>'
                         : '<span class="eve-skeleton-spinner" style="display:inline-block; width:14px; height:14px; border:2px solid rgba(80,200,255,0.15); border-top-color:rgba(80,200,255,0.5); border-radius:50%; animation:spin 0.8s linear infinite;"></span>')
-                    + (hydrateOnDemand
+                    + (autoHydrate
+                        ? 'Auto-loading frequent place (' + cardLinkCount + ' bookmarks)'
+                        : hydrateOnDemand
                         ? 'Ready - hover to load ' + cardLinkCount + ' bookmarks'
                         : 'Loading ' + cardLinkCount + ' bookmarks...');
             }
@@ -282,6 +291,9 @@ window.DashboardCategories = window.DashboardCategories || {};
                 if (cardGen != null && window._eveDashRenderGen !== cardGen) return;
                 if (!shellCard.parentNode) return;
                 if (shellCard.classList.contains('collapsed')) return;
+                var hydrationStartMs = (window.performance && typeof window.performance.now === 'function')
+                    ? window.performance.now()
+                    : Date.now();
 
                 try {
                     var hydratedCatLinks = getResolvedCatLinks();
@@ -297,6 +309,10 @@ window.DashboardCategories = window.DashboardCategories || {};
                     }
 
                     fullCard.setAttribute('data-card-hydrating', '1');
+                    if (autoHydrate) {
+                        fullCard.setAttribute('data-card-auto-hydrate', '1');
+                        fullCard.setAttribute('data-card-auto-hydrate-reason', String(options._deferredAutoHydrateReason || 'frequent-place'));
+                    }
                     fullCard.style.minHeight = shellCard.style.minHeight || '';
                     fullCard.style.containIntrinsicSize = shellCard.style.containIntrinsicSize || '';
                     fullCard.style.opacity = '1';
@@ -309,6 +325,16 @@ window.DashboardCategories = window.DashboardCategories || {};
                     captureRenderedCardHeight(fullCard, cardWorkspaceId, cat);
                     if (window.EveDashboardMasonryHelpers?.scheduleDashboardMasonryLayout) {
                         window.EveDashboardMasonryHelpers.scheduleDashboardMasonryLayout(fullCard.closest('#dashboard-grid'));
+                    }
+                    if (autoHydrate && window.EveDashboardHydrationMemory?.noteAutoHydrated) {
+                        var hydrationDurationMs = ((window.performance && typeof window.performance.now === 'function')
+                            ? window.performance.now()
+                            : Date.now()) - hydrationStartMs;
+                        window.EveDashboardHydrationMemory.noteAutoHydrated(cardWorkspaceId, cat, {
+                            linkCount: cardLinkCount,
+                            durationMs: hydrationDurationMs,
+                            reason: options._deferredAutoHydrateReason || 'frequent-place'
+                        });
                     }
                     if (window.EveFolderViewV2 && window.EveFolderViewV2.restoreActiveFolderState) {
                         var workspaceId = fullCard.getAttribute('data-card-workspace') || cardWorkspaceId;
@@ -336,6 +362,10 @@ window.DashboardCategories = window.DashboardCategories || {};
                             var ghostCard = ghostContainer.firstChild;
                             if (ghostCard && fullCard.parentNode) {
                                 ghostCard.setAttribute('data-card-hydrating', '1');
+                                if (autoHydrate) {
+                                    ghostCard.setAttribute('data-card-auto-hydrate', '1');
+                                    ghostCard.setAttribute('data-card-auto-hydrate-reason', String(options._deferredAutoHydrateReason || 'frequent-place'));
+                                }
                                 ghostCard.style.minHeight = fullCard.style.minHeight || '';
                                 ghostCard.style.containIntrinsicSize = fullCard.style.containIntrinsicSize || '';
                                 ghostCard.style.opacity = '1';
@@ -400,6 +430,11 @@ window.DashboardCategories = window.DashboardCategories || {};
                 var triggerDemandHydration = function () {
                     if (hydrateStarted) return;
                     hydrateStarted = true;
+                    if (window.EveDashboardHydrationMemory?.recordCardInteraction) {
+                        window.EveDashboardHydrationMemory.recordCardInteraction(cardWorkspaceId, cat, 'hydrate', {
+                            linkCount: cardLinkCount
+                        });
+                    }
                     shellCard.setAttribute('data-card-hydrating', '1');
                     scheduleDeferredWork(doDeferredBuild, 0, 1600);
                 };
