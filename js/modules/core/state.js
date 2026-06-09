@@ -95,6 +95,7 @@ let config = {
     },
     activeWorkspace: "main",
     bookmarkFolderToolbarExpanded: [],
+    folderHatchCollapsed: {},
     cardHeaderButtonsVisible: {},
     cardBookmarkProgressiveReveal: {},
     scrollableCategories: false,

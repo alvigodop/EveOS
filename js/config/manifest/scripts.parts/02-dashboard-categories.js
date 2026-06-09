@@ -4,15 +4,15 @@ window.EveModuleManifestScriptChunks = window.EveModuleManifestScriptChunks || [
 
 window.EveModuleManifestScriptChunks.push([
     // Dashboard Categories Modules
-    "js/modules/ui/dashboard/categories/folder-view-v2.scope.shared.js?v=0.1.1",
+    "js/modules/ui/dashboard/categories/folder-view-v2.scope.shared.js?v=0.2.0",
     "js/modules/ui/dashboard/categories/folder-view-v2.scope.links.js?v=0.1.1",
     "js/modules/ui/dashboard/categories/folder-view-v2.scope.actions.js?v=0.1.0",
     "js/modules/ui/dashboard/categories/folder-view-v2.scope.js?v=0.3.0",
     "js/modules/ui/dashboard/categories/folder-view-v2.mode.js?v=0.1.1",
     "js/modules/ui/dashboard/categories/folder-view-v2.drag.js?v=0.1.0",
-    "js/modules/ui/dashboard/categories/folder-view-v2.render.root.js?v=0.1.4",
+    "js/modules/ui/dashboard/categories/folder-view-v2.render.root.js?v=0.1.5",
     "js/modules/ui/dashboard/categories/folder-view-v2.render.navigation.shared.js?v=0.1.0",
-    "js/modules/ui/dashboard/categories/folder-view-v2.render.navigation.enter.js?v=0.1.1",
+    "js/modules/ui/dashboard/categories/folder-view-v2.render.navigation.enter.js?v=0.1.2",
     "js/modules/ui/dashboard/categories/folder-view-v2.render.navigation.exit.js?v=0.1.0",
     "js/modules/ui/dashboard/categories/folder-view-v2.render.navigation.js?v=0.2.0",
     "js/modules/ui/dashboard/categories/folder-view-v2.render.js?v=0.3.0",

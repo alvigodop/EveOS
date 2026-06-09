@@ -10,14 +10,9 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
             event.stopPropagation();
         }
         const tile = event?.currentTarget?.closest?.('.folder-tile') || null;
-        const storageKey = `eve_folder_hatch_collapsed_${workspaceId}_${categoryName}_${folderId}`;
         const wasCollapsed = tile ? tile.classList.contains('hatch-collapsed') : true;
         const nextCollapsed = !wasCollapsed;
-        try {
-            localStorage.setItem(storageKey, String(nextCollapsed));
-        } catch (error) {
-            // Ignore storage errors in restricted contexts.
-        }
+        window.EveFolderViewV2.setFolderHatchCollapsed?.(workspaceId, categoryName, folderId, nextCollapsed);
         if (tile) tile.classList.toggle('hatch-collapsed', nextCollapsed);
         if (!nextCollapsed && tile && !tile.querySelector('.folder-tile-hatch-panel')) {
             // Collapsed hatches intentionally do not keep nested previews in the DOM.
@@ -203,8 +198,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
                     : `<div class="folder-tile-action-buttons"><button type="button" class="folder-tile-edit-btn bulk-scope-btn" data-scope-category="${escapeCardHtml(categoryName)}" data-scope-workspace="${escapeCardHtml(workspaceId)}" data-scope-folder-id="${escapeCardHtml(folder.id)}" title="Select Folder Subtree" onclick="event.preventDefault(); event.stopPropagation(); bulkToggleFolderScopeSelection('${escapeCardJs(categoryName)}', '${escapeCardJs(workspaceId)}', '${escapeCardJs(folder.id)}');">&#9744;</button><button type="button" class="folder-tile-edit-btn" title="Edit Folder" onclick="event.preventDefault(); event.stopPropagation(); if(typeof window.showFolderContextMenu === 'function') window.showFolderContextMenu(event, '${escapeCardJs(categoryName)}', '${escapeCardJs(folder.id)}', '${escapeCardJs(workspaceId)}');">&#9998;</button></div>`;
                 const subFolders = viewModel.childrenMap.get(folder.id) || [];
                 const folderLinks = viewModel.folderLinks.get(folder.id) || [];
-                const hatchStoredState = localStorage.getItem(`eve_folder_hatch_collapsed_${workspaceId}_${categoryName}_${folder.id}`);
-                const isHatchCollapsed = hatchStoredState === null ? true : hatchStoredState === 'true';
+                const isHatchCollapsed = window.EveFolderViewV2.isFolderHatchCollapsed?.(workspaceId, categoryName, folder.id) !== false;
                 const collapsedClass = isHatchCollapsed ? ' hatch-collapsed' : '';
                 const hasHatchContent = subFolders.length > 0 || folderLinks.length > 0;
                 const subFolderInlineHtml = subFolders.length > 0

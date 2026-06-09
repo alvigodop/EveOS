@@ -144,10 +144,39 @@ async function main() {
     assert(parentInitial.collapsed, `Parent hatch should default collapsed: ${JSON.stringify(parentInitial)}`);
     assert(parentInitial.inlineDisplay === 'none', `Inline subfolders should be hidden while collapsed: ${JSON.stringify(parentInitial)}`);
 
+    await page.evaluate(() => {
+      const nativeSetItem = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (key, value) {
+        if (String(key || '').startsWith('eve_folder_hatch_collapsed_')) {
+          const error = new Error('Simulated folder hatch storage quota');
+          error.name = 'QuotaExceededError';
+          throw error;
+        }
+        return nativeSetItem.call(this, key, value);
+      };
+    });
+
     await page.locator(`${cardSelector} .folder-tile[data-folder-id="folder-parent"] > .folder-tile-hatch-toggle`).click();
+    await page.waitForFunction((selector) => {
+      const tile = document.querySelector(`${selector} .folder-tile[data-folder-id="folder-parent"]`);
+      return !!tile && !tile.classList.contains('hatch-collapsed');
+    }, cardSelector, { timeout: 8000 });
     const parentExpanded = await getTileState(page, cardSelector, 'Parent Hatch');
     assert(parentExpanded.inlineCount === 1, `Parent inline child folder icon missing: ${JSON.stringify(parentExpanded)}`);
     assert(parentExpanded.inlineDisplay !== 'none', `Parent inline subfolders should show after toggle: ${JSON.stringify(parentExpanded)}`);
+
+    await page.evaluate(() => {
+      const link = window.eveState?.links?.find((item) => item?.id === 'parent-link');
+      if (link) link.title = 'Parent Cover Updated';
+      window.__eveDashboardRenderHint = { immediate: true, source: 'folder-hatch-card-update-smoke' };
+      window.renderDashboard();
+    });
+    await page.waitForFunction((selector) => {
+      const tile = document.querySelector(`${selector} .folder-tile[data-folder-id="folder-parent"]`);
+      return !!tile && !tile.classList.contains('hatch-collapsed');
+    }, cardSelector, { timeout: 8000 });
+    const parentAfterCardUpdate = await getTileState(page, cardSelector, 'Parent Hatch');
+    assert(parentAfterCardUpdate.inlineDisplay !== 'none', `Parent hatch state reset after card update: ${JSON.stringify(parentAfterCardUpdate)}`);
 
     await page.locator(`${cardSelector} .folder-tile[data-folder-id="folder-parent"] .hatch-subfolder-icon`).hover();
     await page.waitForSelector('.eve-folder-hover-card.is-visible.is-compact', { timeout: 5000 });
@@ -171,11 +200,29 @@ async function main() {
     assert(childInitial.collapsed, `Nested child hatch should default collapsed: ${JSON.stringify(childInitial)}`);
 
     await page.locator(`${cardSelector} .folder-tile[data-folder-id="folder-child"] > .folder-tile-hatch-toggle`).click();
+    await page.waitForFunction((selector) => {
+      const tile = document.querySelector(`${selector} .folder-tile[data-folder-id="folder-child"]`);
+      return !!tile && !tile.classList.contains('hatch-collapsed');
+    }, cardSelector, { timeout: 8000 });
     const childExpanded = await getTileState(page, cardSelector, 'Child Hatch');
     assert(childExpanded.inlineCount === 1, `Nested child inline grandchild missing: ${JSON.stringify(childExpanded)}`);
     assert(childExpanded.inlineDisplay !== 'none', `Nested child inline should show after toggle: ${JSON.stringify(childExpanded)}`);
 
-    console.log(`NESTED_FOLDER_HATCH_BROWSER_SMOKE_OK ${JSON.stringify({ parentInitial, parentExpanded, childInitial, childExpanded })}`);
+    await page.evaluate(() => {
+      window.EveFolderViewV2.enterFolder(null, 'Nested', 'folder-parent', 'main');
+    });
+    await page.waitForFunction((selector) => {
+      const tile = document.querySelector(`${selector} .folder-tile[data-folder-id="folder-child"]`);
+      return !!tile && !tile.classList.contains('hatch-collapsed');
+    }, cardSelector, { timeout: 8000 });
+    const childAfterFolderUpdate = await getTileState(page, cardSelector, 'Child Hatch');
+    assert(childAfterFolderUpdate.inlineDisplay !== 'none', `Nested hatch state reset after folder rerender: ${JSON.stringify(childAfterFolderUpdate)}`);
+
+    const configState = await page.evaluate(() => window.eveState?.config?.folderHatchCollapsed || {});
+    assert(configState['main::nested::folder-parent'] === false, `Parent hatch state was not retained in config: ${JSON.stringify(configState)}`);
+    assert(configState['main::nested::folder-child'] === false, `Child hatch state was not retained in config: ${JSON.stringify(configState)}`);
+
+    console.log(`NESTED_FOLDER_HATCH_BROWSER_SMOKE_OK ${JSON.stringify({ parentInitial, parentExpanded, parentAfterCardUpdate, childInitial, childExpanded, childAfterFolderUpdate })}`);
   } catch (error) {
     console.error(error && error.stack ? error.stack : String(error));
     console.error('--- SERVER STDOUT ---');

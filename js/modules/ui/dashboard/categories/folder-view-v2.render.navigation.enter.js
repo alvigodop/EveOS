@@ -297,8 +297,7 @@
                     : `<div class="folder-tile-action-buttons"><button type="button" class="folder-tile-edit-btn bulk-scope-btn" data-scope-category="${escapeCardHtml(resolvedCategoryName)}" data-scope-workspace="${escapeCardHtml(resolvedWorkspaceId)}" data-scope-folder-id="${escapeCardHtml(folder.id)}" title="Select Folder Subtree" onclick="event.preventDefault(); event.stopPropagation(); bulkToggleFolderScopeSelection('${escapeCardJs(resolvedCategoryName)}', '${escapeCardJs(resolvedWorkspaceId)}', '${escapeCardJs(folder.id)}');">&#9745;</button><button type="button" class="folder-tile-edit-btn" title="Edit Folder" onclick="event.preventDefault(); event.stopPropagation(); if(typeof window.showFolderContextMenu === 'function') window.showFolderContextMenu(event, '${escapeCardJs(resolvedCategoryName)}', '${escapeCardJs(folder.id)}', '${escapeCardJs(resolvedWorkspaceId)}');">&#9998;</button></div>`;
                 const childFolders = viewModel.childrenMap.get(folder.id) || [];
                 const folderLinksForHatch = viewModel.folderLinks.get(folder.id) || [];
-                const hatchStoredState = localStorage.getItem(`eve_folder_hatch_collapsed_${resolvedWorkspaceId}_${resolvedCategoryName}_${folder.id}`);
-                const isHatchCollapsed = hatchStoredState === null ? true : hatchStoredState === 'true';
+                const isHatchCollapsed = window.EveFolderViewV2.isFolderHatchCollapsed?.(resolvedWorkspaceId, resolvedCategoryName, folder.id) !== false;
                 const collapsedClass = isHatchCollapsed ? ' hatch-collapsed' : '';
                 const hasHatchContent = childFolders.length > 0 || folderLinksForHatch.length > 0;
                 const subFolderInlineHtml = childFolders.length > 0

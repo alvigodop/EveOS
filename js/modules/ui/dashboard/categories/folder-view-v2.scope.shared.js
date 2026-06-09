@@ -24,6 +24,79 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         return `${String(workspaceId || 'main').trim() || 'main'}::${String(categoryName || '').trim() || 'Unsorted'}`;
     }
 
+    function getLiveConfig() {
+        if (window.eveState?.config && typeof window.eveState.config === 'object') {
+            return window.eveState.config;
+        }
+        if (typeof config !== 'undefined' && config && typeof config === 'object') {
+            return config;
+        }
+        return null;
+    }
+
+    function buildFolderHatchStateKey(workspaceId, categoryName, folderId) {
+        return [
+            String(workspaceId || 'main').trim().toLowerCase() || 'main',
+            String(categoryName || 'Unsorted').trim().toLowerCase() || 'unsorted',
+            String(folderId || '').trim().toLowerCase()
+        ].join('::');
+    }
+
+    function buildLegacyFolderHatchStorageKey(workspaceId, categoryName, folderId) {
+        return `eve_folder_hatch_collapsed_${workspaceId}_${categoryName}_${folderId}`;
+    }
+
+    ns.isFolderHatchCollapsed = function (workspaceId, categoryName, folderId) {
+        const cfg = getLiveConfig();
+        const stateKey = buildFolderHatchStateKey(workspaceId, categoryName, folderId);
+        const states = cfg?.folderHatchCollapsed;
+        if (states && Object.prototype.hasOwnProperty.call(states, stateKey)) {
+            return states[stateKey] === true;
+        }
+
+        try {
+            const legacyValue = localStorage.getItem(buildLegacyFolderHatchStorageKey(workspaceId, categoryName, folderId));
+            if (legacyValue !== null) {
+                const collapsed = legacyValue === 'true';
+                if (cfg) {
+                    cfg.folderHatchCollapsed = cfg.folderHatchCollapsed || {};
+                    cfg.folderHatchCollapsed[stateKey] = collapsed;
+                }
+                return collapsed;
+            }
+        } catch (error) {
+            // Restricted or full storage must not reset the live UI state.
+        }
+        return true;
+    };
+
+    ns.setFolderHatchCollapsed = function (workspaceId, categoryName, folderId, collapsed) {
+        const nextCollapsed = collapsed === true;
+        const cfg = getLiveConfig();
+        const stateKey = buildFolderHatchStateKey(workspaceId, categoryName, folderId);
+        if (cfg) {
+            cfg.folderHatchCollapsed = cfg.folderHatchCollapsed || {};
+            cfg.folderHatchCollapsed[stateKey] = nextCollapsed;
+        }
+
+        try {
+            localStorage.setItem(
+                buildLegacyFolderHatchStorageKey(workspaceId, categoryName, folderId),
+                String(nextCollapsed)
+            );
+        } catch (error) {
+            // The config mirror remains authoritative when localStorage is unavailable.
+        }
+
+        if (typeof window.saveConfig === 'function') {
+            window.saveConfig({
+                source: 'folder-hatch-state',
+                meta: { skipEditHistory: true }
+            });
+        }
+        return nextCollapsed;
+    };
+
     function cloneGhostFilterChain(chain) {
         if (!Array.isArray(chain)) return null;
         const normalized = chain
@@ -113,6 +186,7 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         escapeCardHtml,
         escapeCardJs,
         buildScopedFolderViewKey,
+        buildFolderHatchStateKey,
         cloneGhostFilterChain,
         rerenderActiveFolderView
     });
