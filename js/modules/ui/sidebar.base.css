@@ -1,3 +1,3 @@
 /* Modularized wrapper. Keep import order stable. */
-@import url('./sidebar.base.core.css?v=0.1.1');
+@import url('./sidebar.base.core.css?v=0.1.2');
 @import url('./sidebar.base.groups.css');

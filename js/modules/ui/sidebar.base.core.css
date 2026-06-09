@@ -197,6 +197,19 @@
     font-size: 0;
 }
 
+#sidebar:not(.is-expanded) .ws-summary-chip--frequent {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    width: 7px;
+    height: 7px;
+    min-width: 7px;
+    margin: 0;
+    border-width: 1px;
+    box-shadow: 0 0 6px rgba(255, 205, 96, 0.22);
+    z-index: 2;
+}
+
 .ws-item.ws-frequent .ws-icon {
     filter: drop-shadow(0 0 6px rgba(255, 205, 96, 0.26));
 }
